@@ -47,7 +47,7 @@ Applies one lumped specific rate to the whole layer, optionally with a single ef
 
 A half life at or below zero is treated as infinite rather than as an error, which is what makes the constant-rate case fall out of the same formula. A half life that is finite but smaller than the module's floor is clamped to that floor, so no decay constant is ever divided by zero.
 
-Evaluating a model far before its reference time asks for an exponential that would overflow. The isotope model guards against this and returns NaN, so a bad epoch shows up as NaN heating rather than as a silently enormous number; the fixed model uses an unguarded exponential and returns infinity in the same situation.
+Evaluating a model far before its reference time asks for an exponential that would overflow. Both decaying models guard against this and return NaN, so a bad epoch shows up as NaN heating rather than as a silently enormous number.
 
 ## The isotope value type
 
@@ -237,7 +237,7 @@ Binary class ids 500 through 503 are reserved for this module.
 **C++ (`TidalPy/radiogenics_x/radiogenics_.hpp`)**
 
 1. Add any new parameters to `c_RadiogenicsConfig` with sensible defaults. The single combined config is shared by all models, and each reads only the fields it needs.
-2. Add a free function implementing the heating law, guarding any half-life denominator with `rad_guard`.
+2. Add a free function implementing the heating law, guarding any half-life denominator with `rad_guard` and any growth term with `c_safe_exp` or `c_safe_pow`, so an overflow returns NaN like the existing models.
 3. Add the model class deriving from `c_RadiogenicsBase`: a default constructor and one taking the config, `get_*` accessors, the `calc_heating` override, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers. Variable-length data is written directly after the header and model name, as `c_IsotopeRadiogenics` does.
 4. Add the enum value, the name and alias branch in `c_radiogenics_model_from_name`, and the cases in `c_find_radiogenics` and `c_radiogenics_from_binary`.
 

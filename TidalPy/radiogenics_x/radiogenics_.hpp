@@ -207,7 +207,8 @@ inline double rad_heating_isotope(
 }
 
 // Fixed: single lumped rate with optional exponential decay.
-// average_half_life <= 0 disables decay (constant heating rate).
+// average_half_life <= 0 disables decay (constant heating rate). The guarded exponential returns NaN (rather
+// than inf) if the requested time is so far before the reference time that the heating overflows.
 inline double rad_heating_fixed(
         double time,
         double mass,
@@ -218,7 +219,7 @@ inline double rad_heating_fixed(
         return mass * fixed_heat_production;
     }
     const double gamma = d_LN_HALF / rad_guard(average_half_life);
-    return mass * fixed_heat_production * std::exp(gamma * (time - ref_time));
+    return mass * fixed_heat_production * c_safe_exp(gamma * (time - ref_time));
 }
 
 // -------------------------------------------------------------------------------

@@ -155,6 +155,24 @@ def test_fixed_half_life_halves_heating():
     assert h_half == pytest.approx(0.5 * h0, rel=1e-12)
 
 
+@pytest.mark.parametrize("model_kind", ["fixed", "isotope"])
+def test_overflow_before_reference_time_is_nan(model_kind):
+    """Far before the reference time the decay exponential overflows; both decaying models return NaN, not inf."""
+    mod = _import_radiogenics()
+    half_life = 1.0          # [s] tiny, so a modest time offset overflows exp()
+    ref_time = 1.0e6         # [s]
+    if model_kind == "fixed":
+        model = mod.FixedRadiogenics(1.0e-11, half_life, ref_time)
+        one_shot = mod.fixed(0.0, _MASS, fixed_heat_production=1.0e-11,
+                             average_half_life=half_life, ref_time=ref_time)
+    else:
+        model = mod.IsotopeRadiogenics([1.0e-5], [half_life], [1.0], [1.0e-6], ref_time=ref_time)
+        one_shot = mod.isotope(0.0, _MASS, [1.0e-5], [half_life], [1.0], [1.0e-6], ref_time=ref_time)
+    assert math.isnan(model.calc_heating(0.0, _MASS))
+    assert math.isnan(one_shot)
+    assert np.all(np.isnan(model.calc_heating_vectorize_time(np.array([0.0, 1.0]), _MASS)))
+
+
 # =====================================================================================================================
 # Parameter getters
 # =====================================================================================================================

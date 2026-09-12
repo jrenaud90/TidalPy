@@ -491,9 +491,10 @@ def isotope_dataset(str name):
     Returns
     -------
     dict
-        Keys ``heat_production``, ``half_lives``, ``mass_fracs``,
+        Keys ``heat_production_w_kg`` [W/kg], ``half_lives_s`` [s], ``mass_fracs``,
         ``concentrations`` (lists), ``isotope_names`` (list of str), and
-        ``ref_time`` (float). All values are MKS.
+        ``ref_time_s`` [s] (float). All values are MKS, under the same keys that
+        ``make_radiogenics`` accepts.
 
     Raises
     ------
@@ -521,8 +522,8 @@ def _resolve_isotope_config(dict config):
     Handles the non-built-in cases (built-in datasets are resolved directly from
     the C++ catalog in ``make_radiogenics``):
 
-    1. Explicit MKS arrays via the keys ``heat_production``, ``half_lives``,
-       ``mass_fracs``, ``concentrations`` (and optional ``ref_time``, ``isotope_names``).
+    1. Explicit MKS arrays via the keys ``heat_production_w_kg``, ``half_lives_s``,
+       ``mass_fracs``, ``concentrations`` (and optional ``ref_time_s``, ``isotope_names``).
     2. A named global-config dataset or inline dict via the ``isotopes`` key. A
        string names a dataset under
        ``TidalPy.config['physics']['radiogenics']['known_isotope_data']``; a dict is
@@ -601,12 +602,13 @@ def make_radiogenics(str model_name, dict config=None):
         Model name or alias. Recognized names: ``off`` (``none``), ``isotope``
         (``isotopes``), ``fixed`` (``constant``).
     config : dict, optional
-        Model parameters. For ``isotope``: either explicit MKS arrays
-        (``heat_production``, ``half_lives``, ``mass_fracs``,
-        ``concentrations``, ``ref_time``) or a named/inline dataset via
-        ``isotopes`` (dataset half lives/reference times are in Myr and converted
-        to seconds). For ``fixed``: ``fixed_heat_production``,
-        ``average_half_life``, ``ref_time``.
+        Model parameters, under the unit-suffixed keys that ``get_config_dict()``
+        emits. For ``isotope``: either explicit MKS arrays
+        (``heat_production_w_kg``, ``half_lives_s``, ``mass_fracs``,
+        ``concentrations``, and optional ``isotope_names`` and ``ref_time_s``) or a
+        named/inline dataset via ``isotopes`` (dataset half lives/reference times are
+        in Myr and converted to seconds). For ``fixed``: ``fixed_heat_production_w_kg``,
+        ``average_half_life_s``, ``ref_time_s``.
 
     Returns
     -------

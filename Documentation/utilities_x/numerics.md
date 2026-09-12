@@ -31,4 +31,4 @@ The tradeoff is deliberate. Returning NaN loses the information that the true an
 
 ## Where these are used
 
-The viscosity models guard their Arrhenius exponentials, the partial-melt models guard their power laws, and the radiogenic isotope model guards its decay exponential. Each module's page notes where a NaN can appear and what it means there. See [Viscosity Models](../viscosity_x/viscosity_models.md), [Partial-Melt Models](../partial_melt_x/partial_melt_models.md), and [Radiogenic Models](../radiogenics_x/radiogenics_models.md).
+The viscosity models guard their Arrhenius exponentials, the partial-melt models guard their power laws, and both decaying radiogenics models guard their decay exponentials. Each module's page notes where a NaN can appear and what it means there. See [Viscosity Models](../viscosity_x/viscosity_models.md), [Partial-Melt Models](../partial_melt_x/partial_melt_models.md), and [Radiogenic Models](../radiogenics_x/radiogenics_models.md).
