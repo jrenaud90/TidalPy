@@ -7,6 +7,9 @@ removed and the new ones will drop their suffix. Nothing about the classic API c
 development on TidalPy will happen in the `_x` modules, other than bug fixes. We highly encourage new projects
 to start using the `_x` modules or make plans to switch.
 
+The 0.8.X series is the last to include the classic modules. It will continue to receive bug fixes, but no new features,
+until the end of 2026, and support for 0.8.X after 2026 is not guaranteed. Plan to finish porting before then.
+
 This page explains what is different, maps the classic modules to their replacements, and shows how to port common
 workflows.
 

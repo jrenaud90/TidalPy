@@ -7,11 +7,12 @@
 **TidalPy 0.8.0 is the first release to ship TidalPy's new C++ backend.** The new backend lives alongside the classic
 one in modules suffixed `_x` (`structures_x`, `RadialSolver_x`, `Tides_x`, `rheology_x`, `Material_x`, ...). In version
 0.9.0 (a future release) the new backend will become TidalPy's *only* backend: the classic modules will be removed and
-the `_x` suffix will be dropped. The 0.8.X series will live on for a while after that with bug fixes only, no new
-features. If you use TidalPy today, please check out the migration guide in the documentation
-(https://tidalpy.readthedocs.io/en/latest/future_structure.html) and plan for a full transition. Importing TidalPy now
-announces this transition once per session via the new `TidalPy.exceptions.TidalPyDeprecationWarning` category (a
-`FutureWarning` subclass, so it is visible by default and silenceable with a single `warnings.filterwarnings` call).
+the `_x` suffix will be dropped. The 0.8.X series will continue to receive bug fixes, but no new features, until the end
+of 2026. Support for 0.8.X after 2026 is not guaranteed. If you use TidalPy today, please check out the migration guide
+in the documentation (https://tidalpy.readthedocs.io/en/latest/future_structure.html) and plan for a full transition.
+Importing TidalPy now announces this transition once per session via the new
+`TidalPy.exceptions.TidalPyDeprecationWarning` category (a `FutureWarning` subclass, so it is visible by default and
+silenceable with a single `warnings.filterwarnings` call).
 
 #### The New C++ Backend (`_x` modules)
 A high-level summary only: the full API, design notes, and porting examples live in the documentation's
