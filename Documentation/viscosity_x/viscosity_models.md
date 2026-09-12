@@ -63,7 +63,7 @@ arrhenius_model = make_viscosity("arr", {"arrhenius_coeff": 1.1e7,
 
 Constructors take every parameter their model uses as a keyword with the default from the table above: `ConstantViscosity(reference_viscosity=1.0e22)`, `ReferenceViscosity(reference_viscosity=1.0e22, reference_temperature=1000.0, molar_activation_energy=3.0e5, molar_activation_volume=0.0)`, and `ArrheniusViscosity(arrhenius_coeff=1.0, stress=1.0, stress_expo=1.0, grain_size=1.0e-3, grain_size_expo=0.0, molar_activation_energy=3.0e5, molar_activation_volume=0.0, additional_temp_dependence=False)`.
 
-`make_viscosity(model_name, config=None)` resolves a name or alias case-insensitively and reads the parameters it recognizes from `config`. Absent keys fall back to the model default, keys a model does not use are ignored, and an unrecognized name raises `ValueError`.
+`make_viscosity(model_name, config=None)` resolves a name or alias case-insensitively and reads the parameters it recognizes from `config`. Absent keys fall back to the model default and keys another viscosity model uses are ignored. An unrecognized name raises `ValueError`, and so does a key that no viscosity model reads, with the closest accepted key named in the message.
 
 | Member | Returns | Description |
 |---|---|---|

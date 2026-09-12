@@ -25,6 +25,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -243,6 +244,14 @@ cdef class HenningPartialMelt(PartialMeltBase):
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================
+# Every config key some partial-melt model reads; make_partial_melt rejects anything else.
+PARTIAL_MELT_CONFIG_KEYS = frozenset({
+    "solidus_k", "liquidus_k", "liquid_shear_pa",
+    "fs_visc_power_slope", "fs_visc_power_phase", "fs_shear_power_slope", "fs_shear_power_phase",
+    "crit_melt_frac", "crit_melt_frac_width", "hn_visc_slope_1", "hn_visc_falloff_slope",
+    "hn_shear_param_1", "hn_shear_param_2", "hn_shear_falloff_slope"})
+
+
 def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     """Build a partial-melt model by name, returning the matching rich subclass.
 
@@ -252,8 +261,8 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
         One of ``"off"``/``"none"``, ``"spohn"``/``"fischer"``, ``"henning"``
         (case-insensitive; aliases accepted).
     config : dict, optional
-        Model parameters (solidus, liquidus, liquid_shear, plus the
-        Spohn/Henning scalars). Absent keys fall back to the C++ defaults.
+        Model parameters: ``solidus_k``, ``liquidus_k``, ``liquid_shear_pa``, plus the Spohn (``fs_*``)
+        and Henning (``crit_melt_frac*``, ``hn_*``) scalars. Absent keys fall back to the C++ defaults.
 
     Returns
     -------
@@ -263,8 +272,9 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     Raises
     ------
     ValueError
-        If the model name is unknown.
+        If the model name is unknown, or if ``config`` holds a key that no partial-melt model reads.
     """
+    check_config_keys(config, PARTIAL_MELT_CONFIG_KEYS, "partial-melt")
     if config is None:
         config = {}
     # A default-constructed config carries the C++ defaults; only override the

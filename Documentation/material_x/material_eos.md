@@ -124,7 +124,7 @@ vinet_pressure(1.2, 1.3e11, 4.5)
 | `radius_m`, `density_kg_m3` | interpolated | `radius`, `density` |
 | `shear_modulus_pa`, `bulk_modulus_pa`, `shear_viscosity_pas`, `bulk_viscosity_pas` | interpolated | `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity` |
 
-An unrecognized key is ignored without warning, so a misspelling produces a model built from defaults rather than an error.
+A key that no material EOS model reads raises `ValueError` naming the closest accepted key, so a misspelling or a missing unit suffix fails loudly instead of silently building a default model.
 
 ### Attaching a Model to a `Layer`
 

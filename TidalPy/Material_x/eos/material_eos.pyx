@@ -26,6 +26,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -290,6 +291,13 @@ cdef class InterpolatedEOS(MaterialEOSBase):
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================
+# Every config key some material EOS model reads; make_material_eos rejects anything else.
+MATERIAL_EOS_CONFIG_KEYS = frozenset({
+    "reference_density_kg_m3", "reference_bulk_modulus_pa", "bulk_modulus_derivative", "invert_rtol",
+    "invert_max_iters", "radius_m", "density_kg_m3", "shear_modulus_pa", "bulk_modulus_pa",
+    "shear_viscosity_pas", "bulk_viscosity_pas"})
+
+
 def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
     """Build a material EOS model by name, returning the matching rich subclass.
 
@@ -299,9 +307,10 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
         One of ``"constant"``, ``"bm"``/``"birch_murnaghan"``, ``"vinet"``,
         ``"interpolate"`` (case-insensitive; aliases accepted).
     config : dict, optional
-        Model parameters: ``reference_density``, ``reference_bulk_modulus``,
-        ``bulk_modulus_derivative`` (analytic models); ``radius`` and
-        ``density`` sequences (interpolated model).
+        Model parameters: ``reference_density_kg_m3``, ``reference_bulk_modulus_pa``,
+        ``bulk_modulus_derivative``, ``invert_rtol``, ``invert_max_iters`` (analytic models);
+        ``radius_m`` and ``density_kg_m3`` sequences plus the optional ``shear_modulus_pa``,
+        ``bulk_modulus_pa``, ``shear_viscosity_pas``, and ``bulk_viscosity_pas`` tables (interpolated model).
 
     Returns
     -------
@@ -311,8 +320,9 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
     Raises
     ------
     ValueError
-        If the model name is unknown.
+        If the model name is unknown, or if ``config`` holds a key that no material EOS model reads.
     """
+    check_config_keys(config, MATERIAL_EOS_CONFIG_KEYS, "material EOS")
     if config is None:
         config = {}
     # A default-constructed config carries the C++ defaults; only override the

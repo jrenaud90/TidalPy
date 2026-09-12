@@ -33,6 +33,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -250,6 +251,10 @@ cdef class PowerLawLuminosity(LuminosityBase):
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================
+# Every config key some luminosity model reads; make_luminosity rejects anything else.
+LUMINOSITY_CONFIG_KEYS = frozenset({"luminosity_w", "power_law_coeff", "power_law_exponent"})
+
+
 def make_luminosity(str model_name, dict config=None):
     """Build a luminosity model from a (case-insensitive) name and config dict.
 
@@ -264,7 +269,7 @@ def make_luminosity(str model_name, dict config=None):
         Model name or alias. Recognized names: ``fixed`` (``constant``), ``mass_to_luminosity``
         (``cuntz_wang``, ``cw``), ``power_law`` (``powerlaw``).
     config : dict, optional
-        Model parameters. For ``fixed``: ``luminosity``. For ``power_law``: ``power_law_coeff``,
+        Model parameters. For ``fixed``: ``luminosity_w``. For ``power_law``: ``power_law_coeff``,
         ``power_law_exponent``. ``mass_to_luminosity`` takes no parameters.
 
     Returns
@@ -275,8 +280,9 @@ def make_luminosity(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognized.
+        If the model name is not recognized, or if ``config`` holds a key that no luminosity model reads.
     """
+    check_config_keys(config, LUMINOSITY_CONFIG_KEYS, "luminosity")
     if config is None:
         config = {}
 

@@ -40,6 +40,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -522,6 +523,10 @@ cdef class Sundberg(RheologyBase):
 # Factory
 # =====================================================================================================================
 
+# Every config key some rheology model reads; make_rheology rejects anything else.
+RHEOLOGY_CONFIG_KEYS = frozenset({"alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac"})
+
+
 def make_rheology(str model_name, dict config=None):
     """Build a rheology model from a (case-insensitive) name and config dict.
 
@@ -540,7 +545,7 @@ def make_rheology(str model_name, dict config=None):
     config : dict, optional
         Model parameters. Recognized keys (model-dependent):
         ``alpha``, ``zeta``, ``voigt_modulus_frac``, ``voigt_viscosity_frac``.
-        Unused keys are ignored; missing keys fall back to model defaults.
+        Keys another rheology model uses are ignored; missing keys fall back to model defaults.
 
     Returns
     -------
@@ -550,8 +555,9 @@ def make_rheology(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognized.
+        If the model name is not recognized, or if ``config`` holds a key that no rheology model reads.
     """
+    check_config_keys(config, RHEOLOGY_CONFIG_KEYS, "rheology")
     if config is None:
         config = {}
 

@@ -166,6 +166,14 @@ def test_radiogenics_wired_produces_heating():
     assert world.calc_internal_heating(0.0) > 0.0
 
 
+def test_unrecognized_model_key_names_the_table():
+    """A misspelled key in a layer model table raises ValueError naming the TOML table and the key."""
+    config = _terrestrial_dict()
+    config["layers"]["mantle"]["partial_melt"] = {"model": "henning", "solidus": 1500.0}
+    with pytest.raises(ValueError, match=r"\[layers\.mantle\.partial_melt\].*'solidus'"):
+        construct_world(config)
+
+
 def test_rheology_and_viscosity_wired_give_complex_modulus():
     world = construct_world(_terrestrial_dict())
     world.solve_eos(G_to_use=G, verbose=False)

@@ -94,7 +94,7 @@ andrade_model = Andrade(alpha=0.25, zeta=2.0)
 sundberg_model = make_rheology("Sundberg-Cooper", {"alpha": 0.4, "zeta": 2.0})
 ```
 
-`make_rheology(model_name, config=None)` recognizes every name and alias in the inheritance tree above and reads the keys `alpha`, `zeta`, `voigt_modulus_frac`, and `voigt_viscosity_frac` from `config`. Keys a model does not use are ignored, keys a model does use but that are absent fall back to its default, and an unrecognized model name raises `ValueError`.
+`make_rheology(model_name, config=None)` recognizes every name and alias in the inheritance tree above and reads the keys `alpha`, `zeta`, `voigt_modulus_frac`, and `voigt_viscosity_frac` from `config`. Keys another rheology model uses are ignored and absent keys fall back to the model's default. An unrecognized model name raises `ValueError`, and so does a key that no rheology model reads, with the closest accepted key named in the message.
 
 Model parameters are fixed at construction and exposed as read-only properties (`andrade_model.alpha`, `sundberg_model.voigt_viscosity_frac`). To change one, build a new model.
 

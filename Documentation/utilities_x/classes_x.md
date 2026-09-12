@@ -96,6 +96,20 @@ The config entries are not part of the binary format; they are a separate, human
 
 The binary record is 24 bytes plus the model name: the 20-byte header, the name length as a `uint32_t`, then the UTF-8 name bytes.
 
+## Checking physics-model config keys
+
+`check_config_keys(config, accepted_keys, family)` is the guard every `make_*` factory runs before building a model. It raises `ValueError` for any key that no model in the family reads, always accepts `model` so a `get_config_dict()` result can be passed straight back, and names the closest accepted key for each rejected one. That last part matters because the most common mistake is a missing unit suffix, such as `solidus` for `solidus_k`.
+
+```python
+from TidalPy.Utilities_x.classes_x import check_config_keys
+
+check_config_keys({"model": "henning", "solidus_k": 1500.0}, {"solidus_k", "liquidus_k"}, "partial-melt")
+check_config_keys({"solidus": 1500.0}, {"solidus_k", "liquidus_k"}, "partial-melt")
+# ValueError: TidalPy: unrecognized partial-melt config key(s): 'solidus' (did you mean 'solidus_k'?). ...
+```
+
+The check is per family rather than per model on purpose. The world builder merges material defaults beneath a user's table, so a table can legitimately carry a key that belongs to a different model of the same family; only a key that no model reads is an error. The world builder adds the table name to the message, for example `[layers.mantle.partial_melt]`, so the offending line can be found in the TOML file.
+
 ## C++ API
 
 ### `tidalpy_base_.hpp`

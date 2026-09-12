@@ -108,7 +108,7 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 | `save_config(path)` | — | That dict written as TOML. |
 | `save_binary(path)` / `load_binary(path, force=False)` | — | TidalPy binary format; see [Binary serialization](../utilities_x/binary_x.md). |
 
-`make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively; absent keys fall back to the model defaults and an unrecognized name raises `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
+`make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively; absent keys fall back to the model defaults, and both an unrecognized name and a key that no partial-melt model reads raise `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
 
 ## Attaching a Melt Model to a `Layer`
 

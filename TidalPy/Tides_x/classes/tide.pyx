@@ -27,6 +27,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
@@ -220,6 +221,10 @@ cdef class CTLQTide(TideBase):
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================
+# Every config key some tide model reads; make_tide rejects anything else.
+TIDE_CONFIG_KEYS = frozenset({"fixed_k", "fixed_q", "fixed_dt"})
+
+
 def make_tide(str model_name, dict config=None) -> TideBase:
     """Build a tide model by name, returning the matching rich subclass.
 
@@ -243,8 +248,10 @@ def make_tide(str model_name, dict config=None) -> TideBase:
     Raises
     ------
     ValueError
-        If the model name is unknown.
+        If the model name is unknown, or if ``config`` holds a key other than ``fixed_k``, ``fixed_q``,
+        and ``fixed_dt``.
     """
+    check_config_keys(config, TIDE_CONFIG_KEYS, "tide")
     cdef c_TideModelConfig cfg = _build_tide_config(config)
     cdef c_TideModel model = c_tide_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_TideBase] ptr = c_find_tide(model, cfg)

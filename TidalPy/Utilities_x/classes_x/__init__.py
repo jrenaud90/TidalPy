@@ -4,6 +4,12 @@ from TidalPy.Utilities_x.classes_x.classes import (
     TidalPyBaseClass,
     StructureBase,
     PhysicsBase,
+    check_config_keys,
 )
 
-__all__ = ["TidalPyBaseClass", "StructureBase", "PhysicsBase"]
+__all__ = [
+    "TidalPyBaseClass",
+    "StructureBase",
+    "PhysicsBase",
+    "check_config_keys"
+]

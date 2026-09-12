@@ -269,7 +269,11 @@ def construct_layer(
         section_cfg = merged.get(section_name, None)
         if not section_cfg:
             continue
-        model = _build_model(make_func, section_cfg)
+        try:
+            model = _build_model(make_func, section_cfg)
+        except ValueError as error:
+            # Name the TOML table so a rejected key or model name can be found in the source file.
+            raise ValueError(f"[layers.{layer_name}.{section_name}] {error}") from error
         getattr(layer, setter_name)(model)
 
     return layer

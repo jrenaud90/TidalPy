@@ -142,7 +142,7 @@ model = make_radiogenics("isotope", {"isotopes": "bulk_silicate_earth"})
 | `isotopes` | isotope | A built-in dataset name, a config dataset name, or an inline dict. |
 | `heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, `isotope_names` | isotope | Explicit parallel arrays, in MKS. |
 
-An unrecognized key is ignored without warning, so a misspelling yields a model built entirely from defaults rather than an error. The constructors use unit-free argument names (`fixed_heat_production`, `half_lives`, `ref_time`); the config keys keep their units because they double as TOML keys.
+A key that no radiogenics model reads raises `ValueError` naming the closest accepted key, so a misspelling or a missing unit suffix fails loudly instead of silently building a default model. The constructors use unit-free argument names (`fixed_heat_production`, `half_lives`, `ref_time`); the config keys keep their units because they double as TOML keys.
 
 ### Attaching a model to a layer
 

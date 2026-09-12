@@ -81,7 +81,7 @@ result = convective_cooling.calc_cooling(1000.0, 1.0e6, 9.8, 3300.0, 1.0e21, 4.0
 conductive_cooling = make_cooling("conductive")
 ```
 
-`make_cooling(model_name, config=None)` resolves a name or alias case-insensitively and reads `convection_alpha`, `convection_beta`, and `critical_rayleigh` from `config`. Unknown names raise `ValueError`. The convection parameters are read-only properties on `ConvectiveCooling`; the other two models carry none. The resolved `model_name` is `off`, `conduction`, or `convection`, and that is the name written to a configuration dict.
+`make_cooling(model_name, config=None)` resolves a name or alias case-insensitively and reads `convection_alpha`, `convection_beta`, and `critical_rayleigh` from `config`. Unknown names, and keys that no cooling model reads, raise `ValueError`. The convection parameters are read-only properties on `ConvectiveCooling`; the other two models carry none. The resolved `model_name` is `off`, `conduction`, or `convection`, and that is the name written to a configuration dict.
 
 ### Factory Internals
 

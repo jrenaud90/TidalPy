@@ -107,7 +107,7 @@ luminosity = fixed(mass_solar, luminosity=3.828e26)
 | `power_law_coeff` | power law | `coeff` | Dimensionless prefactor. |
 | `power_law_exponent` | power law | `exponent` | Dimensionless exponent. |
 
-`mass_to_luminosity` takes no parameters. An unrecognized config key is ignored without warning, so a misspelling produces a model built from defaults rather than an error.
+`mass_to_luminosity` takes no parameters. A config key that no luminosity model reads raises `ValueError` naming the closest accepted key, so a misspelling fails loudly instead of silently building a default model.
 
 The convenience functions `fixed(mass, luminosity=0.0)`, `mass_to_luminosity(mass)`, and `power_law(mass, coeff=1.0, exponent=3.5)` each build a stack-allocated C++ model, evaluate it, and discard it. The mass may be a float or an array; the model parameters are always constants.
 

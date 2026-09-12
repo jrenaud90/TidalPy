@@ -103,7 +103,7 @@ where each `fixed_*` is a list indexed from `l = 2`.
 | `save_config(path)`, `get_schema_version_str()` | — | Configuration output and schema version, shared by every physics model; see [Base Classes](../utilities_x/classes_x.md). |
 | `save_binary(path)` / `load_binary(path)` | — | Inherited from `TidalPyBaseClass`. |
 
-`make_tide(name, config=None)` returns the concrete subclass; unknown names raise `ValueError`. `collapse_global_tides(...)` supports the analytic models only — the `rheology` model raises `NotImplementedError` (use the world's `calc_tides`).
+`make_tide(name, config=None)` returns the concrete subclass; unknown names, and config keys other than `fixed_k`, `fixed_q`, and `fixed_dt`, raise `ValueError`. `collapse_global_tides(...)` supports the analytic models only — the `rheology` model raises `NotImplementedError` (use the world's `calc_tides`).
 
 ---
 

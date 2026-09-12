@@ -9,6 +9,7 @@ StructureBase:    spherical geometry base (radius, mass, geometry calcs)
 PhysicsBase:      physics model base (model_name, layer observer pointer)
 """
 
+import difflib
 import os as _os
 
 from libcpp cimport bool as cpp_bool
@@ -351,3 +352,52 @@ cdef class PhysicsBase(TidalPyBaseClass):
         """
         self._check_ptr()
         return cy_physics_model_config(<const c_PhysicsBase*>self._ptr)
+
+
+# =====================================================================================================================
+# Physics-model config key checking
+# =====================================================================================================================
+def check_config_keys(dict config, accepted_keys, str family):
+    """Raise ``ValueError`` if a physics-model config holds a key that no model in its family reads.
+
+    Every ``make_*`` factory calls this before building a model, so a misspelled key, most often a missing unit
+    suffix, fails loudly instead of silently leaving a parameter at its default.
+
+    Parameters
+    ----------
+    config : dict or None
+        The configuration dict passed to the factory.
+    accepted_keys : collection of str
+        Every key that some model in the family reads. ``model`` is always accepted as well, so a
+        ``get_config_dict()`` result can be passed straight back to its factory.
+    family : str
+        Model family named in the error message, for example ``"viscosity"``.
+
+    Raises
+    ------
+    ValueError
+        If ``config`` holds any other key. The message names the closest accepted key for each rejected one and
+        lists every accepted key.
+
+    Assumptions
+    -----------
+    The check is per family, not per model: a key read by a different model of the same family passes, because
+    the world builder merges material defaults beneath a user's table.
+    """
+    if not config:
+        return
+    accepted = set(accepted_keys)
+    accepted.add("model")
+    rejected = sorted(str(key) for key in config if key not in accepted)
+    if not rejected:
+        return
+    descriptions = []
+    for key in rejected:
+        close_matches = difflib.get_close_matches(key, accepted, n=1)
+        if close_matches:
+            descriptions.append(f"'{key}' (did you mean '{close_matches[0]}'?)")
+        else:
+            descriptions.append(f"'{key}'")
+    raise ValueError(
+        f"TidalPy: unrecognized {family} config key(s): {', '.join(descriptions)}. "
+        f"Accepted keys: {', '.join(sorted(accepted))}.")

@@ -25,6 +25,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -204,6 +205,12 @@ cdef class ArrheniusViscosity(ViscosityBase):
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================
+# Every config key some viscosity model reads; make_viscosity rejects anything else.
+VISCOSITY_CONFIG_KEYS = frozenset({
+    "reference_viscosity", "reference_temperature", "molar_activation_energy", "molar_activation_volume",
+    "arrhenius_coeff", "stress", "stress_expo", "grain_size", "grain_size_expo", "additional_temp_dependence"})
+
+
 def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     """Build a viscosity model by name, returning the matching rich subclass.
 
@@ -213,7 +220,9 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
         One of ``"arrhenius"``/``"arr"``, ``"reference"``/``"ref"``,
         ``"constant"``/``"const"`` (case-insensitive; aliases accepted).
     config : dict, optional
-        Model parameters; absent keys fall back to the C++ defaults.
+        Model parameters: ``reference_viscosity``, ``reference_temperature``, ``molar_activation_energy``,
+        ``molar_activation_volume``, ``arrhenius_coeff``, ``stress``, ``stress_expo``, ``grain_size``,
+        ``grain_size_expo``, ``additional_temp_dependence``. Absent keys fall back to the C++ defaults.
 
     Returns
     -------
@@ -223,8 +232,9 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     Raises
     ------
     ValueError
-        If the model name is unknown.
+        If the model name is unknown, or if ``config`` holds a key that no viscosity model reads.
     """
+    check_config_keys(config, VISCOSITY_CONFIG_KEYS, "viscosity")
     if config is None:
         config = {}
     cdef c_ViscosityConfig cfg

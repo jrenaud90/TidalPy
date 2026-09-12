@@ -34,6 +34,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -419,6 +420,10 @@ cdef class ConvectiveCooling(CoolingBase):
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================
+# Every config key some cooling model reads; make_cooling rejects anything else.
+COOLING_CONFIG_KEYS = frozenset({"convection_alpha", "convection_beta", "critical_rayleigh"})
+
+
 def make_cooling(str model_name, dict config=None):
     """Build a cooling model from a (case-insensitive) name and config dict.
 
@@ -445,8 +450,9 @@ def make_cooling(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognized.
+        If the model name is not recognized, or if ``config`` holds a key that no cooling model reads.
     """
+    check_config_keys(config, COOLING_CONFIG_KEYS, "cooling")
     if config is None:
         config = {}
 

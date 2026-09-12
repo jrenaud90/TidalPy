@@ -34,6 +34,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_SECONDS_PER_MYR
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -582,6 +583,12 @@ def _resolve_isotope_config(dict config):
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================
+# Every config key some radiogenics model reads; make_radiogenics rejects anything else.
+RADIOGENICS_CONFIG_KEYS = frozenset({
+    "fixed_heat_production_w_kg", "average_half_life_s", "ref_time_s", "isotopes",
+    "heat_production_w_kg", "half_lives_s", "mass_fracs", "concentrations", "isotope_names"})
+
+
 def make_radiogenics(str model_name, dict config=None):
     """Build a radiogenics model from a (case-insensitive) name and config dict.
 
@@ -613,8 +620,9 @@ def make_radiogenics(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognized.
+        If the model name is not recognized, or if ``config`` holds a key that no radiogenics model reads.
     """
+    check_config_keys(config, RADIOGENICS_CONFIG_KEYS, "radiogenics")
     if config is None:
         config = {}
 

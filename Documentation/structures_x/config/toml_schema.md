@@ -138,7 +138,7 @@ Layers are always built **inner-to-outer**, so a layer's inner radius is never w
 
 ### Attached physics models
 
-A layer attaches a physics model through a nested table carrying a `model` key plus that model's parameters. Every other key in the table is forwarded verbatim to the matching `make_*` factory as its parameter dict (omitted keys keep their factory defaults). The model tables and the layer types that may hold them are:
+A layer attaches a physics model through a nested table carrying a `model` key plus that model's parameters. Every other key in the table is forwarded verbatim to the matching `make_*` factory as its parameter dict (omitted keys keep their factory defaults, and a key that no model in that family reads raises `ValueError` naming the table). The model tables and the layer types that may hold them are:
 
 | Model table | Factory | Allowed layer classes |
 |-------------|---------|-----------------------|
