@@ -1,6 +1,6 @@
 # RadialSolver_x: 1D Love Number Calculator
 
-_Updated: 2026-09-09_
+_Updated: 2026-09-12_
 
 `TidalPy.RadialSolver_x` computes the viscoelastic-gravitational radial solution (`y1..y6`) at a given radius utilizing either a shooting method or propagation matrix approach. The result are 1-dimensional Love numbers (either "loading" or "tidal" Love numbers).
 
@@ -20,7 +20,7 @@ The physical solution in each layer is a linear combination of that layer's inde
 2. Propagating those constants downward through every interface (`reversed_.hpp`), one layer at a
 time, so each layer below inherits a consistent set of constants.
 
-## Dense Interpolants (no fixed grid)
+## Dense Interpolants
 
 **Previous behavior:** Earlier versions of TidalPy integrated each independent solution on to a sampled and fixed radial grid (the EOS radius array). The constants were then applied at every grid slice to build a single gridded `y1..y6` solution. To obtain the solution at a radius that was *not* a grid point; for example, a stress evaluation at `r = 300 m` when the grid only stored `r = 100 m` and `r = 500 m`, the gridded solution was **linearly interpolated**. For coarse grids this interpolation could be noticeably inaccurate.
 

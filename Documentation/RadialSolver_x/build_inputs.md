@@ -15,10 +15,7 @@ The builders live in C++ (`RadialSolver_x/build_inputs_.hpp`) behind a thin Cyth
 
 
 > [!TIP]
-> These helper functions have been built to be very efficient, however they will still cost some performance
-> overhead when used. If calculation speed is critical, and you are rebuilding a planet many times (e.g., in
-> a MCMC) it may be more performant to manually construct RadialSolver's inputs and only change what is needed
-> rather than calling these helpers every time.
+> These helper functions have been built to be very efficient, however they will still cost some performance overhead when used. If calculation speed is critical, and you are rebuilding a planet many times (_e.g._, in a MCMC) it may be more performant to manually construct RadialSolver's inputs and only change what is needed rather than calling these helpers every time.
 
 ## Rheology Arguments
 
@@ -76,7 +73,9 @@ solution = radial_solver(*build_data, degree_l=2, solve_for=("tidal",))
 print(solution.k, solution.h, solution.l)
 ```
 
-Layer sizes are given by exactly one of:
+The liquid layer above has zero static shear modulus and an elastic shear rheology, which gives it exactly zero complex shear modulus.
+
+Layer sizes are given by one of:
 
 | Argument | Meaning |
 |---|---|
@@ -84,7 +83,7 @@ Layer sizes are given by exactly one of:
 | `radius_fraction_tuple` | Each layer's upper radius over the planet radius (increasing, last entry 1). |
 | `volume_fraction_tuple` | Each layer's share of the planet volume (sums to 1). |
 
-Each layer's grid runs from its base to its top (both inclusive) with `slices_tuple[i]` (or `slice_per_layer`) evenly spaced slices, so interface radii appear twice in `radius_array` as the solver requires. Every layer needs at least 5 slices. The liquid layer above has zero static shear modulus and an elastic shear rheology, which gives it exactly zero complex shear modulus.
+Each layer's grid runs from its base to its top (both inclusive) with `slices_tuple[i]` (or `slice_per_layer`) evenly spaced slices, so interface radii appear twice in `radius_array` as the solver requires. Every layer needs at least 5 slices.
 
 ## Planet from Radially Resolved Data Arrays
 
@@ -127,7 +126,7 @@ build_data = build_rs_input_from_data(
 solution = radial_solver(*build_data, degree_l=2)
 ```
 
-The solver requires that the grid starts at `r = 0`, that every interface radius appears twice (top of the lower layer and base of the upper layer), and that each layer's upper radius is a grid point. The builder copies your arrays and repairs them where needed, giving each inserted slice the properties of the neighbouring provided slice: an inserted layer base copies the layer's first provided slice, an inserted layer top copies the slice below it. An interface radius that appears only once is taken as the top of the lower layer, with the properties it carries, and the upper layer's base is inserted above it (the same convention as the classic builder). Each repair is logged as a warning through the TidalPy C++ logger (see [logging](../utilities_x/index.md)); pass `warnings=False` to silence them. The planet bulk density is the mass of the piecewise-constant shells divided by the planet volume.
+The solver requires that the grid starts at `r = 0`, that every interface radius appears twice (top of the lower layer and base of the upper layer), and that each layer's upper radius is a grid point. The builder copies your arrays and repairs them where needed, giving each inserted slice the properties of the neighboring provided slice: an inserted layer base copies the layer's first provided slice, an inserted layer top copies the slice below it. An interface radius that appears only once is taken as the top of the lower layer, with the properties it carries, and the upper layer's base is inserted above it (the same convention as the classic builder). Each repair is logged as a warning (pass `warnings=False` to silence them). The planet bulk density is the mass of the piecewise-constant shells divided by the planet volume.
 
 Array arguments accept anything `numpy.asarray` understands (lists included); they are converted to contiguous float64 arrays.
 
@@ -157,9 +156,9 @@ fewer than 5 slices in a layer, more (or fewer) than one layer-size description,
 
 `perform_checks` is accepted for signature compatibility with the classic builders; the native builders always validate their inputs.
 
-## A uniform sphere in one call: `homogeneous_love_numbers`
+## Uniform Sphere: `homogeneous_love_numbers`
 
-When the interior does not matter, `homogeneous_love_numbers` builds the arrays for a single uniform solid layer and runs the solve for you. It is the quickest way to a Love number for a demo, a benchmark, or a sanity check against the closed-form result.
+When the interior structure does not matter, `homogeneous_love_numbers` builds the arrays for a single uniform solid layer and runs the solve for you. It is the quickest way to find a Love number for a demo, a benchmark, or a sanity check against the closed-form result.
 
 ```python
 from TidalPy.RadialSolver_x import homogeneous_love_numbers
@@ -183,12 +182,3 @@ print(solution.k)
 | `**radial_solver_kwargs` | | Anything else goes straight to `radial_solver`, for example `solve_for`, `love_method`, or the integration tolerances. |
 
 It returns the same [`RadialSolverSolution`](solution_class.md) as any other solve. For the closed-form answer without any integration at all, use `calc_homogeneous_love_numbers` in [`TidalPy.Tides_x.love`](../Tides_x/love/love_numbers.md); for a static incompressible sphere the two agree to machine precision (measured at a few parts in 1e15).
-
-## Migrating from the classic builders
-
-| Classic (`TidalPy.RadialSolver.helpers`) | New (`TidalPy.RadialSolver_x`) |
-|---|---|
-| `from TidalPy.rheology.models import Maxwell` | `from TidalPy.rheology_x import Maxwell` |
-| `shear_rheology_model_tuple=(Maxwell(), Maxwell())` | `shear_rheology_model_tuple=Maxwell()` (or the tuple) |
-| Warnings through the Python `TidalPy` logger | Warnings through the C++ logger (same `[logging]` config) |
-| Errors raise `ArgumentException` | Errors raise `ValueError` / `TypeError` |
