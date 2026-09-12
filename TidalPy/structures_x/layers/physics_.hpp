@@ -25,16 +25,16 @@
  *     love_number_h  re, im        (double×2, 16)
  *     love_number_l  re, im        (double×2, 16)
  *     is_solid, is_static, is_incompressible (uint8_t×3, 3)
+ *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_viscosity  presence flag (uint8_t, 1) + (if present) its binary record
  *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
- *   Attached physics models (rheology, viscosity, partial melt) ARE serialized
- *   recursively (presence flag + the model's own binary record); the five presence
- *   flags are part of this payload, each nested model record follows as a separate
- *   record.
- *   EOS profile data is NOT serialized (inherited rule from c_BaseLayer).
+ *   The attached material EOS model and physics models (rheology, viscosity, partial melt) are
+ *   serialized recursively (presence flag + the model's own binary record); the six presence flags are
+ *   part of this payload, and each nested model record follows as a separate record.
+ *   The EOS profile data is not serialized; re-run the world EOS solve after loading.
  */
 
 #include <complex>
@@ -263,8 +263,8 @@ public:
     // Writes a single record with class_id = PhysicsLayer (101).
     // All c_BaseLayer fields are written first (same byte layout as BaseLayer
     // binary payload), followed by 4 scalar doubles, 3 complex love numbers, the
-    // 3 classification flags, and the attached physics models (recursively).
-    // EOS profile data is NOT serialized.
+    // 3 classification flags, the attached material EOS model, and the attached physics models
+    // (recursively). The EOS profile data is not serialized.
     // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const auto     name_len = static_cast<uint32_t>(this->p_name.size());
@@ -281,6 +281,7 @@ public:
             sizeof(double)   * 4 +           // shear modulus, bulk modulus, shear viscosity, bulk viscosity
             sizeof(double)   * 6 +           // love_number k, h, l (each: re + im)
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
+            optional_binary_flag_bytes() +         // material EOS model presence flag
             this->physics_models_presence_bytes(); // rheology + viscosity + partial-melt presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::PhysicsLayer), payload);
@@ -329,7 +330,8 @@ public:
             throw std::runtime_error("TidalPy: failed to write PhysicsLayer binary data");
         }
 
-        // Attached physics models (presence flag + recursive record each).
+        // Attached material EOS and physics models (presence flag + recursive record each).
+        this->write_eos_model_binary(out);
         this->write_physics_models_binary(out);
     }
 
@@ -399,7 +401,8 @@ public:
             throw std::runtime_error("TidalPy: failed to read PhysicsLayer binary data");
         }
 
-        // Attached physics models (presence flag + recursive record each).
+        // Attached material EOS and physics models (presence flag + recursive record each).
+        this->read_eos_model_binary(in, force);
         this->read_physics_models_binary(in, force);
 
         // Recompute derived geometry fields from loaded radii.

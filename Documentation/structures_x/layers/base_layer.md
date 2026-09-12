@@ -181,7 +181,8 @@ restored = BaseLayer("placeholder", 0, 0.0, 1.0, 1.0)
 restored.load_binary("layer.tpyb")
 ```
 
-**Note:** EOS profile data is NOT included in the binary file. It must be repopulated after loading.
+> [!NOTE]
+> An attached material EOS model is saved and restored with the layer, but the EOS profile data it produces is not; re-run the world's `solve_eos` after loading.
 
 ### TOML config (inherited)
 

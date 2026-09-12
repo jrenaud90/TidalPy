@@ -163,11 +163,11 @@ Attach a partial-melt model from [`partial_melt_x`](../../partial_melt_x/partial
 
 `save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by ten doubles in order: `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im (6 doubles total for the Love numbers).
 
-Following the scalar payload, an optional sub-model section is written: a one-byte presence flag for the shear rheology and one for the bulk rheology, each followed (when set) by the rheology model's own binary record. On load, attached rheology models are reconstructed recursively via the rheology binary-dispatch factory, so a saved layer round-trips with its rheology intact (verify with `shear_rheology_set` / `bulk_rheology_set` and `calc_complex_shear_modulus`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
+Following the scalar payload, an optional sub-model section is written: one-byte presence flags for the material EOS model, the shear and bulk rheology, the shear and bulk viscosity, and the partial-melt model, each followed (when set) by that model's own binary record. On load, attached models are reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with its models intact (verify with `eos_set`, `shear_rheology_set`, `shear_viscosity_set`, and `partial_melt_set`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 
 Binary class ID: **101** (`BinaryClassID::PhysicsLayer`).
 
-**EOS profile data is NOT serialized** (repopulate it after loading by running the EOS handler).
+The EOS profile data is not serialized; re-run the world's `solve_eos` after loading.
 
 ---
 

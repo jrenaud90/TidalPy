@@ -1,8 +1,9 @@
 """Binary round-trip of the PhysicsLayer strength models and classification fields.
 
-Covers the serialized fields beyond the geometry scalars: the attached shear/bulk
-viscosity and partial-melt models (each written as a presence flag plus the model's
-own recursive record), the ``tidal_scale_method`` selector, and the radial-solver
+Covers the serialized fields beyond the geometry scalars: the attached material EOS
+model (for every layer class), the shear/bulk viscosity and partial-melt models (each
+written as a presence flag plus the model's own recursive record), the
+``tidal_scale_method`` selector, and the radial-solver
 classification flags (``is_solid``/``is_static``/``is_incompressible``).
 """
 import math
@@ -75,4 +76,32 @@ def test_unset_strength_models_stay_unset(tmp_path):
     assert not loaded.shear_viscosity_set
     assert not loaded.bulk_viscosity_set
     assert not loaded.partial_melt_set
+    assert not loaded.eos_set
     assert loaded.tidal_scale_method == original.tidal_scale_method
+
+
+def _import_all_layer_classes():
+    from TidalPy.structures_x.layers.base import BaseLayer
+    from TidalPy.structures_x.layers.physics import PhysicsLayer
+    from TidalPy.structures_x.layers.solidliquid import SolidLiquidLayer
+    from TidalPy.structures_x.layers.gas import GasLayer
+    return {"base": BaseLayer, "physics": PhysicsLayer, "solidliquid": SolidLiquidLayer, "gas": GasLayer}
+
+
+@pytest.mark.parametrize("class_key", ["base", "physics", "solidliquid", "gas"])
+def test_eos_model_binary_roundtrip(class_key, tmp_path):
+    """Every layer class saves its material EOS model, including an interpolated model's optional tables."""
+    from TidalPy.Material_x.eos import InterpolatedEOS
+    layer_class = _import_all_layer_classes()[class_key]
+    original = layer_class("mantle", 0, 0.0, 2.0e6, 1.0e22)
+    original.set_eos(InterpolatedEOS(radius=[0.0, 1.0e6, 2.0e6], density=[5000.0, 4000.0, 3000.0],
+                                     shear_modulus=[1.0e11, 8.0e10, 6.0e10]))
+    expected = original.get_config_dict()["eos"]
+    path = str(tmp_path / f"{class_key}.tpyb")
+    original.save_binary(path)
+
+    loaded = layer_class("placeholder", 0, 0.0, 1.0, 1.0)
+    loaded.load_binary(path)
+
+    assert loaded.eos_set
+    assert loaded.get_config_dict()["eos"] == expected

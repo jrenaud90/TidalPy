@@ -399,7 +399,7 @@ Binary class id: **203** (`BinaryClassID::StarWorld`).
 
 ## Binary serialization
 
-A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then **each layer's own complete binary record in index order**. Because each layer recursively serializes its attached rheology / cooling / radiogenics models (see [Binary serialization](../../utilities_x/binary_x.md)), a single `save_binary` / `load_binary` round-trips the entire world graph — no Python reconstruction step is needed. On load, each layer is rebuilt as the correct concrete subclass via the layer binary-dispatch factory (`c_layer_from_binary`).
+A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then **each layer's own complete binary record in index order**. Because each layer recursively serializes its attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models (see [Binary serialization](../../utilities_x/binary_x.md)), a single `save_binary` / `load_binary` round-trips the entire world graph — no Python reconstruction step is needed. On load, each layer is rebuilt as the correct concrete subclass via the layer binary-dispatch factory (`c_layer_from_binary`).
 
 ```python
 world.save_binary("earth.tpyb")
@@ -409,4 +409,4 @@ assert reloaded.num_layers == world.num_layers
 assert reloaded.calc_internal_heating(0.0) == world.calc_internal_heating(0.0)
 ```
 
-EOS profile data (`c_LayerEOSData`) is never serialized; it is repopulated by running the whole-planet EOS solve after loading.
+EOS profile data (`c_LayerEOSData`) is never serialized; it is repopulated by running the whole-planet EOS solve after loading. The layers' material EOS models are restored, so that solve needs nothing re-attached.

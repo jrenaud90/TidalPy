@@ -351,7 +351,7 @@ def test_binary_roundtrip_derived_fields():
 
 
 def test_binary_roundtrip_eos_not_preserved():
-    """EOS data is NOT serialized; eos_data_populated is False after load_binary."""
+    """The EOS profile data is not serialized; eos_data_populated is False after load_binary."""
     mod = _import_base()
     bl1 = _make_mantle()
     bl1.update_eos_data(
@@ -368,8 +368,28 @@ def test_binary_roundtrip_eos_not_preserved():
         bl1.save_binary(path)
         bl2 = mod.BaseLayer("placeholder", 0, 0.0, 1.0, 1.0)
         bl2.load_binary(path)
-        # EOS data should NOT be restored from binary.
+        # The EOS profile is derived data and is not restored from binary.
         assert bl2.eos_data_populated is False
+    finally:
+        os.unlink(path)
+
+
+def test_binary_roundtrip_preserves_eos_model():
+    """An attached material EOS model is saved with the layer and rebuilt on load."""
+    mod = _import_base()
+    from TidalPy.Material_x.eos import BirchMurnaghanEOS
+    bl1 = _make_mantle()
+    bl1.set_eos(BirchMurnaghanEOS(3300.0, 1.2e11, 4.2))
+    expected = bl1.get_config_dict()["eos"]
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        bl1.save_binary(path)
+        bl2 = mod.BaseLayer("placeholder", 0, 0.0, 1.0, 1.0)
+        assert bl2.eos_set is False
+        bl2.load_binary(path)
+        assert bl2.eos_set is True
+        assert bl2.get_config_dict()["eos"] == expected
     finally:
         os.unlink(path)
 

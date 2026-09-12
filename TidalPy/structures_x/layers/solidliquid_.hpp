@@ -28,6 +28,7 @@
  *     reference_density        (double, 8)
  *     reference_temperature        (double, 8)
  *     melt_viscosity_reduction       (double, 8)
+ *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
@@ -35,11 +36,10 @@
  *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
  *     cooling         presence flag (uint8_t, 1) + (if present) its binary record
  *     radiogenics     presence flag (uint8_t, 1) + (if present) its binary record
- *   Attached rheology, viscosity, partial-melt, cooling, and radiogenics models ARE
- *   serialized recursively (presence flag + the model's own binary record); the seven
- *   presence flags are part of this payload, each nested model record follows as a
- *   separate record.
- *   EOS profile data is NOT serialized.
+ *   The attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models are
+ *   serialized recursively (presence flag + the model's own binary record); the eight presence flags are
+ *   part of this payload, and each nested model record follows as a separate record.
+ *   The EOS profile data is not serialized; re-run the world EOS solve after loading.
  */
 
 #include <algorithm>
@@ -294,6 +294,7 @@ public:
             sizeof(double)   * 10 +          // shear/bulk modulus, shear/bulk viscosity, love_numbers k/h/l re+im
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
             sizeof(double)   * 11 +          // SolidLiquidLayer thermal fields
+            optional_binary_flag_bytes() +             // material EOS model presence flag
             this->physics_models_presence_bytes() +    // rheology + viscosity + partial-melt presence flags
             2 * optional_binary_flag_bytes();    // cooling + radiogenics presence flags
 
@@ -355,6 +356,7 @@ public:
         }
 
         // Attached sub-models (presence flag + recursive record each).
+        this->write_eos_model_binary(out);         // inherited from c_BaseLayer
         this->write_physics_models_binary(out);    // inherited from c_PhysicsLayer
         this->write_submodels_binary(out);   // cooling + radiogenics
     }
@@ -436,6 +438,7 @@ public:
         }
 
         // Attached sub-models (presence flag + recursive record each).
+        this->read_eos_model_binary(in, force);         // inherited from c_BaseLayer
         this->read_physics_models_binary(in, force);    // inherited from c_PhysicsLayer
         this->read_submodels_binary(in, force);   // cooling + radiogenics
 

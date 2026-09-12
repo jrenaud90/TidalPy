@@ -299,3 +299,25 @@ def test_prem_earth_interpolated():
     mid_mantle = 0.5 * (prem_data[2][:, 0][0] + prem_data[2][:, 0][-1])
     expected = np.interp(mid_mantle, prem_data[2][:, 0], prem_data[2][:, 1])
     assert math.isclose(world.get_density(mid_mantle), expected, rel_tol=0.05)
+
+
+# =====================================================================================================================
+# Binary round trip
+# =====================================================================================================================
+def test_loaded_world_solves_eos_without_reattaching(tmp_path):
+    """A world reloaded from binary keeps its material EOS models, so solve_eos reproduces the original."""
+    from TidalPy.structures_x import build_world
+    from TidalPy.structures_x.worlds.layered import LayeredWorld
+    world = build_world("earth_prem")
+    reference = world.solve_eos(verbose=False)
+    assert reference["success"]
+    path = str(tmp_path / "earth_prem.tpyb")
+    world.save_binary(path)
+
+    loaded = LayeredWorld("placeholder", 1.0, 1.0)
+    loaded.load_binary(path)
+    assert loaded.all_eos_set
+    result = loaded.solve_eos(verbose=False)
+    assert result["success"]
+    assert math.isclose(result["planet_mass"], reference["planet_mass"], rel_tol=1e-12)
+    assert math.isclose(result["planet_moi"], reference["planet_moi"], rel_tol=1e-12)

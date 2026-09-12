@@ -261,14 +261,13 @@ Returns all configuration values as a Python dictionary (MKS). Includes all `Bas
 1. All `BaseLayer` fields (name, geometry, mass).
 2. All `PhysicsLayer` mechanical fields (G, K, η, love number re+im).
 3. The 11 SolidLiquidLayer doubles in constructor order.
-4. An optional sub-model section: presence flags + recursive binary records for the
-shear rheology, bulk rheology, cooling, and radiogenics models (in that order).
+4. An optional sub-model section: presence flags + recursive binary records for the material EOS model, shear rheology, bulk rheology, shear viscosity, bulk viscosity, partial melt, cooling, and radiogenics models (in that order).
 
-On load, every attached sub-model is reconstructed recursively via the rheology / cooling / radiogenics binary-dispatch factories, so a saved layer round-trips with all of its physics intact (verify with `shear_rheology_set`, `cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and `calc_radiogenic_heating`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
+On load, every attached sub-model is reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with all of its physics intact (verify with `eos_set`, `shear_rheology_set`, `cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and `calc_radiogenic_heating`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 
 Binary class ID: **102** (`BinaryClassID::SolidLiquidLayer`).
 
-**EOS profile data is NOT serialized** (repopulate it after loading by running the EOS handler).
+The EOS profile data is not serialized; re-run the world's `solve_eos` after loading.
 
 ---
 

@@ -134,12 +134,13 @@ What each layer class carries recursively, after its own scalar payload:
 
 | Layer | Recursively serialized sub-objects |
 |---|---|
-| `c_BaseLayer` | none |
-| `c_PhysicsLayer` | shear rheology, bulk rheology, shear viscosity, bulk viscosity, partial melt |
-| `c_GasLayer` | the same five, inherited |
-| `c_SolidLiquidLayer` | the same five, plus cooling and radiogenics |
+| `c_BaseLayer` | material EOS model |
+| `c_PhysicsLayer` | material EOS model, shear rheology, bulk rheology, shear viscosity, bulk viscosity, partial melt |
+| `c_GasLayer` | the same six, inherited |
+| `c_SolidLiquidLayer` | the same six, plus cooling and radiogenics |
 
-Two things are deliberately left out. The equation-of-state profile data is never serialized, because it is derived: re-run the solve after loading. The equation-of-state *model* is also not part of a layer's record, so a loaded layer reports `eos_set` as false and needs its model re-attached before `solve_eos` will run, even though every other attached model comes back.
+> [!NOTE]
+> The equation-of-state profile data is never serialized, because it is derived from the attached model: `solve_eos` runs directly on a loaded world and regenerates it.
 
 ## Class type ids
 

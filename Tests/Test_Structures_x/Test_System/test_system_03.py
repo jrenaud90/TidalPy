@@ -4,8 +4,8 @@ The system serializes its container state (name, host/star roles, per-world orbi
 the host and the star) followed by every world's own binary record, and rebuilds the heterogeneous world
 list on load via the world binary-dispatch factory. The Cython ``System`` inherits the binary machinery
 from ``TidalPyBaseClass``; ``load_binary`` is overridden to re-wrap the loaded worlds as their concrete
-Python types. Physics sub-models a world does not serialize (the layer EOS data, tide/spin models) are
-reattached after load, as for a directly-loaded world.
+Python types. What a world does not serialize (the layer EOS profile data and the tide/spin models) is
+re-solved or reattached after load, as for a directly-loaded world.
 """
 import math
 import os
@@ -155,9 +155,9 @@ def test_loaded_system_orbital_evolution_matches(tmp_path):
     """A loaded system reproduces the original's orbital + spin rates exactly.
 
     The orbital rate engine is stateless, so the serialized orbital elements plus the documented
-    reattach-after-load steps (the material EOS model, the EOS profile via a re-solve, the tide
-    model, and the spin model; rheology/viscosity/partial-melt models serialize with the layers)
-    are everything orbital evolution needs.
+    after-load steps (the EOS profile via a re-solve, the tide model, and the spin model; the material
+    EOS, rheology, viscosity, and partial-melt models serialize with the layers) are everything orbital
+    evolution needs.
     """
     system = System("evo")
     system.add_world(StarWorld("host", 7.0e8, _EVO_HOST_MASS), is_host=True)
@@ -171,10 +171,10 @@ def test_loaded_system_orbital_evolution_matches(tmp_path):
     loaded = System()
     loaded.load_binary(path)
 
-    # The orbital elements survive the round trip; the material EOS model, tide/spin models, and
-    # the EOS profile are reattached / re-solved per the documented reattach-after-load rule.
+    # The orbital elements and the layer's material EOS model survive the round trip; the tide/spin
+    # models are reattached and the EOS profile is re-solved.
     moon = loaded["moon"]
-    moon.mantle.set_eos(ConstantDensityEOS(reference_density=_EVO_DENSITY))
+    assert moon.mantle.eos_set
     moon.set_tide_model(make_tide("rheology"))
     moon.set_tide_config(min_degree_l=2, max_degree_l=2,
                          eccentricity_truncation=3, obliquity_truncation=0)

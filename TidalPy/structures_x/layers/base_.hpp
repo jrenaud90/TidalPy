@@ -11,7 +11,7 @@
  *
  * Binary format (20-byte header + variable payload):
  *   header: class_id = BinaryClassID::BaseLayer (100)
- *   payload layout (fixed part 46 bytes + variable string data):
+ *   payload layout (fixed part 47 bytes + variable string data):
  *     p_radius           (double, 8)
  *     p_mass             (double, 8)
  *     name_len           (uint32_t, 4)
@@ -23,8 +23,10 @@
  *     is_tidal           (uint8_t, 1)
  *     tidal_scale        (double, 8)
  *     tidal_scale_method (uint8_t, 1)
+ *     eos_model          presence flag (uint8_t, 1) + (if present) the model's own binary record
  *   Derived fields (thickness, volume, surface areas) are recomputed on load.
- *   EOS profile data is NOT serialized; it must be repopulated after loading.
+ *   The attached material EOS model is serialized; the EOS profile data it produces is not and is
+ *   repopulated by re-running the world EOS solve after loading.
  */
 
 #include <cctype>
@@ -297,7 +299,8 @@ public:
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale
-            sizeof(uint8_t);                 // tidal_scale_method
+            sizeof(uint8_t)  +               // tidal_scale_method
+            optional_binary_flag_bytes();    // material EOS model presence flag
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::BaseLayer), payload);
 
@@ -321,6 +324,9 @@ public:
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write BaseLayer binary data");
         }
+
+        // Attached material EOS model (presence flag + recursive record).
+        this->write_eos_model_binary(out);
     }
 
     void read_binary(std::istream& in, bool force = false) override {
@@ -360,11 +366,29 @@ public:
             throw std::runtime_error("TidalPy: failed to read BaseLayer binary data");
         }
 
+        // Attached material EOS model (presence flag + recursive record).
+        this->read_eos_model_binary(in, force);
+
         // Restore derived fields from the loaded radii.
         this->update_physicals();
     }
 
 protected:
+    // -----------------------------------------------------------------------
+    // Recursive (de)serialization of the optional material EOS model, shared by every layer class so the
+    // section has one byte layout: a presence flag followed, when set, by the model's own binary record. On
+    // read the concrete model is rebuilt through the material EOS binary-dispatch factory and re-registered
+    // as this layer's observer. Callers count optional_binary_flag_bytes() toward their payload.
+    // -----------------------------------------------------------------------
+    void write_eos_model_binary(std::ostream& out) const {
+        write_optional_binary(out, this->p_eos);
+    }
+
+    void read_eos_model_binary(std::istream& in, bool force) {
+        this->p_eos = read_optional_binary<c_MaterialEOSBase>(in, force, c_material_eos_from_binary);
+        if (this->p_eos) { this->p_eos->set_layer_ptr(this); }
+    }
+
     // Immutable geometry (set at construction; not modified after)
     std::string p_name;
     int         p_layer_index        = 0;
@@ -383,8 +407,8 @@ protected:
     // Mutable EOS profile (populated by the world-level EOS solve; not serialized)
     c_LayerEOSData p_eos_data;
 
-    // Optional material EOS model — the per-layer density source (not serialized;
-    // attached from Python via set_eos, mirroring the rheology/cooling pattern).
+    // Optional material EOS model: the per-layer density source, attached from Python via set_eos and
+    // serialized with the layer binary record (mirroring the rheology/cooling pattern).
     std::unique_ptr<c_MaterialEOSBase> p_eos;
 };
 
