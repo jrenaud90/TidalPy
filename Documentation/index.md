@@ -57,8 +57,7 @@ Partial Melting <partial_melt_x/partial_melt_models.md>
 Cooling <cooling_x/cooling_models.md>
 Radiogenics <radiogenics_x/radiogenics_models.md>
 Tides <Tides_x/index.md>
-RadialSolver Dense Solutions <RadialSolver_x/dense_radial_solution.md>
-RadialSolver Input Builders <RadialSolver_x/build_inputs.md>
+RadialSolver (Love Numbers) <RadialSolver_x/index.md>
 Dynamics <dynamics_x/dynamics.md>
 Stellar <stellar_x/luminosity.md>
 Utilities <utilities_x/index.md>

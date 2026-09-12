@@ -1,21 +1,17 @@
-# RadialSolver_x: Input Builders
+# Helper Functions
 
-_Updated: 2026-09-10_
+_Updated: 2026-09-12_
 
-`TidalPy.RadialSolver_x.radial_solver` takes array-based inputs: a radius grid, the density and complex
-moduli on that grid, the planet bulk density, and a few per-layer descriptors. Two native builders assemble
-those inputs from a layer description so you do not have to hand-build the arrays:
+`TidalPy.RadialSolver_x.radial_solver` takes array-based inputs: a radius grid, the density and complex moduli on that grid, the planet bulk density, and a few per-layer descriptors. Two native builders assemble those inputs from a layer description so you do not have to hand-build the arrays:
 
 | Builder | Use when |
 |---|---|
 | `build_rs_input_homogeneous_layers` | Each layer has constant density, moduli, and viscosities. |
 | `build_rs_input_from_data` | You already have radially resolved data (for example from an EOS solver or a published interior model). |
 
-Both return a `PlanetBuildData` named tuple whose fields are, in order, the positional arguments of
-`radial_solver`, so `radial_solver(*build_data, **solver_kwargs)` runs the solve.
+Both return a `PlanetBuildData` named tuple whose fields are, in order, the positional arguments of `radial_solver`, so `radial_solver(*build_data, **solver_kwargs)` runs the solve.
 
-The builders live in C++ (`RadialSolver_x/build_inputs_.hpp`) behind a thin Cython layer and evaluate the
-complex moduli with the `TidalPy.rheology_x` models.
+The builders live in C++ (`RadialSolver_x/build_inputs_.hpp`) behind a thin Cython layer and evaluate the complex moduli with the `TidalPy.rheology_x` models.
 
 
 > [!TIP]
@@ -48,9 +44,7 @@ Models with parameters (Andrade, Sundberg, Burgers, Voigt) keep whatever paramet
 
 ## Planet with Homogeneous Layers
 
-If your planet of interest has multiple distinct layers, but you assume each layer is homogenous in composition
-and viscoelastic properties (and density), then this helper can build rs inputs with a minimal amount of
-information from the user.
+If your planet of interest has multiple distinct layers, but you assume each layer is homogenous in composition and viscoelastic properties (and density), then this helper can build rs inputs with a minimal amount of information from the user.
 
 ```python
 import numpy as np
@@ -90,10 +84,7 @@ Layer sizes are given by exactly one of:
 | `radius_fraction_tuple` | Each layer's upper radius over the planet radius (increasing, last entry 1). |
 | `volume_fraction_tuple` | Each layer's share of the planet volume (sums to 1). |
 
-Each layer's grid runs from its base to its top (both inclusive) with `slices_tuple[i]` (or
-`slice_per_layer`) evenly spaced slices, so interface radii appear twice in `radius_array` as the solver
-requires. Every layer needs at least 5 slices. The liquid layer above has zero static shear modulus and an
-elastic shear rheology, which gives it exactly zero complex shear modulus.
+Each layer's grid runs from its base to its top (both inclusive) with `slices_tuple[i]` (or `slice_per_layer`) evenly spaced slices, so interface radii appear twice in `radius_array` as the solver requires. Every layer needs at least 5 slices. The liquid layer above has zero static shear modulus and an elastic shear rheology, which gives it exactly zero complex shear modulus.
 
 ## Planet from Radially Resolved Data Arrays
 
@@ -136,18 +127,9 @@ build_data = build_rs_input_from_data(
 solution = radial_solver(*build_data, degree_l=2)
 ```
 
-The solver requires that the grid starts at `r = 0`, that every interface radius appears twice (top of the
-lower layer and base of the upper layer), and that each layer's upper radius is a grid point. The builder
-copies your arrays and repairs them where needed, giving each inserted slice the properties of the
-neighbouring provided slice: an inserted layer base copies the layer's first provided slice, an inserted
-layer top copies the slice below it. An interface radius that appears only once is taken as the top of the
-lower layer, with the properties it carries, and the upper layer's base is inserted above it (the same
-convention as the classic builder). Each repair is logged as a warning through the TidalPy C++ logger (see
-[logging](../utilities_x/index.md)); pass `warnings=False` to silence them. The planet bulk density is the
-mass of the piecewise-constant shells divided by the planet volume.
+The solver requires that the grid starts at `r = 0`, that every interface radius appears twice (top of the lower layer and base of the upper layer), and that each layer's upper radius is a grid point. The builder copies your arrays and repairs them where needed, giving each inserted slice the properties of the neighbouring provided slice: an inserted layer base copies the layer's first provided slice, an inserted layer top copies the slice below it. An interface radius that appears only once is taken as the top of the lower layer, with the properties it carries, and the upper layer's base is inserted above it (the same convention as the classic builder). Each repair is logged as a warning through the TidalPy C++ logger (see [logging](../utilities_x/index.md)); pass `warnings=False` to silence them. The planet bulk density is the mass of the piecewise-constant shells divided by the planet volume.
 
-Array arguments accept anything `numpy.asarray` understands (lists included); they are converted to
-contiguous float64 arrays.
+Array arguments accept anything `numpy.asarray` understands (lists included); they are converted to contiguous float64 arrays.
 
 ## Output
 
@@ -169,13 +151,38 @@ contiguous float64 arrays.
 ## Errors
 
 - `TypeError`: a rheology argument is not a `rheology_x` model instance or model name (classic
-  `TidalPy.rheology` models included).
+`TidalPy.rheology` models included).
 - `ValueError`: per-layer inputs with the wrong length, fractions that do not describe the whole planet,
-  fewer than 5 slices in a layer, more (or fewer) than one layer-size description, a non-ascending radius
-  grid, or a last layer upper radius that is not the planet radius.
+fewer than 5 slices in a layer, more (or fewer) than one layer-size description, a non-ascending radius grid, or a last layer upper radius that is not the planet radius.
 
-`perform_checks` is accepted for signature compatibility with the classic builders; the native builders
-always validate their inputs.
+`perform_checks` is accepted for signature compatibility with the classic builders; the native builders always validate their inputs.
+
+## A uniform sphere in one call: `homogeneous_love_numbers`
+
+When the interior does not matter, `homogeneous_love_numbers` builds the arrays for a single uniform solid layer and runs the solve for you. It is the quickest way to a Love number for a demo, a benchmark, or a sanity check against the closed-form result.
+
+```python
+from TidalPy.RadialSolver_x import homogeneous_love_numbers
+from TidalPy.rheology_x import Maxwell
+
+mu = Maxwell().calc_complex_modulus(60.0e9, 1.0e15, 4.1e-5)   # complex shear modulus [Pa]
+solution = homogeneous_love_numbers(1.8216e6, 3529.0, mu, 4.1e-5)
+print(solution.k)
+```
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `planet_radius` | required | Planet radius [m]. |
+| `planet_bulk_density` | required | Uniform density [kg m-3]. |
+| `complex_shear_modulus` | required | Complex shear modulus at the forcing frequency [Pa], usually from a rheology model's `calc_complex_modulus`. |
+| `forcing_frequency` | required | Tidal forcing frequency [rad s-1]. |
+| `complex_bulk_modulus` | `200e9 + 0j` | Complex bulk modulus [Pa]. |
+| `num_slices` | `60` | Slices in the generated grid. |
+| `degree_l` | `2` | Harmonic degree. |
+| `layer_is_static`, `layer_is_incompressible` | `True`, `False` | Layer assumptions. |
+| `**radial_solver_kwargs` | | Anything else goes straight to `radial_solver`, for example `solve_for`, `love_method`, or the integration tolerances. |
+
+It returns the same [`RadialSolverSolution`](solution_class.md) as any other solve. For the closed-form answer without any integration at all, use `calc_homogeneous_love_numbers` in [`TidalPy.Tides_x.love`](../Tides_x/love/love_numbers.md); for a static incompressible sphere the two agree to machine precision (measured at a few parts in 1e15).
 
 ## Migrating from the classic builders
 
