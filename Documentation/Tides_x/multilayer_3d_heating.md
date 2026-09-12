@@ -222,6 +222,29 @@ profiles integrate to it. The secular colatitude collapse is analytic (the angul
 total is well within 1% of the 1D heating for a homogeneous degree-2 body (~8 radial slices per layer and
 ~4 colatitude nodes already suffice; the defaults add margin for higher degree l and layered bodies).
 
+#### Displacements: `calc_3d_displacements`
+
+The same machinery gives the instantaneous tidal displacements. For each active mode the traction
+functions y1 (radial) and y3 (tangential) of the mode's radial solution set the complex displacement
+amplitude at a point, `u = (y1 U, y3 dU/dtheta, y3 dU/dphi / sin theta)` (TB05 Eq. 9), which is evolved in
+time as `Re[u e^{i omega t}]` and summed over the modes (the phasor convention of the instantaneous
+heating). The world method returns the three components on the full `(radius, colatitude, longitude,
+time)` grid in metres:
+
+```python
+out = world.calc_3d_displacements(
+  orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass,
+  radii=[0.9 * world.radius, world.radius], colatitudes=np.linspace(0.1, np.pi - 0.1, 30),
+  longitudes=np.linspace(0.0, 2 * np.pi, 60), times=np.linspace(0.0, period, 12))
+out["radial"].shape        # (2, 30, 60, 12)   u_r [m]; also out["polar"], out["azimuthal"]
+```
+
+At the surface `y1 = h / g` and `y3 = l / g`, so the surface radial displacement is `h U / g` for a single
+mode. It requires the rheology tide model, a solved EOS, and a radial-solver Love-number method (the
+analytic `homogeneous`/`cpl`/`ctl` methods have no radial functions). A radius without a depth-resolved
+solution (the center, below the solver start) is NaN. The radial functions themselves are available at any
+radius through `world.get_love_radial_y(radius, ytype_idx, y_idx)` after a radial-solver Love solve.
+
 ### Engine + kernel (raw) access
 
 The dynamic potential engine is exposed directly for callers building their own pipelines. It returns
@@ -255,4 +278,5 @@ across points), and `calc_3d_tides` — the **full `(radius, colatitude, longitu
 its **collapsed flavors** (radial/colatitude profiles, per-layer and whole-planet totals; the total
 equals the 1D global heating), the **analytic colatitude collapse** (precomputed angular Gram table, exact
 and faster than the quadrature for large radius grids), and the **instantaneous `sigma:eps_dot` path**
-(`orbit_averaged=False`), which orbit-averages back to the secular density.
+(`orbit_averaged=False`), which orbit-averages back to the secular density, and the **instantaneous
+displacement grid** `calc_3d_displacements` (with the point kernel `displacement_point`).

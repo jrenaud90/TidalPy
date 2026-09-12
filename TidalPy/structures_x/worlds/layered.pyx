@@ -1083,6 +1083,17 @@ cdef class LayeredWorld(BaseWorld):
         cdef cpp_complex[double] v = self._layered_ptr.get_love_number_l(<size_t>ytype_idx)
         return complex(v.real(), v.imag())
 
+    def get_love_radial_y(self, double radius_m, ytype_idx: int = 0, y_idx: int = 0) -> complex:
+        """Radial function y[y_idx + 1] (SI) at ``radius_m`` from the last radial-solver Love solve.
+
+        The shooting method evaluates its dense per-layer interpolants at the radius; the propagation
+        matrix interpolates its grid. NaN if unsolved, after an analytic (homogeneous/cpl/ctl) solve, out
+        of range, or below the solver's starting radius. ``y_idx`` 0..5 selects y1..y6.
+        """
+        cdef cpp_complex[double] v = self._layered_ptr.get_radial_solution_y(
+            radius_m, <size_t>ytype_idx, <size_t>y_idx)
+        return complex(v.real(), v.imag())
+
     def get_love_surface_y(self, ytype_idx: int, y_idx: int) -> complex:
         """Complex radial y-solution value at the surface for the given ytype and y index."""
         cdef cpp_complex[double] v = self._layered_ptr.get_love_surface_y(
@@ -1231,6 +1242,83 @@ cdef class LayeredWorld(BaseWorld):
             self._layered_ptr.get_3d_tidal_heating_array(
                 state, &radii_view[0], &colat_view[0], num_points, &out_view[0])
         return out_arr
+
+    def calc_3d_displacements(
+            self,
+            double orbital_frequency,
+            double spin_frequency,
+            double eccentricity,
+            double obliquity,
+            double semi_major_axis,
+            double host_mass,
+            radii,
+            colatitudes,
+            longitudes,
+            times) -> dict:
+        """Instantaneous tidal displacements [m] on the grid ``(radius, colatitude, longitude, time)``.
+
+        The active tidal modes are built from the world's ``[tides]`` truncation config, the world radial
+        response is solved once per unique ``(l, frequency)``, and each mode's complex displacement
+        amplitude ``(y1 U, y3 dU/dtheta, y3 dU/dphi / sin theta)`` at a point is evolved in time as
+        ``Re[u e^{i omega t}]`` and summed over the modes (the same phasor convention as the instantaneous
+        heating of :meth:`calc_3d_tides`). Requires the rheology tide model and a solved EOS, and a
+        radial-solver Love-number method (the analytic methods have no radial functions).
+
+        Parameters
+        ----------
+        orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass : float
+            The orbital/spin state, as for :meth:`calc_tides`.
+        radii, colatitudes, longitudes, times : array-like of float
+            Grid axes [m], [rad], [rad], [s]; scalars are accepted.
+
+        Returns
+        -------
+        dict
+            ``radii``, ``colatitudes``, ``longitudes``, ``times`` (the axes as 1-D arrays) and ``radial``,
+            ``polar``, ``azimuthal``: float64 arrays of shape ``(nr, ncolat, nlon, ntime)`` [m]. A radius
+            with no depth-resolved solution (the center, below the solver start) is NaN.
+
+        Assumptions
+        -----------
+        - Linear superposition of the tidal modes; displacements follow the radial functions y1 (radial)
+          and y3 (tangential) of each mode's radial solution.
+        """
+        cdef cnp.ndarray radii_arr = np.ascontiguousarray(np.atleast_1d(radii), dtype=np.float64).ravel()
+        cdef cnp.ndarray colat_arr = np.ascontiguousarray(np.atleast_1d(colatitudes), dtype=np.float64).ravel()
+        cdef cnp.ndarray lon_arr   = np.ascontiguousarray(np.atleast_1d(longitudes), dtype=np.float64).ravel()
+        cdef cnp.ndarray time_arr  = np.ascontiguousarray(np.atleast_1d(times), dtype=np.float64).ravel()
+        cdef size_t nr = radii_arr.shape[0]
+        cdef size_t nth = colat_arr.shape[0]
+        cdef size_t nph = lon_arr.shape[0]
+        cdef size_t nt = time_arr.shape[0]
+        if nr == 0 or nth == 0 or nph == 0 or nt == 0:
+            raise ValueError("radii, colatitudes, longitudes, and times must each hold at least one value")
+        cdef cnp.ndarray out_arr = np.empty((nr, nth, nph, nt, 3), dtype=np.float64)
+        cdef double[::1] radii_view = radii_arr
+        cdef double[::1] colat_view = colat_arr
+        cdef double[::1] lon_view   = lon_arr
+        cdef double[::1] time_view  = time_arr
+        cdef double[:, :, :, :, ::1] out_view = out_arr
+        cdef c_TideSolveConfig state
+        state.orbital_frequency = orbital_frequency
+        state.spin_frequency    = spin_frequency
+        state.eccentricity      = eccentricity
+        state.obliquity         = obliquity
+        state.semi_major_axis   = semi_major_axis
+        state.host_mass         = host_mass
+        with nogil:
+            self._layered_ptr.get_3d_displacements_grid(
+                state, &radii_view[0], nr, &colat_view[0], nth, &lon_view[0], nph, &time_view[0], nt,
+                &out_view[0, 0, 0, 0, 0])
+        return {
+            "radii": radii_arr,
+            "colatitudes": colat_arr,
+            "longitudes": lon_arr,
+            "times": time_arr,
+            "radial": np.ascontiguousarray(out_arr[..., 0]),
+            "polar": np.ascontiguousarray(out_arr[..., 1]),
+            "azimuthal": np.ascontiguousarray(out_arr[..., 2]),
+        }
 
     def calc_3d_tides(
             self,

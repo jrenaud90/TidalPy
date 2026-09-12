@@ -994,6 +994,21 @@ public:
             size_t num_points,
             double* out_heating);
 
+    // Instantaneous tidal displacements [m] on the (radius, colatitude, longitude, time) grid; see
+    // c_RheologyTide::calc_3d_displacements_grid. Same rheology + solved-EOS preconditions as
+    // get_3d_tidal_heating. Defined out-of-line in world_tides_.hpp.
+    void get_3d_displacements_grid(
+            const c_TideSolveConfig& state,
+            const double* radii,
+            size_t num_radii,
+            const double* colatitudes,
+            size_t num_colatitudes,
+            const double* longitudes,
+            size_t num_longitudes,
+            const double* times,
+            size_t num_times,
+            double* out_disp);
+
     // Collapsed (summed/averaged) secular 3D tidal heating (see c_Heating3DCollapseConfig): the radial
     // power profile, colatitude profile, per-layer totals, and/or whole-planet total, per the flags.
     // Same rheology + solved-EOS preconditions as get_3d_tidal_heating. Defined out-of-line in

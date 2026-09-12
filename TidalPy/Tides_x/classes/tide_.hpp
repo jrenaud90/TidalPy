@@ -150,6 +150,26 @@ public:
             size_t num_points,
             double* out_heating) const;
 
+    // Instantaneous tidal displacements [m] (radial, polar, azimuthal) on the full grid radii x
+    // colatitudes x longitudes x times. Each active mode's complex displacement amplitude at (r, theta,
+    // phi), (y1 U_c, y3 dU_c/dtheta, y3 dU_c/dphi / sin theta), is evolved in time as Re[u_c e^{i omega t}]
+    // (a mode with signed omega < 0 uses the conjugated phasor at +|omega|) and the modes are summed. The
+    // radial solve and the y1/y3 samples are computed once per unique (l, |omega|). out_disp holds
+    // 3 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component); NaN at a radius with no
+    // depth-resolved solution (center / below the solver start). Defined out-of-line in world_tides_.hpp.
+    void calc_3d_displacements_grid(
+            c_LayeredWorld& world,
+            const c_TideSolveConfig& state,
+            const double* radii,
+            size_t num_radii,
+            const double* colatitudes,
+            size_t num_colatitudes,
+            const double* longitudes,
+            size_t num_longitudes,
+            const double* times,
+            size_t num_times,
+            double* out_disp) const;
+
     // Collapsed (summed/averaged) secular 3D tidal heating: reduces the density along any of the
     // colatitude / longitude / radial dimensions per the flags in cfg (see c_Heating3DCollapseConfig).
     // radii/colatitudes are the user grids for the NON-summed axes (ignored for a summed axis, which

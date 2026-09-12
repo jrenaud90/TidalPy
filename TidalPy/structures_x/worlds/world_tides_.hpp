@@ -319,6 +319,147 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
     rheology->calc_3d_tidal_heating_batch(*this, state, radii, colatitudes, num_points, out_heating);
 }
 
+// World delegation for the displacement grid: same preconditions as the 3D heating paths.
+inline void c_LayeredWorld::get_3d_displacements_grid(
+        const c_TideSolveConfig& state,
+        const double* radii,
+        size_t num_radii,
+        const double* colatitudes,
+        size_t num_colatitudes,
+        const double* longitudes,
+        size_t num_longitudes,
+        const double* times,
+        size_t num_times,
+        double* out_disp) {
+    if (!this->p_tide) {
+        throw std::runtime_error(
+            "TidalPy: no tide model attached to the world — call set_tide_model() first");
+    }
+    auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
+    if (rheology == nullptr) {
+        throw std::runtime_error(
+            "TidalPy: 3D tidal displacements require the rheology tide model (the analytic cpl/ctl/ctl_q "
+            "models have no depth-resolved radial solution)");
+    }
+    if (!this->p_eos_solved || !this->p_eos_solution) {
+        throw std::runtime_error(
+            "TidalPy: 3D tidal displacements need the EOS solved first — call solve_eos()");
+    }
+    rheology->calc_3d_displacements_grid(
+        *this, state, radii, num_radii, colatitudes, num_colatitudes, longitudes, num_longitudes,
+        times, num_times, out_disp);
+}
+
+// Instantaneous displacement grid. The position-independent mode list is built once; the radial solve and the
+// y1/y3 samples at every radius are computed once per unique (l, |omega|); each mode's complex displacement
+// amplitude at (r, theta, phi) is then evolved over the time grid as Re[u_c e^{i omega t}].
+inline void c_RheologyTide::calc_3d_displacements_grid(
+        c_LayeredWorld& world,
+        const c_TideSolveConfig& state,
+        const double* radii,
+        size_t num_radii,
+        const double* colatitudes,
+        size_t num_colatitudes,
+        const double* longitudes,
+        size_t num_longitudes,
+        const double* times,
+        size_t num_times,
+        double* out_disp) const {
+    const c_TideConfig& tide_cfg = world.get_tide_config();
+    const double surface_radius = world.get_radius();
+    const double G_to_use = c_get_G();
+    int engine_error = 0;
+    const std::vector<c_TidalPotential3DModeCoeff> modes = c_tidal_potential_3d_mode_coeffs(
+        surface_radius, state.semi_major_axis, state.orbital_frequency, state.spin_frequency,
+        state.obliquity, state.eccentricity, state.host_mass, G_to_use,
+        tide_cfg.min_degree_l, tide_cfg.max_degree_l,
+        tide_cfg.obliquity_truncation, tide_cfg.eccentricity_truncation, &engine_error);
+    if (engine_error != 0) {
+        throw std::runtime_error(
+            "TidalPy: tidal potential engine failed during 3D tidal displacements (error "
+            + std::to_string(engine_error) + "); check degree/truncation levels");
+    }
+    const size_t nr = num_radii, nth = num_colatitudes, nph = num_longitudes, nt = num_times;
+    const size_t total = nr * nth * nph * nt;
+    for (size_t i = 0; i < 3 * total; ++i) {
+        out_disp[i] = 0.0;
+    }
+    std::vector<unsigned char> radius_failed(nr, 0);
+    std::vector<std::complex<double>> y1_at_r(nr), y3_at_r(nr);
+    const double min_freq =
+        (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_SPIN_ORBIT_DIFF : 1.0e-9;
+    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+    int last_degree_l = -1;
+    double last_frequency = -1.0;
+    for (const c_TidalPotential3DModeCoeff& mode : modes) {
+        const double frequency = std::abs(mode.mode_frequency);
+        if (frequency <= min_freq) {
+            continue;
+        }
+        if (mode.degree_l != last_degree_l || frequency != last_frequency) {
+            love_cfg.degree_l = mode.degree_l;
+            love_cfg.frequency_rad_s = frequency;
+            world.solve_love_numbers(love_cfg);
+            if (!world.get_love_success()) {
+                throw std::runtime_error(
+                    "TidalPy: radial solve failed during 3D tidal displacements: " + world.get_love_message());
+            }
+            const ::c_RadialSolutionStorage* storage = world.get_love_storage();
+            if (storage == nullptr) {
+                throw std::runtime_error("TidalPy: missing radial solution during 3D tidal displacements");
+            }
+            for (size_t ir = 0; ir < nr; ++ir) {
+                std::complex<double> y_at_r[C_MAX_NUM_Y];
+                if (!storage->get_radial_solution(radii[ir], 0, y_at_r)
+                    || !std::isfinite(y_at_r[0].real()) || !std::isfinite(y_at_r[2].real())) {
+                    radius_failed[ir] = 1;
+                    continue;
+                }
+                y1_at_r[ir] = y_at_r[0];
+                y3_at_r[ir] = y_at_r[2];
+            }
+            last_degree_l = mode.degree_l;
+            last_frequency = frequency;
+        }
+        for (size_t ith = 0; ith < nth; ++ith) {
+            for (size_t iph = 0; iph < nph; ++iph) {
+                c_PotentialPointC potential = c_eval_potential_point_3d(mode, colatitudes[ith], longitudes[iph]);
+                if (mode.mode_frequency < 0.0) {
+                    potential.U = std::conj(potential.U);
+                    potential.dU_dtheta = std::conj(potential.dU_dtheta);
+                    potential.dU_dphi = std::conj(potential.dU_dphi);
+                }
+                for (size_t ir = 0; ir < nr; ++ir) {
+                    if (radius_failed[ir]) {
+                        continue;
+                    }
+                    tides::c_Vector3 amplitude;
+                    tides::c_compute_displacements(
+                        y1_at_r[ir], y3_at_r[ir], potential, colatitudes[ith], amplitude);
+                    for (size_t it = 0; it < nt; ++it) {
+                        const double phase = frequency * times[it];
+                        const double cos_wt = std::cos(phase);
+                        const double sin_wt = std::sin(phase);
+                        double* out = out_disp + 3 * (((ir * nth + ith) * nph + iph) * nt + it);
+                        for (size_t k = 0; k < 3; ++k) {
+                            out[k] += amplitude.c[k].real() * cos_wt - amplitude.c[k].imag() * sin_wt;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (size_t ir = 0; ir < nr; ++ir) {
+        if (!radius_failed[ir]) {
+            continue;
+        }
+        double* out = out_disp + 3 * (ir * nth * nph * nt);
+        for (size_t i = 0; i < 3 * nth * nph * nt; ++i) {
+            out[i] = TidalPyConstants::d_NAN;
+        }
+    }
+}
+
 // Vectorized batch form of the secular 3D heating. Builds the position-independent mode list once and
 // amortizes the world radial (Love-number) solve across all query points: the radial solve depends on
 // (l, frequency) only, so consecutive modes that share (degree_l, |frequency|) reuse the same solve.

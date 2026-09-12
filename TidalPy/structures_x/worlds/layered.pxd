@@ -118,6 +118,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double]  get_love_number_h(size_t ytype_idx) const
         cpp_complex[double]  get_love_number_l(size_t ytype_idx) const
         cpp_complex[double]  get_love_surface_y(size_t ytype_idx, size_t y_idx) const
+        cpp_complex[double]  get_radial_solution_y(double radius_m, size_t ytype_idx, size_t y_idx) const
         int                  get_love_method_last_int() const
         cpp_complex[double]  get_love_analytic_shear() const
         double               get_love_analytic_tidal_volume() const
@@ -136,6 +137,17 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
                                  const double* colatitudes,
                                  size_t num_points,
                                  double* out_heating) except +
+        void                 get_3d_displacements_grid(
+                                 const c_TideSolveConfig& state,
+                                 const double* radii,
+                                 size_t num_radii,
+                                 const double* colatitudes,
+                                 size_t num_colatitudes,
+                                 const double* longitudes,
+                                 size_t num_longitudes,
+                                 const double* times,
+                                 size_t num_times,
+                                 double* out_disp) except +
         c_Heating3DCollapsed calc_3d_tides(
                                  const c_TideSolveConfig& state,
                                  const double* radii,
