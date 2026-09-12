@@ -146,6 +146,26 @@ cdef class SpohnPartialMelt(PartialMeltBase):
     def __dealloc__(self):
         self._spohn_ptr = NULL
 
+    @property
+    def fs_visc_power_slope(self) -> float:
+        """Viscosity-law temperature slope s [K] in the weakening factor exp(s / T - p)."""
+        return self._spohn_ptr.get_visc_power_slope()
+
+    @property
+    def fs_visc_power_phase(self) -> float:
+        """Viscosity-law phase p (dimensionless) in the weakening factor exp(s / T - p)."""
+        return self._spohn_ptr.get_visc_power_phase()
+
+    @property
+    def fs_shear_power_slope(self) -> float:
+        """Shear-law temperature slope s [K] in the weakening factor exp(s / T - p)."""
+        return self._spohn_ptr.get_shear_power_slope()
+
+    @property
+    def fs_shear_power_phase(self) -> float:
+        """Shear-law phase p (dimensionless) in the weakening factor exp(s / T - p)."""
+        return self._spohn_ptr.get_shear_power_phase()
+
 
 cdef class HenningPartialMelt(PartialMeltBase):
     """Henning (2009/2010) three-regime melt weakening."""
@@ -183,6 +203,41 @@ cdef class HenningPartialMelt(PartialMeltBase):
 
     def __dealloc__(self):
         self._henning_ptr = NULL
+
+    @property
+    def crit_melt_frac(self) -> float:
+        """Critical melt fraction phi_c at which the solid framework breaks down."""
+        return self._henning_ptr.get_crit_melt_frac()
+
+    @property
+    def crit_melt_frac_width(self) -> float:
+        """Width w of the transition band from phi_c to phi_c + w."""
+        return self._henning_ptr.get_crit_melt_frac_width()
+
+    @property
+    def hn_visc_slope_1(self) -> float:
+        """Viscosity weakening slope below phi_c: eta = eta_premelt * exp(-hn_visc_slope_1 * phi)."""
+        return self._henning_ptr.get_visc_slope_1()
+
+    @property
+    def hn_visc_falloff_slope(self) -> float:
+        """Viscosity falloff slope applied to (phi - phi_c) across the transition band."""
+        return self._henning_ptr.get_visc_falloff_slope()
+
+    @property
+    def hn_shear_param_1(self) -> float:
+        """Shear-law temperature parameter b_1 [K] in exp(b_1 / T - b_2)."""
+        return self._henning_ptr.get_shear_param_1()
+
+    @property
+    def hn_shear_param_2(self) -> float:
+        """Shear-law offset b_2 (dimensionless) in exp(b_1 / T - b_2)."""
+        return self._henning_ptr.get_shear_param_2()
+
+    @property
+    def hn_shear_falloff_slope(self) -> float:
+        """Shear falloff slope applied to (phi - phi_c) across the transition band."""
+        return self._henning_ptr.get_shear_falloff_slope()
 
 
 # =====================================================================================================================

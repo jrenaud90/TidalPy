@@ -163,6 +163,22 @@ def test_config_dict_keys():
     assert d["model"] == "henning"
 
 
+@pytest.mark.parametrize("cls_name,params", [
+    ("SpohnPartialMelt", dict(fs_visc_power_slope=25000.0, fs_visc_power_phase=1.5,
+                              fs_shear_power_slope=80000.0, fs_shear_power_phase=39.0)),
+    ("HenningPartialMelt", dict(crit_melt_frac=0.4, crit_melt_frac_width=0.08, hn_visc_slope_1=12.0,
+                                hn_visc_falloff_slope=350.0, hn_shear_param_1=41000.0, hn_shear_param_2=24.0,
+                                hn_shear_falloff_slope=650.0)),
+])
+def test_model_parameter_properties(cls_name, params):
+    """Each model-specific parameter is a property, named like its constructor keyword and config key."""
+    m = getattr(_import(), cls_name)(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR, **params)
+    config = m.get_config_dict()
+    for name, value in params.items():
+        assert getattr(m, name) == value, name
+        assert config[name] == value, name
+
+
 # =====================================================================================================================
 # Binary round-trip
 # =====================================================================================================================

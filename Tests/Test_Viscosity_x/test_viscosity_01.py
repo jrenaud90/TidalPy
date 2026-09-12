@@ -96,6 +96,18 @@ def test_arrhenius_decreases_with_temperature():
     assert m.calc_viscosity(2000.0, 0.0) < m.calc_viscosity(1500.0, 0.0)
 
 
+def test_arrhenius_properties_match_constructor():
+    """Every Arrhenius parameter is a property, named like its constructor keyword and config key."""
+    params = dict(arrhenius_coeff=1.1e7, stress=2.0e6, stress_expo=3.5, grain_size=5.0e-4, grain_size_expo=2.0,
+                  molar_activation_energy=5.4e5, molar_activation_volume=1.5e-5,
+                  additional_temp_dependence=True)
+    m = _import().ArrheniusViscosity(**params)
+    config = m.get_config_dict()
+    for name, value in params.items():
+        assert getattr(m, name) == value, name
+        assert config[name] == value, name
+
+
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================

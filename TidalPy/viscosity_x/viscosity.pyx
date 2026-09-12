@@ -166,9 +166,34 @@ cdef class ArrheniusViscosity(ViscosityBase):
         return self._arr_ptr.get_arrhenius_coeff()
 
     @property
+    def stress(self) -> float:
+        """Applied shear stress sigma [Pa]; the stress term drops out when ``stress_expo`` is 1."""
+        return self._arr_ptr.get_stress()
+
+    @property
+    def stress_expo(self) -> float:
+        """Stress exponent n: 1 for diffusion creep, above 1 for dislocation creep."""
+        return self._arr_ptr.get_stress_expo()
+
+    @property
+    def grain_size(self) -> float:
+        """Grain size d [m]."""
+        return self._arr_ptr.get_grain_size()
+
+    @property
+    def grain_size_expo(self) -> float:
+        """Grain-size exponent m; 0 removes the grain-size dependence."""
+        return self._arr_ptr.get_grain_size_expo()
+
+    @property
     def molar_activation_energy(self) -> float:
         """Molar activation energy E_a [J/mol]."""
         return self._arr_ptr.get_molar_activation_energy()
+
+    @property
+    def molar_activation_volume(self) -> float:
+        """Molar activation volume V_a [m^3/mol]."""
+        return self._arr_ptr.get_molar_activation_volume()
 
     @property
     def additional_temp_dependence(self) -> bool:

@@ -99,12 +99,14 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 | `calc_melt_fraction(temperature)` | `float` | Melt fraction in [0, 1]. |
 | `calc_partial_melt(temperature, premelt_viscosity, premelt_shear, liquid_viscosity)` | `(phi, viscosity, shear_modulus)` | Melt fraction, post-melt viscosity [Pa s], post-melt shear modulus [Pa]. |
 | `solidus`, `liquidus`, `liquid_shear` | `float` | The melt envelope, read-only. |
+| `fs_visc_power_slope`, `fs_visc_power_phase`, `fs_shear_power_slope`, `fs_shear_power_phase` | `float` | The Spohn model's parameters, read-only. |
+| `crit_melt_frac`, `crit_melt_frac_width`, `hn_visc_slope_1`, `hn_visc_falloff_slope`, `hn_shear_param_1`, `hn_shear_param_2`, `hn_shear_falloff_slope` | `float` | The Henning model's parameters, read-only. |
 | `model_name` | `str` | The resolved model name (`off`, `spohn`, `henning`). |
 | `get_config_dict()` | `dict` | `model` plus every parameter the model carries. |
 | `save_config(path)` | — | That dict written as TOML. |
 | `save_binary(path)` / `load_binary(path, force=False)` | — | TidalPy binary format; see [Binary serialization](../utilities_x/binary_x.md). |
 
-`make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively; absent keys fall back to the model defaults and an unrecognized name raises `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use the same name in both places.
+`make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively; absent keys fall back to the model defaults and an unrecognized name raises `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
 
 ## Attaching a melt model to a layer
 

@@ -73,7 +73,7 @@ Constructors take every parameter their model uses as a keyword with the default
 | `save_config(path)` | — | That dict written as TOML. |
 | `save_binary(path)` / `load_binary(path, force=False)` | — | TidalPy binary format; see [Binary serialization](../utilities_x/binary_x.md). |
 
-Parameters are read-only properties: `reference_viscosity` on the constant model; `reference_viscosity`, `reference_temperature`, `molar_activation_energy`, and `molar_activation_volume` on the reference model; and `arrhenius_coeff`, `molar_activation_energy`, and `additional_temp_dependence` on the Arrhenius model. Every parameter, including the ones without a property, appears in `get_config_dict()`.
+Parameters are read-only properties: `reference_viscosity` on the constant model; `reference_viscosity`, `reference_temperature`, `molar_activation_energy`, and `molar_activation_volume` on the reference model; and every constructor keyword on the Arrhenius model: `arrhenius_coeff`, `stress`, `stress_expo`, `grain_size`, `grain_size_expo`, `molar_activation_energy`, `molar_activation_volume`, and `additional_temp_dependence`. The same names are the keys in `get_config_dict()`.
 
 ## Attaching a viscosity model to a layer
 
