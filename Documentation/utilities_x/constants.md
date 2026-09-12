@@ -17,6 +17,7 @@ constants.mass_solar        # [kg]   also M_sol
 constants.radius_earth      # [m]    also R_earth
 constants.luminosity_solar  # [W]    also L_sol
 constants.year              # [s]    Julian year
+constants.seconds_per_myr   # [s]    one Julian mega-year, exact
 constants.min_viscosity     # [Pa s] configurable floor
 ```
 
@@ -26,7 +27,7 @@ The corresponding C++ names carry a `d_` prefix and full capitals: `d_MASS_SOLAR
 
 ## What is fixed and what is not
 
-**Compile-time, read-only.** Mathematical constants ($\pi$, infinity, NaN) and floating-point limits (the largest and smallest normal double, the machine epsilon, the mantissa digit count) are `constexpr`. So are the solar-system body properties: the masses and radii of the Sun, Earth, Jupiter, Pluto, and Io, and the solar luminosity, all set to the IAU nominal values.
+**Compile-time, read-only.** Mathematical constants ($\pi$, infinity, NaN) and floating-point limits (the largest and smallest normal double, the machine epsilon, the mantissa digit count) are `constexpr`. So are the solar-system body properties: the masses and radii of the Sun, Earth, Jupiter, Pluto, and Io, and the solar luminosity, all set to the IAU nominal values. The number of seconds in a Julian mega-year is compile-time as well, because the Julian year is exact by definition rather than measured.
 
 **Set at initialization, from SciPy.** The gravitational constant, the astronomical unit, the Stefan-Boltzmann constant, the molar gas constant, and the Boltzmann constant are read from `scipy.constants` each time TidalPy initializes. The Julian year comes from the same place. This is deliberate: a physical constant should have one authoritative source, and duplicating CODATA values into a header is how packages end up disagreeing with each other in the sixth digit.
 

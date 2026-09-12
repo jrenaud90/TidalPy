@@ -174,7 +174,7 @@ int c_radial_solver(
     double surface_pressure_to_use = surface_pressure;
     double starting_radius_to_use  = starting_radius;
 
-    c_NonDimensionalScales non_dim_scales(frequency, radius_planet, planet_bulk_density);
+    c_NonDimensionalScales non_dim_scales(radius_planet, planet_bulk_density);
 
     if (nondimensionalize && solution_storage_ptr->error_code == 0)
     {

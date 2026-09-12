@@ -6,11 +6,10 @@ All quantities MKS unless the conversion itself says otherwise. The ``cf_*`` for
 C-level functions for use from other Cython/C++ code; the plain-named forms are the Python API.
 """
 
-from TidalPy.exceptions import BadValueError
-
 from libc.math cimport sqrt, cbrt
 
-from TidalPy.constants cimport d_PI, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+from TidalPy.constants cimport (
+    d_PI, d_SECONDS_PER_MYR, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr)
 
 # Wire this DLL's shared pointer to the process-wide TidalPy config singleton.
 set_tidalpy_config_ptr(get_shared_config_address())
@@ -34,11 +33,11 @@ cdef inline double cf_days2rads(double days) noexcept nogil:
 
 cdef inline double cf_sec2myr(double seconds) noexcept nogil:
 
-    return seconds / 3.154e13
+    return seconds / d_SECONDS_PER_MYR
 
 cdef inline double cf_myr2sec(double myrs) noexcept nogil:
 
-    return myrs * 3.154e13
+    return myrs * d_SECONDS_PER_MYR
 
 cdef inline double cf_orbital_motion2semi_a(
         double orbital_motion,
@@ -122,7 +121,7 @@ def days2rads(double days):
     return cf_days2rads(days)
 
 def sec2myr(double seconds):
-    """ Convert time from seconds to millions of years
+    """ Convert time from seconds to millions of Julian years (365.25 days each)
 
     Parameters
     ----------
@@ -138,7 +137,7 @@ def sec2myr(double seconds):
     return cf_sec2myr(seconds)
 
 def myr2sec(double myrs):
-    """ Convert time from millions of years to seconds
+    """ Convert time from millions of Julian years (365.25 days each) to seconds
 
     Parameters
     ----------
@@ -175,12 +174,17 @@ def orbital_motion2semi_a(
     -------
     semi_major_axis : float
         Semi-major axis in [m]
+
+    Raises
+    ------
+    ValueError
+        If the host mass is not positive or the target mass is negative.
     """
 
     if host_mass <= 0.:
-        raise BadValueError('Host mass must be greater than zero.')
+        raise ValueError('Host mass must be greater than zero.')
     if target_mass < 0.:
-        raise BadValueError('Target mass must be greater than or equal to zero.')
+        raise ValueError('Target mass must be greater than or equal to zero.')
 
     return cf_orbital_motion2semi_a(orbital_motion, host_mass, target_mass, G_to_use)
 
@@ -206,11 +210,16 @@ def semi_a2orbital_motion(
     -------
     orbital_motion : float
         Orbital motion in [rads s-1]
+
+    Raises
+    ------
+    ValueError
+        If the host mass is not positive or the target mass is negative.
     """
 
     if host_mass <= 0.:
-        raise BadValueError('Host mass must be greater than zero.')
+        raise ValueError('Host mass must be greater than zero.')
     if target_mass < 0.:
-        raise BadValueError('Target mass must be greater than or equal to zero.')
+        raise ValueError('Target mass must be greater than or equal to zero.')
 
     return cf_semi_a2orbital_motion(semi_major_axis, host_mass, target_mass, G_to_use)

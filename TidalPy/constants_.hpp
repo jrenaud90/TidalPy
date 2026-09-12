@@ -18,6 +18,9 @@ struct TidalPyConstants
     static constexpr double d_PI = std::numbers::pi;
     static constexpr double d_NAN = std::numeric_limits<double>::quiet_NaN();
 
+    // Time.
+    static constexpr double d_SECONDS_PER_MYR = 1.0e6 * 365.25 * 86400.0;
+
     // Computational
     static constexpr double d_DBL_MAX = std::numeric_limits<double>::max();
     static constexpr double d_DBL_MIN = std::numeric_limits<double>::min();

@@ -4,8 +4,7 @@ from math import isclose, pi
 
 import pytest
 
-from TidalPy.constants import G, au
-from TidalPy.exceptions import BadValueError
+from TidalPy.constants import G, au, seconds_per_myr, year
 from TidalPy.Utilities_x.conversions import (
     Au2m,
     days2rads,
@@ -32,6 +31,13 @@ def test_frequency_period_round_trip():
 
 def test_time_round_trip():
     assert isclose(sec2myr(myr2sec(123.0)), 123.0)
+
+
+def test_myr_is_julian():
+    """A mega-year is one million Julian years, the same constant the radiogenics datasets use."""
+    assert isclose(myr2sec(1.0), 1.0e6 * year, rel_tol=1e-15)
+    assert myr2sec(1.0) == seconds_per_myr
+    assert isclose(sec2myr(3.15576e13), 1.0, rel_tol=1e-15)
 
 
 def test_kepler_round_trip():
@@ -61,7 +67,8 @@ def test_kepler_matches_classic_implementation():
 
 
 def test_bad_masses_raise():
-    with pytest.raises(BadValueError):
+    """Invalid masses raise a plain ValueError, like the rest of the new backend."""
+    with pytest.raises(ValueError):
         orbital_motion2semi_a(1.0e-5, 0.0)
-    with pytest.raises(BadValueError):
+    with pytest.raises(ValueError):
         semi_a2orbital_motion(1.0e8, 1.0e24, target_mass=-1.0)

@@ -298,8 +298,7 @@ public:
         this->p_radius_si = radius_si;
 
         // Non-dim scales (frequency-independent). Held by unique_ptr because c_NonDimensionalScales is not assignable.
-        this->p_non_dim_uptr = std::make_unique<c_NonDimensionalScales>(
-            /*frequency (unused)*/ 1.0, planet_radius, bulk_density);
+        this->p_non_dim_uptr = std::make_unique<c_NonDimensionalScales>(planet_radius, bulk_density);
 
         const double length_conv  = this->p_non_dim_uptr->length_conversion;
         const double mass_conv     = this->p_non_dim_uptr->mass_conversion;

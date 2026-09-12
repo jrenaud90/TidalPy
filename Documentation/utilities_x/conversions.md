@@ -18,13 +18,13 @@ m2Au(1.495978707e11)   # 1.0          [AU]
 days2rads(1.0)     # 7.2722e-05      [rad s-1] from an orbital or rotational period in days
 rads2days(7.2722e-05)  # 1.0          [days]
 
-myr2sec(1.0)       # 3.154e13        [s]
-sec2myr(3.154e13)  # 1.0             [Myr]
+myr2sec(1.0)       # 3.15576e13      [s]
+sec2myr(3.15576e13) # 1.0            [Myr]
 ```
 
 The period conversions are the pair used most often, because orbital and rotational periods are quoted in days while every TidalPy argument named a frequency is an angular frequency in rad s$^{-1}$. A forgotten factor of $2\pi$ here is the single most common way to get a tidal answer that is wrong by a large, plausible-looking factor.
 
-The mega-year conversion uses $3.154 \times 10^{13}$ s per Myr. That is a rounded value rather than the Julian year, so a time converted through it and back is exact, but a time compared against another module's Myr-based constant can differ in the fourth decimal place.
+The mega-year conversion uses the Julian year of 365.25 days, so one Myr is exactly $3.15576 \times 10^{13}$ s. That is the same constant the radiogenics datasets use for their half lives, available in Python as `TidalPy.constants.seconds_per_myr`, so times converted here and times read from an isotope model agree.
 
 ## Orbital elements
 
@@ -39,7 +39,7 @@ Both are Kepler's third law, $n^2 a^3 = G (M_{\text{host}} + M_{\text{target}})$
 
 Both take an optional `G_to_use` so a comparison against a published result can use whatever value of the gravitational constant that work adopted. The default is TidalPy's own, which comes from SciPy at initialization.
 
-A non-positive host mass or a negative target mass raises `BadValueError` from `TidalPy.exceptions`. That class derives from `Exception` rather than from `ValueError`, so a caller catching `ValueError` will not catch it.
+A non-positive host mass or a negative target mass raises `ValueError`.
 
 ## Non-dimensionalization
 
@@ -54,7 +54,7 @@ with the mass and pressure scales following as $\rho_{\text{scale}} L^3$ and $M_
 ```python
 from TidalPy.Utilities_x.dimensions import build_nondimensional_scales
 
-scales = build_nondimensional_scales(frequency, mean_radius, bulk_density)
+scales = build_nondimensional_scales(mean_radius, bulk_density)
 
 scales.length_conversion     # [m]        the body's mean radius
 scales.length3_conversion    # [m^3]
@@ -66,8 +66,6 @@ scales.pascal_conversion     # [Pa]
 ```
 
 Each attribute is the factor a non-dimensional value is multiplied by to recover MKS, and divided by to go the other way. The returned object is a thin wrapper over the C++ `c_NonDimensionalScales` struct, which is what the solvers hold internally.
-
-The `frequency` argument is accepted for interface compatibility and does not affect the scales that are built.
 
 Callers rarely build these by hand. The radial solver and the world equation-of-state solve non-dimensionalize their inputs, integrate, and re-dimensionalize their results before returning, so the scales are an implementation detail unless you are reading solver internals or writing a new solver stage. The one thing to remember is the invariant: anything crossing the public API boundary is in MKS, and anything inside an integrator may not be.
 

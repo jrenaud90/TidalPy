@@ -6,6 +6,8 @@ while both exist.
 
 from math import isclose, isnan
 
+import pytest
+
 from TidalPy.constants import G, pi
 from TidalPy.Utilities_x.dimensions import NonDimensionalScalesClass, build_nondimensional_scales
 
@@ -26,7 +28,7 @@ def test_non_dimensionalize_structure_initializes_nan():
 
 
 def test_build_nondimensional_scales():
-    scales = build_nondimensional_scales(_FREQUENCY, _MEAN_RADIUS, _BULK_DENSITY)
+    scales = build_nondimensional_scales(_MEAN_RADIUS, _BULK_DENSITY)
 
     second2 = 1.0 / (pi * G * _BULK_DENSITY)
     assert isclose(scales.second2_conversion, second2)
@@ -40,13 +42,22 @@ def test_build_nondimensional_scales():
 
 
 def test_matches_classic_implementation():
-    """The ported scales equal the classic implementation's while both backends exist."""
+    """The ported scales equal the classic implementation's while both backends exist.
+
+    The classic builder still accepts a frequency it never used; the ported one does not take it.
+    """
     from TidalPy.utilities.dimensions.nondimensional import (
         build_nondimensional_scales as build_classic)
 
-    ported = build_nondimensional_scales(_FREQUENCY, _MEAN_RADIUS, _BULK_DENSITY)
+    ported = build_nondimensional_scales(_MEAN_RADIUS, _BULK_DENSITY)
     classic = build_classic(_FREQUENCY, _MEAN_RADIUS, _BULK_DENSITY)
     for name in ("second2_conversion", "second_conversion", "length_conversion",
                  "length3_conversion", "density_conversion", "mass_conversion",
                  "pascal_conversion"):
         assert isclose(getattr(ported, name), getattr(classic, name), rel_tol=1e-15), name
+
+
+def test_builder_takes_no_frequency():
+    """The scales are frequency independent, so the builder rejects the old unused frequency argument."""
+    with pytest.raises(TypeError):
+        build_nondimensional_scales(_FREQUENCY, _MEAN_RADIUS, _BULK_DENSITY)

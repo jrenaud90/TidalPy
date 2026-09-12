@@ -1,13 +1,20 @@
 """Tests for the dynamically loaded third-party constants in TidalPy.constants."""
 import math
 
-from TidalPy.constants import G, au, k, k_boltzman, k_boltzmann, luminosity_solar, radius_jupiter, year, yr
+from TidalPy.constants import (
+    G, au, k, k_boltzman, k_boltzmann, luminosity_solar, radius_jupiter, seconds_per_myr, year, yr)
 
 
 def test_year_is_julian_year():
     """The year constant is the Julian year in seconds, with a matching yr alias."""
     assert math.isclose(year, 31_557_600.0, rel_tol=1e-12)
     assert yr == year
+
+
+def test_seconds_per_myr_is_exact_julian():
+    """The compile-time mega-year equals one million of SciPy's Julian years, exactly."""
+    assert seconds_per_myr == 3.15576e13
+    assert math.isclose(seconds_per_myr, 1.0e6 * year, rel_tol=1e-15)
 
 
 def test_third_party_constants_populated():

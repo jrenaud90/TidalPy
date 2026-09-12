@@ -11,6 +11,7 @@ from TidalPy.constants cimport (
     d_ppm, d_ppb, d_INF, d_PI, d_NAN, d_DBL_MAX, d_DBL_MIN, d_DBL_MANT_DIGITS, d_EPS, d_EPS_10, d_EPS_100,
     d_MASS_SOLAR, d_RADIUS_SOLAR, d_LUMINOSITY_SOLAR, d_MASS_TRAP1, d_RADIUS_TRAP1, d_LUMINOSITY_TRAP1, d_MASS_EARTH,
     d_RADIUS_EARTH, d_MASS_JUPITER, d_RADIUS_JUPITER, d_MASS_PLUTO, d_RADIUS_PLUTO, d_MASS_IO, d_RADIUS_IO, 
+    d_SECONDS_PER_MYR,
     # Runtime config struct
     TidalPyConfig
     )
@@ -57,6 +58,7 @@ mass_pluto = d_MASS_PLUTO
 radius_pluto = d_RADIUS_PLUTO
 mass_io = d_MASS_IO
 radius_io = d_RADIUS_IO
+seconds_per_myr = d_SECONDS_PER_MYR
 
 # Constant Aliases
 M_sol = mass_solar

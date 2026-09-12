@@ -5,6 +5,7 @@ cdef extern from "constants_.hpp" namespace "TidalPyConstants" nogil:
     const double d_INF
     const double d_PI
     const double d_NAN
+    const double d_SECONDS_PER_MYR
     
     const double d_DBL_MAX
     const double d_DBL_MIN

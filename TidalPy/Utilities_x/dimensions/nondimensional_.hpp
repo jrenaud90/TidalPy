@@ -27,7 +27,6 @@ public:
     c_NonDimensionalScales(const c_NonDimensionalScales&) = default;
     c_NonDimensionalScales(c_NonDimensionalScales&&) = default;
     c_NonDimensionalScales(
-        double frequency,
         double mean_radius,
         double bulk_density
     )

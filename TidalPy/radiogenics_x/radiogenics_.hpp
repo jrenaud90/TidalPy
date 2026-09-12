@@ -47,6 +47,7 @@
 
 #include "radiogenics_base_.hpp"
 #include "../Utilities_x/math_x/numerics_.hpp"  // c_safe_exp
+#include "constants_.hpp"                        // TidalPyConstants::d_SECONDS_PER_MYR
 
 namespace tidalpy {
 
@@ -58,11 +59,6 @@ namespace tidalpy {
 // is given as a literal (ln(0.5) = -0.6931471805599453). The decay constant for
 // a half life t_half is gamma = d_LN_HALF / t_half.
 inline constexpr double d_LN_HALF = -0.6931471805599453094172321214581765680755001344;
-
-// Seconds in one mega-year (Julian year, 365.25 days). Built-in isotope datasets
-// quote half lives and reference times in Myr; they are converted to seconds at
-// construction so the C++ API stays MKS.
-inline constexpr double d_SECONDS_PER_MYR = 1.0e6 * 365.25 * 24.0 * 3600.0;
 
 // Numerical floor used to guard half-life denominators that may approach zero.
 inline constexpr double d_RADIOGENICS_FLOOR = 1.0e-100;
@@ -236,7 +232,8 @@ inline std::string rad_to_lower(std::string text) {
 // -------------------------------------------------------------------------------
 inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
     const std::string key = rad_to_lower(name);
-    const double myr = d_SECONDS_PER_MYR;
+    // The datasets quote half lives and reference times in Myr; convert so the C++ API stays MKS.
+    const double myr = TidalPyConstants::d_SECONDS_PER_MYR;
     c_IsotopeDataset dataset;
     dataset.ref_time = 4600.0 * myr;
 

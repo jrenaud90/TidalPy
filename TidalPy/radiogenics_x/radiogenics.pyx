@@ -32,17 +32,12 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_SECONDS_PER_MYR
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
-
-
-# Seconds in one mega-year (Julian year, 365.25 days). Used to convert the
-# global-config isotope data (stored in Myr) to MKS seconds.
-_SECONDS_PER_MYR = 1.0e6 * 365.25 * 24.0 * 3600.0
 
 
 # =====================================================================================================================
@@ -565,7 +560,7 @@ def _resolve_isotope_config(dict config):
 
     # Dataset-level reference time (Myr -> s).
     ref_time_myr = iso_data.get("ref_time", iso_data.get("reference_time", None))
-    ref_time = None if ref_time_myr is None else ref_time_myr * _SECONDS_PER_MYR
+    ref_time = None if ref_time_myr is None else ref_time_myr * d_SECONDS_PER_MYR
 
     names = []
     hpr = []
@@ -577,7 +572,7 @@ def _resolve_isotope_config(dict config):
             continue
         names.append(name)
         hpr.append(entry["hpr"])
-        half_lives.append(entry["half_life"] * _SECONDS_PER_MYR)
+        half_lives.append(entry["half_life"] * d_SECONDS_PER_MYR)
         mass_fracs.append(entry["iso_mass_fraction"])
         concentrations.append(entry["element_concentration"])
 

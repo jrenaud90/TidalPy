@@ -65,7 +65,6 @@ cdef class NonDimensionalScalesClass:
 
 cdef void cf_build_nondimensional_scales(
         c_NonDimensionalScales* non_dim_scales_ptr,
-        double frequency,
         double mean_radius,
         double bulk_density
         ) noexcept nogil:
@@ -81,17 +80,33 @@ cdef void cf_build_nondimensional_scales(
 
 
 def build_nondimensional_scales(
-        double frequency,
         double mean_radius,
         double bulk_density
         ):
-    """Build a populated :class:`NonDimensionalScalesClass` from a planet's scales (MKS inputs)."""
+    """Build a populated :class:`NonDimensionalScalesClass` from a planet's scales.
+
+    Parameters
+    ----------
+    mean_radius : float
+        Planet mean radius [m]; sets the length scale.
+    bulk_density : float
+        Planet bulk density [kg m-3]; sets the density scale and, with G, the time scale.
+
+    Returns
+    -------
+    NonDimensionalScalesClass
+        The conversion factors from non-dimensional solve units back to MKS.
+
+    Assumptions
+    -----------
+    The time scale ``sqrt(1 / (pi G rho_bulk))`` is independent of any forcing frequency, so one set of scales
+    serves every frequency in a sweep.
+    """
 
     cdef NonDimensionalScalesClass non_dim_scales = NonDimensionalScalesClass()
 
     cf_build_nondimensional_scales(
         &non_dim_scales.nondim_scales,
-        frequency,
         mean_radius,
         bulk_density
         )
