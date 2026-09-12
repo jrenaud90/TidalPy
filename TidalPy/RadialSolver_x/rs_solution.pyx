@@ -343,7 +343,8 @@ cdef class RadialSolverSolution:
             log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e}"
             log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e}"
             log_message += f"\n\t\tMass:              {self.mass:0.3e}"
-            log_message += f"\n\t\tMOI (factor):      {self.moi:0.3e} ({self.moi_factor:0.3f})"
+            log_message += (f"\n\t\tMOI:               {self.moi:0.3e} "
+                            f"(factor {self.moi_factor:0.4f}, sphere ratio {self.moi_sphere_ratio:0.4f})")
             log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e}\n"
         log_message += "\n\tRadial Solver Results:"
         log_message += f"\n\t\tSuccess:     {self.success}"
@@ -456,8 +457,22 @@ cdef class RadialSolverSolution:
 
     @property
     def moi_factor(self):
-        cdef double ideal_moi = (2.0 / 5.0) * self.mass * self.radius**2
-        return self.moi / ideal_moi
+        """Moment of inertia factor, moi / (M R^2).
+
+        The conventional dimensionless measure of central condensation: 0.4 for a uniform sphere, 0.3307
+        for Earth, and smaller the more mass sits near the center.
+        """
+        return self.moi / (self.mass * self.radius**2)
+
+    @property
+    def moi_sphere_ratio(self):
+        """Moment of inertia relative to a uniform sphere of the same mass and radius, moi / (0.4 M R^2).
+
+        Exactly 1 for a uniform body and below 1 for a centrally condensed one. This is 2.5 times
+        :attr:`moi_factor`.
+        """
+        cdef double uniform_sphere_moi = (2.0 / 5.0) * self.mass * self.radius**2
+        return self.moi / uniform_sphere_moi
 
     @property
     def density_bulk(self):

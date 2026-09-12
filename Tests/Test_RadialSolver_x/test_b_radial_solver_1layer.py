@@ -119,6 +119,7 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
             assert type(out.mass) in (float, )
             assert type(out.moi) in (float, )
             assert type(out.moi_factor) in (float, )
+            assert type(out.moi_sphere_ratio) in (float, )
             assert type(out.density_bulk) in (float, )
             assert type(out.central_pressure) in (float, )
             assert type(out.surface_pressure) in (float, )

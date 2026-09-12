@@ -36,7 +36,8 @@ The solver runs an equation of state before the deformation problem, and keeps t
 | `shear_modulus_array`, `bulk_modulus_array` | Complex moduli through the planet. |
 | `layer_upper_radius_array` | Upper radius of each layer [m]. |
 | `radius`, `volume`, `mass`, `moi`, `density_bulk` | Whole-planet scalars. |
-| `moi_factor` | The moment of inertia normalized by the uniform-sphere value `0.4 M R^2`, so exactly 1 for a uniform body and below 1 for a centrally condensed one. Note that this is not the conventional moment of inertia factor `C / (M R^2)`, which is 0.4 for a uniform sphere; multiply by 0.4 to get that. |
+| `moi_factor` | The moment of inertia factor `moi / (M R^2)`: 0.4 for a uniform sphere, 0.3307 for Earth, and smaller the more mass sits near the center. |
+| `moi_sphere_ratio` | The same moment of inertia measured against a uniform sphere of equal mass and radius, `moi / (0.4 M R^2)`: exactly 1 when uniform, below 1 when centrally condensed. It is 2.5 times `moi_factor`. |
 | `central_pressure`, `surface_pressure`, `surface_gravity` | Boundary values. |
 | `eos_call(radius)` | Dense equation-of-state outputs at any radius, evaluated from the solver's own interpolant rather than re-interpolating the gridded arrays. |
 | `eos_call_si(radius)` | The same, in SI units. |
