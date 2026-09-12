@@ -1,7 +1,7 @@
 """
 Tests for the propagation-matrix radial-solver method on LayeredWorld.
 
-``solve_love_numbers(use_prop_matrix=True)`` selects the propagation-matrix
+``solve_love_numbers(love_method='propagation_matrix')`` selects the propagation-matrix
 technique instead of the shooting method. It is only valid for a single solid,
 static, incompressible layer, for which the degree-2 tidal Love number of a
 homogeneous sphere has the closed form::
@@ -74,14 +74,14 @@ def _analytic_k2():
 def test_prop_matrix_succeeds():
     world = _incompressible_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, use_prop_matrix=True, verbose=False)
+    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
     assert world.love_solved is True
 
 
 def test_prop_matrix_k2_matches_analytic():
     world = _incompressible_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, use_prop_matrix=True, verbose=False)
+    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
     k2 = world.love_number_k
     analytic = _analytic_k2()
     assert not cmath.isnan(k2)
@@ -94,9 +94,9 @@ def test_prop_matrix_close_to_shooting_for_same_world():
     """For a near-incompressible sphere, the two methods should roughly agree."""
     world = _incompressible_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, use_prop_matrix=True, verbose=False)
+    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
     k2_matrix = world.love_number_k
-    world.solve_love_numbers(frequency_rad_s=_FREQ, use_prop_matrix=False, verbose=False)
+    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='radial_solver', verbose=False)
     k2_shoot = world.love_number_k
     assert k2_matrix.real == pytest.approx(k2_shoot.real, rel=0.10)
 
@@ -121,7 +121,7 @@ def test_prop_matrix_rejects_two_layers():
         layer.is_incompressible = True
         world.add_layer(layer)
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, use_prop_matrix=True, verbose=False)
+    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
     # Must fail cleanly, not crash.
     assert world.love_success is False
     assert world.love_error_code != 0
@@ -141,6 +141,6 @@ def test_prop_matrix_rejects_compressible_layer():
     assert layer.is_incompressible is False
     world.add_layer(layer)
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, use_prop_matrix=True, verbose=False)
+    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
     assert world.love_success is False
     assert world.love_error_code != 0

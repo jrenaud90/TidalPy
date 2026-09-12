@@ -104,16 +104,9 @@ cdef int _resolve_solve_for(str solve_for) except? -999:
     raise ValueError(
         f"Unsupported solve_for: {solve_for}. Supported: 'tidal', 'loading', 'free'.")
 
-cdef int _resolve_love_method(str love_method, cpp_bool use_prop_matrix) except? -999:
-    # Map a Love-number method name (or alias) to its c_LoveMethod index. `use_prop_matrix` is the
-    # shorthand for the propagation-matrix method and may not contradict an explicit method.
+cdef int _resolve_love_method(str love_method) except? -999:
+    # Map a Love-number method name (or alias) to its c_LoveMethod index.
     cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
-    if use_prop_matrix:
-        if method == 0:
-            method = 1
-        elif method != 1:
-            raise ValueError(
-                f"use_prop_matrix=True conflicts with love_method='{love_method}'; drop one of them.")
     if method == 5:
         raise NotImplementedError(
             "The laterally_inhomogeneous Love-number method is reserved for the 3D Love solver and is not "
@@ -756,7 +749,6 @@ cdef class LayeredWorld(BaseWorld):
             double frequency_rad_s     = 1.0e-5,
             int degree_l               = 2,
             str solve_for              = 'tidal',
-            cpp_bool use_prop_matrix   = False,
             int core_model             = 0,
             cpp_bool use_kamata        = True,
             cpp_bool nondimensionalize = True,
@@ -797,11 +789,6 @@ cdef class LayeredWorld(BaseWorld):
             Surface boundary condition: ``'tidal'`` (default; tidal Love numbers k, h, l),
             ``'loading'`` (load Love numbers k', h', l'), or ``'free'`` (free-surface
             response). Same names as the standalone ``radial_solver``.
-        use_prop_matrix : bool, optional
-            Shorthand for ``love_method='propagation_matrix'`` (kept for compatibility); it may
-            not contradict an explicit ``love_method``. The propagation matrix is only valid for
-            a single solid, static, incompressible layer; an incompatible world fails the solve
-            gracefully (``love_success`` is ``False`` with a non-zero ``love_error_code``).
         core_model : int, optional
             Propagation-matrix core starting condition (0-4). Ignored by the
             shooting method. Default 0.
@@ -839,7 +826,9 @@ cdef class LayeredWorld(BaseWorld):
             How the Love numbers are obtained. ``'radial_solver'`` (aliases ``'shooting'``,
             ``'rs'``; default) integrates the radial ODEs from the center to the surface;
             ``'propagation_matrix'`` (``'prop_matrix'``, ``'pm'``, ``'prop'``) uses the matrix
-            method; ``'homogeneous'`` (``'homogen'``) applies the homogeneous-sphere formulas with
+            method, which is only valid for a single solid, static, incompressible layer (an
+            incompatible world fails the solve gracefully: ``love_success`` is ``False`` with a
+            non-zero ``love_error_code``); ``'homogeneous'`` (``'homogen'``) applies the homogeneous-sphere formulas with
             the volume-averaged complex shear modulus of the tidal layers (``is_tidal``), the
             planet's bulk density, surface gravity, and radius; ``'cpl'`` and ``'ctl'`` apply them
             to the static shear modulus and impose a constant phase lag ``(1 - i/Q)`` or time lag
@@ -873,7 +862,7 @@ cdef class LayeredWorld(BaseWorld):
         cfg.frequency_rad_s   = frequency_rad_s
         cfg.degree_l          = degree_l
         cfg.bc_model          = _resolve_solve_for(solve_for)
-        cfg.love_method       = _resolve_love_method(love_method, use_prop_matrix)
+        cfg.love_method       = _resolve_love_method(love_method)
         cfg.fixed_q           = d_NAN if fixed_q is None else <double>fixed_q
         cfg.fixed_dt          = d_NAN if fixed_dt is None else <double>fixed_dt
         cfg.core_model        = core_model
@@ -911,7 +900,6 @@ cdef class LayeredWorld(BaseWorld):
             double frequency_rad_s     = 1.0e-5,
             int    degree_l            = 2,
             str    solve_for           = 'tidal',
-            cpp_bool use_prop_matrix   = False,
             int    core_model          = 0,
             cpp_bool use_kamata        = True,
             cpp_bool nondimensionalize = True,
@@ -933,7 +921,7 @@ cdef class LayeredWorld(BaseWorld):
         The supplied shear/bulk moduli [Pa] are defined at ``radius_array`` [m] and are linearly interpolated onto
         the world's internal EOS radius grid. Used by the standalone ``RadialSolver_x.radial_solver`` API.
         ``solve_eos`` must be called first. Only the radial-solver methods (``love_method``
-        ``'radial_solver'`` or ``'propagation_matrix'``, or ``use_prop_matrix``) are available here.
+        ``'radial_solver'`` or ``'propagation_matrix'``) are available here.
         """
         if radius_array.shape[0] == 0:
             raise ValueError("radius_array must not be empty")
@@ -947,7 +935,7 @@ cdef class LayeredWorld(BaseWorld):
         cfg.frequency_rad_s    = frequency_rad_s
         cfg.degree_l           = degree_l
         cfg.bc_model           = _resolve_solve_for(solve_for)
-        cfg.love_method        = _resolve_love_method(love_method, use_prop_matrix)
+        cfg.love_method        = _resolve_love_method(love_method)
         cfg.core_model         = core_model
         cfg.use_kamata         = <cpp_bool>use_kamata
         cfg.nondimensionalize  = <cpp_bool>nondimensionalize

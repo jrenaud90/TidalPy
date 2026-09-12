@@ -35,7 +35,7 @@ def test_radial_solver_matrix_1layer(core_model, nondimensionalize, degree_l, so
             frequency, planet_bulk_density, 
             layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
             degree_l=degree_l, solve_for=solve_for, core_model=core_model,
-            use_prop_matrix=True,
+            love_method='propagation_matrix',
             verbose=False, nondimensionalize=nondimensionalize, raise_on_fail=True)
 
         assert out.success
@@ -59,7 +59,7 @@ def test_radial_solver_matrix_1layer_solve_for_both(core_model, degree_l):
             frequency, planet_bulk_density, 
             layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
             degree_l=degree_l, solve_for=solve_for, core_model=core_model, starting_radius=0.1,
-            use_prop_matrix=True,
+            love_method='propagation_matrix',
             verbose=False, nondimensionalize=False, raise_on_fail=True)
 
         assert out.success

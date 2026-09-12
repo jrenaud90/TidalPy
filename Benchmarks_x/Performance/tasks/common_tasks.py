@@ -104,7 +104,7 @@ def _love_radial_solver():
            note="homogeneous static-incompressible propagation-matrix solve for k/h/l")
 def _love_prop_matrix():
     homogeneous_love_numbers(_R, _RHO, 60.0e9 + 0.0j, _N_IO, num_slices=_SLICES,
-                             layer_is_incompressible=True, use_prop_matrix=True)
+                             layer_is_incompressible=True, love_method='propagation_matrix')
 
 
 # 3-layer solid / static-liquid / solid planet solved with the shooting method.

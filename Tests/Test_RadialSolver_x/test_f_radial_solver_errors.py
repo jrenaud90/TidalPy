@@ -12,7 +12,7 @@ def radial_solver(*args, **kwargs):
     except NotImplementedError as exc:
         # For most tests in this module, a start-condition NotImplemented error is
         # effectively an input validation failure from the test perspective.
-        if kwargs.get('use_prop_matrix', False):
+        if kwargs.get('love_method', 'radial_solver') == 'propagation_matrix':
             raise
         raise ArgumentException(str(exc)) from exc
     except ValueError as exc:
@@ -248,7 +248,7 @@ def test_prop_matrix_limitations_too_many_layers():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array, use_prop_matrix=True, raise_on_fail=True
+            upper_radius_bylayer_array, love_method='propagation_matrix', raise_on_fail=True
         )
 
 def test_prop_matrix_limitations_layer_assumptions():
@@ -266,7 +266,7 @@ def test_prop_matrix_limitations_layer_assumptions():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array, use_prop_matrix=True, raise_on_fail=True
+            upper_radius_bylayer_array, love_method='propagation_matrix', raise_on_fail=True
         )
     
     layer_types = ("solid",)
@@ -279,7 +279,7 @@ def test_prop_matrix_limitations_layer_assumptions():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array, use_prop_matrix=True, raise_on_fail=True
+            upper_radius_bylayer_array, love_method='propagation_matrix', raise_on_fail=True
         )
     
     layer_types = ("solid",)
@@ -292,7 +292,7 @@ def test_prop_matrix_limitations_layer_assumptions():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array, use_prop_matrix=True, raise_on_fail=True
+            upper_radius_bylayer_array, love_method='propagation_matrix', raise_on_fail=True
         )
 
 def test_bad_starting_radius():

@@ -110,7 +110,7 @@ def test_homogeneous_love_matches_radial_solver(degree_l):
     """The closed form reproduces the propagation-matrix solve of a static incompressible uniform sphere."""
     solution = homogeneous_love_numbers(
         RADIUS, DENSITY, SHEAR + 0.0j, 1.0e-5, num_slices=60, degree_l=degree_l,
-        layer_is_static=True, layer_is_incompressible=True, use_prop_matrix=True)
+        layer_is_static=True, layer_is_incompressible=True, love_method='propagation_matrix')
     assert solution.success
     love = calc_homogeneous_love_numbers(SHEAR, DENSITY, GRAVITY, RADIUS, degree_l)
     np.testing.assert_allclose(np.atleast_1d(solution.k)[0], love.k, rtol=1e-9)

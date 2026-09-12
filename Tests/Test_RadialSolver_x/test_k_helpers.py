@@ -31,7 +31,7 @@ def test_homogeneous_helper_kwarg_passthrough():
     """Extra keyword arguments reach radial_solver (here: the propagation matrix path)."""
     solution = homogeneous_love_numbers(
         _R, _RHO, 60.0e9 + 0.0j, _FREQ, num_slices=_SLICES,
-        layer_is_incompressible=True, use_prop_matrix=True)
+        layer_is_incompressible=True, love_method='propagation_matrix')
     assert solution.success
     k2 = complex(np.atleast_1d(solution.k)[0])
     # Static incompressible homogeneous sphere: 0 < k2 < 1.5 with no imaginary part (real modulus).

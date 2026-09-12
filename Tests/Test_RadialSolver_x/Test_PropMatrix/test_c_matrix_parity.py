@@ -47,13 +47,16 @@ def analytic_love(degree_l):
 
 
 def run_matrix(solver_func, degree_l, core_model):
+    # The new backend names the radial technique; the classic solver keeps its own boolean keyword.
+    method_kwarg = ({'love_method': 'propagation_matrix'} if solver_func is radial_solver_new
+                    else {'use_prop_matrix': True})
     return solver_func(
         radius_array, density_array, bulk_modulus_array, complex_shear_modulus_array,
         frequency, density,
         ('solid',), (True,), (True,), upper_radius_by_layer,
         degree_l=degree_l, solve_for=('tidal',), core_model=core_model,
-        use_prop_matrix=True, verbose=False, nondimensionalize=True,
-        raise_on_fail=True, warnings=False)
+        verbose=False, nondimensionalize=True,
+        raise_on_fail=True, warnings=False, **method_kwarg)
 
 
 @pytest.mark.parametrize('core_model', (0, 1, 2, 3))
@@ -96,7 +99,7 @@ def test_matrix_vs_shooting(degree_l):
         ('solid',), (False,), (True,), upper_radius_by_layer,
         degree_l=degree_l, solve_for=('tidal',), use_kamata=True,
         integration_method='DOP853', integration_rtol=1.0e-10, integration_atol=1.0e-12,
-        scale_rtols_bylayer_type=False, use_prop_matrix=False,
+        scale_rtols_bylayer_type=False, love_method='radial_solver',
         verbose=False, nondimensionalize=True, raise_on_fail=True, warnings=False)
     assert out_matrix.success and out_shooting.success
     np.testing.assert_allclose(out_shooting.love, out_matrix.love, rtol=1.0e-3)

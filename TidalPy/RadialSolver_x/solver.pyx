@@ -23,6 +23,20 @@ set_tidalpy_config_ptr(get_shared_config_address())
 from TidalPy.exceptions import SolutionFailedError
 from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
+from TidalPy.Tides_x.love.love cimport c_parse_love_method_int
+
+
+cdef cpp_bool _resolve_prop_matrix(str love_method) except *:
+    # Map a Love-number method name (or alias) onto the two radial techniques this array API offers.
+    cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
+    if method == 0:
+        return False
+    if method == 1:
+        return True
+    raise ValueError(
+        f"The array-based radial_solver supports love_method 'radial_solver' (aliases 'shooting', 'rs') and "
+        f"'propagation_matrix' (aliases 'prop_matrix', 'pm', 'prop') only; '{love_method}' needs a built world "
+        f"(LayeredWorld.solve_love_numbers) or the closed-form functions in TidalPy.Tides_x.love.")
 
 
 def radial_solver(
@@ -51,8 +65,9 @@ def radial_solver(
         size_t expected_size = 1000,
         size_t max_ram_MB = 500,
         double max_step = 0,
+        # Love-number method
+        str love_method = 'radial_solver',
         # Propagation matrix method parameters
-        cpp_bool use_prop_matrix = False,
         int core_model = 0,
         # Equation of State solver parameters
         tuple eos_method_bylayer = None,
@@ -122,8 +137,12 @@ def radial_solver(
         Maximum RAM for integrator [MB].
     max_step : float64, default=0
         Maximum step size. 0 = auto-determine.
-    use_prop_matrix : bool, default=False
-        Use propagation matrix method.
+    love_method : str, default='radial_solver'
+        Radial technique: 'radial_solver' (aliases 'shooting', 'rs') integrates the radial ODEs from the
+        starting radius to the surface; 'propagation_matrix' (aliases 'prop_matrix', 'pm', 'prop') uses the
+        matrix method, which is only valid for a single solid, static, incompressible layer. The analytic
+        methods ('homogeneous', 'cpl', 'ctl') need a built world (LayeredWorld.solve_love_numbers) or the
+        closed-form functions in TidalPy.Tides_x.love.
     core_model : int, default=0
         Core model for prop matrix method (0-4).
     eos_method_bylayer : tuple, default=None
@@ -197,6 +216,7 @@ def radial_solver(
         for em in eos_method_bylayer:
             c_eos_method_bylayer.push_back(em.encode('utf-8'))
 
+    cdef cpp_bool use_prop_matrix = _resolve_prop_matrix(love_method)
     cdef vector[int] layer_types_out = vector[int](num_layers)
     # Use standard malloc for boolean arrays since std::vector<bool> behaves like a bitfield in C++
     cdef cpp_bool* c_is_static = <cpp_bool*>malloc(num_layers * sizeof(cpp_bool))

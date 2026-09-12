@@ -111,11 +111,11 @@ is_incompressible_by_layer = (False, True, True)
 upper_radius_by_layer = np.asarray((core_r, ocean_r, crust_r), dtype=np.float64, order='C')
 
 @pytest.mark.parametrize('degree_l', (2, 3, 4, 5))
-@pytest.mark.parametrize('use_prop_matrix', (True, False))
-def test_radial_solver_alma_compare(degree_l, use_prop_matrix):
+@pytest.mark.parametrize('love_method', ('propagation_matrix', 'radial_solver'))
+def test_radial_solver_alma_compare(degree_l, love_method):
     """ Compare TidalPy's `radial_solver` to ALMA for an Enceladus-like planet. """
     
-    if use_prop_matrix:
+    if love_method == 'propagation_matrix':
         # Have tried increasing the number of slices, still does not match well.
         pytest.skip("Can not currently match ALMA results when using propagation matrix technique.")
 
@@ -129,7 +129,7 @@ def test_radial_solver_alma_compare(degree_l, use_prop_matrix):
     alma_k, alma_h, alma_l = alma_results[degree_l]
 
     # Calculate solution using the radial solver
-    if use_prop_matrix:
+    if love_method == 'propagation_matrix':
         inputs = (
             radius_array,
             density_array,
@@ -159,7 +159,7 @@ def test_radial_solver_alma_compare(degree_l, use_prop_matrix):
         degree_l=degree_l,
         solve_for=None,
         use_kamata=True,
-        use_prop_matrix=use_prop_matrix,
+        love_method=love_method,
         core_model=0,
         integration_method="DOP853",
         integration_rtol=integration_rtol,

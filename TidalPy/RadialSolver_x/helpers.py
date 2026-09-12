@@ -46,7 +46,7 @@ def homogeneous_love_numbers(
         Use the incompressible assumption for the layer.
     **radial_solver_kwargs
         Additional keyword arguments passed through to ``radial_solver`` (for example ``solve_for``,
-        ``use_prop_matrix``, ``integration_method``, ``integration_rtol``).
+        ``love_method``, ``integration_method``, ``integration_rtol``).
 
     Returns
     -------

@@ -107,16 +107,6 @@ def test_default_method_is_radial_solver():
     assert math.isnan(world.love_tidal_volume)
 
 
-def test_use_prop_matrix_shorthand():
-    world = _uniform_world()
-    shorthand = world.solve_love_numbers(frequency_rad_s=FREQ, use_prop_matrix=True)
-    explicit = world.solve_love_numbers(frequency_rad_s=FREQ, love_method="propagation_matrix")
-    assert shorthand["love_method"] == explicit["love_method"] == "propagation_matrix"
-    assert shorthand["love_number_k"] == explicit["love_number_k"]
-    with pytest.raises(ValueError, match="conflicts"):
-        world.solve_love_numbers(frequency_rad_s=FREQ, use_prop_matrix=True, love_method="homogeneous")
-
-
 def test_unknown_and_reserved_methods():
     world = _uniform_world()
     with pytest.raises(ValueError, match="unknown Love-number method"):
