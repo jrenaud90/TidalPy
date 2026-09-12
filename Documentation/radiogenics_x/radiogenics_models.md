@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-12_
 
-A radiogenics model answers one question: given a layer of mass $m$ at time $t$, how much power is being released inside it by radioactive decay? The answer is the heating $Q$ [W] returned by `calc_heating(time, mass)`. Everything else on these classes exists to build that number, to evaluate it over an array of times or masses, or to save and restore the model.
+A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] returned by `calc_heating(time, mass)`.
 
 Time is measured in seconds from an epoch the caller chooses, and each model carries the reference time `ref_time` at which its rates or concentrations were quoted. Only the difference $t - t_{\text{ref}}$ enters the physics, so a model built from present-day abundances with a reference time of 4600 Myr is evaluated at $t = 0$ to get the heating at the birth of the solar system, or at $t = t_{\text{ref}}$ to get today's.
 
@@ -11,7 +11,7 @@ Time is measured in seconds from an epoch the caller chooses, and each model car
 ```
 c_TidalPyBaseClass
   └── c_PhysicsBase
-        └── c_RadiogenicsBase          (abstract)
+        └── c_RadiogenicsBase  (abstract)
               ├── c_OffRadiogenics       alias "none"
               ├── c_IsotopeRadiogenics
               └── c_FixedRadiogenics     alias "constant"
@@ -19,9 +19,9 @@ c_TidalPyBaseClass
 
 The abstract base declares `calc_heating(time, mass)` pure virtual and supplies the three vectorized wrappers, so a new model only has to implement the heating law. The Cython classes mirror the hierarchy one for one: `RadiogenicsBase`, `OffRadiogenics`, `IsotopeRadiogenics`, `FixedRadiogenics`.
 
-## The three models
+## Models
 
-Masses are in kilograms, times and half lives in seconds, specific heat production rates in W kg$^{-1}$, and the returned heating in watts. For a half life $t_{1/2}$ the decay constant is $\gamma = \ln(0.5) / t_{1/2}$, a negative number whose magnitude grows as the half life shortens.
+For a half life $t_{1/2}$ the decay constant is $\gamma = \ln(0.5) / t_{1/2}$, a negative number whose magnitude grows as the half life shortens.
 
 | Model (aliases) | Heating $Q$ [W] | Parameters |
 |---|---|---|
@@ -43,7 +43,7 @@ Sums the decay of an arbitrary list of isotopes, each with its own half life. Th
 
 Applies one lumped specific rate to the whole layer, optionally with a single effective half life. It is the right model when the isotope inventory is unknown or irrelevant, when a paper quotes a single heating rate to reproduce, or when a parameter sweep wants radiogenic heating as one dial rather than four. Setting `average_half_life` to zero (the default) or to any non-positive value means no decay at all, and the heating is then constant for all time.
 
-### Behavior at the limits
+### Behavior at the Limits
 
 A half life at or below zero is treated as infinite rather than as an error, which is what makes the constant-rate case fall out of the same formula. A half life that is finite but smaller than the module's floor is clamped to that floor, so no decay constant is ever divided by zero.
 

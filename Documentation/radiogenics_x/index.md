@@ -2,9 +2,7 @@
 
 _Updated: 2026-09-12_
 
-`TidalPy.radiogenics_x` supplies the other internal heat source. Long-lived isotopes of uranium, thorium, and potassium, together with the short-lived isotopes that were still live in the first few million years of the solar system, deposit energy throughout a rocky layer as they decay. Each model in this module maps a layer's mass and the elapsed time onto a single number: the radiogenic heating $Q$ [W] released inside that layer.
-
-That number matters because it sets the baseline a tidal calculation is measured against. A body whose radiogenic budget alone keeps its mantle above the solidus will convect, differentiate, and dissipate tides differently from one that would be frozen without tidal heating. The comparison also runs the other way: showing that a moon's observed heat flow exceeds what radiogenic decay can supply is the standard argument that tides are doing the work. Because the decay is exponential and the relevant half lives span four orders of magnitude, the ratio of radiogenic to tidal heating is not a constant of a body but a function of its age.
+`TidalPy.radiogenics_x` adds functionality to calculate internal heating due to the decay of radioactive isotopes (both long- and short-duration isotopes). Each model in this module uses a layer's mass and the elapsed time to find the radiogenic heating $Q$ [W] released inside that layer.
 
 | Page | Covers |
 |---|---|
@@ -16,7 +14,7 @@ That number matters because it sets the baseline a tidal calculation is measured
 Radiogenic Models <radiogenics_models.md>
 ```
 
-## Where radiogenics fits
+## Where Radiogenics is Used
 
 A radiogenics model is attached to a `SolidLiquidLayer` with `set_radiogenics`, alongside the layer's cooling model. See [SolidLiquidLayer](../structures_x/layers/solidliquid_layer.md). The layer then answers `calc_radiogenic_heating(time, mass)`, and `LayeredWorld.calc_internal_heating(time)` sums the contributions of every layer that carries a model. Layers without one contribute zero rather than raising.
 
