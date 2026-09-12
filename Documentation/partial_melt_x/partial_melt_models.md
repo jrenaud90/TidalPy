@@ -2,19 +2,17 @@
 
 _Updated: 2026-09-12_
 
-A partial-melt model maps a material's pre-melt (solid) viscosity and shear modulus, together with its temperature, onto the post-melt viscosity and shear modulus, and reports the volumetric melt fraction it used to get there. In short, it applies melt weakening.
+A partial-melt model maps a material's pre-melt (solid) viscosity and shear modulus, together with its temperature, onto the post-melt viscosity and shear modulus, and reports the volumetric melt fraction it used to get there.
 
-These quantities depend only on the temperature and pressure state fixed by the equation-of-state solve, not on the forcing frequency, so they are computed once per solve and cached. Only the downstream [rheology](../rheology_x/index.md) step, which produces the complex modulus, is recomputed for each tidal mode.
+These quantities depend only on the temperature and pressure state fixed by the equation-of-state solve, not on the forcing frequency, so they are computed once per solve and cached. Only the downstream [rheology](../rheology_x/index.md) step, which produces the complex modulus (frequency-dependent), is recomputed for each tidal mode.
 
-The math mirrors the validated classic implementation in `TidalPy/rheology/partial_melt/melting_models.py`.
+## Melt Fraction
 
-## Melt fraction
-
-The volumetric melt fraction is model-independent. It is the position of the temperature within the material's melting envelope, clipped to a physical range:
+The volumetric melt fraction is model-independent.
 
 $$\phi = \mathrm{clip}\left( \frac{T - T_\mathrm{solidus}}{T_\mathrm{liquidus} - T_\mathrm{solidus}},\; 0,\; 1 \right)$$
 
-Below the solidus $\phi = 0$, above the liquidus $\phi = 1$, and a degenerate envelope with the solidus at or above the liquidus returns $\phi = 0$, which is the fully solid answer. This linear form is a convenience, not a claim about melting thermodynamics; real silicate systems melt non-linearly across the envelope, and the models below are what carry the physics.
+Below the solidus $\phi = 0$, above the liquidus $\phi = 1$, and a degenerate envelope with the solidus at or above the liquidus returns $\phi = 0$, which is the fully solid answer.
 
 ## The three models
 
@@ -34,7 +32,7 @@ $$\eta_\mathrm{post} = 10^{\,(s_\eta / T) - p_\eta}, \qquad \mu_\mathrm{post} = 
 
 with the slopes $s$ and phases $p$ given by `fs_visc_power_slope`, `fs_visc_power_phase`, `fs_shear_power_slope`, and `fs_shear_power_phase`. Both results are floored at the liquid limits, the supplied liquid viscosity and the model's `liquid_shear`.
 
-This model overwrites rather than weakens: the pre-melt viscosity and shear modulus do not appear on the right-hand side. That makes it self-contained and cheap, and it makes the layer's viscosity model irrelevant wherever this model is active.
+The pre-melt viscosity and shear modulus do not appear on the right-hand side. That makes it self-contained and cheap, and it makes the layer's viscosity model irrelevant wherever this model is active.
 
 ### Henning (2009, 2018)
 
@@ -92,7 +90,11 @@ phi, post_viscosity, post_shear = melt_model.calc_partial_melt(
 spohn_model = make_partial_melt("fischer", {"solidus_k": 1500.0})
 ```
 
-Constructors take the melt envelope plus their own parameters, all with the defaults from the table: `OffPartialMelt(solidus=1600.0, liquidus=2000.0, liquid_shear=1.0e-5)`, `SpohnPartialMelt(..., fs_visc_power_slope=27000.0, fs_visc_power_phase=1.0, fs_shear_power_slope=82000.0, fs_shear_power_phase=40.6)`, and `HenningPartialMelt(..., crit_melt_frac=0.5, crit_melt_frac_width=0.05, hn_visc_slope_1=13.5, hn_visc_falloff_slope=370.0, hn_shear_param_1=40000.0, hn_shear_param_2=25.0, hn_shear_falloff_slope=700.0)`.
+Constructors take the melt envelope plus their own parameters, all with the defaults from the table: 
+
+`OffPartialMelt(solidus=1600.0, liquidus=2000.0, liquid_shear=1.0e-5)`, `SpohnPartialMelt(..., fs_visc_power_slope=27000.0, fs_visc_power_phase=1.0, fs_shear_power_slope=82000.0, fs_shear_power_phase=40.6)`
+
+`HenningPartialMelt(..., crit_melt_frac=0.5, crit_melt_frac_width=0.05, hn_visc_slope_1=13.5, hn_visc_falloff_slope=370.0, hn_shear_param_1=40000.0, hn_shear_param_2=25.0, hn_shear_falloff_slope=700.0)`
 
 | Member | Returns | Description |
 |---|---|---|
@@ -108,7 +110,7 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 
 `make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively; absent keys fall back to the model defaults and an unrecognized name raises `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
 
-## Attaching a melt model to a layer
+## Attaching a Melt Model to a `Layer`
 
 ```python
 from TidalPy.partial_melt_x import make_partial_melt
