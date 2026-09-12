@@ -70,12 +70,14 @@ struct c_GlobalTideResult {
 //
 // The 3D tidal heating can be produced as a full grid over (radius, colatitude, longitude[, time]) or
 // reduced (integrated) along any of the spatial dimensions:
-//   * orbit_averaged = true  -> the secular (cycle-averaged) volumetric heating density h_bar [W m-3].
-//     It is longitude- and time-independent (the per-mode e^{i m phi} cancels), so the longitude axis
-//     is constant and the longitude integral is analytic (a factor 2*pi). No time axis.
+//   * orbit_averaged = true  -> the secular (cycle-averaged) volumetric heating density h_bar [W m-3]: the
+//     time average of the instantaneous power at each point. It is time-independent (no time axis) and
+//     depends on longitude wherever waves at one frequency have different azimuthal structure, as they do
+//     for a synchronously rotating body; the longitude integral is analytic (2*pi times the longitude
+//     mean, which drops those cross terms).
 //   * orbit_averaged = false -> the instantaneous mechanical power density sigma_ij(t) eps_dot_ij(t)
-//     [W m-3], evaluated at each user-supplied time. It depends on longitude and time and orbit-averages
-//     back to h_bar. A time axis is present.
+//     [W m-3], evaluated at each user-supplied time. It depends on longitude and time and time-averages
+//     to h_bar. A time axis is present.
 //
 // Reduction convention (marginal densities): if any spatial axis is summed, each surviving spatial axis
 // carries its Jacobian (r^2 for radius, sin theta for colatitude, 1 for longitude), and each SUMMED axis

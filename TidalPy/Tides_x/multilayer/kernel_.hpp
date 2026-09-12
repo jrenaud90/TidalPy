@@ -109,9 +109,10 @@ inline double c_volumetric_heating(const c_Tensor6& stress, const c_Tensor6& str
 
 // Signed cycle-average heating factor at a point: sum_k w_k [ Im(sigma_k) Re(eps_k) - Re(sigma_k)
 // Im(eps_k) ] = sum_k w_k Im(sigma_k conj(eps_k)), with factor 2 on the three off-diagonals and NO
-// abs(). For the secular (cycle/orbit-averaged) heating this is called with the complex-phasor
-// stress/strain of a single mode; the per-mode volumetric heating is (omega_mode/2) times this, and
-// modes sum with sign (distinct-frequency cross terms average to zero, so they are simply omitted).
+// abs(). For the secular (cycle/orbit-averaged) heating this is called with the total complex-phasor
+// stress/strain at one frequency (every wave at that |omega| summed first, since same-frequency cross
+// terms survive the average); the volumetric heating at that frequency is (|omega|/2) times this, and the
+// frequencies sum (distinct-frequency cross terms average to zero, so they are simply omitted).
 inline double c_volumetric_heating_signed(const c_Tensor6& stress, const c_Tensor6& strain) noexcept
 {
     double h = 0.0;

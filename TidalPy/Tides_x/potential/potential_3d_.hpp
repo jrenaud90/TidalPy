@@ -27,7 +27,9 @@
  * by c_get_lm_coeff_map() (potential_common_.hpp).
  */
 
+#include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstdint>
 #include <vector>
 
@@ -185,12 +187,11 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
     return coeffs;
 }
 
-// Complex-phasor engine for the SECULAR (cycle/orbit-averaged) 3D heating at a single point. the angular
-// factor is a complex amplitude (the mode's time factor e^{i omega t} pulled out): U(t) = Re[U_c e^{i
-// omega t}]. Thin wrapper: build the position-independent mode list once, then evaluate each mode's
-// angular factor at (colatitude, longitude). NOTE the e^{i m phi} factor cancels in Im(sigma_c
-// conj(eps_c)) for a single mode, so the per-mode secular heating is longitude-independent; longitude is
-// still honored here for generality.
+// Per-mode complex-phasor angular factors at a single point: build the position-independent mode list once,
+// then evaluate each mode's angular factor at (colatitude, longitude), with U(t) = Re[U_c e^{i omega t}]. This
+// is the raw per-(l, m, p, q) view (exposed to Python as tidal_potential_3d_modes). The heating paths do not
+// consume it directly: they first merge the modes into coherent waves (c_coherent_tidal_waves_3d below), because
+// modes that share a real spatial function must be summed BEFORE the heating bilinear form.
 inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
         double planet_radius,
         double semi_major_axis,
@@ -226,6 +227,120 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
         modes.push_back(out);
     }
     return modes;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Coherent waves
+// ---------------------------------------------------------------------------------------------------------------
+//
+// A coherent tidal wave for the 3D heating paths. Every active mode is mapped onto a non-negative frequency (a mode
+// with omega < 0 contributes the complex conjugate of its phasor at +|omega|, since Re[U_c e^{i omega t}] =
+// Re[conj(U_c) e^{-i omega t}]) and merged with every other mode that shares the same real spatial function: the
+// same degree l, order m, |omega|, and azimuthal sign (e^{+i m phi} against e^{-i m phi}; irrelevant for m = 0).
+// The complex amplitude carries the parity phase (-i for odd l - m), the conjugation, and the coherent sum over
+// the merged modes.
+//
+// The reason for the merge is due to the secular heating at a frequency is (|omega|/2) Im(sigma_c : conj(eps_c)) of
+// the total complex amplitude there. Summing the cycle-averaged powers of two modes that are the same real sinusoid
+// instead halves their contribution ((a + a)^2 = 4 a^2, not 2 a^2). The m = 0 modes always come in such pairs:
+// (l, 0, p, q) at +omega and (l, 0, l-p, -q) at -omega carry equal amplitudes (F_l0p = +-F_l0,l-p with the parity sign,
+// and G_lpq = G_l,l-p,-q) and are the same function of time (cos(-x) = cos(x); for odd l the sin(-x) = -sin(x) is
+// compensated by the sign of F). For a homogeneous body at zero obliquity the zonal terms are 9/84 of the
+// degree-2 heating, so summing them incoherently loses 4.5/84 = 5.36% of the total at synchronous rotation,
+// where only the eccentricity modes survive. At nonzero obliquity, modes of the same (l, m) with different (p, q)
+// can also share a signed frequency; their relative phase is set by the argument of periapse, which this engine
+// takes as zero (no precession), so they are merged coherently too.
+struct c_TidalWave3D {
+    int degree_l = 0;
+    int order_m = 0;
+    int azimuthal_sign = 1;                 // +1: e^{+i m phi}; -1: e^{-i m phi} (a conjugated omega < 0 mode); +1 for m = 0
+    double frequency = 0.0;                 // |omega| [rad s-1], > 0
+    std::complex<double> amplitude {0.0, 0.0};   // coherent complex amplitude (parity phase, conjugation, merge applied)
+};
+
+// Two forcing frequencies are the same tidal frequency (integer combinations of n and the spin rate that agree
+// mathematically can differ at the last bit).
+inline bool c_tidal_wave_same_frequency(double frequency_a, double frequency_b) {
+    return std::abs(frequency_a - frequency_b) <= 1.0e-9 * std::max(std::abs(frequency_a), std::abs(frequency_b));
+}
+
+// Build the coherent wave list from the raw mode list, dropping modes at or below min_frequency (no
+// dissipation at zero frequency) and waves whose merged amplitude cancels.
+inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
+        const std::vector<c_TidalPotential3DModeCoeff>& modes,
+        double min_frequency)
+{
+    std::vector<c_TidalWave3D> waves;
+    waves.reserve(modes.size());
+    for (const c_TidalPotential3DModeCoeff& mode : modes)
+    {
+        const double frequency = std::abs(mode.mode_frequency);
+        if (frequency <= min_frequency) {
+            continue;
+        }
+
+        const bool negative = mode.mode_frequency < 0.0;
+        // Parity phase of the phasor: 1 for cos (even l - m), -i for sin (odd l - m); conjugated for omega < 0.
+        const std::complex<double> phase = (mode.parity == 0)
+            ? std::complex<double>(1.0, 0.0)
+            : std::complex<double>(0.0, negative ? 1.0 : -1.0);
+        const int azimuthal_sign = (mode.order_m == 0 || !negative) ? 1 : -1;
+        const std::complex<double> amplitude = mode.amplitude * phase;
+
+        bool merged = false;
+        for (c_TidalWave3D& wave : waves)
+        {
+            if (wave.degree_l == mode.degree_l && wave.order_m == mode.order_m
+                && wave.azimuthal_sign == azimuthal_sign
+                && c_tidal_wave_same_frequency(wave.frequency, frequency))
+            {
+                wave.amplitude += amplitude;
+                merged = true;
+                break;
+            }
+        }
+        if (!merged)
+        {
+            c_TidalWave3D wave;
+            wave.degree_l       = mode.degree_l;
+            wave.order_m        = mode.order_m;
+            wave.azimuthal_sign = azimuthal_sign;
+            wave.frequency      = frequency;
+            wave.amplitude      = amplitude;
+            waves.push_back(wave);
+        }
+    }
+    std::vector<c_TidalWave3D> active;
+    active.reserve(waves.size());
+    for (const c_TidalWave3D& wave : waves)
+    {
+        if (std::abs(wave.amplitude) > 0.0) { active.push_back(wave); }
+    }
+    return active;
+}
+
+// Evaluate a coherent wave's complex potential angular factor U_c and its theta/phi derivatives at a point:
+//   U_c = amplitude * P_lm(cos theta) * e^{i mu phi},   mu = azimuthal_sign * m,
+// with U(t) = Re[U_c e^{i |omega| t}]. Theta derivatives act on P_lm; phi derivatives bring a factor i*mu.
+inline c_PotentialPointC c_eval_wave_point_3d(
+        const c_TidalWave3D& wave,
+        double colatitude,
+        double longitude)
+{
+    const c_LegendreValue legendre = c_legendre(wave.degree_l, wave.order_m, colatitude);
+    const double mu = static_cast<double>(wave.azimuthal_sign) * static_cast<double>(wave.order_m);
+    const std::complex<double> e_imuphi(std::cos(mu * longitude), std::sin(mu * longitude));
+    const std::complex<double> phasor = wave.amplitude * e_imuphi;
+    const std::complex<double> i_mu(0.0, mu);
+
+    return c_PotentialPointC {
+        phasor * legendre.p,                     // U_c
+        phasor * legendre.dp_dtheta,             // dU/dtheta
+        phasor * (i_mu * legendre.p),            // dU/dphi
+        phasor * legendre.d2p_dtheta2,           // d2U/dtheta2
+        phasor * (-mu * mu * legendre.p),        // d2U/dphi2
+        phasor * (i_mu * legendre.dp_dtheta)     // d2U/dtheta_dphi
+    };
 }
 
 } // namespace tidalpy

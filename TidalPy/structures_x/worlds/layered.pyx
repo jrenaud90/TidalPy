@@ -1165,15 +1165,18 @@ cdef class LayeredWorld(BaseWorld):
             double colatitude) -> float:
         """Secular (cycle/orbit-averaged) 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)``.
 
-        This is the physically time-averaged power density: the active tidal modes are built dynamically
-        from the world's ``[tides]`` truncation config (max degree l, eccentricity/obliquity truncation),
-        the world radial response is solved once per mode, and each mode contributes
-        ``(omega/2) Im(sigma_c : conj(eps_c))`` (a single ``omega/2``, complex amplitudes, no ``abs``),
-        summed with sign. It is longitude- and time-independent (the ``e^{i m phi}`` cancels per mode),
-        and its volume integral over the planet equals the 1D global tidal heating
-        (:meth:`get_tidal_heating`). Requires the rheology tide model (:meth:`set_tide_model`) and a
-        solved EOS (:meth:`solve_eos`). Returns NaN in liquid layers / at the center / below the solver's
-        starting radius.
+        This is the longitude mean of the time-averaged power density. The active tidal modes are built
+        from the world's ``[tides]`` truncation config (max degree l, eccentricity/obliquity truncation)
+        and merged into coherent waves (modes that share a real spatial function, such as the ``m = 0``
+        pairs at ``+omega`` and ``-omega``, are one wave), the world radial response is solved once per
+        ``(l, |omega|)``, and each frequency contributes ``(|omega|/2) Im(sigma_c : conj(eps_c))`` of its
+        total complex stress and strain. Cross terms between waves at one frequency with different
+        longitude structure are what make the heating of a synchronously rotating body depend on
+        longitude; they average to zero over longitude, so this method returns the zonal mean. For the
+        longitude-resolved secular field use :meth:`calc_3d_tides`. The volume integral over the planet
+        equals the 1D global tidal heating (:meth:`get_tidal_heating`). Requires the rheology tide model
+        (:meth:`set_tide_model`) and a solved EOS (:meth:`solve_eos`). Returns NaN at the center / below
+        the solver's starting radius and 0 in liquid layers.
         """
         cdef c_TideSolveConfig state
         state.orbital_frequency = orbital_frequency
@@ -1194,15 +1197,15 @@ cdef class LayeredWorld(BaseWorld):
             double host_mass,
             radii,
             colatitudes):
-        """Secular 3D tidal volumetric heating [W m-3] at an array of ``(radius, colatitude)`` points.
+        """Longitude-mean secular 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)`` points.
 
         Vectorized batch form of :meth:`get_3d_tidal_heating`: ``radii`` and ``colatitudes`` are paired,
         equal-length 1D arrays (point ``i`` is ``(radii[i], colatitudes[i])``), and a same-shape
         ``np.ndarray`` of heating is returned. Same physics and preconditions as the scalar method, but
-        the world radial response is solved once per unique ``(degree l, frequency)`` and reused across
-        all points (the solve does not depend on radius or colatitude), so this is the efficient way to
-        build a heating map. Entries are NaN for points in a liquid layer / at the center / below the
-        solver's starting radius. Requires the rheology tide model and a solved EOS.
+        the world radial response is solved once per unique ``(degree l, |omega|)`` and reused across all
+        points (the solve does not depend on radius or colatitude), so this is the efficient way to build
+        a zonal-mean heating map. Entries are NaN for points at the center / below the solver's starting
+        radius and 0 in liquid layers. Requires the rheology tide model and a solved EOS.
         """
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
         cdef cnp.ndarray colat_arr = np.ascontiguousarray(colatitudes, dtype=np.float64)
@@ -1333,18 +1336,20 @@ cdef class LayeredWorld(BaseWorld):
         """3D tidal heating as a full grid over ``(radius, colatitude, longitude[, time])`` or reduced.
 
         With ``orbit_averaged=True`` (default) the quantity is the secular (cycle-averaged) volumetric
-        heating density ``h_bar`` [W m-3], which is longitude- and time-independent (so the longitude
-        axis is constant and there is no time axis). With ``orbit_averaged=False`` it is the instantaneous
-        mechanical power density ``sigma_ij(t) * eps_dot_ij(t)`` [W m-3] at each supplied time (a 4th
-        axis), which orbit-averages back to ``h_bar``.
+        heating density ``h_bar`` [W m-3]: the time average of the instantaneous power at each point. It
+        has no time axis, and it depends on longitude wherever waves at one frequency have different
+        longitude structure, as they do for a synchronously rotating body (every active mode at a
+        multiple of the mean motion). With ``orbit_averaged=False`` it is the instantaneous mechanical
+        power density ``sigma_ij(t) * eps_dot_ij(t)`` [W m-3] at each supplied time (a 4th axis), which
+        time-averages to ``h_bar``.
 
         Any spatial dimension can be integrated out via ``latitude_summed`` / ``longitude_summed`` /
         ``radial_summed``. Reduction convention: if any spatial axis is summed, the surviving spatial
         axes carry their Jacobian (``r^2``, ``sin theta``, ``1``) so a plain integral over them recovers
         the total; if none is summed the output is the raw density. The colatitude integral uses an
         internal Gauss-Legendre grid (``latitude_nodes``), the radial integral an internal per-layer
-        trapezoid (``radial_slices``), and the longitude integral the analytic ``2*pi`` when averaged or
-        a ``longitude_nodes`` trapezoid when instantaneous.
+        trapezoid (``radial_slices``), and the longitude integral the analytic ``2*pi`` times the
+        longitude mean when averaged or a ``longitude_nodes`` trapezoid when instantaneous.
 
         Non-summed spatial axes require the corresponding ``radii`` / ``colatitudes`` / ``longitudes``
         arrays; the ``times`` array is required when ``orbit_averaged=False``. The returned dict carries

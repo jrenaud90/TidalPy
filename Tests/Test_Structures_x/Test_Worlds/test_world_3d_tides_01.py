@@ -1,9 +1,9 @@
 """On-demand 3D tidal heating as a LayeredWorld method (C++ orchestration on c_RheologyTide).
 
-LayeredWorld.get_3d_tidal_heating delegates to the rheology tide model, which loops the tidal
-potential model's active modes, solves the world radial response once per mode frequency, sums each
-mode's (freq_half-scaled) stress/strain tensors, and heats once from the combined tensors - all in
-C++, directly calling the world's members (no Python orchestration, no callbacks).
+LayeredWorld.get_3d_tidal_heating delegates to the rheology tide model, which builds the coherent tidal
+waves from the tide config, solves the world radial response once per (degree, frequency), sums each
+frequency's complex stress/strain tensors, and heats once per frequency from the combined tensors - all
+in C++, directly calling the world's members (no Python orchestration, no callbacks).
 
 These tests check the preconditions (rheology model + potential model + solved EOS required) and that
 the world's heating reproduces the legacy collapse_multilayer_modes for a homogeneous Maxwell sphere.
@@ -62,8 +62,8 @@ def _build_world(tide_model="rheology"):
 
 
 def _get(world, radius, colat, lon, t, sma):
-    # The 3D heating is now the secular (cycle/orbit-averaged) density: longitude- and time-independent,
-    # so lon/t are accepted for call-site compatibility but not passed through.
+    # The scalar 3D heating is the longitude-mean secular (cycle/orbit-averaged) density: it takes no
+    # longitude or time, so lon/t are accepted for call-site compatibility but not passed through.
     return world.get_3d_tidal_heating(_N, _SPIN, _ECC, 0.0, sma, _HOST, radius, colat)
 
 

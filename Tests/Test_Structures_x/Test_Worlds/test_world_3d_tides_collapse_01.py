@@ -2,9 +2,9 @@
 
 Covers the full (radius, colatitude, longitude[, time]) grid, the summed/averaged reductions, the
 secular vs instantaneous quantities, and the physical consistency checks: the fully-collapsed total
-equals the 1D global heating, per-layer totals sum to it, profiles integrate to it, the density grid
-matches the scalar path, the secular grid is longitude-independent, and the instantaneous power
-orbit-averages back to the secular density.
+equals the 1D global heating, per-layer totals sum to it, profiles integrate to it, the density grid's
+longitude mean matches the scalar path, the secular grid is longitude-independent when no two waves share
+a frequency, and the instantaneous power time-averages to the secular density at the same point.
 """
 import math
 
@@ -75,28 +75,36 @@ def _default_grid():
 # Default full 3D grid
 # =====================================================================================================================
 def test_default_grid_shape_and_longitude_independence():
-    """Default output is the secular density grid (nr, ncolat, nlon); constant along longitude."""
+    """Default output is the secular density grid (nr, ncolat, nlon). At spin 1.37 n no two active waves
+    share a frequency, so there are no same-frequency cross terms and the grid is constant along longitude."""
     sma = orbital_motion2semi_a(_N, _HOST, _MASS)
     world = _build_world()
     grid = _default_grid()
     res = world.calc_3d_tides(*_args(1.37 * _N, sma), **grid)
     heat = res['heating']
     assert heat.shape == (6, 5, 4)
-    # Secular density is longitude-independent: every longitude slice is identical.
     for k in range(1, 4):
         np.testing.assert_allclose(heat[:, :, k], heat[:, :, 0], rtol=1e-12, equal_nan=True)
 
 
-def test_grid_matches_scalar():
-    """The uncollapsed secular grid equals the scalar get_3d_tidal_heating point-for-point."""
+def test_grid_longitude_mean_matches_scalar():
+    """The scalar get_3d_tidal_heating is the longitude mean of the uncollapsed secular grid.
+
+    At spin 1.5 n the degree-2 sectoral waves at +n and -n and the zonal wave at n share a frequency, so the
+    secular density varies with longitude (as cos 2 phi and cos 4 phi); a uniform longitude grid averages
+    that trigonometric polynomial exactly.
+    """
     sma = orbital_motion2semi_a(_N, _HOST, _MASS)
     world = _build_world()
     grid = _default_grid()
+    grid['longitudes'] = np.linspace(0.0, 2.0 * np.pi, 16, endpoint=False)
     res = world.calc_3d_tides(*_args(1.5 * _N, sma), **grid)
+    mean = res['heating'].mean(axis=-1)
+    assert np.ptp(res['heating'][3, 2, :]) > 0.0   # genuinely longitude-dependent here
     for i, r in enumerate(grid['radii']):
         for j, c in enumerate(grid['colatitudes']):
             scal = world.get_3d_tidal_heating(*_args(1.5 * _N, sma), r, c)
-            assert math.isclose(res['heating'][i, j, 0], scal, rel_tol=1e-12)
+            assert math.isclose(mean[i, j], scal, rel_tol=1e-10)
 
 
 # =====================================================================================================================
@@ -160,17 +168,21 @@ def test_colatitude_profile_integrates_to_total():
 # Instantaneous (orbit_averaged=False): sigma:eps_dot, orbit-averages to the secular density
 # =====================================================================================================================
 def test_instantaneous_time_average_matches_secular():
-    """Averaging the instantaneous power over the mode common period recovers the secular density.
+    """Averaging the instantaneous power over the mode common period recovers the secular density at that
+    point (longitude included).
 
     For spin = 1.5 n the mode frequencies are all multiples of 0.5 n, so two orbital periods is an exact
-    common period; averaging sigma:eps_dot over it must return the secular density h_bar.
+    common period; averaging sigma:eps_dot over it must return the secular density h_bar at the same
+    (r, theta, phi). The instantaneous power is a trigonometric polynomial in time, so the uniform trapezoid
+    is exact.
     """
     sma = orbital_motion2semi_a(_N, _HOST, _MASS)
     spin = 1.5 * _N
     world = _build_world()
     r, colat, lon = 0.6 * _R, 1.1, 0.7
 
-    h_bar = world.get_3d_tidal_heating(*_args(spin, sma), r, colat)
+    h_bar = world.calc_3d_tides(*_args(spin, sma), radii=np.array([r]), colatitudes=np.array([colat]),
+                                longitudes=np.array([lon]))['heating'][0, 0, 0]
 
     period = 2.0 * (2.0 * np.pi / _N)   # two orbital periods = exact common period for spin = 1.5 n
     times = np.linspace(0.0, period, 4001)
@@ -179,7 +191,7 @@ def test_instantaneous_time_average_matches_secular():
                               longitudes=np.array([lon]), times=times, orbit_averaged=False)
     p = res['heating'][0, 0, 0, :]
     avg = np.trapezoid(p, times) / period
-    assert math.isclose(avg, h_bar, rel_tol=1e-2), f"time-avg {avg:.4e} != secular {h_bar:.4e}"
+    assert math.isclose(avg, h_bar, rel_tol=1e-8), f"time-avg {avg:.4e} != secular {h_bar:.4e}"
 
 
 def test_instantaneous_varies_with_longitude_and_time():

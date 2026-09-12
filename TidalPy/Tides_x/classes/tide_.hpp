@@ -120,28 +120,28 @@ public:
     bool needs_radial_solve() const override { return true; }
 
     // On-demand secular (cycle/orbit-averaged) 3D tidal volumetric heating [W m-3] at (radius,
-    // colatitude). Only the rheology model supports the 3D path (it alone has the depth-resolved radial
-    // solution). It is the physically time-averaged power density: the active tidal modes are built
-    // dynamically from the world's truncation config (c_tidal_potential_3d_modes, complex amplitudes),
-    // the world radial response is solved once per mode (l, frequency), and each mode contributes
-    // (omega/2) Im(sigma_c : conj(eps_c)) (a SINGLE omega/2, complex amplitudes, no abs), summed with
-    // sign (distinct-frequency cross terms average to zero). Longitude- and time-independent (the
-    // e^{i m phi} cancels per mode); its volume integral equals the world's 1D global tidal heating
-    // (get_tidal_heating). Defined out-of-line in structures_x/worlds/world_tides_.hpp. Returns NaN in
-    // liquid layers / at the center / below the solver's starting radius.
+    // colatitude): the longitudinal mean of the time-averaged power density. Only the rheology model
+    // supports the 3D path (it alone has the depth-resolved radial solution). The active tidal modes are
+    // built from the world's truncation config and merged into coherent waves (potential_3d_.hpp), the
+    // world radial response is solved once per (l, |omega|), each frequency's waves are summed and
+    // contribute (|omega|/2) Im(sigma_c : conj(eps_c)) (complex amplitudes, no abs), and the frequencies
+    // sum. Its volume integral equals the world's 1D global tidal heating (get_tidal_heating); the
+    // longitude-resolved secular field is calc_3d_tidal_heating_collapsed with orbit_averaged. Defined
+    // out-of-line in structures_x/worlds/world_tides_.hpp. Returns NaN at the center / below the
+    // solver's starting radius and 0 in liquid layers (no shear kernel).
     double calc_3d_tidal_heating(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
             double radius,
             double colatitude) const;
 
-    // Vectorized batch form: the secular 3D volumetric heating [W m-3] at num_points paired
-    // (radii[i], colatitudes[i]) query points, written into the caller-supplied out_heating[i]. Same
-    // physics as the scalar calc_3d_tidal_heating, but the position-independent mode list is built once
-    // and the world radial (Love-number) solve is amortized across all points (it depends on (l,
-    // frequency) only, not on radius/colatitude), so building a map costs one radial solve per unique
-    // (l, frequency) rather than one per point. out_heating[i] is NaN for a point in a liquid layer / at
-    // the center / below the solver's starting radius. Defined out-of-line in world_tides_.hpp.
+    // Vectorized batch form: the longitude-mean secular 3D volumetric heating [W m-3] at num_points
+    // paired (radii[i], colatitudes[i]) query points, written into the caller-supplied out_heating[i].
+    // Same physics as the scalar calc_3d_tidal_heating (which is this with one point): the wave list is
+    // built once and the world radial (Love-number) solve is amortized across all points (it depends on
+    // (l, |omega|) only, not on radius/colatitude), so building a map costs one radial solve per unique
+    // (l, |omega|) rather than one per point. out_heating[i] is NaN for a point at the center / below the
+    // solver's starting radius. Defined out-of-line in world_tides_.hpp.
     void calc_3d_tidal_heating_batch(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
@@ -151,10 +151,10 @@ public:
             double* out_heating) const;
 
     // Instantaneous tidal displacements [m] (radial, polar, azimuthal) on the full grid radii x
-    // colatitudes x longitudes x times. Each active mode's complex displacement amplitude at (r, theta,
-    // phi), (y1 U_c, y3 dU_c/dtheta, y3 dU_c/dphi / sin theta), is evolved in time as Re[u_c e^{i omega t}]
-    // (a mode with signed omega < 0 uses the conjugated phasor at +|omega|) and the modes are summed. The
-    // radial solve and the y1/y3 samples are computed once per unique (l, |omega|). out_disp holds
+    // colatitudes x longitudes x times. Each coherent wave's complex displacement amplitude at (r, theta,
+    // phi), (y1 U_c, y3 dU_c/dtheta, y3 dU_c/dphi / sin theta), is evolved in time as Re[u_c e^{i |omega| t}]
+    // and the waves are summed. The radial solve and the y1/y3 samples are computed once per unique
+    // (l, |omega|). out_disp holds
     // 3 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component); NaN at a radius with no
     // depth-resolved solution (center / below the solver start). Defined out-of-line in world_tides_.hpp.
     void calc_3d_displacements_grid(

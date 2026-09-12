@@ -6,9 +6,10 @@ stress/strain) are the SAME physical quantity: the total dissipated power. This 
 homogeneous Maxwell world, solves both, and checks that the volume-integrated secular 3D heating
 equals the 1D global heating.
 
-The secular 3D heating density is longitude- and time-independent (the per-mode ``e^{i m phi}`` cancels
-in ``Im(sigma_c conj(eps_c))``), so the volume integral reduces to ``2*pi * int int hbar(r, theta) r^2
-sin(theta) dr dtheta``.
+The scalar ``get_3d_tidal_heating`` returns the longitude mean of the secular density, so the volume
+integral reduces to ``2*pi * int int hbar(r, theta) r^2 sin(theta) dr dtheta``. Synchronous rotation is
+included: there every active mode sits at a multiple of n and the same-frequency waves (the zonal pairs
+above all) must be summed coherently for the volume integral to match.
 """
 import math
 
@@ -71,7 +72,7 @@ def _integrate_secular_3d(world, spin, sma, nr=40, nth=60):
     return total * 2.0 * math.pi * dr * dth
 
 
-@pytest.mark.parametrize("spin_factor", [1.37, 1.5])
+@pytest.mark.parametrize("spin_factor", [1.0, 1.37, 1.5])
 def test_volume_integrated_3d_matches_1d(spin_factor):
     sma = orbital_motion2semi_a(_N, _HOST, _MASS)
     spin = spin_factor * _N
@@ -88,14 +89,13 @@ def test_volume_integrated_3d_matches_1d(spin_factor):
         f"volume-integrated 3D heating {h_3d:.4e} != 1D global {h_1d:.4e} (ratio {h_3d / h_1d:.4f})"
 
 
-def test_secular_is_longitude_independent():
-    """The secular 3D heating density does not depend on longitude (or time)."""
+def test_scalar_is_a_pure_function():
+    """The scalar path (the longitude-mean secular density) takes no longitude or time and is repeatable."""
     sma = orbital_motion2semi_a(_N, _HOST, _MASS)
     spin = 1.37 * _N
     world = _build_world()
     r, colat = 0.6 * _R, 1.1
     h0 = world.get_3d_tidal_heating(_N, spin, _ECC, 0.0, sma, _HOST, r, colat)
-    # get_3d_tidal_heating takes no longitude/time argument; call it again -> identical (pure function).
     h1 = world.get_3d_tidal_heating(_N, spin, _ECC, 0.0, sma, _HOST, r, colat)
     assert math.isclose(h0, h1, rel_tol=1e-12)
     assert h0 > 0.0
