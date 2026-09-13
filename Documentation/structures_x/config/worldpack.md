@@ -8,7 +8,7 @@ For a description of the toml file schema used for worlds and layers please see 
 
 ---
 
-## How WorldPack_x works
+## How it Works
 
 The example worlds live in the package directory `TidalPy/WorldPack_x/`. They are not loaded directly from the package; instead they are copied into a per-user, per-version data directory the first time they are needed, and that data-directory copy is preferred thereafter. This lets a user edit the installed TOML to change the world they get from `build_world`, without touching the installed package.
 
@@ -23,19 +23,17 @@ The data directory is given by `TidalPy.paths.get_worlds_x_dir()`. It is scoped 
 
 World TOMLs and their **companion data files** (PREM-like profiles: `.csv`, `.txt`, `.dat`) are both installed. A world's `data_file` reference is resolved by `resolve_data_file` in this order: the world TOML's own directory, the data directory, the packaged `WorldPack_x`, then the working directory.
 
-### Install (copy-if-absent)
+### Install
 
 `install_worldpack_x(force=False)` copies each packaged `*.toml` into the data directory, but only when a file of that name is **not already present** there. This means:
 
-- A user's edits (or renamed/added files) in the data directory are never
-overwritten.
-- A world newly added to the package shows up on the next run (it is absent in the
-data dir, so it is copied).
+- A user's edits (or renamed/added files) in the data directory are never overwritten.
+- A world newly added to the package shows up on the next run (it is absent in the data dir, so it is copied).
 - Passing `force=True` re-copies every packaged world, discarding local edits.
 
 It returns the data directory path. It runs automatically inside `resolve_world_path` and `available_worlds`, so you rarely need to call it directly.
 
-### Name resolution (data directory first)
+### Name Resolution
 
 `build_world("<name>")` (equivalently `BaseWorld.build("<name>")`) resolves a bare name through `resolve_world_path(name)`:
 
@@ -62,29 +60,24 @@ earth.solve_eos()
 system = build_system("sol_system")   # the same resolution, for a multi-world config
 ```
 
-### Versioning caveat
+### Versioning Caveat
 
 Because installs are copy-if-absent and the data directory is version-scoped, a *within-version* schema change to a bundled world does **not** propagate to a user who already has the old copy in `Worlds_x/`. Across versions the new version's `Worlds_x` folder starts empty, so fresh copies install. During development, delete `Worlds_x/*.toml` (or call `install_worldpack_x(force=True)`) to pick up edits.
 
 ---
 
-## Adding a bundled world
+## Adding a Bundled World
 
-1. Write a schema-`0.2.0` world TOML and drop it in `TidalPy/WorldPack_x/<name>.toml`.
-`MANIFEST.in` already globs `TidalPy/WorldPack_x/*.toml`, so it is packaged on the next `uv pip install`.
-2. It installs to `Worlds_x/` and becomes available as `build_world("<name>")` and in
-`available_worlds()` on the next run. A system file follows the same two steps and appears in
-`available_systems()` instead.
+1. Write a schema-`0.2.0` world TOML and drop it in `TidalPy/WorldPack_x/<name>.toml`. `MANIFEST.in` already globs `TidalPy/WorldPack_x/*.toml`, so it is packaged on the next `uv pip install`.
+2. It installs to `Worlds_x/` and becomes available as `build_world("<name>")` and in `available_worlds()` on the next run. A system file follows the same two steps and appears in `available_systems()` instead.
+3. Is this a popular world you think the wider community could utilize? Open a PR on TidalPy's GitHub and add it to the WorldPack!
 
 The bundled worlds favor the per-material defaults: keep them small by specifying `class` + `type` + geometry and letting `TidalPy_Configs_x.toml` supply the EOS and physics models. Override anything inline as shown above and [`here`](toml_schema.md).
 
 ---
 
-## Relationship to the legacy WorldPack
 
-`TidalPy/WorldPack/` (zipped, extracted into `Worlds/`) serves the legacy (non-`_x`) world builder and uses the older world-config schema. `WorldPack_x/` (loose TOMLs, copied into `Worlds_x/`) serves the new `structures_x` builder and the `0.2.0` schema. They are independent; do not mix their files.
-
-## API summary (`TidalPy.structures_x.configs.worldpack`)
+## API Summary (`TidalPy.structures_x.configs.worldpack`)
 
 | Function | Description |
 |----------|-------------|
