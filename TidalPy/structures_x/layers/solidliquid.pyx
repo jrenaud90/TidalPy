@@ -11,6 +11,7 @@ viscosity, melt-fraction tracking, and optional cooling/radiogenics sub-models.
 from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
+from libcpp.memory cimport make_unique
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -169,11 +170,13 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         config.reference_density      = reference_density
         config.reference_temperature  = reference_temperature
         config.melt_viscosity_reduction = melt_viscosity_reduction
-        cdef c_SolidLiquidLayer* raw = new c_SolidLiquidLayer(config)
-        self._layer_ptr.reset(<c_BaseLayer*>raw)
-        self._physics_ptr     = <c_PhysicsLayer*>raw
-        self._solidliquid_ptr = raw
-        self._ptr             = <c_TidalPyBaseClass*>raw
+        # make_unique owns the allocation; ownership then moves into the base-typed member
+        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
+        cdef unique_ptr[c_SolidLiquidLayer] built = make_unique[c_SolidLiquidLayer](config)
+        self._solidliquid_ptr = built.get()
+        self._physics_ptr     = <c_PhysicsLayer*>self._solidliquid_ptr
+        self._layer_ptr.reset(<c_BaseLayer*>built.release())
+        self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
     def __dealloc__(self):
         self._solidliquid_ptr = NULL  # base's unique_ptr owns the C++ object

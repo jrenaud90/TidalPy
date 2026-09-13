@@ -17,6 +17,7 @@ from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.worlds.layered cimport LayeredWorld, c_LayeredWorld
+from libcpp.memory cimport unique_ptr, make_unique
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -56,11 +57,13 @@ cdef class GasGiantWorld(LayeredWorld):
         config.emissivity = emissivity
         config.obliquity  = obliquity
         config.spin_frequency = spin_frequency
-        cdef c_GasGiantWorld* raw = new c_GasGiantWorld(config)
-        self._world_ptr.reset(<c_BaseWorld*>raw)
-        self._layered_ptr  = <c_LayeredWorld*>raw
-        self._gasgiant_ptr = raw
-        self._ptr          = <c_TidalPyBaseClass*>raw
+        # make_unique owns the allocation; ownership then moves into the base-typed member
+        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
+        cdef unique_ptr[c_GasGiantWorld] built = make_unique[c_GasGiantWorld](config)
+        self._gasgiant_ptr = built.get()
+        self._layered_ptr  = <c_LayeredWorld*>self._gasgiant_ptr
+        self._world_ptr.reset(<c_BaseWorld*>built.release())
+        self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
 
     def family_world_type(self) -> str:
         """Builder world ``type`` for gas giants."""

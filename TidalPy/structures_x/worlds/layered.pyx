@@ -18,6 +18,7 @@ import numpy as np
 from libc.stdint cimport uint32_t
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
+from libcpp.memory cimport make_unique
 from libcpp.vector cimport vector
 from cython.operator cimport dereference as deref
 
@@ -179,10 +180,12 @@ cdef class LayeredWorld(BaseWorld):
         config.emissivity = emissivity
         config.obliquity  = obliquity
         config.spin_frequency = spin_frequency
-        cdef c_LayeredWorld* raw = new c_LayeredWorld(config)
-        self._world_ptr.reset(<c_BaseWorld*>raw)
-        self._layered_ptr = raw
-        self._ptr         = <c_TidalPyBaseClass*>raw
+        # make_unique owns the allocation; ownership then moves into the base-typed member
+        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
+        cdef unique_ptr[c_LayeredWorld] built = make_unique[c_LayeredWorld](config)
+        self._layered_ptr = built.get()
+        self._world_ptr.reset(<c_BaseWorld*>built.release())
+        self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
 
     def __dealloc__(self):
         self._layered_ptr = NULL  # base's unique_ptr owns the C++ object

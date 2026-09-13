@@ -20,6 +20,7 @@ import numpy as np
 from libcpp.vector cimport vector
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
+from libcpp.memory cimport make_unique
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -136,7 +137,8 @@ cdef class BaseLayer(StructureBase):
         config.is_tidal    = is_tidal
         config.tidal_scale = tidal_scale
         config.tidal_scale_method = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
-        self._layer_ptr.reset(new c_BaseLayer(config))
+        # The owning member is this same type, so make_unique's result moves straight in.
+        self._layer_ptr = make_unique[c_BaseLayer](config)
         self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
     def __dealloc__(self):

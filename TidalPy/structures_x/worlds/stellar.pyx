@@ -11,6 +11,7 @@ be attached to derive the luminosity and effective temperature from the star's m
 """
 
 from libcpp.utility cimport move
+from libcpp.memory cimport make_unique
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -78,10 +79,12 @@ cdef class StarWorld(BaseWorld):
         config.spin_frequency = spin_frequency
         config.effective_temperature = effective_temperature
         config.luminosity            = luminosity
-        cdef c_StarWorld* raw = new c_StarWorld(config)
-        self._world_ptr.reset(<c_BaseWorld*>raw)
-        self._star_ptr = raw
-        self._ptr      = <c_TidalPyBaseClass*>raw
+        # make_unique owns the allocation; ownership then moves into the base-typed member
+        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
+        cdef unique_ptr[c_StarWorld] built = make_unique[c_StarWorld](config)
+        self._star_ptr = built.get()
+        self._world_ptr.reset(<c_BaseWorld*>built.release())
+        self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
 
     def __dealloc__(self):
         self._star_ptr = NULL  # base's unique_ptr owns the C++ object

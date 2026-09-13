@@ -19,6 +19,7 @@ import numpy as np
 from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
+from libcpp.memory cimport make_unique
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -128,10 +129,12 @@ cdef class PhysicsLayer(BaseLayer):
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
             cpp_complex[double](love_number_l.real, love_number_l.imag))
-        cdef c_PhysicsLayer* raw = new c_PhysicsLayer(config)
-        self._layer_ptr.reset(<c_BaseLayer*>raw)
-        self._physics_ptr = raw
-        self._ptr         = <c_TidalPyBaseClass*>raw
+        # make_unique owns the allocation; ownership then moves into the base-typed member
+        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
+        cdef unique_ptr[c_PhysicsLayer] built = make_unique[c_PhysicsLayer](config)
+        self._physics_ptr = built.get()
+        self._layer_ptr.reset(<c_BaseLayer*>built.release())
+        self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
     def __dealloc__(self):
         self._physics_ptr = NULL  # base's unique_ptr owns the C++ object

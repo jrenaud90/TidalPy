@@ -12,6 +12,7 @@ sub-models.
 
 from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
+from libcpp.memory cimport unique_ptr, make_unique
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -140,11 +141,13 @@ cdef class GasLayer(PhysicsLayer):
         config.adiabatic_index       = adiabatic_index
         config.reference_temperature = reference_temperature
         config.reference_density     = reference_density
-        cdef c_GasLayer* raw = new c_GasLayer(config)
-        self._layer_ptr.reset(<c_BaseLayer*>raw)
-        self._physics_ptr = <c_PhysicsLayer*>raw
-        self._gas_ptr     = raw
-        self._ptr         = <c_TidalPyBaseClass*>raw
+        # make_unique owns the allocation; ownership then moves into the base-typed member
+        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
+        cdef unique_ptr[c_GasLayer] built = make_unique[c_GasLayer](config)
+        self._gas_ptr     = built.get()
+        self._physics_ptr = <c_PhysicsLayer*>self._gas_ptr
+        self._layer_ptr.reset(<c_BaseLayer*>built.release())
+        self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
     def __dealloc__(self):
         self._gas_ptr     = NULL  # base's unique_ptr owns the C++ object

@@ -17,6 +17,7 @@ parameters [m^3 s-2].
 from libc.math cimport NAN, isfinite
 from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
+from libcpp.memory cimport make_unique
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -129,7 +130,8 @@ cdef class System:
         self.source_config = None
 
     def __init__(self, str name=""):
-        self._system.reset(new c_System(name.encode("utf-8")))
+        # The owning member is this same type, so make_unique's result moves straight in.
+        self._system = make_unique[c_System](<string>name.encode("utf-8"))
         # Wire the inherited TidalPyBaseClass._ptr to the owned c_System so save_binary / load_binary /
         # get_schema_version_str / save_config resolve to it (c_System : c_TidalPyBaseClass).
         self._ptr = self._system.get()

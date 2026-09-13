@@ -11,6 +11,7 @@ calculations. Layered worlds (terrestrial, gas giant) and stars subclass this.
 
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
+from libcpp.memory cimport make_shared
 from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
@@ -95,7 +96,8 @@ cdef class BaseWorld(StructureBase):
         config.emissivity = emissivity
         config.obliquity  = obliquity
         config.spin_frequency = spin_frequency
-        self._world_ptr.reset(new c_BaseWorld(config))
+        # _world_ptr is a shared_ptr (a System co-owns the world), so build it with make_shared.
+        self._world_ptr = make_shared[c_BaseWorld](config)
         self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
 
     def __dealloc__(self):
