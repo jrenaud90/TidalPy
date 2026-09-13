@@ -1,6 +1,6 @@
 # Rheology (`rheology_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
 `TidalPy.rheology_x` utilizes a planet's material static shear (or bulk) modulus and viscosity to determine how it will respond to tidal (or loading) forcing. The result is a **complex modulus** $\mu^*(\omega)$ whose real part describes the elastic energy stored in the material and the imaginary part quantifies the energy lost via frictional heat. Every dissipation number TidalPy produces, from a Love number to a heating rate to an orbital decay timescale, traces back to that imaginary part.
 
@@ -30,7 +30,7 @@ The third is the tidal solve itself, which evaluates the rheology once per forci
 
 The viscosity a rheology consumes is itself a model. Generally in the literature when we discuss _rheology_ we generally are including how viscosity is changing with temperature, pressure, etc. For TidalPy, these concepts are separate for ease of categorization. Viscosity models are stored in a module and must be used to find a viscosity which is then used by a rheology model to determine the complex modulus. A material's viscosity depends strongly on temperature, pressure, and melt fraction, and [`viscosity_x`](../viscosity_x/viscosity_models.md) handles that mapping. A layer with a rheology but no viscosity model falls back to its static viscosity.
 
-## Learning by example
+## Demo
 
 `Demos_x/Physics/06_rheology_io.ipynb` builds models, sweeps them across frequency, and saves and reloads them. `Demos_x/Physics/05_tidal_basics.ipynb` shows the same models driving a tidal solve.
 

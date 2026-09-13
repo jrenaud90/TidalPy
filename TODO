@@ -1,3 +1,2 @@
 * Look back at our derivations repo and see how eccentricity functions are being truncated for e^1 truncation there should still be a non-zero tidal result but the current implementation if obliquity is off is to produce 0 active modes. Its almost like we need to square the G functions; taylor expand to desired trunc^2; then sqrt the result and return it? That does not really make sense though. need to do some research.
 * Convert TidalPy.utilities.math.numerics over to C++ header
-* Left off reviewing docs for radiogenics_models.md
