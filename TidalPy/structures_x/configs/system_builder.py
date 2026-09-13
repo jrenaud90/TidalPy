@@ -150,3 +150,20 @@ def build_system(source: Union[str, dict], force: bool = False):
         The constructed system.
     """
     return System.build(source, force=force)
+
+
+def available_systems() -> list:
+    """Return the sorted names of the bundled ``WorldPack_x`` example systems.
+
+    Delegates to :func:`TidalPy.structures_x.configs.worldpack.available_systems`,
+    combining the user data directory with the packaged systems. Single worlds live in
+    the same directory and are listed by
+    :func:`TidalPy.structures_x.configs.world_builder.available_worlds` instead.
+
+    Returns
+    -------
+    list of str
+        Bundled system names (without the ``.toml`` extension) usable as the
+        ``source`` argument of :func:`build_system`.
+    """
+    return worldpack.available_systems()

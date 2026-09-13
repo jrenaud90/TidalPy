@@ -22,7 +22,7 @@ import pytest
 from TidalPy.constants import G
 from TidalPy.structures_x import (
     build_world, construct_world, available_worlds, save_world_to_toml)
-from TidalPy.structures_x.configs import world_builder
+from TidalPy.structures_x.configs import world_builder, config_kind
 from TidalPy.structures_x.worlds.layered import LayeredWorld
 from TidalPy.structures_x.worlds.gasgiant import GasGiantWorld
 from TidalPy.structures_x.worlds.stellar import StarWorld
@@ -342,6 +342,21 @@ def test_available_worlds_lists_bundled():
     assert "earth_simple" in worlds
     assert "jupiter_simple" in worlds
     assert "sol" in worlds
+
+
+def test_available_worlds_excludes_systems():
+    """Systems share the world pack directory but are not buildable worlds."""
+    assert "sol_system" not in available_worlds()
+
+
+def test_config_kind_tells_the_two_apart():
+    assert config_kind({"type": "star", "name": "Sol"}) == "world"
+    assert config_kind({"name": "Sol System", "worlds": {"sun": {"world": "sol"}}}) == "system"
+
+
+def test_building_a_system_as_a_world_names_build_system():
+    with pytest.raises(ValueError, match="system configuration.*build_system"):
+        build_world("sol_system")
 
 
 @pytest.mark.parametrize("world_name", ["earth_simple", "jupiter_simple", "sol"])

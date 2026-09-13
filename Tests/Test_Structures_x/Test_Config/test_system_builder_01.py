@@ -15,6 +15,7 @@ from TidalPy.structures_x.configs import (
     build_system,
     construct_system,
     validate_system_config,
+    available_systems,
 )
 
 AU = 1.495978707e11
@@ -165,11 +166,27 @@ def test_save_expanded_roundtrip(tmp_path):
 
 
 # =====================================================================================================================
+# Listing the bundled configurations
+# =====================================================================================================================
+def test_available_systems_lists_bundled_systems_only():
+    """The counterpart of available_worlds: only the multi-world configs."""
+    systems = available_systems()
+    assert "sol_system" in systems
+    assert "earth_simple" not in systems
+    assert "sol" not in systems
+
+
+# =====================================================================================================================
 # Validation errors
 # =====================================================================================================================
 def test_validate_missing_worlds():
     with pytest.raises(ValueError, match="at least one"):
         validate_system_config({"name": "empty"})
+
+
+def test_building_a_world_as_a_system_names_build_world():
+    with pytest.raises(ValueError, match="world configuration.*build_world"):
+        build_system("sol")
 
 
 def test_validate_unknown_system_key():

@@ -395,6 +395,11 @@ def validate_world_config(config: dict) -> None:
     """
     world_type = config.get("type", None)
     if world_type is None:
+        if config.get("worlds", None):
+            # A system configuration: the two kinds share the world pack directory.
+            raise ValueError(
+                "This is a system configuration, not a world configuration: it has a 'worlds' table "
+                "and no 'type' key. Build it with build_system() instead of build_world().")
         raise ValueError("World configuration is missing the required 'type' key.")
     if world_type not in WORLD_TYPES:
         raise ValueError(
@@ -571,6 +576,11 @@ def validate_system_config(config: dict) -> None:
     """
     worlds = config.get("worlds", None)
     if not worlds:
+        if config.get("type", None):
+            # A single world configuration: the two kinds share the world pack directory.
+            raise ValueError(
+                "This is a world configuration, not a system configuration: it has a 'type' key and "
+                "no 'worlds' table. Build it with build_world() instead of build_system().")
         raise ValueError(
             "System configuration requires at least one '[worlds.<name>]' table.")
     if not isinstance(worlds, dict):

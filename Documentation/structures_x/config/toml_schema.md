@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
-_Updated: 2026-09-09_
+_Updated: 2026-09-13_
 
 The `structures_x` configuration system builds a fully wired world (the world object, its inner-to-outer stack of layers, and each layer's attached physics models) from a single TOML file or an equivalent Python `dict`, and writes a world back out to TOML. It is the user-facing entry point to TidalPy's class system.
 
@@ -16,7 +16,7 @@ The current schema is version **`0.2.0`**. A config's `schema_version` is checke
 from TidalPy.structures_x import build_world, available_worlds
 
 # Build one of the bundled example worlds by name.
-print(available_worlds())            # ['earth_prem', 'earth_simple', 'jupiter_simple', 'sol', ...]
+print(available_worlds())            # ['earth_prem', 'earth_simple', 'jupiter_simple', 'sol']
 earth = build_world("earth_simple")  # returns the Cython world (a BaseWorld subclass)
 
 # build_world returns the world object directly, so its methods are immediate.
@@ -335,7 +335,9 @@ file path / dict), validate, and return the built Cython world directly. `force=
 * `world.config` (alias of `world.source_config`): the normalized configuration dict
 the world was built from (`None` if constructed directly).
 * `available_worlds() -> list[str]`: names of the bundled example worlds (data dir
-unioned with packaged `WorldPack_x`).
+unioned with packaged `WorldPack_x`). Bundled system files share that directory and are listed by
+`available_systems()` instead; `build_world` on a system config raises a `ValueError` naming
+`build_system`, and the reverse holds too.
 * `install_worldpack_x(force=False) -> str`: copy the packaged `WorldPack_x` worlds
 into the user data directory (copy-if-absent unless `force`); returns that directory.
 

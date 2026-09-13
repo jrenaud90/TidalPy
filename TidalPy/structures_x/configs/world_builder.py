@@ -799,7 +799,9 @@ def available_worlds() -> list:
     """Return the sorted names of the bundled ``WorldPack_x`` example worlds.
 
     Delegates to :func:`TidalPy.structures_x.configs.worldpack.available_worlds`,
-    combining the user data directory with the packaged worlds.
+    combining the user data directory with the packaged worlds. The bundled system
+    configurations live in the same directory and are not listed here; see
+    :func:`TidalPy.structures_x.configs.system_builder.available_systems`.
 
     Returns
     -------

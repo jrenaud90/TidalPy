@@ -1,4 +1,4 @@
-"""Bundled ``WorldPack_x`` example worlds: install into the data dir and resolve by name.
+"""Bundled ``WorldPack_x`` example configurations: install into the data dir and resolve by name.
 
 The structures_x world builder ships a set of example world configurations in the package
 directory ``TidalPy/WorldPack_x/``. These are copied into a version-scoped, user-editable
@@ -11,10 +11,16 @@ the file inside the installed package.
 Installation is copy-if-absent per file: a packaged world is copied only when the
 data directory does not already hold a file of that name, so user edits and renames
 are never clobbered, while worlds newly added to the package appear on the next TidalPy import.
+
+World configurations and system configurations share this directory and are told apart by content:
+a system names its members in a ``[worlds.<name>]`` table, a world never does. :func:`config_kind`
+is that test, and :func:`available_worlds` / :func:`available_systems` list the two kinds separately.
 """
 
 import os
 import shutil
+
+import toml
 
 import TidalPy
 from TidalPy.paths import get_worlds_x_dir as _paths_get_worlds_x_dir
@@ -28,6 +34,10 @@ PACKAGED_WORLDPACK_DIR = os.path.join(
 # File extensions installed into the user worlds directory: world TOMLs and their
 # companion data files (e.g. PREM-like radial profiles).
 _INSTALLED_EXTENSIONS = (".toml", ".csv", ".txt", ".dat")
+
+# The two kinds of configuration the world pack directory holds.
+WORLD_CONFIG = "world"
+SYSTEM_CONFIG = "system"
 
 
 def get_worlds_x_dir() -> str:
@@ -151,11 +161,77 @@ def resolve_world_path(name: str) -> str:
         f"({PACKAGED_WORLDPACK_DIR}).")
 
 
+def config_kind(source) -> str:
+    """Classify a bundled configuration as a world or a system.
+
+    A system configuration names its member worlds in a ``[worlds.<name>]`` table; a world
+    configuration never carries that key (its own sub-tables are ``[layers.<name>]``). Anything
+    without a ``worlds`` table is therefore a world.
+
+    Parameters
+    ----------
+    source : str or dict
+        A path to a ``.toml`` file or an already-parsed configuration dict.
+
+    Returns
+    -------
+    str
+        ``"system"`` or ``"world"`` (the :data:`SYSTEM_CONFIG` / :data:`WORLD_CONFIG` constants).
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``source`` is a path that does not exist.
+    toml.TomlDecodeError
+        If ``source`` is a path that does not parse as TOML.
+    """
+    config = source if isinstance(source, dict) else toml.load(source)
+    return SYSTEM_CONFIG if config.get("worlds", None) else WORLD_CONFIG
+
+
+def _available_configs(kind: str) -> list:
+    """Return the sorted names of the bundled configurations of one kind.
+
+    Combines the data directory with the packaged directory (the data directory takes
+    precedence when a name exists in both). A file that does not parse as TOML is skipped
+    rather than breaking the listing; it will report its own error when it is built.
+
+    Parameters
+    ----------
+    kind : str
+        :data:`WORLD_CONFIG` or :data:`SYSTEM_CONFIG`.
+
+    Returns
+    -------
+    list of str
+        Configuration names, without the ``.toml`` extension.
+    """
+    install_worldpack_x()
+    names = {}
+    # The data directory is searched first so its copy of a shared name wins.
+    for directory in (get_worlds_x_dir(), PACKAGED_WORLDPACK_DIR):
+        if not os.path.isdir(directory):
+            continue
+        for entry in os.listdir(directory):
+            if not entry.endswith(".toml"):
+                continue
+            name = os.path.splitext(entry)[0]
+            if name in names:
+                continue
+            try:
+                names[name] = config_kind(os.path.join(directory, entry))
+            except (toml.TomlDecodeError, OSError, UnicodeDecodeError):
+                names[name] = None
+    return sorted(name for name, found in names.items() if found == kind)
+
+
 def available_worlds() -> list:
     """Return the sorted names of the bundled example worlds.
 
     Combines the worlds installed in the data directory with the packaged worlds
-    (the data directory takes precedence when a name exists in both).
+    (the data directory takes precedence when a name exists in both). System
+    configurations share the directory and are excluded; list those with
+    :func:`available_systems`.
 
     Returns
     -------
@@ -163,12 +239,19 @@ def available_worlds() -> list:
         Bundled world names (without the ``.toml`` extension) usable as the
         ``source`` argument of the world builder.
     """
-    install_worldpack_x()
-    names = set()
-    for directory in (get_worlds_x_dir(), PACKAGED_WORLDPACK_DIR):
-        if not os.path.isdir(directory):
-            continue
-        for entry in os.listdir(directory):
-            if entry.endswith(".toml"):
-                names.add(os.path.splitext(entry)[0])
-    return sorted(names)
+    return _available_configs(WORLD_CONFIG)
+
+
+def available_systems() -> list:
+    """Return the sorted names of the bundled example systems.
+
+    The counterpart of :func:`available_worlds` for the multi-world configurations in
+    the same directory.
+
+    Returns
+    -------
+    list of str
+        Bundled system names (without the ``.toml`` extension) usable as the
+        ``source`` argument of the system builder.
+    """
+    return _available_configs(SYSTEM_CONFIG)

@@ -23,12 +23,14 @@ from TidalPy.structures_x.configs.world_builder import (
 from TidalPy.structures_x.configs.system_builder import (
     build_system,
     construct_system,
+    available_systems,
 )
 from TidalPy.structures_x.configs.config_writer import save_world_to_toml, save_system_to_toml
 from TidalPy.structures_x.configs.worldpack import (
     install_worldpack_x,
     resolve_world_path,
     get_worlds_x_dir,
+    config_kind,
 )
 
 __all__ = [
@@ -45,9 +47,11 @@ __all__ = [
     "available_worlds",
     "build_system",
     "construct_system",
+    "available_systems",
     "save_world_to_toml",
     "save_system_to_toml",
     "install_worldpack_x",
     "resolve_world_path",
     "get_worlds_x_dir",
+    "config_kind",
 ]

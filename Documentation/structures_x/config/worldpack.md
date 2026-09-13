@@ -2,6 +2,8 @@
 
 A **world file** is a TOML description of a single world (a star, gas giant, or terrestrial/layered body) for the `structures_x` class system. **WorldPack_x** is the mechanism that ships a small set of example world files with TidalPy, installs them into a user-editable data directory, and resolves them by name when you call `build_world("<name>")`.
 
+The same directory also holds **system files**, which describe several worlds and their orbits instead of one body. The two kinds are told apart by content: a system names its members in a `[worlds.<name>]` table and a world never does, which is the test `config_kind()` applies. `available_worlds()` and `available_systems()` therefore list disjoint sets, and handing a config to the wrong builder raises a `ValueError` naming the other one.
+
 For a description of the toml file schema used for worlds and layers please see [`toml_schema.md`](toml_schema.md).
 
 ---
@@ -44,16 +46,20 @@ It returns the data directory path. It runs automatically inside `resolve_world_
 
 A `source` that ends in `.toml` or names an existing file is treated as a direct path; a `dict` is used as-is. So the same `build_world` entry point accepts a bundled name, a file path, or an in-memory config.
 
-`available_worlds()` returns the sorted union of the data-directory names and the packaged names (so newly installed and packaged worlds both appear).
+`available_worlds()` returns the sorted union of the data-directory names and the packaged names (so newly installed and packaged worlds both appear), restricted to single worlds. `available_systems()` does the same for the system files.
 
 ```python
-from TidalPy.structures_x import build_world, available_worlds, install_worldpack_x
+from TidalPy.structures_x import (
+    build_world, build_system, available_worlds, available_systems, install_worldpack_x)
 
 install_worldpack_x()              # optional; copies packaged worlds into Worlds_x/
-print(available_worlds())          # ['earth_simple', 'jupiter_simple', 'sol', ...]
+print(available_worlds())          # ['earth_prem', 'earth_simple', 'jupiter_simple', 'sol']
+print(available_systems())         # ['sol_system']
 
 earth = build_world("earth_simple")   # data-dir copy preferred, else packaged
 earth.solve_eos()
+
+system = build_system("sol_system")   # the same resolution, for a multi-world config
 ```
 
 ### Versioning caveat
@@ -67,7 +73,8 @@ Because installs are copy-if-absent and the data directory is version-scoped, a 
 1. Write a schema-`0.2.0` world TOML and drop it in `TidalPy/WorldPack_x/<name>.toml`.
 `MANIFEST.in` already globs `TidalPy/WorldPack_x/*.toml`, so it is packaged on the next `uv pip install`.
 2. It installs to `Worlds_x/` and becomes available as `build_world("<name>")` and in
-`available_worlds()` on the next run.
+`available_worlds()` on the next run. A system file follows the same two steps and appears in
+`available_systems()` instead.
 
 The bundled worlds favor the per-material defaults: keep them small by specifying `class` + `type` + geometry and letting `TidalPy_Configs_x.toml` supply the EOS and physics models. Override anything inline as shown above and [`here`](toml_schema.md).
 
@@ -84,8 +91,10 @@ The bundled worlds favor the per-material defaults: keep them small by specifyin
 | `install_worldpack_x(force=False) -> str` | Copy packaged worlds and their data files into the data dir (copy-if-absent; `force` re-copies). Returns the data dir. |
 | `resolve_world_path(name) -> str` | Resolve a bundled name to a TOML path (data dir preferred, then packaged). Raises `FileNotFoundError` if unknown. |
 | `resolve_data_file(data_file, base_dir=None) -> str` | Resolve a world's companion `data_file` (toml dir -> data dir -> packaged -> cwd). Raises `FileNotFoundError` if unknown. |
-| `available_worlds() -> list[str]` | Sorted union of data-dir and packaged world names. |
+| `available_worlds() -> list[str]` | Sorted union of data-dir and packaged world names, systems excluded. |
+| `available_systems() -> list[str]` | The same for the bundled system names. |
+| `config_kind(source) -> str` | `"system"` if the config has a `worlds` table, else `"world"`. Takes a path or a dict. |
 | `get_worlds_x_dir() -> str` | The user data directory for `_x` worlds (`.../TidalPy/<major>.<minor>.X/Worlds_x`). |
 | `PACKAGED_WORLDPACK_DIR` | Path to the packaged `WorldPack_x` directory. |
 
-`install_worldpack_x` and `available_worlds` are also re-exported from `TidalPy.structures_x`; `build_world` (and `BaseWorld.build`) consume the resolver transparently.
+`install_worldpack_x`, `available_worlds`, and `available_systems` are also re-exported from `TidalPy.structures_x`; `build_world` and `build_system` (and `BaseWorld.build` / `System.build`) consume the resolver transparently.
