@@ -33,9 +33,9 @@ def _build_layer(cls):
         shear_modulus_static=6.0e10,
         bulk_modulus_static=2.0e11,
         tidal_scale_method="tidal_timescale")
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 3.0e19}))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 3.0e19}))
     layer.set_bulk_viscosity(make_viscosity("reference", {
-        "reference_viscosity": 5.0e21, "reference_temperature": 1400.0}))
+        "reference_viscosity_pas": 5.0e21, "reference_temperature_k": 1400.0}))
     layer.set_partial_melt(make_partial_melt("henning", {
         "solidus_k": 1500.0, "liquidus_k": 1900.0}))
     layer.is_static = True

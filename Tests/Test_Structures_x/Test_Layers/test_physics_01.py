@@ -501,12 +501,12 @@ def test_get_config_dict_class_and_model_tables():
     elastic_name = rheo.Elastic().model_name
     pl.set_shear_rheology(rheo.Andrade(0.4, 1.5))
     pl.set_bulk_rheology(rheo.Elastic())
-    pl.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e20}))
+    pl.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e20}))
     pl.set_partial_melt(make_partial_melt("henning"))
     cfg = pl.get_config_dict()
     assert cfg["shear_rheology"]["model"] == "andrade"
     assert cfg["shear_rheology"]["alpha"] == pytest.approx(0.4)
     assert cfg["bulk_rheology"] == {"model": elastic_name}
-    assert cfg["shear_viscosity"]["reference_viscosity"] == pytest.approx(1.0e20)
+    assert cfg["shear_viscosity"]["reference_viscosity_pas"] == pytest.approx(1.0e20)
     assert "bulk_viscosity" not in cfg
     assert cfg["partial_melt"]["model"] == "henning"

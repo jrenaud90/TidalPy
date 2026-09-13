@@ -96,8 +96,21 @@ def test_arrhenius_decreases_with_temperature():
     assert m.calc_viscosity(2000.0, 0.0) < m.calc_viscosity(1500.0, 0.0)
 
 
+# Constructor keyword (and property) -> config key. Dimensional config keys carry their unit.
+_ARRHENIUS_CONFIG_KEYS = {
+    "arrhenius_coeff":            "arrhenius_coeff",
+    "stress":                     "stress_pa",
+    "stress_expo":                "stress_expo",
+    "grain_size":                 "grain_size_m",
+    "grain_size_expo":            "grain_size_expo",
+    "molar_activation_energy":    "molar_activation_energy_j_mol",
+    "molar_activation_volume":    "molar_activation_volume_m3_mol",
+    "additional_temp_dependence": "additional_temp_dependence",
+}
+
+
 def test_arrhenius_properties_match_constructor():
-    """Every Arrhenius parameter is a property, named like its constructor keyword and config key."""
+    """Every Arrhenius parameter is a property named like its constructor keyword, emitted under its config key."""
     params = dict(arrhenius_coeff=1.1e7, stress=2.0e6, stress_expo=3.5, grain_size=5.0e-4, grain_size_expo=2.0,
                   molar_activation_energy=5.4e5, molar_activation_volume=1.5e-5,
                   additional_temp_dependence=True)
@@ -105,7 +118,7 @@ def test_arrhenius_properties_match_constructor():
     config = m.get_config_dict()
     for name, value in params.items():
         assert getattr(m, name) == value, name
-        assert config[name] == value, name
+        assert config[_ARRHENIUS_CONFIG_KEYS[name]] == value, name
 
 
 # =====================================================================================================================
@@ -131,10 +144,10 @@ def test_factory_unknown_raises():
 
 
 def test_factory_config_override():
-    m = _import().make_viscosity("reference", {"reference_viscosity": 7.0e21, "reference_temperature": 1300.0})
+    m = _import().make_viscosity("reference", {"reference_viscosity_pas": 7.0e21, "reference_temperature_k": 1300.0})
     d = m.get_config_dict()
-    assert d["reference_viscosity"] == pytest.approx(7.0e21)
-    assert d["reference_temperature"] == pytest.approx(1300.0)
+    assert d["reference_viscosity_pas"] == pytest.approx(7.0e21)
+    assert d["reference_temperature_k"] == pytest.approx(1300.0)
 
 
 # =====================================================================================================================
@@ -143,8 +156,8 @@ def test_factory_config_override():
 def test_config_dict_keys():
     m = _import().ArrheniusViscosity()
     d = m.get_config_dict()
-    for key in ("model", "arrhenius_coeff", "stress", "grain_size",
-                "molar_activation_energy", "additional_temp_dependence"):
+    for key in ("model", "arrhenius_coeff", "stress_pa", "grain_size_m",
+                "molar_activation_energy_j_mol", "additional_temp_dependence"):
         assert key in d
     assert d["model"] == "arrhenius"
 
@@ -153,8 +166,8 @@ def test_config_dict_keys():
 # Binary round-trip
 # =====================================================================================================================
 @pytest.mark.parametrize("name,config", [
-    ("constant", {"reference_viscosity": 3.3e21}),
-    ("reference", {"reference_viscosity": 1.2e22, "reference_temperature": 1100.0}),
+    ("constant", {"reference_viscosity_pas": 3.3e21}),
+    ("reference", {"reference_viscosity_pas": 1.2e22, "reference_temperature_k": 1100.0}),
     ("arrhenius", {"arrhenius_coeff": 5.0, "additional_temp_dependence": True,
                    "grain_size_expo": 2.0}),
 ])

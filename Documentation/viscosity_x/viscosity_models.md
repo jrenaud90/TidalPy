@@ -1,6 +1,6 @@
 # Viscosity Models (`viscosity_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
 A viscosity model returns a material's dynamic viscosity $\eta$ [Pa s] as a function of temperature [K] and pressure [Pa]. This is the pre-melt, or "solid", viscosity: the value a material would show with no melt present, which the [partial-melt](../partial_melt_x/partial_melt_models.md) step then weakens. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
@@ -16,18 +16,20 @@ Quantities are MKS throughout. The math mirrors the validated classic implementa
 | `ReferenceViscosity` | `reference`, `ref` | $\eta_\mathrm{ref} \exp\left[\dfrac{E_a + P V_a}{R} \left(\dfrac{1}{T} - \dfrac{1}{T_\mathrm{ref}}\right)\right]$ |
 | `ConstantViscosity` | `constant`, `const` | $\eta_\mathrm{ref}$, independent of temperature and pressure |
 
-| Parameter | Symbol | Default | Units | Used by |
-|---|---|---|---|---|
-| `reference_viscosity` | $\eta_\mathrm{ref}$ | 1.0e22 | Pa s | Reference, Constant |
-| `reference_temperature` | $T_\mathrm{ref}$ | 1000.0 | K | Reference |
-| `molar_activation_energy` | $E_a$ | 3.0e5 | J mol$^{-1}$ | Arrhenius, Reference |
-| `molar_activation_volume` | $V_a$ | 0.0 | m$^3$ mol$^{-1}$ | Arrhenius, Reference |
-| `arrhenius_coeff` | $A$ | 1.0 | model-dependent | Arrhenius |
-| `stress` | $\sigma$ | 1.0 | Pa | Arrhenius |
-| `stress_expo` | $n$ | 1.0 | — | Arrhenius |
-| `grain_size` | $d$ | 1.0e-3 | m | Arrhenius |
-| `grain_size_expo` | $m$ | 0.0 | — | Arrhenius |
-| `additional_temp_dependence` | — | `False` | — | Arrhenius |
+Each parameter carries two names: the constructor keyword, which is also the read-only property, and the config key used in a TOML table, a `make_viscosity` config dictionary, and `get_config_dict()`. A dimensional config key ends in its unit; the code name does not.
+
+| Parameter | Config key | Symbol | Default | Units | Used by |
+|---|---|---|---|---|---|
+| `reference_viscosity` | `reference_viscosity_pas` | $\eta_\mathrm{ref}$ | 1.0e22 | Pa s | Reference, Constant |
+| `reference_temperature` | `reference_temperature_k` | $T_\mathrm{ref}$ | 1000.0 | K | Reference |
+| `molar_activation_energy` | `molar_activation_energy_j_mol` | $E_a$ | 3.0e5 | J mol$^{-1}$ | Arrhenius, Reference |
+| `molar_activation_volume` | `molar_activation_volume_m3_mol` | $V_a$ | 0.0 | m$^3$ mol$^{-1}$ | Arrhenius, Reference |
+| `arrhenius_coeff` | `arrhenius_coeff` | $A$ | 1.0 | model-dependent | Arrhenius |
+| `stress` | `stress_pa` | $\sigma$ | 1.0 | Pa | Arrhenius |
+| `stress_expo` | `stress_expo` | $n$ | 1.0 | — | Arrhenius |
+| `grain_size` | `grain_size_m` | $d$ | 1.0e-3 | m | Arrhenius |
+| `grain_size_expo` | `grain_size_expo` | $m$ | 0.0 | — | Arrhenius |
+| `additional_temp_dependence` | `additional_temp_dependence` | — | `False` | — | Arrhenius |
 
 The stress exponent $n$ distinguishes creep regimes: $n = 1$ is diffusion creep, where the flow law is linear and the stress term drops out, and $n > 1$ is dislocation creep, where the material shears more readily the harder it is pushed. The grain-size exponent plays the same role for grain-boundary processes. Setting `additional_temp_dependence` adds the explicit factor of $T$ that some published diffusion-creep flow laws carry in front of the exponential.
 
@@ -73,7 +75,7 @@ Constructors take every parameter their model uses as a keyword with the default
 | `save_config(path)` | — | That dict written as TOML. |
 | `save_binary(path)` / `load_binary(path, force=False)` | — | TidalPy binary format; see [Binary serialization](../utilities_x/binary_x.md). |
 
-Parameters are read-only properties: `reference_viscosity` on the constant model; `reference_viscosity`, `reference_temperature`, `molar_activation_energy`, and `molar_activation_volume` on the reference model; and every constructor keyword on the Arrhenius model: `arrhenius_coeff`, `stress`, `stress_expo`, `grain_size`, `grain_size_expo`, `molar_activation_energy`, `molar_activation_volume`, and `additional_temp_dependence`. The same names are the keys in `get_config_dict()`.
+Parameters are read-only properties under their code names: `reference_viscosity` on the constant model; `reference_viscosity`, `reference_temperature`, `molar_activation_energy`, and `molar_activation_volume` on the reference model; and every constructor keyword on the Arrhenius model: `arrhenius_coeff`, `stress`, `stress_expo`, `grain_size`, `grain_size_expo`, `molar_activation_energy`, `molar_activation_volume`, and `additional_temp_dependence`. `get_config_dict()` emits the config keys, so a dictionary read back from a model or a TOML file feeds straight into `make_viscosity`.
 
 ## Attaching a viscosity model to a layer
 
@@ -84,8 +86,8 @@ from TidalPy.structures_x.layers.physics import PhysicsLayer
 mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19,
                       shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9)
 
-mantle.set_shear_viscosity(make_viscosity("reference", {"reference_viscosity": 1.0e20}))
-mantle.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e20}))
+mantle.set_shear_viscosity(make_viscosity("reference", {"reference_viscosity_pas": 1.0e20}))
+mantle.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e20}))
 ```
 
 Ownership of the C++ model transfers into the layer, exactly as it does for a rheology. During the world's equation-of-state solve each radial slice's temperature and pressure are pushed through the model, an equation of state that supplies its own viscosity profile overrides the result slice by slice, and the partial-melt model then weakens what remains. Read the outcome back with the layer's `get_shear_viscosity(radius)` and `get_premelt_shear_viscosity(radius)`. The declarative form is a `[layers.<name>.shear_viscosity]` table in a world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).

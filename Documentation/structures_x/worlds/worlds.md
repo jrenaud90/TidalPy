@@ -200,7 +200,7 @@ world = LayeredWorld("planet", 6.0e6, 4.2e24)
 layer = SolidLiquidLayer("mantle", 0, 0.0, 6.0e6, 4.2e24,
                          shear_modulus_static=6.0e10, bulk_modulus_static=1.3e11)
 layer.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 4000.0}))
-layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e21}))
+layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
 layer.set_shear_rheology(make_rheology("maxwell"))
 world.add_layer(layer)
 

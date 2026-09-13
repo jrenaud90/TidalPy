@@ -47,8 +47,8 @@ def _solid_world(with_rheology: bool = True):
                          shear_modulus_static=_STATIC_SHEAR,
                          bulk_modulus_static=_STATIC_BULK)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
+    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     if with_rheology:
         layer.set_shear_rheology(Maxwell())
         layer.set_bulk_rheology(Maxwell())
@@ -75,14 +75,14 @@ def _two_layer_solid_world():
                         shear_modulus_static=mu_c,
                         bulk_modulus_static=K_c)
     core.set_eos(ConstantDensityEOS(reference_density=rho_c))
-    core.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e21}))
+    core.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
     core.set_shear_rheology(Maxwell())
 
     mantle = PhysicsLayer("mantle", 1, r_core, _PLANET_RADIUS, 0.0,
                           shear_modulus_static=mu_m,
                           bulk_modulus_static=K_m)
     mantle.set_eos(ConstantDensityEOS(reference_density=rho_m))
-    mantle.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
+    mantle.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     mantle.set_shear_rheology(Maxwell())
 
     world.add_layer(core)

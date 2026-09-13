@@ -207,8 +207,9 @@ cdef class ArrheniusViscosity(ViscosityBase):
 # =====================================================================================================================
 # Every config key some viscosity model reads; make_viscosity rejects anything else.
 VISCOSITY_CONFIG_KEYS = frozenset({
-    "reference_viscosity", "reference_temperature", "molar_activation_energy", "molar_activation_volume",
-    "arrhenius_coeff", "stress", "stress_expo", "grain_size", "grain_size_expo", "additional_temp_dependence"})
+    "reference_viscosity_pas", "reference_temperature_k", "molar_activation_energy_j_mol",
+    "molar_activation_volume_m3_mol", "arrhenius_coeff", "stress_pa", "stress_expo", "grain_size_m",
+    "grain_size_expo", "additional_temp_dependence"})
 
 
 def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
@@ -220,9 +221,10 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
         One of ``"arrhenius"``/``"arr"``, ``"reference"``/``"ref"``,
         ``"constant"``/``"const"`` (case-insensitive; aliases accepted).
     config : dict, optional
-        Model parameters: ``reference_viscosity``, ``reference_temperature``, ``molar_activation_energy``,
-        ``molar_activation_volume``, ``arrhenius_coeff``, ``stress``, ``stress_expo``, ``grain_size``,
-        ``grain_size_expo``, ``additional_temp_dependence``. Absent keys fall back to the C++ defaults.
+        Model parameters, keyed with their units: ``reference_viscosity_pas``, ``reference_temperature_k``,
+        ``molar_activation_energy_j_mol``, ``molar_activation_volume_m3_mol``, ``arrhenius_coeff``, ``stress_pa``,
+        ``stress_expo``, ``grain_size_m``, ``grain_size_expo``, ``additional_temp_dependence``. Absent keys fall
+        back to the C++ defaults.
 
     Returns
     -------
@@ -238,15 +240,24 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     if config is None:
         config = {}
     cdef c_ViscosityConfig cfg
-    if "reference_viscosity" in config:     cfg.reference_viscosity     = config["reference_viscosity"]
-    if "reference_temperature" in config:   cfg.reference_temperature   = config["reference_temperature"]
-    if "molar_activation_energy" in config: cfg.molar_activation_energy = config["molar_activation_energy"]
-    if "molar_activation_volume" in config: cfg.molar_activation_volume = config["molar_activation_volume"]
-    if "arrhenius_coeff" in config:         cfg.arrhenius_coeff         = config["arrhenius_coeff"]
-    if "stress" in config:                  cfg.stress                  = config["stress"]
-    if "stress_expo" in config:             cfg.stress_expo             = config["stress_expo"]
-    if "grain_size" in config:              cfg.grain_size              = config["grain_size"]
-    if "grain_size_expo" in config:         cfg.grain_size_expo         = config["grain_size_expo"]
+    if "reference_viscosity_pas" in config:
+        cfg.reference_viscosity = config["reference_viscosity_pas"]
+    if "reference_temperature_k" in config:
+        cfg.reference_temperature = config["reference_temperature_k"]
+    if "molar_activation_energy_j_mol" in config:
+        cfg.molar_activation_energy = config["molar_activation_energy_j_mol"]
+    if "molar_activation_volume_m3_mol" in config:
+        cfg.molar_activation_volume = config["molar_activation_volume_m3_mol"]
+    if "arrhenius_coeff" in config:
+        cfg.arrhenius_coeff = config["arrhenius_coeff"]
+    if "stress_pa" in config:
+        cfg.stress = config["stress_pa"]
+    if "stress_expo" in config:
+        cfg.stress_expo = config["stress_expo"]
+    if "grain_size_m" in config:
+        cfg.grain_size = config["grain_size_m"]
+    if "grain_size_expo" in config:
+        cfg.grain_size_expo = config["grain_size_expo"]
     if "additional_temp_dependence" in config:
         cfg.additional_temp_dependence = bool(config["additional_temp_dependence"])
 

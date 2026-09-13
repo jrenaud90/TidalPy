@@ -205,7 +205,7 @@ Any default can be overridden by adding the key or sub-table. For example, to gi
 ```toml
 [layers.mantle.shear_viscosity]
 model = "constant"
-reference_viscosity = 1.0e21
+reference_viscosity_pas = 1.0e21
 
 [layers.mantle.eos]
 model = "constant"

@@ -51,8 +51,8 @@ def _incompressible_solid_world():
                          shear_modulus_static=_STATIC_SHEAR,
                          bulk_modulus_static=_STATIC_BULK)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
+    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
     layer.set_bulk_rheology(Maxwell())
     # Propagation matrix requires solid (default) + static (default) + incompressible.
@@ -116,7 +116,7 @@ def test_prop_matrix_rejects_two_layers():
                              shear_modulus_static=_STATIC_SHEAR,
                              bulk_modulus_static=_STATIC_BULK)
         layer.set_eos(ConstantDensityEOS(reference_density=rho))
-        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
+        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
         layer.set_shear_rheology(Maxwell())
         layer.is_incompressible = True
         world.add_layer(layer)
@@ -135,7 +135,7 @@ def test_prop_matrix_rejects_compressible_layer():
                          shear_modulus_static=_STATIC_SHEAR,
                          bulk_modulus_static=_STATIC_BULK)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     layer.set_shear_rheology(Maxwell())
     # Leave is_incompressible at its default (False) => prop matrix must reject.
     assert layer.is_incompressible is False

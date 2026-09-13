@@ -41,8 +41,8 @@ def _solid_world():
                          shear_modulus_static=_STATIC_SHEAR,
                          bulk_modulus_static=_STATIC_BULK)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
+    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
     layer.set_bulk_rheology(Maxwell())
     world.add_layer(layer)

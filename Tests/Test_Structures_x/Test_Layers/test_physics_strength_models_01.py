@@ -38,7 +38,7 @@ def test_attach_models_sets_flags():
     PhysicsLayer, make_viscosity, make_partial_melt = _imports()
     layer = _layer(PhysicsLayer)
     layer.set_shear_viscosity(make_viscosity("arrhenius"))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
+    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_partial_melt(make_partial_melt("henning"))
     assert layer.shear_viscosity_set is True
     assert layer.bulk_viscosity_set is True

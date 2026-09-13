@@ -118,11 +118,11 @@ schema_version = "{SCHEMA_VERSION_X}"
 
     [layers.iron.shear_viscosity]
         model = "constant"
-        reference_viscosity = 1.0e20
+        reference_viscosity_pas = 1.0e20
 
     [layers.iron.bulk_viscosity]
         model = "constant"
-        reference_viscosity = 1.0e22
+        reference_viscosity_pas = 1.0e22
 
     [layers.iron.partial_melt]
         model = "off"
@@ -164,14 +164,14 @@ schema_version = "{SCHEMA_VERSION_X}"
 
     [layers.mantle_rock.shear_viscosity]
         model = "reference"
-        reference_viscosity = 1.0e22
-        reference_temperature = 1000.0
-        molar_activation_energy = 3.0e5
-        molar_activation_volume = 0.0
+        reference_viscosity_pas = 1.0e22
+        reference_temperature_k = 1000.0
+        molar_activation_energy_j_mol = 3.0e5
+        molar_activation_volume_m3_mol = 0.0
 
     [layers.mantle_rock.bulk_viscosity]
         model = "constant"
-        reference_viscosity = 1.0e22
+        reference_viscosity_pas = 1.0e22
 
     [layers.mantle_rock.partial_melt]
         model = "henning"
@@ -222,16 +222,16 @@ schema_version = "{SCHEMA_VERSION_X}"
         model = "arrhenius"
         arrhenius_coeff = 1.1037527593819e07
         additional_temp_dependence = true
-        stress = 1.0
+        stress_pa = 1.0
         stress_expo = 1.0
-        grain_size = 5.0e-4
+        grain_size_m = 5.0e-4
         grain_size_expo = 2.0
-        molar_activation_energy = 59.4e3
-        molar_activation_volume = 0.0
+        molar_activation_energy_j_mol = 59.4e3
+        molar_activation_volume_m3_mol = 0.0
 
     [layers.ice.bulk_viscosity]
         model = "constant"
-        reference_viscosity = 1.0e22
+        reference_viscosity_pas = 1.0e22
 
     [layers.ice.partial_melt]
         model = "off"
@@ -275,16 +275,16 @@ schema_version = "{SCHEMA_VERSION_X}"
         model = "arrhenius"
         arrhenius_coeff = 1.1037527593819e07
         additional_temp_dependence = true
-        stress = 1.0
+        stress_pa = 1.0
         stress_expo = 1.0
-        grain_size = 5.0e-4
+        grain_size_m = 5.0e-4
         grain_size_expo = 2.0
-        molar_activation_energy = 59.4e3
-        molar_activation_volume = 0.0
+        molar_activation_energy_j_mol = 59.4e3
+        molar_activation_volume_m3_mol = 0.0
 
     [layers.hp_ice.bulk_viscosity]
         model = "constant"
-        reference_viscosity = 1.0e22
+        reference_viscosity_pas = 1.0e22
 
     [layers.hp_ice.partial_melt]
         model = "off"

@@ -43,8 +43,8 @@ def _uniform_physics_world(with_viscosity=True, with_melt=False, with_rheology=F
                          bulk_modulus_static=_STATIC_BULK)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     if with_viscosity:
-        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
-        layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": _BULK_VISC}))
+        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
+        layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _BULK_VISC}))
     if with_melt:
         layer.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1600.0, "liquidus_k": 2000.0}))
     if with_rheology:
@@ -163,7 +163,7 @@ def test_layer_getters_match_world():
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
                          shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     world.add_layer(layer)
     # The layer's C++ object was moved into the world; query through the world's layer view.
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)

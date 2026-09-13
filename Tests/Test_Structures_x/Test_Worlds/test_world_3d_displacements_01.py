@@ -35,8 +35,8 @@ def world():
     layer = PhysicsLayer("mantle", 0, 0.0, RADIUS, MASS, shear_modulus_static=6.0e10,
                          bulk_modulus_static=1.0e15)
     layer.set_eos(ConstantDensityEOS(reference_density=DENSITY))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e19}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
+    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
     layer.set_bulk_rheology(Elastic())
     world = LayeredWorld("io_like", RADIUS, MASS)

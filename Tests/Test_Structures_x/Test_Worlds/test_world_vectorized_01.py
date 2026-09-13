@@ -35,7 +35,7 @@ def _solved_world():
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
                          shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     layer.set_shear_rheology(Maxwell())
     world.add_layer(layer)
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
