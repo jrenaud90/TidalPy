@@ -175,10 +175,11 @@ cdef class FixedLuminosity(LuminosityBase):
     def __init__(self, double luminosity=0.0):
         cdef c_LuminosityConfig config
         config.luminosity = luminosity
-        cdef c_FixedLuminosity* raw = new c_FixedLuminosity(config)
-        self._luminosity_ptr.reset(<c_LuminosityBase*>raw)
-        self._fixed_ptr = raw
-        self._ptr       = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_LuminosityBase] ptr = c_find_luminosity(c_LuminosityModel.Fixed, config)
+        self._fixed_ptr = <c_FixedLuminosity*>ptr.get()
+        self._luminosity_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._luminosity_ptr.get()
 
     def __dealloc__(self):
         self._fixed_ptr = NULL  # base unique_ptr owns the C++ object
@@ -201,9 +202,10 @@ cdef class MassToLuminosity(LuminosityBase):
 
     def __init__(self):
         cdef c_LuminosityConfig config
-        cdef c_MassToLuminosity* raw = new c_MassToLuminosity(config)
-        self._luminosity_ptr.reset(<c_LuminosityBase*>raw)
-        self._ptr = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_LuminosityBase] ptr = c_find_luminosity(c_LuminosityModel.MassToLuminosity, config)
+        self._luminosity_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._luminosity_ptr.get()
 
 
 # =====================================================================================================================
@@ -229,10 +231,11 @@ cdef class PowerLawLuminosity(LuminosityBase):
         cdef c_LuminosityConfig config
         config.power_law_coeff    = coeff
         config.power_law_exponent = exponent
-        cdef c_PowerLawLuminosity* raw = new c_PowerLawLuminosity(config)
-        self._luminosity_ptr.reset(<c_LuminosityBase*>raw)
-        self._power_law_ptr = raw
-        self._ptr           = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_LuminosityBase] ptr = c_find_luminosity(c_LuminosityModel.PowerLaw, config)
+        self._power_law_ptr = <c_PowerLawLuminosity*>ptr.get()
+        self._luminosity_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._luminosity_ptr.get()
 
     def __dealloc__(self):
         self._power_law_ptr = NULL

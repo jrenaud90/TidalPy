@@ -307,9 +307,10 @@ cdef class OffRadiogenics(RadiogenicsBase):
 
     def __init__(self):
         cdef c_RadiogenicsConfig config
-        cdef c_OffRadiogenics* raw = new c_OffRadiogenics(config)
-        self._radiogenics_ptr.reset(<c_RadiogenicsBase*>raw)
-        self._ptr = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(c_RadiogenicsModel.Off, config)
+        self._radiogenics_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._radiogenics_ptr.get()
 
 
 # =====================================================================================================================
@@ -349,10 +350,11 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
         _build_isotopes(heat_production, half_lives, mass_fracs,
                         concentrations, names, config.isotopes)
         config.ref_time = ref_time
-        cdef c_IsotopeRadiogenics* raw = new c_IsotopeRadiogenics(config)
-        self._radiogenics_ptr.reset(<c_RadiogenicsBase*>raw)
-        self._isotope_ptr = raw
-        self._ptr         = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(c_RadiogenicsModel.Isotope, config)
+        self._isotope_ptr = <c_IsotopeRadiogenics*>ptr.get()
+        self._radiogenics_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._radiogenics_ptr.get()
 
     def __dealloc__(self):
         self._isotope_ptr = NULL  # base unique_ptr owns the C++ object
@@ -435,10 +437,11 @@ cdef class FixedRadiogenics(RadiogenicsBase):
         config.fixed_heat_production = fixed_heat_production
         config.average_half_life = average_half_life
         config.ref_time          = ref_time
-        cdef c_FixedRadiogenics* raw = new c_FixedRadiogenics(config)
-        self._radiogenics_ptr.reset(<c_RadiogenicsBase*>raw)
-        self._fixed_ptr = raw
-        self._ptr       = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(c_RadiogenicsModel.Fixed, config)
+        self._fixed_ptr = <c_FixedRadiogenics*>ptr.get()
+        self._radiogenics_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._radiogenics_ptr.get()
 
     def __dealloc__(self):
         self._fixed_ptr = NULL

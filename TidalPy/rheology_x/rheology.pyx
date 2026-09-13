@@ -295,9 +295,10 @@ cdef class Elastic(RheologyBase):
 
     def __init__(self):
         cdef c_RheologyConfig config
-        cdef c_Elastic* raw = new c_Elastic(config)
-        self._rheology_ptr.reset(<c_RheologyBase*>raw)
-        self._ptr = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Elastic, config)
+        self._rheology_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
 
 
 # =====================================================================================================================
@@ -311,9 +312,10 @@ cdef class Viscous(RheologyBase):
 
     def __init__(self):
         cdef c_RheologyConfig config
-        cdef c_Viscous* raw = new c_Viscous(config)
-        self._rheology_ptr.reset(<c_RheologyBase*>raw)
-        self._ptr = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Viscous, config)
+        self._rheology_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
 
 
 # =====================================================================================================================
@@ -328,9 +330,10 @@ cdef class Maxwell(RheologyBase):
 
     def __init__(self):
         cdef c_RheologyConfig config
-        cdef c_Maxwell* raw = new c_Maxwell(config)
-        self._rheology_ptr.reset(<c_RheologyBase*>raw)
-        self._ptr = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Maxwell, config)
+        self._rheology_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
 
 
 # =====================================================================================================================
@@ -357,10 +360,11 @@ cdef class Voigt(RheologyBase):
         cdef c_RheologyConfig config
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        cdef c_Voigt* raw = new c_Voigt(config)
-        self._rheology_ptr.reset(<c_RheologyBase*>raw)
-        self._voigt_ptr = raw
-        self._ptr       = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Voigt, config)
+        self._voigt_ptr = <c_Voigt*>ptr.get()
+        self._rheology_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
 
     def __dealloc__(self):
         self._voigt_ptr = NULL  # base unique_ptr owns the C++ object
@@ -400,10 +404,11 @@ cdef class Burgers(RheologyBase):
         cdef c_RheologyConfig config
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        cdef c_Burgers* raw = new c_Burgers(config)
-        self._rheology_ptr.reset(<c_RheologyBase*>raw)
-        self._burgers_ptr = raw
-        self._ptr         = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Burgers, config)
+        self._burgers_ptr = <c_Burgers*>ptr.get()
+        self._rheology_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
 
     def __dealloc__(self):
         self._burgers_ptr = NULL
@@ -440,10 +445,11 @@ cdef class Andrade(RheologyBase):
         cdef c_RheologyConfig config
         config.alpha = alpha
         config.zeta  = zeta
-        cdef c_Andrade* raw = new c_Andrade(config)
-        self._rheology_ptr.reset(<c_RheologyBase*>raw)
-        self._andrade_ptr = raw
-        self._ptr         = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Andrade, config)
+        self._andrade_ptr = <c_Andrade*>ptr.get()
+        self._rheology_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
 
     def __dealloc__(self):
         self._andrade_ptr = NULL
@@ -490,10 +496,11 @@ cdef class Sundberg(RheologyBase):
         config.zeta                 = zeta
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        cdef c_Sundberg* raw = new c_Sundberg(config)
-        self._rheology_ptr.reset(<c_RheologyBase*>raw)
-        self._sundberg_ptr = raw
-        self._ptr          = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Sundberg, config)
+        self._sundberg_ptr = <c_Sundberg*>ptr.get()
+        self._rheology_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
 
     def __dealloc__(self):
         self._sundberg_ptr = NULL

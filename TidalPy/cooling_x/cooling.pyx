@@ -348,9 +348,10 @@ cdef class OffCooling(CoolingBase):
 
     def __init__(self):
         cdef c_CoolingConfig config
-        cdef c_OffCooling* raw = new c_OffCooling(config)
-        self._cooling_ptr.reset(<c_CoolingBase*>raw)
-        self._ptr = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_CoolingBase] ptr = c_find_cooling(c_CoolingModel.Off, config)
+        self._cooling_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._cooling_ptr.get()
 
 
 # =====================================================================================================================
@@ -361,9 +362,10 @@ cdef class ConductiveCooling(CoolingBase):
 
     def __init__(self):
         cdef c_CoolingConfig config
-        cdef c_ConductiveCooling* raw = new c_ConductiveCooling(config)
-        self._cooling_ptr.reset(<c_CoolingBase*>raw)
-        self._ptr = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_CoolingBase] ptr = c_find_cooling(c_CoolingModel.Conduction, config)
+        self._cooling_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._cooling_ptr.get()
 
 
 # =====================================================================================================================
@@ -393,10 +395,11 @@ cdef class ConvectiveCooling(CoolingBase):
         config.convection_alpha  = convection_alpha
         config.convection_beta   = convection_beta
         config.critical_rayleigh = critical_rayleigh
-        cdef c_ConvectiveCooling* raw = new c_ConvectiveCooling(config)
-        self._cooling_ptr.reset(<c_CoolingBase*>raw)
-        self._convective_ptr = raw
-        self._ptr            = <c_TidalPyBaseClass*>raw
+        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
+        cdef unique_ptr[c_CoolingBase] ptr = c_find_cooling(c_CoolingModel.Convection, config)
+        self._convective_ptr = <c_ConvectiveCooling*>ptr.get()
+        self._cooling_ptr = move(ptr)
+        self._ptr = <c_TidalPyBaseClass*>self._cooling_ptr.get()
 
     def __dealloc__(self):
         self._convective_ptr = NULL  # base unique_ptr owns the C++ object
