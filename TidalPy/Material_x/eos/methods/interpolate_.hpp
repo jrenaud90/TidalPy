@@ -20,6 +20,10 @@ struct c_InterpolateEOSInput
     double* density_array_ptr = nullptr;
     std::complex<double>* bulk_modulus_array_ptr  = nullptr;
     std::complex<double>* shear_modulus_array_ptr = nullptr;
+
+    // Slice index the last pre-evaluation landed on, carried forward as the seed for the next
+    // binary search.
+    size_t last_slice_index = 0;
 };
 
 // The function signature matches CyRK's PreEvalFunc:
@@ -44,24 +48,22 @@ inline void c_preeval_interpolate(
     // Find the shared index_j to use across all three interpolations.
     // We do this explicitly because the provided c_interp functions read the pointer but don't output the new j.
     int b_search_code = 0;
-    
-    // Formulate the initial guess to pass to the binary search
-    const double left_x = eos_data->radius_array_ptr[0];
-    const double right_x = eos_data->radius_array_ptr[eos_data->num_slices - 1];
 
-    // Find initial index guess
-    size_t j_guess = static_cast<size_t>(
-        eos_data->num_slices * std::fabs(std::floor(radius / (right_x - left_x)))
-    );
-    // Clamp the guess to a valid index (num_slices - 1, not num_slices, to avoid reading one past the end).
-    j_guess = (eos_data->num_slices > 0) ? std::min<size_t>(j_guess, eos_data->num_slices - 1) : 0;
+    // Seed the search with the slice the previous call used (c_InterpolateEOSInput::last_slice_index).
+    // The estimate this replaced divided the radius by the layer's radius span and took the floor of the
+    // result, which is zero for every radius inside the layer, so every call bisected the whole array.
     size_t index_j = c_binary_search_with_guess(
-        radius, 
-        eos_data->radius_array_ptr, 
-        eos_data->num_slices, 
-        j_guess, 
+        radius,
+        eos_data->radius_array_ptr,
+        eos_data->num_slices,
+        eos_data->last_slice_index,
         &b_search_code
     );
+
+    // Carry the interval forward. The search returns num_slices for a radius past the top of the array
+    // and 0 with b_search_code == -1 below its bottom, so clamp to a seedable index.
+    eos_data->last_slice_index =
+        (eos_data->num_slices > 0 && index_j >= eos_data->num_slices) ? eos_data->num_slices - 1 : index_j;
 
     // Interpolate Density
     double density_result = 0.0;

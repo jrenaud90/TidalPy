@@ -81,6 +81,31 @@ def test_eos_call_si_structure_is_physical():
     assert complex(eos[5], eos[6]).real == pytest.approx(5.0e10, rel=1e-3)
 
 
+def test_eos_call_si_is_independent_of_query_order():
+    """The dense readout carries a running search seed between calls; a stale seed must not change it.
+
+    The interpolated EOS pre-evaluation seeds each binary search with the slice the previous call used, so
+    the value at a radius could in principle depend on which radii were queried before it. Ascending,
+    descending, and shuffled sweeps over the same radii must agree exactly.
+    """
+    solution, _, _, _, planet_radius = _build_homogeneous(nondimensionalize=True)
+    # Off-grid radii spanning the body, plus a couple of jumps to defeat a sequential seed.
+    radii = [float(fraction * planet_radius)
+             for fraction in (0.05, 0.17, 0.33, 0.49, 0.61, 0.78, 0.86, 0.97)]
+
+    ascending = [np.asarray(solution.eos_call_si(radius)) for radius in radii]
+    descending = [np.asarray(solution.eos_call_si(radius)) for radius in reversed(radii)][::-1]
+    shuffled_order = [3, 7, 0, 5, 1, 6, 2, 4]
+    shuffled = [None] * len(radii)
+    for index in shuffled_order:
+        shuffled[index] = np.asarray(solution.eos_call_si(radii[index]))
+
+    # equal_nan: the dense row's trailing viscosity entries are NaN for a supplied-moduli solve.
+    for index, radius in enumerate(radii):
+        assert np.array_equal(ascending[index], descending[index], equal_nan=True), radius
+        assert np.array_equal(ascending[index], shuffled[index], equal_nan=True), radius
+
+
 def test_eos_call_si_two_layers_distinct_moduli():
     """In a two-layer body the dense getter returns each layer's own moduli (correct layer location)."""
     n_per = 14
