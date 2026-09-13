@@ -70,11 +70,15 @@ PhysicsLayer(
 
 ## Properties
 
-### Inherited from BaseLayer (read-only, MKS)
+### Inherited from BaseLayer
+
+_Read-only properties._
 
 See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `density_bulk`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
 
-### Mechanical (read-only, MKS)
+### Mechanical
+
+_Read-only properties._
 
 | Property | Units | Description |
 |----------|-------|-------------|
@@ -90,7 +94,7 @@ See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`, `radius
 | `shear_viscosity_set`, `bulk_viscosity_set` | — | `True` after the corresponding viscosity model is attached. |
 | `partial_melt_set` | — | `True` after a partial-melt model is attached. |
 
-### Layer assumptions (read and write)
+### Layer Assumptions
 
 These three flags decide which equations the radial solver uses inside this layer, and they are writable after construction.
 
@@ -120,7 +124,7 @@ mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 
 ### `calc_complex_shear_modulus(frequency)` → complex
 
-Complex shear modulus [Pa] at the given tidal forcing frequency, from the layer-constant static properties.
+Complex shear modulus \[Pa\] at the given tidal forcing frequency, from the layer-constant static properties.
 
 When a shear rheology model is attached the result is the complex modulus μ*(ω) returned by that model (evaluated from the static shear modulus, shear viscosity, and frequency). Without a rheology model the return value is `shear_modulus_static + 0j`.
 
@@ -151,7 +155,7 @@ Attach a viscosity model from [`viscosity_x`](../../viscosity_x/viscosity_models
 
 Attach a partial-melt model from [`partial_melt_x`](../../partial_melt_x/partial_melt_models.md). It weakens the modulus and the viscosity between the solidus and the liquidus; the unweakened values stay readable through the `get_premelt_*` getters.
 
-### Inherited from BaseLayer
+### Inherited from `BaseLayer`
 
 `update_eos_data`, `get_density`, `get_gravity`, `get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`, `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
 
@@ -159,7 +163,7 @@ Attach a partial-melt model from [`partial_melt_x`](../../partial_melt_x/partial
 
 ---
 
-## Binary serialization
+## Binary Serialization
 
 `save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by ten doubles in order: `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im (6 doubles total for the Love numbers).
 

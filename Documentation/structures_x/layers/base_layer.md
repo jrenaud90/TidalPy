@@ -6,7 +6,7 @@
 
 `BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii, total mass, and an optional material identifier for one spherically symmetric shell inside a planetary body.
 
-All spatial data is stored and returned in **MKS units** (meters, kilograms, seconds). Derived geometry (thickness, volume, surface areas) is computed at construction and accessible via read-only properties.
+All spatial data is stored and returned in **MKS units**. Derived geometry (thickness, volume, surface areas) is computed at construction and accessible via read-only properties.
 
 A **material EOS model** (the layer's density source) is attached with `set_eos`. An **EOS profile** (density, gravity, and pressure as a function of radius) is then populated by the world-level EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)), or directly via `update_eos_data`. Until populated, all EOS getters return `NaN`.
 
@@ -57,7 +57,9 @@ BaseLayer(
 
 ## Properties
 
-### Geometry (read-only, MKS)
+### Geometry
+
+These properties are Read-only.
 
 | Property | Units | Description |
 |----------|-------|-------------|
@@ -75,7 +77,7 @@ BaseLayer(
 | `is_tidal` | — | Tidal dissipation flag. |
 | `tidal_scale` | — | Tidal heating scale factor. |
 
-### EOS profile
+### EOS Profile
 
 | Property | Description |
 |----------|-------------|
@@ -102,7 +104,7 @@ layer.set_eos(make_material_eos("birch_murnaghan", {
 
 Raises `ValueError` if the model has already been attached or moved.
 
-### `update_eos_data(radius, density_kgm3, gravity_ms2, pressure)`
+### `update_eos_data(...)`
 
 Populate the EOS profile directly from sorted radius arrays (normally done for you by the world EOS solve; useful for tests or manual construction).
 
@@ -118,8 +120,7 @@ layer.update_eos_data(r, rho, g, p)
 ```
 
 **Notes:**
-- In normal workflow this is called automatically by the world EOS solve
-([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)).
+- In normal workflow this is called automatically by the world EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)).
 - All sequences must be the same length and `radius` must be sorted ascending.
 - Linear interpolation is used; values are clamped at the layer boundaries.
 
@@ -159,20 +160,20 @@ rho = mantle.get_density(radii)        # ndarray, shape (100,)
 mu, eta_mu, kk, eta_k = mantle.get_static_viscoelastics(radii)
 ```
 
-### Inherited geometry calculations (from `StructureBase`)
+### Inherited Geometry Calculations
 
-Pure-function methods that do not depend on stored state:
+Pure-function methods that do not depend on stored state (Inherited from `StructureBase`):
 
 ```python
-layer.calc_surface_area(r)          # 4πr² [m²]
-layer.calc_volume_sphere(r)         # (4/3)πr³ [m³]
+layer.calc_surface_area(r)           # 4πr² [m²]
+layer.calc_volume_sphere(r)          # (4/3)πr³ [m³]
 layer.calc_volume_shell(r_out, r_in) # shell volume [m³]
-layer.calc_surface_gravity(m, r)    # G·m/r² [m/s²]
-layer.calc_mean_density(m, v)       # m/v [kg/m³]
-layer.calc_escape_velocity(m, r)    # √(2Gm/r) [m/s]
+layer.calc_surface_gravity(m, r)     # G·m/r² [m/s²]
+layer.calc_mean_density(m, v)        # m/v [kg/m³]
+layer.calc_escape_velocity(m, r)     # √(2Gm/r) [m/s]
 ```
 
-### Binary I/O (inherited)
+### Binary I/O
 
 ```python
 layer.save_binary("layer.tpyb")
@@ -184,7 +185,7 @@ restored.load_binary("layer.tpyb")
 > [!NOTE]
 > An attached material EOS model is saved and restored with the layer, but the EOS profile data it produces is not; re-run the world's `solve_eos` after loading.
 
-### TOML config (inherited)
+### TOML Config
 
 ```python
 layer.save_config("layer.toml")
@@ -200,7 +201,7 @@ layer.get_config_dict()["eos"]  # {'model': 'constant', 'reference_density_kg_m3
 
 ---
 
-### Tidal bookkeeping and identity
+### Tidal Bookkeeping
 
 | Member | Description |
 |---|---|

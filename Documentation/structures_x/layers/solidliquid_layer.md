@@ -106,15 +106,17 @@ SolidLiquidLayer(
 
 ## Properties
 
-### Inherited from PhysicsLayer
+### Inherited from `PhysicsLayer`
 
 See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `viscosity_static`, `love_number`, `shear_rheology_set`, `bulk_rheology_set`.
 
-### Inherited from BaseLayer
+### Inherited from `BaseLayer`
 
 See [BaseLayer](base_layer.md): `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `density_bulk`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
 
-### Thermal / melt (read-only)
+### Thermal / Melt
+
+_Read-only properties._
 
 | Property | Units | Description |
 |----------|-------|-------------|
@@ -148,7 +150,7 @@ Volumetric melt fraction φ ∈ [0, 1]:
 `pressure` is accepted for interface uniformity and is unused: the melt curve carries no pressure dependence.
 
 ```python
-phi = layer.calc_melt_fraction(3200.0)        # T = 3200 K, P = 0
+phi = layer.calc_melt_fraction(3200.0)  # T = 3200 K, P = 0
 ```
 
 ### `calc_viscosity(temperature, pressure=0.0)` → float
@@ -163,7 +165,7 @@ Effective dynamic viscosity [Pa·s]:
 The Arrhenius exponent is clamped to [−100, 100] to prevent overflow. Returns `η_ref` when T = 0 K.
 
 ```python
-eta = layer.calc_viscosity(3000.0, 1e11)      # T = 3000 K, P = 100 GPa
+eta = layer.calc_viscosity(3000.0, 1e11)  # T = 3000 K, P = 100 GPa
 ```
 
 ### `calc_shear_modulus(temperature, pressure=0.0)` → float
@@ -254,7 +256,7 @@ Returns all configuration values as a Python dictionary (MKS). Includes all `Bas
 
 ---
 
-## Binary serialization
+## Binary Serialization
 
 `save_binary` / `load_binary` serialize fields in this order:
 

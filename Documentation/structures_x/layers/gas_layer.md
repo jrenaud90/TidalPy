@@ -9,7 +9,7 @@ c_TidalPyBaseClass
   └── c_StructureBase
         └── c_BaseLayer
               └── c_PhysicsLayer
-                    └── c_GasLayer        ← this class
+                    └── c_GasLayer
 ```
 
 ## Constructor
@@ -34,10 +34,10 @@ layer = GasLayer(
     love_number_k          = 0+0j,
     love_number_h          = 0+0j,
     love_number_l          = 0+0j,
-    mean_molecular_weight = 2.0e-3,   # H₂
-    adiabatic_index       = 1.4,
-    reference_temperature = 300.0,
-    reference_density     = 1.0,
+    mean_molecular_weight  = 2.0e-3,   # H₂
+    adiabatic_index        = 1.4,
+    reference_temperature  = 300.0,
+    reference_density      = 1.0,
 )
 ```
 
@@ -99,7 +99,7 @@ $$c_s = \sqrt{\frac{\gamma \, R \, T}{M}}$$
 
 **Returns** `float` [m/s].
 
-## Binary serialization
+## Binary Serialization
 
 `save_binary(path)` / `load_binary(path, force=False)` round-trip all configuration fields, followed by an optional sub-model section holding the material EOS model and the inherited rheology, viscosity, and partial-melt models (presence flag + recursive binary record each). The EOS profile data is never serialized; re-run the world's `solve_eos` after loading.
 
@@ -114,7 +114,5 @@ cfg = layer.get_config_dict()   # dict of all fields (MKS); class = "gas" plus a
 
 ## Literature
 
-- Ideal gas law and scale height: standard atmospheric physics textbooks
-(e.g. Wallace & Hobbs, *Atmospheric Science*, 2006).
-- Adiabatic lapse rate: Holton, *An Introduction to Dynamic Meteorology*,
-5th ed., 2004.
+- Ideal gas law and scale height: standard atmospheric physics textbooks (e.g. Wallace & Hobbs, *Atmospheric Science*, 2006).
+- Adiabatic lapse rate: Holton, *An Introduction to Dynamic Meteorology*, 5th ed., 2004.
