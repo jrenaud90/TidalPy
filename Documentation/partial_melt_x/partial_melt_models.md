@@ -1,6 +1,6 @@
 # Partial-Melt Models (`partial_melt_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
 A partial-melt model maps a material's pre-melt (solid) viscosity and shear modulus, together with its temperature, onto the post-melt viscosity and shear modulus, and reports the volumetric melt fraction it used to get there.
 
@@ -51,22 +51,24 @@ The structure encodes the disaggregation transition. Below the critical melt fra
 
 ## Parameters
 
-| Parameter | Default | Units | Used by |
-|---|---|---|---|
-| `solidus` | 1600.0 | K | All |
-| `liquidus` | 2000.0 | K | All |
-| `liquid_shear` | 1.0e-5 | Pa | All |
-| `fs_visc_power_slope` | 27000.0 | K | Spohn |
-| `fs_visc_power_phase` | 1.0 | — | Spohn |
-| `fs_shear_power_slope` | 82000.0 | K | Spohn |
-| `fs_shear_power_phase` | 40.6 | — | Spohn |
-| `crit_melt_frac` | 0.5 | — | Henning |
-| `crit_melt_frac_width` | 0.05 | — | Henning |
-| `hn_visc_slope_1` | 13.5 | — | Henning |
-| `hn_visc_falloff_slope` | 370.0 | — | Henning |
-| `hn_shear_param_1` | 40000.0 | K | Henning |
-| `hn_shear_param_2` | 25.0 | — | Henning |
-| `hn_shear_falloff_slope` | 700.0 | — | Henning |
+Each parameter carries two names: the constructor keyword, which is also the read-only property, and the config key used in a TOML table, a `make_partial_melt` config dictionary, and `get_config_dict()`. A dimensional config key ends in its unit; the code name does not.
+
+| Parameter | Config key | Default | Units | Used by |
+|---|---|---|---|---|
+| `solidus` | `solidus_k` | 1600.0 | K | All |
+| `liquidus` | `liquidus_k` | 2000.0 | K | All |
+| `liquid_shear` | `liquid_shear_pa` | 1.0e-5 | Pa | All |
+| `fs_visc_power_slope` | `fs_visc_power_slope_k` | 27000.0 | K | Spohn |
+| `fs_visc_power_phase` | `fs_visc_power_phase` | 1.0 | — | Spohn |
+| `fs_shear_power_slope` | `fs_shear_power_slope_k` | 82000.0 | K | Spohn |
+| `fs_shear_power_phase` | `fs_shear_power_phase` | 40.6 | — | Spohn |
+| `crit_melt_frac` | `crit_melt_frac` | 0.5 | — | Henning |
+| `crit_melt_frac_width` | `crit_melt_frac_width` | 0.05 | — | Henning |
+| `hn_visc_slope_1` | `hn_visc_slope_1` | 13.5 | — | Henning |
+| `hn_visc_falloff_slope` | `hn_visc_falloff_slope` | 370.0 | — | Henning |
+| `hn_shear_param_1` | `hn_shear_param_1_k` | 40000.0 | K | Henning |
+| `hn_shear_param_2` | `hn_shear_param_2` | 25.0 | — | Henning |
+| `hn_shear_falloff_slope` | `hn_shear_falloff_slope` | 700.0 | — | Henning |
 
 `liquid_shear` is the shear modulus assigned to material treated as pure liquid. Its default is small but not exactly zero, and it doubles as the floor every model applies to its post-melt shear modulus. The matching viscosity floor is not a model parameter: it is the `liquid_viscosity` passed in with each call, which the equation-of-state solve currently supplies as the pre-melt viscosity.
 
@@ -104,7 +106,7 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 | `fs_visc_power_slope`, `fs_visc_power_phase`, `fs_shear_power_slope`, `fs_shear_power_phase` | `float` | The Spohn model's parameters, read-only. |
 | `crit_melt_frac`, `crit_melt_frac_width`, `hn_visc_slope_1`, `hn_visc_falloff_slope`, `hn_shear_param_1`, `hn_shear_param_2`, `hn_shear_falloff_slope` | `float` | The Henning model's parameters, read-only. |
 | `model_name` | `str` | The resolved model name (`off`, `spohn`, `henning`). |
-| `get_config_dict()` | `dict` | `model` plus every parameter the model carries. |
+| `get_config_dict()` | `dict` | `model` plus every parameter the model carries, under the config keys from the table above. |
 | `save_config(path)` | — | That dict written as TOML. |
 | `save_binary(path)` / `load_binary(path, force=False)` | — | TidalPy binary format; see [Binary serialization](../utilities_x/binary_x.md). |
 

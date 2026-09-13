@@ -158,9 +158,17 @@ def test_config_dict_keys():
     m = _import().HenningPartialMelt()
     d = m.get_config_dict()
     for key in ("model", "solidus_k", "liquidus_k", "liquid_shear_pa",
-                "crit_melt_frac", "hn_visc_slope_1", "hn_shear_param_1"):
+                "crit_melt_frac", "hn_visc_slope_1", "hn_shear_param_1_k"):
         assert key in d
     assert d["model"] == "henning"
+
+
+# Constructor keyword (and property) -> config key, for the parameters whose config key carries a unit.
+_CONFIG_KEYS = {
+    "fs_visc_power_slope":  "fs_visc_power_slope_k",
+    "fs_shear_power_slope": "fs_shear_power_slope_k",
+    "hn_shear_param_1":     "hn_shear_param_1_k",
+}
 
 
 @pytest.mark.parametrize("cls_name,params", [
@@ -171,12 +179,12 @@ def test_config_dict_keys():
                                 hn_shear_falloff_slope=650.0)),
 ])
 def test_model_parameter_properties(cls_name, params):
-    """Each model-specific parameter is a property, named like its constructor keyword and config key."""
+    """Each model-specific parameter is a property named like its constructor keyword, emitted under its config key."""
     m = getattr(_import(), cls_name)(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR, **params)
     config = m.get_config_dict()
     for name, value in params.items():
         assert getattr(m, name) == value, name
-        assert config[name] == value, name
+        assert config[_CONFIG_KEYS.get(name, name)] == value, name
 
 
 # =====================================================================================================================

@@ -182,7 +182,7 @@ schema_version = "{SCHEMA_VERSION_X}"
         crit_melt_frac_width = 0.05
         hn_visc_slope_1 = 13.5
         hn_visc_falloff_slope = 370.0
-        hn_shear_param_1 = 40000.0
+        hn_shear_param_1_k = 40000.0
         hn_shear_param_2 = 25.0
         hn_shear_falloff_slope = 700.0
 
