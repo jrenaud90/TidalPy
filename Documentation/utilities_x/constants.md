@@ -31,7 +31,9 @@ The corresponding C++ names carry a `d_` prefix and full capitals: `d_MASS_SOLAR
 
 **Set at initialization, from SciPy.** The gravitational constant, the astronomical unit, the Stefan-Boltzmann constant, the molar gas constant, and the Boltzmann constant are read from `scipy.constants` each time TidalPy initializes. The Julian year comes from the same place. This is deliberate: a physical constant should have one authoritative source, and duplicating CODATA values into a header is how packages end up disagreeing with each other in the sixth digit.
 
-**Set from configuration.** The numerical guards are read from the configuration file: the minimum and maximum tidal frequency, the minimum spin-orbit frequency difference, the minimum viscosity and modulus, and the minimum layer thickness. These are not physics. They are the thresholds below which a quantity is treated as zero or a mode is dropped, and their right values depend on the problem, so they are exposed rather than hard-coded.
+**Set from configuration.** The numerical guards are read from the configuration file: the minimum and maximum tidal frequency, the minimum spin-orbit frequency difference, the minimum viscosity and modulus, the minimum layer thickness, and the shared numerical floor. These are not physics. They are the thresholds below which a quantity is treated as zero or a mode is dropped, and their right values depend on the problem, so they are exposed rather than hard-coded.
+
+The numerical floor is the one of these that is not a physical threshold. It is the smallest magnitude a denominator may take before a guard substitutes it, and `rheology_x`, `cooling_x`, and `radiogenics_x` all read it: a zero forcing frequency, a zero layer thickness, and a zero half life each reach a division that would otherwise produce infinity. Its default, `1e-100`, sits far below any physical value, so in practice it only ever replaces a true zero. Raising it is a debugging tool rather than a modeling choice.
 
 ## Updating them
 
@@ -39,7 +41,7 @@ Two functions repopulate the shared C++ struct, and both run automatically durin
 
 `update_constants()` reads the classic configuration and SciPy. It sets the physical constants and the numerical guards from the legacy config sections.
 
-`update_constants_x()` then copies the `[numerical]` section of the new configuration, `TidalPy.config_x` loaded from `TidalPy_Configs_x.toml`, over the shared numerical fields. It runs second, so for the frequency, viscosity, modulus, and thickness floors the new configuration wins. It does not touch the physical constants, which stay as SciPy set them.
+`update_constants_x()` then copies the `[numerical]` section of the new configuration, `TidalPy.config_x` loaded from `TidalPy_Configs_x.toml`, over the shared numerical fields. It runs second, so for the frequency, viscosity, modulus, and thickness floors the new configuration wins. The numerical floor is only in the new configuration, so `update_constants_x` is the only thing that sets it. It does not touch the physical constants, which stay as SciPy set them.
 
 There is one process-wide C++ config singleton shared by both code paths, which is why the ordering is what decides the result. Call either function again after editing a configuration in a running session; each call reconfigures in place.
 

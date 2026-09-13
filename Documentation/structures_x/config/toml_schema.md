@@ -212,7 +212,7 @@ hardcoded C++/Cython default.
 
 For example, an Andrade shear rheology's `zeta` for a `solidliquid` / `mantle_rock` layer resolves as: `layers.<name>.shear_rheology.zeta` in the user world; else `[layers.mantle_rock.shear_rheology].zeta` in `TidalPy_Configs_x.toml`; else the Cython class' factory default.
 
-`TidalPy_Configs_x.toml` is the main configuration file for TidalPy's new `_x` system. It is generated from `TidalPy.defaultc_x` into the user's TidalPy `Config` directory (next to the legacy `TidalPy_Configs.toml`) on first use and is then user-editable. **Any new default configuration for the `_x` system belongs in `TidalPy_Configs_x.toml` (via `defaultc_x.py`), not the legacy config.** Its `[numerical]` section also feeds the shared C++ config singleton used by all `_x` modules (frequency / viscosity / modulus / thickness floors).
+`TidalPy_Configs_x.toml` is the main configuration file for TidalPy's new `_x` system. It is generated from `TidalPy.defaultc_x` into the user's TidalPy `Config` directory (next to the legacy `TidalPy_Configs.toml`) on first use and is then user-editable. **Any new default configuration for the `_x` system belongs in `TidalPy_Configs_x.toml` (via `defaultc_x.py`), not the legacy config.** Its `[numerical]` section also feeds the shared C++ config singleton used by all `_x` modules (frequency / viscosity / modulus / thickness floors, plus `numerical_floor`, the magnitude a guarded denominator is raised to; see [Constants](../../utilities_x/constants.md)).
 
 Because the per-material defaults supply the EOS and physics models, a world can be specified very compactly by naming only `class`, `type`, and geometry (this is how the bundled `earth_simple` world is written).
 

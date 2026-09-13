@@ -43,6 +43,10 @@ schema_version = "{SCHEMA_VERSION_X}"
     minimum_modulus = 1.0e-3
     # Geometry floor: a layer thinner than this is ignored.
     minimum_layer_thickness = 0.1
+    # Smallest magnitude a denominator may take before a guard substitutes it. Applies wherever a
+    # module divides by a quantity that can reach zero: a forcing frequency, a layer thickness, a
+    # half life. Far below any physical value, so it only ever replaces a true zero.
+    numerical_floor = 1.0e-100
     # Debug helper.
     test_constant = 42.0
 

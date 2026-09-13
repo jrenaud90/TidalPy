@@ -51,15 +51,14 @@
 namespace tidalpy {
 
 // -------------------------------------------------------------------------------
-// Numerical floor used to guard denominators that may approach zero (e.g. at
-// zero forcing frequency).
+// Replace a magnitude smaller than the shared numerical floor (config_x
+// [numerical].numerical_floor) with a signed floor value, guarding denominators
+// that may approach zero (e.g. at zero forcing frequency).
 // -------------------------------------------------------------------------------
-inline constexpr double d_RHEOLOGY_FLOOR = 1.0e-100;
-
-// Replace a magnitude smaller than the floor with a signed floor value.
 inline double rheo_guard(double value) noexcept {
-    if (std::abs(value) < d_RHEOLOGY_FLOOR) {
-        return (value < 0.0) ? -d_RHEOLOGY_FLOOR : d_RHEOLOGY_FLOOR;
+    const double floor_value = tidalpy_config_ptr->d_NUMERICAL_FLOOR;
+    if (std::abs(value) < floor_value) {
+        return (value < 0.0) ? -floor_value : floor_value;
     }
     return value;
 }

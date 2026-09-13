@@ -74,6 +74,10 @@ struct TidalPyConfig
     // Planet Extremes
     double d_MIN_THICKNESS; // Updated from TidalPy.config['layers']['minimum_layer_thickness']
 
+    // Smallest magnitude a denominator may take before a guard substitutes it, shared by every module
+    // that divides by a quantity which can reach zero (rheology, cooling, radiogenics).
+    double d_NUMERICAL_FLOOR; // Updated from TidalPy.config_x['numerical']['numerical_floor']
+
     // Astro / Physics Constants
     // The below are updated from SciPy
     double d_G;
@@ -93,6 +97,7 @@ struct TidalPyConfig
         d_MIN_VISCOSITY = nan;
         d_MIN_MODULUS = nan;
         d_MIN_THICKNESS = nan;
+        d_NUMERICAL_FLOOR = nan;
         d_G = nan;
         d_AU = nan;
         d_SBC = nan;

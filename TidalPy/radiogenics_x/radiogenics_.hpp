@@ -55,13 +55,13 @@ namespace tidalpy {
 // Module-level constants.
 // -------------------------------------------------------------------------------
 
-// Numerical floor used to guard half-life denominators that may approach zero.
-inline constexpr double d_RADIOGENICS_FLOOR = 1.0e-100;
-
-// Replace a magnitude smaller than the floor with a signed floor value.
+// Replace a magnitude smaller than the shared numerical floor (config_x
+// [numerical].numerical_floor) with a signed floor value, guarding half-life
+// denominators that may approach zero.
 inline double rad_guard(double value) noexcept {
-    if (std::abs(value) < d_RADIOGENICS_FLOOR) {
-        return (value < 0.0) ? -d_RADIOGENICS_FLOOR : d_RADIOGENICS_FLOOR;
+    const double floor_value = tidalpy_config_ptr->d_NUMERICAL_FLOOR;
+    if (std::abs(value) < floor_value) {
+        return (value < 0.0) ? -floor_value : floor_value;
     }
     return value;
 }
