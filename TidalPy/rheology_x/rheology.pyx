@@ -568,12 +568,17 @@ def make_rheology(str model_name, dict config=None):
     if config is None:
         config = {}
 
-    # Build the config struct from the dict (missing keys use legacy defaults).
+    # A default-constructed config carries the C++ defaults; only override the
+    # fields the caller actually supplies (single source of truth: the C++ struct).
     cdef c_RheologyConfig cfg
-    cfg.alpha                = config.get("alpha", 0.3)
-    cfg.zeta                 = config.get("zeta", 1.0)
-    cfg.voigt_modulus_frac   = config.get("voigt_modulus_frac", 5.0)
-    cfg.voigt_viscosity_frac = config.get("voigt_viscosity_frac", 0.02)
+    if "alpha" in config:
+        cfg.alpha = config["alpha"]
+    if "zeta" in config:
+        cfg.zeta = config["zeta"]
+    if "voigt_modulus_frac" in config:
+        cfg.voigt_modulus_frac = config["voigt_modulus_frac"]
+    if "voigt_viscosity_frac" in config:
+        cfg.voigt_viscosity_frac = config["voigt_viscosity_frac"]
 
     # Map name/alias -> enum (raises ValueError on unknown name via except +),
     # then build the model through the canonical C++ enum factory.

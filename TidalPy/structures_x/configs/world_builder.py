@@ -440,6 +440,32 @@ def _expand_data_file(config: dict) -> dict:
 # =====================================================================================================================
 # World construction
 # =====================================================================================================================
+def _world_type_defaults(world_type: str) -> dict:
+    """Return the ``[worlds]`` default block from the ``_x`` config, specialized for a world type.
+
+    The block holds the world-level properties directly (``albedo``, ``emissivity``, ...) and may carry a
+    per-type sub-table (``[worlds.star]``) whose keys win for that type. Sub-tables for other types are
+    dropped, so a star's ``effective_temperature_k`` never leaks onto a terrestrial world.
+
+    Parameters
+    ----------
+    world_type : str
+        ``star``, ``gasgiant``, ``terrestrial``, or ``layered``.
+
+    Returns
+    -------
+    dict
+        The flattened defaults for that world type (empty when the ``_x`` config has no ``[worlds]``).
+    """
+    config_x = getattr(TidalPy, "config_x", None) or {}
+    worlds_block = config_x.get("worlds", {}) or {}
+    defaults = {key: value for key, value in worlds_block.items() if not isinstance(value, dict)}
+    type_block = worlds_block.get(world_type, {}) or {}
+    if isinstance(type_block, dict):
+        defaults.update(type_block)
+    return defaults
+
+
 def construct_world(config: dict):
     """Construct a world (and all its layers) from a validated configuration dict.
 
@@ -469,20 +495,25 @@ def construct_world(config: dict):
     validate_world_config(config)
     world_type = config["type"]
 
+    # Tier 2 for world-level properties: the `[worlds]` block of the _x config, under whatever the
+    # user supplied. Anything neither supplies is left out entirely so the class default applies.
+    resolved = _world_type_defaults(world_type)
+    resolved.update(config)
+
     world_kwargs = {
         "name":   config["name"],
         "radius": config["radius_m"],
         "mass":   config["mass_kg"],
     }
     for key in ("albedo", "emissivity", "obliquity_rad", "spin_frequency_rad_s"):
-        if key in config:
-            world_kwargs[_CONFIG_KEY_TO_ARGUMENT.get(key, key)] = config[key]
+        if key in resolved:
+            world_kwargs[_CONFIG_KEY_TO_ARGUMENT.get(key, key)] = resolved[key]
 
     world_radius = config["radius_m"]
     if world_type == "star":
         for key in ("effective_temperature_k", "luminosity_w"):
-            if key in config:
-                world_kwargs[_CONFIG_KEY_TO_ARGUMENT[key]] = config[key]
+            if key in resolved:
+                world_kwargs[_CONFIG_KEY_TO_ARGUMENT[key]] = resolved[key]
         world = StarWorld(**world_kwargs)
         # A star has no layers, but the analytic tide pipeline (cpl/ctl/ctl_q) is common to
         # all world types, so wire its [tides] table too (default model: fixed_q).

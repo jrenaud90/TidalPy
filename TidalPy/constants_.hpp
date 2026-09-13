@@ -82,6 +82,10 @@ struct TidalPyConfig
     // previous layer's outer radius before the geometry is rejected.
     double d_LAYER_CONTINUITY_RTOL; // Updated from TidalPy.config_x['numerical']['layer_continuity_rtol']
 
+    // Largest fraction of the planet radius a radial-solver integration may start from. Caps the
+    // solver's own automatic choice and rejects a caller's starting radius above it.
+    double d_MAX_START_RADIUS_FRAC; // Updated from TidalPy.config_x['numerical']['max_start_radius_fraction']
+
     // Astro / Physics Constants
     // The below are updated from SciPy
     double d_G;
@@ -103,6 +107,7 @@ struct TidalPyConfig
         d_MIN_THICKNESS = nan;
         d_NUMERICAL_FLOOR = nan;
         d_LAYER_CONTINUITY_RTOL = nan;
+        d_MAX_START_RADIUS_FRAC = nan;
         d_G = nan;
         d_AU = nan;
         d_SBC = nan;

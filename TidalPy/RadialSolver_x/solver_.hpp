@@ -38,6 +38,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <complex>
@@ -421,9 +422,18 @@ void c_validate_and_prep_radial_inputs(
             throw std::invalid_argument("The Propagation matrix technique does not allow for compressible layers.");
     }
 
-    if ((starting_radius != 0.0) && (starting_radius > 0.90 * radius_array[total_slices - 1]))
+    // The same fraction that caps the solver's automatic choice, so a caller is never refused a
+    // starting radius the solver would have picked itself.
+    const double max_start_radius_frac = tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC;
+    if ((starting_radius != 0.0) &&
+        (starting_radius > max_start_radius_frac * radius_array[total_slices - 1]))
     {
-        throw std::invalid_argument("Starting radius is above 90% of the planet radius. Try a lower radius.");
+        // Default stream precision prints 0.90 as "90", not "90.000000".
+        std::ostringstream message;
+        message << "Starting radius is above " << (100.0 * max_start_radius_frac)
+                << "% of the planet radius (config_x [numerical].max_start_radius_fraction)."
+                << " Try a lower radius.";
+        throw std::invalid_argument(message.str());
     }
 
     if (radius_array[0] != 0.0)

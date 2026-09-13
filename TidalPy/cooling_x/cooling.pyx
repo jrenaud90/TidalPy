@@ -459,10 +459,15 @@ def make_cooling(str model_name, dict config=None):
     if config is None:
         config = {}
 
+    # A default-constructed config carries the C++ defaults; only override the
+    # fields the caller actually supplies (single source of truth: the C++ struct).
     cdef c_CoolingConfig cfg
-    cfg.convection_alpha  = config.get("convection_alpha", 1.0)
-    cfg.convection_beta   = config.get("convection_beta", 0.3333333333333333)
-    cfg.critical_rayleigh = config.get("critical_rayleigh", 1100.0)
+    if "convection_alpha" in config:
+        cfg.convection_alpha = config["convection_alpha"]
+    if "convection_beta" in config:
+        cfg.convection_beta = config["convection_beta"]
+    if "critical_rayleigh" in config:
+        cfg.critical_rayleigh = config["critical_rayleigh"]
 
     # Map name/alias -> enum (raises ValueError on unknown name via except +),
     # then build the model through the canonical C++ enum factory.

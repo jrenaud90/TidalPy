@@ -50,6 +50,10 @@ schema_version = "{SCHEMA_VERSION_X}"
     # Relative tolerance on layer-boundary continuity: a layer's inner radius must match the
     # previous layer's outer radius to this fraction of that radius, or the world is rejected.
     layer_continuity_rtol = 1.0e-6
+    # Largest fraction of the planet radius a radial-solver integration may start from. The solver's
+    # automatic choice is capped here, and a starting radius supplied above it is rejected: too close
+    # to the surface leaves too little of the interior to integrate through.
+    max_start_radius_fraction = 0.90
     # Debug helper.
     test_constant = 42.0
 
@@ -89,6 +93,32 @@ schema_version = "{SCHEMA_VERSION_X}"
         gasgiant = "fixed_dt"
         terrestrial = "rheology"
         layered = "rheology"
+
+
+# =====================================================================================================================
+# World-level property defaults
+#
+# Used by the world builder when a world's own configuration omits one of these. Resolution is the
+# same three tiers the layer blocks use: the user's world wins, then `[worlds]` (specialized by
+# `[worlds.<type>]` when that table names the key), then the C++ class default. These are the fields of
+# c_WorldConfig, plus c_StarConfig's two, so every world property a user can set is visible here.
+# =====================================================================================================================
+[worlds]
+    # Bond albedo: the fraction of incident stellar flux reflected rather than absorbed.
+    albedo = 0.3
+    # Surface emissivity in the infrared, 1.0 being a perfect black body.
+    emissivity = 1.0
+    # Axial tilt of the spin axis relative to the orbit normal [rad].
+    obliquity_rad = 0.0
+    # Rotation rate [rad/s]. Zero leaves the world non-rotating until a spin is set.
+    spin_frequency_rad_s = 0.0
+
+    # Stars only.
+    [worlds.star]
+        # Effective (photospheric) temperature [K]; the solar value.
+        effective_temperature_k = 5772.0
+        # Luminosity [W]. Zero means derive it from the effective temperature by Stefan-Boltzmann.
+        luminosity_w = 0.0
 
 
 # =====================================================================================================================

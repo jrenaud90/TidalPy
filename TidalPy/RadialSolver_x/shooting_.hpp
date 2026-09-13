@@ -382,8 +382,10 @@ int c_shooting_solver(
         // This formulism is based on Hilary Martens thesis and LoadDef manual.
         starting_radius = planet_radius * std::pow(start_radius_tolerance, 1.0 / degree_l_dbl);
 
-        // Ensure the starting radius is not too close to the surface of the planet.
-        starting_radius = std::fmin(starting_radius, 0.95 * planet_radius);
+        // Ensure the starting radius is not too close to the surface of the planet
+        // (config_x [numerical].max_start_radius_fraction).
+        starting_radius = std::fmin(
+            starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
     }
 
     // Determine which layer this starting radius resides in. We will skip the lower layers

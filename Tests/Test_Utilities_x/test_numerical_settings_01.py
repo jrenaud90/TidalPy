@@ -7,7 +7,10 @@ through the shared config singleton. These tests pin that wiring: changing a val
 - ``numerical_floor``: the magnitude a guarded denominator is raised to, in rheology_x, cooling_x, and
   radiogenics_x.
 - ``layer_continuity_rtol``: how far a layer's inner radius may sit from the previous layer's outer radius.
+- ``max_start_radius_fraction``: how close to the surface a radial-solver integration may start.
 """
+import math
+
 import pytest
 
 import TidalPy
@@ -17,6 +20,8 @@ from TidalPy.cooling_x.cooling import ConductiveCooling
 from TidalPy.radiogenics_x.radiogenics import FixedRadiogenics
 from TidalPy.structures_x.layers.physics import PhysicsLayer
 from TidalPy.structures_x.worlds.layered import LayeredWorld
+from TidalPy.rheology_x import Elastic
+from TidalPy.RadialSolver_x.solver import radial_solver
 
 _DEFAULT_FLOOR = 1.0e-100
 # Large enough that a guarded result moves by many orders of magnitude, small enough to stay unphysical.
@@ -150,3 +155,57 @@ def test_continuous_geometry_is_accepted_at_the_default(numerical_setter):
     world, outer = _two_layer_world(0.0)
     world.add_layer(outer)
     assert world.num_layers == 2
+
+
+# =====================================================================================================================
+# max_start_radius_fraction
+# =====================================================================================================================
+_DEFAULT_START_RADIUS_FRACTION = 0.90
+_PLANET_RADIUS = 1.0e6
+
+
+def _homogeneous_solve(starting_radius):
+    """One-layer supplied-moduli solve, which is where the starting-radius rules are applied."""
+    import numpy as np
+
+    slices = 30
+    frequency = 2.0 * math.pi / 86400.0
+    radius = np.linspace(0.0, _PLANET_RADIUS, slices)
+    density = np.full(slices, 5000.0)
+    viscosity = np.full(slices, 1.0e19)
+    complex_shear = Maxwell().calc_complex_modulus_vectorize_modulus(
+        np.full(slices, 5.0e10), viscosity, frequency)
+    complex_bulk = Elastic().calc_complex_modulus_vectorize_modulus(
+        np.full(slices, 1.0e11), viscosity, frequency)
+    return radial_solver(
+        radius.copy(), density.copy(), complex_bulk.copy(), complex_shear.copy(),
+        frequency, 5000.0, ("solid",), (False,), (False,), np.asarray((_PLANET_RADIUS,)),
+        degree_l=2, solve_for=("tidal",), starting_radius=starting_radius,
+        nondimensionalize=True, integration_method="DOP853", integration_rtol=1e-8,
+        integration_atol=1e-10, max_num_steps=5_000_000, raise_on_fail=False)
+
+
+def test_default_start_radius_fraction_is_wired_through():
+    from TidalPy.constants import max_start_radius_fraction
+    assert TidalPy.config_x["numerical"]["max_start_radius_fraction"] == _DEFAULT_START_RADIUS_FRACTION
+    assert max_start_radius_fraction == _DEFAULT_START_RADIUS_FRACTION
+
+
+def test_start_radius_just_below_the_fraction_is_accepted(numerical_setter):
+    numerical_setter("max_start_radius_fraction", _DEFAULT_START_RADIUS_FRACTION)
+    assert _homogeneous_solve(0.89 * _PLANET_RADIUS).success
+
+
+def test_start_radius_above_the_fraction_is_rejected(numerical_setter):
+    """The message reports the configured fraction rather than a hard-coded 90%."""
+    numerical_setter("max_start_radius_fraction", _DEFAULT_START_RADIUS_FRACTION)
+    with pytest.raises(ValueError, match=r"above 90% of the planet radius"):
+        _homogeneous_solve(0.91 * _PLANET_RADIUS)
+
+
+def test_start_radius_fraction_is_configurable(numerical_setter):
+    """Loosening the fraction accepts a starting radius the default refuses."""
+    numerical_setter("max_start_radius_fraction", 0.95)
+    assert _homogeneous_solve(0.91 * _PLANET_RADIUS).success
+    with pytest.raises(ValueError, match=r"above 95% of the planet radius"):
+        _homogeneous_solve(0.96 * _PLANET_RADIUS)

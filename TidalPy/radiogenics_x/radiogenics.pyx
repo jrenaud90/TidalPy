@@ -632,10 +632,14 @@ def make_radiogenics(str model_name, dict config=None):
     cdef c_RadiogenicsConfig cfg
     cdef c_IsotopeDataset ds
 
-    # Fixed-model scalars (ignored by other models).
-    cfg.fixed_heat_production = config.get("fixed_heat_production_w_kg", 0.0)
-    cfg.average_half_life = config.get("average_half_life_s", 0.0)
-    cfg.ref_time          = config.get("ref_time_s", 0.0)
+    # Fixed-model scalars (ignored by other models). A default-constructed config carries the
+    # C++ defaults; only override what the caller supplies (single source: the C++ struct).
+    if "fixed_heat_production_w_kg" in config:
+        cfg.fixed_heat_production = config["fixed_heat_production_w_kg"]
+    if "average_half_life_s" in config:
+        cfg.average_half_life = config["average_half_life_s"]
+    if "ref_time_s" in config:
+        cfg.ref_time = config["ref_time_s"]
 
     # Isotope-model data (ignored by other models). A built-in dataset name is
     # resolved straight from the C++ catalog (already MKS); everything else

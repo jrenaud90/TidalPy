@@ -374,6 +374,71 @@ def test_both_truncation_spellings_raises():
         _terrestrial_with_tides({"eccentricity_trunc_lvl": 3, "eccentricity_truncation": 5})
 
 
+# =====================================================================================================
+# World-level defaults tier ([worlds] in the _x config)
+# =====================================================================================================
+def _bare_terrestrial():
+    """A world config that names no world-level property, so the defaults tier decides."""
+    return {"schema_version": "0.2.0", "name": "Bare", "type": "terrestrial",
+            "radius_m": 6.0e6, "mass_kg": 5.0e24,
+            "layers": {"mantle": {"class": "solidliquid", "type": "mantle_rock",
+                                  "radius_fraction": 1.0}}}
+
+
+@pytest.fixture
+def worlds_defaults():
+    """Override a key in the _x config's [worlds] block and restore it afterwards."""
+    import TidalPy
+    block = TidalPy.config_x["worlds"]
+    originals = {}
+
+    def set_default(key, value, world_type=None):
+        table = block if world_type is None else block[world_type]
+        originals.setdefault((world_type, key), table.get(key))
+        table[key] = value
+
+    yield set_default
+    for (world_type, key), value in originals.items():
+        table = block if world_type is None else block[world_type]
+        if value is None:
+            table.pop(key, None)
+        else:
+            table[key] = value
+
+
+def test_world_defaults_come_from_the_config():
+    """A world naming no albedo or emissivity picks them up from [worlds]."""
+    world = build_world(_bare_terrestrial())
+    assert world.albedo == pytest.approx(0.3)
+    assert world.emissivity == pytest.approx(1.0)
+
+
+def test_world_defaults_are_configurable(worlds_defaults):
+    worlds_defaults("albedo", 0.55)
+    assert build_world(_bare_terrestrial()).albedo == pytest.approx(0.55)
+
+
+def test_user_world_wins_over_the_defaults(worlds_defaults):
+    """Tier 1 still beats tier 2."""
+    worlds_defaults("albedo", 0.55)
+    config = _bare_terrestrial()
+    config["albedo"] = 0.11
+    assert build_world(config).albedo == pytest.approx(0.11)
+
+
+def test_star_only_defaults_do_not_reach_other_worlds(worlds_defaults):
+    """[worlds.star] keys apply to stars; a terrestrial world never sees them."""
+    star = build_world({"schema_version": "0.2.0", "name": "S", "type": "star",
+                        "radius_m": 6.957e8, "mass_kg": 1.988e30})
+    assert star.effective_temperature == pytest.approx(5772.0)
+    # A terrestrial world has no effective temperature to set, so building it must still work.
+    worlds_defaults("effective_temperature_k", 4000.0, world_type="star")
+    assert build_world(_bare_terrestrial()).albedo == pytest.approx(0.3)
+    assert build_world({"schema_version": "0.2.0", "name": "S", "type": "star",
+                        "radius_m": 6.957e8, "mass_kg": 1.988e30}
+                       ).effective_temperature == pytest.approx(4000.0)
+
+
 def test_available_worlds_lists_bundled():
     worlds = available_worlds()
     assert "earth_simple" in worlds

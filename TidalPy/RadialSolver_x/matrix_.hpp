@@ -163,8 +163,9 @@ inline int c_matrix_propagate(
     {
         // Use a model involving planet radius and degree l (based on H. Martens thesis and LoadDef manual).
         starting_radius = planet_radius * std::pow(start_radius_tolerance, 1.0 / degree_l_dbl);
-        // Ensure not too close to the surface
-        starting_radius = std::fmin(starting_radius, 0.95 * planet_radius);
+        // Ensure not too close to the surface (config_x [numerical].max_start_radius_fraction).
+        starting_radius = std::fmin(
+            starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
     }
 
     // Determine which layer this starting radius resides in

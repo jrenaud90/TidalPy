@@ -289,10 +289,15 @@ def make_luminosity(str model_name, dict config=None):
     if config is None:
         config = {}
 
+    # A default-constructed config carries the C++ defaults; only override the
+    # fields the caller actually supplies (single source of truth: the C++ struct).
     cdef c_LuminosityConfig cfg
-    cfg.luminosity      = config.get("luminosity_w", 0.0)
-    cfg.power_law_coeff = config.get("power_law_coeff", 1.0)
-    cfg.power_law_exponent = config.get("power_law_exponent", 3.5)
+    if "luminosity_w" in config:
+        cfg.luminosity = config["luminosity_w"]
+    if "power_law_coeff" in config:
+        cfg.power_law_coeff = config["power_law_coeff"]
+    if "power_law_exponent" in config:
+        cfg.power_law_exponent = config["power_law_exponent"]
 
     # Map name/alias -> enum (raises ValueError on unknown name via except +),
     # then build the model through the canonical C++ enum factory.
