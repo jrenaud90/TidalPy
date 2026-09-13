@@ -277,10 +277,19 @@ inline c_WaveSet3D c_world_wave_set_3d(
     const c_TideConfig& tide_cfg = world.get_tide_config();
     int engine_error = 0;
     const std::vector<c_TidalPotential3DModeCoeff> modes = c_tidal_potential_3d_mode_coeffs(
-        world.get_radius(), state.semi_major_axis, state.orbital_frequency, state.spin_frequency,
-        state.obliquity, state.eccentricity, state.host_mass, c_get_G(),
-        tide_cfg.min_degree_l, tide_cfg.max_degree_l,
-        tide_cfg.obliquity_truncation, tide_cfg.eccentricity_truncation, &engine_error);
+        world.get_radius(),
+        state.semi_major_axis,
+        state.orbital_frequency,
+        state.spin_frequency,
+        state.obliquity,
+        state.eccentricity,
+        state.host_mass,
+        c_get_G(),
+        tide_cfg.min_degree_l,
+        tide_cfg.max_degree_l,
+        tide_cfg.obliquity_truncation,
+        tide_cfg.eccentricity_truncation,
+        &engine_error);
     if (engine_error != 0) {
         throw std::runtime_error(
             std::string("TidalPy: tidal potential engine failed during ") + what + " (error "
@@ -337,8 +346,16 @@ inline bool c_strain_coeffs_at_radius_3d(
     const std::complex<double> shear = world.calc_complex_shear_modulus(radius, group.frequency);
     const std::complex<double> bulk  = world.calc_complex_bulk_modulus(radius, group.frequency);
     out = tides::c_compute_strain_radial_coeffs(
-        y_at_r[0], y_at_r[1], y_at_r[2], y_at_r[3], shear, bulk, radius,
-        static_cast<double>(group.degree_l), is_solid, is_incompressible);
+        y_at_r[0],
+        y_at_r[1],
+        y_at_r[2],
+        y_at_r[3],
+        shear,
+        bulk,
+        radius,
+        static_cast<double>(group.degree_l),
+        is_solid,
+        is_incompressible);
     return true;
 }
 
@@ -449,7 +466,12 @@ inline double c_secular_theta_integral_3d(
                 }
                 const std::complex<double> c_pair = wave_a.amplitude * std::conj(wave_b.amplitude);
                 total += 0.5 * frequency * tides::c_theta_integrated_heating_pair(
-                    radial_a, radial_b, wave_a.order_m, wave_a.azimuthal_sign, c_pair, gram);
+                    radial_a,
+                    radial_b,
+                    wave_a.order_m,
+                    wave_a.azimuthal_sign,
+                    c_pair,
+                    gram);
             }
         }
     }
@@ -518,7 +540,13 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
         throw std::runtime_error(
             "TidalPy: 3D tidal heating needs the EOS solved first — call solve_eos()");
     }
-    rheology->calc_3d_tidal_heating_batch(*this, state, radii, colatitudes, num_points, out_heating);
+    rheology->calc_3d_tidal_heating_batch(
+        *this,
+        state,
+        radii,
+        colatitudes,
+        num_points,
+        out_heating);
 }
 
 // World delegation for the displacement grid: same preconditions as the 3D heating paths.
@@ -548,8 +576,17 @@ inline void c_LayeredWorld::get_3d_displacements_grid(
             "TidalPy: 3D tidal displacements need the EOS solved first — call solve_eos()");
     }
     rheology->calc_3d_displacements_grid(
-        *this, state, radii, num_radii, colatitudes, num_colatitudes, longitudes, num_longitudes,
-        times, num_times, out_disp);
+        *this,
+        state,
+        radii,
+        num_radii,
+        colatitudes,
+        num_colatitudes,
+        longitudes,
+        num_longitudes,
+        times,
+        num_times,
+        out_disp);
 }
 
 // Instantaneous displacement grid. The coherent wave list is built once; the radial solve and the y1/y3 samples
@@ -608,7 +645,11 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
                         }
                         tides::c_Vector3 amplitude;
                         tides::c_compute_displacements(
-                            y1_at_r[ir], y3_at_r[ir], potential, colatitudes[ith], amplitude);
+                            y1_at_r[ir],
+                            y3_at_r[ir],
+                            potential,
+                            colatitudes[ith],
+                            amplitude);
                         for (size_t it = 0; it < nt; ++it) {
                             const double phase = wave.frequency * times[it];
                             const double cos_wt = std::cos(phase);
@@ -686,7 +727,11 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
             tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "secular 3D tidal heating");
         for (size_t ur = 0; ur < num_radii; ++ur) {
             if (!tides3d::c_strain_coeffs_at_radius_3d(
-                    world, storage, unique_radii[ur], set.radial_groups[g], coeffs[ur][g])) {
+                world,
+                storage,
+                unique_radii[ur],
+                set.radial_groups[g],
+                coeffs[ur][g])) {
                 radius_missing[ur] += 1;
             }
         }
@@ -699,7 +744,12 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
             out_heating[i] = TidalPyConstants::d_NAN;
             continue;
         }
-        out_heating[i] = tides3d::c_secular_density_3d(set, coeffs[point_radius[i]], colatitudes[i], 0.0, true);
+        out_heating[i] = tides3d::c_secular_density_3d(
+            set,
+            coeffs[point_radius[i]],
+            colatitudes[i],
+            0.0,
+            true);
     }
 }
 
@@ -870,7 +920,12 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
         const ::c_RadialSolutionStorage* storage =
             tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "3D tidal heating");
         for (size_t ir = 0; ir < nr; ++ir) {
-            if (!tides3d::c_strain_coeffs_at_radius_3d(world, storage, r_grid[ir], set.radial_groups[g], coeffs[ir][g])) {
+            if (!tides3d::c_strain_coeffs_at_radius_3d(
+                world,
+                storage,
+                r_grid[ir],
+                set.radial_groups[g],
+                coeffs[ir][g])) {
                 radius_missing[ir] += 1;
             }
         }
@@ -913,7 +968,11 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
                     double density = 0.0;
                     if (!radius_solve_failed[ir]) {
                         density = tides3d::c_secular_density_3d(
-                            set, coeffs[ir], th_grid[ith], ph_grid[iph], longitude_averaged);
+                            set,
+                            coeffs[ir],
+                            th_grid[ith],
+                            ph_grid[iph],
+                            longitude_averaged);
                     }
                     if (!any_summed) {
                         result.values[surv_index(ir, ith, iph, 0)] =
@@ -954,7 +1013,12 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
                         const c_PotentialPointC potential =
                             c_eval_wave_point_3d(set.waves[w], th_grid[ith], ph_grid[iph]);
                         tides::c_Tensor6 strain, stress;
-                        tides::c_compute_strain_stress(radial, potential, th_grid[ith], strain, stress);
+                        tides::c_compute_strain_stress(
+                            radial,
+                            potential,
+                            th_grid[ith],
+                            strain,
+                            stress);
                         wave_stress.push_back(stress);
                         wave_strain.push_back(strain);
                         wave_freq.push_back(set.waves[w].frequency);
@@ -1020,8 +1084,17 @@ inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides(
             "TidalPy: 3D tidal heating needs the EOS solved first — call solve_eos()");
     }
     return rheology->calc_3d_tidal_heating_collapsed(
-        *this, state, radii, num_radii, colatitudes, num_colatitudes,
-        longitudes, num_longitudes, times, num_times, cfg);
+        *this,
+        state,
+        radii,
+        num_radii,
+        colatitudes,
+        num_colatitudes,
+        longitudes,
+        num_longitudes,
+        times,
+        num_times,
+        cfg);
 }
 
 } // namespace tidalpy

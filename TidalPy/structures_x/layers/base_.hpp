@@ -257,8 +257,14 @@ public:
             const std::vector<double>& postmelt_shear_visc,
             const std::vector<double>& postmelt_bulk_visc) {
         this->p_eos_data.populate_viscoelastic(
-            premelt_shear, premelt_bulk, premelt_shear_visc, premelt_bulk_visc,
-            postmelt_shear, postmelt_bulk, postmelt_shear_visc, postmelt_bulk_visc);
+            premelt_shear,
+            premelt_bulk,
+            premelt_shear_visc,
+            premelt_bulk_visc,
+            postmelt_shear,
+            postmelt_bulk,
+            postmelt_shear_visc,
+            postmelt_bulk_visc);
     }
 
     // -----------------------------------------------------------------------

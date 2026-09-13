@@ -422,8 +422,11 @@ public:
             return out;
         }
         return this->calc_dissipation(
-            index, this->get_host_mass(), orbital_frequency,
-            this->p_orbits[index].semi_major_axis, this->p_orbits[index].eccentricity);
+            index,
+            this->get_host_mass(),
+            orbital_frequency,
+            this->p_orbits[index].semi_major_axis,
+            this->p_orbits[index].eccentricity);
     }
 
     // Evolve every world in the system (single-body dissipation), returning one c_WorldEvolution per

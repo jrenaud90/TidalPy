@@ -46,7 +46,12 @@ def interp(x, xp, fp):
         raise ValueError("xp and fp must have the same length.")
 
     if np.ndim(x) == 0:
-        return c_interp(<double>x, &xp_v[0], &fp_v[0], n, 0)
+        return c_interp(
+                <double>x,
+                &xp_v[0],
+                &fp_v[0],
+                n,
+                0)
 
     x_in = np.ascontiguousarray(x, dtype=np.float64)
     cdef double[::1] x_v = x_in.ravel()

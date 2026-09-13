@@ -962,7 +962,12 @@ cdef class LayeredWorld(BaseWorld):
         cdef cpp_complex[double]* bulk_ptr  = <cpp_complex[double]*><void*>&complex_bulk_modulus[0]
         cdef double* radius_ptr = &radius_array[0]
         with nogil:
-            self._layered_ptr.solve_love_numbers_supplied(cfg, shear_ptr, bulk_ptr, radius_ptr, n_in)
+            self._layered_ptr.solve_love_numbers_supplied(
+                cfg,
+                shear_ptr,
+                bulk_ptr,
+                radius_ptr,
+                n_in)
         if warnings:
             check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), rtol)
         return self._build_love_result()
@@ -1236,7 +1241,11 @@ cdef class LayeredWorld(BaseWorld):
 
         with nogil:
             self._layered_ptr.get_3d_tidal_heating_array(
-                state, &radii_view[0], &colat_view[0], num_points, &out_view[0])
+                state,
+                &radii_view[0],
+                &colat_view[0],
+                num_points,
+                &out_view[0])
         return out_arr
 
     def calc_3d_displacements(
@@ -1304,7 +1313,15 @@ cdef class LayeredWorld(BaseWorld):
         state.host_mass         = host_mass
         with nogil:
             self._layered_ptr.get_3d_displacements_grid(
-                state, &radii_view[0], nr, &colat_view[0], nth, &lon_view[0], nph, &time_view[0], nt,
+                state,
+                &radii_view[0],
+                nr,
+                &colat_view[0],
+                nth,
+                &lon_view[0],
+                nph,
+                &time_view[0],
+                nt,
                 &out_view[0, 0, 0, 0, 0])
         return {
             "radii": radii_arr,
@@ -1457,8 +1474,16 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_Heating3DCollapsed res
         with nogil:
             res = self._layered_ptr.calc_3d_tides(
-                state, radii_ptr, num_radii, colat_ptr, num_colat,
-                lon_ptr, num_lon, time_ptr, num_time, cfg)
+                state,
+                radii_ptr,
+                num_radii,
+                colat_ptr,
+                num_colat,
+                lon_ptr,
+                num_lon,
+                time_ptr,
+                num_time,
+                cfg)
 
         # Surviving-axis shape (row-major, order radius, colatitude, longitude, time).
         cdef list shape = [<Py_ssize_t>res.shape[i] for i in range(res.shape.size())]

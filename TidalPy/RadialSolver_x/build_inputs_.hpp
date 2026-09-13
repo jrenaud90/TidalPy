@@ -279,11 +279,21 @@ inline void c_build_rs_input_homogeneous_layers(
         }
 
         detail::c_fill_layer_complex_modulus(
-            *shear_rheology_bylayer[layer_i], static_shear, shear_viscosity,
-            forcing_frequency, first_slice_in_layer, layer_slices, out.complex_shear_modulus);
+            *shear_rheology_bylayer[layer_i],
+            static_shear,
+            shear_viscosity,
+            forcing_frequency,
+            first_slice_in_layer,
+            layer_slices,
+            out.complex_shear_modulus);
         detail::c_fill_layer_complex_modulus(
-            *bulk_rheology_bylayer[layer_i], static_bulk, bulk_viscosity,
-            forcing_frequency, first_slice_in_layer, layer_slices, out.complex_bulk_modulus);
+            *bulk_rheology_bylayer[layer_i],
+            static_bulk,
+            bulk_viscosity,
+            forcing_frequency,
+            first_slice_in_layer,
+            layer_slices,
+            out.complex_bulk_modulus);
 
         first_slice_in_layer += layer_slices;
         last_layer_radius = layer_radius;
@@ -474,11 +484,21 @@ inline void c_build_rs_input_from_data(
     for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
         const std::size_t layer_slices = out.slices_bylayer[layer_i];
         detail::c_fill_layer_complex_modulus(
-            *shear_rheology_bylayer[layer_i], shear_use, shear_visc_use, forcing_frequency,
-            first_slice_in_layer, layer_slices, out.complex_shear_modulus);
+            *shear_rheology_bylayer[layer_i],
+            shear_use,
+            shear_visc_use,
+            forcing_frequency,
+            first_slice_in_layer,
+            layer_slices,
+            out.complex_shear_modulus);
         detail::c_fill_layer_complex_modulus(
-            *bulk_rheology_bylayer[layer_i], bulk_use, bulk_visc_use, forcing_frequency,
-            first_slice_in_layer, layer_slices, out.complex_bulk_modulus);
+            *bulk_rheology_bylayer[layer_i],
+            bulk_use,
+            bulk_visc_use,
+            forcing_frequency,
+            first_slice_in_layer,
+            layer_slices,
+            out.complex_bulk_modulus);
         first_slice_in_layer += layer_slices;
     }
 }

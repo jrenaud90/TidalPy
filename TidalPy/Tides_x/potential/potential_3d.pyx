@@ -75,10 +75,21 @@ def tidal_potential_3d_modes(
 
     cdef int error_code = 0
     cdef vector[c_TidalPotential3DMode] modes = c_tidal_potential_3d_modes(
-        planet_radius, semi_major_axis, orbital_frequency, spin_frequency,
-        obliquity, eccentricity, host_mass, G_to_use,
-        min_degree_l, max_degree_l, obliquity_truncation, eccentricity_truncation,
-        colatitude, longitude, &error_code)
+        planet_radius,
+        semi_major_axis,
+        orbital_frequency,
+        spin_frequency,
+        obliquity,
+        eccentricity,
+        host_mass,
+        G_to_use,
+        min_degree_l,
+        max_degree_l,
+        obliquity_truncation,
+        eccentricity_truncation,
+        colatitude,
+        longitude,
+        &error_code)
     if error_code != 0:
         raise ValueError(
             f"TidalPy: tidal potential engine failed (error {error_code}); check degree/truncation levels")

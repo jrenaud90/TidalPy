@@ -245,7 +245,13 @@ int c_radial_solver(
                     &persist_shear_ptr[bottom_slice_index]
                 );
                 specific_eos_char_ptr = reinterpret_cast<char*>(&solution_storage_ptr->p_eos_interp_inputs.back());
-                eos_inputs_bylayer_vec.emplace_back(G_to_use, radius_planet_to_use, specific_eos_char_ptr, false, false, false);
+                eos_inputs_bylayer_vec.emplace_back(
+                    G_to_use,
+                    radius_planet_to_use,
+                    specific_eos_char_ptr,
+                    false,
+                    false,
+                    false);
             }
             else
             {
@@ -279,23 +285,49 @@ int c_radial_solver(
         if (use_prop_matrix)
         {
             sub_process_error_code = c_matrix_propagate(
-                solution_storage_ptr, frequency_to_use, bulk_density_to_use,
-                first_slice_index_by_layer_vec.data(), num_slices_by_layer_vec.data(),
-                num_layers, num_bc_models, bc_models_ptr, G_to_use, degree_l,
-                starting_radius_to_use, start_radius_tolerance, core_model, verbose
-            );
+                solution_storage_ptr,
+                frequency_to_use,
+                bulk_density_to_use,
+                first_slice_index_by_layer_vec.data(),
+                num_slices_by_layer_vec.data(),
+                num_layers,
+                num_bc_models,
+                bc_models_ptr,
+                G_to_use,
+                degree_l,
+                starting_radius_to_use,
+                start_radius_tolerance,
+                core_model,
+                verbose);
         }
         else
         {
             sub_process_error_code = c_shooting_solver(
-                solution_storage_ptr, frequency_to_use, bulk_density_to_use,
-                layer_types_ptr, is_static_bylayer_ptr, is_incompressible_bylayer_ptr,
-                first_slice_index_by_layer_vec, num_slices_by_layer_vec,
-                num_bc_models, bc_models_ptr, G_to_use, degree_l, use_kamata,
-                starting_radius_to_use, start_radius_tolerance, integration_method_int,
-                integration_rtol, integration_atol, scale_rtols_bylayer_type,
-                max_num_steps, expected_size, max_ram_MB, max_step, verbose, warnings
-            );
+                solution_storage_ptr,
+                frequency_to_use,
+                bulk_density_to_use,
+                layer_types_ptr,
+                is_static_bylayer_ptr,
+                is_incompressible_bylayer_ptr,
+                first_slice_index_by_layer_vec,
+                num_slices_by_layer_vec,
+                num_bc_models,
+                bc_models_ptr,
+                G_to_use,
+                degree_l,
+                use_kamata,
+                starting_radius_to_use,
+                start_radius_tolerance,
+                integration_method_int,
+                integration_rtol,
+                integration_atol,
+                scale_rtols_bylayer_type,
+                max_num_steps,
+                expected_size,
+                max_ram_MB,
+                max_step,
+                verbose,
+                warnings);
         }
     }
 
@@ -318,7 +350,14 @@ int c_radial_solver(
         }
         else
         {
-            solution_storage_ptr->set_dimensional_context(1.0, 1.0, 1.0, 1.0, /*eos_is_nondim=*/false, 1.0, 1.0);
+            solution_storage_ptr->set_dimensional_context(
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                /*eos_is_nondim=*/false,
+                1.0,
+                1.0);
         }
 
         // Love numbers first (scale-invariant), while the EOS arrays are still non-dim.

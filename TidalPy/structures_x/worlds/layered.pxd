@@ -106,7 +106,12 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       calc_synchronous_spin(double orbital_frequency) const
         const c_EOSSolution* get_eos_solution() const
         void                 solve_love_numbers(const c_LoveSolveConfig& cfg) except +
-        void                 solve_love_numbers_supplied(const c_LoveSolveConfig& cfg, const cpp_complex[double]* shear_in, const cpp_complex[double]* bulk_in, const double* radius_in, size_t n_in) except +
+        void                 solve_love_numbers_supplied(
+                const c_LoveSolveConfig& cfg,
+                const cpp_complex[double]* shear_in,
+                const cpp_complex[double]* bulk_in,
+                const double* radius_in,
+                size_t n_in) except +
         unique_ptr[c_RadialSolutionStorage] release_radial_storage()
         cpp_bool             get_love_solved() const
         cpp_bool             get_love_success() const

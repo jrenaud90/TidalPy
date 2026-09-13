@@ -203,9 +203,18 @@ def collapse_global_tides(
 
     # Run the global-potential engine.
     cdef c_GlobalPotentialStorage potential = c_global_potential(
-        planet_radius, semi_major_axis, orbital_frequency, spin_frequency,
-        obliquity, eccentricity, host_mass, G_to_use,
-        min_degree_l, max_degree_l, i_obliquity_truncation, eccentricity_truncation)
+        planet_radius,
+        semi_major_axis,
+        orbital_frequency,
+        spin_frequency,
+        obliquity,
+        eccentricity,
+        host_mass,
+        G_to_use,
+        min_degree_l,
+        max_degree_l,
+        i_obliquity_truncation,
+        eccentricity_truncation)
 
     if potential.error_code != 0:
         raise RuntimeError(

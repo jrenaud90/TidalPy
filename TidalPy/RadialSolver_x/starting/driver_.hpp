@@ -114,8 +114,14 @@ inline void c_find_starting_conditions(
                 if (*success_ptr)
                 {
                     c_kamata_solid_static_compressible(
-                        radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                    );
+                        radius,
+                        density,
+                        bulk_modulus,
+                        shear_modulus,
+                        degree_l,
+                        G_to_use,
+                        num_ys,
+                        starting_conditions_ptr);
                 }
             } else if ((!is_static) && is_incompressible)
             {
@@ -131,8 +137,14 @@ inline void c_find_starting_conditions(
                 if (*success_ptr)
                 {
                     c_kamata_solid_dynamic_incompressible(
-                        frequency, radius, density, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        );
+                        frequency,
+                        radius,
+                        density,
+                        shear_modulus,
+                        degree_l,
+                        G_to_use,
+                        num_ys,
+                        starting_conditions_ptr);
                 }
             } else
             {
@@ -148,9 +160,15 @@ inline void c_find_starting_conditions(
                 if (*success_ptr)
                 {
                     c_kamata_solid_dynamic_compressible(
-                        frequency, radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys,
-                        starting_conditions_ptr
-                        );
+                        frequency,
+                        radius,
+                        density,
+                        bulk_modulus,
+                        shear_modulus,
+                        degree_l,
+                        G_to_use,
+                        num_ys,
+                        starting_conditions_ptr);
                 }
             }
         } else
@@ -173,8 +191,13 @@ inline void c_find_starting_conditions(
                 if (*success_ptr)
                 {
                     c_kamata_liquid_dynamic_incompressible(
-                        frequency, radius, density, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        );
+                        frequency,
+                        radius,
+                        density,
+                        degree_l,
+                        G_to_use,
+                        num_ys,
+                        starting_conditions_ptr);
                 }
             } else
             {
@@ -190,8 +213,14 @@ inline void c_find_starting_conditions(
                 if (*success_ptr)
                 {
                     c_kamata_liquid_dynamic_compressible(
-                        frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        );
+                        frequency,
+                        radius,
+                        density,
+                        bulk_modulus,
+                        degree_l,
+                        G_to_use,
+                        num_ys,
+                        starting_conditions_ptr);
                 }
             }
         }
@@ -219,8 +248,14 @@ inline void c_find_starting_conditions(
                     if (*success_ptr)
                     {
                         c_takeuchi_solid_static_compressible(
-                            radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        );
+                            radius,
+                            density,
+                            bulk_modulus,
+                            shear_modulus,
+                            degree_l,
+                            G_to_use,
+                            num_ys,
+                            starting_conditions_ptr);
                     }
                 } else
                 {
@@ -236,9 +271,15 @@ inline void c_find_starting_conditions(
                     if (*success_ptr)
                     {
                         c_takeuchi_solid_dynamic_compressible(
-                            frequency, radius, density, bulk_modulus, shear_modulus,
-                            degree_l, G_to_use, num_ys, starting_conditions_ptr
-                            );
+                            frequency,
+                            radius,
+                            density,
+                            bulk_modulus,
+                            shear_modulus,
+                            degree_l,
+                            G_to_use,
+                            num_ys,
+                            starting_conditions_ptr);
                     }
                 }
             } else
@@ -261,8 +302,14 @@ inline void c_find_starting_conditions(
                     if (*success_ptr)
                     {
                         c_takeuchi_liquid_dynamic_compressible(
-                            frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                            );
+                            frequency,
+                            radius,
+                            density,
+                            bulk_modulus,
+                            degree_l,
+                            G_to_use,
+                            num_ys,
+                            starting_conditions_ptr);
                     }
                 }
             }

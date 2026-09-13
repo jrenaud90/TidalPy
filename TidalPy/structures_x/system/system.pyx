@@ -213,7 +213,12 @@ cdef class System:
             The world's index within the system.
         """
         cdef double a = NAN if semi_major_axis is None else <double>semi_major_axis
-        cdef size_t index = self._system.get().add_world(world._world_ptr, is_host, is_star, a, eccentricity)
+        cdef size_t index = self._system.get().add_world(
+            world._world_ptr,
+            is_host,
+            is_star,
+            a,
+            eccentricity)
         self._world_wrappers.append(world)
         return <int>index
 

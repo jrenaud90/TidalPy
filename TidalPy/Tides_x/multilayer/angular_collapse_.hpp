@@ -218,7 +218,13 @@ inline double c_theta_integrated_heating(
     {
         return std::numeric_limits<double>::quiet_NaN();
     }
-    return c_theta_integrated_heating_pair(radial, radial, order_m, 1, std::complex<double>(1.0, 0.0), gram);
+    return c_theta_integrated_heating_pair(
+            radial,
+            radial,
+            order_m,
+            1,
+            std::complex<double>(1.0, 0.0),
+            gram);
 }
 
 }  // namespace tides

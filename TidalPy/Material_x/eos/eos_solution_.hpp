@@ -202,25 +202,61 @@ public:
         // Interpolate each quantity in the order that matches the CySolverResult layout:
         //   [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
         //   [5] shear_real, [6] shear_imag, [7] bulk_real, [8] bulk_imag
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->gravity_array_vec.data()),  n, &j, &y_interp_ptr[0]);
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->pressure_array_vec.data()), n, &j, &y_interp_ptr[1]);
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->mass_array_vec.data()),     n, &j, &y_interp_ptr[2]);
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->moi_array_vec.data()),      n, &j, &y_interp_ptr[3]);
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->density_array_vec.data()),  n, &j, &y_interp_ptr[4]);
+        c_interp(
+            &radius_query,
+            radius_data_ptr,
+            const_cast<double*>(this->gravity_array_vec.data()),
+            n,
+            &j,
+            &y_interp_ptr[0]);
+        c_interp(
+            &radius_query,
+            radius_data_ptr,
+            const_cast<double*>(this->pressure_array_vec.data()),
+            n,
+            &j,
+            &y_interp_ptr[1]);
+        c_interp(
+            &radius_query,
+            radius_data_ptr,
+            const_cast<double*>(this->mass_array_vec.data()),
+            n,
+            &j,
+            &y_interp_ptr[2]);
+        c_interp(
+            &radius_query,
+            radius_data_ptr,
+            const_cast<double*>(this->moi_array_vec.data()),
+            n,
+            &j,
+            &y_interp_ptr[3]);
+        c_interp(
+            &radius_query,
+            radius_data_ptr,
+            const_cast<double*>(this->density_array_vec.data()),
+            n,
+            &j,
+            &y_interp_ptr[4]);
 
         double shear_result[2] = {0.0, 0.0};
         c_interp_complex(
-            radius_val, radius_data_ptr,
+            radius_val,
+            radius_data_ptr,
             const_cast<double*>(reinterpret_cast<const double*>(this->complex_shear_array_vec.data())),
-            n, &j, shear_result);
+            n,
+            &j,
+            shear_result);
         y_interp_ptr[5] = shear_result[0];
         y_interp_ptr[6] = shear_result[1];
 
         double bulk_result[2] = {0.0, 0.0};
         c_interp_complex(
-            radius_val, radius_data_ptr,
+            radius_val,
+            radius_data_ptr,
             const_cast<double*>(reinterpret_cast<const double*>(this->complex_bulk_array_vec.data())),
-            n, &j, bulk_result);
+            n,
+            &j,
+            bulk_result);
         y_interp_ptr[7] = bulk_result[0];
         y_interp_ptr[8] = bulk_result[1];
 
@@ -229,8 +265,20 @@ public:
         // consumers never read uninitialized memory.
         if (this->shear_viscosity_array_vec.size() == n && this->bulk_viscosity_array_vec.size() == n)
         {
-            c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->shear_viscosity_array_vec.data()), n, &j, &y_interp_ptr[9]);
-            c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->bulk_viscosity_array_vec.data()),  n, &j, &y_interp_ptr[10]);
+            c_interp(
+                &radius_query,
+                radius_data_ptr,
+                const_cast<double*>(this->shear_viscosity_array_vec.data()),
+                n,
+                &j,
+                &y_interp_ptr[9]);
+            c_interp(
+                &radius_query,
+                radius_data_ptr,
+                const_cast<double*>(this->bulk_viscosity_array_vec.data()),
+                n,
+                &j,
+                &y_interp_ptr[10]);
         }
         else
         {

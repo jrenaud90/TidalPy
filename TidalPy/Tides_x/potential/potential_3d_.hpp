@@ -210,8 +210,18 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
         int* error_code)
 {
     const std::vector<c_TidalPotential3DModeCoeff> coeffs = c_tidal_potential_3d_mode_coeffs(
-        planet_radius, semi_major_axis, orbital_frequency, spin_frequency, obliquity, eccentricity,
-        host_mass, G_to_use, min_degree_l, max_degree_l, obliquity_truncation, eccentricity_truncation,
+        planet_radius,
+        semi_major_axis,
+        orbital_frequency,
+        spin_frequency,
+        obliquity,
+        eccentricity,
+        host_mass,
+        G_to_use,
+        min_degree_l,
+        max_degree_l,
+        obliquity_truncation,
+        eccentricity_truncation,
         error_code);
 
     std::vector<c_TidalPotential3DMode> modes;

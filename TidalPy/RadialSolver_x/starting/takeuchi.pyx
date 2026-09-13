@@ -45,7 +45,16 @@ def takeuchi_solid_dynamic_compressible(
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
     cdef cpp_complex[double] mu = cpp_complex[double](shear_modulus.real, shear_modulus.imag)
-    c_takeuchi_solid_dynamic_compressible(frequency, radius, density, K, mu, degree_l, G_to_use, num_ys, ptr)
+    c_takeuchi_solid_dynamic_compressible(
+        frequency,
+        radius,
+        density,
+        K,
+        mu,
+        degree_l,
+        G_to_use,
+        num_ys,
+        ptr)
 
 
 def takeuchi_solid_static_compressible(
@@ -84,4 +93,12 @@ def takeuchi_liquid_dynamic_compressible(
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
-    c_takeuchi_liquid_dynamic_compressible(frequency, radius, density, K, degree_l, G_to_use, num_ys, ptr)
+    c_takeuchi_liquid_dynamic_compressible(
+        frequency,
+        radius,
+        density,
+        K,
+        degree_l,
+        G_to_use,
+        num_ys,
+        ptr)

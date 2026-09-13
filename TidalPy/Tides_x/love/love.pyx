@@ -183,9 +183,18 @@ def calc_effective_rigidity(
     if isinstance(shear_modulus, complex):
         mu_c = shear_modulus
         out_c = c_calc_effective_rigidity_complex(
-            cpp_complex[double](mu_c.real, mu_c.imag), density, gravity, radius, degree_l)
+            cpp_complex[double](mu_c.real, mu_c.imag),
+            density,
+            gravity,
+            radius,
+            degree_l)
         return complex(out_c.real(), out_c.imag())
-    return c_calc_effective_rigidity_real(<double>shear_modulus, density, gravity, radius, degree_l)
+    return c_calc_effective_rigidity_real(
+            <double>shear_modulus,
+            density,
+            gravity,
+            radius,
+            degree_l)
 
 
 def calc_homogeneous_love_numbers(
@@ -223,7 +232,10 @@ def calc_homogeneous_love_numbers(
     """
     return _wrap_love(c_calc_homogeneous_love_numbers(
         cpp_complex[double](complex_shear_modulus.real, complex_shear_modulus.imag),
-        density, gravity, radius, degree_l))
+        density,
+        gravity,
+        radius,
+        degree_l))
 
 
 def apply_fixed_q(LoveNumbers love_numbers not None, double fixed_q) -> LoveNumbers:

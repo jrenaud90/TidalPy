@@ -134,8 +134,12 @@ inline double eos_vinet_pressure(double eta, double K0, double K0_prime) noexcep
 // iterations.
 template <typename PressureFn>
 inline double eos_invert_eta(
-        double pressure_target, double K0, double K0_prime, PressureFn pressure_fn,
-        double rtol, int max_iters) noexcept {
+        double pressure_target,
+        double K0,
+        double K0_prime,
+        PressureFn pressure_fn,
+        double rtol,
+        int max_iters) noexcept {
     if (std::abs(pressure_target) <= TidalPyConstants::d_EPS) { return 1.0; }
 
     // Bracket the root by walking away from eta = 1 while the pressure is still moving

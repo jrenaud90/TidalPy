@@ -111,31 +111,31 @@ struct c_MatrixInputs {
 inline int c_shooting_solve(
         c_RadialSolutionStorage* storage, c_ShootingInputs& in, double frequency, bool verbose) noexcept {
     return c_shooting_solver(
-        storage,
-        frequency,
-        in.planet_bulk_density,
-        in.layer_types.data(),
-        in.is_static.get(),
-        in.is_incompressible.get(),
-        in.first_slice_index_by_layer,
-        in.num_slices_by_layer,
-        in.num_bc_models,
-        &in.bc_model,
-        in.G, in.degree_l,
-        in.use_kamata,
-        in.starting_radius,
-        in.start_radius_tol,
-        in.integration_method,
-        in.integration_rtol,
-        in.integration_atol,
-        in.scale_rtols,
-        in.max_num_steps,
-        in.expected_size,
-        in.max_ram_MB,
-        in.max_step,
-        verbose,
-        in.warnings
-    );
+            storage,
+            frequency,
+            in.planet_bulk_density,
+            in.layer_types.data(),
+            in.is_static.get(),
+            in.is_incompressible.get(),
+            in.first_slice_index_by_layer,
+            in.num_slices_by_layer,
+            in.num_bc_models,
+            &in.bc_model,
+            in.G,
+            in.degree_l,
+            in.use_kamata,
+            in.starting_radius,
+            in.start_radius_tol,
+            in.integration_method,
+            in.integration_rtol,
+            in.integration_atol,
+            in.scale_rtols,
+            in.max_num_steps,
+            in.expected_size,
+            in.max_ram_MB,
+            in.max_step,
+            verbose,
+            in.warnings);
 }
 
 inline int c_matrix_solve(
@@ -544,10 +544,22 @@ public:
                 const double grav_conv    = length_conv / sec2_conv;
                 const double dens_conv    = this->p_non_dim_uptr->density_conversion;
                 storage->set_dimensional_context(
-                    length_conv, disp_scale, stress_scale, pot_scale,
-                    /*eos_is_nondim=*/true, grav_conv, dens_conv);
+                    length_conv,
+                    disp_scale,
+                    stress_scale,
+                    pot_scale,
+                    /*eos_is_nondim=*/true,
+                    grav_conv,
+                    dens_conv);
             } else {
-                storage->set_dimensional_context(1.0, 1.0, 1.0, 1.0, /*eos_is_nondim=*/false, 1.0, 1.0);
+                storage->set_dimensional_context(
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    /*eos_is_nondim=*/false,
+                    1.0,
+                    1.0);
             }
         }
 

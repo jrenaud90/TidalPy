@@ -437,7 +437,11 @@ public:
 
                 // Frequency-independent viscoelastic post-pass (PhysicsLayers only).
                 this->populate_layer_viscoelastic(
-                    layer, *solution, slice_start, slices, cfg.temperature);
+                    layer,
+                    *solution,
+                    slice_start,
+                    slices,
+                    cfg.temperature);
             }
         }
 
@@ -786,7 +790,12 @@ public:
             return;
         }
 
-        c_LoveNumbers love = c_calc_homogeneous_love_numbers(shear_avg, density_bulk, gravity, radius, cfg.degree_l);
+        c_LoveNumbers love = c_calc_homogeneous_love_numbers(
+            shear_avg,
+            density_bulk,
+            gravity,
+            radius,
+            cfg.degree_l);
         if (method == c_LoveMethod::HomogeneousCPL) {
             // Precedence: the solve config, then the [tides] config, then the attached tide model.
             double fixed_q = cfg.fixed_q;
@@ -1227,8 +1236,14 @@ protected:
         }
 
         layer->update_viscoelastic_data(
-            premelt_shear, premelt_bulk, premelt_shear_visc, premelt_bulk_visc,
-            postmelt_shear, postmelt_bulk, postmelt_shear_visc, postmelt_bulk_visc);
+            premelt_shear,
+            premelt_bulk,
+            premelt_shear_visc,
+            premelt_bulk_visc,
+            postmelt_shear,
+            postmelt_bulk,
+            postmelt_shear_visc,
+            postmelt_bulk_visc);
     }
 
     // Non-owning observer pointer to the layer whose radial span contains

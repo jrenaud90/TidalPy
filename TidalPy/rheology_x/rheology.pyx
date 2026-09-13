@@ -667,8 +667,12 @@ def maxwell(modulus, viscosity, frequency):
     return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
-def voigt(modulus, viscosity, frequency,
-          double voigt_modulus_frac=5.0, double voigt_viscosity_frac=0.02):
+def voigt(
+        modulus,
+        viscosity,
+        frequency,
+        double voigt_modulus_frac=5.0,
+        double voigt_viscosity_frac=0.02):
     """Complex shear/bulk modulus for the Voigt-Kelvin model [Pa]."""
     cdef c_RheologyConfig cfg
     cfg.voigt_modulus_frac   = voigt_modulus_frac
@@ -677,8 +681,12 @@ def voigt(modulus, viscosity, frequency,
     return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
-def burgers(modulus, viscosity, frequency,
-            double voigt_modulus_frac=5.0, double voigt_viscosity_frac=0.02):
+def burgers(
+        modulus,
+        viscosity,
+        frequency,
+        double voigt_modulus_frac=5.0,
+        double voigt_viscosity_frac=0.02):
     """Complex shear/bulk modulus for the Burgers model [Pa]."""
     cdef c_RheologyConfig cfg
     cfg.voigt_modulus_frac   = voigt_modulus_frac
@@ -701,8 +709,14 @@ def andrade(
     return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
-def sundberg(modulus, viscosity, frequency, double alpha=0.3, double zeta=1.0,
-             double voigt_modulus_frac=5.0, double voigt_viscosity_frac=0.02):
+def sundberg(
+        modulus,
+        viscosity,
+        frequency,
+        double alpha=0.3,
+        double zeta=1.0,
+        double voigt_modulus_frac=5.0,
+        double voigt_viscosity_frac=0.02):
     """Complex shear/bulk modulus for the Sundberg-Cooper model [Pa]."""
     cdef c_RheologyConfig cfg
     cfg.alpha                = alpha

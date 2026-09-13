@@ -47,8 +47,12 @@ cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
     # A single radioactive isotope (value type; no base class).
     cdef cppclass c_Isotope:
         c_Isotope() except +
-        c_Isotope(string name, double hpr, double half_life,
-                  double mass_frac, double concentration) except +
+        c_Isotope(
+            string name,
+            double hpr,
+            double half_life,
+            double mass_frac,
+            double concentration) except +
         string name
         double heat_production
         double half_life

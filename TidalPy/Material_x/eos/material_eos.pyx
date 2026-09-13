@@ -130,10 +130,13 @@ cdef class BirchMurnaghanEOS(MaterialEOSBase):
     def __cinit__(self, *args, **kwargs):
         self._bm_ptr = NULL
 
-    def __init__(self, double reference_density=3500.0,
-                 double reference_bulk_modulus=1.0e11,
-                 double bulk_modulus_derivative=4.0,
-                 invert_rtol=None, invert_max_iters=None):
+    def __init__(
+            self,
+            double reference_density=3500.0,
+            double reference_bulk_modulus=1.0e11,
+            double bulk_modulus_derivative=4.0,
+            invert_rtol=None,
+            invert_max_iters=None):
         # A default-constructed config carries the C++ default inversion settings;
         # only override them when the caller explicitly supplies a value.
         cdef c_MaterialEOSConfig config
@@ -186,10 +189,13 @@ cdef class VinetEOS(MaterialEOSBase):
     def __cinit__(self, *args, **kwargs):
         self._vinet_ptr = NULL
 
-    def __init__(self, double reference_density=3500.0,
-                 double reference_bulk_modulus=1.0e11,
-                 double bulk_modulus_derivative=4.0,
-                 invert_rtol=None, invert_max_iters=None):
+    def __init__(
+            self,
+            double reference_density=3500.0,
+            double reference_bulk_modulus=1.0e11,
+            double bulk_modulus_derivative=4.0,
+            invert_rtol=None,
+            invert_max_iters=None):
         # A default-constructed config carries the C++ default inversion settings;
         # only override them when the caller explicitly supplies a value.
         cdef c_MaterialEOSConfig config

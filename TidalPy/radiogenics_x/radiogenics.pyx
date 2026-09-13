@@ -64,9 +64,13 @@ cdef object _double_vector_to_ndarray(vector[double]& src, tuple shape):
     return out.reshape(shape)
 
 
-cdef void _build_isotopes(object heat_production, object half_lives,
-                          object mass_fracs, object concentrations,
-                          object names, vector[c_Isotope]& dst):
+cdef void _build_isotopes(
+        object heat_production,
+        object half_lives,
+        object mass_fracs,
+        object concentrations,
+        object names,
+        vector[c_Isotope]& dst):
     """Build a std::vector[c_Isotope] from parallel Python sequences.
 
     The four numeric arrays must have the same length; ``names`` is an optional
@@ -344,11 +348,22 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
     def __cinit__(self, *args, **kwargs):
         self._isotope_ptr = NULL
 
-    def __init__(self, heat_production=(), half_lives=(),
-                 mass_fracs=(), concentrations=(), double ref_time=0.0, names=None):
+    def __init__(
+            self,
+            heat_production=(),
+            half_lives=(),
+            mass_fracs=(),
+            concentrations=(),
+            double ref_time=0.0,
+            names=None):
         cdef c_RadiogenicsConfig config
-        _build_isotopes(heat_production, half_lives, mass_fracs,
-                        concentrations, names, config.isotopes)
+        _build_isotopes(
+            heat_production,
+            half_lives,
+            mass_fracs,
+            concentrations,
+            names,
+            config.isotopes)
         config.ref_time = ref_time
         # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(c_RadiogenicsModel.Isotope, config)
@@ -724,8 +739,13 @@ def isotope(
     constant parameters (all the same length). ``names`` is optional.
     """
     cdef c_RadiogenicsConfig cfg
-    _build_isotopes(heat_production, half_lives, mass_fracs,
-                    concentrations, names, cfg.isotopes)
+    _build_isotopes(
+        heat_production,
+        half_lives,
+        mass_fracs,
+        concentrations,
+        names,
+        cfg.isotopes)
     cfg.ref_time = ref_time
     cdef c_IsotopeRadiogenics model = c_IsotopeRadiogenics(cfg)
     return _solve_heating(<c_RadiogenicsBase*>&model, time, mass)

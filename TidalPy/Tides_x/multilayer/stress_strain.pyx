@@ -82,9 +82,20 @@ def strain_stress_heating_point(
     cdef double[12] stress12
     cdef double heating = 0.0
     c_strain_stress_heating(
-        &y_ri[0], shear.real, shear.imag, bulk.real, bulk.imag,
-        radius, degree_l, 1 if is_solid else 0, 1 if is_incompressible else 0,
-        &pot6[0], colatitude, &strain12[0], &stress12[0], &heating)
+        &y_ri[0],
+        shear.real,
+        shear.imag,
+        bulk.real,
+        bulk.imag,
+        radius,
+        degree_l,
+        1 if is_solid else 0,
+        1 if is_incompressible else 0,
+        &pot6[0],
+        colatitude,
+        &strain12[0],
+        &stress12[0],
+        &heating)
 
     cdef cnp.ndarray[cnp.complex128_t, ndim=1] strain = np.empty(6, dtype=np.complex128)
     cdef cnp.ndarray[cnp.complex128_t, ndim=1] stress = np.empty(6, dtype=np.complex128)

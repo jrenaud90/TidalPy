@@ -45,10 +45,19 @@ inline double c_volumetric_heating_flat(const double* stress12, const double* st
 // pot6 = the 6 potential values above. strain12/stress12 = 12 doubles each (6 complex). heating1 = 1 double.
 inline void c_strain_stress_heating(
         const double* y_ri,
-        double shear_re, double shear_im, double bulk_re, double bulk_im,
-        double radius, double degree_l, int is_solid, int is_incomp,
-        const double* pot6, double colatitude,
-        double* strain12, double* stress12, double* heating1) noexcept
+        double shear_re,
+        double shear_im,
+        double bulk_re,
+        double bulk_im,
+        double radius,
+        double degree_l,
+        int is_solid,
+        int is_incomp,
+        const double* pot6,
+        double colatitude,
+        double* strain12,
+        double* stress12,
+        double* heating1) noexcept
 {
     const std::complex<double> y1(y_ri[0], y_ri[1]);
     const std::complex<double> y2(y_ri[2], y_ri[3]);
@@ -58,8 +67,16 @@ inline void c_strain_stress_heating(
     const std::complex<double> bulk(bulk_re, bulk_im);
 
     const c_StrainRadialCoeffs R = c_compute_strain_radial_coeffs(
-        y1, y2, y3, y4, shear, bulk, radius, degree_l, is_solid != 0, is_incomp != 0
-    );
+        y1,
+        y2,
+        y3,
+        y4,
+        shear,
+        bulk,
+        radius,
+        degree_l,
+        is_solid != 0,
+        is_incomp != 0);
 
     c_PotentialPoint P{pot6[0], pot6[1], pot6[2], pot6[3], pot6[4], pot6[5]};
 

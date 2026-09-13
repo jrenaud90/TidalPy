@@ -147,15 +147,33 @@ inline ModulusT c_calc_effective_rigidity(
 
 // Non-template spellings of the effective rigidity for the Cython layer.
 inline double c_calc_effective_rigidity_real(
-        double shear_modulus, double density, double gravity, double radius, int degree_l)
+        double shear_modulus,
+        double density,
+        double gravity,
+        double radius,
+        int degree_l)
 {
-    return c_calc_effective_rigidity(shear_modulus, density, gravity, radius, degree_l);
+    return c_calc_effective_rigidity(
+            shear_modulus,
+            density,
+            gravity,
+            radius,
+            degree_l);
 }
 
 inline std::complex<double> c_calc_effective_rigidity_complex(
-        std::complex<double> shear_modulus, double density, double gravity, double radius, int degree_l)
+        std::complex<double> shear_modulus,
+        double density,
+        double gravity,
+        double radius,
+        int degree_l)
 {
-    return c_calc_effective_rigidity(shear_modulus, density, gravity, radius, degree_l);
+    return c_calc_effective_rigidity(
+            shear_modulus,
+            density,
+            gravity,
+            radius,
+            degree_l);
 }
 
 // Love numbers k_l, h_l, l_l of a homogeneous incompressible sphere from its (complex) shear modulus.
@@ -167,7 +185,11 @@ inline c_LoveNumbers c_calc_homogeneous_love_numbers(
         int degree_l)
 {
     const std::complex<double> mu_eff = c_calc_effective_rigidity(
-        complex_shear_modulus, density, gravity, radius, degree_l);
+        complex_shear_modulus,
+        density,
+        gravity,
+        radius,
+        degree_l);
     const double l = static_cast<double>(degree_l);
     const std::complex<double> response = 1.0 / (std::complex<double>(1.0, 0.0) + mu_eff);
     c_LoveNumbers love;

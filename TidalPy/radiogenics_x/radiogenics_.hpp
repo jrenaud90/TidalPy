@@ -421,10 +421,11 @@ public:
 
     double calc_heating(double time, double mass) const override {
         return rad_heating_fixed(
-            time, mass,
-            this->p_fixed_heat_production,
-            this->p_average_half_life,
-            this->p_ref_time);
+                time,
+                mass,
+                this->p_fixed_heat_production,
+                this->p_average_half_life,
+                this->p_ref_time);
     }
 
     void write_binary(std::ostream& out) const override {

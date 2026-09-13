@@ -332,9 +332,18 @@ def build_rs_input_homogeneous_layers(
 
     cdef c_RadialSolverInputs inputs
     c_build_rs_input_homogeneous_layers(
-        planet_radius, forcing_frequency,
-        density_vec, bulk_vec, shear_vec, bulk_visc_vec, shear_visc_vec,
-        thickness_vec, slices_vec, shear_rheo_ptrs, bulk_rheo_ptrs, inputs)
+        planet_radius,
+        forcing_frequency,
+        density_vec,
+        bulk_vec,
+        shear_vec,
+        bulk_visc_vec,
+        shear_visc_vec,
+        thickness_vec,
+        slices_vec,
+        shear_rheo_ptrs,
+        bulk_rheo_ptrs,
+        inputs)
 
     return _build_outputs(inputs, layer_types, is_static, is_incompressible)
 
@@ -425,7 +434,16 @@ def build_rs_input_from_data(
     cdef c_RadialSolverInputs inputs
     c_build_rs_input_from_data(
         forcing_frequency,
-        radius_vec, density_vec, bulk_vec, shear_vec, bulk_visc_vec, shear_visc_vec,
-        upper_radius_vec, shear_rheo_ptrs, bulk_rheo_ptrs, warnings, inputs)
+        radius_vec,
+        density_vec,
+        bulk_vec,
+        shear_vec,
+        bulk_visc_vec,
+        shear_visc_vec,
+        upper_radius_vec,
+        shear_rheo_ptrs,
+        bulk_rheo_ptrs,
+        warnings,
+        inputs)
 
     return _build_outputs(inputs, layer_types, is_static, is_incompressible)

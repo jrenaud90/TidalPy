@@ -1055,12 +1055,18 @@ int c_shooting_solver(
                         constant_vector_ptr,  // Modified Variable
                         layer_above_constant_vector_ptr,
                         uppermost_y_per_solution_ptr,
-                        gravity_upper, layer_above_lower_gravity,
-                        density_upper, layer_above_lower_density,
-                        layer_type, layer_above_type,
-                        layer_is_static, layer_above_is_static,
-                        layer_is_incomp, layer_above_is_incomp,
-                        num_sols, C_MAX_NUM_Y
+                        gravity_upper,
+                        layer_above_lower_gravity,
+                        density_upper,
+                        layer_above_lower_density,
+                        layer_type,
+                        layer_above_type,
+                        layer_is_static,
+                        layer_above_is_static,
+                        layer_is_incomp,
+                        layer_above_is_incomp,
+                        num_sols,
+                        C_MAX_NUM_Y
                     );
                 }
 
