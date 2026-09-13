@@ -47,6 +47,9 @@ schema_version = "{SCHEMA_VERSION_X}"
     # module divides by a quantity that can reach zero: a forcing frequency, a layer thickness, a
     # half life. Far below any physical value, so it only ever replaces a true zero.
     numerical_floor = 1.0e-100
+    # Relative tolerance on layer-boundary continuity: a layer's inner radius must match the
+    # previous layer's outer radius to this fraction of that radius, or the world is rejected.
+    layer_continuity_rtol = 1.0e-6
     # Debug helper.
     test_constant = 42.0
 

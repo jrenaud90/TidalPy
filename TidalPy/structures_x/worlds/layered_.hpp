@@ -113,8 +113,12 @@ struct c_LoveSolveConfig {
 // -------------------------------------------------------------------------------
 class c_LayeredWorld : public c_BaseWorld {
 public:
-    // Relative tolerance used when checking layer-boundary continuity.
-    static constexpr double d_LAYER_CONTINUITY_RTOL = 1.0e-6;
+    // Absolute tolerance on the gap between a layer's inner radius and the previous layer's outer
+    // radius, from config_x [numerical].layer_continuity_rtol scaled by that radius.
+    static double layer_continuity_tol(double previous_outer_radius) noexcept {
+        const double scale = (previous_outer_radius > 1.0) ? previous_outer_radius : 1.0;
+        return tidalpy_config_ptr->d_LAYER_CONTINUITY_RTOL * scale;
+    }
 
     // -----------------------------------------------------------------------
     // Construction
@@ -138,8 +142,7 @@ public:
         const double prev_outer = this->p_layers.empty() ? 0.0
                                 : this->p_layers.back()->get_radius_outer();
         const double inner      = layer->get_radius_inner();
-        const double tol        = d_LAYER_CONTINUITY_RTOL
-                                * (prev_outer > 1.0 ? prev_outer : 1.0);
+        const double tol        = layer_continuity_tol(prev_outer);
         if (std::abs(inner - prev_outer) > tol) {
             throw std::invalid_argument(
                 "TidalPy: layer geometry is not continuous — inner radius does not "
@@ -154,8 +157,7 @@ public:
     bool accepts_layer(const c_BaseLayer& layer) const noexcept {
         const double prev_outer = this->p_layers.empty() ? 0.0
                                 : this->p_layers.back()->get_radius_outer();
-        const double tol        = d_LAYER_CONTINUITY_RTOL
-                                * (prev_outer > 1.0 ? prev_outer : 1.0);
+        const double tol        = layer_continuity_tol(prev_outer);
         return std::abs(layer.get_radius_inner() - prev_outer) <= tol;
     }
 
@@ -1073,7 +1075,7 @@ public:
         double prev_outer = 0.0;
         for (const auto& layer : this->p_layers) {
             const double inner = layer->get_radius_inner();
-            const double tol   = d_LAYER_CONTINUITY_RTOL * (prev_outer > 1.0 ? prev_outer : 1.0);
+            const double tol   = layer_continuity_tol(prev_outer);
             if (std::abs(inner - prev_outer) > tol) { return false; }
             prev_outer = layer->get_radius_outer();
         }

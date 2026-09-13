@@ -78,6 +78,10 @@ struct TidalPyConfig
     // that divides by a quantity which can reach zero (rheology, cooling, radiogenics).
     double d_NUMERICAL_FLOOR; // Updated from TidalPy.config_x['numerical']['numerical_floor']
 
+    // Relative tolerance on layer-boundary continuity: how far a layer's inner radius may sit from the
+    // previous layer's outer radius before the geometry is rejected.
+    double d_LAYER_CONTINUITY_RTOL; // Updated from TidalPy.config_x['numerical']['layer_continuity_rtol']
+
     // Astro / Physics Constants
     // The below are updated from SciPy
     double d_G;
@@ -98,6 +102,7 @@ struct TidalPyConfig
         d_MIN_MODULUS = nan;
         d_MIN_THICKNESS = nan;
         d_NUMERICAL_FLOOR = nan;
+        d_LAYER_CONTINUITY_RTOL = nan;
         d_G = nan;
         d_AU = nan;
         d_SBC = nan;

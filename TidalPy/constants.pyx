@@ -80,6 +80,7 @@ min_viscosity = d_NAN
 min_modulus = d_NAN
 min_thickness = d_NAN
 numerical_floor = d_NAN
+layer_continuity_rtol = d_NAN
 
 test_constant = d_NAN
 
@@ -162,7 +163,7 @@ def update_constants_x():
     :func:`update_constants` from SciPy and are not overridden here.
     """
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
-    global numerical_floor
+    global numerical_floor, layer_continuity_rtol
 
     numerical = TidalPy.config_x['numerical']
 
@@ -173,6 +174,7 @@ def update_constants_x():
     tidalpy_config_ptr.d_MIN_MODULUS = numerical['minimum_modulus']
     tidalpy_config_ptr.d_MIN_THICKNESS = numerical['minimum_layer_thickness']
     tidalpy_config_ptr.d_NUMERICAL_FLOOR = numerical['numerical_floor']
+    tidalpy_config_ptr.d_LAYER_CONTINUITY_RTOL = numerical['layer_continuity_rtol']
     # test_constant is intentionally not set here. It is a debug knob whose user-facing override is the
     # legacy config's `debug.test_constant`, applied by update_constants (which runs just before this).
     # Re-reading it from config_x would clobber a user override supplied through reinit(). Both configs
@@ -186,3 +188,4 @@ def update_constants_x():
     min_modulus = tidalpy_config_ptr.d_MIN_MODULUS
     min_thickness = tidalpy_config_ptr.d_MIN_THICKNESS
     numerical_floor = tidalpy_config_ptr.d_NUMERICAL_FLOOR
+    layer_continuity_rtol = tidalpy_config_ptr.d_LAYER_CONTINUITY_RTOL
