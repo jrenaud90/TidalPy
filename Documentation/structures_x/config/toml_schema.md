@@ -69,6 +69,7 @@ print(available_worlds())      # data-dir worlds unioned with packaged worlds
 | `effective_temperature_k` | optional | `star` | Effective temperature [K]. |
 | `luminosity_w` | optional | `star` | Luminosity [W]. |
 | `[layers.<name>]` | **yes** (non-star) | layered families | One table per layer (see below). |
+| `[tides]` | optional | all | Tidal dissipation settings (see below). Omitted entirely, the world still gets a dissipation model from the `_x` config defaults. |
 
 World `type` maps to a class as follows:
 
@@ -152,6 +153,50 @@ A layer attaches a physics model through a nested table carrying a `model` key p
 | `[layers.<name>.radiogenics]` | `make_radiogenics` | solidliquid only |
 
 See each module's documentation for the available model names and parameters.
+
+---
+
+## Tidal dissipation schema (`[tides]`)
+
+An optional world-level `[tides]` table sets how the world dissipates. It applies to every world family, stars and gas giants included, and every key is optional: what the table omits falls back to the `[tides]` block of `TidalPy_Configs_x.toml`, and what that omits falls back to a built-in default. A world with no `[tides]` table is still given a dissipation model.
+
+| Key | Applies to | Description |
+|-----|------------|-------------|
+| `global_tidal_model` | all | Dissipation model: `rheology`, `cpl` (`fixed_q`), `ctl` (`fixed_dt`), or `ctl_q` (`fixed_dt_q`). Defaults per world family from `[tides.default_model]` in the `_x` config: `rheology` for terrestrial and layered worlds, `fixed_dt` for gas giants, `fixed_q` for stars. |
+| `fixed_k` | all | Per-degree static potential Love numbers $k_l$, a list indexed from $l = 2$ (nine slots, $l = 2 \ldots 10$). Read only by the analytic models. A list shorter than nine zero-fills the remaining degrees, and a zero $k_l$ is no dissipation at that degree, so the list has to reach `max_degree_l`. |
+| `fixed_q` | all | Per-degree tidal quality factors $Q_l$, same indexing. Read by `cpl` and `ctl_q`. |
+| `fixed_dt` | all | Per-degree tidal time lags $\Delta t_l$ \[s\], same indexing. Read by `ctl` and `ctl_q`. |
+| `min_degree_l` | all | Lowest harmonic degree in the mode sum. Default `2`. |
+| `max_degree_l` | all | Highest harmonic degree in the mode sum. Default `2`. |
+| `eccentricity_trunc_lvl` | all | Eccentricity truncation order $e^n$. Tabulated at 1, 2, 3, 4, 5, 10, 15, and 20; default `3`. An untabulated level is promoted to the next tabulated one with a once-per-session warning, so accuracy never drops silently. `eccentricity_truncation` is accepted as an alias. |
+| `obliquity_trunc_lvl` | all | Obliquity truncation order. Tabulated at 0, 2, 4, and 10; default `"off"`. `"off"` means 0 (no obliquity terms) and `"gen"` or `"general"` means 10 (the exact, untruncated form). Untabulated integers are promoted like the eccentricity levels. `obliquity_truncation` is accepted as an alias. |
+| `tidal_timescale_width_decades` | layered families | Width \[decades\] of the log-Gaussian bell a layer's `tidal_timescale` scale method uses. The bell peaks where the layer's Maxwell time equals the forcing period. Default `1.0`. |
+| `love_method` | layered families | How the Love numbers are obtained: `radial_solver` (aliases `shooting`, `rs`; the default), `propagation_matrix` (`prop_matrix`, `pm`, `prop`), `homogeneous` (`homogen`), `cpl`, `ctl`, or `laterally_inhomogeneous` (`3d`, `lat_inhom`, reserved for the 3D solver). The three homogeneous methods use the analytic homogeneous-sphere formulas instead of a radial solve, so they have no depth-resolved solution and the 3D stress, strain, and heating path raises `RuntimeError` while one of them is configured. |
+| `love_fixed_q` | layered families | Scalar $Q$ the `cpl` Love method applies to the static Love numbers. Unset by default, in which case the tide model's own `fixed_q` is used. |
+| `love_fixed_dt` | layered families | Scalar time lag \[s\] the `ctl` Love method applies. Unset by default, falling back to the tide model's `fixed_dt`. |
+
+`global_tidal_model` selects the model that turns Love numbers into dissipation; `love_method` selects how the Love numbers themselves are computed. They are independent: a world can solve its Love numbers with the radial solver and still collapse them with an analytic tide model.
+
+```toml
+[tides]
+global_tidal_model = "rheology"      # dissipation from the layers' complex moduli
+min_degree_l = 2
+max_degree_l = 3                     # include the degree-3 tide
+eccentricity_trunc_lvl = 5           # e^5; 3 is the default
+obliquity_trunc_lvl = "gen"          # exact obliquity terms
+love_method = "radial_solver"
+```
+
+A star or gas giant has no interior to solve, so it uses an analytic model and its per-degree parameters:
+
+```toml
+[tides]
+global_tidal_model = "fixed_q"
+fixed_k = [0.3, 0.15, 0.1]           # l = 2, 3, 4; higher degrees would be zero-filled
+fixed_q = [100.0, 100.0, 100.0]
+```
+
+`world.get_tide_config()` returns the degree and truncation settings under these same key names, and `get_config_dict()` puts them in a `[tides]` table together with the tide model's own parameters (the model's name is emitted as `global_tidal_model`), so a world's tidal configuration survives a save and rebuild. Note that the round trip writes the resolved integer for `obliquity_trunc_lvl`, so a world written with `"off"` reads back as `0`.
 
 ---
 

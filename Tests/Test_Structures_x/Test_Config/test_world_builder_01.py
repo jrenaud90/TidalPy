@@ -337,6 +337,43 @@ def test_baseworld_build_dispatches_to_subclass():
     assert isinstance(star, StarWorld)
 
 
+def _terrestrial_with_tides(tides_toml_keys):
+    """Build a one-layer terrestrial world whose ``[tides]`` table holds the given keys."""
+    config = {"schema_version": "0.2.0", "name": "Tides", "type": "terrestrial",
+              "radius_m": 6.371e6, "mass_kg": 5.972e24,
+              "layers": {"mantle": {"class": "solidliquid", "type": "mantle_rock",
+                                    "radius_fraction": 1.0}},
+              "tides": dict(tides_toml_keys)}
+    return build_world(config)
+
+
+@pytest.mark.parametrize("key", ["eccentricity_trunc_lvl", "eccentricity_truncation"])
+def test_eccentricity_truncation_alias_takes_effect(key):
+    """Both spellings reach the world. The alias used to be masked by the config_x default."""
+    tides = _terrestrial_with_tides({key: 5}).get_config_dict()["tides"]
+    assert tides["eccentricity_trunc_lvl"] == 5
+
+
+@pytest.mark.parametrize("key", ["obliquity_trunc_lvl", "obliquity_truncation"])
+def test_obliquity_truncation_alias_takes_effect(key):
+    tides = _terrestrial_with_tides({key: 4}).get_config_dict()["tides"]
+    assert tides["obliquity_trunc_lvl"] == 4
+
+
+def test_obliquity_truncation_words_resolve():
+    """``"off"`` is 0 and ``"gen"`` is the exact, untruncated form."""
+    assert _terrestrial_with_tides({"obliquity_trunc_lvl": "off"}).get_config_dict()[
+        "tides"]["obliquity_trunc_lvl"] == 0
+    assert _terrestrial_with_tides({"obliquity_trunc_lvl": "gen"}).get_config_dict()[
+        "tides"]["obliquity_trunc_lvl"] == 10
+
+
+def test_both_truncation_spellings_raises():
+    """Two spellings of one truncation leave the intended level ambiguous."""
+    with pytest.raises(ValueError, match="both 'eccentricity_trunc_lvl' and its alias"):
+        _terrestrial_with_tides({"eccentricity_trunc_lvl": 3, "eccentricity_truncation": 5})
+
+
 def test_available_worlds_lists_bundled():
     worlds = available_worlds()
     assert "earth_simple" in worlds

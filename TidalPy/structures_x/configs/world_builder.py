@@ -596,6 +596,48 @@ def _resolve_eccentricity_truncation(value) -> int:
         f"Supported levels: {SUPPORTED_ECCENTRICITY_TRUNCATIONS}.")
 
 
+# A `[tides]` table may spell either truncation the long way. The config_x defaults always use the
+# `_trunc_lvl` spelling, so an alias has to be rewritten to the canonical name before the two are
+# merged: left as-is it sits beside the default under a different key and the default wins silently.
+_TRUNCATION_ALIASES = {
+    "eccentricity_truncation": "eccentricity_trunc_lvl",
+    "obliquity_truncation":    "obliquity_trunc_lvl",
+}
+
+
+def _normalize_truncation_aliases(tides_cfg: dict, source: str) -> dict:
+    """Rewrite a ``[tides]`` table's truncation aliases onto their canonical key names.
+
+    Parameters
+    ----------
+    tides_cfg : dict
+        A ``[tides]`` table (a world's own or the ``_x`` config defaults).
+    source : str
+        Where the table came from, used in the error message.
+
+    Returns
+    -------
+    dict
+        A copy with ``eccentricity_truncation`` / ``obliquity_truncation`` renamed to
+        ``eccentricity_trunc_lvl`` / ``obliquity_trunc_lvl``.
+
+    Raises
+    ------
+    ValueError
+        If both spellings of one truncation are present, which leaves the intended level ambiguous.
+    """
+    normalized = dict(tides_cfg)
+    for alias, canonical in _TRUNCATION_ALIASES.items():
+        if alias not in normalized:
+            continue
+        value = normalized.pop(alias)
+        if canonical in normalized:
+            raise ValueError(
+                f"{source} sets both '{canonical}' and its alias '{alias}'. Use one of them.")
+        normalized[canonical] = value
+    return normalized
+
+
 def _attach_tides(world, config: dict) -> None:
     """Wire the optional ``[tides]`` table onto any world (layered, gas giant, or star).
 
@@ -616,8 +658,10 @@ def _attach_tides(world, config: dict) -> None:
         The normalized world configuration.
     """
     world_type = config["type"]
-    tides_cfg = config.get("tides", {}) or {}
-    defaults = _tides_config_x()
+    tides_cfg = _normalize_truncation_aliases(
+        config.get("tides", {}) or {}, "This world's [tides] table")
+    defaults = _normalize_truncation_aliases(
+        _tides_config_x(), "The [tides] block of TidalPy_Configs_x.toml")
 
     # The default-model map is the one config_x key that is per-world-type; everything else
     # merges the config_x [tides] defaults underneath the world's [tides] overrides.
@@ -641,12 +685,11 @@ def _attach_tides(world, config: dict) -> None:
     world.set_tide_config(
         min_degree_l=int(merged.get("min_degree_l", 2)),
         max_degree_l=int(merged.get("max_degree_l", 2)),
+        # Both spellings were normalized to the canonical key above.
         eccentricity_truncation=_resolve_eccentricity_truncation(
-            merged.get("eccentricity_trunc_lvl",
-                       merged.get("eccentricity_truncation", 3))),
+            merged.get("eccentricity_trunc_lvl", 3)),
         obliquity_truncation=_resolve_obliquity_truncation(
-            merged.get("obliquity_trunc_lvl",
-                       merged.get("obliquity_truncation", "off"))),
+            merged.get("obliquity_trunc_lvl", "off")),
         tidal_timescale_width_decades=float(merged.get("tidal_timescale_width_decades", 1.0)),
         love_method=str(merged.get("love_method", "radial_solver")),
         love_fixed_q=merged.get("love_fixed_q"),
