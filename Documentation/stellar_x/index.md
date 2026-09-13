@@ -1,10 +1,8 @@
 # Stellar (`stellar_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-`TidalPy.stellar_x` holds the stellar physics. Its job in a tidal calculation is narrow but load-bearing: turn a star's mass into its luminosity, and turn that luminosity into the radiation field the star's companions sit in.
-
-That matters because tides are not the only thing setting a body's temperature. A close-in exoplanet receives far more energy from its star than tidal dissipation could ever supply, and an icy moon in the outer solar system receives almost none. A tidal heating rate only becomes a statement about a body's thermal state once the stellar contribution is known, and the stellar contribution depends on a mass-to-luminosity relation that spans five orders of magnitude across the main sequence.
+`TidalPy.stellar_x` holds the stellar physics. Its job is to calculate stellar heating on a planet for use in long term thermal-orbital evolution models. It also contains helper functionality to turn a star's mass into its luminosity using published relationships. This is helpful when working with exoplanets where some stellar properties are not published.
 
 | Page | Covers |
 |---|---|
@@ -16,7 +14,7 @@ That matters because tides are not the only thing setting a body's temperature. 
 Luminosity Models <luminosity.md>
 ```
 
-## Where a luminosity model fits
+## Usage
 
 A luminosity model is attached to a `StarWorld` with `set_luminosity_model`. The star then derives its own luminosity and effective temperature from its mass and radius. See [Worlds](../structures_x/worlds/worlds.md).
 
@@ -26,7 +24,7 @@ Downstream, `System` uses the star's luminosity to compute the orbit-averaged fl
 
 ## Scope
 
-This module covers luminosity and the temperature conversions tied to it. Stellar structure, evolution along the main sequence, spectra, and the wavelength dependence of the radiation field are all outside it. The mass-to-luminosity relations here are empirical fits to main-sequence stars and say nothing about how a star got there or where it goes next.
+This module covers luminosity and the temperature conversions tied to it. Nothing related to stellar structure, evolution along the main sequence, spectra, and the wavelength dependence of the radiation field are currently included in TidalPy. The mass-to-luminosity relations here are empirical fits to main-sequence stars and say nothing about how a star got there or where it goes next.
 
 ## References
 

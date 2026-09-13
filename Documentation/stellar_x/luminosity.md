@@ -1,8 +1,8 @@
 # Luminosity Models (`stellar_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-A luminosity model maps a star's mass onto its luminosity $L$ [W]. That single relation, plus the star's radius, fixes everything else this module reports: the effective temperature through the Stefan-Boltzmann law, and, once the star is placed in a `System`, the flux and equilibrium temperature of every world orbiting it.
+A luminosity model maps a star's mass onto its luminosity $L$ \[W\]. That sets the effective temperature through the Stefan-Boltzmann law, and, once the star is placed in a `System`, the flux and equilibrium temperature of every world orbiting it.
 
 All three models share the same conversions between luminosity and effective temperature, which depend only on the radius and not on the mass relation:
 
@@ -15,7 +15,7 @@ What separates the models is $L(M)$.
 ```
 c_TidalPyBaseClass
   └── c_PhysicsBase
-        └── c_LuminosityBase           (abstract)
+        └── c_LuminosityBase  (abstract)
               ├── c_FixedLuminosity      alias "constant"
               ├── c_MassToLuminosity     aliases "cuntz_wang", "cw"
               └── c_PowerLawLuminosity   alias "powerlaw"
@@ -23,7 +23,7 @@ c_TidalPyBaseClass
 
 The base class declares `calc_luminosity(mass)` pure virtual and supplies the Stefan-Boltzmann conversions and the vectorized mass sweep, so a new relation is a single method. The Cython classes mirror the hierarchy: `LuminosityBase`, `FixedLuminosity`, `MassToLuminosity`, `PowerLawLuminosity`.
 
-## The three models
+## Models
 
 | Model (aliases) | Relation |
 |---|---|
@@ -33,11 +33,11 @@ The base class declares `calc_luminosity(mass)` pure virtual and supplies the St
 
 ### Fixed
 
-Reports the luminosity it was given for any mass. Use it when the star's luminosity is a measured quantity rather than something to be predicted, which is the common case for a named host star, and when a sweep needs luminosity as an independent variable.
+Reports the luminosity it was given for any mass. Used when the star's luminosity is a measured quantity or when performing a sweep with luminosity as an independent variable.
 
-### Mass to luminosity
+### Mass to Luminosity
 
-The main-sequence relation is not a single power law. The exponent of $L \propto M^{p}$ falls from roughly 4 for solar-type stars toward 2.3 at the bottom of the main sequence and toward 1 at the top, because the dominant energy transport and opacity regimes change across that range. The model is therefore piecewise in $x = M / M_\odot$:
+A piecewise function is used based on the stars mass with different power laws that then link that mass to a luminosity. Below $x = M / M_\odot$.
 
 | Range | Relation |
 |---|---|
@@ -47,25 +47,15 @@ The main-sequence relation is not a single power law. The exponent of $L \propto
 | $2 \le x < 55$ | $L = 1.4\, L_\odot\, x^{3.5}$ |
 | $x \ge 55$ | $L = 3.2 \times 10^{4}\, L_\odot\, x$ |
 
-The mass-ratio exponent in the second branch is what makes the low-mass end usable: a single power law fit across the whole M-dwarf range misses the observed luminosities badly, and the polynomial exponent absorbs the curvature. The last two branches meet at $x = 55$, where both give about $1.75 \times 10^{6}\, L_\odot$, so the relation is continuous there.
+The mass-ratio exponent in the second branch helps the fit across the whole M-dwarf range. The last two branches meet at $x = 55$, where both give about $1.75 \times 10^{6}\, L_\odot$, so the relation is continuous there.
 
-This is the model to use when the star's mass is what is known, and the one to use for any population study where the host mass is being varied.
-
-### Power law
+### Power Law
 
 A single power law with a caller-set prefactor and exponent. Use it to reproduce a paper that adopted one, or to isolate the effect of the mass-luminosity slope by varying $p$ directly. The defaults reproduce the classic $L \propto M^{3.5}$ scaling for solar-type stars.
 
-### Behavior at the limits
+### Behavior at the Limits
 
-A non-positive mass returns NaN rather than raising, and so does a non-positive luminosity or radius in the temperature conversions. The Stefan-Boltzmann constant comes from the shared TidalPy config, so a degenerate configuration also yields NaN. This keeps a bad entry in a large mass sweep visible as NaN in the output rather than aborting the sweep.
-
-## Choosing a model
-
-Use `mass_to_luminosity` whenever mass is the input and the star is on the main sequence. It is the default choice and needs no parameters.
-
-Use `fixed` when the luminosity is measured, tabulated, or being scanned as a free parameter.
-
-Use `power_law` when matching a published relation, or when the exponent itself is the subject of the study.
+A non-positive mass returns NaN rather than raising, and so does a non-positive luminosity or radius in the temperature conversions. This keeps a bad entry in a large mass sweep visible as NaN in the output rather than aborting the sweep. The Stefan-Boltzmann constant comes from the shared TidalPy config.
 
 ## Python API
 
@@ -111,7 +101,7 @@ luminosity = fixed(mass_solar, luminosity=3.828e26)
 
 The convenience functions `fixed(mass, luminosity=0.0)`, `mass_to_luminosity(mass)`, and `power_law(mass, coeff=1.0, exponent=3.5)` each build a stack-allocated C++ model, evaluate it, and discard it. The mass may be a float or an array; the model parameters are always constants.
 
-### On a star
+### Use on a `StarWorld`
 
 ```python
 from TidalPy.structures_x.worlds.stellar import StarWorld
@@ -166,7 +156,7 @@ const double temperature = model->calc_effective_temperature(mass, radius); // [
 
 The solar anchors come from `TidalPyConstants::d_MASS_SOLAR` and `d_LUMINOSITY_SOLAR`, and the Stefan-Boltzmann constant from the shared config singleton (`tidalpy_config_ptr->d_SBC`). Binary class ids 1000 through 1003 are reserved for this module.
 
-## Adding a new model
+## Adding a New Model
 
 **C++ (`TidalPy/stellar_x/luminosity_.hpp`)**
 
