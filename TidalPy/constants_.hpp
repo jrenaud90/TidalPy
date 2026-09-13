@@ -17,6 +17,9 @@ struct TidalPyConstants
     static constexpr double d_INF = std::numeric_limits<double>::infinity();
     static constexpr double d_PI = std::numbers::pi;
     static constexpr double d_NAN = std::numeric_limits<double>::quiet_NaN();
+    // Natural log of one half. The decay constant for a half life t_half is d_LN_HALF / t_half,
+    // so this is negative: ln(1/2) = -ln(2).
+    static constexpr double d_LN_HALF = -std::numbers::ln2;
 
     // Time.
     static constexpr double d_SECONDS_PER_MYR = 1.0e6 * 365.25 * 86400.0;

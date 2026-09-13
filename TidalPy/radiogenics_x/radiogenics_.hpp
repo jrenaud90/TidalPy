@@ -47,18 +47,13 @@
 
 #include "radiogenics_base_.hpp"
 #include "../Utilities_x/math_x/numerics_.hpp"  // c_safe_exp
-#include "constants_.hpp"                        // TidalPyConstants::d_SECONDS_PER_MYR
+#include "constants_.hpp"                        // TidalPyConstants::d_SECONDS_PER_MYR, d_LN_HALF
 
 namespace tidalpy {
 
 // -------------------------------------------------------------------------------
 // Module-level constants.
 // -------------------------------------------------------------------------------
-
-// Natural log of one half. std::log is not constexpr under C++20, so the value
-// is given as a literal (ln(0.5) = -0.6931471805599453). The decay constant for
-// a half life t_half is gamma = d_LN_HALF / t_half.
-inline constexpr double d_LN_HALF = -0.6931471805599453094172321214581765680755001344;
 
 // Numerical floor used to guard half-life denominators that may approach zero.
 inline constexpr double d_RADIOGENICS_FLOOR = 1.0e-100;
@@ -103,7 +98,7 @@ struct c_Isotope {
     // Decay constant gamma = ln(0.5) / half_life [1/s] (negative; magnitude grows
     // as the half life shortens).
     double decay_constant() const noexcept {
-        return d_LN_HALF / rad_guard(this->half_life);
+        return TidalPyConstants::d_LN_HALF / rad_guard(this->half_life);
     }
 
     // Specific radiogenic heating per unit layer mass [W/kg] at the given time.
@@ -214,7 +209,7 @@ inline double rad_heating_fixed(
     if (average_half_life <= 0.0) {
         return mass * fixed_heat_production;
     }
-    const double gamma = d_LN_HALF / rad_guard(average_half_life);
+    const double gamma = TidalPyConstants::d_LN_HALF / rad_guard(average_half_life);
     return mass * fixed_heat_production * c_safe_exp(gamma * (time - ref_time));
 }
 
