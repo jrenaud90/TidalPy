@@ -30,7 +30,8 @@
 
 #include "constants_.hpp"   // TidalPyConstants::d_PI, tidalpy_config_ptr
 #include "../../dynamics_x/spin_.hpp"   // c_Spin (spin-dynamics model attached to the world)
-#include "solver_.hpp"      // c_solve_eos, c_EOS_ODEInput, c_EOSSolution, ODEMethod, PreEvalFunc
+#include "solver_.hpp"      // c_solve_eos, c_EOS_ODEInput, c_EOSSolution, ODEMethod, PreEvalFunc,
+                           // d_EOS_SOLVE_* convergence defaults
 #include "material_.hpp"    // c_MaterialEOSInput, c_preeval_material_eos
 
 // RadialSolver sub-modules: shooting solver, storage, love numbers.
@@ -68,10 +69,10 @@ struct c_WorldEOSSolveConfig {
     size_t    slices_per_layer    = 100;                 // radial samples per layer (>= 2)
     double    G_to_use            = -1.0;                // [m^3 kg^-1 s^-2]; < 0 -> TidalPy config G
     ODEMethod integration_method  = ODEMethod::DOP853;
-    double    rtol                = 1.0e-6;
-    double    atol                = 1.0e-10;
-    double    pressure_tol        = 1.0e-3;
-    size_t    max_iters           = 100;
+    double    rtol                = d_EOS_SOLVE_RTOL;
+    double    atol                = d_EOS_SOLVE_ATOL;
+    double    pressure_tol        = d_EOS_SOLVE_PRESSURE_TOL;
+    size_t    max_iters           = d_EOS_SOLVE_MAX_ITERS;
     double    temperature         = 0.0;                 // [K]; passed to calc_density (unused yet)
     bool      verbose             = false;
 };
@@ -102,10 +103,11 @@ struct c_LoveSolveConfig {
     double    max_step           = 0.0;
     bool      verbose            = false;
     bool      warnings           = true;
-    double    eos_rtol           = 1.0e-6;
-    double    eos_atol           = 1.0e-10;
-    double    eos_pressure_tol   = 1.0e-3;
-    int       eos_max_iters      = 100;
+    // Tolerances for the EOS re-solve the Love path may run; same defaults as the standalone solve.
+    double    eos_rtol           = d_EOS_SOLVE_RTOL;
+    double    eos_atol           = d_EOS_SOLVE_ATOL;
+    double    eos_pressure_tol   = d_EOS_SOLVE_PRESSURE_TOL;
+    int       eos_max_iters      = static_cast<int>(d_EOS_SOLVE_MAX_ITERS);
 };
 
 // -------------------------------------------------------------------------------

@@ -48,6 +48,11 @@ namespace tidalpy {
 // [numerical].numerical_floor) with a signed floor value, guarding denominators
 // that may approach zero.
 // -------------------------------------------------------------------------------
+// Smallest Nusselt number the convection model will report. Nu = 1 is pure conduction across the
+// layer; the classic implementation floors at 2 so a barely-convecting layer still loses heat through
+// a boundary layer half the layer thickness rather than the whole of it.
+inline constexpr double d_MIN_NUSSELT = 2.0;
+
 inline double cool_guard(double value) noexcept {
     const double floor_value = tidalpy_config_ptr->d_NUMERICAL_FLOOR;
     if (std::abs(value) < floor_value) {
@@ -121,9 +126,9 @@ inline c_CoolingResult cool_convection(
 
     double nusselt = cfg.convection_alpha
                    * std::pow(rayleigh / cool_guard(cfg.critical_rayleigh), cfg.convection_beta);
-    if (in.delta_temp <= eps)            { nusselt = 2.0; }
-    if (in.thickness  <= min_thickness)  { nusselt = 2.0; }
-    if (nusselt <= 2.0)                    { nusselt = 2.0; }
+    if (in.delta_temp <= eps)             { nusselt = d_MIN_NUSSELT; }
+    if (in.thickness  <= min_thickness)   { nusselt = d_MIN_NUSSELT; }
+    if (nusselt <= d_MIN_NUSSELT)         { nusselt = d_MIN_NUSSELT; }
 
     double blt = in.thickness / cool_guard(nusselt);
     if (in.delta_temp <= eps)            { blt = 1.0; }

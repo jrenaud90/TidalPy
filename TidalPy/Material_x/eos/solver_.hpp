@@ -50,6 +50,14 @@
 ///     Maximum number of convergence iterations.
 /// verbose : bool
 ///     Print status messages if true.
+// Default convergence settings for the whole-planet EOS solve. Every config struct that carries an EOS
+// tolerance initializes from these, so each value is written once. The pressure tolerance is relative
+// to the target surface pressure when one is set and absolute [Pa] when that pressure is ~zero.
+inline constexpr double d_EOS_SOLVE_RTOL         = 1.0e-6;
+inline constexpr double d_EOS_SOLVE_ATOL         = 1.0e-10;
+inline constexpr double d_EOS_SOLVE_PRESSURE_TOL = 1.0e-3;
+inline constexpr size_t d_EOS_SOLVE_MAX_ITERS    = 100;
+
 inline void c_solve_eos(
         c_EOSSolution* eos_solution_ptr,
         std::vector<PreEvalFunc>& eos_function_bylayer_ptr_vec,
@@ -58,10 +66,10 @@ inline void c_solve_eos(
         double surface_pressure = 0.0,
         double G_to_use = -1.0,
         ODEMethod integration_method = ODEMethod::DOP853,
-        double rtol = 1.0e-6,
-        double atol = 1.0e-10,
-        double pressure_tol = 1.0e-3,
-        size_t max_iters = 100,
+        double rtol = d_EOS_SOLVE_RTOL,
+        double atol = d_EOS_SOLVE_ATOL,
+        double pressure_tol = d_EOS_SOLVE_PRESSURE_TOL,
+        size_t max_iters = d_EOS_SOLVE_MAX_ITERS,
         bool verbose = true
         ) noexcept
 {

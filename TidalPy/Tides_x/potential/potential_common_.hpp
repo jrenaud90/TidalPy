@@ -59,6 +59,10 @@ typedef c_IntMap<c_Key4, size_t> c_UniqueFreqIndexMap;
 typedef std::vector<c_FrequencyStorage> c_UniqueFreqMap;
 
 
+// Relative tolerance for deciding that two tidal-mode frequencies are the same one, and that a
+// frequency is zero. Modes are collapsed onto a shared frequency when they agree to this much.
+inline constexpr double d_FREQUENCY_MATCH_RTOL = 1.0e-9;
+
 bool record_unique_frequencies(
         c_Key4& lmpq_key,
         double frequency,
@@ -68,12 +72,13 @@ bool record_unique_frequencies(
     bool nonzero_freq;
     if (tidalpy_config_ptr != nullptr)
     {
-        nonzero_freq = not c_isclose(frequency, 0.0, 1.0e-9, tidalpy_config_ptr->d_MIN_FREQUENCY);
+        nonzero_freq = not c_isclose(
+            frequency, 0.0, d_FREQUENCY_MATCH_RTOL, tidalpy_config_ptr->d_MIN_FREQUENCY);
     }
     else
     {
         // TidalPy config is not initialized. Just default to zero.
-        nonzero_freq = not c_isclose(frequency, 0.0, 1.0e-9, 0.0);
+        nonzero_freq = not c_isclose(frequency, 0.0, d_FREQUENCY_MATCH_RTOL, 0.0);
     }
     
     // TODO: Do we want to keep zero frequencies? I don't think so...
@@ -85,7 +90,7 @@ bool record_unique_frequencies(
         for (size_t i = 0; i < frequency_map.size(); i++)
         {
             frequency_storage_ptr = &frequency_map[i];
-            if (c_isclose(frequency, frequency_storage_ptr->frequency, 1.0e-9, 0))
+            if (c_isclose(frequency, frequency_storage_ptr->frequency, d_FREQUENCY_MATCH_RTOL, 0.0))
             {   
                 // Increment the number of times this frequency has shown up.
                 frequency_storage_ptr->num_instances += 1;
