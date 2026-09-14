@@ -1,0 +1,82 @@
+# Io, the most tidally heated body known, as the asthenosphere end-member of Segatz et al. (1988):
+# an Fe-FeS core, a warm solid silicate mantle, and a thin melt-weakened asthenosphere in which almost
+# all of the dissipation happens.
+#
+# Structure. The asthenosphere is 100 km thick, consistent with the melt layer of at least 50 km and at
+# least 20% melt that Khurana et al. (2011) inferred from Galileo magnetometer data. With the core
+# density fixed at the 5150 kg/m3 of the Fe-FeS core in the standard interior models (Anderson et al.
+# 2001) and the asthenosphere at 3200 kg/m3 for partially molten silicate, the mantle's Birch-Murnaghan
+# reference density is whatever reproduces the published mass: 3344.887 kg/m3. That gives a surface
+# gravity of 1.7964 m/s2 (observed 1.796) and a central pressure of 7.34 GPa. The core is left
+# incompressible because its composition is the least constrained part of the model (the classic file
+# used a half-pyrite, half-iron mix), so a bulk modulus for it would be invented precision.
+#
+# Rheology and the heat budget. Both silicate layers carry an explicit constant viscosity rather than the
+# temperature-dependent default, so the value written here is the value used:
+#   mantle         1e19 Pa s   a warm solid silicate mantle, within the range Io dissipation studies
+#                              explore, and far softer than the 1e22 Pa s cold default
+#   asthenosphere  3.42e12 Pa s with the shear modulus dropped from 6e10 to 1e9 Pa for melt weakening
+# The asthenosphere viscosity is the one number fitted to an observation: it is what makes the total
+# tidal dissipation 9.33e13 W, the astrometric value of Lainey et al. (2009), (9.33 +/- 1.83)e13 W. The
+# implied surface heat flux is 2.24 W/m2. Everything else follows.
+#
+# The per-layer tidal_scale values are not guesses. Integrating the depth-resolved 3D secular heating
+# over each layer puts 95.9% of the dissipation in the asthenosphere and 4.1% in the mantle, and that
+# volume integral agrees with the 1D total to 0.03%. Those fractions are the scales below, so the two
+# layers' heating sums to the world total instead of double counting it.
+schema_version = "0.2.0"
+name = "Io"
+type = "terrestrial"
+radius_m = 1821490.0
+mass_kg = 8.9298e22
+spin_frequency_rad_s = 4.110913e-05
+albedo = 0.63
+
+[layers.core]
+class = "physics"
+type = "iron"
+layer_index = 0
+radius_outer_m = 810000.0
+is_tidal = false
+
+[layers.core.eos]
+model = "constant"
+reference_density_kg_m3 = 5150.0
+
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 1
+radius_outer_m = 1721490.0
+is_tidal = true
+tidal_scale = 0.0408
+shear_modulus_static_pa = 6.0e10
+
+[layers.mantle.eos]
+model = "bm"
+reference_density_kg_m3 = 3344.8870
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+
+[layers.mantle.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e19      # warm solid silicate
+
+[layers.asthenosphere]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 2
+radius_fraction = 1.0
+is_tidal = true
+tidal_scale = 0.9592
+shear_modulus_static_pa = 1.0e9       # melt-weakened, against 6e10 Pa for the solid mantle
+
+[layers.asthenosphere.eos]
+model = "bm"
+reference_density_kg_m3 = 3200.0      # partially molten silicate
+reference_bulk_modulus_pa = 1.28e11
+bulk_modulus_derivative = 4.2
+
+[layers.asthenosphere.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 3.4239e12   # fitted to Io's observed heat output

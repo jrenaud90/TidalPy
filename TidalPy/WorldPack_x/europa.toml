@@ -1,0 +1,66 @@
+# Europa: iron core, silicate mantle, and the water-ice shell that makes it interesting.
+#
+# Rebuilt from the classic BurnMan-based WorldPack europa.toml. Radius and both layer boundaries (core at
+# 599 km, silicate top at 1421 km, so a 140 km ice shell) are carried over from that file, along with the
+# tidal flags: the classic model dissipates in the ice shell, not the mantle. Mass is 4.7998e22 kg.
+#
+# Densities follow from the geometry once the two better-known ones are fixed: 5150 kg/m3 for the Fe-FeS
+# core, as for Io, and 917 kg/m3 for ice I. The silicate mantle's Birch-Murnaghan reference density is then
+# whatever reproduces the published mass, 3532.34 kg/m3, which is on the high side of published Europa
+# models and is the price of taking the classic file's layer boundaries as given rather than refitting
+# them. Surface gravity comes out at 1.315 m/s2 and the central pressure at 4.82 GPa.
+#
+# The ice shell is Birch-Murnaghan too: at these pressures ice I barely compresses, but its low bulk
+# modulus makes the effect larger than the mantle's in relative terms, and the values are well measured.
+# The core is incompressible for the same reason as Io's: its composition is the least constrained part.
+#
+# Orbital state is not a world property in this schema; add Europa to a System to give it an orbit. The
+# spin frequency is the synchronous rate from the classic file's 3.551181 day spin period.
+#
+# As with Io, this file fixes the structure and therefore the mass, gravity, and pressure profile, but not
+# the tidal heat: that follows from the rheology and viscosity in the [layers.ice] defaults, which are not
+# calibrated to Europa. Override them here or on the built layer to model a warmer, softer shell.
+schema_version = "0.2.0"
+name = "Europa"
+type = "terrestrial"
+radius_m = 1561000.0
+mass_kg = 4.7998e22
+spin_frequency_rad_s = 2.047827e-05
+albedo = 0.67
+
+[layers.core]
+class = "physics"
+type = "iron"
+layer_index = 0
+radius_outer_m = 599000.0
+is_tidal = false
+
+[layers.core.eos]
+model = "constant"
+reference_density_kg_m3 = 5150.0
+
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 1
+radius_outer_m = 1421000.0
+is_tidal = false
+
+[layers.mantle.eos]
+model = "bm"
+reference_density_kg_m3 = 3532.3413
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+
+[layers.ice_shell]
+class = "solidliquid"
+type = "ice"
+layer_index = 2
+radius_fraction = 1.0
+is_tidal = true
+
+[layers.ice_shell.eos]
+model = "bm"
+reference_density_kg_m3 = 917.0
+reference_bulk_modulus_pa = 9.6e9     # ice I
+bulk_modulus_derivative = 5.5
