@@ -48,6 +48,14 @@ A high-level summary only: the full API, design notes, and porting examples live
 * 12 executed tutorial notebooks (`Demos_x/`), validation benchmarks against published Love numbers and BurnMan plus a
   performance-tracking harness (`Benchmarks_x/`), end-to-end tests (`Tests/Test_E2E_x/`), and a documentation page for
   every module under the "Future Structure" section.
+* Speed, measured against the classic backend on the same machine with the same inputs (the full table, method, and
+  caveats are in the documentation's "Future Structure" section). Building a planet with its interior is about 50x
+  faster now that the equation of state is integrated in C++ rather than handed to BurnMan: a fresh Io went from 1.4
+  seconds to 4 milliseconds. Radiogenic heating is 4-9x faster, vectorized rheology and orbit-averaged 3D heating maps
+  about 3x, and the numba compilation the classic backend paid on first use in every session - up to 4.5 seconds before
+  a single 3D heating map appeared - is gone entirely. Not everything is faster: the standalone radial solver is
+  roughly unchanged, because it was already compiled, and global tidal heating above an e^4 truncation and the
+  instantaneous (non-orbit-averaged) 3D heating map are currently slower than their classic counterparts.
 
 #### Fixes
 * `RadialSolver`: Fixed bug in Takeuchi starting conditions where y6 was pulling the incorrect value. Kamata starting
