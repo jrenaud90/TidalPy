@@ -1,8 +1,8 @@
 # Tides (`Tides_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-`TidalPy.Tides_x` turns an orbital state into tidal dissipation. It carries the angular ingredients of the tidal potential (the eccentricity and obliquity functions), the global one-dimensional dissipation models that collapse the potential into heating and orbital derivatives, the depth-resolved three-dimensional stress, strain, and heating kernel, and the Love-number container shared with the radial solver.
+`TidalPy.Tides_x` turns an orbital state into tidal dissipation. It carries the drivers of the tidal potential (the eccentricity and obliquity functions), the global one-dimensional dissipation models that collapse the potential into heating and orbital derivatives, the depth-resolved three-dimensional stress, strain, and heating kernel, and the Love-number container shared with the radial solver.
 
 | Page | Covers |
 |---|---|
@@ -22,7 +22,7 @@ Eccentricity Functions <eccentricity.md>
 Obliquity Functions <obliquity.md>
 ```
 
-## How the pieces fit
+## Structure
 
 A tidal solve starts from the potential. The Kaula expansion writes it as a sum over modes indexed by $(l, m, p, q)$, each carrying an amplitude built from an obliquity function $F_{lmp}(I)$, an eccentricity function $G_{lpq}(e)$, and a forcing frequency $\omega_{lmpq}$ set by the orbital and spin rates. The truncation levels decide how many of those modes are kept, and therefore both the accuracy and the cost of everything downstream.
 

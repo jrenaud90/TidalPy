@@ -1,13 +1,15 @@
 # 3D Tidal stress, strain, and heating (`Tides_x.multilayer`)
 
+_Updated: 2026-09-13_
+
 This module computes the depth- and direction-resolved tidal response (the complex strain and stress tensors and the volumetric heating) of a layered world. It utilizes a **callable** system where it returns the response at a single point on demand, so a map is built only if the caller explicitly evaluates a set of points.
 
-## What it combines
+## 3D Mapping
 
 At a point `(r, colatitude θ, longitude φ, time t)` the response factorizes into
 
-* the **radial** part: the viscoelastic-gravitational `y1..y6` from the radial solver, evaluated at `r` through the **dense calling system** (`RadialSolverSolution.get_radial_solution`), plus the complex (viscoelastic) shear/bulk moduli at `r` read through the dense EOS path (`RadialSolverSolution.eos_call_si`); and
-* the **angular/time** part: a 2D tidal potential `U(θ, φ, t)` and its first/second θ,φ derivatives.
+* The **radial** part: the viscoelastic-gravitational `y1..y6` from the radial solver, evaluated at `r` through the **dense calling system** (`RadialSolverSolution.get_radial_solution`), plus the complex (viscoelastic) shear/bulk moduli at `r` read through the dense EOS path (`RadialSolverSolution.eos_call_si`); and
+* The **angular/time** part: a 2D tidal potential `U(θ, φ, t)` and its first/second θ,φ derivatives.
 
 The strain kernel uses the exact Tobie+2005 forms with the Kervazo+2021 (A&A App. D) correction to the θφ / φφ components, complex moduli, and a layer-type-dependent `dy1/dr`; it is a solid-layer computation (liquids contribute no shear dissipation and return NaN). Stress follows the isotropic Takeuchi & Saito constitutive law. The volumetric heating is `h = | Σ_k Im(σ_k) Re(ε_k) − Re(σ_k) Im(ε_k) |` with a factor 2 on the three off-diagonal components (Europa-book Eq. 42). The potential's `r²` coefficient is taken at the **surface** radius; all radial dependence is carried by `y(r)` and the `1/r` factors in the kernel.
 
@@ -30,7 +32,7 @@ The user selects the truncation via three knobs (on the world's `[tides]` config
 
 The heating paths do not consume the raw `(l, m, p, q)` modes one at a time. Each mode is first mapped onto its non-negative frequency (a mode with `omega < 0` contributes the complex conjugate of its phasor at `+|omega|`, since `Re[U_c e^{i omega t}] = Re[conj(U_c) e^{-i omega t}]`) and merged with every other mode that shares its real spatial function: the same degree `l`, order `m`, `|omega|`, and azimuthal sign (`e^{+i m phi}` against `e^{-i m phi}`; irrelevant for `m = 0`). The result is the list of **coherent waves** the kernel works with.
 
-This merge is not a convenience. The `m = 0` modes always come in pairs, `(l, 0, p, q)` at `+omega` and `(l, 0, l-p, -q)` at `-omega`, that carry equal amplitudes (`F_l0p = ±F_l0,l-p` with the parity sign, `G_lpq = G_l,l-p,-q`) and are the same function of time, since `cos(-x) = cos(x)`. They are one real sinusoid of twice the amplitude, and the heating goes as the amplitude squared, so summing their cycle-averaged powers separately loses half of the zonal heating. For a homogeneous degree-2 body at zero obliquity the zonal terms are 9/84 of the total, so the loss is 4.5/84 = 5.36% of the heating of a synchronously rotating body, where only the eccentricity modes survive. The 1D formula counts the same pair through its `(2 - delta_m0)` weighting, which is why it needs no merge.
+This merging is important: The `m = 0` modes always come in pairs, `(l, 0, p, q)` at `+omega` and `(l, 0, l-p, -q)` at `-omega`, that carry equal amplitudes (`F_l0p = ±F_l0,l-p` with the parity sign, `G_lpq = G_l,l-p,-q`) and are the same function of time, since `cos(-x) = cos(x)`. They are one real sinusoid of twice the amplitude, and the heating goes as the amplitude squared, so summing their cycle-averaged powers separately loses half of the zonal heating. For a homogeneous degree-2 body at zero obliquity the zonal terms are 9/84 of the total, so the loss is 4.5/84 = 5.36% of the heating of a synchronously rotating body, where only the eccentricity modes survive. The 1D formula counts the same pair through its `(2 - delta_m0)` weighting, which is why it needs no merge.
 
 At nonzero obliquity, modes of the same `(l, m)` with different `(p, q)` can also share a signed frequency. Their relative phase is set by the argument of periapse, which the engine takes as zero (no precession), so they too combine coherently. The 1D formula, being averaged over apsidal precession, does not carry that cross term, so the two paths agree only to the size of those terms at nonzero obliquity.
 
@@ -69,9 +71,9 @@ from TidalPy.structures_x.worlds.layered import LayeredWorld
 from TidalPy.Tides_x.classes import make_tide
 from TidalPy.viscosity_x import make_viscosity
 
-radius = 1.8e6                                   # [m]
-density = 3500.0                                 # [kg m-3]
-mass = (4.0 / 3.0) * np.pi * radius**3 * density
+radius  = 1.8e6    # [m]
+density = 3500.0   # [kg m-3]
+mass    = (4.0 / 3.0) * np.pi * radius**3 * density
 
 layer = PhysicsLayer("mantle", 0, 0.0, radius, mass,
                      shear_modulus_static=6.0e10, bulk_modulus_static=1.0e11)
@@ -206,7 +208,7 @@ out["radial"].shape        # (2, 30, 60, 12)   u_r [m]; also out["polar"], out["
 
 At the surface `y1 = h / g` and `y3 = l / g`, so the surface radial displacement is `h U / g` for a single mode. It requires the rheology tide model, a solved EOS, and a radial-solver Love-number method (the analytic `homogeneous`/`cpl`/`ctl` methods have no radial functions). A radius without a depth-resolved solution (the center, below the solver start) is NaN. The radial functions themselves are available at any radius through `world.get_love_radial_y(radius, ytype_idx, y_idx)` after a radial-solver Love solve.
 
-### Engine + kernel (raw) access
+### Engine + Kernel Access
 
 The dynamic potential engine is exposed directly for callers building their own pipelines. It returns each raw mode's degree, signed frequency, and the **complex** angular-factor amplitudes (one entry per `(l, m, p, q)`, before the coherent merge; a caller summing heating from these must combine the modes at each frequency first):
 
@@ -222,4 +224,4 @@ degrees, freqs, pots = tidal_potential_3d_modes(
 # pots[i] = complex (U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi) for mode i
 ```
 
-The compiled strain/stress/heating kernel is in `Tides_x.multilayer.stress_strain` (`strain_stress_heating_point`, `volumetric_heating`) — low-level helpers that take a real potential row (a snapshot at one time) and return the raw bilinear magnitude; the physical secular heating uses the complex/signed form above. The same module's `displacement_point(y, potential6, colatitude)` returns the tidal displacements `(u_r, u_theta, u_phi)` [m] at a point from the radial functions and a real potential row: `u_r = y1 U`, `u_theta = y3 dU/dtheta`, `u_phi = y3 dU/dphi / sin(theta)` (the classic `calculate_displacements`, evaluated point-wise).
+The compiled strain/stress/heating kernel is in `Tides_x.multilayer.stress_strain` (`strain_stress_heating_point`, `volumetric_heating`). These are low-level helpers that take a real potential row (a snapshot at one time) and return the raw bilinear magnitude; the physical secular heating uses the complex/signed form above. The same module's `displacement_point(y, potential6, colatitude)` returns the tidal displacements `(u_r, u_theta, u_phi)` [m] at a point from the radial functions and a real potential row: `u_r = y1 U`, `u_theta = y3 dU/dtheta`, `u_phi = y3 dU/dphi / sin(theta)` (the classic `calculate_displacements`, evaluated point-wise).

@@ -1,14 +1,17 @@
 # Eccentricity Functions
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-The eccentricity functions $G_{l,p,q}(e)$ are one of the two angular ingredients of the tidal potential, alongside the [obliquity functions](obliquity.md); see $G_{lpq}(e)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). Unlike the obliquity functions they are defined by an infinite sum over $q$ and cannot be written down exactly, so a truncation level has to be chosen. As long as $e < 1$ that choice trades accuracy against the number of active tidal modes, and therefore against computation time.
+The eccentricity functions $G_{l,p,q}(e)$ are one of the two drivers of the tidal potential, alongside the [obliquity functions](obliquity.md); see $G_{lpq}(e)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). Unlike the obliquity functions they are defined by an infinite sum over $q$ and cannot be written down exactly, so a truncation level has to be chosen. As long as $e < 1$ that choice trades accuracy against the number of active tidal modes, and therefore against computation time.
 
 The values returned are the **unsquared** $G_{l,p,q}(e)$, which is the difference to watch when comparing against the classic `TidalPy.tides.eccentricity_funcs`: that module returns the squared terms its heating expression consumes, and numbers its truncation levels differently.
 
 TidalPy does not evaluate the series at runtime. The terms for each degree and truncation are generated analytically ahead of time and compiled in, which is both far faster and a way to discard modes that cannot contribute: a mode whose $G_{lpq}(e)$ is identically zero is never returned.
 
-## Choosing a truncation
+> [!Note]
+> TidalPy's eccentricity functions follow a strict domain of $0 <= e < 1.0$ parabolic or hyperbolic orbits should not be computed with these functions.
+
+## Choosing a Truncation
 
 The count below is the number of non-zero modes at degree $l = 2$; higher degrees activate more. Because the potential is squared to obtain heating, a truncation at $e^{n}$ in the potential gives heating accurate to $e^{2n}$.
 
@@ -29,29 +32,31 @@ The very large truncations can carry numerical error. Treat their results with s
 
 High truncations are not merely academic. Renaud et al. (2021) found that $e^{10}$ terms matter once eccentricity passes roughly 0.5: at $e = 0.8$, heating computed at truncation 5 is up to two orders of magnitude below the truncation 10 result.
 
-The cost is worse than linear. Each new truncation activates new tidal modes, and new modes can introduce new unique forcing frequencies, each of which needs its own Love number solve. Doubling the mode count more than doubles the work, and the effect compounds at $l > 2$ because higher degrees activate more modes of their own.
+The cost is worse than linear. Each new truncation activates new tidal modes, and new modes can introduce new unique forcing frequencies, each of which needs its own Love number solve. Doubling the mode count more than doubles the work, and the effect compounds at $l > 2$ because higher degrees activate more modes of their own. We recommend using the lowest truncation possible given your eccentricity values. However, if you are performing numerical integrations where eccentricity may be driven to larger values (_e.g._, in a mean motion resonance) then take care that even if your initial eccentricities are below a level where a certain truncation would matter, if the evolved eccentricity rises above that threshold you may end up with inaccurate results.
 
 ## Using the calculator
 
 ```python
 from TidalPy.Tides_x.eccentricity import eccentricity_func
 
-eccentricity = 0.1                     # 0 <= e < 1
-by_lpq, by_lp = eccentricity_func(eccentricity, degree_l=2, truncation=4)
+eccentricity = 0.1                         # 0 <= e < 1
+modes_by_lpq, modes_by_lp = eccentricity_func(eccentricity, degree_l=2, truncation=4)
 
-print(len(by_lpq))                     # 19 non-zero modes
-print(by_lpq[(2, 0, 0)])               # one mode by its (l, p, q) key
+print(len(modes_by_lpq))                   # 19 non-zero modes
+print(modes_by_lpq[(2, 0, 0)])             # one mode by its (l, p, q) key
 
-for (l, p), by_q in by_lp.items():     # walk the modes grouped by (l, p)
+for (l, p), by_q in modes_by_lpq.items():  # walk the modes grouped by (l, p)
     for (q,), value in by_q:
         print(f"G({l},{p},{q}) = {value:0.3e}")
 ```
 
-Degrees $l = 2$ through $10$ are supported. The function returns a pair of lookup objects holding the same numbers two ways: `by_lpq` is keyed by the full `(l, p, q)` mode, and `by_lp` is a dict keyed by `(l, p)` whose values iterate as `((q,), value)` pairs, which is the convenient form when you want every $q$ at a given $(l, p)$. Only non-zero modes appear in either.
+Degrees $l = 2$ through $10$ are supported. Higher harmonic degrees would be easy to add in but require computing and compiling the eccentricity functions. Please open a GitHub issue if you would like to see higher degrees. 
+
+The function returns a pair of lookup objects holding the same numbers two ways: `modes_by_lpq` is keyed by the full `(l, p, q)` mode, and `modes_by_lp` is a dict keyed by `(l, p)` whose values iterate as `((q,), value)` pairs, which is the convenient form when you want every $q$ at a given $(l, p)$. Only non-zero modes appear in either.
 
 The same functions exist in C++ and Cython for callers who need them: `Tides_x/eccentricity/eccentricity_common` carries the types, `eccentricity_driver` dispatches on degree and truncation, and the remaining files hold the generated terms.
 
-## Where the truncation is set in practice
+## Use in `World`s
 
 Most users never call `eccentricity_func` directly. A world's `[tides]` configuration sets the truncation for every tidal solve it runs:
 

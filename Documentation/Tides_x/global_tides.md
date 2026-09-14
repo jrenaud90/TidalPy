@@ -1,12 +1,12 @@
 # Global (1D) Tidal Dissipation (`Tides_x.classes`)
 
-The **global** (or "1D potential") approach computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal **modes** `(l, m, p, q)`. Each mode carries an orbital/spin frequency `omega_lmpq = (l − 2p + q)·n − m·spin` and a precomputed potential weight; a **tide model** supplies the per-mode dissipation multiplier `−Im[k_l(omega)]` that the **collapse** multiplies in and sums.
+_Updated: 2026-09-13_
+
+The **global** (or "1D potential") approach computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal **modes** `(l, m, p, q)`. Each mode carries an orbital/spin frequency `omega_lmpq = (l − 2p + q)·n − m·spin` and a precomputed potential weight; a **tide model** supplies the per-mode dissipation multiplier `−Im[k_l(omega)]` that the **collapse** multiplies in and sums. Supported harmonic degrees are `l = 2..10`.
 
 The model-independent per-mode weights (eccentricity functions `G_lpq`, obliquity functions `F_lmp`, and the common coefficient `G_lpq²·F_lmp²·(l−m)!/(l+m)!·(R/a)^(2l+1)·G·M_host/a`) come from [`c_global_potential`](../Tides/index.md). This page documents the tide models and the collapse that turn those weights into heating and torque.
 
 The full complex Love-number suite **(k, h, l)** is always the transport type ([`c_LoveNumbers`](love/love_numbers.md)), even though only `k` drives heating and orbital dynamics — so the displacement Love numbers from the radial solver are never discarded. The analytic models cannot produce `h`, `l` (no radial solution) and return them as `NaN`.
-
-All quantities are **MKS**; frequencies in rad s⁻¹. Supported degrees are `l = 2..10`.
 
 **References:** Renaud et al. (2021, PSJ) — global dual-body dissipation (collapse form); Efroimsky & Makarov (2013) — CPL/CTL frequency dependence.
 
@@ -31,15 +31,15 @@ A zero/absent `Q_l` is treated as purely elastic (no dissipation) rather than a 
 
 For a synchronously rotating, low-eccentricity body the `fixed_q` collapse reproduces the classic CPL tidal-heating rate exactly:
 
-```
+```python
 E_dot = (21/2) · (k2/Q) · G · M_host² · R⁵ · n · e² / a⁶
 ```
 
 The collapse sums over every active (nonzero-frequency) mode:
 
-```
-E_dot += E_dot_term_lmpq · (−Im[k_l])           # heating  [W]
-dU/dX += dU_dX_term_lmpq · (−Im[k_l])           # X = M, w, O  [J kg⁻¹ rad⁻¹]
+```python
+E_dot += E_dot_term_lmpq · (−Im[k_l])  # heating  [W]
+dU/dX += dU_dX_term_lmpq · (−Im[k_l])  # X = M, w, O  [J kg⁻¹ rad⁻¹]
 ```
 
 Layer-level heat partitioning (`tidal_scale`) is applied by the world afterward; the whole-body collapse uses the unscaled `−Im[k]`.
@@ -57,8 +57,8 @@ from TidalPy.constants import G
 # Build a model directly or by name (aliases, case-insensitive):
 tide = make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]})
 
-love = tide.calc_love_numbers(degree_l=2, frequency=4.1e-5)   # LoveNumbers(k=0.3-0.006j, h=nan, l=nan)
-neg_imk = tide.calc_neg_imk(degree_l=2, frequency=4.1e-5)     # 0.006
+love    = tide.calc_love_numbers(degree_l=2, frequency=4.1e-5)   # LoveNumbers(k=0.3-0.006j, h=nan, l=nan)
+neg_imk = tide.calc_neg_imk(degree_l=2, frequency=4.1e-5)        # 0.006
 # The rheology model returns the supplied radial-solver suite unchanged:
 #   make_tide("rheology").calc_love_numbers(2, w, solver_love) -> solver_love (k, h, l)
 
