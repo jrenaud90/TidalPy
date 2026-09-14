@@ -67,8 +67,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering :: Astronomy",
-    "Topic :: Scientific/Engineering :: Physics",
-    "Natural Language :: English"
+    "Topic :: Scientific/Engineering :: Physics"
 ]
 
 [project.urls]
@@ -172,9 +171,22 @@ build = "*"
 skip = ["pp*", "*musl*", "cp3??t-*"]
 # Having issues with SciPy install during wheel build on 32-bit systems.
 archs = ["auto64"]
-# Import the installed wheel, including the compiled RadialSolver modules that failed to load from the v0.7.4 macOS
-# wheels.
-test-command = 'python -c "import TidalPy; from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layers; from TidalPy.rheology import Maxwell; from TidalPy.structures import build_world; print(TidalPy.__version__)"'
+# Import the installed wheel, one command per group of compiled modules so a load failure names the module family
+# it came from. The classic RadialSolver line is the one that failed to load from the v0.7.4 macOS wheels; the _x
+# lines cover the C++ extensions that are new in 0.8.0 and are the ones a broken wheel would break now.
+test-command = [
+    'python -c "import TidalPy; print(TidalPy.__version__)"',
+    'python -c "from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layers"',
+    'python -c "from TidalPy.rheology import Maxwell; from TidalPy.structures import build_world"',
+    'python -c "from TidalPy.RadialSolver_x import radial_solver; from TidalPy.rheology_x import make_rheology"',
+    'python -c "from TidalPy.structures_x.configs import build_world, build_system"',
+    'python -c "from TidalPy.Tides_x.love import calc_effective_rigidity"',
+]
+
+[tool.cibuildwheel.linux]
+# Linux wheels are built and tested inside a manylinux container, which does not inherit the runner's environment,
+# so TIDALPY_TEST_MODE has to be handed across explicitly or the import checks run with logging enabled.
+environment-pass = ["TIDALPY_TEST_MODE"]
 
 [tool.cibuildwheel.macos]
 # The oldest macOS supported by numba's and scipy's arm64 wheels; also what the previous TidalPy wheels targeted.

@@ -1,14 +1,31 @@
+# Builds the JOSS paper draft as a PDF.
+#
+# On a pull request the PDF is only uploaded as an artifact, so a reviewer can read it. On a push to a branch of
+# this repository the built PDF is also committed back beside the source, which is why Papers/2025-JOSS/paper.pdf
+# is in the tree. The commit is deliberately not attempted for pull requests: one from a fork cannot be pushed to,
+# so the step would fail and give an outside contributor a red check on work that is fine.
+
 name: Draft PDF
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - Papers/2025-JOSS/**
+      - .github/workflows/make_joss_pdf.yml
   workflow_dispatch:
   push:
     paths:
       - Papers/2025-JOSS/**
       - .github/workflows/make_joss_pdf.yml
 
+concurrency:
+  group: joss-pdf-${{ github.ref }}
+  cancel-in-progress: true
+
+# The push path commits the built PDF back to the branch.
+permissions:
+  contents: write
 
 jobs:
     paper:
@@ -18,15 +35,18 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v4
           with:
-            ref: ${{ github.head_ref }}   # ensures a proper branch instead of detached HEAD
-        
+            # On a push the branch itself is needed, because the PDF is committed back to it. Everywhere else the
+            # default checkout is right and nothing is committed, so the ref is left empty.
+            ref: ${{ github.event_name == 'push' && github.ref || '' }}
+
         - name: Build draft PDF
+          # JOSS documents this action as @master and publishes no version tags, so this tracks upstream by design.
           uses: openjournals/openjournals-draft-action@master
           with:
             journal: joss
             # This should be the path to the paper within your repo.
             paper-path: 'Papers/2025-JOSS/paper.md'
-          
+
         - name: Upload
           uses: actions/upload-artifact@v4
           with:
@@ -35,8 +55,9 @@ jobs:
             # PDF. Note, this should be the same directory as the input
             # paper.md
             path: 'Papers/2025-JOSS/paper.pdf'
-          
+
         - name: Commit PDF to repository
+          if: ${{ github.event_name == 'push' }}
           uses: EndBug/add-and-commit@v9
           with:
             message: '(auto) Paper PDF Draft'

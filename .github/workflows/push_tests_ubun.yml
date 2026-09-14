@@ -1,18 +1,53 @@
+# Lints TidalPy and runs the test suite on Ubuntu across every supported CPython.
+#
+# Runs on pull requests, on a weekly schedule, on demand, and on a push whose commit message says "run tests".
+# The weekly run is the one that catches dependency drift: numpy, scipy, numba, and cyrk are all range-pinned,
+# so a new release inside a pinned range can break the build without anything in this repository changing.
+
 name: Ubuntu Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - TidalPy/**
+      - Tests/**
+      - setup.py
+      - pyproject.toml
+      - cython_extensions.json
+      - .github/workflows/push_tests_ubun.yml
+  schedule:
+    - cron: '17 6 * * 1'
   push:
     paths:
       - TidalPy/**
+      - Tests/**
+      - setup.py
+      - pyproject.toml
+      - cython_extensions.json
+      - .github/workflows/push_tests_ubun.yml
+
+# Supersede an earlier run of the same branch or pull request; a scheduled run has its own group and is never
+# cancelled by a later push.
+concurrency:
+  group: ubuntu-tests-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+permissions:
+  contents: read
 
 env:
   TIDALPY_TEST_MODE: 1
+  # The Python versions that install the optional burnman extra. Comparing the matrix value numerically does not
+  # work: "3.9" parses as 3.9, which is greater than 3.13, so a numeric test silently drops 3.9.
+  BURNMAN_PYTHONS: '["3.9", "3.10", "3.11", "3.12"]'
 
 jobs:
   lint-with-ruff:
     if: |
+      github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       contains(github.event.head_commit.message, 'run tests')
 
     name: Lint TidalPy with ruff
@@ -26,7 +61,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      
+
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
@@ -35,10 +70,12 @@ jobs:
 
       - name: Run ruff linting
         run: ruff check TidalPy/ --ignore F401,E402,E501 --select E,F
+
   test-ubuntu:
     if: |
       github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       contains(github.event.head_commit.message, 'run tests')
 
     name: Test TidalPy on Ubuntu
@@ -62,26 +99,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      
+
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      - name: Install Other Dependencies
-          # For burnman, need GitHub version to enable python 3.12 support.
-        run: |
-          python -m pip install pytest pytest-xdist
-      
-      - name: Install Package with Burnman
-        if: ${{ fromJSON(matrix.python-version) < 3.13 }}
-        shell: bash -el {0}
-        run: |
-          python -m pip install -v .[burnman]
-      
-      - name: Install Package (No Burnman)
-        if: ${{ fromJSON(matrix.python-version) >= 3.13 }}
-        shell: bash -el {0}
-        run: |
-          python -m pip install -v .
+      - name: Install Test Dependencies
+        run: python -m pip install pytest pytest-xdist
 
+      - name: Install Package with Burnman
+        if: ${{ contains(fromJSON(env.BURNMAN_PYTHONS), matrix.python-version) }}
+        run: python -m pip install -v .[burnman]
+
+      - name: Install Package (No Burnman)
+        if: ${{ !contains(fromJSON(env.BURNMAN_PYTHONS), matrix.python-version) }}
+        run: python -m pip install -v .
+
+      # --capture=sys leaves file-descriptor output alone, so the C++ backend's spdlog messages still reach the
+      # log; pytest's default capture would swallow them.
       - name: Run pytest
-        run: pytest -n auto -v Tests/
+        run: pytest -n auto --capture=sys -v Tests/

@@ -1,7 +1,8 @@
 name: Build Wheels for PyPI
 
 # Builds the sdist and a binary wheel for every supported CPython on Linux (x86-64), Windows (x86-64), and
-# macOS (arm64), tests each wheel, and uploads everything to PyPI.
+# macOS (arm64), tests each wheel, checks that the sdist still compiles from source, and uploads everything to
+# PyPI.
 #
 # The upload runs automatically for a published GitHub release. A manual run (workflow_dispatch) only builds and
 # tests unless its "upload" input is set, so a branch can be checked before it is merged and released.
@@ -17,6 +18,15 @@ on:
     types:
       - published
 
+# Supersede an in-progress manual run of the same ref, but never interrupt a release build part way through.
+concurrency:
+  group: build-wheels-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+
+# Nothing here writes to the repository; the upload job authenticates to PyPI with its own token.
+permissions:
+  contents: read
+
 env:
   TIDALPY_TEST_MODE: 1
 
@@ -25,9 +35,9 @@ jobs:
     name: Make SDist
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: true
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Build SDist
         run: pipx run build --sdist
@@ -36,6 +46,34 @@ jobs:
         with:
           path: dist/*.tar.gz
           name: artifact_sdist
+
+  # A release whose wheels all work can still ship an sdist that will not compile, and this sdist is assembled by
+  # hand: MANIFEST.in grafts the header subsets from Dependencies/ that a source build needs, so the graft is
+  # what breaks. Compile the sdist and import the result. Tests/ is not shipped in the sdist, so imports are as
+  # far as this check can go.
+  test_sdist:
+    name: Compile the SDist
+    needs: [make_sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifact_sdist
+          path: dist
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install from the SDist
+        run: python -m pip install -v dist/*.tar.gz
+
+      - name: Import both backends
+        run: |
+          python -c "import TidalPy; print(TidalPy.__version__)"
+          python -c "from TidalPy.RadialSolver import radial_solver"
+          python -c "from TidalPy.RadialSolver_x import radial_solver"
+          python -c "from TidalPy.structures_x.configs import build_world, build_system"
 
   build_wheels:
     name: Build ${{ matrix.platform }} wheels
@@ -68,7 +106,7 @@ jobs:
 
   check_dist:
     name: Check distributions
-    needs: [make_sdist, build_wheels]
+    needs: [make_sdist, test_sdist, build_wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -78,11 +116,22 @@ jobs:
 
       - run: pipx run twine check --strict dist/*
 
+  # Uploads with PyPI trusted publishing: the job proves who it is with a short-lived OIDC token instead of a
+  # stored API token, so there is no long-lived credential to leak or rotate. This requires a trusted publisher
+  # registered on PyPI for the TidalPy project, naming this repository, the workflow file
+  # build_wheels_main_pypi.yml, and the environment "pypi". Without it PyPI rejects the upload.
   upload_all:
     name: Upload to PyPI
     needs: [check_dist]
     if: ${{ github.event_name == 'release' || inputs.upload }}
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/TidalPy
+    # A job-level block replaces the workflow-level one outright, so contents has to be restated here.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -90,6 +139,3 @@ jobs:
           path: dist
 
       - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
