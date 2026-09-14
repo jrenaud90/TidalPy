@@ -289,7 +289,8 @@ cdef class BaseWorld(StructureBase):
             double eccentricity,
             double obliquity,
             double semi_major_axis,
-            double host_mass):
+            double host_mass,
+            cpp_bool loading=False):
         """Solve the global tidal dissipation for the given orbital/spin state.
 
         Requires an attached tide model (:meth:`set_tide_model`). Populates the world's
@@ -297,13 +298,21 @@ cdef class BaseWorld(StructureBase):
         runs the analytic models (cpl/ctl/ctl_q) only; :class:`LayeredWorld` extends it with
         the rheology path and per-layer heating.
 
+        Parameters
+        ----------
+        loading : bool, optional
+            Solve with load Love numbers instead of tidal ones. The analytic models never run a
+            radial solve, so this always raises on a base world; it exists here so the keyword
+            means the same thing on every world type. Default False.
+
         Raises
         ------
         RuntimeError
             If no tide model is attached, the rheology model is selected on a non-layered
-            world, or the global potential solve fails.
+            world, ``loading`` is requested, or the global potential solve fails.
         """
         cdef c_TideSolveConfig state
+        state.loading           = loading
         state.orbital_frequency = orbital_frequency
         state.spin_frequency    = spin_frequency
         state.eccentricity      = eccentricity
@@ -311,6 +320,24 @@ cdef class BaseWorld(StructureBase):
         state.semi_major_axis   = semi_major_axis
         state.host_mass         = host_mass
         self._world_ptr.get().calc_tides(state)
+
+    def calc_tides_loading(
+            self,
+            double orbital_frequency,
+            double spin_frequency,
+            double eccentricity,
+            double obliquity,
+            double semi_major_axis,
+            double host_mass):
+        """:meth:`calc_tides` with load Love numbers. Always raises on a base world; see that method."""
+        self.calc_tides(
+            orbital_frequency,
+            spin_frequency,
+            eccentricity,
+            obliquity,
+            semi_major_axis,
+            host_mass,
+            loading=True)
 
     @property
     def tides_solved(self) -> bool:

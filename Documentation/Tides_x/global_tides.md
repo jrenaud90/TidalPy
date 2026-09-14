@@ -46,6 +46,24 @@ Layer-level heat partitioning (`tidal_scale`) is applied by the world afterward;
 
 ---
 
+## Load Love numbers
+
+Every tidal entry point takes a `loading` keyword that switches the calculation from tidal Love numbers (`k`, `h`, `l`) to load Love numbers (`k'`, `h'`, `l'`). The two differ in the surface boundary condition the radial solver applies, so the flag is passed straight down to that stage and everything after it (the mode collapse, the heating, the potential derivatives, and the 3D stress, strain, and heating fields) is computed from whichever set was requested by the same code.
+
+```python
+world.calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)
+world.calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass, loading=True)
+world.calc_tides_loading(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)
+```
+
+`calc_tides_loading` and `calc_3d_tides_loading` are thin aliases for the same call with `loading=True`; the other 3D entry points (`get_3d_tidal_heating`, `get_3d_tidal_heating_array`, `calc_3d_displacements`) take the keyword directly. `solve_love_numbers(frequency, solve_for="loading")` remains the way to ask for the Love numbers alone, and it returns the same values the flag produces.
+
+Only the Love methods that run the radial solver can answer a loading request, since it is that solver's surface condition that distinguishes the two. A `loading=True` call raises `RuntimeError` when the world's `love_method` is `homogeneous` (it has no radial solve to apply a boundary condition to) and when the attached tide model is one of the analytic ones (`cpl`, `ctl`, `ctl_q`), which collapse from fixed per-degree parameters and never run a radial solve at all. Both cases raise rather than quietly returning the tidal answer. `radial_solver` and `propagation_matrix` both accept it.
+
+One consequence is worth stating plainly. The collapse carries `−Im[k_l]`, and load Love numbers have the opposite imaginary sign to tidal ones, so a loading solve returns a **negative** heating whose magnitude is the dissipation rate. That is what reusing the tidal machinery gives; the flag deliberately does not derive a separate loading heating expression. Take the magnitude, and treat the sign as a reminder that the tidal heating formula is being evaluated with a load response substituted into it.
+
+---
+
 ## Python API
 
 ```python

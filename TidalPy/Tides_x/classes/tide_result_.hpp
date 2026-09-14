@@ -45,6 +45,11 @@ struct c_TideConfig {
 // solve (later filled by the System class); the world stays stateless w.r.t. the orbit.
 // -------------------------------------------------------------------------------
 struct c_TideSolveConfig {
+    // Solve for load Love numbers (k', h', l') instead of tidal ones. The two differ only in the surface
+    // boundary condition the radial solver applies, so everything downstream (heating, potential
+    // derivatives, 3D stress/strain/heating) is computed from whichever set was requested by the same code.
+    // Only the Love methods that run the radial solver can produce them; the rest raise.
+    bool   loading           = false; // false: tidal Love numbers, true: load Love numbers
     double orbital_frequency = 0.0;   // orbital mean motion n          [rad s-1]
     double spin_frequency    = 0.0;   // spin rate of the deformed body [rad s-1]
     double eccentricity      = 0.0;   // orbital eccentricity           [dimensionless]

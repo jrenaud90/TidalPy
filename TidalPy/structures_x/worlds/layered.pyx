@@ -1114,7 +1114,8 @@ cdef class LayeredWorld(BaseWorld):
             double eccentricity,
             double obliquity,
             double semi_major_axis,
-            double host_mass):
+            double host_mass,
+            cpp_bool loading=False):
         """Solve the global tidal dissipation for the given orbital/spin state.
 
         Requires an attached tide model (:meth:`set_tide_model`). Populates the world's
@@ -1139,15 +1140,20 @@ cdef class LayeredWorld(BaseWorld):
             Orbital semi-major axis [m].
         host_mass : float
             Mass of the tidal host [kg].
+        loading : bool, optional
+            Solve with load Love numbers (k', h', l') instead of tidal ones. Loading and tidal differ
+            only in the surface boundary condition the radial solver applies.
+            Default False.
 
         Raises
         ------
         RuntimeError
             If no tide model is attached, the rheology model is selected but the EOS has
-            not been solved, a radial-solver Love-number solve fails, or the global
-            potential solve fails.
+            not been solved, ``loading`` is requested with a Love method that never runs the radial
+            solver, a radial-solver Love-number solve fails, or the global potential solve fails.
         """
         cdef c_TideSolveConfig state
+        state.loading           = loading
         state.orbital_frequency = orbital_frequency
         state.spin_frequency    = spin_frequency
         state.eccentricity      = eccentricity
@@ -1172,7 +1178,8 @@ cdef class LayeredWorld(BaseWorld):
             double semi_major_axis,
             double host_mass,
             double radius,
-            double colatitude) -> float:
+            double colatitude,
+            cpp_bool loading=False) -> float:
         """Secular (cycle/orbit-averaged) 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)``.
 
         This is the longitude mean of the time-averaged power density. The active tidal modes are built
@@ -1189,6 +1196,7 @@ cdef class LayeredWorld(BaseWorld):
         the solver's starting radius and 0 in liquid layers.
         """
         cdef c_TideSolveConfig state
+        state.loading           = loading
         state.orbital_frequency = orbital_frequency
         state.spin_frequency    = spin_frequency
         state.eccentricity      = eccentricity
@@ -1206,7 +1214,8 @@ cdef class LayeredWorld(BaseWorld):
             double semi_major_axis,
             double host_mass,
             radii,
-            colatitudes):
+            colatitudes,
+            cpp_bool loading=False):
         """Longitude-mean secular 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)`` points.
 
         Vectorized batch form of :meth:`get_3d_tidal_heating`: ``radii`` and ``colatitudes`` are paired,
@@ -1232,6 +1241,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef double[::1] out_view   = out_arr
 
         cdef c_TideSolveConfig state
+        state.loading           = loading
         state.orbital_frequency = orbital_frequency
         state.spin_frequency    = spin_frequency
         state.eccentricity      = eccentricity
@@ -1259,7 +1269,8 @@ cdef class LayeredWorld(BaseWorld):
             radii,
             colatitudes,
             longitudes,
-            times) -> dict:
+            times,
+            cpp_bool loading=False) -> dict:
         """Instantaneous tidal displacements [m] on the grid ``(radius, colatitude, longitude, time)``.
 
         The active tidal modes are built from the world's ``[tides]`` truncation config, the world radial
@@ -1305,6 +1316,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef double[::1] time_view  = time_arr
         cdef double[:, :, :, :, ::1] out_view = out_arr
         cdef c_TideSolveConfig state
+        state.loading           = loading
         state.orbital_frequency = orbital_frequency
         state.spin_frequency    = spin_frequency
         state.eccentricity      = eccentricity
@@ -1354,7 +1366,8 @@ cdef class LayeredWorld(BaseWorld):
             int radial_slices=16,
             latitude_analytic=True,
             double colatitude_min=0.0,
-            double colatitude_max=np.pi) -> dict:
+            double colatitude_max=np.pi,
+            cpp_bool loading=False) -> dict:
         """3D tidal heating as a full grid over ``(radius, colatitude, longitude[, time])`` or reduced.
 
         With ``orbit_averaged=True`` (default) the quantity is the secular (cycle-averaged) volumetric
@@ -1464,6 +1477,7 @@ cdef class LayeredWorld(BaseWorld):
                 time_ptr = &time_view[0]
 
         cdef c_TideSolveConfig state
+        state.loading           = loading
         state.orbital_frequency = orbital_frequency
         state.spin_frequency    = spin_frequency
         state.eccentricity      = eccentricity
@@ -1542,3 +1556,13 @@ cdef class LayeredWorld(BaseWorld):
             layers[layer_name] = layer_config
         config["layers"] = layers
         return config
+
+    def calc_3d_tides_loading(self, *args, **kwargs):
+        """:meth:`calc_3d_tides` computed from load Love numbers instead of tidal ones.
+
+        Thin alias for ``calc_3d_tides(..., loading=True)``; every other argument and the returned
+        dictionary are unchanged. See :meth:`calc_tides` for what the loading flag does and which Love
+        methods accept it. The other 3D entry points take the same ``loading`` keyword directly.
+        """
+        kwargs["loading"] = True
+        return self.calc_3d_tides(*args, **kwargs)

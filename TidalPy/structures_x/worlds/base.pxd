@@ -38,6 +38,7 @@ cdef extern from "tide_result_.hpp" nogil:
         double love_fixed_dt
 
     cdef cppclass c_TideSolveConfig:
+        cpp_bool loading
         double orbital_frequency
         double spin_frequency
         double eccentricity

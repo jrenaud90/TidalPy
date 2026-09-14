@@ -28,6 +28,15 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
             "TidalPy: no tide model attached to the world — call set_tide_model() first");
     }
 
+    // Load Love numbers come from the radial solver's surface boundary condition, which the analytic
+    // models never run, so there is nothing here that could answer a loading request.
+    if (state.loading) {
+        throw std::runtime_error(
+            "TidalPy: load Love numbers need the radial solver's loading surface boundary condition. This "
+            "world computes its tides from an analytic model (cpl/ctl/ctl_q), which never runs a radial "
+            "solve; use a layered world with love_method radial_solver or propagation_matrix");
+    }
+
     // The rheology model needs the world radial solver, which only a layered world has.
     if (this->p_tide->needs_radial_solve()) {
         throw std::runtime_error(

@@ -840,19 +840,33 @@ public:
 
     // Love-solve config carrying the world's configured method and its cpl / ctl parameters (from the [tides]
     // config); the tide paths start from this so the configured method drives every Love-number solve.
-    c_LoveSolveConfig make_love_solve_config() const {
+    // Surface boundary condition for a Love solve: tidal (1) by default, loading (2) when load Love numbers
+    // were asked for. Loading is only defined for the methods that run the radial solver, since it is that
+    // solver's surface condition that distinguishes the two; the analytic methods carry no such choice.
+    c_LoveSolveConfig make_love_solve_config(bool loading = false) const {
         c_LoveSolveConfig cfg;
         const c_TideConfig& tide_cfg = this->get_tide_config();
         cfg.love_method = tide_cfg.love_method;
         cfg.fixed_q     = tide_cfg.love_fixed_q;
         cfg.fixed_dt    = tide_cfg.love_fixed_dt;
+        if (loading) {
+            const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
+            if (!c_love_method_uses_radial_solver(method)) {
+                throw std::runtime_error(
+                    std::string("TidalPy: load Love numbers come from the radial solver's surface boundary "
+                                "condition, but the world's Love-number method is '") + c_love_method_name(method)
+                    + "', which does not run it. Use radial_solver or propagation_matrix "
+                      "(set_tide_config(love_method=...)).");
+            }
+            cfg.bc_model = 2;
+        }
         return cfg;
     }
 
     // Same, for paths that need the depth-resolved radial solution (3D stress/strain/heating): the analytic methods
     // have no radial y-functions, so they are rejected with an explanatory error.
-    c_LoveSolveConfig make_radial_love_solve_config() const {
-        c_LoveSolveConfig cfg = this->make_love_solve_config();
+    c_LoveSolveConfig make_radial_love_solve_config(bool loading = false) const {
+        c_LoveSolveConfig cfg = this->make_love_solve_config(loading);
         const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
         if (!c_love_method_uses_radial_solver(method)) {
             throw std::runtime_error(

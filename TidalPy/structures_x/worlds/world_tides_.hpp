@@ -40,6 +40,16 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
             "TidalPy: no tide model attached to the world — call set_tide_model() first");
     }
 
+    // Load Love numbers come from the radial solver's loading surface boundary condition. The analytic
+    // tide models collapse from fixed per-degree parameters and never run that solver, so a loading
+    // request would be silently ignored on that branch; refuse it instead.
+    if (state.loading && !this->p_tide->needs_radial_solve()) {
+        throw std::runtime_error(
+            "TidalPy: load Love numbers need the radial solver's loading surface boundary condition, but "
+            "this world's tide model is analytic (cpl/ctl/ctl_q) and never runs a radial solve. Attach the "
+            "rheology tide model to compute loading tides");
+    }
+
     const double planet_radius = this->get_radius();
     const double G_to_use = c_get_G();
     const c_TideConfig& tcfg = this->p_tide_config;
@@ -83,7 +93,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         // pair so modes that share a degree and frequency reuse one radial solve. Then record
         // each active mode's Love numbers keyed by its (l, m, p, q).
         c_IntMap<c_Key2, tidalpy::c_LoveNumbers> love_by_l_freq;
-        c_LoveSolveConfig love_cfg = this->make_love_solve_config();
+        c_LoveSolveConfig love_cfg = this->make_love_solve_config(state.loading);
         for (const auto& mode_entry : potential.potential_map) {
             const c_Key4& lmpq_key = mode_entry.first;
             const int degree_l     = static_cast<int>(lmpq_key.a);
@@ -616,7 +626,7 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
     std::vector<size_t> radius_missing(nr, 0);
     std::vector<unsigned char> group_missing(nr, 0);
     std::vector<std::complex<double>> y1_at_r(nr), y3_at_r(nr);
-    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config(state.loading);
     for (size_t g = 0; g < num_groups; ++g) {
         const ::c_RadialSolutionStorage* storage =
             tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "3D tidal displacements");
@@ -721,7 +731,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
     std::vector<std::vector<tides::c_StrainRadialCoeffs>> coeffs(
         num_radii, std::vector<tides::c_StrainRadialCoeffs>(num_groups));
     std::vector<size_t> radius_missing(num_radii, 0);
-    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config(state.loading);
     for (size_t g = 0; g < num_groups; ++g) {
         const ::c_RadialSolutionStorage* storage =
             tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "secular 3D tidal heating");
@@ -915,7 +925,7 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
     std::vector<std::vector<tides::c_StrainRadialCoeffs>> coeffs(
         nr, std::vector<tides::c_StrainRadialCoeffs>(num_groups));
     std::vector<size_t> radius_missing(nr, 0);
-    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config(state.loading);
     for (size_t g = 0; g < num_groups; ++g) {
         const ::c_RadialSolutionStorage* storage =
             tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "3D tidal heating");
