@@ -1,8 +1,8 @@
 # Viscosity (`viscosity_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-`TidalPy.viscosity_x` turns local conditions into a viscosity. Each model maps a temperature [K] and a pressure [Pa] onto a dynamic viscosity [Pa s], which is the single material property that decides how readily a planet's interior flows and therefore how much tidal energy it converts into heat.
+`TidalPy.viscosity_x` turns local conditions into a viscosity. Each model maps a temperature \[K\] and a pressure \[Pa\] onto a dynamic viscosity \[Pa s\], which is the single material property that decides how readily a planet's interior flows and therefore how much tidal energy it converts into heat.
 
 Viscosity deserves its own module because it is the most uncertain and the most strongly varying quantity in the whole calculation. A silicate mantle's viscosity changes by ten orders of magnitude across the temperature range a tidally heated body can occupy, while its shear modulus changes by less than one. The choice of viscosity law, and the activation energy inside it, usually matters more to a predicted heating rate than any other input.
 
@@ -16,7 +16,7 @@ Viscosity deserves its own module because it is the most uncertain and the most 
 Viscosity Models <viscosity_models.md>
 ```
 
-## Where viscosity fits
+## Usage
 
 The viscosity models sit one step before the rheology models. A layer holds a viscosity model for its shear response and one for its bulk response, attached with `set_shear_viscosity` and `set_bulk_viscosity`. During a whole-planet equation-of-state solve each radial slice arrives with a temperature and a pressure, the viscosity model converts them into that slice's pre-melt viscosity, and the [partial-melt](../partial_melt_x/partial_melt_models.md) model then weakens both the viscosity and the shear modulus wherever melt is present. The resulting post-melt values are what [`rheology_x`](../rheology_x/index.md) consumes to produce a complex modulus.
 

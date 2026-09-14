@@ -2,13 +2,11 @@
 
 _Updated: 2026-09-13_
 
-A viscosity model returns a material's dynamic viscosity $\eta$ [Pa s] as a function of temperature [K] and pressure [Pa]. This is the pre-melt, or "solid", viscosity: the value a material would show with no melt present, which the [partial-melt](../partial_melt_x/partial_melt_models.md) step then weakens. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
+A viscosity model returns a material's dynamic viscosity $\eta$ \[Pa s\] as a function of temperature \[K\] and pressure \[Pa\]. This is the pre-melt, or "solid", viscosity: the value a material would show with no melt present, which the [partial-melt](../partial_melt_x/partial_melt_models.md) step then weakens. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
 All three models share the same physical picture. Solid-state creep is thermally activated, so viscosity falls exponentially with temperature through a Boltzmann factor $\exp(E_a / RT)$, and rises with pressure through an activation volume that makes the same creep harder to accommodate at depth. The models differ only in how that exponential is anchored: to an absolute flow-law prefactor, to a measured reference viscosity, or not at all.
 
-Quantities are MKS throughout. The math mirrors the validated classic implementation in `TidalPy/rheology/viscosity/viscosity_models.py`, and the molar gas constant $R$ comes from the shared TidalPy configuration rather than being hard-coded.
-
-## The three models
+## Models
 
 | Model | Aliases | Viscosity $\eta$ [Pa s] |
 |---|---|---|
@@ -33,17 +31,17 @@ Each parameter carries two names: the constructor keyword, which is also the rea
 
 The stress exponent $n$ distinguishes creep regimes: $n = 1$ is diffusion creep, where the flow law is linear and the stress term drops out, and $n > 1$ is dislocation creep, where the material shears more readily the harder it is pushed. The grain-size exponent plays the same role for grain-boundary processes. Setting `additional_temp_dependence` adds the explicit factor of $T$ that some published diffusion-creep flow laws carry in front of the exponential.
 
-### Behavior at the limits
+### Behavior at the Limits
 
 Every model returns infinity at or below zero temperature. The cold limit of a thermally activated fluid is a solid that does not flow, and an infinite viscosity is exactly what the rheology models need to return a purely elastic response there. A reference model with a non-positive reference temperature returns infinity for the same reason. Very cold but positive temperatures reach the same place by overflowing the exponential, which is deliberate rather than guarded against.
 
-## Choosing a model
+## Choosing a Model
 
-`ReferenceViscosity` is the usual choice for a planetary interior. It is anchored to a viscosity someone actually measured or inferred at a stated temperature, so its one strong assumption, the activation energy, is the only thing you have to defend. It is also the easiest to reason about: doubling $E_a$ visibly steepens the response to temperature without moving the anchor point.
+`ReferenceViscosity` is the usual choice for a planetary interior. It is anchored to an empirical viscosity measured or inferred at a stated temperature, so its one strong assumption, the activation energy must also be set. It is also the easiest to work with, doubling $E_a$ visibly steepens the response to temperature without moving the anchor point.
 
-`ArrheniusViscosity` is the choice when you are reproducing a published flow law, which is usually quoted as an absolute prefactor with stress and grain-size exponents. It gives full control at the cost of needing every term to be right, since nothing pins the result to a known viscosity.
+`ArrheniusViscosity` is the choice when you are reproducing a published flow law, which is usually quoted as an absolute prefactor with stress and grain-size exponents. It gives full control at the cost of several additional terms that must be set.
 
-`ConstantViscosity` is for tests, for benchmark comparisons against analytic results, and for layers whose temperature you have no reason to trust. It is not a physical claim, and using it removes the feedback between heating and viscosity that makes tidal evolution interesting.
+`ConstantViscosity` is for tests, for benchmark comparisons against analytic results, and for layers whose temperature you have no reason to trust.
 
 ## Python API
 
@@ -77,7 +75,7 @@ Constructors take every parameter their model uses as a keyword with the default
 
 Parameters are read-only properties under their code names: `reference_viscosity` on the constant model; `reference_viscosity`, `reference_temperature`, `molar_activation_energy`, and `molar_activation_volume` on the reference model; and every constructor keyword on the Arrhenius model: `arrhenius_coeff`, `stress`, `stress_expo`, `grain_size`, `grain_size_expo`, `molar_activation_energy`, `molar_activation_volume`, and `additional_temp_dependence`. `get_config_dict()` emits the config keys, so a dictionary read back from a model or a TOML file feeds straight into `make_viscosity`.
 
-## Attaching a viscosity model to a layer
+## Usage with `Layer`s
 
 ```python
 from TidalPy.viscosity_x import make_viscosity
@@ -100,7 +98,7 @@ The C++ layer is canonical and the Cython classes are thin adapters over it.
 
 The factory mirrors the rheology one: `c_viscosity_model_from_name(name)` maps a name or alias onto the `c_ViscosityModel` enum and throws `std::invalid_argument` for an unknown name, `c_find_viscosity(model, config)` returns a `std::unique_ptr<c_ViscosityBase>` (a name overload does both steps), and `c_viscosity_from_binary(stream, force=false)` peeks the class id, builds the matching model, and calls `read_binary`.
 
-## Adding a new model
+## Adding a New Model
 
 1. Add the model's parameters to `c_ViscosityConfig` in `viscosity_.hpp`, with defaults.
 2. Add `c_<Name>Viscosity : c_ViscosityBase` implementing `calc_viscosity`, `append_config_entries`, `write_binary`, and `read_binary`.
