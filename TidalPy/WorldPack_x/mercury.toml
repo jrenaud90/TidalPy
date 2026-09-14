@@ -1,0 +1,69 @@
+# Mercury: an iron core filling 80 percent of the radius, under a thin silicate mantle.
+#
+# Rebuilt from the classic BurnMan-based WorldPack mercury.toml, which supplied the radius and both core
+# boundaries from the central interior model of Goossens et al. (2021): a solid inner core to 1277.25 km
+# and the rest of the core to 1965 km. Mass comes from GM = 22031.86855 km3/s2 with G = 6.67430e-11,
+# giving 3.30103e23 kg.
+#
+# Structure. mantle is fitted; here the core holds 78 percent of the mass, so it is the core the mass constrains.
+# The mantle is fixed at a silicate Birch-Murnaghan reference density of 3300 kg/m3 and the core density is
+# fitted to 7305.69 kg/m3. That is a mean density rather than a zero-pressure one: a core this large does
+# compress, and a single incompressible value is the honest statement of what one mass constraint supports.
+# Both core layers carry it, because the classic file gives them the same composition; they stay split so
+# that the boundary Goossens et al. (2021) resolve is in the file.
+#
+# The independent check is the moment-of-inertia factor, which the fit does not target: C/MR2 comes out at
+# 0.3465 against the measured 0.346 +/- 0.014 (Margot et al. 2012, Genova et al. 2019). Surface gravity is
+# 3.7006 m/s2 against the observed 3.70, and the central pressure 34.9 GPa.
+#
+# Tides. As built, k2 = 0.111 at the 88 day period against the measured 0.569 +/- 0.025 (Genova et al.
+# 2019). The gap is the fluid outer core, which the schema cannot declare: setting
+# world.outer_core.is_solid = False on the built world and re-solving raises k2 to 0.478, and what is left
+# is the uncalibrated mantle rigidity and temperature. Mercury's large k2 is itself the evidence for that
+# fluid core, so a model that keeps the core solid understates its tidal response by a factor of four.
+#
+# Orbital state is not a world property in this schema; add Mercury to a System to give it an orbit. The
+# spin frequency is the 3:2 resonant rate from the classic file's 58.6462 day spin period, not synchronous.
+# The albedo is Mercury's Bond albedo rather than its geometric albedo of 0.142.
+schema_version = "0.2.0"
+name = "Mercury"
+type = "terrestrial"
+radius_m = 2440000.0
+mass_kg = 3.30103e23
+spin_frequency_rad_s = 1.240013e-06
+albedo = 0.068
+
+[layers.inner_core]
+class = "physics"
+type = "iron"
+layer_index = 0
+radius_outer_m = 1277250.0
+is_tidal = false
+
+[layers.inner_core.eos]
+model = "constant"
+reference_density_kg_m3 = 7305.6948   # fitted to the published mass; mean core density
+
+[layers.outer_core]
+class = "physics"
+type = "iron"
+layer_index = 1
+radius_outer_m = 1965000.0
+is_tidal = false
+
+[layers.outer_core.eos]
+model = "constant"
+reference_density_kg_m3 = 7305.6948   # same composition as the inner core in the classic model
+
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 2
+radius_fraction = 1.0
+is_tidal = true
+
+[layers.mantle.eos]
+model = "bm"
+reference_density_kg_m3 = 3300.0      # fixed silicate mantle; the core is the fitted layer here
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
