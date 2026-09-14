@@ -1,17 +1,10 @@
 # The Future TidalPy Structure
 
-TidalPy's internals are being rewritten in C++. The new implementation lives in modules that carry a `_x` suffix
-(`structures_x`, `Tides_x`, `RadialSolver_x`, `rheology_x`, and so on) and ships side by side with the classic
-modules today. In a future major release the `_x` modules will become the only TidalPy: the classic modules will be
-removed and the new ones will drop their suffix. Nothing about the classic API changes until then, but any new
-development on TidalPy will happen in the `_x` modules, other than bug fixes. We highly encourage new projects
-to start using the `_x` modules or make plans to switch.
+TidalPy's internals are being rewritten in C++. The new implementation lives in modules that carry a `_x` suffix (`structures_x`, `Tides_x`, `RadialSolver_x`, `rheology_x`, and so on) and ships side by side with the classic modules today. In a future major release the `_x` modules will become the only TidalPy: the classic modules will be removed and the new ones will drop their suffix. Nothing about the classic API changes until then, but any new development on TidalPy will happen in the `_x` modules, other than bug fixes. We highly encourage new projects to start using the `_x` modules or make plans to switch.
 
-The 0.8.X series is the last to include the classic modules. It will continue to receive bug fixes, but no new features,
-until the end of 2026, and support for 0.8.X after 2026 is not guaranteed. Plan to finish porting before then.
+The 0.8.X series is the last to include the classic modules. It will continue to receive bug fixes, but no new features, until the end of 2026, and support for 0.8.X after 2026 is not guaranteed. Plan to finish porting before then.
 
-This page explains what is different, maps the classic modules to their replacements, and shows how to port common
-workflows.
+This page explains what is different, maps the classic modules to their replacements, and shows how to port common workflows.
 
 TidalPy announces this transition once per session when the package is imported. The notice can be silenced with:
 
@@ -23,15 +16,9 @@ warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
 
 ## Why the rework?
 
-* **Performance.** All core physics now runs in C++ (with the Eigen linear algebra library and CyRK integrators),
-  wrapped by thin Cython layers. There is no numba JIT warmup, and hot paths avoid Python entirely.
-* **Predictability.** The classic system stored planet state on Python objects and propagated changes through
-  cascading updates, which was hard to reason about and easy to break. The new classes store configuration and
-  return results from `calc_*` methods without mutating states.
-* **Consistency.** Every physics module (rheology, cooling, radiogenics, viscosity, partial melting, equations of
-  state, tides) follows the pattern: a C++ class hierarchy, a name-based factory (`make_<module>`), direct callable
-  functions, vectorized variants, TOML configuration, and binary files which can be saved and loaded from disk for
-  fast and accurate reproducibility.
+* **Performance.** All core physics now runs in C++ (with the Eigen linear algebra library and CyRK integrators), wrapped by thin Cython layers. There is no numba JIT warmup, and hot paths avoid Python entirely.
+* **Predictability.** The classic system stored planet state on Python objects and propagated changes through cascading updates, which was hard to reason about and easy to break. The new classes store configuration and return results from `calc_*` methods without mutating states.
+* **Consistency.** Every physics module (rheology, cooling, radiogenics, viscosity, partial melting, equations of state, tides) follows the pattern: a C++ class hierarchy, a name-based factory (`make_<module>`), direct callable functions, vectorized variants, TOML configuration, and binary files which can be saved and loaded from disk for fast and accurate reproducibility.
 
 ## Module map
 
@@ -76,8 +63,7 @@ result = world.solve_love_numbers(frequency=1.0e-5)
 print(result["success"], world.love_number_k)
 ```
 
-The world builder reads bundled or user TOML files, a file path, or a Python dictionary. See the
-[TOML schema](structures_x/config/toml_schema.md) and the `Demos (_x)` notebooks for more details.
+The world builder reads bundled or user TOML files, a file path, or a Python dictionary. See the [TOML schema](structures_x/config/toml_schema.md) and the `Demos (_x)` notebooks for more details.
 
 ### The standalone radial solver
 
@@ -91,12 +77,9 @@ from TidalPy.RadialSolver import radial_solver
 from TidalPy.RadialSolver_x import radial_solver
 ```
 
-The new solver adds dense radial evaluation at arbitrary radii (`get_radial_solution`), implicit CyRK integrators
-(`BDF`, `LSODA`, `Radau`), and a surface conditioning diagnostic (`surface_solve_amplification`). See
-[dense radial solutions](RadialSolver_x/dense_radial_solution.md).
+The new solver adds dense radial evaluation at arbitrary radii (`get_radial_solution`), implicit CyRK integrators (`BDF`, `LSODA`, `Radau`), and a surface conditioning diagnostic (`surface_solve_amplification`). See [dense radial solutions](RadialSolver_x/dense_radial_solution.md).
 
-The input builders keep the classic argument names but take `rheology_x` models (classic `TidalPy.rheology`
-models raise `TypeError`), and a single model can stand in for the per-layer tuple:
+The input builders keep the classic argument names but take `rheology_x` models (classic `TidalPy.rheology` models raise `TypeError`), and a single model can stand in for the per-layer tuple:
 
 ```python
 # Classic
@@ -136,7 +119,4 @@ Every model also provides vectorized `calc_*` variants that accept numpy arrays 
 
 ## Learning the new system
 
-The best introduction is the `Demos (_x)` notebooks in the navigation: `Basics` notebooks
-(configuration, world building, save/load), `Physics` notebooks (orbits, tides, rheology, Love numbers,
-3D heating, thermal/EOS), and `Systems` notebooks (multi-world systems, coupled thermal-orbital evolution).
-The `Benchmarks (_x)` pages validate the new system against published results and track its performance.
+The best introduction is the `Demos (_x)` notebooks in the navigation: `Basics` notebooks (configuration, world building, save/load), `Physics` notebooks (orbits, tides, rheology, Love numbers, 3D heating, thermal/EOS), and `Systems` notebooks (multi-world systems, coupled thermal-orbital evolution). The `Benchmarks (_x)` pages validate the new system against published results and track its performance.
