@@ -1,10 +1,10 @@
 # Base Classes (`Utilities_x.classes_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-Three C++ base classes sit underneath every object TidalPy builds. They are the reason a rheology model, a cooling model, a layer, and a whole world all answer to the same four methods for saving and restoring themselves, and the reason adding a new physics model does not mean writing serialization for the fourth time.
+Three C++ base classes sit underneath every object TidalPy builds. They are the reason a rheology model, a cooling model, a layer, and a whole world have the same four methods for saving and restoring themselves, and the reason adding a new physics model does not mean rewriting serialization code.
 
-If you plan to add a model of any kind, read this page first. The contract described here is what a new class has to satisfy, and the per-module "adding a new model" sections assume it.
+If you plan to add a model of any kind, read this page first. The contract described here is what a new class has to satisfy, and the per-module "adding a new model" sections utilize it.
 
 ## Inheritance chain
 
@@ -73,7 +73,7 @@ StructureBase(radius: float, mass: float)
 | `calc_mean_density(mass, volume)` | `float` | $m / V$ [kg m$^{-3}$]. |
 | `calc_escape_velocity(mass, radius)` | `float` | $\sqrt{2 G m / r}$ [m s$^{-1}$]. |
 
-Every `calc_` method is const and takes its inputs explicitly rather than reading the object's stored radius and mass. That is deliberate: a layer needs the volume of a shell between two radii that are not its own, and a world needs the surface area at an arbitrary radius, so binding these helpers to the object's own state would make them useless in exactly the cases they are called for.
+Every `calc_` method is const and takes its inputs explicitly rather than reading the object's stored radius and mass. A layer needs the volume of a shell between two radii that are not its own, and a world needs the surface area at an arbitrary radius, so binding these helpers to the object's own state would make them useless in exactly the cases they are called for.
 
 The binary record is 36 bytes: the 20-byte header, then the radius and mass as doubles in host byte order.
 
@@ -96,7 +96,7 @@ The config entries are not part of the binary format; they are a separate, human
 
 The binary record is 24 bytes plus the model name: the 20-byte header, the name length as a `uint32_t`, then the UTF-8 name bytes.
 
-## Checking physics-model config keys
+## Checking physics-model Config Keys
 
 `check_config_keys(config, accepted_keys, family)` is the guard every `make_*` factory runs before building a model. It raises `ValueError` for any key that no model in the family reads, always accepts `model` so a `get_config_dict()` result can be passed straight back, and names the closest accepted key for each rejected one. That last part matters because the most common mistake is a missing unit suffix, such as `solidus` for `solidus_k`.
 

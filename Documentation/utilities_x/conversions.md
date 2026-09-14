@@ -1,10 +1,10 @@
 # Conversions and Scales (`Utilities_x.conversions`, `Utilities_x.dimensions`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-Two small modules handle the boundary between the units a person writes and the units the solvers integrate in. `conversions` converts between MKS and the units planetary science papers actually quote, and between orbital elements related by Kepler's third law. `dimensions` builds the scale factors that turn a dimensional interior problem into a non-dimensional one.
+`conversions` converts between MKS and the units typically used in the literature, and between orbital elements related by Kepler's third law. `dimensions` builds the scale factors that turn a dimensional interior problem into a non-dimensional one.
 
-TidalPy stores and returns everything in MKS. These helpers exist so that converting at the edges is a one-line call rather than a hand-entered factor, and so that the non-dimensionalization the solvers rely on is defined in exactly one place.
+TidalPy stores and returns everything in MKS. These helpers exist to assist in converting and so that the non-dimensionalization the solvers rely on is defined in one place.
 
 ## Unit conversions
 
@@ -22,11 +22,11 @@ myr2sec(1.0)       # 3.15576e13      [s]
 sec2myr(3.15576e13) # 1.0            [Myr]
 ```
 
-The period conversions are the pair used most often, because orbital and rotational periods are quoted in days while every TidalPy argument named a frequency is an angular frequency in rad s$^{-1}$. A forgotten factor of $2\pi$ here is the single most common way to get a tidal answer that is wrong by a large, plausible-looking factor.
+The period conversions are the pair used most often, because orbital and rotational periods are quoted in days while every TidalPy argument named a frequency is an angular frequency in rad s$^{-1}$.
 
 The mega-year conversion uses the Julian year of 365.25 days, so one Myr is exactly $3.15576 \times 10^{13}$ s. That is the same constant the radiogenics datasets use for their half lives, available in Python as `TidalPy.constants.seconds_per_myr`, so times converted here and times read from an isotope model agree.
 
-## Orbital elements
+## Orbital Elements
 
 ```python
 from TidalPy.Utilities_x.conversions import orbital_motion2semi_a, semi_a2orbital_motion
@@ -41,9 +41,9 @@ Both take an optional `G_to_use` so a comparison against a published result can 
 
 A non-positive host mass or a negative target mass raises `ValueError`.
 
-## Non-dimensionalization
+## Non-Dimensionalization
 
-The radial structure and deformation problems are integrated in non-dimensional variables. The reason is conditioning: a radius near $10^7$, a density near $10^3$, a modulus near $10^{11}$, and a gravitational constant near $10^{-11}$ put the entries of the same linear system thirty orders of magnitude apart, and the solution loses most of its significant digits to that spread. Scaling each variable by a characteristic value of its own dimension brings the system to order unity, where the integrator and the boundary-condition solve behave.
+The radial structure and deformation problems are integrated in non-dimensional variables. The reason is that a radius near $10^7$, a density near $10^3$, a modulus near $10^{11}$, and a gravitational constant near $10^{-11}$ put the entries of the same linear system thirty orders of magnitude apart, and the solution loses most of its significant digits to that spread. Scaling each variable by a characteristic value of its own dimension brings the system to order unity, where the integrator and the boundary-condition solve behave.
 
 The scales are built from just two properties of the body, its mean radius and its bulk density, plus the gravitational constant:
 
@@ -67,7 +67,7 @@ scales.pascal_conversion     # [Pa]
 
 Each attribute is the factor a non-dimensional value is multiplied by to recover MKS, and divided by to go the other way. The returned object is a thin wrapper over the C++ `c_NonDimensionalScales` struct, which is what the solvers hold internally.
 
-Callers rarely build these by hand. The radial solver and the world equation-of-state solve non-dimensionalize their inputs, integrate, and re-dimensionalize their results before returning, so the scales are an implementation detail unless you are reading solver internals or writing a new solver stage. The one thing to remember is the invariant: anything crossing the public API boundary is in MKS, and anything inside an integrator may not be.
+Callers rarely build these by hand. The radial solver and the world equation-of-state solve non-dimensionalize their inputs, integrate, and re-dimensionalize their results before returning, so the scales are an implementation detail unless you are reading solver internals or writing a new solver stage.
 
 ## C++ surface
 

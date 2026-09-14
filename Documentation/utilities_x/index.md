@@ -1,10 +1,10 @@
 # Utilities (`Utilities_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-`TidalPy.Utilities_x` is the shared infrastructure every other module is built on. Nothing here computes tidal physics. What it provides is the machinery the physics modules would otherwise each reinvent: the base classes that give every object logging, configuration export, and binary serialization; the numerical primitives the inner loops call; and the conversions, constants, and plotting helpers that sit at the boundary between a calculation and a person reading its result.
+`TidalPy.Utilities_x` is the shared infrastructure every other module is built on. It provides is the machinery the physics modules would otherwise each reinvent. The base classes that give every object logging, configuration export, and binary serialization; the numerical primitives the inner loops call; and the conversions, constants, and plotting helpers that sit at the boundary between a calculation and a person reading its result.
 
-It is worth knowing what lives here even if you never import it directly, because its conventions show up everywhere else. Every model class in TidalPy has `get_config_dict`, `save_config`, `save_binary`, and `load_binary` for exactly one reason: they are inherited from the base classes defined in this module. Every version check that refuses to load a stale file, every log line, and every non-dimensionalized radius traces back here.
+It is worth knowing what lives here even if you never import it directly, because its conventions show up everywhere else. Every model class in TidalPy has `get_config_dict`, `save_config`, `save_binary`, and `load_binary`. They are inherited from the base classes defined in this module. Every version check that refuses to load a stale file, every log line, and every non-dimensionalized radius traces back here.
 
 | Page | Covers |
 |---|---|
@@ -34,13 +34,7 @@ Logging <logging_x.md>
 Graphics <graphics_x.md>
 ```
 
-## Why these are separate
-
-Most of what is here was factored out because it applies beyond the module that first needed it. The interpolation routines were written for the tabulated equation of state and are now used by the radial solver's dense output. The integer-keyed maps were written for eccentricity-function results and are now used wherever a quantity is indexed by the Kaula mode numbers. The base classes were written once so that adding a new physics model does not mean rewriting serialization for the fourth time.
-
-The other reason is language. TidalPy's numerical work happens in C++, and most of this module is header-only C++ with a thin Cython wrapper. That is why a Python dictionary is not enough for a mode-keyed lookup, and why the logging system needs an explicit pointer-sharing arrangement to work across compiled extensions on Windows.
-
-## Where these fit
+## Usage
 
 The base classes are the ones to read first if you plan to add a model of any kind, because they define the contract a new class has to satisfy. See [Base Classes](classes_x.md) and the "adding a new model" section on any physics module page.
 

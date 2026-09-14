@@ -1,12 +1,12 @@
 # Legendre Polynomials (`Utilities_x.legendre`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
 The associated Legendre functions $P_{lm}(\cos\theta)$ are the angular part of the tidal potential. Expanding a companion's gravitational potential over a body's surface produces a sum of these functions, one term per degree $l$ and order $m$, and every subsequent piece of the tidal machinery inherits that structure. The three-dimensional stress, strain, and heating fields need not just the functions themselves but their first and second derivatives with respect to colatitude, because the tangential components of the tidal displacement are angular gradients of the potential.
 
 This module returns all three at once. Both entry points give the triple $\left(P_{lm},\ dP_{lm}/d\theta,\ d^2P_{lm}/d\theta^2\right)$ for a colatitude in radians on $[0, \pi]$, using the unnormalized functions with the Condon-Shortley phase. That is the same convention as `scipy.special.assoc_legendre_p` with `branch_cut=2`, which is worth stating explicitly: normalization and phase conventions for these functions differ between references, and a mismatched convention produces tidal amplitudes that are wrong by a factor that looks almost right.
 
-## The two evaluation paths
+## Evaluation Paths
 
 `legendre(l, m, colatitude)` uses precomputed closed forms for degrees 2 through 10. Each $(l, m)$ pair is a hard-coded polynomial in $\cos\theta$ and $\sin\theta$, generated from the Ferrers construction by `legendre/codegen/gen_legendre.py`. There are no calls to `pow` and no $1/\sin\theta$ factors that would blow up at the poles, which is what makes this path fast enough to sit inside a mode loop evaluated at every grid point.
 

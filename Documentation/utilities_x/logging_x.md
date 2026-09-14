@@ -1,6 +1,6 @@
 # Logging (`Utilities_x.logging_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
 TidalPy's compiled code logs through [spdlog](https://github.com/gabime/spdlog), wrapped thinly in Cython so Python can configure and write to the same logger. A single named logger, `"TidalPy"`, is created at package startup and shared by every compiled extension.
 
@@ -54,13 +54,13 @@ Level names are case-insensitive: `trace`, `debug`, `info`, `warning` or `warn`,
 
 Adjust the active level at runtime, updating both the logger and all of its sinks. A later `init_logger` call resets the logger-level filter, after which the configured per-sink levels apply again.
 
-### `log_message(level, message)` and the level helpers
+### `log_message(level, message)` and Level Helpers
 
 `log_trace`, `log_debug`, `log_info`, `log_warning`, `log_error`, and `log_critical` each take just the message. `log_message` takes the level first, named or as an integer. These are what Cython and Python code in the new backend should use, so their output interleaves correctly with the messages the C++ macros emit.
 
 ### `flush_logger()` and `shutdown_logger()`
 
-`flush_logger` flushes every sink, which matters because file sinks buffer: a log file read immediately after a solve may be missing its last lines without it. `shutdown_logger` flushes and releases file handles, and runs automatically at interpreter exit.
+`flush_logger` flushes every sink, which matters because file sinks buffer. A log file read immediately after a solve may be missing its last lines without it. `shutdown_logger` flushes and releases file handles, and runs automatically at interpreter exit.
 
 ## C++ API
 
@@ -74,7 +74,7 @@ TIDALPY_LOG_ERROR("Failed to open binary file: {}", path);
 
 The macros are `TIDALPY_LOG_TRACE`, `TIDALPY_LOG_DEBUG`, `TIDALPY_LOG_INFO`, `TIDALPY_LOG_WARN`, `TIDALPY_LOG_ERROR`, and `TIDALPY_LOG_CRITICAL`. Each checks for a null logger and does nothing if one has not been created, so they are safe to call from any translation unit at any point in startup. Format strings use the Python-style braces that spdlog's bundled `fmt` provides.
 
-## Sharing the logger pointer across extensions
+## Sharing the Logger Pointer Across Extensions
 
 `logger.pyx` creates the logger at import time and stores a raw pointer to it. The macros use that pointer directly instead of looking the logger up in spdlog's registry on every call, which is what keeps a debug-level log statement cheap enough to leave inside a solver loop.
 
@@ -106,7 +106,7 @@ write_log_notebook = false   # no log file from a notebook unless true
 
 The two loggers never share a file: this one writes its own timestamped `TidalPy_x` log in the same directory. Test mode disables the file sink entirely.
 
-One practical consequence for test authors: spdlog writes to the console directly rather than through Python's `logging`, so `caplog` and friends do not see these messages. A test that needs to assert on log output has to enable the file sink and read the file.
+One practical consequence for test authors is that spdlog writes to the console directly rather than through Python's `logging`, so `caplog` and friends do not see these messages. A test that needs to assert on log output has to enable the file sink and read the file.
 
 ## Dependencies
 

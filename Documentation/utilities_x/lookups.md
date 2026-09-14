@@ -1,6 +1,6 @@
 # Lookup Structures (`Utilities_x.lookups`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
 Several parts of TidalPy produce quantities indexed by small integers rather than by position. The eccentricity and obliquity functions are keyed by the Kaula mode numbers $(l, m, p, q)$; per-degree Love numbers are keyed by $l$. A Python dictionary handles this naturally, but most of the code that needs the lookup runs in C++ with the interpreter lock released, where a Python dictionary is not available. `IntMap` is the structure that fills that gap.
 
@@ -52,6 +52,6 @@ The templates live in `intmap_.hpp`, with the key-packing helpers in `keys_.hpp`
 
 Read `intmap_.hpp` and `intmap.pxd` directly for the template signatures; they are short, and the packing scheme described above is the only concept needed to follow them.
 
-## Where these are used
+## Usage
 
 The eccentricity and obliquity function results are the original consumers; see [Eccentricity Functions](../Tides_x/eccentricity.md) and [Obliquity Functions](../Tides_x/obliquity.md). The tidal mode collapse uses the same structures to carry per-mode quantities through the sum, which is where the allocation-free lookup earns its place: a truncation-20 solve at degree 10 touches thousands of modes per evaluation.

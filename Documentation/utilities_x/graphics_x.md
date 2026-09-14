@@ -1,10 +1,10 @@
 # Graphics (`Utilities_x.graphics_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-Two plotting helpers, both matplotlib, both returning the figure and axes they draw so a caller can restyle or compose them. They are what the radial-solver solution's `plot_ys` and `plot_interior` methods call, and they can also be used directly on arrays from anywhere.
+Two plotting helpers are used by the radial-solver solution's `plot_ys` and `plot_interior` methods call, and they can also be used directly on arrays.
 
-These are not decoration. A radial-function plot is the fastest instability check available on a Love-number solve: spikes, sustained oscillations, or curves that do not vary smoothly with radius mean the integration did not converge, and that shows up in a glance at the figure long before it shows up in a number.
+A radial-function plot is an easy, visual instability check for a Love-number solve. Spikes, sustained oscillations, or curves that do not vary smoothly with radius mean the integration did not converge, and that shows up in a glance at the figure.
 
 | Function | Draws |
 |---|---|
@@ -12,7 +12,7 @@ These are not decoration. A radial-function plot is the fastest instability chec
 | `plot_interior` | A body's interior profiles: gravity and density, pressure and optionally temperature, and the moduli. |
 | `load_benchmark_ys` | The digitized Enceladus curves of Tobie et al. (2005) and Roberts and Nimmo (2008), as arrays. |
 
-## Radial functions
+## Radial Functions
 
 ```python
 import numpy as np
@@ -39,15 +39,15 @@ Note the difference between the two forms. The solution method knows how many bo
 
 | Argument | Meaning |
 |---|---|
-| `radial_solutions`, `radius` | One `(6, N)` array, an `(N, 6)` array which is transposed for you, or a list of either, plus one radius array [m] shared by all or one per solution. |
+| `radial_solutions`, `radius` | One `(6, N)` array, an `(N, 6)` array which is transposed for you, or a list of either, plus one radius array \[m\] shared by all or one per solution. |
 | `labels`, `colors`, `line_styles` | Per-solution legend labels, colors, and line styles. A single color or style applies to all. |
-| `depth_plot`, `planet_radius` | Plot against depth instead of radius; the planet radius [m] is then required. |
+| `depth_plot`, `planet_radius` | Plot against depth instead of radius; the planet radius \[m\] is then required. |
 | `plot_imaginary` | Also draw the imaginary parts, dotted, on a twin axis in each panel. |
 | `benchmarks` | `"tobie2005"` and `"roberts_nimmo2008"`, or the aliases `"t05"` and `"rn08"`, to overlay the published curves. |
 | `use_tobie_limits`, `x_limits`, `y_limits` | The axis limits used by Tobie et al. (2005), explicit per-panel limits, or radius and depth limits in km. |
 | `figure_size`, `show_plot` | Figure size in inches, and whether to call `plt.show()` before returning. The default is not to. |
 
-The returned `axes` is a two-by-three array: the first three radial functions across the top row and the last three below. A legend appears whenever more than one curve is drawn.
+The returned `axes` is a two-by-three array. The first three radial functions across the top row and the last three below. A legend appears whenever more than one curve is drawn.
 
 ### Benchmark data
 
@@ -71,18 +71,3 @@ figure, axes = plot_interior(
 The panels are gravity with density on a twin axis; pressure, with an optional temperature twin axis; and, when either modulus is supplied, the moduli in GPa. Real parts are solid lines, the imaginary parts of complex moduli are dotted on a twin axis, and the modulus panel is log-scaled when every value is positive.
 
 `use_scatter` draws points instead of lines. `annotate`, on by default, labels the surface gravity, central pressure, and bulk density. `planet_name` becomes the title. Styling, meaning colors, line styles, marker size, fonts, and panel size, lives in the `INTERIOR_PLOT_STYLE` dictionary; edit it in place to restyle every plot the module draws.
-
-## Migrating from `TidalPy.utilities.graphics`
-
-| Classic | New |
-|---|---|
-| `from TidalPy.utilities.graphics.multilayer import yplot` | `from TidalPy.Utilities_x.graphics_x import plot_ys` |
-| `yplot(ys, radius, plot_tobie=True, plot_roberts=True)` | `plot_ys(ys, radius, benchmarks=("tobie2005", "roberts_nimmo2008"))` |
-| `plot_imags=`, `other_xlimits=`, `other_ylimits=` | `plot_imaginary=`, `x_limits=`, `y_limits=` |
-| `show_plot=True` by default | `show_plot=False` by default for the functions; the solution methods keep `True` |
-| `from TidalPy.utilities.graphics.planet_plot import planet_plot` | `from TidalPy.Utilities_x.graphics_x import plot_interior` |
-| `planet_plot(radii, gravity, pressure, density, temperature, shear, bulk, planet_radius, bulk_density, auto_show=)` | `plot_interior(radius, gravity, pressure, density, temperature=, shear_modulus=, bulk_modulus=, planet_radius=, bulk_density=, show_plot=)` |
-| Styling from `TidalPy.config["graphics"]` | `INTERIOR_PLOT_STYLE` |
-| `rs_solution.plot_ys()` with no arguments | `solution.plot_ys(show_plot=True, **plot_kwargs)`, and likewise `plot_interior` |
-
-Several behaviors changed along with the names, all in the direction of failing loudly. Invalid input raises `ValueError`, where the classic code constructed the exception and then did not raise it. A legend appears whenever more than one curve is drawn. Imaginary twin axes are created only when asked for. Density is plotted in kg m$^{-3}$, where the classic plot divided by a thousand but kept the original label. `(N, 6)` arrays are accepted alongside `(6, N)`. And the solution methods raise an informative error rather than returning `None` when the solve, or the equation-of-state solve underneath it, failed.

@@ -1,12 +1,12 @@
 # Constants (`TidalPy.constants`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-TidalPy's constants come in three kinds, and the distinction matters because they are set at different times and from different sources. Mathematical and floating-point limits are fixed at compile time. Physical constants are pulled from SciPy when the package initializes, so TidalPy always agrees with the reference values SciPy ships. Numerical floors and ceilings, the values that keep a solver from dividing by a vanishing viscosity or evaluating a mode at zero frequency, come from the configuration file and can be changed by the user.
+TidalPy's constants come in three kinds, and the distinction matters because they are set at different times and from different sources. Mathematical and floating-point limits are fixed at compile time. Physical constants are pulled from 3rd party sources (mostly SciPy) when the package initializes, so TidalPy always agrees with the reference values these dependencies have. Numerical floors and ceilings, the values that keep a solver from dividing by a vanishing viscosity or evaluating a mode at zero frequency, come from the configuration file and can be changed by the user.
 
 All of them are stored in one place at the C++ level: a struct of static members in `constants_.hpp`, reachable by every compiled module through the shared pointer `tidalpy_config_ptr`. That arrangement is what lets a value set from Python reach code running inside a `nogil` inner loop without a lookup.
 
-## Using them from Python
+## Python Usage
 
 ```python
 import TidalPy.constants as constants
@@ -23,21 +23,19 @@ constants.min_viscosity     # [Pa s] configurable floor
 
 Most constants have a short alias beside the descriptive name (`M_sol` for `mass_solar`, `Au` for `au`, `SBC` for `sbc`, `k` for `k_boltzmann`), because both spellings appear throughout the literature and the older code. They refer to the same value.
 
-The corresponding C++ names carry a `d_` prefix and full capitals: `d_MASS_SOLAR`, `d_LUMINOSITY_SOLAR`, `d_PI`, `d_NAN`, `d_EPS`. A physics module reads them through `TidalPyConstants::d_MASS_SOLAR` for the compile-time values and through `tidalpy_config_ptr->d_G` for the runtime ones.
+The corresponding C++ names carry a `d_` prefix (indicating they are doubles) and full capitals: `d_MASS_SOLAR`, `d_LUMINOSITY_SOLAR`, `d_PI`, `d_NAN`, `d_EPS`. A physics module reads them through `TidalPyConstants::d_MASS_SOLAR` for the compile-time values and through `tidalpy_config_ptr->d_G` for the runtime ones.
 
-## What is fixed and what is not
+## Compiled vs. Initializationed
 
 **Compile-time, read-only.** Mathematical constants ($\pi$, infinity, NaN) and floating-point limits (the largest and smallest normal double, the machine epsilon, the mantissa digit count) are `constexpr`. So are the solar-system body properties: the masses and radii of the Sun, Earth, Jupiter, Pluto, and Io, and the solar luminosity, all set to the IAU nominal values. The number of seconds in a Julian mega-year is compile-time as well, because the Julian year is exact by definition rather than measured.
 
-**Set at initialization, from SciPy.** The gravitational constant, the astronomical unit, the Stefan-Boltzmann constant, the molar gas constant, and the Boltzmann constant are read from `scipy.constants` each time TidalPy initializes. The Julian year comes from the same place. This is deliberate: a physical constant should have one authoritative source, and duplicating CODATA values into a header is how packages end up disagreeing with each other in the sixth digit.
+**Set at initialization, from SciPy.** The gravitational constant, the astronomical unit, the Stefan-Boltzmann constant, the molar gas constant, and the Boltzmann constant are read from `scipy.constants` each time TidalPy initializes. The Julian year comes from the same place.
 
-**Set from configuration.** The numerical guards are read from the configuration file: the minimum and maximum tidal frequency, the minimum spin-orbit frequency difference, the minimum viscosity and modulus, the minimum layer thickness, the shared numerical floor, and the layer-boundary continuity tolerance. These are not physics. They are the thresholds below which a quantity is treated as zero or a mode is dropped, and their right values depend on the problem, so they are exposed rather than hard-coded.
+**Set from configuration.** The numerical guards are read from the configuration file: the minimum and maximum tidal frequency, the minimum spin-orbit frequency difference, the minimum viscosity and modulus, the minimum layer thickness, the shared numerical floor, and the layer-boundary continuity tolerance. These are the thresholds below which a quantity is treated as zero or a mode is dropped, and their right values depend on the problem, so they are exposed rather than hard-coded.
 
-The numerical floor is the one of these that is not a physical threshold. It is the smallest magnitude a denominator may take before a guard substitutes it, and `rheology_x`, `cooling_x`, and `radiogenics_x` all read it: a zero forcing frequency, a zero layer thickness, and a zero half life each reach a division that would otherwise produce infinity. Its default, `1e-100`, sits far below any physical value, so in practice it only ever replaces a true zero. Raising it is a debugging tool rather than a modeling choice.
+The numerical floor is the one of these that is not a physical threshold. It is the smallest magnitude a denominator may take before a guard substitutes it, and `rheology_x`, `cooling_x`, and `radiogenics_x` all read it: a zero forcing frequency, a zero layer thickness, and a zero half life each reach a division that would otherwise produce infinity. Its default, `1e-100`, sits far below any physical value, so in practice it only ever replaces a true zero.
 
-The layer-boundary continuity tolerance is the one a user is likely to meet. A world's layers must stack without a gap or an overlap, and `layer_continuity_rtol` is how far a layer's inner radius may sit from the previous layer's outer radius before `add_layer` rejects the geometry. It is relative to that radius (floored at one metre, so the innermost layer still gets a usable tolerance), so its default of `1e-6` is about six metres on an Earth-sized body. Loosen it if you are assembling layers from rounded numbers.
-
-## Updating them
+## Updating
 
 Two functions repopulate the shared C++ struct, and both run automatically during package initialization.
 
@@ -47,9 +45,9 @@ Two functions repopulate the shared C++ struct, and both run automatically durin
 
 There is one process-wide C++ config singleton shared by both code paths, which is why the ordering is what decides the result. Call either function again after editing a configuration in a running session; each call reconfigures in place.
 
-## Where the values live
+## Files
 
-The authoritative lists are short enough to read directly, and they change often enough that copying them into this page would guarantee it goes stale:
+Where the various variables are defined.
 
 - [`constants_.hpp`](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/constants_.hpp) for the compile-time values and the runtime struct layout.
 - [`constants.pyx`](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/constants.pyx) for the Python names and their aliases.

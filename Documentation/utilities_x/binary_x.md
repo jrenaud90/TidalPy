@@ -1,12 +1,12 @@
 # Binary Serialization (`Utilities_x.binary_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-13_
 
-TidalPy writes worlds, layers, systems, and physics models to a compact binary format. The purpose is not archival: a TOML configuration is the readable, editable, portable way to describe a world, and it is what you should commit to a repository. The binary format exists for the cases TOML handles badly, chiefly saving and restoring an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
+TidalPy writes worlds, layers, systems, and physics models to a compact binary format. A TOML configuration is the readable, editable, portable way to describe a world, and it is what you should commit to a repository. The binary format exists for the cases TOML handles poorly, chiefly saving and restoring an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
 
-Every file starts with a fixed 20-byte header naming the format version, the class that wrote it, and the payload size. That is what makes a file self-describing: a reader can identify what it is holding before deciding whether it can read it.
+Every file starts with a fixed 20-byte header naming the format version, the class that wrote it, and the payload size. This makes a file self-describing, a reader can identify what it is holding before deciding whether it can read it.
 
-## File format
+## File Format
 
 | Offset | Size | Field | Description |
 |---|---|---|---|
@@ -20,7 +20,7 @@ Every file starts with a fixed 20-byte header naming the format version, the cla
 
 Fields are written one at a time with explicit stream writes rather than as a packed struct, so compiler padding never affects the layout. The byte order is the host's. Every platform TidalPy supports, Windows, Linux, and macOS on x64 and ARM64, is little-endian, so files move between them in practice, but the format does not promise it.
 
-## Schema version
+## Schema Version
 
 The current schema version is `0.2.0`.
 
@@ -88,7 +88,7 @@ if (!tidalpy::check_binary_schema_version(header)) {
 | `TIDALPY_BINARY_MAGIC` | `"TPYB"` |
 | `TIDALPY_BINARY_HEADER_BYTES` | `20` |
 
-## Variable-length strings
+## Variable-length Strings
 
 Model names, layer names, and material names are written as a `uint32_t` length followed by the raw UTF-8 bytes:
 
@@ -98,7 +98,7 @@ Model names, layer names, and material names are written as a `uint32_t` length 
 
 Use `binary_string_bytes(text)` when computing a record's payload size, so the header and the payload cannot disagree.
 
-## Nested and recursive serialization
+## Nested and Recursive Serialization
 
 Containers own sub-objects that have to round-trip with them: a layer owns its physics models, a world owns its layers, a system owns its worlds. The encoding is uniform at every level.
 
@@ -142,7 +142,7 @@ What each layer class carries recursively, after its own scalar payload:
 > [!NOTE]
 > The equation-of-state profile data is never serialized, because it is derived from the attached model: `solve_eos` runs directly on a loaded world and regenerates it.
 
-## Class type ids
+## Class Type IDs
 
 Each concrete class needs a unique id so the dispatch factories can reconstruct the right subclass. The ranges are grouped by family, which leaves room to add models without renumbering.
 
@@ -160,9 +160,9 @@ Each concrete class needs a unique id so the dispatch factories can reconstruct 
 | 900-999 | Tide models | `TideBase` 900, `RheologyTide` 901, `FixedQTide` 902, `FixedLagTide` 903, `CTLQTide` 904 |
 | 1000-1099 | Luminosity | `LuminosityBase` 1000, `FixedLuminosity` 1001, `MassToLuminosity` 1002, `PowerLawLuminosity` 1003 |
 
-Id zero is `Unknown` and is never written.
+ID zero is `Unknown` and is never written.
 
-## Portability notes
+## Portability Notes
 
 Every field uses a fixed-width type from `<cstdint>`, and fields are written individually rather than as a struct, so the layout does not depend on the compiler. File paths are passed as UTF-8 `std::string`; non-ASCII paths on Windows are not guaranteed to work everywhere, so prefer ASCII paths when portability matters. The header is header-only, so no separate compilation step is involved.
 
