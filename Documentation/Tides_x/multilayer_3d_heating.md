@@ -1,6 +1,6 @@
 # 3D Tidal stress, strain, and heating (`Tides_x.multilayer`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-15_
 
 This module computes the depth- and direction-resolved tidal response (the complex strain and stress tensors and the volumetric heating) of a layered world. It utilizes a **callable** system where it returns the response at a single point on demand, so a map is built only if the caller explicitly evaluates a set of points.
 
@@ -224,4 +224,65 @@ degrees, freqs, pots = tidal_potential_3d_modes(
 # pots[i] = complex (U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi) for mode i
 ```
 
-The compiled strain/stress/heating kernel is in `Tides_x.multilayer.stress_strain` (`strain_stress_heating_point`, `volumetric_heating`). These are low-level helpers that take a real potential row (a snapshot at one time) and return the raw bilinear magnitude; the physical secular heating uses the complex/signed form above. The same module's `displacement_point(y, potential6, colatitude)` returns the tidal displacements `(u_r, u_theta, u_phi)` [m] at a point from the radial functions and a real potential row: `u_r = y1 U`, `u_theta = y3 dU/dtheta`, `u_phi = y3 dU/dphi / sin(theta)` (the classic `calculate_displacements`, evaluated point-wise).
+The compiled kernel the world methods use is also callable point by point from `Tides_x.multilayer.stress_strain`:
+
+- `strain_stress_heating_point` returns the six complex strain and six complex stress amplitudes at a point for one mode.
+- `displacement_point` returns the complex displacement amplitudes `u_r = y1 U`, `u_theta = y3 dU/dtheta`, and `u_phi = y3 dU/dphi / sin(theta)` [m].
+- `volumetric_heating(stress, strain)` returns `|sum_k w_k Im(sigma_k conj(eps_k))|` [Pa], with `w_k = 2` on the three off-diagonal components.
+
+The first two take one row from `tidal_potential_3d_modes` together with the radial functions and complex moduli at the point, which the world provides after a radial-solver Love solve. A real row is also accepted and is treated as a phasor with zero phase. Assembling several modes follows the rules the world methods use:
+
+- Solve the radial problem and evaluate the moduli at each mode's degree and `|omega|`, and conjugate the row of a mode with `omega < 0` so that its amplitudes sit at `+|omega|`.
+- Sum the strain and stress amplitudes of every mode that shares one `|omega|` before forming the heating. `|omega| / 2` times `volumetric_heating` of those sums is the secular heating at that frequency [W m-3], and the frequencies add.
+- A field at time `t` is `Re[amplitude e^{i |omega| t}]` summed over the modes.
+
+The pointwise secular density of `calc_3d_tides` can be rebuilt this way:
+
+```python
+from TidalPy.constants import min_spin_orbit_diff
+from TidalPy.Tides_x.multilayer.stress_strain import strain_stress_heating_point, volumetric_heating
+
+radius = 0.9 * world.radius
+frequency_totals = dict()   # |omega| in units of the mean motion -> [|omega|, summed strain, summed stress]
+for degree_l, frequency, row in zip(degrees, freqs, pots):
+    magnitude = abs(frequency)
+    if magnitude <= min_spin_orbit_diff:
+        continue   # A static mode does not dissipate
+
+    # Radial functions and moduli at this mode's degree and |omega|
+    world.solve_love_numbers(
+        frequency=magnitude,
+        degree_l=int(degree_l))
+    y = np.array([world.get_love_radial_y(radius, 0, y_index) for y_index in range(6)])
+    strain, stress, _ = strain_stress_heating_point(
+        y,
+        world.calc_complex_shear_modulus(radius, magnitude),
+        world.calc_complex_bulk_modulus(radius, magnitude),
+        radius,
+        float(degree_l),
+        True,    # The layer is solid
+        False,   # The layer is compressible
+        row if frequency > 0.0 else np.conj(row),   # Amplitudes at +|omega|
+        colatitude)
+
+    # Modes that share |omega| are summed before the heating is formed
+    totals = frequency_totals.setdefault(round(magnitude / orbital_frequency, 9), [magnitude, 0.0, 0.0])
+    totals[1] = totals[1] + strain
+    totals[2] = totals[2] + stress
+
+heating_from_kernel = sum(
+    0.5 * magnitude * volumetric_heating(stress_sum, strain_sum)
+    for magnitude, strain_sum, stress_sum in frequency_totals.values())   # [W m-3]
+
+# The same density from the world method
+heating_from_world = world.calc_3d_tides(
+    orbital_frequency,
+    spin_frequency,
+    eccentricity,
+    obliquity,
+    semi_major_axis,
+    host_mass,
+    radii=np.array([radius]),
+    colatitudes=np.array([colatitude]),
+    longitudes=np.array([longitude]))['heating'][0, 0, 0]
+```

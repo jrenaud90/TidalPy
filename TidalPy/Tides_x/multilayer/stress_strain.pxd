@@ -11,7 +11,7 @@ cdef extern from "multilayer_bind_.hpp" namespace "tidalpy::tides" nogil:
         double degree_l,
         int is_solid,
         int is_incomp,
-        const double* pot6,
+        const double* potential12,
         double colatitude,
         double* strain12,
         double* stress12,
@@ -28,6 +28,6 @@ cdef extern from "multilayer_bind_.hpp" namespace "tidalpy::tides" nogil:
 
     void c_displacements_flat(
         const double* y_ri,
-        const double* pot6,
+        const double* potential12,
         double colatitude,
         double* disp6)

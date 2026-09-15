@@ -28,8 +28,9 @@ inline int c_angular_gram_flat(int degree_l, int order_m, double* gram36) noexce
     return 1;
 }
 
-// Volumetric tidal heating [W m-3] from the 6 complex stress and 6 complex strain components, each passed
-// as 12 doubles (re, im per component). Used to heat once from the mode-summed stress/strain tensors.
+// Magnitude of the weighted Im(stress conj strain) [Pa] from the 6 complex stress and 6 complex strain components,
+// each passed as 12 doubles (re, im per component). For the summed amplitudes of every mode at one forcing frequency,
+// (|omega|/2) times this is that frequency's cycle-averaged volumetric heating [W m-3].
 inline double c_volumetric_heating_flat(const double* stress12, const double* strain12) noexcept
 {
     c_Tensor6 stress, strain;
@@ -41,8 +42,23 @@ inline double c_volumetric_heating_flat(const double* stress12, const double* st
     return c_volumetric_heating(stress, strain);
 }
 
+// Complex potential point from 12 doubles: (real, imaginary) of U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, and
+// d2U/dtheta_dphi, in the phasor convention of the 3D potential engine (U(t) = Re[U_c e^{i omega t}]).
+inline c_PotentialPointC c_potential_point_from_flat(const double* potential12) noexcept
+{
+    return c_PotentialPointC(
+        std::complex<double>(potential12[0], potential12[1]),
+        std::complex<double>(potential12[2], potential12[3]),
+        std::complex<double>(potential12[4], potential12[5]),
+        std::complex<double>(potential12[6], potential12[7]),
+        std::complex<double>(potential12[8], potential12[9]),
+        std::complex<double>(potential12[10], potential12[11]));
+}
+
 // Strain/stress/heating at one point. y_ri = 12 doubles (y1re,y1im,...,y6re,y6im; only y1..y4 used).
-// pot6 = the 6 potential values above. strain12/stress12 = 12 doubles each (6 complex). heating1 = 1 double.
+// potential12 = one mode's complex potential row as 12 doubles (see c_potential_point_from_flat).
+// strain12/stress12 = 12 doubles each (6 complex amplitudes). heating1 = 1 double, the magnitude of the weighted
+// Im(stress conj strain) [Pa] (see c_volumetric_heating_flat).
 inline void c_strain_stress_heating(
         const double* y_ri,
         double shear_re,
@@ -53,7 +69,7 @@ inline void c_strain_stress_heating(
         double degree_l,
         int is_solid,
         int is_incomp,
-        const double* pot6,
+        const double* potential12,
         double colatitude,
         double* strain12,
         double* stress12,
@@ -78,7 +94,7 @@ inline void c_strain_stress_heating(
         is_solid != 0,
         is_incomp != 0);
 
-    c_PotentialPoint P{pot6[0], pot6[1], pot6[2], pot6[3], pot6[4], pot6[5]};
+    const c_PotentialPointC P = c_potential_point_from_flat(potential12);
 
     c_Tensor6 strain, stress;
     c_compute_strain_stress(R, P, colatitude, strain, stress);
@@ -90,17 +106,18 @@ inline void c_strain_stress_heating(
     *heating1 = c_volumetric_heating(stress, strain);
 }
 
-// Displacements at one point. y_ri = 12 doubles (y1re, y1im, ..., y6re, y6im; only y1 and y3 used), pot6 = the
-// 6 real potential values, disp6 = 6 doubles (3 complex: radial, polar, azimuthal) [m].
+// Displacements at one point. y_ri = 12 doubles (y1re, y1im, ..., y6re, y6im; only y1 and y3 used), potential12 =
+// one mode's complex potential row as 12 doubles, disp6 = 6 doubles (3 complex amplitudes: radial, polar,
+// azimuthal) [m].
 inline void c_displacements_flat(
         const double* y_ri,
-        const double* pot6,
+        const double* potential12,
         double colatitude,
         double* disp6) noexcept
 {
     const std::complex<double> y1(y_ri[0], y_ri[1]);
     const std::complex<double> y3(y_ri[4], y_ri[5]);
-    c_PotentialPoint P{pot6[0], pot6[1], pot6[2], pot6[3], pot6[4], pot6[5]};
+    const c_PotentialPointC P = c_potential_point_from_flat(potential12);
     c_Vector3 u;
     c_compute_displacements(y1, y3, P, colatitude, u);
     for (std::size_t k = 0; k < 3; ++k)
