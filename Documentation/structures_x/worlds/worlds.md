@@ -354,7 +354,7 @@ The remaining public surface, grouped by what it is for.
 
 **State.** `get_state()` returns the world's current scalar state as a dict, and `calc_state()` recomputes it. `get_state()` is the cheap read.
 
-**Three-dimensional tides.** `get_3d_tidal_heating_array(...)` is the vectorized form of `get_3d_tidal_heating` and the efficient way to build a heating map; `calc_3d_displacements(...)` and `calc_3d_stress_strain(...)` return the instantaneous displacement grid and the stress and strain grids. All three are described on the [3D heating page](../../Tides_x/multilayer_3d_heating.md).
+**Three-dimensional tides.** `get_3d_tidal_heating_array(...)` is the vectorized form of `get_3d_tidal_heating` and the efficient way to build a heating map; `calc_3d_displacements(...)` and `calc_3d_stress_strain(...)` return the instantaneous displacement grid and the stress and strain grids. All three, like `calc_3d_tides`, take `num_threads` (default 1) to spread their per-point work over threads, and all are described on the [3D heating page](../../Tides_x/multilayer_3d_heating.md).
 
 **Configuration and identity.** `source_config` is the normalized configuration the world was built from, when it was built from one; `family_world_type()` gives the builder's world type for this class; `get_schema_version_str()` reports the schema version the class writes. See the [TOML schema](../config/toml_schema.md).
 

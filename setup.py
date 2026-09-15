@@ -37,6 +37,10 @@ else:
     if install_platform == 'darwin':
         # Cython-generated code trips this warning, which recent Apple clang treats as an error.
         extra_compile_args.append('-Wno-error=incompatible-function-pointer-types')
+    elif install_platform == 'linux':
+        # The 3D tidal grids run on std::thread, which needs -pthread to compile and link against older glibc.
+        extra_compile_args.append('-pthread')
+        extra_link_args.append('-pthread')
     cpp_standard_flag = '-std=c++20'
 
 macro_list = [('NPY_NO_DEPRECATED_API', 'NPY_1_9_API_VERSION')]

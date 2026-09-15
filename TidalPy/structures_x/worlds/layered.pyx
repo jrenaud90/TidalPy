@@ -71,6 +71,12 @@ cdef cnp.ndarray _vec_to_ndarray(const vector[double]& v):
             mv[i] = v[i]
     return out
 
+cdef int _check_num_threads(int num_threads) except -1:
+    """Raise ValueError unless ``num_threads`` is at least 1."""
+    if num_threads < 1:
+        raise ValueError(f"num_threads must be at least 1; got {num_threads}")
+    return 0
+
 # ODEMethod, c_EOSSolution, and c_WorldEOSSolveConfig are provided by layered.pxd.
 
 # Translate an integration-method name to the CyRK enum (string handling stays at the
@@ -1209,7 +1215,8 @@ cdef class LayeredWorld(BaseWorld):
             double semi_major_axis,
             double host_mass,
             radii,
-            colatitudes):
+            colatitudes,
+            int num_threads=1):
         """Longitude-mean secular 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)`` points.
 
         Vectorized batch form of :meth:`get_3d_tidal_heating`: ``radii`` and ``colatitudes`` are paired,
@@ -1219,7 +1226,12 @@ cdef class LayeredWorld(BaseWorld):
         points (the solve does not depend on radius or colatitude), so this is the efficient way to build
         a zonal-mean heating map. Entries are NaN for points at the center / below the solver's starting
         radius and 0 in liquid layers. Requires the rheology tide model and a solved EOS.
+
+        ``num_threads`` (default 1) spreads the per-point evaluation, which follows the radial solves on the
+        calling thread, over that many threads; the result is identical for any thread count. Keep the
+        default inside a process pool.
         """
+        _check_num_threads(num_threads)
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
         cdef cnp.ndarray colat_arr = np.ascontiguousarray(colatitudes, dtype=np.float64)
         if radii_arr.shape[0] != colat_arr.shape[0]:
@@ -1248,7 +1260,8 @@ cdef class LayeredWorld(BaseWorld):
                 &radii_view[0],
                 &colat_view[0],
                 num_points,
-                &out_view[0])
+                &out_view[0],
+                num_threads)
         return out_arr
 
     def calc_3d_displacements(
@@ -1262,7 +1275,8 @@ cdef class LayeredWorld(BaseWorld):
             radii,
             colatitudes,
             longitudes,
-            times) -> dict:
+            times,
+            int num_threads=1) -> dict:
         """Instantaneous tidal displacements [m] on the grid ``(radius, colatitude, longitude, time)``.
 
         The active tidal modes are built from the world's ``[tides]`` truncation config, the world radial
@@ -1278,6 +1292,10 @@ cdef class LayeredWorld(BaseWorld):
             The orbital/spin state, as for :meth:`calc_tides`.
         radii, colatitudes, longitudes, times : array-like of float
             Grid axes [m], [rad], [rad], [s]; scalars are accepted.
+        num_threads : int, optional
+            Threads for the per-point evaluation, which follows the radial solves on the calling thread.
+            Default 1, which leaves parallelism to the caller, such as a process pool. The result is
+            identical for any thread count.
 
         Returns
         -------
@@ -1291,6 +1309,7 @@ cdef class LayeredWorld(BaseWorld):
         - Linear superposition of the tidal modes; displacements follow the radial functions y1 (radial)
           and y3 (tangential) of each mode's radial solution.
         """
+        _check_num_threads(num_threads)
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(np.atleast_1d(radii), dtype=np.float64).ravel()
         cdef cnp.ndarray colat_arr = np.ascontiguousarray(np.atleast_1d(colatitudes), dtype=np.float64).ravel()
         cdef cnp.ndarray lon_arr   = np.ascontiguousarray(np.atleast_1d(longitudes), dtype=np.float64).ravel()
@@ -1307,6 +1326,15 @@ cdef class LayeredWorld(BaseWorld):
         cdef double[::1] lon_view   = lon_arr
         cdef double[::1] time_view  = time_arr
         cdef double[:, :, :, :, ::1] out_view = out_arr
+        cdef c_Grid3DAxes axes
+        axes.radii           = &radii_view[0]
+        axes.num_radii       = nr
+        axes.colatitudes     = &colat_view[0]
+        axes.num_colatitudes = nth
+        axes.longitudes      = &lon_view[0]
+        axes.num_longitudes  = nph
+        axes.times           = &time_view[0]
+        axes.num_times       = nt
         cdef c_TideSolveConfig state
         state.orbital_frequency = orbital_frequency
         state.spin_frequency    = spin_frequency
@@ -1317,15 +1345,9 @@ cdef class LayeredWorld(BaseWorld):
         with nogil:
             self._layered_ptr.get_3d_displacements_grid(
                 state,
-                &radii_view[0],
-                nr,
-                &colat_view[0],
-                nth,
-                &lon_view[0],
-                nph,
-                &time_view[0],
-                nt,
-                &out_view[0, 0, 0, 0, 0])
+                axes,
+                &out_view[0, 0, 0, 0, 0],
+                num_threads)
         return {
             "radii": radii_arr,
             "colatitudes": colat_arr,
@@ -1349,7 +1371,8 @@ cdef class LayeredWorld(BaseWorld):
             longitudes,
             times,
             cpp_bool return_stress=True,
-            cpp_bool return_strain=True) -> dict:
+            cpp_bool return_strain=True,
+            int num_threads=1) -> dict:
         """Instantaneous tidal stress [Pa] and strain on the grid ``(radius, colatitude, longitude, time)``.
 
         The active tidal modes come from the world's ``[tides]`` truncation config and are merged into coherent
@@ -1367,6 +1390,10 @@ cdef class LayeredWorld(BaseWorld):
             Grid axes [m], [rad], [rad], [s]; scalars are accepted.
         return_stress, return_strain : bool, optional
             Which tensors to compute; each takes 48 bytes per grid point and time. Default both.
+        num_threads : int, optional
+            Threads for the per-point evaluation, which follows the radial solves on the calling thread.
+            Default 1, which leaves parallelism to the caller, such as a process pool. The result is
+            identical for any thread count.
 
         Returns
         -------
@@ -1379,7 +1406,7 @@ cdef class LayeredWorld(BaseWorld):
         Raises
         ------
         ValueError
-            If an axis is empty or neither tensor is requested.
+            If an axis is empty, neither tensor is requested, or ``num_threads`` is below 1.
         RuntimeError
             If the world has no rheology tide model or no solved EOS, its Love method has no radial functions, or
             a radial solve fails.
@@ -1394,6 +1421,7 @@ cdef class LayeredWorld(BaseWorld):
         """
         if not (return_stress or return_strain):
             raise ValueError("At least one of return_stress and return_strain must be True.")
+        _check_num_threads(num_threads)
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(np.atleast_1d(radii), dtype=np.float64).ravel()
         cdef cnp.ndarray colat_arr = np.ascontiguousarray(np.atleast_1d(colatitudes), dtype=np.float64).ravel()
         cdef cnp.ndarray lon_arr   = np.ascontiguousarray(np.atleast_1d(longitudes), dtype=np.float64).ravel()
@@ -1446,7 +1474,8 @@ cdef class LayeredWorld(BaseWorld):
                 state,
                 axes,
                 stress_ptr,
-                strain_ptr)
+                strain_ptr,
+                num_threads)
 
         cdef dict out = {
             "radii": radii_arr,
@@ -1482,7 +1511,8 @@ cdef class LayeredWorld(BaseWorld):
             int radial_slices=16,
             latitude_analytic=True,
             double colatitude_min=0.0,
-            double colatitude_max=np.pi) -> dict:
+            double colatitude_max=np.pi,
+            int num_threads=1) -> dict:
         """3D tidal heating as a full grid over ``(radius, colatitude, longitude[, time])`` or reduced.
 
         With ``orbit_averaged=True`` (default) the quantity is the secular (cycle-averaged) volumetric
@@ -1520,7 +1550,13 @@ cdef class LayeredWorld(BaseWorld):
         so complementary bands add up to the full-sphere result. A band narrower than the full
         sphere always uses the Gauss-Legendre quadrature (the analytic Gram table is full-sphere
         only). The band has no effect when colatitude is not summed.
+
+        ``num_threads`` (default 1) spreads the per-point evaluation, which follows the radial solves on the
+        calling thread, over colatitude rows on that many threads; the result is identical for any thread
+        count. The analytic colatitude collapse has no per-point grid and always runs on one thread. Keep
+        the default inside a process pool. The heating is written straight into the returned arrays.
         """
+        _check_num_threads(num_threads)
         if not (0.0 <= colatitude_min < colatitude_max <= np.pi + 1.0e-12):
             raise ValueError("colatitude band must satisfy 0 <= colatitude_min < colatitude_max <= pi")
         cdef cpp_bool instantaneous = not orbit_averaged
@@ -1532,6 +1568,7 @@ cdef class LayeredWorld(BaseWorld):
         cfg.latitude_nodes   = latitude_nodes
         cfg.longitude_nodes  = longitude_nodes
         cfg.radial_slices    = radial_slices
+        cfg.num_threads      = num_threads
         cfg.latitude_analytic = <cpp_bool>latitude_analytic
         cfg.colatitude_min   = colatitude_min
         # The default (np.pi) can sit a rounding step above the C++ d_PI; clamp so the
@@ -1600,10 +1637,10 @@ cdef class LayeredWorld(BaseWorld):
         state.semi_major_axis   = semi_major_axis
         state.host_mass         = host_mass
 
-        cdef c_Heating3DCollapsed res
+        # The layout gives the output shape, so the heating can be written straight into numpy-owned buffers.
+        cdef c_Heating3DCollapsed layout
         with nogil:
-            res = self._layered_ptr.calc_3d_tides(
-                state,
+            layout = self._layered_ptr.calc_3d_tides_layout(
                 radii_ptr,
                 num_radii,
                 colat_ptr,
@@ -1615,25 +1652,58 @@ cdef class LayeredWorld(BaseWorld):
                 cfg)
 
         # Surviving-axis shape (row-major, order radius, colatitude, longitude, time).
-        cdef list shape = [<Py_ssize_t>res.shape[i] for i in range(res.shape.size())]
-        cdef dict out = {'radii': _vec_to_ndarray(res.radii),
-                         'colatitudes': _vec_to_ndarray(res.colatitudes),
-                         'longitudes': _vec_to_ndarray(res.longitudes)}
-        if instantaneous:
-            out['times'] = _vec_to_ndarray(res.times)
+        cdef list shape = [<Py_ssize_t>layout.shape[i] for i in range(layout.shape.size())]
+        cdef Py_ssize_t num_values = 1
+        cdef Py_ssize_t axis_length
+        for axis_length in shape:
+            num_values *= axis_length
+        cdef Py_ssize_t nlayers = <Py_ssize_t>layout.n_layers
+        cdef Py_ssize_t ntimes = <Py_ssize_t>layout.n_times
+        cdef Py_ssize_t num_layer_totals = nlayers * ntimes if layout.all_spatial_summed else 0
+        cdef cnp.ndarray values_arr = np.empty(num_values, dtype=np.float64)
+        cdef cnp.ndarray layer_totals_arr = np.empty(num_layer_totals, dtype=np.float64)
+        cdef double[::1] values_view
+        cdef double[::1] layer_totals_view
+        cdef double* values_ptr = NULL
+        cdef double* layer_totals_ptr = NULL
+        if num_values > 0:
+            values_view = values_arr
+            values_ptr = &values_view[0]
+        if num_layer_totals > 0:
+            layer_totals_view = layer_totals_arr
+            layer_totals_ptr = &layer_totals_view[0]
 
-        cdef Py_ssize_t nlayers = <Py_ssize_t>res.n_layers
-        cdef Py_ssize_t ntimes = <Py_ssize_t>res.n_times
-        if res.all_spatial_summed:
-            total = _vec_to_ndarray(res.values)
-            per_layer = _vec_to_ndarray(res.layer_totals).reshape(nlayers, ntimes)
-            if not instantaneous:
-                total = float(total[0]) if total.size else 0.0
-                per_layer = per_layer[:, 0]
-            out['total'] = total
-            out['per_layer'] = per_layer
+        with nogil:
+            self._layered_ptr.calc_3d_tides_into(
+                state,
+                radii_ptr,
+                num_radii,
+                colat_ptr,
+                num_colat,
+                lon_ptr,
+                num_lon,
+                time_ptr,
+                num_time,
+                cfg,
+                values_ptr,
+                layer_totals_ptr)
+
+        cdef dict out = {'radii': _vec_to_ndarray(layout.radii),
+                         'colatitudes': _vec_to_ndarray(layout.colatitudes),
+                         'longitudes': _vec_to_ndarray(layout.longitudes)}
+        if instantaneous:
+            out['times'] = _vec_to_ndarray(layout.times)
+
+        if layout.all_spatial_summed:
+            per_layer = layer_totals_arr.reshape(nlayers, ntimes)
+            if instantaneous:
+                out['total'] = values_arr
+                out['per_layer'] = per_layer
+            else:
+                out['total'] = float(values_arr[0]) if num_values else 0.0
+                out['per_layer'] = per_layer[:, 0]
         else:
-            out['heating'] = _vec_to_ndarray(res.values).reshape(shape) if shape else _vec_to_ndarray(res.values)
+            out['heating'] = values_arr.reshape(shape) if shape else values_arr
         return out
 
     # ------------------------------------------------------------------------------------------------------------------

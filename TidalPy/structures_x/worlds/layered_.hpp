@@ -1126,28 +1126,23 @@ public:
     // (radii[i], colatitudes[i]), written into out_heating[i]. Same physics/preconditions as the scalar
     // get_3d_tidal_heating, but the radial solve is amortized across points (one solve per unique (l,
     // frequency) rather than per point), so it is the efficient way to build a map. Defined out-of-line
-    // in world_tides_.hpp.
+    // in world_tides_.hpp. num_threads: threads for the per-point evaluation after the radial solves.
     void get_3d_tidal_heating_array(
             const c_TideSolveConfig& state,
             const double* radii,
             const double* colatitudes,
             size_t num_points,
-            double* out_heating);
+            double* out_heating,
+            int num_threads = 1);
 
     // Instantaneous tidal displacements [m] on the (radius, colatitude, longitude, time) grid; see
     // c_RheologyTide::calc_3d_displacements_grid. Same rheology + solved-EOS preconditions as
     // get_3d_tidal_heating. Defined out-of-line in world_tides_.hpp.
     void get_3d_displacements_grid(
             const c_TideSolveConfig& state,
-            const double* radii,
-            size_t num_radii,
-            const double* colatitudes,
-            size_t num_colatitudes,
-            const double* longitudes,
-            size_t num_longitudes,
-            const double* times,
-            size_t num_times,
-            double* out_disp);
+            const c_Grid3DAxes& axes,
+            double* out_disp,
+            int num_threads = 1);
 
     // Instantaneous stress [Pa] and strain on the (radius, colatitude, longitude, time) grid; see
     // c_RheologyTide::calc_3d_stress_strain_grid. Same rheology + solved-EOS preconditions as
@@ -1156,7 +1151,8 @@ public:
             const c_TideSolveConfig& state,
             const c_Grid3DAxes& axes,
             double* out_stress,
-            double* out_strain);
+            double* out_strain,
+            int num_threads = 1);
 
     // Collapsed (summed/averaged) secular 3D tidal heating (see c_Heating3DCollapseConfig): the radial
     // power profile, colatitude profile, per-layer totals, and/or whole-planet total, per the flags.
@@ -1173,6 +1169,38 @@ public:
             const double* times,
             size_t num_times,
             const c_Heating3DCollapseConfig& cfg);
+
+    // The axes and output shape calc_3d_tides produces for these inputs, with values and layer_totals left empty,
+    // so a caller can allocate the buffers calc_3d_tides_into fills. Needs only the layer geometry. Defined
+    // out-of-line in world_tides_.hpp.
+    c_Heating3DCollapsed calc_3d_tides_layout(
+            const double* radii,
+            size_t num_radii,
+            const double* colatitudes,
+            size_t num_colatitudes,
+            const double* longitudes,
+            size_t num_longitudes,
+            const double* times,
+            size_t num_times,
+            const c_Heating3DCollapseConfig& cfg);
+
+    // calc_3d_tides written into caller buffers: out_values holds as many doubles as the layout's shape, and
+    // out_layer_totals n_layers * n_times doubles when all three spatial axes are summed (null otherwise). The
+    // radial solves run on the calling thread and the per-point evaluation on up to cfg.num_threads threads; the
+    // result is identical for any thread count. Defined out-of-line in world_tides_.hpp.
+    void calc_3d_tides_into(
+            const c_TideSolveConfig& state,
+            const double* radii,
+            size_t num_radii,
+            const double* colatitudes,
+            size_t num_colatitudes,
+            const double* longitudes,
+            size_t num_longitudes,
+            const double* times,
+            size_t num_times,
+            const c_Heating3DCollapseConfig& cfg,
+            double* out_values,
+            double* out_layer_totals);
 
     // Effective per-layer tidal-heating scale for the layer's tidal_scale_method (defined in
     // world_tides_.hpp). Used by calc_tides to distribute the global heating to the layers.

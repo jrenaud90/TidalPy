@@ -329,17 +329,23 @@ inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
     return active;
 }
 
-// Evaluate a coherent wave's complex potential angular factor U_c and its theta/phi derivatives at a point:
-//   U_c = amplitude * P_lm(cos theta) * e^{i mu phi},   mu = azimuthal_sign * m,
-// with U(t) = Re[U_c e^{i |omega| t}]. Theta derivatives act on P_lm; phi derivatives bring a factor i*mu.
-inline c_PotentialPointC c_eval_wave_point_3d(
-        const c_TidalWave3D& wave,
-        double colatitude,
-        double longitude)
+// e^{i mu phi}, the longitude phasor of a wave with signed azimuthal wavenumber mu.
+inline std::complex<double> c_azimuthal_phasor(double mu, double longitude)
 {
-    const c_LegendreValue legendre = c_legendre(wave.degree_l, wave.order_m, colatitude);
+    return std::complex<double>(std::cos(mu * longitude), std::sin(mu * longitude));
+}
+
+// A coherent wave's complex potential angular factor U_c and its theta/phi derivatives from its Legendre values at
+// the colatitude and its phasor e^{i mu phi} at the longitude:
+//   U_c = amplitude * P_lm(cos theta) * e^{i mu phi},   mu = azimuthal_sign * m,
+// with U(t) = Re[U_c e^{i |omega| t}]. Theta derivatives act on P_lm; phi derivatives bring a factor i*mu. A grid
+// shares the Legendre values across the waves of one (l, m) and the phasor across the waves of one mu.
+inline c_PotentialPointC c_wave_point_from_parts(
+        const c_TidalWave3D& wave,
+        const c_LegendreValue& legendre,
+        const std::complex<double>& e_imuphi)
+{
     const double mu = static_cast<double>(wave.azimuthal_sign) * static_cast<double>(wave.order_m);
-    const std::complex<double> e_imuphi(std::cos(mu * longitude), std::sin(mu * longitude));
     const std::complex<double> phasor = wave.amplitude * e_imuphi;
     const std::complex<double> i_mu(0.0, mu);
 
@@ -351,6 +357,19 @@ inline c_PotentialPointC c_eval_wave_point_3d(
         phasor * (-mu * mu * legendre.p),        // d2U/dphi2
         phasor * (i_mu * legendre.dp_dtheta)     // d2U/dtheta_dphi
     };
+}
+
+// Evaluate a coherent wave's complex potential angular factor U_c and its theta/phi derivatives at a point.
+inline c_PotentialPointC c_eval_wave_point_3d(
+        const c_TidalWave3D& wave,
+        double colatitude,
+        double longitude)
+{
+    const double mu = static_cast<double>(wave.azimuthal_sign) * static_cast<double>(wave.order_m);
+    return c_wave_point_from_parts(
+        wave,
+        c_legendre(wave.degree_l, wave.order_m, colatitude),
+        c_azimuthal_phasor(mu, longitude));
 }
 
 } // namespace tidalpy

@@ -130,7 +130,7 @@ Non-summed spatial axes take user arrays (`radii`, `colatitudes`, `longitudes`);
 
 The colatitude integral can also be restricted to a **latitude band**: with `latitude_summed`, pass `colatitude_min` / `colatitude_max` [rad] (defaults 0 and pi) to integrate only `colatitude_min <= theta <= colatitude_max`. Complementary bands add up to the full-sphere result, so zonal heating budgets (polar caps vs an equatorial belt, say) come from a few banded calls. A band narrower than the full sphere always uses the Gauss-Legendre quadrature (the analytic Gram table is full-sphere only); the band has no effect when colatitude is not summed.
 
-The returned dict carries the surviving axes plus either `heating` (the grid over the surviving axes, in the order radius, colatitude, longitude, time) or, when all three spatial axes are summed, `total` [W] and `per_layer` [W]:
+The returned dict carries the surviving axes plus either `heating` (the grid over the surviving axes, in the order radius, colatitude, longitude, time) or, when all three spatial axes are summed, `total` [W] and `per_layer` [W]. The C++ code writes the heating straight into the returned arrays:
 
 ```python
 longitudes = np.linspace(0.0, 2.0 * np.pi, 60)
@@ -230,6 +230,28 @@ peak_stress = np.abs(tensors['stress']).max(axis=3)   # Largest magnitude of eac
 ```
 
 Each tensor takes 48 bytes per grid point and time, and either can be skipped with `return_stress=False` or `return_strain=False`. The C++ code writes directly into the returned arrays. The kernel applies to solid layers only, so a point in a liquid layer, or at a radius without a depth-resolved solution, is NaN. Like the displacement grid, the stress and strain grids carry the time-varying tide only: modes at zero forcing frequency, the permanent tide, are not included. Over a common period of the modes each component therefore averages to zero, even in a strongly dissipative body. Dissipation shows up instead as a lag of the strain behind the stress and as the positive mean power that `calc_3d_tides` returns.
+
+#### Threads
+
+Every grid method, `get_3d_tidal_heating_array`, `calc_3d_tides`, `calc_3d_displacements`, and `calc_3d_stress_strain`, takes `num_threads`, default 1. The radial solves run first on the calling thread. The per-point evaluation after them runs over colatitude rows on up to `num_threads` threads, and rows that add into the same cells, as when colatitude is summed, are combined in row order, so the result is identical for any thread count. The analytic colatitude collapse of `calc_3d_tides`, the default when the secular heating is summed over colatitude, has no per-point grid and always runs on one thread.
+
+The default leaves parallelism to the caller: inside a process pool whose workers already occupy every core, keep `num_threads=1`. For one large grid in an interactive session, pass the number of cores. Notebook 13 times three grids both ways.
+
+```python
+import os
+
+grid = world.calc_3d_tides(
+    orbital_frequency,
+    spin_frequency,
+    eccentricity,
+    obliquity,
+    semi_major_axis,
+    host_mass,
+    radii=radii,
+    colatitudes=colatitudes,
+    longitudes=longitudes,
+    num_threads=os.cpu_count())['heating']   # The same values as num_threads=1, computed on every core
+```
 
 ### Engine + Kernel Access
 

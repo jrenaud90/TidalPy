@@ -39,7 +39,7 @@ These demos target the **Python** API. C++ API demos may be added later.
     over roughly a billion years with CyRK.
 
 ### Three-dimensional maps
-13. `13_tidal_maps_3d` (in `Physics/`) - maps of the 3D tidal response of a homogeneous Io: secular heating across eccentricity, spin, and obliquity; stress through an orbit; the largest tension over an orbit; stress-strain loops and where dissipation appears; and the surface displacement.
+13. `13_tidal_maps_3d` (in `Physics/`) - maps of the 3D tidal response of a homogeneous Io: secular heating across eccentricity, spin, and obliquity; stress through an orbit; the largest tension over an orbit; stress-strain loops and where dissipation appears; the surface displacement; and the same grids timed on one thread and on every core.
 
 ## Running the notebooks
 

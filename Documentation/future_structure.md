@@ -82,6 +82,18 @@ Steady-state timings hide something users feel immediately. The classic backend 
 
 A script that computes one 3D map and exits spends about a second in the classic backend once its cache is warm, nearly five seconds the first time after installing, and about six milliseconds in the new one, whatever the steady-state ratio says.
 
+### More threads for 3D grids
+
+The 3D grid methods, `calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`, and `get_3d_tidal_heating_array`, take `num_threads`, which spreads the per-point evaluation over threads. The default of 1 leaves parallelism to the caller, such as a process pool, and every thread count returns identical values. The classic backend has no equivalent. The table times three grids of a homogeneous Io at degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, on 20 radii by 45 colatitudes by 90 longitudes, using the `tides_3d:*_1_thread` and `tides_3d:*_all_threads` tasks in `Benchmarks_x/Performance` on the same machine and its 16 hardware threads. Each figure is the lowest of three fresh processes, each taking the best of three batches.
+
+| Grid | 1 thread | 16 threads | Change |
+|---|---|---|---|
+| Secular heating map | 208 ms | 81 ms | **2.6x faster** |
+| Stress and strain, 4 times | 310 ms | 105 ms | **3.0x faster** |
+| Displacements, 24 times | 347 ms | 122 ms | **2.8x faster** |
+
+The gain stops well short of the thread count because the radial solves, about 50 ms of each call here, always run on one thread. The work after them grows with the grid while the solves do not, so larger grids gain more.
+
 ## Module map
 
 | Classic module | Replacement | Documentation |

@@ -153,53 +153,55 @@ public:
     // built once and the world radial (Love-number) solve is amortized across all points (it depends on
     // (l, |omega|) only, not on radius/colatitude), so building a map costs one radial solve per unique
     // (l, |omega|) rather than one per point. out_heating[i] is NaN for a point at the center / below the
-    // solver's starting radius. Defined out-of-line in world_tides_.hpp.
+    // solver's starting radius. Points that share a colatitude share its angular work, and the colatitudes run
+    // on up to num_threads threads. Defined out-of-line in world_tides_.hpp.
     void calc_3d_tidal_heating_batch(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
             const double* radii,
             const double* colatitudes,
             size_t num_points,
-            double* out_heating) const;
+            double* out_heating,
+            int num_threads) const;
 
-    // Instantaneous tidal displacements [m] (radial, polar, azimuthal) on the full grid radii x
-    // colatitudes x longitudes x times. Each coherent wave's complex displacement amplitude at (r, theta,
-    // phi), (y1 U_c, y3 dU_c/dtheta, y3 dU_c/dphi / sin theta), is evolved in time as Re[u_c e^{i |omega| t}]
-    // and the waves are summed. The radial solve and the y1/y3 samples are computed once per unique
-    // (l, |omega|). out_disp holds
-    // 3 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component); NaN at a radius with no
-    // depth-resolved solution (center / below the solver start). Defined out-of-line in world_tides_.hpp.
+    // Instantaneous tidal displacements [m] (radial, polar, azimuthal) on the axes' (radius, colatitude,
+    // longitude, time) grid. Each coherent wave's complex displacement amplitude at (r, theta, phi),
+    // (y1 U_c, y3 dU_c/dtheta, y3 dU_c/dphi / sin theta), is added into the total of its frequency, and each
+    // component at time t is the sum over frequencies of Re[amplitude e^{i |omega| t}]. The radial solve and
+    // the y1/y3 samples are computed once per unique (l, |omega|), and the colatitudes run on up to num_threads
+    // threads. out_disp holds 3 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component); NaN at a
+    // radius with no depth-resolved solution (center / below the solver start). Defined out-of-line in
+    // world_tides_.hpp.
     void calc_3d_displacements_grid(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
-            const double* radii,
-            size_t num_radii,
-            const double* colatitudes,
-            size_t num_colatitudes,
-            const double* longitudes,
-            size_t num_longitudes,
-            const double* times,
-            size_t num_times,
-            double* out_disp) const;
+            const c_Grid3DAxes& axes,
+            double* out_disp,
+            int num_threads) const;
 
     // Instantaneous stress [Pa] and strain on the axes' (radius, colatitude, longitude, time) grid, written into
     // out_stress and out_strain as 6 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component) with the
     // components rr, theta-theta, phi-phi, r-theta, r-phi, theta-phi. Either output may be null to skip it. NaN
     // where no wave has a shear kernel: a radius with no depth-resolved solution or a liquid layer. Modes at zero
-    // forcing frequency (the permanent tide) are not included. Defined out-of-line in world_tides_.hpp.
+    // forcing frequency (the permanent tide) are not included. The colatitudes run on up to num_threads threads.
+    // Defined out-of-line in world_tides_.hpp.
     void calc_3d_stress_strain_grid(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
             const c_Grid3DAxes& axes,
             double* out_stress,
-            double* out_strain) const;
+            double* out_strain,
+            int num_threads) const;
 
     // Collapsed (summed/averaged) secular 3D tidal heating: reduces the density along any of the
     // colatitude / longitude / radial dimensions per the flags in cfg (see c_Heating3DCollapseConfig).
     // radii/colatitudes are the user grids for the NON-summed axes (ignored for a summed axis, which
-    // uses an internal integration grid). Returns the marginal power density on the surviving axes plus,
-    // when radial_summed, the whole-planet and per-layer totals. Defined out-of-line in world_tides_.hpp.
-    c_Heating3DCollapsed calc_3d_tidal_heating_collapsed(
+    // uses an internal integration grid). Writes the marginal power density on the surviving axes into
+    // out_values (as many doubles as the shape c_LayeredWorld::calc_3d_tides_layout reports) and, when all
+    // three spatial axes are summed, the per-layer totals into out_layer_totals (n_layers * n_times doubles;
+    // null otherwise). The radial solves run on the calling thread and the per-point evaluation on up to
+    // cfg.num_threads threads. Defined out-of-line in world_tides_.hpp.
+    void calc_3d_tidal_heating_collapsed(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
             const double* radii,
@@ -210,7 +212,9 @@ public:
             size_t num_longitudes,
             const double* times,
             size_t num_times,
-            const c_Heating3DCollapseConfig& cfg) const;
+            const c_Heating3DCollapseConfig& cfg,
+            double* out_values,
+            double* out_layer_totals) const;
 
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::RheologyTide));

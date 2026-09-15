@@ -32,16 +32,56 @@ struct c_Tensor6
     std::array<std::complex<double>, 6> c { };
 };
 
-// Compute the 6 strain and 6 stress components at one point from the radial coefficients, the
-// potential point, and the colatitude (needed for sin/cot factors).
-// If the radial coefficients are invalid (liquid / center), the components are NaN.
-// Templated on the potential-point type; every caller passes the complex phasor c_PotentialPointC, so the
-// strains and stresses are complex amplitudes at the mode's frequency.
+// 1 / sin(theta) and 1 / tan(theta) as the strain uses them, NaN where either is singular (a pole, or the equator for
+// the cotangent's tangent).
+struct c_ColatitudeTrig
+{
+    double sin_inv   = 0.0;
+    double cot_theta = 0.0;
+};
+
+inline c_ColatitudeTrig c_colatitude_trig(double colatitude) noexcept
+{
+    const double sin_theta = std::sin(colatitude);
+    const double tan_theta = std::tan(colatitude);
+    c_ColatitudeTrig trig;
+    trig.sin_inv   = (sin_theta == 0.0) ? std::numeric_limits<double>::quiet_NaN() : 1.0 / sin_theta;
+    trig.cot_theta = (tan_theta == 0.0) ? std::numeric_limits<double>::quiet_NaN() : 1.0 / tan_theta;
+    return trig;
+}
+
+// The part of the strain at a point that depends on the potential point and the colatitude but not on radius. A grid
+// forms these once per (colatitude, longitude) and reuses them at every radius.
+struct c_AngularStrainFactors
+{
+    std::complex<double> U;             // U
+    std::complex<double> dU_dtheta;     // dU/dtheta
+    std::complex<double> d2U_dtheta2;   // d2U/dtheta2
+    std::complex<double> s2_t1;         // d2U/dphi2 / sin^2(theta) + cot(theta) dU/dtheta
+    std::complex<double> s4_t0;         // dU/dphi / sin(theta)
+    std::complex<double> s5_t0;         // 2 (d2U/dtheta dphi - cot(theta) dU/dphi) / sin(theta)
+};
+
+// The angular strain factors of a potential point at a colatitude. Templated on the potential-point type like
+// c_compute_strain_stress.
 template <typename PotentialPointT>
-inline void c_compute_strain_stress(
+inline c_AngularStrainFactors c_angular_strain_factors(const PotentialPointT& P, const c_ColatitudeTrig& trig) noexcept
+{
+    c_AngularStrainFactors A;
+    A.U           = P.U;
+    A.dU_dtheta   = P.dU_dtheta;
+    A.d2U_dtheta2 = P.d2U_dtheta2;
+    A.s2_t1       = (trig.sin_inv * trig.sin_inv) * P.d2U_dphi2 + trig.cot_theta * P.dU_dtheta;
+    A.s4_t0       = P.dU_dphi * trig.sin_inv;
+    A.s5_t0       = 2.0 * (P.d2U_dtheta_dphi - trig.cot_theta * P.dU_dphi) * trig.sin_inv;
+    return A;
+}
+
+// Compute the 6 strain and 6 stress components at one point from the radial coefficients and the angular strain
+// factors. If the radial coefficients are invalid (liquid / center), the components are NaN.
+inline void c_compute_strain_stress_from_factors(
         const c_StrainRadialCoeffs& R,
-        const PotentialPointT& P,
-        double colatitude,
+        const c_AngularStrainFactors& A,
         c_Tensor6& strain_out,
         c_Tensor6& stress_out) noexcept
 {
@@ -60,25 +100,15 @@ inline void c_compute_strain_stress(
         return;
     }
 
-    const double sin_theta = std::sin(colatitude);
-    const double sin_inv   = (sin_theta == 0.0) ? std::numeric_limits<double>::quiet_NaN() : 1.0 / sin_theta;
-    const double tan_theta = std::tan(colatitude);
-    const double cot_theta = (tan_theta == 0.0) ? std::numeric_limits<double>::quiet_NaN() : 1.0 / tan_theta;
-
-    // Angular helper combinations (auto: the potential point's value type).
-    const auto s2_t1 = (sin_inv * sin_inv) * P.d2U_dphi2 + cot_theta * P.dU_dtheta;
-    const auto s4_t0 = P.dU_dphi * sin_inv;
-    const auto s5_t0 = 2.0 * (P.d2U_dtheta_dphi - cot_theta * P.dU_dphi) * sin_inv;
-
-    const std::complex<double> y1_r_U = R.y1_over_r * P.U;
+    const std::complex<double> y1_r_U = R.y1_over_r * A.U;
 
     // Strain components.
-    strain_out.c[0] = R.dy1_dr * P.U;                        // eps_rr
-    strain_out.c[1] = R.y3_over_r * P.d2U_dtheta2 + y1_r_U;  // eps_thth
-    strain_out.c[2] = y1_r_U + R.y3_over_r * s2_t1;          // eps_phph  (Kervazo-corrected)
-    strain_out.c[3] = R.y4_over_2mu * P.dU_dtheta;           // eps_rth
-    strain_out.c[4] = R.y4_over_2mu * s4_t0;                 // eps_rph
-    strain_out.c[5] = R.y3_over_2r * s5_t0;                  // eps_thph  (Kervazo-corrected)
+    strain_out.c[0] = R.dy1_dr * A.U;                        // eps_rr
+    strain_out.c[1] = R.y3_over_r * A.d2U_dtheta2 + y1_r_U;  // eps_thth
+    strain_out.c[2] = y1_r_U + R.y3_over_r * A.s2_t1;        // eps_phph  (Kervazo-corrected)
+    strain_out.c[3] = R.y4_over_2mu * A.dU_dtheta;           // eps_rth
+    strain_out.c[4] = R.y4_over_2mu * A.s4_t0;               // eps_rph
+    strain_out.c[5] = R.y3_over_2r * A.s5_t0;                // eps_thph  (Kervazo-corrected)
 
     // Stress (isotropic, Takeuchi & Saito): sigma = 2 mu eps + lame tr(eps) delta.
     const std::complex<double> trace = strain_out.c[0] + strain_out.c[1] + strain_out.c[2];
@@ -89,6 +119,31 @@ inline void c_compute_strain_stress(
         stress_out.c[k] = two_mu * strain_out.c[k];
         if (k < 3) stress_out.c[k] += trace_lame;
     }
+}
+
+// Compute the 6 strain and 6 stress components at one point from the radial coefficients, the
+// potential point, and the colatitude (needed for sin/cot factors).
+// If the radial coefficients are invalid (liquid / center), the components are NaN.
+// Templated on the potential-point type; every caller passes the complex phasor c_PotentialPointC, so the
+// strains and stresses are complex amplitudes at the mode's frequency.
+template <typename PotentialPointT>
+inline void c_compute_strain_stress(
+        const c_StrainRadialCoeffs& R,
+        const PotentialPointT& P,
+        double colatitude,
+        c_Tensor6& strain_out,
+        c_Tensor6& stress_out) noexcept
+{
+    if (!R.valid)
+    {
+        c_compute_strain_stress_from_factors(R, c_AngularStrainFactors{}, strain_out, stress_out);
+        return;
+    }
+    c_compute_strain_stress_from_factors(
+        R,
+        c_angular_strain_factors(P, c_colatitude_trig(colatitude)),
+        strain_out,
+        stress_out);
 }
 
 // Magnitude of the weighted bilinear form [Pa] at a point from the 6 stress and strain amplitudes:

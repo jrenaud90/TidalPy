@@ -18,12 +18,17 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <complex>
 #include <cstddef>
+#include <exception>
 #include <map>
+#include <mutex>
 #include <stdexcept>
 #include <string>
+#include <system_error>
+#include <thread>
 #include <vector>
 
 #include "layered_.hpp"
@@ -231,6 +236,10 @@ struct c_WaveSet3D {
     std::vector<int> wave_radial_group;           // per wave, index into radial_groups
     std::vector<double> frequencies;              // unique |omega|: waves sharing one combine coherently
     std::vector<int> wave_frequency_group;        // per wave, index into frequencies
+    std::vector<std::array<int, 2>> angular_pairs; // unique (degree l, order m): one Legendre evaluation each
+    std::vector<int> wave_angular_pair;           // per wave, index into angular_pairs
+    std::vector<int> azimuthal_orders;            // unique signed azimuthal wavenumber mu = azimuthal_sign * m
+    std::vector<int> wave_azimuthal_order;        // per wave, index into azimuthal_orders
 };
 
 inline c_WaveSet3D c_build_wave_set_3d(
@@ -241,6 +250,8 @@ inline c_WaveSet3D c_build_wave_set_3d(
     const size_t num_waves = set.waves.size();
     set.wave_radial_group.assign(num_waves, -1);
     set.wave_frequency_group.assign(num_waves, -1);
+    set.wave_angular_pair.assign(num_waves, -1);
+    set.wave_azimuthal_order.assign(num_waves, -1);
     for (size_t w = 0; w < num_waves; ++w) {
         const c_TidalWave3D& wave = set.waves[w];
         int radial_group = -1;
@@ -269,6 +280,16 @@ inline c_WaveSet3D c_build_wave_set_3d(
             set.frequencies.push_back(wave.frequency);
         }
         set.wave_frequency_group[w] = frequency_group;
+
+        // Waves of one (l, m) share their Legendre values at a colatitude, and waves of one mu their e^{i mu phi}.
+        const std::array<int, 2> pair{wave.degree_l, wave.order_m};
+        const auto pair_found = std::find(set.angular_pairs.begin(), set.angular_pairs.end(), pair);
+        set.wave_angular_pair[w] = static_cast<int>(pair_found - set.angular_pairs.begin());
+        if (pair_found == set.angular_pairs.end()) { set.angular_pairs.push_back(pair); }
+        const int mu = wave.azimuthal_sign * wave.order_m;
+        const auto mu_found = std::find(set.azimuthal_orders.begin(), set.azimuthal_orders.end(), mu);
+        set.wave_azimuthal_order[w] = static_cast<int>(mu_found - set.azimuthal_orders.begin());
+        if (mu_found == set.azimuthal_orders.end()) { set.azimuthal_orders.push_back(mu); }
     }
     return set;
 }
@@ -442,26 +463,68 @@ struct c_FrequencyAmplitudes3D {
         active(num_frequencies, 0) {}
 };
 
-// Fill the amplitudes at (colatitude, longitude) from the strain radial coefficients of every radial group at one
-// radius. Every wave with a shear kernel there is added into the total of its frequency: waves at one frequency
-// superpose, so every cross term between them is kept. Returns false when no wave has a shear kernel (a liquid layer).
+// The radius-independent part of every wave of a set at one (colatitude, longitude), which a grid forms once per point
+// and reuses at every radius. c_wave_angular_colatitude_3d sets the colatitude: the Legendre values of each (l, m) and
+// the sine and cotangent factors. c_wave_angular_longitude_3d then sets the longitude: the phasor e^{i mu phi} of each
+// mu, every wave's potential point, and, when asked, every wave's angular strain factors.
+struct c_WaveAngular3D {
+    std::vector<c_LegendreValue> legendre;                  // [angular pair] at the colatitude
+    tides::c_ColatitudeTrig trig;                           // sine and cotangent factors of the colatitude
+    std::vector<std::complex<double>> phasors;              // [azimuthal order] at the longitude
+    std::vector<c_PotentialPointC> potentials;              // [wave] at the point
+    std::vector<tides::c_AngularStrainFactors> factors;     // [wave] at the point, when strain factors were asked for
+
+    explicit c_WaveAngular3D(const c_WaveSet3D& set) :
+        legendre(set.angular_pairs.size()),
+        phasors(set.azimuthal_orders.size()),
+        potentials(set.waves.size()),
+        factors(set.waves.size()) {}
+};
+
+inline void c_wave_angular_colatitude_3d(const c_WaveSet3D& set, double colatitude, c_WaveAngular3D& angular) {
+    angular.trig = tides::c_colatitude_trig(colatitude);
+    for (size_t pair = 0; pair < set.angular_pairs.size(); ++pair) {
+        angular.legendre[pair] = c_legendre(set.angular_pairs[pair][0], set.angular_pairs[pair][1], colatitude);
+    }
+}
+
+inline void c_wave_angular_longitude_3d(
+        const c_WaveSet3D& set,
+        double longitude,
+        bool strain_factors,
+        c_WaveAngular3D& angular) {
+    for (size_t order = 0; order < set.azimuthal_orders.size(); ++order) {
+        angular.phasors[order] = c_azimuthal_phasor(static_cast<double>(set.azimuthal_orders[order]), longitude);
+    }
+    for (size_t w = 0; w < set.waves.size(); ++w) {
+        angular.potentials[w] = c_wave_point_from_parts(
+            set.waves[w],
+            angular.legendre[static_cast<size_t>(set.wave_angular_pair[w])],
+            angular.phasors[static_cast<size_t>(set.wave_azimuthal_order[w])]);
+        if (strain_factors) {
+            angular.factors[w] = tides::c_angular_strain_factors(angular.potentials[w], angular.trig);
+        }
+    }
+}
+
+// Fill the amplitudes at one point from its wave angular state (with strain factors) and the strain radial
+// coefficients of every radial group at one radius. Every wave with a shear kernel there is added into the total of
+// its frequency: waves at one frequency superpose, so every cross term between them is kept. Returns false when no
+// wave has a shear kernel (a liquid layer).
 inline bool c_frequency_amplitudes_3d(
         const c_WaveSet3D& set,
         const std::vector<tides::c_StrainRadialCoeffs>& coeffs_at_radius,
-        double colatitude,
-        double longitude,
+        const c_WaveAngular3D& angular,
         c_FrequencyAmplitudes3D& amplitudes) {
     std::fill(amplitudes.active.begin(), amplitudes.active.end(), 0);
     bool any_kernel = false;
     for (size_t w = 0; w < set.waves.size(); ++w) {
         const tides::c_StrainRadialCoeffs& radial = coeffs_at_radius[set.wave_radial_group[w]];
         if (!radial.valid) { continue; }
-        const c_PotentialPointC potential = c_eval_wave_point_3d(set.waves[w], colatitude, longitude);
         tides::c_Tensor6 strain, stress;
-        tides::c_compute_strain_stress(
+        tides::c_compute_strain_stress_from_factors(
             radial,
-            potential,
-            colatitude,
+            angular.factors[w],
             strain,
             stress);
         const size_t f = static_cast<size_t>(set.wave_frequency_group[w]);
@@ -485,36 +548,54 @@ inline int c_wave_mu(const c_TidalWave3D& wave) {
     return wave.azimuthal_sign * wave.order_m;
 }
 
-// Secular density at one point. coeffs_by_group[g] is radial group g's strain radial coefficient set at this
-// radius (valid == false where the group has no shear kernel there). longitude_averaged -> the longitude mean
-// (waves split by mu, evaluated at phi = 0); otherwise the pointwise value at `longitude`.
-inline double c_secular_density_3d(
-        const c_WaveSet3D& set,
-        const std::vector<tides::c_StrainRadialCoeffs>& coeffs_by_group,
-        double colatitude,
-        double longitude,
-        bool longitude_averaged) {
-    double heating = 0.0;
+// The waves the secular density sums coherently: one group per frequency, or per (frequency, mu) for the longitude
+// mean, over which waves of different mu average out. Groups are listed in order of first appearance and their members
+// in wave order, the order the sums run in.
+struct c_SecularGroup3D {
+    int frequency_group = 0;
+    std::vector<size_t> waves;
+};
+
+inline std::vector<c_SecularGroup3D> c_secular_groups_3d(const c_WaveSet3D& set, bool split_by_mu) {
+    std::vector<c_SecularGroup3D> groups;
     const size_t num_waves = set.waves.size();
     std::vector<unsigned char> done(num_waves, 0);
     for (size_t w0 = 0; w0 < num_waves; ++w0) {
         if (done[w0]) { continue; }
-        const int frequency_group = set.wave_frequency_group[w0];
+        c_SecularGroup3D group;
+        group.frequency_group = set.wave_frequency_group[w0];
         const int mu0 = c_wave_mu(set.waves[w0]);
+        for (size_t w = w0; w < num_waves; ++w) {
+            if (done[w] || set.wave_frequency_group[w] != group.frequency_group) { continue; }
+            if (split_by_mu && c_wave_mu(set.waves[w]) != mu0) { continue; }
+            done[w] = 1;
+            group.waves.push_back(w);
+        }
+        groups.push_back(std::move(group));
+    }
+    return groups;
+}
+
+// Secular density at one point: each group's waves summed into a total complex stress and strain, then
+// (|omega|/2) Im(sigma_c : conj(eps_c)) summed over the groups. coeffs_by_group[g] is radial group g's strain radial
+// coefficient set at this radius (valid == false where the group has no shear kernel there), and the wave angular
+// state carries strain factors at the point (the longitude mean evaluates it at phi = 0).
+inline double c_secular_density_3d(
+        const c_WaveSet3D& set,
+        const std::vector<c_SecularGroup3D>& groups,
+        const std::vector<tides::c_StrainRadialCoeffs>& coeffs_by_group,
+        const c_WaveAngular3D& angular) {
+    double heating = 0.0;
+    for (const c_SecularGroup3D& group : groups) {
         tides::c_Tensor6 stress_total;
         tides::c_Tensor6 strain_total;
         bool any = false;
-        for (size_t w = w0; w < num_waves; ++w) {
-            if (done[w] || set.wave_frequency_group[w] != frequency_group) { continue; }
-            if (longitude_averaged && c_wave_mu(set.waves[w]) != mu0) { continue; }
-            done[w] = 1;
+        for (const size_t w : group.waves) {
             const tides::c_StrainRadialCoeffs& radial = coeffs_by_group[set.wave_radial_group[w]];
             if (!radial.valid) { continue; }
-            const c_PotentialPointC potential =
-                c_eval_wave_point_3d(set.waves[w], colatitude, longitude_averaged ? 0.0 : longitude);
             tides::c_Tensor6 strain;
             tides::c_Tensor6 stress;
-            tides::c_compute_strain_stress(radial, potential, colatitude, strain, stress);
+            tides::c_compute_strain_stress_from_factors(radial, angular.factors[w], strain, stress);
             for (size_t k = 0; k < 6; ++k) {
                 stress_total.c[k] += stress.c[k];
                 strain_total.c[k] += strain.c[k];
@@ -522,11 +603,183 @@ inline double c_secular_density_3d(
             any = true;
         }
         if (any) {
-            heating += 0.5 * set.frequencies[frequency_group]
+            heating += 0.5 * set.frequencies[group.frequency_group]
                      * tides::c_volumetric_heating_signed(stress_total, strain_total);
         }
     }
     return heating;
+}
+
+// Run body(task) for every task in 0..num_tasks-1 on up to num_threads threads, the calling thread among them. Tasks
+// start in index order but may finish in any order, so a task must write only outputs no other task writes. The first
+// exception a task throws stops further tasks from starting and is rethrown on the calling thread once every thread
+// has finished. If the system refuses a thread, the threads already running finish the work.
+template <typename Body>
+inline void c_parallel_tasks_3d(size_t num_tasks, int num_threads, const Body& body) {
+    const size_t workers = std::min(num_tasks, static_cast<size_t>(std::max(num_threads, 1)));
+    if (workers <= 1) {
+        for (size_t task = 0; task < num_tasks; ++task) { body(task); }
+        return;
+    }
+    std::atomic<size_t> next_task(0);
+    std::atomic<bool> failed(false);
+    std::exception_ptr first_error;
+    std::mutex error_mutex;
+    const auto work = [&]() {
+        for (;;) {
+            const size_t task = next_task.fetch_add(1);
+            if (task >= num_tasks || failed.load()) { return; }
+            try {
+                body(task);
+            } catch (...) {
+                const std::lock_guard<std::mutex> lock(error_mutex);
+                if (!first_error) { first_error = std::current_exception(); }
+                failed.store(true);
+                return;
+            }
+        }
+    };
+    std::vector<std::thread> threads;
+    threads.reserve(workers - 1);
+    try {
+        for (size_t worker = 1; worker < workers; ++worker) { threads.emplace_back(work); }
+    } catch (const std::system_error&) {
+        // No more threads available: the ones already started and this one run the remaining tasks.
+    }
+    work();
+    for (std::thread& thread : threads) { thread.join(); }
+    if (first_error) { std::rethrow_exception(first_error); }
+}
+
+// The axis grids and integration weights of one collapsed 3D heating call: the user axis for each surviving
+// dimension and an internal quadrature for each summed one.
+struct c_CollapseGrids3D {
+    bool instantaneous = false;
+    bool any_summed = false;
+    bool latitude_full_sphere = true;
+    std::vector<double> r_grid, r_wsum;     // r_wsum carries the r^2 Jacobian
+    std::vector<size_t> r_layer;            // layer index of each summed radial node
+    std::vector<double> th_grid, th_wsum;   // th_wsum absorbs sin theta
+    std::vector<double> ph_grid, ph_wsum;
+    std::vector<double> t_grid;
+};
+
+inline c_CollapseGrids3D c_collapse_grids_3d(
+        c_LayeredWorld& world,
+        const double* radii,
+        size_t num_radii,
+        const double* colatitudes,
+        size_t num_colatitudes,
+        const double* longitudes,
+        size_t num_longitudes,
+        const double* times,
+        size_t num_times,
+        const c_Heating3DCollapseConfig& cfg) {
+    const double two_pi = 2.0 * TidalPyConstants::d_PI;
+    c_CollapseGrids3D grids;
+    grids.instantaneous = !cfg.orbit_averaged;
+    grids.any_summed = cfg.latitude_summed || cfg.longitude_summed || cfg.radial_summed;
+
+    // Radius: user array unless summed. Summed: Gauss-Legendre nodes inside each layer, with r_wsum carrying the r^2
+    // Jacobian. No node sits on a layer boundary, where the modulus and radial-solution lookups take the layer below,
+    // so no node can weigh the lower layer's heating into the upper layer's integral.
+    if (cfg.radial_summed) {
+        const size_t num_layers = world.get_num_layers();
+        const int nodes_per_layer = (cfg.radial_slices > 0) ? cfg.radial_slices : 16;
+        std::vector<double> gl_r, gl_w;
+        tides::c_gauss_legendre_nodes(nodes_per_layer, gl_r, gl_w);
+        for (size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
+            const c_BaseLayer* layer = world.get_layer(layer_i);
+            const double r_mid  = 0.5 * (layer->get_radius_outer() + layer->get_radius_inner());
+            const double r_half = 0.5 * (layer->get_radius_outer() - layer->get_radius_inner());
+            for (int node = 0; node < nodes_per_layer; ++node) {
+                const double rr = r_mid + r_half * gl_r[node];
+                grids.r_grid.push_back(rr);
+                grids.r_wsum.push_back(r_half * gl_w[node] * rr * rr);  // Gauss-Legendre weight x r^2
+                grids.r_layer.push_back(layer_i);
+            }
+        }
+    } else {
+        grids.r_grid.assign(radii, radii + num_radii);
+    }
+    // Colatitude: user array unless summed (Gauss-Legendre in cos theta; the weight absorbs sin theta).
+    // A colatitude band [min, max] narrower than [0, pi] maps the nodes onto [cos(max), cos(min)]
+    // (affine substitution; the weights scale by the half-width) so the integral covers only the band.
+    grids.latitude_full_sphere =
+        (cfg.colatitude_min <= TidalPyConstants::d_EPS)
+        && (cfg.colatitude_max >= TidalPyConstants::d_PI - TidalPyConstants::d_EPS);
+    if (cfg.latitude_summed) {
+        if (cfg.colatitude_min < 0.0 || cfg.colatitude_max > TidalPyConstants::d_PI
+                || cfg.colatitude_min >= cfg.colatitude_max) {
+            throw std::invalid_argument(
+                "TidalPy: colatitude band must satisfy 0 <= colatitude_min < colatitude_max <= pi");
+        }
+        const int num_nodes = (cfg.latitude_nodes > 1) ? cfg.latitude_nodes : 48;
+        std::vector<double> gl_x;
+        tides::c_gauss_legendre_nodes(num_nodes, gl_x, grids.th_wsum);
+        const double x_lo = std::cos(cfg.colatitude_max);
+        const double x_hi = std::cos(cfg.colatitude_min);
+        const double x_mid  = 0.5 * (x_hi + x_lo);
+        const double x_half = 0.5 * (x_hi - x_lo);
+        grids.th_grid.resize(num_nodes);
+        for (int i = 0; i < num_nodes; ++i) {
+            grids.th_grid[i] = std::acos(x_mid + x_half * gl_x[i]);
+            grids.th_wsum[i] *= x_half;
+        }
+    } else {
+        grids.th_grid.assign(colatitudes, colatitudes + num_colatitudes);
+    }
+    // Longitude: user array unless summed. Secular -> analytic 2*pi on the longitude-mean density (single
+    // point). Instantaneous -> periodic trapezoid over [0, 2*pi) (uniform weight, no endpoint halving since the
+    // field is periodic).
+    if (cfg.longitude_summed) {
+        if (grids.instantaneous) {
+            const int num_nodes = (cfg.longitude_nodes > 1) ? cfg.longitude_nodes : 64;
+            const double dph = two_pi / static_cast<double>(num_nodes);
+            for (int k = 0; k < num_nodes; ++k) { grids.ph_grid.push_back(k * dph); grids.ph_wsum.push_back(dph); }
+        } else {
+            grids.ph_grid.push_back(0.0);
+            grids.ph_wsum.push_back(two_pi);
+        }
+    } else {
+        grids.ph_grid.assign(longitudes, longitudes + num_longitudes);
+    }
+    // Time: user array (instantaneous only); a single dummy sample when orbit-averaged.
+    if (grids.instantaneous) { grids.t_grid.assign(times, times + num_times); }
+    else { grids.t_grid.push_back(0.0); }
+    return grids;
+}
+
+// The reported axes, output shape, and layer and time counts of a collapsed call (values and layer_totals empty).
+inline c_Heating3DCollapsed c_collapse_layout_3d(
+        const c_CollapseGrids3D& grids,
+        const c_Heating3DCollapseConfig& cfg,
+        size_t num_layers) {
+    c_Heating3DCollapsed result;
+    const bool surv_r = !cfg.radial_summed;
+    const bool surv_th = !cfg.latitude_summed;
+    const bool surv_ph = !cfg.longitude_summed;
+    const bool surv_t = grids.instantaneous;
+    // Reported axes (surviving axes carry their grid; summed axes report empty).
+    if (surv_r)  { result.radii = grids.r_grid; }
+    if (surv_th) { result.colatitudes = grids.th_grid; }
+    if (surv_ph) { result.longitudes = grids.ph_grid; }
+    if (surv_t)  { result.times = grids.t_grid; }
+    result.all_spatial_summed = cfg.radial_summed && cfg.latitude_summed && cfg.longitude_summed;
+    result.n_layers = num_layers;
+    result.n_times = surv_t ? grids.t_grid.size() : 1;
+    if (surv_r)  { result.shape.push_back(grids.r_grid.size()); }
+    if (surv_th) { result.shape.push_back(grids.th_grid.size()); }
+    if (surv_ph) { result.shape.push_back(grids.ph_grid.size()); }
+    if (surv_t)  { result.shape.push_back(grids.t_grid.size()); }
+    return result;
+}
+
+// Number of output values a layout holds (the product of its shape; 1 for a fully summed secular total).
+inline size_t c_collapse_size_3d(const c_Heating3DCollapsed& layout) {
+    size_t size = 1;
+    for (const size_t axis_length : layout.shape) { size *= axis_length; }
+    return size;
 }
 
 typedef std::map<std::array<int, 3>, std::array<double, 36>> c_GramCache3D;
@@ -613,7 +866,7 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
         double radius,
         double colatitude) const {
     double heating = 0.0;
-    this->calc_3d_tidal_heating_batch(world, state, &radius, &colatitude, 1, &heating);
+    this->calc_3d_tidal_heating_batch(world, state, &radius, &colatitude, 1, &heating, 1);
     return heating;
 }
 
@@ -646,7 +899,8 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
         const double* radii,
         const double* colatitudes,
         size_t num_points,
-        double* out_heating) {
+        double* out_heating,
+        int num_threads) {
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world — call set_tide_model() first");
@@ -667,21 +921,16 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
         radii,
         colatitudes,
         num_points,
-        out_heating);
+        out_heating,
+        num_threads);
 }
 
 // World delegation for the displacement grid: same preconditions as the 3D heating paths.
 inline void c_LayeredWorld::get_3d_displacements_grid(
         const c_TideSolveConfig& state,
-        const double* radii,
-        size_t num_radii,
-        const double* colatitudes,
-        size_t num_colatitudes,
-        const double* longitudes,
-        size_t num_longitudes,
-        const double* times,
-        size_t num_times,
-        double* out_disp) {
+        const c_Grid3DAxes& axes,
+        double* out_disp,
+        int num_threads) {
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world — call set_tide_model() first");
@@ -699,119 +948,121 @@ inline void c_LayeredWorld::get_3d_displacements_grid(
     rheology->calc_3d_displacements_grid(
         *this,
         state,
-        radii,
-        num_radii,
-        colatitudes,
-        num_colatitudes,
-        longitudes,
-        num_longitudes,
-        times,
-        num_times,
-        out_disp);
+        axes,
+        out_disp,
+        num_threads);
 }
 
-// Instantaneous displacement grid. The coherent wave list is built once; the radial solve and the y1/y3 samples
-// at every radius are computed once per radial group (l, |omega|); each wave's complex displacement amplitude at
-// (r, theta, phi) is then evolved over the time grid as Re[u_c e^{i |omega| t}] and the waves are summed.
+// Instantaneous displacement grid. The coherent wave list is built once, and the radial solve and the y1/y3 samples at
+// every radius once per radial group (l, |omega|). At each (r, theta, phi) every wave's complex displacement amplitude
+// is added into the total of its frequency, and each component at time t is the sum over frequencies of
+// Re[amplitude e^{i |omega| t}], with the phase factors tabulated once. The colatitude rows run on up to num_threads
+// threads, each writing only its own cells.
 inline void c_RheologyTide::calc_3d_displacements_grid(
         c_LayeredWorld& world,
         const c_TideSolveConfig& state,
-        const double* radii,
-        size_t num_radii,
-        const double* colatitudes,
-        size_t num_colatitudes,
-        const double* longitudes,
-        size_t num_longitudes,
-        const double* times,
-        size_t num_times,
-        double* out_disp) const {
+        const c_Grid3DAxes& axes,
+        double* out_disp,
+        int num_threads) const {
     const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "3D tidal displacements");
-    const size_t nr = num_radii, nth = num_colatitudes, nph = num_longitudes, nt = num_times;
-    const size_t total = nr * nth * nph * nt;
-    for (size_t i = 0; i < 3 * total; ++i) {
-        out_disp[i] = 0.0;
+    const size_t nr = axes.num_radii;
+    const size_t nth = axes.num_colatitudes;
+    const size_t nph = axes.num_longitudes;
+    const size_t nt = axes.num_times;
+    if (nr == 0 || nth == 0 || nph == 0 || nt == 0) {
+        return;
     }
-    // A radius is unusable only if NO radial group has a depth-resolved solution there (the solver's start
-    // radius grows with degree l; a group without a solution at a radius contributes nothing there).
     const size_t num_groups = set.radial_groups.size();
+    const size_t num_waves = set.waves.size();
+    const size_t num_frequencies = set.frequencies.size();
+
+    // y1 and y3 of every radial group at every radius, [radius * num_groups + group]. A group without a depth-resolved
+    // solution at a radius (the solver's start radius grows with degree l) contributes nothing there, and a radius
+    // where no group has one is NaN.
+    std::vector<std::complex<double>> y1_at(nr * num_groups);
+    std::vector<std::complex<double>> y3_at(nr * num_groups);
+    std::vector<unsigned char> group_missing(nr * num_groups, 0);
     std::vector<size_t> radius_missing(nr, 0);
-    std::vector<unsigned char> group_missing(nr, 0);
-    std::vector<std::complex<double>> y1_at_r(nr), y3_at_r(nr);
-    std::vector<double> cos_phase(nt), sin_phase(nt);
     c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
     for (size_t g = 0; g < num_groups; ++g) {
         const ::c_RadialSolutionStorage* storage =
             tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "3D tidal displacements");
         for (size_t ir = 0; ir < nr; ++ir) {
             std::complex<double> y_at_r[C_MAX_NUM_Y];
-            if (!storage->get_radial_solution(radii[ir], 0, y_at_r)
+            const size_t slot = ir * num_groups + g;
+            if (!storage->get_radial_solution(axes.radii[ir], 0, y_at_r)
                 || !std::isfinite(y_at_r[0].real()) || !std::isfinite(y_at_r[2].real())) {
-                group_missing[ir] = 1;
+                group_missing[slot] = 1;
                 radius_missing[ir] += 1;
                 continue;
             }
-            group_missing[ir] = 0;
-            y1_at_r[ir] = y_at_r[0];
-            y3_at_r[ir] = y_at_r[2];
+            y1_at[slot] = y_at_r[0];
+            y3_at[slot] = y_at_r[2];
         }
-        for (size_t w = 0; w < set.waves.size(); ++w) {
-            if (set.wave_radial_group[w] != static_cast<int>(g)) { continue; }
-            const c_TidalWave3D& wave = set.waves[w];
-            // The phase factors depend only on the wave's frequency and the time, so they are tabulated once per wave.
-            for (size_t it = 0; it < nt; ++it) {
-                const double phase = wave.frequency * times[it];
-                cos_phase[it] = std::cos(phase);
-                sin_phase[it] = std::sin(phase);
-            }
-            for (size_t ith = 0; ith < nth; ++ith) {
-                for (size_t iph = 0; iph < nph; ++iph) {
-                    const c_PotentialPointC potential =
-                        c_eval_wave_point_3d(wave, colatitudes[ith], longitudes[iph]);
-                    for (size_t ir = 0; ir < nr; ++ir) {
-                        if (group_missing[ir]) {
-                            continue;
+    }
+    const tides3d::c_PhaseTable3D phase = tides3d::c_phase_table_3d(set.frequencies, axes.times, nt);
+    const double nan_v = TidalPyConstants::d_NAN;
+
+    tides3d::c_parallel_tasks_3d(nth, num_threads, [&](size_t ith) {
+        const double colatitude = axes.colatitudes[ith];
+        tides3d::c_WaveAngular3D angular(set);
+        tides3d::c_wave_angular_colatitude_3d(set, colatitude, angular);
+        std::vector<tides::c_Vector3> amplitudes(num_frequencies);
+        std::vector<unsigned char> active(num_frequencies, 0);
+        for (size_t iph = 0; iph < nph; ++iph) {
+            tides3d::c_wave_angular_longitude_3d(set, axes.longitudes[iph], false, angular);
+            for (size_t ir = 0; ir < nr; ++ir) {
+                double* out = out_disp + 3 * (((ir * nth + ith) * nph + iph) * nt);
+                if (num_groups > 0 && radius_missing[ir] == num_groups) {
+                    std::fill(out, out + 3 * nt, nan_v);
+                    continue;
+                }
+                std::fill(active.begin(), active.end(), 0);
+                for (size_t w = 0; w < num_waves; ++w) {
+                    const size_t slot = ir * num_groups + static_cast<size_t>(set.wave_radial_group[w]);
+                    if (group_missing[slot]) { continue; }
+                    tides::c_Vector3 amplitude;
+                    tides::c_compute_displacements(
+                        y1_at[slot],
+                        y3_at[slot],
+                        angular.potentials[w],
+                        colatitude,
+                        amplitude);
+                    const size_t f = static_cast<size_t>(set.wave_frequency_group[w]);
+                    if (!active[f]) {
+                        amplitudes[f] = amplitude;
+                        active[f] = 1;
+                    } else {
+                        for (size_t k = 0; k < 3; ++k) { amplitudes[f].c[k] += amplitude.c[k]; }
+                    }
+                }
+                for (size_t it = 0; it < nt; ++it) {
+                    for (size_t k = 0; k < 3; ++k) {
+                        double value = 0.0;
+                        for (size_t f = 0; f < num_frequencies; ++f) {
+                            if (!active[f]) { continue; }
+                            const std::complex<double>& a = amplitudes[f].c[k];
+                            value += a.real() * phase.cos_phase[f * nt + it] - a.imag() * phase.sin_phase[f * nt + it];
                         }
-                        tides::c_Vector3 amplitude;
-                        tides::c_compute_displacements(
-                            y1_at_r[ir],
-                            y3_at_r[ir],
-                            potential,
-                            colatitudes[ith],
-                            amplitude);
-                        for (size_t it = 0; it < nt; ++it) {
-                            const double cos_wt = cos_phase[it];
-                            const double sin_wt = sin_phase[it];
-                            double* out = out_disp + 3 * (((ir * nth + ith) * nph + iph) * nt + it);
-                            for (size_t k = 0; k < 3; ++k) {
-                                out[k] += amplitude.c[k].real() * cos_wt - amplitude.c[k].imag() * sin_wt;
-                            }
-                        }
+                        out[3 * it + k] = value;
                     }
                 }
             }
         }
-    }
-    for (size_t ir = 0; ir < nr; ++ir) {
-        if (!(num_groups > 0 && radius_missing[ir] == num_groups)) {
-            continue;
-        }
-        double* out = out_disp + 3 * (ir * nth * nph * nt);
-        for (size_t i = 0; i < 3 * nth * nph * nt; ++i) {
-            out[i] = TidalPyConstants::d_NAN;
-        }
-    }
+    });
 }
 
 // Instantaneous stress and strain grid. The coherent wave list, the radial solves with their strain radial
 // coefficients, and the phase tables are built once; at each (r, theta, phi) every wave's complex amplitude is added
 // into its frequency's total, and each component at time t is the sum over frequencies of
-// Re[amplitude e^{i |omega| t}].
+// Re[amplitude e^{i |omega| t}]. The colatitude rows run on up to num_threads threads, each writing only its own cells.
 inline void c_RheologyTide::calc_3d_stress_strain_grid(
         c_LayeredWorld& world,
         const c_TideSolveConfig& state,
         const c_Grid3DAxes& axes,
         double* out_stress,
-        double* out_strain) const {
+        double* out_strain,
+        int num_threads) const {
     if (out_stress == nullptr && out_strain == nullptr) {
         throw std::invalid_argument("TidalPy: the 3D stress and strain grid needs at least one output buffer");
     }
@@ -829,20 +1080,22 @@ inline void c_RheologyTide::calc_3d_stress_strain_grid(
         tides3d::c_radial_coefficients_3d(world, set, axes.radii, nr, what);
     const tides3d::c_PhaseTable3D phase = tides3d::c_phase_table_3d(set.frequencies, axes.times, nt);
     const size_t num_frequencies = set.frequencies.size();
-    tides3d::c_FrequencyAmplitudes3D amplitudes(num_frequencies);
     const double nan_v = TidalPyConstants::d_NAN;
 
-    for (size_t ir = 0; ir < nr; ++ir) {
-        for (size_t ith = 0; ith < nth; ++ith) {
-            for (size_t iph = 0; iph < nph; ++iph) {
+    tides3d::c_parallel_tasks_3d(nth, num_threads, [&](size_t ith) {
+        tides3d::c_WaveAngular3D angular(set);
+        tides3d::c_wave_angular_colatitude_3d(set, axes.colatitudes[ith], angular);
+        tides3d::c_FrequencyAmplitudes3D amplitudes(num_frequencies);
+        for (size_t iph = 0; iph < nph; ++iph) {
+            tides3d::c_wave_angular_longitude_3d(set, axes.longitudes[iph], true, angular);
+            for (size_t ir = 0; ir < nr; ++ir) {
                 // Undefined at a radius without a solution, and where waves exist but none has a shear kernel; with
                 // no active waves at all the tensors are zero.
                 const bool defined = !radial_coefficients.radius_failed[ir]
                     && (tides3d::c_frequency_amplitudes_3d(
                             set,
                             radial_coefficients.by_radius[ir],
-                            axes.colatitudes[ith],
-                            axes.longitudes[iph],
+                            angular,
                             amplitudes)
                         || set.waves.empty());
                 const size_t point_offset = ((ir * nth + ith) * nph + iph) * nt;
@@ -870,7 +1123,7 @@ inline void c_RheologyTide::calc_3d_stress_strain_grid(
                 }
             }
         }
-    }
+    });
 }
 
 // World delegation for the stress and strain grid: same preconditions as the 3D heating paths.
@@ -878,7 +1131,8 @@ inline void c_LayeredWorld::get_3d_stress_strain_grid(
         const c_TideSolveConfig& state,
         const c_Grid3DAxes& axes,
         double* out_stress,
-        double* out_strain) {
+        double* out_strain,
+        int num_threads) {
     if (!this->p_tide) {
         throw std::runtime_error("TidalPy: no tide model attached to the world: call set_tide_model() first");
     }
@@ -891,21 +1145,22 @@ inline void c_LayeredWorld::get_3d_stress_strain_grid(
     if (!this->p_eos_solved || !this->p_eos_solution) {
         throw std::runtime_error("TidalPy: 3D tidal stress and strain need the EOS solved first: call solve_eos()");
     }
-    rheology->calc_3d_stress_strain_grid(*this, state, axes, out_stress, out_strain);
+    rheology->calc_3d_stress_strain_grid(*this, state, axes, out_stress, out_strain, num_threads);
 }
 
 // Batch form of the secular 3D heating: the longitude-mean secular density at num_points paired (radius,
 // colatitude) points. The coherent wave list is built once, the radial solve runs once per radial group
 // (l, |omega|), and its strain radial coefficients are evaluated once per UNIQUE radius (points on a map share
-// radii), then every point sums its frequency groups coherently. A point whose radius has no depth-resolved
-// solution (below the solver start / center) is NaN.
+// radii). Points that share a colatitude share its angular work, and the colatitudes run on up to num_threads threads.
+// A point whose radius has no depth-resolved solution (below the solver start / center) is NaN.
 inline void c_RheologyTide::calc_3d_tidal_heating_batch(
         c_LayeredWorld& world,
         const c_TideSolveConfig& state,
         const double* radii,
         const double* colatitudes,
         size_t num_points,
-        double* out_heating) const {
+        double* out_heating,
+        int num_threads) const {
     const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "secular 3D tidal heating");
     for (size_t i = 0; i < num_points; ++i) {
         out_heating[i] = 0.0;
@@ -939,18 +1194,40 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
         unique_radii.size(),
         "secular 3D tidal heating");
 
+    // One row per distinct finite colatitude, and one row for each point whose colatitude is not finite.
+    std::vector<std::vector<size_t>> rows;
+    std::map<double, size_t> colatitude_row;
     for (size_t i = 0; i < num_points; ++i) {
-        if (point_invalid[i] || radial_coefficients.radius_failed[point_radius[i]]) {
-            out_heating[i] = TidalPyConstants::d_NAN;
+        if (!std::isfinite(colatitudes[i])) {
+            rows.push_back(std::vector<size_t>{i});
             continue;
         }
-        out_heating[i] = tides3d::c_secular_density_3d(
-            set,
-            radial_coefficients.by_radius[point_radius[i]],
-            colatitudes[i],
-            0.0,
-            true);
+        auto found = colatitude_row.find(colatitudes[i]);
+        if (found == colatitude_row.end()) {
+            found = colatitude_row.emplace(colatitudes[i], rows.size()).first;
+            rows.emplace_back();
+        }
+        rows[found->second].push_back(i);
     }
+    const std::vector<tides3d::c_SecularGroup3D> groups = tides3d::c_secular_groups_3d(set, true);
+
+    tides3d::c_parallel_tasks_3d(rows.size(), num_threads, [&](size_t row) {
+        const std::vector<size_t>& points = rows[row];
+        tides3d::c_WaveAngular3D angular(set);
+        tides3d::c_wave_angular_colatitude_3d(set, colatitudes[points[0]], angular);
+        tides3d::c_wave_angular_longitude_3d(set, 0.0, true, angular);
+        for (const size_t i : points) {
+            if (point_invalid[i] || radial_coefficients.radius_failed[point_radius[i]]) {
+                out_heating[i] = TidalPyConstants::d_NAN;
+                continue;
+            }
+            out_heating[i] = tides3d::c_secular_density_3d(
+                set,
+                groups,
+                radial_coefficients.by_radius[point_radius[i]],
+                angular);
+        }
+    });
 }
 
 // =====================================================================================================================
@@ -958,11 +1235,12 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
 // =====================================================================================================================
 
 // Produce the 3D tidal heating as a full grid over (radius, colatitude, longitude[, time]) or reduced (integrated)
-// along any spatial dimension. orbit_averaged=true gives the secular density h_bar(r, theta, phi) (the pointwise
-// time average; the longitude mean when longitude is summed); orbit_averaged=false gives the instantaneous power
-// sigma_ij(t) eps_dot_ij(t) at each user time. See c_Heating3DCollapseConfig / c_Heating3DCollapsed for the
-// flags + output conventions.
-inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
+// along any spatial dimension, written into caller buffers sized by c_LayeredWorld::calc_3d_tides_layout.
+// orbit_averaged=true gives the secular density h_bar(r, theta, phi) (the pointwise time average; the longitude mean
+// when longitude is summed); orbit_averaged=false gives the instantaneous power sigma_ij(t) eps_dot_ij(t) at each user
+// time. See c_Heating3DCollapseConfig / c_Heating3DCollapsed for the flags + output conventions. The radial solves run
+// on the calling thread and the per-point evaluation on up to cfg.num_threads threads over colatitude rows.
+inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
         c_LayeredWorld& world,
         const c_TideSolveConfig& state,
         const double* radii,
@@ -973,121 +1251,45 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
         size_t num_longitudes,
         const double* times,
         size_t num_times,
-        const c_Heating3DCollapseConfig& cfg) const {
-    c_Heating3DCollapsed result;
-    const double two_pi = 2.0 * TidalPyConstants::d_PI;
-    const bool instantaneous = !cfg.orbit_averaged;
-    const bool any_summed = cfg.latitude_summed || cfg.longitude_summed || cfg.radial_summed;
-
+        const c_Heating3DCollapseConfig& cfg,
+        double* out_values,
+        double* out_layer_totals) const {
     // Coherent wave list (built once, reused across every grid point).
     const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "3D tidal heating");
 
-    // Axis Grids
-    // Radius: user array unless summed. Summed: Gauss-Legendre nodes inside each layer, with r_wsum carrying the r^2
-    // Jacobian. No node sits on a layer boundary, where the modulus and radial-solution lookups take the layer below,
-    // so no node can weigh the lower layer's heating into the upper layer's integral.
-    std::vector<double> r_grid, r_wsum;
-    std::vector<size_t> r_layer;
+    // Axis grids, output layout, and zeroed outputs.
+    const tides3d::c_CollapseGrids3D grids = tides3d::c_collapse_grids_3d(
+        world,
+        radii,
+        num_radii,
+        colatitudes,
+        num_colatitudes,
+        longitudes,
+        num_longitudes,
+        times,
+        num_times,
+        cfg);
     const size_t num_layers = world.get_num_layers();
-    if (cfg.radial_summed) {
-        const int nodes_per_layer = (cfg.radial_slices > 0) ? cfg.radial_slices : 16;
-        std::vector<double> gl_r, gl_w;
-        tides::c_gauss_legendre_nodes(nodes_per_layer, gl_r, gl_w);
-        for (size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
-            const c_BaseLayer* layer = world.get_layer(layer_i);
-            const double r_mid  = 0.5 * (layer->get_radius_outer() + layer->get_radius_inner());
-            const double r_half = 0.5 * (layer->get_radius_outer() - layer->get_radius_inner());
-            for (int node = 0; node < nodes_per_layer; ++node) {
-                const double rr = r_mid + r_half * gl_r[node];
-                r_grid.push_back(rr);
-                r_wsum.push_back(r_half * gl_w[node] * rr * rr);  // Gauss-Legendre weight x r^2
-                r_layer.push_back(layer_i);
-            }
-        }
-    } else {
-        r_grid.assign(radii, radii + num_radii);
-    }
-    // Colatitude: user array unless summed (Gauss-Legendre in cos theta; the weight absorbs sin theta).
-    // A colatitude band [min, max] narrower than [0, pi] maps the nodes onto [cos(max), cos(min)]
-    // (affine substitution; the weights scale by the half-width) so the integral covers only the band.
-    const bool latitude_full_sphere =
-        (cfg.colatitude_min <= TidalPyConstants::d_EPS)
-        && (cfg.colatitude_max >= TidalPyConstants::d_PI - TidalPyConstants::d_EPS);
-    std::vector<double> th_grid, th_wsum;
-    if (cfg.latitude_summed) {
-        if (cfg.colatitude_min < 0.0 || cfg.colatitude_max > TidalPyConstants::d_PI
-                || cfg.colatitude_min >= cfg.colatitude_max) {
-            throw std::invalid_argument(
-                "TidalPy: colatitude band must satisfy 0 <= colatitude_min < colatitude_max <= pi");
-        }
-        const int num_nodes = (cfg.latitude_nodes > 1) ? cfg.latitude_nodes : 48;
-        std::vector<double> gl_x;
-        tides::c_gauss_legendre_nodes(num_nodes, gl_x, th_wsum);
-        const double x_lo = std::cos(cfg.colatitude_max);
-        const double x_hi = std::cos(cfg.colatitude_min);
-        const double x_mid  = 0.5 * (x_hi + x_lo);
-        const double x_half = 0.5 * (x_hi - x_lo);
-        th_grid.resize(num_nodes);
-        for (int i = 0; i < num_nodes; ++i) {
-            th_grid[i] = std::acos(x_mid + x_half * gl_x[i]);
-            th_wsum[i] *= x_half;
-        }
-    } else {
-        th_grid.assign(colatitudes, colatitudes + num_colatitudes);
-    }
-    // Longitude: user array unless summed. Secular -> analytic 2*pi on the longitude-mean density (single
-    // point). Instantaneous -> periodic trapezoid over [0, 2*pi) (uniform weight, no endpoint halving since the
-    // field is periodic).
-    std::vector<double> ph_grid, ph_wsum;
-    if (cfg.longitude_summed) {
-        if (instantaneous) {
-            const int num_nodes = (cfg.longitude_nodes > 1) ? cfg.longitude_nodes : 64;
-            const double dph = two_pi / static_cast<double>(num_nodes);
-            for (int k = 0; k < num_nodes; ++k) { ph_grid.push_back(k * dph); ph_wsum.push_back(dph); }
-        } else {
-            ph_grid.push_back(0.0);
-            ph_wsum.push_back(two_pi);
-        }
-    } else {
-        ph_grid.assign(longitudes, longitudes + num_longitudes);
-    }
-    // Time: user array (instantaneous only); a single dummy sample when orbit-averaged.
-    std::vector<double> t_grid;
-    if (instantaneous) { t_grid.assign(times, times + num_times); }
-    else { t_grid.push_back(0.0); }
+    const c_Heating3DCollapsed layout = tides3d::c_collapse_layout_3d(grids, cfg, num_layers);
+    const size_t num_values = tides3d::c_collapse_size_3d(layout);
+    const bool totals = layout.all_spatial_summed;
+    const size_t num_layer_totals = totals ? num_layers * layout.n_times : 0;
+    if (num_values > 0) { std::fill(out_values, out_values + num_values, 0.0); }
+    if (num_layer_totals > 0) { std::fill(out_layer_totals, out_layer_totals + num_layer_totals, 0.0); }
 
-    const size_t nr = r_grid.size();
-    const size_t nth = th_grid.size();
-    const size_t nph = ph_grid.size();
-    const size_t nt = t_grid.size();
-
+    const size_t nr = grids.r_grid.size();
+    const size_t nth = grids.th_grid.size();
+    const size_t nph = grids.ph_grid.size();
+    const size_t nt = grids.t_grid.size();
+    if (nr == 0 || nth == 0 || nph == 0 || nt == 0) {
+        return;
+    }
+    const bool instantaneous = grids.instantaneous;
+    const bool any_summed = grids.any_summed;
     const bool surv_r = !cfg.radial_summed;
     const bool surv_th = !cfg.latitude_summed;
     const bool surv_ph = !cfg.longitude_summed;
     const bool surv_t = instantaneous;
-
-    // Reported axes (surviving axes carry their grid; summed axes report empty).
-    if (surv_r)  { result.radii = r_grid; }
-    if (surv_th) { result.colatitudes = th_grid; }
-    if (surv_ph) { result.longitudes = ph_grid; }
-    if (surv_t)  { result.times = t_grid; }
-    result.all_spatial_summed = cfg.radial_summed && cfg.latitude_summed && cfg.longitude_summed;
-    result.n_layers = num_layers;
-    result.n_times = surv_t ? nt : 1;
-    if (surv_r)  { result.shape.push_back(nr); }
-    if (surv_th) { result.shape.push_back(nth); }
-    if (surv_ph) { result.shape.push_back(nph); }
-    if (surv_t)  { result.shape.push_back(nt); }
-    if (nr == 0 || nth == 0 || nph == 0 || nt == 0) {
-        return result;
-    }
-
-    size_t out_size = 1;
-    for (size_t s : result.shape) { out_size *= s; }
-    result.values.assign(out_size, 0.0);
-    if (result.all_spatial_summed) {
-        result.layer_totals.assign(num_layers * nt, 0.0);
-    }
 
     // Row-major flat index over the surviving axes, in the fixed order [radius, colatitude, longitude, time].
     auto surv_index = [&](size_t ir, size_t ith, size_t iph, size_t it) -> size_t {
@@ -1101,11 +1303,11 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
     // Combined per-point weight: summed axes -> integration weight (with Jacobian); surviving spatial axes
     // -> their Jacobian when any axis is summed, else 1 (raw density). Longitude/time Jacobian is 1.
     auto combined_weight = [&](size_t ir, size_t ith, size_t iph) -> double {
-        const double wr = cfg.radial_summed ? r_wsum[ir]
-                                            : (any_summed ? r_grid[ir] * r_grid[ir] : 1.0);
-        const double wth = cfg.latitude_summed ? th_wsum[ith]
-                                               : (any_summed ? std::sin(th_grid[ith]) : 1.0);
-        const double wph = cfg.longitude_summed ? ph_wsum[iph] : 1.0;
+        const double wr = cfg.radial_summed ? grids.r_wsum[ir]
+                                            : (any_summed ? grids.r_grid[ir] * grids.r_grid[ir] : 1.0);
+        const double wth = cfg.latitude_summed ? grids.th_wsum[ith]
+                                               : (any_summed ? std::sin(grids.th_grid[ith]) : 1.0);
+        const double wph = cfg.longitude_summed ? grids.ph_wsum[iph] : 1.0;
         return wr * wth * wph;
     };
 
@@ -1113,17 +1315,17 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
     const tides3d::c_RadialCoefficients3D radial_coefficients = tides3d::c_radial_coefficients_3d(
         world,
         set,
-        r_grid.data(),
+        grids.r_grid.data(),
         nr,
         "3D tidal heating");
     const std::vector<std::vector<tides::c_StrainRadialCoeffs>>& coeffs = radial_coefficients.by_radius;
     const std::vector<unsigned char>& radius_solve_failed = radial_coefficients.radius_failed;
-
-    // Evaluate and Reduce
     const double nan_v = TidalPyConstants::d_NAN;
-    if (!instantaneous && cfg.latitude_summed && cfg.latitude_analytic && latitude_full_sphere) {
+
+    if (!instantaneous && cfg.latitude_summed && cfg.latitude_analytic && grids.latitude_full_sphere) {
         // Analytic colatitude collapse: integrate the longitude-mean secular density over theta with the
         // (cross-)degree Gram matrices (exact, no theta grid). theta is summed away, so scatter over (radius, phi).
+        // There is no per-point grid to spread over threads, so this runs on the calling thread.
         tides3d::c_GramCache3D gram_cache;
         for (size_t ir = 0; ir < nr; ++ir) {
             double theta_integral = 0.0;
@@ -1131,108 +1333,142 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
                 theta_integral = tides3d::c_secular_theta_integral_3d(set, coeffs[ir], gram_cache);
             }
             // theta already integrated (Gram absorbs sin theta); apply only the radial + longitude factors.
-            const double radial_factor = cfg.radial_summed ? r_wsum[ir] : (r_grid[ir] * r_grid[ir]);
+            const double radial_factor = cfg.radial_summed ? grids.r_wsum[ir] : (grids.r_grid[ir] * grids.r_grid[ir]);
             for (size_t iph = 0; iph < nph; ++iph) {
-                const double longitude_factor = cfg.longitude_summed ? ph_wsum[iph] : 1.0;
+                const double longitude_factor = cfg.longitude_summed ? grids.ph_wsum[iph] : 1.0;
                 const double contrib = theta_integral * radial_factor * longitude_factor;
-                result.values[surv_index(ir, 0, iph, 0)] += contrib;
-                if (result.all_spatial_summed) {
-                    result.layer_totals[r_layer[ir] * nt + 0] += contrib;
+                out_values[surv_index(ir, 0, iph, 0)] += contrib;
+                if (totals) {
+                    out_layer_totals[grids.r_layer[ir] * nt + 0] += contrib;
                 }
             }
         }
-    } else if (!instantaneous) {
-        // Secular density h_bar(r, theta, phi): each frequency's waves summed coherently, then
-        // (|omega|/2) Im(sigma_c : conj(eps_c)). With longitude summed the single phi node carries the
-        // longitude MEAN (exact); otherwise the pointwise value at each user longitude.
-        const bool longitude_averaged = cfg.longitude_summed;
-        for (size_t ir = 0; ir < nr; ++ir) {
-            for (size_t ith = 0; ith < nth; ++ith) {
-                for (size_t iph = 0; iph < nph; ++iph) {
-                    double density = 0.0;
-                    if (!radius_solve_failed[ir]) {
-                        density = tides3d::c_secular_density_3d(
-                            set,
-                            coeffs[ir],
-                            th_grid[ith],
-                            ph_grid[iph],
-                            longitude_averaged);
-                    }
-                    if (!any_summed) {
-                        result.values[surv_index(ir, ith, iph, 0)] =
-                            radius_solve_failed[ir] ? nan_v : density;
-                    } else if (!radius_solve_failed[ir]) {
-                        const double contrib = density * combined_weight(ir, ith, iph);
-                        result.values[surv_index(ir, ith, iph, 0)] += contrib;
-                        if (result.all_spatial_summed) {
-                            result.layer_totals[r_layer[ir] * nt + 0] += contrib;
-                        }
-                    }
-                }
-            }
+        return;
+    }
+
+    // Evaluate over colatitude rows. A row owns its cells when colatitude survives and writes them directly. When
+    // colatitude is summed every row adds into the same cells, so each row fills a buffer of its own and the rows are
+    // merged in row order below; either way the result is identical for any thread count.
+    const bool rows_share_cells = !surv_th;
+    std::vector<std::vector<double>> row_values(rows_share_cells ? nth : 0);
+    std::vector<std::vector<double>> row_layer_totals(totals ? nth : 0);
+    const size_t num_frequencies = set.frequencies.size();
+    // Secular: each frequency's waves (split by mu for the longitude mean, which the single phi node then carries
+    // exactly) summed coherently, then (|omega|/2) Im(sigma_c : conj(eps_c)). Instantaneous: every wave's complex
+    // stress and strain amplitude added into the total of its frequency, each frequency evolved in time as
+    // Re[. e^{i |omega| t}] with the phase factors tabulated once, and the real fields summed.
+    const bool longitude_averaged = cfg.longitude_summed;
+    const std::vector<tides3d::c_SecularGroup3D> groups = instantaneous
+        ? std::vector<tides3d::c_SecularGroup3D>()
+        : tides3d::c_secular_groups_3d(set, longitude_averaged);
+    const tides3d::c_PhaseTable3D phase =
+        tides3d::c_phase_table_3d(set.frequencies, grids.t_grid.data(), instantaneous ? nt : 0);
+
+    tides3d::c_parallel_tasks_3d(nth, cfg.num_threads, [&](size_t ith) {
+        double* values = out_values;
+        if (rows_share_cells) {
+            row_values[ith].assign(num_values, 0.0);
+            values = row_values[ith].data();
         }
-    } else {
-        // Instantaneous power sigma_ij(t) eps_dot_ij(t). At each (r, theta, phi) every wave's complex stress and
-        // strain amplitude is added into the total amplitude of its frequency, then each frequency is evolved in
-        // time as Re[. e^{i |omega| t}] and the real fields are summed, with the phase factors tabulated once.
-        const size_t num_frequencies = set.frequencies.size();
-        const tides3d::c_PhaseTable3D phase = tides3d::c_phase_table_3d(set.frequencies, t_grid.data(), nt);
-        tides3d::c_FrequencyAmplitudes3D amplitudes(num_frequencies);
-        for (size_t ir = 0; ir < nr; ++ir) {
-            for (size_t ith = 0; ith < nth; ++ith) {
-                for (size_t iph = 0; iph < nph; ++iph) {
+        double* layer_totals = out_layer_totals;
+        if (totals) {
+            row_layer_totals[ith].assign(num_layer_totals, 0.0);
+            layer_totals = row_layer_totals[ith].data();
+        }
+        tides3d::c_WaveAngular3D angular(set);
+        tides3d::c_wave_angular_colatitude_3d(set, grids.th_grid[ith], angular);
+
+        if (!instantaneous) {
+            for (size_t iph = 0; iph < nph; ++iph) {
+                tides3d::c_wave_angular_longitude_3d(
+                    set,
+                    longitude_averaged ? 0.0 : grids.ph_grid[iph],
+                    true,
+                    angular);
+                for (size_t ir = 0; ir < nr; ++ir) {
+                    const size_t index = surv_index(ir, ith, iph, 0);
                     if (radius_solve_failed[ir]) {
-                        if (!any_summed) {
-                            for (size_t it = 0; it < nt; ++it) {
-                                result.values[surv_index(ir, ith, iph, it)] = nan_v;
-                            }
-                        }
+                        if (!any_summed) { values[index] = nan_v; }
                         continue;
                     }
-                    tides3d::c_frequency_amplitudes_3d(
-                        set,
-                        coeffs[ir],
-                        th_grid[ith],
-                        ph_grid[iph],
-                        amplitudes);
-                    const double point_weight = any_summed ? combined_weight(ir, ith, iph) : 1.0;
-                    for (size_t it = 0; it < nt; ++it) {
-                        double power = 0.0;
-                        for (size_t k = 0; k < 6; ++k) {
-                            double sigma = 0.0;
-                            double eps_dot = 0.0;
-                            for (size_t f = 0; f < num_frequencies; ++f) {
-                                if (!amplitudes.active[f]) { continue; }
-                                const double omega = set.frequencies[f];
-                                const double cos_wt = phase.cos_phase[f * nt + it];
-                                const double sin_wt = phase.sin_phase[f * nt + it];
-                                const std::complex<double>& sc = amplitudes.stress[f].c[k];
-                                const std::complex<double>& ec = amplitudes.strain[f].c[k];
-                                sigma   += sc.real() * cos_wt - sc.imag() * sin_wt;
-                                eps_dot += -omega * (ec.real() * sin_wt + ec.imag() * cos_wt);
-                            }
-                            power += ((k < 3) ? 1.0 : 2.0) * sigma * eps_dot;
+                    const double density = tides3d::c_secular_density_3d(set, groups, coeffs[ir], angular);
+                    if (!any_summed) {
+                        values[index] = density;
+                    } else {
+                        const double contrib = density * combined_weight(ir, ith, iph);
+                        values[index] += contrib;
+                        if (totals) {
+                            layer_totals[grids.r_layer[ir] * nt + 0] += contrib;
                         }
-                        if (!any_summed) {
-                            result.values[surv_index(ir, ith, iph, it)] = power;
-                        } else {
-                            const double contrib = power * point_weight;
-                            result.values[surv_index(ir, ith, iph, it)] += contrib;
-                            if (result.all_spatial_summed) {
-                                result.layer_totals[r_layer[ir] * nt + it] += contrib;
-                            }
+                    }
+                }
+            }
+            return;
+        }
+
+        tides3d::c_FrequencyAmplitudes3D amplitudes(num_frequencies);
+        for (size_t iph = 0; iph < nph; ++iph) {
+            tides3d::c_wave_angular_longitude_3d(set, grids.ph_grid[iph], true, angular);
+            for (size_t ir = 0; ir < nr; ++ir) {
+                if (radius_solve_failed[ir]) {
+                    if (!any_summed) {
+                        for (size_t it = 0; it < nt; ++it) {
+                            values[surv_index(ir, ith, iph, it)] = nan_v;
+                        }
+                    }
+                    continue;
+                }
+                tides3d::c_frequency_amplitudes_3d(
+                    set,
+                    coeffs[ir],
+                    angular,
+                    amplitudes);
+                const double point_weight = any_summed ? combined_weight(ir, ith, iph) : 1.0;
+                for (size_t it = 0; it < nt; ++it) {
+                    double power = 0.0;
+                    for (size_t k = 0; k < 6; ++k) {
+                        double sigma = 0.0;
+                        double eps_dot = 0.0;
+                        for (size_t f = 0; f < num_frequencies; ++f) {
+                            if (!amplitudes.active[f]) { continue; }
+                            const double omega = set.frequencies[f];
+                            const double cos_wt = phase.cos_phase[f * nt + it];
+                            const double sin_wt = phase.sin_phase[f * nt + it];
+                            const std::complex<double>& sc = amplitudes.stress[f].c[k];
+                            const std::complex<double>& ec = amplitudes.strain[f].c[k];
+                            sigma   += sc.real() * cos_wt - sc.imag() * sin_wt;
+                            eps_dot += -omega * (ec.real() * sin_wt + ec.imag() * cos_wt);
+                        }
+                        power += ((k < 3) ? 1.0 : 2.0) * sigma * eps_dot;
+                    }
+                    if (!any_summed) {
+                        values[surv_index(ir, ith, iph, it)] = power;
+                    } else {
+                        const double contrib = power * point_weight;
+                        values[surv_index(ir, ith, iph, it)] += contrib;
+                        if (totals) {
+                            layer_totals[grids.r_layer[ir] * nt + it] += contrib;
                         }
                     }
                 }
             }
         }
+    });
+
+    // Merge the rows that share cells, in row order.
+    for (size_t ith = 0; ith < nth; ++ith) {
+        if (rows_share_cells) {
+            for (size_t k = 0; k < num_values; ++k) { out_values[k] += row_values[ith][k]; }
+        }
+        if (totals) {
+            for (size_t k = 0; k < num_layer_totals; ++k) { out_layer_totals[k] += row_layer_totals[ith][k]; }
+        }
     }
-    return result;
 }
 
-// World delegation for the collapse path: same preconditions as the scalar get_3d_tidal_heating.
-inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides(
-        const c_TideSolveConfig& state,
+// World delegation for the collapse layout: the axes and output shape calc_3d_tides produces, from the layer geometry
+// alone.
+inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides_layout(
         const double* radii,
         size_t num_radii,
         const double* colatitudes,
@@ -1242,6 +1478,36 @@ inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides(
         const double* times,
         size_t num_times,
         const c_Heating3DCollapseConfig& cfg) {
+    return tides3d::c_collapse_layout_3d(
+        tides3d::c_collapse_grids_3d(
+            *this,
+            radii,
+            num_radii,
+            colatitudes,
+            num_colatitudes,
+            longitudes,
+            num_longitudes,
+            times,
+            num_times,
+            cfg),
+        cfg,
+        this->get_num_layers());
+}
+
+// World delegation for the collapse path into caller buffers: same preconditions as the scalar get_3d_tidal_heating.
+inline void c_LayeredWorld::calc_3d_tides_into(
+        const c_TideSolveConfig& state,
+        const double* radii,
+        size_t num_radii,
+        const double* colatitudes,
+        size_t num_colatitudes,
+        const double* longitudes,
+        size_t num_longitudes,
+        const double* times,
+        size_t num_times,
+        const c_Heating3DCollapseConfig& cfg,
+        double* out_values,
+        double* out_layer_totals) {
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world — call set_tide_model() first");
@@ -1256,7 +1522,7 @@ inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides(
         throw std::runtime_error(
             "TidalPy: 3D tidal heating needs the EOS solved first — call solve_eos()");
     }
-    return rheology->calc_3d_tidal_heating_collapsed(
+    rheology->calc_3d_tidal_heating_collapsed(
         *this,
         state,
         radii,
@@ -1267,7 +1533,51 @@ inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides(
         num_longitudes,
         times,
         num_times,
+        cfg,
+        out_values,
+        out_layer_totals);
+}
+
+// World delegation for the collapse path returning vectors: the layout, then calc_3d_tides_into.
+inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides(
+        const c_TideSolveConfig& state,
+        const double* radii,
+        size_t num_radii,
+        const double* colatitudes,
+        size_t num_colatitudes,
+        const double* longitudes,
+        size_t num_longitudes,
+        const double* times,
+        size_t num_times,
+        const c_Heating3DCollapseConfig& cfg) {
+    c_Heating3DCollapsed result = this->calc_3d_tides_layout(
+        radii,
+        num_radii,
+        colatitudes,
+        num_colatitudes,
+        longitudes,
+        num_longitudes,
+        times,
+        num_times,
         cfg);
+    result.values.assign(tides3d::c_collapse_size_3d(result), 0.0);
+    if (result.all_spatial_summed) {
+        result.layer_totals.assign(result.n_layers * result.n_times, 0.0);
+    }
+    this->calc_3d_tides_into(
+        state,
+        radii,
+        num_radii,
+        colatitudes,
+        num_colatitudes,
+        longitudes,
+        num_longitudes,
+        times,
+        num_times,
+        cfg,
+        result.values.data(),
+        result.all_spatial_summed ? result.layer_totals.data() : nullptr);
+    return result;
 }
 
 } // namespace tidalpy

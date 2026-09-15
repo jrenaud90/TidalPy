@@ -209,6 +209,80 @@ def _tides_3d_collapse_total():
 
 
 # =====================================================================================================================
+# 3D grids on one thread and on every logical core
+# =====================================================================================================================
+# Degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, so hundreds of waves reach every point. The
+# radial solves are the same in both variants; only the per-point evaluation after them runs on the extra threads.
+_grid_io = LayeredWorld("GridIo", _R, 8.9319e22)
+_grid_layer = PhysicsLayer("mantle", 0, 0.0, _R, 8.9319e22,
+                           shear_modulus_static=60.0e9, bulk_modulus_static=200.0e9)
+_grid_layer.is_static = False
+_grid_layer.set_eos(ConstantDensityEOS(reference_density=_RHO))
+_grid_layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e15}))
+_grid_layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e15}))
+_grid_layer.set_shear_rheology(Maxwell())
+_grid_layer.set_bulk_rheology(Elastic())
+_grid_io.add_layer(_grid_layer)
+_grid_io.set_tide_model(make_tide("rheology"))
+_grid_io.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=10, obliquity_truncation=4)
+_grid_io.solve_eos()
+_GRID_STATE = (_N_IO, 1.2 * _N_IO, 0.1, 0.2, _A_IO, _M_JUP)
+_GRID_AXES = dict(radii=np.linspace(0.05 * _R, 0.99 * _R, 20),
+                  colatitudes=np.linspace(0.02, np.pi - 0.02, 45),
+                  longitudes=np.linspace(0.0, 2.0 * np.pi, 90, endpoint=False))
+_GRID_TIMES = np.linspace(0.0, 2.0 * np.pi / _N_IO, 24, endpoint=False)
+_ALL_THREADS = os.cpu_count() or 1
+
+
+def _secular_map(num_threads):
+    _grid_io.calc_3d_tides(*_GRID_STATE, num_threads=num_threads, **_GRID_AXES)
+
+
+def _stress_strain(num_threads):
+    _grid_io.calc_3d_stress_strain(*_GRID_STATE, times=_GRID_TIMES[:4], num_threads=num_threads, **_GRID_AXES)
+
+
+def _displacements(num_threads):
+    _grid_io.calc_3d_displacements(*_GRID_STATE, times=_GRID_TIMES, num_threads=num_threads, **_GRID_AXES)
+
+
+@benchmark("tides_3d:secular_map_1_thread", group="tides", repeats=3,
+           note="secular heating map 20 x 45 x 90, degrees 2 to 3, e^10, obliquity, 1 thread")
+def _tides_3d_secular_map_1_thread():
+    _secular_map(1)
+
+
+@benchmark("tides_3d:secular_map_all_threads", group="tides", repeats=3,
+           note=f"secular heating map 20 x 45 x 90, degrees 2 to 3, e^10, obliquity, {_ALL_THREADS} threads")
+def _tides_3d_secular_map_all_threads():
+    _secular_map(_ALL_THREADS)
+
+
+@benchmark("tides_3d:stress_strain_1_thread", group="tides", repeats=3,
+           note="stress and strain 20 x 45 x 90 x 4 times, degrees 2 to 3, e^10, obliquity, 1 thread")
+def _tides_3d_stress_strain_1_thread():
+    _stress_strain(1)
+
+
+@benchmark("tides_3d:stress_strain_all_threads", group="tides", repeats=3,
+           note=f"stress and strain 20 x 45 x 90 x 4 times, degrees 2 to 3, e^10, obliquity, {_ALL_THREADS} threads")
+def _tides_3d_stress_strain_all_threads():
+    _stress_strain(_ALL_THREADS)
+
+
+@benchmark("tides_3d:displacements_1_thread", group="tides", repeats=3,
+           note="displacements 20 x 45 x 90 x 24 times, degrees 2 to 3, e^10, obliquity, 1 thread")
+def _tides_3d_displacements_1_thread():
+    _displacements(1)
+
+
+@benchmark("tides_3d:displacements_all_threads", group="tides", repeats=3,
+           note=f"displacements 20 x 45 x 90 x 24 times, degrees 2 to 3, e^10, obliquity, {_ALL_THREADS} threads")
+def _tides_3d_displacements_all_threads():
+    _displacements(_ALL_THREADS)
+
+
+# =====================================================================================================================
 # System binary round trip
 # =====================================================================================================================
 _sol_system = build_system("sol_system")

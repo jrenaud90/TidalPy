@@ -53,6 +53,7 @@ cdef extern from "tide_result_.hpp" nogil:
         int      latitude_nodes
         int      longitude_nodes
         int      radial_slices
+        int      num_threads
         cpp_bool latitude_analytic
         double   colatitude_min
         double   colatitude_max
