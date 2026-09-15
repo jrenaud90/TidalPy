@@ -778,10 +778,6 @@ cdef class LayeredWorld(BaseWorld):
             double max_step            = 0.0,
             cpp_bool verbose           = False,
             cpp_bool warnings          = True,
-            double eos_rtol            = 1.0e-6,
-            double eos_atol            = 1.0e-10,
-            double eos_pressure_tol    = 1.0e-3,
-            int eos_max_iters          = 100,
             str love_method            = 'radial_solver',
             fixed_q                    = None,
             fixed_dt                   = None) -> dict:
@@ -832,10 +828,6 @@ cdef class LayeredWorld(BaseWorld):
             Print solver status messages. Default False.
         warnings : bool, optional
             Emit solver warnings. Default True.
-        eos_rtol, eos_atol, eos_pressure_tol : float, optional
-            Tolerances for the internal EOS re-solve. Default 1e-6 / 1e-10 / 1e-3.
-        eos_max_iters : int, optional
-            Maximum iterations for the EOS pressure loop. Default 100.
         love_method : str, optional
             How the Love numbers are obtained. ``'radial_solver'`` (aliases ``'shooting'``,
             ``'rs'``; default) integrates the radial ODEs from the center to the surface;
@@ -894,10 +886,6 @@ cdef class LayeredWorld(BaseWorld):
         cfg.max_step          = max_step
         cfg.verbose           = <cpp_bool>verbose
         cfg.warnings          = <cpp_bool>warnings
-        cfg.eos_rtol          = eos_rtol
-        cfg.eos_atol          = eos_atol
-        cfg.eos_pressure_tol  = eos_pressure_tol
-        cfg.eos_max_iters     = eos_max_iters
 
         with nogil:
             self._layered_ptr.solve_love_numbers(cfg)

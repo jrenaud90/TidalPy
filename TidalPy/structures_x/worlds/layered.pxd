@@ -69,10 +69,6 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double    max_step
         cpp_bool  verbose
         cpp_bool  warnings
-        double    eos_rtol
-        double    eos_atol
-        double    eos_pressure_tol
-        int       eos_max_iters
 
     cdef cppclass c_LayeredWorld(c_BaseWorld):
         c_LayeredWorld()

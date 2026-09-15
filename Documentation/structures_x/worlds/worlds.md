@@ -211,7 +211,7 @@ print(world.love_number_h, world.love_number_l)
 
 The moduli and the viscosity are properties of the **layer**, not of the rheology model: a rheology model holds only its own shape parameters (the Andrade exponent, the Voigt fractions), and reads the modulus and viscosity it is handed. A layer with no shear modulus and no viscosity model deforms as if it had no strength, and the solve fails rather than guessing.
 
-**`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', use_kamata=True, nondimensionalize=True, starting_radius=0.0, start_radius_tol=1e-4, integration_method='DOP853', rtol=1e-6, atol=1e-10, scale_rtols=True, max_num_steps=500000, expected_size=500, max_ram_MB=500, max_step=0.0, verbose=False, warnings=True, eos_rtol=1e-6, eos_atol=1e-10, eos_pressure_tol=1e-3, eos_max_iters=100, love_method='radial_solver', fixed_q=None, fixed_dt=None) -> dict`**
+**`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', use_kamata=True, nondimensionalize=True, starting_radius=0.0, start_radius_tol=1e-4, integration_method='DOP853', rtol=1e-6, atol=1e-10, scale_rtols=True, max_num_steps=500000, expected_size=500, max_ram_MB=500, max_step=0.0, verbose=False, warnings=True, love_method='radial_solver', fixed_q=None, fixed_dt=None) -> dict`**
 
 Raises `ValueError` if the EOS has not yet been solved. Returns a dict (`success`, `error_code`, `message`, `love_method`, `love_number_k/h/l`); the results are also stored internally and accessed through the properties below.
 

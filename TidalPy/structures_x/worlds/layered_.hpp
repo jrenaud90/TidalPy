@@ -104,11 +104,6 @@ struct c_LoveSolveConfig {
     double    max_step           = 0.0;
     bool      verbose            = false;
     bool      warnings           = true;
-    // Tolerances for the EOS re-solve the Love path may run; same defaults as the standalone solve.
-    double    eos_rtol           = d_EOS_SOLVE_RTOL;
-    double    eos_atol           = d_EOS_SOLVE_ATOL;
-    double    eos_pressure_tol   = d_EOS_SOLVE_PRESSURE_TOL;
-    int       eos_max_iters      = static_cast<int>(d_EOS_SOLVE_MAX_ITERS);
 };
 
 // -------------------------------------------------------------------------------
