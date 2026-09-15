@@ -1,6 +1,6 @@
 # Utilities (`Utilities_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-15_
 
 `TidalPy.Utilities_x` is the shared infrastructure every other module is built on. It provides is the machinery the physics modules would otherwise each reinvent. The base classes that give every object logging, configuration export, and binary serialization; the numerical primitives the inner loops call; and the conversions, constants, and plotting helpers that sit at the boundary between a calculation and a person reading its result.
 
@@ -17,7 +17,7 @@ It is worth knowing what lives here even if you never import it directly, becaus
 | [Lookup Structures](lookups.md) | Integer-keyed maps for mode-indexed results, usable from C++, Cython, and Python. |
 | [Binary Serialization](binary_x.md) | The on-disk binary format, its header, schema versioning, and class ids. |
 | [Logging](logging_x.md) | The C++ logging system, its configuration, and how Python and C++ share one set of sinks. |
-| [Graphics](graphics_x.md) | Plotting helpers for radial functions and interior profiles. |
+| [Graphics](graphics_x.md) | Plotting helpers for radial functions, interior profiles, and surface maps. |
 
 ```{toctree}
 :maxdepth: 1

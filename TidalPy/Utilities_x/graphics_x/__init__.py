@@ -4,7 +4,8 @@
 against published benchmark curves; `plot_interior` draws a planet's interior profiles (gravity, density,
 pressure, optional temperature and moduli). Both return the matplotlib figure and axes so callers can
 adjust them further. `RadialSolverSolution.plot_ys` and `.plot_interior` call these with the solution's
-own arrays.
+own arrays. `plot_map` draws one colatitude-by-longitude slice of a 3D field as a global map, and
+`make_map_axes` builds figures of map panels for it; both use cartopy when it is installed.
 """
 
 from TidalPy.Utilities_x.graphics_x.radial_functions import (
@@ -17,12 +18,22 @@ from TidalPy.Utilities_x.graphics_x.interior import (
     INTERIOR_PLOT_STYLE,
     plot_interior,
 )
+from TidalPy.Utilities_x.graphics_x.maps import (
+    MAP_PLOT_STYLE,
+    MAP_PROJECTIONS,
+    make_map_axes,
+    plot_map,
+)
 
 __all__ = [
     "BENCHMARK_YS",
     "INTERIOR_PLOT_STYLE",
+    "MAP_PLOT_STYLE",
+    "MAP_PROJECTIONS",
     "TOBIE2005_X_LIMITS",
     "load_benchmark_ys",
+    "make_map_axes",
     "plot_interior",
+    "plot_map",
     "plot_ys",
 ]
