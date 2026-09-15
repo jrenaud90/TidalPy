@@ -26,8 +26,7 @@ These demos target the **Python** API. C++ API demos may be added later.
    constant-time-lag (fixed-dt) models; heating and circularization timescale versus orbital period.
 8. `08_love_numbers_1d` - the 1D radial solver for global Love numbers of multi-layer terrestrial
    worlds, and how static vs dynamic and compressible vs incompressible assumptions change them.
-9. `09_tidal_heating_3d` - tidal heating and stress from a tidal potential using the 1D radial
-   solver for Love numbers.
+9. `09_tidal_heating_3d` - the secular 3D tidal heating of a homogeneous Io: profiles in colatitude and depth, a longitude-resolved surface map, and the volume integral checked against the 1D total.
 10. `10_thermal_eos` - changing a world's equation of state and temperature profile, and how each
     reshapes the interior structure.
 
