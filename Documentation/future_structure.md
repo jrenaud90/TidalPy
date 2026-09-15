@@ -84,12 +84,6 @@ Steady-state timings hide something users feel immediately. The classic backend 
 
 A script that computes one 3D map and exits spends about a second in the classic backend once its cache is warm, nearly five seconds the first time after installing, and under thirty milliseconds in the new one, whatever the steady-state ratio says.
 
-### Two results that are not the same result
-
-Timings only mean something when both sides compute the same thing, and in one place they do not.
-
-Classic `quick_tidal_dissipation` returns 55 percent of the correct heating for a homogeneous degree-2 body. The closed form `(21/2) (-Im k2) G M^2 R^5 e^2 n / a^6` gives 2.649e10 W for the Io-like case used above; the new backend returns 2.649e10 W and the classic returns 1.464e10 W. The cause is in `TidalPy.tides.love1d.effective_rigidity_general`, whose coefficient is written `(2 l^2 + 4 l + 3 / l)` where it should be `(2 l^2 + 4 l + 3) / l`, giving 17.5 instead of 19/2 at degree 2. This is classic-only and is fixed by construction in the new backend.
-
 ## Module map
 
 | Classic module | Replacement | Documentation |
