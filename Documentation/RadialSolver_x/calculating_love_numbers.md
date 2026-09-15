@@ -39,9 +39,10 @@ The [input builders](build_inputs.md) exist because the solver's array requireme
 - Every array must be C-contiguous and of the stated dtype. The radius, density, and moduli arrays must all have the same size.
 - The radius array starts at `r = 0` and strictly increases.
 - Each layer needs at least 5 slices, so the arrays hold at least `5 * num_layers` points.
-  - If a analytic EOS is used then you likely will not benefit from providing more slices. However if you are using an interpolated EOS then more slices will likely improve accuracy. We recommend testing the number of slices for your specific problem.
+  - This entry point always builds an interpolated equation of state out of the arrays you supply: `eos_method_bylayer` accepts only `"interpolate"`, and any other name raises. There is no analytic-EOS option here that would make the slice count irrelevant, so how many slices a layer needs depends on its profiles, as the last two rules below explain.
 - Every interface radius appears **twice**: once as the top of the lower layer and once as the base of the upper layer. The last radius is the planet radius and must equal the last entry of `upper_radius_bylayer_array`.
-- The solver runs its own equation of state to obtain gravity, pressure, mass, and moment of inertia. The current method interpolates the supplied profiles, so give a layer enough slices to resolve any property that varies within it. A layer with constant properties is fine with 5; a layer with a real density profile is not.
+- The solver runs its own equation of state, and the slice count does not affect everything it produces equally. Gravity, pressure, mass, and moment of inertia are integrated and read back through the integrator's dense output, so they are evaluated at the exact integration radius rather than interpolated between your slices. Density and the complex shear and bulk moduli are the ones the slices control: at every integration radius they are linearly interpolated from the arrays you supplied, and that interpolated density is also what the structural integration above is driven by.
+- What that costs is set by how *curved* those profiles are within a layer, not by whether they vary at all, because linear interpolation reproduces a straight line exactly. For a single solid layer at degree 2, k2 from 5 slices lands within 1e-9 of the converged value when density and the moduli are constant and within 1e-8 when they vary linearly, but a strongly curved profile (density falling exponentially by a factor of two across the layer) is off by 1.3% at 5 slices, 0.2% at 10, and 0.03% at 25. Give a layer enough slices to follow the curvature of whichever property carries it, and test the count against a refined run for your own problem.
 
 ## Choosing a Method
 
@@ -92,7 +93,7 @@ The radial solver must have a EOS solution before it can solve the viscoelastic-
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `eos_method_bylayer` | `None` | Per-layer EOS method; `None` uses interpolation everywhere. |
+| `eos_method_bylayer` | `None` | Per-layer EOS method. `"interpolate"` is the only accepted value and `None` selects it everywhere, so the only reason to pass this is explicitness; any other name raises. |
 | `surface_pressure` | `0.0` | Pressure at the surface [Pa], the outer boundary condition for the interior pressure solve. |
 | `eos_integration_method` | `'DOP853'` | As `integration_method`, for the EOS solve. |
 | `eos_rtol`, `eos_atol` | `1.0e-3`, `1.0e-5` | EOS integration tolerances. |
