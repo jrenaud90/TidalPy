@@ -47,6 +47,34 @@ TidalPy.reinit({"logging": {"write_log_to_disk": True}})
 If you restart your kernel then these overrides need to be performed again. If you would like to make permanent changes
 then edit the config found in your documents directory (make a copy first!).
 
+## New-backend configuration (`TidalPy_Configs_x.toml`)
+
+The new C++ backend (the `_x` modules) reads its settings from a second file in the same directory, `TidalPy_Configs_x.toml`, loaded to `TidalPy.config_x`. Until the two files merge in TidalPy 0.9.0, the package-wide settings on this page (logging, pathing, debugging) stay in `TidalPy_Configs.toml`, while the new backend's numerical settings, tidal defaults, world defaults, and per-material layer defaults live in `TidalPy_Configs_x.toml`. The packaged defaults are in ["defaultc_x.py"](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/defaultc_x.py).
+
+TidalPy loads the packaged defaults first and merges your file over them, so your file only needs the values you change, and a default added in a later release reaches an existing file without regenerating it. Tables merge key by key and any other value (a list included) replaces the default whole. A physics-model table that names a different `model` than the default replaces the default table instead of merging with it, so no parameter of the default model carries over to a model that does not take it.
+
+### Reproducing a run
+
+A configuration file together with a world or system TOML reproduces a result on another computer running the same TidalPy version. Save the configuration in effect with `TidalPy.save_config_x`, and load it with `TidalPy.reinit`:
+
+```python
+import TidalPy
+
+# Override settings for this session (a file path works too); only the given values change.
+TidalPy.reinit(provided_config_x={"numerical": {"minimum_viscosity": 1.0e3}})
+
+# Save the full effective configuration next to the world file.
+TidalPy.save_config_x("my_run_config.toml")
+
+# On another computer (or later): start from the saved settings.
+TidalPy.reinit(provided_config_x="my_run_config.toml")
+
+# Return to the packaged defaults merged with your TidalPy_Configs_x.toml.
+TidalPy.reinit(provided_config_x="default")
+```
+
+A saved configuration begins with a comment header recording the TidalPy, SciPy, and CyRK versions that produced it. The header is a note for the reader; TidalPy does not check it when loading the file. Physical constants such as Newton's constant come from the installed SciPy, so a different SciPy release can shift results slightly even with the same configuration.
+
 ## Cleaning configurations directory
 If you are often installing different versions of TidalPy then you will likely want to clean out the configurations
 directory to avoid a bunch of old versions of config files from building up.

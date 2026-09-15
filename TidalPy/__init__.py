@@ -46,6 +46,9 @@ reinit()
 from .cache import clear_cache as clear_cache
 from .cache import clear_data as clear_data
 
+# Save the effective new-backend configuration, headed by the package versions that produced it.
+from .configurations import save_config_x as save_config_x
+
 # Announce the backend transition once per session. The classic modules (no `_x` suffix) are deprecated in favor
 # of the new C++ backend (`structures_x`, `Tides_x`, `RadialSolver_x`, ...), which will become the only TidalPy in
 # a future major release.

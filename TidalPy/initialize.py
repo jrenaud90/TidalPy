@@ -64,13 +64,22 @@ def build_logging_x_config() -> dict:
     }
 
 
-def initialize(provided_config_file = None):
+def initialize(provided_config_file = None, provided_config_x = None):
     """ Initialize (or reinitialize) TidalPy based on information stored in TidalPy.config
 
     Items in TidalPy.config are identical to those in the TidalPy_Config.toml unless the user changed them and called
         TidalPy.reinit()
     
     See more information about TidalPy_Config.toml in TidalPy.configurations.py
+
+    Parameters
+    ----------
+    provided_config_file : str or dict, optional
+        A classic configuration file path or dict, merged over ``TidalPy.config``.
+    provided_config_x : str or dict, optional
+        A new-backend configuration file path or dict, merged over ``TidalPy.config_x``. ``"default"`` reloads the
+        packaged defaults merged with the user's ``TidalPy_Configs_x.toml``. A file written by
+        :func:`TidalPy.save_config_x` restores the settings of the run that saved it.
     """
     import TidalPy
     from TidalPy.constants import update_constants, update_constants_x
@@ -87,9 +96,13 @@ def initialize(provided_config_file = None):
 
     # Load (or create) the configuration for the new `_x` class system. Stored on
     # TidalPy.config_x and written to TidalPy_Configs_x.toml on first use.
-    from TidalPy.configurations import get_default_config_x
+    from TidalPy.configurations import get_default_config_x, set_config_x
     if TidalPy.config_x is None:
         get_default_config_x()
+
+    # Merge a new-backend configuration provided to initialize over the current one.
+    if provided_config_x is not None:
+        set_config_x(provided_config_x)
 
     # Update default configs with any in the CWD
     if TidalPy.config['configs']['use_cwd_for_config']:
