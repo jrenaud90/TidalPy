@@ -96,13 +96,16 @@ def test_analytic_matches_quadrature_with_shared_frequencies():
     np.testing.assert_allclose(analytic, numeric, rtol=1.0e-9)
 
 
-def test_secular_grid_is_time_average_of_instantaneous():
+@pytest.mark.parametrize("max_degree_l", [2, 4])
+def test_secular_grid_is_time_average_of_instantaneous(max_degree_l):
     """The secular grid equals the time average of the instantaneous power point by point, longitude included.
 
     At synchronous rotation one orbital period is the exact common period of every active mode, and the
     instantaneous power is a trigonometric polynomial in time, so a uniform trapezoid over the period is exact.
+    Degree 4 puts waves of different degree and order at one frequency, so their stress and strain amplitudes
+    have to be combined into one total per frequency before the power is formed.
     """
-    world = _build_world()
+    world = _build_world(max_degree_l=max_degree_l)
     r, colat = 0.9 * _R, 1.0
     lons = np.array([0.0, 0.5, 1.0, 0.5 * np.pi, 2.5])
     secular = world.calc_3d_tides(*_SYNC, radii=np.array([r]), colatitudes=np.array([colat]),

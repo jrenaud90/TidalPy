@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
 
 Performance tests were run with the classic and new backend. Both are timed after warm up as the best of seven batches, and each figure is the lowest of three independent runs in fresh processes, with console logging limited to errors so terminal output is not timed. The machine is an 8-core AMD desktop running Windows 11, Python 3.13, numpy 2.4, numba 0.67, scipy 1.18, and BurnMan 2.1. Ratios move with the machine and the problem size, so read them as rough magnitudes, and measure your own workload before relying on any of them.
 
-The new backend is dramatically faster where the classic path called out to BurnMan or paid a numba compile, two to three times faster on array work and global tidal heating, about even on the radial solver, and **slower** on a few paths, which are listed too.
+The new backend is dramatically faster where the classic path called out to BurnMan or paid a numba compile, two to three times faster on array work, 3D heating maps, and global tidal heating, about even on the radial solver, and **slower** on a few paths, which are listed too.
 
 ### Where it is faster
 
@@ -36,6 +36,7 @@ The new backend is dramatically faster where the classic path called out to Burn
 | Rheology, 10k complex moduli | 0.175 ms | 0.055 ms | **3.2x faster** |
 | Orbit-averaged 3D heating map (50 x 16 x 32) | 13.3 ms | 4.2 ms | **3.1x faster** |
 | Global tidal heating, e^2 truncation | 0.020 ms | 0.0075 ms | **2.7x faster** |
+| Instantaneous 3D heating map (50 x 16 x 32 x 8 times) | 13.8 ms | 5.4 ms | **2.6x faster** |
 | Global tidal heating, e^4 truncation | 0.022 ms | 0.0094 ms | **2.3x faster** |
 | Global tidal heating, degrees 2 to 4, e^10 | 0.047 ms | 0.021 ms | **2.2x faster** |
 | Global tidal heating, e^10 truncation | 0.025 ms | 0.015 ms | **1.7x faster** |
@@ -62,13 +63,10 @@ The standalone radial solver was already Cython calling CyRK, so there was littl
 
 | Task | Classic | New | Change |
 |---|---|---|---|
-| Instantaneous 3D heating map (50 x 16 x 32 x 8 times) | 13.1 ms | 28.4 ms | **0.46x, 2.2x slower** |
 | Convective cooling, 10k evaluations | 0.158 ms | 0.202 ms | 0.78x, 1.3x slower |
 | Rheology, one complex modulus | 0.056 us | 0.076 us | 0.74x, 1.4x slower |
 
 One of these has a known cause. A single scalar rheology call is dominated by the Python-to-C++ boundary rather than by the arithmetic, and the numba path crosses a cheaper one; use the vectorized calls, where the new backend wins by 3x, whenever there is more than a handful of values. The vectorized convective cooling gap has not been investigated.
-
-The instantaneous 3D map is the largest gap and does not have a tidy explanation; both paths evaluate the same grid, and the new one takes a little over twice as long. The orbit-averaged case reverses it, because the new backend has a secular form that never builds a time axis while the classic route has to average one.
 
 ### The first call
 
@@ -77,12 +75,12 @@ Steady-state timings hide something users feel immediately. The classic backend 
 | First call | Classic, first session after installing | Classic, later sessions | New |
 |---|---|---|---|
 | Tidal heating, degrees 2 to 4, e^10 | 6.9 s | 1.2 s | 0.12 ms |
-| 3D heating map (50 x 16 x 32 x 8 times) | 4.7 s | 1.0 s | 29 ms |
+| 3D heating map (50 x 16 x 32 x 8 times) | 4.7 s | 1.0 s | 5.9 ms |
 | Build a planet with its interior (Io) | not measured | 1.4 s | 4.0 ms |
 | Dual-body dissipation rates | not measured | 1.1 s | no single-call equivalent |
 | Build a world from config | not measured | 0.22 s | 1.2 ms |
 
-A script that computes one 3D map and exits spends about a second in the classic backend once its cache is warm, nearly five seconds the first time after installing, and under thirty milliseconds in the new one, whatever the steady-state ratio says.
+A script that computes one 3D map and exits spends about a second in the classic backend once its cache is warm, nearly five seconds the first time after installing, and about six milliseconds in the new one, whatever the steady-state ratio says.
 
 ## Module map
 

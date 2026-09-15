@@ -16,6 +16,7 @@
  * (and gas-giant) world extension only.
  */
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -619,6 +620,7 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
     std::vector<size_t> radius_missing(nr, 0);
     std::vector<unsigned char> group_missing(nr, 0);
     std::vector<std::complex<double>> y1_at_r(nr), y3_at_r(nr);
+    std::vector<double> cos_phase(nt), sin_phase(nt);
     c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
     for (size_t g = 0; g < num_groups; ++g) {
         const ::c_RadialSolutionStorage* storage =
@@ -638,6 +640,12 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
         for (size_t w = 0; w < set.waves.size(); ++w) {
             if (set.wave_radial_group[w] != static_cast<int>(g)) { continue; }
             const c_TidalWave3D& wave = set.waves[w];
+            // The phase factors depend only on the wave's frequency and the time, so they are tabulated once per wave.
+            for (size_t it = 0; it < nt; ++it) {
+                const double phase = wave.frequency * times[it];
+                cos_phase[it] = std::cos(phase);
+                sin_phase[it] = std::sin(phase);
+            }
             for (size_t ith = 0; ith < nth; ++ith) {
                 for (size_t iph = 0; iph < nph; ++iph) {
                     const c_PotentialPointC potential =
@@ -654,9 +662,8 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
                             colatitudes[ith],
                             amplitude);
                         for (size_t it = 0; it < nt; ++it) {
-                            const double phase = wave.frequency * times[it];
-                            const double cos_wt = std::cos(phase);
-                            const double sin_wt = std::sin(phase);
+                            const double cos_wt = cos_phase[it];
+                            const double sin_wt = sin_phase[it];
                             double* out = out_disp + 3 * (((ir * nth + ith) * nph + iph) * nt + it);
                             for (size_t k = 0; k < 3; ++k) {
                                 out[k] += amplitude.c[k].real() * cos_wt - amplitude.c[k].imag() * sin_wt;
@@ -991,11 +998,23 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
             }
         }
     } else {
-        // Instantaneous power sigma_ij(t) eps_dot_ij(t). Build each wave's complex stress/strain amplitude at
-        // (r, theta, phi), then evolve in time as Re[. e^{i |omega| t}] and sum the real fields (every cross
-        // term present).
-        std::vector<tides::c_Tensor6> wave_stress, wave_strain;
-        std::vector<double> wave_freq;
+        // Instantaneous power sigma_ij(t) eps_dot_ij(t). At each (r, theta, phi) every wave's complex stress and
+        // strain amplitude is added into the total amplitude of its frequency (superposition, so no cross term is
+        // lost), then each frequency is evolved in time as Re[. e^{i |omega| t}] and the real fields are summed.
+        // The phase factors depend only on the frequency and the time, so they are tabulated once for the grid.
+        const size_t num_frequencies = set.frequencies.size();
+        std::vector<double> cos_phase(num_frequencies * nt);
+        std::vector<double> sin_phase(num_frequencies * nt);
+        for (size_t f = 0; f < num_frequencies; ++f) {
+            for (size_t it = 0; it < nt; ++it) {
+                const double phase = set.frequencies[f] * t_grid[it];
+                cos_phase[f * nt + it] = std::cos(phase);
+                sin_phase[f * nt + it] = std::sin(phase);
+            }
+        }
+        std::vector<tides::c_Tensor6> frequency_stress(num_frequencies);
+        std::vector<tides::c_Tensor6> frequency_strain(num_frequencies);
+        std::vector<unsigned char> frequency_active(num_frequencies, 0);
         for (size_t ir = 0; ir < nr; ++ir) {
             for (size_t ith = 0; ith < nth; ++ith) {
                 for (size_t iph = 0; iph < nph; ++iph) {
@@ -1007,9 +1026,7 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
                         }
                         continue;
                     }
-                    wave_stress.clear();
-                    wave_strain.clear();
-                    wave_freq.clear();
+                    std::fill(frequency_active.begin(), frequency_active.end(), 0);
                     for (size_t w = 0; w < num_waves; ++w) {
                         const tides::c_StrainRadialCoeffs& radial = coeffs[ir][set.wave_radial_group[w]];
                         if (!radial.valid) { continue; }
@@ -1022,22 +1039,31 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
                             th_grid[ith],
                             strain,
                             stress);
-                        wave_stress.push_back(stress);
-                        wave_strain.push_back(strain);
-                        wave_freq.push_back(set.waves[w].frequency);
+                        const size_t f = static_cast<size_t>(set.wave_frequency_group[w]);
+                        if (!frequency_active[f]) {
+                            frequency_stress[f] = stress;
+                            frequency_strain[f] = strain;
+                            frequency_active[f] = 1;
+                        } else {
+                            for (size_t k = 0; k < 6; ++k) {
+                                frequency_stress[f].c[k] += stress.c[k];
+                                frequency_strain[f].c[k] += strain.c[k];
+                            }
+                        }
                     }
+                    const double point_weight = any_summed ? combined_weight(ir, ith, iph) : 1.0;
                     for (size_t it = 0; it < nt; ++it) {
-                        const double time = t_grid[it];
                         double power = 0.0;
                         for (size_t k = 0; k < 6; ++k) {
                             double sigma = 0.0;
                             double eps_dot = 0.0;
-                            for (size_t ww = 0; ww < wave_freq.size(); ++ww) {
-                                const double omega = wave_freq[ww];
-                                const double cos_wt = std::cos(omega * time);
-                                const double sin_wt = std::sin(omega * time);
-                                const std::complex<double>& sc = wave_stress[ww].c[k];
-                                const std::complex<double>& ec = wave_strain[ww].c[k];
+                            for (size_t f = 0; f < num_frequencies; ++f) {
+                                if (!frequency_active[f]) { continue; }
+                                const double omega = set.frequencies[f];
+                                const double cos_wt = cos_phase[f * nt + it];
+                                const double sin_wt = sin_phase[f * nt + it];
+                                const std::complex<double>& sc = frequency_stress[f].c[k];
+                                const std::complex<double>& ec = frequency_strain[f].c[k];
                                 sigma   += sc.real() * cos_wt - sc.imag() * sin_wt;
                                 eps_dot += -omega * (ec.real() * sin_wt + ec.imag() * cos_wt);
                             }
@@ -1046,7 +1072,7 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
                         if (!any_summed) {
                             result.values[surv_index(ir, ith, iph, it)] = power;
                         } else {
-                            const double contrib = power * combined_weight(ir, ith, iph);
+                            const double contrib = power * point_weight;
                             result.values[surv_index(ir, ith, iph, it)] += contrib;
                             if (result.all_spatial_summed) {
                                 result.layer_totals[r_layer[ir] * nt + it] += contrib;
