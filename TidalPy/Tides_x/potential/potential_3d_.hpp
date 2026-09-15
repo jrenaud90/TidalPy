@@ -5,7 +5,7 @@
  * Given an orbital/spin state and truncation levels (max degree l, eccentricity truncation, obliquity
  * truncation), this returns every active tidal mode (l, m, p, q) with its signed forcing frequency and
  * the potential angular factor U(theta, phi, t) together with its first/second colatitude/longitude
- * derivatives (a c_PotentialPoint). It is the class-free replacement for the old per-scenario
+ * derivatives (a complex c_PotentialPointC phasor). It is the class-free replacement for the old per-scenario
  * c_TidalPotentialBase models: the active modes and their coefficients are built dynamically from the
  * same eccentricity (G_lpq) and inclination/obliquity (F_lmp) functions the global (1D) path uses
  * (see potential/global_.hpp), plus the associated Legendre functions P_lm (Utilities_x/legendre).
@@ -36,7 +36,7 @@
 #include "obliquity_driver_.hpp"        // c_obliquity_func, ObliquityFuncOutput
 #include "eccentricity_driver_.hpp"     // c_eccentricity_func, EccentricityFuncOutput
 #include "potential_common_.hpp"        // c_get_lm_coeff_map, keys
-#include "potential_point_.hpp"         // tidalpy::c_PotentialPoint
+#include "potential_point_.hpp"         // tidalpy::c_PotentialPointC
 #include "legendre_driver_.hpp"         // tidalpy::c_legendre
 #include "constants_.hpp"               // TidalPyConstants
 

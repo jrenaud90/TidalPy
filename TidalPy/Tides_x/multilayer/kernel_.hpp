@@ -20,7 +20,7 @@
 #include <limits>
 
 #include "strain_radial_.hpp"
-#include "../potential/potential_point_.hpp"   // tidalpy::c_PotentialPoint (shared with the potential models)
+#include "../potential/potential_point_.hpp"   // tidalpy::c_PotentialPointC (shared with the potential engine)
 
 
 namespace tidalpy {
@@ -35,8 +35,8 @@ struct c_Tensor6
 // Compute the 6 strain and 6 stress components at one point from the radial coefficients, the
 // potential point, and the colatitude (needed for sin/cot factors).
 // If the radial coefficients are invalid (liquid / center), the components are NaN.
-// Templated on the potential-point type so it serves both the real c_PotentialPoint (instantaneous
-// path, U real) and the complex c_PotentialPointC (secular path, U is a complex phasor amplitude).
+// Templated on the potential-point type; every caller passes the complex phasor c_PotentialPointC, so the
+// strains and stresses are complex amplitudes at the mode's frequency.
 template <typename PotentialPointT>
 inline void c_compute_strain_stress(
         const c_StrainRadialCoeffs& R,
@@ -65,7 +65,7 @@ inline void c_compute_strain_stress(
     const double tan_theta = std::tan(colatitude);
     const double cot_theta = (tan_theta == 0.0) ? std::numeric_limits<double>::quiet_NaN() : 1.0 / tan_theta;
 
-    // Angular helper combinations (auto: real for c_PotentialPoint, complex for c_PotentialPointC).
+    // Angular helper combinations (auto: the potential point's value type).
     const auto s2_t1 = (sin_inv * sin_inv) * P.d2U_dphi2 + cot_theta * P.dU_dtheta;
     const auto s4_t0 = P.dU_dphi * sin_inv;
     const auto s5_t0 = 2.0 * (P.d2U_dtheta_dphi - cot_theta * P.dU_dphi) * sin_inv;
@@ -91,8 +91,9 @@ inline void c_compute_strain_stress(
     }
 }
 
-// Volumetric tidal heating [W m-3] at a point from the 6 stress and strain components.
+// Magnitude of the weighted bilinear form [Pa] at a point from the 6 stress and strain amplitudes:
 // h = | sum_k [ Im(sigma_k) Re(eps_k) - Re(sigma_k) Im(eps_k) ] |, with factor 2 on the 3 off-diagonals.
+// For the summed amplitudes of one frequency, (|omega|/2) h is the cycle-averaged heating [W m-3].
 inline double c_volumetric_heating(const c_Tensor6& stress, const c_Tensor6& strain) noexcept
 {
     double h = 0.0;
@@ -102,8 +103,8 @@ inline double c_volumetric_heating(const c_Tensor6& stress, const c_Tensor6& str
                           - stress.c[k].real() * strain.c[k].imag();
         h += (k < 3) ? term : 2.0 * term;
     }
-    // h can be complex. According to the Europa book eq. 42 we can take the abs to find the true volumetric heating.
-    // TODO: this feels hacky though, would love to investigate this further.
+    // The weighted sum is real. For the summed amplitudes of one frequency it is non-negative for dissipative
+    // moduli, so there the magnitude equals the signed form below (Europa book Eq. 42).
     return std::abs(h);
 }
 
