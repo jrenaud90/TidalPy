@@ -52,6 +52,18 @@ namespace tidalpy {
 // potential is built dynamically from the world's truncation config (no potential-model object).
 class c_LayeredWorld;
 
+// The four axes of a 3D grid. Grid outputs are row-major in the order radius, colatitude, longitude, time.
+struct c_Grid3DAxes {
+    const double* radii           = nullptr;   // [m]
+    size_t        num_radii       = 0;
+    const double* colatitudes     = nullptr;   // [rad]
+    size_t        num_colatitudes = 0;
+    const double* longitudes      = nullptr;   // [rad]
+    size_t        num_longitudes  = 0;
+    const double* times           = nullptr;   // [s]
+    size_t        num_times       = 0;
+};
+
 // Supported tidal degrees: l = 2..10 (matches the eccentricity/obliquity tables).
 constexpr int C_TIDE_MIN_DEGREE  = 2;
 constexpr int C_TIDE_MAX_DEGREE  = 10;
@@ -169,6 +181,18 @@ public:
             const double* times,
             size_t num_times,
             double* out_disp) const;
+
+    // Instantaneous stress [Pa] and strain on the axes' (radius, colatitude, longitude, time) grid, written into
+    // out_stress and out_strain as 6 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component) with the
+    // components rr, theta-theta, phi-phi, r-theta, r-phi, theta-phi. Either output may be null to skip it. NaN
+    // where no wave has a shear kernel: a radius with no depth-resolved solution or a liquid layer. Modes at zero
+    // forcing frequency (the permanent tide) are not included. Defined out-of-line in world_tides_.hpp.
+    void calc_3d_stress_strain_grid(
+            c_LayeredWorld& world,
+            const c_TideSolveConfig& state,
+            const c_Grid3DAxes& axes,
+            double* out_stress,
+            double* out_strain) const;
 
     // Collapsed (summed/averaged) secular 3D tidal heating: reduces the density along any of the
     // colatitude / longitude / radial dimensions per the flags in cfg (see c_Heating3DCollapseConfig).

@@ -25,6 +25,16 @@ from TidalPy.dynamics_x.spin cimport Spin, c_Spin
 # C++ class declarations
 # =====================================================================================================================
 cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
+    cdef cppclass c_Grid3DAxes:
+        const double* radii
+        size_t        num_radii
+        const double* colatitudes
+        size_t        num_colatitudes
+        const double* longitudes
+        size_t        num_longitudes
+        const double* times
+        size_t        num_times
+
     cdef cppclass c_WorldEOSSolveConfig:
         double    surface_pressure
         size_t    slices_per_layer
@@ -153,6 +163,11 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
                                  const double* times,
                                  size_t num_times,
                                  double* out_disp) except +
+        void                 get_3d_stress_strain_grid(
+                                 const c_TideSolveConfig& state,
+                                 const c_Grid3DAxes& axes,
+                                 double* out_stress,
+                                 double* out_strain) except +
         c_Heating3DCollapsed calc_3d_tides(
                                  const c_TideSolveConfig& state,
                                  const double* radii,

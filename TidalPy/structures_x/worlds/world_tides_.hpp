@@ -363,6 +363,123 @@ inline bool c_strain_coeffs_at_radius_3d(
     return true;
 }
 
+// Strain radial coefficients at a set of radii for every radial group of a wave set, and which radii are unusable.
+struct c_RadialCoefficients3D {
+    std::vector<std::vector<tides::c_StrainRadialCoeffs>> by_radius;   // [radius][radial group]
+    std::vector<unsigned char> radius_failed;                          // 1 where no radial group has a solution
+};
+
+// Solve the radial problem once per radial group (l, |omega|) and evaluate each group's strain radial coefficients
+// at every radius. A radius is unusable only if NO group has a depth-resolved solution there: the solver's start
+// radius grows with degree l, so a higher-degree group whose solution starts further out simply contributes nothing
+// below it.
+inline c_RadialCoefficients3D c_radial_coefficients_3d(
+        c_LayeredWorld& world,
+        const c_WaveSet3D& set,
+        const double* radii,
+        size_t num_radii,
+        const char* what) {
+    const size_t num_groups = set.radial_groups.size();
+    c_RadialCoefficients3D out;
+    out.by_radius.assign(num_radii, std::vector<tides::c_StrainRadialCoeffs>(num_groups));
+    out.radius_failed.assign(num_radii, 0);
+    std::vector<size_t> radius_missing(num_radii, 0);
+    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+    for (size_t g = 0; g < num_groups; ++g) {
+        const ::c_RadialSolutionStorage* storage =
+            c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], what);
+        for (size_t ir = 0; ir < num_radii; ++ir) {
+            if (!c_strain_coeffs_at_radius_3d(
+                world,
+                storage,
+                radii[ir],
+                set.radial_groups[g],
+                out.by_radius[ir][g])) {
+                radius_missing[ir] += 1;
+            }
+        }
+    }
+    for (size_t ir = 0; ir < num_radii; ++ir) {
+        out.radius_failed[ir] = (num_groups > 0 && radius_missing[ir] == num_groups) ? 1 : 0;
+    }
+    return out;
+}
+
+// cos(|omega_f| t) and sin(|omega_f| t) for every frequency f of a wave set and every time, row-major
+// [f * num_times + it]. They depend on neither position nor wave, so a grid tabulates them once.
+struct c_PhaseTable3D {
+    std::vector<double> cos_phase;
+    std::vector<double> sin_phase;
+};
+
+inline c_PhaseTable3D c_phase_table_3d(
+        const std::vector<double>& frequencies,
+        const double* times,
+        size_t num_times) {
+    c_PhaseTable3D table;
+    table.cos_phase.resize(frequencies.size() * num_times);
+    table.sin_phase.resize(frequencies.size() * num_times);
+    for (size_t f = 0; f < frequencies.size(); ++f) {
+        for (size_t it = 0; it < num_times; ++it) {
+            const double phase = frequencies[f] * times[it];
+            table.cos_phase[f * num_times + it] = std::cos(phase);
+            table.sin_phase[f * num_times + it] = std::sin(phase);
+        }
+    }
+    return table;
+}
+
+// Total complex stress and strain amplitude of each frequency of a wave set at one point. active[f] is 1 where
+// frequency f received at least one wave.
+struct c_FrequencyAmplitudes3D {
+    std::vector<tides::c_Tensor6> stress;
+    std::vector<tides::c_Tensor6> strain;
+    std::vector<unsigned char> active;
+
+    explicit c_FrequencyAmplitudes3D(size_t num_frequencies) :
+        stress(num_frequencies),
+        strain(num_frequencies),
+        active(num_frequencies, 0) {}
+};
+
+// Fill the amplitudes at (colatitude, longitude) from the strain radial coefficients of every radial group at one
+// radius. Every wave with a shear kernel there is added into the total of its frequency: waves at one frequency
+// superpose, so every cross term between them is kept. Returns false when no wave has a shear kernel (a liquid layer).
+inline bool c_frequency_amplitudes_3d(
+        const c_WaveSet3D& set,
+        const std::vector<tides::c_StrainRadialCoeffs>& coeffs_at_radius,
+        double colatitude,
+        double longitude,
+        c_FrequencyAmplitudes3D& amplitudes) {
+    std::fill(amplitudes.active.begin(), amplitudes.active.end(), 0);
+    bool any_kernel = false;
+    for (size_t w = 0; w < set.waves.size(); ++w) {
+        const tides::c_StrainRadialCoeffs& radial = coeffs_at_radius[set.wave_radial_group[w]];
+        if (!radial.valid) { continue; }
+        const c_PotentialPointC potential = c_eval_wave_point_3d(set.waves[w], colatitude, longitude);
+        tides::c_Tensor6 strain, stress;
+        tides::c_compute_strain_stress(
+            radial,
+            potential,
+            colatitude,
+            strain,
+            stress);
+        const size_t f = static_cast<size_t>(set.wave_frequency_group[w]);
+        if (!amplitudes.active[f]) {
+            amplitudes.stress[f] = stress;
+            amplitudes.strain[f] = strain;
+            amplitudes.active[f] = 1;
+        } else {
+            for (size_t k = 0; k < 6; ++k) {
+                amplitudes.stress[f].c[k] += stress.c[k];
+                amplitudes.strain[f].c[k] += strain.c[k];
+            }
+        }
+        any_kernel = true;
+    }
+    return any_kernel;
+}
+
 // Signed azimuthal wavenumber of a wave (its longitude structure is e^{i mu phi}).
 inline int c_wave_mu(const c_TidalWave3D& wave) {
     return wave.azimuthal_sign * wave.order_m;
@@ -685,6 +802,98 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
     }
 }
 
+// Instantaneous stress and strain grid. The coherent wave list, the radial solves with their strain radial
+// coefficients, and the phase tables are built once; at each (r, theta, phi) every wave's complex amplitude is added
+// into its frequency's total, and each component at time t is the sum over frequencies of
+// Re[amplitude e^{i |omega| t}].
+inline void c_RheologyTide::calc_3d_stress_strain_grid(
+        c_LayeredWorld& world,
+        const c_TideSolveConfig& state,
+        const c_Grid3DAxes& axes,
+        double* out_stress,
+        double* out_strain) const {
+    if (out_stress == nullptr && out_strain == nullptr) {
+        throw std::invalid_argument("TidalPy: the 3D stress and strain grid needs at least one output buffer");
+    }
+    const size_t nr = axes.num_radii;
+    const size_t nth = axes.num_colatitudes;
+    const size_t nph = axes.num_longitudes;
+    const size_t nt = axes.num_times;
+    if (nr == 0 || nth == 0 || nph == 0 || nt == 0) {
+        return;
+    }
+
+    const char* what = "3D tidal stress and strain";
+    const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, what);
+    const tides3d::c_RadialCoefficients3D radial_coefficients =
+        tides3d::c_radial_coefficients_3d(world, set, axes.radii, nr, what);
+    const tides3d::c_PhaseTable3D phase = tides3d::c_phase_table_3d(set.frequencies, axes.times, nt);
+    const size_t num_frequencies = set.frequencies.size();
+    tides3d::c_FrequencyAmplitudes3D amplitudes(num_frequencies);
+    const double nan_v = TidalPyConstants::d_NAN;
+
+    for (size_t ir = 0; ir < nr; ++ir) {
+        for (size_t ith = 0; ith < nth; ++ith) {
+            for (size_t iph = 0; iph < nph; ++iph) {
+                // Undefined at a radius without a solution, and where waves exist but none has a shear kernel; with
+                // no active waves at all the tensors are zero.
+                const bool defined = !radial_coefficients.radius_failed[ir]
+                    && (tides3d::c_frequency_amplitudes_3d(
+                            set,
+                            radial_coefficients.by_radius[ir],
+                            axes.colatitudes[ith],
+                            axes.longitudes[iph],
+                            amplitudes)
+                        || set.waves.empty());
+                const size_t point_offset = ((ir * nth + ith) * nph + iph) * nt;
+                for (size_t it = 0; it < nt; ++it) {
+                    const size_t offset = 6 * (point_offset + it);
+                    for (size_t k = 0; k < 6; ++k) {
+                        double stress = nan_v;
+                        double strain = nan_v;
+                        if (defined) {
+                            stress = 0.0;
+                            strain = 0.0;
+                            for (size_t f = 0; f < num_frequencies; ++f) {
+                                if (!amplitudes.active[f]) { continue; }
+                                const double cos_wt = phase.cos_phase[f * nt + it];
+                                const double sin_wt = phase.sin_phase[f * nt + it];
+                                const std::complex<double>& sc = amplitudes.stress[f].c[k];
+                                const std::complex<double>& ec = amplitudes.strain[f].c[k];
+                                stress += sc.real() * cos_wt - sc.imag() * sin_wt;
+                                strain += ec.real() * cos_wt - ec.imag() * sin_wt;
+                            }
+                        }
+                        if (out_stress != nullptr) { out_stress[offset + k] = stress; }
+                        if (out_strain != nullptr) { out_strain[offset + k] = strain; }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// World delegation for the stress and strain grid: same preconditions as the 3D heating paths.
+inline void c_LayeredWorld::get_3d_stress_strain_grid(
+        const c_TideSolveConfig& state,
+        const c_Grid3DAxes& axes,
+        double* out_stress,
+        double* out_strain) {
+    if (!this->p_tide) {
+        throw std::runtime_error("TidalPy: no tide model attached to the world: call set_tide_model() first");
+    }
+    auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
+    if (rheology == nullptr) {
+        throw std::runtime_error(
+            "TidalPy: 3D tidal stress and strain require the rheology tide model (the analytic cpl/ctl/ctl_q "
+            "models have no depth-resolved radial solution)");
+    }
+    if (!this->p_eos_solved || !this->p_eos_solution) {
+        throw std::runtime_error("TidalPy: 3D tidal stress and strain need the EOS solved first: call solve_eos()");
+    }
+    rheology->calc_3d_stress_strain_grid(*this, state, axes, out_stress, out_strain);
+}
+
 // Batch form of the secular 3D heating: the longitude-mean secular density at num_points paired (radius,
 // colatitude) points. The coherent wave list is built once, the radial solve runs once per radial group
 // (l, |omega|), and its strain radial coefficients are evaluated once per UNIQUE radius (points on a map share
@@ -722,41 +931,22 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
         }
         point_radius[i] = found->second;
     }
-    const size_t num_radii = unique_radii.size();
-    const size_t num_groups = set.radial_groups.size();
-
-    // Strain radial coefficients [unique radius][radial group]. A radius is unusable only if NO group has a
-    // depth-resolved solution there: the solver's start radius grows with degree l, so a higher-degree group
-    // whose solution starts further out simply contributes nothing below it.
-    std::vector<std::vector<tides::c_StrainRadialCoeffs>> coeffs(
-        num_radii, std::vector<tides::c_StrainRadialCoeffs>(num_groups));
-    std::vector<size_t> radius_missing(num_radii, 0);
-    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
-    for (size_t g = 0; g < num_groups; ++g) {
-        const ::c_RadialSolutionStorage* storage =
-            tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "secular 3D tidal heating");
-        for (size_t ur = 0; ur < num_radii; ++ur) {
-            if (!tides3d::c_strain_coeffs_at_radius_3d(
-                world,
-                storage,
-                unique_radii[ur],
-                set.radial_groups[g],
-                coeffs[ur][g])) {
-                radius_missing[ur] += 1;
-            }
-        }
-    }
+    // Strain radial coefficients [unique radius][radial group]
+    const tides3d::c_RadialCoefficients3D radial_coefficients = tides3d::c_radial_coefficients_3d(
+        world,
+        set,
+        unique_radii.data(),
+        unique_radii.size(),
+        "secular 3D tidal heating");
 
     for (size_t i = 0; i < num_points; ++i) {
-        const bool unusable = point_invalid[i]
-            || (num_groups > 0 && radius_missing[point_radius[i]] == num_groups);
-        if (unusable) {
+        if (point_invalid[i] || radial_coefficients.radius_failed[point_radius[i]]) {
             out_heating[i] = TidalPyConstants::d_NAN;
             continue;
         }
         out_heating[i] = tides3d::c_secular_density_3d(
             set,
-            coeffs[point_radius[i]],
+            radial_coefficients.by_radius[point_radius[i]],
             colatitudes[i],
             0.0,
             true);
@@ -791,8 +981,6 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
 
     // Coherent wave list (built once, reused across every grid point).
     const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "3D tidal heating");
-    const size_t num_waves = set.waves.size();
-    const size_t num_groups = set.radial_groups.size();
 
     // Axis Grids
     // Radius: user array unless summed (then a per-layer trapezoid grid; r_wsum carries the r^2 Jacobian).
@@ -918,32 +1106,15 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
         return wr * wth * wph;
     };
 
-    // Radial solve once per radial group (l, |omega|); strain radial coefficients [radius][group]. A radius has
-    // no depth-resolved solution (radius_solve_failed) only if NO group has one there: the solver's start radius
-    // grows with degree l, so a higher-degree group whose solution starts further out simply contributes
-    // nothing below it.
-    std::vector<std::vector<tides::c_StrainRadialCoeffs>> coeffs(
-        nr, std::vector<tides::c_StrainRadialCoeffs>(num_groups));
-    std::vector<size_t> radius_missing(nr, 0);
-    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
-    for (size_t g = 0; g < num_groups; ++g) {
-        const ::c_RadialSolutionStorage* storage =
-            tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "3D tidal heating");
-        for (size_t ir = 0; ir < nr; ++ir) {
-            if (!tides3d::c_strain_coeffs_at_radius_3d(
-                world,
-                storage,
-                r_grid[ir],
-                set.radial_groups[g],
-                coeffs[ir][g])) {
-                radius_missing[ir] += 1;
-            }
-        }
-    }
-    std::vector<unsigned char> radius_solve_failed(nr, 0);
-    for (size_t ir = 0; ir < nr; ++ir) {
-        radius_solve_failed[ir] = (num_groups > 0 && radius_missing[ir] == num_groups) ? 1 : 0;
-    }
+    // Radial solve once per radial group (l, |omega|) and strain radial coefficients [radius][group]
+    const tides3d::c_RadialCoefficients3D radial_coefficients = tides3d::c_radial_coefficients_3d(
+        world,
+        set,
+        r_grid.data(),
+        nr,
+        "3D tidal heating");
+    const std::vector<std::vector<tides::c_StrainRadialCoeffs>>& coeffs = radial_coefficients.by_radius;
+    const std::vector<unsigned char>& radius_solve_failed = radial_coefficients.radius_failed;
 
     // Evaluate and Reduce
     const double nan_v = TidalPyConstants::d_NAN;
@@ -999,22 +1170,11 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
         }
     } else {
         // Instantaneous power sigma_ij(t) eps_dot_ij(t). At each (r, theta, phi) every wave's complex stress and
-        // strain amplitude is added into the total amplitude of its frequency (superposition, so no cross term is
-        // lost), then each frequency is evolved in time as Re[. e^{i |omega| t}] and the real fields are summed.
-        // The phase factors depend only on the frequency and the time, so they are tabulated once for the grid.
+        // strain amplitude is added into the total amplitude of its frequency, then each frequency is evolved in
+        // time as Re[. e^{i |omega| t}] and the real fields are summed, with the phase factors tabulated once.
         const size_t num_frequencies = set.frequencies.size();
-        std::vector<double> cos_phase(num_frequencies * nt);
-        std::vector<double> sin_phase(num_frequencies * nt);
-        for (size_t f = 0; f < num_frequencies; ++f) {
-            for (size_t it = 0; it < nt; ++it) {
-                const double phase = set.frequencies[f] * t_grid[it];
-                cos_phase[f * nt + it] = std::cos(phase);
-                sin_phase[f * nt + it] = std::sin(phase);
-            }
-        }
-        std::vector<tides::c_Tensor6> frequency_stress(num_frequencies);
-        std::vector<tides::c_Tensor6> frequency_strain(num_frequencies);
-        std::vector<unsigned char> frequency_active(num_frequencies, 0);
+        const tides3d::c_PhaseTable3D phase = tides3d::c_phase_table_3d(set.frequencies, t_grid.data(), nt);
+        tides3d::c_FrequencyAmplitudes3D amplitudes(num_frequencies);
         for (size_t ir = 0; ir < nr; ++ir) {
             for (size_t ith = 0; ith < nth; ++ith) {
                 for (size_t iph = 0; iph < nph; ++iph) {
@@ -1026,31 +1186,12 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
                         }
                         continue;
                     }
-                    std::fill(frequency_active.begin(), frequency_active.end(), 0);
-                    for (size_t w = 0; w < num_waves; ++w) {
-                        const tides::c_StrainRadialCoeffs& radial = coeffs[ir][set.wave_radial_group[w]];
-                        if (!radial.valid) { continue; }
-                        const c_PotentialPointC potential =
-                            c_eval_wave_point_3d(set.waves[w], th_grid[ith], ph_grid[iph]);
-                        tides::c_Tensor6 strain, stress;
-                        tides::c_compute_strain_stress(
-                            radial,
-                            potential,
-                            th_grid[ith],
-                            strain,
-                            stress);
-                        const size_t f = static_cast<size_t>(set.wave_frequency_group[w]);
-                        if (!frequency_active[f]) {
-                            frequency_stress[f] = stress;
-                            frequency_strain[f] = strain;
-                            frequency_active[f] = 1;
-                        } else {
-                            for (size_t k = 0; k < 6; ++k) {
-                                frequency_stress[f].c[k] += stress.c[k];
-                                frequency_strain[f].c[k] += strain.c[k];
-                            }
-                        }
-                    }
+                    tides3d::c_frequency_amplitudes_3d(
+                        set,
+                        coeffs[ir],
+                        th_grid[ith],
+                        ph_grid[iph],
+                        amplitudes);
                     const double point_weight = any_summed ? combined_weight(ir, ith, iph) : 1.0;
                     for (size_t it = 0; it < nt; ++it) {
                         double power = 0.0;
@@ -1058,12 +1199,12 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
                             double sigma = 0.0;
                             double eps_dot = 0.0;
                             for (size_t f = 0; f < num_frequencies; ++f) {
-                                if (!frequency_active[f]) { continue; }
+                                if (!amplitudes.active[f]) { continue; }
                                 const double omega = set.frequencies[f];
-                                const double cos_wt = cos_phase[f * nt + it];
-                                const double sin_wt = sin_phase[f * nt + it];
-                                const std::complex<double>& sc = frequency_stress[f].c[k];
-                                const std::complex<double>& ec = frequency_strain[f].c[k];
+                                const double cos_wt = phase.cos_phase[f * nt + it];
+                                const double sin_wt = phase.sin_phase[f * nt + it];
+                                const std::complex<double>& sc = amplitudes.stress[f].c[k];
+                                const std::complex<double>& ec = amplitudes.strain[f].c[k];
                                 sigma   += sc.real() * cos_wt - sc.imag() * sin_wt;
                                 eps_dot += -omega * (ec.real() * sin_wt + ec.imag() * cos_wt);
                             }

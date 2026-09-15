@@ -208,6 +208,29 @@ out["radial"].shape        # (2, 30, 60, 12)   u_r [m]; also out["polar"], out["
 
 At the surface `y1 = h / g` and `y3 = l / g`, so the surface radial displacement is `h U / g` for a single mode. It requires the rheology tide model, a solved EOS, and a radial-solver Love-number method (the analytic `homogeneous`/`cpl`/`ctl` methods have no radial functions). A radius without a depth-resolved solution (the center, below the solver start) is NaN. The radial functions themselves are available at any radius through `world.get_love_radial_y(radius, ytype_idx, y_idx)` after a radial-solver Love solve.
 
+#### Stress and Strain: `calc_3d_stress_strain`
+
+The same waves give the instantaneous stress and strain tensors. At each point every wave's complex stress and strain amplitude is added into the total of its frequency, and each component at time `t` is the sum over frequencies of `Re[amplitude e^{i |omega| t}]`, the convention of the displacements and the instantaneous heating. The world method returns both tensors on the full `(radius, colatitude, longitude, time)` grid with the six components on the last axis, ordered `rr`, `theta_theta`, `phi_phi`, `r_theta`, `r_phi`, `theta_phi` (also returned as `components`). The strain is the symmetric gradient of the displacement field of `calc_3d_displacements`.
+
+```python
+tensors = world.calc_3d_stress_strain(
+    orbital_frequency,
+    spin_frequency,
+    eccentricity,
+    obliquity,
+    semi_major_axis,
+    host_mass,
+    radii=[0.9 * world.radius, world.radius],
+    colatitudes=np.linspace(0.1, np.pi - 0.1, 30),
+    longitudes=np.linspace(0.0, 2.0 * np.pi, 60),
+    times=np.linspace(0.0, period, 12))
+tensors['stress'].shape                  # (2, 30, 60, 12, 6) [Pa]; tensors['strain'] has the same shape
+radial_stress = tensors['stress'][..., 0]   # The rr component
+peak_stress = np.abs(tensors['stress']).max(axis=3)   # Largest magnitude of each component over the times
+```
+
+Each tensor takes 48 bytes per grid point and time, and either can be skipped with `return_stress=False` or `return_strain=False`. The C++ code writes directly into the returned arrays. The kernel applies to solid layers only, so a point in a liquid layer, or at a radius without a depth-resolved solution, is NaN. Like the displacement grid, the stress and strain grids carry the time-varying tide only: modes at zero forcing frequency, the permanent tide, are not included.
+
 ### Engine + Kernel Access
 
 The dynamic potential engine is exposed directly for callers building their own pipelines. It returns each raw mode's degree, signed frequency, and the **complex** angular-factor amplitudes (one entry per `(l, m, p, q)`, before the coherent merge; a caller summing heating from these must combine the modes at each frequency first):

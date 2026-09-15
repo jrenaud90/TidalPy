@@ -55,6 +55,9 @@ cdef BaseLayer _wrap_layer_view(c_BaseLayer* ptr, object world):
 cdef extern from "world_tides_.hpp" nogil:
     pass
 
+# Component order of the stress and strain grids returned by LayeredWorld.calc_3d_stress_strain.
+STRESS_STRAIN_COMPONENTS = ("rr", "theta_theta", "phi_phi", "r_theta", "r_phi", "theta_phi")
+
 
 # Copy a C++ vector[double] into a new 1D float64 ndarray.
 cdef cnp.ndarray _vec_to_ndarray(const vector[double]& v):
@@ -1332,6 +1335,131 @@ cdef class LayeredWorld(BaseWorld):
             "polar": np.ascontiguousarray(out_arr[..., 1]),
             "azimuthal": np.ascontiguousarray(out_arr[..., 2]),
         }
+
+    def calc_3d_stress_strain(
+            self,
+            double orbital_frequency,
+            double spin_frequency,
+            double eccentricity,
+            double obliquity,
+            double semi_major_axis,
+            double host_mass,
+            radii,
+            colatitudes,
+            longitudes,
+            times,
+            cpp_bool return_stress=True,
+            cpp_bool return_strain=True) -> dict:
+        """Instantaneous tidal stress [Pa] and strain on the grid ``(radius, colatitude, longitude, time)``.
+
+        The active tidal modes come from the world's ``[tides]`` truncation config and are merged into coherent
+        waves, the radial response is solved once per unique ``(l, frequency)``, and at each point every wave's
+        complex stress and strain amplitude is added into the total of its frequency. Each component at time ``t``
+        is the sum over frequencies of ``Re[amplitude e^{i |frequency| t}]``, the convention of
+        :meth:`calc_3d_displacements` and of the instantaneous heating of :meth:`calc_3d_tides`. The C++ code
+        writes directly into the returned arrays.
+
+        Parameters
+        ----------
+        orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass : float
+            The orbital and spin state, as for :meth:`calc_tides`.
+        radii, colatitudes, longitudes, times : array-like of float
+            Grid axes [m], [rad], [rad], [s]; scalars are accepted.
+        return_stress, return_strain : bool, optional
+            Which tensors to compute; each takes 48 bytes per grid point and time. Default both.
+
+        Returns
+        -------
+        dict
+            ``radii``, ``colatitudes``, ``longitudes``, ``times`` (the axes as 1-D arrays), ``components`` (the
+            component names in order: ``rr``, ``theta_theta``, ``phi_phi``, ``r_theta``, ``r_phi``,
+            ``theta_phi``), and the requested ``stress`` [Pa] and ``strain``: float64 arrays of shape
+            ``(nr, ncolat, nlon, ntime, 6)``.
+
+        Raises
+        ------
+        ValueError
+            If an axis is empty or neither tensor is requested.
+        RuntimeError
+            If the world has no rheology tide model or no solved EOS, its Love method has no radial functions, or
+            a radial solve fails.
+
+        Assumptions
+        -----------
+        - Linear superposition of the tidal modes and isotropic linear viscoelasticity with the complex moduli at
+          each mode's frequency; the strain is the symmetric gradient of :meth:`calc_3d_displacements`.
+        - Solid layers only: a point in a liquid layer, or at a radius with no depth-resolved solution (the center,
+          below the solver start), is NaN.
+        - Only modes with a nonzero forcing frequency are included; the permanent tide is not.
+        """
+        if not (return_stress or return_strain):
+            raise ValueError("At least one of return_stress and return_strain must be True.")
+        cdef cnp.ndarray radii_arr = np.ascontiguousarray(np.atleast_1d(radii), dtype=np.float64).ravel()
+        cdef cnp.ndarray colat_arr = np.ascontiguousarray(np.atleast_1d(colatitudes), dtype=np.float64).ravel()
+        cdef cnp.ndarray lon_arr   = np.ascontiguousarray(np.atleast_1d(longitudes), dtype=np.float64).ravel()
+        cdef cnp.ndarray time_arr  = np.ascontiguousarray(np.atleast_1d(times), dtype=np.float64).ravel()
+        cdef size_t nr = radii_arr.shape[0]
+        cdef size_t nth = colat_arr.shape[0]
+        cdef size_t nph = lon_arr.shape[0]
+        cdef size_t nt = time_arr.shape[0]
+        if nr == 0 or nth == 0 or nph == 0 or nt == 0:
+            raise ValueError("radii, colatitudes, longitudes, and times must each hold at least one value")
+        cdef double[::1] radii_view = radii_arr
+        cdef double[::1] colat_view = colat_arr
+        cdef double[::1] lon_view   = lon_arr
+        cdef double[::1] time_view  = time_arr
+        cdef c_Grid3DAxes axes
+        axes.radii           = &radii_view[0]
+        axes.num_radii       = nr
+        axes.colatitudes     = &colat_view[0]
+        axes.num_colatitudes = nth
+        axes.longitudes      = &lon_view[0]
+        axes.num_longitudes  = nph
+        axes.times           = &time_view[0]
+        axes.num_times       = nt
+
+        # Output buffers are owned by numpy; a skipped tensor passes a null pointer.
+        cdef cnp.ndarray stress_arr = None
+        cdef cnp.ndarray strain_arr = None
+        cdef double[:, :, :, :, ::1] stress_view
+        cdef double[:, :, :, :, ::1] strain_view
+        cdef double* stress_ptr = NULL
+        cdef double* strain_ptr = NULL
+        if return_stress:
+            stress_arr = np.empty((nr, nth, nph, nt, 6), dtype=np.float64)
+            stress_view = stress_arr
+            stress_ptr = &stress_view[0, 0, 0, 0, 0]
+        if return_strain:
+            strain_arr = np.empty((nr, nth, nph, nt, 6), dtype=np.float64)
+            strain_view = strain_arr
+            strain_ptr = &strain_view[0, 0, 0, 0, 0]
+
+        cdef c_TideSolveConfig state
+        state.orbital_frequency = orbital_frequency
+        state.spin_frequency    = spin_frequency
+        state.eccentricity      = eccentricity
+        state.obliquity         = obliquity
+        state.semi_major_axis   = semi_major_axis
+        state.host_mass         = host_mass
+        with nogil:
+            self._layered_ptr.get_3d_stress_strain_grid(
+                state,
+                axes,
+                stress_ptr,
+                strain_ptr)
+
+        cdef dict out = {
+            "radii": radii_arr,
+            "colatitudes": colat_arr,
+            "longitudes": lon_arr,
+            "times": time_arr,
+            "components": STRESS_STRAIN_COMPONENTS,
+        }
+        if return_stress:
+            out["stress"] = stress_arr
+        if return_strain:
+            out["strain"] = strain_arr
+        return out
 
     def calc_3d_tides(
             self,

@@ -1119,6 +1119,15 @@ public:
             size_t num_times,
             double* out_disp);
 
+    // Instantaneous stress [Pa] and strain on the (radius, colatitude, longitude, time) grid; see
+    // c_RheologyTide::calc_3d_stress_strain_grid. Same rheology + solved-EOS preconditions as
+    // get_3d_tidal_heating. Defined out-of-line in world_tides_.hpp.
+    void get_3d_stress_strain_grid(
+            const c_TideSolveConfig& state,
+            const c_Grid3DAxes& axes,
+            double* out_stress,
+            double* out_strain);
+
     // Collapsed (summed/averaged) secular 3D tidal heating (see c_Heating3DCollapseConfig): the radial
     // power profile, colatitude profile, per-layer totals, and/or whole-planet total, per the flags.
     // Same rheology + solved-EOS preconditions as get_3d_tidal_heating. Defined out-of-line in
