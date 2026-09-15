@@ -229,7 +229,7 @@ radial_stress = tensors['stress'][..., 0]   # The rr component
 peak_stress = np.abs(tensors['stress']).max(axis=3)   # Largest magnitude of each component over the times
 ```
 
-Each tensor takes 48 bytes per grid point and time, and either can be skipped with `return_stress=False` or `return_strain=False`. The C++ code writes directly into the returned arrays. The kernel applies to solid layers only, so a point in a liquid layer, or at a radius without a depth-resolved solution, is NaN. Like the displacement grid, the stress and strain grids carry the time-varying tide only: modes at zero forcing frequency, the permanent tide, are not included.
+Each tensor takes 48 bytes per grid point and time, and either can be skipped with `return_stress=False` or `return_strain=False`. The C++ code writes directly into the returned arrays. The kernel applies to solid layers only, so a point in a liquid layer, or at a radius without a depth-resolved solution, is NaN. Like the displacement grid, the stress and strain grids carry the time-varying tide only: modes at zero forcing frequency, the permanent tide, are not included. Over a common period of the modes each component therefore averages to zero, even in a strongly dissipative body. Dissipation shows up instead as a lag of the strain behind the stress and as the positive mean power that `calc_3d_tides` returns.
 
 ### Engine + Kernel Access
 
