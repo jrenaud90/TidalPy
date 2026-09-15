@@ -609,10 +609,43 @@ public:
     }
 
     void solve_love_numbers(const c_LoveSolveConfig& cfg) {
+        this->solve_love_numbers(cfg, nullptr);
+    }
+
+    // Composite Simpson intervals per tidal layer for the homogeneous volume average (even, 129 nodes).
+    static constexpr std::size_t homogeneous_quadrature_intervals = 128;
+
+    // Frequency-independent inputs to the homogeneous volume average for one tidal layer
+    struct c_HomogeneousShearLayer {
+        const c_PhysicsLayer* layer = nullptr;
+        double dr = 0.0;                      // node spacing [m]
+        std::vector<double> radius;           // node radii [m]
+        std::vector<double> static_modulus;   // post-melt static shear modulus at each node [Pa]
+        std::vector<double> viscosity;        // post-melt shear viscosity at each node [Pa s]
+    };
+
+    // Reusable state for a run of homogeneous Love solves against one unchanged interior. The node values are
+    // read on first use and the averaged modulus is kept per distinct frequency, so a caller solving many
+    // (degree, frequency) pairs pays for each frequency once.
+    struct c_HomogeneousLoveCache {
+        struct c_ShearAtFrequency {
+            double frequency;                 // forcing frequency the average was formed at [rad s-1]
+            bool use_static;                  // true for the cpl / ctl methods, which average the static modulus
+            std::complex<double> shear;       // volume-averaged shear modulus [Pa]
+        };
+        bool built = false;
+        std::vector<c_HomogeneousShearLayer> layers;
+        double tidal_volume = 0.0;            // summed volume of the averaged layers [m3]
+        std::vector<c_ShearAtFrequency> shear_by_frequency;
+    };
+
+    // Same, with reusable state for a caller that solves many frequencies in a row against an unchanged interior.
+    // The homogeneous methods use it; the radial-solver methods ignore it.
+    void solve_love_numbers(const c_LoveSolveConfig& cfg, c_HomogeneousLoveCache* cache) {
         const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
         this->p_love_method_last = method;
         if (c_love_method_is_homogeneous(method)) {
-            this->solve_love_numbers_homogeneous(cfg, method);
+            this->solve_love_numbers_homogeneous(cfg, method, cache);
             return;
         }
         if (method == c_LoveMethod::LaterallyInhomogeneous) {
@@ -717,24 +750,11 @@ public:
     // - Incompressible homogeneous-sphere response; layered structure enters only through the volume average.
     // - Gas layers carry no shear modulus and are skipped; liquid layers contribute their (zero) shear modulus.
     // -----------------------------------------------------------------------
-    void solve_love_numbers_homogeneous(const c_LoveSolveConfig& cfg, c_LoveMethod method) {
-        this->p_love_solved = false;
-        this->p_love_analytic_success = false;
-        this->p_love_analytic = c_LoveNumbers();
-        this->p_love_analytic_shear = std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        this->p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;
-        if (!this->p_eos_solved || !this->p_eos_solution) {
-            throw std::invalid_argument("TidalPy: solve_eos() must be called before solve_love_numbers().");
-        }
-        if (cfg.degree_l < 2) {
-            throw std::invalid_argument("TidalPy: the homogeneous Love-number methods need degree_l >= 2.");
-        }
-        const bool use_static = (method != c_LoveMethod::Homogeneous);
-
-        // Volume-weighted shear modulus over the tidal layers.
-        constexpr std::size_t n_intervals = 128;   // even, for the composite Simpson rule
-        std::complex<double> shear_integral(0.0, 0.0);
-        double tidal_volume = 0.0;
+    // Read the frequency-independent node values of the homogeneous volume average into the cache.
+    void build_homogeneous_shear_nodes(c_HomogeneousLoveCache& cache) const {
+        const std::size_t n_intervals = homogeneous_quadrature_intervals;
+        cache.layers.clear();
+        cache.tidal_volume = 0.0;
         for (const auto& layer_ptr : this->p_layers) {
             const c_BaseLayer* layer = layer_ptr.get();
             if (!layer->get_is_tidal()) {
@@ -749,35 +769,107 @@ public:
             if (!(r_outer > r_inner)) {
                 continue;
             }
-            const double dr = (r_outer - r_inner) / static_cast<double>(n_intervals);
+            c_HomogeneousShearLayer nodes;
+            nodes.layer = physics;
+            nodes.dr = (r_outer - r_inner) / static_cast<double>(n_intervals);
+            nodes.radius.resize(n_intervals + 1);
+            nodes.static_modulus.resize(n_intervals + 1);
+            nodes.viscosity.resize(n_intervals + 1);
+            for (std::size_t i = 0; i <= n_intervals; ++i) {
+                const double r = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * nodes.dr;
+                nodes.radius[i]         = r;
+                nodes.static_modulus[i] = physics->get_shear_modulus(r);    // post-melt
+                nodes.viscosity[i]      = physics->get_shear_viscosity(r);  // post-melt
+            }
+            cache.tidal_volume += layer->get_volume();
+            cache.layers.push_back(std::move(nodes));
+        }
+        cache.built = true;
+    }
+
+    // Volume-weighted complex shear modulus over the cached tidal layers at one frequency. The rheology is applied
+    // exactly as calc_complex_shear_modulus applies it, in the same summation order, so the result matches a solve
+    // that re-reads every node. Returns false and records error -41 on a non-finite modulus.
+    bool average_homogeneous_shear(
+            const c_HomogeneousLoveCache& cache,
+            double frequency,
+            bool use_static,
+            std::complex<double>& shear_avg) {
+        const std::size_t n_intervals = homogeneous_quadrature_intervals;
+        std::complex<double> shear_integral(0.0, 0.0);
+        for (const c_HomogeneousShearLayer& nodes : cache.layers) {
+            const c_RheologyBase* rheology = nodes.layer->get_shear_rheology_model();
             std::complex<double> layer_sum(0.0, 0.0);
             for (std::size_t i = 0; i <= n_intervals; ++i) {
-                const double r = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * dr;
+                const double r = nodes.radius[i];
                 const double weight = (i == 0 || i == n_intervals) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
-                const std::complex<double> mu = use_static
-                    ? std::complex<double>(physics->get_shear_modulus(r), 0.0)
-                    : physics->calc_complex_shear_modulus(r, cfg.frequency);
+                const std::complex<double> mu = (use_static || rheology == nullptr)
+                    ? std::complex<double>(nodes.static_modulus[i], 0.0)
+                    : rheology->calc_complex_modulus(nodes.static_modulus[i], nodes.viscosity[i], frequency);
                 if (!std::isfinite(mu.real()) || !std::isfinite(mu.imag())) {
                     this->p_love_analytic_error_code = -41;
                     this->p_love_analytic_message =
-                        "TidalPy: layer '" + layer->get_name() + "' returned a non-finite shear modulus at r = "
+                        "TidalPy: layer '" + nodes.layer->get_name() + "' returned a non-finite shear modulus at r = "
                         + std::to_string(r) + " m (viscosity or rheology not set?); the homogeneous Love-number "
                         "methods need finite moduli in every tidal layer.";
-                    return;
+                    return false;
                 }
                 layer_sum += weight * mu * (r * r);
             }
-            shear_integral += layer_sum * (dr / 3.0) * (4.0 * TidalPyConstants::d_PI);
-            tidal_volume += layer->get_volume();
+            shear_integral += layer_sum * (nodes.dr / 3.0) * (4.0 * TidalPyConstants::d_PI);
         }
-        if (!(tidal_volume > 0.0)) {
+        shear_avg = shear_integral / cache.tidal_volume;
+        return true;
+    }
+
+    void solve_love_numbers_homogeneous(
+            const c_LoveSolveConfig& cfg,
+            c_LoveMethod method,
+            c_HomogeneousLoveCache* cache) {
+        this->p_love_solved = false;
+        this->p_love_analytic_success = false;
+        this->p_love_analytic = c_LoveNumbers();
+        this->p_love_analytic_shear = std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        this->p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;
+        if (!this->p_eos_solved || !this->p_eos_solution) {
+            throw std::invalid_argument("TidalPy: solve_eos() must be called before solve_love_numbers().");
+        }
+        if (cfg.degree_l < 2) {
+            throw std::invalid_argument("TidalPy: the homogeneous Love-number methods need degree_l >= 2.");
+        }
+        const bool use_static = (method != c_LoveMethod::Homogeneous);
+
+        // Without a caller-owned cache the node values go into a local one that ends with this solve.
+        c_HomogeneousLoveCache local_cache;
+        c_HomogeneousLoveCache& active = (cache != nullptr) ? *cache : local_cache;
+        if (!active.built) {
+            this->build_homogeneous_shear_nodes(active);
+        }
+        if (!(active.tidal_volume > 0.0)) {
             this->p_love_analytic_error_code = -40;
             this->p_love_analytic_message =
                 "TidalPy: the homogeneous Love-number methods need at least one tidal layer (is_tidal) with a shear "
                 "modulus.";
             return;
         }
-        const std::complex<double> shear_avg = shear_integral / tidal_volume;
+        const double tidal_volume = active.tidal_volume;
+
+        // The average depends on the frequency but not on the degree, so it is formed once per distinct frequency.
+        std::complex<double> shear_avg(0.0, 0.0);
+        bool have_average = false;
+        for (const auto& entry : active.shear_by_frequency) {
+            if (entry.frequency == cfg.frequency && entry.use_static == use_static) {
+                shear_avg = entry.shear;
+                have_average = true;
+                break;
+            }
+        }
+        if (!have_average) {
+            if (!this->average_homogeneous_shear(active, cfg.frequency, use_static, shear_avg)) {
+                return;
+            }
+            active.shear_by_frequency.push_back({cfg.frequency, use_static, shear_avg});
+        }
 
         const double radius = this->get_radius();
         const double density_bulk = this->get_mass() / ((4.0 / 3.0) * TidalPyConstants::d_PI * radius * radius * radius);

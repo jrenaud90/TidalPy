@@ -84,6 +84,9 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         // each active mode's Love numbers keyed by its (l, m, p, q).
         c_IntMap<c_Key2, tidalpy::c_LoveNumbers> love_by_l_freq;
         c_LoveSolveConfig love_cfg = this->make_love_solve_config();
+
+        // The homogeneous Love methods reuse their node values and per-frequency averages across this call's solves.
+        c_HomogeneousLoveCache homogeneous_cache;
         for (const auto& mode_entry : potential.potential_map) {
             const c_Key4& lmpq_key = mode_entry.first;
             const int degree_l     = static_cast<int>(lmpq_key.a);
@@ -102,7 +105,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
             if (!cached) {
                 love_cfg.degree_l        = degree_l;
                 love_cfg.frequency = frequency;
-                this->solve_love_numbers(love_cfg);
+                this->solve_love_numbers(love_cfg, &homogeneous_cache);
                 if (!this->get_love_success()) {
                     this->p_tides_solved = false;
                     throw std::runtime_error(
