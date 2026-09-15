@@ -983,21 +983,24 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
     const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "3D tidal heating");
 
     // Axis Grids
-    // Radius: user array unless summed (then a per-layer trapezoid grid; r_wsum carries the r^2 Jacobian).
+    // Radius: user array unless summed. Summed: Gauss-Legendre nodes inside each layer, with r_wsum carrying the r^2
+    // Jacobian. No node sits on a layer boundary, where the modulus and radial-solution lookups take the layer below,
+    // so no node can weigh the lower layer's heating into the upper layer's integral.
     std::vector<double> r_grid, r_wsum;
     std::vector<size_t> r_layer;
     const size_t num_layers = world.get_num_layers();
     if (cfg.radial_summed) {
-        const int slices = (cfg.radial_slices > 1) ? cfg.radial_slices : 80;
+        const int nodes_per_layer = (cfg.radial_slices > 0) ? cfg.radial_slices : 16;
+        std::vector<double> gl_r, gl_w;
+        tides::c_gauss_legendre_nodes(nodes_per_layer, gl_r, gl_w);
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
             const c_BaseLayer* layer = world.get_layer(layer_i);
-            const double r_inner = layer->get_radius_inner();
-            const double r_outer = layer->get_radius_outer();
-            const double dr = (r_outer - r_inner) / static_cast<double>(slices);
-            for (int s = 0; s <= slices; ++s) {
-                const double rr = r_inner + dr * static_cast<double>(s);
+            const double r_mid  = 0.5 * (layer->get_radius_outer() + layer->get_radius_inner());
+            const double r_half = 0.5 * (layer->get_radius_outer() - layer->get_radius_inner());
+            for (int node = 0; node < nodes_per_layer; ++node) {
+                const double rr = r_mid + r_half * gl_r[node];
                 r_grid.push_back(rr);
-                r_wsum.push_back(((s == 0 || s == slices) ? 0.5 * dr : dr) * rr * rr);  // trapezoid x r^2
+                r_wsum.push_back(r_half * gl_w[node] * rr * rr);  // Gauss-Legendre weight x r^2
                 r_layer.push_back(layer_i);
             }
         }

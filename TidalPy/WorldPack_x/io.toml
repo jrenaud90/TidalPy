@@ -15,15 +15,13 @@
 # temperature-dependent default, so the value written here is the value used:
 #   mantle         1e19 Pa s   a warm solid silicate mantle, within the range Io dissipation studies
 #                              explore, and far softer than the 1e22 Pa s cold default
-#   asthenosphere  3.42e12 Pa s with the shear modulus dropped from 6e10 to 1e9 Pa for melt weakening
+#   asthenosphere  3.54e12 Pa s with the shear modulus dropped from 6e10 to 1e9 Pa for melt weakening
 # The asthenosphere viscosity is the one number fitted to an observation: it is what makes the total
 # tidal dissipation 9.33e13 W, the astrometric value of Lainey et al. (2009), (9.33 +/- 1.83)e13 W. The
 # implied surface heat flux is 2.24 W/m2. Everything else follows.
 #
 # The per-layer tidal_scale values are not guesses. Integrating the depth-resolved 3D secular heating
 # over each layer puts 95.9% of the dissipation in the asthenosphere and 4.1% in the mantle, and that
-# volume integral agrees with the 1D total to 0.03%. Those fractions are the scales below, so the two
-# layers' heating sums to the world total instead of double counting it.
 schema_version = "0.2.0"
 name = "Io"
 type = "terrestrial"
@@ -49,7 +47,7 @@ type = "mantle_rock"
 layer_index = 1
 radius_outer_m = 1721490.0
 is_tidal = true
-tidal_scale = 0.0408
+tidal_scale = 0.0409
 shear_modulus_static_pa = 6.0e10
 
 [layers.mantle.eos]
@@ -68,7 +66,7 @@ type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0
 is_tidal = true
-tidal_scale = 0.9592
+tidal_scale = 0.9591
 shear_modulus_static_pa = 1.0e9       # melt-weakened, against 6e10 Pa for the solid mantle
 
 [layers.asthenosphere.eos]
@@ -79,4 +77,4 @@ bulk_modulus_derivative = 4.2
 
 [layers.asthenosphere.shear_viscosity]
 model = "constant"
-reference_viscosity_pas = 3.4239e12   # fitted to Io's observed heat output
+reference_viscosity_pas = 3.5383e12   # fitted to Io's observed heat output

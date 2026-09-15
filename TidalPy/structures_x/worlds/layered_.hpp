@@ -14,6 +14,7 @@
  *   physics sub-models) follows, in index order, as separate appended records.
  */
 
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <cstdint>
@@ -654,17 +655,27 @@ public:
                 "not implemented.");
         }
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
-        ::c_WorldRadialSolver* solver  = this->p_radial_solver.get();
-        const std::size_t total_slices = solver->total_slices();
+        ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        // Frequency-dependent step: fill the complex moduli from the layer rheology, then solve.
+        // Frequency-dependent step: fill the complex moduli from the layer rheology, then solve. The fill walks each
+        // layer's own slice range instead of looking the layer up by radius. An interface radius appears twice in the
+        // grid (top of the lower layer, base of the upper), and a radius lookup gives both copies the lower layer's
+        // modulus, so the upper layer's first slice interval would ramp from the wrong modulus to its own.
         const std::vector<double>& radius_si = solver->radius_si();
         std::complex<double>* shear_out = solver->shear_scratch_data();
         std::complex<double>* bulk_out  = solver->bulk_scratch_data();
-        for (std::size_t i = 0; i < total_slices; ++i) {
-            const double r = radius_si[i];
-            shear_out[i] = this->calc_complex_shear_modulus(r, cfg.frequency);
-            bulk_out[i]  = this->calc_complex_bulk_modulus(r, cfg.frequency);
+        const std::complex<double> nan_modulus(TidalPyConstants::d_NAN, 0.0);
+        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
+            const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
+            const std::size_t first_slice = solver->first_slice_index_by_layer()[layer_i];
+            const std::size_t end_slice   = first_slice + solver->num_slices_by_layer()[layer_i];
+            for (std::size_t i = first_slice; i < end_slice; ++i) {
+                const double r = radius_si[i];
+                shear_out[i] = (physics_layer != nullptr)
+                    ? physics_layer->calc_complex_shear_modulus(r, cfg.frequency) : nan_modulus;
+                bulk_out[i]  = (physics_layer != nullptr)
+                    ? physics_layer->calc_complex_bulk_modulus(r, cfg.frequency) : nan_modulus;
+            }
         }
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
@@ -690,20 +701,39 @@ public:
         }
         this->p_love_method_last = method;
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
-        ::c_WorldRadialSolver* solver  = this->p_radial_solver.get();
-        const std::size_t total_slices = solver->total_slices();
+        ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
         const std::vector<double>& radius_si = solver->radius_si();
         std::complex<double>* shear_out = solver->shear_scratch_data();
         std::complex<double>* bulk_out  = solver->bulk_scratch_data();
-        // Interpolate the supplied complex moduli (defined at radius_in) onto the world's EOS grid via the shared
-        // utilities interpolator. Both grids ascend, so seeding the search from the aligned fractional
-        // position keeps each lookup near O(1).
-        for (std::size_t i = 0; i < total_slices; ++i) {
-            const double r = radius_si[i];
-            const std::size_t seed = (total_slices > 0) ? (i * n_in) / total_slices : 0;
-            shear_out[i] = c_interp_complex(r, radius_in, shear_in, n_in, seed);
-            bulk_out[i]  = c_interp_complex(r, radius_in, bulk_in, n_in, seed);
+        // Interpolate the supplied complex moduli (defined at radius_in) onto the world's EOS grid one layer at a
+        // time, using only the supplied points that bound the layer: the last point at its base through the first
+        // point at its top. A repeated interface radius then gives the upper copy to the layer above and the lower
+        // copy to the layer below; interpolating across all layers at once would give a lower layer's top slice the
+        // upper layer's value. The bounds match within the relative tolerance build_cache uses for interfaces, so
+        // copies that differ by rounding still count as the interface. Both grids ascend, so seeding each search
+        // from the aligned fractional position keeps the lookup near O(1).
+        const double* radius_in_end = radius_in + n_in;
+        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
+            const double r_inner   = this->p_layers[layer_i]->get_radius_inner();
+            const double r_outer   = this->p_layers[layer_i]->get_radius_outer();
+            const double tolerance = 1.0e-9 * std::fabs(r_outer);
+            const std::size_t past_base = static_cast<std::size_t>(
+                std::upper_bound(radius_in, radius_in_end, r_inner + tolerance) - radius_in);
+            const std::size_t at_top = static_cast<std::size_t>(
+                std::lower_bound(radius_in, radius_in_end, r_outer - tolerance) - radius_in);
+            const std::size_t in_first = (past_base > 0) ? past_base - 1 : 0;
+            const std::size_t in_last  = (at_top < n_in) ? at_top : n_in - 1;
+            const std::size_t in_count = in_last - in_first + 1;
+            const std::size_t first_slice = solver->first_slice_index_by_layer()[layer_i];
+            const std::size_t num_slices  = solver->num_slices_by_layer()[layer_i];
+            for (std::size_t slice_i = 0; slice_i < num_slices; ++slice_i) {
+                const std::size_t i    = first_slice + slice_i;
+                const double r         = radius_si[i];
+                const std::size_t seed = (slice_i * in_count) / num_slices;
+                shear_out[i] = c_interp_complex(r, radius_in + in_first, shear_in + in_first, in_count, seed);
+                bulk_out[i]  = c_interp_complex(r, radius_in + in_first, bulk_in + in_first, in_count, seed);
+            }
         }
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);

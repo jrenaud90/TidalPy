@@ -24,9 +24,11 @@ _N = 2.0 * np.pi / 86400.0
 _ECC = 0.05
 _HOST = mass_trap1
 _MASS = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
+_SOFT_SHEAR = 1.0e9
+_SOFT_VISC = 1.0e13
 
 
-def _build_world(two_layer=False):
+def _build_world(two_layer=False, soft_shell=False):
     from TidalPy.structures_x.worlds.layered import LayeredWorld
     from TidalPy.structures_x.layers.physics import PhysicsLayer
     from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
@@ -36,19 +38,24 @@ def _build_world(two_layer=False):
 
     world = LayeredWorld("w", _R, _MASS)
 
-    def _mk(name, idx, r_in, r_out):
+    def _mk(name, idx, r_in, r_out, shear=_SHEAR, shear_visc=_VISC):
         mass = (4.0 / 3.0) * math.pi * (r_out ** 3 - r_in ** 3) * _DENSITY
         layer = PhysicsLayer(name, idx, r_in, r_out, mass,
-                             shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
+                             shear_modulus_static=shear, bulk_modulus_static=_BULK)
         layer.is_static = False
         layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
-        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
+        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": shear_visc}))
         layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
         layer.set_shear_rheology(Maxwell())
         layer.set_bulk_rheology(Elastic())
         return layer
 
-    if two_layer:
+    if soft_shell:
+        # A thin soft shell over a stiff interior: the shell dissipates, and its modulus jumps 50x at its base.
+        world.add_layer(_mk("core", 0, 0.0, 0.5 * _R))
+        world.add_layer(_mk("mantle", 1, 0.5 * _R, 0.95 * _R))
+        world.add_layer(_mk("shell", 2, 0.95 * _R, _R, shear=_SOFT_SHEAR, shear_visc=_SOFT_VISC))
+    elif two_layer:
         world.add_layer(_mk("core", 0, 0.0, 0.5 * _R))
         world.add_layer(_mk("mantle", 1, 0.5 * _R, _R))
     else:
@@ -122,6 +129,24 @@ def test_total_matches_1d():
                               latitude_summed=True, longitude_summed=True, radial_summed=True)
     assert math.isclose(res['total'], h_1d, rel_tol=1e-2), \
         f"collapsed total {res['total']:.4e} != 1D {h_1d:.4e}"
+
+
+@pytest.mark.parametrize("radial_slices", [4, 16])
+def test_total_matches_1d_across_a_stiffness_contrast(radial_slices):
+    """The radial Gauss-Legendre nodes stay inside each layer, so no node takes the stiff mantle's modulus for the
+    soft shell's base, and a few nodes per layer already reproduce the 1D heating."""
+    sma = orbital_motion2semi_a(_N, _HOST, _MASS)
+    spin = 1.37 * _N
+    world = _build_world(soft_shell=True)
+    world.calc_tides(orbital_frequency=_N, spin_frequency=spin, eccentricity=_ECC,
+                     obliquity=0.0, semi_major_axis=sma, host_mass=_HOST)
+    h_1d = world.get_tidal_heating()
+
+    res = world.calc_3d_tides(*_args(spin, sma), radial_slices=radial_slices,
+                              latitude_summed=True, longitude_summed=True, radial_summed=True)
+    assert res['per_layer'].shape == (3,)
+    assert math.isclose(res['total'], h_1d, rel_tol=1e-4), \
+        f"collapsed total {res['total']:.6e} != 1D {h_1d:.6e} (ratio {res['total'] / h_1d:.6f})"
 
 
 def test_per_layer_sums_to_total():

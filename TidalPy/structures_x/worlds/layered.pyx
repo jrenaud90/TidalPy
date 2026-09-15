@@ -1497,9 +1497,10 @@ cdef class LayeredWorld(BaseWorld):
         ``radial_summed``. Reduction convention: if any spatial axis is summed, the surviving spatial
         axes carry their Jacobian (``r^2``, ``sin theta``, ``1``) so a plain integral over them recovers
         the total; if none is summed the output is the raw density. The colatitude integral uses an
-        internal Gauss-Legendre grid (``latitude_nodes``), the radial integral an internal per-layer
-        trapezoid (``radial_slices``), and the longitude integral the analytic ``2*pi`` times the
-        longitude mean when averaged or a ``longitude_nodes`` trapezoid when instantaneous.
+        internal Gauss-Legendre grid (``latitude_nodes``), the radial integral ``radial_slices``
+        Gauss-Legendre nodes inside each layer (none on a layer boundary), and the longitude integral the
+        analytic ``2*pi`` times the longitude mean when averaged or a ``longitude_nodes`` trapezoid when
+        instantaneous.
 
         Non-summed spatial axes require the corresponding ``radii`` / ``colatitudes`` / ``longitudes``
         arrays; the ``times`` array is required when ``orbit_averaged=False``. The returned dict carries

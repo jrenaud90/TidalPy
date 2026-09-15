@@ -262,6 +262,15 @@ public:
     std::complex<double>* bulk_scratch_data()  noexcept { return this->p_bulk_si.data(); }
     size_t total_slices() const noexcept { return this->p_total_slices; }
     const std::vector<double>& radius_si() const noexcept { return this->p_radius_si; }
+    // Per-layer partition of the slice grid, set by build_cache. An interface radius is the last slice of the lower
+    // layer and the first slice of the upper one, so anything filled per slice must follow this partition rather
+    // than look the layer up by radius.
+    const std::vector<size_t>& first_slice_index_by_layer() const noexcept {
+        return this->p_shooting_inputs.first_slice_index_by_layer;
+    }
+    const std::vector<size_t>& num_slices_by_layer() const noexcept {
+        return this->p_shooting_inputs.num_slices_by_layer;
+    }
 
     // -----------------------------------------------------------------------------------------------------------------
     // build_cache - frequency-independent setup. All inputs are dimensional (SI), copied/computed once.

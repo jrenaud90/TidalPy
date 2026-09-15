@@ -94,14 +94,14 @@ struct c_Heating3DCollapseConfig {
     bool orbit_averaged   = true;   // true: secular density; false: instantaneous sigma:eps_dot vs time
     bool latitude_summed  = false;  // integrate over colatitude (Gauss-Legendre, sin theta weight)
     bool longitude_summed = false;  // integrate over longitude (2*pi analytic when averaged; else trapezoid)
-    bool radial_summed    = false;  // integrate over radius (per-layer trapezoid, r^2 weight)
-    // Integration resolutions. latitude_nodes / radial_slices tuned empirically: for a homogeneous
-    // degree-2 body the collapsed total is within ~1% of the 1D global heating by ~4 Gauss-Legendre
-    // colatitude nodes and ~8 radial slices per layer; these defaults add margin for higher degree l and
-    // layered bodies (Gauss-Legendre is cheap). Raise them for many-layer or high-degree configs.
+    bool radial_summed    = false;  // integrate over radius (Gauss-Legendre inside each layer, r^2 weight)
+    // Integration resolutions. Both integrals use Gauss-Legendre nodes, and the radial nodes stay inside each
+    // layer, so the collapsed total converges quickly to the 1D global heating. The defaults add margin for
+    // higher degree l and many-layer bodies (Gauss-Legendre is cheap). Raise them if a refined call still
+    // changes the total.
     int  latitude_nodes   = 16;     // Gauss-Legendre order for the colatitude integral
     int  longitude_nodes  = 64;     // trapezoid nodes for the instantaneous longitude integral
-    int  radial_slices    = 16;     // trapezoid slices per layer for the radial integral
+    int  radial_slices    = 16;     // Gauss-Legendre nodes per layer for the radial integral
     // When latitude_summed for the secular (orbit_averaged) heating, do the colatitude integral with the
     // precomputed analytic angular Gram table (exact, no theta grid) instead of the Gauss-Legendre
     // quadrature above. No effect on the instantaneous path or when colatitude is not summed.
