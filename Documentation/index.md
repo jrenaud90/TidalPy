@@ -79,6 +79,7 @@ Demos_x/Physics/09_tidal_heating_3d.ipynb
 Demos_x/Physics/10_thermal_eos.ipynb
 Demos_x/Systems/11_multi_world.ipynb
 Demos_x/Systems/12_thermal_orbital_evolution.ipynb
+Demos_x/Physics/13_tidal_maps_3d.ipynb
 ```
 
 ```{toctree}
