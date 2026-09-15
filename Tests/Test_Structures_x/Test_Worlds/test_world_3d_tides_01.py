@@ -5,8 +5,9 @@ waves from the tide config, solves the world radial response once per (degree, f
 frequency's complex stress/strain tensors, and heats once per frequency from the combined tensors - all
 in C++, directly calling the world's members (no Python orchestration, no callbacks).
 
-These tests check the preconditions (rheology model + potential model + solved EOS required) and that
-the world's heating reproduces the legacy collapse_multilayer_modes for a homogeneous Maxwell sphere.
+These tests check the preconditions (the rheology tide model and a solved EOS are required) and that the
+secular heating is positive in a solid interior. The volume integral against the 1D heating is checked in
+test_world_1d_vs_3d_tides_01.py.
 """
 import math
 
