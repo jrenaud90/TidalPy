@@ -102,3 +102,21 @@ def test_world_level_amplification_property(spdlog_text):
     assert result['success']
     assert 0.0 < world.love_surface_amplification < SEVERE_SURFACE_AMPLIFICATION
     assert WARNING_TEXT not in spdlog_text()
+
+
+@pytest.mark.parametrize('warnings_flag', (True, False))
+def test_amplification_is_recorded_whatever_the_warnings_flag(warnings_flag):
+    """The diagnostic is always computed; the warnings flag only decides whether it is reported."""
+    solution = radial_solver_new(
+        radius_array, density_array, bulk_modulus_array, complex_shear_modulus_array,
+        frequency, bulk_density,
+        ('solid',), (False,), (True,), upper_radius_by_layer,
+        degree_l=2, use_kamata=True, raise_on_fail=True, warnings=warnings_flag)
+    assert solution.success
+    assert 0.0 < solution.surface_solve_amplification < SEVERE_SURFACE_AMPLIFICATION
+
+    world = build_world("earth_simple")
+    world.solve_eos()
+    result = world.solve_love_numbers(frequency=1.0e-5, warnings=warnings_flag)
+    assert result['success']
+    assert 0.0 < world.love_surface_amplification < SEVERE_SURFACE_AMPLIFICATION

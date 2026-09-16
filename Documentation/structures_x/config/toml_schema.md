@@ -96,7 +96,7 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | Key | Required | Layer classes | Description |
 |-----|----------|---------------|-------------|
 | `class` | **yes** | all | `base`, `physics`, `solidliquid`, or `gas`. Selects the layer class. |
-| `type` | optional | all | Material type for default lookup: `gas`, `mantle_rock`, `ice`, `hp_ice`, or `iron`. |
+| `type` | optional | all | Material type for default lookup: `gas`, `mantle_rock`, `ice`, `hp_ice`, `iron`, `default` (the block a layer without a type takes, a copy of `mantle_rock`), or `none` (no material defaults at all; `get_config_dict` writes this because it lists every model explicitly). |
 | `layer_index` | optional | all | Inner-to-outer position (0 = innermost). Falls back to declaration order. |
 | `radius_outer_m` | one-of | all | Outer radius \[m\] (absolute). |
 | `radius_fraction` | one-of | all | Outer radius as a fraction of the world radius (`radius_outer_m = radius_fraction * world radius_m`). |
@@ -303,7 +303,7 @@ The file may be ordered surface-first or center-first (it is sorted internally).
 
 ### Automatic Layer Detection
 
-The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` (zero shear) is **liquid**, non-zero is **solid**, and every solid↔liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, … inner to outer. (Duplicate-radius boundary points are absorbed so no zero-thickness layers are produced.) For PREM this yields four layers: inner core (solid), outer core (liquid), mantle (solid), ocean (liquid).
+The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` (zero shear) is **liquid**, non-zero is **solid**, and every solid↔liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, … inner to outer. (Duplicate-radius boundary points are absorbed so no zero-thickness layers are produced.) A liquid layer is flagged `is_solid = false` (and `is_static = true`) on the built layer so the radial solver treats it as a static liquid; the flag is not a schema key. A file may list its rows surface-first (as PREM does) or center-first: a duplicated boundary radius keeps the lower layer's row first either way. For the bundled `PREM.csv`, which replaces PREM's 3 km ocean with the upper crust, this yields three layers: inner core (solid), outer core (liquid), mantle plus crust (solid).
 
 Each detected layer gets an **interpolated EOS** carrying that layer's radius-varying density and static shear/bulk moduli (and viscosities, if the file has those columns). During `solve_eos` the structure ODE integrates using the interpolated density, and the world's viscoelastic profile is taken from the interpolated moduli/viscosities (rather than a per-layer constant).
 
@@ -415,6 +415,6 @@ cfg = world.get_config_dict()          # builder-valid: type, layers by name, ti
 twin = build_world(cfg)                # or world.save_to_toml(path) then build_world(path)
 ```
 
-The live dict carries every scalar and every attached model explicitly, so the material `type` defaults are not needed and are not written; the file is a frozen snapshot of the world as configured.
+The live dict carries every scalar and every attached model explicitly, so no material defaults are needed and each layer is written with `type = "none"`, which keeps a rebuild from adding the `[layers.default]` models a typeless layer would otherwise take; the file is a frozen snapshot of the world as configured.
 
 ---

@@ -1034,19 +1034,16 @@ int c_shooting_solver(
 
                     // Record the worst-case error amplification of the surface solve across ytypes. Large
                     // constants that cancel at the surface amplify roundoff and integration error into the
-                    // collapsed solution; the solver wrappers warn from this diagnostic. Skipped when the
-                    // caller disabled warnings, so the hot path pays nothing for a diagnostic it will not use.
-                    if (warnings)
-                    {
-                        solution_storage_ptr->surface_amplification = std::fmax(
-                            solution_storage_ptr->surface_amplification,
-                            c_estimate_surface_amplification(
-                                constant_vector_ptr,
-                                uppermost_y_per_solution_ptr,
-                                num_sols,
-                                num_ys,
-                                C_MAX_NUM_Y));
-                    }
+                    // collapsed solution. The estimate costs a few products per solve, so it is always recorded;
+                    // the solver wrappers decide whether to warn from it (the `warnings` flag).
+                    solution_storage_ptr->surface_amplification = std::fmax(
+                        solution_storage_ptr->surface_amplification,
+                        c_estimate_surface_amplification(
+                            constant_vector_ptr,
+                            uppermost_y_per_solution_ptr,
+                            num_sols,
+                            num_ys,
+                            C_MAX_NUM_Y));
                 }
                 else
                 {

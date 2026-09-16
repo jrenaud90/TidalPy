@@ -53,6 +53,29 @@ The new C++ backend (the `_x` modules) reads its settings from a second file in 
 
 TidalPy loads the packaged defaults first and merges your file over them, so your file only needs the values you change, and a default added in a later release reaches an existing file without regenerating it. Tables merge key by key and any other value (a list included) replaces the default whole. A physics-model table that names a different `model` than the default replaces the default table instead of merging with it, so no parameter of the default model carries over to a model that does not take it.
 
+### Solver defaults
+
+The `[eos_solver]` and `[radial_solver]` sections are the starting point of every whole-planet EOS solve and every shooting-method Love-number solve: `LayeredWorld.solve_eos` and `solve_love_numbers`, the standalone `RadialSolver_x.radial_solver`, and the solves that `calc_tides` and the 3D tidal maps run internally. A call overrides only the arguments it passes, so a configuration file plus a world or system TOML fixes every numerical setting of a result.
+
+| Key | `[eos_solver]` | `[radial_solver]` |
+|---|---|---|
+| `integration_method` | `"DOP853"` | `"DOP853"` |
+| `rtol`, `atol` | `1.0e-10`, `1.0e-14` | `1.0e-6`, `1.0e-10` |
+| `pressure_tol` | `1.0e-8` (relative to the central-pressure scale) | |
+| `max_iters` | `100` | |
+| `slices_per_layer` | `100` | |
+| `nondimensionalize` | `true` | `true` |
+| `use_kamata` | | `false` |
+| `start_radius_tolerance` | | `1.0e-5` |
+| `scale_rtols` | | `false` |
+| `max_num_steps`, `expected_size`, `max_ram_mb` | | `500000`, `1000`, `500` |
+
+Both solves run in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units), so one tolerance pair means the same thing for every planet. The packaged values come from a convergence study over the bundled worlds and synthetic homogeneous, rocky, icy-ocean, and liquid-core models at degrees 2 and 3 and periods from a day to a hundred days. DOP853 gave the best accuracy per millisecond at every tolerance on both solves (RK45 needs a hundred times tighter `rtol` for the same Love-number error; RK23 far more; the implicit methods are slower without being more accurate here). Tightening the EOS tolerance costs almost nothing, so it is set where the mass, moment of inertia, and surface gravity are converged to about 1e-8. The Love tolerance is the loosest pair at which the degree-2 and degree-3 Love numbers of every well-conditioned case stay within about 3e-8 (real part) and 1e-6 (imaginary part) of a reference solved a million times tighter; each step tighter in `rtol` gains roughly a factor of ten for about a quarter more time, and a Love solve takes a fraction of a millisecond on a cached world. A dynamic liquid layer at a long forcing period is ill-conditioned at any tolerance (use a static liquid there), and an interpolated PREM-style profile is limited by its own tabulation (its Love numbers move in the fifth digit with the slice count) rather than by the integrator.
+
+### Layer material defaults
+
+Every section of `[layers]` is keyed by a material `type`. A layer that names no `type` takes the `[layers.default]` block, a copy of `[layers.mantle_rock]`, and the same block is the fallback for factories that do not know a layer type. A layer written by `get_config_dict` or `save_to_toml` carries `type = "none"`, which applies no material defaults: the saved layer already lists every model it holds.
+
 ### Reproducing a run
 
 A configuration file together with a world or system TOML reproduces a result on another computer running the same TidalPy version. Save the configuration in effect with `TidalPy.save_config_x`, and load it with `TidalPy.reinit`:

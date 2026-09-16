@@ -20,9 +20,12 @@ zero shear modulus is liquid, non-zero is solid, and every solid<->liquid
 transition starts a new layer. This scan is the performance-sensitive part of a
 PREM planet build and is written in Cython.
 
-All radii are converted to MKS (meters) on load; the file's own ordering
-(surface-first or center-first) does not matter because the arrays are sorted
-ascending in radius.
+All radii are converted to MKS (meters) on load and the arrays are returned ascending
+in radius. A file may list its rows surface-first (as PREM does) or center-first. A
+phase boundary is marked by two rows at the same radius, one for each side; a
+surface-first file is reversed before the stable sort so that the lower layer's row
+stays first at every such radius, which the layer detection and the interpolated
+EOS rely on.
 """
 
 from libcpp cimport bool as cpp_bool
@@ -88,7 +91,11 @@ def load_prem_arrays(str file_path):
             "(radius_km, density, Vp, Vs) or 6 columns (+ shear viscosity, bulk "
             f"viscosity); found {data.shape[1]}.")
 
-    # Sort center-to-surface (ascending radius) so the scan runs bottom-to-top.
+    # Sort center-to-surface (ascending radius) so the scan runs bottom-to-top. A surface-first file is
+    # reversed first: the stable sort then keeps the lower layer's row ahead of the upper layer's at a
+    # duplicated boundary radius, so each layer's arrays end (and start) with its own values.
+    if data.shape[0] > 1 and data[0, 0] > data[-1, 0]:
+        data = data[::-1]
     order = np.argsort(data[:, 0], kind="stable")
     data = data[order]
 

@@ -293,7 +293,8 @@ public:
         double bulk_density,
         int degree_l,
         bool nondimensionalize,
-        const c_EOSSolution* structure_dense_source = nullptr)
+        const c_EOSSolution* structure_dense_source = nullptr,
+        const std::vector<double>* density_slope_si = nullptr)
     {
         const size_t total_slices = radius_si.size();
 
@@ -344,6 +345,15 @@ public:
                 this->p_pressure_nd[slice_i] /= pascal_conv;
                 this->p_mass_nd[slice_i]     /= mass_conv;
                 this->p_moi_nd[slice_i]      /= moi_conv;
+            }
+        }
+        // Density slope per slice (for the Hermite density lookup), in the solve units.
+        this->p_density_slope_nd.clear();
+        if (density_slope_si != nullptr && density_slope_si->size() == total_slices) {
+            this->p_density_slope_nd = *density_slope_si;
+            if (nondimensionalize) {
+                const double slope_conv = density_conv / length_conv;
+                for (double& slope : this->p_density_slope_nd) { slope /= slope_conv; }
             }
         }
 
@@ -428,7 +438,8 @@ public:
             this->p_density_nd.data(),
             this->p_shear_nd.data(),
             this->p_bulk_nd.data(),
-            total_slices
+            total_slices,
+            this->p_density_slope_nd.empty() ? nullptr : this->p_density_slope_nd.data()
         );
 
         // Wire the dense structure source so the solved structure variables (gravity/pressure/mass/moi) are read from
@@ -497,7 +508,8 @@ public:
                 this->p_density_nd.data(),
                 this->p_shear_nd.data(),
                 this->p_bulk_nd.data(),
-                total_slices
+                total_slices,
+                this->p_density_slope_nd.empty() ? nullptr : this->p_density_slope_nd.data()
             );
         } else {
             // Fast path: overwrite ONLY the frequency-dependent complex-moduli arrays; the six real structure
@@ -629,6 +641,8 @@ public:
     std::vector<double> p_radius_si;
     // Non-dim master arrays (re-applied to the storage each solve).
     std::vector<double> p_radius_nd, p_density_nd, p_gravity_nd, p_pressure_nd, p_mass_nd, p_moi_nd;
+    // Density slope per slice in solve units (empty when the world supplied none).
+    std::vector<double> p_density_slope_nd;
 
     // Frequency-dependent scratch.
     std::vector<std::complex<double>> p_shear_si, p_bulk_si;   // dimensional, filled by the world

@@ -28,12 +28,18 @@
 
 /// Input data for the material-EOS pre-evaluation function.
 ///
-/// Holds a non-owning observer pointer to the layer's material EOS model and the
-/// (currently unused) temperature passed through to calc_density.
+/// Holds a non-owning observer pointer to the layer's material EOS model, the (currently unused) temperature
+/// passed through to calc_density, and the unit scales of the solve. The material models work in SI, so a
+/// non-dimensional solve multiplies its radius and pressure by the scales before the model sees them and divides
+/// the model's density and moduli by them on the way back; an SI solve keeps every scale at one. The viscosities
+/// are returned in SI in either case.
 struct c_MaterialEOSInput
 {
     tidalpy::c_MaterialEOSBase* eos_model_ptr = nullptr;
-    double temperature = 0.0;
+    double temperature   = 0.0;
+    double length_scale  = 1.0;
+    double pascal_scale  = 1.0;
+    double density_scale = 1.0;
 };
 
 
@@ -55,22 +61,23 @@ inline void c_preeval_material_eos(
     // Cast output to the proper structure.
     c_EOSOutput* output = reinterpret_cast<c_EOSOutput*>(preeval_output);
 
-    // y[1] carries the local pressure [Pa] as integrated by the radial solver.
-    const double pressure = radial_solutions[1];
+    // y[1] carries the local pressure as integrated by the radial solver. The model works in SI.
+    const double radius_si   = radius * eos_data->length_scale;
+    const double pressure_si = radial_solutions[1] * eos_data->pascal_scale;
 
     tidalpy::c_MaterialEOSBase* eos_model = eos_data->eos_model_ptr;
 
-    // Density from the layer's material EOS model.
+    // Density from the layer's material EOS model, in the units of the solve.
     output->density = eos_model->calc_density(
-        pressure, eos_data->temperature, radius);
+        pressure_si, eos_data->temperature, radius_si) / eos_data->density_scale;
 
-    // Static moduli from the model (radius-varying for the interpolated model; NaN
-    // for analytic/constant models). Only populated on the final solve pass.
+    // Static moduli from the model (radius-varying for the interpolated model; NaN for analytic/constant
+    // models), in the units of the solve. Only asked for when the caller needs them.
     if (ode_args->update_shear)
     {
         output->shear_modulus = std::complex<double>(
-            eos_model->calc_static_shear_modulus(radius), 0.0);
-        output->shear_viscosity = eos_model->calc_shear_viscosity(radius);
+            eos_model->calc_static_shear_modulus(radius_si) / eos_data->pascal_scale, 0.0);
+        output->shear_viscosity = eos_model->calc_shear_viscosity(radius_si);
     }
     else
     {
@@ -80,8 +87,8 @@ inline void c_preeval_material_eos(
     if (ode_args->update_bulk)
     {
         output->bulk_modulus = std::complex<double>(
-            eos_model->calc_static_bulk_modulus(radius), 0.0);
-        output->bulk_viscosity = eos_model->calc_bulk_viscosity(radius);
+            eos_model->calc_static_bulk_modulus(radius_si) / eos_data->pascal_scale, 0.0);
+        output->bulk_viscosity = eos_model->calc_bulk_viscosity(radius_si);
     }
     else
     {

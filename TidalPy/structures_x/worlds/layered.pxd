@@ -44,6 +44,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double    atol
         double    pressure_tol
         size_t    max_iters
+        cpp_bool  nondimensionalize
         double    temperature
         cpp_bool  verbose
 
@@ -99,6 +100,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_bool     get_eos_success() const
         const string& get_eos_message() const
         int          get_eos_iterations() const
+        cpp_bool     get_eos_max_iters_hit() const
         double       get_eos_pressure_error() const
         double       get_surface_gravity_eos() const
         double       get_surface_pressure_eos() const
@@ -111,6 +113,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       calc_spin_derivative(double host_mass) except +
         double       calc_synchronous_spin(double orbital_frequency) const
         const c_EOSSolution* get_eos_solution() const
+        c_LoveSolveConfig    make_love_solve_config() const
         void                 solve_love_numbers(const c_LoveSolveConfig& cfg) except +
         void                 solve_love_numbers_supplied(
                 const c_LoveSolveConfig& cfg,

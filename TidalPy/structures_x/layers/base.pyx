@@ -483,21 +483,27 @@ cdef class BaseLayer(StructureBase):
         The dict follows the world builder's layer schema: ``class`` names the layer class, the
         scalar keys are the constructor parameters, and each attached physics model appears as
         its own sub-table keyed by ``model`` (here only ``eos``; subclasses add their models).
+        The material ``type`` is written as ``"none"``: every model the layer holds is listed, so
+        a rebuild must not add the material defaults a typeless layer would otherwise take.
         ``name`` and ``radius_inner`` are construction parameters of a standalone layer that a
         world drops when it nests the layer (see ``LAYER_STANDALONE_CONFIG_KEYS``).
 
         Returns
         -------
         dict
-            Keys: ``class``, ``name``, ``layer_index``, ``radius_inner``,
+            Keys: ``class``, ``type``, ``name``, ``layer_index``, ``radius_inner``,
             ``radius_outer``, ``mass``, ``material_name``,
             ``is_tidal``, ``tidal_scale``, ``tidal_scale_method``, and ``eos`` when set.
         """
+        # Deferred: the configs package imports the layer modules.
+        from TidalPy.structures_x.configs.toml_loader import NO_MATERIAL_TYPE
+
         cdef c_BaseLayer* p = self._layer_ptr.get()
         cdef bytes method_bytes = c_tidal_scale_method_name(p.get_tidal_scale_method())
         cdef bytes class_bytes = c_layer_class_name(p.get_layer_class_id())
         cdef dict config = {
             "class":              class_bytes.decode("utf-8"),
+            "type":               NO_MATERIAL_TYPE,
             "name":               p.get_name().decode("utf-8"),
             "layer_index":        p.get_layer_index(),
             "radius_inner_m":     p.get_radius_inner(),

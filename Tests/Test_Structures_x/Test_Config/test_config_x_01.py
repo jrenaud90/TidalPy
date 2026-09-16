@@ -25,7 +25,7 @@ import TidalPy.configurations as configurations
 from TidalPy.configurations import (
     config_version_header, get_default_config_x, get_packaged_config_x, merge_configs, save_config_x, set_config_x)
 from TidalPy.exceptions import InitializationError
-from TidalPy.structures_x.configs.toml_loader import MATERIAL_TYPES
+from TidalPy.structures_x.configs.toml_loader import MATERIAL_TYPES, NO_MATERIAL_TYPE
 
 
 @pytest.fixture
@@ -62,12 +62,31 @@ def test_config_x_has_numerical_section():
         assert key in numerical
 
 
-@pytest.mark.parametrize("material_type", list(MATERIAL_TYPES))
+@pytest.mark.parametrize("material_type", [name for name in MATERIAL_TYPES if name != NO_MATERIAL_TYPE])
 def test_config_x_has_each_material_block(material_type):
     layers = TidalPy.config_x["layers"]
     assert material_type in layers
     # Every material block carries an EOS default.
     assert "eos" in layers[material_type]
+
+
+def test_default_material_block_is_a_copy_of_mantle_rock():
+    layers = TidalPy.config_x["layers"]
+    assert layers["default"] == layers["mantle_rock"]
+
+
+def test_config_x_has_the_solver_sections():
+    eos_solver = TidalPy.config_x["eos_solver"]
+    for key in ("integration_method", "rtol", "atol", "pressure_tol", "max_iters", "nondimensionalize",
+                "slices_per_layer"):
+        assert key in eos_solver
+    radial_solver = TidalPy.config_x["radial_solver"]
+    for key in ("integration_method", "rtol", "atol", "use_kamata", "start_radius_tolerance", "scale_rtols",
+                "max_num_steps", "expected_size", "max_ram_mb", "nondimensionalize"):
+        assert key in radial_solver
+    # Both solves integrate in non-dimensional units by default.
+    assert eos_solver["nondimensionalize"] is True
+    assert radial_solver["nondimensionalize"] is True
 
 
 def test_mantle_rock_defaults_present():
@@ -202,3 +221,69 @@ def test_set_config_x_rejects_a_missing_file_and_other_types(tmp_path):
 def test_save_config_x_requires_a_toml_path(tmp_path):
     with pytest.raises(ValueError):
         save_config_x(str(tmp_path / "run_config.txt"))
+
+
+# =====================================================================================================================
+# Solver defaults flowing from the configuration
+# =====================================================================================================================
+def _homogeneous_inputs():
+    """A homogeneous Maxwell sphere as standalone radial_solver inputs."""
+    import numpy as np
+    from TidalPy.rheology_x import Maxwell
+    frequency = 2.0 * math.pi / 86400.0
+    num_slices = 20
+    radius = np.linspace(0.0, 6.0e6, num_slices)
+    density = 3500.0 * np.ones(num_slices)
+    bulk = 1.0e11 * np.ones(num_slices, dtype=np.complex128)
+    shear = Maxwell().calc_complex_modulus_vectorize_modulus(5.0e10 * np.ones(num_slices),
+                                                             1.0e20 * np.ones(num_slices), frequency)
+    return (radius, density, bulk, shear, frequency, 3500.0, ("solid",), (False,), (False,),
+            np.array([6.0e6]))
+
+
+def test_radial_solver_defaults_follow_the_config(restore_config_x):
+    """The standalone solver takes its integration settings from [radial_solver]; an explicit argument wins."""
+    from TidalPy.RadialSolver_x import radial_solver
+    args = _homogeneous_inputs()
+    config_rtol = TidalPy.config_x["radial_solver"]["rtol"]
+    config_atol = TidalPy.config_x["radial_solver"]["atol"]
+    default = radial_solver(*args)
+    explicit = radial_solver(*args, integration_rtol=config_rtol, integration_atol=config_atol)
+    assert default.success and explicit.success
+    assert complex(default.k) == complex(explicit.k)
+    assert default.steps_taken.max() == explicit.steps_taken.max()
+
+    TidalPy.reinit(provided_config_x={"radial_solver": {"rtol": 1.0e-10, "atol": 1.0e-13}})
+    tight = radial_solver(*args)
+    assert tight.success
+    assert tight.steps_taken.max() > default.steps_taken.max()
+    assert math.isclose(complex(tight.k).real, complex(default.k).real, rel_tol=1.0e-4)
+
+
+def test_world_love_defaults_follow_the_config(restore_config_x):
+    """The world Love solve starts from [radial_solver] and the world's [tides] Love method."""
+    from TidalPy.structures_x import build_world
+    world = build_world("earth_simple")
+    world.solve_eos()
+    frequency = 2.0 * math.pi / 86400.0
+    config = TidalPy.config_x["radial_solver"]
+    world.solve_love_numbers(frequency=frequency)
+    k_default = world.love_number_k
+    world.solve_love_numbers(frequency=frequency, rtol=config["rtol"], atol=config["atol"],
+                             use_kamata=config["use_kamata"], scale_rtols=config["scale_rtols"],
+                             start_radius_tol=config["start_radius_tolerance"],
+                             integration_method=config["integration_method"])
+    assert world.love_number_k == k_default
+
+    TidalPy.reinit(provided_config_x={"radial_solver": {"rtol": 1.0e-10, "atol": 1.0e-13}})
+    world.solve_love_numbers(frequency=frequency)
+    k_tight = world.love_number_k
+    assert k_tight != k_default
+    assert math.isclose(k_tight.real, k_default.real, rel_tol=1.0e-4)
+
+    # love_method left unset follows the world's tide configuration.
+    world.set_tide_config(love_method="homogeneous")
+    world.solve_love_numbers(frequency=frequency)
+    assert world.love_method == "homogeneous"
+    world.solve_love_numbers(frequency=frequency, love_method="radial_solver")
+    assert world.love_method == "radial_solver"

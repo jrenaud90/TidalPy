@@ -20,57 +20,62 @@
 
 /// Solve the equation of state for a layered planet.
 ///
-/// Integrates gravity, pressure, mass, and moment of inertia radially from center to surface.
-/// Uses a convergence loop on surface pressure to determine the correct central pressure.
+/// Integrates gravity, pressure, mass, and moment of inertia radially from center to surface, in whatever units
+/// the caller's arrays and inputs are in (SI or non-dimensional). The central pressure is found by a secant
+/// iteration on the surface-pressure mismatch: the first update assumes a unit slope (a central-pressure change
+/// moves the surface pressure by the same amount, exact for an incompressible planet), and every later update
+/// uses the slope measured between the last two iterations, which converges in a few steps for compressible
+/// planets where the fixed-point update crawls.
 ///
 /// Parameters
 /// ----------
 /// eos_solution_ptr : c_EOSSolution*
 ///     Output solution object (must be constructed with radius array and layer info).
 /// eos_function_bylayer_ptr_vec : vector of PreEvalFunc
-///     EOS evaluation function for each layer (called during ODE integration).
+///     EOS evaluation function for each layer (called during ODE integration and kept for later evaluation).
 /// eos_input_bylayer_vec : vector of c_EOS_ODEInput
 ///     Input parameters for each layer's EOS function.
 /// planet_bulk_density : double
-///     Bulk density of the planet [kg m-3], used for initial pressure guess.
+///     Bulk density of the planet, used for the initial central-pressure guess.
 /// surface_pressure : double
-///     Expected surface pressure [Pa] (default: 0.0).
+///     Target surface pressure.
 /// G_to_use : double
-///     Gravitational constant [m3 kg-1 s-2]. A negative value (the default) selects the shared runtime config's
-///     value, the same convention as the world-level EOS solve.
+///     Gravitational constant in the units of the solve. A negative value selects the shared runtime config's
+///     SI value.
 /// integration_method : ODEMethod
-///     CyRK integration method (default: DOP853).
+///     CyRK integration method.
 /// rtol : double
 ///     Relative tolerance for integration.
 /// atol : double
 ///     Absolute tolerance for integration.
 /// pressure_tol : double
-///     Convergence tolerance for surface pressure iteration.
+///     Convergence tolerance on the surface-pressure mismatch, relative to the central-pressure scale
+///     (2/3) pi G rho_bulk^2 R^2 + surface_pressure. Set it above rtol, the integrator's own noise on the surface
+///     pressure, or the iteration cannot converge.
 /// max_iters : size_t
-///     Maximum number of convergence iterations.
+///     Maximum number of convergence iterations. The cap is reported through max_iters_hit and the message; the
+///     solution is still returned.
 /// verbose : bool
 ///     Print status messages if true.
-// Default convergence settings for the whole-planet EOS solve. Every config struct that carries an EOS
-// tolerance initializes from these, so each value is written once. The pressure tolerance is relative
-// to the target surface pressure when one is set and absolute [Pa] when that pressure is ~zero.
-inline constexpr double d_EOS_SOLVE_RTOL         = 1.0e-6;
-inline constexpr double d_EOS_SOLVE_ATOL         = 1.0e-10;
-inline constexpr double d_EOS_SOLVE_PRESSURE_TOL = 1.0e-3;
-inline constexpr size_t d_EOS_SOLVE_MAX_ITERS    = 100;
-
+///
+/// Assumptions
+/// -----------
+/// - Spherical symmetry and hydrostatic equilibrium.
+/// - The surface pressure rises monotonically with the central pressure (true for any EOS with positive
+///   density and compressibility), which the secant iteration relies on.
 inline void c_solve_eos(
         c_EOSSolution* eos_solution_ptr,
         std::vector<PreEvalFunc>& eos_function_bylayer_ptr_vec,
         std::vector<c_EOS_ODEInput>& eos_input_bylayer_vec,
         double planet_bulk_density,
-        double surface_pressure = 0.0,
-        double G_to_use = -1.0,
-        ODEMethod integration_method = ODEMethod::DOP853,
-        double rtol = d_EOS_SOLVE_RTOL,
-        double atol = d_EOS_SOLVE_ATOL,
-        double pressure_tol = d_EOS_SOLVE_PRESSURE_TOL,
-        size_t max_iters = d_EOS_SOLVE_MAX_ITERS,
-        bool verbose = true
+        double surface_pressure,
+        double G_to_use,
+        ODEMethod integration_method,
+        double rtol,
+        double atol,
+        double pressure_tol,
+        size_t max_iters,
+        bool verbose
         ) noexcept
 {
     // Set the message assuming success, it will be updated if we run into failure
@@ -102,9 +107,17 @@ inline void c_solve_eos(
     // We need the central pressure of the planet. Use the global bulk density to calculate this.
     double y0[4] = {r0_gravity, r0_pressure_guess, r0_mass, r0_moi};
 
-    // y information
-    const size_t num_y = C_EOS_Y_VALUES;
-    size_t num_extra   = 0;
+    // Secant iteration state on f(P_c) = P_surface(P_c) - surface_pressure. The convergence test is relative to
+    // the central-pressure scale, which is the size of the integrator's own noise on the surface pressure.
+    const double pressure_scale   = (r0_pressure_guess > 0.0) ? r0_pressure_guess : 1.0;
+    double previous_central       = TidalPyConstants::d_NAN;
+    double previous_diff          = TidalPyConstants::d_NAN;
+
+    // y information. The integration carries only the four structure variables; the density, moduli, and
+    // viscosities are evaluated afterwards from the retained dense output by the layer EOS functions, so the dense
+    // interpolant stays a plain polynomial evaluation (no diffeq re-evaluation on every call).
+    const size_t num_y     = C_EOS_Y_VALUES;
+    const size_t num_extra = 0;
 
     // Layer information
     size_t top_of_last_layer_index = 0;
@@ -178,26 +191,12 @@ inline void c_solve_eos(
             // Get eos function and inputs for this layer
             eos_input_layer_ptr = &eos_input_bylayer_vec[layer_i];
 
-            if (final_run)
-            {
-                // We now want to make sure that all final calculations are performed.
-                eos_input_layer_ptr->update_bulk  = true;
-                eos_input_layer_ptr->update_shear = true;
-                eos_input_layer_ptr->final_solve  = true;
-                // Capture extra outputs and store interpolators
-                num_extra        = C_EOS_EXTRA_VALUES;
-                use_dense_output = true;
-            }
-            else
-            {
-                // During the iterations we do not need to update the complex bulk or shear
-                eos_input_layer_ptr->update_bulk  = false;
-                eos_input_layer_ptr->update_shear = false;
-                // We also are not at the final call step.
-                eos_input_layer_ptr->final_solve = false;
-                num_extra        = 0;
-                use_dense_output = false;
-            }
+            // The integration never needs the moduli (density only), and no extra outputs are captured, so the
+            // diffeq must not write past the structure variables. Only the final run keeps its dense output.
+            eos_input_layer_ptr->update_bulk  = false;
+            eos_input_layer_ptr->update_shear = false;
+            eos_input_layer_ptr->final_solve  = false;
+            use_dense_output = final_run;
 
             // Store additional arguments to our char vector
             std::memcpy(args_vec_eos_ptr, eos_input_layer_ptr, sizeof(c_EOS_ODEInput));
@@ -306,28 +305,40 @@ inline void c_solve_eos(
         }
         else
         {
-            // Update the central pressure using the error at the surface as the correction factor
-            pressure_diff     = surface_pressure - calculated_surf_pressure;
-            pressure_diff_abs = pressure_diff;
-            if (pressure_diff < 0.0)
-            {
-                pressure_diff_abs = -pressure_diff;
-            }
+            // Surface-pressure mismatch of this central pressure.
+            pressure_diff     = calculated_surf_pressure - surface_pressure;
+            pressure_diff_abs = std::fabs(pressure_diff);
 
-            // Calculate percent difference to use in convergence check.
-            if (surface_pressure > TidalPyConstants::d_EPS_100)
+            if (pressure_diff_abs <= pressure_tol * pressure_scale)
             {
-                pressure_diff_abs /= surface_pressure;
-            }
-
-            // Check if we are done next iteration
-            if (pressure_diff_abs <= pressure_tol)
-            {
+                // Converged: the next pass is the final run that keeps the dense output.
                 final_run = true;
             }
             else
             {
-                y0[1] += pressure_diff;
+                // Secant update of the central pressure. The first step assumes a unit slope; later steps use the
+                // slope measured between the last two iterations, falling back to the unit slope when that
+                // measurement is not usable (equal pressures, a non-finite or non-positive slope).
+                double step = -pressure_diff;
+                if (std::isfinite(previous_central))
+                {
+                    const double slope = (pressure_diff - previous_diff) / (y0[1] - previous_central);
+                    if (std::isfinite(slope) && (slope > 0.0))
+                    {
+                        step = -pressure_diff / slope;
+                    }
+                }
+                previous_central = y0[1];
+                previous_diff    = pressure_diff;
+
+                // Keep the central pressure positive: halve an overshooting step.
+                double next_central = y0[1] + step;
+                while ((next_central <= 0.0) && (std::fabs(step) > TidalPyConstants::d_EPS * pressure_scale))
+                {
+                    step        *= 0.5;
+                    next_central = y0[1] + step;
+                }
+                y0[1] = next_central;
             }
         }
 
@@ -374,7 +385,9 @@ inline void c_solve_eos(
         // Set other final parameters
         eos_solution_ptr->pressure_error = pressure_diff_abs;
 
-        // Tell the eos solution to perform a full planet interpolation and store the results. Including surface results.
+        // Keep the layer EOS functions so the density, moduli, and viscosities can be evaluated at any radius from
+        // the retained structure solution, then sample the whole planet onto the radius array.
+        eos_solution_ptr->save_eos_functions(eos_function_bylayer_ptr_vec, eos_input_bylayer_vec);
         eos_solution_ptr->interpolate_full_planet();
     }
 

@@ -75,7 +75,26 @@ cdef extern from "eos_solution_.hpp" nogil:
         void call(
             const size_t layer_index,
             const double radius,
-            double* y_interp_ptr)
+            double* y_interp_ptr) except +
+        void call_y(
+            const size_t layer_index,
+            const double radius,
+            double* y_interp_ptr) except +
+        void call_si(
+            const size_t layer_index,
+            const double radius_si,
+            double* y_interp_ptr) except +
+        void call_y_si(
+            const size_t layer_index,
+            const double radius_si,
+            double* y_interp_ptr) except +
+        void interp_structure_in_layer(
+            const size_t layer_index,
+            const double radius,
+            double* gravity_ptr,
+            double* density_ptr)
+        void update_slice_partition()
+        double convert_radius_si_to_solve(const double radius_si)
 
         void change_radius_array(
             double* new_radius_ptr,

@@ -16,7 +16,8 @@ cnp.import_array()
 from CyRK cimport ODEMethod
 
 from TidalPy.Utilities_x.logging_x.logger import log_warning
-from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr
+from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr, tidalpy_config_ptr, TidalPyConfig
+from TidalPy.constants import ODE_METHOD_NAMES
 # Make sure TidalPy Config Pointer is set.
 set_tidalpy_config_ptr(get_shared_config_address())
 
@@ -53,17 +54,17 @@ def radial_solver(
         int degree_l = 2,
         tuple solve_for = None,
         double starting_radius = 0.0,
-        double start_radius_tolerance = 1.0e-5,
-        cpp_bool nondimensionalize = True,
+        start_radius_tolerance = None,
+        nondimensionalize = None,
         # Shooting method parameters
-        cpp_bool use_kamata = False,
-        str integration_method = 'DOP853',
-        double integration_rtol = 1.0e-5,
-        double integration_atol = 1.0e-8,
-        cpp_bool scale_rtols_bylayer_type = False,
-        size_t max_num_steps = 500_000,
-        size_t expected_size = 1000,
-        size_t max_ram_MB = 500,
+        use_kamata = None,
+        integration_method = None,
+        integration_rtol = None,
+        integration_atol = None,
+        scale_rtols_bylayer_type = None,
+        max_num_steps = None,
+        expected_size = None,
+        max_ram_MB = None,
         double max_step = 0,
         # Love-number method
         str love_method = 'radial_solver',
@@ -72,11 +73,11 @@ def radial_solver(
         # Equation of State solver parameters
         tuple eos_method_bylayer = None,
         double surface_pressure = 0.0,
-        str eos_integration_method = 'DOP853',
-        double eos_rtol = 1.0e-3,
-        double eos_atol = 1.0e-5,
-        double eos_pressure_tol = 1.0e-3,
-        int eos_max_iters = 40,
+        eos_integration_method = None,
+        eos_rtol = None,
+        eos_atol = None,
+        eos_pressure_tol = None,
+        eos_max_iters = None,
         # Error and log reporting
         cpp_bool verbose = False,
         cpp_bool warnings = True,
@@ -86,6 +87,9 @@ def radial_solver(
         ):
     """
     Solves the viscoelastic-gravitational problem for a planet comprised of solid and liquid layers.
+
+    Every solver setting left as ``None`` takes the ``[radial_solver]`` (shooting method) or ``[eos_solver]``
+    value of the TidalPy configuration (``TidalPy.config_x``), the same defaults the world-attached solves use.
 
     Parameters
     ----------
@@ -115,26 +119,27 @@ def radial_solver(
         Tuple of requested solutions ("tidal", "loading", "free"). None defaults to ("tidal",).
     starting_radius : float64, default=0.0
         Starting radius [m]. 0.0 = auto-determine.
-    start_radius_tolerance : float64, default=1.0e-5
-        Tolerance for starting radius formula.
-    nondimensionalize : bool, default=True
-        Non-dimensionalize inputs before integration.
-    use_kamata : bool, default=False
-        Use Kamata+ (2015) starting conditions.
-    integration_method : str, default='DOP853'
-        CyRK integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', 'Radau'.
-    integration_rtol : float64, default=1.0e-5
-        Relative integration tolerance.
-    integration_atol : float64, default=1.0e-8
-        Absolute integration tolerance.
-    scale_rtols_bylayer_type : bool, default=False
-        Scale tolerances by layer type.
-    max_num_steps : uint, default=500000
-        Maximum integration steps.
-    expected_size : uint, default=1000
-        Expected integration steps per solution.
-    max_ram_MB : uint, default=500
-        Maximum RAM for integrator [MB].
+    start_radius_tolerance : float64, optional
+        Tolerance of the automatic starting radius, R * tol^(1/l). None: from the configuration.
+    nondimensionalize : bool, optional
+        Non-dimensionalize inputs before integration (the EOS and the shooting solve). None: from the
+        configuration.
+    use_kamata : bool, optional
+        Use Kamata+ (2015) starting conditions. None: from the configuration.
+    integration_method : str, optional
+        CyRK integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', 'Radau'. None: from the configuration.
+    integration_rtol : float64, optional
+        Relative integration tolerance. None: from the configuration.
+    integration_atol : float64, optional
+        Absolute integration tolerance. None: from the configuration.
+    scale_rtols_bylayer_type : bool, optional
+        Scale tolerances by layer type. None: from the configuration.
+    max_num_steps : uint, optional
+        Maximum integration steps. None: from the configuration.
+    expected_size : uint, optional
+        Expected integration steps per solution. None: from the configuration.
+    max_ram_MB : uint, optional
+        Maximum RAM for integrator [MB]. None: from the configuration.
     max_step : float64, default=0
         Maximum step size. 0 = auto-determine.
     love_method : str, default='radial_solver'
@@ -149,16 +154,18 @@ def radial_solver(
         EOS method per layer. None = "interpolation" for all.
     surface_pressure : float64, default=0.0
         Planet surface pressure [Pa].
-    eos_integration_method : str, default='DOP853'
-        EOS integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', or 'Radau'.
-    eos_rtol : float64, default=1.0e-3
-        EOS relative tolerance.
-    eos_atol : float64, default=1.0e-5
-        EOS absolute tolerance.
-    eos_pressure_tol : float64, default=1.0e-3
-        Pressure convergence tolerance.
-    eos_max_iters : int, default=40
-        Maximum EOS convergence iterations.
+    eos_integration_method : str, optional
+        EOS integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', or 'Radau'. None: from the
+        configuration.
+    eos_rtol : float64, optional
+        EOS relative tolerance. None: from the configuration.
+    eos_atol : float64, optional
+        EOS absolute tolerance. None: from the configuration.
+    eos_pressure_tol : float64, optional
+        Convergence tolerance on the surface-pressure mismatch, relative to the central-pressure scale
+        (2/3) pi G rho^2 R^2 (keep it above ``eos_rtol``). None: from the configuration.
+    eos_max_iters : int, optional
+        Maximum central-pressure iterations. None: from the configuration.
     verbose : bool, default=False
         Print status messages.
     warnings : bool, default=True
@@ -174,6 +181,56 @@ def radial_solver(
     -------
     solution : RadialSolverSolution
     """
+
+    # Solver settings not given here come from the [radial_solver] and [eos_solver] sections of the TidalPy
+    # configuration, held by the shared C++ config (the same values the world-attached solves start from).
+    cdef TidalPyConfig* shared_config = tidalpy_config_ptr
+    if start_radius_tolerance is None:
+        start_radius_tolerance = shared_config.d_RADIAL_SOLVER_START_RADIUS_TOL
+    if nondimensionalize is None:
+        nondimensionalize = shared_config.d_RADIAL_SOLVER_NONDIMENSIONALIZE
+    if use_kamata is None:
+        use_kamata = shared_config.d_RADIAL_SOLVER_USE_KAMATA
+    if integration_method is None:
+        integration_method = ODE_METHOD_NAMES[shared_config.d_RADIAL_SOLVER_METHOD]
+    if integration_rtol is None:
+        integration_rtol = shared_config.d_RADIAL_SOLVER_RTOL
+    if integration_atol is None:
+        integration_atol = shared_config.d_RADIAL_SOLVER_ATOL
+    if scale_rtols_bylayer_type is None:
+        scale_rtols_bylayer_type = shared_config.d_RADIAL_SOLVER_SCALE_RTOLS
+    if max_num_steps is None:
+        max_num_steps = shared_config.d_RADIAL_SOLVER_MAX_NUM_STEPS
+    if expected_size is None:
+        expected_size = shared_config.d_RADIAL_SOLVER_EXPECTED_SIZE
+    if max_ram_MB is None:
+        max_ram_MB = shared_config.d_RADIAL_SOLVER_MAX_RAM_MB
+    if eos_integration_method is None:
+        eos_integration_method = ODE_METHOD_NAMES[shared_config.d_EOS_SOLVER_METHOD]
+    if eos_rtol is None:
+        eos_rtol = shared_config.d_EOS_SOLVER_RTOL
+    if eos_atol is None:
+        eos_atol = shared_config.d_EOS_SOLVER_ATOL
+    if eos_pressure_tol is None:
+        eos_pressure_tol = shared_config.d_EOS_SOLVER_PRESSURE_TOL
+    if eos_max_iters is None:
+        eos_max_iters = shared_config.d_EOS_SOLVER_MAX_ITERS
+
+    cdef double   c_start_radius_tolerance = <double>start_radius_tolerance
+    cdef cpp_bool c_nondimensionalize      = <cpp_bool>bool(nondimensionalize)
+    cdef cpp_bool c_use_kamata             = <cpp_bool>bool(use_kamata)
+    cdef str      c_integration_method     = str(integration_method)
+    cdef double   c_integration_rtol       = <double>integration_rtol
+    cdef double   c_integration_atol       = <double>integration_atol
+    cdef cpp_bool c_scale_rtols            = <cpp_bool>bool(scale_rtols_bylayer_type)
+    cdef size_t   c_max_num_steps          = <size_t>int(max_num_steps)
+    cdef size_t   c_expected_size          = <size_t>int(expected_size)
+    cdef size_t   c_max_ram_MB             = <size_t>int(max_ram_MB)
+    cdef str      c_eos_integration_method = str(eos_integration_method)
+    cdef double   c_eos_rtol               = <double>eos_rtol
+    cdef double   c_eos_atol               = <double>eos_atol
+    cdef double   c_eos_pressure_tol       = <double>eos_pressure_tol
+    cdef int      c_eos_max_iters          = <int>int(eos_max_iters)
 
     cdef size_t total_slices = radius_array.shape[0]
     cdef size_t num_layers   = len(layer_types)
@@ -260,9 +317,9 @@ def radial_solver(
             use_prop_matrix,
             starting_radius,
             c_solve_for,
-            integration_method.encode('utf-8'),
+            c_integration_method.encode('utf-8'),
             c_eos_method_bylayer,
-            eos_integration_method.encode('utf-8'),
+            c_eos_integration_method.encode('utf-8'),
             warnings,
             layer_types_out.data(),
             &bc_models_out[0],
@@ -301,25 +358,25 @@ def radial_solver(
             num_bc_models_out,
             &bc_models_out[0],
             core_model,
-            use_kamata,
+            c_use_kamata,
             starting_radius,
-            start_radius_tolerance,
+            c_start_radius_tolerance,
             integration_method_out,
-            integration_rtol,
-            integration_atol,
-            scale_rtols_bylayer_type,
-            max_num_steps,
-            expected_size,
-            max_ram_MB,
+            c_integration_rtol,
+            c_integration_atol,
+            c_scale_rtols,
+            c_max_num_steps,
+            c_expected_size,
+            c_max_ram_MB,
             max_step,
-            nondimensionalize,
+            c_nondimensionalize,
             use_prop_matrix,
             eos_integration_method_int_bylayer_out.data(),
             eos_integration_method_out,
-            eos_rtol,
-            eos_atol,
-            eos_pressure_tol,
-            eos_max_iters,
+            c_eos_rtol,
+            c_eos_atol,
+            c_eos_pressure_tol,
+            c_eos_max_iters,
             verbose,
             warnings
         )
@@ -346,6 +403,6 @@ def radial_solver(
             log_warning(
                 f"Large number of steps taken found in radial solver solution "
                 f"(max = {np.max(solution.steps_taken)}).")
-        check_surface_solve_conditioning(solution.surface_solve_amplification, integration_rtol)
+        check_surface_solve_conditioning(solution.surface_solve_amplification, c_integration_rtol)
 
     return solution

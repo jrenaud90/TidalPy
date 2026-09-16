@@ -86,6 +86,30 @@ struct TidalPyConfig
     // solver's own automatic choice and rejects a caller's starting radius above it.
     double d_MAX_START_RADIUS_FRAC; // Updated from TidalPy.config_x['numerical']['max_start_radius_fraction']
 
+    // Whole-planet EOS solve defaults, from TidalPy.config_x['eos_solver']. Read by every EOS solve that is
+    // not handed an explicit value. The method is CyRK's ODEMethod enum as an int (-1 until the config is
+    // loaded).
+    int    d_EOS_SOLVER_METHOD;
+    double d_EOS_SOLVER_RTOL;
+    double d_EOS_SOLVER_ATOL;
+    double d_EOS_SOLVER_PRESSURE_TOL;
+    int    d_EOS_SOLVER_MAX_ITERS;
+    int    d_EOS_SOLVER_SLICES_PER_LAYER;
+    bool   d_EOS_SOLVER_NONDIMENSIONALIZE;
+
+    // Radial (Love number) solve defaults, from TidalPy.config_x['radial_solver']. Read by the world Love
+    // solves, the tide paths that build their own, and the standalone radial_solver.
+    int    d_RADIAL_SOLVER_METHOD;
+    double d_RADIAL_SOLVER_RTOL;
+    double d_RADIAL_SOLVER_ATOL;
+    bool   d_RADIAL_SOLVER_USE_KAMATA;
+    double d_RADIAL_SOLVER_START_RADIUS_TOL;
+    bool   d_RADIAL_SOLVER_SCALE_RTOLS;
+    int    d_RADIAL_SOLVER_MAX_NUM_STEPS;
+    int    d_RADIAL_SOLVER_EXPECTED_SIZE;
+    int    d_RADIAL_SOLVER_MAX_RAM_MB;
+    bool   d_RADIAL_SOLVER_NONDIMENSIONALIZE;
+
     // Astro / Physics Constants
     // The below are updated from SciPy
     double d_G;
@@ -108,6 +132,23 @@ struct TidalPyConfig
         d_NUMERICAL_FLOOR = nan;
         d_LAYER_CONTINUITY_RTOL = nan;
         d_MAX_START_RADIUS_FRAC = nan;
+        d_EOS_SOLVER_METHOD = -1;
+        d_EOS_SOLVER_RTOL = nan;
+        d_EOS_SOLVER_ATOL = nan;
+        d_EOS_SOLVER_PRESSURE_TOL = nan;
+        d_EOS_SOLVER_MAX_ITERS = -1;
+        d_EOS_SOLVER_SLICES_PER_LAYER = -1;
+        d_EOS_SOLVER_NONDIMENSIONALIZE = true;
+        d_RADIAL_SOLVER_METHOD = -1;
+        d_RADIAL_SOLVER_RTOL = nan;
+        d_RADIAL_SOLVER_ATOL = nan;
+        d_RADIAL_SOLVER_USE_KAMATA = false;
+        d_RADIAL_SOLVER_START_RADIUS_TOL = nan;
+        d_RADIAL_SOLVER_SCALE_RTOLS = false;
+        d_RADIAL_SOLVER_MAX_NUM_STEPS = -1;
+        d_RADIAL_SOLVER_EXPECTED_SIZE = -1;
+        d_RADIAL_SOLVER_MAX_RAM_MB = -1;
+        d_RADIAL_SOLVER_NONDIMENSIONALIZE = true;
         d_G = nan;
         d_AU = nan;
         d_SBC = nan;

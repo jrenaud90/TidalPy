@@ -34,12 +34,16 @@ complex_shear = Maxwell().calc_complex_modulus(SHEAR_MODULUS_PA, VISCOSITY_PAS, 
 complex_shear_array = np.full(NUM_SLICES, complex_shear, dtype=np.complex128)
 upper_radius_array = np.asarray([PLANET_RADIUS_M])
 
+# The EOS tolerances are pinned loose: LSODA's startup at the singular center fails cleanly at tight
+# tolerances (a documented limitation), and a homogeneous sphere's structure is exact at any tolerance.
 COMMON_KWARGS = dict(
     degree_l=2,
     solve_for=("tidal",),
     use_kamata=True,
     integration_rtol=1.0e-7,
     integration_atol=1.0e-10,
+    eos_rtol=1.0e-4,
+    eos_atol=1.0e-6,
     raise_on_fail=True,
 )
 

@@ -27,6 +27,75 @@ from TidalPy import version
 # TidalPy.structures_x.configs.toml_loader.SCHEMA_VERSION.
 SCHEMA_VERSION_X = "0.2.0"
 
+
+def _rock_layer_block(section: str) -> str:
+    """The silicate-rock layer defaults as a ``[layers.<section>]`` block.
+
+    Written once and used for both ``mantle_rock`` and ``default`` (the block a layer without a material
+    ``type`` takes), so the two cannot drift apart.
+    """
+    return f"""[layers.{section}]
+    shear_modulus_static_pa = 6.0e10
+    bulk_modulus_static_pa = 2.0e11
+    thermal_conductivity_ref_w_mk = 3.75
+    thermal_expansion_ref_1_k = 5.2e-5
+    heat_capacity_ref_j_kgk = 1200.0
+    activation_energy_j_mol = 3.0e5
+    activation_volume_m3_mol = 5.0e-6
+    solidus_temperature_k = 1600.0
+    liquidus_temperature_k = 2000.0
+    reference_density_kg_m3 = 3500.0
+    reference_temperature_k = 1600.0
+    melt_viscosity_reduction = 25.0
+
+    [layers.{section}.eos]
+        model = "constant"
+        reference_density_kg_m3 = 3500.0
+
+    [layers.{section}.shear_rheology]
+        model = "andrade"
+        alpha = 0.3
+        zeta = 1.0
+
+    [layers.{section}.bulk_rheology]
+        model = "elastic"
+
+    [layers.{section}.shear_viscosity]
+        model = "reference"
+        reference_viscosity_pas = 1.0e22
+        reference_temperature_k = 1000.0
+        molar_activation_energy_j_mol = 3.0e5
+        molar_activation_volume_m3_mol = 0.0
+
+    [layers.{section}.bulk_viscosity]
+        model = "constant"
+        reference_viscosity_pas = 1.0e22
+
+    [layers.{section}.partial_melt]
+        model = "henning"
+        solidus_k = 1600.0
+        liquidus_k = 2000.0
+        liquid_shear_pa = 1.0e-5
+        crit_melt_frac = 0.5
+        crit_melt_frac_width = 0.05
+        hn_visc_slope_1 = 13.5
+        hn_visc_falloff_slope = 370.0
+        hn_shear_param_1_k = 40000.0
+        hn_shear_param_2 = 25.0
+        hn_shear_falloff_slope = 700.0
+
+    [layers.{section}.cooling]
+        model = "convection"
+        convection_alpha = 1.0
+        convection_beta = 0.3333333333333333
+        critical_rayleigh = 1100.0
+
+    [layers.{section}.radiogenics]
+        model = "isotope"
+        isotopes = "modern_day_chondritic"
+"""
+
+
 default_config_x_str = f"""
 schema_version = "{SCHEMA_VERSION_X}"
 
@@ -56,6 +125,60 @@ schema_version = "{SCHEMA_VERSION_X}"
     max_start_radius_fraction = 0.90
     # Debug helper.
     test_constant = 42.0
+
+
+# =====================================================================================================================
+# Whole-planet equation-of-state solve defaults
+#
+# The starting point of every EOS solve: `LayeredWorld.solve_eos`, the `eos_*` arguments of the standalone
+# `radial_solver`, and the solves the tide paths run. A call overrides only the arguments it passes.
+# =====================================================================================================================
+[eos_solver]
+    # CyRK integration method: "DOP853", "RK45", "RK23", or the implicit "BDF", "LSODA", "Radau". DOP853 at these
+    # tolerances converges the mass, moment of inertia, and surface gravity to about 1e-8 at no measurable cost over
+    # looser settings (a convergence study over the bundled and synthetic worlds).
+    integration_method = "DOP853"
+    rtol = 1.0e-10
+    atol = 1.0e-14
+    # Convergence tolerance on the surface-pressure mismatch, relative to the central-pressure scale
+    # (2/3) pi G rho^2 R^2. Keep it well above rtol, the integrator's own noise on the surface pressure.
+    pressure_tol = 1.0e-8
+    # Cap on the central-pressure iterations (a secant iteration normally converges in under ten).
+    max_iters = 100
+    # Integrate in non-dimensional units (the planet radius, its bulk density, and 1/sqrt(pi G rho) as the length,
+    # density, and time units) so the tolerances above mean the same thing for every planet.
+    nondimensionalize = true
+    # Radial samples per layer stored by the world-level solve (the profile the Love-number solve interpolates).
+    slices_per_layer = 100
+
+
+# =====================================================================================================================
+# Radial (Love number) solve defaults
+#
+# The starting point of every shooting-method solve: `LayeredWorld.solve_love_numbers`, the standalone
+# `radial_solver`, and the Love solves behind `calc_tides` and the 3D tidal maps. A call overrides only the
+# arguments it passes.
+# =====================================================================================================================
+[radial_solver]
+    # CyRK integration method: "DOP853", "RK45", "RK23", or the implicit "BDF", "LSODA", "Radau". DOP853 at these
+    # tolerances keeps the degree-2 and degree-3 Love numbers of the bundled and synthetic worlds within about 3e-8
+    # (real part) and 1e-6 (imaginary part) of a reference solved a million times tighter, in a fraction of a
+    # millisecond per cached solve; RK45 needs a hundred times tighter rtol for the same error.
+    integration_method = "DOP853"
+    rtol = 1.0e-6
+    atol = 1.0e-10
+    # Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972).
+    use_kamata = false
+    # The automatic starting radius is R * start_radius_tolerance^(1/l), capped by
+    # [numerical].max_start_radius_fraction.
+    start_radius_tolerance = 1.0e-5
+    # Tighten the relative tolerance of the stress-like radial functions by layer type (experimental).
+    scale_rtols = false
+    max_num_steps = 500000
+    expected_size = 1000
+    max_ram_mb = 500
+    # Integrate in non-dimensional units.
+    nondimensionalize = true
 
 
 # =====================================================================================================================
@@ -172,67 +295,11 @@ schema_version = "{SCHEMA_VERSION_X}"
     [layers.iron.radiogenics]
         model = "off"
 
+# Defaults for a layer that names no material `type` (and for factories that do not know one): a copy of the
+# silicate mantle rock block.
+{_rock_layer_block("default")}
 # Silicate mantle rock. The canonical tidally active solid layer.
-[layers.mantle_rock]
-    shear_modulus_static_pa = 6.0e10
-    bulk_modulus_static_pa = 2.0e11
-    thermal_conductivity_ref_w_mk = 3.75
-    thermal_expansion_ref_1_k = 5.2e-5
-    heat_capacity_ref_j_kgk = 1200.0
-    activation_energy_j_mol = 3.0e5
-    activation_volume_m3_mol = 5.0e-6
-    solidus_temperature_k = 1600.0
-    liquidus_temperature_k = 2000.0
-    reference_density_kg_m3 = 3500.0
-    reference_temperature_k = 1600.0
-    melt_viscosity_reduction = 25.0
-
-    [layers.mantle_rock.eos]
-        model = "constant"
-        reference_density_kg_m3 = 3500.0
-
-    [layers.mantle_rock.shear_rheology]
-        model = "andrade"
-        alpha = 0.3
-        zeta = 1.0
-
-    [layers.mantle_rock.bulk_rheology]
-        model = "elastic"
-
-    [layers.mantle_rock.shear_viscosity]
-        model = "reference"
-        reference_viscosity_pas = 1.0e22
-        reference_temperature_k = 1000.0
-        molar_activation_energy_j_mol = 3.0e5
-        molar_activation_volume_m3_mol = 0.0
-
-    [layers.mantle_rock.bulk_viscosity]
-        model = "constant"
-        reference_viscosity_pas = 1.0e22
-
-    [layers.mantle_rock.partial_melt]
-        model = "henning"
-        solidus_k = 1600.0
-        liquidus_k = 2000.0
-        liquid_shear_pa = 1.0e-5
-        crit_melt_frac = 0.5
-        crit_melt_frac_width = 0.05
-        hn_visc_slope_1 = 13.5
-        hn_visc_falloff_slope = 370.0
-        hn_shear_param_1_k = 40000.0
-        hn_shear_param_2 = 25.0
-        hn_shear_falloff_slope = 700.0
-
-    [layers.mantle_rock.cooling]
-        model = "convection"
-        convection_alpha = 1.0
-        convection_beta = 0.3333333333333333
-        critical_rayleigh = 1100.0
-
-    [layers.mantle_rock.radiogenics]
-        model = "isotope"
-        isotopes = "modern_day_chondritic"
-
+{_rock_layer_block("mantle_rock")}
 # Low-pressure water ice (ice Ih). Tidally active outer-shell material.
 [layers.ice]
     shear_modulus_static_pa = 3.3e9

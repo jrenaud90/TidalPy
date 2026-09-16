@@ -321,3 +321,95 @@ def test_loaded_world_solves_eos_without_reattaching(tmp_path):
     assert result["success"]
     assert math.isclose(result["planet_mass"], reference["planet_mass"], rel_tol=1e-12)
     assert math.isclose(result["planet_moi"], reference["planet_moi"], rel_tol=1e-12)
+
+
+# =====================================================================================================================
+# Non-dimensional solve, central-pressure iteration, and configuration defaults
+# =====================================================================================================================
+def _compressible_world(radius=6.371e6):
+    """Two Birch-Murnaghan layers: the central-pressure iteration has to converge on a compressible planet."""
+    from TidalPy.structures_x import build_world
+    return build_world({
+        "schema_version": "0.2.0", "name": "bm", "type": "terrestrial", "radius_m": radius, "mass_kg": 6.0e24,
+        "layers": {
+            "core": {"class": "physics", "type": "iron", "layer_index": 0, "radius_fraction": 0.55,
+                     "eos": {"model": "birch_murnaghan", "reference_density_kg_m3": 8300.0,
+                             "reference_bulk_modulus_pa": 1.6e11, "bulk_modulus_derivative": 5.0}},
+            "mantle": {"class": "physics", "type": "mantle_rock", "layer_index": 1, "radius_fraction": 1.0,
+                       "eos": {"model": "birch_murnaghan", "reference_density_kg_m3": 3300.0,
+                               "reference_bulk_modulus_pa": 1.3e11, "bulk_modulus_derivative": 4.0}}}})
+
+
+@pytest.fixture
+def restore_config_x():
+    """Restore ``TidalPy.config_x`` and the C++ solver defaults after a test changes them."""
+    import copy
+    import TidalPy
+    from TidalPy.constants import update_constants_x
+    original = copy.deepcopy(TidalPy.config_x)
+    yield
+    TidalPy.config_x = original
+    update_constants_x()
+
+
+@pytest.mark.parametrize("build", [_two_layer_world, _compressible_world], ids=["constant", "birch_murnaghan"])
+def test_nondimensional_and_si_solves_agree(build):
+    """The default non-dimensional solve and an SI solve give the same structure at tight tolerances."""
+    world = build()
+    nondim = world.solve_eos(G_to_use=G, rtol=1.0e-10, atol=1.0e-14, pressure_tol=1.0e-9, nondimensionalize=True)
+    radii = np.linspace(0.05, 0.99, 7) * world.radius
+    density_nd = np.array([world.get_density(r) for r in radii])
+    gravity_nd = np.array([world.get_gravity(r) for r in radii])
+    pressure_nd = np.array([world.get_pressure(r) for r in radii])
+    si = world.solve_eos(G_to_use=G, rtol=1.0e-10, atol=1.0e-14, pressure_tol=1.0e-9, nondimensionalize=False)
+    assert nondim["success"] and si["success"]
+    for key in ("planet_mass", "planet_moi", "surface_gravity", "central_pressure"):
+        assert math.isclose(nondim[key], si[key], rel_tol=1.0e-8), key
+    np.testing.assert_allclose(density_nd, [world.get_density(r) for r in radii], rtol=1.0e-8)
+    np.testing.assert_allclose(gravity_nd, [world.get_gravity(r) for r in radii], rtol=1.0e-8)
+    np.testing.assert_allclose(pressure_nd, [world.get_pressure(r) for r in radii], rtol=1.0e-7)
+
+
+def test_secant_iteration_converges_on_a_compressible_planet():
+    """The central-pressure iteration converges in a few steps where the unit-slope update crawled."""
+    world = _compressible_world()
+    result = world.solve_eos(G_to_use=G, rtol=1.0e-10, atol=1.0e-14, pressure_tol=1.0e-9)
+    assert result["success"] is True
+    assert result["max_iters_hit"] is False
+    assert result["iterations"] <= 12
+    # The surface-pressure mismatch is below pressure_tol times the central-pressure scale.
+    assert result["pressure_error"] < 1.0e-8 * world.central_pressure
+    assert abs(result["surface_pressure"]) < 1.0e-8 * world.central_pressure
+
+
+def test_max_iters_hit_is_reported():
+    """Stopping at the iteration cap keeps the last profile and says so in the result."""
+    world = _compressible_world()
+    result = world.solve_eos(G_to_use=G, pressure_tol=1.0e-12, max_iters=1)
+    assert result["success"] is True
+    assert result["max_iters_hit"] is True
+    assert result["iterations"] == 1
+    assert "Maximum number of iterations" in result["message"]
+    assert world.eos_solved is True
+
+
+def test_pressure_tolerance_is_relative_to_the_central_pressure():
+    """A target surface pressure is met to pressure_tol of the central-pressure scale."""
+    world = _two_layer_world()
+    target = 1.0e5
+    result = world.solve_eos(G_to_use=G, surface_pressure=target, rtol=1.0e-10, atol=1.0e-14, pressure_tol=1.0e-9)
+    assert result["success"] is True and result["max_iters_hit"] is False
+    assert abs(result["surface_pressure"] - target) < 1.0e-8 * world.central_pressure
+
+
+def test_eos_solver_defaults_come_from_the_config(restore_config_x):
+    """Arguments left as None take the [eos_solver] values; an explicit argument still wins."""
+    import TidalPy
+    world = _compressible_world()
+    default = world.solve_eos(G_to_use=G)
+    assert default["max_iters_hit"] is False
+    TidalPy.reinit(provided_config_x={"eos_solver": {"max_iters": 1, "pressure_tol": 1.0e-12}})
+    capped = world.solve_eos(G_to_use=G)
+    assert capped["max_iters_hit"] is True and capped["iterations"] == 1
+    explicit = world.solve_eos(G_to_use=G, max_iters=100, pressure_tol=1.0e-5)
+    assert explicit["max_iters_hit"] is False

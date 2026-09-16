@@ -28,6 +28,8 @@ generate_api_docs()
 # Basic configurations
 sys.path.insert(0, os.path.abspath('../TidalPy'))
 html_static_path = ["_static"]
+# Self-contained pages served next to the generated ones (linked from index.md and future_structure.md).
+html_extra_path = ["code_map.html"]
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_logo = "_static/images/2025-11-28_Logo_2-4.svg"
 pyproject_path = os.path.abspath(os.path.join(FILE_PATH, '..', 'pyproject.toml'))

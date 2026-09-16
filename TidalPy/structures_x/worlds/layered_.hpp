@@ -31,8 +31,7 @@
 
 #include "constants_.hpp"   // TidalPyConstants::d_PI, tidalpy_config_ptr
 #include "../../dynamics_x/spin_.hpp"   // c_Spin (spin-dynamics model attached to the world)
-#include "solver_.hpp"      // c_solve_eos, c_EOS_ODEInput, c_EOSSolution, ODEMethod, PreEvalFunc,
-                           // d_EOS_SOLVE_* convergence defaults
+#include "solver_.hpp"      // c_solve_eos, c_EOS_ODEInput, c_EOSSolution, ODEMethod, PreEvalFunc
 #include "material_.hpp"    // c_MaterialEOSInput, c_preeval_material_eos
 
 // RadialSolver sub-modules: shooting solver, storage, love numbers.
@@ -62,6 +61,27 @@
 namespace tidalpy {
 
 // -------------------------------------------------------------------------------
+// Solver settings from the shared runtime config. Every EOS and Love-number solve starts from the
+// [eos_solver] and [radial_solver] sections of TidalPy_Configs_x.toml (pushed into the TidalPyConfig
+// singleton by update_constants_x); a caller overrides only the fields it passes. The member
+// initializers of the two structs stand in only when the config has not been loaded, which does not
+// happen after a normal TidalPy import.
+// -------------------------------------------------------------------------------
+// CyRK ODEMethod from the int stored in the shared config; the fallback covers an unloaded config.
+inline ODEMethod c_ode_method_from_config(int method_int, ODEMethod fallback) noexcept {
+    if (method_int > static_cast<int>(ODEMethod::RK_BASE_METHOD)
+        && method_int <= static_cast<int>(ODEMethod::RADAU)) {
+        return static_cast<ODEMethod>(method_int);
+    }
+    return fallback;
+}
+
+// True once update_constants_x has filled the solver sections of the shared config.
+inline bool c_solver_config_loaded() noexcept {
+    return (tidalpy_config_ptr != nullptr) && (tidalpy_config_ptr->d_EOS_SOLVER_METHOD >= 0);
+}
+
+// -------------------------------------------------------------------------------
 // c_WorldEOSSolveConfig — parameters for the whole-planet EOS solve.
 // Using a config struct keeps c_LayeredWorld::solve_eos to a single argument.
 // -------------------------------------------------------------------------------
@@ -70,12 +90,25 @@ struct c_WorldEOSSolveConfig {
     size_t    slices_per_layer    = 100;                 // radial samples per layer (>= 2)
     double    G_to_use            = -1.0;                // [m^3 kg^-1 s^-2]; < 0 -> TidalPy config G
     ODEMethod integration_method  = ODEMethod::DOP853;
-    double    rtol                = d_EOS_SOLVE_RTOL;
-    double    atol                = d_EOS_SOLVE_ATOL;
-    double    pressure_tol        = d_EOS_SOLVE_PRESSURE_TOL;
-    size_t    max_iters           = d_EOS_SOLVE_MAX_ITERS;
+    double    rtol                = 1.0e-10;
+    double    atol                = 1.0e-14;
+    double    pressure_tol        = 1.0e-8;              // relative to the central-pressure scale
+    size_t    max_iters           = 100;
+    bool      nondimensionalize   = true;                // integrate in non-dimensional units
     double    temperature         = 0.0;                 // [K]; passed to calc_density (unused yet)
     bool      verbose             = false;
+
+    c_WorldEOSSolveConfig() {
+        if (!c_solver_config_loaded()) { return; }
+        const TidalPyConfig& config = *tidalpy_config_ptr;
+        this->slices_per_layer   = static_cast<size_t>(config.d_EOS_SOLVER_SLICES_PER_LAYER);
+        this->integration_method = c_ode_method_from_config(config.d_EOS_SOLVER_METHOD, this->integration_method);
+        this->rtol               = config.d_EOS_SOLVER_RTOL;
+        this->atol               = config.d_EOS_SOLVER_ATOL;
+        this->pressure_tol       = config.d_EOS_SOLVER_PRESSURE_TOL;
+        this->max_iters          = static_cast<size_t>(config.d_EOS_SOLVER_MAX_ITERS);
+        this->nondimensionalize  = config.d_EOS_SOLVER_NONDIMENSIONALIZE;
+    }
 };
 
 // -------------------------------------------------------------------------------
@@ -90,20 +123,35 @@ struct c_LoveSolveConfig {
     double    fixed_q            = TidalPyConstants::d_NAN;   // cpl quality factor (NaN: from the tide model)
     double    fixed_dt           = TidalPyConstants::d_NAN;   // ctl time lag [s] (NaN: from the tide model)
     int       core_model         = 0;                  // propagation-matrix core starting condition (0-4)
-    bool      use_kamata         = true;
+    bool      use_kamata         = false;
     bool      nondimensionalize  = true;
     double    starting_radius    = 0.0;                // [m]; 0 → auto
-    double    start_radius_tol   = 1.0e-4;
+    double    start_radius_tol   = 1.0e-5;
     ODEMethod integration_method = ODEMethod::DOP853;
     double    rtol               = 1.0e-6;
     double    atol               = 1.0e-10;
-    bool      scale_rtols        = true;
+    bool      scale_rtols        = false;
     size_t    max_num_steps      = 500000;
-    size_t    expected_size      = 500;
+    size_t    expected_size      = 1000;
     size_t    max_ram_MB         = 500;
     double    max_step           = 0.0;
     bool      verbose            = false;
     bool      warnings           = true;
+
+    c_LoveSolveConfig() {
+        if (!c_solver_config_loaded()) { return; }
+        const TidalPyConfig& config = *tidalpy_config_ptr;
+        this->use_kamata         = config.d_RADIAL_SOLVER_USE_KAMATA;
+        this->nondimensionalize  = config.d_RADIAL_SOLVER_NONDIMENSIONALIZE;
+        this->start_radius_tol   = config.d_RADIAL_SOLVER_START_RADIUS_TOL;
+        this->integration_method = c_ode_method_from_config(config.d_RADIAL_SOLVER_METHOD, this->integration_method);
+        this->rtol               = config.d_RADIAL_SOLVER_RTOL;
+        this->atol               = config.d_RADIAL_SOLVER_ATOL;
+        this->scale_rtols        = config.d_RADIAL_SOLVER_SCALE_RTOLS;
+        this->max_num_steps      = static_cast<size_t>(config.d_RADIAL_SOLVER_MAX_NUM_STEPS);
+        this->expected_size      = static_cast<size_t>(config.d_RADIAL_SOLVER_EXPECTED_SIZE);
+        this->max_ram_MB         = static_cast<size_t>(config.d_RADIAL_SOLVER_MAX_RAM_MB);
+    }
 };
 
 // -------------------------------------------------------------------------------
@@ -327,6 +375,31 @@ public:
             mass_estimate += rho_mid * shell_vol;
         }
         const double planet_bulk_density = (total_volume > TidalPyConstants::d_EPS) ? (mass_estimate / total_volume) : 3500.0;
+        const double planet_radius       = upper_radii.back();
+
+        // Unit scales of the solve. The default non-dimensional solve integrates in the length, density, and time
+        // units of c_NonDimensionalScales (the radius, the bulk density, and 1/sqrt(pi G rho)), so the tolerances
+        // mean the same thing for every planet and the central pressure is of order one. An SI solve keeps every
+        // scale at one.
+        double length_scale  = 1.0;
+        double density_scale = 1.0;
+        double pascal_scale  = 1.0;
+        double mass_scale    = 1.0;
+        double second2_scale = 1.0;
+        std::unique_ptr<c_NonDimensionalScales> scales_uptr;
+        if (cfg.nondimensionalize) {
+            scales_uptr   = std::make_unique<c_NonDimensionalScales>(planet_radius, planet_bulk_density);
+            length_scale  = scales_uptr->length_conversion;
+            density_scale = scales_uptr->density_conversion;
+            pascal_scale  = scales_uptr->pascal_conversion;
+            mass_scale    = scales_uptr->mass_conversion;
+            second2_scale = scales_uptr->second2_conversion;
+        }
+        for (double& radius : full_radius) { radius /= length_scale; }
+        for (double& radius : upper_radii) { radius /= length_scale; }
+        const double G_solve = G_to_use / (length_scale * length_scale * length_scale / (mass_scale * second2_scale));
+        const double surface_pressure_solve = cfg.surface_pressure / pascal_scale;
+        const double bulk_density_solve     = planet_bulk_density / density_scale;
 
         // Build the EOS solution object and the per-layer pre-eval functions/inputs.
         auto solution = std::make_shared<c_EOSSolution>(
@@ -337,36 +410,37 @@ public:
         eos_function_vec.reserve(n_layers);
         eos_input_vec.reserve(n_layers);
 
-        // The per-layer material-EOS inputs are stored as a WORLD MEMBER (not a
-        // local). The solver copies the c_EOS_ODEInput, but that copy holds a
-        // pointer (eos_input_ptr) into this vector, and the dense-output re-calls
-        // the diffeq (for the density extra output) post-solve through that pointer
-        // — so it must outlive solve_eos. The retained solution co-owns the dense
-        // evaluators; this vector lives as long as the world (re-set on every solve).
+        // The per-layer material-EOS inputs are stored as a WORLD MEMBER (not a local). The solver keeps a copy
+        // of each c_EOS_ODEInput, and that copy holds a pointer (eos_input_ptr) into this vector through which
+        // every later evaluation of the density and moduli reaches the layer's EOS model, so it must outlive
+        // solve_eos. This vector lives as long as the world (re-set on every solve).
         this->p_eos_material_inputs.assign(n_layers, c_MaterialEOSInput());
 
         c_EOS_ODEInput ode_input;
-        ode_input.G_to_use      = G_to_use;
+        ode_input.G_to_use      = G_solve;
         ode_input.planet_radius = upper_radii.back();
         ode_input.final_solve   = false;
         ode_input.update_bulk   = false;
         ode_input.update_shear  = false;
         for (std::size_t i = 0; i < n_layers; ++i) {
             this->p_eos_material_inputs[i].eos_model_ptr = this->p_layers[i]->get_eos();
-            this->p_eos_material_inputs[i].temperature = cfg.temperature;
+            this->p_eos_material_inputs[i].temperature   = cfg.temperature;
+            this->p_eos_material_inputs[i].length_scale  = length_scale;
+            this->p_eos_material_inputs[i].pascal_scale  = pascal_scale;
+            this->p_eos_material_inputs[i].density_scale = density_scale;
             ode_input.eos_input_ptr = reinterpret_cast<char*>(&this->p_eos_material_inputs[i]);
             eos_function_vec.push_back(c_preeval_material_eos);
             eos_input_vec.push_back(ode_input);
         }
 
-        // Solve (CyRK ODE integration with the surface-pressure loop).
+        // Solve (CyRK ODE integration with the surface-pressure loop) in the solve units.
         c_solve_eos(
             solution.get(),
             eos_function_vec,
             eos_input_vec,
-            planet_bulk_density,
-            cfg.surface_pressure,
-            G_to_use,
+            bulk_density_solve,
+            surface_pressure_solve,
+            G_solve,
             cfg.integration_method,
             cfg.rtol,
             cfg.atol,
@@ -375,10 +449,17 @@ public:
             cfg.verbose
         );
 
+        // Return the solution to SI: the arrays, layer radii, and pressure error are scaled in place, and every
+        // later evaluation of the retained integrators (call_si) converts on the way in and out.
+        if (cfg.nondimensionalize) {
+            solution->dimensionalize_data(scales_uptr.get(), true);
+        }
+
         // Store scalar results.
         this->p_eos_success          = solution->success;
         this->p_eos_message          = solution->message;
         this->p_eos_iterations       = solution->iterations;
+        this->p_eos_max_iters_hit    = solution->max_iters_hit;
         this->p_eos_pressure_error   = solution->pressure_error;
         this->p_surface_gravity_eos  = solution->surface_gravity;
         this->p_surface_pressure_eos = solution->surface_pressure;
@@ -409,25 +490,20 @@ public:
                     std::vector<double>(solution->gravity_array_vec.begin()  + slice_start, solution->gravity_array_vec.begin()  + slice_end),
                     std::vector<double>(solution->pressure_array_vec.begin() + slice_start, solution->pressure_array_vec.begin() + slice_end));
 
-                // Install the CyRK dense-output evaluator for this layer. The
-                // CySolverResult owns its solver (solver_uptr), and the captured
-                // shared_ptr co-owns the whole solution, so the dense data + solver
-                // stay alive and callable post-solve (no dangling / leak). The diffeq
-                // args it re-evaluates (for the density extra output) point at
-                // this->p_eos_material_inputs, which also outlives the solve. The
-                // lambda is compiled in this (CyRK-owning) extension, so the CySolverResult
-                // is only ever called by the CyRK copy that built it. The slice arrays
-                // populated above are the fallback for a manual update_eos_data.
-                if (layer_index < solution->cysolver_results_uptr_bylayer_vec.size()) {
-                    CySolverResult* layer_solver_result =
-                        solution->cysolver_results_uptr_bylayer_vec[layer_index].get();
-                    if (layer_solver_result != nullptr) {
-                        std::shared_ptr<c_EOSSolution> solution_owner = solution;
-                        eos_data.set_dense_eval(
-                            [solution_owner, layer_solver_result](double radius, double* y_out) {
-                                layer_solver_result->call(radius, y_out);
-                            });
-                    }
+                // Install the dense-output evaluator for this layer: the solution's SI-radius call, which
+                // evaluates the layer's retained CySolverResult (owning its solver) and the layer's EOS function
+                // for the density and moduli. The captured shared_ptr co-owns the whole solution, so the dense
+                // data and solver stay alive and callable post-solve, and the EOS arguments point at
+                // this->p_eos_material_inputs, which also outlives the solve. The lambda is compiled in this
+                // (CyRK-owning) extension, so the CySolverResult is only ever called by the CyRK copy that built
+                // it. The slice arrays populated above are the fallback for a manual update_eos_data.
+                if (layer_index < solution->cysolver_results_uptr_bylayer_vec.size()
+                    && solution->cysolver_results_uptr_bylayer_vec[layer_index]) {
+                    std::shared_ptr<c_EOSSolution> solution_owner = solution;
+                    eos_data.set_dense_eval(
+                        [solution_owner, layer_index](double radius, double* y_out) {
+                            solution_owner->call_si(layer_index, radius, y_out);
+                        });
                 }
                 layer->update_eos_data(eos_data);
 
@@ -453,6 +529,9 @@ public:
     bool               get_eos_success()          const noexcept { return this->p_eos_success; }
     const std::string& get_eos_message()          const noexcept { return this->p_eos_message; }
     int                get_eos_iterations()       const noexcept { return this->p_eos_iterations; }
+    // True when the central-pressure iteration stopped at max_iters without meeting pressure_tol; the solution
+    // is still populated from the last iteration.
+    bool               get_eos_max_iters_hit()    const noexcept { return this->p_eos_max_iters_hit; }
     double             get_eos_pressure_error()   const noexcept { return this->p_eos_pressure_error; }
     double             get_surface_gravity_eos()  const noexcept { return this->p_surface_gravity_eos; }
     double             get_surface_pressure_eos() const noexcept { return this->p_surface_pressure_eos; }
@@ -560,6 +639,45 @@ public:
         const double vol      = (4.0 / 3.0) * TidalPyConstants::d_PI * r_planet * r_planet * r_planet;
         const double bulk_rho = (vol > TidalPyConstants::d_EPS) ? this->p_planet_mass_eos / vol : 3500.0;
 
+        // Radial density slope at every slice [kg m-4], from each layer's EOS model along the solved structure
+        // (central differences inside a layer, second-order one-sided at its ends). The radial solver interpolates
+        // the density between slices with these slopes (cubic Hermite), so a compressible layer's density has no
+        // kinks at the slices and the Love solve converges as the tolerance tightens instead of stalling.
+        std::vector<double> density_slope_si(total_slices, 0.0);
+        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            c_BaseLayer* layer = this->p_layers[layer_i].get();
+            const c_MaterialEOSBase* eos_model = layer->get_eos();
+            if (eos_model == nullptr || layer_i >= world_eos->num_slices_bylayer_vec.size()) { continue; }
+            const double temperature = (layer_i < this->p_eos_material_inputs.size())
+                ? this->p_eos_material_inputs[layer_i].temperature : 0.0;
+            const double r_inner = layer->get_radius_inner();
+            const double r_outer = layer->get_radius_outer();
+            const double delta   = 1.0e-4 * (r_outer - r_inner);
+            if (!(delta > 0.0)) { continue; }
+            auto density_at = [&](double radius) {
+                double structure[C_EOS_Y_VALUES];
+                world_eos->call_y_si(layer_i, radius, structure);
+                return eos_model->calc_density(structure[1], temperature, radius);
+            };
+            const std::size_t first = world_eos->first_slice_bylayer_vec[layer_i];
+            const std::size_t last  = first + world_eos->num_slices_bylayer_vec[layer_i];
+            for (std::size_t slice_i = first; slice_i < last && slice_i < total_slices; ++slice_i) {
+                const double radius = world_eos->radius_array_vec[slice_i];
+                if (radius - delta >= r_inner && radius + delta <= r_outer) {
+                    density_slope_si[slice_i] =
+                        (density_at(radius + delta) - density_at(radius - delta)) / (2.0 * delta);
+                } else if (radius + 2.0 * delta <= r_outer) {
+                    density_slope_si[slice_i] =
+                        (-3.0 * density_at(radius) + 4.0 * density_at(radius + delta)
+                         - density_at(radius + 2.0 * delta)) / (2.0 * delta);
+                } else {
+                    density_slope_si[slice_i] =
+                        (3.0 * density_at(radius) - 4.0 * density_at(radius - delta)
+                         + density_at(radius - 2.0 * delta)) / (2.0 * delta);
+                }
+            }
+        }
+
         return solver->build_cache(
             world_eos->radius_array_vec,
             world_eos->density_array_vec,
@@ -577,7 +695,8 @@ public:
             cfg.degree_l,
             cfg.nondimensionalize,
             // Read the solved structure variables (gravity, ...) from the world's dense EOS, not array interpolation.
-            world_eos
+            world_eos,
+            &density_slope_si
         );
     }
 
@@ -1422,6 +1541,7 @@ protected:
     bool        p_eos_solved           = false;
     std::string p_eos_message          = "EOS not yet solved.";
     int         p_eos_iterations       = -1;
+    bool        p_eos_max_iters_hit    = false;
     double      p_eos_pressure_error   = std::numeric_limits<double>::quiet_NaN();
     double      p_surface_gravity_eos  = std::numeric_limits<double>::quiet_NaN();
     double      p_surface_pressure_eos = std::numeric_limits<double>::quiet_NaN();

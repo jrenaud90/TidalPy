@@ -4,6 +4,8 @@
 import TidalPy
 import scipy
 
+from CyRK cimport ODEMethod
+
 # Even though these are defined in this file's .pxd; we need to cimport them so that Cython creates the correct
 # namespace signature like: `TidalPyConstants::d_ppb`.
 from TidalPy.constants cimport (
@@ -148,14 +150,54 @@ def update_constants():
     yr = year
 
 
+# CyRK integration method names accepted by the new-backend solvers (case-insensitive), as CyRK's ``ODEMethod``
+# enum values, and the canonical name of each value.
+ODE_METHOD_INTS = {
+    'rk23':   <int>ODEMethod.RK23,
+    'rk45':   <int>ODEMethod.RK45,
+    'dop853': <int>ODEMethod.DOP853,
+    'bdf':    <int>ODEMethod.BDF,
+    'lsoda':  <int>ODEMethod.LSODA,
+    'radau':  <int>ODEMethod.RADAU,
+}
+ODE_METHOD_NAMES = {value: name for name, value in ODE_METHOD_INTS.items()}
+
+
+def ode_method_from_name(name: str) -> int:
+    """CyRK ``ODEMethod`` value for an integration method name.
+
+    Parameters
+    ----------
+    name : str
+        ``'RK23'``, ``'RK45'``, ``'DOP853'``, ``'BDF'``, ``'LSODA'``, or ``'Radau'`` (any case).
+
+    Returns
+    -------
+    int
+        The enum value.
+
+    Raises
+    ------
+    ValueError
+        If the name is not a supported method.
+    """
+    try:
+        return ODE_METHOD_INTS[str(name).lower()]
+    except KeyError:
+        raise ValueError(
+            f'Unsupported integration method "{name}". Supported: {sorted(ODE_METHOD_INTS)}.') from None
+
+
 def update_constants_x():
     """Populate the shared C++ config singleton from the new `_x` configuration.
 
     The rebuilt `_x` class system reads its numerical settings (frequency/viscosity/
     modulus/thickness floors and the debug test constant) from ``TidalPy.config_x``
     (loaded from ``TidalPy_Configs_x.toml``) rather than the legacy config. This
-    function copies the ``[numerical]`` section of that config into the process-wide
-    ``tidalpy_config_ptr`` that every `_x` C++ module observes.
+    function copies the ``[numerical]``, ``[eos_solver]``, and ``[radial_solver]``
+    sections of that config into the process-wide ``tidalpy_config_ptr`` that every
+    `_x` C++ module observes; the two solver sections are the defaults of every EOS
+    and Love-number solve that is not handed an explicit value.
 
     There is a single process-wide C++ config singleton shared by the legacy and
     `_x` code, so this is called after :func:`update_constants` during
@@ -177,6 +219,28 @@ def update_constants_x():
     tidalpy_config_ptr.d_NUMERICAL_FLOOR = numerical['numerical_floor']
     tidalpy_config_ptr.d_LAYER_CONTINUITY_RTOL = numerical['layer_continuity_rtol']
     tidalpy_config_ptr.d_MAX_START_RADIUS_FRAC = numerical['max_start_radius_fraction']
+
+    # Solver defaults shared by the world-attached solves, the tide paths, and the standalone radial_solver.
+    eos_solver = TidalPy.config_x['eos_solver']
+    tidalpy_config_ptr.d_EOS_SOLVER_METHOD = ode_method_from_name(eos_solver['integration_method'])
+    tidalpy_config_ptr.d_EOS_SOLVER_RTOL = eos_solver['rtol']
+    tidalpy_config_ptr.d_EOS_SOLVER_ATOL = eos_solver['atol']
+    tidalpy_config_ptr.d_EOS_SOLVER_PRESSURE_TOL = eos_solver['pressure_tol']
+    tidalpy_config_ptr.d_EOS_SOLVER_MAX_ITERS = int(eos_solver['max_iters'])
+    tidalpy_config_ptr.d_EOS_SOLVER_SLICES_PER_LAYER = int(eos_solver['slices_per_layer'])
+    tidalpy_config_ptr.d_EOS_SOLVER_NONDIMENSIONALIZE = bool(eos_solver['nondimensionalize'])
+
+    radial_solver = TidalPy.config_x['radial_solver']
+    tidalpy_config_ptr.d_RADIAL_SOLVER_METHOD = ode_method_from_name(radial_solver['integration_method'])
+    tidalpy_config_ptr.d_RADIAL_SOLVER_RTOL = radial_solver['rtol']
+    tidalpy_config_ptr.d_RADIAL_SOLVER_ATOL = radial_solver['atol']
+    tidalpy_config_ptr.d_RADIAL_SOLVER_USE_KAMATA = bool(radial_solver['use_kamata'])
+    tidalpy_config_ptr.d_RADIAL_SOLVER_START_RADIUS_TOL = radial_solver['start_radius_tolerance']
+    tidalpy_config_ptr.d_RADIAL_SOLVER_SCALE_RTOLS = bool(radial_solver['scale_rtols'])
+    tidalpy_config_ptr.d_RADIAL_SOLVER_MAX_NUM_STEPS = int(radial_solver['max_num_steps'])
+    tidalpy_config_ptr.d_RADIAL_SOLVER_EXPECTED_SIZE = int(radial_solver['expected_size'])
+    tidalpy_config_ptr.d_RADIAL_SOLVER_MAX_RAM_MB = int(radial_solver['max_ram_mb'])
+    tidalpy_config_ptr.d_RADIAL_SOLVER_NONDIMENSIONALIZE = bool(radial_solver['nondimensionalize'])
     # test_constant is intentionally not set here. It is a debug knob whose user-facing override is the
     # legacy config's `debug.test_constant`, applied by update_constants (which runs just before this).
     # Re-reading it from config_x would clobber a user override supplied through reinit(). Both configs

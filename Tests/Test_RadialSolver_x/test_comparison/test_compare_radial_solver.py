@@ -42,12 +42,16 @@ def test_compare_radial_solver_1layer_solid(
     is_static_by_layer = (is_static,)
     is_incompressible_by_layer = (is_incompressible,)
 
+    # The new solver's EOS defaults come from the TidalPy configuration and differ from the classic
+    # solver's compiled defaults, so both EOS solves are pinned tight here: a deep starting radius
+    # amplifies any structure difference into the interior radial functions.
     common_kwargs = dict(
         degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
         integration_method=integration_method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
         scale_rtols_bylayer_type=False,
         max_num_steps=5_000_000, expected_size=250, max_step=0,
         verbose=False, nondimensionalize=nondimensionalize, starting_radius=starting_radius,
+        eos_rtol=1.0e-10, eos_atol=1.0e-14,
         raise_on_fail=True,
     )
     # Dynamic incompressible degree 3 solves started 0.1 m from the center are not converged at

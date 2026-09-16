@@ -117,11 +117,13 @@ g      = world.get_gravity(world.radius)        # surface gravity [m/s²]
 p0     = world.get_pressure(0.0)                # central pressure [Pa]
 ```
 
-The solver carries pressure as a radial state variable, so analytic density-from-pressure models (Birch-Murnaghan, Vinet) are evaluated inline; the constant and interpolated models ignore pressure. A convergence loop on the surface pressure fixes the central pressure.
+The solver carries pressure as a radial state variable, so analytic density-from-pressure models (Birch-Murnaghan, Vinet) are evaluated inline; the constant and interpolated models ignore pressure. The central pressure is found by a secant iteration on the surface-pressure mismatch: the first step assumes a unit slope (exact for an incompressible planet) and later steps use the slope measured between iterations, so a compressible planet converges in a few steps. The integration runs in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units) so the tolerances mean the same thing for every planet; every result is returned in SI.
 
-**`solve_eos(surface_pressure=0.0, slices_per_layer=100, G_to_use=-1.0, integration_method='DOP853', rtol=1e-6, atol=1e-10, pressure_tol=1e-3, max_iters=100, temperature=0.0, verbose=False) -> dict`**
+**`solve_eos(surface_pressure=0.0, slices_per_layer=None, G_to_use=-1.0, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=0.0, verbose=False) -> dict`**
 
-Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `pressure_error`, the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
+Every solver setting left as `None` takes the `[eos_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` uses. `pressure_tol` is relative to the central-pressure scale $(2/3) \pi G \rho^2 R^2$ and must stay above `rtol`, the integrator's own noise on the surface pressure. Hitting `max_iters` logs a warning, sets `max_iters_hit` in the result, and keeps the last iteration's profile.
+
+Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `max_iters_hit`, `pressure_error` \[Pa\], the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
 
 **Profile queries (after a successful solve)**
 
@@ -141,13 +143,13 @@ Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `s
 The entire solve runs in C++ and can be driven directly from other C++ code:
 
 ```cpp
-tidalpy::c_WorldEOSSolveConfig cfg;          // surface_pressure, slices_per_layer,
-cfg.integration_method = ODEMethod::DOP853;  // G_to_use, rtol/atol, ...
+tidalpy::c_WorldEOSSolveConfig cfg;          // starts from the [eos_solver] section of the configuration
+cfg.surface_pressure = 1.0e5;                // override only what this solve changes
 world.solve_eos(cfg);                        // populates each layer's c_LayerEOSData
 double rho = world.get_density(5.0e6);
 ```
 
-`c_LayeredWorld::solve_eos(const c_WorldEOSSolveConfig&)` generates the per-layer radius grids, estimates the bulk density, calls `Material_x/eos`'s `c_solve_eos` (CyRK ODE integration with the surface-pressure loop), and slices the result into each layer's `c_LayerEOSData`. It throws `std::invalid_argument` on bad input (surfaced as `ValueError` in Cython via `except +`). The per-layer density source is `tidalpy::c_MaterialEOSBase`, attached via `c_BaseLayer::set_eos(std::unique_ptr<c_MaterialEOSBase>)` (non-owning observer through `get_eos()`; `get_eos_set()`); during integration the `c_preeval_material_eos` pre-eval (in `Material_x/eos/methods/material_.hpp`, paired with the `c_MaterialEOSInput` struct holding the model pointer) dispatches to `model->calc_density(pressure, temperature, radius)`.
+`c_LayeredWorld::solve_eos(const c_WorldEOSSolveConfig&)` generates the per-layer radius grids, estimates the bulk density, converts to the non-dimensional solve units, calls `Material_x/eos`'s `c_solve_eos` (CyRK ODE integration with the secant surface-pressure iteration), returns the solution to SI, and slices it into each layer's `c_LayerEOSData`. It throws `std::invalid_argument` on bad input (surfaced as `ValueError` in Cython via `except +`). The per-layer density source is `tidalpy::c_MaterialEOSBase`, attached via `c_BaseLayer::set_eos(std::unique_ptr<c_MaterialEOSBase>)` (non-owning observer through `get_eos()`; `get_eos_set()`); during integration the `c_preeval_material_eos` pre-eval (in `Material_x/eos/methods/material_.hpp`, paired with the `c_MaterialEOSInput` struct holding the model pointer and the unit scales of the solve) dispatches to `model->calc_density(pressure, temperature, radius)` in SI. The retained integrators carry only the four structure variables; the density, moduli, and viscosities at any radius are evaluated on demand from the interpolated state by the same EOS function, so a dense evaluation is a plain polynomial evaluation plus one model call.
 
 `c_LayeredWorld` exposes `get_density/get_gravity/get_pressure(double) const` (delegating to the containing layer via `find_layer_for_radius`), the result accessors `get_eos_success/get_eos_message/get_eos_iterations/get_eos_pressure_error/` `get_surface_gravity_eos/get_surface_pressure_eos/get_central_pressure/` `get_planet_mass_eos/get_planet_moi_eos`, the retained full solution via `get_eos_solution() -> const c_EOSSolution*`, and `get_eos_solved()` / `get_all_eos_set()`. The Cython `LayeredWorld.solve_eos` wrapper only converts the integration-method string to the CyRK enum, fills `c_WorldEOSSolveConfig`, calls the C++ method under `nogil`, and builds the Python result dict from the retained solution.
 
@@ -211,9 +213,11 @@ print(world.love_number_h, world.love_number_l)
 
 The moduli and the viscosity are properties of the **layer**, not of the rheology model: a rheology model holds only its own shape parameters (the Andrade exponent, the Voigt fractions), and reads the modulus and viscosity it is handed. A layer with no shear modulus and no viscosity model deforms as if it had no strength, and the solve fails rather than guessing.
 
-**`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', use_kamata=True, nondimensionalize=True, starting_radius=0.0, start_radius_tol=1e-4, integration_method='DOP853', rtol=1e-6, atol=1e-10, scale_rtols=True, max_num_steps=500000, expected_size=500, max_ram_MB=500, max_step=0.0, verbose=False, warnings=True, love_method='radial_solver', fixed_q=None, fixed_dt=None) -> dict`**
+**`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', core_model=0, use_kamata=None, nondimensionalize=None, starting_radius=0.0, start_radius_tol=None, integration_method=None, rtol=None, atol=None, scale_rtols=None, max_num_steps=None, expected_size=None, max_ram_MB=None, max_step=0.0, verbose=False, warnings=True, love_method=None, fixed_q=None, fixed_dt=None) -> dict`**
 
-Raises `ValueError` if the EOS has not yet been solved. Returns a dict (`success`, `error_code`, `message`, `love_method`, `love_number_k/h/l`); the results are also stored internally and accessed through the properties below.
+Every solver setting left as `None` takes the `[radial_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` and the world's own tidal solves use; `love_method`, `fixed_q`, and `fixed_dt` left as `None` take the world's `[tides]` settings. Raises `ValueError` if the EOS has not yet been solved. Returns a dict (`success`, `error_code`, `message`, `love_method`, `love_number_k/h/l`); the results are also stored internally and accessed through the properties below.
+
+Between the EOS slices the solver reads gravity, pressure, mass, and moment of inertia from the world's dense EOS solution, interpolates the density with a cubic Hermite polynomial whose slopes come from each layer's EOS model (so a compressible layer's density has no kinks at the slices), and interpolates the complex moduli linearly. With constant moduli in each layer the Love numbers therefore converge with the integration tolerance and depend little on `slices_per_layer`; a modulus or viscosity that varies with depth keeps a first-order dependence on the slice count.
 
 `solve_for` selects the surface boundary condition, with the same names as the standalone `radial_solver`: `'tidal'` (default) yields the tidal Love numbers k, h, l; `'loading'` yields the load Love numbers k', h', l' (surface mass load response; k'.real is negative); `'free'` the free-surface response. `solve_love_numbers_supplied` takes the same argument.
 
@@ -228,7 +232,7 @@ Raises `ValueError` if the EOS has not yet been solved. Returns a dict (`success
 | `love_num_ytypes` | int | Number of independent solution types (boundary-condition models requested). |
 | `love_number_k`, `love_number_h`, `love_number_l` | complex | Love numbers for the first boundary condition at the solved degree. Equivalent to `get_love_number_k(0)` and friends. |
 | `love_method` | str | Canonical name of the method the last solve used. |
-| `love_surface_amplification` | float | Conditioning of the surface boundary-condition solve; near 1 is healthy, 0 after an analytic solve. |
+| `love_surface_amplification` | float | Conditioning of the surface boundary-condition solve, recorded on every shooting solve whether or not `warnings` is on; near 1 is healthy, 0 after an analytic solve. |
 | `love_effective_shear_modulus`, `love_tidal_volume` | complex, float | The volume-averaged shear modulus [Pa] and the averaged volume [m3] of the last analytic solve; NaN after a radial-solver solve. |
 
 **`get_love_number_k(ytype_idx=0) -> complex`**, **`get_love_number_h(ytype_idx=0) -> complex`**, **`get_love_number_l(ytype_idx=0) -> complex`**
@@ -246,15 +250,15 @@ The same radial function at any radius [m], evaluated from the solver's dense in
 #### C++ API
 
 ```cpp
-tidalpy::c_LoveSolveConfig cfg;
-cfg.frequency          = 1.0e-5;  // [rad/s]
-cfg.degree_l           = 2;
-cfg.nondimensionalize  = true;
-cfg.integration_method = ODEMethod::DOP853;
+tidalpy::c_LoveSolveConfig cfg = world.make_love_solve_config();   // [radial_solver] defaults + the world's [tides]
+cfg.frequency = 1.0e-5;                                            // [rad/s]
+cfg.degree_l  = 2;
 world.solve_love_numbers(cfg);   // delegates to the cached radial solver
 
 std::complex<double> k2 = world.get_love_number_k(0);
 ```
+
+A default-constructed `c_LoveSolveConfig` (and `c_WorldEOSSolveConfig`) reads the `[radial_solver]` (`[eos_solver]`) section of the shared runtime config, so C++ callers and the tide paths start from the same defaults as Python callers.
 
 `c_LayeredWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a cached helper, `c_WorldRadialSolver` (held by `p_radial_solver`), that separates the **frequency-independent** setup (built once and reused) from the **frequency-dependent** work (recomputed cheaply on every call). This matters because the Love-number solve is the hot loop for frequency sweeps and orbital evolution.
 

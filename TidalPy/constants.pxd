@@ -1,3 +1,5 @@
+from libcpp cimport bool as cpp_bool
+
 cdef extern from "constants_.hpp" namespace "TidalPyConstants" nogil:
     # --- Compile-time Constants (Read-Only) ---
     const double d_ppm
@@ -38,15 +40,32 @@ cdef extern from "constants_.hpp" namespace "TidalPyConstants" nogil:
 cdef extern from "constants_.hpp" nogil:
 
     cdef cppclass TidalPyConfig:
-        double d_MIN_FREQUENCY
-        double d_MAX_FREQUENCY
-        double d_MIN_SPIN_ORBIT_DIFF
-        double d_MIN_VISCOSITY
-        double d_MIN_MODULUS
-        double d_MIN_THICKNESS
-        double d_NUMERICAL_FLOOR
-        double d_LAYER_CONTINUITY_RTOL
-        double d_MAX_START_RADIUS_FRAC
+        double   d_MIN_FREQUENCY
+        double   d_MAX_FREQUENCY
+        double   d_MIN_SPIN_ORBIT_DIFF
+        double   d_MIN_VISCOSITY
+        double   d_MIN_MODULUS
+        double   d_MIN_THICKNESS
+        double   d_NUMERICAL_FLOOR
+        double   d_LAYER_CONTINUITY_RTOL
+        double   d_MAX_START_RADIUS_FRAC
+        int      d_EOS_SOLVER_METHOD
+        double   d_EOS_SOLVER_RTOL
+        double   d_EOS_SOLVER_ATOL
+        double   d_EOS_SOLVER_PRESSURE_TOL
+        int      d_EOS_SOLVER_MAX_ITERS
+        int      d_EOS_SOLVER_SLICES_PER_LAYER
+        cpp_bool d_EOS_SOLVER_NONDIMENSIONALIZE
+        int      d_RADIAL_SOLVER_METHOD
+        double   d_RADIAL_SOLVER_RTOL
+        double   d_RADIAL_SOLVER_ATOL
+        cpp_bool d_RADIAL_SOLVER_USE_KAMATA
+        double   d_RADIAL_SOLVER_START_RADIUS_TOL
+        cpp_bool d_RADIAL_SOLVER_SCALE_RTOLS
+        int      d_RADIAL_SOLVER_MAX_NUM_STEPS
+        int      d_RADIAL_SOLVER_EXPECTED_SIZE
+        int      d_RADIAL_SOLVER_MAX_RAM_MB
+        cpp_bool d_RADIAL_SOLVER_NONDIMENSIONALIZE
         double d_G
         double d_AU
         double d_SBC

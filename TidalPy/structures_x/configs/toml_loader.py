@@ -104,8 +104,15 @@ LAYER_CLASSES = (
 
 # Layer material ``type`` values recognized by the builder. A layer's material type
 # selects the ``[layers.<type>]`` section of the ``_x`` config (TidalPy_Configs_x.toml)
-# used to supply per-material parameter defaults. The material type is optional.
+# used to supply per-material parameter defaults. The material type is optional: a layer
+# that names none takes the ``[layers.default]`` section. ``"none"`` opts out of every
+# material default; ``get_config_dict`` writes it because a saved layer lists all of its
+# models explicitly, so a rebuild must not add any.
+DEFAULT_MATERIAL_TYPE = "default"
+NO_MATERIAL_TYPE = "none"
 MATERIAL_TYPES = (
+    DEFAULT_MATERIAL_TYPE,
+    NO_MATERIAL_TYPE,
     "gas",
     "mantle_rock",
     "ice",

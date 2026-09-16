@@ -36,6 +36,7 @@ from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLi
 from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
 from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_name_int
+from TidalPy.Utilities_x.logging_x.logger import log_warning
 
 
 # Build the matching layer wrapper as a NON-owning view onto a layer the world owns, dispatched
@@ -99,6 +100,45 @@ cdef ODEMethod _resolve_integration_method(str integration_method) except *:
     raise ValueError(
         f"Unsupported integration method: {integration_method}. "
         "Supported: RK23, RK45, DOP853, BDF, LSODA, Radau.")
+
+
+cdef void _apply_love_solve_overrides(
+        c_LoveSolveConfig* cfg,
+        object use_kamata,
+        object nondimensionalize,
+        object start_radius_tol,
+        object integration_method,
+        object rtol,
+        object atol,
+        object scale_rtols,
+        object max_num_steps,
+        object expected_size,
+        object max_ram_MB) except *:
+    """Overwrite the solver settings of a Love-solve config with the arguments that are not ``None``.
+
+    The config already carries the ``[radial_solver]`` defaults of the TidalPy configuration, so a ``None``
+    leaves that default in place.
+    """
+    if use_kamata is not None:
+        cfg.use_kamata = <cpp_bool>bool(use_kamata)
+    if nondimensionalize is not None:
+        cfg.nondimensionalize = <cpp_bool>bool(nondimensionalize)
+    if start_radius_tol is not None:
+        cfg.start_radius_tol = <double>start_radius_tol
+    if integration_method is not None:
+        cfg.integration_method = _resolve_integration_method(integration_method)
+    if rtol is not None:
+        cfg.rtol = <double>rtol
+    if atol is not None:
+        cfg.atol = <double>atol
+    if scale_rtols is not None:
+        cfg.scale_rtols = <cpp_bool>bool(scale_rtols)
+    if max_num_steps is not None:
+        cfg.max_num_steps = <size_t>int(max_num_steps)
+    if expected_size is not None:
+        cfg.expected_size = <size_t>int(expected_size)
+    if max_ram_MB is not None:
+        cfg.max_ram_MB = <size_t>int(max_ram_MB)
 
 
 cdef int _resolve_solve_for(str solve_for) except? -999:
@@ -360,16 +400,17 @@ cdef class LayeredWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     def solve_eos(
             self,
-            double surface_pressure   = 0.0,
-            size_t slices_per_layer   = 100,
-            double G_to_use           = -1.0,
-            str    integration_method = 'DOP853',
-            double rtol               = 1.0e-6,
-            double atol               = 1.0e-10,
-            double pressure_tol       = 1.0e-3,
-            size_t max_iters          = 100,
-            double temperature        = 0.0,
-            cpp_bool verbose          = False) -> dict:
+            double surface_pressure = 0.0,
+            slices_per_layer        = None,
+            double G_to_use         = -1.0,
+            integration_method      = None,
+            rtol                    = None,
+            atol                    = None,
+            pressure_tol            = None,
+            max_iters               = None,
+            nondimensionalize       = None,
+            double temperature      = 0.0,
+            cpp_bool verbose        = False) -> dict:
         """Solve the whole-planet equation of state.
 
         Integrates gravity, pressure, enclosed mass, and moment of inertia
@@ -382,28 +423,37 @@ cdef class LayeredWorld(BaseWorld):
         layer's mass (and so its density_bulk) is set to the mass the solved
         density profile places between its inner and outer radii.
 
+        Every solver setting left as ``None`` takes the ``[eos_solver]`` value of the TidalPy
+        configuration (``TidalPy.config_x``), the same defaults the standalone ``radial_solver`` uses.
+
         Parameters
         ----------
         surface_pressure : float, optional
             Target surface pressure [Pa]. Default 0.0.
         slices_per_layer : int, optional
             Number of radial sample points generated per layer (>= 2).
-            Default 100.
         G_to_use : float, optional
             Gravitational constant [m^3 kg^-1 s^-2]. If negative (default), the
             TidalPy config value is used.
         integration_method : str, optional
-            CyRK integration method: ``'DOP853'`` (default), ``'RK45'``, ``'RK23'``,
-            or the implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
+            CyRK integration method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the
+            implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
             The structure ODE is singular at the planet's center; LSODA's startup can
             fail to take its first step there (a clean unsuccessful result), while BDF
             and Radau handle the singular start.
         rtol, atol : float, optional
-            Relative / absolute integration tolerances. Default 1e-6 / 1e-10.
+            Relative / absolute integration tolerances.
         pressure_tol : float, optional
-            Surface-pressure convergence tolerance. Default 1e-3.
+            Convergence tolerance on the surface-pressure mismatch, relative to the
+            central-pressure scale (2/3) pi G rho^2 R^2. Keep it above ``rtol``, the
+            integrator's own noise on the surface pressure.
         max_iters : int, optional
-            Maximum convergence iterations. Default 100.
+            Maximum central-pressure iterations. Hitting the cap logs a warning, sets
+            ``max_iters_hit`` in the result, and keeps the last iteration's profile.
+        nondimensionalize : bool, optional
+            Integrate in non-dimensional units (the planet radius, its bulk density, and
+            1/sqrt(pi G rho) as the length, density, and time units) so the tolerances mean
+            the same thing for every planet. Results are always returned in SI.
         temperature : float, optional
             Temperature [K] passed to each EOS model's ``calc_density`` (unused
             by the current isothermal models). Default 0.0.
@@ -413,8 +463,8 @@ cdef class LayeredWorld(BaseWorld):
         Returns
         -------
         dict
-            ``success``, ``message``, ``iterations``, ``pressure_error``, the
-            radial profile arrays (``radius``, ``gravity``, ``pressure``,
+            ``success``, ``message``, ``iterations``, ``max_iters_hit``, ``pressure_error``
+            [Pa], the radial profile arrays (``radius``, ``gravity``, ``pressure``,
             ``mass``, ``moi``, ``density``), and the scalar surface/planet
             results (``surface_gravity``, ``surface_pressure``,
             ``central_pressure``, ``planet_mass``, ``planet_moi``).
@@ -438,24 +488,38 @@ cdef class LayeredWorld(BaseWorld):
         wrapper only translates the integration-method string to the CyRK enum and
         builds the Python result dict from the retained C++ solution.
         """
-        cdef ODEMethod ode_method = _resolve_integration_method(integration_method)
-
+        # The config struct starts from the [eos_solver] section of the TidalPy configuration; only the
+        # arguments given here override it.
         cdef c_WorldEOSSolveConfig cfg
-        cfg.surface_pressure   = surface_pressure
-        cfg.slices_per_layer   = slices_per_layer
-        cfg.G_to_use           = G_to_use
-        cfg.integration_method = ode_method
-        cfg.rtol               = rtol
-        cfg.atol               = atol
-        cfg.pressure_tol       = pressure_tol
-        cfg.max_iters          = max_iters
-        cfg.temperature        = temperature
-        cfg.verbose            = <cpp_bool>verbose
+        cfg.surface_pressure = surface_pressure
+        cfg.G_to_use         = G_to_use
+        cfg.temperature      = temperature
+        cfg.verbose          = <cpp_bool>verbose
+        if slices_per_layer is not None:
+            cfg.slices_per_layer = <size_t>int(slices_per_layer)
+        if integration_method is not None:
+            cfg.integration_method = _resolve_integration_method(integration_method)
+        if rtol is not None:
+            cfg.rtol = <double>rtol
+        if atol is not None:
+            cfg.atol = <double>atol
+        if pressure_tol is not None:
+            cfg.pressure_tol = <double>pressure_tol
+        if max_iters is not None:
+            cfg.max_iters = <size_t>int(max_iters)
+        if nondimensionalize is not None:
+            cfg.nondimensionalize = <cpp_bool>bool(nondimensionalize)
 
         # Pure-C++ solve. Input validation throws std::invalid_argument, surfaced
         # here as ValueError via the ``except +`` on the C++ declaration.
         with nogil:
             self._layered_ptr.solve_eos(cfg)
+
+        if self._layered_ptr.get_eos_max_iters_hit():
+            log_warning(
+                f"World '{self.name}' EOS solve stopped at max_iters = {cfg.max_iters} with a surface-pressure "
+                f"mismatch above pressure_tol = {cfg.pressure_tol:0.1e}; the profile is from the last iteration. "
+                f"Raise pressure_tol above the integration rtol ({cfg.rtol:0.1e}) or tighten rtol.")
 
         return self._build_eos_result()
 
@@ -483,6 +547,7 @@ cdef class LayeredWorld(BaseWorld):
             'success':          self._layered_ptr.get_eos_success(),
             'message':          self._layered_ptr.get_eos_message().decode('utf-8'),
             'iterations':       self._layered_ptr.get_eos_iterations(),
+            'max_iters_hit':    bool(self._layered_ptr.get_eos_max_iters_hit()),
             'pressure_error':   self._layered_ptr.get_eos_pressure_error(),
             'radius':           radius_out,
             'gravity':          gravity_out,
@@ -764,30 +829,33 @@ cdef class LayeredWorld(BaseWorld):
             int degree_l     = 2,
             str solve_for    = 'tidal',
             int core_model   = 0,
-            cpp_bool use_kamata = True,
-            cpp_bool nondimensionalize = True,
-            double starting_radius     = 0.0,
-            double start_radius_tol    = 1.0e-4,
-            str integration_method     = 'DOP853',
-            double rtol                = 1.0e-6,
-            double atol                = 1.0e-10,
-            cpp_bool scale_rtols       = True,
-            size_t max_num_steps       = 500000,
-            size_t expected_size       = 500,
-            size_t max_ram_MB          = 500,
-            double max_step            = 0.0,
-            cpp_bool verbose           = False,
-            cpp_bool warnings          = True,
-            str love_method            = 'radial_solver',
-            fixed_q                    = None,
-            fixed_dt                   = None) -> dict:
+            use_kamata        = None,
+            nondimensionalize = None,
+            double starting_radius = 0.0,
+            start_radius_tol   = None,
+            integration_method = None,
+            rtol               = None,
+            atol               = None,
+            scale_rtols        = None,
+            max_num_steps      = None,
+            expected_size      = None,
+            max_ram_MB         = None,
+            double max_step    = 0.0,
+            cpp_bool verbose   = False,
+            cpp_bool warnings  = True,
+            love_method        = None,
+            fixed_q            = None,
+            fixed_dt           = None) -> dict:
         """Solve for whole-planet tidal Love numbers (radial solver, propagation matrix, or analytic methods).
 
         Requires :meth:`solve_eos` to have been called first.  For each radial
         slice the layer's attached rheology model is evaluated at
-        ``frequency`` to obtain the complex moduli; the structure ODE is
-        re-integrated from those density/modulus profiles and the deformation ODEs
-        are shot from the center to the surface to yield k, h, l.
+        ``frequency`` to obtain the complex moduli; the deformation ODEs are then
+        shot from the center to the surface on the solved structure to yield k, h, l.
+
+        Every solver setting left as ``None`` takes the ``[radial_solver]`` value of the TidalPy
+        configuration (``TidalPy.config_x``), the same defaults the standalone ``radial_solver`` and the
+        world's tidal solves use.
 
         Parameters
         ----------
@@ -803,25 +871,25 @@ cdef class LayeredWorld(BaseWorld):
             Propagation-matrix core starting condition (0-4). Ignored by the
             shooting method. Default 0.
         use_kamata : bool, optional
-            Use Kamata starting conditions near the center (shooting method only).
-            Default True.
+            Use Kamata starting conditions near the center (shooting method only)
+            instead of Takeuchi and Saito.
         nondimensionalize : bool, optional
-            Non-dimensionalize the problem internally (recommended). Default True.
+            Non-dimensionalize the problem internally (recommended).
         starting_radius : float, optional
             Minimum radius [m] for the shooting start.  0 → auto. Default 0.
         start_radius_tol : float, optional
-            Tolerance for the starting-radius search. Default 1e-4.
+            Tolerance of the automatic starting radius, R * tol^(1/l).
         integration_method : str, optional
-            CyRK ODE method: ``'DOP853'`` (default), ``'RK45'``, ``'RK23'``, or the
+            CyRK ODE method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the
             implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
         rtol, atol : float, optional
-            Relative / absolute ODE tolerances. Default 1e-6 / 1e-10.
+            Relative / absolute ODE tolerances.
         scale_rtols : bool, optional
-            Scale tolerances by layer type. Default True.
+            Scale tolerances by layer type.
         max_num_steps : int, optional
-            Maximum ODE steps. Default 500000.
+            Maximum ODE steps.
         expected_size, max_ram_MB : int, optional
-            CyRK memory hints. Default 500 / 500.
+            CyRK memory hints.
         max_step : float, optional
             Maximum ODE step size [m].  0 → auto. Default 0.
         verbose : bool, optional
@@ -829,8 +897,10 @@ cdef class LayeredWorld(BaseWorld):
         warnings : bool, optional
             Emit solver warnings. Default True.
         love_method : str, optional
-            How the Love numbers are obtained. ``'radial_solver'`` (aliases ``'shooting'``,
-            ``'rs'``; default) integrates the radial ODEs from the center to the surface;
+            How the Love numbers are obtained. ``None`` (default) uses the world's configured method
+            (``set_tide_config(love_method=...)`` or the ``[tides]`` table; ``'radial_solver'`` unless set).
+            ``'radial_solver'`` (aliases ``'shooting'``,
+            ``'rs'``) integrates the radial ODEs from the center to the surface;
             ``'propagation_matrix'`` (``'prop_matrix'``, ``'pm'``, ``'prop'``) uses the matrix
             method, which is only valid for a single solid, static, incompressible layer (an
             incompatible world fails the solve gracefully: ``love_success`` is ``False`` with a
@@ -862,36 +932,32 @@ cdef class LayeredWorld(BaseWorld):
         - Spherical symmetry; all quantities MKS.
         - ``solve_eos`` must be called first.
         """
-        cdef ODEMethod ode_method = _resolve_integration_method(integration_method)
-
-        cdef c_LoveSolveConfig cfg
+        # The config starts from the world's [tides] Love settings (method, fixed Q, fixed time lag) and the
+        # [radial_solver] section of the TidalPy configuration; only the arguments given here override it.
+        cdef c_LoveSolveConfig cfg = self._layered_ptr.make_love_solve_config()
         cfg.frequency = frequency
         cfg.degree_l  = degree_l
         cfg.bc_model  = _resolve_solve_for(solve_for)
-        cfg.love_method = _resolve_love_method(love_method)
-        cfg.fixed_q    = d_NAN if fixed_q is None else <double>fixed_q
-        cfg.fixed_dt   = d_NAN if fixed_dt is None else <double>fixed_dt
-        cfg.core_model = core_model
-        cfg.use_kamata = <cpp_bool>use_kamata
-        cfg.nondimensionalize = <cpp_bool>nondimensionalize
-        cfg.starting_radius   = starting_radius
-        cfg.start_radius_tol  = start_radius_tol
-        cfg.integration_method = ode_method
-        cfg.rtol              = rtol
-        cfg.atol              = atol
-        cfg.scale_rtols       = <cpp_bool>scale_rtols
-        cfg.max_num_steps     = max_num_steps
-        cfg.expected_size     = expected_size
-        cfg.max_ram_MB        = max_ram_MB
-        cfg.max_step          = max_step
-        cfg.verbose           = <cpp_bool>verbose
-        cfg.warnings          = <cpp_bool>warnings
+        if love_method is not None:
+            cfg.love_method = _resolve_love_method(love_method)
+        if fixed_q is not None:
+            cfg.fixed_q = <double>fixed_q
+        if fixed_dt is not None:
+            cfg.fixed_dt = <double>fixed_dt
+        cfg.core_model      = core_model
+        cfg.starting_radius = starting_radius
+        cfg.max_step        = max_step
+        cfg.verbose         = <cpp_bool>verbose
+        cfg.warnings        = <cpp_bool>warnings
+        _apply_love_solve_overrides(
+            &cfg, use_kamata, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
+            max_num_steps, expected_size, max_ram_MB)
 
         with nogil:
             self._layered_ptr.solve_love_numbers(cfg)
 
         if warnings and cfg.love_method <= 1:   # the conditioning diagnostic belongs to the radial solvers
-            check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), rtol)
+            check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
         return self._build_love_result()
 
     def solve_love_numbers_supplied(
@@ -903,27 +969,28 @@ cdef class LayeredWorld(BaseWorld):
             int    degree_l   = 2,
             str    solve_for  = 'tidal',
             int    core_model = 0,
-            cpp_bool use_kamata = True,
-            cpp_bool nondimensionalize = True,
-            double starting_radius     = 0.0,
-            double start_radius_tol    = 1.0e-4,
-            str    integration_method  = 'DOP853',
-            double rtol                = 1.0e-6,
-            double atol                = 1.0e-10,
-            cpp_bool scale_rtols       = True,
-            size_t max_num_steps       = 500000,
-            size_t expected_size       = 500,
-            size_t max_ram_MB          = 500,
-            double max_step            = 0.0,
-            cpp_bool verbose           = False,
-            cpp_bool warnings          = True,
-            str love_method            = 'radial_solver') -> dict:
+            use_kamata        = None,
+            nondimensionalize = None,
+            double starting_radius = 0.0,
+            start_radius_tol   = None,
+            integration_method = None,
+            rtol               = None,
+            atol               = None,
+            scale_rtols        = None,
+            max_num_steps      = None,
+            expected_size      = None,
+            max_ram_MB         = None,
+            double max_step    = 0.0,
+            cpp_bool verbose   = False,
+            cpp_bool warnings  = True,
+            str love_method    = 'radial_solver') -> dict:
         """Solve Love numbers from externally-supplied complex moduli arrays (instead of layer rheology).
 
         The supplied shear/bulk moduli [Pa] are defined at ``radius_array`` [m] and are linearly interpolated onto
         the world's internal EOS radius grid. Used by the standalone ``RadialSolver_x.radial_solver`` API.
         ``solve_eos`` must be called first. Only the radial-solver methods (``love_method``
-        ``'radial_solver'`` or ``'propagation_matrix'``) are available here.
+        ``'radial_solver'`` or ``'propagation_matrix'``) are available here. Solver settings left as ``None``
+        take the ``[radial_solver]`` values of the TidalPy configuration, as in :meth:`solve_love_numbers`.
         """
         if radius_array.shape[0] == 0:
             raise ValueError("radius_array must not be empty")
@@ -931,28 +998,19 @@ cdef class LayeredWorld(BaseWorld):
                 or complex_bulk_modulus.shape[0] != radius_array.shape[0]):
             raise ValueError("complex moduli and radius arrays must have matching length")
 
-        cdef ODEMethod ode_method = _resolve_integration_method(integration_method)
-
         cdef c_LoveSolveConfig cfg
         cfg.frequency   = frequency
         cfg.degree_l    = degree_l
         cfg.bc_model    = _resolve_solve_for(solve_for)
         cfg.love_method = _resolve_love_method(love_method)
         cfg.core_model  = core_model
-        cfg.use_kamata  = <cpp_bool>use_kamata
-        cfg.nondimensionalize = <cpp_bool>nondimensionalize
-        cfg.starting_radius  = starting_radius
-        cfg.start_radius_tol = start_radius_tol
-        cfg.integration_method = ode_method
-        cfg.rtol               = rtol
-        cfg.atol               = atol
-        cfg.scale_rtols        = <cpp_bool>scale_rtols
-        cfg.max_num_steps      = max_num_steps
-        cfg.expected_size      = expected_size
-        cfg.max_ram_MB         = max_ram_MB
-        cfg.max_step           = max_step
-        cfg.verbose            = <cpp_bool>verbose
-        cfg.warnings           = <cpp_bool>warnings
+        cfg.starting_radius = starting_radius
+        cfg.max_step        = max_step
+        cfg.verbose         = <cpp_bool>verbose
+        cfg.warnings        = <cpp_bool>warnings
+        _apply_love_solve_overrides(
+            &cfg, use_kamata, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
+            max_num_steps, expected_size, max_ram_MB)
 
         cdef size_t n_in = radius_array.shape[0]
         cdef cpp_complex[double]* shear_ptr = <cpp_complex[double]*><void*>&complex_shear_modulus[0]
@@ -966,7 +1024,7 @@ cdef class LayeredWorld(BaseWorld):
                 radius_ptr,
                 n_in)
         if warnings:
-            check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), rtol)
+            check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
         return self._build_love_result()
 
     def _build_love_result(self):

@@ -34,10 +34,10 @@ from TidalPy.structures_x.worlds.stellar import StarWorld
 def _terrestrial_dict():
     """A two-layer terrestrial world with fully explicit mantle physics models.
 
-    No material ``type`` is set, so every value comes from the dict itself (tier 1)
-    or a constructor default (tier 3); this keeps the behavioral assertions
-    independent of the per-material ``_x`` config defaults (tier 2, tested
-    separately).
+    No material ``type`` is set, so every value comes from the dict itself (tier 1), then the
+    ``[layers.default]`` block of the ``_x`` config (tier 2), then a constructor default (tier 3).
+    The mantle lists every model it uses so the behavioral assertions do not depend on the
+    default block (tested separately).
     """
     return {
         "schema_version": "0.2.0",
@@ -185,12 +185,25 @@ def test_rheology_and_viscosity_wired_give_complex_modulus():
 
 
 def test_missing_eos_on_a_layer_blocks_solve():
+    """A layer without an EOS model blocks the solve; ``type = "none"`` keeps the builder from supplying one."""
     config = _terrestrial_dict()
     del config["layers"]["core"]["eos"]
+    config["layers"]["core"]["type"] = "none"
     world = construct_world(config)
     assert world.all_eos_set is False
     with pytest.raises(ValueError):
         world.solve_eos(verbose=False)
+
+
+def test_typeless_layer_takes_the_default_eos():
+    """A layer that names no material type takes its EOS from the ``[layers.default]`` block."""
+    config = _terrestrial_dict()
+    del config["layers"]["core"]["eos"]
+    world = construct_world(config)
+    assert world.all_eos_set is True
+    world.solve_eos(G_to_use=G, verbose=False)
+    # The default block is a copy of mantle_rock (3500 kg/m^3).
+    assert math.isclose(world.get_density(1.0e6), 3500.0, rel_tol=1e-6)
 
 
 # =====================================================================================================================
@@ -208,8 +221,13 @@ def test_material_defaults_filtered_to_class():
     assert "zeta" in sl["shear_rheology"]
 
 
-def test_no_material_type_means_no_tier2_defaults():
-    assert world_builder._material_type_defaults(None, "solidliquid") == {}
+def test_no_material_type_uses_the_default_block():
+    """None selects the ``[layers.default]`` block (a copy of mantle_rock); ``"none"`` selects nothing."""
+    from_none = world_builder._material_type_defaults(None, "solidliquid")
+    assert from_none == world_builder._material_type_defaults("default", "solidliquid")
+    assert from_none == world_builder._material_type_defaults("mantle_rock", "solidliquid")
+    assert from_none["eos"]["model"] == "constant"
+    assert world_builder._material_type_defaults("none", "solidliquid") == {}
 
 
 def test_material_type_supplies_eos_without_explicit_config():

@@ -2,10 +2,12 @@
 Love numbers of a world whose layers change stiffness across an interface.
 
 Every interface radius appears twice in the world's slice grid: once as the top of the lower layer and once as the
-base of the upper one. Each copy must carry its own layer's moduli. If both carried the lower layer's, the upper
-layer's first slice interval would ramp between the two moduli and k2 would converge only at first order in the slice
-count. These tests use a stiff interior under a thin, soft top layer, where that error is 1.6 percent at 10 slices per
-layer, with either a solid or a liquid core.
+base of the upper one. Each copy must carry its own layer's moduli, and every lookup during the radial integration
+must read the calling layer's copy. If both carried the lower layer's, the upper layer's first slice interval would
+ramp between the two moduli and k2 would converge only at first order in the slice count; if a lookup ignored the
+layer, a solid layer ending on a zero-shear liquid would read the liquid's zero modulus at its own top and divide by
+it. These tests use a stiff interior under a thin, soft top layer, where the ramp error is 1.6 percent at 10 slices
+per layer, with a solid core, a liquid core that keeps a shear modulus, or a zero-shear liquid core.
 
 Requires the Cython extensions to be compiled first::
 
@@ -32,10 +34,11 @@ _LAYERS = (
     ("soft_layer", 0.95 * _RADIUS, _RADIUS,       3000.0, 1.0e9,  1.0e13),
 )
 
-_CORE_STATES = [pytest.param(False, id="solid_core"), pytest.param(True, id="liquid_core")]
+_CORE_STATES = [pytest.param("solid", id="solid_core"), pytest.param("liquid", id="liquid_core"),
+                pytest.param("liquid_zero_shear", id="liquid_core_zero_shear")]
 
 
-def _build_world(liquid_core):
+def _build_world(core_state):
     from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     from TidalPy.rheology_x.rheology import Maxwell
     from TidalPy.structures_x.layers.physics import PhysicsLayer
@@ -47,6 +50,8 @@ def _build_world(liquid_core):
     world = LayeredWorld("interfaces", _RADIUS, sum(layer_masses))
     for index, (layer_data, mass) in enumerate(zip(_LAYERS, layer_masses)):
         name, r_inner, r_outer, density, shear, viscosity = layer_data
+        if name == "core" and core_state == "liquid_zero_shear":
+            shear = 0.0
         layer = PhysicsLayer(name, index, r_inner, r_outer, mass,
                              shear_modulus_static=shear,
                              bulk_modulus_static=_BULK)
@@ -55,7 +60,7 @@ def _build_world(liquid_core):
         layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
         layer.set_shear_rheology(Maxwell())
         layer.set_bulk_rheology(Maxwell())
-        layer.is_solid = not (liquid_core and name == "core")
+        layer.is_solid = not (name == "core" and core_state != "solid")
         world.add_layer(layer)
     return world
 
@@ -81,23 +86,23 @@ def _per_layer_moduli(world, eos, slices_per_layer):
     return radius, shear, bulk
 
 
-@pytest.mark.parametrize("liquid_core", _CORE_STATES)
+@pytest.mark.parametrize("core_state", _CORE_STATES)
 @pytest.mark.parametrize("slices_per_layer", [10, 25])
-def test_love_number_does_not_depend_on_the_slice_count(liquid_core, slices_per_layer):
+def test_love_number_does_not_depend_on_the_slice_count(core_state, slices_per_layer):
     """Density and moduli are constant within each layer, so a coarse grid must already give the refined k2."""
-    world = _build_world(liquid_core)
+    world = _build_world(core_state)
     refined_k, _ = _solve_love_number_k(world, 200)
     coarse_k, _ = _solve_love_number_k(world, slices_per_layer)
     assert cmath.isclose(coarse_k, refined_k, rel_tol=1.0e-5), (coarse_k, refined_k)
 
 
-@pytest.mark.parametrize("liquid_core", _CORE_STATES)
-def test_love_number_matches_the_standalone_solver_given_each_layers_moduli(liquid_core):
+@pytest.mark.parametrize("core_state", _CORE_STATES)
+def test_love_number_matches_the_standalone_solver_given_each_layers_moduli(core_state):
     """The standalone solver takes the arrays as given, so it is the reference for what the world should fill."""
     from TidalPy.RadialSolver_x.solver import radial_solver
 
     slices_per_layer = 20
-    world = _build_world(liquid_core)
+    world = _build_world(core_state)
     world_k, eos = _solve_love_number_k(world, slices_per_layer)
     radius, shear, bulk = _per_layer_moduli(world, eos, slices_per_layer)
     layers = list(world)
@@ -122,11 +127,11 @@ def test_love_number_matches_the_standalone_solver_given_each_layers_moduli(liqu
     assert cmath.isclose(world_k, standalone_k, rel_tol=1.0e-5), (world_k, standalone_k)
 
 
-@pytest.mark.parametrize("liquid_core", _CORE_STATES)
-def test_supplied_moduli_keep_each_layers_interface_values(liquid_core):
+@pytest.mark.parametrize("core_state", _CORE_STATES)
+def test_supplied_moduli_keep_each_layers_interface_values(core_state):
     """Supplying each layer's own moduli, interface copies included, must reproduce the rheology-driven solve."""
     slices_per_layer = 10
-    world = _build_world(liquid_core)
+    world = _build_world(core_state)
     world_k, eos = _solve_love_number_k(world, slices_per_layer)
     radius, shear, bulk = _per_layer_moduli(world, eos, slices_per_layer)
     result = world.solve_love_numbers_supplied(shear, bulk, radius, frequency=_FREQUENCY)

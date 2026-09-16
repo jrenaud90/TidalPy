@@ -4,7 +4,7 @@ TidalPy's internals are being rewritten in C++. The new implementation lives in 
 
 The 0.8.X series is the last to include the classic modules. It will continue to receive bug fixes, but no new features, until the end of 2026, and support for 0.8.X after 2026 is not guaranteed. Plan to finish porting before then.
 
-This page explains what is different, maps the classic modules to their replacements, and shows how to port common workflows.
+This page explains what is different, maps the classic modules to their replacements, and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> draws the new backend's main classes and functions, the calls between them, and the purpose, inputs, and outputs of each call.
 
 TidalPy announces this transition once per session when the package is imported. The notice can be silenced with:
 

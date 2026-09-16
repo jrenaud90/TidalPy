@@ -57,6 +57,8 @@ The analytic methods (`homogeneous`, `cpl`, `ctl`) are not available here becaus
 
 ## Arguments
 
+Every solver setting whose default is `None` takes its value from the TidalPy configuration: the `[radial_solver]` section for the shooting method and the `[eos_solver]` section for the equation of state (see [Configurations](../Overview/2_TidalPy_Configurations.md) for the packaged values and how they were chosen). These are the same defaults the world-attached `solve_love_numbers` and `solve_eos` use, so a configuration file plus a world file reproduces a result. An explicit argument always wins.
+
 **Common arguments**
 
 | Argument | Default | Meaning |
@@ -64,21 +66,21 @@ The analytic methods (`homogeneous`, `cpl`, `ctl`) are not available here becaus
 | `degree_l` | `2` | Spherical-harmonic degree. Stability degrades as the degree rises: expect trouble beyond `l = 10`, though stable solutions exist to `l = 40` with a higher starting radius and tighter tolerances. |
 | `solve_for` | `None` | Tuple of surface boundary conditions: `'tidal'`, `'loading'`, `'free'`. `None` means `('tidal',)`. Note the trailing comma in a one-element tuple. Solving several at once is cheaper than separate calls, and sets the first dimension of `solution.love`. |
 | `love_method` | `'radial_solver'` | The radial technique; see the table above. |
-| `nondimensionalize` | `True` | Non-dimensionalize internally and restore SI before returning. Recommended to leave it on for improved stability. |
+| `nondimensionalize` | `None` (config) | Non-dimensionalize the EOS and the shooting solve internally and restore SI before returning. Leave it on: the tolerances then mean the same thing for every planet. |
 
 **Shooting method**
 
 | Argument | Default | Meaning |
 |---|---|---|
 | `starting_radius` | `0.0` | Radius where integration begins [m]. `0.0` picks one automatically using the Martens (2016) criterion and `start_radius_tolerance`. Starting very deep at high degree makes the surface boundary solve ill-conditioned: the solution constants grow enormous and cancel, amplifying Love numbers error. The solver measures this on every solve and warns when the achievable accuracy drops below the requested tolerance; prefer the automatic radius when that warning appears. |
-| `start_radius_tolerance` | `1.0e-5` | Tolerance for that automatic choice. |
-| `use_kamata` | `False` | Use the Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972). Kamata is the more stable choice for incompressible layers, and is required for an incompressible solid layer at the center, where the Takeuchi and Saito form is undefined. It does not cover a static incompressible solid layer. |
-| `integration_method` | `'DOP853'` | `'RK23'`, `'RK45'`, `'DOP853'`, or the implicit methods `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
-| `integration_rtol`, `integration_atol` | `1.0e-5`, `1.0e-8` | Relative and absolute integration tolerances. |
-| `scale_rtols_bylayer_type` | `False` | Scale the relative tolerance by layer type; liquid layers generally want a tighter value. Experimental. |
-| `max_num_steps` | `500000` | Step ceiling per integration. A healthy solve needs a few hundred steps per solution per layer. |
-| `expected_size` | `1000` | Hint for the integrator's initial allocation. Overshooting costs little. |
-| `max_ram_MB` | `500` | Memory ceiling for the integrator. Real usage runs somewhat higher. |
+| `start_radius_tolerance` | `None` (config) | Tolerance for that automatic choice: the start is at $R \cdot \mathrm{tol}^{1/l}$. |
+| `use_kamata` | `None` (config) | Use the Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972). Kamata is the more stable choice for incompressible layers, and is required for an incompressible solid layer at the center, where the Takeuchi and Saito form is undefined. It does not cover a static incompressible solid layer. |
+| `integration_method` | `None` (config) | `'RK23'`, `'RK45'`, `'DOP853'`, or the implicit methods `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
+| `integration_rtol`, `integration_atol` | `None` (config) | Relative and absolute integration tolerances. |
+| `scale_rtols_bylayer_type` | `None` (config) | Scale the relative tolerance by layer type; liquid layers generally want a tighter value. Experimental. |
+| `max_num_steps` | `None` (config) | Step ceiling per integration. A healthy solve needs a few hundred steps per solution per layer. |
+| `expected_size` | `None` (config) | Hint for the integrator's initial allocation. Overshooting costs little. |
+| `max_ram_MB` | `None` (config) | Memory ceiling for the integrator. Real usage runs somewhat higher. |
 | `max_step` | `0` | Largest allowed step [m]; `0` lets the integrator choose. |
 
 **Propagation matrix**
@@ -95,17 +97,17 @@ The radial solver must have a EOS solution before it can solve the viscoelastic-
 |---|---|---|
 | `eos_method_bylayer` | `None` | Per-layer EOS method. `"interpolate"` is the only accepted value and `None` selects it everywhere, so the only reason to pass this is explicitness; any other name raises. |
 | `surface_pressure` | `0.0` | Pressure at the surface [Pa], the outer boundary condition for the interior pressure solve. |
-| `eos_integration_method` | `'DOP853'` | As `integration_method`, for the EOS solve. |
-| `eos_rtol`, `eos_atol` | `1.0e-3`, `1.0e-5` | EOS integration tolerances. |
-| `eos_pressure_tol` | `1.0e-3` | Convergence tolerance for the pressure iteration. |
-| `eos_max_iters` | `40` | Iteration ceiling for that loop. |
+| `eos_integration_method` | `None` (config) | As `integration_method`, for the EOS solve. LSODA's startup can fail cleanly at the singular center at tight tolerances; DOP853, BDF, and Radau handle it. |
+| `eos_rtol`, `eos_atol` | `None` (config) | EOS integration tolerances. |
+| `eos_pressure_tol` | `None` (config) | Convergence tolerance on the surface-pressure mismatch, relative to the central-pressure scale $(2/3) \pi G \rho^2 R^2$. Keep it above `eos_rtol`, the integrator's own noise on the surface pressure. |
+| `eos_max_iters` | `None` (config) | Ceiling on the central-pressure iterations. The iteration is a secant method, so a compressible planet converges in a few steps; the cap is reported through `eos_iterations` and the message. |
 
 **Reporting**
 
 | Argument | Default | Meaning |
 |---|---|---|
 | `verbose` | `False` | Print solver status while running. |
-| `warnings` | `True` | Emit solver warnings, including the surface-conditioning diagnostic. |
+| `warnings` | `True` | Emit solver warnings, including the surface-conditioning diagnostic. The diagnostic itself (`surface_solve_amplification`) is recorded on every solve. |
 | `raise_on_fail` | `False` | Raise instead of failing quietly. By default a failed solve returns with `success = False` and an explanatory `message`. |
 | `perform_checks` | `True` | Accepted for compatibility with the classic solver; the new backend validates unconditionally. |
 | `log_info` | `False` | Log the solution's key diagnostics. There is a cost, more so with file logging enabled. |

@@ -462,27 +462,13 @@ public:
 
         if (calculate_y3)
         {
-            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5), all in solve units. Gravity/density are read from the EOS's
-            // structural arrays via the shared array-interp utility (c_interp + c_binary_search_with_guess) - the
-            // same arrays the gridded collapse used (layer_gravity_ptr/layer_density_ptr), so the dense y3 reproduces
-            // the grid y3. (eos->call would route through the cysolver dense output, whose unit handling differs across
-            // solve paths.) Mirrors c_EOSSolution::_call_interp_arrays.
+            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5), all in solve units. Gravity and density are read from the
+            // EOS's structural arrays inside this layer's own slices, the same arrays the gridded collapse used, so
+            // the dense y3 reproduces the grid y3 and an interface radius takes this layer's density rather than
+            // the neighbor's.
             const double eos_r = this->p_eos_is_nondim ? radius_solve : radius_solve * this->p_length_conv;
-            c_EOSSolution* eos = this->eos_solution_uptr.get();
-            double*      r_arr = eos->radius_array_vec.data();
-            const size_t n     = eos->radius_array_vec.size();
-            size_t j_guess = 0;
-            if (n > 1 && r_arr[n - 1] > r_arr[0]) {
-                double frac = (eos_r - r_arr[0]) / (r_arr[n - 1] - r_arr[0]);
-                frac = frac < 0.0 ? 0.0 : (frac > 1.0 ? 1.0 : frac);
-                j_guess = static_cast<size_t>(static_cast<double>(n) * frac);
-                if (j_guess >= n) j_guess = n - 1;
-            }
-            int b_code = 0;
-            size_t j   = c_binary_search_with_guess(eos_r, r_arr, n, j_guess, &b_code);
-            double desired = eos_r, g_solve = 0.0, rho_solve = 0.0;
-            c_interp(&desired, r_arr, eos->gravity_array_vec.data(), n, &j, &g_solve);
-            c_interp(&desired, r_arr, eos->density_array_vec.data(), n, &j, &rho_solve);
+            double g_solve = 0.0, rho_solve = 0.0;
+            this->eos_solution_uptr->interp_structure_in_layer(target_layer_i, eos_r, &g_solve, &rho_solve);
             if (!this->p_eos_is_nondim) { g_solve /= this->p_grav_conv; rho_solve /= this->p_dens_conv; }
             const double w = this->p_frequency_solve;
             out6[2] = (1.0 / (w * w * radius_solve)) * (out6[0] * g_solve - out6[1] / rho_solve - out6[4]);
