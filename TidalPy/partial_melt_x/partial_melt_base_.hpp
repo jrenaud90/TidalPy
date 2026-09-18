@@ -34,17 +34,17 @@ namespace tidalpy {
 // -------------------------------------------------------------------------------
 struct c_PartialMeltInputs {
     double temperature       = 0.0;   // local temperature [K]
-    double premelt_viscosity = 0.0;   // solid (pre-melt) viscosity [Pa s]
+    double premelt_viscosity = 0.0;   // solid (pre-melt) viscosity [Pa·s]
     double premelt_shear    = 0.0;   // solid (pre-melt) shear modulus [Pa]
-    double liquid_viscosity = 0.0;   // viscosity if fully molten at this T [Pa s]
+    double liquid_viscosity = 0.0;   // viscosity if fully molten at this T [Pa·s]
 };
 
 // -------------------------------------------------------------------------------
 // c_PartialMeltResult: what every partial-melt model reports.
 // -------------------------------------------------------------------------------
 struct c_PartialMeltResult {
-    double melt_fraction          = 0.0;   // volumetric melt fraction phi [m^3/m^3]
-    double postmelt_viscosity     = 0.0;   // post-melt viscosity [Pa s]
+    double melt_fraction          = 0.0;   // volumetric melt fraction φ [m^3/m^3]
+    double postmelt_viscosity     = 0.0;   // post-melt viscosity [Pa·s]
     double postmelt_shear_modulus = 0.0;   // post-melt shear modulus [Pa]
 };
 
@@ -86,7 +86,7 @@ public:
 
     // -----------------------------------------------------------------------
     // Volumetric melt fraction, model-independent:
-    //   phi = clip((T - T_solidus) / (T_liquidus - T_solidus), 0, 1)
+    //   φ = clip((T − T_solidus) / (T_liquidus − T_solidus), 0, 1)
     // A non-positive envelope (solidus >= liquidus) gives 0, fully solid.
     // -----------------------------------------------------------------------
     double calc_melt_fraction(double temperature) const noexcept {

@@ -73,7 +73,7 @@ struct c_RheologyConfig {
 // The public interface of every model is the complex modulus, but the composite rheologies (Burgers,
 // Andrade, Sundberg) combine their elements in series, so the element compliances add and the modulus is
 // the reciprocal of that sum. These intermediates stay in the detail namespace and are never exposed to
-// Python. Each takes the (shear or bulk) viscosity [Pa s], the unrelaxed modulus [Pa] that sets the
+// Python. Each takes the (shear or bulk) viscosity [Pa·s], the unrelaxed modulus [Pa] that sets the
 // static compliance J = 1/modulus, and the forcing frequency [rad s-1].
 //
 // Assumes a linear viscoelastic regime at a single forcing frequency; the Andrade family additionally

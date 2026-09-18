@@ -3,7 +3,7 @@
  * partial_melt_.hpp: TidalPy's partial-melt models (melt weakening of viscosity and modulus).
  *
  * Each model derives from c_PartialMeltBase and implements calc_partial_melt(c_PartialMeltInputs),
- * returning a c_PartialMeltResult (melt fraction, post-melt viscosity [Pa s], post-melt modulus [Pa]).
+ * returning a c_PartialMeltResult (melt fraction, post-melt viscosity [Pa·s], post-melt modulus [Pa]).
  *
  * Models, with the aliases the factory accepts:
  *   c_OffPartialMelt      (alias "none")     no melt weakening; returns the pre-melt values.

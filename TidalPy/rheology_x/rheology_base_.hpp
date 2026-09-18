@@ -37,7 +37,7 @@ public:
 
     // -----------------------------------------------------------------------
     // Complex (shear or bulk) modulus [Pa] from the unrelaxed modulus [Pa], the
-    // reference dynamic viscosity [Pa s], and the forcing frequency [rad s-1].
+    // reference dynamic viscosity [Pa·s], and the forcing frequency [rad s-1].
     // The real part is the storage (in-phase) modulus and the imaginary part the
     // loss (out-of-phase) modulus, positive for energy loss. The base
     // implementation is elastic; every model overrides it. c_PhysicsLayer calls

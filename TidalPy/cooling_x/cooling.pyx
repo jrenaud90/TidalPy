@@ -233,7 +233,7 @@ cdef class CoolingBase(PhysicsBase):
         density : float
             Bulk density [kg/m^3].
         viscosity : float
-            Dynamic viscosity [Pa s].
+            Dynamic viscosity [Pa·s].
         thermal_conductivity : float
             Thermal conductivity [W/m/K].
         thermal_diffusivity : float
@@ -398,7 +398,7 @@ cdef class ConvectiveCooling(CoolingBase):
     Parameters
     ----------
     convection_alpha : float, optional
-        Nusselt scaling prefactor (``Nu = alpha * (Ra / Ra_crit)^beta``). Default ``1.0``.
+        Nusselt scaling prefactor (``Nu = alpha · (Ra / Ra_crit)^beta``). Default ``1.0``.
     convection_beta : float, optional
         Convection exponent. Default ``1/3``.
     critical_rayleigh : float, optional

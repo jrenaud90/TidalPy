@@ -152,7 +152,7 @@ cdef class RheologyBase(PhysicsBase):
         modulus : float
             Unrelaxed (static) modulus [Pa].
         viscosity : float
-            Reference dynamic viscosity [Pa s].
+            Reference dynamic viscosity [Pa·s].
         frequency : float
             Tidal forcing frequency [rad s-1].
 
@@ -179,7 +179,7 @@ cdef class RheologyBase(PhysicsBase):
         Parameters
         ----------
         modulus, viscosity : array_like
-            Equal-length 1-D sequences of unrelaxed modulus [Pa] and reference viscosity [Pa s].
+            Equal-length 1-D sequences of unrelaxed modulus [Pa] and reference viscosity [Pa·s].
         frequency : float
             Constant forcing frequency [rad s-1].
 
@@ -209,7 +209,7 @@ cdef class RheologyBase(PhysicsBase):
         modulus : float
             Constant unrelaxed modulus [Pa].
         viscosity : float
-            Constant reference viscosity [Pa s].
+            Constant reference viscosity [Pa·s].
         frequency : array_like
             1-D sequence of forcing frequencies [rad s-1].
 

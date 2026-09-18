@@ -22,7 +22,7 @@ struct c_CoolingInputs {
     double thickness = 0.0;   // layer (or sub-layer) thickness [m]
     double gravity   = 0.0;   // gravitational acceleration [m/s^2]
     double density   = 0.0;   // bulk density [kg/m^3]
-    double viscosity = 0.0;   // dynamic viscosity [Pa s]
+    double viscosity = 0.0;   // dynamic viscosity [Pa·s]
     double thermal_conductivity = 0.0;   // thermal conductivity [W/m/K]
     double thermal_diffusivity = 0.0;   // thermal diffusivity [m^2/s]
     double thermal_expansion   = 0.0;   // thermal expansivity [1/K]

@@ -37,7 +37,7 @@ A high-level summary only: the full API, design notes, and porting examples live
 * Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
 * `TidalPy.constants` now exposes `year` (the Julian year in seconds, from SciPy) with the alias `yr`, joining `au` and the other third-party-sourced constants.
 * The TidalPy data/config directories are now scoped to the package's `<major>.<minor>.X` version (e.g. `.../TidalPy/0.8.X/`) instead of the full patch version, so user configs and downloaded data are not duplicated (or lost) on each bugfix release. New helper `TidalPy.paths.get_data_version()` returns the scoped label.
-* The new backend's configuration file, `TidalPy_Configs_x.toml`, is merged over the packaged defaults, so it only needs the values a user changes. `TidalPy.reinit(provided_config_x=...)` merges a configuration file or dict for the session, and `TidalPy.save_config_x(path)` saves the effective configuration headed by the TidalPy, SciPy, and CyRK versions in use, so a run can be reproduced from its configuration and its world or system TOML. The file gained the `[eos_solver]` and `[radial_solver]` solver sections and a `[layers.default]` material block (a copy of `mantle_rock`) that a layer without a material `type` takes; a saved layer carries `type = "none"` so a rebuild adds nothing to it.
+* Package now enforces LF line endings and prevents CRLF with a few exceptions; updated many files to the new standard.
 
 #### Utilities
 * Converted `math.numerics` to C++.
