@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-18_
 
 Schema version `0.2.0`.
 
