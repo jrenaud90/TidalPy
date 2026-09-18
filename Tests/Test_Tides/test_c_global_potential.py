@@ -1,9 +1,10 @@
-from math import isclose
+from math import isclose, isfinite
 
 import pytest
 import numpy as np
 
 from TidalPy.constants import G
+from TidalPy.Tides_x.potential import global_potential
 from TidalPy.Tides_x.potential.potential_common import ModeMap
 
 
@@ -15,26 +16,33 @@ orbital_frequency = 2.0 * np.pi / orbital_period
 semi_major_axis = 4.217e8    # Io semi-major axis [m]
 
 
+def _global_potential(**kwargs):
+    """Call `global_potential` by keyword so an argument reorder cannot silently shuffle the inputs."""
+    arguments = dict(
+        planet_radius=planet_radius,
+        orbital_frequency=orbital_frequency,
+        spin_frequency=orbital_frequency,  # synchronous
+        eccentricity=0.0,
+        obliquity=0.0,
+        semi_major_axis=semi_major_axis,
+        host_mass=host_mass,
+        G_to_use=G,
+        min_degree_l=2,
+        max_degree_l=2,
+    )
+    arguments.update(kwargs)
+    return global_potential(**arguments)
+
+
 @pytest.mark.parametrize('degree_l', (2, 3, 4))
 @pytest.mark.parametrize('obliquity_truncation', ('gen', 2, 4, 'off'))
 @pytest.mark.parametrize('eccentricity_truncation', (1, 2, 3, 4, 5, 10))
 def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_truncation):
     """Tests that global_potential runs without error and returns correct types for various parameters."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
-    obliquity = 0.01
-    eccentricity = 0.0041
-
-    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = global_potential(
-        planet_radius,
-        semi_major_axis,
-        orbital_frequency,
-        orbital_frequency,  # synchronous spin
-        obliquity,
-        eccentricity,
-        host_mass,
-        G,
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        obliquity=0.01,
+        eccentricity=0.0041,
         min_degree_l=degree_l,
         max_degree_l=degree_l,
         obliquity_truncation=obliquity_truncation,
@@ -75,6 +83,8 @@ def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_tru
         assert n_coeff == l - 2 * p + q
         # o_coeff should be -m
         assert o_coeff == -m
+        assert isclose(mode_val, n_coeff * orbital_frequency + o_coeff * orbital_frequency, rel_tol=1e-12)
+        assert isfinite(mode_strength)
 
     potential_keys = set(potential_dict.keys())
     assert mode_keys == potential_keys
@@ -85,6 +95,7 @@ def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_tru
         assert isinstance(dU_dw, float)
         assert isinstance(dU_dO, float)
         assert isinstance(E_dot, float)
+        assert isfinite(dU_dM) and isfinite(dU_dw) and isfinite(dU_dO) and isfinite(E_dot)
         # Heating should always be non-negative (it's |mode| * host_mass * common_coeff)
         assert E_dot >= 0.0
 
@@ -100,22 +111,9 @@ def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_tru
 def test_global_potential_zero_obliquity(obliquity_truncation):
     """Tests global_potential with zero obliquity (common simplification)."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
-    obliquity = 0.0
-    eccentricity = 0.1
-
-    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = global_potential(
-        planet_radius,
-        semi_major_axis,
-        orbital_frequency,
-        orbital_frequency,  # synchronous spin
-        obliquity,
-        eccentricity,
-        host_mass,
-        G,
-        min_degree_l=2,
-        max_degree_l=2,
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        obliquity=0.0,
+        eccentricity=0.1,
         obliquity_truncation=obliquity_truncation,
         eccentricity_truncation=5
     )
@@ -135,25 +133,15 @@ def test_global_potential_zero_obliquity(obliquity_truncation):
 def test_global_potential_zero_eccentricity(eccentricity_truncation):
     """Tests global_potential with zero eccentricity."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
-    obliquity = 0.3
-    eccentricity = 0.0
-
-    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = global_potential(
-        planet_radius,
-        semi_major_axis,
-        orbital_frequency,
-        orbital_frequency,  # synchronous spin
-        obliquity,
-        eccentricity,
-        host_mass,
-        G,
-        min_degree_l=2,
-        max_degree_l=2,
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        obliquity=0.3,
+        eccentricity=0.0,
         obliquity_truncation='gen',
         eccentricity_truncation=eccentricity_truncation
     )
+
+    # Obliquity alone forces the m = 1 modes at synchronous rotation.
+    assert len(mode_map) > 0
 
     # With zero eccentricity, only q=0 modes should survive (G_lpq is only nonzero for q=0 at e=0).
     for (l_, m_, p_, q_), mode_data in mode_map:
@@ -164,22 +152,9 @@ def test_global_potential_synchronous_zero_obliquity():
     """Tests that synchronous rotation with zero obliquity yields no nonzero-frequency modes
     for the dominant (l=2, off obliquity, low eccentricity) case, except eccentricity-driven ones."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
-    obliquity = 0.0
-    eccentricity = 0.0
-
-    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = global_potential(
-        planet_radius,
-        semi_major_axis,
-        orbital_frequency,
-        orbital_frequency,  # synchronous spin
-        obliquity,
-        eccentricity,
-        host_mass,
-        G,
-        min_degree_l=2,
-        max_degree_l=2,
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        obliquity=0.0,
+        eccentricity=0.0,
         obliquity_truncation='off',
         eccentricity_truncation=2
     )
@@ -196,20 +171,10 @@ def test_global_potential_synchronous_zero_obliquity():
 def test_global_potential_multi_degree():
     """Tests global_potential spanning multiple degree l values."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
-    obliquity = 0.1
-    eccentricity = 0.1
-
-    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = global_potential(
-        planet_radius,
-        semi_major_axis,
-        orbital_frequency,
-        orbital_frequency * 1.5,  # non-synchronous spin
-        obliquity,
-        eccentricity,
-        host_mass,
-        G,
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        spin_frequency=orbital_frequency * 1.5,  # non-synchronous spin
+        obliquity=0.1,
+        eccentricity=0.1,
         min_degree_l=2,
         max_degree_l=3,
         obliquity_truncation='gen',
@@ -233,22 +198,10 @@ def test_global_potential_multi_degree():
 def test_global_potential_mode_strength_normalization():
     """Tests that the relative mode strengths are normalized (max abs value == 1)."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
-    obliquity = 0.2
-    eccentricity = 0.1
-
-    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = global_potential(
-        planet_radius,
-        semi_major_axis,
-        orbital_frequency,
-        orbital_frequency * 1.5,
-        obliquity,
-        eccentricity,
-        host_mass,
-        G,
-        min_degree_l=2,
-        max_degree_l=2,
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        spin_frequency=orbital_frequency * 1.5,
+        obliquity=0.2,
+        eccentricity=0.1,
         obliquity_truncation='gen',
         eccentricity_truncation=4
     )
@@ -267,23 +220,12 @@ def test_global_potential_mode_strength_normalization():
 def test_global_potential_nonsynchronous():
     """Tests global_potential with non-synchronous spin to verify mode frequency calculation."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
-    obliquity = 0.0
-    eccentricity = 0.05
     spin_frequency = 2.0 * orbital_frequency  # 2:1 spin-orbit
 
-    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = global_potential(
-        planet_radius,
-        semi_major_axis,
-        orbital_frequency,
-        spin_frequency,
-        obliquity,
-        eccentricity,
-        host_mass,
-        G,
-        min_degree_l=2,
-        max_degree_l=2,
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        spin_frequency=spin_frequency,
+        obliquity=0.0,
+        eccentricity=0.05,
         obliquity_truncation='off',
         eccentricity_truncation=4
     )
@@ -297,23 +239,31 @@ def test_global_potential_nonsynchronous():
         assert isclose(mode_val, expected_mode, rel_tol=1e-12)
 
 
+def test_global_potential_synchronous_heating_matches_analytic():
+    """At synchronous rotation, zero obliquity, and low eccentricity, the summed mode heating per unit k2/Q
+    equals the classic (21/2) G M_host^2 R^5 n e^2 / a^6."""
+
+    eccentricity = 0.01
+
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        eccentricity=eccentricity,
+        obliquity_truncation='off',
+        eccentricity_truncation=3
+    )
+
+    heating_per_k_over_q = sum(E_dot for (dU_dM, dU_dw, dU_dO, E_dot) in potential_dict.values())
+    expected = (21.0 / 2.0) * G * host_mass**2 * planet_radius**5 * orbital_frequency * eccentricity**2 \
+        / semi_major_axis**6
+    assert isclose(heating_per_k_over_q, expected, rel_tol=5.0e-3)
+
+
 def test_global_potential_unsupported_obliquity_truncation():
     """Tests that an unsupported obliquity truncation raises NotImplementedError."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
     with pytest.raises(NotImplementedError):
-        global_potential(
-            planet_radius,
-            semi_major_axis,
-            orbital_frequency,
-            orbital_frequency,
-            0.1,
-            0.1,
-            host_mass,
-            G,
-            min_degree_l=2,
-            max_degree_l=2,
+        _global_potential(
+            obliquity=0.1,
+            eccentricity=0.1,
             obliquity_truncation=5,
             eccentricity_truncation=4
         )
@@ -321,20 +271,10 @@ def test_global_potential_unsupported_obliquity_truncation():
 def test_global_potential_unsupported_eccentricity_truncation():
     """Tests that an unsupported eccentricity truncation raises NotImplementedError."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
     with pytest.raises(NotImplementedError):
-        global_potential(
-            planet_radius,
-            semi_major_axis,
-            orbital_frequency,
-            orbital_frequency,
-            0.1,
-            0.1,
-            host_mass,
-            G,
-            min_degree_l=2,
-            max_degree_l=2,
+        _global_potential(
+            obliquity=0.1,
+            eccentricity=0.1,
             obliquity_truncation=2,
             eccentricity_truncation=6
         )
@@ -343,22 +283,9 @@ def test_global_potential_spot_check_l2_off_sync():
     """Spot check: l=2, off obliquity, synchronous rotation.
     With e > 0, the dominant mode should be (2, 0, 1, -1) and (2, 2, 0, 1) etc."""
 
-    from TidalPy.Tides_x.potential import global_potential
-
-    obliquity = 0.0
-    eccentricity = 0.1
-
-    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = global_potential(
-        planet_radius,
-        semi_major_axis,
-        orbital_frequency,
-        orbital_frequency,  # synchronous
-        obliquity,
-        eccentricity,
-        host_mass,
-        G,
-        min_degree_l=2,
-        max_degree_l=2,
+    mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
+        obliquity=0.0,
+        eccentricity=0.1,
         obliquity_truncation='off',
         eccentricity_truncation=2
     )
