@@ -1,18 +1,12 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-partial_melt.pyx
-Cython/Python wrapper for TidalPy's partial-melt model hierarchy.
+"""Cython wrappers for TidalPy's partial-melt model hierarchy.
 
-A partial-melt model maps a material's pre-melt (solid) viscosity and shear
-modulus, plus its temperature, to the post-melt viscosity and shear modulus (melt
-weakening), and reports the volumetric melt fraction. These quantities are
-frequency-independent and feed the downstream rheology (complex modulus) step.
-
-Models:
-- OffPartialMelt     (alias "none")    — no weakening (returns pre-melt).
-- SpohnPartialMelt   (alias "fischer") — Fischer & Spohn (1990) temperature law.
-- HenningPartialMelt                   — Henning (2009/2010) three-regime law.
+A partial-melt model maps a material's pre-melt (solid) viscosity and shear modulus, plus its
+temperature, to the post-melt values, and reports the volumetric melt fraction. These are
+frequency-independent and feed the downstream rheology step. Models: ``OffPartialMelt`` (alias
+``"none"``), ``SpohnPartialMelt`` (alias ``"fischer"``, Fischer and Spohn 1990), and
+``HenningPartialMelt`` (Henning 2009, 2010).
 """
 
 from libcpp.string cimport string
@@ -278,8 +272,7 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     check_config_keys(config, PARTIAL_MELT_CONFIG_KEYS, "partial-melt")
     if config is None:
         config = {}
-    # A default-constructed config carries the C++ defaults; only override the
-    # fields the caller actually supplies (single source of truth: the C++ struct).
+    # The default-constructed config carries the C++ defaults; only override what the caller supplies.
     cdef c_PartialMeltConfig cfg
     if "solidus_k" in config:
         cfg.solidus = config["solidus_k"]

@@ -1,13 +1,9 @@
 #pragma once
 /*
- * base_.hpp — c_BaseLayer: geometry base class for all TidalPy layer types.
+ * base_.hpp: c_BaseLayer, the geometry base class for every TidalPy layer type (extends c_StructureBase).
  *
- * Inherits c_StructureBase (Utilities_x/classes_x/structure_base_.hpp).
- * Stores immutable geometry and identification data set at construction, plus
- * mutable EOS profile data (density, gravity, pressure vs. radius) populated
- * by the world's EOS solve (Material_x/).
- *
- * All spatial fields are in meters [m]; mass in kilograms [kg] (MKS).
+ * Holds the geometry and identification set at construction plus the EOS profile (density, gravity, pressure
+ * against radius) populated by the world's EOS solve. Spatial fields in meters [m], mass in kilograms [kg].
  *
  * Binary format (20-byte header + variable payload):
  *   header: class_id = BinaryClassID::BaseLayer (100)
@@ -24,9 +20,8 @@
  *     tidal_scale        (double, 8)
  *     tidal_scale_method (uint8_t, 1)
  *     eos_model          presence flag (uint8_t, 1) + (if present) the model's own binary record
- *   Derived fields (thickness, volume, surface areas) are recomputed on load.
- *   The attached material EOS model is serialized; the EOS profile data it produces is not and is
- *   repopulated by re-running the world EOS solve after loading.
+ *   Derived fields (thickness, volume, surface areas) are recomputed on load. The attached material EOS model is
+ *   serialized; the EOS profile it produces is not and is repopulated by re-running the world EOS solve.
  */
 
 #include <cctype>
@@ -44,14 +39,10 @@
 
 namespace tidalpy {
 
-// ---------------------------------------------------------------------------
-// c_TidalScaleMethod — how a layer's share of the world's global tidal heating
-// is determined (consumed by c_LayeredWorld::calc_tides).
-//   user_provided   : use the layer's tidal_scale field directly.
-//   volume_fraction : scale = layer volume / planet volume.
-//   tidal_timescale : Maxwell-time bell curve vs the tidal forcing period
-//                     (per-layer volume-averaged eta/mu); not yet wired.
-// ---------------------------------------------------------------------------
+// How a layer's share of the world's global tidal heating is set (consumed by c_LayeredWorld::calc_tides):
+//   user_provided   : the layer's tidal_scale field.
+//   volume_fraction : layer volume / planet volume.
+//   tidal_timescale : Maxwell-time bell curve against the tidal forcing period (volume-averaged eta/mu).
 enum class c_TidalScaleMethod : uint8_t {
     user_provided   = 0,
     volume_fraction = 1,
@@ -100,10 +91,7 @@ inline const char* c_layer_class_name(uint32_t class_id) noexcept {
     }
 }
 
-// ---------------------------------------------------------------------------
-// c_BaseLayerConfig — construction parameters for c_BaseLayer.
-// Using a config struct avoids a long constructor argument list.
-// ---------------------------------------------------------------------------
+// Construction parameters for c_BaseLayer, grouped to avoid a long constructor argument list.
 struct c_BaseLayerConfig {
     std::string        name;
     int                layer_index  = 0;
@@ -116,14 +104,9 @@ struct c_BaseLayerConfig {
     c_TidalScaleMethod tidal_scale_method = c_TidalScaleMethod::user_provided;
 };
 
-// ---------------------------------------------------------------------------
-// c_BaseLayer
-// ---------------------------------------------------------------------------
 class c_BaseLayer : public c_StructureBase {
 public:
-    // -----------------------------------------------------------------------
     // Construction
-    // -----------------------------------------------------------------------
     c_BaseLayer() = default;
 
     explicit c_BaseLayer(const c_BaseLayerConfig& cfg)
@@ -136,16 +119,13 @@ public:
           p_tidal_scale(cfg.tidal_scale),
           p_tidal_scale_method(cfg.tidal_scale_method)
     {
-        // Update derived properties.
         this->update_physicals();
     }
 
     ~c_BaseLayer() override = default;
 
-    // The owned EOS model (p_eos) is a unique_ptr, which deletes the implicit
-    // copy-assignment. Subclass operator=s call c_BaseLayer::operator=, so an
-    // explicit one is provided here. Source temporaries always have a null
-    // p_eos, so resetting on copy is safe (mirrors the rheology/cooling pattern).
+    // The owned EOS model (p_eos) is a unique_ptr, which deletes the implicit copy assignment, and subclass
+    // operator=s call this one. Source temporaries always have a null p_eos, so resetting on copy is safe.
     c_BaseLayer& operator=(const c_BaseLayer& other) noexcept {
         if (this != &other) {
             c_StructureBase::operator=(other);
@@ -163,16 +143,13 @@ public:
             this->p_tidal_scale_method = other.p_tidal_scale_method;
             this->p_tidal_heating      = other.p_tidal_heating;
             this->p_eos_data           = other.p_eos_data;
-            // EOS model pointer cannot be copied; source temporaries have null ptrs.
             this->p_eos.reset();
         }
         return *this;
     }
     c_BaseLayer& operator=(c_BaseLayer&&) noexcept = default;
 
-    // -----------------------------------------------------------------------
-    // Immutable geometry getters (all const, MKS)
-    // -----------------------------------------------------------------------
+    // Immutable geometry getters (const, MKS)
     const std::string& get_name()                const noexcept { return this->p_name; }
     int                get_layer_index()         const noexcept { return this->p_layer_index; }
     double             get_radius_inner()        const noexcept { return this->p_radius_inner; }
@@ -193,19 +170,13 @@ public:
     }
     void   set_tidal_scale_method(c_TidalScaleMethod method) noexcept { this->p_tidal_scale_method = method; }
 
-    // -----------------------------------------------------------------------
-    // Tidal heating [W] deposited in this layer (transient result; NOT serialized).
-    // Populated by the world's global tidal solve (c_LayeredWorld::calc_tides) as
-    // the world's total tidal heating scaled by this layer's contribution. Returns
-    // NaN until a tidal solve has run.
-    // -----------------------------------------------------------------------
+    // Tidal heating [W] deposited in this layer: a transient result, not serialized. The world's global tidal
+    // solve sets it to the world total scaled by this layer's contribution; NaN until that solve runs.
     double get_tidal_heating()                   const noexcept { return this->p_tidal_heating; }
     void set_tidal_heating(double heating)   noexcept { this->p_tidal_heating = heating; }
 
-    // -----------------------------------------------------------------------
-    // Mass and bulk density. Each successful world EOS solve sets the mass to the enclosed-mass gain across
-    // the layer; before a solve it is whatever the layer was constructed with (0.0 when unspecified).
-    // -----------------------------------------------------------------------
+    // Each successful world EOS solve sets the mass to the enclosed-mass gain across the layer; before a solve it
+    // is whatever the layer was constructed with (0.0 when unspecified).
     void set_mass(double mass) noexcept { this->p_mass = mass; }
 
     // Bulk density [kg m-3] = mass / shell volume; NaN for a zero-volume layer.
@@ -214,20 +185,15 @@ public:
         return this->p_mass / this->p_volume;
     }
 
-    // -----------------------------------------------------------------------
-    // EOS profile (mutable; populated by the world's EOS solve)
-    // -----------------------------------------------------------------------
+    // EOS profile (populated by the world's EOS solve)
     bool   get_eos_data_populated()             const noexcept { return this->p_eos_data.is_populated(); }
     double get_density(double radius)         const noexcept { return this->p_eos_data.get_density(radius); }
     double get_gravity(double radius)         const noexcept { return this->p_eos_data.get_gravity(radius); }
     double get_pressure(double radius)        const noexcept { return this->p_eos_data.get_pressure(radius); }
     void   update_eos_data(const c_LayerEOSData& data) { this->p_eos_data = data; }
 
-    // -----------------------------------------------------------------------
-    // Viscoelastic state (post-melt by default; pre-melt via the premelt getters).
-    // Populated by the world EOS solve's viscoelastic post-pass (PhysicsLayer and
-    // its subclasses); NaN on a geometry-only BaseLayer or before the solve.
-    // -----------------------------------------------------------------------
+    // Viscoelastic state (post-melt by default, pre-melt through the premelt getters). Populated by the world EOS
+    // solve's post-pass on PhysicsLayer and its subclasses; NaN on a geometry-only BaseLayer or before the solve.
     bool   get_viscoelastic_populated()         const noexcept { return this->p_eos_data.is_viscoelastic_populated(); }
     double get_shear_modulus(double radius)   const noexcept { return this->p_eos_data.get_shear_modulus(radius); }
     double get_bulk_modulus(double radius)    const noexcept { return this->p_eos_data.get_bulk_modulus(radius); }
@@ -267,10 +233,7 @@ public:
             postmelt_bulk_visc);
     }
 
-    // -----------------------------------------------------------------------
-    // Material EOS model (the per-layer density source consumed by the
-    // whole-planet world-level EOS solve). Ownership is transferred in.
-    // -----------------------------------------------------------------------
+    // Material EOS model: the per-layer density source used by the world-level EOS solve. Ownership transfers in.
     void set_eos(std::unique_ptr<c_MaterialEOSBase> eos) {
         this->p_eos = std::move(eos);
         if (this->p_eos) { this->p_eos->set_layer_ptr(this); }
@@ -280,9 +243,6 @@ public:
     c_MaterialEOSBase* get_eos()      const noexcept { return this->p_eos.get(); }
     bool               get_eos_set()  const noexcept { return this->p_eos != nullptr; }
 
-    // -----------------------------------------------------------------------
-    // Update physical properties
-    // -----------------------------------------------------------------------
     void update_physicals() {
         this->p_radius_outer       = this->p_radius;
         this->p_thickness          = this->p_radius_outer - this->p_radius_inner;
@@ -291,9 +251,7 @@ public:
         this->p_surface_area_outer = this->calc_surface_area(this->p_radius_outer);
     }
 
-    // -----------------------------------------------------------------------
     // Binary I/O
-    // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const auto     name_len = static_cast<uint32_t>(this->p_name.size());
         const auto     mat_len  = static_cast<uint32_t>(this->p_material_name.size());
@@ -331,7 +289,6 @@ public:
             throw std::runtime_error("TidalPy: failed to write BaseLayer binary data");
         }
 
-        // Attached material EOS model (presence flag + recursive record).
         this->write_eos_model_binary(out);
     }
 
@@ -372,20 +329,16 @@ public:
             throw std::runtime_error("TidalPy: failed to read BaseLayer binary data");
         }
 
-        // Attached material EOS model (presence flag + recursive record).
         this->read_eos_model_binary(in, force);
 
-        // Restore derived fields from the loaded radii.
         this->update_physicals();
     }
 
 protected:
-    // -----------------------------------------------------------------------
-    // Recursive (de)serialization of the optional material EOS model, shared by every layer class so the
-    // section has one byte layout: a presence flag followed, when set, by the model's own binary record. On
-    // read the concrete model is rebuilt through the material EOS binary-dispatch factory and re-registered
-    // as this layer's observer. Callers count optional_binary_flag_bytes() toward their payload.
-    // -----------------------------------------------------------------------
+    // Recursive (de)serialization of the optional material EOS model, shared by every layer class so the section
+    // has one byte layout: a presence flag followed, when set, by the model's own binary record. On read the
+    // concrete model is rebuilt through the material EOS binary-dispatch factory and re-registered as this
+    // layer's observer. Callers count optional_binary_flag_bytes() toward their payload.
     void write_eos_model_binary(std::ostream& out) const {
         write_optional_binary(out, this->p_eos);
     }
@@ -413,8 +366,8 @@ protected:
     // Mutable EOS profile (populated by the world-level EOS solve; not serialized)
     c_LayerEOSData p_eos_data;
 
-    // Optional material EOS model: the per-layer density source, attached from Python via set_eos and
-    // serialized with the layer binary record (mirroring the rheology/cooling pattern).
+    // Optional material EOS model: the per-layer density source, attached from Python via set_eos and serialized
+    // with the layer binary record.
     std::unique_ptr<c_MaterialEOSBase> p_eos;
 };
 

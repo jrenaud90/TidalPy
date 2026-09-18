@@ -1,16 +1,8 @@
-"""TidalPy rheology_x — C++ rheology model hierarchy.
+"""TidalPy rheology_x: the C++ rheology model hierarchy.
 
-Exposes the seven rheology models and a name-based factory:
-
-- ``Elastic``  (alias ``"off"``)
-- ``Viscous``  (alias ``"newton"``)
-- ``Voigt``    (alias ``"voigt-kelvin"``)
-- ``Maxwell``
-- ``Burgers``
-- ``Andrade``
-- ``Sundberg`` (alias ``"sundberg-cooper"``)
-
-Each model computes the complex modulus (shear μ* or bulk K*) [Pa].
+Each model returns the complex modulus (shear mu* or bulk K*) [Pa]: ``Elastic`` (alias ``"off"``),
+``Viscous`` (alias ``"newton"``), ``Voigt`` (alias ``"voigt-kelvin"``), ``Maxwell``, ``Burgers``,
+``Andrade``, and ``Sundberg`` (alias ``"sundberg-cooper"``), plus the ``make_rheology`` factory.
 """
 
 from TidalPy.rheology_x.rheology import (

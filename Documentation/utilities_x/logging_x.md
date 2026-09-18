@@ -1,10 +1,10 @@
 # Logging (`Utilities_x.logging_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
 TidalPy's compiled code logs through [spdlog](https://github.com/gabime/spdlog), wrapped thinly in Cython so Python can configure and write to the same logger. A single named logger, `"TidalPy"`, is created at package startup and shared by every compiled extension.
 
-The reason this needs a module of its own rather than Python's `logging` is that most of the code producing the messages runs in C++, often with the interpreter lock released. A warning raised from inside a radial solve cannot call back into Python to log itself, so the logging has to live on the C++ side, and the Python entry points exist so that Cython and Python code in the new backend reach the same sinks rather than a parallel set.
+Most of the code producing the messages runs in C++, often with the interpreter lock released, so a warning raised inside a radial solve cannot call back into Python's `logging`. The logging therefore lives on the C++ side, and the Python entry points let Cython and Python code reach the same sinks.
 
 ```
 TidalPy.__init__
@@ -76,7 +76,7 @@ The macros are `TIDALPY_LOG_TRACE`, `TIDALPY_LOG_DEBUG`, `TIDALPY_LOG_INFO`, `TI
 
 ## Sharing the Logger Pointer Across Extensions
 
-`logger.pyx` creates the logger at import time and stores a raw pointer to it. The macros use that pointer directly instead of looking the logger up in spdlog's registry on every call, which is what keeps a debug-level log statement cheap enough to leave inside a solver loop.
+`logger.pyx` creates the logger at import time and stores a raw pointer to it. The macros use that pointer directly instead of looking the logger up in spdlog's registry on every call, which keeps a debug-level log statement cheap enough to leave inside a solver loop.
 
 The consequence is that every Cython extension using C++ logging has to wire itself to that pointer at module-init level, outside any function:
 
@@ -88,7 +88,7 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 
 `get_tidalpy_logger_address` is a `cdef api` function, the same mechanism the shared config pointer uses. Because another module must `cimport` it, Cython imports the logger module first, which guarantees the logger exists before its address is taken.
 
-On Linux and macOS the inline variable is process-wide and the pointer is already shared, so the call is a harmless no-op. On Windows each compiled extension is a separate DLL with its own copy of the variable, and the call is what connects that DLL to the shared logger. Writing it unconditionally is what makes the same source work on all three.
+On Linux and macOS the inline variable is process-wide and the pointer is already shared, so the call is a harmless no-op. On Windows each compiled extension is a separate DLL with its own copy of the variable, and the call is what connects that DLL to the shared logger. Writing it unconditionally makes the same source work on all three.
 
 ## Configuration
 
@@ -106,7 +106,7 @@ write_log_notebook = false   # no log file from a notebook unless true
 
 The two loggers never share a file: this one writes its own timestamped `TidalPy_x` log in the same directory. Test mode disables the file sink entirely.
 
-One practical consequence for test authors is that spdlog writes to the console directly rather than through Python's `logging`, so `caplog` and friends do not see these messages. A test that needs to assert on log output has to enable the file sink and read the file.
+spdlog writes to the console directly rather than through Python's `logging`, so pytest's `caplog` does not see these messages. A test that needs to assert on log output has to enable the file sink and read the file.
 
 ## Dependencies
 

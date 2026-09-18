@@ -1,25 +1,20 @@
 #pragma once
 /*
- * tide_collapse_.hpp — global (1D) tidal mode collapse.
+ * tide_collapse_.hpp - global (1D) tidal mode collapse.
  *
- * c_global_potential (potential/global_.hpp) produces, model-independently, the per-mode
- * potential terms (dU/dM, dU/dw, dU/dO, E_dot) carrying the common coefficient
- * G_lpq^2 * F_lmp^2 * (l-m)!/(l+m)! * (R/a)^(2l+1) * G*M_host/a, plus the unique-frequency
- * maps. This header collapses those terms with a tide model's per-mode dissipation
- * multiplier -Im[k_l(omega)] to give the world's global tidal heating and the
- * three orbital-potential derivatives.
+ * c_global_potential (potential/global_.hpp) produces the per-mode potential terms (dU/dM, dU/dw,
+ * dU/dO, E_dot) carrying the common coefficient
+ * G_lpq^2 * F_lmp^2 * (l-m)!/(l+m)! * (R/a)^(2l+1) * G*M_host/a. This header collapses them with a
+ * tide model's dissipation multiplier, per active mode lmpq at omega = |omega_lmpq|:
  *
- * Collapse (per active mode lmpq, omega = |omega_lmpq|):
- *   neg_imk = -Im[ tide_model.calc_love_numbers(l, omega, solver_love_lmpq).k ]
+ *   neg_imk        = -Im[ tide_model.calc_love_numbers(l, omega, solver_love_lmpq).k ]
  *   tidal_heating += E_dot_term * neg_imk      [W]
- *   dU/dX         += dU_dX_term * neg_imk       [J kg-1 rad-1]   (X = M, w, O)
+ *   dU/dX         += dU_dX_term * neg_imk      [J kg-1 rad-1]   (X = M, w, O)
  *
- * The full c_LoveNumbers suite (k, h, l) is the transport type even though only k drives
- * the collapse. Layer scaling (tidal_scale) is applied by the world afterward, not here;
- * the whole-body collapse uses the unscaled -Im[k]. The rheology model needs the
- * radial-solver Love numbers per mode (solver_love_by_lmpq); analytic models pass nullptr.
+ * Layer scaling (tidal_scale) is applied by the world afterward, so the whole-body collapse uses the
+ * unscaled -Im[k].
  *
- * Reference: Renaud et al. (2021, PSJ), Eq. 7 and surrounding (GlobalTidalDissipation).
+ * Reference: Renaud et al. (2021, PSJ), Eq. 7 and surrounding.
  */
 
 #include <complex>
@@ -50,7 +45,6 @@ inline c_GlobalTideResult c_collapse_global_tides(
         const c_GlobalPotentialResultAtMode& terms   = mode_entry.second;
         const int degree_l                           = static_cast<int>(lmpq_key.a);
 
-        // Resolve this mode's unique tidal frequency.
         found = false;
         const size_t freq_index = potential.unique_freq_index_map.get(found, lmpq_key);
         if (!found) {
@@ -59,7 +53,6 @@ inline c_GlobalTideResult c_collapse_global_tides(
         }
         const double frequency = potential.unique_freq_map[freq_index].frequency;
 
-        // Radial-solver Love numbers (k, h, l) for this mode (rheology only).
         tidalpy::c_LoveNumbers solver_love;
         if (solver_love_by_lmpq != nullptr) {
             bool love_found = false;

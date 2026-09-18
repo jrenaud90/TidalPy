@@ -1,11 +1,6 @@
 # distutils: language = c++
-"""
-legendre.pxd
-Cython declarations for TidalPy's associated-Legendre utilities (Utilities_x/legendre).
-
-Exposes the precomputed table driver (l = 2..10) and the generic xsf-backed evaluator so other
-extensions can cimport and evaluate P_lm(cos theta) with its first/second colatitude derivatives.
-"""
+"""Cython declarations for TidalPy's associated-Legendre utilities (l = 2..10 tables and a generic
+xsf-backed evaluator)."""
 
 
 cdef extern from "legendre_common_.hpp" namespace "tidalpy" nogil:

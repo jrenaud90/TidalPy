@@ -1,6 +1,6 @@
 # Radiogenics (`radiogenics_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-15_
 
 `TidalPy.radiogenics_x` adds functionality to calculate internal heating due to the decay of radioactive isotopes (both long- and short-duration isotopes). Each model in this module uses a layer's mass and the elapsed time to find the radiogenic heating $Q$ [W] released inside that layer.
 
@@ -16,11 +16,11 @@ Radiogenic Models <radiogenics_models.md>
 
 ## Where Radiogenics is Used
 
-A radiogenics model is attached to a `SolidLiquidLayer` with `set_radiogenics`, alongside the layer's cooling model. See [SolidLiquidLayer](../structures_x/layers/solidliquid_layer.md). The layer then answers `calc_radiogenic_heating(time, mass)`, and `LayeredWorld.calc_internal_heating(time)` sums the contributions of every layer that carries a model. Layers without one contribute zero rather than raising.
+A radiogenics model is attached to a `SolidLiquidLayer` with `set_radiogenics`, alongside the layer's cooling model. See [SolidLiquidLayer](../structures_x/layers/solidliquid_layer.md). The layer then provides `calc_radiogenic_heating(time, mass)`, and `LayeredWorld.calc_internal_heating(time)` sums the contributions of every layer that carries a model. Layers without one contribute zero rather than raising.
 
 When a world is built from a TOML file or a config dict, the `[layers.<name>.radiogenics]` table names the model and its parameters, and anything the user omits falls back to the material defaults in `TidalPy_Configs_x.toml`. The shipped defaults give a rock mantle the chondritic isotope set and turn radiogenics off in iron cores and ice shells. See the [TOML schema](../structures_x/config/toml_schema.md).
 
-Radiogenic heating is deliberately kept separate from the tidal solve. The two sources are computed independently and summed by whatever drives the thermal state, so a study can hold one fixed while varying the other.
+Radiogenic heating is computed separately from the tidal solve; the two sources are summed by whatever drives the thermal state, so a study can hold one fixed while varying the other.
 
 ## References
 

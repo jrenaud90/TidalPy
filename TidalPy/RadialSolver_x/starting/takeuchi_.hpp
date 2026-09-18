@@ -1,5 +1,4 @@
-// takeuchi_.hpp - Starting conditions based on Takeuchi & Saito (1972)
-// Ported from TidalPy/RadialSolver/starting/takeuchi.pyx
+// takeuchi_.hpp: starting conditions after Takeuchi and Saito (1972).
 //
 // References
 // ----------
@@ -286,7 +285,7 @@ inline void c_takeuchi_liquid_dynamic_compressible(
         const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
-    // For liquid, shear modulus = 0 so lame = bulk_modulus
+    // Liquid: shear modulus zero, so lame = bulk modulus.
     const std::complex<double> lame = bulk_modulus;
 
     // Constants
@@ -304,7 +303,7 @@ inline void c_takeuchi_liquid_dynamic_compressible(
     const double dlp3         = 2.0 * degree_l_dbl + 3.0;
     const double llp1         = degree_l_dbl * lp1;
 
-    // k2, h, and f no longer depend on k2. See Eq. 101 of TS72
+    // TS72 Eq. 101: f and h no longer depend on k2.
     const double f  = -dynamic_term / gamma;
     const double h  = f - lp1;
     const std::complex<double> k2 = (1.0 / alpha2) * (dynamic_term + 4.0 * gamma - llp1 * gamma * gamma / dynamic_term);

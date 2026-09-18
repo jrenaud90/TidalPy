@@ -1,10 +1,10 @@
 # Cooling Models (`cooling_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-18_
 
 A cooling model maps a layer's physical state onto a **cooling result**: the surface heat flux $q$ [W m$^{-2}$], the thermal boundary-layer thickness [m], and the Rayleigh and Nusselt numbers. The heat flux is what drives a layer's thermal evolution, and the boundary-layer thickness is what makes convective transport so much more effective than conduction: the same temperature drop is squeezed across a thin layer at the top instead of the whole interior.
 
-Each `SolidLiquidLayer` can hold one cooling model. The math mirrors the validated classic implementation in `TidalPy/cooling/cooling_models.py`.
+Each `SolidLiquidLayer` can hold one cooling model.
 
 ## Inheritance
 
@@ -112,7 +112,7 @@ At the C++ level each fills a caller-supplied `std::vector<c_CoolingResult>`, co
 
 ### Convenience Functions
 
-For a one-shot evaluation that does not leave a object behind:
+For a one-shot evaluation that does not leave an object behind:
 
 ```python
 import numpy as np

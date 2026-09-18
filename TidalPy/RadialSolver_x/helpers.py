@@ -18,10 +18,8 @@ def homogeneous_love_numbers(
         **radial_solver_kwargs):
     """Solve the radial problem for a homogeneous solid sphere and return the solution.
 
-    Builds the radius, density, and moduli arrays for a single uniform solid layer and calls
-    :func:`TidalPy.RadialSolver_x.radial_solver` (solving for the tidal boundary condition unless
-    overridden). Useful for quick Love number estimates, demos, and benchmarks where a full layered
-    structure is not needed.
+    Builds the arrays for a single uniform solid layer and calls
+    :func:`TidalPy.RadialSolver_x.radial_solver` (tidal boundary condition unless overridden).
 
     Parameters
     ----------
@@ -56,7 +54,6 @@ def homogeneous_love_numbers(
     Assumptions
     -----------
     - The planet is a single homogeneous solid layer (uniform density and moduli).
-    - All inputs and outputs are MKS.
     """
     radius_array = np.linspace(0.0, planet_radius, num_slices)
     density_array = np.full(num_slices, planet_bulk_density)

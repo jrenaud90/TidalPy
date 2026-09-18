@@ -2,24 +2,19 @@
 /*
  * orbit_solver_.hpp - c_OrbitSolver: orbital rate equations from tidal dissipation.
  *
- * Given the tidal-potential derivatives of a dissipating body (dU/dM, dU/dw, produced by
- * world.calc_tides) and the orbital state, this returns the instantaneous rates of change of the
- * semi-major axis (da/dt), eccentricity (de/dt), and mean motion (dn/dt). Rates only, no time
- * integration. For a dual-body dissipation system each body's rates are additive in the disturbing-function
- * derivatives; the System class sums them.
+ * Returns the instantaneous da/dt [m s-1], de/dt [s-1], and dn/dt [rad s-2] from a dissipating
+ * body's tidal-potential derivatives (dU/dM, dU/dw, produced by world.calc_tides) and its orbital
+ * state. Rates only; the System class integrates them and sums the two bodies of a dual-body
+ * dissipation system.
  *
- * The tidal-potential derivatives are converted to derivatives of the disturbing function R via the
- * reduced mass: for the dissipating (target) body with companion (host),
+ * The potential derivatives become disturbing-function derivatives through the reduced mass:
  *   dR/dX = -((M_target + M_host) / M_target) * dU/dX ,   X in {mean anomaly M, arg pericenter w}.
  * (The 1/M_host that removes one host-mass power relative to the heating is already carried in the
  * dU/dX values from the global tidal collapse.) Then, following Boue & Efroimsky (2019, CMDA) Eqs.
  * 116-117:
  *   da/dt = (2 / (n a)) dR/dM
  *   de/dt = (sqrt(1-e^2) / (n a^2 e)) ( sqrt(1-e^2) dR/dM - dR/dw )
- *   dn/dt = -(3/2)(n / a) da/dt               # (Kepler's third law differentiated)
- *
- * All quantities MKS: n [rad s-1], a [m], e [-], masses [kg], dU/dX [J kg-1 rad-1], da/dt [m s-1],
- * de/dt [s-1], dn/dt [rad s-2].
+ *   dn/dt = -(3/2)(n / a) da/dt               // Kepler's third law differentiated
  */
 
 #include <cmath>

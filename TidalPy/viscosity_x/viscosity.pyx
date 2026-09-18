@@ -1,17 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-viscosity.pyx
-Cython/Python wrapper for TidalPy's viscosity model hierarchy.
+"""Cython and Python wrappers for TidalPy's viscosity models.
 
-A viscosity model returns a material's dynamic viscosity [Pa·s] as a function of
-temperature [K] and pressure [Pa] — the pre-melt ("solid") viscosity that the
-partial-melt step subsequently weakens.
-
-Models:
-- ArrheniusViscosity  (alias "arr")   — Arrhenius flow law.
-- ReferenceViscosity  (alias "ref")   — relative-activation law.
-- ConstantViscosity   (alias "const") — temperature/pressure independent.
+``ArrheniusViscosity`` (alias "arr"), ``ReferenceViscosity`` (alias "ref"), and
+``ConstantViscosity`` (alias "const") return a material's dynamic viscosity [Pa s] at a temperature
+[K] and pressure [Pa]: the pre-melt (solid) viscosity that the partial-melt step weakens.
 """
 
 from libcpp.string cimport string
@@ -52,7 +45,7 @@ cdef class ViscosityBase(PhysicsBase):
         self._ptr = NULL
 
     def calc_viscosity(self, double temperature, double pressure=0.0) -> float:
-        """Dynamic viscosity [Pa·s] at the given temperature [K] and pressure [Pa]."""
+        """Dynamic viscosity [Pa s] at the given temperature [K] and pressure [Pa]."""
         return self._visc_ptr.get().calc_viscosity(temperature, pressure)
 
 
@@ -78,7 +71,7 @@ cdef class ConstantViscosity(ViscosityBase):
 
     @property
     def reference_viscosity(self) -> float:
-        """Reference (constant) viscosity [Pa·s]."""
+        """Reference (constant) viscosity [Pa s]."""
         return self._constant_ptr.get_reference_viscosity()
 
 
@@ -109,7 +102,7 @@ cdef class ReferenceViscosity(ViscosityBase):
 
     @property
     def reference_viscosity(self) -> float:
-        """Reference viscosity [Pa·s]."""
+        """Reference viscosity [Pa s]."""
         return self._ref_ptr.get_reference_viscosity()
 
     @property

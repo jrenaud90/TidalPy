@@ -141,10 +141,7 @@ struct c_LoveNumbers
 
 /// Compute Love and Shida numbers from the radial solution at the planet surface.
 ///
-/// Uses the convention of Tobie et al. (2005) for y5 sign:
-///   k = y5 - 1
-///   h = y1 * surface_gravity
-///   l = y3 * surface_gravity
+/// Follows the Tobie et al. (2005) sign convention for y5.
 ///
 /// References
 /// ----------
@@ -158,10 +155,10 @@ struct c_LoveNumbers
 ///     y-values at the planet surface: [y1, y2, y3, y4, y5, y6].
 /// surface_gravity : double
 ///     Gravitational acceleration at the surface [m s-2].
-/// Return
-/// ------
-/// c_LoveNumbers complex_love_numbers
-///    C++ class containing complex Love numbers.
+///
+/// Returns
+/// -------
+/// c_LoveNumbers : the complex k, h, and l.
 inline c_LoveNumbers c_find_love(
         std::complex<double>* surface_solutions_ptr,
         double surface_gravity

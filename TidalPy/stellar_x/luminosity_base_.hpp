@@ -15,9 +15,8 @@
  *
  * The concrete models (Fixed, MassToLuminosity, PowerLaw) live in luminosity_.hpp.
  *
- * All calc_* methods are const and operate in MKS units: mass [kg], radius [m], temperature [K],
- * luminosity [W]. The Stefan-Boltzmann constant is read from the shared TidalPy config
- * (tidalpy_config_ptr->d_SBC); a null config pointer or a non-positive/degenerate input yields NaN.
+ * The Stefan-Boltzmann constant is read from the shared TidalPy config (tidalpy_config_ptr->d_SBC);
+ * a null config pointer or a non-positive or degenerate input yields NaN.
  */
 
 #include <cmath>
@@ -45,33 +44,15 @@ public:
     ~c_LuminosityBase() override = default;
 
     // -----------------------------------------------------------------------
-    // Luminosity from stellar mass (pure virtual) [W]
-    //
-    // Each model overrides this with its mass -> luminosity relation. The Fixed
-    // model ignores the mass and returns its stored luminosity.
-    //
-    // Parameters
-    // ----------
-    // mass : stellar mass [kg]
-    //
-    // Returns
-    // -------
-    // double : stellar luminosity [W]
-    //
-    // Assumptions
-    // -----------
-    // - Main-sequence mass-luminosity scaling (model specific).
-    // - All inputs and outputs are MKS.
+    // Stellar luminosity [W] from mass [kg]. Each model supplies its own main-sequence
+    // mass-luminosity relation; the Fixed model ignores the mass.
     // -----------------------------------------------------------------------
     virtual double calc_luminosity(double mass) const = 0;
 
     // -----------------------------------------------------------------------
     // Stefan-Boltzmann luminosity [W]: L = 4 pi R^2 sigma T^4.
     // Returns NaN for a non-positive temperature/radius or a null config pointer.
-    //
-    // Assumptions
-    // -----------
-    // The star radiates as an ideal gray body at the given effective temperature.
+    // Assumes the star radiates as an ideal gray body at the given effective temperature.
     // -----------------------------------------------------------------------
     double calc_luminosity_from_temperature(double temperature, double radius) const noexcept {
         if (temperature <= 0.0 || radius <= 0.0 || tidalpy_config_ptr == nullptr) {
@@ -105,10 +86,7 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Vectorized luminosity - vary mass.
-    //
-    // Evaluates calc_luminosity over each mass, writing into out_luminosity
-    // (resized to the mass vector length).
+    // Vectorized over mass; out_luminosity is resized to the mass vector length.
     // -----------------------------------------------------------------------
     void calc_luminosity_vectorize_mass(
             const std::vector<double>& mass,

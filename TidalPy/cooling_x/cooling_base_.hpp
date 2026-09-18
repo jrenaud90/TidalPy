@@ -1,17 +1,9 @@
 #pragma once
 /*
- * cooling_base_.hpp - c_CoolingBase: abstract base for all TidalPy cooling models.
+ * cooling_base_.hpp - c_CoolingBase: abstract base for TidalPy cooling models.
  *
- * Inherits c_PhysicsBase (Utilities_x/classes_x/physics_base_.hpp).
- *
- * Defines the abstract interface that every cooling model must satisfy:
- *   calc_cooling(c_CoolingInputs) -> c_CoolingResult
- *
- * The three implemented models (Off, Convective, Conductive) live in cooling_.hpp.
- *
- * All calc_* methods are const and operate in MKS units. The physical state at a
- * cooling evaluation is bundled in c_CoolingInputs (eight quantities, so a struct
- * is used per the style guide), and the result is bundled in c_CoolingResult.
+ * Inherits c_PhysicsBase. The concrete models (Off, Convective, Conductive) live in cooling_.hpp.
+ * Cooling state and results are bundled in c_CoolingInputs and c_CoolingResult; all quantities MKS.
  */
 
 #include <stdexcept>
@@ -23,21 +15,21 @@
 namespace tidalpy {
 
 // -------------------------------------------------------------------------------
-// c_CoolingInputs — the physical state passed to a cooling model (all MKS).
+// c_CoolingInputs: the physical state passed to a cooling model (all MKS).
 // -------------------------------------------------------------------------------
 struct c_CoolingInputs {
     double delta_temp = 0.0;   // temperature drop across the layer [K]
     double thickness = 0.0;   // layer (or sub-layer) thickness [m]
     double gravity   = 0.0;   // gravitational acceleration [m/s^2]
     double density   = 0.0;   // bulk density [kg/m^3]
-    double viscosity = 0.0;   // dynamic viscosity [Pa·s]
+    double viscosity = 0.0;   // dynamic viscosity [Pa s]
     double thermal_conductivity = 0.0;   // thermal conductivity [W/m/K]
     double thermal_diffusivity = 0.0;   // thermal diffusivity [m^2/s]
     double thermal_expansion   = 0.0;   // thermal expansivity [1/K]
 };
 
 // -------------------------------------------------------------------------------
-// c_CoolingResult — the quantities every cooling model reports.
+// c_CoolingResult: the quantities every cooling model reports.
 // -------------------------------------------------------------------------------
 struct c_CoolingResult {
     double cooling_flux = 0.0;   // heat flux leaving the layer [W/m^2]
@@ -51,34 +43,16 @@ struct c_CoolingResult {
 // -------------------------------------------------------------------------------
 class c_CoolingBase : public c_PhysicsBase {
 public:
-    // -----------------------------------------------------------------------
-    // Construction
-    // -----------------------------------------------------------------------
     c_CoolingBase() = default;
 
     explicit c_CoolingBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
 
     ~c_CoolingBase() override = default;
 
-    // -----------------------------------------------------------------------
-    // Cooling (pure virtual)
-    //
-    // Each model overrides this to map the layer's physical state to a cooling
-    // result (heat flux, boundary-layer thickness, Rayleigh and Nusselt numbers).
-    // c_SolidLiquidLayer calls this to obtain a layer's surface heat flux.
-    //
-    // Assumptions
-    // -----------
-    // - Steady-state boundary-layer theory; all inputs/outputs MKS.
-    // -----------------------------------------------------------------------
+    // Map the layer's physical state to a cooling result. Assumes steady-state boundary-layer theory.
     virtual c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const = 0;
 
-    // -----------------------------------------------------------------------
-    // Vectorized cooling — vary the temperature drop at otherwise fixed state.
-    //
-    // Evaluates calc_cooling over each delta_temp, copying the base inputs and
-    // overriding their delta_temp. out_results is resized to the input length.
-    // -----------------------------------------------------------------------
+    // Vectorized over the temperature drop at otherwise fixed state; out_results is resized.
     void calc_cooling_vectorize_temperature(
             const std::vector<double>& delta_temp,
             const c_CoolingInputs& base_inputs,
@@ -92,9 +66,7 @@ public:
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Vectorized cooling — vary the viscosity at otherwise fixed state.
-    // -----------------------------------------------------------------------
+    // Vectorized over the viscosity at otherwise fixed state.
     void calc_cooling_vectorize_viscosity(
             const std::vector<double>& viscosity,
             const c_CoolingInputs& base_inputs,
@@ -108,12 +80,7 @@ public:
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Vectorized cooling — vary temperature drop and viscosity element-wise.
-    //
-    // The two input vectors must have the same length N; out_results is resized
-    // to N. Throws std::invalid_argument if the input vectors differ in length.
-    // -----------------------------------------------------------------------
+    // Vectorized element-wise over temperature drop and viscosity; the two vectors must match in length.
     void calc_cooling_vectorize_all(
             const std::vector<double>& delta_temp,
             const std::vector<double>& viscosity,

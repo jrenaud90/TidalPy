@@ -1,12 +1,5 @@
 # distutils: language = c++
-"""
-interp.pxd
-Cython declarations for TidalPy's 1-D linear interpolation utilities.
-
-Other extensions can cimport these to interpolate at C speed::
-
-    from TidalPy.Utilities_x.arrays.interp cimport c_interp, c_interp_complex
-"""
+"""Cython declarations for TidalPy's 1-D linear interpolation utilities (``interp_.hpp``)."""
 
 from libcpp.complex cimport complex as cpp_complex
 

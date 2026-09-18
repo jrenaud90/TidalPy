@@ -8,12 +8,12 @@
 #include <memory>
 #include <string>
 
-#include "cysolution.hpp"  // Part of the CyRK python package. Header should be included in setup using CyRK.get_include()
+#include "cysolution.hpp"  // CyRK: CySolverResult
 
 #include "../../Utilities_x/dimensions/nondimensional_.hpp" // c_NonDimensionalScales
-#include "constants_.hpp"      // Part of the TidalPy
+#include "constants_.hpp"
 
-#include "ode_.hpp" // For C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
+#include "ode_.hpp" // C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
 #include "../../utilities/arrays/interp_.hpp"  // c_binary_search_with_guess, c_interp, c_interp_complex
 #include "../../Utilities_x/math_x/numerics_.hpp"  // c_isclose
 
@@ -39,14 +39,9 @@ public:
     bool other_vecs_set    = false;
     bool p_use_array_interp = false;  // set by inject_from_world_eos; call() uses array interpolation
 
-    // Optional dense structure source (non-owning). When set together with p_use_array_interp, the solved structure
-    // dependent variables (gravity/pressure/mass/moi) are read from this external dense EOS solution rather than the
-    // stored arrays, preserving the dense (polynomial) accuracy of the integrated EOS structure. Density and the
-    // complex moduli remain array-interpolated (density is algebraic; the complex moduli come from the rheology, not
-    // the EOS solve). Used by the world Love-number solve, which reuses the world's already-solved (dense) EOS while
-    // supplying frequency-dependent complex moduli. The source is dimensional (SI); the scales convert to this
-    // solution's (non-dim) units: source_radius = this_radius * p_structure_length_scale; this_value = source_value /
-    // p_structure_*_scale.
+    // Optional non-owning dense structure source (the world Love solve). With p_use_array_interp, gravity, pressure,
+    // mass, and moi are read from it at dense accuracy while density and the complex moduli stay array-interpolated.
+    // The source is SI: source_radius = this_radius * p_structure_length_scale, this_value = source_value / scale.
     const c_EOSSolution* p_structure_dense_source = nullptr;
     double p_structure_length_scale  = 1.0;
     double p_structure_gravity_scale = 1.0;
@@ -95,15 +90,13 @@ public:
     std::vector<double> shear_viscosity_array_vec = std::vector<double>();
     std::vector<double> bulk_viscosity_array_vec  = std::vector<double>();
 
-    // Radial derivative of the density at every slice (units of the arrays per unit radius). When present, the
-    // array lookup interpolates the density with a cubic Hermite polynomial, whose slope is continuous across
-    // slices, instead of linearly; an integrator stepping through the layer then sees no kinks. Filled by
-    // inject_from_world_eos (the world Love path); empty otherwise.
+    // Radial density derivative per slice (array units per unit radius). When present the density lookup is cubic
+    // Hermite (slope continuous across slices, so the radial integrator sees no kinks). Filled by
+    // inject_from_world_eos; empty otherwise.
     std::vector<double> density_slope_array_vec = std::vector<double>();
 
-    // Per-layer EOS evaluation functions and their arguments, saved by c_solve_eos at the final run. The retained
-    // integrators carry only the four structure variables, so the density, moduli, and viscosities at a radius are
-    // evaluated on demand by these functions from the interpolated state, exactly as the diffeq would have.
+    // Per-layer EOS functions and arguments saved by c_solve_eos. The retained integrators carry only the four
+    // structure variables; density, moduli, and viscosities are evaluated on demand from the interpolated state.
     std::vector<PreEvalFunc>    eos_function_bylayer_vec = std::vector<PreEvalFunc>();
     std::vector<c_EOS_ODEInput> eos_input_bylayer_vec    = std::vector<c_EOS_ODEInput>();
 
@@ -119,14 +112,11 @@ public:
 
     virtual ~c_EOSSolution()
     {
-        // Reset each unique pointer in the cysolver vector
         for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
         {
             this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
-            // Reset this class reference to the unique pointer.
             this->cysolver_results_uptr_bylayer_vec[i].reset();
         }
-        // Clear all vectors
         this->cysolver_results_uptr_bylayer_vec.clear();
         this->upper_radius_bylayer_vec.clear();
         this->radius_array_vec.clear();
@@ -157,11 +147,7 @@ public:
     {
         this->cysolver_results_uptr_bylayer_vec.reserve(num_layers_);
         this->upper_radius_bylayer_vec.resize(num_layers_);
-
-        // Store the upper radius of each layer to make it easier to call interpolators later
         std::memcpy(this->upper_radius_bylayer_vec.data(), upper_radius_bylayer_ptr, this->num_layers * sizeof(double));
-
-        // Use provided radius array to setup various storage vectors
         this->change_radius_array(radius_array_ptr, radius_array_size_);
     }
 
@@ -240,9 +226,8 @@ public:
     }
 
 
-    /// Linear interpolation of gravity and density from the stored arrays inside one layer's slices, in the units
-    /// of the arrays. Used where the collapsed radial solution needs the structure at a radius without the dense
-    /// output (the dynamic-liquid y3 reconstruction).
+    /// Linear interpolation of gravity and density inside one layer's slices, in array units. Used where the dense
+    /// output is unavailable (the dynamic-liquid y3 reconstruction).
     void interp_structure_in_layer(
         const size_t layer_index,
         const double radius_val,
@@ -382,8 +367,7 @@ public:
         }
         if (n == 0)
         {
-            // No stored arrays to interpolate; make the failure visible rather than reading
-            // uninitialized memory.
+            // NaN rather than reading uninitialized memory.
             for (size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i)
             {
                 y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
@@ -398,8 +382,7 @@ public:
         int    b_code = 0;
         j = c_binary_search_with_guess(radius_val, radius_data_ptr, n, j, &b_code);
 
-        // Density: cubic Hermite between the bracketing slices when the slopes are stored (continuous slope, so
-        // the radial integrator is not held back by kinks between slices), else linear below with the others.
+        // Density: cubic Hermite between the bracketing slices when the slopes are stored, else linear below.
         const bool hermite_density = (this->density_slope_array_vec.size() == this->radius_array_size) && (n >= 2);
         if (hermite_density)
         {
@@ -423,9 +406,8 @@ public:
                 + (t3 - t2) * span * slope_ptr[left + 1];
         }
 
-        // Interpolate each quantity in the order that matches the CySolverResult layout:
-        //   [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
-        //   [5] shear_real, [6] shear_imag, [7] bulk_real, [8] bulk_imag
+        // Output layout matches the CySolverResult: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
+        // [5] shear_real, [6] shear_imag, [7] bulk_real, [8] bulk_imag, [9] shear viscosity, [10] bulk viscosity.
         c_interp(
             &radius_query,
             radius_data_ptr,
@@ -487,8 +469,7 @@ public:
         y_interp_ptr[7] = bulk_result[0];
         y_interp_ptr[8] = bulk_result[1];
 
-        // The viscosities at [9] and [10] are interpolated when stored, else NaN so consumers never read
-        // uninitialized memory.
+        // Viscosities are NaN when not stored.
         if (this->shear_viscosity_array_vec.size() == this->radius_array_size
             && this->bulk_viscosity_array_vec.size() == this->radius_array_size)
         {
@@ -526,13 +507,10 @@ public:
     {
         if (this->p_use_array_interp) [[unlikely]]
         {
-            // EOS was injected from a pre-solved world; use array interpolation inside the layer's slices.
-            // Arrays are already in the units inject_from_world_eos provided.
             this->_call_interp_arrays(layer_index, radius_val, y_interp_ptr);
 
-            // Override the solved structure variables (gravity, pressure, mass, moi) with the dense-output values
-            // of the source EOS solution, keeping the polynomial accuracy of the integrated structure. Density and
-            // the complex moduli keep their array-interpolated values.
+            // The structure variables come from the dense source at its accuracy; density and moduli stay
+            // array-interpolated.
             if (this->p_structure_dense_source) [[unlikely]]
             {
                 double src_out[C_EOS_Y_VALUES];
@@ -603,7 +581,6 @@ public:
         this->radius_array_size = new_radius_size;
         if (this->radius_array_set)
         {
-            // Radius array was already set before. Reset the storage array vectors.
             this->radius_array_vec.clear();
             this->gravity_array_vec.clear();
             this->pressure_array_vec.clear();
@@ -621,13 +598,10 @@ public:
             }
             this->cysolver_results_uptr_bylayer_vec.clear();
             this->current_layers_saved = 0;
-
-            // Indicate that all vectors are cleared.
             this->other_vecs_set = false;
         }
         this->radius_array_set = true;
 
-        // Reserve capacity in vectors for new radius array size
         this->gravity_array_vec.reserve(this->radius_array_size);
         this->pressure_array_vec.reserve(this->radius_array_size);
         this->mass_array_vec.reserve(this->radius_array_size);
@@ -638,11 +612,9 @@ public:
         this->shear_viscosity_array_vec.reserve(this->radius_array_size);
         this->bulk_viscosity_array_vec.reserve(this->radius_array_size);
 
-        // Copy over the radius array values
         this->radius_array_vec.resize(this->radius_array_size);
         std::memcpy(this->radius_array_vec.data(), new_radius_ptr, new_radius_size * sizeof(double));
 
-        // Get constants
         this->radius = this->radius_array_vec.back();
         this->update_slice_partition();
     }
@@ -673,18 +645,15 @@ public:
 
             if (c_isclose(radius_val, current_layer_upper_radius))
             {
-                // At the layer's radius. We want to capture it once at interfaces
-                // (there will be two of the same radii for interface layers)
+                // An interface radius appears twice; the first copy belongs to the lower layer.
                 if (interface_check == 1)
                 {
-                    // No longer in current layer
                     ready_for_next_layer = true;
                 }
                 interface_check++;
             }
             else if (radius_val > current_layer_upper_radius)
             {
-                // No longer in current layer
                 ready_for_next_layer = true;
             }
 
@@ -693,7 +662,6 @@ public:
                 current_layer_index++;
                 if (current_layer_index > (this->num_layers - 1))
                 {
-                    // Outside of the planet
                     break;
                 }
                 else
@@ -704,49 +672,39 @@ public:
                 }
             }
 
-            // Evaluate the layer's integrator and EOS function at this radius (solve units).
             this->p_evaluate_solver(current_layer_index, radius_val, y_interp_ptr);
 
-            // Store results
             this->gravity_array_vec.push_back(y_interp_ptr[0]);
             this->pressure_array_vec.push_back(y_interp_ptr[1]);
             this->mass_array_vec.push_back(y_interp_ptr[2]);
             this->moi_array_vec.push_back(y_interp_ptr[3]);
             this->density_array_vec.push_back(y_interp_ptr[4]);
 
-            // CyRK only deals with doubles so we need to convert the 2 doubles into 1 complex for each 
-            //  modulus array.
+            // CyRK carries the moduli as real and imaginary double pairs.
             this->complex_shear_array_vec.push_back(std::complex<double>(y_interp_ptr[5], y_interp_ptr[6]));
             this->complex_bulk_array_vec.push_back(std::complex<double>(y_interp_ptr[7], y_interp_ptr[8]));
 
-            // Static viscosities (real) carried as EOS extra outputs 9 and 10.
             this->shear_viscosity_array_vec.push_back(y_interp_ptr[9]);
             this->bulk_viscosity_array_vec.push_back(y_interp_ptr[10]);
 
-            // Record central pressure
             if (current_layer_index == 0 && radius_i == 0)
             {
                 this->central_pressure = y_interp_ptr[1];
             }
         }
 
-        // At the end we should be at the planet's surface. Use the last interpolated values to set surface constants
+        // The last interpolated values are the surface values.
         this->surface_gravity  = y_interp_ptr[0];
         this->surface_pressure = y_interp_ptr[1];
         this->mass             = y_interp_ptr[2];
         this->moi              = y_interp_ptr[3];
 
-        // Finished
         this->other_vecs_set = true;
     }
 
-    /// Populate all structure arrays directly from pre-solved world EOS data.
-    ///
-    /// Bypasses CySolverResult — use when a LayeredWorld has already run solve_eos
-    /// and the result needs to be handed into a c_RadialSolutionStorage without
-    /// re-integrating the ODE. The arrays are stored in whatever units they are given in. An optional
-    /// density_slope_ptr (the radial density derivative at every slice, same units per unit radius) switches
-    /// the density lookup to cubic Hermite interpolation; null keeps it linear.
+    /// Populate the structure arrays from a world's solved EOS without re-integrating, in whatever units the
+    /// arrays are given in. A density_slope_ptr (radial density derivative per slice) switches the density lookup
+    /// to cubic Hermite; null keeps it linear.
     void inject_from_world_eos(
         const double* radius_ptr,
         const double* gravity_ptr,
@@ -801,14 +759,12 @@ public:
     }
 
 
-    /// Handle dimensionalization/redimensionalization of solution data. The structure variables, density, and
-    /// moduli arrays are scaled; the viscosity arrays are SI in every state (the EOS functions return them in SI)
-    /// and are left alone.
+    /// Scale the structure variables, density, and moduli into or out of non-dimensional units. The viscosity
+    /// arrays are SI in every state and are left alone.
     void dimensionalize_data(
         c_NonDimensionalScales* nondim_scales,
         bool redimensionalize)
     {
-        // Save scalers
         this->redim_length_scale  = nondim_scales->length_conversion;
         this->redim_gravity_scale = nondim_scales->length_conversion / nondim_scales->second2_conversion;
         this->redim_mass_scale    = nondim_scales->mass_conversion;
@@ -816,18 +772,16 @@ public:
         this->redim_moi_scale     = nondim_scales->mass_conversion * nondim_scales->length_conversion * nondim_scales->length_conversion;
         this->redim_pascal_scale  = nondim_scales->pascal_conversion;
 
-        // Figure out how to set flags used during eos solution calls
+        // A solution that was neither non-dimensionalized nor re-dimensionalized at solve time is assumed to be in
+        // the state the requested direction implies.
         if (this->solution_nondim_status == 0)
         {
-            // EOS was not explicitly non-dim'd or re-dim'd when solution was found.
             if (redimensionalize)
             {
-                // User is now "redimensionalizing." Thus we assume that the solution was non-dim'd
                 this->nondim_status = 1;
             }
             else
             {
-                // User is now "dimensionalizing." Thus we assume that the solution was dim'd
                 this->nondim_status = -1;
             }
         }
@@ -837,7 +791,6 @@ public:
             throw std::runtime_error("Unsupported dimensionalization encountered.");
         }
 
-        // Update other constants
         if (redimensionalize)
         {
             this->pressure_error *= this->redim_pascal_scale;
@@ -847,7 +800,6 @@ public:
             this->pressure_error /= this->redim_pascal_scale;
         }
 
-        // Update layer data
         for (size_t layer_i = 0; layer_i < this->num_layers; layer_i++)
         {
             if (redimensionalize)
@@ -862,7 +814,6 @@ public:
 
         if (this->other_vecs_set)
         {
-            // Work through arrays
             for (size_t slice_i = 0; slice_i < this->radius_array_size; slice_i++)
             {
                 if (redimensionalize)
@@ -889,7 +840,6 @@ public:
                 }
             }
 
-            // Update global constants
             this->radius           = this->radius_array_vec[this->radius_array_size - 1];
             this->surface_gravity  = this->gravity_array_vec[this->radius_array_size - 1];
             this->surface_pressure = this->pressure_array_vec[this->radius_array_size - 1];

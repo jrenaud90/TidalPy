@@ -1,12 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-interp.pyx
-Python/Cython wrapper for TidalPy's 1-D linear interpolation utility.
-
-Exposes ``interp(x, xp, fp)``, a ``numpy.interp``-style linear interpolation
-backed by the header-only C++ ``c_interp`` (Utilities_x/arrays/interp_.hpp).
-"""
+"""Python wrapper for TidalPy's 1-D linear interpolation, backed by ``c_interp`` in ``interp_.hpp``."""
 
 import numpy as np
 

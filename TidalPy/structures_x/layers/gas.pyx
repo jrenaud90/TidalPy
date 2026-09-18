@@ -1,13 +1,9 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-gas.pyx
-Cython/Python wrapper for TidalPy's gas layer class.
+"""Cython wrapper for TidalPy's gas layer class.
 
-GasLayer: extends PhysicsLayer with ideal-gas thermodynamic properties
-(adiabatic lapse rate, scale height, ideal-gas pressure, sound speed).
-No phase changes, no solidus/liquidus, and no cooling or radiogenics
-sub-models.
+GasLayer extends PhysicsLayer with ideal-gas thermodynamics (adiabatic lapse rate, scale height, ideal-gas
+pressure, sound speed). It has no phase changes and no cooling or radiogenics sub-models.
 """
 
 from libcpp.complex cimport complex as cpp_complex
@@ -33,22 +29,14 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # GasLayer
 # =====================================================================================================================
 cdef class GasLayer(PhysicsLayer):
-    """Ideal-gas/fluid layer with thermodynamic properties.
+    """Ideal-gas layer: PhysicsLayer plus adiabatic lapse rate, scale height, ideal-gas pressure, and sound speed.
 
-    Extends PhysicsLayer with ideal-gas calculations:
-
-    - Dry adiabatic lapse rate.
-    - Barometric scale height.
-    - Ideal-gas pressure from density and temperature.
-    - Adiabatic sound speed.
-
-    No phase changes, cooling, or radiogenics sub-models are available
-    (use SolidLiquidLayer for those features).
+    No phase changes, cooling, or radiogenics sub-models are available (use SolidLiquidLayer for those).
 
     Parameters
     ----------
     name : str
-        Human-readable layer name.
+        Layer name.
     layer_index : int
         Zero-based position; innermost layer = 0.
     radius_inner : float
@@ -89,9 +77,8 @@ cdef class GasLayer(PhysicsLayer):
     Assumptions
     -----------
     - Spherically symmetric layer geometry.
-    - All values in MKS units.
-    - Gas is ideal; real-gas corrections are not included.
-    - Universal gas constant sourced from TidalPy global configuration.
+    - The gas is ideal; real-gas corrections are not included.
+    - The universal gas constant comes from the TidalPy global configuration.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -162,7 +149,7 @@ cdef class GasLayer(PhysicsLayer):
         return v
 
     # ------------------------------------------------------------------------------------------------------------------
-    # Gas property properties
+    # Gas properties
     # ------------------------------------------------------------------------------------------------------------------
     @property
     def mean_molecular_weight(self) -> float:
@@ -188,7 +175,7 @@ cdef class GasLayer(PhysicsLayer):
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
     def calc_adiabatic_lapse_rate(self, double gravity) -> float:
-        """Dry adiabatic lapse rate [K/m] = g * (γ-1) * M / (γ * R).
+        """Dry adiabatic lapse rate [K/m] = g * (γ-1) * M / (γ * R); 0.0 for invalid inputs.
 
         Parameters
         ----------
@@ -198,18 +185,13 @@ cdef class GasLayer(PhysicsLayer):
         Returns
         -------
         float
-            Adiabatic lapse rate [K/m].  Returns 0.0 for invalid inputs.
-
-        Assumptions
-        -----------
-        - Ideal gas.
-        - R from TidalPy global configuration.
+            Adiabatic lapse rate [K/m].
         """
         return self._gas_ptr.calc_adiabatic_lapse_rate(gravity)
 
     def calc_scale_height(self, double temperature,
                           double gravity) -> float:
-        """Barometric scale height [m] = R * T / (g * M).
+        """Barometric scale height [m] = R * T / (g * M); 0.0 for invalid inputs.
 
         Parameters
         ----------
@@ -221,18 +203,13 @@ cdef class GasLayer(PhysicsLayer):
         Returns
         -------
         float
-            Scale height [m].  Returns 0.0 for invalid inputs.
-
-        Assumptions
-        -----------
-        - Ideal gas.
-        - R from TidalPy global configuration.
+            Scale height [m].
         """
         return self._gas_ptr.calc_scale_height(temperature, gravity)
 
     def calc_pressure_ideal_gas(self, double temperature,
                                 double density) -> float:
-        """Ideal-gas pressure [Pa] = ρ * R * T / M.
+        """Ideal-gas pressure [Pa] = ρ * R * T / M; 0.0 for invalid inputs.
 
         Parameters
         ----------
@@ -244,17 +221,12 @@ cdef class GasLayer(PhysicsLayer):
         Returns
         -------
         float
-            Pressure [Pa].  Returns 0.0 for invalid inputs.
-
-        Assumptions
-        -----------
-        - Ideal gas.
-        - R from TidalPy global configuration.
+            Pressure [Pa].
         """
         return self._gas_ptr.calc_pressure_ideal_gas(temperature, density)
 
     def calc_sound_speed(self, double temperature) -> float:
-        """Adiabatic sound speed [m/s] = sqrt(γ * R * T / M).
+        """Adiabatic sound speed [m/s] = sqrt(γ * R * T / M); 0.0 for invalid inputs.
 
         Parameters
         ----------
@@ -264,12 +236,7 @@ cdef class GasLayer(PhysicsLayer):
         Returns
         -------
         float
-            Sound speed [m/s].  Returns 0.0 for invalid inputs.
-
-        Assumptions
-        -----------
-        - Ideal gas.
-        - R from TidalPy global configuration.
+            Sound speed [m/s].
         """
         return self._gas_ptr.calc_sound_speed(temperature)
 
@@ -277,14 +244,7 @@ cdef class GasLayer(PhysicsLayer):
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
-        """Return all configuration values as a Python dict (MKS).
-
-        Returns
-        -------
-        dict
-            All BaseLayer + PhysicsLayer keys plus the 4 GasLayer
-            thermodynamic parameters.
-        """
+        """Return all configuration values as a Python dict (MKS): the PhysicsLayer keys plus the gas parameters."""
         d = PhysicsLayer.get_config_dict(self)
         d["mean_molecular_weight_kg_mol"] = self._gas_ptr.get_mean_molecular_weight()
         d["adiabatic_index"]              = self._gas_ptr.get_adiabatic_index()

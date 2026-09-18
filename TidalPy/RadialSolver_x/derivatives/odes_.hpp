@@ -24,22 +24,11 @@ struct c_RadialSolverArgs
 
 
 // ============================================================================
-//  Helper: read EOS outputs at a given radius
+//  Helpers: EOS lookup and y-vector packing
 // ============================================================================
 
-/// Read EOS array called from a CyRK Dense output and extract gravity,
-/// density, shear, and bulk modulus.
-///
-/// The EOS stores 4 doubles and two complex:
-///   0: Gravity
-///   1: Pressure
-///   2: Mass
-///   3: MOI
-///   4: Density
-///   5a: Complex Shear (real)
-///   5b: Complex Shear (imag)
-///   6a: Complex Bulk (real)
-///   6b: Complex Bulk (imag)
+/// Gravity, density, and the complex moduli from the EOS dense output at a radius (layout: [0] gravity,
+/// [1] pressure, [2] mass, [3] moi, [4] density, [5, 6] shear re/im, [7, 8] bulk re/im).
 static inline void c_read_eos(
         c_RadialSolverArgs* rs_args_ptr,
         double radius,
@@ -49,9 +38,7 @@ static inline void c_read_eos(
         std::complex<double>& bulk_modulus
         ) noexcept
 {
-    // Must be sized C_EOS_DY_VALUES: the EOS dense `call` writes all EOS ODE outputs (4 primary y-values +
-    // extra density/moduli/viscosity), i.e. C_EOS_DY_VALUES doubles. A smaller buffer (e.g. 9) is overrun by
-    // the dense re-evaluation and corrupts the stack.
+    // The dense call writes C_EOS_DY_VALUES doubles; a smaller buffer corrupts the stack.
     double eos_array[C_EOS_DY_VALUES];
     rs_args_ptr->eos_solution_ptr->call(rs_args_ptr->layer_index, radius, &eos_array[0]);
 
@@ -62,8 +49,7 @@ static inline void c_read_eos(
 }
 
 
-/// Read y-values from the double-pair array (CyRK format) into 6 complex values.
-/// Read y-values for solid (6 active: y1, y2, y3, y4, y5, y6); applies to static or dynamic; compressible or incomp.
+/// Read the six solid-layer ys from CyRK's real-pair array.
 static inline void c_read_y6(
         double* y_ptr,
         std::complex<double>& y1,
@@ -82,7 +68,7 @@ static inline void c_read_y6(
     y6 = std::complex<double>(y_ptr[10], y_ptr[11]);
 }
 
-/// Read y-values for dynamic liquid (4 active: y1, y2, y5, y6). Applies to compressible and incomp.
+/// Read the four dynamic-liquid ys (y1, y2, y5, y6).
 static inline void c_read_y4_liquid(
         double* y_ptr,
         std::complex<double>& y1,
@@ -97,7 +83,7 @@ static inline void c_read_y4_liquid(
     y6 = std::complex<double>(y_ptr[6], y_ptr[7]);
 }
 
-/// Read y-values for static liquid (2 active: y5, y7). Applies to incomp only.
+/// Read the two static-liquid ys (y5, y7).
 static inline void c_read_y4_static_liquid(
         double* y_ptr,
         std::complex<double>& y5,
@@ -108,7 +94,7 @@ static inline void c_read_y4_static_liquid(
     y7 = std::complex<double>(y_ptr[2], y_ptr[3]);
 }
 
-/// Write 6 complex dy values back to the double-pair output array.
+/// Write six complex dy values to the real-pair output array.
 static inline void c_write_dy6(
         double* dy_ptr,
         const std::complex<double>& dy1,
@@ -127,7 +113,7 @@ static inline void c_write_dy6(
     dy_ptr[10] = dy6.real(); dy_ptr[11] = dy6.imag();
 }
 
-/// Write 4 complex dy values back to the double-pair output array (dynamic liquid).
+/// Write four complex dy values (dynamic liquid).
 static inline void c_write_dy4(
         double* dy_ptr,
         const std::complex<double>& dy1,
@@ -142,7 +128,7 @@ static inline void c_write_dy4(
     dy_ptr[6] = dy6.real(); dy_ptr[7] = dy6.imag();
 }
 
-/// Write 2 complex dy values back to the double-pair output array (static liquid).
+/// Write two complex dy values (static liquid).
 static inline void c_write_dy2(
         double* dy_ptr,
         const std::complex<double>& dy5,
@@ -170,19 +156,15 @@ inline void c_solid_dynamic_compressible(
 {
     c_RadialSolverArgs* rs_args_ptr = reinterpret_cast<c_RadialSolverArgs*>(args_ptr);
 
-    // EOS lookup
     double gravity, density;
     std::complex<double> shear_modulus, bulk_modulus;
     c_read_eos(rs_args_ptr, radius, gravity, density, shear_modulus, bulk_modulus);
 
-    // y-values
     std::complex<double> y1, y2, y3, y4, y5, y6;
     c_read_y6(y_ptr, y1, y2, y3, y4, y5, y6);
 
-    // Lame parameter
     const std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
 
-    // Precomputed terms
     const double r_inverse       = 1.0 / radius;
     const double density_gravity = density * gravity;
     const double dynamic_term    = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
@@ -193,7 +175,6 @@ inline void c_solid_dynamic_compressible(
     const std::complex<double> two_shear_r_inv  = 2.0 * shear_modulus * r_inverse;
     const std::complex<double> y1_y3_term       = 2.0 * y1 - rs_args_ptr->llp1 * y3;
 
-    // Derivatives (TS72 Eq. 82; KMN15 Eqs. 4-9; B15 Eqs. 13-18)
     const std::complex<double> dy1 =
         lame_2mu_inverse * (
             y1_y3_term * -lame * r_inverse +
@@ -494,7 +475,6 @@ inline void c_liquid_dynamic_compressible(
     std::complex<double> shear_modulus, bulk_modulus;
     c_read_eos(rs_args_ptr, radius, gravity, density, shear_modulus, bulk_modulus);
 
-    // 4 active y-values for dynamic liquid
     std::complex<double> y1, y2, y5, y6;
     c_read_y4_liquid(y_ptr, y1, y2, y5, y6);
 
@@ -505,23 +485,21 @@ inline void c_liquid_dynamic_compressible(
     const double dynamic_term      = dynamic_term_no_r * radius;
     const double grav_term         = rs_args_ptr->grav_coeff * density;
 
-    // For liquid layers, shear = 0 so lame = bulk modulus
+    // Liquid: shear = 0 so lame = bulk modulus.
     const std::complex<double> lame_inverse = 1.0 / bulk_modulus;
 
-    // Compute y1_y3_term analytically (avoiding explicit y3 computation for numerical stability)
+    // y1_y3_term formed without an explicit y3 for numerical stability.
     const std::complex<double> coeff_r = rs_args_ptr->llp1 / (f2 * radius);
     const std::complex<double> y1_y3_term =
         y1 * (2.0 - gravity * coeff_r) +
         y2 * coeff_r / density +
         y5 * coeff_r;
 
-    // Derivatives (TS72 Eq. 87)
     const std::complex<double> dy1 =
         y2 * lame_inverse -
         y1_y3_term * r_inverse;
 
-    // FIX: In TS72 the solid version has a [2*(lame+mu)*r_inv] coefficient for y1_y3_term;
-    //      for liquid (mu=0) the first term vanishes. The original code has a TODO about this.
+    // The solid form carries a 2 (lame + mu) / r coefficient on y1_y3_term in TS72; it vanishes for mu = 0.
     const std::complex<double> dy2 =
         y1 * (dynamic_term_no_r - 2.0 * density_gravity * r_inverse) +
         y5 * density * rs_args_ptr->lp1 * r_inverse -
@@ -574,7 +552,6 @@ inline void c_liquid_dynamic_incompressible(
     const double dynamic_term    = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
     const double grav_term       = rs_args_ptr->grav_coeff * density;
 
-    // y3 for incompressible dynamic liquid
     const std::complex<double> y3 =
         (1.0 / dynamic_term) * (y2 + density * y5 - density_gravity * y1);
     const std::complex<double> y1_y3_term = 2.0 * y1 - rs_args_ptr->llp1 * y3;
@@ -587,8 +564,7 @@ inline void c_liquid_dynamic_incompressible(
             y1 * (dynamic_term - 2.0 * density_gravity) +
             y5 * density * rs_args_ptr->lp1 +
             y6 * -density * radius +
-            // FIX: Same TODO as compressible liquid re: missing lame term from solid version
-            y1_y3_term * -density_gravity
+            y1_y3_term * -density_gravity  // the solid form's lame term vanishes for mu = 0
         );
 
     const std::complex<double> dy5 =
@@ -630,14 +606,12 @@ inline void c_liquid_static_incompressible(
     std::complex<double> shear_modulus, bulk_modulus;
     c_read_eos(rs_args_ptr, radius, gravity, density, shear_modulus, bulk_modulus);
 
-    // Only y5 and y7 for static liquid
     std::complex<double> y5, y7;
     c_read_y4_static_liquid(y_ptr, y5, y7);
 
     const double r_inverse = 1.0 / radius;
     const double grav_term = rs_args_ptr->grav_coeff * density / gravity;
 
-    // S74 Eq. 18
     const std::complex<double> dy5 =
         y5 * (grav_term - rs_args_ptr->lp1 * r_inverse) +
         y7;
@@ -663,7 +637,6 @@ inline DiffeqFuncType c_find_layer_diffeq(
 {
     if (layer_type == 0)
     {
-        // Solid
         if (layer_is_static == 1)
         {
             if (layer_is_incomp == 1)
@@ -689,10 +662,9 @@ inline DiffeqFuncType c_find_layer_diffeq(
     }
     else
     {
-        // Liquid
         if (layer_is_static == 1)
         {
-            // FIX: Compressible static liquid uses same function as incompressible. Check if this is correct.
+            // TODO: A compressible static liquid uses the incompressible function; confirm this is correct.
             return c_liquid_static_incompressible;
         }
         else
@@ -710,11 +682,7 @@ inline DiffeqFuncType c_find_layer_diffeq(
 }
 
 
-/// Return the number of independent shooting solutions for the given layer type.
-///
-/// Solid layers: 3 solutions
-/// Dynamic liquid layers: 2 solutions (compressible or incompressible)
-/// Static liquid layers: 1 solution
+/// Number of independent shooting solutions: 3 solid, 2 dynamic liquid, 1 static liquid.
 inline size_t c_find_num_shooting_solutions(
         int layer_type,
         int layer_is_static,
@@ -723,12 +691,10 @@ inline size_t c_find_num_shooting_solutions(
 {
     if (layer_type == 0)
     {
-        // Solid: always 3 independent solutions
         return 3;
     }
     else
     {
-        // Liquid
         if (layer_is_static == 1)
         {
             return 1;

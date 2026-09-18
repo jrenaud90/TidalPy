@@ -2,22 +2,20 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Point-wise 3D tidal strain, stress, heating, and displacement kernels.
 
-A thin Cython layer over the C++ kernel (``kernel_.hpp`` and ``strain_radial_.hpp``) that the world's 3D methods also
-use. These are point evaluations and materialize no grids. The caller supplies the radial functions and complex
-moduli at the point (``LayeredWorld.get_love_radial_y``, ``calc_complex_shear_modulus``, and
-``calc_complex_bulk_modulus`` after a radial-solver Love solve at the mode's degree and ``|frequency|``) and one tidal
-mode's potential row from ``TidalPy.Tides_x.potential.tidal_potential_3d_modes``.
+A thin Cython layer over the C++ kernel (``kernel_.hpp`` and ``strain_radial_.hpp``) that the world's 3D methods
+also use. These are point evaluations and materialize no grids. The caller supplies the radial functions and
+complex moduli at the point (``LayeredWorld.get_love_radial_y``, ``calc_complex_shear_modulus``, and
+``calc_complex_bulk_modulus`` after a radial-solver Love solve at the mode's degree and ``|frequency|``) and one
+tidal mode's potential row from ``TidalPy.Tides_x.potential.tidal_potential_3d_modes``.
 
 Potential rows are complex phasor amplitudes ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)``
 with ``U(t) = Re[U_c e^{i omega t}]``; a real row is a phasor with zero phase. The strains, stresses, and
-displacements returned are complex amplitudes in the same convention. To assemble several modes:
-
-- Evaluate the moduli and radial functions at ``|frequency|`` and conjugate the row of any mode whose frequency is
-  negative, so every amplitude is at ``+|frequency|``.
-- Sum the strain and stress amplitudes of all modes that share ``|frequency|`` and pass the sums to
-  :func:`volumetric_heating`. ``|frequency| / 2`` times its result is that frequency's cycle-averaged heating
-  [W m-3], and the heating of different frequencies adds.
-- A field at time ``t`` is ``Re[amplitude e^{i |frequency| t}]`` summed over the modes.
+displacements returned are complex amplitudes in the same convention. To assemble several modes: evaluate the
+moduli and radial functions at ``|frequency|`` and conjugate the row of any mode whose frequency is negative, sum
+the strain and stress amplitudes of all modes sharing ``|frequency|``, and pass the sums to
+:func:`volumetric_heating`, whose result times ``|frequency| / 2`` is that frequency's cycle-averaged heating
+[W m-3]; the heating of different frequencies adds. A field at time ``t`` is ``Re[amplitude e^{i |frequency| t}]``
+summed over the modes.
 """
 import numpy as np
 from libcpp cimport bool as cpp_bool
@@ -26,14 +24,8 @@ cnp.import_array()
 
 
 cdef int cy_potential_row_to_flat(object potential6, double* potential12) except -1:
-    """Copy one mode's potential row into 12 doubles (real, imaginary per entry), keeping the imaginary parts.
-
-    Parameters
-    ----------
-    potential6 : array-like of complex or float
-        ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)``.
-    potential12 : double*
-        Output buffer of 12 doubles.
+    """Copy one mode's potential row ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)``
+    into the 12-double buffer ``potential12`` (real, imaginary per entry).
 
     Raises
     ------

@@ -1,23 +1,11 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-rheology.pyx
-Cython/Python wrappers for TidalPy's rheology model hierarchy.
+"""Cython wrappers for TidalPy's rheology model hierarchy.
 
-Exposes the seven complex-compliance rheology models:
-
-- ``Elastic``  (alias ``"off"``)              — purely elastic, no dissipation.
-- ``Viscous``  (alias ``"newton"``)           — purely viscous (Newtonian fluid).
-- ``Voigt``    (alias ``"voigt-kelvin"``)     — Voigt-Kelvin element.
-- ``Maxwell``                                 — standard Maxwell body.
-- ``Burgers``                                 — Maxwell + Voigt in series.
-- ``Andrade``                                 — Maxwell + Andrade transient term.
-- ``Sundberg`` (alias ``"sundberg-cooper"``)  — Andrade + Voigt.
-
-Each model computes the complex (shear/bulk) modulus mu* [Pa] directly via
-``calc_complex_modulus``. Simple models are evaluated analytically; the series
-composites (Burgers, Andrade, Sundberg) invert the sum of their element
-compliances internally.
+Each model returns the complex (shear or bulk) modulus mu* [Pa] from ``calc_complex_modulus``:
+``Elastic`` (alias ``"off"``), ``Viscous`` (alias ``"newton"``), ``Voigt`` (alias ``"voigt-kelvin"``),
+``Maxwell``, ``Burgers``, ``Andrade``, and ``Sundberg`` (alias ``"sundberg-cooper"``). Simple models are
+analytic; the series composites invert the sum of their element compliances internally.
 
 References
 ----------
@@ -72,17 +60,10 @@ cdef object _complex_vector_to_ndarray(vector[cpp_complex[double]]& src, tuple s
 
 cdef object _solve_complex_modulus(
         c_RheologyBase* model, object modulus, object viscosity, object frequency):
-    """Solve the complex modulus for float and/or np.ndarray inputs.
+    """Solve the complex modulus for float and/or ndarray inputs.
 
-    Picks the most specific C++ vectorized routine for the input pattern:
-
-    - all scalar                       -> scalar calc_complex_modulus (returns complex)
-    - frequency array, modulus/visc scalar -> vectorize_frequency
-    - modulus/viscosity array(s), frequency scalar -> vectorize_modulus
-    - any other mix of arrays          -> broadcast all three -> vectorize_all
-
-    Returns a Python ``complex`` for all-scalar input, else an ``np.ndarray``
-    (complex128) broadcast to the common shape.
+    Picks the most specific C++ vectorized routine for the input pattern. Returns a Python ``complex``
+    for all-scalar input, else a complex128 ``ndarray`` broadcast to the common shape.
     """
     cdef cpp_bool f_arr = isinstance(frequency, np.ndarray)
     cdef cpp_bool m_arr = isinstance(modulus, np.ndarray)
@@ -140,11 +121,9 @@ cdef object _solve_complex_modulus(
 # RheologyBase
 # =====================================================================================================================
 cdef class RheologyBase(PhysicsBase):
-    """Abstract base for all rheology models.
+    """Abstract base for rheology models; owns the most-derived C++ model object.
 
-    Holds the owning ``unique_ptr`` to the most-derived C++ model object and
-    exposes the shared complex-compliance / complex-modulus calculations. Not
-    directly instantiable — construct a concrete model (e.g. ``Maxwell``).
+    Not directly instantiable: construct a concrete model such as ``Maxwell``.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -157,7 +136,6 @@ cdef class RheologyBase(PhysicsBase):
         )
 
     def __dealloc__(self):
-        # unique_ptr frees the most-derived C++ object; null the base observer ptr.
         self._rheology_ptr.reset()
         self._ptr = NULL
 
@@ -167,27 +145,27 @@ cdef class RheologyBase(PhysicsBase):
     def calc_complex_modulus(self, double modulus,
                              double viscosity,
                              double frequency) -> complex:
-        """Complex (shear/bulk) modulus mu* [Pa] at the given forcing frequency.
+        """Complex (shear or bulk) modulus mu* [Pa] at the given forcing frequency.
 
         Parameters
         ----------
         modulus : float
             Unrelaxed (static) modulus [Pa].
         viscosity : float
-            Reference dynamic viscosity [Pa·s].
+            Reference dynamic viscosity [Pa s].
         frequency : float
-            Tidal forcing frequency [rad/s].
+            Tidal forcing frequency [rad s-1].
 
         Returns
         -------
         complex
-            Complex modulus [Pa]; real = storage (in-phase), imag = loss
-            (out-of-phase, positive = energy loss).
+            Complex modulus [Pa]; real = storage (in-phase), imag = loss (out-of-phase, positive for
+            energy loss).
 
         Assumptions
         -----------
-        - Linear viscoelastic regime, single forcing frequency.
-        - Andrade-family models assume a positive forcing frequency.
+        Linear viscoelastic regime at a single forcing frequency; the Andrade family assumes a positive
+        forcing frequency.
         """
         self._check_ptr()
         cdef cpp_complex[double] result = self._rheology_ptr.get().calc_complex_modulus(
@@ -201,10 +179,9 @@ cdef class RheologyBase(PhysicsBase):
         Parameters
         ----------
         modulus, viscosity : array_like
-            Equal-length 1-D sequences of unrelaxed modulus [Pa] and reference
-            viscosity [Pa·s].
+            Equal-length 1-D sequences of unrelaxed modulus [Pa] and reference viscosity [Pa s].
         frequency : float
-            Constant forcing frequency [rad/s].
+            Constant forcing frequency [rad s-1].
 
         Returns
         -------
@@ -225,16 +202,16 @@ cdef class RheologyBase(PhysicsBase):
 
     def calc_complex_modulus_vectorize_frequency(self, double modulus,
                                                  double viscosity, frequency):
-        """Complex modulus over a frequency sweep at constant modulus/viscosity.
+        """Complex modulus over a frequency sweep at constant modulus and viscosity.
 
         Parameters
         ----------
         modulus : float
             Constant unrelaxed modulus [Pa].
         viscosity : float
-            Constant reference viscosity [Pa·s].
+            Constant reference viscosity [Pa s].
         frequency : array_like
-            1-D sequence of forcing frequencies [rad/s].
+            1-D sequence of forcing frequencies [rad s-1].
 
         Returns
         -------
@@ -279,23 +256,18 @@ cdef class RheologyBase(PhysicsBase):
             vmod, vvisc, vfreq, vout)
         return _complex_vector_to_ndarray(vout, mod_c.shape)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
-
 
 # =====================================================================================================================
 # Elastic (alias "off")
 # =====================================================================================================================
 cdef class Elastic(RheologyBase):
-    """Purely elastic rheology — modulus is real, no dissipation.
+    """Purely elastic rheology: the modulus is real and there is no dissipation.
 
     Complex modulus: ``mu* = modulus + 0j`` (frequency-independent).
     """
 
     def __init__(self):
         cdef c_RheologyConfig config
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Elastic, config)
         self._rheology_ptr = move(ptr)
         self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
@@ -312,7 +284,6 @@ cdef class Viscous(RheologyBase):
 
     def __init__(self):
         cdef c_RheologyConfig config
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Viscous, config)
         self._rheology_ptr = move(ptr)
         self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
@@ -330,7 +301,6 @@ cdef class Maxwell(RheologyBase):
 
     def __init__(self):
         cdef c_RheologyConfig config
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Maxwell, config)
         self._rheology_ptr = move(ptr)
         self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
@@ -345,8 +315,8 @@ cdef class Voigt(RheologyBase):
     Parameters
     ----------
     voigt_modulus_frac : float, optional
-        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
-        Default ``5.0``.
+        Voigt element modulus as a multiple of the layer modulus; its compliance is the layer compliance
+        divided by this. Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -360,7 +330,6 @@ cdef class Voigt(RheologyBase):
         cdef c_RheologyConfig config
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Voigt, config)
         self._voigt_ptr = <c_Voigt*>ptr.get()
         self._rheology_ptr = move(ptr)
@@ -384,13 +353,13 @@ cdef class Voigt(RheologyBase):
 # Burgers
 # =====================================================================================================================
 cdef class Burgers(RheologyBase):
-    """Burgers rheology — Maxwell and Voigt elements in series.
+    """Burgers rheology: Maxwell and Voigt elements in series.
 
     Parameters
     ----------
     voigt_modulus_frac : float, optional
-        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
-        Default ``5.0``.
+        Voigt element modulus as a multiple of the layer modulus; its compliance is the layer compliance
+        divided by this. Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -404,7 +373,6 @@ cdef class Burgers(RheologyBase):
         cdef c_RheologyConfig config
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Burgers, config)
         self._burgers_ptr = <c_Burgers*>ptr.get()
         self._rheology_ptr = move(ptr)
@@ -428,7 +396,7 @@ cdef class Burgers(RheologyBase):
 # Andrade
 # =====================================================================================================================
 cdef class Andrade(RheologyBase):
-    """Andrade rheology — Maxwell body plus a transient term ~ omega^{-alpha}.
+    """Andrade rheology: a Maxwell body plus a transient term proportional to omega^{-alpha}.
 
     Parameters
     ----------
@@ -445,7 +413,6 @@ cdef class Andrade(RheologyBase):
         cdef c_RheologyConfig config
         config.alpha = alpha
         config.zeta  = zeta
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Andrade, config)
         self._andrade_ptr = <c_Andrade*>ptr.get()
         self._rheology_ptr = move(ptr)
@@ -469,7 +436,7 @@ cdef class Andrade(RheologyBase):
 # Sundberg (alias "sundberg-cooper")
 # =====================================================================================================================
 cdef class Sundberg(RheologyBase):
-    """Sundberg-Cooper rheology — Andrade and Voigt elements summed.
+    """Sundberg-Cooper rheology: Andrade and Voigt elements summed.
 
     Parameters
     ----------
@@ -478,8 +445,8 @@ cdef class Sundberg(RheologyBase):
     zeta : float, optional
         Andrade timescale ratio [dimensionless]. Default ``1.0``.
     voigt_modulus_frac : float, optional
-        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
-        Default ``5.0``.
+        Voigt element modulus as a multiple of the layer modulus; its compliance is the layer compliance
+        divided by this. Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -496,7 +463,6 @@ cdef class Sundberg(RheologyBase):
         config.zeta                 = zeta
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Sundberg, config)
         self._sundberg_ptr = <c_Sundberg*>ptr.get()
         self._rheology_ptr = move(ptr)
@@ -537,22 +503,14 @@ RHEOLOGY_CONFIG_KEYS = frozenset({"alpha", "zeta", "voigt_modulus_frac", "voigt_
 def make_rheology(str model_name, dict config=None):
     """Build a rheology model from a (case-insensitive) name and config dict.
 
-    This wraps the C++ enum factory: the name (and any alias) is mapped to a
-    ``c_RheologyModel`` enum by ``c_rheology_model_from_name``, the matching
-    concrete model is heap-allocated by ``c_find_rheology`` (returning a
-    ``unique_ptr``), and the owning pointer is adopted into the correct rich
-    Python wrapper.
-
     Parameters
     ----------
     model_name : str
-        Model name or alias. Recognized names: ``elastic`` (``off``),
-        ``viscous`` (``newton``), ``voigt`` (``voigt-kelvin``), ``maxwell``,
-        ``burgers``, ``andrade``, ``sundberg`` (``sundberg-cooper``).
+        Model name or alias: ``elastic`` (``off``), ``viscous`` (``newton``), ``voigt``
+        (``voigt-kelvin``), ``maxwell``, ``burgers``, ``andrade``, ``sundberg`` (``sundberg-cooper``).
     config : dict, optional
-        Model parameters. Recognized keys (model-dependent):
-        ``alpha``, ``zeta``, ``voigt_modulus_frac``, ``voigt_viscosity_frac``.
-        Keys another rheology model uses are ignored; missing keys fall back to model defaults.
+        Model parameters, keyed ``alpha``, ``zeta``, ``voigt_modulus_frac``, ``voigt_viscosity_frac``.
+        Keys another rheology model uses are ignored and missing keys fall back to the model defaults.
 
     Returns
     -------
@@ -568,8 +526,7 @@ def make_rheology(str model_name, dict config=None):
     if config is None:
         config = {}
 
-    # A default-constructed config carries the C++ defaults; only override the
-    # fields the caller actually supplies (single source of truth: the C++ struct).
+    # The default-constructed config carries the C++ defaults; only override what the caller supplies.
     cdef c_RheologyConfig cfg
     if "alpha" in config:
         cfg.alpha = config["alpha"]
@@ -580,8 +537,7 @@ def make_rheology(str model_name, dict config=None):
     if "voigt_viscosity_frac" in config:
         cfg.voigt_viscosity_frac = config["voigt_viscosity_frac"]
 
-    # Map name/alias -> enum (raises ValueError on unknown name via except +),
-    # then build the model through the canonical C++ enum factory.
+    # An unknown name raises ValueError through except +.
     cdef c_RheologyModel model = c_rheology_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(model, cfg)
 
@@ -638,16 +594,14 @@ def make_rheology(str model_name, dict config=None):
 # =====================================================================================================================
 # Direct complex-modulus convenience functions
 #
-# Each builds a stack-allocated C++ model from its parameters, solves for the
-# complex (shear/bulk) modulus, and returns the result (the C++ model is
-# destroyed when the function returns). ``frequency``, ``modulus`` and
-# ``viscosity`` accept Python floats or NumPy arrays (broadcast together); model
-# parameters such as ``alpha``/``zeta`` are always scalar constants. A float
-# result is returned for all-scalar inputs, otherwise a complex128 ``ndarray``.
+# Each builds a stack-allocated C++ model, solves, and lets it go out of scope. ``modulus``,
+# ``viscosity``, and ``frequency`` accept floats or NumPy arrays (broadcast together) while model
+# parameters such as ``alpha`` stay scalar. A complex is returned for all-scalar input, otherwise a
+# complex128 ndarray.
 # =====================================================================================================================
 
 def elastic(modulus, viscosity, frequency):
-    """Complex shear/bulk modulus for the Elastic model [Pa]. See module notes."""
+    """Complex shear/bulk modulus for the Elastic model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Elastic model = c_Elastic(cfg)
     return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)

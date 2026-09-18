@@ -1,13 +1,8 @@
-// solver_.hpp - Radial solver entry point (standalone array-based API).
+// solver_.hpp: standalone array-based radial solver entry point.
 //
-// c_radial_solver: full pipeline (EOS→shooting/matrix→Love numbers) for callers
-// that supply raw arrays rather than a world object.  The world-class pathway
-// (c_LayeredWorld::solve_love_numbers) calls c_shooting_solver directly without
-// going through this function, but the standalone RadialSolver_x Python wrapper
-// (solver.pyx) still needs this function.
-//
-// Also contains:
-//   - c_validate_and_prep_radial_inputs: input validation + string→int mapping.
+// c_radial_solver runs the full EOS, shooting or matrix, and Love-number pipeline for callers that supply raw
+// arrays (solver.pyx); the world path calls c_shooting_solver directly. c_validate_and_prep_radial_inputs
+// validates the inputs and maps the string options to integers.
 #pragma once
 
 #include "constants_.hpp"
@@ -202,11 +197,8 @@ int c_radial_solver(
 
     if (solution_storage_ptr->error_code == 0)
     {
-        // Persist the EOS input arrays (in the current solve units: non-dim when nondimensionalize is set, else SI)
-        // into the solution storage. The cysolver's dense extra-output re-invoke references the per-layer
-        // c_InterpolateEOSInput, which in turn references these arrays; persisting them here (rather than in
-        // c_radial_solver's locals, which dangled after return and corrupted get_eos_si) keeps that dense path valid
-        // and unit-correct for the life of the solution. See c_RadialSolutionStorage::p_eos_in_*_nd.
+        // The EOS input arrays live in the storage, in solve units, because the dense EOS re-evaluation references
+        // them through c_InterpolateEOSInput for the life of the solution (locals would dangle after return).
         solution_storage_ptr->p_eos_in_radius_nd.assign(
             radius_array_in_ptr,
             radius_array_in_ptr + total_slices
@@ -331,8 +323,7 @@ int c_radial_solver(
         }
     }
 
-    // Hand the storage its dimensional context so get_radial_solution can map SI radii into solve units and
-    // re-dimensionalize the solve-unit y-solution to SI. The EOS arrays are still non-dim at this point.
+    // Dimensional context for get_radial_solution; the EOS arrays are still non-dim here.
     if (solution_storage_ptr->success)
     {
         if (nondimensionalize)
@@ -360,18 +351,17 @@ int c_radial_solver(
                 1.0);
         }
 
-        // Love numbers first (scale-invariant), while the EOS arrays are still non-dim.
+        // Love numbers are scale-invariant.
         solution_storage_ptr->find_love();
 
-        // Snapshot the SI y-grid from the dense interpolants so the legacy array-returning API keeps working
-        // (shooting only; the matrix method fills the grid itself and re-dimensionalizes it below).
+        // The array-returning API needs the SI y-grid (shooting only; the matrix method fills its own grid).
         if (solution_storage_ptr->p_uses_interpolants)
             solution_storage_ptr->sample_onto_grid();
     }
 
     if (nondimensionalize)
     {
-        // Re-dimensionalize the matrix y-grid (the shooting grid is already SI and skipped) plus the EOS arrays.
+        // Re-dimensionalize the matrix y-grid (the shooting grid is already SI) and the EOS arrays.
         solution_storage_ptr->dimensionalize_data(&non_dim_scales, true);
         if (solution_storage_ptr->success)
             solution_storage_ptr->p_eos_is_nondim = false;   // EOS arrays are now SI
@@ -389,7 +379,7 @@ int c_radial_solver(
 
 
 // =================================================================================================
-// Input validation / string-to-int mapping helper (used by the standalone Python wrapper).
+// Input validation and string-to-int mapping for the standalone Python wrapper
 // =================================================================================================
 
 std::string to_lower(const std::string& input)
@@ -427,11 +417,9 @@ void c_validate_and_prep_radial_inputs(
     ODEMethod& eos_integration_method_out
 )
 {
-    // Layer/Array dimension checks
     if (layer_types.size() != num_layers)
         throw std::invalid_argument("Number of `layer_types` must match `num_layers`.");
 
-    // Ascending layer order
     double last_layer_r = 0.0;
     for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
     {
@@ -442,13 +430,11 @@ void c_validate_and_prep_radial_inputs(
         last_layer_r = upper_radius_bylayer_array[layer_i];
     }
 
-    // Frequency checks
     if (std::abs(frequency) < tidalpy_config_ptr->d_MIN_FREQUENCY)
         throw std::invalid_argument("Forcing frequency is too small (are you sure you are in rad s-1?).");
     else if (std::abs(frequency) > tidalpy_config_ptr->d_MAX_FREQUENCY)
         throw std::invalid_argument("Forcing frequency is too large (are you sure you are in rad s-1?).");
 
-    // Propagation matrix limitation checks
     if (use_prop_matrix)
     {
         if (num_layers > 1)
@@ -480,7 +466,6 @@ void c_validate_and_prep_radial_inputs(
         throw std::invalid_argument("Radius array must start at zero.");
     }
 
-    // Slice count and interface verification
     double last_layer_radius = 0.0;
     for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
     {
@@ -523,7 +508,6 @@ void c_validate_and_prep_radial_inputs(
         }
     }
 
-    // Layer type string to int processing
     bool dynamic_liquid = false;
     for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
     {
@@ -553,7 +537,6 @@ void c_validate_and_prep_radial_inputs(
         printf("WARNING: Dynamic liquid layer detected in RadialSolver for a small frequency. Results may be unstable. Extra care is advised!\n");
     }
 
-    // Integration methods parsing
     std::string int_method_lower = to_lower(integration_method);
     if (int_method_lower == "rk45")        integration_method_out = ODEMethod::RK45;
     else if (int_method_lower == "rk23")   integration_method_out = ODEMethod::RK23;
@@ -576,7 +559,6 @@ void c_validate_and_prep_radial_inputs(
         "Unsupported EOS integration method provided: " + eos_int_method_lower +
         ". Supported: rk23, rk45, dop853, bdf, lsoda, radau.");
 
-    // EOS integration methods by layer
     eos_integration_method_int_bylayer_out.resize(num_layers);
     if (eos_method_bylayer.empty())
     {
@@ -600,7 +582,6 @@ void c_validate_and_prep_radial_inputs(
         }
     }
 
-    // Boundary condition models map
     num_bc_models_out = solve_for.size();
     if (num_bc_models_out == 0)
     {

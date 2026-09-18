@@ -6,8 +6,7 @@
  * (legendre_l{2..10}_.hpp).
  *
  * The precomputed tables (c_legendre in legendre_driver_.hpp) cover l = 2..10 and are the fast path;
- * this generic routine is a fallback for degrees outside that range (not needed by the current tidal
- * pipeline, but kept beside the tables so future arbitrary-degree work single-sources the convention).
+ * this generic routine covers any other degree under the same convention.
  *
  * xsf evaluates P_lm(x) with x = cos(theta); the derivatives come from xsf's dual (auto-diff) numbers
  * wrt x, converted to colatitude by the chain rule:

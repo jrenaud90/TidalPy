@@ -1,19 +1,13 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-luminosity.pyx
-Cython/Python wrappers for TidalPy's stellar luminosity model hierarchy.
-
-Exposes the three luminosity models:
+"""Cython wrappers for TidalPy's stellar luminosity models.
 
 - ``FixedLuminosity``    (alias ``"constant"``)              - luminosity set directly (mass independent).
 - ``MassToLuminosity``   (aliases ``"cuntz_wang"``/``"cw"``) - piecewise main-sequence L(M) relation.
 - ``PowerLawLuminosity`` (alias ``"power_law"``)             - single power law L = Lsun*coeff*(M/Msun)^p.
 
-Each model computes a star's luminosity [W] from its mass via ``calc_luminosity(mass)`` and shares
-the Stefan-Boltzmann effective-temperature conversions (``calc_luminosity_from_temperature`` /
-``calc_temperature_from_luminosity``). All quantities are MKS: mass [kg], radius [m], temperature [K],
-luminosity [W].
+Each model returns a star's luminosity [W] from its mass [kg] and shares the Stefan-Boltzmann
+effective-temperature conversions.
 
 References
 ----------
@@ -126,7 +120,6 @@ cdef class LuminosityBase(PhysicsBase):
         Assumptions
         -----------
         - Main-sequence mass-luminosity scaling (model specific).
-        - All inputs and outputs are MKS.
         """
         self._check_ptr()
         return _solve_luminosity(self._luminosity_ptr.get(), mass)
@@ -151,10 +144,6 @@ cdef class LuminosityBase(PhysicsBase):
         """Effective temperature [K] derived from the stellar mass (mass -> L -> T)."""
         self._check_ptr()
         return self._luminosity_ptr.get().calc_effective_temperature(mass, radius)
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
 
 
 # =====================================================================================================================
@@ -202,7 +191,6 @@ cdef class MassToLuminosity(LuminosityBase):
 
     def __init__(self):
         cdef c_LuminosityConfig config
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_LuminosityBase] ptr = c_find_luminosity(c_LuminosityModel.MassToLuminosity, config)
         self._luminosity_ptr = move(ptr)
         self._ptr = <c_TidalPyBaseClass*>self._luminosity_ptr.get()
@@ -231,7 +219,6 @@ cdef class PowerLawLuminosity(LuminosityBase):
         cdef c_LuminosityConfig config
         config.power_law_coeff    = coeff
         config.power_law_exponent = exponent
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_LuminosityBase] ptr = c_find_luminosity(c_LuminosityModel.PowerLaw, config)
         self._power_law_ptr = <c_PowerLawLuminosity*>ptr.get()
         self._luminosity_ptr = move(ptr)
@@ -261,11 +248,6 @@ LUMINOSITY_CONFIG_KEYS = frozenset({"luminosity_w", "power_law_coeff", "power_la
 def make_luminosity(str model_name, dict config=None):
     """Build a luminosity model from a (case-insensitive) name and config dict.
 
-    This wraps the C++ enum factory: the name (and any alias) is mapped to a ``c_LuminosityModel`` enum
-    by ``c_luminosity_model_from_name``, the matching concrete model is heap-allocated by
-    ``c_find_luminosity`` (returning a ``unique_ptr``), and the owning pointer is adopted into the
-    correct rich Python wrapper.
-
     Parameters
     ----------
     model_name : str
@@ -289,8 +271,7 @@ def make_luminosity(str model_name, dict config=None):
     if config is None:
         config = {}
 
-    # A default-constructed config carries the C++ defaults; only override the
-    # fields the caller actually supplies (single source of truth: the C++ struct).
+    # A default-constructed config carries the C++ defaults; override only what the caller supplies.
     cdef c_LuminosityConfig cfg
     if "luminosity_w" in config:
         cfg.luminosity = config["luminosity_w"]
@@ -299,8 +280,7 @@ def make_luminosity(str model_name, dict config=None):
     if "power_law_exponent" in config:
         cfg.power_law_exponent = config["power_law_exponent"]
 
-    # Map name/alias -> enum (raises ValueError on unknown name via except +),
-    # then build the model through the canonical C++ enum factory.
+    # Map name/alias to the enum (ValueError on an unknown name through except +).
     cdef c_LuminosityModel model = c_luminosity_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_LuminosityBase] ptr = c_find_luminosity(model, cfg)
 
@@ -331,10 +311,8 @@ def make_luminosity(str model_name, dict config=None):
 # =====================================================================================================================
 # Direct luminosity convenience functions
 #
-# Each builds a stack-allocated C++ model from its parameters, solves for the luminosity, and returns
-# the result (the C++ model is destroyed when the function returns). ``mass`` accepts a Python float or
-# a NumPy array; model parameters are always constants. A float result is returned for scalar mass,
-# otherwise a float64 ``ndarray``.
+# Each builds a stack-allocated C++ model, solves, and returns a float for scalar mass or a
+# same-shape float64 ndarray.
 # =====================================================================================================================
 
 def fixed(mass, double luminosity=0.0):

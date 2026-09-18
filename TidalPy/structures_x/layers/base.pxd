@@ -1,16 +1,6 @@
 # distutils: language = c++
-"""
-base.pxd
-Cython declarations for TidalPy's base layer class.
-
-Exports c_LayerEOSData, c_BaseLayerConfig, c_BaseLayer, and the Python
-wrapper BaseLayer so other extensions can cimport and use C-speed access.
-
-Usage::
-
-    from TidalPy.structures_x.layers.base cimport (
-        BaseLayer, c_BaseLayer, c_LayerEOSData)
-"""
+"""Cython declarations for TidalPy's base layer: c_LayerEOSData, c_BaseLayerConfig, c_BaseLayer, and the Python
+wrapper BaseLayer."""
 
 from libc.stdint cimport uint32_t
 from libcpp cimport bool as cpp_bool
@@ -112,8 +102,7 @@ cdef class BaseLayer(StructureBase):
     cpdef dict get_config_dict(self)
     # Scalar kernel behind the vectorized real-valued radius getters (see _apply_real in base.pyx).
     cdef double _eval_real(self, int kind, double radius) noexcept nogil
-    # Initialize this wrapper as a non-owning view onto a world-owned C++ layer (sets the base
-    # pointers + keep-alive ref; subclass `_view` factories set their own typed pointer first).
+    # Initialize as a non-owning view; subclass `_view` factories set their own typed pointer first.
     cdef void _init_view(self, c_BaseLayer* ptr, object world)
     @staticmethod
     cdef BaseLayer _view(c_BaseLayer* ptr, object world)

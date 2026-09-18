@@ -1,8 +1,8 @@
 # The Solution Class
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-16_
 
-Every radial solve returns a `RadialSolverSolution`, the Cython class in `TidalPy.RadialSolver_x.rs_solution`. It holds three things: whether the solve worked, what the interior looks like (the equation-of-state result), and the viscoelastic-gravitational answer itself (the radial functions and the Love numbers). The same object comes back from `radial_solver`, from `homogeneous_love_numbers`, and from a world's released radial storage.
+Every radial solve returns a `RadialSolverSolution`, the Cython class in `TidalPy.RadialSolver_x.rs_solution`. It holds the solve status, the equation-of-state result, and the radial functions and Love numbers. The same object comes back from `radial_solver`, from `homogeneous_love_numbers`, and from a world's released radial storage.
 
 ```python
 solution = radial_solver(*build_data, degree_l=2, solve_for=("tidal", "loading"))
@@ -22,7 +22,7 @@ Check `success` before trusting anything else. A failed solve returns normally u
 | `message` | str | Status text, and the first thing to read after a failure. See the troubleshooting section of [Calculating Love Numbers](calculating_love_numbers.md). |
 | `surface_solve_amplification` | float | Worst-case error amplification of the surface boundary-condition solve (shooting method). Near one is healthy. Large values mean the solution constants are cancelling, so roundoff and integration error are being amplified into the Love numbers, and the achievable accuracy is roughly this number times machine epsilon. |
 | `steps_taken` | int array `(num_layers, 3)` | Integration steps per layer per independent solution. Solid layers use three solutions, dynamic liquid layers two, static liquid layers one; unused entries are zero. A few hundred per solution per layer is normal, a few thousand is tolerable, and ten thousand or more means the solve is likely unstable. |
-| `print_diagnostics(print_diagnostics=True, log_diagnostics=False)` | method | Assemble a readable summary of the solve. Printing it is the fastest triage; logging it sends the same text to TidalPy's log. |
+| `print_diagnostics(print_diagnostics=True, log_diagnostics=False)` | method | Assemble a readable summary of the solve. Printing it is a quick triage; logging sends the same text to TidalPy's log. |
 
 ## The Interior
 
@@ -46,7 +46,7 @@ The solver runs an equation of state before the deformation problem, and keeps t
 
 `result` is the raw block of radial functions, shaped `(num_ytypes * 6, num_slices)`: the six functions of the first boundary condition, then the six of the next, and so on. Index it by name instead when you have more than one. TidalPy follows the Takeuchi and Saito (1972) convention, so in a solid layer these are the familiar y1 through y6.
 
-Liquid layers do not define all six. A dynamic liquid layer has no y4, and a static liquid layer has no y2, y3, y4, y5, or y6; the Saito (1974) variable "y7" takes the y6 slot there. Undefined entries are NaN, which is a feature rather than a fault: it keeps the array shape uniform and makes an accidental use obvious.
+Liquid layers do not define all six. A dynamic liquid layer has no y4, and a static liquid layer has no y2, y3, y4, y5, or y6; the Saito (1974) variable "y7" takes the y6 slot there. Undefined entries are NaN, which keeps the array shape uniform and makes an accidental use obvious.
 
 ```python
 solution.result                            # (num_ytypes * 6, num_slices)
@@ -80,4 +80,4 @@ solution.plot_ys(plot_imaginary=True, benchmarks="tobie2005")  # Used to compare
 solution.plot_interior(planet_name="Enceladus")                # Plot of EOS results: gravity, density, pressure, moduli
 ```
 
-`plot_ys` is a fast instability check. A converged solve gives smooth curves; large spikes, ringing, or kinks that do not follow the layer structure mean the integration did not converge. Keep in mind that it is not super unusual to get spikes near liquid-solid layer boundaries even in stable solutions. `plot_interior` needs a successful equation-of-state solve, and both raise an informative error rather than returning nothing when the underlying solve failed.
+`plot_ys` is a fast instability check. A converged solve gives smooth curves; large spikes, ringing, or kinks that do not follow the layer structure mean the integration did not converge. Keep in mind that it is not unusual to get spikes near liquid-solid layer boundaries even in stable solutions. `plot_interior` needs a successful equation-of-state solve, and both raise an informative error rather than returning nothing when the underlying solve failed.

@@ -1,23 +1,11 @@
 #pragma once
 /*
- * build_inputs_.hpp: Native input builders for the `_x` radial solver.
+ * build_inputs_.hpp: input builders for the array-based radial solver.
  *
- * Both builders assemble the array-based inputs that `radial_solver` expects (radius, density,
- * complex bulk/shear moduli, per-layer upper radii, planet bulk density) from a layer description:
- *
- *   c_build_rs_input_homogeneous_layers : every layer has constant properties; the radial grid is
- *                                         generated from the layer thickness fractions and slice counts.
- *   c_build_rs_input_from_data          : properties are supplied on a user radius grid; the grid is
- *                                         repaired so that r = 0 is present, every interface radius
- *                                         appears twice (top of the lower layer, base of the upper
- *                                         layer), and every layer's upper radius is present.
- *
- * The complex moduli come from the `rheology_x` models: the caller passes one `c_RheologyBase*` per
- * layer for shear and for bulk (a single model applied to every layer is resolved before reaching
- * this header, so the C++ side always sees per-layer arrays).
- *
- * Invalid input throws std::invalid_argument (Cython maps it to ValueError). Grid repairs are logged
- * as warnings through the TidalPy spdlog logger when `warnings` is set.
+ * c_build_rs_input_homogeneous_layers generates the radial grid from per-layer thickness fractions and slice
+ * counts; c_build_rs_input_from_data repairs a user grid so r = 0 is present, every interface radius appears
+ * twice, and every layer top is present. Complex moduli come from one c_RheologyBase* per layer for shear and
+ * bulk. Invalid input throws std::invalid_argument (ValueError in Python); grid repairs log warnings.
  */
 
 #include <cmath>
@@ -37,12 +25,7 @@ namespace tidalpy {
 // Minimum number of radial slices a layer must have for the shooting method's starting conditions.
 inline constexpr std::size_t C_RS_MIN_SLICES_PER_LAYER = 5;
 
-// ---------------------------------------------------------------------------------------------------------------------
-// c_RadialSolverInputs
-//
-// Output container for both builders. All vectors are sized to the final number of slices (or
-// layers); the planet bulk density is the mass-weighted mean density of the assembled structure.
-// ---------------------------------------------------------------------------------------------------------------------
+// Output container for both builders; the planet bulk density is the mass-weighted mean of the assembled structure.
 struct c_RadialSolverInputs {
     std::vector<double> radius;                                   // [m]      one entry per slice
     std::vector<double> density;                              // [kg/m3]  one entry per slice
@@ -89,8 +72,7 @@ inline void c_check_rheology_vector(
     }
 }
 
-// Evaluate one layer's complex moduli in place: slices [first, first + count) of `out` are filled
-// from the static modulus and viscosity vectors using the layer's rheology model.
+// Fill slices [first, first + count) of `out` with the layer's complex modulus.
 inline void c_fill_layer_complex_modulus(
         const c_RheologyBase& model,
         const std::vector<double>& static_modulus,
@@ -108,12 +90,7 @@ inline void c_fill_layer_complex_modulus(
 
 } // namespace detail
 
-// ---------------------------------------------------------------------------------------------------------------------
-// Layer-size conversions (homogeneous builder helpers)
-// ---------------------------------------------------------------------------------------------------------------------
-
-// Radius fractions are the cumulative layer upper radii divided by the planet radius (strictly
-// increasing, last entry 1). Converts them to per-layer thickness fractions.
+// Thickness fractions from cumulative upper-radius fractions (strictly increasing, last entry 1).
 inline void c_thickness_from_radius_fractions(
         const std::vector<double>& radius_fraction_bylayer,
         std::vector<double>& out_thickness_fraction_bylayer)
@@ -138,8 +115,7 @@ inline void c_thickness_from_radius_fractions(
     }
 }
 
-// Volume fractions are each layer's share of the total planet volume (sum to 1). Converts them to
-// per-layer thickness fractions.
+// Thickness fractions from each layer's share of the planet volume (sum 1).
 inline void c_thickness_from_volume_fractions(
         double planet_radius,
         const std::vector<double>& volume_fraction_bylayer,
@@ -162,13 +138,8 @@ inline void c_thickness_from_volume_fractions(
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
-// c_build_rs_input_homogeneous_layers
-//
-// Each layer has constant density, static moduli, and viscosities. The radial grid of layer `i`
-// is `slices_bylayer[i]` evenly spaced points from the layer base to its top (both inclusive), so
-// interface radii appear twice in the assembled radius array as the solver requires.
-// ---------------------------------------------------------------------------------------------------------------------
+// Constant properties per layer; layer i gets slices_bylayer[i] evenly spaced points from base to top inclusive,
+// so interface radii appear twice as the solver requires.
 inline void c_build_rs_input_homogeneous_layers(
         double planet_radius,
         double forcing_frequency,
@@ -203,7 +174,6 @@ inline void c_build_rs_input_homogeneous_layers(
             std::to_string(num_layers) + "), found " + std::to_string(slices_bylayer.size()) + ".");
     }
 
-    // Validate the layer sizes and count the slices.
     double total_thickness_fraction = 0.0;
     std::size_t total_slices = 0;
     for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
@@ -229,7 +199,6 @@ inline void c_build_rs_input_homogeneous_layers(
             std::to_string(total_thickness_fraction) + ").");
     }
 
-    // Allocate the outputs plus the per-slice static properties the rheologies consume.
     out.radius.resize(total_slices);
     out.density.resize(total_slices);
     out.complex_bulk_modulus.resize(total_slices);
@@ -242,7 +211,6 @@ inline void c_build_rs_input_homogeneous_layers(
     std::vector<double> shear_viscosity(total_slices);
     std::vector<double> bulk_viscosity(total_slices);
 
-    // Populate layer by layer.
     const double planet_radius3 = planet_radius * planet_radius * planet_radius;
     double planet_bulk_density = 0.0;
     double last_layer_radius = 0.0;
@@ -253,8 +221,7 @@ inline void c_build_rs_input_homogeneous_layers(
         const double layer_density = density_bylayer[layer_i];
         const double layer_thickness = thickness_fraction_bylayer[layer_i] * planet_radius;
         const double layer_radius = last_layer_radius + layer_thickness;
-        // layer_slices >= 5 was checked above, so no divide by zero here. The "- 1" makes the grid
-        // inclusive of the layer top.
+        // layer_slices >= 5, so no divide by zero; the "- 1" makes the grid inclusive of the layer top.
         const double dr = layer_thickness / static_cast<double>(layer_slices - 1);
 
         out.upper_radius_bylayer[layer_i] = layer_radius;
@@ -302,19 +269,11 @@ inline void c_build_rs_input_homogeneous_layers(
     out.planet_bulk_density = planet_bulk_density / planet_radius3;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
-// c_build_rs_input_from_data
-//
-// Properties are given on an ascending user radius grid; `layer_upper_radius_bylayer` marks the
-// layer tops (the last entry must be the planet radius, the last grid point). The grid is copied
-// and repaired: a slice is inserted at r = 0 if missing, at each layer base when the previous
-// layer's top is not repeated, and at each layer top when it is absent. Inserted slices copy the
-// neighboring slice's properties: a base copies the layer's first provided slice, a top copies the
-// slice below it. An interface radius listed only once is taken as the top of the lower layer (with
-// the properties it carries), matching the classic builder. The planet bulk density is the mass of
-// the piecewise-constant shells (each shell takes the density of its upper slice) divided by the
-// planet volume.
-// ---------------------------------------------------------------------------------------------------------------------
+// Properties on an ascending user grid whose last point is the planet radius. The grid is copied and repaired: a
+// slice is inserted at r = 0 if missing, at a layer base when the previous top is not repeated (copying the
+// layer's first slice), and at a missing layer top (copying the slice below). An interface radius listed once is
+// the top of the lower layer. The bulk density is the mass of piecewise-constant shells (density of the upper
+// slice) over the planet volume.
 inline void c_build_rs_input_from_data(
         double forcing_frequency,
         const std::vector<double>& radius,
@@ -435,7 +394,6 @@ inline void c_build_rs_input_from_data(
             push_slice(last_layer_upper_radius, slice_i_input);
         }
 
-        // Copy the provided slices that belong to this layer.
         bool top_present = false;
         while (slice_i_input < num_slices_input) {
             const double slice_radius = radius[slice_i_input];

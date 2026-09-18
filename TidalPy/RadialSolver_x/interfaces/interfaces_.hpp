@@ -1,5 +1,4 @@
-// interfaces_.hpp - Interface conditions between layers
-// Ported from TidalPy/RadialSolver/interfaces/interfaces.pyx
+// interfaces_.hpp: interface conditions between layers.
 //
 // References
 // ----------
@@ -14,6 +13,8 @@
 #include "../../constants_.hpp"
 
 
+// Starting y of the upper layer's solutions from the top-of-lower-layer y, by layer type and static/dynamic
+// pairing (TS72 Eqs. 140-149; S74 Eqs. 20-21). Unused entries are NaN.
 inline void c_solve_upper_y_at_interface(
         std::complex<double>* lower_layer_y_ptr,
         std::complex<double>* upper_layer_y_ptr,
@@ -50,7 +51,6 @@ inline void c_solve_upper_y_at_interface(
 
     // TODO: Compressibility is not currently taken into account. This needs to be checked asap!
 
-    // Other constants that may be needed
     std::complex<double> lambda_1 = cmplx_NAN;
     std::complex<double> lambda_2 = cmplx_NAN;
     std::complex<double> coeff_1  = cmplx_NAN;
@@ -65,7 +65,6 @@ inline void c_solve_upper_y_at_interface(
 
     const double g_const = 4.0 * TidalPyConstants::d_PI * G_to_use;
 
-    // Initialize upper y to nan
     for (size_t yi_upper = 0; yi_upper < 18; ++yi_upper)
     {
         upper_layer_y_ptr[yi_upper] = cmplx_NAN;
@@ -73,7 +72,7 @@ inline void c_solve_upper_y_at_interface(
 
     if (solid_solid)
     {
-        // Does not matter if the layers are static or dynamic, solid-solid exchange perfectly.
+        // Solid-solid passes every y through, static or dynamic.
         for (size_t yi_lower = 0; yi_lower < max_num_y; ++yi_lower)
         {
             size_t yi_upper = yi_lower;

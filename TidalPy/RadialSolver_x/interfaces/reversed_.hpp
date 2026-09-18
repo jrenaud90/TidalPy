@@ -1,5 +1,4 @@
-// reversed_.hpp - Top-to-bottom interface boundary conditions (for collapse phase)
-// Ported from TidalPy/RadialSolver/interfaces/reversed.pyx
+// reversed_.hpp - Top-to-bottom interface boundary conditions (for the collapse phase)
 //
 // References
 // ----------
@@ -35,9 +34,8 @@ inline void c_top_to_bottom_interface_bc(
     const std::complex<double> cmplx_NAN(nan_val, nan_val);
     const double g_const = 4.0 * TidalPyConstants::d_PI;  // Note: G_to_use is folded into gravity values
 
-    // Interfaces are defined at the bottom of the layer in question. However, this function is calculating
-    // the transition at the top of each layer as it works its way down.
-    // So, for interface values, we actually need the ones of the layer above us.
+    // Interfaces are defined at the bottom of a layer, but this function works downward and handles the
+    // transition at the top of each layer, so the interface values are those of the layer above.
     const double interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity);
     double liquid_density_at_interface = nan_val;
 
@@ -56,7 +54,6 @@ inline void c_top_to_bottom_interface_bc(
         liquid_density_at_interface = layer_above_lower_density;
     }
 
-    // Solve for constant vector
     std::complex<double> y4_frac_1  = cmplx_NAN;
     std::complex<double> y4_frac_2  = cmplx_NAN;
     std::complex<double> gamma_1    = cmplx_NAN;
@@ -73,14 +70,12 @@ inline void c_top_to_bottom_interface_bc(
     std::complex<double> lower_s2y6 = cmplx_NAN;
 
     if (layer_is_solid) {
-        // Solid Layer
         if (layer_above_is_solid) {
             // Both layers are solid. Constants are the same.
             for (size_t solution_i = 0; solution_i < num_sols; ++solution_i) {
                 constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i];
             }
         } else {
-            // Create helper functions
             y4_frac_1 = (
                     -uppermost_y_per_solution_ptr[0 * max_num_y + 3] /
                     uppermost_y_per_solution_ptr[2 * max_num_y + 3]
@@ -150,23 +145,19 @@ inline void c_top_to_bottom_interface_bc(
     } else {
         if (layer_is_static) {
             if (!layer_above_is_solid) {
-                // Liquid layer above
                 if (layer_above_is_static) {
                     constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
                 } else {
                     constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
                 }
             } else {
-                // Solid layer above
                 constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
             }
         } else {
             if (!layer_above_is_solid) {
-                // Liquid layer above
                 if (layer_above_is_static) {
                     // Need to find 2 liquid (dynamic) constants from 1 liquid (static) constant
                     constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
-                    // Pull out ys
                     lower_s1y1 = uppermost_y_per_solution_ptr[0 * max_num_y + 0];
                     lower_s1y2 = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
                     lower_s1y5 = uppermost_y_per_solution_ptr[0 * max_num_y + 2];
@@ -188,7 +179,6 @@ inline void c_top_to_bottom_interface_bc(
                     }
                 }
             } else {
-                // Solid layer above
                 // TS72 Eqs. 148-149
                 constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
                 constant_vector_ptr[1] = layer_above_constant_vector_ptr[1];

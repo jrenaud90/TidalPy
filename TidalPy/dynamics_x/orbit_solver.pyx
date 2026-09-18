@@ -1,12 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-orbit_solver.pyx
-Cython/Python wrapper for TidalPy's orbital rate calculator (Dynamics_x).
+"""Cython wrappers for TidalPy's orbital rate calculator.
 
-OrbitSolver turns the tidal-potential derivatives of a dissipating body (``dU_dM``, ``dU_dw`` from
-``world.calc_tides``) plus the orbital state into the instantaneous rates of change of the semi-major
-axis, eccentricity, and mean motion. It computes rates only; the System class integrates them.
+``OrbitSolver`` turns a dissipating body's tidal-potential derivatives (``dU_dM``, ``dU_dw`` from
+``world.calc_tides``) and its orbital state into da/dt, de/dt, and dn/dt. It computes rates only;
+the System class integrates them.
 """
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
@@ -42,13 +40,8 @@ cdef class OrbitSolver:
     """Orbital rate calculator from tidal dissipation (rates only).
 
     The tidal-potential derivatives ``dU_dM`` (wrt mean anomaly) and ``dU_dw`` (wrt argument of
-    pericenter) of the dissipating (target) body come from the global tidal solve
-    (``world.calc_tides`` / ``world.get_tidal_potential_derivatives``). All quantities are MKS:
-    ``orbital_frequency`` [rad s-1], ``semi_major_axis`` [m], ``eccentricity`` [-], masses [kg],
-    ``dU_d*`` [J kg-1 rad-1]; the rates are ``da/dt`` [m s-1], ``de/dt`` [s-1], ``dn/dt`` [rad s-2].
-
-    For a dual-body dissipation system the two bodies' rates are additive in the disturbing-function
-    derivatives; sum the per-body results.
+    pericenter) [J kg-1 rad-1] come from the global tidal solve. For a dual-body dissipation system
+    the two bodies' rates are additive; sum the per-body results.
     """
 
     def calc_da_dt(

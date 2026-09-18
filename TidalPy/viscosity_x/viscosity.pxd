@@ -1,11 +1,6 @@
 # distutils: language = c++
-"""
-viscosity.pxd
-Cython declarations for TidalPy's viscosity model hierarchy.
-
-Exports the C++ models, the combined config struct, the enum factory, and the
-Python wrapper classes so other extensions (layers, worlds) can cimport and build
-or attach viscosity models at C speed.
+"""Cython declarations for TidalPy's viscosity models: the C++ classes, the combined config struct,
+the enum factory, and the Python wrapper classes.
 """
 
 from libcpp.string cimport string

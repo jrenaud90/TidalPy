@@ -2,21 +2,14 @@
 /*
  * spin_.hpp - c_Spin: rotational (spin) dynamics of a tidally interacting body.
  *
- * A world's spin evolves under the tidal torque exerted by its host. This class provides the
- * rate quantities only (no time integration; the System class integrates them):
- *   - the moment of inertia of the body,
- *   - the tidal spin-rate change dspin/dt from the tidal potential derivative dU/dO, and
- *   - the synchronous spin rate.
+ * Provides the body's moment of inertia [kg m2], the tidal spin-rate change dspin/dt [rad s-2] from
+ * the tidal potential derivative dU/dO [J kg-1 rad-1], and the synchronous spin rate [rad s-1].
+ * Rates only; the System class integrates them. dU/dO comes from the global tidal solve
+ * (c_GlobalTideResult.dU_dO) and is passed in as a plain scalar so this module does not depend on
+ * the Tides_x headers.
  *
- * The tidal potential derivative dU/dO is produced by the global tidal solve
- * (c_GlobalTideResult.dU_dO, from world.calc_tides); it is passed in here as a plain scalar so this
- * module does not depend on the Tides_x headers.
- *
- * References: Ferraz-Mello et al. (2008) for the spin-rate torque. The moment of inertia is
- * I = f M R^2 with the conventional dimensionless factor f = C / (M R^2).
- *
- * All quantities MKS: masses in kg, radii in m, frequencies in rad s-1, moment of inertia in kg m2,
- * dU/dO in J kg-1 rad-1, dspin/dt in rad s-2.
+ * The moment of inertia is I = f M R^2 with the conventional dimensionless factor f = C / (M R^2).
+ * Reference: Ferraz-Mello et al. (2008) for the spin-rate torque.
  */
 
 #include <cmath>
@@ -72,10 +65,6 @@ public:
     const c_SpinConfig& get_config() const noexcept { return this->p_config; }
 
     // Moment of inertia [kg m2] from the conventional structure factor: I = f M R^2.
-    //
-    // Assumptions
-    // -----------
-    // The factor f = C / (M R^2) describes the body's radial mass distribution; it is taken as given.
     double calc_moment_of_inertia(
             double mass,
             double radius) const noexcept {
@@ -99,8 +88,7 @@ public:
         return host_mass * dU_dO / moment_of_inertia;
     }
 
-    // Synchronous spin rate [rad s-1]: a synchronously (tidally locked) rotating body spins at the
-    // orbital mean motion, so the synchronous spin equals the orbital frequency.
+    // Synchronous spin rate [rad s-1]: a tidally locked body spins at the orbital mean motion.
     double calc_synchronous_spin(double orbital_frequency) const noexcept {
         return orbital_frequency;
     }

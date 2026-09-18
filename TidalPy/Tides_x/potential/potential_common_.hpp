@@ -84,7 +84,6 @@ bool record_unique_frequencies(
     // TODO: Do we want to keep zero frequencies? I don't think so...
     if (nonzero_freq)
     {    
-        // Checks if this frequency has been recorded yet. If not then it adds it to the frequency map. 
         bool found = false;
         c_FrequencyStorage* frequency_storage_ptr = nullptr;
         for (size_t i = 0; i < frequency_map.size(); i++)
@@ -92,19 +91,15 @@ bool record_unique_frequencies(
             frequency_storage_ptr = &frequency_map[i];
             if (c_isclose(frequency, frequency_storage_ptr->frequency, d_FREQUENCY_MATCH_RTOL, 0.0))
             {   
-                // Increment the number of times this frequency has shown up.
                 frequency_storage_ptr->num_instances += 1;
-                // Record that this mode corresponds to this unique frequency.
                 frequency_index_map.set(lmpq_key, i);
                 found = true;
-                // Break out of the frequency loop.
                 break;
             }
         }
 
         if (!found)
         {
-            // Did not find the frequency, so this is a unique one!
             frequency_index_map.set(lmpq_key, frequency_map.size());
             frequency_map.emplace_back(frequency);
         }

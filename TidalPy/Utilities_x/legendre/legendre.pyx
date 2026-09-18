@@ -1,20 +1,12 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-legendre.pyx
-Python/Cython wrapper for TidalPy's associated-Legendre utilities (Utilities_x/legendre).
+"""Python wrappers for TidalPy's associated-Legendre utilities.
 
-Both entry points return the triple ``(P_lm(cos theta), dP_lm/dtheta, d2P_lm/dtheta2)`` using the
-standard unnormalized associated Legendre functions with the Condon-Shortley phase (matching
-``scipy.special.assoc_legendre_p`` with ``branch_cut=2``):
-
-- ``legendre(l, m, colatitude)`` uses the fast precomputed closed-form tables (degrees l = 2..10).
-- ``legendre_generic(l, m, colatitude)`` uses the vendored ``xsf`` library and works for any degree
-  (a fallback for degrees outside the precomputed range; kept beside the tables so the convention is
-  single-sourced).
-
-All angles in radians; colatitude ``theta`` in ``[0, pi]``. Out-of-range orders (m < 0 or m > l)
-return NaNs.
+Both entry points return ``(P_lm(cos theta), dP_lm/dtheta, d2P_lm/dtheta2)`` for the unnormalized
+associated Legendre functions with the Condon-Shortley phase, matching ``scipy.special.assoc_legendre_p``
+with ``branch_cut=2``. ``legendre`` uses the precomputed tables (l = 2..10) and ``legendre_generic`` the
+vendored ``xsf`` library for any degree. Colatitude theta is in radians on [0, pi]; out-of-range orders
+(m < 0 or m > l) return NaNs.
 """
 
 from TidalPy.Utilities_x.legendre.legendre cimport (

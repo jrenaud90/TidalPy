@@ -1,6 +1,8 @@
 # GasLayer
 
-`TidalPy.structures_x.layers.GasLayer` (`c_GasLayer` in C++) is the ideal-gas fluid layer class. It inherits `PhysicsLayer` and adds thermodynamic calculations for gas and fluid envelopes such as planetary atmospheres or gaseous mantles.  No phase changes, cooling, or radiogenics sub-models are available, use `SolidLiquidLayer` for those features.
+_Updated: 2026-09-16_
+
+`TidalPy.structures_x.layers.GasLayer` (`c_GasLayer` in C++) is the ideal-gas fluid layer class. It inherits `PhysicsLayer` and adds thermodynamic calculations for gas and fluid envelopes such as planetary atmospheres or gaseous mantles. No phase-change, cooling, or radiogenics sub-models are available; use `SolidLiquidLayer` for those.
 
 ## Inheritance
 
@@ -103,7 +105,7 @@ $$c_s = \sqrt{\frac{\gamma \, R \, T}{M}}$$
 
 `save_binary(path)` / `load_binary(path, force=False)` round-trip all configuration fields, followed by an optional sub-model section holding the material EOS model and the inherited rheology, viscosity, and partial-melt models (presence flag + recursive binary record each). The EOS profile data is never serialized; re-run the world's `solve_eos` after loading.
 
-Binary class ID: `103` (`BinaryClassID::GasLayer`).
+Binary class id 103 (`BinaryClassID::GasLayer`).
 
 ## Config I/O
 
@@ -112,7 +114,7 @@ layer.save_config("gas_layer.toml")
 cfg = layer.get_config_dict()   # dict of all fields (MKS); class = "gas" plus attached-model sub-tables
 ```
 
-## Literature
+## References
 
-- Ideal gas law and scale height: standard atmospheric physics textbooks (e.g. Wallace & Hobbs, *Atmospheric Science*, 2006).
-- Adiabatic lapse rate: Holton, *An Introduction to Dynamic Meteorology*, 5th ed., 2004.
+- Wallace, J. M., and Hobbs, P. V. (2006). *Atmospheric Science*, second edition. Ideal gas law and scale height.
+- Holton, J. R. (2004). *An Introduction to Dynamic Meteorology*, fifth edition. Adiabatic lapse rate.

@@ -1,20 +1,9 @@
 #pragma once
 /*
- * factory_.hpp — layer binary-dispatch factory.
+ * factory_.hpp: rebuilds the correct concrete layer subclass from a binary stream.
  *
- * Reconstructs the correct concrete layer subclass from a binary stream by
- * peeking the upcoming record's BinaryClassID (without consuming the header),
- * constructing the matching default-initialized layer, then delegating to its
- * read_binary (which reads the full record, including any recursively-serialized
- * physics sub-models).
- *
- * Used by c_LayeredWorld (and any other container that owns layers) to load a
- * heterogeneous list of layers from a single binary stream.
- *
- * This header pulls in every concrete layer type, so any translation unit that
- * includes it must have the rheology_x / cooling_x / radiogenics_x / Tides_x.love
- * include directories on its path (the same set the SolidLiquidLayer extension
- * uses).
+ * This header pulls in every concrete layer type, so a translation unit that includes it needs the rheology_x,
+ * cooling_x, radiogenics_x, and Tides_x.love include directories on its path.
  */
 
 #include <istream>
@@ -28,13 +17,8 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_layer_from_binary — reconstruct a layer from a binary stream.
-//
-// Peeks the upcoming record's BinaryClassID, builds the matching concrete layer,
-// then calls its read_binary. Throws std::runtime_error if the class id is not a
-// known layer type.
-// -------------------------------------------------------------------------------
+// Peeks the upcoming record's BinaryClassID without consuming it, builds the matching layer, then lets that layer
+// read the full record. Throws std::runtime_error when the class id is not a known layer type.
 inline std::unique_ptr<c_BaseLayer> c_layer_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);

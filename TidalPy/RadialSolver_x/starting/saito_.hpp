@@ -1,5 +1,4 @@
 // saito_.hpp - Starting conditions based on Saito (1974)
-// Ported from TidalPy/RadialSolver/starting/saito.pyx
 //
 // References
 // ----------
@@ -30,7 +29,6 @@ inline void c_saito_liquid_static_incompressible(
 {
     const double degree_l_dbl = static_cast<double>(degree_l);
 
-    // See Eq. 19 in Saito 1974
     // y5 solution 0
     starting_conditions_ptr[0] = std::pow(radius, degree_l_dbl);
 

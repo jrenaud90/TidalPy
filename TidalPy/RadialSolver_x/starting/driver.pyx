@@ -56,11 +56,9 @@ def find_starting_conditions(
     run_y_checks : bool, optional
         If True, validate num_ys. Default True.
     """
-    # Feedback
     cdef cpp_string message = cpp_string(b"No message set.")
     cdef cpp_bool success = False
 
-    # starting conditions are passed as an array with shape [num_solutions, num_ys]
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
 

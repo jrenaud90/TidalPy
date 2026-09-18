@@ -1,18 +1,12 @@
 # Lookup Structures
-TidalPy has several instances that require efficient lookup arrays (_e.g._, eccentricity and obliquity function
-results). While Python dictionaries are great, they don't work in C++ where some of TidalPy's functionality lives.
-The package provides the following lookup structures that can be used in C++. However, many of these are wrapped via
-Cython so they can also be accessed in Cython or Python.
+Several parts of TidalPy need efficient lookup arrays (_e.g._, eccentricity and obliquity function results) in C++, where a Python dictionary is not available. The structures below fill that role, and most are wrapped in Cython so they can also be used from Cython or Python.
 
 These structures live in `TidalPy.Utilities_x.lookups`.
 
 ## `IntMap`
-`IntMap` is a lookup array (based off C++ vectors) that takes in 1 to 4 integers (`l,m,p,q`; Different numbers of
-integers require specific `IntMap1`, `IntMap2`, so on) and stores a double or a double complex. The C++ versions 
-can store an arbitrary data structure, only doubles and double complex numbers are exposed to Python/Cython.
+`IntMap` is a lookup array, built on C++ vectors, that takes 1 to 4 integers (`l,m,p,q`; each count has its own class, `IntMap1`, `IntMap2`, and so on) and stores a double or a double complex. The C++ versions store an arbitrary data structure; only doubles and double complex numbers are exposed to Python and Cython.
 
-These are not hash tables. Instead it converts the N integers (which are assumed to fit in 16-bits: -32768 to +32767)
-into a single 64-bit integer. This is then used as a key that is mapped to the provided stored value.
+These are not hash tables. The N integers, assumed to fit in 16 bits (-32768 to +32767), are packed into a single 64-bit integer, which is the key that maps to the stored value.
 - The key layout for `IntMap4` is: [16 bits `l` | 16 bits `m` | 16 bits `p` | 16 bits `q`].
 - Data is stored contiguously as a C++ `pair`: `pair.first` = Packed Key object, `pair.second` = Value.
 
@@ -48,9 +42,9 @@ print(my_complex_map[(1, 2, 3)])
 
 ```
 
-`IntMapN` is meant to behave similar to a Python dictionary. The following are supported:
-- Setting/getting with `my_map[...]`
-- Finding number of items with `len(my_map)`
-- Iterators (like `iter` or just `for x in my_map`) with the signature of `key_tuple, value in my_map`
+`IntMapN` behaves much like a Python dictionary. It supports:
+- Setting and getting with `my_map[...]`
+- The number of items with `len(my_map)`
+- Iteration (`iter`, or `for x in my_map`) with the signature `key_tuple, value in my_map`
 
-Please take a look at the .pyx, .cpp, and .hpp to see how to use these structures in C++ or Cython.
+See the .pyx, .cpp, and .hpp files for use in C++ or Cython.

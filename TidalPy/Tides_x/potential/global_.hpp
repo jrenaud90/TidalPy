@@ -62,12 +62,10 @@ c_GlobalPotentialStorage c_global_potential(
         int eccentricity_truncation
     )
 {
-    // Setup output
     c_GlobalPotentialStorage result;
     result.error_code = 0;
 
-    // We can determine an upper bound on the size of our arrays. This will be overkill because some modes will be 
-    //  skipped.
+    // Upper bound on the number of modes; an overestimate, since some modes are skipped.
     int target_size = 0;
     for (size_t degree_l = min_degree_l; degree_l < (max_degree_l + 1); degree_l++)
     {
@@ -78,24 +76,16 @@ c_GlobalPotentialStorage c_global_potential(
     result.unique_freq_index_map.reserve(target_size);
     result.unique_freq_map.reserve(target_size);
     result.potential_map.reserve(target_size);
-    // Currently the size of the structure is a bit larger than:
-    // IntMaps are  vector(3*8) + (key(8) + sizeof(value)) * size
-    //   mode_map = 3*8 + (8 + 8 + 8) * size
-    // + unique_freq_index_map = 3*8 + (8 + 8 + 8) * size
-    // + unique_freq_map = 3*8 + 8 * size
-    // + potential_map = 3*8 + (8 + 8 * 4) * size
-    // So stack memory is going to be around 96 bytes
-    // Heap memory for l=2 at eccentricity truncation of 6: > 11.23 kB; l=3 > 31.2 kB; l=4 > 62.4 kB
+    // The four maps take about 96 bytes on the stack; the heap cost at eccentricity truncation 6 is roughly
+    // 11 kB at l = 2, 31 kB at l = 3, and 62 kB at l = 4.
 
     // For later calculation of the maximum relative mode.
     double max_mode_strength = 0;
 
-    // Optimizations
     c_Key2 lm_key   = c_Key2();
     c_Key4 lmpq_key = c_Key4();
     auto& lm_coeff_map = c_get_lm_coeff_map();
 
-    // Setup R/a coeff
     double R_a = planet_radius / semi_major_axis;
     double R_a_2 = R_a * R_a;
     double ra_l_coeff = 0;
@@ -114,18 +104,15 @@ c_GlobalPotentialStorage c_global_potential(
         ra_l_coeff = std::pow(R_a, 2.0 * static_cast<double>(min_degree_l) + 1);
         break;
     }
-    // Multiple the ra_l coeff by the outer most coefficient now. Slightly inefficient doing it now but it will 
-    //  allow us having to multiple it outside of this function (outside of this function the focus should only
-    //  be on the Love number multiplier).
+    // Fold the outermost coefficient in here so nothing outside this function has to apply it; outside, the
+    // focus is only on the Love-number multiplier.
     ra_l_coeff *= G_to_use * host_mass / semi_major_axis;
 
-    // Step through each degree l and find the potential.
     for (int degree_l = min_degree_l; degree_l < (max_degree_l + 1); degree_l++)
     {
         // Set the degree l we are working on for error reporting.
         result.working_on_l = degree_l;
 
-        // Determine Obliquity functions
         ObliquityFuncOutput obliquity_funcs = c_obliquity_func(
             &result.error_code,
             obliquity,
@@ -134,11 +121,9 @@ c_GlobalPotentialStorage c_global_potential(
         );
         if (result.error_code != 0)
         {
-            // Error, return early.
             return result;
         }
 
-        // Determine Eccentricity functions
         EccentricityFuncOutput eccentricity_funcs = c_eccentricity_func(
             &result.error_code,
             eccentricity,
@@ -147,41 +132,32 @@ c_GlobalPotentialStorage c_global_potential(
         );
         if (result.error_code != 0)
         {
-            // Error, return early.
             return result;
         }
-        // Correct the R_a coeff if we are not at the min degree_l (it has already been initialized for that).
         if (degree_l > min_degree_l)
         {
             // Every sequential degree l grows the coeff by (R/a)^2
             ra_l_coeff *= R_a_2;
         }
 
-        // The combination of obliquity and eccentricity functions determines the number of unique modes required 
-        //  for the tidal potential.
 
-        // Set up l in various keys
         lm_key.a = degree_l;
-        // Set m to a negative (which is not physical) so we can check if it changes later
+        // Unphysical m sentinel, so the first pass through the loop registers as a new m.
         lm_key.b = -1;
         lmpq_key.a = degree_l;
         
-        // Prepare the lm_coeff
         double lm_coeff = TidalPyConstants::d_NAN;
 
-        // Step through the outer lmp loop defined by the obliquity function.
         for (const auto& [lmp_key, F_lmp] : obliquity_funcs.first) {
 
             if (F_lmp == 0.0)
             {
-                // If F_lmp is zero then this lmp has no impact on the result.
                 continue;
             }
             
             bool found = false;
             if (lmp_key.b != lm_key.b)
             {
-                // New m.
                 lm_key.b = lmp_key.b;
                 lm_key.rebuild_reference();
                 
@@ -189,47 +165,39 @@ c_GlobalPotentialStorage c_global_potential(
                 lm_coeff = lm_coeff_map.get(found, lm_key);
                 if (!found)
                 {
-                    // Can not find l,m combo. Perhaps unsupported degree l.
+                    // No (l, m) coefficient; likely an unsupported degree l.
                     result.error_code = -20;
                     return result;
                 }
 
-                // Also update the m for our lmpq key
                 lmpq_key.b = lmp_key.b;
             }
             lmpq_key.c = lmp_key.c;
 
-            // We will need F^2 for the global potential (local potential only used F).
-            // We also need a common coefficient of (l - m)! / (l + m)!
-            // Might as well multiple this by the F^2 term.
+            // The global potential goes as F^2 (the 3D path uses F); fold in (l - m)!/(l + m)!(2 - d_m0).
             double lmp_coeff = F_lmp * F_lmp * ra_l_coeff * lm_coeff;
 
-            // Now use the current l and p to find the eccentricity vector of G_lpq results sorted by q.
             found = false;
             const c_IntMap<c_Key1, double>* eccentricity_by_q_ptr = 
                 eccentricity_funcs.second.get_ptr(found, c_Key2(lmp_key.a, lmp_key.c));  // a == l; b == m; c == p
             
-            // It is possible that the eccentricity_by_q has no data for this l,p; meaning that G_lp(q) = 0 for all q.
-            //   Continue to the next mode if that is the case. Otherwise, carry on.
+            // No entry for this (l, p) means G_lpq = 0 for every q.
             if (found)
             {
                 for (const auto& [q_key, G_lpq] : *eccentricity_by_q_ptr)
                 {
                     if (G_lpq == 0.0)
                     {
-                        // If G_lpq is zero then this lpq has no impact on the result.
                         continue;
                     }
 
-                    // Build key for this unique lmpq
                     lmpq_key.d = q_key.a;
                     lmpq_key.rebuild_reference();
 
-                    // Find the tidal mode at this lmpq. The full equation for tidal mode is:
-                    //  $\omega_{lmpq} = (l - 2p) * periastron_dot + (l - 2p + q) * orbital_motion + m * (node_dot - spin_freq)
-                    // If we assume node_dot ~ 0 and periastron_dot ~ 0; this reduces to the following.
-                    // TODO: Perhaps put a function here to switch between cases. But then we'd need to track these other
-                    // parameters. Perhaps better to make whole new potential functions.
+                    // The full tidal mode is
+                    //   omega_lmpq = (l - 2p) periastron_dot + (l - 2p + q) n + m (node_dot - spin),
+                    // which reduces to the form below once periastron_dot and node_dot are taken as zero.
+                    // TODO: support nonzero periapse and node precession.
                     c_ModeStorage mode_storage = c_ModeStorage(
                         lmpq_key.a - 2 * lmpq_key.c + lmpq_key.d,  // n coeff 
                         -lmpq_key.b                                // o coeff
@@ -245,7 +213,7 @@ c_GlobalPotentialStorage c_global_potential(
                         mode_sign = -1.0;
                     }
 
-                    // Use the mode to build up our frequency arrays and also check if we should skip this one.
+                    // Records the mode's frequency and reports whether it is nonzero.
                     bool nonzero_freq = record_unique_frequencies(                
                         lmpq_key,
                         std::abs(mode_storage.mode),
@@ -255,21 +223,15 @@ c_GlobalPotentialStorage c_global_potential(
 
                     if (nonzero_freq)
                     {
-                        // Actually start calculating some potentials! First let's save this mode as an active one.
-
-                        // We want to track which modes are actually important so the user can adjust truncation levels
-                        //  if they are too high for the problem at hand.
-                        // Instead of creating its own parameter, just use mode strength as our common coefficient.
-                        // Like the obliquity function, we will need G^2 and lets take this opportunity to multiple by
-                        //  the current lmp coeff which include F^2.
+                        // mode_strength doubles as the common coefficient G^2 times the lmp coeff (which
+                        // carries F^2), so a user can see which modes matter and lower a truncation level
+                        // that is higher than the problem needs.
                         double common_coeff = G_lpq * G_lpq * lmp_coeff;
 
-                        // For individual mode strength let's retain the sign so we don't lose that information.
-                        // It is easy enough to abs away later if not needed.
+                        // The per-mode strength keeps the sign of the tidal mode.
                         mode_storage.mode_strength = mode_sign * common_coeff;
                         result.mode_map.set(lmpq_key, mode_storage);
                         
-                        // The running maximum mode strength should be abs'd though.
                         max_mode_strength = std::max(max_mode_strength, std::abs(mode_storage.mode_strength));
 
                         // Each potential component has a different coefficient but all share the common one.
@@ -293,7 +255,7 @@ c_GlobalPotentialStorage c_global_potential(
         }
     }
 
-    // Step through our modes to calculate the relative mode strength
+    // Normalize the mode strengths against the strongest mode.
     if (max_mode_strength > 0.0)
     {
         for (auto& [lmpq_key, mode_data] : result.mode_map)

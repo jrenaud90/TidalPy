@@ -1,8 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-# Top-level radial solver entry point.
-# Orchestrates EOS → shooting/matrix → love number computation.
+# Standalone radial solver entry point: EOS, shooting or matrix solve, Love numbers.
 
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cpp_bool
@@ -18,7 +17,6 @@ from CyRK cimport ODEMethod
 from TidalPy.Utilities_x.logging_x.logger import log_warning
 from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr, tidalpy_config_ptr, TidalPyConfig
 from TidalPy.constants import ODE_METHOD_NAMES
-# Make sure TidalPy Config Pointer is set.
 set_tidalpy_config_ptr(get_shared_config_address())
 
 from TidalPy.exceptions import SolutionFailedError
@@ -82,108 +80,75 @@ def radial_solver(
         cpp_bool verbose = False,
         cpp_bool warnings = True,
         cpp_bool raise_on_fail = False,
-        cpp_bool perform_checks = True,  # Maintained for API compatibility, but C++ handles checking unconditionally
+        cpp_bool perform_checks = True,  # kept for API compatibility; C++ always validates
         cpp_bool log_info = False
         ):
     """
-    Solves the viscoelastic-gravitational problem for a planet comprised of solid and liquid layers.
+    Solve the viscoelastic-gravitational problem for a planet of solid and liquid layers.
 
-    Every solver setting left as ``None`` takes the ``[radial_solver]`` (shooting method) or ``[eos_solver]``
-    value of the TidalPy configuration (``TidalPy.config_x``), the same defaults the world-attached solves use.
+    Every solver setting left as ``None`` takes the ``[radial_solver]`` or ``[eos_solver]`` value of
+    ``TidalPy.config_x``, the same defaults the world-attached solves use.
 
     Parameters
     ----------
     radius_array : np.ndarray[dtype=np.float64]
-        Radius values defined at slices throughout the planet [m].
+        Radius at each slice [m]; interface radii appear twice.
     density_array : np.ndarray[dtype=np.float64]
         Density at each radius [kg m-3].
-    complex_bulk_modulus_array : np.ndarray[dtype=np.complex128]
-        Bulk modulus at each radius [Pa].
-    complex_shear_modulus_array : np.ndarray[dtype=np.complex128]
-        Complex shear modulus at each radius [Pa].
+    complex_bulk_modulus_array, complex_shear_modulus_array : np.ndarray[dtype=np.complex128]
+        Complex moduli at each radius [Pa].
     frequency : float64
-        Forcing frequency [rad s-1]
+        Forcing frequency [rad s-1].
     planet_bulk_density : float64
-        Bulk density of the planet [kg m-3].
-    layer_types : tuple[string, ...]
-        Indicator of layer type: "solid" or "liquid".
-    is_static_bylayer : tuple[bool, ...]
-        Flag declaring if each layer uses the static (True) or dynamic (False) assumption.
-    is_incompressible_bylayer : tuple[bool, ...]
-        Flag declaring if each layer is incompressible (True) or compressible (False).
+        [kg m-3].
+    layer_types : tuple[str, ...]
+        "solid" or "liquid" per layer.
+    is_static_bylayer, is_incompressible_bylayer : tuple[bool, ...]
+        Static (True) or dynamic, incompressible (True) or compressible, per layer.
     upper_radius_bylayer_array : np.ndarray[dtype=np.float64]
-        Upper radius of each layer.
+        Upper radius of each layer [m].
     degree_l : int, default=2
         Harmonic degree.
-    solve_for : tuple[str, ...], default=None
-        Tuple of requested solutions ("tidal", "loading", "free"). None defaults to ("tidal",).
+    solve_for : tuple[str, ...], optional
+        Up to 5 of "tidal", "loading", "free"; None means ("tidal",).
     starting_radius : float64, default=0.0
-        Starting radius [m]. 0.0 = auto-determine.
-    start_radius_tolerance : float64, optional
-        Tolerance of the automatic starting radius, R * tol^(1/l). None: from the configuration.
+        Starting radius [m]; 0 selects R * tol^(1/l) with ``start_radius_tolerance``.
     nondimensionalize : bool, optional
-        Non-dimensionalize inputs before integration (the EOS and the shooting solve). None: from the
-        configuration.
+        Non-dimensionalize the EOS and shooting solves.
     use_kamata : bool, optional
-        Use Kamata+ (2015) starting conditions. None: from the configuration.
-    integration_method : str, optional
-        CyRK integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', 'Radau'. None: from the configuration.
-    integration_rtol : float64, optional
-        Relative integration tolerance. None: from the configuration.
-    integration_atol : float64, optional
-        Absolute integration tolerance. None: from the configuration.
+        Use the Kamata et al. (2015) starting conditions.
+    integration_method, eos_integration_method : str, optional
+        CyRK method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', or 'Radau'.
+    integration_rtol, integration_atol, eos_rtol, eos_atol : float64, optional
+        Integration tolerances.
     scale_rtols_bylayer_type : bool, optional
-        Scale tolerances by layer type. None: from the configuration.
-    max_num_steps : uint, optional
-        Maximum integration steps. None: from the configuration.
-    expected_size : uint, optional
-        Expected integration steps per solution. None: from the configuration.
-    max_ram_MB : uint, optional
-        Maximum RAM for integrator [MB]. None: from the configuration.
+        Tighten the rtols of the unstable ys per layer type.
+    max_num_steps, expected_size, max_ram_MB : uint, optional
+        Integrator limits (RAM in MB).
     max_step : float64, default=0
-        Maximum step size. 0 = auto-determine.
+        Maximum step size [m]; 0 selects one third of each layer thickness.
     love_method : str, default='radial_solver'
-        Radial technique: 'radial_solver' (aliases 'shooting', 'rs') integrates the radial ODEs from the
-        starting radius to the surface; 'propagation_matrix' (aliases 'prop_matrix', 'pm', 'prop') uses the
-        matrix method, which is only valid for a single solid, static, incompressible layer. The analytic
-        methods ('homogeneous', 'cpl', 'ctl') need a built world (LayeredWorld.solve_love_numbers) or the
-        closed-form functions in TidalPy.Tides_x.love.
+        'radial_solver' (aliases 'shooting', 'rs') or 'propagation_matrix' (aliases 'prop_matrix', 'pm',
+        'prop'; a single solid, static, incompressible layer only). The analytic methods need a built world
+        or the closed-form functions in TidalPy.Tides_x.love.
     core_model : int, default=0
-        Core model for prop matrix method (0-4).
-    eos_method_bylayer : tuple, default=None
-        EOS method per layer. None = "interpolation" for all.
+        Propagation matrix core starting condition (0 to 4).
+    eos_method_bylayer : tuple, optional
+        Only "interpolate" is supported; None applies it to every layer.
     surface_pressure : float64, default=0.0
-        Planet surface pressure [Pa].
-    eos_integration_method : str, optional
-        EOS integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', or 'Radau'. None: from the
-        configuration.
-    eos_rtol : float64, optional
-        EOS relative tolerance. None: from the configuration.
-    eos_atol : float64, optional
-        EOS absolute tolerance. None: from the configuration.
+        [Pa].
     eos_pressure_tol : float64, optional
-        Convergence tolerance on the surface-pressure mismatch, relative to the central-pressure scale
-        (2/3) pi G rho^2 R^2 (keep it above ``eos_rtol``). None: from the configuration.
+        Surface-pressure convergence tolerance relative to (2/3) pi G rho^2 R^2; keep it above ``eos_rtol``.
     eos_max_iters : int, optional
-        Maximum central-pressure iterations. None: from the configuration.
-    verbose : bool, default=False
-        Print status messages.
-    warnings : bool, default=True
-        Print warnings.
-    raise_on_fail : bool, default=False
-        Raise exception on failure.
-    perform_checks : bool, default=True
-        Perform input sanity checks.
-    log_info : bool, default=False
-        Log diagnostic information.
+        Maximum central-pressure iterations.
+    verbose, warnings, raise_on_fail, perform_checks, log_info : bool
+        Reporting switches; ``perform_checks`` is accepted for compatibility and inputs are always validated.
 
     Returns
     -------
     solution : RadialSolverSolution
     """
 
-    # Solver settings not given here come from the [radial_solver] and [eos_solver] sections of the TidalPy
-    # configuration, held by the shared C++ config (the same values the world-attached solves start from).
     cdef TidalPyConfig* shared_config = tidalpy_config_ptr
     if start_radius_tolerance is None:
         start_radius_tolerance = shared_config.d_RADIAL_SOLVER_START_RADIUS_TOL
@@ -235,9 +200,7 @@ def radial_solver(
     cdef size_t total_slices = radius_array.shape[0]
     cdef size_t num_layers   = len(layer_types)
 
-    # Every radial array must match the radius array's length; the C++ pipeline reads and
-    # writes all of them over the radius-derived slice count, so a shorter array would be
-    # accessed out of bounds.
+    # The C++ pipeline indexes every array over the radius-derived slice count.
     if total_slices == 0:
         raise ValueError('radius_array must not be empty.')
     if (<size_t>density_array.shape[0] != total_slices
@@ -254,7 +217,6 @@ def radial_solver(
     if len(is_static_bylayer) != num_layers or len(is_incompressible_bylayer) != num_layers:
         raise ValueError('layer_types, is_static_bylayer, and is_incompressible_bylayer must have equal lengths.')
 
-    # Convert Python tuples into C++ std::vectors of strings
     cdef vector[cpp_string] c_layer_types
     for lt in layer_types:
         c_layer_types.push_back(lt.encode('utf-8'))
@@ -275,7 +237,7 @@ def radial_solver(
 
     cdef cpp_bool use_prop_matrix = _resolve_prop_matrix(love_method)
     cdef vector[int] layer_types_out = vector[int](num_layers)
-    # Use standard malloc for boolean arrays since std::vector<bool> behaves like a bitfield in C++
+    # malloc because std::vector<bool> is bit-packed.
     cdef cpp_bool* c_is_static = <cpp_bool*>malloc(num_layers * sizeof(cpp_bool))
     cdef cpp_bool* c_is_incomp = <cpp_bool*>malloc(num_layers * sizeof(cpp_bool))
     
@@ -292,7 +254,6 @@ def radial_solver(
         else:
             c_is_incomp[i] = False
 
-    # Prepare structures for C++ validator outputs
     cdef int[5] bc_models_out
     cdef size_t num_bc_models_out = 0
     cdef ODEMethod integration_method_out     = ODEMethod.NO_METHOD_SET
@@ -303,7 +264,7 @@ def radial_solver(
     cdef RadialSolverSolution solution
     
     try:
-        # Call C++ helper to validate data and prep variables (throws ValueError on checks failure)
+        # Raises ValueError on a failed check.
         c_validate_and_prep_radial_inputs(
             total_slices,
             &radius_array[0],
@@ -329,7 +290,6 @@ def radial_solver(
             eos_integration_method_out
         )
 
-        # Build solution storage
         solution = RadialSolverSolution(
             num_bc_models_out,
             upper_radius_bylayer_array,
@@ -339,7 +299,6 @@ def radial_solver(
 
         solution.set_model_names(&bc_models_out[0])
 
-        # Run C++ radial solver 
         rs_error_code = c_radial_solver(
             solution.solution_storage_uptr.get(),
             total_slices,
@@ -382,11 +341,9 @@ def radial_solver(
         )
         
     finally:
-        # Guarantee cleanup of manually allocated arrays
         free(c_is_static)
         free(c_is_incomp)
 
-    # Finalize
     solution.finalize_python_storage()
 
     if log_info:

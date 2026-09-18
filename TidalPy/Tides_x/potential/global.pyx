@@ -22,20 +22,15 @@ def global_potential(
     ):
     """Build the global (1D) tidal potential mode tables for one orbital state.
 
-    The body radius comes first, then the orbital state in the same order as the world's
-    ``calc_tides`` (orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis,
-    host mass), then Newton's constant.
+    Arguments follow the world's ``calc_tides`` order after the body radius [m]; frequencies in rad s-1,
+    angles in radians, MKS throughout.
 
     Returns
     -------
     tuple
-        The mode map and unique-frequency map used by the global collapse.
-
-    Assumptions
-    -----------
-    - All inputs MKS; frequencies in rad s-1; angles in radians.
+        ``(mode_map, unique_freq_index_map, unique_freq_list, potential_dict)``; ``potential_dict`` maps
+        ``(l, m, p, q)`` to ``(dU_dM, dU_dw, dU_dO, E_dot)``.
     """
-    # Clean up non-C inputs
     cdef int i_obliquity_truncation = 0
     if isinstance(obliquity_truncation, str):
         if obliquity_truncation.lower() in ('gen', 'general'):
@@ -58,7 +53,6 @@ def global_potential(
             f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
             'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
 
-    # Run C++ code
     cdef c_GlobalPotentialStorage c_result = c_global_potential(
         planet_radius,
         semi_major_axis,
@@ -74,7 +68,6 @@ def global_potential(
         eccentricity_truncation
     )
 
-    # Check for errors
     if c_result.error_code != 0:
         if c_result.error_code == -20:
             raise NotImplementedError(
@@ -94,11 +87,9 @@ def global_potential(
                 f"(working on degree l={c_result.working_on_l}).")
 
     # Convert C++ results to Python-accessible objects.
-    # Mode map
     cdef ModeMap mode_map = ModeMap()
     mode_map._cinst = c_result.mode_map
 
-    # Unique frequency index map
     cdef UniqueFrequencyMap unique_freq_index_map = UniqueFrequencyMap()
     unique_freq_index_map._cinst = c_result.unique_freq_index_map
 

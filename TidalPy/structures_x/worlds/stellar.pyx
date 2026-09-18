@@ -1,13 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-stellar.pyx
-Cython/Python wrapper for TidalPy's star world class.
+"""Cython wrapper for TidalPy's star world class.
 
-StarWorld: a star with no internal layers and no equation of state. Carries an
-effective temperature and luminosity kept consistent via the Stefan-Boltzmann
-law (L = 4·pi·R²·sigma·T⁴). An optional luminosity model (``LuminosityBase``) can
-be attached to derive the luminosity and effective temperature from the star's mass.
+StarWorld has no internal layers and no equation of state. Its effective temperature and luminosity are kept
+consistent through the Stefan-Boltzmann law (L = 4·pi·R²·sigma·T⁴), and an optional ``LuminosityBase`` model
+derives both from the star's mass.
 """
 
 from libcpp.utility cimport move
@@ -139,9 +136,8 @@ cdef class StarWorld(BaseWorld):
     def set_luminosity_model(self, LuminosityBase model not None):
         """Attach a :class:`~TidalPy.stellar_x.LuminosityBase` model (transfers ownership).
 
-        Ownership of the C++ model is moved from ``model`` into this star; the passed wrapper becomes
-        an empty, non-owning shell and must not be reused. Once attached the star can derive its
-        luminosity and effective temperature from its own mass.
+        Ownership of the C++ model moves out of ``model``, which is left an empty shell and must not be reused.
+        Once attached, the star can derive its luminosity and effective temperature from its own mass.
         """
         if model._luminosity_ptr.get() == NULL:
             raise ValueError("This luminosity model holds no C++ object (already attached or moved).")
@@ -153,24 +149,16 @@ cdef class StarWorld(BaseWorld):
         return True if self._star_ptr.has_luminosity_model() else False
 
     def calc_luminosity_from_mass(self) -> float:
-        """Luminosity [W] derived from the star's mass via the attached model.
-
-        Raises ``RuntimeError`` if no luminosity model has been attached.
-        """
+        """Luminosity [W] derived from the star's mass; raises RuntimeError when no model is attached."""
         return self._star_ptr.calc_luminosity_from_mass()
 
     def calc_effective_temperature_from_mass(self) -> float:
-        """Effective temperature [K] derived from the star's mass (mass -> L -> T).
-
-        Raises ``RuntimeError`` if no luminosity model has been attached.
-        """
+        """Effective temperature [K] from the star's mass (mass -> L -> T); raises RuntimeError without a model."""
         return self._star_ptr.calc_effective_temperature_from_mass()
 
     def update_luminosity_from_mass(self):
-        """Update the stored luminosity and effective temperature from the star's mass.
-
-        Raises ``RuntimeError`` if no luminosity model has been attached.
-        """
+        """Update the stored luminosity and effective temperature from the star's mass. Raises RuntimeError when
+        no luminosity model is attached."""
         self._star_ptr.update_luminosity_from_mass()
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -181,14 +169,7 @@ cdef class StarWorld(BaseWorld):
         return "star"
 
     cpdef dict get_config_dict(self):
-        """Return the world config plus stellar fields.
-
-        Returns
-        -------
-        dict
-            All :class:`BaseWorld` keys plus ``effective_temperature`` and
-            ``luminosity``.
-        """
+        """Return the BaseWorld config dict plus ``effective_temperature`` and ``luminosity``."""
         d = BaseWorld.get_config_dict(self)
         d["effective_temperature_k"] = self._star_ptr.get_effective_temperature()
         d["luminosity_w"]            = self._star_ptr.get_luminosity()

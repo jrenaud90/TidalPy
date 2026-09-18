@@ -22,19 +22,17 @@ SEVERE_SURFACE_AMPLIFICATION = 1.0e8
 
 
 def check_surface_solve_conditioning(double surface_amplification, double integration_rtol):
-    """Log a warning when the radial solver's surface boundary condition solve is poorly conditioned.
+    """Log a warning when the surface boundary condition solve is poorly conditioned.
 
-    Warns when the roundoff floor (``surface_amplification`` times machine epsilon) exceeds the requested
-    integration tolerance, or when the amplification alone is severe enough that amplified integration error
-    likely ruins the leading digits of the Love numbers.
+    Warns when the roundoff floor (``surface_amplification`` times machine epsilon) exceeds the integration
+    tolerance, or when the amplification alone exceeds ``SEVERE_SURFACE_AMPLIFICATION``.
 
     Parameters
     ----------
     surface_amplification : float64
-        Worst-case error amplification of the surface solve (see
-        ``RadialSolverSolution.surface_solve_amplification``).
+        See ``RadialSolverSolution.surface_solve_amplification``.
     integration_rtol : float64
-        Relative tolerance the radial integration was requested at.
+        Requested relative integration tolerance.
 
     Returns
     -------
@@ -63,17 +61,14 @@ cdef class RadialSolverSolution:
             double[::1] radius_array_view,
             int degree_l
             ):
-        # Build pointers
         cdef double* upper_radius_bylayer_ptr = &upper_radius_bylayer_view[0]
         self.num_layers                       = upper_radius_bylayer_view.size
         cdef double* radius_array_ptr         = &radius_array_view[0]
         cdef size_t radius_array_size         = radius_array_view.size
 
-        # Set state information
         self.ytype_names_set = False
         self.num_ytypes      = num_ytypes
 
-        # Create C++ storage instance
         self.solution_storage_uptr = make_unique[c_RadialSolutionStorage](
             self.num_ytypes,
             upper_radius_bylayer_ptr,
@@ -86,7 +81,6 @@ cdef class RadialSolverSolution:
         if not self.solution_storage_ptr:
             raise RuntimeError("c_RadialSolutionStorage extension class could not be initialized.")
 
-        # Finish initialization with provided array
         self.change_radius_array(radius_array_ptr, radius_array_size, array_changed=False)
 
     def __dealloc__(self):
@@ -208,8 +202,7 @@ cdef class RadialSolverSolution:
         cdef double layer_r = 0.0
         cdef double last_layer_r = 0.0
 
-        # Interior interfaces resolve to the layer above (half-open intervals); the planet
-        # surface itself resolves to the top layer rather than falling out of the search.
+        # Half-open intervals: an interior interface resolves to the layer above, the surface to the top layer.
         cdef size_t num_eos_layers = eos_solution_ptr.upper_radius_bylayer_vec.size()
         for layer_i in range(num_eos_layers):
             layer_r = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
@@ -224,8 +217,7 @@ cdef class RadialSolverSolution:
         if layer_index < 0:
             raise ValueError("Could not find correct layer for provided radius.")
 
-        # Buffer length MUST match C_EOS_DY_VALUES in Material_x/eos/ode_.hpp: the EOS
-        # dense call writes that many doubles (4 dependent + 7 extra outputs).
+        # The dense call writes C_EOS_DY_VALUES doubles.
         cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
         cdef double[::1] eos_interp_view = eos_interp
         cdef double* eos_interp_ptr      = &eos_interp_view[0]
@@ -234,11 +226,10 @@ cdef class RadialSolverSolution:
         return eos_interp
 
     def eos_call_si(self, double radius):
-        """Dense EOS outputs (SI) at an arbitrary radius [m], via the solution's own dense interpolant.
+        """Dense EOS outputs (SI) at an SI radius [m]; ``eos_call`` takes a non-dimensional radius instead.
 
-        Unlike :meth:`eos_call` (which passes the raw radius straight to the non-dim-domain cysolver and
-        only works for a non-dim radius), this converts the SI radius into the interpolant domain and
-        returns SI values. Use this for on-radius shear/bulk (indices 5,6 and 7,8) and structure.
+        Layout: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density, [5, 6] shear re/im, [7, 8] bulk re/im,
+        [9, 10] shear and bulk viscosity. NaN when the solve failed.
         """
         cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
         cdef double[::1] eos_interp_view = eos_interp
@@ -247,12 +238,10 @@ cdef class RadialSolverSolution:
         return eos_interp
 
     def get_radial_solution(self, double radius, size_t ytype_index = 0):
-        """Collapsed complex y1..y6 (SI) at one radius [m] for a boundary-condition ytype.
+        """Complex y1..y6 (SI) at one radius [m] for a boundary-condition ytype.
 
-        Shooting solutions evaluate their dense per-layer interpolants at ``radius`` (accurate
-        anywhere, including between EOS grid slices); the matrix method linearly interpolates its
-        constructed grid. Returns a length-6 complex128 array, NaN where the radius is out of range
-        or below the solver's starting radius.
+        Shooting solutions evaluate their dense interpolants; the matrix method interpolates its grid linearly.
+        Returns a length-6 complex128 array, NaN out of range or below the starting radius.
         """
         cdef cnp.ndarray[cnp.complex128_t, ndim=1] out = np.empty(C_MAX_NUM_Y, dtype=np.complex128)
         self.solution_storage_ptr.get_radial_solution(
@@ -260,11 +249,7 @@ cdef class RadialSolverSolution:
         return out
 
     def get_radial_solution_array(self, double[::1] radius_array not None, size_t ytype_index = 0):
-        """Vectorized :meth:`get_radial_solution`: complex y1..y6 (SI) at each radius [m].
-
-        Returns an ``(n, 6)`` complex128 array. Each radius is evaluated independently from the dense
-        interpolants (shooting) or the constructed grid (matrix), entirely in fast C++.
-        """
+        """Vectorized :meth:`get_radial_solution`: an ``(n, 6)`` complex128 array of y1..y6 (SI) at each radius [m]."""
         cdef size_t n = radius_array.shape[0]
         cdef cnp.ndarray[cnp.complex128_t, ndim=2] out = np.empty((n, C_MAX_NUM_Y), dtype=np.complex128)
         if n > 0:
@@ -273,11 +258,10 @@ cdef class RadialSolverSolution:
         return out
 
     def plot_ys(self, cpp_bool show_plot = True, **plot_kwargs):
-        """Plot the radial functions y1..y6 against radius for every solved boundary-condition type.
+        """Plot y1..y6 against radius for every solved boundary-condition type.
 
-        Wraps :func:`TidalPy.Utilities_x.graphics_x.plot_ys`; extra keyword arguments (``depth_plot``,
-        ``plot_imaginary``, ``benchmarks``, ``use_tobie_limits``, ...) are passed through. Returns the
-        matplotlib ``(figure, axes)``. Large spikes or non-smooth curves indicate an unstable solve.
+        Wraps :func:`TidalPy.Utilities_x.graphics_x.plot_ys` and passes extra keyword arguments through; returns
+        the matplotlib ``(figure, axes)``. Spikes or non-smooth curves indicate an unstable solve.
         """
         cdef list result_list
         cdef list radius_list
@@ -311,10 +295,10 @@ cdef class RadialSolverSolution:
         return plot_ys(result_list, radius_list, show_plot=show_plot, **plot_kwargs)
 
     def plot_interior(self, cpp_bool show_plot = True, **plot_kwargs):
-        """Plot the interior profiles found by the equation-of-state solve (gravity, density, pressure, moduli).
+        """Plot the EOS interior profiles (gravity, density, pressure, moduli).
 
-        Wraps :func:`TidalPy.Utilities_x.graphics_x.plot_interior`; extra keyword arguments (``depth_plot``,
-        ``use_scatter``, ``planet_name``, ...) are passed through. Returns the matplotlib ``(figure, axes)``.
+        Wraps :func:`TidalPy.Utilities_x.graphics_x.plot_interior` and passes extra keyword arguments through;
+        returns the matplotlib ``(figure, axes)``.
         """
         if not self.eos_success:
             raise AttributeError("`RadialSolverSolution` can not plot the interior because the EOS solve was not successful.")
@@ -457,20 +441,12 @@ cdef class RadialSolverSolution:
 
     @property
     def moi_factor(self):
-        """Moment of inertia factor, moi / (M R^2).
-
-        The conventional dimensionless measure of central condensation: 0.4 for a uniform sphere, 0.3307
-        for Earth, and smaller the more mass sits near the center.
-        """
+        """Moment of inertia factor moi / (M R^2): 0.4 for a uniform sphere, 0.3307 for Earth."""
         return self.moi / (self.mass * self.radius**2)
 
     @property
     def moi_sphere_ratio(self):
-        """Moment of inertia relative to a uniform sphere of the same mass and radius, moi / (0.4 M R^2).
-
-        Exactly 1 for a uniform body and below 1 for a centrally condensed one. This is 2.5 times
-        :attr:`moi_factor`.
-        """
+        """Moment of inertia relative to a uniform sphere, moi / (0.4 M R^2); 2.5 times :attr:`moi_factor`."""
         cdef double uniform_sphere_moi = (2.0 / 5.0) * self.mass * self.radius**2
         return self.moi / uniform_sphere_moi
 
@@ -719,15 +695,11 @@ cdef class RadialSolverSolution:
 
     @property
     def surface_solve_amplification(self):
-        """Worst-case error amplification of the surface boundary condition solve (shooting method).
+        """Worst-case error amplification of the surface boundary condition solve (shooting method only).
 
-        The collapsed surface solution combines the independent solutions with constants that can grow large
-        and cancel (deep starting radii, high harmonic degrees). Roundoff and integration error are amplified
-        into the surface solution, and the Love numbers derived from it, by up to this factor; the achievable
-        relative accuracy is floor limited to about this value times machine epsilon regardless of the
-        integration tolerance. Values near 1 indicate a well conditioned solve. Only recorded when the solve
-        runs with ``warnings`` enabled, and stays 0 for the propagation matrix method, which does not use the
-        shooting surface collapse.
+        Large cancelling collapse constants (deep starting radii, high degrees) amplify roundoff and integration
+        error into the Love numbers by up to this factor, so the achievable relative accuracy is about this value
+        times machine epsilon. Near 1 is well conditioned; 0 for the propagation matrix method.
         """
         return self.solution_storage_ptr.surface_amplification
 

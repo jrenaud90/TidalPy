@@ -1,16 +1,5 @@
 # distutils: language = c++
-"""
-gas.pxd
-Cython declarations for TidalPy's gas layer class.
-
-Exports c_GasConfig, c_GasLayer, and the Python wrapper GasLayer so other
-extensions can cimport and use C-speed access.
-
-Usage::
-
-    from TidalPy.structures_x.layers.gas cimport (
-        GasLayer, c_GasLayer, c_GasConfig)
-"""
+"""Cython declarations for TidalPy's gas layer: c_GasConfig, c_GasLayer, and the Python wrapper GasLayer."""
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string

@@ -1,11 +1,7 @@
-"""Writing structures_x world configurations back out to TOML.
+"""Writing structures_x world and system configurations back out to TOML.
 
-Saving is the inverse of :mod:`TidalPy.structures_x.configs.toml_loader`: a
-configuration ``dict`` (typically the normalized config retained on a
-:class:`~TidalPy.structures_x.configs.world_builder.World`) is stamped with the
-current ``schema_version`` and serialized with the ``toml`` package. As with
-loading, C++ never touches TOML; serialization happens entirely at the
-Python/Cython level.
+The inverse of :mod:`TidalPy.structures_x.configs.toml_loader`: a configuration ``dict`` is stamped
+with the current ``schema_version`` and serialized with the ``toml`` package.
 """
 
 import os
@@ -18,9 +14,7 @@ from TidalPy.structures_x.configs.toml_loader import SCHEMA_VERSION
 def save_world_to_toml(config: dict, file_path: str, overwrite: bool = True) -> str:
     """Serialize a world configuration dictionary to a TOML file.
 
-    The configuration is copied and stamped with the current
-    :data:`~TidalPy.structures_x.configs.toml_loader.SCHEMA_VERSION` before being
-    written, so a reloaded file always carries an up-to-date schema marker.
+    The configuration is copied and stamped with the current ``SCHEMA_VERSION`` before writing.
 
     Parameters
     ----------
@@ -62,11 +56,7 @@ def save_world_to_toml(config: dict, file_path: str, overwrite: bool = True) -> 
 def save_system_to_toml(config: dict, file_path: str, overwrite: bool = True) -> str:
     """Serialize a system configuration dictionary to a TOML file.
 
-    The inverse of the system builder: a system configuration dict (the references retained on a
-    :class:`~TidalPy.structures_x.system.system.System` when built via ``build_system``, or the
-    live-state expansion from ``System.get_config_dict``) is stamped with the current
-    :data:`~TidalPy.structures_x.configs.toml_loader.SCHEMA_VERSION` and written. As with worlds, C++
-    never touches TOML; serialization happens entirely at the Python/Cython level.
+    The configuration is copied and stamped with the current ``SCHEMA_VERSION`` before writing.
 
     Parameters
     ----------

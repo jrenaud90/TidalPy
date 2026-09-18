@@ -1,31 +1,20 @@
 #pragma once
 /*
- * partial_melt_base_.hpp — c_PartialMeltBase: abstract base for all TidalPy
- * partial-melt models.
+ * partial_melt_base_.hpp: c_PartialMeltBase, the abstract base for TidalPy partial-melt models, derived
+ * from c_PhysicsBase.
  *
- * Inherits c_PhysicsBase (Utilities_x/classes_x/physics_base_.hpp).
+ * A partial-melt model maps a material's pre-melt (solid) viscosity and shear modulus, its temperature,
+ * and its melt fraction to the post-melt viscosity and shear modulus. The melt fraction itself is
+ * model-independent and lives on this base class. The three models (Off, Spohn, Henning) are in
+ * partial_melt_.hpp. All calc_* methods are const and MKS.
  *
- * A partial-melt model maps a material's pre-melt (solid) viscosity and shear
- * modulus, plus its temperature and melt fraction, to the POST-melt viscosity and
- * shear modulus, i.e. it applies melt weakening (and, for some models, the bare
- * temperature dependence of the strength). The melt fraction itself is a
- * model-independent function of temperature and the material's solidus/liquidus,
- * provided here on the base class.
- *
- * These quantities are frequency-INDEPENDENT: they depend only on the (already
- * solved) temperature/pressure state, so the world-level pipeline caches them once
- * after the EOS solve and only the downstream rheology (complex modulus) step is
- * recomputed per forcing frequency. See the "Complex-Moduli Pipeline" design note
- * in the planning doc.
- *
- * The three implemented models (Off, Spohn, Henning) live in partial_melt_.hpp.
- *
- * All calc_* methods are const and operate in MKS units.
+ * These quantities are frequency independent, so the world pipeline caches them once after the EOS solve
+ * and only the downstream rheology (complex modulus) step repeats per forcing frequency.
  *
  * References
  * ----------
- * - Fischer and Spohn (1990) — temperature-based melt viscosity/shear law.
- * - Henning (2009, 2010); Renaud and Henning (2018) — three-regime melt weakening.
+ * - Fischer and Spohn (1990): temperature-based melt viscosity and shear law.
+ * - Henning (2009, 2010); Renaud and Henning (2018): three-regime melt weakening.
  */
 
 #include <algorithm>
@@ -40,23 +29,22 @@
 namespace tidalpy {
 
 // -------------------------------------------------------------------------------
-// c_PartialMeltInputs — the per-evaluation state passed to a partial-melt model.
-// (Material constants — solidus/liquidus, liquid shear, model parameters — live
-// on the model object; only the varying state is passed here.) All MKS.
+// c_PartialMeltInputs: the per-evaluation state, all MKS. Material constants live
+// on the model object; only the varying state is passed here.
 // -------------------------------------------------------------------------------
 struct c_PartialMeltInputs {
     double temperature       = 0.0;   // local temperature [K]
-    double premelt_viscosity = 0.0;   // solid (pre-melt) viscosity [Pa·s]
+    double premelt_viscosity = 0.0;   // solid (pre-melt) viscosity [Pa s]
     double premelt_shear    = 0.0;   // solid (pre-melt) shear modulus [Pa]
-    double liquid_viscosity = 0.0;   // viscosity if fully molten at this T [Pa·s]
+    double liquid_viscosity = 0.0;   // viscosity if fully molten at this T [Pa s]
 };
 
 // -------------------------------------------------------------------------------
-// c_PartialMeltResult — what every partial-melt model reports.
+// c_PartialMeltResult: what every partial-melt model reports.
 // -------------------------------------------------------------------------------
 struct c_PartialMeltResult {
-    double melt_fraction          = 0.0;   // volumetric melt fraction φ [m^3/m^3]
-    double postmelt_viscosity     = 0.0;   // post-melt viscosity [Pa·s]
+    double melt_fraction          = 0.0;   // volumetric melt fraction phi [m^3/m^3]
+    double postmelt_viscosity     = 0.0;   // post-melt viscosity [Pa s]
     double postmelt_shear_modulus = 0.0;   // post-melt shear modulus [Pa]
 };
 
@@ -97,11 +85,9 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Volumetric melt fraction φ ∈ [0, 1] from temperature (model-independent):
-    //
-    //   φ = clip( (T − T_solidus) / (T_liquidus − T_solidus), 0, 1 )
-    //
-    // A non-positive (solidus >= liquidus) envelope yields 0 (fully solid).
+    // Volumetric melt fraction, model-independent:
+    //   phi = clip((T - T_solidus) / (T_liquidus - T_solidus), 0, 1)
+    // A non-positive envelope (solidus >= liquidus) gives 0, fully solid.
     // -----------------------------------------------------------------------
     double calc_melt_fraction(double temperature) const noexcept {
         const double denom = this->p_liquidus - this->p_solidus;
@@ -120,10 +106,10 @@ public:
     virtual c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& inputs) const = 0;
 
     // -----------------------------------------------------------------------
-    // Vectorized partial melt — vary temperature and the pre-melt strengths
-    // element-wise at the (constant) liquid viscosity. All vectors must be the
-    // same length N; out_results is resized to N. Throws std::invalid_argument on
-    // a length mismatch. This is the primary radial sweep (one entry per slice).
+    // Vectorized partial melt: vary temperature and the pre-melt strengths
+    // element-wise at the constant liquid viscosity. All vectors must share
+    // length N; out_results is resized to N and a mismatch throws
+    // std::invalid_argument. This is the radial sweep, one entry per slice.
     // -----------------------------------------------------------------------
     void calc_partial_melt_vectorize(
             const std::vector<double>& temperature,

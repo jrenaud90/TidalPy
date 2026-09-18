@@ -1,18 +1,13 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-collapse.pyx
-Standalone global (1D) tidal-mode collapse.
+"""Standalone global (1D) tidal-mode collapse.
 
-``collapse_global_tides`` runs the global-potential engine (the eccentricity/obliquity
-functions + tidal potential of Renaud et al. 2021) for a given orbital/spin state, then
-collapses the per-mode potential terms with an analytic tide model's dissipation
-multiplier -Im[k_l] to give the world's global tidal heating and the three orbital
-potential derivatives (dU/dM, dU/dw, dU/dO).
-
-This standalone path supports the analytic models only ("cpl", "ctl", "ctl_q").
-The rheology model needs per-mode Love numbers from the radial
-solver and is driven by the world's ``calc_tides`` method instead.
+``collapse_global_tides`` runs the global-potential engine (the eccentricity and obliquity functions
+plus the tidal potential of Renaud et al. 2021) for a given orbital and spin state, then collapses the
+per-mode potential terms with an analytic tide model's dissipation multiplier -Im[k_l] to give the
+global tidal heating and the three orbital potential derivatives (dU/dM, dU/dw, dU/dO). Only the
+analytic models ("cpl", "ctl", "ctl_q") are supported here: the rheology model needs per-mode Love
+numbers from the radial solver and is driven by the world's ``calc_tides`` instead.
 """
 
 from libcpp.string cimport string
@@ -191,7 +186,6 @@ def collapse_global_tides(
             f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
             'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
 
-    # Build the tide model (analytic only).
     cdef c_TideModelConfig cfg = _build_tide_config(tide_config)
     cdef c_TideModel model_enum = c_tide_model_from_name(tide_model.encode("utf-8"))
     if model_enum == c_TideModel.Rheology:
@@ -201,7 +195,6 @@ def collapse_global_tides(
             "radial solver; use the world's calc_tides method.")
     cdef unique_ptr[c_TideBase] tide_ptr = c_find_tide(model_enum, cfg)
 
-    # Run the global-potential engine.
     cdef c_GlobalPotentialStorage potential = c_global_potential(
         planet_radius,
         semi_major_axis,
@@ -221,7 +214,6 @@ def collapse_global_tides(
             f"Global potential failed with error code {potential.error_code} "
             f"(working on degree l={potential.working_on_l}).")
 
-    # Collapse with the tide model's dissipation multiplier.
     cdef c_GlobalTideResult result = c_collapse_global_tides(potential, tide_ptr.get()[0])
 
     return {

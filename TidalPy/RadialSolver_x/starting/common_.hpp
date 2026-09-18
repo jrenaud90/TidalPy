@@ -1,5 +1,4 @@
 // common_.hpp - Spherical Bessel z function and Takeuchi phi/psi functions
-// Ported from TidalPy/RadialSolver/starting/common.pyx
 //
 // References
 // ----------
@@ -12,12 +11,11 @@
 #include "xsf/bessel.h"
 #include "xsf/sph_bessel.h"
 
-// Calculates the z function using spherical Bessel function, see Eq. B14 of KMN15.
+// Calculates the z function from the spherical Bessel functions.
 //
 // References
 // ----------
-// TS72 Eqs. 96, 97
-// KMN15 Eq. B14
+// TS72 Eqs. 96, 97; KMN15 Eq. B14
 //
 // Parameters
 // ----------
@@ -28,8 +26,7 @@
 //
 // Returns
 // -------
-// z : complex
-//     Result
+// complex : z
 inline std::complex<double> c_z_calc(
         const std::complex<double>& x_squared,
         const int degree_l) noexcept
@@ -46,7 +43,6 @@ inline std::complex<double> c_z_calc(
 
     if (std::abs(x_squared) > 0.1)
     {
-        // Use full spherical Bessel function
         const std::complex<double> x = std::sqrt(x_squared);
         z = x * xsf::sph_bessel_j(degree_l + 1, x) / xsf::sph_bessel_j(degree_l, x);
     } else
@@ -98,9 +94,8 @@ inline void c_takeuchi_phi_psi(
         std::complex<double>* phi_lplus1_ptr,
         std::complex<double>* psi_ptr) noexcept
 {
-    // Floating point errors prevent us from using the exact definition of these functions (See Issue #41)
-    // Instead we use the limiting version of the functions.
-    // However, we leave the full definition at the bottom of this function for reference.
+    // Floating point errors prevent us from using the exact definition of these functions (Issue #41),
+    // so the limiting (series) version is used instead.
 
     const std::complex<double> z4   = z2 * z2;
     const std::complex<double> z6   = z4 * z2;
@@ -144,33 +139,4 @@ inline void c_takeuchi_phi_psi(
          z8  / (1920.0  * l_5 * l_7 * l_9 * l_11) +
         -z10 / (23040.0 * l_5 * l_7 * l_9 * l_11 * l_13)
      );
-
-    /* Full version
-    # cdef char lp1 = degree_l + 1
-    # cdef double l_dbl_factorial   = cf_double_factorial(2 * degree_l + 1)
-    # cdef double lp1_dbl_factorial = cf_double_factorial(2 * lp1 + 1)
-    
-    # cdef double complex z    = cf_csqrt(z2)
-    # cdef double complex zl   = cf_cipow(z, degree_l)
-    # cdef double complex zlp1 = cf_cipow(z, lp1)
-
-    # phi_ptr[0]        = l_dbl_factorial * (spherical_jn(degree_l, z) / zl)
-    # phi_lplus1_ptr[0] = lp1_dbl_factorial * (spherical_jn(lp1, z) / zlp1)
-    # psi_ptr[0]        = (2. * (2. * degree_l + 3.) / (z * z)) * (1. - phi_ptr[0])
-
-    # DEBUG: Uncomment the below and comment the above to use the method that TidalPy v0.4.0 used for this function.
-    # Left here for comparison/debug purpouses.
-    # cdef double degree_lp1 = degree_l + 1.
-    # cdef double complex z4 = z2 * z2
-
-    # phi_ptr[0] = 1. - \
-    #       z2 / (2. * (2. * degree_l + 3.)) + \
-    #       z4 / (8. * (2. * degree_l + 3.) * (2. * degree_l + 5.))
-    # phi_lplus1_ptr[0] = 1. - \
-    #              z2 / (2. * (2. * degree_lp1 + 3.)) + \
-    #              z4 / (8. * (2. * degree_lp1 + 3.) * (2. * degree_lp1 + 5.))
-    # psi_ptr[0] = 1. - \
-    #       z2 / (4. * (2. * degree_l + 5.)) + \
-    #       z4 / (12. * (2. * degree_l + 5.) * (2. * degree_l + 7.))
-    */
 }

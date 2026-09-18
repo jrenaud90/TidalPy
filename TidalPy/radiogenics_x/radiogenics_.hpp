@@ -1,37 +1,29 @@
 #pragma once
 /*
- * radiogenics_.hpp - Implements TidalPy's radiogenic heating models.
+ * radiogenics_.hpp: TidalPy's radiogenic heating models.
  *
- * Inherits c_RadiogenicsBase (radiogenics_base_.hpp), which itself inherits
- * c_PhysicsBase. Each model implements calc_heating(time, mass), returning the
- * total radiogenic heating [W] produced by the given mass at the given time.
+ * Each model derives from c_RadiogenicsBase and implements calc_heating(time, mass), returning the total
+ * radiogenic heating [W] produced by that mass at that time.
  *
- * Models (with config aliases handled by the factory):
- *   c_OffRadiogenics     (alias "none")     — radiogenics disabled, heating == 0
- *   c_IsotopeRadiogenics                    — sum of individual decaying isotopes
- *   c_FixedRadiogenics   (alias "constant") — single lumped rate with optional decay
+ * Models, with the aliases the factory accepts:
+ *   c_OffRadiogenics      (alias "none")      heating is zero.
+ *   c_IsotopeRadiogenics                      sum over individually decaying isotopes.
+ *   c_FixedRadiogenics    (alias "constant")  one lumped rate with optional decay.
  *
- * A single radioactive isotope is described by the lightweight c_Isotope struct
- * (heat production, half life, isotopic mass fraction, element concentration).
- * The isotope model carries a std::vector<c_Isotope>.
- *
- * All quantities are MKS: time and half-lives in seconds [s], mass in [kg],
- * heat production rates in [W/kg], and heating in [W]. The isotope and fixed
- * models share a single reference time so that times can be expressed relative
- * to any fixed epoch (e.g. solar-system formation).
+ * A single isotope is the lightweight c_Isotope value type (heat production, half life, isotopic mass
+ * fraction, element concentration). Times and half lives are in seconds, mass in kg, heat production in
+ * W/kg, heating in W. The isotope and fixed models share one reference time, so times can be measured
+ * from any fixed epoch such as solar-system formation.
  *
  * References
  * ----------
- * - Hussmann and Spohn (2004); Turcotte and Schubert (2001) — chondritic isotope data.
- * - Castillo-Rogez et al. (2007) — long- and short-lived radiogenic isotopes.
- * - McDonough and Sun (1995) — bulk silicate Earth elemental abundances.
+ * - Hussmann and Spohn (2004); Turcotte and Schubert (2001): chondritic isotope data.
+ * - Castillo-Rogez et al. (2007): long- and short-lived radiogenic isotopes.
+ * - McDonough and Sun (1995): bulk silicate Earth elemental abundances.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::<Model> (501-503)
- *   payload: model_name length (uint32_t) | model_name bytes | model params
- *   Off / Fixed write scalar doubles via the shared c_PhysicsBase helpers.
- *   Isotope writes its variable-length isotope list directly (see below).
- *   The layer observer pointer (p_layer_ptr) is NOT serialized.
+ * Binary payload under class_id BinaryClassID::<Model> (501-503): model_name length (uint32_t), the
+ * model_name bytes, then the model parameters. Off and Fixed use the shared c_PhysicsBase helpers;
+ * Isotope writes its variable-length isotope list itself. The layer observer pointer is not serialized.
  */
 
 #include <algorithm>
@@ -51,10 +43,6 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// Module-level constants.
-// -------------------------------------------------------------------------------
-
 // Replace a magnitude smaller than the shared numerical floor (config_x
 // [numerical].numerical_floor) with a signed floor value, guarding half-life
 // denominators that may approach zero.
@@ -67,10 +55,9 @@ inline double rad_guard(double value) noexcept {
 }
 
 // =====================================================================================================================
-// c_Isotope — a single radioactive isotope and its decay heating
+// c_Isotope: one radioactive isotope and its decay heating
 //
-// A lightweight value type (no base class, no virtuals) describing one isotope's
-// contribution to radiogenic heating. The specific heating per unit layer mass is
+// A lightweight value type (no base class, no virtuals). The specific heating per unit layer mass is
 //
 //   q(t) = mass_frac * concentration * heat_production * exp(gamma * (t - t_ref))
 //
@@ -111,11 +98,11 @@ struct c_Isotope {
 };
 
 // -------------------------------------------------------------------------------
-// c_RadiogenicsConfig — combined construction parameters for all models.
-// Each model reads only the fields it needs.
+// c_RadiogenicsConfig: construction parameters for every model. Each model reads
+// only the fields it needs.
 // -------------------------------------------------------------------------------
 struct c_RadiogenicsConfig {
-    // Isotope model — one c_Isotope per radioactive isotope.
+    // Isotope model: one c_Isotope per radioactive isotope.
     std::vector<c_Isotope> isotopes;
 
     // Fixed model.
@@ -144,39 +131,32 @@ inline std::vector<std::string> c_isotope_dataset_names() {
     return {"modern_day_chondritic", "llri_and_slri", "bulk_silicate_earth"};
 }
 
-// Build a named built-in isotope dataset. Throws std::invalid_argument on an
-// unknown name. Recognized names (case-insensitive):
+// Build a named built-in isotope dataset (case-insensitive); throws std::invalid_argument on an unknown
+// name.
 //
 //   "modern_day_chondritic"
-//       Present-day chondritic abundances of the four long-lived heat producers
-//       (U238, U235, Th232, K40). Applicable to rocky/icy bodies of broadly
-//       chondritic composition evaluated near the present epoch.
-//       Source: Hussmann and Spohn (2004); Turcotte and Schubert (2001).
+//       Present-day chondritic abundances of the four long-lived heat producers (U238, U235, Th232,
+//       K40), for rocky or icy bodies of broadly chondritic composition near the present epoch.
+//       Hussmann and Spohn (2004); Turcotte and Schubert (2001).
 //
 //   "llri_and_slri"
-//       Long-lived (U238, U235, Th232, K40) plus short-lived (Mn53, Fe60, Al26)
-//       radiogenic isotopes. Applicable to early-solar-system thermal evolution
-//       (the first few Myr) where short-lived isotopes dominate the heat budget.
-//       Source: Castillo-Rogez et al. (2007).
+//       Long-lived (U238, U235, Th232, K40) plus short-lived (Mn53, Fe60, Al26) isotopes, for
+//       early-solar-system thermal evolution where the short-lived isotopes dominate the heat budget.
+//       Castillo-Rogez et al. (2007).
 //
 //   "bulk_silicate_earth"
-//       Present-day bulk silicate Earth: the four long-lived heat producers with
-//       BSE elemental concentrations (U = 20.3 ppb, Th = 79.5 ppb, K = 240 ppm).
-//       Applicable to Earth-like silicate mantles at the present epoch.
-//       Source: McDonough and Sun (1995) (concentrations); heat production rates
-//       and half lives from Turcotte and Schubert (2002).
+//       Present-day bulk silicate Earth: the four long-lived heat producers at BSE concentrations
+//       (U = 20.3 ppb, Th = 79.5 ppb, K = 240 ppm), for Earth-like silicate mantles.
+//       McDonough and Sun (1995) for the concentrations; Turcotte and Schubert (2002) for the heat
+//       production rates and half lives.
 //
-// Reference times: "modern_day_chondritic" and "bulk_silicate_earth" quote present-epoch
-// concentrations (ref_time = 4600 Myr after solar-system formation). "llri_and_slri" quotes
-// formation (CAI) abundances (ref_time = 0), so time is measured from solar-system formation
-// and the short-lived isotopes decay away over the first ~10 Myr.
+// The chondritic and BSE sets quote present-epoch concentrations (ref_time = 4600 Myr after
+// solar-system formation); "llri_and_slri" quotes formation (CAI) abundances (ref_time = 0), so time is
+// measured from formation and the short-lived isotopes decay away over the first 10 Myr or so.
 inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name);
 
 // =====================================================================================================================
 // Radiogenic heating functions [W]
-//
-// Each mirrors the validated legacy implementation in
-// TidalPy/radiogenics/radiogenic_models.py.
 // =====================================================================================================================
 
 // Off: radiogenics disabled, heating == 0.
@@ -276,15 +256,12 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
 // =====================================================================================================================
 // Radiogenics models
 //
-// Binary serialization uses the shared c_PhysicsBase helpers
-// (write_physics_binary / read_physics_binary) for the scalar-only models (Off,
-// Fixed). The Isotope model has a variable-length isotope list, so it writes its
-// own payload after the shared header + model name (a justified exception to the
-// "single helper call" rule for fixed-parameter models).
+// Off and Fixed serialize through the shared c_PhysicsBase helpers. Isotope carries a variable-length
+// isotope list, so it writes its own payload after the shared header and model name.
 // =====================================================================================================================
 
 // -------------------------------------------------------------------------------
-// c_OffRadiogenics — radiogenics disabled (heating == 0).
+// c_OffRadiogenics: radiogenics disabled, heating is zero.
 // -------------------------------------------------------------------------------
 class c_OffRadiogenics : public c_RadiogenicsBase {
 public:
@@ -305,7 +282,7 @@ public:
 };
 
 // -------------------------------------------------------------------------------
-// c_IsotopeRadiogenics — sum of individual decaying isotopes.
+// c_IsotopeRadiogenics: sum over individually decaying isotopes.
 // -------------------------------------------------------------------------------
 class c_IsotopeRadiogenics : public c_RadiogenicsBase {
 public:
@@ -396,7 +373,7 @@ protected:
 };
 
 // -------------------------------------------------------------------------------
-// c_FixedRadiogenics — single lumped rate with optional decay (alias "constant").
+// c_FixedRadiogenics: one lumped rate with optional decay (alias "constant").
 // -------------------------------------------------------------------------------
 class c_FixedRadiogenics : public c_RadiogenicsBase {
 public:
@@ -451,10 +428,8 @@ protected:
 // =====================================================================================================================
 
 // -------------------------------------------------------------------------------
-// c_RadiogenicsModel — one named value per radiogenics model.
-// Used by c_find_radiogenics to dispatch to the correct class without string
-// comparisons. The Cython layer maps Python strings (and aliases) to these
-// values via c_radiogenics_model_from_name.
+// c_RadiogenicsModel: one value per model, so c_find_radiogenics dispatches without
+// string comparisons.
 // -------------------------------------------------------------------------------
 enum class c_RadiogenicsModel : uint8_t {
     Off     = 0,
@@ -463,15 +438,8 @@ enum class c_RadiogenicsModel : uint8_t {
 };
 
 // -------------------------------------------------------------------------------
-// c_radiogenics_model_from_name — map a (case-insensitive) model name or alias to
-// a c_RadiogenicsModel enum value.
-//
-// Recognized names and aliases:
-//   "off" / "none"
-//   "isotope" / "isotopes"
-//   "fixed" / "constant"
-//
-// Throws std::invalid_argument if the model name is unknown.
+// Map a case-insensitive model name or alias to the enum; throws
+// std::invalid_argument on an unknown name.
 // -------------------------------------------------------------------------------
 inline c_RadiogenicsModel c_radiogenics_model_from_name(const std::string& model_name) {
     const std::string name = rad_to_lower(model_name);
@@ -484,12 +452,9 @@ inline c_RadiogenicsModel c_radiogenics_model_from_name(const std::string& model
 }
 
 // -------------------------------------------------------------------------------
-// c_find_radiogenics — build the radiogenics model named by a c_RadiogenicsModel.
-//
-// Returns a unique_ptr to a newly heap-allocated concrete model constructed from
-// the supplied config. This is the canonical C++ factory; C++ consumers (layers
-// attaching radiogenics, binary reconstruction, the Cython wrapper) all route
-// through it. Throws std::invalid_argument for an unrecognised enum value.
+// Build the model named by the enum and return an owning unique_ptr. This is the
+// canonical C++ factory: layers, binary reconstruction, and the Cython wrapper all
+// route through it. Throws std::invalid_argument for an unrecognised enum value.
 // -------------------------------------------------------------------------------
 inline std::unique_ptr<c_RadiogenicsBase> c_find_radiogenics(
         c_RadiogenicsModel model, const c_RadiogenicsConfig& cfg) {
@@ -501,23 +466,17 @@ inline std::unique_ptr<c_RadiogenicsBase> c_find_radiogenics(
     throw std::invalid_argument("TidalPy: unrecognised c_RadiogenicsModel enum value");
 }
 
-// -------------------------------------------------------------------------------
-// c_find_radiogenics (name overload) — maps a name/alias to the enum and builds
-// the model. Throws std::invalid_argument on unknown names.
-// -------------------------------------------------------------------------------
+// Name overload.
 inline std::unique_ptr<c_RadiogenicsBase> c_find_radiogenics(
         const std::string& model_name, const c_RadiogenicsConfig& cfg) {
     return c_find_radiogenics(c_radiogenics_model_from_name(model_name), cfg);
 }
 
 // -------------------------------------------------------------------------------
-// c_radiogenics_from_binary — reconstruct a radiogenics model from a binary stream.
-//
-// Peeks the upcoming record's BinaryClassID (without consuming the header),
-// constructs the matching default-initialized concrete model, then delegates to
-// its read_binary to restore the model name and parameters. Used by the layer
-// recursive deserialization (see structures_x/layers). Throws std::runtime_error
-// if the class id is not a known radiogenics model.
+// Reconstruct a radiogenics model from a binary stream: peek the record's
+// BinaryClassID without consuming the header, build that model, then read it.
+// Used by the layer recursive deserialization (structures_x/layers). Throws
+// std::runtime_error for an unknown class id.
 // -------------------------------------------------------------------------------
 inline std::unique_ptr<c_RadiogenicsBase> c_radiogenics_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();

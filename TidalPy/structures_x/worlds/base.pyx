@@ -1,12 +1,9 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-base.pyx
-Cython/Python wrapper for TidalPy's base world class.
+"""Cython wrapper for TidalPy's base world class.
 
-BaseWorld: world-level identity and orbital/thermal scalars (albedo, emissivity,
-obliquity, spin frequency) plus bulk geometry and equilibrium-temperature
-calculations. Layered worlds (terrestrial, gas giant) and stars subclass this.
+BaseWorld holds world-level identity and the orbital and thermal scalars (albedo, emissivity, obliquity, spin
+frequency) plus bulk geometry and equilibrium-temperature calculations. Layered worlds and stars subclass it.
 """
 
 from libcpp cimport bool as cpp_bool
@@ -52,7 +49,7 @@ cdef class BaseWorld(StructureBase):
     Parameters
     ----------
     name : str
-        Human-readable world name.
+        World name.
     radius : float
         World radius [m].
     mass : float
@@ -71,7 +68,6 @@ cdef class BaseWorld(StructureBase):
     Assumptions
     -----------
     - Spherically symmetric world.
-    - All values are in MKS units.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -215,8 +211,7 @@ cdef class BaseWorld(StructureBase):
     def set_tide_model(self, TideBase tide not None):
         """Attach a global tide dissipation model (transfers ownership).
 
-        Ownership of the C++ model is moved from ``tide`` into this world; the passed
-        ``TideBase`` becomes an empty, non-owning shell and must not be reused.
+        Ownership of the C++ model moves out of ``tide``, which is left an empty shell and must not be reused.
 
         On a layerless world (e.g. a star) only the analytic models (``cpl``/``ctl``/``ctl_q``)
         are usable; the ``rheology`` model needs the radial solver and a layered world.
@@ -290,18 +285,17 @@ cdef class BaseWorld(StructureBase):
             double obliquity,
             double semi_major_axis,
             double host_mass):
-        """Solve the global tidal dissipation for the given orbital/spin state.
+        """Solve the global tidal dissipation for the given orbital and spin state.
 
-        Requires an attached tide model (:meth:`set_tide_model`). Populates the world's
-        :attr:`tidal_heating` and the three potential derivatives. This base-world version
-        runs the analytic models (cpl/ctl/ctl_q) only; :class:`LayeredWorld` extends it with
-        the rheology path and per-layer heating.
+        Requires an attached tide model (:meth:`set_tide_model`) and populates :attr:`tidal_heating` and the
+        three potential derivatives. The base world runs the analytic models (cpl, ctl, ctl_q) only;
+        :class:`LayeredWorld` adds the rheology path and per-layer heating.
 
         Raises
         ------
         RuntimeError
-            If no tide model is attached, the rheology model is selected on a non-layered
-            world, or the global potential solve fails.
+            If no tide model is attached, the rheology model is selected on a non-layered world, or the global
+            potential solve fails.
         """
         cdef c_TideSolveConfig state
         state.orbital_frequency = orbital_frequency
@@ -350,15 +344,9 @@ cdef class BaseWorld(StructureBase):
     def build(source, force=False):
         """Build a world from a configuration source (the public builder entry point).
 
-        Resolves ``source``, validates it, constructs the underlying world (and its
-        layers and physics models), and returns it with the normalized configuration
-        retained on :attr:`source_config` so the world can be written back to TOML.
-
-        This is a factory: the concrete subclass returned (``LayeredWorld``,
-        ``GasGiantWorld``, or ``StarWorld``) is selected by the configuration's world
-        ``type``, regardless of which class ``build`` is invoked on. The module-level
-        :func:`~TidalPy.structures_x.configs.world_builder.build_world` simply calls
-        this method.
+        This is a factory: the concrete subclass returned (``LayeredWorld``, ``GasGiantWorld``, or
+        ``StarWorld``) follows the configuration's world ``type``, whichever class ``build`` is called on. The
+        normalized configuration is retained on :attr:`source_config` so the world can be written back to TOML.
 
         Parameters
         ----------
@@ -370,8 +358,7 @@ cdef class BaseWorld(StructureBase):
         Returns
         -------
         BaseWorld
-            The constructed world (a ``BaseWorld`` subclass), with ``source_config``
-            populated.
+            The constructed world, with ``source_config`` populated.
         """
         # Deferred imports: the builder helpers import the world subclasses, so
         # importing them at module load would be circular.
@@ -447,10 +434,9 @@ cdef class BaseWorld(StructureBase):
     def save_to_toml(self, str file_path, overwrite=True):
         """Write this world's configuration to a TOML file.
 
-        Uses the retained build configuration (:attr:`source_config`) when present
-        for a faithful round-trip, otherwise falls back to the world-level
-        :meth:`get_config_dict`, which is validated against the world schema first so a
-        directly constructed world either writes a buildable file or raises ``ValueError``.
+        Prefers the retained build configuration (:attr:`source_config`) for a faithful round trip, otherwise
+        falls back to :meth:`get_config_dict`, which is validated against the world schema first so a directly
+        constructed world either writes a buildable file or raises ``ValueError``.
 
         Parameters
         ----------
@@ -471,16 +457,15 @@ cdef class BaseWorld(StructureBase):
     cpdef dict get_config_dict(self):
         """Return the world configuration as the TOML builder's world table (MKS).
 
-        The dict validates against the world schema: ``schema_version``, ``name``, ``type`` (see
-        :meth:`get_builder_world_type`), the world scalars, and a ``tides`` table when a tide model is
-        attached (``global_tidal_model`` plus the model's per-degree parameters and the stored degree
-        and truncation settings). Subclasses add their layers or stellar values.
+        The dict validates against the world schema and carries a ``tides`` table when a tide model is attached
+        (``global_tidal_model`` plus the model's per-degree parameters and the stored degree and truncation
+        settings). Subclasses add their layers or stellar values.
 
         Returns
         -------
         dict
-            Keys: ``schema_version``, ``name``, ``type``, ``radius``, ``mass``, ``albedo``,
-            ``emissivity``, ``obliquity``, ``spin_frequency``, and ``tides`` when set.
+            Keys: ``schema_version``, ``name``, ``type``, ``radius``, ``mass``, ``albedo``, ``emissivity``,
+            ``obliquity``, ``spin_frequency``, and ``tides`` when set.
         """
         from TidalPy.structures_x.configs.toml_loader import SCHEMA_VERSION
         cdef c_BaseWorld* p = self._world_ptr.get()

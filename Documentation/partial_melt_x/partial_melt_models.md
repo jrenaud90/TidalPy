@@ -1,6 +1,6 @@
 # Partial-Melt Models (`partial_melt_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-15_
 
 A partial-melt model maps a material's pre-melt (solid) viscosity and shear modulus, together with its temperature, onto the post-melt viscosity and shear modulus, and reports the volumetric melt fraction it used to get there.
 
@@ -14,7 +14,7 @@ $$\phi = \mathrm{clip}\left( \frac{T - T_\mathrm{solidus}}{T_\mathrm{liquidus} -
 
 Below the solidus $\phi = 0$, above the liquidus $\phi = 1$, and a degenerate envelope with the solidus at or above the liquidus returns $\phi = 0$, which is the fully solid answer.
 
-## The three models
+## Models
 
 | Model | Aliases | Behavior |
 |---|---|---|
@@ -24,7 +24,7 @@ Below the solidus $\phi = 0$, above the liquidus $\phi = 1$, and a degenerate en
 
 ### Off
 
-The melt fraction is computed and returned, and the strengths pass through untouched. Use it to isolate the effect of melt weakening by turning it off, or for a layer you have reason to believe stays below its solidus.
+The melt fraction is computed and returned, and the strengths pass through untouched. Use it to turn off melt weakening, or for a layer that stays below its solidus.
 
 ### Spohn (Fischer and Spohn 1990)
 
@@ -47,7 +47,7 @@ Three regimes in the melt fraction, with a transition band running from `crit_me
 
 Here $a_\eta$ is `hn_visc_slope_1`, $b_1$ and $b_2$ are `hn_shear_param_1` and `hn_shear_param_2`, and $f_\eta$ and $f_\mu$ are `hn_visc_falloff_slope` and `hn_shear_falloff_slope`. Every branch is floored at the liquid limits.
 
-The structure encodes the disaggregation transition. Below the critical melt fraction, melt sits in isolated pockets and weakens the solid framework gradually. Above it the framework loses contact and the material behaves as a crystal-laden liquid, which is a drop of many orders of magnitude. The breakdown band is a deliberately steep but finite bridge between those two pictures; its width is a numerical convenience that keeps the transition differentiable, not a measured quantity.
+Below the critical melt fraction, melt sits in isolated pockets and weakens the solid framework gradually. Above it the framework loses contact and the material behaves as a crystal-laden liquid, a drop of many orders of magnitude. The breakdown band is a steep but finite bridge between the two regimes; its width is a numerical convenience that keeps the transition differentiable, not a measured quantity.
 
 ## Parameters
 
@@ -112,7 +112,7 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 
 `make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively; absent keys fall back to the model defaults, and both an unrecognized name and a key that no partial-melt model reads raise `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
 
-## Attaching a Melt Model to a `Layer`
+### Attaching a Melt Model to a `Layer`
 
 ```python
 from TidalPy.partial_melt_x import make_partial_melt
@@ -134,7 +134,7 @@ Ownership of the C++ model transfers into the layer. During the world's equation
 
 The concrete models `c_OffPartialMelt`, `c_SpohnPartialMelt`, and `c_HenningPartialMelt` live in `partial_melt_.hpp` with a getter per parameter, and occupy binary class ids 701 through 703. The factory follows the same shape as the other physics modules: `c_partial_melt_model_from_name(name)` maps onto the `c_PartialMeltModel` enum and throws `std::invalid_argument` for an unknown name, `c_find_partial_melt(model, config)` returns a `std::unique_ptr<c_PartialMeltBase>` (a name overload does both), and `c_partial_melt_from_binary(stream, force=false)` peeks the class id, builds, and reads.
 
-## Adding a new model
+## Adding a New Model
 
 1. Add the model's parameters to `c_PartialMeltConfig` in `partial_melt_.hpp`, with defaults.
 2. Add `c_<Name>PartialMelt : c_PartialMeltBase` implementing `calc_partial_melt`, `append_config_entries`, `write_binary`, and `read_binary`.

@@ -64,11 +64,11 @@ def basis_functions(degree_l, order_m):
     return x, [sp.simplify(func) for func in funcs]
 
 
-# For m = 0 the f4 = P/sin and f6 = (dP - cot*P)/sin basis functions are UNBOUNDED (P_l0 does not
-# vanish at the poles), so their Gram integrals diverge. They enter the strain only through the factor
-# i*m (eps_rphi ~ i m f4, eps_thphi ~ i m f6), which is exactly zero for m = 0, so those entries are
-# physically unused; we set them to 0 rather than store the divergent (garbage) quadrature. For m >= 1
-# every basis function is bounded and every entry is a genuine finite integral.
+# For m = 0 the f4 = P/sin and f6 = (dP - cot*P)/sin basis functions are unbounded (P_l0 does not vanish
+# at the poles), so their Gram integrals diverge. They enter the strain only through the factor i*m
+# (eps_rphi ~ i m f4, eps_thphi ~ i m f6), which is exactly zero for m = 0, so those entries are stored as
+# 0 rather than a divergent quadrature. For m >= 1 every basis function is bounded and every entry is a
+# genuine finite integral.
 _ZERO_FOR_M0 = {3, 5}  # 0-based indices of f4 and f6
 
 

@@ -11,7 +11,8 @@
 #include "eccentricity_func_l9_.hpp"
 #include "eccentricity_func_l10_.hpp"
 
-
+// Dispatch to the tabulated eccentricity function for (degree_l, truncation). Sets *error_code_ptr to
+// -1 for an untabulated truncation and -2 for an unsupported degree, then returns an empty result.
 EccentricityFuncOutput c_eccentricity_func(
         int* error_code_ptr,
         double eccentricity,
@@ -42,7 +43,6 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l2_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
@@ -66,7 +66,6 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l3_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
@@ -90,7 +89,6 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l4_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
@@ -114,7 +112,6 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l5_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
@@ -138,7 +135,6 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l6_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
@@ -162,7 +158,6 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l7_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
@@ -186,7 +181,6 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l8_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
@@ -210,7 +204,6 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l9_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
@@ -234,12 +227,10 @@ EccentricityFuncOutput c_eccentricity_func(
         case 20:
             return c_eccentricity_function_l10_e20(eccentricity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return EccentricityFuncOutput();
         }
     default:
-        // Unsupported / Not implemented degree l provided.
         error_code_ptr[0] = -2;
         return EccentricityFuncOutput();
     }

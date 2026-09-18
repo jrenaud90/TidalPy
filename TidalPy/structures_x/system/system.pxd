@@ -1,10 +1,5 @@
 # distutils: language = c++
-"""
-system.pxd
-Cython declarations for TidalPy's system class.
-
-Exports c_System and the Python wrapper System so other extensions can cimport and use C-speed access.
-"""
+"""Cython declarations for TidalPy's system class: c_System and the Python wrapper System."""
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string

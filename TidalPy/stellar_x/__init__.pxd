@@ -1,15 +1,5 @@
 # distutils: language = c++
-"""
-__init__.pxd
-Cython-level exports for TidalPy.stellar_x.
-
-Exposes the C++ luminosity classes and the Python wrapper classes so other extensions (e.g. the star
-world) can cimport them.
-
-Usage::
-
-    from TidalPy.stellar_x cimport LuminosityBase, MassToLuminosity, c_LuminosityBase
-"""
+"""Cython-level exports for TidalPy.stellar_x: the C++ luminosity classes and their wrappers."""
 
 from TidalPy.stellar_x.luminosity cimport (
     LuminosityBase,

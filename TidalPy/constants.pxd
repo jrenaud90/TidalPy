@@ -77,5 +77,4 @@ cdef extern from "constants_.hpp" nogil:
 
     void set_tidalpy_config_ptr(TidalPyConfig* ptr)
 
-# Expose the API function
 cdef TidalPyConfig* get_shared_config_address()

@@ -1,17 +1,10 @@
 #pragma once
 /*
- * tidalpy_base_.hpp — c_TidalPyBaseClass: abstract base for all TidalPy C++ classes.
+ * tidalpy_base_.hpp: c_TidalPyBaseClass, the abstract base for every TidalPy C++ class.
  *
- * Provides:
- *   - Schema version accessors (compile-time constants from binary_.hpp)
- *   - Binary save/load interface:
- *       write_binary(ostream&) const = 0   (pure virtual; subclasses implement)
- *       read_binary(istream&, force)        (virtual; base reads/validates header;
- *                                            subclasses call base first, then read data)
- *       save_binary(path)                   (non-virtual; opens file, calls write_binary)
- *       load_binary(path, force)            (non-virtual; opens file, calls read_binary)
+ * Provides the schema version accessors and the binary save/load interface.
  *
- * Include chain: tidalpy_base_.hpp → binary_.hpp → logger_.hpp → spdlog
+ * Include chain: tidalpy_base_.hpp -> binary_.hpp -> logger_.hpp -> spdlog
  */
 
 #include <fstream>
@@ -27,7 +20,7 @@ public:
     virtual ~c_TidalPyBaseClass() = default;
 
     // const schema-version members delete the implicit copy/move assignment;
-    // provide them explicitly — those fields are compile-time constants with the
+    // provide them explicitly, since those fields are compile-time constants with the
     // same value for every instance, so assignment is always a no-op for them.
     c_TidalPyBaseClass& operator=(const c_TidalPyBaseClass&) noexcept { return *this; }
     c_TidalPyBaseClass& operator=(c_TidalPyBaseClass&&) noexcept { return *this; }

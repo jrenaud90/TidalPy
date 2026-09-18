@@ -18,23 +18,18 @@ from TidalPy.constants cimport (
     TidalPyConfig
     )
 
-# Allocate the config storage on the heap. We are going to use a naked "new" (no delete) because we want this memory to
-# stay until the program is terminated.
-# We use 'new' so it persists in memory.
+# Allocate the config storage with a naked "new" (no delete): it must live until the process ends.
 cdef TidalPyConfig* _owner_storage = new TidalPyConfig()
 
-# Point the global C++ pointer to this storage
-# This ensures that any C++ code linked to this module sees the data.
+# Point the global C++ pointer at this storage so every C++ module linked here sees the same data.
 tidalpy_config_ptr = _owner_storage
 
-# TODO: I feel like this api cdef is not needed but I am too tired to play around with changing it seeing how things appear to be working now. 
-# Expose the address to other Cython modules via API
-# 'cdef api' generates the hooks for other modules to import this function.
+# TODO: this `cdef api` layer may not be needed; revisit.
+# 'cdef api' generates the hooks other extensions use to import this function.
 cdef api TidalPyConfig* get_shared_config_address():
     return _owner_storage
 
-# Convert C Types to Python Types
-# Pure constants that should never change after compile.
+# Pure constants, fixed at compile time, converted to Python types.
 ppm = d_ppm
 ppb = d_ppb
 inf = d_INF
@@ -189,21 +184,12 @@ def ode_method_from_name(name: str) -> int:
 
 
 def update_constants_x():
-    """Populate the shared C++ config singleton from the new `_x` configuration.
+    """Populate the shared C++ config singleton from ``TidalPy.config_x``.
 
-    The rebuilt `_x` class system reads its numerical settings (frequency/viscosity/
-    modulus/thickness floors and the debug test constant) from ``TidalPy.config_x``
-    (loaded from ``TidalPy_Configs_x.toml``) rather than the legacy config. This
-    function copies the ``[numerical]``, ``[eos_solver]``, and ``[radial_solver]``
-    sections of that config into the process-wide ``tidalpy_config_ptr`` that every
-    `_x` C++ module observes; the two solver sections are the defaults of every EOS
-    and Love-number solve that is not handed an explicit value.
-
-    There is a single process-wide C++ config singleton shared by the legacy and
-    `_x` code, so this is called after :func:`update_constants` during
-    initialization: the `_x` values win for the shared numerical fields. The
-    universal physical constants (G, AU, SBC, R, k_boltzmann) are set by
-    :func:`update_constants` from SciPy and are not overridden here.
+    Copies the ``[numerical]``, ``[eos_solver]``, and ``[radial_solver]`` sections into the
+    process-wide ``tidalpy_config_ptr`` that every `_x` C++ module observes. Runs after
+    :func:`update_constants` during initialization, so the `_x` values win for the fields both
+    configs carry; the SciPy-sourced physical constants are left untouched.
     """
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
     global numerical_floor, layer_continuity_rtol, max_start_radius_fraction
@@ -241,10 +227,9 @@ def update_constants_x():
     tidalpy_config_ptr.d_RADIAL_SOLVER_EXPECTED_SIZE = int(radial_solver['expected_size'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_MAX_RAM_MB = int(radial_solver['max_ram_mb'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_NONDIMENSIONALIZE = bool(radial_solver['nondimensionalize'])
-    # test_constant is intentionally not set here. It is a debug knob whose user-facing override is the
-    # legacy config's `debug.test_constant`, applied by update_constants (which runs just before this).
-    # Re-reading it from config_x would clobber a user override supplied through reinit(). Both configs
-    # default it to the same value, so the _x config check still holds.
+    # test_constant is deliberately left alone: its user-facing override is the legacy config's
+    # `debug.test_constant`, applied by update_constants just before this. Re-reading it from
+    # config_x would clobber an override supplied through reinit().
 
     # Update the module-level mirrors of these dynamic parameters.
     min_frequency = tidalpy_config_ptr.d_MIN_FREQUENCY

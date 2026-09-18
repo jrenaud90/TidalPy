@@ -1,13 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-classes.pyx
-Cython/Python wrappers for TidalPy's base class hierarchy.
-
-TidalPyBaseClass: abstract base wrapper (not directly instantiable from Python)
-StructureBase:    spherical geometry base (radius, mass, geometry calcs)
-PhysicsBase:      physics model base (model_name, layer observer pointer)
-"""
+"""Cython wrappers for TidalPy's base class hierarchy: TidalPyBaseClass, StructureBase, PhysicsBase."""
 
 import difflib
 import os as _os
@@ -23,13 +16,11 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 
-# Wire this DLL's logger pointer to the shared TidalPy logger so that
-# TIDALPY_LOG_* calls inside tidalpy_base_.hpp/binary_.hpp reach the
-# correct spdlog instance.
+# Wire this DLL's logger pointer so TIDALPY_LOG_* calls in the C++ headers reach the shared spdlog
+# instance.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 
-# Wire this DLL's config pointer so that tidalpy_config_ptr->d_G and
-# other runtime constants resolve to the shared TidalPyConfig instance.
+# Wire this DLL's config pointer so tidalpy_config_ptr resolves to the shared TidalPyConfig instance.
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
@@ -40,7 +31,7 @@ cdef class TidalPyBaseClass:
     """Abstract base for all TidalPy C++ class wrappers.
 
     Provides binary save/load and schema version access.
-    Not directly instantiable — instantiate StructureBase or PhysicsBase instead.
+    Not directly instantiable: instantiate StructureBase or PhysicsBase instead.
     """
 
     def __cinit__(self):
@@ -99,15 +90,7 @@ cdef class TidalPyBaseClass:
             raise IOError(str(exc)) from exc
 
     cpdef dict get_config_dict(self):
-        """Return a dict of this object's configuration.
-
-        Base implementation returns an empty dict.
-        Subclasses override to include their own config values.
-
-        Returns
-        -------
-        dict
-        """
+        """Return a dict of this object's configuration (empty on the base class)."""
         return {}
 
     def save_config(self, str path):
@@ -128,22 +111,20 @@ cdef class TidalPyBaseClass:
 # StructureBase
 # =====================================================================================================================
 cdef class StructureBase(TidalPyBaseClass):
-    """Spherical geometry base class.
+    """Spherical geometry base class storing radius [m] and mass [kg].
 
-    Stores radius [m] and mass [kg]. Provides pure-function geometry
-    calculation methods (all const; arguments are explicit, not implicit).
+    The geometry methods take explicit arguments instead of reading the stored state.
 
     Parameters
     ----------
     radius : float
-        Radius in meters (MKS).
+        Radius [m].
     mass : float
-        Mass in kilograms (MKS).
+        Mass [kg].
     """
 
     def __cinit__(self, *args, **kwargs):
-        # Set _ptr now; address of _struct is stable for the lifetime of this object.
-        # Subclasses override _ptr in their own __init__ after constructing a deeper object.
+        # The address of _struct is stable for this object's lifetime; subclasses reset _ptr in __init__.
         self._ptr = &self._struct
 
     def __init__(self, double radius, double mass):
@@ -306,11 +287,8 @@ cdef class PhysicsBase(TidalPyBaseClass):
 
     Notes
     -----
-    Subclasses (e.g. rheology models) own the most-derived C++ object
-    themselves and leave ``_physics_ptr`` NULL; they set the inherited
-    ``_ptr`` to the derived object. The ``model_name`` property therefore
-    reads through ``_ptr`` (cast to ``c_PhysicsBase*``) so it works for both
-    direct instances and subclasses.
+    Subclasses own the most-derived C++ object themselves and leave ``_physics_ptr`` NULL, setting the
+    inherited ``_ptr`` instead, so ``model_name`` reads through ``_ptr`` cast to ``c_PhysicsBase*``.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -322,7 +300,6 @@ cdef class PhysicsBase(TidalPyBaseClass):
         self._ptr = <c_TidalPyBaseClass*>self._physics_ptr.get()
 
     def __dealloc__(self):
-        # unique_ptr frees the owned object (if any); just clear the observer ptr.
         self._physics_ptr.reset()
         self._ptr = NULL
 

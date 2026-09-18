@@ -1,10 +1,10 @@
 # Viscosity Models (`viscosity_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
 A viscosity model returns a material's dynamic viscosity $\eta$ \[Pa s\] as a function of temperature \[K\] and pressure \[Pa\]. This is the pre-melt, or "solid", viscosity: the value a material would show with no melt present, which the [partial-melt](../partial_melt_x/partial_melt_models.md) step then weakens. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
-All three models share the same physical picture. Solid-state creep is thermally activated, so viscosity falls exponentially with temperature through a Boltzmann factor $\exp(E_a / RT)$, and rises with pressure through an activation volume that makes the same creep harder to accommodate at depth. The models differ only in how that exponential is anchored: to an absolute flow-law prefactor, to a measured reference viscosity, or not at all.
+Solid-state creep is thermally activated: viscosity falls exponentially with temperature through the Boltzmann factor $\exp(E_a / RT)$ and rises with pressure through an activation volume. The models differ in how that exponential is anchored: to an absolute flow-law prefactor, to a reference viscosity at a reference temperature, or not at all.
 
 ## Models
 
@@ -33,15 +33,15 @@ The stress exponent $n$ distinguishes creep regimes: $n = 1$ is diffusion creep,
 
 ### Behavior at the Limits
 
-Every model returns infinity at or below zero temperature. The cold limit of a thermally activated fluid is a solid that does not flow, and an infinite viscosity is exactly what the rheology models need to return a purely elastic response there. A reference model with a non-positive reference temperature returns infinity for the same reason. Very cold but positive temperatures reach the same place by overflowing the exponential, which is deliberate rather than guarded against.
+Every model returns infinity at or below zero temperature: the cold limit of a thermally activated fluid is a solid that does not flow, and an infinite viscosity makes the rheology models return a purely elastic response. A reference model with a non-positive reference temperature also returns infinity. Very cold but positive temperatures reach infinity by overflowing the exponential, which is deliberate rather than guarded against.
 
-## Choosing a Model
+### Choosing a Model
 
-`ReferenceViscosity` is the usual choice for a planetary interior. It is anchored to an empirical viscosity measured or inferred at a stated temperature, so its one strong assumption, the activation energy must also be set. It is also the easiest to work with, doubling $E_a$ visibly steepens the response to temperature without moving the anchor point.
+`ReferenceViscosity` is the usual choice for a planetary interior. It is anchored to a viscosity measured or inferred at a stated temperature, and its one strong assumption is the activation energy. Doubling $E_a$ steepens the response to temperature without moving the anchor point.
 
-`ArrheniusViscosity` is the choice when you are reproducing a published flow law, which is usually quoted as an absolute prefactor with stress and grain-size exponents. It gives full control at the cost of several additional terms that must be set.
+`ArrheniusViscosity` is the choice when reproducing a published flow law, which is usually quoted as an absolute prefactor with stress and grain-size exponents. It gives full control at the cost of several additional terms that must be set.
 
-`ConstantViscosity` is for tests, for benchmark comparisons against analytic results, and for layers whose temperature you have no reason to trust.
+`ConstantViscosity` is for tests, for benchmark comparisons against analytic results, and for layers whose temperature is unknown.
 
 ## Python API
 
@@ -61,7 +61,13 @@ arrhenius_model = make_viscosity("arr", {"arrhenius_coeff": 1.1e7,
                                          "additional_temp_dependence": True})
 ```
 
-Constructors take every parameter their model uses as a keyword with the default from the table above: `ConstantViscosity(reference_viscosity=1.0e22)`, `ReferenceViscosity(reference_viscosity=1.0e22, reference_temperature=1000.0, molar_activation_energy=3.0e5, molar_activation_volume=0.0)`, and `ArrheniusViscosity(arrhenius_coeff=1.0, stress=1.0, stress_expo=1.0, grain_size=1.0e-3, grain_size_expo=0.0, molar_activation_energy=3.0e5, molar_activation_volume=0.0, additional_temp_dependence=False)`.
+Constructors take every parameter their model uses as a keyword with the default from the table above:
+
+`ConstantViscosity(reference_viscosity=1.0e22)`
+
+`ReferenceViscosity(reference_viscosity=1.0e22, reference_temperature=1000.0, molar_activation_energy=3.0e5, molar_activation_volume=0.0)`
+
+`ArrheniusViscosity(arrhenius_coeff=1.0, stress=1.0, stress_expo=1.0, grain_size=1.0e-3, grain_size_expo=0.0, molar_activation_energy=3.0e5, molar_activation_volume=0.0, additional_temp_dependence=False)`
 
 `make_viscosity(model_name, config=None)` resolves a name or alias case-insensitively and reads the parameters it recognizes from `config`. Absent keys fall back to the model default and keys another viscosity model uses are ignored. An unrecognized name raises `ValueError`, and so does a key that no viscosity model reads, with the closest accepted key named in the message.
 
@@ -75,7 +81,7 @@ Constructors take every parameter their model uses as a keyword with the default
 
 Parameters are read-only properties under their code names: `reference_viscosity` on the constant model; `reference_viscosity`, `reference_temperature`, `molar_activation_energy`, and `molar_activation_volume` on the reference model; and every constructor keyword on the Arrhenius model: `arrhenius_coeff`, `stress`, `stress_expo`, `grain_size`, `grain_size_expo`, `molar_activation_energy`, `molar_activation_volume`, and `additional_temp_dependence`. `get_config_dict()` emits the config keys, so a dictionary read back from a model or a TOML file feeds straight into `make_viscosity`.
 
-## Usage with `Layer`s
+### Attaching a Model to a `Layer`
 
 ```python
 from TidalPy.viscosity_x import make_viscosity
@@ -88,13 +94,13 @@ mantle.set_shear_viscosity(make_viscosity("reference", {"reference_viscosity_pas
 mantle.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e20}))
 ```
 
-Ownership of the C++ model transfers into the layer, exactly as it does for a rheology. During the world's equation-of-state solve each radial slice's temperature and pressure are pushed through the model, an equation of state that supplies its own viscosity profile overrides the result slice by slice, and the partial-melt model then weakens what remains. Read the outcome back with the layer's `get_shear_viscosity(radius)` and `get_premelt_shear_viscosity(radius)`. The declarative form is a `[layers.<name>.shear_viscosity]` table in a world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).
+Ownership of the C++ model transfers into the layer, as it does for a rheology. During the world's equation-of-state solve each radial slice's temperature and pressure are evaluated through the model, an equation of state that supplies its own viscosity profile overrides the result slice by slice, and the partial-melt model then weakens what remains. Read the outcome back with the layer's `get_shear_viscosity(radius)` and `get_premelt_shear_viscosity(radius)`. The declarative form is a `[layers.<name>.shear_viscosity]` table in a world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).
 
 ## C++ API
 
 The C++ layer is canonical and the Cython classes are thin adapters over it.
 
-`c_ViscosityConfig` holds every parameter for every model in one struct, with the defaults listed above. `c_ViscosityBase : c_PhysicsBase` (in `viscosity_base_.hpp`) declares `calc_viscosity(double temperature, double pressure) const` pure virtual and adds `calc_viscosity_vectorize(temperature, pressure, out_viscosity)`, the radial sweep that fills one entry per slice and is the path the equation-of-state solve actually uses. The concrete models `c_ArrheniusViscosity`, `c_ReferenceViscosity`, and `c_ConstantViscosity` live in `viscosity_.hpp`, each with a getter per parameter, and occupy binary class ids 801 through 803.
+`c_ViscosityConfig` holds every parameter for every model in one struct, with the defaults listed above. `c_ViscosityBase : c_PhysicsBase` (in `viscosity_base_.hpp`) declares `calc_viscosity(double temperature, double pressure) const` pure virtual and adds `calc_viscosity_vectorize(temperature, pressure, out_viscosity)`, the radial sweep the equation-of-state solve uses. The concrete models `c_ArrheniusViscosity`, `c_ReferenceViscosity`, and `c_ConstantViscosity` live in `viscosity_.hpp`, each with a getter per parameter, and occupy binary class ids 801 through 803.
 
 The factory mirrors the rheology one: `c_viscosity_model_from_name(name)` maps a name or alias onto the `c_ViscosityModel` enum and throws `std::invalid_argument` for an unknown name, `c_find_viscosity(model, config)` returns a `std::unique_ptr<c_ViscosityBase>` (a name overload does both steps), and `c_viscosity_from_binary(stream, force=false)` peeks the class id, builds the matching model, and calls `read_binary`.
 

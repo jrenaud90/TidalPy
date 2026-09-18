@@ -1,10 +1,9 @@
 #pragma once
 /*
- * numerics_.hpp — small shared numerical helpers for all TidalPy C++ code.
+ * numerics_.hpp: small shared numerical helpers for all TidalPy C++ code.
  *
- * Header-only and dependency-free (uses only the C++ standard library) so it can be
- * included from any extension, including the lowest-level utility modules. The NaN
- * returned by the guarded helpers is the same quiet NaN as TidalPyConstants::d_NAN.
+ * Header-only and dependency-free (standard library only) so even the lowest-level utility modules can
+ * include it. The NaN returned by the guarded helpers is the same quiet NaN as TidalPyConstants::d_NAN.
  */
 
 #include <cmath>
@@ -23,19 +22,16 @@ inline bool c_isclose(
         double rtol = 1e-9,
         double atol = 0.0)
 {
-    // Check for nans
     if (std::isnan(value_a) || std::isnan(value_b))
     {
         return false;
     }
 
-    // Check for pure equivalence
     if (value_a == value_b)
     {
         return true;
     }
 
-    // Check for closeness
     const double lhs = std::abs(value_a - value_b);
     const double rhs = std::max(rtol * std::max(std::abs(value_a), std::abs(value_b)), atol);
 

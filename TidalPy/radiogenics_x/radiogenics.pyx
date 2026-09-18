@@ -1,23 +1,15 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-radiogenics.pyx
-Cython/Python wrappers for TidalPy's radiogenics model hierarchy.
+"""Cython wrappers for TidalPy's radiogenics model hierarchy.
 
-Exposes the three radiogenic-heating models:
-
-- ``OffRadiogenics``     (alias ``"none"``)     — radiogenics disabled (heating == 0).
-- ``IsotopeRadiogenics``                        — sum of individual decaying isotopes.
-- ``FixedRadiogenics``   (alias ``"constant"``) — single lumped rate with optional decay.
-
-Each model computes the total radiogenic heating [W] via ``calc_heating(time,
-mass)``. All quantities are MKS: time and half-lives in seconds, mass in kg,
-heat production rates in W/kg, heating in W.
+``OffRadiogenics`` (alias ``"none"``) produces no heating, ``IsotopeRadiogenics`` sums individually
+decaying isotopes, and ``FixedRadiogenics`` (alias ``"constant"``) uses one lumped rate with optional
+decay. Each returns the total radiogenic heating [W] from ``calc_heating(time [s], mass [kg])``.
 
 References
 ----------
-- Hussmann and Spohn (2004); Turcotte and Schubert (2001) — chondritic isotope data.
-- Castillo-Rogez et al. (2007) — long- and short-lived radiogenic isotopes.
+- Hussmann and Spohn (2004); Turcotte and Schubert (2001): chondritic isotope data.
+- Castillo-Rogez et al. (2007): long- and short-lived radiogenic isotopes.
 """
 
 from libcpp cimport bool as cpp_bool
@@ -124,17 +116,10 @@ cdef object _isotopes_to_arrays(const vector[c_Isotope]& isotopes):
 
 
 cdef object _solve_heating(c_RadiogenicsBase* model, object time, object mass):
-    """Solve radiogenic heating for float and/or np.ndarray inputs.
+    """Solve radiogenic heating for float and/or ndarray inputs.
 
-    Picks the most specific C++ vectorized routine for the input pattern:
-
-    - both scalar              -> scalar calc_heating (returns float)
-    - time array, mass scalar  -> vectorize_time
-    - mass array, time scalar  -> vectorize_mass
-    - any other mix of arrays  -> broadcast both -> vectorize_all
-
-    Returns a Python ``float`` for all-scalar input, else an ``np.ndarray``
-    (float64) broadcast to the common shape.
+    Picks the most specific C++ vectorized routine for the input pattern. Returns a Python ``float`` for
+    all-scalar input, else a float64 ``ndarray`` broadcast to the common shape.
     """
     cdef cpp_bool t_arr = isinstance(time, np.ndarray)
     cdef cpp_bool m_arr = isinstance(mass, np.ndarray)
@@ -179,11 +164,9 @@ cdef object _solve_heating(c_RadiogenicsBase* model, object time, object mass):
 # RadiogenicsBase
 # =====================================================================================================================
 cdef class RadiogenicsBase(PhysicsBase):
-    """Abstract base for all radiogenics models.
+    """Abstract base for radiogenics models; owns the most-derived C++ model object.
 
-    Holds the owning ``unique_ptr`` to the most-derived C++ model object and
-    exposes the shared radiogenic-heating calculations. Not directly
-    instantiable — construct a concrete model (e.g. ``IsotopeRadiogenics``).
+    Not directly instantiable: construct a concrete model such as ``IsotopeRadiogenics``.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -196,7 +179,6 @@ cdef class RadiogenicsBase(PhysicsBase):
         )
 
     def __dealloc__(self):
-        # unique_ptr frees the most-derived C++ object; null the base observer ptr.
         self._radiogenics_ptr.reset()
         self._ptr = NULL
 
@@ -220,8 +202,7 @@ cdef class RadiogenicsBase(PhysicsBase):
 
         Assumptions
         -----------
-        - Exponential radioactive decay from a reference time.
-        - All inputs and outputs are MKS.
+        Exponential radioactive decay from the model's reference time.
         """
         self._check_ptr()
         return self._radiogenics_ptr.get().calc_heating(time, mass)
@@ -298,20 +279,15 @@ cdef class RadiogenicsBase(PhysicsBase):
         self._radiogenics_ptr.get().calc_heating_vectorize_all(vtime, vmass, vout)
         return _double_vector_to_ndarray(vout, time_c.shape)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
-
 
 # =====================================================================================================================
 # OffRadiogenics (alias "none")
 # =====================================================================================================================
 cdef class OffRadiogenics(RadiogenicsBase):
-    """Radiogenics disabled — heating is always zero."""
+    """Radiogenics disabled; heating is always zero."""
 
     def __init__(self):
         cdef c_RadiogenicsConfig config
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(c_RadiogenicsModel.Off, config)
         self._radiogenics_ptr = move(ptr)
         self._ptr = <c_TidalPyBaseClass*>self._radiogenics_ptr.get()
@@ -365,7 +341,6 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
             names,
             config.isotopes)
         config.ref_time = ref_time
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(c_RadiogenicsModel.Isotope, config)
         self._isotope_ptr = <c_IsotopeRadiogenics*>ptr.get()
         self._radiogenics_ptr = move(ptr)
@@ -452,7 +427,6 @@ cdef class FixedRadiogenics(RadiogenicsBase):
         config.fixed_heat_production = fixed_heat_production
         config.average_half_life = average_half_life
         config.ref_time          = ref_time
-        # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(c_RadiogenicsModel.Fixed, config)
         self._fixed_ptr = <c_FixedRadiogenics*>ptr.get()
         self._radiogenics_ptr = move(ptr)
@@ -481,11 +455,7 @@ cdef class FixedRadiogenics(RadiogenicsBase):
 # Built-in isotope datasets
 # =====================================================================================================================
 def available_isotope_datasets():
-    """Return the list of built-in isotope dataset names.
-
-    These are literature-sourced isotope sets that can be passed to
-    ``make_radiogenics("isotope", {"isotopes": <name>})`` or
-    ``IsotopeRadiogenics.from_dataset(<name>)``.
+    """Names of the built-in, literature-sourced isotope datasets.
 
     Returns
     -------
@@ -531,24 +501,19 @@ def isotope_dataset(str name):
 # Isotope config resolution (non-built-in: explicit arrays, global config, inline dict)
 # =====================================================================================================================
 def _resolve_isotope_config(dict config):
-    """Resolve isotope arrays (in MKS seconds) from a config dict.
+    """Resolve isotope arrays in MKS from a config dict.
 
-    Handles the non-built-in cases (built-in datasets are resolved directly from
-    the C++ catalog in ``make_radiogenics``):
-
-    1. Explicit MKS arrays via the keys ``heat_production_w_kg``, ``half_lives_s``,
-       ``mass_fracs``, ``concentrations`` (and optional ``ref_time_s``, ``isotope_names``).
-    2. A named global-config dataset or inline dict via the ``isotopes`` key. A
-       string names a dataset under
-       ``TidalPy.config['physics']['radiogenics']['known_isotope_data']``; a dict is
-       treated as an inline dataset. These store half lives and reference times in
-       Myr, converted to seconds here.
+    Handles the cases the C++ catalog does not: explicit MKS arrays (``heat_production_w_kg``,
+    ``half_lives_s``, ``mass_fracs``, ``concentrations``, with optional ``ref_time_s`` and
+    ``isotope_names``), or an ``isotopes`` key naming a dataset under
+    ``TidalPy.config['physics']['radiogenics']['known_isotope_data']`` or holding an inline dict. Those
+    datasets store half lives and reference times in Myr, converted to seconds here.
 
     Returns
     -------
     tuple
-        ``(heat_production, half_lives, mass_fracs, concentrations, names, ref_time)``
-        with all numeric lists in MKS units, or ``(None, ...)`` if no isotope data.
+        ``(heat_production, half_lives, mass_fracs, concentrations, names, ref_time)``, or all ``None``
+        when the config carries no isotope data.
     """
     # Explicit MKS arrays take priority.
     if "half_lives_s" in config or "heat_production_w_kg" in config:
@@ -610,25 +575,16 @@ RADIOGENICS_CONFIG_KEYS = frozenset({
 def make_radiogenics(str model_name, dict config=None):
     """Build a radiogenics model from a (case-insensitive) name and config dict.
 
-    This wraps the C++ enum factory: the name (and any alias) is mapped to a
-    ``c_RadiogenicsModel`` enum by ``c_radiogenics_model_from_name``, the matching
-    concrete model is heap-allocated by ``c_find_radiogenics`` (returning a
-    ``unique_ptr``), and the owning pointer is adopted into the correct rich
-    Python wrapper.
-
     Parameters
     ----------
     model_name : str
-        Model name or alias. Recognized names: ``off`` (``none``), ``isotope``
-        (``isotopes``), ``fixed`` (``constant``).
+        Model name or alias: ``off`` (``none``), ``isotope`` (``isotopes``), ``fixed`` (``constant``).
     config : dict, optional
-        Model parameters, under the unit-suffixed keys that ``get_config_dict()``
-        emits. For ``isotope``: either explicit MKS arrays
-        (``heat_production_w_kg``, ``half_lives_s``, ``mass_fracs``,
-        ``concentrations``, and optional ``isotope_names`` and ``ref_time_s``) or a
-        named/inline dataset via ``isotopes`` (dataset half lives/reference times are
-        in Myr and converted to seconds). For ``fixed``: ``fixed_heat_production_w_kg``,
-        ``average_half_life_s``, ``ref_time_s``.
+        Model parameters under the unit-suffixed keys that ``get_config_dict()`` emits. For ``isotope``:
+        either explicit MKS arrays (``heat_production_w_kg``, ``half_lives_s``, ``mass_fracs``,
+        ``concentrations``, with optional ``isotope_names`` and ``ref_time_s``) or a named or inline
+        dataset under ``isotopes``, whose half lives and reference times are in Myr and are converted to
+        seconds. For ``fixed``: ``fixed_heat_production_w_kg``, ``average_half_life_s``, ``ref_time_s``.
 
     Returns
     -------
@@ -638,7 +594,8 @@ def make_radiogenics(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognized, or if ``config`` holds a key that no radiogenics model reads.
+        If the model name is not recognized, or if ``config`` holds a key that no radiogenics model
+        reads.
     """
     check_config_keys(config, RADIOGENICS_CONFIG_KEYS, "radiogenics")
     if config is None:
@@ -647,8 +604,8 @@ def make_radiogenics(str model_name, dict config=None):
     cdef c_RadiogenicsConfig cfg
     cdef c_IsotopeDataset ds
 
-    # Fixed-model scalars (ignored by other models). A default-constructed config carries the
-    # C++ defaults; only override what the caller supplies (single source: the C++ struct).
+    # Fixed-model scalars. The default-constructed config carries the C++ defaults; only override what
+    # the caller supplies.
     if "fixed_heat_production_w_kg" in config:
         cfg.fixed_heat_production = config["fixed_heat_production_w_kg"]
     if "average_half_life_s" in config:
@@ -656,10 +613,8 @@ def make_radiogenics(str model_name, dict config=None):
     if "ref_time_s" in config:
         cfg.ref_time = config["ref_time_s"]
 
-    # Isotope-model data (ignored by other models). A built-in dataset name is
-    # resolved straight from the C++ catalog (already MKS); everything else
-    # (explicit MKS arrays, global-config dataset, inline dict) goes through the
-    # Python resolver (which converts Myr -> s where needed).
+    # Isotope-model data. A built-in dataset name resolves straight from the C++ catalog (already MKS);
+    # everything else goes through the Python resolver, which converts Myr to seconds where needed.
     isotopes = config.get("isotopes", None)
     cdef cpp_bool built_in = (
         isinstance(isotopes, str)
@@ -677,8 +632,7 @@ def make_radiogenics(str model_name, dict config=None):
             if iso_ref is not None:
                 cfg.ref_time = iso_ref
 
-    # Map name/alias -> enum (raises ValueError on unknown name via except +),
-    # then build the model through the canonical C++ enum factory.
+    # An unknown name raises ValueError through except +.
     cdef c_RadiogenicsModel model = c_radiogenics_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(model, cfg)
 
@@ -709,16 +663,13 @@ def make_radiogenics(str model_name, dict config=None):
 # =====================================================================================================================
 # Direct heating convenience functions
 #
-# Each builds a stack-allocated C++ model from its parameters, solves for the
-# radiogenic heating, and returns the result (the C++ model is destroyed when the
-# function returns). ``time`` and ``mass`` accept Python floats or NumPy arrays
-# (broadcast together); model parameters (isotope arrays, fixed rate) are always
-# constants. A float result is returned for all-scalar inputs, otherwise a
-# float64 ``ndarray``.
+# Each builds a stack-allocated C++ model, solves, and lets it go out of scope. ``time`` and ``mass``
+# accept floats or NumPy arrays (broadcast together) while the model parameters stay constant. A float is
+# returned for all-scalar input, otherwise a float64 ndarray.
 # =====================================================================================================================
 
 def off(time, mass):
-    """Radiogenic heating for the Off model [W] (always zero). See module notes."""
+    """Radiogenic heating for the Off model [W]; always zero."""
     cdef c_RadiogenicsConfig cfg
     cdef c_OffRadiogenics model = c_OffRadiogenics(cfg)
     return _solve_heating(<c_RadiogenicsBase*>&model, time, mass)

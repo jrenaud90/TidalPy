@@ -1,16 +1,13 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-potential_3d.pyx
-Python/Cython wrapper for the dynamic Kaula 3D tidal-potential engine (potential_3d_.hpp).
+"""Python and Cython wrapper for the dynamic Kaula 3D tidal-potential engine (potential_3d_.hpp).
 
 ``tidal_potential_3d_modes(...)`` returns every active tidal mode's degree ``l``, signed forcing
 frequency ``omega_lmpq`` [rad s-1], and the complex potential angular-factor amplitude row
-``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)`` (the mode's time factor
-``e^{i omega t}`` pulled out: ``U(t) = Re[U_c e^{i omega t}]``). The modes and coefficients are built
-from the eccentricity/obliquity functions (the same used by the global 1D path) plus the associated
-Legendre functions, following Kaula / Efroimsky & Williams (2009) Eq. 18. This is the class-free
-replacement for the old per-scenario tidal-potential models.
+``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)`` (the mode's time factor pulled
+out: ``U(t) = Re[U_c e^{i omega t}]``). Modes and coefficients come from the eccentricity and
+obliquity functions the global 1D path uses plus the associated Legendre functions, following Kaula
+and Efroimsky and Williams (2009) Eq. 18.
 
 All quantities MKS; frequencies rad s-1; angles radians. The potential's ``r^2`` coefficient uses the
 supplied ``planet_radius`` (pass the surface radius for the 3D kernel).

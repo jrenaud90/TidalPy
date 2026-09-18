@@ -1,11 +1,4 @@
-// solid_matrix_.hpp - Fundamental matrix and its inverse
-// Ported from TidalPy/RadialSolver/matrix_types/solid_matrix.pyx
-//
-// Fundamental Matrix and its inverse as defined in Sabadini, Vermeerson, & Cambiotti (2016)
-//
-// Assumptions
-// -----------
-// These matrices assume an incompressible body.
+// solid_matrix_.hpp: fundamental matrix and its inverse (SVC16), incompressible body only.
 //
 // References
 // ----------
@@ -20,37 +13,9 @@
 #include "../../constants_.hpp"
 
 
-/// Construct the fundamental matrix and its inverse for a generic order-l.
-///
-/// See Eq. 2.42 of SVC16
-///
-/// Assumptions:
-///   These matrices assume an incompressible body.
-///
-/// Parameters
-/// ----------
-/// first_slice_index : size_t
-///     Initial radial index to start populating matrices at.
-/// num_radial_slices : size_t
-///     Number of radial slices.
-/// radius_array_ptr : double*
-///     Pointer to array of Radius values [m].
-/// density_array_ptr : double*
-///     Pointer to array of Density at each radius [kg m-3].
-/// gravity_array_ptr : double*
-///     Pointer to array of acceleration due to gravity at each radius [m s-2].
-/// complex_shear_array_ptr : std::complex<double>*
-///     Pointer to array of Complex shear modulus at each radius [Pa].
-/// fundamental_mtx_ptr : std::complex<double>*
-///     (Output) 6x6 fundamental matrix per slice.
-/// inverse_fundamental_mtx_ptr : std::complex<double>*
-///     (Output) Inverse of the fundamental matrix per slice.
-/// derivative_mtx_ptr : std::complex<double>*
-///     (Output) The matrix A such that dy/dr = A * y.
-/// degree_l : int
-///     Harmonic degree.
-/// G_to_use : double
-///     Gravitational constant.
+/// Fill the 6x6 fundamental matrix (SVC16 Eq. 2.42), its inverse, and the derivative matrix A with dy/dr = A y
+/// for every slice from first_slice_index. Inputs per slice: radius [m], density [kg m-3], gravity [m s-2],
+/// complex shear modulus [Pa]. Incompressible body only.
 inline void c_fundamental_matrix(
     size_t first_slice_index,
     size_t num_radial_slices,
@@ -64,7 +29,6 @@ inline void c_fundamental_matrix(
     int degree_l,
     double G_to_use) noexcept
 {
-    // Degree-l optimizations
     const double degree_l_dbl = static_cast<double>(degree_l);
     const double dlm1         = 2.0 * degree_l_dbl - 1.0;
     const double l2p3lm1      = degree_l_dbl * degree_l_dbl + 3.0 * degree_l_dbl - 1.0;
@@ -79,16 +43,13 @@ inline void c_fundamental_matrix(
 
     for (size_t slice_i = first_slice_index; slice_i < num_radial_slices; ++slice_i)
     {
-        // Shift index by 36 (for the inner 6x6 matrix)
         const size_t index_shift = slice_i * 36;
 
-        // Unpack radially dependent variables
         const double radius  = radius_array_ptr[slice_i];
         const double gravity = gravity_array_ptr[slice_i];
         const double density = density_array_ptr[slice_i];
         const std::complex<double>complex_shear = complex_shear_array_ptr[slice_i];
 
-        // Radius-based optimizations
         const double r_inv  = 1.0 / radius;
         const double rl     = std::pow(radius, degree_l_dbl);
         const double rlp1   = std::pow(radius, degree_l_dbl + 1.0);
@@ -104,7 +65,7 @@ inline void c_fundamental_matrix(
         const std::complex<double> r_s    = radius * mu_inv;
         const std::complex<double> pr_s   = density * r_s;
 
-        // Build Fundamental Matrix (Eq. 2.42 in SVC16)
+        // Fundamental matrix (SVC16 Eq. 2.42)
         // Row 1
         fundamental_mtx_ptr[index_shift + 0]  = degree_l_dbl * rlp1 / (2.0 * dlp3);
         fundamental_mtx_ptr[index_shift + 1]  = rlm1;
@@ -121,8 +82,7 @@ inline void c_fundamental_matrix(
         fundamental_mtx_ptr[index_shift + 10] = -rnlm2 / lp1;
         fundamental_mtx_ptr[index_shift + 11] = 0.0;
 
-        // Row 3
-        // RECORD: Believe there is a typo in HH14, they have the radius^l only on one term instead of both.
+        // Row 3 (HH14 appears to have a typo here: radius^l on one term instead of both)
         fundamental_mtx_ptr[index_shift + 12] = (degree_l_dbl * rgp + 2.0 * l2mlm3 * complex_shear) * rl / (2.0 * dlp3);
         fundamental_mtx_ptr[index_shift + 13] = (rgp + 2.0 * (degree_l_dbl - 1.0) * complex_shear) * std::pow(radius, degree_l_dbl - 2.0);
         fundamental_mtx_ptr[index_shift + 14] = -density * rl;
@@ -154,11 +114,7 @@ inline void c_fundamental_matrix(
         fundamental_mtx_ptr[index_shift + 34] = 4.0 * piGp / rlp2;
         fundamental_mtx_ptr[index_shift + 35] = 0.0;
 
-        // Inverse of the Fundamental Matrix
-        // From SVC16 Eq. 2.45: Fundamental Inverse = D_Mtx * Y^Bar_Mtx
-        // D_Mtx is a diagonal matrix. We multiply first and write down the product directly.
-
-        // D Coefficients
+        // Inverse (SVC16 Eq. 2.45): D * Ybar with D diagonal, written out as the product.
         const double d_coeff_1 = dlp1_inverse * lp1 / rlp1;
         const double d_coeff_2 = dlp1_inverse * degree_l_dbl * lp1 / (2.0 * dlm1 * rlm1);
         const double d_coeff_3 = dlp1_inverse * 1.0 / rlm1;
@@ -214,13 +170,7 @@ inline void c_fundamental_matrix(
         inverse_fundamental_mtx_ptr[index_shift + 34] = d_coeff_6 * dlp1;
         inverse_fundamental_mtx_ptr[index_shift + 35] = d_coeff_6 * (-radius);
 
-        // Build derivative matrix
-        // Defined in SV04 -- Only valid for the incompressible case.
-        // See SVC16 Eq. 1.95
-        //    Note: the lambda in SVC16 is defined as bulk_mod - (2/3)*shear (Eq. 1.77; 2nd Lame parameter),
-        //    for the incompressible assumption we assume the ratio (lambda/beta) -> 1 as K -> inf
-        //    See SVC16 Eq. 1.95 for a compressible version. Take limit as K->inf to find below.
-
+        // Derivative matrix: the K -> inf limit of SVC16 Eq. 1.95 (lambda = K - 2 mu / 3, so lambda / beta -> 1).
         // Row 1
         derivative_mtx_ptr[index_shift + 0]  = -2.0 * r_inv;
         derivative_mtx_ptr[index_shift + 1]  = degree_l_dbl * lp1 * r_inv;

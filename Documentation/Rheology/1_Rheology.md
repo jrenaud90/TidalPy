@@ -1,14 +1,10 @@
 # Rheology Module
-TidalPy provides an efficient suite of tools to calculate the complex moduli from a user-provided static moduli, 
-static viscosity, and static frequency. Note that "static" here does not mean "constant", instead it refers to the
-purely real-valued versions of these parameters. All of these properties can vary with radius or time.
+TidalPy calculates complex moduli from a user-provided static modulus, static viscosity, and frequency. "Static" here does not mean "constant": it refers to the purely real-valued versions of these parameters, all of which can vary with radius or time.
 
-"Moduli" in this context could refer to either shear or bulk modulus. Be sure to use the correct corresponding
-viscosity.
+"Moduli" in this context refers to either the shear or the bulk modulus. Be sure to use the corresponding viscosity.
 
 ## Using TidalPy's Rheology Class
-TidalPy provides efficient compiled Cython classes for rheology functionality. These can be imported using either Cython
-or Python.
+The rheology functionality is provided by compiled Cython classes, importable from either Cython or Python.
 
 ### Import and Basic Use
 Example:
@@ -29,7 +25,7 @@ complex_shear = rheology_instance(frequency, shear_mod, viscosity)
 print(complex_shear)
 ```
 
-If you are looking for a more programmatic way to import a rheology, consider using the `find_rheology` function:
+For a more programmatic way to import a rheology, use the `find_rheology` function:
 
 ```python
 
@@ -50,13 +46,9 @@ print(complex_shear)
 ```
 
 ### Working with Arrays
-TidalPy provides helper methods to efficiently parse over arrays. These functions use multithreading when possible to 
-quickly calculate results over large arrays.
+Helper methods sweep over arrays, using multithreading where possible.
 
-Note that all arrays must be
-[C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays).
-If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)`
-to ensure that they are before being passed to the rheology methods.
+All arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays). If an array may not be, use the numpy function `arr = np.ascontiguousarray(arr)` before passing it to a rheology method.
 
 ```python
 from TidalPy.models import Andrade
@@ -86,9 +78,7 @@ complex_shear_arr = rheology_instance.vectorize_modulus_viscosity(frequency, she
 ```
 
 ### Changing Other Rheological Parameters
-Some rheologies have additional parameters, like Andrade's $\zeta$ and $\alpha$. Notice how we did not specify these
-above. TidalPy provides default values that are used if no parameters are specified. You can easily provide your own
-parameters however:
+Some rheologies have additional parameters, such as Andrade's $\zeta$ and $\alpha$. These were not specified above, so TidalPy used its default values. You can provide your own:
 
 ```python
 from TidalPy.models import Andrade
@@ -101,14 +91,6 @@ rheology_instance.change_args((0.5, 0.1))  # Changing Alpha to 0.5; Zeta to 0.1.
 ```
 
 ## Defining a New Rheological Model
-New rheologies can be implemented by creating a new sub class by cloning the TidalPy repository and adding a new
-subclass to `\TidalPy\rheology\models.pyx`. You can copy one of the rheologies already present and use them as a
-template to create your new model. After you are finished you will need to add the model to the
-`find_rheology` function at the top of the same file as well as the `\TidalPy\rheology\models.pxd` header file 
-so they can be imported by other TidalPy methods. You will then need to reinstall TidalPy so that it can compile
-your new method (use `pip install -v .` from a terminal pointing to your TidalPy directory that you made the
-modifications in). 
+Clone the TidalPy repository and add a new subclass to `\TidalPy\rheology\models.pyx`, using one of the rheologies already there as a template. Then add the model to the `find_rheology` function at the top of that file and to the `\TidalPy\rheology\models.pxd` header, so other TidalPy methods can import it. Reinstall TidalPy to compile the new model: run `pip install -v .` from a terminal pointing at the TidalPy directory you modified.
 
-If you plan to push this new rheology to the main TidalPy Github: please consider adding test cases to 
-`Tests\Test_Functions\test_rheology.py` so that TidalPy's CI system can check that it is performing correctly in 
-future releases.
+If you plan to push the new rheology to the main TidalPy GitHub, please add test cases to `Tests\Test_Functions\test_rheology.py` so TidalPy's CI system can check it in future releases.

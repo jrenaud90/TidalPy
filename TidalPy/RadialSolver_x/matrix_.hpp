@@ -1,5 +1,4 @@
-// matrix_.hpp - Propagation of tidal solution using the fundamental matrix
-// Ported from TidalPy/RadialSolver/matrix.pyx
+// matrix_.hpp: propagation of the tidal solution with the fundamental matrix.
 //
 // References
 // ----------
@@ -15,7 +14,7 @@
 #include <vector>
 #include <string>
 #include <limits>
-#include <Eigen/Dense> // Replaced lapack_.hpp with Eigen
+#include <Eigen/Dense>
 
 #include "../constants_.hpp"
 #include "../Material_x/eos/eos_solution_.hpp"
@@ -25,44 +24,35 @@
 #include "matrix_types/solid_matrix_.hpp"
 
 
-/// Propagation matrix solver for radial tidal solutions.
-///
-/// Currently only supports solid, static, incompressible layers.
+/// Propagation matrix solver for radial tidal solutions; solid, static, incompressible layers only.
 ///
 /// Parameters
 /// ----------
 /// solution_storage_ptr : c_RadialSolutionStorage*
-///     Pointer to the solution storage (contains EOS data and output arrays).
+///     Holds the EOS data and receives the gridded solution.
 /// frequency : double
 ///     Forcing frequency [rad s-1].
 /// planet_bulk_density : double
-///     Bulk density of the planet [kg m-3].
-/// first_slice_index_by_layer_ptr : size_t*
-///     Array of first radial slice index per layer.
-/// num_slices_by_layer_ptr : size_t*
-///     Array of number of slices per layer.
-/// num_layers_for_slices : size_t
-///     Number of elements in the above arrays.
-/// num_bc_models : size_t
-///     Number of boundary condition models (tidal, loading, free).
-/// bc_models_ptr : int*
-///     Array of boundary condition model IDs.
+///     [kg m-3].
+/// first_slice_index_by_layer_ptr, num_slices_by_layer_ptr : size_t*
+///     Per-layer slice partition, num_layers_for_slices entries each.
+/// num_bc_models, bc_models_ptr
+///     Boundary condition models (free = 0, tidal = 1, loading = 2).
 /// G_to_use : double
-///     Gravitational constant.
+///     Gravitational constant in solve units.
 /// degree_l : int
 ///     Harmonic degree.
 /// starting_radius : double
-///     Starting radius for solution (0 = auto-determine).
-/// start_radius_tolerance : double
-///     Tolerance for starting radius formula.
+///     0 selects the automatic choice governed by start_radius_tolerance.
 /// core_model : int
-///     Core model type (0-4).
+///     Core starting condition (0 to 4).
 /// verbose : bool
 ///     Print status messages.
 ///
 /// Returns
 /// -------
-/// int : error code (0 = success)
+/// int
+///     Error code, 0 on success.
 inline int c_matrix_propagate(
     c_RadialSolutionStorage* solution_storage_ptr,
     double frequency,
@@ -79,46 +69,38 @@ inline int c_matrix_propagate(
     int core_model,
     bool verbose) noexcept
 {
-    // Setup
     const std::complex<double> cmplx_zero(0.0, 0.0);
     const std::complex<double> cmplx_one(1.0, 0.0);
     const std::complex<double> cmplx_NAN(
         std::numeric_limits<double>::quiet_NaN(),
         std::numeric_limits<double>::quiet_NaN());
 
-    // Get raw pointer of radial solver storage and eos storage
     c_EOSSolution* eos_solution_storage_ptr = solution_storage_ptr->get_eos_solution_ptr();
 
     solution_storage_ptr->message = "RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n";
 
-    // The matrix method serves its solution from the gridded full_solution_vec (filled below), not from dense
-    // interpolants. Clear any interpolant state left over from a prior shooting solve on this reused storage so
-    // get_radial_solution dispatches to the matrix (linear-interpolation) branch.
+    // The matrix method fills the grid, so a prior shooting solve's interpolant state must not remain on the
+    // reused storage or get_radial_solution would dispatch to the wrong branch.
     solution_storage_ptr->reset_interpolant_storage();
 
-    // Pull out key information
     const size_t num_layers     = eos_solution_storage_ptr->num_layers;
     const size_t total_slices   = eos_solution_storage_ptr->radius_array_size;
     const size_t top_slice_i    = total_slices - 1;
 
-    // Alias pointers to EOS properties
     double* radius_array_ptr  = eos_solution_storage_ptr->radius_array_vec.data();
     double* gravity_array_ptr = eos_solution_storage_ptr->gravity_array_vec.data();
     double* density_array_ptr = eos_solution_storage_ptr->density_array_vec.data();
 
-    // Need to recast the storage's shear/bulk double arrays to double complex for local use
     std::complex<double>* complex_shear_array_ptr =
         reinterpret_cast<std::complex<double>*>(eos_solution_storage_ptr->complex_shear_array_vec.data());
 
-    // Pull out constants
     const double planet_radius = radius_array_ptr[top_slice_i];
 
-    // Find boundary condition at the top of the planet
     const double degree_l_dbl      = static_cast<double>(degree_l);
     const size_t num_ytypes        = num_bc_models;
     const size_t num_output_ys     = C_MAX_NUM_Y * num_ytypes;
 
-    // Boundary condition array: 15 = 5 (max models) * 3 (conditions per model)
+    // 15 = 5 (max solve_for entries) * 3 (surface conditions)
     double boundary_conditions[15];
     double* bc_pointer = &boundary_conditions[0];
     int bc_error = c_get_surface_bc(
@@ -137,38 +119,34 @@ inline int c_matrix_propagate(
         return bc_error;
     }
 
-    // Make conversions from TS72 to SV04
-    // The propagation matrix uses different sign conventions so we need to convert
+    // Convert the surface conditions from the TS72 to the SVC16 sign convention: the last component flips for the
+    // tidal and loading cases (SVC16 Eq. 1.127); a free surface needs no change.
     for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
     {
         const size_t full_shift = 3 * ytype_i;
         if (bc_models_ptr[ytype_i] == 0)
         {
-            // Free surface, no conversion needed.
         }
         else if (bc_models_ptr[ytype_i] == 1)
         {
-            // Tidal boundary condition - last component is negative of TS74 (see Eq. 1.127 of S&V2004)
             bc_pointer[full_shift + 2] *= -1.0;
         }
         else if (bc_models_ptr[ytype_i] == 2)
         {
-            // Loading boundary condition.
             bc_pointer[full_shift + 2] *= -1.0;
         }
     }
 
-    // Determine starting radius slice
+    // Automatic starting radius after Martens' thesis and the LoadDef manual, capped by
+    // config_x [numerical].max_start_radius_fraction.
     if (starting_radius == 0.0)
     {
-        // Use a model involving planet radius and degree l (based on H. Martens thesis and LoadDef manual).
         starting_radius = planet_radius * std::pow(start_radius_tolerance, 1.0 / degree_l_dbl);
-        // Ensure not too close to the surface (config_x [numerical].max_start_radius_fraction).
         starting_radius = std::fmin(
             starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
     }
 
-    // Determine which layer this starting radius resides in
+    // Find the layer holding the starting radius.
     double layer_upper_radius, last_layer_upper_radius, radius_check;
     size_t start_layer_i           = 0;
     size_t last_index_before_start = 0;
@@ -188,7 +166,6 @@ inline int c_matrix_propagate(
             start_layer_i = current_layer_i;
             first_slice_index = first_slice_index_by_layer_ptr[current_layer_i];
 
-            // Find the last radial slice before the starting radius
             for (size_t slice_i = first_slice_index;
                  slice_i < first_slice_index + num_slices_by_layer_ptr[current_layer_i];
                  ++slice_i)
@@ -215,13 +192,11 @@ inline int c_matrix_propagate(
         }
     }
 
-    // For the propagation matrix we have to start at index 2.
-    // Index 0 corresponds to r=0 where many fundamental matrix elements are nan/inf.
+    // Start at index 2 at the earliest: index 0 is r = 0, where fundamental matrix elements are NaN or inf.
     first_slice_index = last_index_before_start + 1;
     if (first_slice_index == 0 || first_slice_index == 1)
         first_slice_index = 2;
 
-    // Define memory for fundamental matrices (heap allocated since size is runtime-dependent)
     const size_t matrix_size   = 6 * 6 * total_slices;
     const size_t prop_mat_size = 6 * 3 * total_slices;
 
@@ -235,8 +210,7 @@ inline int c_matrix_propagate(
     std::complex<double>* derivative_mtx_ptr          = derivative_mtx_vec.data();
     std::complex<double>* propagation_mtx_ptr         = propagation_mtx_vec.data();
 
-    // Only populate matrix values starting at first_slice_index - 1
-    // TODO: Currently only solid, static, incompressible layers are supported for matrix propagation.
+    // Matrices are filled from first_slice_index - 1 upward. TODO: only solid, static, incompressible layers.
     c_fundamental_matrix(
         first_slice_index - 1,
         total_slices,
@@ -250,8 +224,8 @@ inline int c_matrix_propagate(
         degree_l,
         G_to_use);
 
-    // Initialize the base of the propagation matrix to the initial conditions
-    // From IcyDwarf: "They are inconsequential on the rest of the solution, so false assumptions are OK."
+    // Seed the propagation matrix with the core starting conditions. From IcyDwarf: "They are inconsequential on
+    // the rest of the solution, so false assumptions are OK."
     size_t index_shift_18 = (first_slice_index - 1) * 18;
     size_t index_shift_36 = (first_slice_index - 1) * 36;
 
@@ -362,18 +336,16 @@ inline int c_matrix_propagate(
         return solution_storage_ptr->error_code;
     }
 
-    // Step through the planet's shells and build the propagation matrix
     Eigen::Matrix3cd surface_matrix;
-    surface_matrix.setConstant(cmplx_NAN); // Initialize to NaN for debugging safety
+    surface_matrix.setConstant(cmplx_NAN);
 
     std::complex<double> temp_cmplx;
     std::complex<double> temp_matrix[18];
 
-    // Create the downstream solution arrays
     std::complex<double> surface_solution[3];
     std::complex<double> bc_copy[3];
 
-    // Initialize to NaN for debugging
+    // NaN so uninitialized reads are visible.
     for (size_t j = 0; j < 18; ++j)
     {
         if (j < 3)
@@ -384,9 +356,9 @@ inline int c_matrix_propagate(
         temp_matrix[j] = cmplx_NAN;
     }
 
+    // Build the propagation matrix shell by shell.
     for (size_t slice_i = first_slice_index; slice_i < total_slices; ++slice_i)
     {
-        // Need to start the index for this radial slice
         index_shift_36 = slice_i * 36;
         const size_t last_index_shift_36 = (slice_i - 1) * 36;
         index_shift_18 = slice_i * 18;
@@ -426,7 +398,7 @@ inline int c_matrix_propagate(
             }
         }
 
-        // At the surface, extract the surface condition matrix into the Eigen Matrix (3x3 from rows [3, 4, 6])
+        // Surface condition matrix: rows 3, 4, 6 of the propagation matrix.
         if (slice_i == (total_slices - 1))
         {
             for (size_t i = 0; i < 3; ++i)
@@ -438,12 +410,10 @@ inline int c_matrix_propagate(
         }
     }
 
-    // Used to convert from SVC radial solutions to T&S format
     std::complex<double> ts_conversion[6];
     for (size_t i = 0; i < 6; ++i)
         ts_conversion[i] = cmplx_NAN;
 
-    // Cast solution pointer from double to complex
     double* solution_dbl_ptr = solution_storage_ptr->full_solution_vec.data();
     std::complex<double>* solution_ptr = reinterpret_cast<std::complex<double>*>(solution_dbl_ptr);
 
@@ -453,17 +423,15 @@ inline int c_matrix_propagate(
         if (ytype_i == num_bc_models)
             break;
 
-        // Set up the RHS vector B using Eigen
         Eigen::Vector3cd B_vec;
         for (size_t i = 0; i < 3; ++i)
         {
             B_vec(i) = std::complex<double>(bc_pointer[ytype_i * 3 + i], 0.0);
         }
 
-        // Solve the linear equation U = S^-1 @ B using Eigen's FullPivLU
+        // Solve U = S^-1 B.
         Eigen::FullPivLU<Eigen::Matrix3cd> lu(surface_matrix);
 
-        // Check for singularity/errors
         if (!lu.isInvertible())
         {
             solution_storage_ptr->message =
@@ -477,14 +445,13 @@ inline int c_matrix_propagate(
             return solution_storage_ptr->error_code;
         }
 
-        // Extract the solution and push back to bc_copy for downstream loop
         Eigen::Vector3cd X = lu.solve(B_vec);
         for (size_t i = 0; i < 3; ++i)
         {
             bc_copy[i] = X(i);
         }
 
-        // Step through each radial step and apply the propagation matrix to the surface solution
+        // Apply the propagation matrix to the surface solution at every slice.
         for (size_t slice_i = 0; slice_i < total_slices; ++slice_i)
         {
             index_shift_18              = slice_i * 18;
@@ -493,13 +460,11 @@ inline int c_matrix_propagate(
 
             if (slice_i < first_slice_index)
             {
-                // Not in the solution region yet. NaN the results.
                 for (size_t i = 0; i < 6; ++i)
                     solution_ptr[full_shift + i] = cmplx_NAN;
             }
             else
             {
-                // Matrix multiplication: prop_matrix @ surface_solution
                 for (size_t j = 0; j < 6; ++j)
                 {
                     temp_cmplx = std::complex<double>(0.0, 0.0);
@@ -507,30 +472,27 @@ inline int c_matrix_propagate(
                     {
                         temp_cmplx += (
                             propagation_mtx_ptr[index_shift_18 + j * 3 + jj] *
-                            bc_copy[jj]);  // bc_copy now contains the solution X
+                            bc_copy[jj]);
                     }
                     solution_ptr[full_shift + j] = temp_cmplx;
                 }
 
-                // Convert from SVC16 to TS72 sign convention (B13 Eq. 7)
-                ts_conversion[0] = solution_ptr[full_shift + 0];         // No Change
-                ts_conversion[1] = solution_ptr[full_shift + 2];         // Flip y3 for y2
-                ts_conversion[2] = solution_ptr[full_shift + 1];         // Flip y2 for y3
-                ts_conversion[3] = solution_ptr[full_shift + 3];         // No Change
-                ts_conversion[4] = -1.0 * solution_ptr[full_shift + 4];  // Change sign
-                ts_conversion[5] = -1.0 * solution_ptr[full_shift + 5];  // Change sign
+                // SVC16 to TS72 convention (B13 Eq. 7): swap y2 and y3, negate y5 and y6.
+                ts_conversion[0] = solution_ptr[full_shift + 0];
+                ts_conversion[1] = solution_ptr[full_shift + 2];
+                ts_conversion[2] = solution_ptr[full_shift + 1];
+                ts_conversion[3] = solution_ptr[full_shift + 3];
+                ts_conversion[4] = -1.0 * solution_ptr[full_shift + 4];
+                ts_conversion[5] = -1.0 * solution_ptr[full_shift + 5];
 
-                // Store converted values back
                 for (size_t i = 0; i < 6; ++i)
                     solution_ptr[full_shift + i] = ts_conversion[i];
             }
         }
 
-        // Next y-type
         ++ytype_i;
     }
 
-    // Update solution status and return
     if (solution_storage_ptr->error_code != 0)
     {
         solution_storage_ptr->success = false;

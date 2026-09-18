@@ -1,14 +1,9 @@
-"""TidalPy viscosity_x — C++ viscosity model hierarchy.
+"""C++ viscosity models and their name-based factory.
 
-Exposes the three viscosity models and a name-based factory:
-
-- ``ArrheniusViscosity``  (alias ``"arr"``)   — Arrhenius flow law.
-- ``ReferenceViscosity``  (alias ``"ref"``)   — relative-activation law.
-- ``ConstantViscosity``   (alias ``"const"``) — temperature/pressure independent.
-
-Each model returns the dynamic viscosity [Pa·s] as a function of temperature [K]
-and pressure [Pa] via ``calc_viscosity``. This is the pre-melt ("solid")
-viscosity that the partial-melt step weakens in the love-number pipeline.
+``ArrheniusViscosity`` (alias "arr"), ``ReferenceViscosity`` (alias "ref"), and
+``ConstantViscosity`` (alias "const") return the dynamic viscosity [Pa s] at a temperature [K] and
+pressure [Pa] through ``calc_viscosity``. This is the pre-melt (solid) viscosity that the
+partial-melt step weakens in the Love number pipeline.
 """
 
 from TidalPy.viscosity_x.viscosity import (

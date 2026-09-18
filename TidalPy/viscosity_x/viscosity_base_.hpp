@@ -1,23 +1,16 @@
 #pragma once
 /*
- * viscosity_base_.hpp — c_ViscosityBase: abstract base for all TidalPy
- * (solid/liquid) viscosity models.
+ * viscosity_base_.hpp - c_ViscosityBase: abstract base for TidalPy viscosity models.
  *
- * Inherits c_PhysicsBase (Utilities_x/classes_x/physics_base_.hpp).
- *
- * A viscosity model returns a material's dynamic viscosity [Pa·s] as a function of
- * temperature [K] and pressure [Pa]. This is the PRE-melt ("solid") viscosity that
- * the partial-melt step (partial_melt) subsequently weakens. Like the partial-
- * melt outputs it is frequency-independent and cached once per EOS solve in the
- * whole-planet love-number pipeline.
- *
- * The three implemented models (Arrhenius, Reference, Constant) live in
- * viscosity_.hpp. All calc_* methods are const and operate in MKS units.
+ * Inherits c_PhysicsBase. A viscosity model returns a material's dynamic viscosity [Pa s] at a
+ * temperature [K] and pressure [Pa]. This is the pre-melt (solid) viscosity that the partial-melt
+ * step weakens; like the partial-melt outputs it is frequency independent and is cached once per
+ * EOS solve. The concrete models (Arrhenius, Reference, Constant) live in viscosity_.hpp.
  *
  * References
  * ----------
- * - Moore (2006) — Arrhenius (activation energy/volume) flow law.
- * - Henning (2009) — reference-viscosity (relative activation) law.
+ * - Moore (2006): Arrhenius (activation energy and volume) flow law.
+ * - Henning (2009): reference-viscosity (relative activation) law.
  */
 
 #include <stdexcept>
@@ -28,9 +21,6 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_ViscosityBase
-// -------------------------------------------------------------------------------
 class c_ViscosityBase : public c_PhysicsBase {
 public:
     c_ViscosityBase() = default;
@@ -39,21 +29,11 @@ public:
 
     ~c_ViscosityBase() override = default;
 
-    // -----------------------------------------------------------------------
-    // Dynamic viscosity [Pa·s] at temperature [K] and pressure [Pa] (pure virtual).
-    //
-    // Assumptions
-    // -----------
-    // - Steady-state flow law; all inputs/outputs MKS.
-    // -----------------------------------------------------------------------
+    // Dynamic viscosity [Pa s] at a temperature [K] and pressure [Pa]. Assumes a steady-state flow law.
     virtual double calc_viscosity(double temperature, double pressure) const = 0;
 
-    // -----------------------------------------------------------------------
-    // Vectorized viscosity — vary temperature and pressure element-wise. The two
-    // input vectors must have the same length N; out_viscosity is resized to N.
-    // Throws std::invalid_argument on a length mismatch. This is the primary
-    // radial sweep (one entry per slice).
-    // -----------------------------------------------------------------------
+    // Vectorized element-wise over temperature and pressure: the primary radial sweep, one entry per
+    // slice. The two input vectors must match in length.
     void calc_viscosity_vectorize(
             const std::vector<double>& temperature,
             const std::vector<double>& pressure,

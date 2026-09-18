@@ -1,16 +1,6 @@
 # distutils: language = c++
-"""
-physics.pxd
-Cython declarations for TidalPy's physics layer class.
-
-Exports c_PhysicsConfig, c_PhysicsLayer, and the Python wrapper PhysicsLayer
-so other extensions can cimport and use C-speed access.
-
-Usage::
-
-    from TidalPy.structures_x.layers.physics cimport (
-        PhysicsLayer, c_PhysicsLayer, c_PhysicsConfig)
-"""
+"""Cython declarations for TidalPy's physics layer: c_PhysicsConfig, c_PhysicsLayer, and the Python wrapper
+PhysicsLayer."""
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string

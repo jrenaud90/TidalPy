@@ -1,6 +1,6 @@
-# RadialSolver_x: Love Numbers and Radial Functions
+# Love Numbers and Radial Functions (`RadialSolver_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-18_
 
 `TidalPy.RadialSolver_x` solves the viscoelastic-gravitational problem for a layered, spherically symmetric planet. It returns the radial functions y1 through y6 throughout the interior and the Love numbers k, h, and l at the surface. Those numbers set the magnitude of tidal dissipation, the speed of orbital and rotational evolution, and the predicted gravity and displacement signals of a body.
 
@@ -9,13 +9,13 @@ There are three ways to call its functionality:
 | Entry point | Use it when |
 |---|---|
 | `LayeredWorld.solve_love_numbers(...)` | You have a built world. The layer rheologies supply the complex moduli and the equation of state is already solved. See [Worlds](../structures_x/worlds/worlds.md). |
-| `radial_solver(...)` | You have arrays** rather than a world, or you want to drive the solver directly. Documented in [Calculating Love Numbers](calculating_love_numbers.md). |
-| `homogeneous_love_numbers(...)` | You want a quick estimate for a uniform sphere without building anything. |
+| `radial_solver(...)` | You have arrays rather than a world, or you want to drive the solver directly. Documented in [Calculating Love Numbers](calculating_love_numbers.md). |
+| `homogeneous_love_numbers(...)` | You want an estimate for a uniform sphere without building anything. |
 
 > [!TIP]
-> ** The `radial_solver` function's inputs are rather extensive. Use the [helper functions](build_inputs.md) to quickly build these inputs using a much simpler API.
+> The `radial_solver` function's inputs are extensive. The [helper functions](build_inputs.md) build them through a simpler API.
 
-Every path returns a [`RadialSolverSolution`](solution_class.md), which carries the radial functions, the Love numbers, the equation-of-state profiles, and the diagnostics that tell you whether to trust them.
+Every path returns a [`RadialSolverSolution`](solution_class.md), which carries the radial functions, the Love numbers, the equation-of-state profiles, and the diagnostics used to check them.
 
 ```{toctree}
 :maxdepth: 2
@@ -27,15 +27,15 @@ Helper Functions <build_inputs.md>
 Dense Radial Solutions <dense_radial_solution.md>
 ```
 
-## The Solver and Methods
+## Solution Methods
 
-The default method integrates a set of viscoelastic-gravitational ordinary differential equations from a starting radius near the center out to the surface, one layer at a time. Each layer contributes a fixed number of independent solutions depending on its assumptions, and the physical solution in the layer is a linear combination of them. The combination coefficients are fixed by the surface boundary condition and then propagated downward through every interface, so each layer inherits a consistent set of constants. This method is often referred to in the literature as the "shooting method" for Love number calculation.
+The default method integrates a set of viscoelastic-gravitational ordinary differential equations from a starting radius near the center out to the surface, one layer at a time. Each layer contributes a fixed number of independent solutions depending on its assumptions, and the physical solution in the layer is a linear combination of them. The combination coefficients are fixed by the surface boundary condition and then propagated downward through every interface, so each layer inherits a consistent set of constants. The literature calls this the "shooting method" for Love number calculation.
 
-Another method is provided via the propagation-matrix approach. This is quasi-analytic and restricted to a single solid, static, incompressible layer.
+The propagation-matrix approach is quasi-analytic and restricted to a single solid, static, incompressible layer.
 
-Lastly, three analytic methods are provided: `homogeneous`, `cpl`, and `ctl`. These skip the interior solve altogether.
+Three analytic methods, `homogeneous`, `cpl`, and `ctl`, skip the interior solve altogether.
 
-[Calculating Love Numbers](calculating_love_numbers.md) explains how to choose between them, and [Dense Radial Solutions](dense_radial_solution.md) covers the numerics in more depth.
+[Calculating Love Numbers](calculating_love_numbers.md) covers how to choose between them, and [Dense Radial Solutions](dense_radial_solution.md) covers the numerics in more depth.
 
 ## References
 
@@ -66,4 +66,4 @@ The methods implemented here come from the following work (this is not a compreh
 
 ## Examples
 
-The `Demos (_x)` notebooks work through the solver from both ends: `Physics/08_love_numbers_1d.ipynb` uses it directly, and the world notebooks reach it through `solve_love_numbers`. The `Benchmarks (_x)` pages validate the results against published Earth and Enceladus models.
+`Demos_x/Physics/08_love_numbers_1d.ipynb` calls the solver directly, and the world notebooks reach it through `solve_love_numbers`. The `Benchmarks (_x)` pages validate the results against published Earth and Enceladus models.

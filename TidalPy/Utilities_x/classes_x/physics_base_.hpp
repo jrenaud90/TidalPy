@@ -1,22 +1,14 @@
 #pragma once
 /*
- * physics_base_.hpp — c_PhysicsBase: base for all TidalPy physics model classes.
+ * physics_base_.hpp: c_PhysicsBase, the base for every TidalPy physics model class.
  *
- * Stores a model name string and a non-owning observer pointer to the layer
- * that owns this physics object.  The layer pointer is set by the layer after
- * constructing the physics object (never owned by c_PhysicsBase).
+ * Stores a model name and a non-owning observer pointer to the layer that owns the model. The layer sets
+ * that pointer after construction and it is never serialized. The static create(model_name, config)
+ * factory lives in each concrete physics subhierarchy, not here. All calc_* methods on subclasses are
+ * const.
  *
- * The factory pattern (static create(model_name, config)) is implemented in
- * each concrete physics subhierarchy, not in this base.
- *
- * All calc_* methods on physics subclasses are const.
- *
- * Binary format (20-byte header + variable payload):
- *   header: class_id = BinaryClassID::PhysicsBase (3)
- *   payload: model_name length (uint32_t, 4 bytes) | model_name (UTF-8 bytes)
- *
- * Note: p_layer_ptr is NOT serialized — it is a runtime observer pointer
- * restored by the owning layer after loading.
+ * Binary payload under class_id BinaryClassID::PhysicsBase (3): model_name length (uint32_t) then the
+ * UTF-8 model_name bytes.
  */
 
 #include <cstdint>
@@ -57,11 +49,8 @@ public:
     void set_layer_ptr(c_BaseLayer* layer_ptr) noexcept { p_layer_ptr = layer_ptr; }
 
     // -----------------------------------------------------------------------
-    // Configuration entries (see config_entry_.hpp)
-    //
-    // The Cython base wrapper turns these into the get_config_dict() dict, so a
-    // subclass only overrides append_config_entries: call the parent, then push
-    // its own parameters with the c_config_* builders.
+    // Configuration entries (see config_entry_.hpp). A subclass overrides
+    // append_config_entries: call the parent, then push its own parameters.
     // -----------------------------------------------------------------------
     virtual void append_config_entries(std::vector<c_ConfigEntry>& out) const {
         out.push_back(c_config_string("model", this->p_model_name));
@@ -78,20 +67,8 @@ public:
     //
     // Every physics model serializes the same way: a header carrying the model's
     // BinaryClassID, the model name, then zero or more scalar (double) params.
-    // Subclasses implement write_binary/read_binary by calling these helpers with
-    // their own class id and parameter list, e.g.:
-    //
-    //   void write_binary(std::ostream& out) const override {
-    //       this->write_physics_binary(
-    //           out, static_cast<uint32_t>(BinaryClassID::Andrade), {this->p_alpha, this->p_zeta});
-    //   }
-    //   void read_binary(std::istream& in, bool force = false) override {
-    //       const std::vector<double> params = this->read_physics_binary(in, force, 2);
-    //       this->p_alpha = params[0];
-    //       this->p_zeta  = params[1];
-    //   }
-    //
-    // A model with no extra params just omits the params argument / passes 0.
+    // Subclasses implement write_binary and read_binary by calling these helpers
+    // with their own class id and parameter list.
     // -----------------------------------------------------------------------
     void write_physics_binary(
             std::ostream& out,
@@ -126,7 +103,7 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Binary I/O — c_PhysicsBase stores only the model name (no extra params).
+    // Binary I/O: c_PhysicsBase stores only the model name (no extra params).
     // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::PhysicsBase));

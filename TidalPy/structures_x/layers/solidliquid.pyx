@@ -1,11 +1,9 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-solidliquid.pyx
-Cython/Python wrapper for TidalPy's solid/liquid layer class.
+"""Cython wrapper for TidalPy's solid/liquid layer class.
 
-SolidLiquidLayer: extends PhysicsLayer with thermal properties, Arrhenius
-viscosity, melt-fraction tracking, and optional cooling/radiogenics sub-models.
+SolidLiquidLayer extends PhysicsLayer with thermal properties, Arrhenius viscosity, melt-fraction tracking, and
+optional cooling and radiogenics sub-models.
 """
 
 from libcpp.complex cimport complex as cpp_complex
@@ -34,23 +32,17 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # SolidLiquidLayer
 # =====================================================================================================================
 cdef class SolidLiquidLayer(PhysicsLayer):
-    """Thermo-mechanical layer with phase-change tracking, Arrhenius viscosity,
-    and optional cooling/radiogenics sub-models.
+    """Thermo-mechanical layer with phase-change tracking, Arrhenius viscosity, and optional cooling and
+    radiogenics sub-models.
 
-    Extends PhysicsLayer with:
-
-    - Temperature-dependent melt fraction (linear between solidus and liquidus).
-    - Arrhenius viscosity with pressure and partial-melt corrections.
-    - Melt-fraction-reduced shear modulus.
-    - Thermal conductivity, diffusivity, and adiabatic temperature gradient.
-    - Conductive heat flux through the layer.
-    - Radiogenic heating via an optional RadiogenicsBase sub-model.
-    - Convective/conductive cooling via an optional CoolingBase sub-model.
+    Extends PhysicsLayer with a temperature-dependent melt fraction (power law between solidus and liquidus), an
+    Arrhenius viscosity carrying pressure and melt corrections, a melt-reduced shear modulus, thermal
+    conductivity, diffusivity, the adiabatic gradient, and conductive heat flux.
 
     Parameters
     ----------
     name : str
-        Human-readable layer name.
+        Layer name.
     layer_index : int
         Zero-based position; innermost layer = 0.
     radius_inner : float
@@ -105,7 +97,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     Assumptions
     -----------
     - Spherically symmetric layer geometry.
-    - All values in MKS units.
     - Solidus/liquidus temperatures are constant (no pressure dependence).
     """
 
@@ -191,7 +182,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         return v
 
     # ------------------------------------------------------------------------------------------------------------------
-    # Thermal property properties
+    # Thermal properties
     # ------------------------------------------------------------------------------------------------------------------
     @property
     def thermal_conductivity_ref(self) -> float:
@@ -264,9 +255,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     def set_cooling(self, CoolingBase cooling not None):
         """Attach a cooling (heat-transport) sub-model.
 
-        Ownership of the C++ model is transferred from ``cooling`` into this
-        layer; the passed ``CoolingBase`` becomes an empty, non-owning shell and
-        must not be reused.
+        Ownership of the C++ model moves out of ``cooling``, which is left an empty shell and must not be reused.
 
         Parameters
         ----------
@@ -286,9 +275,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     def set_radiogenics(self, RadiogenicsBase radiogenics not None):
         """Attach a radiogenic-heating sub-model.
 
-        Ownership of the C++ model is transferred from ``radiogenics`` into this
-        layer; the passed ``RadiogenicsBase`` becomes an empty, non-owning shell
-        and must not be reused.
+        Ownership of the C++ model moves out of ``radiogenics``, which is left an empty shell and must not be
+        reused.
 
         Parameters
         ----------
@@ -319,8 +307,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         temperature : float
             Temperature [K].
         pressure : float, optional
-            Pressure [Pa]. Reserved for future pressure-dependent melt curve;
-            currently unused. Default ``0.0``.
+            Pressure [Pa]. Not used by the current melt curve. Default ``0.0``.
 
         Returns
         -------
@@ -368,9 +355,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         return self._solidliquid_ptr.calc_shear_modulus(temperature, pressure)
 
     def calc_thermal_conductivity(self, double temperature) -> float:
-        """Thermal conductivity [W/(m·K)].
-
-        Returns the reference value (temperature dependence is not modeled).
+        """Thermal conductivity [W/(m·K)]: the reference value, with no temperature dependence modeled.
 
         Parameters
         ----------
@@ -403,15 +388,14 @@ cdef class SolidLiquidLayer(PhysicsLayer):
                                             double pressure = 0.0) -> float:
         """Adiabatic temperature gradient [K/m] = α · T · g / c_p.
 
-        Gravity is taken from the EOS profile at the outer boundary if
-        available; returns 0.0 when EOS data has not been populated.
+        Gravity comes from the EOS profile at the outer boundary; 0.0 when that profile is unpopulated.
 
         Parameters
         ----------
         temperature : float
             Temperature [K].
         pressure : float, optional
-            Pressure [Pa] (reserved; currently unused). Default ``0.0``.
+            Pressure [Pa]. Not used. Default ``0.0``.
 
         Returns
         -------
@@ -435,15 +419,13 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Returns
         -------
         float
-            Conductive heat flux [W/m²].  Positive when T_base > T_top.
+            Conductive heat flux [W/m²]. Positive when T_base > T_top.
         """
         return self._solidliquid_ptr.calc_heat_flux_conductive(
             temperature_base, temperature_top)
 
     def calc_radiogenic_heating(self, double time, double mass) -> float:
-        """Radiogenic heating [W] from the attached sub-model.
-
-        Returns 0.0 when no radiogenics sub-model has been attached.
+        """Radiogenic heating [W] from the attached sub-model; 0.0 when none is attached.
 
         Parameters
         ----------
@@ -468,9 +450,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Returns
         -------
         dict
-            All BaseLayer + PhysicsLayer keys plus the 11 SolidLiquidLayer
-            thermal/melt parameters, and the ``cooling`` and ``radiogenics``
-            sub-tables when those models are attached.
+            The PhysicsLayer keys plus the SolidLiquidLayer thermal and melt parameters, and the ``cooling`` and
+            ``radiogenics`` sub-tables when those models are attached.
         """
         d = PhysicsLayer.get_config_dict(self)
         d["thermal_conductivity_ref_w_mk"] = self._solidliquid_ptr.get_thermal_conductivity_ref()

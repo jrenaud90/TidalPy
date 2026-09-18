@@ -1,12 +1,6 @@
 # distutils: language = c++
-"""
-partial_melt.pxd
-Cython declarations for TidalPy's partial-melt model hierarchy.
-
-Exports the C++ models, the combined config + input/result structs, the enum
-factory, and the Python wrapper classes so other extensions (layers, worlds) can
-cimport and build or attach partial-melt models at C speed.
-"""
+"""Cython declarations for TidalPy's partial-melt model hierarchy: the C++ models, the config, input and
+result structs, the enum factory, and the Python wrapper classes."""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr

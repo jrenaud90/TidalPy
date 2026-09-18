@@ -1,6 +1,6 @@
 # Partial Melting (`partial_melt_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-15_
 
 `TidalPy.partial_melt_x` has functionality to modify planetary material's strength once it begins to experience partial melt. Each model takes the pre-melt (solid) viscosity and shear modulus at a point, together with the temperature, and returns the post-melt values plus the volumetric melt fraction.
 
@@ -21,6 +21,10 @@ Partial-Melt Models <partial_melt_models.md>
 A partial-melt model is attached to a layer with `set_partial_melt` and applied during the whole-planet equation-of-state solve. At each radial slice the [viscosity model](../viscosity_x/index.md) supplies the pre-melt viscosity and the equation of state supplies the pre-melt moduli; the melt model then rewrites both, once for the shear pair and once for the bulk pair. The post-melt values are what [`rheology_x`](../rheology_x/index.md) turns into a complex modulus, and a layer keeps both sets so you can compare them (`get_premelt_shear_viscosity` against `get_shear_viscosity`).
 
 Like viscosity, melt weakening is frequency-independent and therefore resolved once per equation-of-state solve rather than once per tidal mode.
+
+## Examples
+
+`Demos_x/Physics/10_thermal_eos.ipynb` attaches a Henning melt model to a mantle and sweeps its temperature through the melting range.
 
 ## References
 

@@ -1,13 +1,9 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-base.pyx
-Cython/Python wrapper for TidalPy's base layer class.
+"""Cython wrapper for TidalPy's base layer class.
 
-BaseLayer: geometry-only layer storing inner/outer radii, mass, and
-material identification. EOS profile (density, gravity, pressure vs. radius)
-is unpopulated until the world's EOS solve runs or update_eos_data() is called
-directly (e.g., for testing).
+BaseLayer is geometry only: inner and outer radii, mass, and material identity. Its EOS profile stays unpopulated
+until the world's EOS solve runs or ``update_eos_data`` is called directly.
 """
 
 import os as _os
@@ -74,20 +70,15 @@ cdef enum:
 # =====================================================================================================================
 
 cdef class BaseLayer(StructureBase):
-    """Geometry base layer: inner/outer radii, mass, and material identity.
+    """Geometry base layer: inner and outer radii, mass, and material identity.
 
-    All spatial data in meters [m] and mass in kilograms [kg] (MKS).
-    Derived geometry (thickness, volume, surface areas) is computed at
-    construction and accessible as read-only properties.
-
-    The EOS profile (density, gravity, pressure vs. radius) starts unpopulated.
-    After the world's EOS solve populates it, or after a direct call to
-    ``update_eos_data``, the profile is interpolatable.
+    The EOS profile (density, gravity, pressure against radius) starts unpopulated and becomes queryable after the
+    world's EOS solve or a direct ``update_eos_data`` call.
 
     Parameters
     ----------
     name : str
-        Human-readable layer name (e.g. ``"mantle"``).
+        Layer name (e.g. ``"mantle"``).
     layer_index : int
         Zero-based position in the parent world, innermost layer = 0.
     radius_inner : float
@@ -97,18 +88,16 @@ cdef class BaseLayer(StructureBase):
     mass : float
         Total layer mass [kg].
     material_name : str, optional
-        Material identifier string (e.g. ``"perovskite"``). Default ``""``.
+        Material identifier (e.g. ``"perovskite"``). Default ``""``.
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
-        Dimensionless scale factor applied to this layer's tidal heating.
-        Default ``1.0``.
+        Dimensionless scale factor applied to this layer's tidal heating. Default ``1.0``.
 
     Assumptions
     -----------
     - Layer geometry is spherically symmetric.
     - radius_inner <= radius_outer.
-    - All values are in MKS units.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -155,9 +144,8 @@ cdef class BaseLayer(StructureBase):
     cdef void _init_view(self, c_BaseLayer* ptr, object world):
         """Set this wrapper up as a non-owning view onto a world-owned C++ layer.
 
-        Stores ``ptr`` in ``_layer_ptr`` so all base getters work unchanged, but marks the
-        wrapper as a view so ``__dealloc__`` releases (does not delete) it, and keeps a
-        reference to the owning ``world`` so the C++ layer outlives the view.
+        Keeps a reference to ``world`` so the C++ layer outlives the view; ``__dealloc__`` then releases the
+        pointer instead of deleting it.
         """
         self._layer_ptr.reset(ptr)
         self._ptr       = <c_TidalPyBaseClass*>ptr
@@ -183,8 +171,8 @@ cdef class BaseLayer(StructureBase):
     def mass(self) -> float:
         """Total layer mass [kg].
 
-        Set at construction, then overwritten by each successful world EOS solve with the mass the solved
-        density profile places between the layer's inner and outer radii.
+        Each successful world EOS solve overwrites it with the mass the solved density profile places between the
+        layer's inner and outer radii.
         """
         return self._layer_ptr.get().get_mass()
 
@@ -255,9 +243,8 @@ cdef class BaseLayer(StructureBase):
     def tidal_scale_method(self) -> str:
         """How this layer's share of the world tidal heating is determined.
 
-        One of ``"user_provided_scale"`` (use ``tidal_scale``), ``"volume_fraction_scale"``
-        (layer volume / planet volume), or ``"tidal_timescale_scale"`` (Maxwell-time bell
-        curve; not yet wired). Settable from any alias of those names.
+        One of ``"user_provided_scale"`` (use ``tidal_scale``), ``"volume_fraction_scale"`` (layer volume /
+        planet volume), or ``"tidal_timescale_scale"`` (Maxwell-time bell curve). Settable from any alias.
         """
         cdef bytes name_bytes = c_tidal_scale_method_name(
             self._layer_ptr.get().get_tidal_scale_method())
@@ -269,10 +256,9 @@ cdef class BaseLayer(StructureBase):
             c_tidal_scale_method_from_name(method.encode("utf-8")))
 
     def get_tidal_heating(self) -> float:
-        """Tidal heating [W] deposited in this layer by the world's last tidal solve.
+        """Tidal heating [W] deposited in this layer by the world's last tidal solve. NaN before one runs.
 
-        Set by :meth:`LayeredWorld.calc_tides` as the world's total tidal heating scaled
-        by this layer's contribution. Returns NaN before a tidal solve has run.
+        Set by :meth:`LayeredWorld.calc_tides` as the world total scaled by this layer's share.
         """
         return self._layer_ptr.get().get_tidal_heating()
 
@@ -290,19 +276,14 @@ cdef class BaseLayer(StructureBase):
         return self._layer_ptr.get().get_eos_set()
 
     def set_eos(self, MaterialEOSBase eos not None):
-        """Attach a material EOS model (the per-layer density source).
+        """Attach a material EOS model, the layer's density source for the world-level ``solve_eos``.
 
-        The model supplies density as a function of pressure and/or radius and is
-        consumed by the world-level ``solve_eos`` when integrating the planet's
-        radial structure. Ownership of the C++ model is transferred from ``eos``
-        into this layer; the passed ``MaterialEOSBase`` becomes an empty,
-        non-owning shell and must not be reused.
+        Ownership of the C++ model moves out of ``eos``, which is left an empty shell and must not be reused.
 
         Parameters
         ----------
         eos : MaterialEOSBase
-            A material EOS model (e.g. ``make_material_eos("constant", ...)``,
-            ``BirchMurnaghanEOS(...)``, ``InterpolatedEOS(...)``).
+            A material EOS model, for example ``make_material_eos("constant", ...)``.
 
         Raises
         ------
@@ -320,10 +301,7 @@ cdef class BaseLayer(StructureBase):
             density_kgm3,
             gravity_ms2,
             pressure):
-        """Populate the EOS profile from sorted radius arrays (MKS).
-
-        In normal use this is populated by the world's EOS solve. For unit
-        tests or manual construction the arrays can be provided directly.
+        """Populate the EOS profile directly from radius arrays, bypassing the world's EOS solve.
 
         Parameters
         ----------
@@ -338,9 +316,7 @@ cdef class BaseLayer(StructureBase):
 
         Assumptions
         -----------
-        - All four sequences must have the same length.
-        - radius must be sorted in strictly ascending order.
-        - Values are in MKS units.
+        - All four sequences have the same length and radius is strictly ascending.
         """
         cdef vector[double] r_vec   = radius
         cdef vector[double] rho_vec = density_kgm3
@@ -385,30 +361,15 @@ cdef class BaseLayer(StructureBase):
         return self._eval_real(kind, <double>radius)
 
     def get_density(self, radius):
-        """Density [kg/m^3] at radius [m] (float or np.ndarray); NaN if EOS data not populated.
-
-        Assumptions
-        -----------
-        - Linear interpolation; clamped at layer boundaries.
-        """
+        """Density [kg/m^3] at radius [m] (float or np.ndarray); NaN if EOS data not populated."""
         return self._apply_real(radius, _KIND_DENSITY)
 
     def get_gravity(self, radius):
-        """Gravitational acceleration [m/s^2] at radius [m] (float or np.ndarray); NaN if not populated.
-
-        Assumptions
-        -----------
-        - Linear interpolation; clamped at layer boundaries.
-        """
+        """Gravitational acceleration [m/s^2] at radius [m] (float or np.ndarray); NaN if not populated."""
         return self._apply_real(radius, _KIND_GRAVITY)
 
     def get_pressure(self, radius):
-        """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if EOS data not populated.
-
-        Assumptions
-        -----------
-        - Linear interpolation; clamped at layer boundaries.
-        """
+        """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if EOS data not populated."""
         return self._apply_real(radius, _KIND_PRESSURE)
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -455,9 +416,8 @@ cdef class BaseLayer(StructureBase):
     # Shorthand bundles (one call returns several profiles at once; mirrors the world-level surface)
     # ------------------------------------------------------------------------------------------------------------------
     def get_static_viscoelastics(self, radius):
-        """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius.
-
-        Each element is a float (scalar radius) or np.ndarray (array of radii).
+        """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius [m], each a
+        float or np.ndarray.
         """
         return (self.get_shear_modulus(radius), self.get_shear_viscosity(radius),
                 self.get_bulk_modulus(radius),  self.get_bulk_viscosity(radius))
@@ -478,22 +438,18 @@ cdef class BaseLayer(StructureBase):
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
-        """Return all configuration values as a Python dict (MKS).
+        """Return all configuration values as a Python dict (MKS) in the world builder's layer schema.
 
-        The dict follows the world builder's layer schema: ``class`` names the layer class, the
-        scalar keys are the constructor parameters, and each attached physics model appears as
-        its own sub-table keyed by ``model`` (here only ``eos``; subclasses add their models).
-        The material ``type`` is written as ``"none"``: every model the layer holds is listed, so
-        a rebuild must not add the material defaults a typeless layer would otherwise take.
-        ``name`` and ``radius_inner`` are construction parameters of a standalone layer that a
-        world drops when it nests the layer (see ``LAYER_STANDALONE_CONFIG_KEYS``).
+        Each attached physics model appears as its own sub-table keyed by ``model``. The material ``type`` is
+        written as ``"none"`` so that a rebuild does not add the material defaults a typeless layer would take.
+        ``name`` and ``radius_inner`` are standalone-layer keys that a world drops when it nests the layer (see
+        ``LAYER_STANDALONE_CONFIG_KEYS``).
 
         Returns
         -------
         dict
-            Keys: ``class``, ``type``, ``name``, ``layer_index``, ``radius_inner``,
-            ``radius_outer``, ``mass``, ``material_name``,
-            ``is_tidal``, ``tidal_scale``, ``tidal_scale_method``, and ``eos`` when set.
+            Keys: ``class``, ``type``, ``name``, ``layer_index``, ``radius_inner``, ``radius_outer``, ``mass``,
+            ``material_name``, ``is_tidal``, ``tidal_scale``, ``tidal_scale_method``, and ``eos`` when set.
         """
         # Deferred: the configs package imports the layer modules.
         from TidalPy.structures_x.configs.toml_loader import NO_MATERIAL_TYPE

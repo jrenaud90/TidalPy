@@ -1,4 +1,4 @@
-"""TidalPy structures_x.layers — C++ layer class hierarchy."""
+"""TidalPy structures_x.layers: the C++ layer class hierarchy."""
 
 from TidalPy.structures_x.layers.base import BaseLayer
 from TidalPy.structures_x.layers.physics import PhysicsLayer

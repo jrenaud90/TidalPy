@@ -1,17 +1,9 @@
 # distutils: language = c++
-"""
-logger.pxd
-Cython declarations for TidalPy's C++ logging interface (logger_.hpp).
+"""Cython declarations for TidalPy's C++ logging interface (``logger_.hpp``).
 
-Other Cython extensions that want C++ logging include this in their .pxd and
-call the following at module-init level in their .pyx::
+An extension that logs from C++ calls this at module-init level in its .pyx::
 
-    from TidalPy.Utilities_x.logging_x.logger cimport (
-        set_tidalpy_logger_ptr_void, get_tidalpy_logger_address)
     set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
-
-This mirrors the constants.pyx / constants_.hpp pattern for TidalPy's global
-config pointer.
 """
 
 from libcpp cimport bool
@@ -64,7 +56,5 @@ cdef extern from "logger_.hpp" namespace "tidalpy" nogil:
     void cy_shutdown_logger() except +
 
 
-# Declared here, defined as cdef api in logger.pyx.
-# Importing modules call this to obtain the raw logger address from the
-# logging_x extension DLL.
+# Declared here, defined as cdef api in logger.pyx; hands the raw logger address to other extensions.
 cdef void* get_tidalpy_logger_address()

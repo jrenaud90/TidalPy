@@ -1,24 +1,12 @@
-"""Default configuration for the new ``_x`` structure of TidalPy.
+"""Default contents of ``TidalPy_Configs_x.toml``, the configuration file for the ``_x`` class system.
 
-This module holds the default contents of ``TidalPy_Configs_x.toml``, the
-configuration file for the rebuilt ``_x`` class system (schema ``0.2.0``). It is
-written to the user's TidalPy data directory (next to the legacy
-``TidalPy_Configs.toml``) on first use and is then user-editable.
+The file (schema ``0.2.0``) is written to the user's TidalPy data directory on first use and is then
+user-editable. ``[numerical]``, ``[eos_solver]``, and ``[radial_solver]`` feed the C++ config
+singleton through ``TidalPy.constants.update_constants_x``. ``[tides]``, ``[worlds]``, and
+``[layers.<type>]`` supply the second tier of the world builder's default chain, between the user's
+own configuration and the C++ or Cython constructor default.
 
-The file has two roles:
-
-1. ``[numerical]`` carries the numerical settings consumed by the C++ config
-   singleton for ``_x`` code (see ``TidalPy.constants.update_constants_x``).
-2. ``[layers.<type>]`` carries per-material default parameters keyed by a layer's
-   material ``type`` (``gas``, ``mantle_rock``, ``ice``, ``hp_ice``, ``iron``).
-   These supply the second tier of the world builder's default-resolution chain:
-   a value the user omits is taken from the matching ``[layers.<type>]`` section
-   here, and only if that is also absent does the C++/Cython constructor default
-   apply.
-
-IMPORTANT (for future work): any new default configuration that belongs to the
-``_x`` system should be added here (and so to ``TidalPy_Configs_x.toml``), NOT to
-the legacy ``defaultc.py`` / ``TidalPy_Configs.toml``.
+Every new ``_x`` default belongs here rather than in the legacy ``defaultc.py``.
 """
 
 from TidalPy import version

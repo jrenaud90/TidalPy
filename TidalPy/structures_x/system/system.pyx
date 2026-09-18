@@ -1,17 +1,12 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-system.pyx
-Cython/Python wrapper for TidalPy's system class.
+"""Cython wrappers for TidalPy's system class.
 
-A ``System`` links two or more worlds (a host plus orbiting worlds). Each orbiting world has a two-body
-orbit about the host described by a semi-major axis [m] and eccentricity. The system owns its worlds
-through shared pointers, co-owned with the Python world wrappers, so the added world objects stay
-usable and are handed straight back by iteration (``for world in system``), indexing (``system[i]``),
-and attribute access (``system.<world_name>``).
-
-All quantities are MKS: masses [kg], semi-major axes [m], orbital frequencies [rad s-1], gravitational
-parameters [m^3 s-2].
+A ``System`` links two or more worlds (a host plus orbiting worlds). Each orbiting world has a
+two-body orbit about the host described by a semi-major axis [m] and an eccentricity. The system
+owns its worlds through shared pointers, co-owned with the Python world wrappers, so the added
+world objects stay usable and are handed straight back by iteration (``for world in system``),
+indexing (``system[i]``), and attribute access (``system.<world_name>``).
 """
 
 from libc.math cimport NAN, isfinite
@@ -148,10 +143,7 @@ cdef class System:
         """Build a system from a configuration source (the public builder entry point).
 
         Resolves ``source``, validates it, builds each member world, and returns the assembled
-        ``System`` with the normalized configuration retained on :attr:`source_config` (so it can be
-        written back to TOML). Mirrors :meth:`BaseWorld.build
-        <TidalPy.structures_x.worlds.base.BaseWorld.build>`; the module-level
-        :func:`~TidalPy.structures_x.configs.system_builder.build_system` simply calls this method.
+        ``System`` with the normalized configuration retained on :attr:`source_config`.
 
         Parameters
         ----------
@@ -407,28 +399,10 @@ cdef class System:
         Returns
         -------
         dict
-            Keys (all MKS): 
-                - ``world_index``
-                - ``evolved`` (``False`` for the host or a world with no usable orbit)
-                - ``orbital_frequency``
-                - ``semi_major_axis``
-                - ``eccentricity``
-                - ``spin_frequency``
-                - ``host_mass``
-                - ``target_mass``
-                - ``tidal_heating``
-                - ``dU_dM``
-                - ``dU_dw``
-                - ``dU_dO``
-                - ``da_dt``
-                - ``de_dt``
-                - ``dn_dt``
-                - ``dspin_dt``
-                - ``moment_of_inertia``
-                - ``has_spin``
-                - ``dE_orbit_dt``
-                - ``dE_spin_dt``
-                - ``energy_residual``
+            The orbital and spin state used, the raw tidal outputs (``tidal_heating``, ``dU_dM``,
+            ``dU_dw``, ``dU_dO``), the rates (``da_dt``, ``de_dt``, ``dn_dt``, ``dspin_dt``), and the
+            energy-balance terms (``dE_orbit_dt``, ``dE_spin_dt``, ``energy_residual``), all MKS.
+            ``evolved`` is ``False`` for the host or a world with no usable orbit.
         """
         cdef c_WorldEvolution evolution = self._system.get().calc_world_evolution(
             <size_t>self._resolve_index(world))
@@ -489,11 +463,9 @@ cdef class System:
     cpdef dict get_config_dict(self):
         """Return the system's live state as a configuration dict (the ``build_system`` schema).
 
-        Each member world is inlined with its own configuration (its retained ``config`` when present,
-        else its world-level ``get_config_dict``) under the world's system name, together with its
-        host/star roles and its orbital elements about the tidal host and the star. This is the
-        self-contained, live-state expansion; it is used by :meth:`save_to_toml` when no
-        ``source_config`` was retained (a directly-built system).
+        Each member world is inlined with its own configuration under its system name, together with
+        its host and star roles and its orbital elements. Used by :meth:`save_to_toml` when no
+        ``source_config`` was retained.
 
         Returns
         -------
@@ -560,10 +532,10 @@ cdef class System:
     def load_binary(self, str path, cpp_bool force=False):
         """Load this system's state from a TidalPy binary file (overriding the base to rewrap worlds).
 
-        Reads the container state and rebuilds the heterogeneous world list from the stream (each world's
-        concrete type is recovered from its record), then rebuilds the Python world wrappers around the
-        loaded worlds. Physics sub-models a world does not serialize (the star's luminosity model, layer
-        EOS data, tide/spin models) are reattached after load, as for a directly-loaded world.
+        Rebuilds the heterogeneous world list from the stream (each world's concrete type is
+        recovered from its record) and the Python wrappers around it. Physics sub-models a world does
+        not serialize (the star's luminosity model, layer EOS data, tide and spin models) are
+        reattached after load.
 
         Parameters
         ----------
@@ -619,11 +591,11 @@ cdef class System:
     # Sequence protocol over the member worlds
     # ------------------------------------------------------------------------------------------------------------------
     def __len__(self):
-        """Number of worlds, so ``len(system)`` works."""
+        """Number of worlds in the system."""
         return len(self._world_wrappers)
 
     def __iter__(self):
-        """Iterate the member worlds, so ``for world in system: ...`` works."""
+        """Iterate the member worlds."""
         return iter(self._world_wrappers)
 
     def __getitem__(self, index):

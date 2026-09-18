@@ -1,38 +1,17 @@
 #pragma once
 /*
- * material_eos_.hpp — TidalPy material equation-of-state (EOS) models.
+ * material_eos_.hpp: material equation-of-state (EOS) models.
  *
- * A material EOS model returns a layer material's mass density [kg/m^3] given the
- * local pressure [Pa] (and, in future, temperature [K]) — the per-layer density
- * source consumed by the whole-planet radial EOS solve. Models follow the same
- * pattern as the rheology / cooling / radiogenics hierarchies: a c_PhysicsBase
- * subclass, an enum-based factory, and shared binary serialization.
+ * A model returns a layer material's density [kg/m^3] from the local pressure [Pa] (analytic models) or
+ * radius [m] (interpolated model); the whole-planet EOS solve evaluates it inline while integrating the
+ * structure ODE. The analytic models are isothermal: temperature is accepted but unused. MKS throughout.
  *
- * The radial solver integrates the structure ODE over radius and carries the
- * pressure as a state variable, so an analytic density(pressure) model can be
- * evaluated inline during the integration (no separate coupled iteration beyond
- * the solver's existing surface-pressure convergence loop).
- *
- * Models (with factory aliases):
- *   c_ConstantDensityEOS  (alias "constant"/"uniform")        — incompressible.
- *   c_BirchMurnaghanEOS   (alias "bm"/"birch_murnaghan")      — 3rd-order BM.
- *   c_VinetEOS            (alias "vinet")                     — Vinet/UBER.
- *   c_InterpolatedEOS     (alias "interpolate"/"interp")      — density(radius) table.
- *
- * All quantities are MKS. The analytic models are isothermal (temperature is
- * accepted for API uniformity but not yet used; thermal expansion is deferred).
+ * Models (factory aliases): c_ConstantDensityEOS ("constant", "uniform"), c_BirchMurnaghanEOS ("bm",
+ * "birch_murnaghan"), c_VinetEOS ("vinet"), c_InterpolatedEOS ("interpolate", "interp").
  *
  * References
  * ----------
- * - Birch (1947), Phys. Rev. 71, 809 — finite-strain (Birch-Murnaghan) EOS.
- * - Vinet et al. (1987), J. Geophys. Res. 92, 9319 — universal (Vinet) EOS.
- *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::<Model> (601-604)
- *   payload: model_name length (uint32_t) | model_name bytes | model params
- *   Constant/BM/Vinet write scalar doubles via the shared c_PhysicsBase helpers;
- *   Interpolated writes its variable-length radius/density arrays directly.
- *   The layer observer pointer (p_layer_ptr) is NOT serialized.
+ * Birch (1947), Phys. Rev. 71, 809. Vinet et al. (1987), J. Geophys. Res. 92, 9319.
  */
 
 #include <algorithm>
@@ -54,40 +33,25 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// Default settings for the analytic density-from-pressure inversion.
-//
-// These are NUMERICAL settings (not physical parameters): they bound the
-// safeguarded Newton/bisection inversion used by the compressible models. They
-// are exposed through c_MaterialEOSConfig so a caller can tune accuracy vs. cost
-// per material. Convergence normally exits in well under ~10 iterations; the cap
-// only guarantees termination on pathological input. The default cap is set
-// generously above the worst-case pure-bisection count needed to shrink the
-// [lo, hi] bracket below the relative tolerance.
-// -------------------------------------------------------------------------------
+// Defaults for the safeguarded Newton/bisection density-from-pressure inversion (c_MaterialEOSConfig). The cap
+// only guarantees termination; convergence normally takes well under 10 iterations.
 inline constexpr double d_EOS_INVERT_RTOL      = 1.0e-13;
 inline constexpr int    d_EOS_INVERT_MAX_ITERS = 60;
 
-// -------------------------------------------------------------------------------
-// c_MaterialEOSConfig — combined construction parameters for all EOS models.
-// Each model reads only the fields it needs.
-// -------------------------------------------------------------------------------
+// Combined construction parameters for all EOS models; each model reads only the fields it needs.
 struct c_MaterialEOSConfig {
     double reference_density      = 3500.0;    // rho0 [kg/m^3]
     double reference_bulk_modulus = 1.0e11;    // K0   [Pa]
     double bulk_modulus_derivative = 4.0;       // K0'  [dimensionless]
 
-    // Numerical settings for the analytic density-from-pressure inversion.
     double invert_rtol      = d_EOS_INVERT_RTOL;       // relative convergence tol on eta
     int    invert_max_iters = d_EOS_INVERT_MAX_ITERS;  // termination-safeguard cap
 
     // Interpolated model: sorted-ascending radius [m] and matching density [kg/m^3].
     std::vector<double> radius;
     std::vector<double> density;
-    // Interpolated model (optional): radius-varying static moduli / viscosities [MKS].
-    // Any left empty are simply not provided (the world solve falls back to the
-    // layer's constant value for that quantity). When non-empty each must match
-    // radius in length.
+    // Interpolated model, optional radius-varying static moduli [Pa] and viscosities [Pa s]; an empty table means
+    // "not provided" (the world solve falls back to the layer constant). Non-empty tables must match radius.
     std::vector<double> shear_modulus;
     std::vector<double> bulk_modulus;
     std::vector<double> shear_viscosity;
@@ -96,12 +60,10 @@ struct c_MaterialEOSConfig {
 
 // =====================================================================================================================
 // Analytic pressure laws and the density-from-pressure inversion
-//
-// All laws are written in terms of the compression ratio eta = rho / rho0 = V0 / V
-// (mass conservation). They increase monotonically in eta over the physical compression
-// range near eta = 1; the finite-strain corrections can turn them over at extreme eta, so
-// the inversion (density given pressure) brackets the root within the monotonic range.
 // =====================================================================================================================
+// All laws are written in the compression ratio eta = rho / rho0 = V0 / V. They increase monotonically in eta only
+// near eta = 1 (the finite-strain corrections turn them over at extreme eta), so the inversion brackets its root
+// within the monotonic range.
 
 // 3rd-order Birch-Murnaghan pressure [Pa] at compression eta = rho/rho0.
 inline double eos_bm_pressure(double eta, double K0, double K0_prime) noexcept {
@@ -118,20 +80,10 @@ inline double eos_vinet_pressure(double eta, double K0, double K0_prime) noexcep
         * c_safe_exp(1.5 * (K0_prime - 1.0) * (1.0 - inv_cbrt_eta));
 }
 
-// Invert a pressure law for the compression eta = rho/rho0 given a target pressure,
-// using a safeguarded Newton iteration (bisection fallback).
-// Returns eta (caller multiplies by rho0 for density). PressureFn = double(eta, K0, K0').
-//
-// The pressure laws are monotonically increasing in eta only over a finite compression
-// range: the 3rd-order Birch-Murnaghan term 1 + (3/4)(K0'-4)(eta^(2/3)-1) changes sign at
-// large eta when K0' != 4, so P(eta) turns over and even goes negative there. The root is
-// therefore bracketed by expanding outward from eta = 1 (where P = 0) and stopping at the
-// turning point, rather than assuming monotonicity over a fixed wide interval.
-//
-// rtol is the relative convergence tolerance on eta; max_iters is a hard
-// termination-safeguard cap (not a physical parameter). Both come from the model
-// config (see c_MaterialEOSConfig). Convergence normally exits in well under ~10
-// iterations.
+// Invert a pressure law for the compression eta = rho/rho0 at a target pressure by safeguarded Newton iteration
+// with bisection fallback; PressureFn = double(eta, K0, K0'). The 3rd-order Birch-Murnaghan factor
+// 1 + (3/4)(K0'-4)(eta^(2/3)-1) changes sign at large eta when K0' != 4, so P(eta) turns over there; the root is
+// bracketed by expanding outward from eta = 1 (P = 0) and stopping at the turning point.
 template <typename PressureFn>
 inline double eos_invert_eta(
         double pressure_target,
@@ -142,8 +94,6 @@ inline double eos_invert_eta(
         int max_iters) noexcept {
     if (std::abs(pressure_target) <= TidalPyConstants::d_EPS) { return 1.0; }
 
-    // Bracket the root by walking away from eta = 1 while the pressure is still moving
-    // monotonically toward the target, so the bracket stays inside the valid range.
     double lo;
     double hi;
     if (pressure_target > 0.0) {
@@ -198,9 +148,7 @@ inline double eos_invert_eta(
     return eta;  // cap reached without full convergence; return the best estimate.
 }
 
-// -------------------------------------------------------------------------------
 // Lower-case a model name for case-insensitive factory lookup.
-// -------------------------------------------------------------------------------
 inline std::string eos_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -208,24 +156,20 @@ inline std::string eos_to_lower(std::string text) {
 }
 
 // =====================================================================================================================
-// c_MaterialEOSBase — abstract base for all EOS models.
+// c_MaterialEOSBase: abstract base for all EOS models
 // =====================================================================================================================
 class c_MaterialEOSBase : public c_PhysicsBase {
 public:
     explicit c_MaterialEOSBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
     ~c_MaterialEOSBase() override = default;
 
-    // Mass density [kg/m^3] given local pressure [Pa], temperature [K], and radius
-    // [m]. Analytic models use pressure; the interpolated model uses radius.
+    // Density [kg/m^3] from pressure [Pa], temperature [K], and radius [m]; analytic models use the pressure, the
+    // interpolated model the radius.
     virtual double calc_density(
         double pressure, double temperature, double radius) const = 0;
 
-    // Optional radius-varying viscoelastic quantities. Models that carry tabulated
-    // profiles (currently c_InterpolatedEOS) override these so the whole-planet EOS
-    // solve can interpolate static moduli / viscosities vs radius directly from the
-    // data, instead of replicating a single per-layer constant across all slices.
-    // The default (NaN) signals "not provided", so the world solve falls back to the
-    // layer's constant value for that quantity. All MKS.
+    // Optional radius-varying static moduli [Pa] and viscosities [Pa s]. NaN means "not provided", and the world
+    // solve then falls back to the layer constant; only c_InterpolatedEOS overrides these.
     virtual double calc_static_shear_modulus(double /*radius*/) const {
         return std::numeric_limits<double>::quiet_NaN();
     }
@@ -240,9 +184,7 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_ConstantDensityEOS — incompressible (uniform) density (alias "constant").
-// -------------------------------------------------------------------------------
+// Incompressible (uniform) density.
 class c_ConstantDensityEOS : public c_MaterialEOSBase {
 public:
     c_ConstantDensityEOS() : c_MaterialEOSBase("constant") {}
@@ -278,9 +220,7 @@ protected:
     double p_reference_density = 3500.0;
 };
 
-// -------------------------------------------------------------------------------
-// c_BirchMurnaghanEOS — 3rd-order Birch-Murnaghan, density from pressure.
-// -------------------------------------------------------------------------------
+// 3rd-order Birch-Murnaghan, density from pressure.
 class c_BirchMurnaghanEOS : public c_MaterialEOSBase {
 public:
     c_BirchMurnaghanEOS() : c_MaterialEOSBase("birch_murnaghan") {}
@@ -346,9 +286,7 @@ protected:
     int    p_invert_max_iters        = d_EOS_INVERT_MAX_ITERS;
 };
 
-// -------------------------------------------------------------------------------
-// c_VinetEOS — Vinet (universal) EOS, density from pressure (alias "vinet").
-// -------------------------------------------------------------------------------
+// Vinet (universal) EOS, density from pressure.
 class c_VinetEOS : public c_MaterialEOSBase {
 public:
     c_VinetEOS() : c_MaterialEOSBase("vinet") {}
@@ -414,13 +352,7 @@ protected:
     int    p_invert_max_iters        = d_EOS_INVERT_MAX_ITERS;
 };
 
-// -------------------------------------------------------------------------------
-// c_InterpolatedEOS — density(radius) lookup table (alias "interpolate").
-//
-// Holds sorted-ascending radius [m] and matching density [kg/m^3] arrays and
-// returns density by linear interpolation in radius (clamped at the boundaries).
-// This reproduces the legacy interpolation EOS (e.g. PREM Earth profiles).
-// -------------------------------------------------------------------------------
+// density(radius) lookup table (PREM-style profiles): linear interpolation in radius, clamped at the ends.
 class c_InterpolatedEOS : public c_MaterialEOSBase {
 public:
     c_InterpolatedEOS() : c_MaterialEOSBase("interpolate") {}
@@ -433,8 +365,7 @@ public:
           p_shear_viscosity(cfg.shear_viscosity),
           p_bulk_viscosity(cfg.bulk_viscosity)
     {
-        // Reject mismatched table lengths up front; interpolating a table longer than the
-        // radius table would otherwise read past the end of the radius array.
+        // A table longer than the radius table would otherwise read past the end of the radius array.
         this->p_validate_tables();
     }
     ~c_InterpolatedEOS() override = default;
@@ -449,7 +380,6 @@ public:
         c_MaterialEOSBase::append_config_entries(out);
         out.push_back(c_config_doubles("radius_m", this->p_radius));
         out.push_back(c_config_doubles("density_kg_m3", this->p_density));
-        // The optional tables are emitted only when they were supplied.
         if (this->has_shear_modulus()) {
             out.push_back(c_config_doubles("shear_modulus_pa", this->p_shear_modulus));
         }
@@ -468,8 +398,7 @@ public:
             double /*pressure*/,
             double /*temperature*/,
             double radius) const override {
-        // Linear interpolation in radius via the shared array utility (clamped at
-        // the boundaries; NaN for an empty table).
+        // NaN for an empty table.
         return c_interp(
             radius,
             this->p_radius.data(),
@@ -477,9 +406,7 @@ public:
             this->p_radius.size());
     }
 
-    // Radius-varying viscoelastic quantities (interpolated from the stored tables).
-    // Each returns NaN when its table is empty, so the world solve falls back to the
-    // layer constant for that quantity.
+    // Each returns NaN when its table is empty.
     double calc_static_shear_modulus(double radius) const override {
         return this->p_interp_optional(radius, this->p_shear_modulus);
     }
@@ -495,7 +422,6 @@ public:
 
     void write_binary(std::ostream& out) const override {
         const auto n = static_cast<uint64_t>(this->p_radius.size());
-        // Optional-array presence flags + their data (each is 0 or n long).
         const uint64_t optional_count =
             (this->has_shear_modulus()   ? 1u : 0u) + (this->has_bulk_modulus()   ? 1u : 0u)
             + (this->has_shear_viscosity() ? 1u : 0u) + (this->has_bulk_viscosity() ? 1u : 0u);
@@ -541,8 +467,7 @@ public:
     }
 
 protected:
-    // Throw if the table lengths are inconsistent: density must match radius exactly and
-    // every non-empty optional table must match it as well.
+    // Throw unless density and every non-empty optional table match the radius table in length.
     void p_validate_tables() const {
         const std::size_t num_points = this->p_radius.size();
         if (this->p_density.size() != num_points) {
@@ -594,7 +519,7 @@ protected:
 
     std::vector<double> p_radius;
     std::vector<double> p_density;
-    // Optional radius-varying viscoelastic tables (empty = not provided).
+    // Optional tables; empty means not provided.
     std::vector<double> p_shear_modulus;
     std::vector<double> p_bulk_modulus;
     std::vector<double> p_shear_viscosity;
@@ -612,8 +537,7 @@ enum class c_MaterialEOSModel : uint8_t {
     Interpolated   = 3,
 };
 
-// Map a (case-insensitive) model name or alias to a c_MaterialEOSModel enum value.
-// Throws std::invalid_argument on an unknown name.
+// Map a case-insensitive model name or alias to the enum; throws std::invalid_argument on an unknown name.
 inline c_MaterialEOSModel c_material_eos_model_from_name(const std::string& model_name) {
     const std::string name = eos_to_lower(model_name);
     if (name == "constant" || name == "uniform" ||
@@ -626,7 +550,7 @@ inline c_MaterialEOSModel c_material_eos_model_from_name(const std::string& mode
     throw std::invalid_argument("TidalPy: unknown material EOS model name '" + model_name + "'");
 }
 
-// Build the EOS model named by the enum; returns an owning unique_ptr.
+// Build the EOS model named by the enum.
 inline std::unique_ptr<c_MaterialEOSBase> c_find_material_eos(
         c_MaterialEOSModel model, const c_MaterialEOSConfig& cfg) {
     switch (model) {
@@ -644,7 +568,7 @@ inline std::unique_ptr<c_MaterialEOSBase> c_find_material_eos(
     return c_find_material_eos(c_material_eos_model_from_name(model_name), cfg);
 }
 
-// Reconstruct an EOS model from a binary stream (peek class id -> build -> read).
+// Reconstruct an EOS model from a binary stream: peek the class id, build, read.
 inline std::unique_ptr<c_MaterialEOSBase> c_material_eos_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);

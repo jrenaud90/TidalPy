@@ -1,16 +1,10 @@
 """Bundled ``WorldPack_x`` example configurations: install into the data dir and resolve by name.
 
-The structures_x world builder ships a set of example world configurations in the package
-directory ``TidalPy/WorldPack_x/``. These are copied into a version-scoped, user-editable
-TidalPy data directory (``.../TidalPy/<version>/Worlds_x`` via
-:func:`TidalPy.paths.get_worlds_x_dir`) on first use. When a world is requested by
-name (e.g. ``build_world("earth_simple")``), the data-directory copy is
-preferred over the packaged copy, so a user can edit the installed TOML rather than
-the file inside the installed package.
-
-Installation is copy-if-absent per file: a packaged world is copied only when the
-data directory does not already hold a file of that name, so user edits and renames
-are never clobbered, while worlds newly added to the package appear on the next TidalPy import.
+The example configurations in the package directory ``TidalPy/WorldPack_x/`` are copied into a
+version-scoped, user-editable data directory (``.../TidalPy/<version>/Worlds_x``, see
+:func:`TidalPy.paths.get_worlds_x_dir`) on first use, and the data-directory copy is preferred when a
+world is requested by name. Installation is copy-if-absent per file, so user edits and renames are
+never clobbered while newly packaged worlds appear on the next import.
 
 World configurations and system configurations share this directory and are told apart by content:
 a system names its members in a ``[worlds.<name>]`` table, a world never does. :func:`config_kind`
@@ -72,7 +66,6 @@ def install_worldpack_x(force: bool = False) -> str:
     if not os.path.isdir(PACKAGED_WORLDPACK_DIR):
         return data_dir
     for entry in os.listdir(PACKAGED_WORLDPACK_DIR):
-        # Copy world TOMLs and their companion data files (e.g. PREM-like profiles).
         if not entry.lower().endswith(_INSTALLED_EXTENSIONS):
             continue
         destination = os.path.join(data_dir, entry)
@@ -228,10 +221,8 @@ def _available_configs(kind: str) -> list:
 def available_worlds() -> list:
     """Return the sorted names of the bundled example worlds.
 
-    Combines the worlds installed in the data directory with the packaged worlds
-    (the data directory takes precedence when a name exists in both). System
-    configurations share the directory and are excluded; list those with
-    :func:`available_systems`.
+    The data directory takes precedence over the packaged copy. System configurations share the
+    directory and are listed by :func:`available_systems` instead.
 
     Returns
     -------

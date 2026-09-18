@@ -1,18 +1,18 @@
 # Rheology Models (`rheology_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
-A rheology model maps a material's static (purely real) mechanical properties onto a **complex modulus** $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss modulus, the part in quadrature, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$.
+A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss modulus, the part in quadrature, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$.
 
 Everything on this page applies equally to the shear and the bulk response. The models do not know which one they are computing; supply a shear modulus with a shear viscosity, or a bulk modulus with a bulk viscosity, and the same constitutive law applies. In practice the shear response dominates tidal dissipation in solid bodies, and the bulk response is usually left elastic, however this is a new and active area of research.
 
-## What the Models Compute
+## Complex Modulus
 
 Each model implements one method, `calc_complex_modulus(modulus, viscosity, frequency)`, which takes the unrelaxed modulus $\mu$ \[Pa\], the viscosity $\eta$ \[Pa s\], and the forcing frequency $\omega$ \[rad s$^{-1}$\], and returns $\mu^*$ \[Pa\]. The argument order is modulus first throughout the module, including the convenience functions and the vectorized variants.
 
-The single scale that organizes every model is the **Maxwell time** $\tau = \eta / \mu$, the time a material takes to relax an applied stress by viscous flow. Forcing much faster than $\tau$ finds the material effectively elastic; forcing much slower finds it effectively fluid. Dissipation is largest when the forcing timescale is approximately the Maxwell time; the models differ mostly in how broad that window is and in what happens on its high-frequency side.
+The scale common to every model is the Maxwell time $\tau = \eta / \mu$, the time a material takes to relax an applied stress by viscous flow. Forcing much faster than $\tau$ finds the material effectively elastic; forcing much slower finds it effectively fluid. Dissipation is largest when the forcing timescale is approximately the Maxwell time; the models differ mostly in how broad that window is and in what happens on its high-frequency side.
 
-Two conventions matter when reading results. First, the returned imaginary part is non-negative for a positive forcing frequency: the models use the $e^{+i\omega t}$ convention, so a lagging response carries a positive imaginary modulus. Second, the models are evaluated at a single frequency with no memory of previous calls, so they are safe to use across threads and in any order.
+Two conventions apply to the results. The returned imaginary part is non-negative for a positive forcing frequency: the models use the $e^{+i\omega t}$ convention, so a lagging response carries a positive imaginary modulus. The models are evaluated at a single frequency with no memory of previous calls, so they are safe to use across threads and in any order.
 
 ## Inheritance
 
@@ -33,7 +33,7 @@ c_TidalPyBaseClass
 
 ## Models
 
-Simple models (Elastic, Viscous, Maxwell, Voigt) are evaluated in closed form. The composites (Burgers, Andrade, Sundberg) place elements **in series**, which means their **compliances** add and the modulus is the reciprocal of the sum, $\mu^* = 1 / \sum_i J_i$. Those element compliances are internal intermediates and are not exposed.
+Simple models (Elastic, Viscous, Maxwell, Voigt) are evaluated in closed form. The composites (Burgers, Andrade, Sundberg) place elements in series, so their compliances add and the modulus is the reciprocal of the sum, $\mu^* = 1 / \sum_i J_i$. Those element compliances are internal intermediates and are not exposed.
 
 | Model | Complex modulus $\mu^*$ [Pa] | Parameters | Character |
 |---|---|---|---|
@@ -69,11 +69,11 @@ where $f_J$ is `voigt_modulus_frac`, $J_v = (1/\mu) / f_J$ is the Voigt arm's co
 
 At zero frequency Maxwell, Burgers, Andrade, and Sundberg return effectively zero: with unlimited time to flow, a viscoelastic body supports no static rigidity. Elastic returns $\mu$, Viscous returns zero, and Voigt returns $\mu f_J$.
 
-At **negative** frequency Elastic, Viscous, Voigt, Maxwell, and Burgers simply mirror the imaginary part, but Andrade and Sundberg return `NaN`: their transient term raises a negative quantity to a fractional power. Always pass the absolute value of the forcing frequency. TidalPy's own tidal solvers do this for you; a direct call, however, will not.
+At negative frequency Elastic, Viscous, Voigt, Maxwell, and Burgers mirror the imaginary part, but Andrade and Sundberg return `NaN`: their transient term raises a negative quantity to a fractional power. Always pass the absolute value of the forcing frequency. TidalPy's own tidal solvers do this; a direct call does not.
 
-## Choosing a Model
+### Choosing a Model
 
-`Elastic` is the right choice when you want deformation without dissipation, for example to isolate the elastic part of a Love number or to model a layer you believe is effectively rigid on the forcing timescale. It is also what a `PhysicsLayer` behaves like when no rheology is attached. It is also the most common choice for Bulk rheology so that planet's can still experience compression but do not dissipate energy from it.
+`Elastic` gives deformation without dissipation: use it to isolate the elastic part of a Love number or for a layer that is effectively rigid on the forcing timescale. It is what a `PhysicsLayer` behaves like when no rheology is attached, and it is the most common choice for the bulk rheology, so a planet can compress without dissipating energy from it.
 
 `Maxwell` is the traditional rheology used in tidal studies. It is a good choice when comparing against published Love numbers, since most of the literature uses it. Its weakness is the high-frequency tail: dissipation falls as $\omega^{-1}$, which underestimates the dissipation response of real silicates to fast forcing.
 
@@ -81,7 +81,7 @@ At **negative** frequency Elastic, Viscous, Voigt, Maxwell, and Burgers simply m
 
 `Burgers` and `Voigt` are mainly useful for reproducing published work that used them, or for deliberately placing a secondary relaxation peak at a chosen frequency. `Viscous` exists for completeness and for the fluid limit.
 
-## Example
+## Example Usage
 
 Instantiate a class directly, or resolve one by name.
 
@@ -103,7 +103,7 @@ Model parameters are fixed at construction and exposed as read-only properties (
 
 At the C++ level the factory is enum-based. `c_RheologyModel` names one value per model; `c_rheology_model_from_name(name)` maps a case-insensitive name or alias onto that enum, throwing `std::invalid_argument` for an unknown name; and `c_find_rheology(model, config)` returns a `std::unique_ptr<c_RheologyBase>` to a freshly heap-allocated model. Every C++ consumer uses this path, including layers attaching a rheology and the binary loader rebuilding one. The Python `make_rheology` wraps it: it fills a `c_RheologyConfig`, calls the two C++ functions, and adopts the returned pointer into the matching Python wrapper.
 
-## Evaluating a Model
+### Vectorized Evaluation
 
 The scalar call takes three floats and returns a Python `complex`.
 
@@ -118,7 +118,7 @@ model = Maxwell()
 complex_shear = model.calc_complex_modulus(modulus, viscosity, frequency)
 ```
 
-Three vectorized methods, defined once on the base class so every model inherits them, cover the array patterns that actually occur in a tidal calculation.
+Three vectorized methods, defined once on the base class so every model inherits them, cover the array patterns that occur in a tidal calculation.
 
 | Method | Vectorized over | Typical use |
 |---|---|---|
@@ -140,9 +140,9 @@ sweep   = model.calc_complex_modulus_vectorize_frequency(50.0e9, 1.0e20, np.logs
 
 Each fills a caller-supplied `std::vector<std::complex<double>>` at the C++ level; the Cython wrappers accept array-likes and return a `complex128` NumPy array. Mismatched input lengths raise `ValueError`.
 
-## Convenience Functions
+### Convenience Functions
 
-Each model also has a lower-case free function that builds a stack-allocated C++ model, evaluates it, and returns, with no Python object left behind. These are the fastest way to evaluate a rheology once, and the most convenient way to explore one.
+Each model also has a lower-case free function that builds a stack-allocated C++ model, evaluates it, and returns, with no Python object left behind.
 
 ```python
 import numpy as np
@@ -158,9 +158,7 @@ sweep   = andrade(50.0e9, 1.0e20, np.logspace(-7, -4, 50), alpha=0.3, zeta=1.0)
 
 The signatures follow the classes: `elastic/viscous/maxwell(modulus, viscosity, frequency)`, `voigt/burgers(modulus, viscosity, frequency, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`, `andrade(modulus, viscosity, frequency, alpha=0.3, zeta=1.0)`, and `sundberg(modulus, viscosity, frequency, alpha=0.3, zeta=1.0, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`. The model parameters are always scalars; `modulus`, `viscosity`, and `frequency` may each be a float or an array and are broadcast together, with the most specific vectorized routine chosen for the pattern supplied.
 
-## Attaching a Rheology to a `Layer`
-
-A rheology becomes part of a planet when it is attached to a layer.
+### Attaching a Rheology to a `Layer`
 
 ```python
 from TidalPy.rheology_x import Maxwell, make_rheology
@@ -225,6 +223,6 @@ No build-system change is needed; `rheology_x.rheology` is already registered in
 
 ## References
 
-- Henning, W. G., O'Connell, R. J., and Sasselov, D. D. (2009). Tidally heated terrestrial exoplanets: Viscoelastic response models. *The Astrophysical Journal*, 707(2), 1000-1015. [DOI](https://doi.org/10.1088/0004-637X/707/2/1000) — Maxwell, Voigt-Kelvin, and Burgers.
-- Efroimsky, M. (2012). Tidal dissipation compared to seismic dissipation: In small bodies, Earths, and super-Earths. *The Astrophysical Journal*, 746(2), 150. [DOI](https://doi.org/10.1088/0004-637X/746/2/150) — complex compliances and Love numbers.
-- Renaud, J. P., and Henning, W. G. (2018). Increased tidal dissipation using advanced rheological models: Implications for Io and tidally active exoplanets. *The Astrophysical Journal*, 857(2), 98. [DOI](https://doi.org/10.3847/1538-4357/aab784) — Andrade and Sundberg-Cooper.
+- Henning, W. G., O'Connell, R. J., and Sasselov, D. D. (2009). Tidally heated terrestrial exoplanets: Viscoelastic response models. *The Astrophysical Journal*, 707(2), 1000-1015. [DOI](https://doi.org/10.1088/0004-637X/707/2/1000). Maxwell, Voigt-Kelvin, and Burgers.
+- Efroimsky, M. (2012). Tidal dissipation compared to seismic dissipation: In small bodies, Earths, and super-Earths. *The Astrophysical Journal*, 746(2), 150. [DOI](https://doi.org/10.1088/0004-637X/746/2/150). Complex compliances and Love numbers.
+- Renaud, J. P., and Henning, W. G. (2018). Increased tidal dissipation using advanced rheological models: Implications for Io and tidally active exoplanets. *The Astrophysical Journal*, 857(2), 98. [DOI](https://doi.org/10.3847/1538-4357/aab784). Andrade and Sundberg-Cooper.

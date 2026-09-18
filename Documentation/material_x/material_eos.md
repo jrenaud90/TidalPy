@@ -1,8 +1,8 @@
 # Material EOS Models (`Material_x.eos`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-15_
 
-A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four answer through the same call, `calc_density(pressure, temperature=0.0, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
+A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four are evaluated through the same call, `calc_density(pressure, temperature=0.0, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
 
 All of the models are built on an abstract base class deriving from `PhysicsBase`. The analytic models are isothermal: the temperature argument exists for interface uniformity and is not currently used.
 
@@ -31,9 +31,9 @@ The base declares `calc_density(pressure, temperature, radius)` pure virtual and
 
 ### Constant Density
 
-Returns the same density everywhere. An incompressible body is not a realistic but can be a useful diagnostic or applicable to small moons. This is also used to perform checks and tests on the analytical models.
+Returns the same density everywhere. An incompressible body is not realistic but can be a useful diagnostic or applicable to small moons. It is also used to check and test the analytic models.
 
-### Birch-Murnaghan, third order
+### Birch-Murnaghan, Third Order
 
 A finite-strain expansion around a reference state. With the compression $\eta = \rho / \rho_0 = V_0 / V$,
 
@@ -152,7 +152,7 @@ Binary class ids: 601 constant, 602 Birch-Murnaghan, 603 Vinet, 604 interpolated
 
 ## C++ API
 
-The models live in `material_eos_.hpp` (namespace `tidalpy`, header only). The C++ layer is the canonical one; the Cython classes above are wrappers over it, and every other C++ consumer, including layers attaching an EOS, the whole-planet solve, and binary reconstruction, uses these types directly.
+The models live in `material_eos_.hpp` (namespace `tidalpy`, header only). The C++ layer is canonical: the Cython classes above are wrappers over it, and every C++ consumer (layers attaching an EOS, the whole-planet solve, and binary reconstruction) uses these types directly.
 
 ```cpp
 #include "material_eos_.hpp"
@@ -186,7 +186,7 @@ One combined config shared by every model; each reads only the fields it needs. 
 | `invert_max_iters` | Birch-Murnaghan, Vinet | `d_EOS_INVERT_MAX_ITERS` (`60`) |
 | `radius`, `density` and the four viscoelastic tables | interpolated | empty vectors |
 
-### Classes and free functions
+### Classes and Free Functions
 
 All models derive from `c_MaterialEOSBase : c_PhysicsBase` and override `calc_density(pressure, temperature, radius)`. Each has a default constructor and one taking the config. Accessors are `get_reference_density()` on all of them, plus `get_reference_bulk_modulus()`, `get_bulk_modulus_derivative()`, `get_invert_rtol()`, and `get_invert_max_iters()` on the two compressible models, and `get_num_points()` on the interpolated one.
 

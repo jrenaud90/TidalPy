@@ -1,17 +1,8 @@
 # distutils: language = c++
-"""
-binary.pxd
-Cython declarations for TidalPy's binary file format utilities (binary_.hpp).
+"""Cython declarations for TidalPy's binary file format (``binary_.hpp``).
 
-Other Cython extensions that inspect binary files cimport from here::
-
-    from TidalPy.Utilities_x.binary_x.binary cimport (
-        c_BinaryHeader, read_binary_header_from_file,
-        TIDALPY_SCHEMA_MAJOR, TIDALPY_SCHEMA_MINOR, TIDALPY_SCHEMA_PATCH)
-
-C++ classes that write/read binary files include binary_.hpp directly and call
-write_binary_header / read_binary_header / check_binary_schema_version in C++
-without going through Cython.
+C++ classes that read or write binary files include ``binary_.hpp`` directly; only header inspection is
+exposed through Cython.
 """
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t

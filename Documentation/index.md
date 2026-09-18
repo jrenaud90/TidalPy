@@ -5,10 +5,7 @@
 :end-before: Overview
 ```
 
-Please click on a page below to learn more about the package. 
-
-Also check out the GitHub page to see the code.
-[GitHub](https://github.com/jrenaud90/TidalPy)
+The pages below cover the package. The source is on [GitHub](https://github.com/jrenaud90/TidalPy).
 
 The <a href="code_map.html">interactive code map</a> shows the main components of the new backend, which functions call which, and why.
 

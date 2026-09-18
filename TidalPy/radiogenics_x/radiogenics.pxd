@@ -1,18 +1,6 @@
 # distutils: language = c++
-"""
-radiogenics.pxd
-Cython declarations for TidalPy's radiogenics model hierarchy.
-
-Exports the three C++ radiogenics models, the combined config struct, and the
-Python wrapper classes so other extensions can cimport and build/attach
-radiogenics models at C speed.
-
-Usage::
-
-    from TidalPy.radiogenics_x.radiogenics cimport (
-        RadiogenicsBase, IsotopeRadiogenics,
-        c_RadiogenicsBase, c_IsotopeRadiogenics, c_RadiogenicsConfig)
-"""
+"""Cython declarations for TidalPy's radiogenics model hierarchy: the three C++ models, the combined
+config struct, and the Python wrapper classes."""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr

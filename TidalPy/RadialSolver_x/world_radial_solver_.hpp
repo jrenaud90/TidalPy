@@ -1,31 +1,10 @@
-// world_radial_solver_.hpp - Cached, reusable whole-planet Love-number solver.
+// world_radial_solver_.hpp: cached whole-planet Love-number solver owned by c_LayeredWorld.
 //
-// c_WorldRadialSolver is a stateful helper owned by c_LayeredWorld. It separates
-// the frequency-independent setup (built once per EOS solve and cached) from the
-// frequency-dependent work (recomputed cheaply on every solve):
-//
-//   Frequency-independent (cached in build_cache):
-//     - non-dimensionalization scales (these do not depend on frequency - see
-//       c_NonDimensionalScales: the time scale is 1/(pi*G*rho_bulk))
-//     - non-dim radius/density/gravity/pressure/mass/moi arrays
-//     - the per-solver input structs (c_ShootingInputs / c_MatrixInputs): layer
-//       metadata, slice partitioning, non-dim scalars
-//     - the reused c_RadialSolutionStorage (one allocation, reused across calls)
-//
-//   Frequency-dependent (per solve):
-//     - the complex shear/bulk moduli at the forcing frequency (filled by the
-//       world into this helper's scratch buffers, then non-dimensioned in place)
-//     - the shooting / propagation-matrix solve itself
-//     - re-dimensionalization of the y-solution + Love-number extraction
-//
-// Two radial-solve methods are supported behind a uniform struct-based API: the
-// shooting method (c_ShootingInputs -> c_shooting_solver) and the propagation
-// matrix method (c_MatrixInputs -> c_matrix_propagate). The world fills very few
-// arguments; the large positional argument lists live entirely inside the wrappers.
-//
-// The helper is intentionally decoupled from c_LayeredWorld (no back-pointer): the
-// world gathers the cached inputs and fills the complex-moduli scratch, keeping
-// this header free of any structures_x include and avoiding a circular dependency.
+// build_cache stores the frequency-independent setup once per EOS solve (non-dimensional scales and structure
+// arrays, the c_ShootingInputs / c_MatrixInputs structs, the reused c_RadialSolutionStorage); solve then only
+// non-dimensionalizes the complex moduli the world filled for the forcing frequency, runs the shooting or
+// propagation-matrix method, and extracts the Love numbers. The helper holds no pointer back to the world, which
+// keeps this header free of structures_x includes.
 #pragma once
 
 #include <cmath>
@@ -45,16 +24,11 @@
 
 
 // =====================================================================================================================
-// Per-solver input structs (frequency-independent setup, built once and reused).
-//
-// These replace the long positional argument lists of c_shooting_solver / c_matrix_propagate. The world fills them
-// once via c_WorldRadialSolver::build_cache, then each solve only updates the per-call knobs.
+// Per-solver input structs, built once by build_cache; each solve updates only the per-call knobs
 // =====================================================================================================================
 
-// Shooting-method inputs.
 struct c_ShootingInputs {
-    // Layer assumptions. layer_types: 0 = solid, 1 = liquid. bool[] because std::vector<bool> is bit-packed and the
-    // shooting solver wants a bool*.
+    // layer_types: 0 = solid, 1 = liquid. bool[] because std::vector<bool> is bit-packed and the solver wants bool*.
     std::vector<int>        layer_types;
     std::unique_ptr<bool[]> is_static;
     std::unique_ptr<bool[]> is_incompressible;
@@ -106,8 +80,7 @@ struct c_MatrixInputs {
     int    core_model          = 0;
 };
 
-// Struct-based wrappers around the positional solvers. The world calls these with 4 args; the wrappers expand to the
-// full positional signatures (kept unchanged in shooting_.hpp / matrix_.hpp).
+// Struct-based wrappers around the positional solvers.
 inline int c_shooting_solve(
         c_RadialSolutionStorage* storage, c_ShootingInputs& in, double frequency, bool verbose) noexcept {
     return c_shooting_solver(
@@ -160,7 +133,7 @@ inline int c_matrix_solve(
 
 
 // =====================================================================================================================
-// Runtime (per-solve) configuration - the knobs that may legitimately change between calls.
+// Runtime (per-solve) configuration
 // =====================================================================================================================
 struct c_LoveSolveRuntimeConfig {
     double    frequency       = 1.0e-5;             // [rad/s]; the only physically per-call quantity
@@ -192,12 +165,7 @@ public:
     c_WorldRadialSolver() = default;
     ~c_WorldRadialSolver() = default;
 
-    // -----------------------------------------------------------------------------------------------------------------
-    // Cache validity
-    //
-    // build_cache stamps a signature (layer count, slice count, degree, nondim flag). cache_matches lets the world
-    // skip a rebuild when the EOS grid/assumptions are unchanged. p_cache_valid is cleared by invalidate().
-    // -----------------------------------------------------------------------------------------------------------------
+    // Cache signature check (layer count, slice count, degree, nondim flag) so the world can skip a rebuild.
     bool cache_matches(size_t n_layers, size_t total_slices, int degree_l, bool nondimensionalize) const noexcept {
         return this->p_cache_valid
             && this->p_n_layers     == n_layers
@@ -206,10 +174,7 @@ public:
             && this->p_nondim       == nondimensionalize;
     }
 
-    // Compare the freshly gathered per-layer assumptions against the cached copies. The layer
-    // flags (solid/static/incompressible) are user-mutable without an EOS re-solve, so a cache
-    // hit must also confirm they are unchanged; otherwise a solve would silently reuse the old
-    // assumptions baked into the shooting/matrix inputs.
+    // The layer flags are user-mutable without an EOS re-solve, so a cache hit must also confirm them.
     bool layer_flags_match(
         const int* layer_types,
         const bool* is_static,
@@ -229,17 +194,13 @@ public:
 
     void invalidate() noexcept { this->p_cache_valid = false; }
 
-    // Reusable storage (owns the internal c_EOSSolution + full y-solution vector). Result accessors on the world
-    // read through this pointer.
     c_RadialSolutionStorage* get_storage() const noexcept { return this->p_storage.get(); }
 
     bool get_solved() const noexcept { return this->p_solved; }
 
-    // Move the solution storage out of the helper (one-shot export). Invalidates the cache.
-    // The storage's non-owning dense-source pointer is cleared: the exported storage may
-    // outlive the world's EOS solution, and a dangling source would be dereferenced by the
-    // solution's eos_call path. The exported storage answers EOS queries from its stored
-    // (dimensional) arrays instead.
+    // Move the storage out (one-shot export) and invalidate the cache. The non-owning dense-source pointer is
+    // cleared because the exported storage may outlive the world's EOS solution; it then answers EOS queries from
+    // its own arrays.
     std::unique_ptr<c_RadialSolutionStorage> release_storage() noexcept {
         this->p_cache_valid = false;
         if (this->p_storage) {
@@ -256,15 +217,13 @@ public:
         return std::move(this->p_storage);
     }
 
-    // Dimensional (SI) complex-moduli buffers, sized total_slices by build_cache. The world fills these via
-    // calc_complex_*; solve() non-dimensionalizes them in place into the storage's EOS arrays.
+    // SI complex-moduli scratch (total_slices long) that the world fills each solve.
     std::complex<double>* shear_scratch_data() noexcept { return this->p_shear_si.data(); }
     std::complex<double>* bulk_scratch_data()  noexcept { return this->p_bulk_si.data(); }
     size_t total_slices() const noexcept { return this->p_total_slices; }
     const std::vector<double>& radius_si() const noexcept { return this->p_radius_si; }
-    // Per-layer partition of the slice grid, set by build_cache. An interface radius is the last slice of the lower
-    // layer and the first slice of the upper one, so anything filled per slice must follow this partition rather
-    // than look the layer up by radius.
+    // Per-layer slice partition. An interface radius is the last slice of the lower layer and the first of the upper
+    // one, so per-slice fills must follow this partition rather than look the layer up by radius.
     const std::vector<size_t>& first_slice_index_by_layer() const noexcept {
         return this->p_shooting_inputs.first_slice_index_by_layer;
     }
@@ -272,11 +231,8 @@ public:
         return this->p_shooting_inputs.num_slices_by_layer;
     }
 
-    // -----------------------------------------------------------------------------------------------------------------
-    // build_cache - frequency-independent setup. All inputs are dimensional (SI), copied/computed once.
-    //
-    // Returns false (and sets an error on the storage) if the layer slice partitioning is invalid.
-    // -----------------------------------------------------------------------------------------------------------------
+    // Frequency-independent setup from SI inputs. Returns false (with an error on the storage) if the layer slice
+    // partition is invalid.
     bool build_cache(
         const std::vector<double>& radius_si,
         const std::vector<double>& density_si,
@@ -304,10 +260,9 @@ public:
         this->p_nondim             = nondimensionalize;
         this->p_surface_gravity_si = gravity_si[total_slices - 1];
 
-        // The world fills the complex moduli at this SI radius grid each solve.
         this->p_radius_si = radius_si;
 
-        // Non-dim scales (frequency-independent). Held by unique_ptr because c_NonDimensionalScales is not assignable.
+        // unique_ptr because c_NonDimensionalScales is not assignable.
         this->p_non_dim_uptr = std::make_unique<c_NonDimensionalScales>(planet_radius, bulk_density);
 
         const double length_conv  = this->p_non_dim_uptr->length_conversion;
@@ -319,7 +274,6 @@ public:
         const double moi_conv       = mass_conv * length_conv * length_conv;
         const double G_si           = c_get_G();
 
-        // Non-dim upper radii.
         this->p_upper_radii_nd.assign(upper_radii_si.begin(), upper_radii_si.end());
         double G_nd   = G_si;
         double rho_nd = bulk_density;
@@ -330,7 +284,7 @@ public:
             rho_nd = bulk_density / density_conv;
         }
 
-        // Non-dim master copies of the structure arrays (recomputed-once; re-applied to the storage each solve).
+        // Non-dim master copies of the structure arrays.
         this->p_radius_nd   = radius_si;
         this->p_density_nd  = density_si;
         this->p_gravity_nd  = gravity_si;
@@ -426,9 +380,8 @@ public:
         mat.G                          = G_nd;
         mat.degree_l                   = degree_l;
 
-        // Inject the non-dim structure arrays into the reusable storage ONCE. They stay non-dim across all solves
-        // (only the complex moduli change per frequency, and find_love is scale-invariant), so each solve avoids
-        // re-applying these six arrays. The complex-moduli arrays start at zero and are overwritten each solve.
+        // The structure arrays are injected once and stay non-dim across solves; only the complex moduli change per
+        // frequency (they start at zero here).
         this->p_storage->get_eos_solution_ptr()->inject_from_world_eos(
             this->p_radius_nd.data(),
             this->p_gravity_nd.data(),
@@ -442,10 +395,8 @@ public:
             this->p_density_slope_nd.empty() ? nullptr : this->p_density_slope_nd.data()
         );
 
-        // Wire the dense structure source so the solved structure variables (gravity/pressure/mass/moi) are read from
-        // the world's already-solved (dimensional, dense) EOS during shooting, instead of linear array interpolation.
-        // Density and the complex moduli stay array-interpolated. The scales convert the non-dim shooting radius up to
-        // the SI source and the SI source outputs back down to non-dim (identity scales when not non-dimensionalized).
+        // Gravity, pressure, mass, and moi are read from the world's dense SI EOS during shooting; the scales convert
+        // the non-dim shooting radius up and the SI outputs back down.
         c_EOSSolution* storage_eos = this->p_storage->get_eos_solution_ptr();
         storage_eos->p_structure_dense_source = structure_dense_source;
         if (structure_dense_source != nullptr) {
@@ -460,10 +411,7 @@ public:
         return true;
     }
 
-    // -----------------------------------------------------------------------------------------------------------------
-    // solve - frequency-dependent step. Expects the complex-moduli scratch buffers (shear_scratch_data /
-    // bulk_scratch_data) to have been filled (dimensional, SI) for rt.frequency.
-    // -----------------------------------------------------------------------------------------------------------------
+    // Frequency-dependent step; expects the SI complex-moduli scratch to be filled for rt.frequency.
     void solve(const c_LoveSolveRuntimeConfig& rt) {
         c_RadialSolutionStorage* storage = this->p_storage.get();
         storage->success    = false;
@@ -488,7 +436,6 @@ public:
 
         const size_t total_slices = this->p_total_slices;
 
-        // Non-dimensionalize the freshly-filled complex moduli into the helper's nd buffers.
         const double pascal_conv = this->p_nondim ? this->p_non_dim_uptr->pascal_conversion : 1.0;
         for (size_t slice_i = 0; slice_i < total_slices; ++slice_i) {
             this->p_shear_nd[slice_i] = this->p_shear_si[slice_i] / pascal_conv;
@@ -497,8 +444,7 @@ public:
 
         c_EOSSolution* eos = storage->get_eos_solution_ptr();
         if (rt.redim_eos_arrays) {
-            // Export mode (one-shot standalone path): re-inject ALL non-dim arrays so the storage is fresh and the
-            // post-solve full re-dimensionalization produces SI EOS arrays for the returned solution object.
+            // Export mode: re-inject every non-dim array so the post-solve re-dimensionalization yields SI EOS arrays.
             eos->inject_from_world_eos(
                 this->p_radius_nd.data(),
                 this->p_gravity_nd.data(),
@@ -512,13 +458,11 @@ public:
                 this->p_density_slope_nd.empty() ? nullptr : this->p_density_slope_nd.data()
             );
         } else {
-            // Fast path: overwrite ONLY the frequency-dependent complex-moduli arrays; the six real structure
-            // arrays were injected once in build_cache and stay non-dim across solves.
+            // Fast path: only the complex moduli change.
             eos->complex_shear_array_vec.assign(this->p_shear_nd.begin(), this->p_shear_nd.end());
             eos->complex_bulk_array_vec.assign(this->p_bulk_nd.begin(),  this->p_bulk_nd.end());
         }
 
-        // Frequency does not enter non-dimensionalization, but pass the non-dim'd value through for any internal use.
         const double freq_nd = this->p_nondim
             ? rt.frequency * this->p_non_dim_uptr->second_conversion
             : rt.frequency;
@@ -551,9 +495,7 @@ public:
             c_shooting_solve(storage, shoot, freq_nd, rt.verbose);
         }
 
-        // Hand the storage the dimensional context so get_radial_solution can map external SI radii into solve units
-        // and re-dimensionalize the (non-dim) solve-unit y-solution back to SI on demand. At this point the EOS
-        // arrays are still non-dim (the fast path keeps them so; export mode re-dimensionalizes them below).
+        // Dimensional context for get_radial_solution; the EOS arrays are still non-dim here.
         if (storage->success) {
             if (this->p_nondim) {
                 const double length_conv  = this->p_non_dim_uptr->length_conversion;
@@ -584,22 +526,17 @@ public:
             }
         }
 
-        // Extract the Love numbers directly from the (non-dim) solution. c_find_love is scale-invariant:
-        // k = y5 - 1 (y5 unitless), h = y1*g and l = y3*g, where the displacement scale (T^2/L) and the gravity
-        // scale (L/T^2) cancel exactly, so non-dim (y, g) give the same k, h, l as the SI pair. The storage's
-        // surface_gravity stays non-dim (never re-dimensionalized), keeping it correct for the next solve.
+        // Love numbers from the non-dim solution: k = y5 - 1, h = y1 g, l = y3 g, and the displacement and gravity
+        // scales cancel. The storage's surface_gravity stays non-dim for the next solve.
         if (storage->success)
             storage->find_love();
 
-        // Export mode: snapshot the full grid (SI) from the dense interpolants now, while the EOS is still non-dim, so
-        // the standalone solution object keeps its legacy array-returning API. The world fast path skips this and
-        // queries get_radial_solution at the radii it needs.
+        // Export mode fills the SI grid for the array-returning standalone API while the EOS is still non-dim.
         if (rt.redim_eos_arrays && storage->success && storage->p_uses_interpolants)
             storage->sample_onto_grid();
 
-        // Re-dimensionalize the y-solution (matrix grid only; the shooting grid is unused and redims on the fly) and,
-        // in export mode, the EOS arrays too. In the fast path the EOS arrays stay non-dim so the cache survives for
-        // the next frequency without a re-inject.
+        // Re-dimensionalize the matrix y-grid and, in export mode only, the EOS arrays; the fast path keeps them
+        // non-dim so the cache survives for the next frequency.
         if (this->p_nondim && storage->success) {
             storage->dimensionalize_data(
                 this->p_non_dim_uptr.get(),
@@ -609,18 +546,17 @@ public:
 
             if (rt.redim_eos_arrays) {
                 storage->get_eos_solution_ptr()->surface_gravity = this->p_surface_gravity_si;
-                // The EOS arrays are now SI; tell the storage so later arbitrary-radius queries convert correctly.
                 storage->p_eos_is_nondim = false;
             }
         }
-        // Export mode consumes the cache (the EOS arrays are now SI); force a rebuild before any later reuse.
+        // Export mode consumes the cache (the EOS arrays are now SI).
         if (rt.redim_eos_arrays)
             this->p_cache_valid = false;
 
         this->p_solved = storage->success;
     }
 
-    // ---- cached state (frequency-independent unless noted) -----------------------------------------------------------
+    // Cached state (frequency-independent unless noted).
     bool   p_cache_valid  = false;
     size_t p_n_layers     = 0;
     size_t p_total_slices = 0;
@@ -631,15 +567,14 @@ public:
 
     std::unique_ptr<c_NonDimensionalScales> p_non_dim_uptr;
 
-    // Per-solver input structs (the cache).
     c_ShootingInputs p_shooting_inputs;
     c_MatrixInputs   p_matrix_inputs;
 
     std::vector<double> p_upper_radii_nd;
 
-    // SI radius grid (the world fills complex moduli at these radii).
+    // SI radius grid at which the world fills the complex moduli.
     std::vector<double> p_radius_si;
-    // Non-dim master arrays (re-applied to the storage each solve).
+    // Non-dim master arrays.
     std::vector<double> p_radius_nd, p_density_nd, p_gravity_nd, p_pressure_nd, p_mass_nd, p_moi_nd;
     // Density slope per slice in solve units (empty when the world supplied none).
     std::vector<double> p_density_slope_nd;

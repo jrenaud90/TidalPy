@@ -1,21 +1,15 @@
 #pragma once
 /*
- * solidliquid_.hpp — c_SolidLiquidLayer: thermo-mechanical layer with phase changes.
+ * solidliquid_.hpp: c_SolidLiquidLayer, a thermo-mechanical layer with phase changes, built on c_PhysicsLayer.
  *
- * Inherits c_PhysicsLayer (structures_x/layers/physics_.hpp).
- * Adds thermal properties, Arrhenius viscosity, melt-fraction tracking,
- * and optional cooling / radiogenics sub-models.
- *
- * When no cooling or radiogenics object is attached the corresponding
- * calc_* methods return 0.0.
- *
- * All spatial fields are in MKS units.
+ * Adds thermal properties, Arrhenius viscosity, melt-fraction tracking, and optional cooling and radiogenics
+ * sub-models. The matching calc_* methods return 0.0 while no such sub-model is attached. All MKS.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::SolidLiquidLayer (102)
  *   payload:
- *     [all c_BaseLayer fields — same byte layout as BaseLayer binary payload]
- *     [all c_PhysicsLayer additions — shear modulus, bulk modulus,
+ *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
+ *     [all c_PhysicsLayer additions: shear modulus, bulk modulus,
  *      shear viscosity, bulk viscosity, love_numbers k/h/l re+im (10×8)]
  *     thermal_conductivity_ref  (double, 8)
  *     thermal_expansion_ref      (double, 8)
@@ -36,10 +30,9 @@
  *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
  *     cooling         presence flag (uint8_t, 1) + (if present) its binary record
  *     radiogenics     presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models are
- *   serialized recursively (presence flag + the model's own binary record); the eight presence flags are
- *   part of this payload, and each nested model record follows as a separate record.
- *   The EOS profile data is not serialized; re-run the world EOS solve after loading.
+ *   The attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models are serialized
+ *   recursively: the eight presence flags belong to this payload and each nested model follows as its own
+ *   record. The EOS profile data is not serialized; re-run the world EOS solve after loading.
  */
 
 #include <algorithm>
@@ -57,10 +50,7 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_SolidLiquidConfig — construction parameters for c_SolidLiquidLayer.
-// Extends c_PhysicsConfig with thermal and melt-fraction parameters.
-// -------------------------------------------------------------------------------
+// Construction parameters for c_SolidLiquidLayer: c_PhysicsConfig plus the thermal and melt-fraction fields.
 struct c_SolidLiquidConfig : public c_PhysicsConfig {
     double thermal_conductivity_ref = 4.0;       // [W/m/K]
     double thermal_expansion_ref = 3.0e-5;    // [1/K]
@@ -75,14 +65,9 @@ struct c_SolidLiquidConfig : public c_PhysicsConfig {
     double melt_viscosity_reduction = 25.0;      // [dimensionless] exp coefficient
 };
 
-// -------------------------------------------------------------------------------
-// c_SolidLiquidLayer
-// -------------------------------------------------------------------------------
 class c_SolidLiquidLayer : public c_PhysicsLayer {
 public:
-    // -----------------------------------------------------------------------
     // Construction
-    // -----------------------------------------------------------------------
     c_SolidLiquidLayer() = default;
 
     explicit c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg)
@@ -102,9 +87,8 @@ public:
 
     ~c_SolidLiquidLayer() override = default;
 
-    // unique_ptr members in this class and in c_PhysicsLayer (via parent) delete
-    // implicit copy-assignment. Cython stack allocation requires it; Cython
-    // temporaries always have null sub-model pointers, so resetting is safe.
+    // The unique_ptr members here and in c_PhysicsLayer delete the implicit copy assignment that Cython's stack
+    // allocation needs. Cython temporaries always have null sub-model pointers, so resetting on copy is safe.
     c_SolidLiquidLayer& operator=(const c_SolidLiquidLayer& other) noexcept {
         if (this != &other) {
             c_PhysicsLayer::operator=(other);
@@ -126,9 +110,7 @@ public:
     }
     c_SolidLiquidLayer& operator=(c_SolidLiquidLayer&&) noexcept = default;
 
-    // -----------------------------------------------------------------------
     // Thermal property getters (const, MKS)
-    // -----------------------------------------------------------------------
     double get_thermal_conductivity_ref()  const noexcept { return this->p_thermal_conductivity_ref; }
     double get_thermal_expansion_ref()     const noexcept { return this->p_thermal_expansion_ref; }
     double get_heat_capacity_ref()         const noexcept { return this->p_heat_capacity_ref; }
@@ -145,13 +127,8 @@ public:
         return static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer);
     }
 
-    // -----------------------------------------------------------------------
-    // calc_melt_fraction [dimensionless, 0..1]
-    //
-    // Linear interpolation between solidus and liquidus, raised to
-    // melt_fraction_exponent. The melt curve carries no pressure dependence;
-    // the pressure argument is accepted for interface uniformity and unused.
-    // -----------------------------------------------------------------------
+    // Melt fraction [0, 1]: linear interpolation between solidus and liquidus raised to melt_fraction_exponent.
+    // The melt curve carries no pressure dependence; the pressure argument is taken for interface uniformity.
     double calc_melt_fraction(double temperature, double /*pressure*/) const noexcept {
         const double dT = this->p_liquidus_temperature - this->p_solidus_temperature;
         if (dT <= 0.0) { return temperature >= this->p_solidus_temperature ? 1.0 : 0.0; }
@@ -160,20 +137,11 @@ public:
         return std::pow(tau_clamped, this->p_melt_fraction_exponent);
     }
 
-    // -----------------------------------------------------------------------
-    // calc_viscosity [Pa·s]
-    //
-    // Arrhenius temperature and pressure dependence relative to the reference
-    // viscosity (p_viscosity_static) at (p_reference_temperature, P=0):
-    //
-    //   η(T,P) = η_ref * exp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref))
-    //
-    // Partial-melt exponential suppression (Roscoe-type):
-    //
-    //   η_eff = η(T,P) * exp(−C·φ)
-    //
-    // The exponent is clamped to [−100, 100] to prevent overflow/underflow.
-    // -----------------------------------------------------------------------
+    // Effective viscosity [Pa·s]: Arrhenius temperature and pressure dependence relative to the reference
+    // viscosity at (p_reference_temperature, P = 0),
+    //   η(T,P) = η_ref * exp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref)),
+    // then Roscoe-type partial-melt suppression η_eff = η(T,P) * exp(−C·φ). Both exponents are clamped to
+    // [−100, 100] against overflow and underflow.
     double calc_viscosity(double temperature, double pressure) const noexcept {
         if (temperature <= 0.0 || tidalpy_config_ptr == nullptr) { return this->p_shear_viscosity_static; }
         const double R = tidalpy_config_ptr->d_R;
@@ -188,20 +156,13 @@ public:
         return eta * std::exp(std::clamp(-this->p_melt_viscosity_reduction * phi, -100.0, 0.0));
     }
 
-    // -----------------------------------------------------------------------
-    // calc_shear_modulus [Pa]
-    //
-    // Melt-fraction-reduced shear modulus: G = G_static * (1 − φ).
-    // Returns 0 when fully molten.
-    // -----------------------------------------------------------------------
+    // Melt-reduced shear modulus [Pa]: G = G_static * (1 − φ); zero when fully molten.
     double calc_shear_modulus(double temperature, double pressure) const noexcept {
         const double phi = calc_melt_fraction(temperature, pressure);
         return this->p_shear_modulus_static * (1.0 - phi);
     }
 
-    // -----------------------------------------------------------------------
     // Thermal transport (const, MKS)
-    // -----------------------------------------------------------------------
     double calc_thermal_conductivity(double /*temperature*/) const noexcept {
         return this->p_thermal_conductivity_ref;
     }
@@ -214,14 +175,8 @@ public:
         return k / (rho * cp);
     }
 
-    // -----------------------------------------------------------------------
-    // calc_adiabatic_temperature_gradient [K/m]
-    //
-    // dT/dr_adiabatic = α · T · g / c_p
-    //
-    // Gravity is taken from the EOS profile at the layer's outer boundary
-    // if available; otherwise 0.0 is returned.
-    // -----------------------------------------------------------------------
+    // Adiabatic temperature gradient [K/m]: dT/dr = α · T · g / c_p. Gravity comes from the EOS profile at the
+    // layer's outer boundary; 0.0 when that profile is unpopulated.
     double calc_adiabatic_temperature_gradient(double temperature,
                                                double /*pressure*/) const noexcept {
         double g = 0.0;
@@ -232,12 +187,7 @@ public:
         return this->p_thermal_expansion_ref * temperature * g / this->p_heat_capacity_ref;
     }
 
-    // -----------------------------------------------------------------------
-    // calc_heat_flux_conductive [W/m²]
-    //
-    // q = k · (T_base − T_top) / thickness
-    // Returns 0.0 when layer has zero thickness.
-    // -----------------------------------------------------------------------
+    // Conductive heat flux [W/m²]: q = k · (T_base − T_top) / thickness; 0.0 for a zero-thickness layer.
     double calc_heat_flux_conductive(double temperature_base,
                                      double temperature_top) const noexcept {
         if (this->p_thickness <= 0.0) { return 0.0; }
@@ -246,19 +196,13 @@ public:
                / this->p_thickness;
     }
 
-    // -----------------------------------------------------------------------
-    // calc_radiogenic_heating [W]
-    //
-    // Delegates to p_radiogenics if set; otherwise returns 0.0.
-    // -----------------------------------------------------------------------
+    // Radiogenic heating [W] from the attached model; 0.0 when none is attached.
     double calc_radiogenic_heating(double time, double mass) const noexcept {
         if (!this->p_radiogenics) { return 0.0; }
         return this->p_radiogenics->calc_heating(time, mass);
     }
 
-    // -----------------------------------------------------------------------
-    // Sub-model setters (non-const; transfer ownership via unique_ptr)
-    // -----------------------------------------------------------------------
+    // Sub-model setters (transfer ownership; each registers this layer as the observer).
     void set_cooling(std::unique_ptr<c_CoolingBase> cooling) {
         this->p_cooling = std::move(cooling);
         if (this->p_cooling) { this->p_cooling->set_layer_ptr(this); }
@@ -276,9 +220,7 @@ public:
     c_CoolingBase*     get_cooling_model()     const noexcept { return this->p_cooling.get(); }
     c_RadiogenicsBase* get_radiogenics_model() const noexcept { return this->p_radiogenics.get(); }
 
-    // -----------------------------------------------------------------------
     // Binary I/O
-    // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const auto     name_len = static_cast<uint32_t>(this->p_name.size());
         const auto     mat_len  = static_cast<uint32_t>(this->p_material_name.size());
@@ -355,7 +297,6 @@ public:
             throw std::runtime_error("TidalPy: failed to write SolidLiquidLayer binary data");
         }
 
-        // Attached sub-models (presence flag + recursive record each).
         this->write_eos_model_binary(out);         // inherited from c_BaseLayer
         this->write_physics_models_binary(out);    // inherited from c_PhysicsLayer
         this->write_submodels_binary(out);   // cooling + radiogenics
@@ -437,7 +378,6 @@ public:
             throw std::runtime_error("TidalPy: failed to read SolidLiquidLayer binary data");
         }
 
-        // Attached sub-models (presence flag + recursive record each).
         this->read_eos_model_binary(in, force);         // inherited from c_BaseLayer
         this->read_physics_models_binary(in, force);    // inherited from c_PhysicsLayer
         this->read_submodels_binary(in, force);   // cooling + radiogenics
@@ -446,14 +386,10 @@ public:
     }
 
 protected:
-    // -----------------------------------------------------------------------
-    // Recursive (de)serialization of the optional cooling/radiogenics models.
-    // Mirrors c_PhysicsLayer::write_physics_models_binary/read_physics_models_binary.  Each
-    // model is written as a presence flag followed, when set, by the model's own
-    // binary record; on read the correct concrete model is rebuilt via the
-    // cooling/radiogenics binary-dispatch factories and re-registered as this
-    // layer's observer.
-    // -----------------------------------------------------------------------
+    // Recursive (de)serialization of the optional cooling and radiogenics models, mirroring
+    // c_PhysicsLayer::write_physics_models_binary: a presence flag each, followed when set by the model's own
+    // record. On read the concrete model is rebuilt through the cooling and radiogenics binary-dispatch
+    // factories and re-registered as this layer's observer.
     void write_submodels_binary(std::ostream& out) const {
         write_optional_binary(out, this->p_cooling);
         write_optional_binary(out, this->p_radiogenics);

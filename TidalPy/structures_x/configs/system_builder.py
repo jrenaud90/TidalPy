@@ -1,33 +1,15 @@
 """System builder for the structures_x class system.
 
 Turns a system description (a TOML file, a bundled system name, or a ``dict``) into a wired
-:class:`~TidalPy.structures_x.system.system.System`. Following the structures_x design, TOML is never
-touched by C++: it is read and validated here, then handed to the ``System`` class.
+:class:`~TidalPy.structures_x.system.system.System`. TOML is read and validated here and never
+reaches C++.
 
-Schema (version ``0.2.0``)
---------------------------
-A system is a top-level ``name`` (optional) plus one ``[worlds.<name>]`` table per member world::
-
-    schema_version = "0.2.0"
-    name = "Sol System"
-
-    [worlds.sun]
-    world   = "sol"          # required: a bundled world name, a path to a world TOML, or an inline
-    is_host = true           #   world config table (an inline ``[worlds.<name>.world]`` sub-table)
-    is_star = true
-
-    [worlds.earth]
-    world = "earth_simple"
-    semi_major_axis_m = 1.495978707e11   # orbit about the tidal host
-    eccentricity      = 0.0167
-    stellar_semi_major_axis_m = 1.495978707e11   # orbit about the star (for insolation)
-    stellar_eccentricity      = 0.0167
-
-Each ``[worlds.<name>]`` entry mirrors :meth:`System.add_world` plus the ``set_stellar_*`` setters: the
-``world`` source is built with :func:`~TidalPy.structures_x.configs.world_builder.build_world`, then
-added with its ``is_host`` / ``is_star`` roles and its orbital elements about the tidal host, and its
-orbital elements about the star are applied afterwards. The star need not be the tidal host; for an
-exoplanet (star is also the host) the two orbits coincide.
+A system configuration (schema ``0.2.0``) is an optional top-level ``name`` plus one
+``[worlds.<key>]`` table per member world. Each table carries ``world`` (a bundled world name, a
+path to a world TOML, or an inline world table), the optional roles ``is_host`` and ``is_star``,
+the orbit about the tidal host (``semi_major_axis_m``, ``eccentricity``), and the orbit about the
+star used for insolation (``stellar_semi_major_axis_m``, ``stellar_eccentricity``). The star need
+not be the tidal host; for an exoplanet the two orbits coincide.
 """
 
 import os
@@ -45,9 +27,7 @@ from TidalPy.structures_x.configs.toml_loader import validate_system_config
 def construct_system(config: dict, force: bool = False):
     """Construct a ``System`` from a validated system configuration dict.
 
-    Each ``[worlds.<name>]`` entry's ``world`` source is built via :func:`build_world` (so a member may
-    be a bundled world name, a path to a world TOML, or an inline world config), then added to the system
-    with its roles and orbital elements. Worlds are added in declaration order.
+    Member worlds are built with :func:`build_world` and added in declaration order.
 
     Parameters
     ----------
@@ -132,10 +112,8 @@ def _resolve_source(source: Union[str, dict]) -> Union[str, dict]:
 def build_system(source: Union[str, dict], force: bool = False):
     """Build a ``System`` from a bundled name, file path, or config dict.
 
-    Thin wrapper over :meth:`System.build <TidalPy.structures_x.system.system.System.build>` (the build
-    logic lives on the ``System`` class): it resolves the source, loads and validates it, builds each
-    member world with :func:`build_world`, and returns the assembled system with the normalized
-    configuration retained on ``source_config``.
+    Thin wrapper over :meth:`System.build <TidalPy.structures_x.system.system.System.build>`, which
+    retains the normalized configuration on ``source_config``.
 
     Parameters
     ----------
@@ -155,10 +133,8 @@ def build_system(source: Union[str, dict], force: bool = False):
 def available_systems() -> list:
     """Return the sorted names of the bundled ``WorldPack_x`` example systems.
 
-    Delegates to :func:`TidalPy.structures_x.configs.worldpack.available_systems`,
-    combining the user data directory with the packaged systems. Single worlds live in
-    the same directory and are listed by
-    :func:`TidalPy.structures_x.configs.world_builder.available_worlds` instead.
+    Combines the user data directory with the packaged systems. Single worlds live in the same
+    directory and are listed by :func:`available_worlds` instead.
 
     Returns
     -------

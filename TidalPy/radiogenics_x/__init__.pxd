@@ -1,15 +1,5 @@
 # distutils: language = c++
-"""
-__init__.pxd
-Cython-level exports for TidalPy.radiogenics_x.
-
-Exposes the C++ radiogenics classes and the Python wrapper classes so other
-extensions can cimport them.
-
-Usage::
-
-    from TidalPy.radiogenics_x cimport RadiogenicsBase, IsotopeRadiogenics, c_RadiogenicsBase
-"""
+"""Cython-level exports for TidalPy.radiogenics_x."""
 
 from TidalPy.radiogenics_x.radiogenics cimport (
     RadiogenicsBase,

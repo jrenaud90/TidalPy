@@ -1,12 +1,12 @@
 # Dynamics (`dynamics_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-15_
 
 `TidalPy.dynamics_x` contains functionality to couple tidal dissipation with orbit-spin evolution. It takes the tidal-potential derivatives produced by a tidal solve and turns them into the instantaneous rates of change of a body's spin and orbit.
 
 Tides raised on a body lag behind the raising potential, and that lag exerts a torque. The torque exchanges angular momentum between the body's rotation and the orbit, while the associated friction removes energy from the pair and deposits it as heat. Everything in this module follows from that exchange: a satellite spins down to synchronous rotation, its orbit expands or decays, and its eccentricity is damped or pumped.
 
-This module computes rates only. It never integrates in time. To evolve a system, use these rates in an integrator of your choice. `System` supplies the state at each step and collects the rates, that is an easy place to start with any thermal-orbital evolution model.
+This module computes rates only; it never integrates in time. To evolve a system, use these rates in an integrator of your choice. `System` supplies the state at each step and collects the rates, which is the usual starting point for a thermal-orbital evolution model.
 
 | Page | Covers |
 |---|---|
@@ -23,6 +23,10 @@ Spin and Orbital Rates <dynamics.md>
 The chain runs in one direction. A world's [rheology](../rheology_x/index.md) gives its complex moduli; the [radial solver](../RadialSolver_x/index.md) turns those into Love numbers; the [tidal solve](../Tides_x/index.md) collapses the Kaula mode sum into a heating rate and the three potential derivatives $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$ with respect to the mean anomaly, the argument of pericenter, and the longitude of the node. This module consumes those three potential derivatives.
 
 A `LayeredWorld` holds a `Spin` model and drives it with its own moment of inertia from the equation-of-state solve, so the spin rate uses the structure-resolved value rather than a uniform-density estimate. See [Worlds](../structures_x/worlds/worlds.md). A [System](../structures_x/system/system.md) attaches an `OrbitSolver`, pulls the orbital state and potential derivatives from its worlds, and reports the full set of rates with an energy-balance diagnostic.
+
+## Examples
+
+`Demos_x/Physics/07_gasgiant_fixedQ_dt.ipynb` reads the orbital rates of a gas giant from `System.calc_world_evolution`, `Demos_x/Systems/11_multi_world.ipynb` reads them for every world in a system, and `Demos_x/Systems/12_thermal_orbital_evolution.ipynb` integrates them in time with CyRK.
 
 ## References
 

@@ -1,10 +1,10 @@
 # Viscosity (`viscosity_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
-`TidalPy.viscosity_x` turns local conditions into a viscosity. Each model maps a temperature \[K\] and a pressure \[Pa\] onto a dynamic viscosity \[Pa s\], which is the single material property that decides how readily a planet's interior flows and therefore how much tidal energy it converts into heat.
+`TidalPy.viscosity_x` contains viscosity models which map a temperature \[K\] and a pressure \[Pa\] onto a dynamic viscosity \[Pa s\].
 
-Viscosity deserves its own module because it is the most uncertain and the most strongly varying quantity in the whole calculation. A silicate mantle's viscosity changes by ten orders of magnitude across the temperature range a tidally heated body can occupy, while its shear modulus changes by less than one. The choice of viscosity law, and the activation energy inside it, usually matters more to a predicted heating rate than any other input.
+A silicate mantle's viscosity changes by about ten orders of magnitude across the temperature range a tidally heated body can occupy, while its shear modulus changes by less than one, so the viscosity law and its activation energy usually matter more to a predicted heating rate than any other input.
 
 | Page | Covers |
 |---|---|
@@ -16,13 +16,17 @@ Viscosity deserves its own module because it is the most uncertain and the most 
 Viscosity Models <viscosity_models.md>
 ```
 
-## Usage
+## Where Viscosity is Used
 
-The viscosity models sit one step before the rheology models. A layer holds a viscosity model for its shear response and one for its bulk response, attached with `set_shear_viscosity` and `set_bulk_viscosity`. During a whole-planet equation-of-state solve each radial slice arrives with a temperature and a pressure, the viscosity model converts them into that slice's pre-melt viscosity, and the [partial-melt](../partial_melt_x/partial_melt_models.md) model then weakens both the viscosity and the shear modulus wherever melt is present. The resulting post-melt values are what [`rheology_x`](../rheology_x/index.md) consumes to produce a complex modulus.
+A layer holds a viscosity model for its shear response and one for its bulk response, attached with `set_shear_viscosity` and `set_bulk_viscosity`. During a whole-planet equation-of-state solve the viscosity model converts each radial slice's temperature and pressure into that slice's pre-melt viscosity, and the [partial-melt](../partial_melt_x/partial_melt_models.md) model then weakens both the viscosity and the shear modulus wherever melt is present. The post-melt values are what [`rheology_x`](../rheology_x/index.md) consumes to produce a complex modulus.
 
-Viscosity is frequency-independent, which is why it can be resolved once per equation-of-state solve and reused across every tidal forcing frequency. That separation is what makes a many-mode tidal calculation affordable.
+Viscosity is frequency-independent, so it is resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
 A layer with a rheology but no viscosity model falls back to its static viscosity, which is NaN unless one was supplied at construction. An equation of state that supplies its own viscosity profile as extra output overrides the model's value slice by slice.
+
+## Examples
+
+`Demos_x/Systems/12_thermal_orbital_evolution.ipynb` builds a temperature-dependent viscosity with `make_viscosity` and feeds it through a Maxwell rheology and the radial solver.
 
 ## References
 

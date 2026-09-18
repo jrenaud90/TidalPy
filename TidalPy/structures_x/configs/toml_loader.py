@@ -1,77 +1,21 @@
 """TOML loading, schema validation, and default merging for the structures_x world builder.
 
-This module is the Python/Cython-level entry point for turning a TOML world
-description (or an equivalent ``dict``) into a validated configuration ready for
-:mod:`TidalPy.structures_x.configs.world_builder`. Following the structures_x
-design, TOML is never touched by C++: it is read here with the ``toml`` package,
-converted to a ``dict``, validated against the ``0.2.0`` schema, and handed off to
-the builder.
+Turns a TOML world description (or an equivalent ``dict``) into a validated configuration for
+:mod:`TidalPy.structures_x.configs.world_builder`. TOML is read and validated here and never
+reaches C++.
 
-Schema overview (version ``0.2.0``)
------------------------------------
-World-level keys::
+A world configuration (schema ``0.2.0``) carries the required ``name``, ``type``
+(star | gasgiant | terrestrial | layered), ``radius_m``, and ``mass_kg``, optional world scalars, an
+optional ``[tides]`` table, and, for a non-star world, one or more ``[layers.<name>]`` tables. A
+layer names a ``class`` (which Cython layer class to build), an optional material ``type`` (which
+per-material default block to draw from), exactly one outer-radius specifier, scalar parameters, and
+nested physics-model tables each carrying a ``model`` key. The module constants below are the
+authoritative list of what is accepted where; ``Documentation/structures_x/config/toml_schema.md``
+has the worked schema.
 
-    schema_version = "0.2.0"         # optional; validated when present
-    name           = "Earth"         # required
-    type           = "terrestrial"   # required: star | gasgiant | terrestrial | layered
-    radius_m       = 6371000.0       # required
-    mass_kg        = 5.972e24        # required
-    albedo         = 0.3             # optional (world constructor default used if absent)
-    emissivity     = 1.0             # optional
-    obliquity_rad  = 0.0             # optional
-    spin_frequency_rad_s = 7.292e-5  # optional
-    # star only:
-    effective_temperature_k = 5772.0
-    luminosity_w            = 3.846e26
-
-Each non-star world holds one or more ``[layers.<layer_name>]`` tables. A layer
-names a ``class`` (which Cython layer class to build) and, optionally, a material
-``type`` (which per-material default block to draw from)::
-
-    [layers.mantle]
-    class          = "solidliquid"  # base | physics | solidliquid | gas
-    type           = "mantle_rock"  # optional: gas | mantle_rock | ice | hp_ice | iron
-    layer_index    = 1              # optional; falls back to declaration order
-    radius_outer_m = 6371000.0      # outer radius: EXACTLY ONE of radius_outer_m,
-    # radius_fraction = 0.55        #   radius_fraction (* world radius), or
-    # volume_fraction = 0.67        #   volume_fraction (* world volume). Inner radius
-    #                               #   is derived from the previous layer (0 first).
-    mass_kg        = 0.0            # optional (EOS solve recomputes)
-    material_name  = "rock"         # optional
-    is_tidal       = true           # optional
-    tidal_scale    = 1.0            # optional (used when tidal_scale_method=user_provided)
-    tidal_scale_method = "user_provided"  # optional: user_provided | volume_fraction
-    ...                             # physics / solidliquid / gas scalar parameters
-
-A layer may attach physics models through nested tables, each carrying a
-``model`` key plus that model's parameters (passed verbatim to the matching
-``make_*`` factory)::
-
-    [layers.mantle.eos]            # any layer class
-    model = "constant"
-    reference_density_kg_m3 = 4500.0
-
-    [layers.mantle.shear_rheology]   # physics / solidliquid / gas
-    model = "maxwell"
-    [layers.mantle.bulk_rheology]    # physics / solidliquid / gas
-    [layers.mantle.shear_viscosity]  # physics / solidliquid / gas
-    [layers.mantle.bulk_viscosity]   # physics / solidliquid / gas
-    [layers.mantle.partial_melt]     # physics / solidliquid / gas
-    [layers.mantle.cooling]          # solidliquid only
-    [layers.mantle.radiogenics]      # solidliquid only
-
-Default resolution
-------------------
-A parameter (or whole physics-model table) the user omits is resolved in three
-tiers, handled by the world builder:
-
-1. The user-provided world dict / TOML.
-2. The ``[layers.<type>]`` block of the ``_x`` config (``TidalPy_Configs_x.toml``),
-   selected by the layer's material ``type``.
-3. Otherwise the C++/Cython constructor or physics-model-factory default.
-
-This module performs the loading and validation; the merge against the per-material
-config defaults lives in :mod:`TidalPy.structures_x.configs.world_builder`.
+A parameter the user omits is resolved in three tiers: the user configuration, then the
+``[layers.<type>]`` block of ``TidalPy_Configs_x.toml`` selected by the layer's material ``type``,
+then the C++, Cython, or factory default. That merge lives in the world builder.
 """
 
 import os
@@ -166,11 +110,10 @@ ALLOWED_MODEL_SECTIONS = {
     ),
 }
 
-# Mutually-exclusive outer-radius specifiers. These are builder-only: they are
-# consumed to compute the layer's outer radius and are NOT forwarded to the layer
-# constructor. A layer must carry exactly one of them. The inner radius is never
-# specified by the user; it is derived from the previous layer's outer radius (0 for
-# the innermost layer), since layers are always built inner-to-outer.
+# Mutually-exclusive outer-radius specifiers, builder-only: consumed to compute the layer's outer
+# radius and not forwarded to the layer constructor. A layer must carry exactly one. The inner radius
+# is never user-supplied; it is the previous layer's outer radius (0 for the innermost), since layers
+# are always built inner-to-outer.
 LAYER_GEOMETRY_SPEC_KEYS = (
     "radius_outer_m",   # absolute outer radius [m]
     "radius_fraction",  # outer radius = radius_fraction * world radius
@@ -313,17 +256,9 @@ def load_toml(source: Union[str, dict]) -> dict:
 def validate_schema_version(config: dict, force: bool = False) -> bool:
     """Check a configuration's ``schema_version`` against this build's schema.
 
-    The current schema is :data:`SCHEMA_VERSION` (``major.minor.patch``). The check
-    compares the configuration's ``schema_version`` against it and applies a graded
-    policy:
-
-    * **patch difference** (``0.0.X``): allowed silently.
-    * **minor difference** (``0.X.0``): allowed, but a warning is emitted that some
-      functionality may break.
-    * **major difference** (``X.0.0``): not allowed; a ``ValueError`` is raised.
-
-    A missing ``schema_version`` is allowed with a warning (the config is assumed to
-    target the current schema).
+    Graded against :data:`SCHEMA_VERSION`: a patch difference is silent, a minor difference warns
+    that some functionality may break, a major difference raises, and a missing ``schema_version``
+    warns and is assumed to target the current schema.
 
     Parameters
     ----------

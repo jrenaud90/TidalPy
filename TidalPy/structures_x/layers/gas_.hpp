@@ -1,19 +1,15 @@
 #pragma once
 /*
- * gas_.hpp — c_GasLayer: ideal-gas/fluid layer with reduced feature set.
+ * gas_.hpp: c_GasLayer, an ideal-gas layer built on c_PhysicsLayer.
  *
- * Inherits c_PhysicsLayer (structures_x/layers/physics_.hpp).
- * Adds ideal-gas thermodynamic properties: adiabatic lapse rate, scale height,
- * pressure, and sound speed.  No phase changes, no solidus/liquidus, no
- * cooling or radiogenics sub-models.
- *
- * All spatial fields are in MKS units.
+ * Adds ideal-gas thermodynamics (adiabatic lapse rate, scale height, pressure, sound speed). No phase changes,
+ * no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::GasLayer (103)
  *   payload:
- *     [all c_BaseLayer fields — same byte layout as BaseLayer binary payload]
- *     [all c_PhysicsLayer additions — shear modulus, bulk modulus,
+ *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
+ *     [all c_PhysicsLayer additions: shear modulus, bulk modulus,
  *      shear viscosity, bulk viscosity, love_numbers k/h/l re+im (10×8)]
  *     mean_molecular_weight  (double, 8)
  *     adiabatic_index               (double, 8)
@@ -25,10 +21,9 @@
  *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_viscosity  presence flag (uint8_t, 1) + (if present) its binary record
  *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS model and physics models (inherited from c_PhysicsLayer) are serialized
- *   recursively; the six presence flags are part of this payload, and each nested model record follows
- *   as a separate record.
- *   The EOS profile data is not serialized; re-run the world EOS solve after loading.
+ *   The attached material EOS model and the inherited physics models are serialized recursively: the six
+ *   presence flags belong to this payload and each nested model follows as its own record. The EOS profile data
+ *   is not serialized; re-run the world EOS solve after loading.
  */
 
 #include <cmath>
@@ -42,10 +37,7 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_GasConfig — construction parameters for c_GasLayer.
-// Extends c_PhysicsConfig with ideal-gas thermodynamic fields.
-// -------------------------------------------------------------------------------
+// Construction parameters for c_GasLayer: c_PhysicsConfig plus the ideal-gas thermodynamic fields.
 struct c_GasConfig : public c_PhysicsConfig {
     double mean_molecular_weight = 2.0e-3;    // [kg/mol] hydrogen default
     double adiabatic_index       = 1.4;       // γ = c_p/c_v [dimensionless]
@@ -56,14 +48,9 @@ struct c_GasConfig : public c_PhysicsConfig {
     c_GasConfig() { this->is_solid = false; }
 };
 
-// -------------------------------------------------------------------------------
-// c_GasLayer
-// -------------------------------------------------------------------------------
 class c_GasLayer : public c_PhysicsLayer {
 public:
-    // -----------------------------------------------------------------------
     // Construction
-    // -----------------------------------------------------------------------
     c_GasLayer() = default;
 
     explicit c_GasLayer(const c_GasConfig& cfg)
@@ -76,9 +63,8 @@ public:
 
     ~c_GasLayer() override = default;
 
-    // unique_ptr members inherited from c_PhysicsLayer delete implicit
-    // copy-assignment; define it explicitly for Cython stack allocation.
-    // Cython temporaries always have null rheology pointers, so reset() is safe.
+    // The unique_ptr members inherited from c_PhysicsLayer delete the implicit copy assignment, so an explicit
+    // one is needed for Cython stack allocation. Cython temporaries always have null model pointers.
     c_GasLayer& operator=(const c_GasLayer& other) noexcept {
         if (this != &other) {
             c_PhysicsLayer::operator=(other);
@@ -91,9 +77,7 @@ public:
     }
     c_GasLayer& operator=(c_GasLayer&&) noexcept = default;
 
-    // -----------------------------------------------------------------------
     // Property getters (const, MKS)
-    // -----------------------------------------------------------------------
     uint32_t get_layer_class_id() const noexcept override {
         return static_cast<uint32_t>(BinaryClassID::GasLayer);
     }
@@ -102,16 +86,8 @@ public:
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
     double get_reference_density()     const noexcept { return this->p_reference_density; }
 
-    // -----------------------------------------------------------------------
-    // calc_adiabatic_lapse_rate [K/m]
-    //
-    // Dry adiabatic lapse rate for an ideal gas:
-    //   Γ = g * (γ - 1) * M / (γ * R)
-    //
-    // where γ is the adiabatic index, M is mean molecular weight [kg/mol],
-    // and R is the universal gas constant [J/(mol·K)].
-    // Returns 0.0 when the config pointer is unavailable or inputs are invalid.
-    // -----------------------------------------------------------------------
+    // Dry adiabatic lapse rate [K/m] for an ideal gas: Γ = g (γ - 1) M / (γ R), with M the mean molecular weight
+    // [kg/mol] and R the universal gas constant [J/(mol·K)]. Returns 0.0 on invalid input or an unwired config.
     double calc_adiabatic_lapse_rate(double gravity) const noexcept {
         if (gravity <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
         const double R = tidalpy_config_ptr->d_R;
@@ -120,14 +96,7 @@ public:
                / (this->p_adiabatic_index * R);
     }
 
-    // -----------------------------------------------------------------------
-    // calc_scale_height [m]
-    //
-    // Barometric (pressure) scale height:
-    //   H = R * T / (g * M)
-    //
-    // Returns 0.0 when inputs are non-positive or config is unavailable.
-    // -----------------------------------------------------------------------
+    // Barometric (pressure) scale height [m]: H = R T / (g M). Returns 0.0 on non-positive input or no config.
     double calc_scale_height(double temperature, double gravity) const noexcept {
         if (temperature <= 0.0 || gravity <= 0.0
                 || this->p_mean_molecular_weight <= 0.0
@@ -138,13 +107,7 @@ public:
         return R * temperature / (gravity * this->p_mean_molecular_weight);
     }
 
-    // -----------------------------------------------------------------------
-    // calc_pressure_ideal_gas [Pa]
-    //
-    // Ideal gas law: P = ρ * R * T / M
-    //
-    // Returns 0.0 when inputs are non-positive or config is unavailable.
-    // -----------------------------------------------------------------------
+    // Ideal gas law [Pa]: P = ρ R T / M. Returns 0.0 on non-positive input or an unwired config.
     double calc_pressure_ideal_gas(double temperature,
                                    double density) const noexcept {
         if (temperature <= 0.0 || density <= 0.0
@@ -156,14 +119,7 @@ public:
         return density * R * temperature / this->p_mean_molecular_weight;
     }
 
-    // -----------------------------------------------------------------------
-    // calc_sound_speed [m/s]
-    //
-    // Adiabatic sound speed for an ideal gas:
-    //   c_s = sqrt(γ * R * T / M)
-    //
-    // Returns 0.0 when inputs are invalid or config is unavailable.
-    // -----------------------------------------------------------------------
+    // Adiabatic sound speed [m/s]: c_s = sqrt(γ R T / M). Returns 0.0 on invalid input or an unwired config.
     double calc_sound_speed(double temperature) const noexcept {
         if (temperature <= 0.0 || this->p_mean_molecular_weight <= 0.0
                 || tidalpy_config_ptr == nullptr) {
@@ -174,9 +130,7 @@ public:
                          / this->p_mean_molecular_weight);
     }
 
-    // -----------------------------------------------------------------------
     // Binary I/O
-    // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const auto     name_len = static_cast<uint32_t>(this->p_name.size());
         const auto     mat_len  = static_cast<uint32_t>(this->p_material_name.size());
@@ -245,7 +199,6 @@ public:
             throw std::runtime_error("TidalPy: failed to write GasLayer binary data");
         }
 
-        // Attached material EOS and physics models (presence flag + recursive record each).
         this->write_eos_model_binary(out);
         this->write_physics_models_binary(out);
     }
@@ -319,7 +272,6 @@ public:
             throw std::runtime_error("TidalPy: failed to read GasLayer binary data");
         }
 
-        // Attached material EOS and physics models (presence flag + recursive record each).
         this->read_eos_model_binary(in, force);
         this->read_physics_models_binary(in, force);
 

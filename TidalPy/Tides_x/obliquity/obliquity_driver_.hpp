@@ -11,7 +11,9 @@
 #include "obliquity_func_l9_.hpp"
 #include "obliquity_func_l10_.hpp"
 
-
+// Dispatch to the tabulated obliquity function for (degree_l, truncation). Truncation 0 turns obliquity
+// off, 2 and 4 are the truncation order in obliquity, and 10 requests the general form. Sets
+// *error_code_ptr to -1 for an untabulated truncation and -2 for an unsupported degree.
 ObliquityFuncOutput c_obliquity_func(
         int* error_code_ptr,
         double obliquity,
@@ -26,19 +28,14 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l2_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l2_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l2_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l2_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
@@ -46,19 +43,14 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l3_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l3_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l3_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l3_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
@@ -66,19 +58,14 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l4_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l4_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l4_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l4_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
@@ -86,19 +73,14 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l5_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l5_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l5_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l5_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
@@ -106,19 +88,14 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l6_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l6_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l6_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l6_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
@@ -126,19 +103,14 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l7_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l7_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l7_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l7_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
@@ -146,19 +118,14 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l8_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l8_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l8_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l8_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
@@ -166,19 +133,14 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l9_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l9_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l9_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l9_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
@@ -186,24 +148,18 @@ ObliquityFuncOutput c_obliquity_func(
         switch (truncation)
         {
         case 0:
-            // Obliquity is off
             return c_obliquity_function_l10_off(obliquity);
         case 2:
-            // 2nd order truncation in obliquity
             return c_obliquity_function_l10_2(obliquity);
         case 4:
-            // 4th order truncation in obliquity
             return c_obliquity_function_l10_4(obliquity);
         case 10:
-            // 10 == the request for a general obliquity.
             return c_obliquity_function_l10_gen(obliquity);
         default:
-            // Unsupported / Not implemented truncation provided.
             error_code_ptr[0] = -1;
             return ObliquityFuncOutput();
         }
     default:
-        // Unsupported / Not implemented degree l provided.
         error_code_ptr[0] = -2;
         return ObliquityFuncOutput();
     }

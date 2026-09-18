@@ -1,8 +1,8 @@
 # Radiogenic Models (`radiogenics_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-15_
 
-A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] returned by `calc_heating(time, mass)`.
+A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] is returned by `calc_heating(time, mass)`.
 
 Time is measured in seconds from an epoch the caller chooses, and each model carries the reference time `ref_time` at which its rates or concentrations were quoted. Only the difference $t - t_{\text{ref}}$ enters the physics, so a model built from present-day abundances with a reference time of 4600 Myr is evaluated at $t = 0$ to get the heating at the birth of the solar system, or at $t = t_{\text{ref}}$ to get today's.
 
@@ -38,6 +38,7 @@ Returns zero for any time and mass.
 ### Isotope
 
 Sums the decay of an arbitrary list of isotopes, each with its own half life.
+
 ### Fixed
 
 Applies one lumped specific rate to the whole layer, optionally with a single effective half life. Setting `average_half_life` to zero (the default) or to any non-positive value means no decay at all, and the heating is then constant for all time.
@@ -143,9 +144,9 @@ world.calc_internal_heating(time)             # [W] summed over all layers
 
 `set_radiogenics` moves ownership of the C++ model into the layer, leaving the Python wrapper an empty shell, so build a fresh model if the same parameters are needed elsewhere. Only `SolidLiquidLayer` accepts one. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one.
 
-The mass is an argument rather than something the layer looks up, because the heating scales with whichever mass the caller considers radiogenic. That is usually the layer's own mass, but it can be the mass of a single differentiated component. The world-level sum has no such freedom and uses each layer's `mass` attribute. The equation-of-state solve sets that attribute, so solve the world's structure before asking for its internal heating: a layer built without a mass reports zero until then.
+The mass is an argument so the caller can choose which mass is radiogenic: usually the layer's own mass, but possibly one differentiated component of it. The world-level sum uses each layer's `mass` attribute, which the equation-of-state solve sets, so solve the world's structure first: a layer built without a mass reports zero until then.
 
-## Vectorized Evaluation
+### Vectorized Evaluation
 
 Three vectorized entry points are defined once on the base class, so every model inherits them.
 
@@ -164,7 +165,7 @@ model = IsotopeRadiogenics.from_dataset("llri_and_slri")
 curve = model.calc_heating_vectorize_time(ages, 1.0e22)    # [W] at each age
 ```
 
-## Convenience Functions
+### Convenience Functions
 
 For a single number without keeping a model around, each model has a lower-case module function that builds a stack-allocated C++ model, evaluates it, and discards it.
 

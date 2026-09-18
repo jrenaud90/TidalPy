@@ -8,17 +8,12 @@
 ```
 
 ## After Installation
-We are deferring the development of a comprehensive "getting started guide" for `TidalPy` until it is closer to a 1.0
-release. Until then we recommend looking through the rest of the documentation and the example scripts found in the
-`Demos` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Demos).
+A comprehensive "getting started guide" is deferred until `TidalPy` is closer to a 1.0 release. Until then we recommend the rest of this documentation and the example scripts in the `Demos` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Demos).
 
-If you find any issues, have a question, or want to share an idea about a new feature then feel free to leave a new
-GitHub issue [here](https://github.com/jrenaud90/TidalPy/issues). TidalPy also has a slack channel for developers and
-users. Please contact us at [TidalPy@gmail.com](mailto:TidalPy@gmail.com) if you would like to be invited.
+If you find an issue, have a question, or want to share an idea for a new feature, please open a GitHub issue [here](https://github.com/jrenaud90/TidalPy/issues). TidalPy also has a slack channel for developers and users. Contact us at [TidalPy@gmail.com](mailto:TidalPy@gmail.com) if you would like to be invited.
 
 ### Package Structure
-The TidalPy package is divided into several modules some of which rely on each other.
-Below is a basic breakdown of the current modules.
+TidalPy is divided into several modules, some of which rely on each other.
 
 - `TidalPy.Extending`: Provides support for 3rd party packages.
 - `TidalPy.cooling`: Functions related to a planet/layer's cooling (convective, conductive, etc.).
@@ -30,10 +25,8 @@ Below is a basic breakdown of the current modules.
 - `TidalPy.rheology`: Functions related to a planet/layer's rheological properties (complex shear, viscosity, etc.).
     - Read more about the rheology module [here](https://tidalpy.readthedocs.io/en/latest/Rheology/index.html)
 - `TidalPy.stellar`: Functions related to calculating insolation and habitable zones.
-- `TidalPy.structures`: The heart of TidalPy's OOP implementation --- various classes for layers and planets.
+- `TidalPy.structures`: TidalPy's object-oriented implementation: classes for layers and planets.
 - `TidalPy.tides`: Functions related to calculating tidal dissipation (using a global approx or a multilayer approach).
 - `TidalPy.toolbox`: Helper functions to quickly access various calculations with just a few function calls.
-- `TidalPy.utilities`: Various tools used internally inside TidalPy. Generally the user should not need to interact
-  with these unless they are developing new TidalPy functionality.
-- `TidalPy.WorldPack`: Not a real module, just a location to store planetary configuration files which are used
-  when `TidalPy.build_world` is called.
+- `TidalPy.utilities`: Tools used internally by TidalPy. You should not need to interact with these unless you are developing new TidalPy functionality.
+- `TidalPy.WorldPack`: Not a module: a location for the planetary configuration files used when `TidalPy.build_world` is called.

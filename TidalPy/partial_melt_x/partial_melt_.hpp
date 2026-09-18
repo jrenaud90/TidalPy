@@ -1,31 +1,23 @@
 #pragma once
 /*
- * partial_melt_.hpp — TidalPy partial-melt models (melt weakening of viscosity
- * and modulus).
+ * partial_melt_.hpp: TidalPy's partial-melt models (melt weakening of viscosity and modulus).
  *
- * Inherits c_PartialMeltBase (partial_melt_base_.hpp), which itself inherits
- * c_PhysicsBase. Each model implements calc_partial_melt(c_PartialMeltInputs),
- * returning a c_PartialMeltResult (melt fraction, post-melt viscosity [Pa·s],
- * post-melt modulus [Pa]).
+ * Each model derives from c_PartialMeltBase and implements calc_partial_melt(c_PartialMeltInputs),
+ * returning a c_PartialMeltResult (melt fraction, post-melt viscosity [Pa s], post-melt modulus [Pa]).
  *
- * Models (with config aliases handled by the factory):
- *   c_OffPartialMelt      (alias "none")        — no melt weakening (returns pre-melt).
- *   c_SpohnPartialMelt    (alias "fischer")     — Fischer & Spohn (1990) T-based law.
- *   c_HenningPartialMelt                        — Henning (2009/2010) three-regime law.
- *
- * All quantities MKS. The math mirrors the validated legacy implementation in
- * TidalPy/rheology/partial_melt/melting_models.py.
+ * Models, with the aliases the factory accepts:
+ *   c_OffPartialMelt      (alias "none")     no melt weakening; returns the pre-melt values.
+ *   c_SpohnPartialMelt    (alias "fischer")  Fischer and Spohn (1990) temperature law.
+ *   c_HenningPartialMelt                     Henning (2009, 2010) three-regime law.
  *
  * References
  * ----------
  * - Fischer and Spohn (1990), Icarus 83, 39.
  * - Henning, O'Connell, and Sasselov (2009); Renaud and Henning (2018), ApJ 857, 98.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::<Model> (701-703)
- *   payload: model_name length (uint32_t) | model_name bytes | model params (doubles)
- *   Off writes [solidus, liquidus, liquid_shear]; Spohn appends its 4 scalars;
- *   Henning appends its 7 scalars. The layer observer pointer is NOT serialized.
+ * Binary payload under class_id BinaryClassID::<Model> (701-703): model_name length (uint32_t), the
+ * model_name bytes, then the model's doubles. Off writes [solidus, liquidus, liquid_shear], Spohn
+ * appends its 4 scalars, and Henning its 7. The layer observer pointer is not serialized.
  */
 
 #include <algorithm>
@@ -45,8 +37,8 @@
 namespace tidalpy {
 
 // -------------------------------------------------------------------------------
-// c_PartialMeltConfig — combined construction parameters for all melt models.
-// Each model reads only the fields it needs.
+// c_PartialMeltConfig: construction parameters for every melt model. Each model
+// reads only the fields it needs.
 // -------------------------------------------------------------------------------
 struct c_PartialMeltConfig {
     // Shared melt envelope.
@@ -84,8 +76,8 @@ inline std::string melt_to_lower(std::string text) {
 // =====================================================================================================================
 
 // -------------------------------------------------------------------------------
-// c_OffPartialMelt — no melt weakening; post-melt strength equals pre-melt
-// (alias "none"). The melt fraction is still reported for reference.
+// c_OffPartialMelt: no melt weakening (alias "none"); the post-melt strength equals
+// the pre-melt strength and the melt fraction is still reported.
 // -------------------------------------------------------------------------------
 class c_OffPartialMelt : public c_PartialMeltBase {
 public:
@@ -116,10 +108,9 @@ public:
 };
 
 // -------------------------------------------------------------------------------
-// c_SpohnPartialMelt — Fischer & Spohn (1990) temperature-based law (alias
-// "fischer"/"fischer_spohn"). The post-melt viscosity and shear modulus depend
-// only on temperature (the pre-melt values are not used), floored at the liquid
-// limits.
+// c_SpohnPartialMelt: Fischer and Spohn (1990) temperature law (aliases "fischer",
+// "fischer_spohn"). The post-melt viscosity and shear modulus depend only on
+// temperature, not on the pre-melt values, and are floored at the liquid limits.
 // -------------------------------------------------------------------------------
 class c_SpohnPartialMelt : public c_PartialMeltBase {
 public:
@@ -154,7 +145,7 @@ public:
         double post_shear = c_safe_pow(10.0,
             (this->p_fs_shear_power_slope / in.temperature) - this->p_fs_shear_power_phase);
 
-        // Floor at the liquid limits (legacy sanity check).
+        // Floor at the liquid limits.
         if (post_visc  <= in.liquid_viscosity)     { post_visc  = in.liquid_viscosity; }
         if (post_shear <= this->p_liquid_shear) { post_shear = this->p_liquid_shear; }
 
@@ -189,10 +180,10 @@ protected:
 };
 
 // -------------------------------------------------------------------------------
-// c_HenningPartialMelt — Henning (2009/2010) three-regime melt weakening.
+// c_HenningPartialMelt: Henning (2009, 2010) three-regime melt weakening.
 //
 // Below the critical melt fraction the strength weakens exponentially; in the
-// transition band [crit, crit+width] a steeper "breakdown" falloff applies; above
+// transition band [crit, crit + width] a steeper breakdown falloff applies; above
 // it the material is liquid-like. Floored at the liquid limits.
 // -------------------------------------------------------------------------------
 class c_HenningPartialMelt : public c_PartialMeltBase {
@@ -262,7 +253,7 @@ public:
             post_shear = this->p_liquid_shear;
         }
 
-        // Floor at the liquid limits (legacy sanity check).
+        // Floor at the liquid limits.
         if (post_visc  <= in.liquid_viscosity)     { post_visc  = in.liquid_viscosity; }
         if (post_shear <= this->p_liquid_shear) { post_shear = this->p_liquid_shear; }
 

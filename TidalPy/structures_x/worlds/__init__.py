@@ -1,11 +1,7 @@
-"""TidalPy structures_x.worlds — C++ world class hierarchy.
+"""TidalPy structures_x.worlds: the C++ world class hierarchy.
 
-Exposes the world classes:
-
-- ``BaseWorld``      — identity, orbital/thermal scalars, bulk geometry.
-- ``LayeredWorld``   — a world built from an ordered stack of layers.
-- ``GasGiantWorld``  — a layered world representing a gas giant.
-- ``StarWorld``      — a star (no layers, no EOS); effective temperature/luminosity.
+``BaseWorld`` (identity, orbital and thermal scalars, bulk geometry), ``LayeredWorld`` (an ordered stack of
+layers), ``GasGiantWorld``, and ``StarWorld`` (no layers or EOS; effective temperature and luminosity).
 """
 
 from TidalPy.structures_x.worlds.base import BaseWorld

@@ -1,17 +1,6 @@
 # distutils: language = c++
-"""
-rheology.pxd
-Cython declarations for TidalPy's rheology model hierarchy.
-
-Exports the seven concrete C++ rheology models, the combined config struct, and
-the Python wrapper classes so other extensions can cimport and build/attach
-rheology models at C speed.
-
-Usage::
-
-    from TidalPy.rheology_x.rheology cimport (
-        RheologyBase, Maxwell, c_RheologyBase, c_Maxwell, c_RheologyConfig)
-"""
+"""Cython declarations for TidalPy's rheology model hierarchy: the seven C++ models, the combined config
+struct, and the Python wrapper classes."""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr

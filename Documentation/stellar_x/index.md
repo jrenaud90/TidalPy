@@ -1,8 +1,8 @@
 # Stellar (`stellar_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
-`TidalPy.stellar_x` holds the stellar physics. Its job is to calculate stellar heating on a planet for use in long term thermal-orbital evolution models. It also contains helper functionality to turn a star's mass into its luminosity using published relationships. This is helpful when working with exoplanets where some stellar properties are not published.
+`TidalPy.stellar_x` contains the stellar physics used to calculate stellar heating on a planet in long-term thermal-orbital evolution models. Its luminosity models map a star's mass \[kg\] onto its luminosity \[W\] using published relationships, which is helpful for exoplanet hosts whose stellar properties are not fully published.
 
 | Page | Covers |
 |---|---|
@@ -14,17 +14,21 @@ _Updated: 2026-09-13_
 Luminosity Models <luminosity.md>
 ```
 
-## Usage
+## Where Luminosity is Used
 
 A luminosity model is attached to a `StarWorld` with `set_luminosity_model`. The star then derives its own luminosity and effective temperature from its mass and radius. See [Worlds](../structures_x/worlds/worlds.md).
 
-The model is optional. A star that is given a luminosity directly, or an effective temperature, stays internally consistent through the Stefan-Boltzmann relation without any model attached. A model is what lets the star's mass drive those numbers instead, which is what a population study or an evolving system needs.
+The model is optional. A star given a luminosity or an effective temperature directly keeps the two consistent through the Stefan-Boltzmann relation without a model. A model lets the star's mass set those numbers instead, as a population study or an evolving system needs.
 
-Downstream, `System` uses the star's luminosity to compute the orbit-averaged flux at each of its worlds and the gray-body equilibrium temperature that follows from it. See [System](../structures_x/system/system.md). The star is where the energy budget starts; everything the tidal machinery computes is added on top of it.
+`System` uses the star's luminosity to compute the orbit-averaged flux at each of its worlds and the gray-body equilibrium temperature that follows from it. See [System](../structures_x/system/system.md).
 
 ## Scope
 
-This module covers luminosity and the temperature conversions tied to it. Nothing related to stellar structure, evolution along the main sequence, spectra, and the wavelength dependence of the radiation field are currently included in TidalPy. The mass-to-luminosity relations here are empirical fits to main-sequence stars and say nothing about how a star got there or where it goes next.
+This module covers luminosity and the temperature conversions tied to it. Stellar structure, evolution along the main sequence, spectra, and the wavelength dependence of the radiation field are not included. The mass-to-luminosity relations are empirical fits to main-sequence stars.
+
+## Examples
+
+`Demos_x/Basics/02_world_building.ipynb` builds a star and reads its luminosity and effective temperature, and `Demos_x/Physics/04_orbits_insolation.ipynb` uses the luminosity for insolation and equilibrium temperatures across stellar types.
 
 ## References
 

@@ -1,26 +1,16 @@
 #pragma once
 /**
- * logger_.hpp
- * TidalPy C++ logging via spdlog.
+ * logger_.hpp: TidalPy C++ logging through spdlog.
  *
- * Design
- * ------
- * A single named spdlog logger ("TidalPy") is created at import time in the
- * logging_x Cython extension (logger.pyx) via cy_create_default_logger().
- * A non-owning raw pointer to that logger is stored in tidalpy_logger_ptr.
- *
- * Every Cython extension that wants C++ logging must call at module init:
+ * A single named spdlog logger ("TidalPy") is created at import time by the logging_x Cython extension
+ * (cy_create_default_logger) and a non-owning raw pointer to it is stored in tidalpy_logger_ptr. Every
+ * Cython extension that logs from C++ must call, at module init:
  *
  *     set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
  *
- * This is identical to the pattern used for TidalPy's global config pointer
- * in constants.pyx / constants_.hpp. On Linux/macOS the inline variable is
- * shared automatically across all .so files; on Windows each .pyd DLL holds
- * its own copy and the explicit set call is required.
- *
- * init_logger() reconfigures the sinks of the existing logger (replaces the
- * sinks vector) rather than creating a new object, so all DLLs that already
- * hold the raw pointer immediately see the updated configuration.
+ * On Linux and macOS the inline variable is shared across .so files automatically; on Windows each .pyd
+ * DLL holds its own copy, so the explicit set call is required. cy_init_logger replaces the sinks of the
+ * existing logger rather than creating a new object, so every DLL sees the new configuration at once.
  */
 
 #include <memory>
@@ -48,20 +38,9 @@ namespace tidalpy {
 // =====================================================================================================================
 
 /**
- * c_LoggerConfig
- * Configuration passed to cy_init_logger() from Python at startup.
- *
- * Members
- * -------
- * console_level : int
- *     spdlog level enum for console output.
- *     0=trace, 1=debug, 2=info, 3=warn, 4=error, 5=critical, 6=off.
- * file_level : int
- *     spdlog level enum for optional file output (same values).
- * log_to_file : bool
- *     Enable file logging in addition to the console sink.
- * log_file_path : std::string
- *     Absolute path for the log file (UTF-8). Ignored when log_to_file is false.
+ * Logging configuration passed to cy_init_logger() from Python at startup. The two levels are spdlog
+ * level enum values: 0 = trace, 1 = debug, 2 = info, 3 = warn, 4 = error, 5 = critical, 6 = off.
+ * log_file_path is an absolute UTF-8 path, ignored when log_to_file is false.
  */
 struct c_LoggerConfig {
     int console_level     = 2;   // info
@@ -77,14 +56,9 @@ struct c_LoggerConfig {
 inline constexpr const char* TIDALPY_LOGGER_NAME = "TidalPy";
 
 /**
- * Non-owning raw pointer to the TidalPy spdlog logger.
- *
- * Set by set_tidalpy_logger_ptr_void() in each Cython extension at module init.
- * On Linux/macOS this inline variable is shared process-wide; on Windows each
- * DLL holds an independent copy that must be set explicitly.
- *
- * The logger object itself is owned by spdlog's registry inside the
- * logging_x extension DLL and persists for the lifetime of the process.
+ * Non-owning raw pointer to the TidalPy spdlog logger, set by set_tidalpy_logger_ptr_void() in each
+ * Cython extension at module init. The logger itself is owned by spdlog's registry inside the logging_x
+ * extension DLL and lives for the process lifetime.
  */
 inline spdlog::logger* tidalpy_logger_ptr = nullptr;
 
@@ -92,30 +66,14 @@ inline spdlog::logger* tidalpy_logger_ptr = nullptr;
 // Pointer Sharing Helpers
 // =====================================================================================================================
 
-/**
- * set_tidalpy_logger_ptr_void
- * Set tidalpy_logger_ptr from a void* received cross-DLL via get_tidalpy_logger_address().
- * Cast is safe because get_tidalpy_logger_address() always returns a spdlog::logger*.
- *
- * Parameters
- * ----------
- * ptr : void*
- *     Raw address of the TidalPy spdlog::logger instance.
- */
+/// Set tidalpy_logger_ptr from a void* received cross-DLL. The cast is safe because
+/// get_tidalpy_logger_address() always returns a spdlog::logger*.
 inline void set_tidalpy_logger_ptr_void(void* ptr) noexcept {
     tidalpy_logger_ptr = static_cast<spdlog::logger*>(ptr);
 }
 
-/**
- * cy_get_logger_ptr
- * Return tidalpy_logger_ptr as void* so it can be exposed via Cython's cdef api
- * without requiring the consuming module to declare the spdlog::logger type.
- *
- * Returns
- * -------
- * void*
- *     Raw address of the TidalPy logger, or nullptr if not yet initialized.
- */
+/// Return tidalpy_logger_ptr as void* so Cython's cdef api can export it without the consuming module
+/// declaring the spdlog::logger type. Null when the logger is not yet initialized.
 inline void* cy_get_logger_ptr() noexcept {
     return static_cast<void*>(tidalpy_logger_ptr);
 }
@@ -125,18 +83,9 @@ inline void* cy_get_logger_ptr() noexcept {
 // =====================================================================================================================
 
 /**
- * cy_create_default_logger
- * Create the TidalPy spdlog logger with a minimal console sink (info level).
- * Called once at logger.pyx module-init time to establish a stable pointer address
- * before init_logger() has been called with the user's config.
- * Safe to call multiple times; no-op if the logger already exists in this DLL.
- *
- * Side effect: sets tidalpy_logger_ptr in this DLL.
- *
- * Assumptions
- * -----------
- * - Called exactly once from logger.pyx module-level code.
- * - init_logger() (cy_init_logger) will later replace the sinks with the user's config.
+ * Create the TidalPy spdlog logger with a console sink at info level and set tidalpy_logger_ptr. Called
+ * once from logger.pyx module-init so the pointer address is stable before the user's config arrives;
+ * a no-op when the logger already exists in this DLL.
  */
 inline void cy_create_default_logger() {
     auto existing = spdlog::get(TIDALPY_LOGGER_NAME);
@@ -157,30 +106,17 @@ inline void cy_create_default_logger() {
 }
 
 /**
- * cy_init_logger
- * Reconfigure the TidalPy logger's sinks with the user-provided config and reset the
- * logger-level filter to trace (the sinks filter by level).
- * Replaces the sinks vector on the existing logger so that all DLLs holding
- * the raw pointer immediately see the new configuration.
- * If the logger does not exist yet, cy_create_default_logger() is called first.
+ * Reconfigure the TidalPy logger's sinks from `config` and reset the logger-level filter to trace (the
+ * sinks do the filtering). Replacing the sinks vector on the existing logger lets every DLL holding the
+ * raw pointer see the new configuration at once. Creates the logger first if it does not exist.
  *
- * Parameters
- * ----------
- * config : const c_LoggerConfig&
- *     Desired logging configuration.
- *
- * Assumptions
- * -----------
- * - Called from Python once at TidalPy startup after the global config is loaded.
- * - Not thread-safe with concurrent logging calls; safe in practice because
- *   init_logger() is called before any C++ logging begins.
+ * Called from Python once at startup; not thread-safe against concurrent logging calls.
  */
 inline void cy_init_logger(const c_LoggerConfig& config) {
     if (!tidalpy_logger_ptr) {
         cy_create_default_logger();
     }
 
-    // Replace sinks with properly configured ones
     std::vector<spdlog::sink_ptr> new_sinks;
 
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
@@ -201,16 +137,8 @@ inline void cy_init_logger(const c_LoggerConfig& config) {
     tidalpy_logger_ptr->flush_on(spdlog::level::err);
 }
 
-/**
- * cy_set_log_level
- * Update the log level on the logger and all of its sinks simultaneously.
- * No-op if tidalpy_logger_ptr has not been set in this DLL.
- *
- * Parameters
- * ----------
- * level : int
- *     spdlog level enum value (0=trace … 6=off).
- */
+/// Update the log level on the logger and all of its sinks. No-op when tidalpy_logger_ptr is not set in
+/// this DLL.
 inline void cy_set_log_level(int level) {
     if (!tidalpy_logger_ptr) { return; }
     const auto lvl = static_cast<spdlog::level::level_enum>(level);
@@ -221,39 +149,25 @@ inline void cy_set_log_level(int level) {
 }
 
 /**
- * cy_log_message
- *
- * Emit one message at the given spdlog level through the shared TidalPy logger, so Cython and Python code log
- * through the same sinks as the TIDALPY_LOG_* macros. No-op when the logger pointer is not set.
- *
- * Parameters
- * ----------
- * level : int
- *     spdlog level enum value (0=trace, 1=debug, 2=info, 3=warning, 4=error, 5=critical).
- * message : const std::string&
- *     Text to log (UTF-8).
+ * Emit one message at the given spdlog level (0 = trace .. 5 = critical) through the shared TidalPy
+ * logger, so Cython and Python code reaches the same sinks as the TIDALPY_LOG_* macros. No-op when the
+ * logger pointer is not set.
  */
 inline void cy_log_message(int level, const std::string& message) {
     if (!tidalpy_logger_ptr) { return; }
     tidalpy_logger_ptr->log(static_cast<spdlog::level::level_enum>(level), message);
 }
 
-/**
- * cy_flush_logger
- *
- * Flush every sink of the shared TidalPy logger (file sinks buffer their output). No-op when the logger
- * pointer is not set.
- */
+/// Flush every sink of the shared TidalPy logger (file sinks buffer their output). No-op when the
+/// logger pointer is not set.
 inline void cy_flush_logger() {
     if (tidalpy_logger_ptr) { tidalpy_logger_ptr->flush(); }
 }
 
 /**
- * cy_shutdown_logger
- * Flush pending log messages and set tidalpy_logger_ptr to nullptr so that all
- * TIDALPY_LOG_* macros become no-ops.  The logger object itself remains in
- * spdlog's registry to avoid dangling-pointer issues in other DLLs that may
- * still hold the raw address; it is released when the process exits.
+ * Flush pending messages and null tidalpy_logger_ptr so the TIDALPY_LOG_* macros become no-ops. The
+ * logger stays in spdlog's registry so raw addresses held by other DLLs cannot dangle; it is released
+ * when the process exits.
  */
 inline void cy_shutdown_logger() {
     if (tidalpy_logger_ptr) {
@@ -268,9 +182,8 @@ inline void cy_shutdown_logger() {
 // Logging Macros
 // =====================================================================================================================
 
-// Use tidalpy_logger_ptr directly (cheaper than spdlog::get() on every call).
-// Each macro guards against nullptr so it is safe in any DLL regardless of
-// whether set_tidalpy_logger_ptr_void() has been called.
+// tidalpy_logger_ptr is used directly because spdlog::get() on every call is slower. Each macro guards
+// against nullptr, so it is safe in a DLL that never called set_tidalpy_logger_ptr_void().
 
 #define TIDALPY_LOG_TRACE(...)    do { \
     if (tidalpy::tidalpy_logger_ptr) { tidalpy::tidalpy_logger_ptr->trace(__VA_ARGS__); } \

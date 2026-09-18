@@ -1,9 +1,7 @@
 # distutils: language = c++
-"""
-potential_3d.pxd
-Cython declarations for the dynamic Kaula 3D tidal-potential engine (potential_3d_.hpp).
+"""Cython declarations for the dynamic Kaula 3D tidal-potential engine (potential_3d_.hpp).
 
-The engine returns each active mode's degree, signed forcing frequency, and the COMPLEX potential
+The engine returns each active mode's degree, signed forcing frequency, and the complex potential
 angular-factor amplitude (the mode's e^{i omega t} pulled out) used by the secular 3D heating.
 """
 

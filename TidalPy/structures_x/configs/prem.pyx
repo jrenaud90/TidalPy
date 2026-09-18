@@ -1,31 +1,20 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-prem.pyx
-Fast loading and layer auto-detection for PREM-like radial data files.
+"""Fast loading and layer auto-detection for PREM-like radial data files.
 
-A PREM-like data file is a delimited table (comma, tab, or whitespace separated)
-with columns:
+A PREM-like data file is a delimited table (comma, tab, or whitespace separated) with columns
 
-    radius [km], density [kg/m^3], V_p [m/s], V_s [m/s]
+    radius [km], density [kg m-3], V_p [m s-1], V_s [m s-1]
 
-and, optionally, two more columns:
+and, optionally, shear viscosity [Pa s] and bulk viscosity [Pa s]. The static moduli follow from the
+density and seismic velocities (``mu = rho Vs^2``; ``K = rho (Vp^2 - 4/3 Vs^2)``). The profile is
+then scanned from the center outward and split into layers at every solid/liquid transition, which
+is the performance-sensitive part of a PREM planet build.
 
-    shear viscosity [Pa s], bulk viscosity [Pa s]
-
-From the density and seismic velocities the static shear and bulk moduli are
-derived (``mu = rho * Vs^2``; ``K = rho * (Vp^2 - 4/3 Vs^2)``). The radial profile
-is then scanned, from the center outward, to split it into layers: a slice with
-zero shear modulus is liquid, non-zero is solid, and every solid<->liquid
-transition starts a new layer. This scan is the performance-sensitive part of a
-PREM planet build and is written in Cython.
-
-All radii are converted to MKS (meters) on load and the arrays are returned ascending
-in radius. A file may list its rows surface-first (as PREM does) or center-first. A
-phase boundary is marked by two rows at the same radius, one for each side; a
-surface-first file is reversed before the stable sort so that the lower layer's row
-stays first at every such radius, which the layer detection and the interpolated
-EOS rely on.
+Radii are converted to meters on load and the arrays are returned ascending in radius. A file may
+list its rows surface-first (as PREM does) or center-first; a surface-first file is reversed before
+the stable sort so the lower layer's row stays first at a duplicated boundary radius, which the
+layer detection and the interpolated EOS rely on.
 """
 
 from libcpp cimport bool as cpp_bool
@@ -104,7 +93,6 @@ def load_prem_arrays(str file_path):
     vp = np.ascontiguousarray(data[:, 2])
     vs = np.ascontiguousarray(data[:, 3])
 
-    # Static moduli from density + seismic velocities.
     shear_modulus = np.ascontiguousarray(density * vs * vs)
     bulk_modulus  = np.ascontiguousarray(density * (vp * vp - (4.0 / 3.0) * vs * vs))
 

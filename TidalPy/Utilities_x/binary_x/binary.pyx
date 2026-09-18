@@ -1,12 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-binary.pyx
-Python-facing interface to TidalPy's binary file format utilities.
-
-Provides check_binary_file() for inspecting TidalPy binary files from Python,
-and get_current_schema_version() to query the compiled-in schema version.
-"""
+"""Python interface to TidalPy's binary file format utilities."""
 
 import os as _os
 
@@ -23,9 +17,8 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 
-# Wire this DLL's logger pointer to the shared TidalPy logger so that
-# TIDALPY_LOG_* calls inside binary_.hpp reach the correct spdlog instance.
-# (Mirrors the pattern used by every other _x Cython extension.)
+# Wire this DLL's logger pointer to the shared TidalPy logger so TIDALPY_LOG_* calls inside
+# binary_.hpp reach the correct spdlog instance.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 
 
@@ -44,33 +37,18 @@ def check_binary_file(path: str) -> dict:
     Returns
     -------
     dict
-        Keys:
-
-        ``schema_major``, ``schema_minor``, ``schema_patch`` : int
-            Individual schema version components from the file header.
-        ``schema_version`` : str
-            Formatted version string, e.g. ``"0.2.0"``.
-        ``class_id`` : int
-            Numeric class type identifier (BinaryClassID in binary_.hpp).
-        ``payload_size`` : int
-            Byte count of the data payload following the 20-byte header.
+        ``schema_major``, ``schema_minor``, ``schema_patch`` (int), ``schema_version`` (str, for example
+        ``"0.2.0"``), ``class_id`` (int, the BinaryClassID in ``binary_.hpp``), and ``payload_size``
+        (int, bytes of payload following the 20-byte header).
 
     Raises
     ------
     TypeError
-        If path is not a str.
+        If `path` is not a str.
     FileNotFoundError
-        If path does not exist.
+        If `path` does not exist.
     IOError
-        If the file cannot be opened, is shorter than 20 bytes, or has
-        invalid magic bytes.
-
-    Examples
-    --------
-    >>> from TidalPy.Utilities_x.binary_x import check_binary_file
-    >>> info = check_binary_file("world.tpyb")
-    >>> info["schema_version"]
-    '0.2.0'
+        If the file cannot be opened, is shorter than 20 bytes, or has invalid magic bytes.
     """
     cdef c_BinaryHeader header
 
@@ -102,19 +80,7 @@ def check_binary_file(path: str) -> dict:
 
 
 def get_current_schema_version() -> str:
-    """Return the schema version compiled into this TidalPy build.
-
-    Returns
-    -------
-    str
-        Version string, e.g. ``"0.2.0"``.
-
-    Examples
-    --------
-    >>> from TidalPy.Utilities_x.binary_x import get_current_schema_version
-    >>> get_current_schema_version()
-    '0.2.0'
-    """
+    """Return the schema version compiled into this TidalPy build, for example ``"0.2.0"``."""
     return (
         f"{TIDALPY_SCHEMA_MAJOR}"
         f".{TIDALPY_SCHEMA_MINOR}"

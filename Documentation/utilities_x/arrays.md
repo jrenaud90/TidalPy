@@ -1,10 +1,10 @@
 # Arrays and Interpolation (`Utilities_x.arrays`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
-Provides linear interpolation over a sorted grid. The tabulated equation of state uses it to get density at a radius, the layer profiles use it to get gravity and pressure between slices, and the radial solver's dense output uses it to evaluate the solution between integration steps.
+`TidalPy.Utilities_x.arrays` provides linear interpolation over a sorted grid. The tabulated equation of state uses it to get density at a radius, the layer profiles use it to get gravity and pressure between slices, and the radial solver's dense output uses it to evaluate the solution between integration steps.
 
-It matters that this is one implementation rather than several. A Python result and a C++ result that come from different interpolators will disagree in the last digits, and chasing that disagreement through a solve is a waste of a day. `interp` is a thin wrapper over the same header-only C++ routine the solvers call, so the two agree exactly.
+`interp` is a thin wrapper over the same header-only C++ routine the solvers call, so a Python result and a C++ result agree exactly.
 
 ## Python API
 
@@ -42,11 +42,11 @@ const double value = tidalpy::c_interp(0.5e6, radius.data(), density.data(), rad
 | `c_interp_complex(...)` | The same for complex values, interpolating the real and imaginary parts independently. |
 | `c_binary_search_with_guess(key, array, length, guess, int& code)` | The index search underneath both. Returns the index `j` with `array[j] <= key < array[j+1]`, returns `length` past the right end, and sets `code = -1` while returning 0 left of the array. Requires a length of at least three. |
 
-The `guess` argument seeds the binary search. For an isolated lookup, pass zero. When interpolating a monotonic sequence of query points, passing the previous result index turns the search from logarithmic into effectively constant time, which is the difference that makes a dense-output evaluation over thousands of radial slices cheap.
+The `guess` argument seeds the binary search. For an isolated lookup, pass zero. When interpolating a monotonic sequence of query points, passing the previous result index turns the search from logarithmic into effectively constant time, which makes a dense-output evaluation over thousands of radial slices cheap.
 
 Short domains are handled without the search: an empty domain gives NaN, a single sample gives that sample's value, and two samples interpolate directly over the one interval, since the guess-seeded search needs at least three points.
 
-## Usage
+## Where Interpolation is Used
 
 The tabulated equation of state interpolates its density and viscoelastic tables with `c_interp`; see [Material EOS Models](../material_x/material_eos.md). The layer equation-of-state data, the radial solver's retained solution, and the equation-of-state solution object all use it to answer queries at an arbitrary radius between stored slices.
 

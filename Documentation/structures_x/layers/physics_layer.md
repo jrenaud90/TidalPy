@@ -1,16 +1,10 @@
 # PhysicsLayer
 
-`TidalPy.structures_x.layers.PhysicsLayer`
+_Updated: 2026-09-16_
 
-## Overview
+`TidalPy.structures_x.layers.PhysicsLayer` extends `BaseLayer` with the static mechanical properties a tidal calculation needs: the shear and bulk moduli \[Pa\] and the shear and bulk viscosities \[Pa s\].
 
-`PhysicsLayer` extends `BaseLayer` with the static mechanical properties needed for tidal calculations: (shear/bulk) modulus and dynamic (shaer/bulk) viscosity.
-
-When a rheology model (a `RheologyBase` subclass) is attached via the `set_shear_rheology` / `set_bulk_rheology` methods, `calc_complex_shear/bulk_modulus` returns the frequency-dependent complex modulus from the constitutive law. Until then (or when no rheology is set), the methods return the static modulus as a purely real complex number, equivalent to perfectly elastic behavior.
-
-All values are in **MKS units** (meters, kilograms, seconds, pascals).
-
----
+When a rheology model (a `RheologyBase` subclass) is attached with `set_shear_rheology` or `set_bulk_rheology`, `calc_complex_shear_modulus` and `calc_complex_bulk_modulus` return the frequency-dependent complex modulus from the constitutive law. Until then the methods return the static modulus as a purely real complex number, which is perfectly elastic behavior.
 
 ## Inheritance
 
@@ -20,8 +14,6 @@ TidalPyBaseClass
         └── BaseLayer
               └── PhysicsLayer
 ```
-
----
 
 ## Constructor
 
@@ -66,8 +58,6 @@ PhysicsLayer(
 | `love_number_h` | `complex` | — | Radial displacement Love number h (placeholder). Default `0+0j`. |
 | `love_number_l` | `complex` | — | Tangential displacement Love number l (placeholder). Default `0+0j`. |
 
----
-
 ## Properties
 
 ### Inherited from BaseLayer
@@ -108,13 +98,11 @@ These three flags decide which equations the radial solver uses inside this laye
 layer.is_incompressible = True    # e.g. to use the propagation-matrix method
 ```
 
----
-
 ## Methods
 
 ### `set_shear_rheology(rheology)` / `set_bulk_rheology(rheology)`
 
-Attach a rheology model (a `RheologyBase` subclass such as `Maxwell()` or `make_rheology("andrade")`) used to compute the complex shear / bulk modulus. Ownership of the underlying C++ model is **transferred** into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (attempting to attach it again raises `ValueError`).
+Attach a rheology model (a `RheologyBase` subclass such as `Maxwell()` or `make_rheology("andrade")`) used to compute the complex shear / bulk modulus. Ownership of the underlying C++ model is transferred into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (attempting to attach it again raises `ValueError`).
 
 ```python
 from TidalPy.rheology_x import Maxwell, make_rheology
@@ -161,19 +149,15 @@ Attach a partial-melt model from [`partial_melt_x`](../../partial_melt_x/partial
 
 `get_config_dict()` adds the four static moduli and viscosities, the Love-number components, and one sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosity`, `bulk_viscosity`, `partial_melt`), each keyed by `model` exactly as the world builder reads it.
 
----
-
 ## Binary Serialization
 
 `save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by ten doubles in order: `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im (6 doubles total for the Love numbers).
 
 Following the scalar payload, an optional sub-model section is written: one-byte presence flags for the material EOS model, the shear and bulk rheology, the shear and bulk viscosity, and the partial-melt model, each followed (when set) by that model's own binary record. On load, attached models are reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with its models intact (verify with `eos_set`, `shear_rheology_set`, `shear_viscosity_set`, and `partial_melt_set`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 
-Binary class ID: **101** (`BinaryClassID::PhysicsLayer`).
+Binary class id 101 (`BinaryClassID::PhysicsLayer`).
 
 The EOS profile data is not serialized; re-run the world's `solve_eos` after loading.
-
----
 
 ## Example
 

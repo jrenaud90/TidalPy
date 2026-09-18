@@ -41,31 +41,12 @@ inline size_t c_find_num_shooting_solutions(
     bool is_incompressible
 ) noexcept
 {
-    /** Determine number of solutions required for layer based on assumptions.
-    
-    Parameters
-    ----------
-    layer_type : int
-        - 0: Layer is solid 
-        - 1: Layer is liquid
-    is_static : bool
-        Use static (True) or dynamic (False) assumption.
-    is_incompressible : bool
-        Use incompressible (True) or compressible (False) assumption.
-
-    Returns
-    -------
-    num_sols : int
-        Number of solutions required for layer.
-
-    */
-
-    // Initialize
+    /** Number of independent shooting solutions a layer needs: 3 solid, 2 dynamic liquid, 1 static liquid.
+    layer_type is 0 for solid and 1 for liquid. */
     size_t num_sols = 0;
 
     if (layer_type == 0)
     {
-        // Solid
         if (is_static)
         {
             if (is_incompressible)
@@ -80,7 +61,6 @@ inline size_t c_find_num_shooting_solutions(
         }
         else
         {
-            // Dynamic
             if (is_incompressible)
             {
                 // TODO: Confirm
@@ -94,7 +74,6 @@ inline size_t c_find_num_shooting_solutions(
     }
     else
     {
-        // Liquid
         if (is_static)
         {
             if (is_incompressible)
@@ -109,7 +88,6 @@ inline size_t c_find_num_shooting_solutions(
         }
         else
         {
-            // Dynamic
             if (is_incompressible)
             {
                 // TODO: Confirm
@@ -152,10 +130,7 @@ int c_shooting_solver(
     bool warnings
 ) noexcept
 {
-    /** Solves the viscoelastic-gravitational problem for planets using a shooting method.
-    */
-
-    // Get raw pointer of radial solver storage and eos storage
+    /** Solve the viscoelastic-gravitational problem with the shooting method. */
     c_EOSSolution* eos_solution_storage_ptr = solution_storage_ptr->get_eos_solution_ptr();
 
     solution_storage_ptr->message = std::string("RadialSolver.ShootingMethod:: Starting integration\n");
@@ -164,36 +139,29 @@ int c_shooting_solver(
         printf("%s", solution_storage_ptr->message.c_str());
     }
 
-    // Type conversions
     const double degree_l_dbl = static_cast<double>(degree_l);
 
-    // Alias pointers to EOS properties
     double* radius_array_ptr  = eos_solution_storage_ptr->radius_array_vec.data();
     double* gravity_array_ptr = eos_solution_storage_ptr->gravity_array_vec.data();
-    // double* pressure_array_ptr = eos_solution_storage_ptr->pressure_array_vec;   // Unused
     double* density_array_ptr = eos_solution_storage_ptr->density_array_vec.data();
     std::complex<double>* complex_shear_array_ptr = eos_solution_storage_ptr->complex_shear_array_vec.data();
     std::complex<double>* complex_bulk_array_ptr  = eos_solution_storage_ptr->complex_bulk_array_vec.data();
 
-    // Pull out key information
     const size_t num_layers   = eos_solution_storage_ptr->num_layers;
     const size_t total_slices = eos_solution_storage_ptr->radius_array_size;
     const size_t top_slice_i  = total_slices - 1;
-    
-    // Pull out any constants now that arrays have had dimensional protocol applied to them.
+
     const double planet_radius   = eos_solution_storage_ptr->radius;
     const double surface_gravity = eos_solution_storage_ptr->surface_gravity;
 
-    // Find boundary condition at the top of the planet -- this is dependent on the forcing type.
-    //     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
-    // The [5] represents the maximum number of solvers that can be invoked with a single call to radial_solver
+    // Surface boundary conditions per forcing type; tides follow (y2, y4, y6) = (0, 0, (2l+1)/R).
     const size_t num_ytypes = num_bc_models;
 
-    // 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
+    // 15 = 5 (max solve_for entries) * 3 (surface conditions)
     double boundary_conditions[15];
     double* bc_pointer = &boundary_conditions[0];
     c_get_surface_bc(
-        bc_pointer,  // Changed parameter
+        bc_pointer,
         bc_models_ptr,
         num_ytypes,
         planet_radius,
@@ -201,53 +169,41 @@ int c_shooting_solver(
         degree_l_dbl
     );
 
-    // Integration information
-    // Number of extra parameters captured during integration
     const size_t num_extra            = 0;
     const double first_step_size      = 0.0;
-    // Dense output is captured and the whole CySolverResult retained for each independent solution, so the collapsed
-    // y-solution can be evaluated at any radius later (the dense calling system) rather than only on a fixed grid.
+    // Every independent solution's dense CyRK result is retained so the collapsed y can be evaluated at any radius;
+    // an empty t_eval keeps the adaptive dense segments with no fixed grid.
     const bool   capture_dense_output = true;
-    // Empty t_eval: with dense output on, the integrator stores its adaptive dense segments (no fixed evaluation grid).
     std::vector<double> teval_empty;
-    // Events (empty — not used by RadialSolver)
-    std::vector<Event> events_vec;
+    std::vector<Event> events_vec;  // unused
 
-    // Max step size
+    // A zero max_step means one third of each layer's thickness (below).
     double max_step_to_use      = TidalPyConstants::d_NAN;
     bool   max_step_from_arrays = false;
-    
+
     if (max_step == 0.0)
     {
-        // If max_step is zero use the array information to determine max_step_size
         max_step_from_arrays = true;
     }
     else
     {
-        // Otherwise use user input.
         max_step_to_use = max_step;
     }
 
-    // Setup tolerance arrays
-    // For simplicity just make these all as large as the maximum number of ys.
-    // Maximum number of ys = 6. Then 2x for conversion from complex to real
     std::vector<double> rtols_vec{integration_rtol};
     std::vector<double> atols_vec{integration_atol};
 
-    // Create storage for flags and information about each layer.
     std::vector<size_t> num_solutions_by_layer_vec;
     num_solutions_by_layer_vec.resize(num_layers);
     size_t* num_solutions_by_layer_ptr = num_solutions_by_layer_vec.data();
 
     for (size_t current_layer_i = 0; current_layer_i < num_layers; ++current_layer_i)
     {
-        // Pull out information on this layer
         const int layer_type            = layer_types_ptr[current_layer_i];
         const bool layer_is_static      = is_static_by_layer_ptr[current_layer_i];
         const bool layer_is_incomp      = is_incompressible_by_layer_ptr[current_layer_i];
         const double layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i];
 
-        // Find number of solutions based on this layer's assumptions
         const size_t num_sols = c_find_num_shooting_solutions(
             layer_type,
             layer_is_static,
@@ -256,9 +212,8 @@ int c_shooting_solver(
         num_solutions_by_layer_ptr[current_layer_i] = num_sols;
     }
 
-    // We no longer sample each independent solution onto a grid. Instead each layer/solution's full dense CyRK
-    // interpolant is retained in the storage (the dense calling system), and the collapse constants + per-layer
-    // metadata needed to combine them at any radius are recorded alongside. Prepare that storage now.
+    // Storage for the per-(layer, solution) dense interpolants, the collapse constants, and the per-layer metadata
+    // needed to combine them at any radius.
     const std::complex<double> c_constant_NAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
     solution_storage_ptr->reset_interpolant_storage();
     solution_storage_ptr->p_uses_interpolants = true;
@@ -285,8 +240,7 @@ int c_shooting_solver(
         std::vector<std::array<std::complex<double>, 3>>(
             num_layers, std::array<std::complex<double>, 3>{c_constant_NAN, c_constant_NAN, c_constant_NAN}));
 
-    // Create storage for uppermost ys for each solution. We don't know how many solutions or ys per layer so assume the
-    //  worst.
+    // Stack buffers sized for the largest case: 6 ys x 3 solutions = 18 complex, 36 real.
     std::complex<double> uppermost_y_per_solution[18];
     std::complex<double>* uppermost_y_per_solution_ptr = &uppermost_y_per_solution[0];
 
@@ -295,49 +249,30 @@ int c_shooting_solver(
         uppermost_y_per_solution_ptr[i] = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
     }
 
-    // Layer specific pointers; set the size based on the layer with the most slices.
     std::vector<double> layer_radius_vec(eos_solution_storage_ptr->radius_array_vec.size());
 
-    // Starting solutions (initial conditions / lower boundary conditions)
-    // Allocate memory for the initial value arrays now. We don't know the number of solutions or ys. But the max number
-    //  is not all that different from the min. So it is more efficient to assume the largest size.
-    // Largest size = 6 (ys) x 3 (sols) = 18
-    // For the "only_real" this is further multiplied by 2 since we convert the number of _complex_ ys to 2x _real_ ys
     std::complex<double> initial_y[18];
     std::complex<double>* initial_y_ptr = &initial_y[0];
     double initial_y_only_real[36];
     double* initial_y_only_real_ptr = &initial_y_only_real[0];
     bool starting_y_check = false;
 
-    // No matter the results of the integration, we know the shape and size of the final solution.
-    // The number of rows will depend on if the user wants to simultaneously calculate loading Love numbers.
     const size_t num_output_ys = C_MAX_NUM_Y * num_ytypes;
 
-    // Get a reference pointer to solution array
-    // Cast the solution pointer from double to double complex
     std::complex<double>* solution_ptr = reinterpret_cast<std::complex<double>*>(solution_storage_ptr->full_solution_vec.data());
 
-    // Layer's differential equation will vary by layer type.
-    // Buffer holds the EOS solver's dependent + extra outputs at a radius; its size
-    // MUST match C_EOS_DY_VALUES in Material_x/eos/ode_.hpp (the EOS dense call writes
-    // this many doubles).
+    // The EOS dense call writes C_EOS_DY_VALUES doubles.
     double eos_interp_array[C_EOS_DY_VALUES];
     double* eos_interp_array_ptr = &eos_interp_array[0];
     std::unique_ptr<CySolverResult> integration_solution_uptr = std::make_unique<CySolverResult>(integration_method);
     CySolverResult* integration_solution_ptr = nullptr;
 
-    // The radial solver diffeq's require additional inputs other than "y" and "r". Build a structure that stores these
-    // extra arguments will be passed to the diffeq's while solving the ODE.
+    // Extra diffeq arguments beyond y and r.
     std::vector<char> diffeq_args_vec(sizeof(c_RadialSolverArgs));
     c_RadialSolverArgs* diffeq_args_ptr = reinterpret_cast<c_RadialSolverArgs*>(diffeq_args_vec.data());
     PreEvalFunc diffeq_preeval_ptr = nullptr;
     std::vector<double> y0_vec(C_MAX_NUM_Y_REAL);
 
-    // The diffeq needs to be able to call the EOS solution which is different for each layer.
-    // The EOS solution is loaded into this argument structure inside the per-layer loop below;
-    // it starts null until the first layer is processed.
-
-    // Set diffeq inputs that do not change with layer
     diffeq_args_ptr->degree_l         = degree_l_dbl;
     diffeq_args_ptr->lp1              = degree_l_dbl + 1.0;
     diffeq_args_ptr->lm1              = degree_l_dbl - 1.0;
@@ -348,9 +283,7 @@ int c_shooting_solver(
     diffeq_args_ptr->layer_index      = 0;
     diffeq_args_ptr->eos_solution_ptr = eos_solution_storage_ptr;
 
-    // The constant vectors are the same size as the number of solutions in the layer. But since the largest they can
-    //  ever be is 3, it is more efficient to just preallocate them on the stack rather than dynamically allocate them
-    //  on the heap.
+    // At most 3 solutions per layer, so the constant vectors live on the stack.
     std::complex<double> constant_vector[3];
     std::complex<double>* constant_vector_ptr = &constant_vector[0];
     std::complex<double> layer_above_constant_vector[3];
@@ -368,27 +301,20 @@ int c_shooting_solver(
         surface_solutions_ptr[i] = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
     }
 
-    // Variables used to solve the linear equation at the planet's surface.
-    // Info = flag set by the solver. Set equal to -999. This will indicate that the solver has not been called yet.
+    // Surface linear-solve status; -999 means not yet called.
     int bc_solution_info = -999;
 
-    // The radial solver can not start at r=0 (singularity) and the higher in the planet the better the stability of
-    // the solution. The flip side is that the more of the planet you skip the less accurate your results will be. 
-    // Below we determine a reasonable starting radius for the radial solver solution. 
+    // The integration cannot start at r = 0 (singularity); starting higher is more stable but skips more of the
+    // planet. The automatic choice follows Martens' thesis and the LoadDef manual, capped by
+    // config_x [numerical].max_start_radius_fraction.
     if (starting_radius == 0.0)
     {
-        // User did not provide a starting radius.
-        // Use a model involving planet radius and degree l to determine a reasonable choice. 
-        // This formulism is based on Hilary Martens thesis and LoadDef manual.
         starting_radius = planet_radius * std::pow(start_radius_tolerance, 1.0 / degree_l_dbl);
-
-        // Ensure the starting radius is not too close to the surface of the planet
-        // (config_x [numerical].max_start_radius_fraction).
         starting_radius = std::fmin(
             starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
     }
 
-    // Determine which layer this starting radius resides in. We will skip the lower layers
+    // Find the layer holding the starting radius; lower layers are skipped.
     size_t start_layer_i           = 0;
     size_t last_index_before_start = 0;
     size_t start_index_in_layer    = 0;
@@ -397,7 +323,6 @@ int c_shooting_solver(
     double last_layer_upper_radius = TidalPyConstants::d_INF;
     for (size_t current_layer_i = 0; current_layer_i < num_layers; ++current_layer_i)
     {
-        // Check if the radius is in this layer
         layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i];
         if (current_layer_i == 0)
         {
@@ -410,11 +335,10 @@ int c_shooting_solver(
 
         if (last_layer_upper_radius < starting_radius && starting_radius <= layer_upper_radius)
         {
-            // It is!
             start_layer_i = current_layer_i;
             const size_t first_slice_index = first_slice_index_by_layer_vec[current_layer_i];
-            
-            // Now find the last radial slice before the starting radius
+
+            // Find the last slice before the starting radius.
             start_index_in_layer = 0;
             for (size_t slice_i = first_slice_index; slice_i < first_slice_index + num_slices_by_layer_vec[current_layer_i]; ++slice_i)
             {
@@ -427,8 +351,6 @@ int c_shooting_solver(
                     }
                     else
                     {
-                        // We found that the starting radius is in-between this slice and the last slice.
-                        // We want to set the last index to the slice before this one.
                         last_index_before_start = slice_i - 1;
                     }
                     break;
@@ -451,7 +373,7 @@ int c_shooting_solver(
     solution_storage_ptr->p_start_layer_i         = start_layer_i;
     solution_storage_ptr->p_starting_radius_solve = starting_radius;
 
-    // Step through the solution vector and NAN out data below the starting radius
+    // NaN the gridded solution below the starting radius.
     for (size_t slice_i = 0; slice_i < last_index_before_start + 1; ++slice_i)
     {
         for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
@@ -465,10 +387,8 @@ int c_shooting_solver(
     }
 
     // =================================================================================================================
-    // Main Diffeq Loop!
-    // Steps through each layer starting from the bottom; finds starting conditions; solves the ode and stores results.
+    // Main integration loop: bottom layer up; starting conditions, then the ODE for each independent solution
     // =================================================================================================================
-    // Initialize parameters for layer below
     size_t layer_below_num_sols  = 0;
     int layer_below_type         = -1;
     bool layer_below_is_static   = false;
@@ -478,7 +398,7 @@ int c_shooting_solver(
     double last_layer_upper_gravity = TidalPyConstants::d_NAN;
     double last_layer_upper_density = TidalPyConstants::d_NAN;
     
-    // Physical parameters at the very bottom of the planet.
+    // Physical parameters at the starting radius, reused during the collapse.
     double starting_gravity;
     double starting_density;
     std::complex<double> starting_shear{TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
@@ -486,16 +406,12 @@ int c_shooting_solver(
 
     for (size_t current_layer_i = start_layer_i; current_layer_i < num_layers; ++current_layer_i)
     {
-        // Get layer's index information
         size_t layer_slices = num_slices_by_layer_vec[current_layer_i];
         size_t first_slice_index;
         if (current_layer_i == start_layer_i)
         {
-            // The first slice index is not going to actually be the bottom-most index
-            // Instead it is the one right at or above our starting radius.
+            // The starting layer begins at the slice at or above the starting radius.
             first_slice_index = last_index_before_start + 1;
-
-            // When we loop through slices we only want to loop between the starting slice and the top of the layer
             layer_slices -= start_index_in_layer;
         }
         else
@@ -503,23 +419,19 @@ int c_shooting_solver(
             first_slice_index = first_slice_index_by_layer_vec[current_layer_i];
         }
 
-        // Get solution and y information
         const size_t num_sols   = num_solutions_by_layer_ptr[current_layer_i];
         const size_t num_ys     = 2 * num_sols;
         const size_t num_ys_dbl = 2 * num_ys;
 
-        // Setup pointer array slices starting at the start of this layer (either base or at starting index)
         double* layer_radius_ptr    = &radius_array_ptr[first_slice_index];
         double* layer_density_ptr   = &density_array_ptr[first_slice_index];
         double* layer_gravity_ptr   = &gravity_array_ptr[first_slice_index];
         std::complex<double>* layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index];
         std::complex<double>* layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index];
 
-        // Populate our t_eval vector with this layer's radius values.
         layer_radius_vec.resize(layer_slices);
         std::memcpy(layer_radius_vec.data(), layer_radius_ptr, sizeof(double) * layer_slices);
-        
-        // Get physical parameters at the bottom of the layer
+
         double radius_lower{starting_radius};
         double gravity_lower{TidalPyConstants::d_NAN};
         double density_lower{TidalPyConstants::d_NAN};
@@ -527,15 +439,9 @@ int c_shooting_solver(
         std::complex<double> bulk_lower{starting_bulk};
         if (current_layer_i == start_layer_i)
         {
-            // In the first layer we can not use the physical properties at the bottom of the arrays
-            // because the starting radius may not be at the bottom.
-            // Even worse, it may not be at any of the slice indices that are stored.
-            // To get the most accurate result we need to perform an interpolation to find various properties at
-            // this starting radius. 
+            // The starting radius is generally not on a stored slice, so evaluate the EOS there.
             eos_solution_storage_ptr->call(current_layer_i, starting_radius, eos_interp_array_ptr);
 
-            // Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 
-            // We are storing these in function-global variables because they will be used again during collapse
             starting_gravity = eos_interp_array_ptr[0];
             // TODO: At very small r the interpolated g can come back negative (likely an EOS artifact);
             // clamp it to a small positive floor so the shooting start is well defined.
@@ -546,8 +452,7 @@ int c_shooting_solver(
             starting_density = eos_interp_array_ptr[4];
             starting_shear   = std::complex<double>(eos_interp_array_ptr[5], eos_interp_array_ptr[6]);
             starting_bulk    = std::complex<double>(eos_interp_array_ptr[7], eos_interp_array_ptr[8]);
-            
-            // Now set local variables used in this loop
+
             radius_lower  = starting_radius;
             gravity_lower = starting_gravity;
             density_lower = starting_density;
@@ -556,7 +461,6 @@ int c_shooting_solver(
         }
         else
         {
-            // Otherwise we can just use the values at the base of the layer
             radius_lower  = layer_radius_ptr[0];
             gravity_lower = layer_gravity_ptr[0];
             density_lower = layer_density_ptr[0];
@@ -570,64 +474,52 @@ int c_shooting_solver(
         const std::complex<double> shear_upper   = layer_shear_mod_ptr[layer_slices - 1];
         const std::complex<double> bulk_upper    = layer_bulk_mod_ptr[layer_slices - 1];
 
-        // Determine max step size (if not provided by user)
         if (max_step_from_arrays)
         {
-            // Maximum step size during integration can not exceed ~1/3 of the layer size.
             max_step_to_use = std::abs(0.33 * (radius_upper - radius_lower));
             max_step_to_use = std::fmax(max_step_to_use, d_EPS_DBL_10000);
         }
 
-        // Get assumptions for layer
         const int layer_type       = layer_types_ptr[current_layer_i];
         const bool layer_is_static = is_static_by_layer_ptr[current_layer_i];
         const bool layer_is_incomp = is_incompressible_by_layer_ptr[current_layer_i];
 
-        // Determine rtols and atols for this layer.
-        // Scale rtols by layer type
         if (scale_rtols_by_layer_type)
         {
-            // The x2 accounts for size of double complex being stored in double vector
+            // Two reals per complex y.
             rtols_vec.resize(num_ys * 2);
             atols_vec.resize(num_ys * 2);
-            
+
             for (size_t y_i = 0; y_i < num_ys; ++y_i)
             {
-                // Default is that each layer's rtol and atol equal user input.
                 // TODO: Change up the tolerance scaling between real and imaginary?
                 double layer_rtol_real = integration_rtol;
                 double layer_rtol_imag = integration_rtol;
                 double layer_atol_real = integration_atol;
                 double layer_atol_imag = integration_atol;
 
-                // Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
-                // TODO test that these scales are the best. See Issue #44
+                // Tighter rtols on the ys that drive instability. TODO: test these scales (Issue #44).
                 if (layer_type == 0)
                 {
-                    // Solid layer
-                    // Scale y2 and y3 by 0.1
+                    // Solid: y2 and y3.
                     if ((y_i == 1) || (y_i == 2))
                     {
-                        // Scale both the real and imaginary portions by the same amount.
                         layer_rtol_real *= 0.1;
                         layer_rtol_imag *= 0.1;
                     }
                 }
                 else
                 {
-                    // Liquid layer
                     if (!layer_is_static)
                     {
-                        // Scale dynamic liquid layer's y2 by additional 0.01.
+                        // Dynamic liquid: y2.
                         if (y_i == 1)
                         {
-                            // Scale both the real and imaginary portions by the same amount.
                             layer_rtol_real *= 0.01;
                             layer_rtol_imag *= 0.01;
                         }
                     }
                 }
-                // Populate rtol and atol pointers.
                 rtols_vec[2 * y_i]     = layer_rtol_real;
                 rtols_vec[2 * y_i + 1] = layer_rtol_imag;
                 atols_vec[2 * y_i]     = layer_atol_real;
@@ -635,8 +527,7 @@ int c_shooting_solver(
             }
         }
 
-        // Initialize y to nan so uninitialized reads are visible.
-        // OPT: this is for debugging purposes. could likely be commented out in the future for small performance gain.
+        // NaN so uninitialized reads are visible (could be dropped for a small performance gain).
         for (size_t y_i = 0; y_i < 36; ++y_i)
         {
             if (y_i < 18)
@@ -648,7 +539,6 @@ int c_shooting_solver(
 
         if (current_layer_i == start_layer_i)
         {
-            // In the first layer. Use initial condition function to find initial conditions
             c_find_starting_conditions(
                 &solution_storage_ptr->success,
                 solution_storage_ptr->message,
@@ -663,8 +553,8 @@ int c_shooting_solver(
                 shear_lower,
                 degree_l,
                 G_to_use,
-                C_MAX_NUM_Y, 
-                initial_y_ptr,  // Modified Variable
+                C_MAX_NUM_Y,
+                initial_y_ptr,
                 starting_y_check
             );
 
@@ -676,58 +566,48 @@ int c_shooting_solver(
         }
         else
         {
-            // Not in the first layer. Use interface function to find initial conditions
             layer_below_type      = layer_types_ptr[current_layer_i - 1];
             layer_below_is_static = is_static_by_layer_ptr[current_layer_i - 1];
             layer_below_is_incomp = is_incompressible_by_layer_ptr[current_layer_i - 1];
 
-            // Find gravity at the base interface using bottom of this layer and top of previous.
+            // Interface gravity: mean of the bottom of this layer and the top of the one below.
             interface_gravity = 0.5 * (gravity_lower + last_layer_upper_gravity);
 
-            // Find the density needed for some initial conditions.
+            // Liquid density at the interface: the liquid side of a solid-liquid pair, the static side of a
+            // liquid-liquid pair, NaN when neither side needs it.
             if ((layer_type == 0) && (layer_below_type == 0))
             {
-                // Both layers are solid. A liquid interface density is not needed.
                 static_liquid_density = TidalPyConstants::d_NAN;
             }
             else if (!(layer_type == 0) && (layer_below_type == 0))
             {
-                // Layer below is solid, this layer is liquid. Use its density.
                 static_liquid_density = density_lower;
             }
             else if ((layer_type == 0) && !(layer_below_type == 0))
             {
-                // Layer below is liquid, this layer is solid. Use layer below's density.
                 static_liquid_density = last_layer_upper_density;
             }
             else
             {
-                // Both layers are liquid. Choose the layer's density which is static.
                 if (layer_is_static && layer_below_is_static)
                 {
-                    // Both layers are static.
                     // TODO: Not sure what to do here so just use this layer's density.
                     static_liquid_density = density_lower;
                 }
                 else if (layer_is_static && !layer_below_is_static)
                 {
-                    // This layer is static, one below is not. Use this layer's density
                     static_liquid_density = density_lower;
                 }
                 else if (!layer_is_static && layer_below_is_static)
                 {
-                    // This layer is dynamic, layer below is static. Use layer below's density
                     static_liquid_density = last_layer_upper_density;
                 }
                 else
                 {
-                    // Both layers are dynamic. Static liquid density is not needed.
                     static_liquid_density = TidalPyConstants::d_NAN;
                 }
             }
 
-            // Find the starting values for this layer using the results a the top of the previous layer + an interface
-            //  function.
             c_solve_upper_y_at_interface(
                 uppermost_y_per_solution_ptr,
                 initial_y_ptr,
@@ -746,13 +626,12 @@ int c_shooting_solver(
             );
         }
 
-        // Reset the uppermost y value array
         for (size_t i = 0; i < 18; ++i)
         {
             uppermost_y_per_solution_ptr[i] = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
         }
 
-        // Change initial conditions into 2x real values instead of complex for integration
+        // The integrator works on real pairs.
         for (size_t solution_i = 0; solution_i < num_sols; ++solution_i)
         {
             for (size_t y_i = 0; y_i < num_ys; ++y_i)
@@ -763,27 +642,21 @@ int c_shooting_solver(
             }
         }
 
-        // Find correct diffeq
         DiffeqFuncType layer_diffeq = c_find_layer_diffeq(layer_type, layer_is_static, layer_is_incomp);
 
-        // Set the layer index to current layer in the additional diffeq arg struct
         diffeq_args_ptr->layer_index = current_layer_i;
 
-        // Solve for each solution
         for (size_t solution_i = 0; solution_i < num_sols; ++solution_i)
         {
-            // Ensure the integration solution object is initialized.
             if (!integration_solution_uptr)
             {
                 integration_solution_uptr = std::make_unique<CySolverResult>(integration_method);
             }
             integration_solution_ptr = integration_solution_uptr.get();
 
-            // Copy over initial y values into our vector
             y0_vec.resize(num_ys_dbl);
             std::memcpy(y0_vec.data(), &initial_y_only_real_ptr[solution_i * C_MAX_NUM_Y_REAL], sizeof(double) * num_ys_dbl);
 
-            // ###### Integrate! #######
             baseline_cysolve_ivp_noreturn(
                 integration_solution_ptr,  // Raw pointer to CySolverResult structure.
                 layer_diffeq,              // Differential equation [DiffeqFuncType]
@@ -806,16 +679,12 @@ int c_shooting_solver(
                 true,                      // Force retain solver [bool]
                 nullptr                    // Analytic jacobian (null = numerical; used by implicit methods) [JacobianFuncType]
             );
-            // #########################
 
-            // Store diagnostic data
-            solution_storage_ptr->shooting_method_steps_taken_vec[(3 * current_layer_i) + solution_i] = 
+            solution_storage_ptr->shooting_method_steps_taken_vec[(3 * current_layer_i) + solution_i] =
                 integration_solution_ptr->steps_taken;
 
-            // Check for problems
             if (!integration_solution_ptr->success)
             {
-                // Problem with integration.
                 solution_storage_ptr->error_code = -11;
                 solution_storage_ptr->success    = false;
                 solution_storage_ptr->message    = 
@@ -830,9 +699,7 @@ int c_shooting_solver(
                 return solution_storage_ptr->error_code;
             }
 
-            // Capture the y-values at the top of this layer (from the dense interpolant) for the next layer's
-            // interface boundary condition, then retain the whole interpolant in the storage so the collapsed
-            // solution can be evaluated at any radius later.
+            // Top-of-layer y for the next layer's interface condition.
             double interp_top[C_MAX_NUM_Y_REAL];
             integration_solution_ptr->call(radius_upper, interp_top);
             for (size_t y_i = 0; y_i < num_ys; ++y_i)
@@ -841,8 +708,7 @@ int c_shooting_solver(
                     std::complex<double>(interp_top[2 * y_i], interp_top[2 * y_i + 1]);
             }
 
-            // Move the dense interpolant into the storage (keyed by layer/solution) and arm a fresh one for the next
-            // integration. Mirrors how the EOS solver retains its per-layer interpolators.
+            // Retain the dense interpolant and arm a fresh result for the next integration.
             solution_storage_ptr->p_interp_by_layer_sol[current_layer_i][solution_i] =
                 std::move(integration_solution_uptr);
             integration_solution_uptr = std::make_unique<CySolverResult>(integration_method);
@@ -850,16 +716,14 @@ int c_shooting_solver(
         }
         if (solution_storage_ptr->error_code != 0)
         {
-            // Error was encountered during integration
             solution_storage_ptr->success = false;
             return solution_storage_ptr->error_code;
         }
 
-        // Prepare for next layer
         layer_below_num_sols     = num_sols;
         last_layer_upper_gravity = gravity_upper;
         last_layer_upper_density = density_upper;
-    } // Layer Loop (Main integration loop)
+    }
 
 
 
@@ -881,10 +745,8 @@ int c_shooting_solver(
     }
     else
     {
-        // No errors. Proceed with collapsing all sub-solutions into final full solution.
         solution_storage_ptr->message = std::string("Integration completed for all layers. Beginning solution collapse.\n");
 
-        // Tracker variables
         double layer_above_lower_gravity   = TidalPyConstants::d_NAN;
         double layer_above_lower_density   = TidalPyConstants::d_NAN;
         double liquid_density_at_interface = TidalPyConstants::d_NAN;
@@ -892,7 +754,7 @@ int c_shooting_solver(
         bool layer_above_is_static         = false;
         bool layer_above_is_incomp         = false;
 
-        // Reset the surface conditioning diagnostic (the storage can be reused across solves).
+        // The storage is reused across solves.
         solution_storage_ptr->surface_amplification = 0.0;
 
         for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
@@ -902,7 +764,6 @@ int c_shooting_solver(
                 std::to_string(ytype_i) +
                 std::string("\" solver.\n");
 
-            // Reset variables for this solver
             bc_solution_info            = -999;
             constant_vector_ptr[0]      = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
             constant_vector_ptr[1]      = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
@@ -912,23 +773,17 @@ int c_shooting_solver(
             {
                 printf("%s", solution_storage_ptr->message.c_str());
             }
-            // Collapse the multiple solutions for each layer into one final combined solution.
 
-            // Work from the surface down to the starting layer.
+            // Collapse from the surface down to the starting layer.
             for (size_t current_layer_i = 0; current_layer_i < num_layers - start_layer_i; ++current_layer_i)
             {
                 const size_t layer_i_reversed = num_layers - (current_layer_i + 1);
 
-                // Pull out layer information.
                 size_t first_slice_index = 0;
                 size_t layer_slices      = num_slices_by_layer_vec[layer_i_reversed];
                 if (layer_i_reversed == start_layer_i)
                 {
-                    // The first slice index is not going to actually be the bottom-most index
-                    // Instead it is the one right at or above our starting radius.
                     first_slice_index = last_index_before_start + 1;
-
-                    // When we loop through slices we only want to loop between the starting slice and the top of the layer
                     layer_slices -= start_index_in_layer;
                 }
                 else
@@ -936,18 +791,15 @@ int c_shooting_solver(
                     first_slice_index = first_slice_index_by_layer_vec[layer_i_reversed];
                 }
 
-                // Get solution and y information
                 const size_t num_sols = num_solutions_by_layer_ptr[layer_i_reversed];
                 const size_t num_ys   = 2 * num_sols;
 
-                // Setup pointer array slices starting at this layer's beginning
                 double* layer_radius_ptr    = &radius_array_ptr[first_slice_index];
                 double* layer_density_ptr   = &density_array_ptr[first_slice_index];
                 double* layer_gravity_ptr   = &gravity_array_ptr[first_slice_index];
                 std::complex<double>* layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index];
                 std::complex<double>* layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index];
 
-                // Get physical parameters at the top and bottom of the layer
                 double radius_lower{TidalPyConstants::d_NAN};
                 double gravity_lower{TidalPyConstants::d_NAN};
                 double density_lower{TidalPyConstants::d_NAN};
@@ -956,8 +808,6 @@ int c_shooting_solver(
 
                 if (layer_i_reversed == start_layer_i)
                 {
-                    // In the starting layer.
-                    // Found earlier via interpolation at the starting radius
                     radius_lower  = starting_radius;
                     gravity_lower = starting_gravity;
                     density_lower = starting_density;
@@ -977,7 +827,6 @@ int c_shooting_solver(
                 const double density_upper = layer_density_ptr[layer_slices - 1];
                 const double gravity_upper = layer_gravity_ptr[layer_slices - 1];
 
-                // Get assumptions for layer
                 const int layer_type      = layer_types_ptr[layer_i_reversed];
                 const bool layer_is_static = is_static_by_layer_ptr[layer_i_reversed];
                 const bool layer_is_incomp = is_incompressible_by_layer_ptr[layer_i_reversed];
@@ -997,10 +846,9 @@ int c_shooting_solver(
 
                 if (current_layer_i == 0)
                 {
-                    // Working on surface (uppermost) layer -- Apply surface boundary conditions.
                     c_apply_surface_bc(
-                        constant_vector_ptr,  // Modified Variable
-                        &bc_solution_info,    // Modified Variable
+                        constant_vector_ptr,
+                        &bc_solution_info,
                         bc_pointer,
                         uppermost_y_per_solution_ptr,
                         surface_gravity,
@@ -1013,7 +861,6 @@ int c_shooting_solver(
                         layer_is_incomp
                     );
 
-                    // Check that the boundary condition was successfully applied.
                     if (bc_solution_info != 0)
                     {
                         solution_storage_ptr->error_code = -12;
@@ -1032,10 +879,8 @@ int c_shooting_solver(
                         return solution_storage_ptr->error_code;
                     }
 
-                    // Record the worst-case error amplification of the surface solve across ytypes. Large
-                    // constants that cancel at the surface amplify roundoff and integration error into the
-                    // collapsed solution. The estimate costs a few products per solve, so it is always recorded;
-                    // the solver wrappers decide whether to warn from it (the `warnings` flag).
+                    // Worst-case error amplification of the surface solve across ytypes (large cancelling constants
+                    // amplify roundoff); cheap, so always recorded, and the wrappers decide whether to warn.
                     solution_storage_ptr->surface_amplification = std::fmax(
                         solution_storage_ptr->surface_amplification,
                         c_estimate_surface_amplification(
@@ -1047,9 +892,9 @@ int c_shooting_solver(
                 }
                 else
                 {
-                    // Working on interior layers. Will need to find the constants of integration based on the layer above.
+                    // Interior layer: constants follow from the layer above.
                     c_top_to_bottom_interface_bc(
-                        constant_vector_ptr,  // Modified Variable
+                        constant_vector_ptr,
                         layer_above_constant_vector_ptr,
                         uppermost_y_per_solution_ptr,
                         gravity_upper,
@@ -1067,15 +912,13 @@ int c_shooting_solver(
                     );
                 }
 
-                // Store this layer's collapse constants for this ytype. The collapsed y-solution is now evaluated on
-                // demand from the dense interpolants + these constants (see c_RadialSolutionStorage::eval_solveunits),
-                // rather than being written onto a fixed grid here. num_sols <= 3; unused entries stay NaN.
+                // The collapsed y is evaluated on demand from the interpolants and these constants
+                // (c_RadialSolutionStorage::eval_solveunits); unused entries stay NaN.
                 std::array<std::complex<double>, 3>& dest_constants =
                     solution_storage_ptr->p_constants_by_ytype_layer[ytype_i][layer_i_reversed];
                 for (size_t s = 0; s < num_sols; ++s)
                     dest_constants[s] = constant_vector_ptr[s];
 
-                // Setup for next layer
                 layer_above_lower_gravity = gravity_lower;
                 layer_above_lower_density = density_lower;
                 layer_above_type          = layer_type;
@@ -1104,12 +947,9 @@ int c_shooting_solver(
                     layer_above_constant_vector_ptr[2] = constant_vector_ptr[2];
                 }
             }
-
-            // Ready for next y-type
         }
     }
 
-    // Update solution status and return
     if (solution_storage_ptr->error_code != 0)
     {
         solution_storage_ptr->success = false;
@@ -1120,6 +960,5 @@ int c_shooting_solver(
         solution_storage_ptr->message = std::string("RadialSolver.ShootingMethod: Completed without any noted issues.");
     }
 
-    // Done!
     return solution_storage_ptr->error_code;
 }

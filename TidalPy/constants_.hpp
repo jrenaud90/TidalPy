@@ -120,7 +120,6 @@ struct TidalPyConfig
     
     double d_TEST_CONST;
 
-    // Constructor to set defaults (NaNs)
     TidalPyConfig() {
         double nan = std::numeric_limits<double>::quiet_NaN();
         d_MIN_FREQUENCY = nan;

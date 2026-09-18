@@ -11,8 +11,7 @@
  *   c_MassToLuminosity   (alias "cuntz_wang" / "cw")   - piecewise main-sequence L(M) relation.
  *   c_PowerLawLuminosity (alias "power_law")           - single power law L = Lsun * coeff * (M/Msun)^p.
  *
- * All quantities are MKS: mass [kg], radius [m], temperature [K], luminosity [W]. The solar mass and
- * luminosity anchors come from TidalPyConstants (d_MASS_SOLAR, d_LUMINOSITY_SOLAR).
+ * The solar mass and luminosity anchors come from TidalPyConstants (d_MASS_SOLAR, d_LUMINOSITY_SOLAR).
  *
  * References
  * ----------
@@ -57,10 +56,6 @@ struct c_LuminosityConfig {
 
 // =====================================================================================================================
 // Luminosity relations [W]
-//
-// Free helpers mirroring the validated legacy implementation in TidalPy/stellar/stellar.py
-// (luminosity_from_mass), with the low-mass polynomial-exponent branch corrected to use the mass ratio
-// M/Msun rather than the raw kilogram mass.
 // =====================================================================================================================
 
 // Fixed: report the stored luminosity regardless of mass.

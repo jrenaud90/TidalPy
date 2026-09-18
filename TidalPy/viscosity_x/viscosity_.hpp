@@ -1,29 +1,18 @@
 #pragma once
 /*
- * viscosity_.hpp — TidalPy (solid/liquid) viscosity models.
+ * viscosity_.hpp - TidalPy (solid and liquid) viscosity models: c_ConstantViscosity (alias
+ * "const"), c_ReferenceViscosity (alias "ref"), and c_ArrheniusViscosity (alias "arr").
  *
- * Inherits c_ViscosityBase (viscosity_base_.hpp), which itself inherits
- * c_PhysicsBase. Each model implements calc_viscosity(temperature, pressure),
- * returning the dynamic viscosity [Pa·s].
- *
- * Models (with config aliases handled by the factory):
- *   c_ConstantViscosity   (alias "const")      — temperature/pressure independent.
- *   c_ReferenceViscosity  (alias "ref")        — relative-activation law.
- *   c_ArrheniusViscosity  (alias "arr")        — Arrhenius flow law.
- *
- * All quantities MKS. The math mirrors the validated legacy implementation in
- * TidalPy/rheology/viscosity/viscosity_models.py. The molar gas constant R comes
- * from the shared TidalPy config (tidalpy_config_ptr->d_R).
+ * Each implements c_ViscosityBase::calc_viscosity(temperature, pressure) and returns the dynamic
+ * viscosity [Pa s]. All quantities MKS. The molar gas constant R comes from the shared TidalPy
+ * config (tidalpy_config_ptr->d_R).
  *
  * References
  * ----------
- * - Moore (2006) — Arrhenius flow law (activation energy/volume).
- * - Henning (2009) — reference-viscosity (relative activation) law.
+ * - Moore (2006): Arrhenius flow law (activation energy and volume).
+ * - Henning (2009): reference-viscosity (relative activation) law.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::<Model> (801-803)
- *   payload: model_name length (uint32_t) | model_name bytes | model params (doubles)
- *   Constant writes 1, Reference writes 4, Arrhenius writes 8 scalars.
+ * Binary payload: the model name followed by the model's parameters as doubles.
  */
 
 #include <algorithm>
@@ -43,13 +32,10 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_ViscosityConfig — combined construction parameters for all viscosity models.
-// Each model reads only the fields it needs.
-// -------------------------------------------------------------------------------
+// c_ViscosityConfig: combined construction parameters; each model reads only the fields it needs.
 struct c_ViscosityConfig {
     // Constant / Reference.
-    double reference_viscosity   = 1.0e22;   // [Pa·s]
+    double reference_viscosity   = 1.0e22;   // [Pa s]
     double reference_temperature = 1000.0;   // [K]  (reference model)
 
     // Reference / Arrhenius.
@@ -58,16 +44,14 @@ struct c_ViscosityConfig {
 
     // Arrhenius-only.
     double arrhenius_coeff = 1.0;            // pre-exponential A
-    double stress          = 1.0;            // applied stress σ [Pa]
-    double stress_expo     = 1.0;            // stress exponent n (power 1−n)
+    double stress          = 1.0;            // applied stress sigma [Pa]
+    double stress_expo     = 1.0;            // stress exponent n (enters as a power 1 - n)
     double grain_size      = 1.0e-3;         // grain size d [m]
     double grain_size_expo = 0.0;            // grain-size exponent m
     bool   additional_temp_dependence = false;  // multiply by T if true
 };
 
-// -------------------------------------------------------------------------------
 // Lower-case a model name for case-insensitive factory lookup.
-// -------------------------------------------------------------------------------
 inline std::string visc_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -78,10 +62,7 @@ inline std::string visc_to_lower(std::string text) {
 // Viscosity models
 // =====================================================================================================================
 
-// -------------------------------------------------------------------------------
-// c_ConstantViscosity — viscosity independent of temperature and pressure
-// (alias "const"/"constant").
-// -------------------------------------------------------------------------------
+// c_ConstantViscosity: viscosity independent of temperature and pressure (alias "const").
 class c_ConstantViscosity : public c_ViscosityBase {
 public:
     c_ConstantViscosity() : c_ViscosityBase("constant") {}
@@ -114,11 +95,8 @@ protected:
     double p_reference_viscosity = 1.0e22;
 };
 
-// -------------------------------------------------------------------------------
-// c_ReferenceViscosity — relative-activation law (alias "ref"/"reference"):
-//
-//   η = η_ref · exp( ((E_a + P·V_a) / R) · (1/T − 1/T_ref) )
-// -------------------------------------------------------------------------------
+// c_ReferenceViscosity: relative-activation law (alias "ref").
+//   eta = eta_ref * exp( ((E_a + P * V_a) / R) * (1/T - 1/T_ref) )
 class c_ReferenceViscosity : public c_ViscosityBase {
 public:
     c_ReferenceViscosity() : c_ViscosityBase("reference") {}
@@ -180,11 +158,9 @@ protected:
     double p_molar_activation_volume = 0.0;
 };
 
-// -------------------------------------------------------------------------------
-// c_ArrheniusViscosity — Arrhenius flow law (alias "arr"/"arrhenius"):
-//
-//   η = A · σ^(1−n) · d^m · exp( (E_a + P·V_a) / (R·T) )    [· T if additional_temp_dependence]
-// -------------------------------------------------------------------------------
+// c_ArrheniusViscosity: Arrhenius flow law (alias "arr").
+//   eta = A * sigma^(1-n) * d^m * exp( (E_a + P * V_a) / (R * T) ), times T when
+//   additional_temp_dependence is set.
 class c_ArrheniusViscosity : public c_ViscosityBase {
 public:
     c_ArrheniusViscosity() : c_ViscosityBase("arrhenius") {}

@@ -1,28 +1,14 @@
 #pragma once
 /*
- * eos_data_.hpp — c_LayerEOSData: per-layer state store (frequency-independent).
+ * eos_data_.hpp: c_LayerEOSData, the per-layer frequency-independent state store.
  *
- * Structure quantities (density, gravity, pressure) are queried through CyRK's
- * DENSE OUTPUT — the high-accuracy continuous interpolant produced by the ODE
- * solver — via a type-erased callable (DenseEval) installed by the world EOS
- * solve. The CySolverResult owns the solver (solver_uptr) and is co-owned (via a
- * captured shared_ptr) by the evaluator, so the dense output is callable as many
- * times as needed post-solve with no dangling pointer / leak. The lambda is
- * compiled in the world (CyRK-owning) translation unit, so the CyRK object is only
- * ever touched by the copy of CyRK that created it; the layer extensions stay
- * CyRK-free. When no dense evaluator is installed (e.g. a manual update_eos_data
- * for testing) the structure getters fall back to linear interpolation of the
- * stored slice arrays via the shared Utilities_x `c_interp`.
- *
- * Viscoelastic quantities (pre/post-melt shear & bulk modulus + viscosity) are
- * NOT part of the ODE solution — they are computed algebraically at discrete radial
- * slices in the solve's post-pass — so they are stored as arrays and queried with
- * linear interpolation (`c_interp`).
- *
- * All profiles are frequency-independent (they depend only on the solved
- * temperature/pressure state), so they are computed once per EOS solve and cached
- * here; only the downstream rheology (complex modulus) step is recomputed per
- * forcing frequency. Until populated, the getters return NaN. All MKS.
+ * Density, gravity, and pressure are queried through CyRK dense output via a type-erased callable installed by the
+ * world EOS solve. That callable co-owns the solution and is compiled in the world (CyRK-owning) translation unit,
+ * so the layer extensions stay CyRK-free; without it the structure getters fall back to linear interpolation of the
+ * stored slice arrays. The viscoelastic profiles are not part of the ODE solution (they are computed algebraically
+ * at the radial slices), so they are always interpolated. Everything here depends only on the solved temperature
+ * and pressure state and is cached once per EOS solve; only the complex modulus step is redone per forcing
+ * frequency. Getters return NaN until populated. All MKS.
  */
 
 #include <cstddef>
@@ -36,16 +22,14 @@ namespace tidalpy {
 
 class c_LayerEOSData {
 public:
-    // Dense EOS evaluator: fills a buffer of EOS_DENSE_SIZE doubles at a radius [m]
-    // from the CyRK dense output. Type-erased so the layer stays CyRK-free and the
-    // dense call is compiled in the world (CyRK-owning) extension only.
+    // Dense EOS evaluator: fills a buffer of EOS_DENSE_SIZE doubles at a radius [m] from the CyRK dense output.
+    // Type-erased so the layer stays CyRK-free.
     using DenseEval = std::function<void(double radius, double* y_out)>;
 
     // CyRK EOS-ODE y-layout (see Material_x/eos/ode_.hpp):
     //   0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia, 4 density,
     //   5/6 shear modulus re/im, 7/8 bulk modulus re/im, 9 shear visc, 10 bulk visc.
-    // EOS_DENSE_SIZE MUST equal C_EOS_DY_VALUES in ode_.hpp (kept as a literal here so
-    // this header stays CyRK-free; the dense call writes this many doubles).
+    // EOS_DENSE_SIZE must equal C_EOS_DY_VALUES in ode_.hpp (repeated as a literal to keep this header CyRK-free).
     static constexpr std::size_t EOS_DENSE_SIZE     = 11;
     static constexpr std::size_t EOS_INDEX_GRAVITY  = 0;
     static constexpr std::size_t EOS_INDEX_PRESSURE = 1;
@@ -54,17 +38,12 @@ public:
     c_LayerEOSData()  = default;
     ~c_LayerEOSData() = default;
 
-    // -----------------------------------------------------------------------
-    // State query
-    // -----------------------------------------------------------------------
     bool is_populated() const noexcept {
         return static_cast<bool>(this->p_dense_eval) || !this->p_radius.empty();
     }
     bool is_viscoelastic_populated() const noexcept { return this->p_viscoelastic_populated; }
 
-    // -----------------------------------------------------------------------
-    // Structure getters (CyRK dense output when available, else linear fallback).
-    // -----------------------------------------------------------------------
+    // Structure getters: CyRK dense output when available, else the linear fallback.
     double get_density(double radius) const noexcept {
         return this->dense_or_interp(radius, EOS_INDEX_DENSITY, this->p_density_kgm3);
     }
@@ -75,10 +54,7 @@ public:
         return this->dense_or_interp(radius, EOS_INDEX_PRESSURE, this->p_pressure);
     }
 
-    // -----------------------------------------------------------------------
-    // Post-melt viscoelastic getters (linear interp of the slice arrays — these
-    // are not part of the ODE solution, so there is no dense output for them).
-    // -----------------------------------------------------------------------
+    // Post-melt viscoelastic getters (interpolated: these are not part of the ODE solution).
     double get_shear_modulus(double radius) const noexcept {
         return this->interp_viscoelastic(radius, this->p_postmelt_shear);
     }
@@ -92,9 +68,7 @@ public:
         return this->interp_viscoelastic(radius, this->p_postmelt_bulk_visc);
     }
 
-    // -----------------------------------------------------------------------
     // Pre-melt viscoelastic getters (the un-melted values).
-    // -----------------------------------------------------------------------
     double get_premelt_shear_modulus(double radius) const noexcept {
         return this->interp_viscoelastic(radius, this->p_premelt_shear);
     }
@@ -108,17 +82,11 @@ public:
         return this->interp_viscoelastic(radius, this->p_premelt_bulk_visc);
     }
 
-    // -----------------------------------------------------------------------
-    // Install the CyRK dense evaluator (set by the world EOS solve). The callable
-    // co-owns the solution (captured shared_ptr), so the dense data outlives this
-    // store regardless of re-solves.
-    // -----------------------------------------------------------------------
+    // Install the CyRK dense evaluator (set by the world EOS solve). The callable co-owns the solution, so the
+    // dense data outlives this store regardless of re-solves.
     void set_dense_eval(DenseEval dense_eval) { this->p_dense_eval = std::move(dense_eval); }
 
-    // -----------------------------------------------------------------------
-    // Populate the structure slice arrays (the radius grid + the linear-fallback
-    // density/gravity/pressure). radius must be sorted ascending.
-    // -----------------------------------------------------------------------
+    // Populate the structure slice arrays used by the linear fallback. radius must be sorted ascending.
     void populate(
         const std::vector<double>& radius,
         const std::vector<double>& density_kgm3,
@@ -131,10 +99,7 @@ public:
         this->p_pressure    = pressure;
     }
 
-    // -----------------------------------------------------------------------
-    // Populate the pre/post-melt viscoelastic profiles (same radius grid as the
-    // structure). All eight vectors must match the radius-grid length.
-    // -----------------------------------------------------------------------
+    // Populate the pre and post-melt viscoelastic profiles. All eight vectors must match the radius-grid length.
     void populate_viscoelastic(
         const std::vector<double>& premelt_shear,
         const std::vector<double>& premelt_bulk,
@@ -178,8 +143,7 @@ private:
     std::vector<double> p_postmelt_shear_visc;  // [Pa·s]
     std::vector<double> p_postmelt_bulk_visc;   // [Pa·s]
 
-    // Structure query: prefer the CyRK dense output; otherwise linear-interpolate
-    // the stored slice array. NaN when neither is available.
+    // Prefers the CyRK dense output; otherwise linear-interpolates the slice array. NaN when neither is available.
     double dense_or_interp(
             double radius, std::size_t dense_index,
             const std::vector<double>& fallback_values) const noexcept {
@@ -192,8 +156,7 @@ private:
         return c_interp(radius, this->p_radius.data(), fallback_values.data(), this->p_radius.size());
     }
 
-    // Viscoelastic query: linear interpolation over the radius grid (NaN when the
-    // viscoelastic profiles have not been populated).
+    // Linear interpolation over the radius grid. NaN when the viscoelastic profiles are not populated.
     double interp_viscoelastic(
             double radius, const std::vector<double>& values) const noexcept {
         if (!this->p_viscoelastic_populated) { return TidalPyConstants::d_NAN; }

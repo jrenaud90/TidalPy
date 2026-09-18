@@ -1,10 +1,10 @@
 # Utilities (`Utilities_x`)
 
-_Updated: 2026-09-15_
+_Updated: 2026-09-16_
 
-`TidalPy.Utilities_x` is the shared infrastructure every other module is built on. It provides is the machinery the physics modules would otherwise each reinvent. The base classes that give every object logging, configuration export, and binary serialization; the numerical primitives the inner loops call; and the conversions, constants, and plotting helpers that sit at the boundary between a calculation and a person reading its result.
+`TidalPy.Utilities_x` contains the shared infrastructure the other modules are built on: the base classes that give every object logging, configuration export, and binary serialization; the numerical primitives the inner loops call; and the conversions, constants, and plotting helpers.
 
-It is worth knowing what lives here even if you never import it directly, because its conventions show up everywhere else. Every model class in TidalPy has `get_config_dict`, `save_config`, `save_binary`, and `load_binary`. They are inherited from the base classes defined in this module. Every version check that refuses to load a stale file, every log line, and every non-dimensionalized radius traces back here.
+Every model class in TidalPy inherits `get_config_dict`, `save_config`, `save_binary`, and `load_binary` from the base classes defined here, along with its schema-version check and its logging.
 
 | Page | Covers |
 |---|---|
@@ -34,8 +34,8 @@ Logging <logging_x.md>
 Graphics <graphics_x.md>
 ```
 
-## Usage
+## Where Utilities are Used
 
-The base classes are the ones to read first if you plan to add a model of any kind, because they define the contract a new class has to satisfy. See [Base Classes](classes_x.md) and the "adding a new model" section on any physics module page.
+The base classes define the contract a new model class has to satisfy; see [Base Classes](classes_x.md) and the "adding a new model" section on any physics module page.
 
-The conversion and non-dimensionalization helpers matter when reading solver internals. TidalPy integrates the radial structure and deformation problems in non-dimensional variables, because the dimensional ones span thirty orders of magnitude and destroy the conditioning of the linear algebra. Results are converted back to MKS before they reach the caller.
+The radial structure and deformation problems are integrated in non-dimensional variables, because the dimensional ones span thirty orders of magnitude and destroy the conditioning of the linear algebra; results are converted back to MKS before they reach the caller. See [Conversions and Scales](conversions.md).

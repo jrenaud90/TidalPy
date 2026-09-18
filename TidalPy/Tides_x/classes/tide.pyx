@@ -1,19 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-tide.pyx
-Cython/Python wrapper for TidalPy's global (1D) tidal dissipation model hierarchy.
+"""Cython and Python wrappers for TidalPy's global (1D) tidal dissipation models.
 
-A tide model converts a per-mode Love number into the dissipation multiplier -Im[k_l] 
-used by the global mode collapse. The four models:
-
-- RheologyTide  (alias "rheology")              — k_l from the radial solver.
-- FixedQTide    (alias "cpl"/"fixed_q")         — constant phase lag, k_l*(1 - i/Q_l).
-- FixedLagTide  (alias "ctl"/"fixed_dt")        — constant time lag,  k_l*(1 - i*w*dt_l).
-- CTLQTide      (alias "ctl_q"/"fixed_dt_q")    — k_l*(1 - i*w*dt_l/Q_l).
-
-Per-degree fixed parameters (fixed_k, fixed_q, fixed_dt) are supplied as lists indexed
-from degree l = 2 (index 0 -> l=2). Supported degrees are l = 2..10.
+A tide model converts a per-mode Love number into the dissipation multiplier -Im[k_l] used by the
+global mode collapse. Per-degree fixed parameters (fixed_k, fixed_q, fixed_dt) are supplied as lists
+indexed from degree l = 2; supported degrees are l = 2..10.
 """
 
 from libcpp.string cimport string

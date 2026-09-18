@@ -1,12 +1,5 @@
 # distutils: language = c++
-"""
-material_eos.pxd
-Cython declarations for TidalPy's material EOS model hierarchy.
-
-Exports the C++ EOS models, the combined config struct, the enum factory, and the
-Python wrapper classes so other extensions (layers, worlds) can cimport and build
-or attach EOS models at C speed.
-"""
+"""Cython declarations for the material EOS models, config struct, factory, and wrapper classes."""
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
@@ -73,7 +66,6 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         cpp_bool has_shear_viscosity() const
         cpp_bool has_bulk_viscosity() const
 
-    # Free analytic pressure laws (for tests / cross-checks).
     double eos_bm_pressure(double eta, double K0, double K0_prime)
     double eos_vinet_pressure(double eta, double K0, double K0_prime)
 
@@ -92,20 +84,20 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
 # Cython wrapper class declarations
 # =====================================================================================================================
 cdef class MaterialEOSBase(PhysicsBase):
-    cdef unique_ptr[c_MaterialEOSBase] _eos_ptr   # owns the most-derived C++ model object
+    cdef unique_ptr[c_MaterialEOSBase] _eos_ptr   # owns the most-derived C++ model; the typed pointers below do not
 
 
 cdef class ConstantDensityEOS(MaterialEOSBase):
-    cdef c_ConstantDensityEOS* _constant_ptr   # non-owning; ownership via MaterialEOSBase._eos_ptr
+    cdef c_ConstantDensityEOS* _constant_ptr
 
 
 cdef class BirchMurnaghanEOS(MaterialEOSBase):
-    cdef c_BirchMurnaghanEOS* _bm_ptr          # non-owning; ownership via MaterialEOSBase._eos_ptr
+    cdef c_BirchMurnaghanEOS* _bm_ptr
 
 
 cdef class VinetEOS(MaterialEOSBase):
-    cdef c_VinetEOS* _vinet_ptr                # non-owning; ownership via MaterialEOSBase._eos_ptr
+    cdef c_VinetEOS* _vinet_ptr
 
 
 cdef class InterpolatedEOS(MaterialEOSBase):
-    cdef c_InterpolatedEOS* _interp_ptr        # non-owning; ownership via MaterialEOSBase._eos_ptr
+    cdef c_InterpolatedEOS* _interp_ptr

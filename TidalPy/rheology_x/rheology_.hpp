@@ -1,36 +1,29 @@
 #pragma once
 /*
- * rheology_.hpp - Implements TidalPy's rheology models.
+ * rheology_.hpp: TidalPy's rheology models.
  *
- * Inherits c_RheologyBase (rheology_base_.hpp), which itself inherits
- * c_PhysicsBase.  Each model implements calc_complex_modulus(modulus, viscosity, frequency),
- * returning the complex (shear/bulk) modulus [Pa] directly.
+ * Each model derives from c_RheologyBase and implements calc_complex_modulus(modulus, viscosity,
+ * frequency), returning the complex (shear or bulk) modulus [Pa]. Inputs are reference (background) MKS
+ * values at the layer mid-point.
  *
- * Models (with config aliases handled by the factory):
- *   c_Elastic   (alias "off")             — purely elastic, no dissipation
- *   c_Viscous   (alias "newton")          — purely viscous (Newtonian fluid)
- *   c_Voigt     (alias "voigt-kelvin")    — Voigt-Kelvin element
- *   c_Maxwell                             — standard Maxwell body
- *   c_Burgers                             — Maxwell + Voigt in series
- *   c_Andrade                             — Maxwell + Andrade transient term
- *   c_Sundberg  (alias "sundberg-cooper") — Andrade + Voigt
- *
- * All complex moduli are in [Pa]; the internal element
- * Inputs are reference (background) values at the layer mid-point in MKS units.
+ * Models, with the aliases the factory accepts:
+ *   c_Elastic   (alias "off")              purely elastic, no dissipation.
+ *   c_Viscous   (alias "newton")           purely viscous (Newtonian fluid).
+ *   c_Voigt     (alias "voigt-kelvin")     Voigt-Kelvin element.
+ *   c_Maxwell                              standard Maxwell body.
+ *   c_Burgers                              Maxwell and Voigt in series.
+ *   c_Andrade                              Maxwell plus an Andrade transient term.
+ *   c_Sundberg  (alias "sundberg-cooper")  Andrade and Voigt.
  *
  * References
  * ----------
  * - Henning, O'Connell, and Sasselov (2009), ApJ, DOI: 10.1088/0004-637X/707/2/1000
  *   (Maxwell, Voigt-Kelvin, Burgers).
- * - Efroimsky (2012), ApJ, DOI: 10.1088/0004-637X/746/2/150
- *   (complex compliances and Love numbers).
- * - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784
- *   (Andrade and Sundberg-Cooper).
+ * - Efroimsky (2012), ApJ, DOI: 10.1088/0004-637X/746/2/150 (complex compliances and Love numbers).
+ * - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784 (Andrade and Sundberg-Cooper).
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::<Model> (301-307)
- *   payload: model_name length (uint32_t) | model_name bytes | model params (doubles)
- *   The layer observer pointer (p_layer_ptr) is NOT serialized.
+ * Binary payload under class_id BinaryClassID::<Model> (301-307): model_name length (uint32_t), the
+ * model_name bytes, then the model's doubles. The layer observer pointer is not serialized.
  */
 
 #include <algorithm>
@@ -64,8 +57,8 @@ inline double rheo_guard(double value) noexcept {
 }
 
 // -------------------------------------------------------------------------------
-// c_RheologyConfig — combined construction parameters for all rheology models.
-// Each model reads only the fields it needs.
+// c_RheologyConfig: construction parameters for every rheology model. Each model
+// reads only the fields it needs.
 // -------------------------------------------------------------------------------
 struct c_RheologyConfig {
     double alpha                = 0.3;     // Andrade exponent           [dimensionless]
@@ -77,23 +70,14 @@ struct c_RheologyConfig {
 // =====================================================================================================================
 // Internal element compliances [Pa^-1]
 //
-// The public interface of every rheology model is the complex (shear/bulk)
-// MODULUS (see the rheo_modulus_* functions below).  However, the standard
-// composite rheologies (Burgers, Andrade, Sundberg) combine their constituent
-// viscoelastic elements *in series*, which means the element COMPLIANCES add
-// and the resulting modulus is the reciprocal of that sum.  These element
-// compliances are therefore required intermediate quantities; they are kept in
-// an internal `detail` namespace and are never exposed to Python.
+// The public interface of every model is the complex modulus, but the composite rheologies (Burgers,
+// Andrade, Sundberg) combine their elements in series, so the element compliances add and the modulus is
+// the reciprocal of that sum. These intermediates stay in the detail namespace and are never exposed to
+// Python. Each takes the (shear or bulk) viscosity [Pa s], the unrelaxed modulus [Pa] that sets the
+// static compliance J = 1/modulus, and the forcing frequency [rad s-1].
 //
-// Each takes the (shear or bulk) viscosity [Pa·s], the unrelaxed modulus [Pa]
-// (from which the static compliance J = 1/modulus is derived), and the forcing
-// frequency [rad/s].  The math mirrors the validated legacy implementations in
-// TidalPy/rheology/complex_compliance/compliance_models.py.
-//
-// Assumptions
-// -----------
-// - Linear viscoelastic regime, single forcing frequency.
-// - Andrade-family models assume a positive forcing frequency.
+// Assumes a linear viscoelastic regime at a single forcing frequency; the Andrade family additionally
+// assumes a positive forcing frequency.
 // =====================================================================================================================
 namespace detail {
 
@@ -154,12 +138,10 @@ inline c_ComplexCompliance element_compliance_andrade(
 }  // namespace detail
 
 // =====================================================================================================================
-// Complex (shear/bulk) modulus functions [Pa]
+// Complex (shear or bulk) modulus functions [Pa]
 //
-// Model constitutive laws return the complex modulus mu* directly:
-// real = storage (in-phase), imag = loss (out-of-phase, positive
-// = energy loss). Simple models are evaluated analytically; series composites
-// invert the sum of their element compliances (see the detail namespace above).
+// Real part = storage (in-phase), imaginary part = loss (out-of-phase, positive for energy loss). Simple
+// models are analytic; the series composites invert the sum of their element compliances.
 // =====================================================================================================================
 
 // Elastic: mu* = modulus (real).  No dissipation, frequency-independent.
@@ -280,14 +262,12 @@ inline std::string rheo_to_lower(std::string text) {
 // =====================================================================================================================
 // Rheology models
 //
-// Binary serialization uses the shared c_PhysicsBase helpers
-// (write_physics_binary / read_physics_binary), so each model only supplies its
-// BinaryClassID and its scalar params — the header, model name, and byte layout
-// are handled in the base class (see Utilities_x/classes_x/physics_base_.hpp).
+// Each model supplies only its BinaryClassID and its scalar params; c_PhysicsBase handles the header,
+// the model name, and the byte layout.
 // =====================================================================================================================
 
 // -------------------------------------------------------------------------------
-// c_Elastic — purely elastic response (alias "off").
+// c_Elastic: purely elastic response (alias "off").
 // -------------------------------------------------------------------------------
 class c_Elastic : public c_RheologyBase {
 public:
@@ -314,7 +294,7 @@ public:
 };
 
 // -------------------------------------------------------------------------------
-// c_Viscous — purely viscous response (alias "newton").
+// c_Viscous: purely viscous response (alias "newton").
 // -------------------------------------------------------------------------------
 class c_Viscous : public c_RheologyBase {
 public:
@@ -341,7 +321,7 @@ public:
 };
 
 // -------------------------------------------------------------------------------
-// c_Maxwell — standard Maxwell body.
+// c_Maxwell: standard Maxwell body.
 // -------------------------------------------------------------------------------
 class c_Maxwell : public c_RheologyBase {
 public:
@@ -368,7 +348,7 @@ public:
 };
 
 // -------------------------------------------------------------------------------
-// c_Voigt — Voigt-Kelvin element (alias "voigt-kelvin").
+// c_Voigt: Voigt-Kelvin element (alias "voigt-kelvin").
 // -------------------------------------------------------------------------------
 class c_Voigt : public c_RheologyBase {
 public:
@@ -416,7 +396,7 @@ protected:
 };
 
 // -------------------------------------------------------------------------------
-// c_Burgers — Maxwell + Voigt in series.
+// c_Burgers: Maxwell and Voigt in series.
 // -------------------------------------------------------------------------------
 class c_Burgers : public c_RheologyBase {
 public:
@@ -464,7 +444,7 @@ protected:
 };
 
 // -------------------------------------------------------------------------------
-// c_Andrade — Maxwell + Andrade transient term.
+// c_Andrade: Maxwell plus an Andrade transient term.
 // -------------------------------------------------------------------------------
 class c_Andrade : public c_RheologyBase {
 public:
@@ -512,7 +492,7 @@ protected:
 };
 
 // -------------------------------------------------------------------------------
-// c_Sundberg — Andrade + Voigt (alias "sundberg-cooper").
+// c_Sundberg: Andrade and Voigt (alias "sundberg-cooper").
 // -------------------------------------------------------------------------------
 class c_Sundberg : public c_RheologyBase {
 public:
@@ -577,10 +557,8 @@ protected:
 // =====================================================================================================================
 
 // -------------------------------------------------------------------------------
-// c_RheologyModel — one named value per rheology model.
-// Used by c_find_rheology to dispatch to the correct class without string
-// comparisons. The Cython layer maps Python strings (and aliases) to these
-// values via c_rheology_model_from_name.
+// c_RheologyModel: one value per model, so c_find_rheology dispatches without
+// string comparisons.
 // -------------------------------------------------------------------------------
 enum class c_RheologyModel : uint8_t {
     Elastic  = 0,
@@ -593,19 +571,8 @@ enum class c_RheologyModel : uint8_t {
 };
 
 // -------------------------------------------------------------------------------
-// c_rheology_model_from_name — map a (case-insensitive) model name or alias to a
-// c_RheologyModel enum value.
-//
-// Recognized names and aliases:
-//   "elastic" / "off"
-//   "viscous" / "newton"
-//   "voigt"   / "voigt-kelvin" / "voigt_kelvin"
-//   "maxwell"
-//   "burgers"
-//   "andrade"
-//   "sundberg" / "sundberg-cooper" / "sundberg_cooper"
-//
-// Throws std::invalid_argument if the model name is unknown.
+// Map a case-insensitive model name or alias to the enum; throws
+// std::invalid_argument on an unknown name.
 // -------------------------------------------------------------------------------
 inline c_RheologyModel c_rheology_model_from_name(const std::string& model_name) {
     const std::string name = rheo_to_lower(model_name);
@@ -625,12 +592,9 @@ inline c_RheologyModel c_rheology_model_from_name(const std::string& model_name)
 }
 
 // -------------------------------------------------------------------------------
-// c_find_rheology — build the rheology model named by a c_RheologyModel enum.
-//
-// Returns a unique_ptr to a newly heap-allocated concrete model constructed from
-// the supplied config.  This is the canonical C++ factory; C++ consumers (layers
-// attaching rheology, binary reconstruction, the Cython wrapper) all route
-// through it.  Throws std::invalid_argument for an unrecognised enum value.
+// Build the model named by the enum and return an owning unique_ptr. This is the
+// canonical C++ factory: layers, binary reconstruction, and the Cython wrapper all
+// route through it. Throws std::invalid_argument for an unrecognised enum value.
 // -------------------------------------------------------------------------------
 inline std::unique_ptr<c_RheologyBase> c_find_rheology(
         c_RheologyModel model, const c_RheologyConfig& cfg) {
@@ -646,23 +610,17 @@ inline std::unique_ptr<c_RheologyBase> c_find_rheology(
     throw std::invalid_argument("TidalPy: unrecognised c_RheologyModel enum value");
 }
 
-// -------------------------------------------------------------------------------
-// c_find_rheology (name overload) — convenience wrapper that maps a name/alias to
-// the enum and builds the model.  Throws std::invalid_argument on unknown names.
-// -------------------------------------------------------------------------------
+// Name overload.
 inline std::unique_ptr<c_RheologyBase> c_find_rheology(
         const std::string& model_name, const c_RheologyConfig& cfg) {
     return c_find_rheology(c_rheology_model_from_name(model_name), cfg);
 }
 
 // -------------------------------------------------------------------------------
-// c_rheology_from_binary — reconstruct a rheology model from a binary stream.
-//
-// Peeks the upcoming record's BinaryClassID (without consuming the header),
-// constructs the matching default-initialized concrete model, then delegates to
-// its read_binary to restore the model name and parameters. Used by the layer
-// recursive deserialization (see structures_x/layers). Throws std::runtime_error
-// if the class id is not a known rheology model.
+// Reconstruct a rheology model from a binary stream: peek the record's
+// BinaryClassID without consuming the header, build that model, then read it.
+// Used by the layer recursive deserialization (structures_x/layers). Throws
+// std::runtime_error for an unknown class id.
 // -------------------------------------------------------------------------------
 inline std::unique_ptr<c_RheologyBase> c_rheology_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();

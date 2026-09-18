@@ -18,10 +18,6 @@
  * the same underlying C++ world. It also holds the orbital rate engine (c_OrbitSolver) that turns each
  * dissipating world's tidal-potential derivatives into orbital rates; that wiring is added on top of
  * this container.
- *
- * All quantities MKS: masses [kg], radii [m], semi-major axes [m], eccentricities dimensionless,
- * orbital frequencies [rad s-1], gravitational parameters [m^3 s-2], insolation flux [W m-2],
- * temperatures [K].
  */
 
 #include <cmath>
@@ -91,12 +87,10 @@ struct c_WorldEvolution {
 };
 
 // -------------------------------------------------------------------------------
-// c_PairEvolution - the two-body (dual-body) tidal evolution of an orbiting world together with its
-// tidal host. Both bodies raise a tide on the shared orbit, so the orbital rates are the sum of the two
-// bodies' individual dissipation contributions, and each body evolves its own spin. Produced by
-// c_System::calc_pair_evolution. `world` and `host` hold each body's full single-body contribution (its
-// own solve, spin, heating, and its share of the orbital rates + energy); the combined orbital rates and
-// energy balance are the top-level fields. evolved is false when there is no host / no usable orbit.
+// c_PairEvolution - the dual-body tidal evolution of an orbiting world and its tidal host, from
+// c_System::calc_pair_evolution. Both bodies raise a tide on the shared orbit, so the combined
+// orbital rates and energy balance (the top-level fields) are the sum of each body's single-body
+// contribution (held in `world` and `host`). evolved is false with no host or no usable orbit.
 // -------------------------------------------------------------------------------
 struct c_PairEvolution {
     std::size_t world_index = 0;   // the orbiting world (its p_orbits entry holds the shared orbit)
@@ -400,13 +394,10 @@ public:
     // -----------------------------------------------------------------------
     // Orbital + spin evolution (single-body tidal dissipation)
     //
-    // For one orbiting world, run its global tidal solve in the current system state (mean motion from
-    // Kepler's third law, spin + obliquity from the world, eccentricity + semi-major axis from its orbit
-    // about the host, host mass from the host world), then turn the resulting tidal-potential derivatives
-    // into the orbital rates (da/dt, de/dt, dn/dt) via the orbital rate engine and the spin rate
-    // (dspin/dt) via the world's own spin model. Only this world raises tides; the host is treated as a
-    // point mass (its own tide is added by calc_pair_evolution). The returned struct carries the state and
-    // raw tidal outputs alongside the rates so the orbit + spin energy balance can be checked.
+    // Runs one orbiting world's global tidal solve in the current system state, then turns the
+    // tidal-potential derivatives into the orbital rates and the spin rate. Only this world raises
+    // tides; the host is a point mass (its own tide is added by calc_pair_evolution). The returned
+    // struct carries the state and raw tidal outputs so the energy balance can be checked.
     // -----------------------------------------------------------------------
     c_WorldEvolution calc_world_evolution(std::size_t index) {
         this->check_index(index);
@@ -444,15 +435,12 @@ public:
     // -----------------------------------------------------------------------
     // Dual-body tidal evolution
     //
-    // Both the orbiting world and its tidal host raise a tide on their shared orbit. Each body dissipates
-    // as a self-consistent single-body problem with the other body as the tide raiser (masses swapped),
-    // so the shared-orbit rates are the sum of the two contributions and each body evolves its own spin.
-    // The energy balance is the sum of the two single-body balances:
+    // Each body dissipates as a self-consistent single-body problem with the other as the tide
+    // raiser (masses swapped), so the shared-orbit rates are the sum of the two contributions and
+    // each body evolves its own spin. The energy balance is the sum of the two single-body balances:
     //   heating_world + heating_host = -(dE_orbit/dt + dE_spin_world/dt + dE_spin_host/dt).
-    //
-    // A body with no tide model attached is rigid and contributes nothing (the single-body limit is
-    // recovered when the host has no tide model). Returns evolved = false with zero rates for the host's
-    // own entry, a hostless system, or a world with no usable orbit.
+    // A body with no tide model is rigid and contributes nothing. Returns evolved = false for the
+    // host's own entry, a hostless system, or a world with no usable orbit.
     // -----------------------------------------------------------------------
     c_PairEvolution calc_pair_evolution(std::size_t index) {
         this->check_index(index);
@@ -524,16 +512,13 @@ public:
              + this->calc_spin_energy_derivative(evolution);
     }
 
-    // Compute one body's tidal-dissipation contribution to a two-body orbit: solve its global tides for
-    // the shared orbital state (its own spin + obliquity, the companion mass as the tide raiser), then its
-    // orbital rates (as the dissipating body) via the rate engine and its spin rate via its own spin
-    // model. A body with no tide model attached is rigid: it raises no tide and contributes zero rates /
-    // heating / spin. This is the shared primitive behind calc_world_evolution (companion = the host) and
-    // calc_pair_evolution (each body in turn, companion = the other body).
+    // One body's tidal-dissipation contribution to a two-body orbit, the shared primitive behind
+    // calc_world_evolution (companion = the host) and calc_pair_evolution (each body in turn). A body
+    // with no tide model is rigid: it raises no tide and contributes zero rates, heating, and spin.
     //
-    // c_LayeredWorld hides the base analytic calc_tides with the rheology + layer-distribution path and
-    // owns the spin model, so the concrete type is resolved here to run the right solve and reach the
-    // spin rate; a layerless world (e.g. a star) uses the base analytic solve and contributes no spin.
+    // c_LayeredWorld hides the base analytic calc_tides with the rheology + layer-distribution path
+    // and owns the spin model, so the concrete type is resolved here to run the right solve and reach
+    // the spin rate; a layerless world (a star) uses the base analytic solve and contributes no spin.
     c_WorldEvolution calc_dissipation(
             std::size_t dissipator_index,
             double companion_mass,
@@ -615,14 +600,11 @@ public:
     // -----------------------------------------------------------------------
     // Binary I/O
     //
-    // write_binary records the system's own container state (name, host/star indices, and each world's
-    // orbital elements about both the host and the star) followed by every world's complete binary
-    // record. read_binary reverses it, rebuilding the heterogeneous world list from the stream via the
-    // world binary-dispatch factory (c_world_from_binary). Physics sub-models a world does not serialize
-    // (the star's luminosity model, each layer's material EOS model and EOS profile data, the spin/tide
-    // models) are reattached after load, exactly as for a directly-loaded world. The orbital rate engine
-    // (c_OrbitSolver) is stateless, so orbital evolution needs no serialized state beyond the orbital
-    // elements above.
+    // The container state (name, host/star indices, and each world's orbital elements about the host
+    // and about the star) followed by every world's complete binary record; read_binary rebuilds the
+    // heterogeneous world list through c_world_from_binary. Physics sub-models a world does not
+    // serialize (the star's luminosity model, layer EOS model and profile data, the spin and tide
+    // models) are reattached after load. c_OrbitSolver is stateless, so it needs no serialized state.
     // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const auto num_worlds = static_cast<uint64_t>(this->p_worlds.size());

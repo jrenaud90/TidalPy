@@ -24,6 +24,6 @@ Eccentricity Functions <Eccentricity.md>
 Inclination Functions <Obliquity.md>
 ```
 
-## Moving to the new backend
+## Moving to the New Backend
 
-The replacement is [`TidalPy.Tides_x`](../Tides_x/index.md), which is where new development happens. It covers the same ground with a C++ core: global dissipation models, the depth-resolved three-dimensional kernel, the Love-number container and solution methods, and its own [eccentricity](../Tides_x/eccentricity.md) and [obliquity](../Tides_x/obliquity.md) functions. The [porting guide](../future_structure.md) maps the old names onto the new ones.
+New development happens in [`TidalPy.Tides_x`](../Tides_x/index.md), which covers the same ground with a C++ core: global dissipation models, the depth-resolved three-dimensional kernel, the Love-number container and solution methods, and its own [eccentricity](../Tides_x/eccentricity.md) and [obliquity](../Tides_x/obliquity.md) functions. The [porting guide](../future_structure.md) maps the old names onto the new ones.

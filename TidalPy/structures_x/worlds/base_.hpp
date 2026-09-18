@@ -1,14 +1,10 @@
 #pragma once
 /*
- * base_.hpp — c_BaseWorld: base class for all TidalPy world types.
+ * base_.hpp: c_BaseWorld, the base class for every TidalPy world type (extends c_StructureBase).
  *
- * Inherits c_StructureBase (Utilities_x/classes_x/structure_base_.hpp).
- * Stores world-level identification and orbital/thermal scalars (albedo,
- * emissivity, obliquity, spin frequency) and provides bulk geometry and
- * equilibrium-temperature calculations.  Layer ownership and whole-planet solves
- * live in the c_LayeredWorld subclass.
- *
- * All fields are MKS (radius [m], mass [kg], angles [rad], frequency [rad/s]).
+ * Holds world-level identification and the orbital and thermal scalars (albedo, emissivity, obliquity, spin
+ * frequency) and provides bulk geometry and equilibrium-temperature calculations. Layer ownership and
+ * whole-planet solves live in c_LayeredWorld. All MKS: radius [m], mass [kg], angles [rad], frequency [rad/s].
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::BaseWorld (200)
@@ -34,10 +30,10 @@
 
 #include "structure_base_.hpp"
 
-// Global (1D) tidal dissipation: the analytic tide pipeline (cpl/ctl/ctl_q) is common to ALL
-// world types and lives here on c_BaseWorld so even a layerless star can dissipate tidally.
-// These are LIGHT headers (no eccentricity/obliquity tables); the heavy global-potential engine
-// is pulled only by the out-of-line calc_tides definition in world_tides_base_.hpp.
+// Global (1D) tidal dissipation: the analytic tide pipeline (cpl, ctl, ctl_q) is common to every world type and
+// lives here on c_BaseWorld so even a layerless star can dissipate tidally. These headers are light (no
+// eccentricity or obliquity tables); the heavy global-potential engine comes only with the out-of-line
+// calc_tides definition in world_tides_base_.hpp.
 #include "../../Tides_x/classes/tide_base_.hpp"     // tidalpy::c_TideBase, c_LoveNumbers
 #include "../../Tides_x/classes/tide_result_.hpp"   // c_TideConfig, c_TideSolveConfig, c_GlobalTideResult
 #include "../../Utilities_x/lookups/keys_.hpp"      // c_Key4
@@ -45,9 +41,7 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_WorldConfig — construction parameters for c_BaseWorld (and subclasses).
-// -------------------------------------------------------------------------------
+// Construction parameters for c_BaseWorld and its subclasses.
 struct c_WorldConfig {
     std::string name;
     std::string world_type_str = "world";  // "star", "gasgiant", "terrestrial", ...
@@ -59,14 +53,9 @@ struct c_WorldConfig {
     double      spin_frequency = 0.0;      // [rad/s]
 };
 
-// -------------------------------------------------------------------------------
-// c_BaseWorld
-// -------------------------------------------------------------------------------
 class c_BaseWorld : public c_StructureBase {
 public:
-    // -----------------------------------------------------------------------
     // Construction
-    // -----------------------------------------------------------------------
     c_BaseWorld() = default;
 
     explicit c_BaseWorld(const c_WorldConfig& cfg)
@@ -81,9 +70,7 @@ public:
 
     ~c_BaseWorld() override = default;
 
-    // -----------------------------------------------------------------------
     // Getters (const, MKS)
-    // -----------------------------------------------------------------------
     const std::string& get_name()             const noexcept { return this->p_name; }
     const std::string& get_world_type()       const noexcept { return this->p_world_type; }
     double             get_albedo()           const noexcept { return this->p_albedo; }
@@ -91,9 +78,7 @@ public:
     double             get_obliquity()        const noexcept { return this->p_obliquity; }
     double             get_spin_frequency()   const noexcept { return this->p_spin_frequency; }
 
-    // -----------------------------------------------------------------------
-    // Bulk geometry (const, MKS) — use the world's own stored radius/mass.
-    // -----------------------------------------------------------------------
+    // Bulk geometry (const, MKS) from the world's own stored radius and mass.
     double calc_surface_gravity() const noexcept {
         return this->c_StructureBase::calc_surface_gravity(this->p_mass, this->p_radius);
     }
@@ -105,16 +90,10 @@ public:
             this->p_mass, this->calc_volume_sphere(this->p_radius));
     }
 
-    // -----------------------------------------------------------------------
-    // calc_equilibrium_temperature [K]
-    //
-    // Fast-rotator radiative equilibrium with a uniform-temperature surface:
-    //   T_eq = [ (1 - A) * F / (4 * eps * sigma) ]^(1/4)
-    //
-    // where F is the incident insolation flux [W/m^2], A is the bond albedo,
-    // eps is the emissivity, and sigma is the Stefan-Boltzmann constant.
-    // Returns 0.0 for non-positive flux or when the config pointer is null.
-    // -----------------------------------------------------------------------
+    // Fast-rotator radiative equilibrium temperature [K] over a uniform-temperature surface:
+    //   T_eq = [(1 - A) * F / (4 * eps * sigma)]^(1/4)
+    // with F the incident insolation flux [W/m^2], A the bond albedo, eps the emissivity, and sigma the
+    // Stefan-Boltzmann constant. Returns 0.0 for non-positive flux or when the config pointer is null.
     double calc_equilibrium_temperature(double insolation_flux) const noexcept {
         if (insolation_flux <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
         const double sigma = tidalpy_config_ptr->d_SBC;
@@ -123,23 +102,16 @@ public:
         return std::pow(absorbed / (4.0 * eps * sigma), 0.25);
     }
 
-    // -----------------------------------------------------------------------
-    // Mutators (non-const)
-    // -----------------------------------------------------------------------
+    // Mutators
     void set_name(const std::string& name)      { this->p_name = name; }
     void set_spin_frequency(double freq) noexcept { this->p_spin_frequency = freq; }
     void set_obliquity(double obliq)        noexcept { this->p_obliquity = obliq; }
 
-    // -----------------------------------------------------------------------
-    // Global (1D) tidal dissipation (common to all world types)
-    //
-    // Attach a tide model (c_TideBase) + a tide config ([tides] truncation/degree), then call
-    // calc_tides(orbital state) to collapse the global tidal modes into the total heating + the
-    // three orbital potential derivatives. The analytic models (cpl/ctl/ctl_q) work on any
-    // world; the rheology model needs the radial solver and is only supported on c_LayeredWorld
-    // (which hides this calc_tides with its own). calc_tides is defined out-of-line in
-    // world_tides_base_.hpp (it needs the heavy global-potential engine).
-    // -----------------------------------------------------------------------
+    // Global (1D) tidal dissipation (common to all world types). Attach a tide model and a tide config, then
+    // call calc_tides(orbital state) to collapse the global tidal modes into the total heating and the three
+    // orbital potential derivatives. The analytic models (cpl, ctl, ctl_q) work on any world; the rheology
+    // model needs the radial solver, so only c_LayeredWorld supports it (hiding this calc_tides with its own).
+    // calc_tides is defined out-of-line in world_tides_base_.hpp, which carries the global-potential engine.
     void set_tide_model(std::unique_ptr<c_TideBase> tide) noexcept {
         this->p_tide         = std::move(tide);
         this->p_tides_solved = false;
@@ -153,8 +125,8 @@ public:
     }
     const c_TideConfig& get_tide_config() const noexcept { return this->p_tide_config; }
 
-    // Run the global tidal solve for the supplied orbital/spin state. The analytic version
-    // (here) raises if the attached model needs the radial solver; c_LayeredWorld overrides it.
+    // Run the global tidal solve for the supplied orbital and spin state. This analytic version throws when
+    // the attached model needs the radial solver; c_LayeredWorld hides it.
     void calc_tides(const c_TideSolveConfig& state);
 
     bool get_tides_solved() const noexcept { return this->p_tides_solved; }
@@ -174,10 +146,9 @@ public:
         return this->p_tides_solved ? this->p_tide_result.num_modes : 0;
     }
 
-    // The whole collapsed global tidal result (heating + the three potential derivatives + mode/error
-    // codes) from the most recent calc_tides, as one struct. Read it after checking get_tides_solved():
-    // the fields hold their unsolved defaults (zeros) when the tides have not been solved, unlike the
-    // scalar getters above which return NaN.
+    // The whole collapsed global tidal result (heating, the three potential derivatives, mode and error codes)
+    // from the most recent calc_tides. Check get_tides_solved() first: these fields keep their unsolved
+    // defaults of zero, where the scalar getters above return NaN.
     const c_GlobalTideResult& get_tide_result() const noexcept { return this->p_tide_result; }
 
     // Complex potential Love number k_l for the tidal mode (l, m, p, q) from the most recent
@@ -193,9 +164,7 @@ public:
         return love.k;
     }
 
-    // -----------------------------------------------------------------------
     // Binary I/O
-    // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         this->write_world_binary(out, static_cast<uint32_t>(BinaryClassID::BaseWorld));
     }
@@ -209,9 +178,7 @@ public:
     }
 
 protected:
-    // -----------------------------------------------------------------------
     // Shared world binary helpers (reused by subclasses with their own class id).
-    // -----------------------------------------------------------------------
     // Number of payload bytes the c_BaseWorld scalar/string fields occupy.
     uint64_t world_payload_bytes() const noexcept {
         return sizeof(double) * 2                       // radius, mass
@@ -260,7 +227,7 @@ protected:
     double      p_obliquity  = 0.0;   // [rad]
     double      p_spin_frequency = 0.0;   // [rad/s]
 
-    // Global (1D) tidal dissipation state (results not serialized — recompute via calc_tides).
+    // Global (1D) tidal dissipation state (results are not serialized; recompute with calc_tides).
     c_TideConfig                         p_tide_config;
     std::unique_ptr<c_TideBase>          p_tide;
     c_GlobalTideResult                   p_tide_result;

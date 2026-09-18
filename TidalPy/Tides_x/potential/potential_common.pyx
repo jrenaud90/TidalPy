@@ -67,14 +67,12 @@ cdef class ModeMap:
         if len(key) != 4:
             raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
 
-        # Build Key
         cdef int16_t l = key[0]
         cdef int16_t m = key[1]
         cdef int16_t p = key[2]
         cdef int16_t q = key[3]
         cdef c_Key4 c_key = c_Key4(l, m, p, q)
 
-        # Build value
         cdef c_ModeStorage mode_storage = c_convert_to_mode_storage(mode_storage_tuple)
 
         self.c_set(c_key, mode_storage)
@@ -94,7 +92,6 @@ cdef class ModeMap:
         if not found:
             raise KeyError(f"Can not find entry for key: ({key}).")
         
-        # Convert result to python readable.
         return c_convert_from_mode_storage(result_cinst)
 
     def __setitem__(self, tuple key, tuple value):
@@ -107,9 +104,7 @@ cdef class ModeMap:
         return self._cinst.size()
 
     def __iter__(self):
-        """
-        Yields pairs of ((a, b, c), value).
-        """
+        """Yield ((l, m, p, q), mode-storage tuple) pairs."""
 
         cdef size_t i
         cdef c_Key4 key
@@ -155,7 +150,6 @@ cdef class UniqueFrequencyMap:
         if len(key) != 4:
             raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
 
-        # Build Key
         cdef int16_t l = key[0]
         cdef int16_t m = key[1]
         cdef int16_t p = key[2]
@@ -179,7 +173,6 @@ cdef class UniqueFrequencyMap:
         if not found:
             raise KeyError(f"Can not find entry for key: ({key}).")
         
-        # Convert result to python readable.
         return result
 
     def __setitem__(self, tuple key, size_t value):
@@ -192,9 +185,7 @@ cdef class UniqueFrequencyMap:
         return self._cinst.size()
 
     def __iter__(self):
-        """
-        Yields pairs of ((a, b, c), value).
-        """
+        """Yield ((l, m, p, q), unique-frequency index) pairs."""
 
         cdef size_t i
         cdef c_Key4 key
@@ -211,7 +202,6 @@ def test_mode_map():
 
     cdef c_ModeMap _cinst
 
-    # Fill with test data
     cdef int l, m, p, q
     cdef size_t total_size = 0
     cdef c_Key4 key = c_Key4(0, 0, 0, 0)

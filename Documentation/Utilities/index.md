@@ -4,8 +4,7 @@
 
 [Auto Generated API](https://tidalpy.readthedocs.io/en/latest/API/generated/TidalPy.utilities.html)
 
-TidalPy's utilities module contains many helper functions and structures that are used throughout TidalPy. Most
-items that are put into this module were done so because they may have applicability beyond TidalPy. 
+`TidalPy.utilities` contains helper functions and structures used throughout TidalPy, most of which also have applicability beyond it.
 
 ```{toctree}
 :maxdepth: 2

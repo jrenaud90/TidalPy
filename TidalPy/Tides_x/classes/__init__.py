@@ -1,14 +1,9 @@
-"""TidalPy Tides_x.classes — C++ global (1D) tidal dissipation model hierarchy.
+"""C++ global (1D) tidal dissipation models and their name-based factory.
 
-Exposes the four tide models and a name-based factory:
-
-- ``RheologyTide``  (alias ``"rheology"``)               — k_l from the radial solver.
-- ``FixedQTide``    (alias ``"cpl"``/``"fixed_q"``)      — constant phase lag, k_l*(1 - i/Q_l).
-- ``FixedLagTide``  (alias ``"ctl"``/``"fixed_dt"``)     — constant time lag, k_l*(1 - i*w*dt_l).
-- ``CTLQTide``      (alias ``"ctl_q"``/``"fixed_dt_q"``) — k_l*(1 - i*w*dt_l/Q_l).
-
-Each model maps a per-mode Love number to the dissipation multiplier ``-Im[k_l]`` used by
-the global mode collapse (``TidalPy.Tides_x.potential.collapse_global_tides``).
+``RheologyTide`` (alias "rheology") takes k_l from the radial solver, ``FixedQTide`` ("cpl",
+"fixed_q") uses k_l*(1 - i/Q_l), ``FixedLagTide`` ("ctl", "fixed_dt") uses k_l*(1 - i*w*dt_l), and
+``CTLQTide`` ("ctl_q", "fixed_dt_q") uses k_l*(1 - i*w*dt_l/Q_l). Each supplies the per-mode
+dissipation multiplier -Im[k_l] used by the global mode collapse.
 """
 
 from TidalPy.Tides_x.classes.tide import (

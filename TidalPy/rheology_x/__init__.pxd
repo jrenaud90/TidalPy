@@ -1,15 +1,5 @@
 # distutils: language = c++
-"""
-__init__.pxd
-Cython-level exports for TidalPy.rheology_x.
-
-Exposes the C++ rheology classes and the Python wrapper classes so other
-extensions can cimport them.
-
-Usage::
-
-    from TidalPy.rheology_x cimport RheologyBase, Maxwell, c_RheologyBase
-"""
+"""Cython-level exports for TidalPy.rheology_x."""
 
 from TidalPy.rheology_x.rheology cimport (
     RheologyBase,

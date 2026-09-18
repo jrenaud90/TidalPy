@@ -1,10 +1,9 @@
 #pragma once
 /*
- * gasgiant_.hpp — c_GasGiantWorld: a layered world representing a gas giant.
+ * gasgiant_.hpp: c_GasGiantWorld, a layered world representing a gas giant.
  *
- * Inherits c_LayeredWorld. Functionally a layered world (it owns layers and
- * supports the whole-planet EOS solve), distinguished by its world type and a
- * dedicated BinaryClassID so it can be reconstructed as the correct subclass.
+ * Functionally a c_LayeredWorld (it owns layers and supports the whole-planet EOS solve), distinguished by its
+ * world type and a dedicated BinaryClassID so it can be rebuilt as the correct subclass.
  *
  * Binary format: identical layout to c_LayeredWorld but with
  *   header: class_id = BinaryClassID::GasGiantWorld (202)

@@ -1,12 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-spin.pyx
-Cython/Python wrapper for TidalPy's spin-dynamics calculator (Dynamics_x).
+"""Cython wrappers for TidalPy's spin-dynamics calculator.
 
-Spin exposes the rate quantities of a body's rotational (spin) evolution under the tidal torque of its
-host: the moment of inertia, the tidal spin-rate change dspin/dt from the tidal potential derivative
-dU/dO, and the synchronous spin rate. It computes rates only; the System class integrates them.
+``Spin`` provides the moment of inertia, the tidal spin-rate change dspin/dt from the tidal
+potential derivative dU/dO, and the synchronous spin rate. It computes rates only; the System class
+integrates them.
 """
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
@@ -37,11 +35,6 @@ cdef class Spin:
     ------
     ValueError
         If ``moment_of_inertia_factor`` is not finite or lies outside ``(0, 2/3]``.
-
-    Notes
-    -----
-    All quantities are MKS: masses in kg, radii in m, frequencies in rad s-1, moment of inertia in
-    kg m2, ``dU_dO`` in J kg-1 rad-1, and ``dspin/dt`` in rad s-2.
     """
 
     def __init__(self, double moment_of_inertia_factor=0.4):
@@ -71,10 +64,6 @@ cdef class Spin:
         -------
         float
             Moment of inertia [kg m2].
-
-        Assumptions
-        -----------
-        The factor describes the body's radial mass distribution and is taken as given.
         """
         return self._spin.calc_moment_of_inertia(mass, radius)
 

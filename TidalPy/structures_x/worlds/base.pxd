@@ -1,11 +1,6 @@
 # distutils: language = c++
-"""
-base.pxd
-Cython declarations for TidalPy's base world class.
-
-Exports c_WorldConfig, c_BaseWorld, and the Python wrapper BaseWorld so other
-extensions can cimport and use C-speed access.
-"""
+"""Cython declarations for TidalPy's base world class: c_WorldConfig, c_BaseWorld, and the Python wrapper
+BaseWorld."""
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
@@ -124,7 +119,6 @@ cdef class BaseWorld(StructureBase):
     cdef shared_ptr[c_BaseWorld] _world_ptr   # owns the most-derived C++ world object (shared so a System can co-own it)
     cdef public dict source_config            # normalized config the world was built from (or None)
     cpdef dict get_config_dict(self)
-    # Wrap an already-constructed C++ world (e.g. one loaded by c_System::read_binary) as a Python
-    # wrapper without building a new C++ object. Each subclass overrides to return its own type.
+    # Wrap an already-constructed C++ world without building a new one; each subclass returns its own type.
     @staticmethod
     cdef BaseWorld _wrap(shared_ptr[c_BaseWorld] ptr)

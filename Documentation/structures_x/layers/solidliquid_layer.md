@@ -1,31 +1,18 @@
 # SolidLiquidLayer
 
-`TidalPy.structures_x.layers.SolidLiquidLayer`
+_Updated: 2026-09-16_
 
-## Overview
+`TidalPy.structures_x.layers.SolidLiquidLayer` extends `PhysicsLayer` with thermomechanical behavior: melt-fraction tracking, an Arrhenius viscosity, a melt-weakened shear modulus, thermal transport, and optional sub-models for radiogenic heating and convective or conductive cooling.
 
-`SolidLiquidLayer` extends `PhysicsLayer` with thermomechanical behavior: phase-change tracking, Arrhenius viscosity, dynamic shear modulus, thermal transport, and optional sub-model hooks for radiogenic heating and convective/conductive cooling.
+The physics:
 
-Key physics:
+- Melt fraction: power-law interpolation between solidus and liquidus, φ = clamp((T − T_s) / (T_l − T_s), 0, 1)^n.
+- Arrhenius viscosity with pressure correction and partial-melt reduction: η = η_ref · exp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref)) · exp(−C · φ).
+- Melt-weakened shear modulus: G_eff = G_static · (1 − φ).
+- Thermal transport: constant-k conductivity; diffusivity κ = k/(ρ_ref·c_p); adiabatic gradient α·T·g/c_p (requires EOS data for gravity).
+- Conductive heat flux: F = k · (T_base − T_top) / h.
 
-- **Melt fraction** — power-law interpolation between solidus and liquidus:
-φ = clamp((T − T_s) / (T_l − T_s), 0, 1)^n
-
-- **Arrhenius viscosity** with pressure correction and partial-melt reduction:
-η = η_ref · exp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref)) · exp(−C · φ)
-
-- **Dynamic shear modulus** — G_eff = G_static · (1 − φ)
-
-- **Thermal transport** — constant-k conductivity; diffusivity κ = k/(ρ_ref·c_p);
-adiabatic gradient α·T·g/c_p (requires EOS data for gravity).
-
-- **Conductive heat flux** — F = k · (T_base − T_top) / h.
-
-The solidus/liquidus temperatures are constant: the melt curve carries no pressure dependence.
-
-All values are in **MKS units** (meters, kilograms, seconds, pascals, kelvin).
-
----
+The solidus and liquidus temperatures are constant: the melt curve carries no pressure dependence.
 
 ## Inheritance
 
@@ -36,8 +23,6 @@ TidalPyBaseClass
               └── PhysicsLayer
                     └── SolidLiquidLayer
 ```
-
----
 
 ## Constructor
 
@@ -102,13 +87,11 @@ SolidLiquidLayer(
 | `reference_temperature` | K | Reference temperature T_ref for Arrhenius viscosity. Default `1600.0`. |
 | `melt_viscosity_reduction` | — | Coefficient C in exp(−C·φ) melt-viscosity reduction. Default `25.0`. |
 
----
-
 ## Properties
 
 ### Inherited from `PhysicsLayer`
 
-See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `viscosity_static`, `love_number`, `shear_rheology_set`, `bulk_rheology_set`.
+See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `love_numbers`, `love_number_k`, `love_number_h`, `love_number_l`, `shear_rheology_set`, `bulk_rheology_set`.
 
 ### Inherited from `BaseLayer`
 
@@ -133,8 +116,6 @@ _Read-only properties._
 | `melt_viscosity_reduction` | — | Exponential melt-viscosity reduction coefficient C. |
 | `cooling_set` | — | `True` after a cooling sub-model is attached. |
 | `radiogenics_set` | — | `True` after a radiogenics sub-model is attached. |
-
----
 
 ## Methods
 
@@ -216,7 +197,7 @@ flux = layer.calc_heat_flux_conductive(temperature_base=3500.0, temperature_top=
 
 ### `set_cooling(cooling)` / `set_radiogenics(radiogenics)`
 
-Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model. Ownership of the underlying C++ model is **transferred** into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (raises `ValueError` if re-attached). Shear/bulk rheology are attached via the inherited `set_shear_rheology` / `set_bulk_rheology` (see [PhysicsLayer](physics_layer.md)).
+Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model. Ownership of the underlying C++ model is transferred into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (raises `ValueError` if re-attached). Shear/bulk rheology are attached via the inherited `set_shear_rheology` / `set_bulk_rheology` (see [PhysicsLayer](physics_layer.md)).
 
 ```python
 from TidalPy.cooling_x import make_cooling
@@ -233,8 +214,6 @@ Radiogenic heating power [W] from the attached sub-model. Returns `0.0` when no 
 ### Inherited from PhysicsLayer / BaseLayer
 
 `calc_complex_shear_modulus`, `calc_complex_bulk_modulus`, `update_eos_data`, `get_density`, `get_gravity`, `get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`, `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
-
----
 
 ## `get_config_dict()` → dict
 
@@ -254,8 +233,6 @@ Returns all configuration values as a Python dictionary (MKS). Includes all `Bas
 | `reference_temperature` | K | Reference temperature. |
 | `melt_viscosity_reduction` | — | Melt-viscosity reduction coefficient. |
 
----
-
 ## Binary Serialization
 
 `save_binary` / `load_binary` serialize fields in this order:
@@ -267,11 +244,9 @@ Returns all configuration values as a Python dictionary (MKS). Includes all `Bas
 
 On load, every attached sub-model is reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with all of its physics intact (verify with `eos_set`, `shear_rheology_set`, `cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and `calc_radiogenic_heating`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 
-Binary class ID: **102** (`BinaryClassID::SolidLiquidLayer`).
+Binary class id 102 (`BinaryClassID::SolidLiquidLayer`).
 
 The EOS profile data is not serialized; re-run the world's `solve_eos` after loading.
-
----
 
 ## Example
 

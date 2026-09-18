@@ -1,12 +1,10 @@
 # Conversions and Scales (`Utilities_x.conversions`, `Utilities_x.dimensions`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
-`conversions` converts between MKS and the units typically used in the literature, and between orbital elements related by Kepler's third law. `dimensions` builds the scale factors that turn a dimensional interior problem into a non-dimensional one.
+`conversions` converts between MKS and the units typically used in the literature, and between orbital elements related by Kepler's third law. `dimensions` builds the scale factors that turn a dimensional interior problem into a non-dimensional one, so the non-dimensionalization the solvers rely on is defined in one place.
 
-TidalPy stores and returns everything in MKS. These helpers exist to assist in converting and so that the non-dimensionalization the solvers rely on is defined in one place.
-
-## Unit conversions
+## Unit Conversions
 
 ```python
 from TidalPy.Utilities_x.conversions import (
@@ -43,7 +41,7 @@ A non-positive host mass or a negative target mass raises `ValueError`.
 
 ## Non-Dimensionalization
 
-The radial structure and deformation problems are integrated in non-dimensional variables. The reason is that a radius near $10^7$, a density near $10^3$, a modulus near $10^{11}$, and a gravitational constant near $10^{-11}$ put the entries of the same linear system thirty orders of magnitude apart, and the solution loses most of its significant digits to that spread. Scaling each variable by a characteristic value of its own dimension brings the system to order unity, where the integrator and the boundary-condition solve behave.
+The radial structure and deformation problems are integrated in non-dimensional variables. A radius near $10^7$, a density near $10^3$, a modulus near $10^{11}$, and a gravitational constant near $10^{-11}$ put the entries of one linear system thirty orders of magnitude apart, and the solution loses significant digits to that spread. Scaling each variable by a characteristic value of its own dimension brings the system to order unity.
 
 The scales are built from just two properties of the body, its mean radius and its bulk density, plus the gravitational constant:
 
@@ -69,6 +67,6 @@ Each attribute is the factor a non-dimensional value is multiplied by to recover
 
 Callers rarely build these by hand. The radial solver and the world equation-of-state solve non-dimensionalize their inputs, integrate, and re-dimensionalize their results before returning, so the scales are an implementation detail unless you are reading solver internals or writing a new solver stage.
 
-## C++ surface
+## C++ API
 
 The conversion functions have `cf_` prefixed `nogil` Cython counterparts (`cf_orbital_motion2semi_a` and the rest) for use from `cdef` code without Python overhead. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, populated by `cf_build_nondimensional_scales`, and are passed by reference into the solvers that need them.

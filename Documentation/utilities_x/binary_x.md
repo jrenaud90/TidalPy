@@ -1,10 +1,10 @@
 # Binary Serialization (`Utilities_x.binary_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
-TidalPy writes worlds, layers, systems, and physics models to a compact binary format. A TOML configuration is the readable, editable, portable way to describe a world, and it is what you should commit to a repository. The binary format exists for the cases TOML handles poorly, chiefly saving and restoring an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
+TidalPy writes worlds, layers, systems, and physics models to a compact binary format. A TOML configuration is the readable, editable way to describe a world; the binary format saves and restores an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
 
-Every file starts with a fixed 20-byte header naming the format version, the class that wrote it, and the payload size. This makes a file self-describing, a reader can identify what it is holding before deciding whether it can read it.
+Every file starts with a fixed 20-byte header naming the format version, the class that wrote it, and the payload size, so a reader can identify what a file holds before deciding whether it can read it.
 
 ## File Format
 
@@ -29,7 +29,7 @@ The current schema version is `0.2.0`.
 | Same major and minor, any patch | Compatible. A differing patch produces an informational log line. |
 | Different major or minor | Incompatible. Reading raises unless `force=True` is given. |
 
-The rule is strict for a reason. A minor version bump can change a class's member layout, and reading an old payload into a new layout produces an object that looks valid and is not. `force=True` exists for the case where you know the layout did not change, and it still warns.
+A minor version bump can change a class's member layout, and reading an old payload into a new layout produces an object that looks valid and is not. `force=True` is for the case where the layout is known not to have changed, and it still warns.
 
 ## Python API
 
@@ -104,7 +104,7 @@ Containers own sub-objects that have to round-trip with them: a layer owns its p
 
 An optional owned sub-object, held in a `unique_ptr`, is written as a one-byte presence flag, zero for absent and one for present. When present, the sub-object's own complete record follows immediately, header and all. The presence flag counts toward the owning record's payload size, while the nested record is a separate self-describing record appended after it, so a file is a sequence of concatenated records.
 
-On read, the owning class reads the flag and, when set, calls a binary-dispatch factory. The factory peeks the upcoming record's class id, default-constructs the matching concrete subclass, and delegates to its `read_binary`. That is what allows a layer to restore an Andrade rheology it never knew it had.
+On read, the owning class reads the flag and, when set, calls a binary-dispatch factory. The factory peeks the upcoming record's class id, default-constructs the matching concrete subclass, and delegates to its `read_binary`.
 
 | Module | Dispatch factory |
 |---|---|

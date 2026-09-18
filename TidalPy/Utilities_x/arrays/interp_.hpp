@@ -1,13 +1,8 @@
 #pragma once
 /*
- * interp_.hpp — 1-D linear interpolation utilities (numpy.interp-style).
- *
- * The search routine is a binary search seeded with a guess (adapted from
- * NumPy's `compiled_interp`); the interpolation matches `numpy.interp`:
- * out-of-range queries clamp to the endpoint values, and a NaN slope falls back
- * to the value from the other bracket endpoint.
- *
- * The domain `x_domain` must be sorted ascending and have length >= 1.
+ * interp_.hpp: 1-D linear interpolation matching numpy.interp, using a binary search seeded with a guess
+ * (adapted from NumPy's compiled_interp). Out-of-range queries clamp to the endpoint values and a NaN
+ * slope falls back to the other bracket endpoint. x_domain must be sorted ascending, length >= 1.
  */
 
 #include <cmath>
@@ -87,7 +82,7 @@ inline std::size_t c_binary_search_with_guess(
 }
 
 // ---------------------------------------------------------------------------
-// c_interp — real linear interpolation (numpy.interp-style)
+// c_interp: real linear interpolation (numpy.interp-style)
 // ---------------------------------------------------------------------------
 // Interpolate `dependent_values` (sampled on the sorted-ascending `x_domain`) at
 // `desired_x`. Out-of-range queries clamp to the endpoint values. `len_x` is the
@@ -136,7 +131,7 @@ inline double c_interp(
 }
 
 // ---------------------------------------------------------------------------
-// c_interp_complex — complex linear interpolation
+// c_interp_complex: complex linear interpolation
 // ---------------------------------------------------------------------------
 // As c_interp, but the dependent values are complex. Real and imaginary parts are
 // interpolated independently.

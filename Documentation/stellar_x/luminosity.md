@@ -1,6 +1,6 @@
 # Luminosity Models (`stellar_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
 A luminosity model maps a star's mass onto its luminosity $L$ \[W\]. That sets the effective temperature through the Stefan-Boltzmann law, and, once the star is placed in a `System`, the flux and equilibrium temperature of every world orbiting it.
 
@@ -37,7 +37,7 @@ Reports the luminosity it was given for any mass. Used when the star's luminosit
 
 ### Mass to Luminosity
 
-A piecewise function is used based on the stars mass with different power laws that then link that mass to a luminosity. Below $x = M / M_\odot$.
+A piecewise function of the star's mass, with one power law per mass range. Below, $x = M / M_\odot$.
 
 | Range | Relation |
 |---|---|
@@ -51,7 +51,7 @@ The mass-ratio exponent in the second branch helps the fit across the whole M-dw
 
 ### Power Law
 
-A single power law with a caller-set prefactor and exponent. Use it to reproduce a paper that adopted one, or to isolate the effect of the mass-luminosity slope by varying $p$ directly. The defaults reproduce the classic $L \propto M^{3.5}$ scaling for solar-type stars.
+A single power law with a caller-set prefactor and exponent. Use it to reproduce a paper that adopted one, or to isolate the effect of the mass-luminosity slope by varying $p$ directly. The defaults reproduce the textbook $L \propto M^{3.5}$ scaling for solar-type stars.
 
 ### Behavior at the Limits
 
@@ -101,7 +101,7 @@ luminosity = fixed(mass_solar, luminosity=3.828e26)
 
 The convenience functions `fixed(mass, luminosity=0.0)`, `mass_to_luminosity(mass)`, and `power_law(mass, coeff=1.0, exponent=3.5)` each build a stack-allocated C++ model, evaluate it, and discard it. The mass may be a float or an array; the model parameters are always constants.
 
-### Use on a `StarWorld`
+### Attaching a Model to a `StarWorld`
 
 ```python
 from TidalPy.structures_x.worlds.stellar import StarWorld

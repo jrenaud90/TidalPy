@@ -1,12 +1,12 @@
-# Love Numbers
+# Love Numbers (`Tides_x.love`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
-`TidalPy.Tides_x.love`: the Love-number storage type, the names of the Love-number solution methods, and the closed-form homogeneous-sphere Love numbers. Full computation from a layered interior is performed by the radial solver (`RadialSolver_x` or `LayeredWorld.solve_love_numbers`), which populates these values; `LayeredWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
+`TidalPy.Tides_x.love` contains the Love-number storage type, the names of the Love-number solution methods, and the closed-form homogeneous-sphere Love numbers. Solved Love numbers come from the radial solver (`RadialSolver_x.radial_solver` for the standalone array API, or `LayeredWorld.solve_love_numbers` on a built world), which populates the storage type after integration; `LayeredWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
 
 ## Overview
 
-Tidal Love numbers describe how a planetary body deforms under an external tidal potential. Three numbers characterize the elastic response:
+Tidal Love numbers describe how a planetary body deforms under an external tidal potential. Three numbers characterize the response:
 
 | Symbol | Name | Description |
 |--------|------|-------------|
@@ -14,31 +14,11 @@ Tidal Love numbers describe how a planetary body deforms under an external tidal
 | **h** | Radial displacement Love number | Amplitude of vertical (radial) surface deformation |
 | **l** | Tangential displacement Love number | Amplitude of horizontal (tangential) surface deformation |
 
-All three are dimensionless complex numbers. The **real part** is the elastic amplitude; the **imaginary part** represents energy dissipation at the tidal forcing frequency.
+All three are dimensionless complex numbers. The real part is the elastic amplitude; the imaginary part represents energy dissipation at the tidal forcing frequency.
 
-## C++ struct — `c_LoveNumbers`
+## Python API
 
-Defined in `TidalPy/Tides_x/love/love_.hpp` within namespace `tidalpy`.
-
-```cpp
-struct c_LoveNumbers {
-    std::complex<double> k = {0.0, 0.0};
-    std::complex<double> h = {0.0, 0.0};
-    std::complex<double> l = {0.0, 0.0};
-
-    c_LoveNumbers() noexcept = default;
-    c_LoveNumbers(std::complex<double> k_in,
-                  std::complex<double> h_in,
-                  std::complex<double> l_in) noexcept;
-
-    bool operator==(const c_LoveNumbers& o) const noexcept;
-    bool operator!=(const c_LoveNumbers& o) const noexcept;
-};
-```
-
-Stack-allocated in Cython; heap-allocated as a member of `c_PhysicsLayer` and `c_SolidLiquidLayer`.
-
-## Python Class — `LoveNumbers`
+### `LoveNumbers`
 
 ```python
 from TidalPy.Tides_x.love import LoveNumbers
@@ -59,15 +39,11 @@ d = ln.to_dict()
 #  'love_number_l_re': 0.1, 'love_number_l_im': -0.005}
 ```
 
-### Properties
-
 | Property | Type | Description |
 |----------|------|-------------|
 | `k` | `complex` | Potential Love number |
 | `h` | `complex` | Radial displacement Love number |
 | `l` | `complex` | Tangential displacement Love number |
-
-### Methods
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -76,7 +52,7 @@ d = ln.to_dict()
 | `__eq__(other)` | `bool` | Equality check (component-wise) |
 | `__iter__()` | iterator | Yields `k`, `h`, `l` for tuple unpacking |
 
-## Integration with Layer Classes
+### Use in `Layer` Classes
 
 `PhysicsLayer` and `SolidLiquidLayer` store Love numbers internally as a `c_LoveNumbers` struct:
 
@@ -97,15 +73,7 @@ h = pl.love_number_h
 l = pl.love_number_l
 ```
 
-## Binary Serialization
-
-Love numbers are serialized in `c_PhysicsLayer::write_binary` as six consecutive `double` values (re, im for each of k, h, l), contributing `6 × 8 = 48 bytes` to the payload.
-
-## Computing Love Numbers
-
-Solved Love numbers come from the radial solver (`RadialSolver_x.radial_solver` for the standalone array API, or `LayeredWorld.solve_love_numbers` on a built world). The `c_LoveNumbers` struct is the storage target: the solver populates the three fields after integration.
-
-## Love-number Methods
+## Love-Number Methods
 
 A world obtains its Love numbers by one of these methods (`LayeredWorld.solve_love_numbers(love_method=...)` per call, `set_tide_config(love_method=...)` or the `[tides]` key `love_method` for the default that `calc_tides` uses). `love_method_name(alias)` returns the canonical name.
 
@@ -120,7 +88,7 @@ A world obtains its Love numbers by one of these methods (`LayeredWorld.solve_lo
 
 ## Homogeneous-Sphere Formulas
 
-For a homogeneous incompressible sphere of radius `R`, bulk density `rho`, surface gravity `g`, and shear modulus `mu` (Love 1911; Munk & MacDonald 1960):
+For a homogeneous incompressible sphere of radius `R`, bulk density `rho`, surface gravity `g`, and shear modulus `mu` (Love 1911; Munk and MacDonald 1960):
 
 ```python
 mu_eff_l = (2 l^2 + 4 l + 3) / l * mu / (rho g R)  # 19/2 * mu / (rho g R) at l = 2
@@ -152,3 +120,29 @@ ctl = apply_fixed_dt(static, 1.0e-5, 600.0)  # k, h, l times (1 - i omega dt)
 | `apply_fixed_q(love_numbers, fixed_q)` | Constant phase lag applied to k, h, and l. |
 | `apply_fixed_dt(love_numbers, frequency, fixed_dt)` | Constant time lag applied to k, h, and l. |
 | `love_method_name(method)` | Canonical method name for an alias. |
+
+## Serialization
+
+Love numbers are serialized in `c_PhysicsLayer::write_binary` as six consecutive `double` values (re, im for each of k, h, l), contributing `6 × 8 = 48 bytes` to the payload.
+
+## C++ API
+
+`c_LoveNumbers` is defined in `TidalPy/Tides_x/love/love_.hpp` within namespace `tidalpy`.
+
+```cpp
+struct c_LoveNumbers {
+    std::complex<double> k = {0.0, 0.0};
+    std::complex<double> h = {0.0, 0.0};
+    std::complex<double> l = {0.0, 0.0};
+
+    c_LoveNumbers() noexcept = default;
+    c_LoveNumbers(std::complex<double> k_in,
+                  std::complex<double> h_in,
+                  std::complex<double> l_in) noexcept;
+
+    bool operator==(const c_LoveNumbers& o) const noexcept;
+    bool operator!=(const c_LoveNumbers& o) const noexcept;
+};
+```
+
+Stack-allocated in Cython; heap-allocated as a member of `c_PhysicsLayer` and `c_SolidLiquidLayer`.

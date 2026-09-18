@@ -1,4 +1,4 @@
-# structures_x.worlds Cython package — exposes cdef/cpdef symbols.
+# Cython declarations for the structures_x.worlds package.
 
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.worlds.layered cimport LayeredWorld, c_LayeredWorld

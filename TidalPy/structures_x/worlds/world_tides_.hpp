@@ -1,19 +1,15 @@
 #pragma once
 /*
- * world_tides_.hpp — out-of-line definition of c_LayeredWorld::calc_tides.
+ * world_tides_.hpp: out-of-line definition of c_LayeredWorld::calc_tides and the 3D tidal paths.
  *
- * c_LayeredWorld extends the common analytic tide path (c_BaseWorld::calc_tides,
- * world_tides_base_.hpp) with two layered-world-only capabilities:
- *   - the rheology model: -Im[k_l(omega)] from the world radial solver run at each unique
- *     tidal frequency (the EOS must be solved first); and
- *   - per-layer heating distribution by each layer's tidal_scale_method.
+ * c_LayeredWorld extends the common analytic tide path (c_BaseWorld::calc_tides in world_tides_base_.hpp) with
+ * two layered-world capabilities: the rheology model, whose -Im[k_l(omega)] comes from the world radial solver
+ * run at each unique tidal frequency (the EOS must be solved first), and the distribution of the heating to the
+ * layers by each layer's tidal_scale_method. The tide-model holder, config, and result state stay on
+ * c_BaseWorld.
  *
- * It runs the global-potential engine, collapses (analytic or rheology), stores the result,
- * then distributes the heat to the layers. The tide-model holder / config / result state is
- * inherited from c_BaseWorld.
- *
- * This header pulls in the heavy global-potential tables; force-include it in the layered
- * (and gas-giant) world extension only.
+ * This header pulls in the heavy global-potential tables; force-include it in the layered and gas-giant world
+ * extension only.
  */
 
 #include <algorithm>
@@ -152,14 +148,13 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     }
 }
 
-// Effective per-layer tidal-heating scale for the layer's tidal_scale_method (0 for a
-// non-tidal layer).
+// Effective per-layer tidal-heating scale for the layer's tidal_scale_method (0 for a non-tidal layer).
 //   user_provided   : the layer's tidal_scale field.
 //   volume_fraction : layer volume / planet volume.
-//   tidal_timescale : a log-Gaussian bell curve in the layer's Maxwell time tau = eta/mu
-//                     (from its static shear modulus + viscosity) about the tidal forcing
-//                     period 2*pi/|orbital_frequency|; width [decades] from the tide config.
-//                     Returns 0 for a geometry-only layer or when mu/eta/forcing are unusable.
+//   tidal_timescale : a log-Gaussian bell in the layer's Maxwell time tau = eta/mu (from its static shear
+//                     modulus and viscosity) about the tidal forcing period 2*pi/|orbital_frequency|, with the
+//                     width [decades] from the tide config. Returns 0 for a geometry-only layer or when mu,
+//                     eta, or the forcing are unusable.
 inline double c_LayeredWorld::effective_tidal_scale(
         const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const {
     if (!layer->get_is_tidal()) {
@@ -208,19 +203,19 @@ inline double c_LayeredWorld::effective_tidal_scale(
 // function. The radial (Love-number) solve depends on (degree l, |omega|) only, so it runs once per unique pair and
 // its strain radial coefficients are reused across waves, points, longitudes, and times.
 //
-// Secular (cycle/orbit-averaged) heating density:
+// Secular (cycle and orbit-averaged) heating density:
 //     h_bar(r, theta, phi) = sum over |omega| of (|omega|/2) Im( sigma_c : conj(eps_c) )
-// with sigma_c, eps_c the total complex stress/strain amplitude at that frequency, i.e. every wave at that |omega|
+// with sigma_c, eps_c the total complex stress and strain amplitude at that frequency, every wave at that |omega|
 // summed before the bilinear form. Cross terms between different frequencies average to zero over the orbit and are
-// dropped; cross terms between waves at the same frequency survive the average and are kept. They are what the
-// m = 0 pairs contribute (each pair is one real sinusoid), and what makes the heating of a synchronously rotating
-// body, whose active modes all sit at multiples of n, depend on longitude. The scalar / batch paths take no
-// longitude and return the longitudinal mean of h_bar: cross terms between waves with different azimuthal structure
-// e^{i mu phi} integrate to zero over phi, so the mean is the sum over (|omega|, mu) groups evaluated at phi = 0.
-// The volume integral of h_bar is the 1D global heating (get_tidal_heating). At nonzero obliquity the 3D value is
-// for the geometry with zero argument of periapse and node (the engine drops precession): same-frequency modes of
-// the same (l, m) then combine coherently, a cross term the precession-averaged 1D formula does not carry, so the
-// two agree only to the size of those terms there.
+// dropped; those between waves at the same frequency survive the average and are kept. They are what the m = 0 pairs
+// contribute (each pair is one real sinusoid) and what makes the heating of a synchronously rotating body, whose
+// active modes all sit at multiples of n, depend on longitude. The scalar and batch paths take no longitude and
+// return the longitudinal mean of h_bar: cross terms between waves with different azimuthal structure e^{i mu phi}
+// integrate to zero over phi, so the mean is the sum over (|omega|, mu) groups evaluated at phi = 0. The volume
+// integral of h_bar is the 1D global heating (get_tidal_heating). At nonzero obliquity the 3D value is for the
+// geometry with zero argument of periapse and node (the engine drops precession): same-frequency modes of the same
+// (l, m) then combine coherently, a cross term the precession-averaged 1D formula does not carry, so the two agree
+// only to the size of those terms there.
 
 namespace tides3d {
 
@@ -391,7 +386,7 @@ struct c_RadialCoefficients3D {
 };
 
 // Solve the radial problem once per radial group (l, |omega|) and evaluate each group's strain radial coefficients
-// at every radius. A radius is unusable only if NO group has a depth-resolved solution there: the solver's start
+// at every radius. A radius is unusable only when no group has a depth-resolved solution there: the solver's start
 // radius grows with degree l, so a higher-degree group whose solution starts further out simply contributes nothing
 // below it.
 inline c_RadialCoefficients3D c_radial_coefficients_3d(
@@ -854,10 +849,10 @@ inline double c_secular_theta_integral_3d(
 
 }  // namespace tides3d
 
-// The 3D orchestration lives on the rheology tide model (the only TideBase with a depth-resolved solution); it
-// calls the world's members directly (no callbacks). Defined here, in the world extension, where c_LayeredWorld
-// + the kernel/potential headers are complete and CyRK lives, so every radial solve + dense call stays in its
-// owning extension.
+// The 3D orchestration lives on the rheology tide model (the only TideBase with a depth-resolved solution) and
+// calls the world's members directly, with no callbacks. It is defined here, in the world extension, where
+// c_LayeredWorld and the kernel and potential headers are complete and CyRK lives, so every radial solve and dense
+// call stays in its owning extension.
 
 // Scalar form: the batch path with one point.
 inline double c_RheologyTide::calc_3d_tidal_heating(
@@ -1150,9 +1145,9 @@ inline void c_LayeredWorld::get_3d_stress_strain_grid(
 
 // Batch form of the secular 3D heating: the longitude-mean secular density at num_points paired (radius,
 // colatitude) points. The coherent wave list is built once, the radial solve runs once per radial group
-// (l, |omega|), and its strain radial coefficients are evaluated once per UNIQUE radius (points on a map share
-// radii). Points that share a colatitude share its angular work, and the colatitudes run on up to num_threads threads.
-// A point whose radius has no depth-resolved solution (below the solver start / center) is NaN.
+// (l, |omega|), and its strain radial coefficients are evaluated once per unique radius (points on a map share
+// radii). Points that share a colatitude share its angular work, and the colatitudes run on up to num_threads
+// threads. A point whose radius has no depth-resolved solution (the center, below the solver start) is NaN.
 inline void c_RheologyTide::calc_3d_tidal_heating_batch(
         c_LayeredWorld& world,
         const c_TideSolveConfig& state,
@@ -1234,12 +1229,13 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
 // Collapsed (summed / averaged) 3D tidal heating
 // =====================================================================================================================
 
-// Produce the 3D tidal heating as a full grid over (radius, colatitude, longitude[, time]) or reduced (integrated)
-// along any spatial dimension, written into caller buffers sized by c_LayeredWorld::calc_3d_tides_layout.
-// orbit_averaged=true gives the secular density h_bar(r, theta, phi) (the pointwise time average; the longitude mean
-// when longitude is summed); orbit_averaged=false gives the instantaneous power sigma_ij(t) eps_dot_ij(t) at each user
-// time. See c_Heating3DCollapseConfig / c_Heating3DCollapsed for the flags + output conventions. The radial solves run
-// on the calling thread and the per-point evaluation on up to cfg.num_threads threads over colatitude rows.
+// Produce the 3D tidal heating as a full grid over (radius, colatitude, longitude[, time]) or integrated along any
+// spatial dimension, written into caller buffers sized by c_LayeredWorld::calc_3d_tides_layout.
+// orbit_averaged=true gives the secular density h_bar (the pointwise time average, or its longitude mean when
+// longitude is summed); orbit_averaged=false gives the instantaneous power sigma_ij(t) eps_dot_ij(t) at each user
+// time. See c_Heating3DCollapseConfig and c_Heating3DCollapsed for the flags and output conventions. The radial
+// solves run on the calling thread and the per-point evaluation on up to cfg.num_threads threads over colatitude
+// rows.
 inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
         c_LayeredWorld& world,
         const c_TideSolveConfig& state,

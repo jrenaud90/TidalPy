@@ -1,6 +1,6 @@
 # Helper Functions
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-16_
 
 `TidalPy.RadialSolver_x.radial_solver` takes array-based inputs: a radius grid, the density and complex moduli on that grid, the planet bulk density, and a few per-layer descriptors. Two native builders assemble those inputs from a layer description so you do not have to hand-build the arrays:
 
@@ -41,7 +41,7 @@ Models with parameters (Andrade, Sundberg, Burgers, Voigt) keep whatever paramet
 
 ## Planet with Homogeneous Layers
 
-If your planet of interest has multiple distinct layers, but you assume each layer is homogenous in composition and viscoelastic properties (and density), then this helper can build rs inputs with a minimal amount of information from the user.
+For a planet whose layers are each homogeneous in density, moduli, and viscosities, this helper builds the inputs from a few per-layer values.
 
 ```python
 import numpy as np
@@ -87,7 +87,7 @@ Each layer's grid runs from its base to its top (both inclusive) with `slices_tu
 
 ## Planet from Radially Resolved Data Arrays
 
-Useful if utilizing a 3rd party EOS solver or when utilizing data found in the literature.
+For a profile from a third-party EOS solver or from the literature.
 
 ```python
 import numpy as np
@@ -126,7 +126,7 @@ build_data = build_rs_input_from_data(
 solution = radial_solver(*build_data, degree_l=2)
 ```
 
-The solver requires that the grid starts at `r = 0`, that every interface radius appears twice (top of the lower layer and base of the upper layer), and that each layer's upper radius is a grid point. The builder copies your arrays and repairs them where needed, giving each inserted slice the properties of the neighboring provided slice: an inserted layer base copies the layer's first provided slice, an inserted layer top copies the slice below it. An interface radius that appears only once is taken as the top of the lower layer, with the properties it carries, and the upper layer's base is inserted above it (the same convention as the classic builder). Each repair is logged as a warning (pass `warnings=False` to silence them). The planet bulk density is the mass of the piecewise-constant shells divided by the planet volume.
+The solver requires that the grid starts at `r = 0`, that every interface radius appears twice (top of the lower layer and base of the upper layer), and that each layer's upper radius is a grid point. The builder copies your arrays and repairs them where needed, giving each inserted slice the properties of the neighboring provided slice: an inserted layer base copies the layer's first provided slice, an inserted layer top copies the slice below it. An interface radius that appears only once is taken as the top of the lower layer, with the properties it carries, and the upper layer's base is inserted above it. Each repair is logged as a warning (pass `warnings=False` to silence them). The planet bulk density is the mass of the piecewise-constant shells divided by the planet volume.
 
 Array arguments accept anything `numpy.asarray` understands (lists included); they are converted to contiguous float64 arrays.
 
@@ -149,12 +149,10 @@ Array arguments accept anything `numpy.asarray` understands (lists included); th
 
 ## Errors
 
-- `TypeError`: a rheology argument is not a `rheology_x` model instance or model name (classic
-`TidalPy.rheology` models included).
-- `ValueError`: per-layer inputs with the wrong length, fractions that do not describe the whole planet,
-fewer than 5 slices in a layer, more (or fewer) than one layer-size description, a non-ascending radius grid, or a last layer upper radius that is not the planet radius.
+- `TypeError`: a rheology argument is not a `rheology_x` model instance or model name (classic `TidalPy.rheology` models included).
+- `ValueError`: per-layer inputs with the wrong length, fractions that do not describe the whole planet, fewer than 5 slices in a layer, more (or fewer) than one layer-size description, a non-ascending radius grid, or a last layer upper radius that is not the planet radius.
 
-`perform_checks` is accepted for signature compatibility with the classic builders; the native builders always validate their inputs.
+`perform_checks` is accepted for signature compatibility; the builders always validate their inputs.
 
 ## Uniform Sphere: `homogeneous_love_numbers`
 

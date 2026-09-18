@@ -1,14 +1,6 @@
 # distutils: language = c++
-"""
-love.pxd
-Cython declarations for TidalPy's Love numbers container.
-
-Exports c_LoveNumbers and the Python wrapper LoveNumbers so other extensions
-can cimport and work with Love numbers at C speed.
-
-Usage::
-
-    from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
+"""Cython declarations for TidalPy's Love numbers container, the Love-number method names, and the
+homogeneous-sphere formulas.
 """
 
 from libcpp.complex cimport complex as cpp_complex

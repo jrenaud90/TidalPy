@@ -1,11 +1,6 @@
 # distutils: language = c++
-"""
-tide.pxd
-Cython declarations for TidalPy's global (1D) tidal dissipation model hierarchy.
-
-Exports the C++ models, the per-degree config struct, the enum factory, and the Python
-wrapper classes so other extensions (the global-potential collapse, the world) can
-cimport and build or attach a tide model at C speed.
+"""Cython declarations for TidalPy's global (1D) tide models: the C++ classes, the per-degree config
+struct, the enum factory, and the Python wrapper classes.
 """
 
 from libcpp.string cimport string

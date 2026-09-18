@@ -15,9 +15,7 @@ cdef extern from "interpolate_.hpp" nogil:
 
 
     cdef void c_preeval_interpolate(
-            # Values that will be updated by the function
             char* preeval_output,
-            # Input that is used by the pre-eval
             double radius,
             double* radial_solutions,
             char* preeval_input

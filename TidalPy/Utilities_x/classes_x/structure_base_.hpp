@@ -1,15 +1,11 @@
 #pragma once
 /*
- * structure_base_.hpp — c_StructureBase: spherical geometry base class.
+ * structure_base_.hpp: c_StructureBase, the spherical geometry base class.
  *
- * Stores radius [m] and mass [kg].
- * All calc_* methods are const and take explicit arguments — they are pure
- * functions that do not depend on the object's stored radius/mass.  This
- * matches the functional-style design principle (no hidden state in calcs).
+ * Stores radius [m] and mass [kg]. The calc_* methods are const and take explicit arguments rather than
+ * reading the stored radius and mass, so they are pure functions with no hidden state.
  *
- * Binary format (20-byte header + 16 bytes payload):
- *   header: class_id = BinaryClassID::StructureBase (2)
- *   payload: p_radius (double, 8 bytes) | p_mass (double, 8 bytes)
+ * Binary payload under class_id BinaryClassID::StructureBase (2): p_radius then p_mass, two doubles.
  */
 
 #include <cmath>

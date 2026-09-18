@@ -1,10 +1,10 @@
 # Graphics (`Utilities_x.graphics_x`)
 
-_Updated: 2026-09-15_
+_Updated: 2026-09-16_
 
-Two plotting helpers are used by the radial-solver solution's `plot_ys` and `plot_interior` methods call, and they can also be used directly on arrays. Two more draw surface maps of the 3D tidal fields.
+Two plotting helpers back the radial-solver solution's `plot_ys` and `plot_interior` methods and can also be used directly on arrays. Two more draw surface maps of the 3D tidal fields.
 
-A radial-function plot is an easy, visual instability check for a Love-number solve. Spikes, sustained oscillations, or curves that do not vary smoothly with radius mean the integration did not converge, and that shows up in a glance at the figure.
+A radial-function plot is a visual instability check for a Love-number solve: spikes, sustained oscillations, or curves that do not vary smoothly with radius mean the integration did not converge.
 
 | Function | Draws |
 |---|---|
@@ -49,13 +49,13 @@ Note the difference between the two forms. The solution method knows how many bo
 | `use_tobie_limits`, `x_limits`, `y_limits` | The axis limits used by Tobie et al. (2005), explicit per-panel limits, or radius and depth limits in km. |
 | `figure_size`, `show_plot` | Figure size in inches, and whether to call `plt.show()` before returning. The default is not to. |
 
-The returned `axes` is a two-by-three array. The first three radial functions across the top row and the last three below. A legend appears whenever more than one curve is drawn.
+The returned `axes` is a two-by-three array: the first three radial functions across the top row and the last three below. A legend appears whenever more than one curve is drawn.
 
-### Benchmark data
+### Benchmark Data
 
 `load_benchmark_ys(name)` returns a nested dict keyed first by radial function, `y1` through `y4`, then by model. Tobie et al. (2005) supplies a homogeneous model (`HG`) and two liquid-core models (`LC1`, `LC2`); Roberts and Nimmo (2008) supplies a homogeneous model (`HG`) and one liquid-core model (`LC`). Each entry is a `(values, radius)` pair. The digitized data files ship with the package, and `Benchmarks_x/RadialSolver/Enceladus_Tobie_Roberts.ipynb` reproduces both published figures.
 
-## Interior profiles
+## Interior Profiles
 
 ```python
 from TidalPy.Utilities_x.graphics_x import plot_interior

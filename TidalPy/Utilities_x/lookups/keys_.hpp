@@ -2,16 +2,14 @@
 
 #include <cstdint>
 
-// Define KeyType
 typedef uint64_t RefKeyType;
 
-// Correct OFFSET (int32_t) to prevent overflow
+// Shifts a signed int16 into the unsigned range; int32_t so the addition cannot overflow.
 const int32_t OFFSET = 32768;
 
-// Helper to pack keys
+// Pack signed 16-bit key components into one 64-bit lookup reference.
 inline RefKeyType convert_4key(int16_t a, int16_t b, int16_t c, int16_t d)
 {
-    // Helper to pack the key
     return (static_cast<RefKeyType>(a + OFFSET) << 48) | 
            (static_cast<RefKeyType>(b + OFFSET) << 32) | 
            (static_cast<RefKeyType>(c + OFFSET) << 16) | 
@@ -20,7 +18,6 @@ inline RefKeyType convert_4key(int16_t a, int16_t b, int16_t c, int16_t d)
 
 inline RefKeyType convert_3key(int16_t a, int16_t b, int16_t c)
 {
-    // Helper to pack the key
     return (static_cast<RefKeyType>(a + OFFSET) << 32) | 
            (static_cast<RefKeyType>(b + OFFSET) << 16) | 
            static_cast<RefKeyType>(c + OFFSET);
@@ -28,14 +25,12 @@ inline RefKeyType convert_3key(int16_t a, int16_t b, int16_t c)
 
 inline RefKeyType convert_2key(int16_t a, int16_t b)
 {
-    // Helper to pack the key
     return (static_cast<RefKeyType>(a + OFFSET) << 16) | 
            static_cast<RefKeyType>(b + OFFSET);
 };
 
 inline RefKeyType convert_1key(int16_t a)
 {
-    // Helper to pack the key
     return static_cast<RefKeyType>(a + OFFSET);
 };
 

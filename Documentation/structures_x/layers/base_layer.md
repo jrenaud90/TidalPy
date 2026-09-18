@@ -1,16 +1,10 @@
 # BaseLayer
 
-`TidalPy.structures_x.layers.BaseLayer`
+_Updated: 2026-09-16_
 
-## Overview
+`TidalPy.structures_x.layers.BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii \[m\], total mass \[kg\], and an optional material identifier for one spherically symmetric shell inside a planetary body. Derived geometry (thickness, volume, surface areas) is computed at construction and accessible through read-only properties.
 
-`BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii, total mass, and an optional material identifier for one spherically symmetric shell inside a planetary body.
-
-All spatial data is stored and returned in **MKS units**. Derived geometry (thickness, volume, surface areas) is computed at construction and accessible via read-only properties.
-
-A **material EOS model** (the layer's density source) is attached with `set_eos`. An **EOS profile** (density, gravity, and pressure as a function of radius) is then populated by the world-level EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)), or directly via `update_eos_data`. Until populated, all EOS getters return `NaN`.
-
----
+A material EOS model (the layer's density source) is attached with `set_eos`. An EOS profile (density, gravity, and pressure as a function of radius) is then populated by the world-level EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)), or directly with `update_eos_data`. Until populated, all EOS getters return `NaN`.
 
 ## Inheritance
 
@@ -21,8 +15,6 @@ TidalPyBaseClass
 ```
 
 `BaseLayer` inherits binary serialization (`save_binary`, `load_binary`) and TOML config saving (`save_config`, `get_config_dict`) from `TidalPyBaseClass` via `StructureBase`.
-
----
 
 ## Constructor
 
@@ -53,13 +45,11 @@ BaseLayer(
 | `is_tidal` | `bool` | — | Whether this layer dissipates tidal energy. Default `True`. |
 | `tidal_scale` | `float` | — | Dimensionless scale on tidal heating. Default `1.0`. |
 
----
-
 ## Properties
 
 ### Geometry
 
-These properties are Read-only.
+Read-only properties.
 
 | Property | Units | Description |
 |----------|-------|-------------|
@@ -83,8 +73,6 @@ These properties are Read-only.
 |----------|-------------|
 | `eos_data_populated` | `True` after the EOS profile has been populated (by the world EOS solve or `update_eos_data`). |
 | `eos_set` | `True` after a material EOS model has been attached via `set_eos`. |
-
----
 
 ## Methods
 
@@ -119,10 +107,7 @@ p   = ...  # pressure profile [Pa]
 layer.update_eos_data(r, rho, g, p)
 ```
 
-**Notes:**
-- In normal workflow this is called automatically by the world EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)).
-- All sequences must be the same length and `radius` must be sorted ascending.
-- Linear interpolation is used; values are clamped at the layer boundaries.
+In the normal workflow the world EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)) calls this. All sequences must be the same length and `radius` must be sorted ascending. Linear interpolation is used; values are clamped at the layer boundaries.
 
 ### `get_density(radius)` → float or ndarray
 
@@ -151,7 +136,7 @@ After the world EOS solve populates the layer, the radius-resolved viscoelastic 
 
 `viscoelastic_populated` says whether these are meaningful yet: it is `False` until the world's EOS solve fills the layer, and every getter returns NaN before then.
 
-**Vectorization:** every profile getter on this page accepts a float or an `np.ndarray` of radii and returns a matching scalar or same-shape array (evaluated in a C loop):
+Every profile getter on this page accepts a float or an `np.ndarray` of radii and returns a matching scalar or same-shape array, evaluated in a C loop:
 
 ```python
 import numpy as np
@@ -199,8 +184,6 @@ layer.set_eos(ConstantDensityEOS(reference_density=4400.0))
 layer.get_config_dict()["eos"]  # {'model': 'constant', 'reference_density_kg_m3': 4400.0}
 ```
 
----
-
 ### Tidal Bookkeeping
 
 | Member | Description |
@@ -229,7 +212,7 @@ print(f"Volume:        {mantle.volume:.3e} m³")
 print(f"EOS populated: {mantle.eos_data_populated}")
 # EOS populated: False
 
-# After EOSHandler runs (or for testing):
+# After the world's EOS solve runs (or for testing):
 mantle.update_eos_data(
     radius       = [3.485e6, 6.371e6],
     density_kgm3 = [5560.0,  3300.0],

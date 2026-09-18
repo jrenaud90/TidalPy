@@ -1,4 +1,4 @@
-# structures_x.layers Cython package — exposes cdef/cpdef symbols.
+# Cython declarations for the structures_x.layers package.
 
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_LayerEOSData
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer, c_PhysicsConfig

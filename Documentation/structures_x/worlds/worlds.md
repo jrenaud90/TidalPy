@@ -1,8 +1,8 @@
 # Worlds (`structures_x.worlds`)
 
-The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital/thermal scalars, and bulk geometry; a *layered* world additionally owns an ordered stack of [layers](../layers/) and is the object on which the whole-planet equation-of-state and radial (Love number) solves run.
+_Updated: 2026-09-18_
 
----
+The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry; a layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
 
 ## Inheritance
 
@@ -18,11 +18,9 @@ TidalPyBaseClass
 | Class | Layers? | EOS? | Purpose |
 |-------|---------|------|---------|
 | `BaseWorld` | no | no | Identity, albedo/emissivity/obliquity/spin, bulk geometry, equilibrium temperature. |
-| `StarWorld` | no | no | A star; effective temperature ↔ luminosity via Stefan-Boltzmann. |
+| `StarWorld` | no | no | A star; effective temperature and luminosity linked by the Stefan-Boltzmann law. |
 | `GasGiantWorld` | yes | yes | Gas giant; a `LayeredWorld` with its own type/binary id. |
 | `LayeredWorld` | yes | yes | Terrestrial/layered body; owns layers, aggregates mass and heating, runs the whole-planet EOS solve. |
-
----
 
 ## `BaseWorld`
 
@@ -51,9 +49,7 @@ welcome_to_earth = BaseWorld(
 
 `get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`, `type` (the builder's world type, from `get_builder_world_type()`), `radius`, `mass`, `albedo`, `emissivity`, `obliquity`, `spin_frequency`, and a `tides` table when a tide model is attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`). `save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`; `save_to_toml` validates the dict against the schema before writing when no build configuration is retained.
 
-Binary class id: **200** (`BinaryClassID::BaseWorld`).
-
----
+Binary class id 200 (`BinaryClassID::BaseWorld`).
 
 ## `LayeredWorld`
 
@@ -72,13 +68,15 @@ world.add_layer(SolidLiquidLayer("mantle", 1, 3.485e6, 6.371e6, 4.040e24))
 
 | Member | Description |
 |--------|-------------|
-| `add_layer(layer)` | Add a layer inner-to-outer. **Ownership of the layer (and its attached physics models) transfers into the world**; the passed wrapper becomes an empty shell. Raises `ValueError` if the layer was already added or if its inner radius is not continuous with the current outermost radius (innermost must start at 0). A rejected layer is *not* consumed. |
+| `add_layer(layer)` | Add a layer inner-to-outer. Ownership of the layer (and its attached physics models) transfers into the world; the passed wrapper becomes an empty shell. Raises `ValueError` if the layer was already added or if its inner radius is not continuous with the current outermost radius (innermost must start at 0). A rejected layer is not consumed. |
 | `num_layers` | Number of layers (property). |
 | `calc_total_mass()` | Σ layer masses [kg]; equals `planet_mass_eos` after a successful EOS solve. |
 | `calc_internal_heating(time)` | Σ radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. Uses each layer's `mass`, so solve the EOS first when the layers were built without one. |
 | `validate_layers()` | `True` if every boundary is continuous and the innermost starts at 0. |
 
-**Accessing layers.** A built world owns its layers, you can reach them with wrappers:
+**Accessing layers**
+
+A built world owns its layers; Python reaches them through non-owning views:
 
 | Access | Returns |
 |--------|---------|
@@ -88,15 +86,15 @@ world.add_layer(SolidLiquidLayer("mantle", 1, 3.485e6, 6.371e6, 4.040e24))
 | `world.<layer_name>` | the layer with that name (e.g. `world.mantle`) |
 | `for layer in world:` | iterate the layers inner-to-outer; `len(world)` is the layer count |
 
-Each returns a **non-owning view** dispatched to the matching subclass (`PhysicsLayer`/`SolidLiquidLayer`/`GasLayer`/`BaseLayer`), so the layer's full API is available (`world.mantle.shear_modulus_static`, `world.mantle.get_tidal_heating()`, `world.core.calc_complex_shear_modulus(r, ω)`, ...). The world still owns the C++ layer; the view keeps the world alive, so it is safe to hold but must not be mutated through. The views are built once and cached (rebuilt only when a layer is added), so repeated access returns the same object (`world.mantle is world.mantle`). Attribute access by name is only consulted after normal attribute lookup (defined members win) and ignores names starting with `_`.
+Each returns a non-owning view dispatched to the matching subclass (`PhysicsLayer`/`SolidLiquidLayer`/`GasLayer`/`BaseLayer`), so the layer's full API is available (`world.mantle.shear_modulus_static`, `world.mantle.get_tidal_heating()`, `world.core.calc_complex_shear_modulus(r, ω)`, ...). The world still owns the C++ layer; the view keeps the world alive, so it is safe to hold but must not be mutated through. The views are built once and cached (rebuilt only when a layer is added), so repeated access returns the same object (`world.mantle is world.mantle`). Attribute access by name is only consulted after normal attribute lookup (defined members win) and ignores names starting with `_`.
 
 `get_config_dict()` adds a `layers` table keyed by layer name to the `BaseWorld` keys. Each entry is the layer's own config dict (`class`, scalars, attached-model sub-tables) without the standalone-only keys the builder derives itself, so `build_world(world.get_config_dict())` rebuilds the same structure.
 
-Binary class id: **201** (`BinaryClassID::LayeredWorld`). See [Binary serialization](#binary-serialization) below.
+Binary class id 201 (`BinaryClassID::LayeredWorld`). See [Binary serialization](#binary-serialization) below.
 
 ### Equation of State
 
-Each layer carries a [material EOS model](../../material_x/material_eos.md) (its density source), attached with `BaseLayer.set_eos(model)`. Once every layer has one, `LayeredWorld.solve_eos(...)` integrates the planet's radial structure from center to surface populates every layer's density/gravity/pressure profile, and sets each layer's `mass` (and so its `density_bulk`) to the mass the solved profile places between the layer's radii. Until then a layer's mass is whatever it was constructed with; the TOML builder uses 0.0 when a file gives none, which is the usual case.
+Each layer carries a [material EOS model](../../material_x/material_eos.md) (its density source), attached with `BaseLayer.set_eos(model)`. Once every layer has one, `LayeredWorld.solve_eos(...)` integrates the planet's radial structure from center to surface, populates every layer's density, gravity, and pressure profile, and sets each layer's `mass` (and so its `density_bulk`) to the mass the solved profile places between the layer's radii. Until then a layer's mass is whatever it was constructed with; the TOML builder uses 0.0 when a file gives none, which is the usual case.
 
 ```python
 from TidalPy.structures_x.worlds import LayeredWorld
@@ -155,7 +153,7 @@ double rho = world.get_density(5.0e6);
 
 ### Viscoelastic Properties (after EOS solve)
 
-Once `solve_eos` has succeeded, the world and each layer expose the full complex-moduli / viscoelastic getter surface, which is needed by the Love number / radial solver.
+Once `solve_eos` has succeeded, the world and each layer expose the viscoelastic getters the radial solver needs.
 
 | Member | Returns | Description |
 |--------|---------|-------------|
@@ -168,8 +166,6 @@ Once `solve_eos` has succeeded, the world and each layer expose the full complex
 
 All of the above accept a float or `np.ndarray` for `r` (and `ω`); array inputs return an `np.ndarray` of the same shape.
 
----
-
 ### Calculating Love Numbers
 
 `LayeredWorld.solve_love_numbers(...)` computes the viscoelastic-gravitational Love tidal or loading numbers $k$, $h$, $l$ for a given tidal forcing frequency. `solve_eos` must be called first.
@@ -179,15 +175,15 @@ The `love_method` argument selects how the Love numbers are obtained (names are 
 | `love_method` | What it does |
 |---|---|
 | `radial_solver` (`shooting`, `rs`; default) | Numerically integrates the radial ODEs from the center to the surface. Works for arbitrary multi-layer, solid/liquid, static/dynamic, compressible/incompressible worlds. |
-| `propagation_matrix` (`prop_matrix`, `pm`, `prop`) | Quasi-analytic matrix propagation, restricted to a **single solid, static, incompressible layer**. An incompatible world fails the solve gracefully (`love_success` is `False`, `love_error_code` non-zero). `core_model` selects the core starting condition. |
-| `homogeneous` (`homogen`) | The homogeneous incompressible-sphere formulas, `k_l = 3/(2(l-1)) / (1 + mu_eff)`, `h_l = (2l+1)/(2(l-1)) / (1 + mu_eff)`, `l_l = 3/(2l(l-1)) / (1 + mu_eff)` with `mu_eff = (2l^2 + 4l + 3)/l * mu / (rho g R)`, evaluated with the volume-averaged **complex** shear modulus of the layers flagged `is_tidal` (each layer's radius-resolved modulus and rheology at the forcing frequency), the planet's bulk density, EOS surface gravity, and radius. Fast; no radial functions. |
-| `cpl` | The same formulas are used on the volume-averaged **static** (unrelaxed) shear modulus, then a constant phase lag is aplied: k, h, l are multiplied by `(1 - i/Q)` so `-Im[k] = Re[k]/Q`. `Q` is `fixed_q` (argument or `[tides]` config) or, when unset, the attached tide model's fixed Q for the degree. |
+| `propagation_matrix` (`prop_matrix`, `pm`, `prop`) | Quasi-analytic matrix propagation, restricted to a single solid, static, incompressible layer. An incompatible world fails the solve gracefully (`love_success` is `False`, `love_error_code` non-zero). `core_model` selects the core starting condition. |
+| `homogeneous` (`homogen`) | The homogeneous incompressible-sphere formulas, `k_l = 3/(2(l-1)) / (1 + mu_eff)`, `h_l = (2l+1)/(2(l-1)) / (1 + mu_eff)`, `l_l = 3/(2l(l-1)) / (1 + mu_eff)` with `mu_eff = (2l^2 + 4l + 3)/l * mu / (rho g R)`, evaluated with the volume-averaged complex shear modulus of the layers flagged `is_tidal` (each layer's radius-resolved modulus and rheology at the forcing frequency), the planet's bulk density, EOS surface gravity, and radius. Fast; no radial functions. |
+| `cpl` | The same formulas are used on the volume-averaged static (unrelaxed) shear modulus, then a constant phase lag is applied: k, h, l are multiplied by `(1 - i/Q)` so `-Im[k] = Re[k]/Q`. `Q` is `fixed_q` (argument or `[tides]` config) or, when unset, the attached tide model's fixed Q for the degree. |
 | `ctl` | Similar to `cpl` but with a constant time lag `(1 - i omega dt)`; `dt` is `fixed_dt` or the tide model's fixed time lag. |
 | `laterally_inhomogeneous` (`3d`, `lat_inhom`) | Reserved for a future 3D Love solver; raises `NotImplementedError`. |
 
 The analytic methods report the volume-averaged modulus and volume they used through `love_effective_shear_modulus` and `love_tidal_volume`, return `love_surface_amplification = 0`, and give NaN for the radial-function getters (`get_radial_solution_y`, ...). They have no depth-resolved solution, so the 3D stress/strain/heating path (`calc_3d_tides`, `get_3d_tidal_heating`) raises `RuntimeError` while an analytic method is the world's configured method. Free-function versions of the formulas live in `TidalPy.Tides_x.love` (`calc_homogeneous_love_numbers`, `calc_effective_rigidity`, `apply_fixed_q`, `apply_fixed_dt`; see [Love numbers](../../Tides_x/love/love_numbers.md)).
 
-The world's **default** method, used whenever its tide model asks for Love numbers inside `calc_tides`, is set with `set_tide_config(love_method=..., love_fixed_q=..., love_fixed_dt=...)` or the matching `[tides]` keys `love_method`, `love_fixed_q`, `love_fixed_dt` in a world TOML file; `solve_love_numbers` takes the method per call.
+The world's default method, used whenever its tide model asks for Love numbers inside `calc_tides`, is set with `set_tide_config(love_method=..., love_fixed_q=..., love_fixed_dt=...)` or the matching `[tides]` keys `love_method`, `love_fixed_q`, `love_fixed_dt` in a world TOML file; `solve_love_numbers` takes the method per call.
 
 ```python
 from TidalPy.structures_x.worlds import LayeredWorld
@@ -211,7 +207,7 @@ print(result["love_number_k"])   # complex k2, also world.love_number_k
 print(world.love_number_h, world.love_number_l)
 ```
 
-The moduli and the viscosity are properties of the **layer**, not of the rheology model: a rheology model holds only its own shape parameters (the Andrade exponent, the Voigt fractions), and reads the modulus and viscosity it is handed. A layer with no shear modulus and no viscosity model deforms as if it had no strength, and the solve fails rather than guessing.
+The moduli and the viscosity are properties of the layer, not of the rheology model: a rheology model holds only its own shape parameters (the Andrade exponent, the Voigt fractions), and reads the modulus and viscosity it is handed. A layer with no shear modulus and no viscosity model deforms as if it had no strength, and the solve fails rather than guessing.
 
 **`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', core_model=0, use_kamata=None, nondimensionalize=None, starting_radius=0.0, start_radius_tol=None, integration_method=None, rtol=None, atol=None, scale_rtols=None, max_num_steps=None, expected_size=None, max_ram_MB=None, max_step=0.0, verbose=False, warnings=True, love_method=None, fixed_q=None, fixed_dt=None) -> dict`**
 
@@ -260,13 +256,13 @@ std::complex<double> k2 = world.get_love_number_k(0);
 
 A default-constructed `c_LoveSolveConfig` (and `c_WorldEOSSolveConfig`) reads the `[radial_solver]` (`[eos_solver]`) section of the shared runtime config, so C++ callers and the tide paths start from the same defaults as Python callers.
 
-`c_LayeredWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a cached helper, `c_WorldRadialSolver` (held by `p_radial_solver`), that separates the **frequency-independent** setup (built once and reused) from the **frequency-dependent** work (recomputed cheaply on every call). This matters because the Love-number solve is the hot loop for frequency sweeps and orbital evolution.
+`c_LayeredWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a cached helper, `c_WorldRadialSolver` (held by `p_radial_solver`), that separates the frequency-independent setup (built once and reused) from the frequency-dependent work (recomputed on every call), since the Love-number solve is the hot loop for frequency sweeps and orbital evolution.
 
 The non-dimensionalization is itself frequency-independent (the `c_NonDimensionalScales` time scale is `1/(π·G·ρ_bulk)`, not `1/ω`), so the only quantities that change between calls at different frequencies are the complex moduli and the shooting integration.
 
 1. Validates `eos_solved` and `tidalpy_config_ptr`.
-2. If the cache does not match the current EOS grid/assumptions, `build_cache` captures (once): the non-dim radius/density/gravity/pressure/mass/moi arrays, per-layer metadata (solid/liquid, static, incompressible) and slice partitioning, the non-dim scalars (`G`, bulk density, surface pressure), and a **reused** `c_RadialSolutionStorage` whose internal `c_EOSSolution` arrays serve as the scratch buffers. The cache is invalidated automatically whenever `solve_eos` re-runs.
-3. Per call: `calc_complex_shear/bulk_modulus` fills the dimensional moduli scratch at the requested frequency; the helper non-dimensionalizes them in place, re-applies the cached non-dim structure arrays via `inject_from_world_eos` (which sets `p_use_array_interp` so the EOS interpolates from the arrays — no CyRK dense output needed), and runs the selected solver.
+2. If the cache does not match the current EOS grid/assumptions, `build_cache` captures (once): the non-dim radius/density/gravity/pressure/mass/moi arrays, per-layer metadata (solid/liquid, static, incompressible) and slice partitioning, the non-dim scalars (`G`, bulk density, surface pressure), and a reused `c_RadialSolutionStorage` whose internal `c_EOSSolution` arrays serve as the scratch buffers. The cache is invalidated automatically whenever `solve_eos` re-runs.
+3. Per call: `calc_complex_shear/bulk_modulus` fills the dimensional moduli scratch at the requested frequency; the helper non-dimensionalizes them in place, re-applies the cached non-dim structure arrays via `inject_from_world_eos` (which sets `p_use_array_interp` so the EOS interpolates from the arrays, with no CyRK dense output needed), and runs the selected solver.
 4. Re-dimensionalizes the y-solution, restores the SI surface gravity, and calls `c_RadialSolutionStorage::find_love()`.
 
 `get_love_number_k/h/l`, `get_love_surface_y`, and the status accessors read through `p_radial_solver->get_storage()`.
@@ -301,11 +297,11 @@ world.get_tidal_potential_derivatives()  # (dUdM, dUdw, dUdO) [J kg-1 rad-1]
 world.get_layer_tidal_heating(0)         # = world heating × layer 0's tidal_scale
 ```
 
-For a synchronous, low-eccentricity body the `cpl` result reproduces the classic CPL rate `(21/2)(k₂/Q)·G·M_host²·R⁵·n·e²/a⁶`.
+For a synchronous, low-eccentricity body the `cpl` result reproduces the standard CPL rate `(21/2)(k₂/Q)·G·M_host²·R⁵·n·e²/a⁶`.
 
 ### Rheology Model
 
-The analytic models (`cpl`/`ctl`/`ctl_q`) take `−Im[k_l]` from their fixed per-degree parameters and need no interior solution. The `rheology` model instead derives `−Im[k_l(ω)]` from the world radial solver: `calc_tides` runs the global-potential engine, then for each unique tidal frequency it solves the world's complex Love numbers (reusing the frequency- independent radial-solver cache), feeds the per-mode `k_l` into the collapse, and retains the full `k`/`h`/`l` suite per mode for inspection. Because it runs the radial solver, the EOS must be solved first:
+The analytic models (`cpl`/`ctl`/`ctl_q`) take `−Im[k_l]` from their fixed per-degree parameters and need no interior solution. The `rheology` model instead derives `−Im[k_l(ω)]` from the world radial solver: `calc_tides` runs the global-potential engine, then for each unique tidal frequency it solves the world's complex Love numbers (reusing the frequency-independent radial-solver cache), feeds the per-mode `k_l` into the collapse, and retains the full `k`/`h`/`l` suite per mode for inspection. Because it runs the radial solver, the EOS must be solved first:
 
 ```python
 world.solve_eos(G_to_use=G, temperature=1500.0)   # required for the rheology model
@@ -336,8 +332,6 @@ world.get_tidal_love_k(2, 2, 0, 0)    # complex k₂ for the (l,m,p,q) = (2,2,0,
 
 Each layer also stores its own tidal heating: the C++ `c_BaseLayer::get_tidal_heating()` returns the world heating scaled by that layer's contribution.
 
----
-
 ### Other World Members
 
 The remaining public surface, grouped by what it is for.
@@ -364,7 +358,7 @@ The remaining public surface, grouped by what it is for.
 
 ## `GasGiantWorld`
 
-A `LayeredWorld` whose `world_type` defaults to `"gasgiant"` and which uses a dedicated binary class id **202** (`BinaryClassID::GasGiantWorld`). Same API as `LayeredWorld`; typically populated with `GasLayer`s.
+A `LayeredWorld` whose `world_type` defaults to `"gasgiant"` and which uses a dedicated binary class id 202 (`BinaryClassID::GasGiantWorld`). Same API as `LayeredWorld`; typically populated with `GasLayer`s.
 
 ```python
 from TidalPy.structures_x.worlds import GasGiantWorld
@@ -373,8 +367,6 @@ from TidalPy.structures_x.layers import GasLayer
 jupiter = GasGiantWorld("Jupiter", 7.0e7, 1.898e27)
 jupiter.add_layer(GasLayer("envelope", 0, 0.0, 7.0e7, 1.898e27))
 ```
-
----
 
 ## `StarWorld`
 
@@ -390,15 +382,13 @@ sun.set_luminosity(3.828e26)  # recomputes effective_temperature
 
 **Properties:** `effective_temperature` [K], `luminosity` [W]. **Methods:** `calc_luminosity_from_temperature(T)`, `calc_temperature_from_luminosity(L)`, `set_effective_temperature(T)`, `set_luminosity(L)`. A luminosity-model hierarchy (fixed, mass-to-luminosity, power law) can be attached via `set_luminosity_model` (see `stellar_x/luminosity.md`).
 
-**Tides.** The analytic tide pipeline (`set_tide_model`/`set_tide_config`/`calc_tides` and the `get_tidal_*` accessors) lives on `BaseWorld`, so a star dissipates tidally too — with the analytic models only (`cpl`/`ctl`/`ctl_q`). The `rheology` model needs the radial solver and a layered interior, so `calc_tides` raises if it is selected on a star. A star has no layers, so there is no per-layer heating distribution. See [Global tidal dissipation](#global-tidal-dissipation).
+**Tides.** The analytic tide pipeline (`set_tide_model`/`set_tide_config`/`calc_tides` and the `get_tidal_*` accessors) lives on `BaseWorld`, so a star dissipates tidally too, with the analytic models only (`cpl`, `ctl`, `ctl_q`). The `rheology` model needs the radial solver and a layered interior, so `calc_tides` raises if it is selected on a star. A star has no layers, so there is no per-layer heating distribution. See [Global tidal dissipation](#global-1d-tidal-dissipation).
 
-Binary class id: **203** (`BinaryClassID::StarWorld`).
-
----
+Binary class id 203 (`BinaryClassID::StarWorld`).
 
 ## Binary Serialization
 
-A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then **each layer's own complete binary record in index order**. Because each layer recursively serializes its attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models (see [Binary serialization](../../utilities_x/binary_x.md)), a single `save_binary` / `load_binary` round-trips the entire world graph — no Python reconstruction step is needed. On load, each layer is rebuilt as the correct concrete subclass via the layer binary-dispatch factory (`c_layer_from_binary`).
+A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then each layer's own complete binary record in index order. Because each layer recursively serializes its attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models (see [Binary serialization](../../utilities_x/binary_x.md)), a single `save_binary` / `load_binary` round-trips the entire world graph: no Python reconstruction step is needed. On load, each layer is rebuilt as the correct concrete subclass via the layer binary-dispatch factory (`c_layer_from_binary`).
 
 ```python
 world.save_binary("earth.tpyb")

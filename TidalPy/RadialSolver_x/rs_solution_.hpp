@@ -1,5 +1,4 @@
-// rs_solution_.hpp - Radial solver solution storage class
-// Ported from TidalPy/RadialSolver/rs_solution_.hpp + rs_solution_.cpp
+// rs_solution_.hpp: radial solver solution storage.
 #pragma once
 
 #include <cstring>
@@ -54,9 +53,7 @@ public:
     // Love number attributes (stores double-pairs for complex values)
     std::vector<c_LoveNumbers> complex_love_vec = std::vector<c_LoveNumbers>();
 
-    // Cached surface y-solution (SI), laid out [ytype * C_MAX_NUM_Y + y_index]. Computed once per solve (both the
-    // shooting and matrix methods) inside find_love, because the surface y - and the Love numbers derived from it -
-    // is always needed. Interior y-values stay on demand via get_radial_solution.
+    // Surface y-solution (SI), laid out [ytype * C_MAX_NUM_Y + y_index], cached by find_love once per solve.
     std::vector<std::complex<double>> p_surface_y_si = std::vector<std::complex<double>>();
 
     // Diagnostic data
@@ -68,25 +65,19 @@ public:
 
     // ================================================================================================================
     // Interpolant-based (shooting) solution
-    //
-    // When p_uses_interpolants is true, the y-solution is served on demand from per-(layer, solution) dense CyRK
-    // interpolants plus the collapse constants below, instead of the gridded full_solution_vec. get_radial_solution
-    // evaluates the interpolants at any radius (no linear interpolation between grid slices), then collapses and
-    // re-dimensionalizes. The matrix method leaves this false and keeps filling full_solution_vec; its
-    // get_radial_solution linearly interpolates that grid.
     // ================================================================================================================
+    // When true, get_radial_solution evaluates the per-(layer, solution) dense CyRK interpolants at any radius and
+    // collapses them with the constants below; the matrix method leaves it false and fills full_solution_vec, which
+    // get_radial_solution then interpolates linearly.
     bool p_uses_interpolants = false;
 
-    // Dense CyRK results: [layer][solution]. Owns the force-retained integrators (dense output captured).
+    // Dense CyRK results [layer][solution]; owns the force-retained integrators.
     std::vector<std::vector<std::unique_ptr<CySolverResult>>> p_interp_by_layer_sol;
 
-    // Collapse constants: [ytype][layer][solution] (<= 3 solutions per layer). Found from the surface boundary
-    // condition and propagated down through the interfaces (exactly as the gridded collapse does), but stored so any
-    // radius can be collapsed on demand.
+    // Collapse constants [ytype][layer][solution], at most 3 solutions per layer.
     std::vector<std::vector<std::array<std::complex<double>, 3>>> p_constants_by_ytype_layer;
 
-    // Per-layer metadata needed to collapse at a radius. Radii/frequency are in solve units (whatever the shooting
-    // solver ran in: non-dim in the world path, SI when nondimensionalize is off). char (not bool) for a stable data().
+    // Per-layer metadata for the collapse, in solve units. char rather than bool for a stable data().
     std::vector<int>    p_layer_types        = std::vector<int>();
     std::vector<char>   p_layer_is_static    = std::vector<char>();
     std::vector<char>   p_layer_is_incomp    = std::vector<char>();
@@ -96,34 +87,28 @@ public:
     double p_starting_radius_solve  = 0.0;   // radii below this return NaN
     double p_frequency_solve        = 0.0;   // forcing frequency (solve units) for y3 reconstruction
 
-    // Dimensional context: maps an external SI radius into solve units (radius_solve = r_si / p_length_conv) and
-    // re-dimensionalizes the solve-unit y-solution to SI. All default to identity (used when the solve ran in SI).
+    // Dimensional context: radius_solve = r_si / p_length_conv, and the scales re-dimensionalize the solve-unit y to
+    // SI. Identity when the solve ran in SI.
     double p_length_conv  = 1.0;
     double p_disp_scale   = 1.0;   // y1, y3
     double p_stress_scale = 1.0;   // y2, y4
     double p_pot_scale    = 1.0;   // y6   (y5 is unitless)
-    // EOS unit state. The EOS is queried for gravity/density during y3 reconstruction of dynamic-liquid layers; when
-    // the EOS has been re-dimensionalized (export mode) its outputs are divided back into solve units.
+    // Whether the EOS arrays are still non-dim; when re-dimensionalized (export mode) the gravity and density read
+    // during the dynamic-liquid y3 reconstruction are divided back into solve units.
     bool   p_eos_is_nondim = false;
     double p_grav_conv     = 1.0;
     double p_dens_conv     = 1.0;
 
-    // Persisted EOS inputs for the standalone (c_radial_solver) shooting path. The EOS cysolver's dense extra-output
-    // re-invoke (density + complex moduli) reads its stored c_InterpolateEOSInput, which only references, never
-    // copies, these arrays. They must therefore (a) outlive c_radial_solver (the original per-call locals dangled,
-    // corrupting any post-solve eos->call), and (b) stay in the EOS solve units (non-dim when the solve ran non-dim),
-    // so c_EOSSolution::call's nondim_status redim restores SI. get_eos_si then evaluates the dense interpolant at a
-    // solve-unit radius and gets correct SI back. The world path never fills these (it injects array-interp EOS data).
+    // Persisted EOS inputs for the standalone shooting path, in EOS solve units. The dense EOS re-evaluation
+    // references them through c_InterpolateEOSInput, so they must outlive c_radial_solver. Unused by the world path.
     std::vector<double> p_eos_in_radius_nd  = std::vector<double>();
     std::vector<double> p_eos_in_density_nd = std::vector<double>();
     std::vector<std::complex<double>> p_eos_in_bulk_nd  = std::vector<std::complex<double>>();
     std::vector<std::complex<double>> p_eos_in_shear_nd = std::vector<std::complex<double>>();
     std::vector<c_InterpolateEOSInput> p_eos_interp_inputs = std::vector<c_InterpolateEOSInput>();
 
-    // Default constructor
     c_RadialSolutionStorage() = default;
 
-    // Main constructor
     c_RadialSolutionStorage(
         size_t num_ytypes,
         double* upper_radius_bylayer_ptr,
@@ -138,7 +123,6 @@ public:
             num_slices(size_radius_array),
             num_layers(num_layers)
     {
-        // Create equation of state class instance
         this->eos_solution_uptr = std::make_unique<c_EOSSolution>(
             upper_radius_bylayer_ptr,
             num_layers,
@@ -146,7 +130,7 @@ public:
             this->num_slices
             );
 
-        // Setup diagnostic array. Size = max possible number of solutions per layer (3) * num layers
+        // Up to 3 solutions per layer.
         this->shooting_method_steps_taken_vec.resize(3 * this->num_layers);
         for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
         {
@@ -155,13 +139,12 @@ public:
             this->shooting_method_steps_taken_vec[3 * layer_i + 2] = 0;
         }
 
-        // Setup radius array based vectors
         if (this->eos_solution_uptr.get())
         {
             this->change_radius_array(
                 radius_array_ptr,
                 size_radius_array,
-                false  // We are in initialization, this is not an array change.
+                false  // not an array change
                 );
 
             this->message = "Radial solution storage initialized successfully.";
@@ -205,8 +188,6 @@ public:
             this->total_size = static_cast<size_t>(C_MAX_NUM_Y_REAL) * this->num_slices * this->num_ytypes;
 
             this->full_solution_vec.resize(this->total_size);
-
-            // Love number structure for each ytype
             this->complex_love_vec.resize(this->num_ytypes);
         }
     }
@@ -216,13 +197,8 @@ public:
         if (!(this->success && this->eos_solution_uptr->success && this->error_code == 0)) [[unlikely]]
             return;
 
-        // c_find_love is scale-invariant: it uses (surface y, surface gravity) and the displacement/gravity scales
-        // cancel exactly, so the solve-unit (non-dim, pre-redimensionalization) pair gives the same k, h, l as the SI
-        // pair. find_love runs before any re-dimensionalization, so surface_gravity is in solve units here.
-        //
-        // The surface y is always needed (it yields the Love numbers), so it is cached here once per solve - in SI -
-        // for both methods. p_surface_y_si feeds get_surface_y / get_love_surface_y without recomputation; interior
-        // y-values remain on demand via get_radial_solution.
+        // c_find_love is scale-invariant (the displacement and gravity scales cancel), so the solve-unit surface y and
+        // surface gravity give the same k, h, l as the SI pair. The SI surface y is cached here for both methods.
         std::complex<double> surface_solutions[C_MAX_NUM_Y];
         this->p_surface_y_si.assign(
             this->num_ytypes * C_MAX_NUM_Y, std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN)
@@ -230,7 +206,6 @@ public:
 
         if (this->p_uses_interpolants)
         {
-            // Shooting (interpolant) path: evaluate the collapsed surface y from the dense interpolants.
             const double surface_r_solve =
                 this->p_upper_radii_solve.empty() ? 0.0 : this->p_upper_radii_solve.back();
             for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ++ytype_i)
@@ -243,7 +218,7 @@ public:
             return;
         }
 
-        // Matrix path: read the surface slice of the gridded full_solution_vec (stored as real/imag pairs).
+        // Matrix path: the surface slice of the grid (real/imag pairs).
         const size_t top_slice_i   = this->num_slices - 1;
         const size_t num_output_ys = C_MAX_NUM_Y_REAL * this->num_ytypes;
         for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ++ytype_i)
@@ -261,8 +236,7 @@ public:
         }
     }
 
-    // Re-dimensionalize a solve-unit y1..y6 vector to SI in place (y5 is unitless). Shared by get_radial_solution and
-    // the surface-y cache so both apply identical scaling.
+    // Re-dimensionalize a solve-unit y1..y6 vector to SI in place (y5 is unitless).
     void apply_redimensionalization(std::complex<double>* y6) const noexcept
     {
         y6[0] *= this->p_disp_scale;    // y1
@@ -272,7 +246,7 @@ public:
         y6[5] *= this->p_pot_scale;     // y6
     }
 
-    // Store the SI surface y for one ytype into the cache from a solve-unit surface y vector.
+    // Cache the SI surface y for one ytype from a solve-unit surface y vector.
     void cache_surface_y(size_t ytype_i, const std::complex<double>* surface_solve_units) noexcept
     {
         std::complex<double> y_si[C_MAX_NUM_Y];
@@ -287,10 +261,7 @@ public:
         bool redimensionalize,
         bool include_eos = true)
     {
-        // Perform dimensionalization on the EOS solution first.
-        // include_eos = false redimensionalizes only the y-solution, leaving the EOS
-        // arrays untouched (used by the cached world radial solver, which keeps its
-        // EOS arrays permanently non-dim and reuses them across frequency solves).
+        // include_eos = false leaves the EOS arrays non-dim for reuse across frequency solves (the world path).
         double* full_solution_ptr       = this->full_solution_vec.data();
         c_EOSSolution* eos_solution_ptr = this->get_eos_solution_ptr();
         if (include_eos)
@@ -300,9 +271,7 @@ public:
         const double stress_scale       = (nondim_scales->mass_conversion / nondim_scales->length3_conversion);
         const double potential_scale    = (1.0 / nondim_scales->length_conversion);
 
-        // The shooting method serves its y-solution from the dense interpolants and re-dimensionalizes on the fly in
-        // get_radial_solution, so the gridded full_solution_vec is not filled and must not be scaled here. (The EOS
-        // arrays above are still re-dimensionalized when include_eos is set.)
+        // The shooting grid is unfilled (re-dimensionalized on the fly by get_radial_solution) and must not be scaled.
         if (this->success && !this->p_uses_interpolants)
         {
             for (size_t solver_i = 0; solver_i < this->num_ytypes; ++solver_i)
@@ -311,25 +280,20 @@ public:
                 for (size_t slice_i = 0; slice_i < this->num_slices; ++slice_i)
                 {
                     const size_t slice_stride = bc_stride + slice_i * C_MAX_NUM_Y_REAL * this->num_ytypes;
-                    // y1 (real and imag)
+                    // Real and imaginary pairs; y5 (8, 9) is unitless.
+                    // y1
                     full_solution_ptr[slice_stride + 0] *= displacement_scale;
                     full_solution_ptr[slice_stride + 1] *= displacement_scale;
-
-                    // y3 (real and imag)
+                    // y3
                     full_solution_ptr[slice_stride + 4] *= displacement_scale;
                     full_solution_ptr[slice_stride + 5] *= displacement_scale;
-
-                    // y2 (real and imag)
+                    // y2
                     full_solution_ptr[slice_stride + 2] *= stress_scale;
                     full_solution_ptr[slice_stride + 3] *= stress_scale;
-
-                    // y4 (real and imag)
+                    // y4
                     full_solution_ptr[slice_stride + 6] *= stress_scale;
                     full_solution_ptr[slice_stride + 7] *= stress_scale;
-
-                    // y5 is unitless - no conversion needed
-
-                    // y6 (real and imag)
+                    // y6
                     full_solution_ptr[slice_stride + 10] *= potential_scale;
                     full_solution_ptr[slice_stride + 11] *= potential_scale;
                 }
@@ -341,8 +305,7 @@ public:
     // Interpolant-based radial-solution evaluation (the dense calling system)
     // ================================================================================================================
 
-    // Clear any previously stored shooting interpolants / constants / metadata. Called at the start of a shooting
-    // solve so a re-solve (e.g. a new forcing frequency) does not accumulate stale interpolators.
+    // Clear the stored shooting interpolants, constants, and metadata before a re-solve.
     void reset_interpolant_storage() noexcept
     {
         this->p_uses_interpolants = false;
@@ -358,9 +321,7 @@ public:
         this->p_frequency_solve       = 0.0;
     }
 
-    // Record how to map an external SI radius into solve units and re-dimensionalize the solve-unit y-solution. Set by
-    // the solve wrapper once the non-dimensionalization scales are known. eos_is_nondim reflects whether the EOS
-    // arrays are currently non-dim (fast world path) or have been re-dimensionalized to SI (export path).
+    // Record the SI-to-solve-unit radius map, the y re-dimensionalization scales, and the EOS unit state.
     void set_dimensional_context(
             double length_conv,
             double disp_scale,
@@ -379,9 +340,8 @@ public:
         this->p_dens_conv     = dens_conv;
     }
 
-    // Evaluate the collapsed y1..y6 at a radius given in solve units, writing solve-unit complex values into out6
-    // (length C_MAX_NUM_Y). Returns false (and NaN-fills) if unsolved, below the starting radius, or out of range.
-    // Shooting (interpolant) path only.
+    // Collapsed y1..y6 (solve units) at a solve-unit radius, shooting path only. Returns false and NaN-fills out6
+    // if unsolved, below the starting radius, or out of range.
     bool eval_solveunits(double radius_solve, size_t ytype_i, std::complex<double>* out6) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
@@ -406,14 +366,13 @@ public:
         const bool is_static  = this->p_layer_is_static[target_layer_i] != 0;
         if (num_sols == 0 || num_sols > 3) return false;
 
-        // Evaluate each independent solution's dense interpolant at this radius (CyRK writes 2x real per complex y).
-        const size_t num_ys = 2 * num_sols;            // y-values defined for this layer type
+        // CyRK writes two reals per complex y.
+        const size_t num_ys = 2 * num_sols;
         std::complex<double> ysol[3][C_MAX_NUM_Y];
-        double real_out[2 * C_MAX_NUM_Y];              // up to num_ys complex -> 2*num_ys doubles
+        double real_out[2 * C_MAX_NUM_Y];
         for (size_t sol_i = 0; sol_i < num_sols; ++sol_i)
         {
-            // unique_ptr::get() yields a non-const CySolverResult* even from this const method; call() is non-const
-            // (mirrors how c_EOSSolution::call invokes its stored interpolants).
+            // CySolverResult::call is non-const; unique_ptr::get() yields a non-const pointer from this const method.
             CySolverResult* interp = this->p_interp_by_layer_sol[target_layer_i][sol_i].get();
             if (!interp) return false;
             interp->call(radius_solve, real_out);
@@ -462,10 +421,8 @@ public:
 
         if (calculate_y3)
         {
-            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5), all in solve units. Gravity and density are read from the
-            // EOS's structural arrays inside this layer's own slices, the same arrays the gridded collapse used, so
-            // the dense y3 reproduces the grid y3 and an interface radius takes this layer's density rather than
-            // the neighbor's.
+            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units; gravity and density come from this layer's own
+            // slices so an interface radius takes this layer's density rather than the neighbor's.
             const double eos_r = this->p_eos_is_nondim ? radius_solve : radius_solve * this->p_length_conv;
             double g_solve = 0.0, rho_solve = 0.0;
             this->eos_solution_uptr->interp_structure_in_layer(target_layer_i, eos_r, &g_solve, &rho_solve);
@@ -476,14 +433,12 @@ public:
         return true;
     }
 
-    // Evaluate the collapsed y1..y6 at an external SI radius for one ytype, writing SI complex values into out6.
-    // Dispatches on the solve method: shooting evaluates the dense interpolants (accurate at any radius); the matrix
-    // method linearly interpolates its constructed grid. Returns false (and NaN-fills) on failure / out of range.
+    // Collapsed y1..y6 (SI) at an SI radius for one ytype: the shooting path evaluates the dense interpolants, the
+    // matrix path linearly interpolates its grid. Returns false and NaN-fills out6 on failure or out of range.
     bool get_radial_solution(double radius_si, size_t ytype_i, std::complex<double>* out6) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
-        
-        // Shooting method path
+
         if (this->p_uses_interpolants)
         {
             const double radius_solve = radius_si / this->p_length_conv;
@@ -492,12 +447,11 @@ public:
                 for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
                 return false;
             }
-            // Re-dimensionalize solve-unit ys to SI (y5 is unitless).
             this->apply_redimensionalization(out6);
             return true;
         }
 
-        // Matrix path: full_solution_vec is already SI. Linearly interpolate it on the EOS radius grid.
+        // Matrix path: full_solution_vec is already SI.
         for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
         if (!this->success || ytype_i >= this->num_ytypes || this->num_slices < 2) return false;
 
@@ -528,8 +482,7 @@ public:
         return true;
     }
 
-    // Vectorized convenience: evaluate y1..y6 at n SI radii for one ytype. out must hold n * C_MAX_NUM_Y complex
-    // values, laid out [radius][y]. Each radius is evaluated independently via get_radial_solution.
+    // y1..y6 at n SI radii for one ytype; out holds n * C_MAX_NUM_Y complex values laid out [radius][y].
     void get_radial_solution_array(
         const double* radii_si, size_t n, size_t ytype_i, std::complex<double>* out) const
     {
@@ -537,8 +490,7 @@ public:
             this->get_radial_solution(radii_si[i], ytype_i, &out[i * C_MAX_NUM_Y]);
     }
 
-    // SI y1..y6 at the planet surface for one ytype, served from the cache that find_love fills once per solve
-    // (method-agnostic). Returns false (and NaN-fills) if unsolved or the cache is unavailable.
+    // SI surface y1..y6 for one ytype from the find_love cache; false and NaN-filled if unavailable.
     bool get_surface_y(size_t ytype_i, std::complex<double>* out6) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
@@ -553,12 +505,9 @@ public:
         return true;
     }
 
-    // SI-aware dense EOS evaluation at an arbitrary radius. Routes through the solution's own dense EOS
-    // interpolant (not a re-interpolation of the gridded arrays): converts the external SI radius into the
-    // interpolant's solve-unit (non-dim) domain, locates the layer in solve units, then lets eos->call
-    // redimensionalize the outputs back to SI (the cysolver interpolant lives in the non-dim radius domain,
-    // so an SI radius would extrapolate). out must hold C_EOS_DY_VALUES doubles:
-    //   [0] gravity [1] pressure [2] mass [3] moi [4] density [5,6] shear re/im [7,8] bulk re/im.
+    // Dense EOS evaluation at an SI radius: the radius is converted into the interpolant's solve-unit domain, the
+    // layer located there, and eos->call re-dimensionalizes the outputs. out holds C_EOS_DY_VALUES doubles:
+    // [0] gravity [1] pressure [2] mass [3] moi [4] density [5,6] shear re/im [7,8] bulk re/im [9,10] viscosities.
     bool get_eos_si(double radius_si, double* out) const
     {
         if (!this->eos_solution_uptr || !this->success) return false;
@@ -579,9 +528,7 @@ public:
         return true;
     }
 
-    // Fill the gridded full_solution_vec (SI) by sampling get_radial_solution over the EOS radius grid. Used by the
-    // standalone solver to keep the legacy array-returning API working after a shooting solve; the world path does
-    // not call this (it queries get_radial_solution at the radii it needs).
+    // Fill the SI grid from get_radial_solution over the EOS radius grid, for the array-returning standalone API.
     void sample_onto_grid()
     {
         if (!this->success) return;

@@ -1,5 +1,4 @@
-// kamata_.hpp - Starting conditions based on Kamata et al. (2015)
-// Ported from TidalPy/RadialSolver/starting/kamata.pyx
+// kamata_.hpp: starting conditions after Kamata et al. (2015).
 //
 // References
 // ----------
@@ -333,7 +332,7 @@ inline void c_kamata_liquid_dynamic_compressible(
         const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
-    // For liquid layer, shear modulus is zero so 1st Lame parameter = bulk modulus
+    // Liquid: shear modulus zero, so lame = bulk modulus.
     const std::complex<double> lame = bulk_modulus;
 
     // Optimizations

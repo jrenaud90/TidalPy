@@ -1,8 +1,8 @@
 # Tides (`Tides_x`)
 
-_Updated: 2026-09-15_
+_Updated: 2026-09-16_
 
-`TidalPy.Tides_x` turns an orbital state into tidal dissipation. It carries the drivers of the tidal potential (the eccentricity and obliquity functions), the global one-dimensional dissipation models that collapse the potential into heating and orbital derivatives, the depth-resolved three-dimensional stress, strain, and heating kernel, and the Love-number container shared with the radial solver.
+`TidalPy.Tides_x` contains functionality to calculate tidal dissipation from an orbital state: the eccentricity and obliquity functions that drive the tidal potential, the global one-dimensional dissipation models that collapse the potential into heating and orbital derivatives, the depth-resolved three-dimensional stress, strain, and heating kernel, and the Love-number container shared with the radial solver.
 
 | Page | Covers |
 |---|---|
@@ -24,11 +24,19 @@ Obliquity Functions <obliquity.md>
 
 ## Structure
 
-A tidal solve starts from the potential. The Kaula expansion writes it as a sum over modes indexed by $(l, m, p, q)$, each carrying an amplitude built from an obliquity function $F_{lmp}(I)$, an eccentricity function $G_{lpq}(e)$, and a forcing frequency $\omega_{lmpq}$ set by the orbital and spin rates. The truncation levels decide how many of those modes are kept, and therefore both the accuracy and the cost of everything downstream.
+A tidal solve starts from the potential. The Kaula expansion writes it as a sum over modes indexed by $(l, m, p, q)$, each carrying an amplitude built from an obliquity function $F_{lmp}(I)$, an eccentricity function $G_{lpq}(e)$, and a forcing frequency $\omega_{lmpq}$ set by the orbital and spin rates. The truncation levels decide how many of those modes are kept, and therefore the accuracy and the cost of everything downstream.
 
-Each active mode then needs a response. That is the Love number $k_l(\omega)$, which comes either from a radial solve of the interior or from one of the analytic models. Summing $-\mathrm{Im}[k_l]$ against the per-mode potential terms gives the global heating and the orbital derivatives; carrying the full radial functions instead gives the depth-resolved strain, stress, heating, and displacement fields.
+Each active mode then needs a response: the Love number $k_l(\omega)$, from a radial solve of the interior or from one of the analytic models. Summing $-\mathrm{Im}[k_l]$ against the per-mode potential terms gives the global heating and the orbital derivatives; carrying the full radial functions instead gives the depth-resolved strain, stress, heating, and displacement fields.
 
-## Reference
+## Where Tides are Used
+
+A world's tide model is attached with `set_tide_model` and configured with `set_tide_config` or the `[tides]` table of its TOML file; `calc_tides` runs the global solve and the `calc_3d_*` methods run the depth-resolved one. See [Worlds](../structures_x/worlds/worlds.md). A `System` supplies the orbital state for each call and turns the potential derivatives into orbital and spin rates; see [System](../structures_x/system/system.md) and [Dynamics](../dynamics_x/index.md).
+
+## Examples
+
+`Demos_x/Physics/05_tidal_basics.ipynb` attaches a fixed-Q tide model and computes heating, `06_rheology_io.ipynb` and `07_gasgiant_fixedQ_dt.ipynb` compare tide models, and `09_tidal_heating_3d.ipynb` and `13_tidal_maps_3d.ipynb` map the three-dimensional heating, stress, and displacement.
+
+## References
 
 - Kaula, W. M. (1964). Tidal dissipation by solid friction and the resulting orbital evolution. *Reviews of Geophysics*, 2(4), 661-685.
-- Renaud, J. P., et al. (2021). Tidal dissipation in dual-body, highly eccentric, and non-synchronously rotating systems. *The Astrophysical Journal*, 902(2), 122.
+- Renaud, J. P., et al. (2021). Tidal dissipation in dual-body, highly eccentric, and nonsynchronously rotating systems: Applications to Pluto-Charon and the exoplanet TRAPPIST-1e. *The Planetary Science Journal*, 2(1), 4.

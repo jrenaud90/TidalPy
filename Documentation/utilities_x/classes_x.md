@@ -1,12 +1,12 @@
 # Base Classes (`Utilities_x.classes_x`)
 
-_Updated: 2026-09-13_
+_Updated: 2026-09-16_
 
-Three C++ base classes sit underneath every object TidalPy builds. They are the reason a rheology model, a cooling model, a layer, and a whole world have the same four methods for saving and restoring themselves, and the reason adding a new physics model does not mean rewriting serialization code.
+Three C++ base classes underlie every object TidalPy builds. They give a rheology model, a cooling model, a layer, and a world the same methods for saving and restoring themselves, so a new physics model needs no serialization code of its own.
 
-If you plan to add a model of any kind, read this page first. The contract described here is what a new class has to satisfy, and the per-module "adding a new model" sections utilize it.
+A new model class has to satisfy the contract described here; the per-module "adding a new model" sections build on it.
 
-## Inheritance chain
+## Inheritance
 
 ```
 c_TidalPyBaseClass          (abstract; binary input and output, schema version)
@@ -54,7 +54,7 @@ Abstract; instantiate a concrete subclass. It provides the file and version surf
 | `get_config_dict()` | `dict` | Empty at this level; subclasses fill it. |
 | `save_config(path)` | | Write `get_config_dict()` as TOML. |
 
-The version check is the part worth knowing about. A file written by a different minor version is refused, because the class layout it encodes may no longer match. `force=True` bypasses the refusal with a warning, which is occasionally what you want and is never safe to assume.
+A file written by a different minor version is refused, because the class layout it encodes may no longer match. `force=True` bypasses the refusal with a warning.
 
 ## `StructureBase`
 
@@ -73,7 +73,7 @@ StructureBase(radius: float, mass: float)
 | `calc_mean_density(mass, volume)` | `float` | $m / V$ [kg m$^{-3}$]. |
 | `calc_escape_velocity(mass, radius)` | `float` | $\sqrt{2 G m / r}$ [m s$^{-1}$]. |
 
-Every `calc_` method is const and takes its inputs explicitly rather than reading the object's stored radius and mass. A layer needs the volume of a shell between two radii that are not its own, and a world needs the surface area at an arbitrary radius, so binding these helpers to the object's own state would make them useless in exactly the cases they are called for.
+Every `calc_` method is const and takes its inputs explicitly rather than reading the object's stored radius and mass, because a layer needs the volume of a shell between two radii that are not its own and a world needs the surface area at an arbitrary radius.
 
 The binary record is 36 bytes: the 20-byte header, then the radius and mass as doubles in host byte order.
 
@@ -90,15 +90,15 @@ PhysicsBase(model_name: str)
 
 Every physics model's configuration comes from one place. The C++ base declares the virtual `append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the model name; each concrete model calls its parent and then appends its own parameters using the builders in `config_entry_.hpp`. The Cython `get_config_dict` converts the entries to a dict, so the wrapper classes never override it, and a layer or world writer can read the configuration of any attached model through its raw pointer.
 
-The payoff is that the keys are exactly what the matching factory accepts, so `make_<family>(config["model"], config)` rebuilds the model. That is what makes a world's configuration round-trip: the world asks each layer, each layer asks each attached model, and every answer is valid builder input.
+The keys are exactly what the matching factory accepts, so `make_<family>(config["model"], config)` rebuilds the model, and a world's configuration round-trips: the world asks each layer, each layer asks each attached model, and every answer is valid builder input.
 
 The config entries are not part of the binary format; they are a separate, human-readable view. The layer observer pointer is a C++ only field that the owning layer sets after construction, and it is neither serialized nor exposed to Python.
 
 The binary record is 24 bytes plus the model name: the 20-byte header, the name length as a `uint32_t`, then the UTF-8 name bytes.
 
-## Checking physics-model Config Keys
+## Checking Physics-Model Config Keys
 
-`check_config_keys(config, accepted_keys, family)` is the guard every `make_*` factory runs before building a model. It raises `ValueError` for any key that no model in the family reads, always accepts `model` so a `get_config_dict()` result can be passed straight back, and names the closest accepted key for each rejected one. That last part matters because the most common mistake is a missing unit suffix, such as `solidus` for `solidus_k`.
+`check_config_keys(config, accepted_keys, family)` is the guard every `make_*` factory runs before building a model. It raises `ValueError` for any key that no model in the family reads, always accepts `model` so a `get_config_dict()` result can be passed straight back, and names the closest accepted key for each rejected one. The most common mistake is a missing unit suffix, such as `solidus` for `solidus_k`.
 
 ```python
 from TidalPy.Utilities_x.classes_x import check_config_keys
@@ -108,7 +108,7 @@ check_config_keys({"solidus": 1500.0}, {"solidus_k", "liquidus_k"}, "partial-mel
 # ValueError: TidalPy: unrecognized partial-melt config key(s): 'solidus' (did you mean 'solidus_k'?). ...
 ```
 
-The check is per family rather than per model on purpose. The world builder merges material defaults beneath a user's table, so a table can legitimately carry a key that belongs to a different model of the same family; only a key that no model reads is an error. The world builder adds the table name to the message, for example `[layers.mantle.partial_melt]`, so the offending line can be found in the TOML file.
+The check is per family rather than per model. The world builder merges material defaults beneath a user's table, so a table can legitimately carry a key that belongs to a different model of the same family; only a key that no model reads is an error. The world builder adds the table name to the message, for example `[layers.mantle.partial_melt]`, so the offending line can be found in the TOML file.
 
 ## C++ API
 
@@ -159,11 +159,11 @@ model.set_layer_ptr(layer_ptr);           // called by the owning layer
 const std::string& name = model.get_model_name();
 ```
 
-## Logger wiring across extensions
+## Logger Wiring Across Extensions
 
 `classes.pyx` calls `set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())` when the module initializes, so the logging macros inside `tidalpy_base_.hpp` and `binary_.hpp` reach the shared logger. Every compiled extension in the new backend does the same thing, for the reason explained under [Logging](logging_x.md): each extension is a separate dynamic library with its own copy of the header-only state, and the pointer has to be handed across explicitly.
 
-## Include chain
+## Include Chain
 
 ```
 classes.pyx

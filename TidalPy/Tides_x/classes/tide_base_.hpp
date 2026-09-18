@@ -1,39 +1,33 @@
 #pragma once
 /*
- * tide_base_.hpp — c_TideBase: abstract base for TidalPy's global (1D) tidal
- * dissipation models.
+ * tide_base_.hpp - c_TideBase: abstract base for TidalPy's global (1D) tidal dissipation models.
  *
- * Inherits c_PhysicsBase (Utilities_x/classes_x/physics_base_.hpp). A tide model is a
- * world-level physics model: it converts a per-mode Love number into the dissipation
- * multiplier used by the global mode collapse (tide_collapse_.hpp). The four concrete
- * models live in tide_.hpp:
+ * Inherits c_PhysicsBase. A tide model converts a per-mode Love number into the dissipation
+ * multiplier used by the global mode collapse (tide_collapse_.hpp). The concrete models live in
+ * tide_.hpp:
  *
- *   c_RheologyTide  (alias "rheology")           — k_l from the radial solver (frequency dependent).
- *   c_FixedQTide    (alias "cpl"/"fixed_q")      — constant phase lag, k_l*(1 - i/Q_l).
- *   c_FixedLagTide  (alias "ctl"/"fixed_dt")     — constant time lag,  k_l*(1 - i*omega*dt_l).
- *   c_CTLQTide      (alias "ctl_q"/"fixed_dt_q") — k_l*(1 - i*omega*dt_l/Q_l).
+ *   c_RheologyTide  (alias "rheology")           - k_l from the radial solver (frequency dependent).
+ *   c_FixedQTide    (alias "cpl"/"fixed_q")      - constant phase lag, k_l*(1 - i/Q_l).
+ *   c_FixedLagTide  (alias "ctl"/"fixed_dt")     - constant time lag,  k_l*(1 - i*omega*dt_l).
+ *   c_CTLQTide      (alias "ctl_q"/"fixed_dt_q") - k_l*(1 - i*omega*dt_l/Q_l).
  *
- * The collapse only needs the dissipation multiplier -Im[k_l(omega)], but the full
- * c_LoveNumbers suite (k, h, l) is always the transport type so the displacement Love
- * numbers from the radial solver are never thrown away. The potential terms (heating,
- * dU/dM, dU/dw, dU/dO) are produced once, model-independently, by c_global_potential
- * (potential/global_.hpp). All quantities MKS; frequencies in rad s-1. calc_* methods
- * are const.
+ * The full c_LoveNumbers suite (k, h, l) is the transport type even though the collapse needs only
+ * -Im[k_l(omega)], so the radial solver's displacement Love numbers are never thrown away. All
+ * quantities MKS; frequencies in rad s-1.
  *
  * References
  * ----------
- * - Renaud et al. (2021, PSJ) — global dual-body tidal dissipation (collapse form).
- * - Efroimsky & Makarov (2013) — CPL/CTL frequency dependence of the dissipation.
+ * - Renaud et al. (2021, PSJ): global dual-body tidal dissipation (collapse form).
+ * - Efroimsky and Makarov (2013): CPL and CTL frequency dependence of the dissipation.
  */
 
 #include <complex>
 #include <limits>
 #include <string>
 
-// Explicit relative path (not bare "love_.hpp"): the layered/world extension also has
-// RadialSolver_x on its include path, which has a different global-namespace love_.hpp, so a
-// bare include can resolve to the wrong file depending on include-dir order. This pins the
-// Tides_x (tidalpy::c_LoveNumbers) header.
+// Explicit relative path, not a bare "love_.hpp": the layered and world extensions also carry
+// RadialSolver_x on their include path, which holds a different global-namespace love_.hpp, so a bare
+// include can resolve to the wrong file depending on include-dir order.
 #include "../love/love_.hpp"   // tidalpy::c_LoveNumbers
 #include "physics_base_.hpp"
 
@@ -47,37 +41,22 @@ public:
 
     ~c_TideBase() override = default;
 
-    // -----------------------------------------------------------------------
-    // Complex Love numbers (k, h, l) at tidal frequency [rad s-1] (pure virtual).
-    //
-    // The full c_LoveNumbers suite is always the transport type, even though only k is
-    // needed for heating/orbital dynamics. Analytic models (FixedQ/FixedLag/CTLQ) build
-    // k_l from their fixed per-degree parameters and frequency law and set h, l to NaN
-    // (they cannot produce displacement Love numbers without a radial solution); they
-    // ignore `solver_love`. The rheology model returns `solver_love` unchanged (the full
-    // k/h/l from the radial solver, supplied by the world at this frequency).
-    //
-    // Assumptions
-    // -----------
-    // - frequency is the tidal forcing frequency magnitude |omega_lmpq| (>= 0).
-    // -----------------------------------------------------------------------
+    // Complex Love numbers (k, h, l) at the tidal forcing frequency magnitude |omega_lmpq| [rad s-1].
+    // The analytic models build k_l from their fixed per-degree parameters, set h and l to NaN (no
+    // radial solution), and ignore solver_love; the rheology model returns solver_love unchanged.
     virtual c_LoveNumbers calc_love_numbers(
             int degree_l, double frequency, const c_LoveNumbers& solver_love) const = 0;
 
-    // -Im[k_l] — the dissipation multiplier used in the mode collapse. Derived
-    // from the k component of the full Love-number suite.
+    // -Im[k_l]: the dissipation multiplier used in the mode collapse.
     double calc_neg_imk(int degree_l, double frequency, const c_LoveNumbers& solver_love) const {
         return -std::imag(this->calc_love_numbers(degree_l, frequency, solver_love).k);
     }
 
-    // True if the model requires the radial solver to supply the Love numbers (rheology);
-    // false for the analytic models. The world uses this to decide whether to run a radial
-    // solve.
+    // True when the world must run the radial solver to supply the Love numbers (rheology only).
     virtual bool needs_radial_solve() const = 0;
 
-    // Fixed per-degree quality factor / time lag [s] when the model carries them (FixedQ, FixedLag,
-    // CTLQ); NaN otherwise. The world's cpl / ctl Love-number methods fall back on these when no
-    // explicit value is configured.
+    // Fixed per-degree quality factor and time lag [s] when the model carries them; NaN otherwise. The
+    // world's cpl and ctl Love methods fall back on these when no explicit value is configured.
     virtual double get_fixed_q(int /*degree_l*/) const { return std::numeric_limits<double>::quiet_NaN(); }
     virtual double get_fixed_dt(int /*degree_l*/) const { return std::numeric_limits<double>::quiet_NaN(); }
 };

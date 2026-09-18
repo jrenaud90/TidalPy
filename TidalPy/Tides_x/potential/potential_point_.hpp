@@ -10,13 +10,12 @@
 
 namespace tidalpy {
 
-// The tidal potential angular factor U and its first and second theta (colatitude) / phi (longitude) derivatives
-// at one point and one mode, carried as COMPLEX amplitudes with the mode's time factor e^{i omega t} pulled out
-// (U(t) = Re[U_c e^{i omega t}]). U already carries the radial factor (its r^2 coefficient, evaluated at the surface
-// radius) and the orbital amplitude, so it multiplies the radial strain coefficients directly in the kernel. With
-// complex amplitudes the cycle average is exact, h_bar = (omega/2) Im(sigma_c : conj(eps_c)), needing no time grid,
-// and the 90-degree phase between U (cos) and its phi derivatives (which bring a factor i*m) is carried by the
-// imaginary parts.
+// The tidal potential angular factor U and its first and second theta (colatitude) and phi (longitude)
+// derivatives at one point for one mode, carried as complex amplitudes with the mode's time factor pulled out
+// (U(t) = Re[U_c e^{i omega t}]). U already carries its r^2 coefficient, evaluated at the surface radius, and
+// the orbital amplitude, so it multiplies the radial strain coefficients directly in the kernel. Complex
+// amplitudes make the cycle average exact, h_bar = (omega/2) Im(sigma_c : conj(eps_c)), with no time grid, and
+// the 90-degree phase between U and its phi derivatives (which bring a factor i*m) rides in the imaginary parts.
 struct c_PotentialPointC {
     c_PotentialPointC() {}
     c_PotentialPointC(

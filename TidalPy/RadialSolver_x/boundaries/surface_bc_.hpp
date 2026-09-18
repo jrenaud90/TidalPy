@@ -1,5 +1,4 @@
-// surface_bc_.hpp - Surface boundary conditions
-// Ported from TidalPy/RadialSolver/boundaries/surface_bc.pyx
+// surface_bc_.hpp - Surface boundary conditions for the radial solver.
 //
 // References
 // ----------
@@ -50,8 +49,7 @@ inline int c_get_surface_bc(
         return -2;
     }
 
-    // Initialize all boundary conditions to NaN
-    // 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
+    // 15 = 5 (max_num_solutions) * 3 (surface conditions per solution)
     for (size_t i = 0; i < 15; ++i) {
         boundary_conditions_ptr[i] = nan_val;
     }

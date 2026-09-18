@@ -1,27 +1,16 @@
 #pragma once
 /*
- * tide_.hpp — TidalPy global (1D) tidal dissipation models.
+ * tide_.hpp - TidalPy global (1D) tidal dissipation models: c_RheologyTide (alias "rheology"),
+ * c_FixedQTide ("cpl"/"fixed_q"), c_FixedLagTide ("ctl"/"fixed_dt"), and c_CTLQTide
+ * ("ctl_q"/"fixed_dt_q").
  *
- * Inherits c_TideBase (tide_base_.hpp) -> c_PhysicsBase. Each model returns the complex
- * Love number k_l at a tidal frequency; the collapse (tide_collapse_.hpp) uses
- * -Im[k_l] as the per-mode dissipation multiplier.
+ * Each returns the complex Love number k_l at a tidal frequency; the collapse (tide_collapse_.hpp)
+ * uses -Im[k_l] as the per-mode dissipation multiplier. Fixed per-degree parameters (k_l, Q_l, dt_l)
+ * live in fixed-size slots indexed by (degree_l - 2) for l = 2..10, the range the eccentricity and
+ * obliquity tables cover; a slot left at 0 means no contribution at that degree. All quantities MKS;
+ * frequencies in rad s-1.
  *
- * Models (with config aliases handled by the factory):
- *   c_RheologyTide  (alias "rheology")              — k_l from the radial solver.
- *   c_FixedQTide    (alias "cpl"/"fixed_q")         — k_l*(1 - i/Q_l).
- *   c_FixedLagTide  (alias "ctl"/"fixed_dt")        — k_l*(1 - i*omega*dt_l).
- *   c_CTLQTide      (alias "ctl_q"/"fixed_dt_q")    — k_l*(1 - i*omega*dt_l/Q_l).
- *
- * Fixed per-degree parameters (k_l, Q_l, dt_l) are stored in fixed-size slots indexed by
- * (degree_l - 2) for l = 2..10 (the eccentricity/obliquity tables cover this range). A
- * value left at 0 means "no contribution at that degree". All quantities MKS; frequencies
- * in rad s-1.
- *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::<Model> (901-904)
- *   payload: model_name length (uint32_t) | model_name bytes | model params (doubles)
- *   Rheology writes 0, FixedQ writes 18 (k[9]+q[9]), FixedLag writes 18 (k[9]+dt[9]),
- *   CTLQ writes 27 (k[9]+dt[9]+q[9]) scalars.
+ * Binary payload: the model name followed by the per-degree slots as doubles.
  */
 
 #include <algorithm>
@@ -44,12 +33,10 @@
 
 namespace tidalpy {
 
-// Forward declarations for the on-demand 3D tidal-heating path. c_RheologyTide::calc_3d_tidal_heating is
-// declared here but defined in structures_x/worlds/world_tides_.hpp (compiled only into the
-// world extension), so this lightweight tide header never includes the world / potential-engine / kernel
-// headers. The method calls the world's members directly (no callbacks); references to these incomplete
-// types are legal in the declaration, and the complete types are visible at the definition. The tidal
-// potential is built dynamically from the world's truncation config (no potential-model object).
+// The 3D methods of c_RheologyTide are declared here but defined in structures_x/worlds/world_tides_.hpp
+// (compiled into the world extension only), so this header never pulls in the world, potential-engine, or
+// kernel headers. References to the incomplete type are legal in the declarations and the complete type is
+// visible at the definitions.
 class c_LayeredWorld;
 
 // The four axes of a 3D grid. Grid outputs are row-major in the order radius, colatitude, longitude, time.
@@ -69,12 +56,8 @@ constexpr int C_TIDE_MIN_DEGREE  = 2;
 constexpr int C_TIDE_MAX_DEGREE  = 10;
 constexpr int C_TIDE_NUM_DEGREES = C_TIDE_MAX_DEGREE - C_TIDE_MIN_DEGREE + 1;  // 9
 
-// -------------------------------------------------------------------------------
-// c_TideModelConfig — combined construction parameters for all tide models.
-//
-// The per-degree vectors are indexed from l=2 (index 0 -> l=2, index 1 -> l=3, ...).
-// They may be shorter than C_TIDE_NUM_DEGREES; missing entries default to 0.
-// -------------------------------------------------------------------------------
+// c_TideModelConfig: combined construction parameters for all tide models. The per-degree vectors are
+// indexed from l = 2; they may be shorter than C_TIDE_NUM_DEGREES and missing entries default to 0.
 struct c_TideModelConfig {
     std::vector<double> fixed_k;   // static potential Love numbers k_l  [dimensionless]
     std::vector<double> fixed_q;   // tidal quality factors Q_l          [dimensionless]
@@ -112,11 +95,8 @@ inline double tide_degree_value(const std::array<double, C_TIDE_NUM_DEGREES>& ar
 // Tide models
 // =====================================================================================================================
 
-// -------------------------------------------------------------------------------
-// c_RheologyTide — k_l supplied by the radial solver (alias "rheology").
-// The dissipation is whatever the viscoelastic-gravitational solution produced; this
-// model is a thin pass-through that flags the world to run the radial solver.
-// -------------------------------------------------------------------------------
+// c_RheologyTide: k_l supplied by the radial solver (alias "rheology"). A pass-through that flags the
+// world to run the radial solver.
 class c_RheologyTide : public c_TideBase {
 public:
     c_RheologyTide() : c_TideBase("rheology") {}
@@ -125,36 +105,27 @@ public:
 
     c_LoveNumbers calc_love_numbers(
             int /*degree_l*/, double /*frequency*/, const c_LoveNumbers& solver_love) const override {
-        // Pass the full radial-solver suite (k, h, l) straight through.
         return solver_love;
     }
 
     bool needs_radial_solve() const override { return true; }
 
-    // On-demand secular (cycle/orbit-averaged) 3D tidal volumetric heating [W m-3] at (radius,
-    // colatitude): the longitudinal mean of the time-averaged power density. Only the rheology model
-    // supports the 3D path (it alone has the depth-resolved radial solution). The active tidal modes are
-    // built from the world's truncation config and merged into coherent waves (potential_3d_.hpp), the
-    // world radial response is solved once per (l, |omega|), each frequency's waves are summed and
-    // contribute (|omega|/2) Im(sigma_c : conj(eps_c)) (complex amplitudes, no abs), and the frequencies
-    // sum. Its volume integral equals the world's 1D global tidal heating (get_tidal_heating); the
-    // longitude-resolved secular field is calc_3d_tidal_heating_collapsed with orbit_averaged. Defined
-    // out-of-line in structures_x/worlds/world_tides_.hpp. Returns NaN at the center / below the
-    // solver's starting radius and 0 in liquid layers (no shear kernel).
+    // Secular (orbit-averaged) 3D tidal volumetric heating [W m-3] at (radius, colatitude), averaged over
+    // longitude. Only the rheology model supports the 3D path. The active modes are merged into coherent
+    // waves (potential_3d_.hpp), the radial problem is solved once per (l, |omega|), and each frequency
+    // contributes (|omega|/2) Im(sigma_c : conj(eps_c)) of its summed complex amplitudes. The volume
+    // integral equals the world's 1D get_tidal_heating. Returns NaN at the center and below the solver's
+    // starting radius, and 0 in liquid layers (no shear kernel). Defined out-of-line in world_tides_.hpp.
     double calc_3d_tidal_heating(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
             double radius,
             double colatitude) const;
 
-    // Vectorized batch form: the longitude-mean secular 3D volumetric heating [W m-3] at num_points
-    // paired (radii[i], colatitudes[i]) query points, written into the caller-supplied out_heating[i].
-    // Same physics as the scalar calc_3d_tidal_heating (which is this with one point): the wave list is
-    // built once and the world radial (Love-number) solve is amortized across all points (it depends on
-    // (l, |omega|) only, not on radius/colatitude), so building a map costs one radial solve per unique
-    // (l, |omega|) rather than one per point. out_heating[i] is NaN for a point at the center / below the
-    // solver's starting radius. Points that share a colatitude share its angular work, and the colatitudes run
-    // on up to num_threads threads. Defined out-of-line in world_tides_.hpp.
+    // Batch form of calc_3d_tidal_heating over num_points paired (radii[i], colatitudes[i]) query points,
+    // written into out_heating[i]. The wave list is built once and the radial solve is amortized across
+    // the points, since it depends on (l, |omega|) only. Points sharing a colatitude share its angular
+    // work, and the colatitudes run on up to num_threads threads. Defined out-of-line in world_tides_.hpp.
     void calc_3d_tidal_heating_batch(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
@@ -164,13 +135,11 @@ public:
             double* out_heating,
             int num_threads) const;
 
-    // Instantaneous tidal displacements [m] (radial, polar, azimuthal) on the axes' (radius, colatitude,
-    // longitude, time) grid. Each coherent wave's complex displacement amplitude at (r, theta, phi),
-    // (y1 U_c, y3 dU_c/dtheta, y3 dU_c/dphi / sin theta), is added into the total of its frequency, and each
-    // component at time t is the sum over frequencies of Re[amplitude e^{i |omega| t}]. The radial solve and
-    // the y1/y3 samples are computed once per unique (l, |omega|), and the colatitudes run on up to num_threads
-    // threads. out_disp holds 3 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component); NaN at a
-    // radius with no depth-resolved solution (center / below the solver start). Defined out-of-line in
+    // Instantaneous tidal displacements [m] (radial, polar, azimuthal) on the axes' grid. Each coherent
+    // wave's complex amplitude at (r, theta, phi) is (y1 U_c, y3 dU_c/dtheta, y3 dU_c/dphi / sin theta),
+    // and each component at time t sums Re[amplitude e^{i |omega| t}] over the frequencies. out_disp holds
+    // 3 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component), NaN at a radius with no
+    // depth-resolved solution. The colatitudes run on up to num_threads threads. Defined out-of-line in
     // world_tides_.hpp.
     void calc_3d_displacements_grid(
             c_LayeredWorld& world,
@@ -179,12 +148,12 @@ public:
             double* out_disp,
             int num_threads) const;
 
-    // Instantaneous stress [Pa] and strain on the axes' (radius, colatitude, longitude, time) grid, written into
-    // out_stress and out_strain as 6 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component) with the
-    // components rr, theta-theta, phi-phi, r-theta, r-phi, theta-phi. Either output may be null to skip it. NaN
-    // where no wave has a shear kernel: a radius with no depth-resolved solution or a liquid layer. Modes at zero
-    // forcing frequency (the permanent tide) are not included. The colatitudes run on up to num_threads threads.
-    // Defined out-of-line in world_tides_.hpp.
+    // Instantaneous stress [Pa] and strain on the axes' grid, written into out_stress and out_strain as
+    // 6 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component) with the components rr,
+    // theta-theta, phi-phi, r-theta, r-phi, theta-phi. Either output may be null to skip it. NaN where no
+    // wave has a shear kernel: a radius with no depth-resolved solution, or a liquid layer. Modes at zero
+    // forcing frequency (the permanent tide) are excluded. The colatitudes run on up to num_threads
+    // threads. Defined out-of-line in world_tides_.hpp.
     void calc_3d_stress_strain_grid(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
@@ -193,14 +162,14 @@ public:
             double* out_strain,
             int num_threads) const;
 
-    // Collapsed (summed/averaged) secular 3D tidal heating: reduces the density along any of the
-    // colatitude / longitude / radial dimensions per the flags in cfg (see c_Heating3DCollapseConfig).
-    // radii/colatitudes are the user grids for the NON-summed axes (ignored for a summed axis, which
-    // uses an internal integration grid). Writes the marginal power density on the surviving axes into
-    // out_values (as many doubles as the shape c_LayeredWorld::calc_3d_tides_layout reports) and, when all
-    // three spatial axes are summed, the per-layer totals into out_layer_totals (n_layers * n_times doubles;
-    // null otherwise). The radial solves run on the calling thread and the per-point evaluation on up to
-    // cfg.num_threads threads. Defined out-of-line in world_tides_.hpp.
+    // Collapsed secular 3D tidal heating: reduces the density along the colatitude, longitude, and radial
+    // dimensions per the flags in cfg (see c_Heating3DCollapseConfig). radii and colatitudes are the user
+    // grids for the non-summed axes; a summed axis uses an internal integration grid. Writes the marginal
+    // power density on the surviving axes into out_values (sized by
+    // c_LayeredWorld::calc_3d_tides_layout) and, when all three spatial axes are summed, the per-layer
+    // totals into out_layer_totals (n_layers * n_times doubles; null otherwise). The radial solves run on
+    // the calling thread and the per-point evaluation on up to cfg.num_threads threads. Defined
+    // out-of-line in world_tides_.hpp.
     void calc_3d_tidal_heating_collapsed(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
@@ -224,13 +193,10 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_FixedQTide — constant phase lag / fixed-Q (alias "cpl" / "fixed_q"):
+// c_FixedQTide: constant phase lag / fixed Q (alias "cpl" / "fixed_q"). Frequency-independent
+// dissipation per degree:
 //
 //   k_l(omega) = k_l * (1 - i / Q_l)            ->  -Im[k_l] = k_l / Q_l
-//
-// Frequency-independent dissipation per degree.
-// -------------------------------------------------------------------------------
 class c_FixedQTide : public c_TideBase {
 public:
     c_FixedQTide() : c_TideBase("fixed_q") {}
@@ -293,11 +259,9 @@ protected:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_FixedLagTide — constant time lag / CTL (alias "ctl" / "fixed_dt"):
+// c_FixedLagTide: constant time lag / CTL (alias "ctl" / "fixed_dt"):
 //
 //   k_l(omega) = k_l * (1 - i * omega * dt_l)   ->  -Im[k_l] = k_l * omega * dt_l
-// -------------------------------------------------------------------------------
 class c_FixedLagTide : public c_TideBase {
 public:
     c_FixedLagTide() : c_TideBase("fixed_dt") {}
@@ -354,11 +318,9 @@ protected:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_CTLQTide — constant time lag with a quality factor (alias "ctl_q" / "fixed_dt_q"):
+// c_CTLQTide: constant time lag with a quality factor (alias "ctl_q" / "fixed_dt_q"):
 //
 //   k_l(omega) = k_l * (1 - i * omega * dt_l / Q_l)  ->  -Im[k_l] = k_l * omega * dt_l / Q_l
-// -------------------------------------------------------------------------------
 class c_CTLQTide : public c_TideBase {
 public:
     c_CTLQTide() : c_TideBase("fixed_dt_q") {}

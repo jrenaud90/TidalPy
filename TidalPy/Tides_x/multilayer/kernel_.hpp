@@ -121,9 +121,7 @@ inline void c_compute_strain_stress_from_factors(
     }
 }
 
-// Compute the 6 strain and 6 stress components at one point from the radial coefficients, the
-// potential point, and the colatitude (needed for sin/cot factors).
-// If the radial coefficients are invalid (liquid / center), the components are NaN.
+// As above, but taking the potential point and the colatitude (needed for the sin and cot factors).
 // Templated on the potential-point type; every caller passes the complex phasor c_PotentialPointC, so the
 // strains and stresses are complex amplitudes at the mode's frequency.
 template <typename PotentialPointT>
@@ -163,12 +161,11 @@ inline double c_volumetric_heating(const c_Tensor6& stress, const c_Tensor6& str
     return std::abs(h);
 }
 
-// Signed cycle-average heating factor at a point: sum_k w_k [ Im(sigma_k) Re(eps_k) - Re(sigma_k)
-// Im(eps_k) ] = sum_k w_k Im(sigma_k conj(eps_k)), with factor 2 on the three off-diagonals and NO
-// abs(). For the secular (cycle/orbit-averaged) heating this is called with the total complex-phasor
-// stress/strain at one frequency (every wave at that |omega| summed first, since same-frequency cross
-// terms survive the average); the volumetric heating at that frequency is (|omega|/2) times this, and the
-// frequencies sum (distinct-frequency cross terms average to zero, so they are simply omitted).
+// Signed form of c_volumetric_heating: sum_k w_k Im(sigma_k conj(eps_k)) with no abs(). The secular
+// (cycle or orbit-averaged) heating calls it with the total complex-phasor stress and strain at one
+// frequency (every wave at that |omega| summed first, since same-frequency cross terms survive the
+// average); that frequency's volumetric heating is (|omega|/2) times this, and the frequencies add
+// (distinct-frequency cross terms average to zero, so they are omitted).
 inline double c_volumetric_heating_signed(const c_Tensor6& stress, const c_Tensor6& strain) noexcept
 {
     double h = 0.0;

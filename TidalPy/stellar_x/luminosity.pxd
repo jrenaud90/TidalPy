@@ -1,16 +1,8 @@
 # distutils: language = c++
-"""
-luminosity.pxd
-Cython declarations for TidalPy's stellar luminosity model hierarchy.
+"""Cython declarations for TidalPy's stellar luminosity models.
 
-Exports the C++ luminosity models, the config struct, the enum factory, and the Python wrapper
-classes so other extensions (e.g. the star world) can cimport and build/attach luminosity models.
-
-Usage::
-
-    from TidalPy.stellar_x.luminosity cimport (
-        LuminosityBase, MassToLuminosity,
-        c_LuminosityBase, c_MassToLuminosity, c_LuminosityConfig)
+Exports the C++ models, the config struct, the enum factory, and the Python wrapper classes so
+other extensions (for example the star world) can cimport and attach luminosity models.
 """
 
 from libcpp.string cimport string

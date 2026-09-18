@@ -1,6 +1,6 @@
 # Material and Equation of State (`Material_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-15_
 
 `TidalPy.Material_x` contains functionality to calculate the equation of state of various planet-relevant materials. Each model maps the local state onto a mass density [kg m$^{-3}$], and the whole-planet solve integrates those densities from the center outward to produce the body's radial structure. During this process, the gravity, pressure, and moment of inertia are also calculated.
 
@@ -20,7 +20,7 @@ Material EOS Models <material_eos.md>
 
 An EOS model is attached to a layer with `BaseLayer.set_eos`. Once every layer has one, `LayeredWorld.solve_eos()` integrates the planet's radial structure from the center to the surface and populates each layer's density, gravity, pressure, mass, and moment-of-inertia profiles. That solve, its convergence loop, and its results are documented with the world class; see [Worlds](../structures_x/worlds/worlds.md).
 
-The integration runs over radius and carries pressure as one of its state variables, so an analytic density law that depends on pressure is simply evaluated at each step with the pressure the integrator has already reached. No separate coupled iteration is needed beyond the solver's outer loop, which adjusts the central pressure until the integrated surface pressure matches the requested boundary value.
+The integration runs over radius with pressure as a state variable, so a pressure-dependent density law is evaluated at each step with the current pressure. The only iteration is the solver's outer loop, which adjusts the central pressure until the integrated surface pressure matches the requested boundary value.
 
 A world built from a TOML file gets its EOS models from the `[layers.<name>.eos]` table, with material defaults filling in anything the user omits. See the [TOML schema](../structures_x/config/toml_schema.md).
 
@@ -29,6 +29,10 @@ A world built from a TOML file gets its EOS models from the `[layers.<name>.eos]
 The analytic models are isothermal. They accept a temperature for interface uniformity and currently ignore it, so thermal expansion is not part of the density they return. Phase transitions, composition gradients within a layer, and self-consistent thermal structure are not currently implemented.
 
 However, TidalPy includes an interpolated EOS model. This allows density (and viscoelastic properties) to be computed by any external tool, including a full mineral-physics package, which is then loaded as a table and used exactly like an analytic law.
+
+## Examples
+
+`Demos_x/Physics/10_thermal_eos.ipynb` compares a constant-density interior with a Birch-Murnaghan one, and `Benchmarks_x/EOS/EOS_vs_BurnMan.ipynb` checks the Birch-Murnaghan solve against BurnMan.
 
 ## References
 

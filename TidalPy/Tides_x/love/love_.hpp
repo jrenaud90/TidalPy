@@ -1,18 +1,13 @@
 #pragma once
 /*
- * love_.hpp — c_LoveNumbers: container for the three complex tidal Love numbers.
+ * love_.hpp - c_LoveNumbers: container for the three complex tidal Love numbers.
  *
- * The three Love numbers k, h, l describe how a body deforms under an external
- * tidal potential:
- *   k — potential Love number (tidal modification of the gravity field)
- *   h — radial displacement Love number (radial surface deformation)
- *   l — tangential displacement Love number (horizontal surface deformation)
+ *   k - potential Love number (tidal modification of the gravity field)
+ *   h - radial displacement Love number (radial surface deformation)
+ *   l - tangential displacement Love number (horizontal surface deformation)
  *
- * All three are dimensionless complex numbers; the imaginary part represents
- * dissipation at the tidal forcing frequency.
- *
- * This header provides only the data container.  Computation of Love numbers
- * from material properties is handled by the radial solver.
+ * All three are dimensionless complex numbers whose imaginary part carries the dissipation at the
+ * tidal forcing frequency. This header is the data container only; the radial solver computes them.
  */
 
 #include <complex>

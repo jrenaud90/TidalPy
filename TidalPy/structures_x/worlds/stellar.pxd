@@ -1,8 +1,5 @@
 # distutils: language = c++
-"""
-stellar.pxd
-Cython declarations for TidalPy's star world class.
-"""
+"""Cython declarations for TidalPy's star world class."""
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string

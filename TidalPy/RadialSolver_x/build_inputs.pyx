@@ -1,12 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""Native input builders for the `_x` radial solver.
-
-`build_rs_input_homogeneous_layers` and `build_rs_input_from_data` assemble the array-based inputs
-that :func:`TidalPy.RadialSolver_x.radial_solver` expects from a per-layer description of the planet.
-
-Grid repairs made by the from-data builder are logged as warnings through the TidalPy logger.
-"""
+"""Input builders that assemble the arrays ``radial_solver`` expects from a layer description."""
 
 from libc.string cimport memcpy
 from libcpp cimport bool as cpp_bool
@@ -234,38 +228,32 @@ def build_rs_input_homogeneous_layers(
         cpp_bool perform_checks=True):
     """Build radial-solver inputs for a planet whose layers each have constant properties.
 
-    The radial grid of each layer runs from the layer base to its top (both inclusive) with
-    `slices_tuple[i]` (or `slice_per_layer`) evenly spaced slices, so interface radii appear twice as
-    the solver requires. The complex moduli are evaluated at `forcing_frequency` with the supplied
-    ``rheology_x`` models.
+    Each layer's grid runs from its base to its top inclusive, so interface radii appear twice as the solver
+    requires. The complex moduli are evaluated at `forcing_frequency` with the supplied ``rheology_x`` models.
 
     Parameters
     ----------
     planet_radius : float
-        Planet radius [m].
+        [m].
     forcing_frequency : float
-        Tidal forcing frequency [rad s-1].
+        [rad s-1].
     density_tuple, static_bulk_modulus_tuple, static_shear_modulus_tuple : sequence of float
-        Per-layer density [kg m-3] and unrelaxed bulk and shear moduli [Pa].
+        Per-layer density [kg m-3] and unrelaxed moduli [Pa].
     bulk_viscosity_tuple, shear_viscosity_tuple : sequence of float
-        Per-layer bulk and shear viscosities [Pa s].
-    layer_type_tuple : sequence of str
-        Per-layer type ("solid" or "liquid"); passed through to the output.
-    layer_is_static_tuple, layer_is_incompressible_tuple : sequence of bool
-        Per-layer static and incompressible flags; passed through to the output.
+        Per-layer viscosities [Pa s].
+    layer_type_tuple, layer_is_static_tuple, layer_is_incompressible_tuple : sequence
+        Per-layer "solid" or "liquid", static, and incompressible flags, passed through to the output.
     shear_rheology_model_tuple, bulk_rheology_model_tuple : rheology model, str, or sequence of them
-        ``TidalPy.rheology_x`` model instances (or model names accepted by ``make_rheology``). A single
-        model or name applies to every layer; a sequence supplies one per layer.
+        ``TidalPy.rheology_x`` models or ``make_rheology`` names; a single one applies to every layer.
     radius_fraction_tuple, thickness_fraction_tuple, volume_fraction_tuple : sequence of float, optional
-        Layer sizes as cumulative upper-radius fractions (last entry 1), thickness fractions (sum 1),
-        or volume fractions (sum 1). Exactly one must be provided.
+        Layer sizes as cumulative upper-radius fractions (last entry 1), thickness fractions (sum 1), or volume
+        fractions (sum 1); exactly one must be given.
     slices_tuple : sequence of int, optional
-        Number of radial slices per layer (at least 5 each). Overrides `slice_per_layer`.
+        Slices per layer (at least 5 each); overrides `slice_per_layer`.
     slice_per_layer : int, default 10
-        Number of radial slices used for every layer when `slices_tuple` is not provided.
+        Slices for every layer when `slices_tuple` is not given.
     perform_checks : bool, default True
-        Kept for signature compatibility with the classic builder; the native builder always
-        validates its inputs.
+        Accepted for compatibility; inputs are always validated.
 
     Returns
     -------
@@ -276,7 +264,6 @@ def build_rs_input_homogeneous_layers(
     if num_layers == 0:
         raise ValueError("At least one layer is required.")
 
-    # Per-layer scalar inputs.
     cdef vector[double] density_vec, bulk_vec, shear_vec, bulk_visc_vec, shear_visc_vec
     _fill_double_vector(_as_layer_tuple(density_tuple, num_layers, "density_tuple"),
                         "density_tuple", density_vec)
@@ -289,13 +276,11 @@ def build_rs_input_homogeneous_layers(
     _fill_double_vector(_as_layer_tuple(shear_viscosity_tuple, num_layers, "shear_viscosity_tuple"),
                         "shear_viscosity_tuple", shear_visc_vec)
 
-    # Pass-through layer descriptors.
     cdef tuple layer_types = _as_layer_tuple(layer_type_tuple, num_layers, "layer_type_tuple")
     cdef tuple is_static = _as_layer_tuple(layer_is_static_tuple, num_layers, "layer_is_static_tuple")
     cdef tuple is_incompressible = _as_layer_tuple(
         layer_is_incompressible_tuple, num_layers, "layer_is_incompressible_tuple")
 
-    # Layer sizes: exactly one description.
     cdef int num_fraction_inputs = (
         (radius_fraction_tuple is not None) + (thickness_fraction_tuple is not None) +
         (volume_fraction_tuple is not None))
@@ -316,14 +301,12 @@ def build_rs_input_homogeneous_layers(
                             "volume_fraction_tuple", fraction_vec)
         c_thickness_from_volume_fractions(planet_radius, fraction_vec, thickness_vec)
 
-    # Slice counts.
     cdef vector[size_t] slices_vec
     if slices_tuple is not None:
         _fill_size_vector(_as_layer_tuple(slices_tuple, num_layers, "slices_tuple"), "slices_tuple", slices_vec)
     else:
         slices_vec.resize(num_layers, slice_per_layer)
 
-    # Rheology models (one per layer; a single model is broadcast).
     cdef vector[const c_RheologyBase*] shear_rheo_ptrs, bulk_rheo_ptrs
     cdef list shear_keep_alive = cy_resolve_rheology_bylayer(
         shear_rheology_model_tuple, num_layers, "shear_rheology_model_tuple", shear_rheo_ptrs)
@@ -366,36 +349,29 @@ def build_rs_input_from_data(
         cpp_bool warnings=True):
     """Build radial-solver inputs from radially resolved data (for example an external interior model).
 
-    The radius grid is copied and repaired where the solver's requirements are not met: a slice is
-    inserted at r = 0 if missing, at each layer base when the previous layer's upper radius is not
-    repeated, and at each layer top when it is absent. Inserted slices copy the properties of the
-    neighbouring provided slice (a base copies the layer's first slice, a top copies the slice below).
-    An interface radius listed only once counts as the top of the lower layer. Each repair is logged as
-    a warning when `warnings` is set. The complex moduli are evaluated at `forcing_frequency` with the
-    supplied ``rheology_x`` models.
+    The grid is copied and repaired: a slice is inserted at r = 0 if missing, at a layer base when the previous
+    top is not repeated (copying the layer's first slice), and at a missing layer top (copying the slice below).
+    An interface radius listed once is the top of the lower layer. Each repair is logged when `warnings` is set.
+    The complex moduli are evaluated at `forcing_frequency` with the supplied ``rheology_x`` models.
 
     Parameters
     ----------
     forcing_frequency : float
-        Tidal forcing frequency [rad s-1].
+        [rad s-1].
     radius_array : array-like of float
         Ascending radius grid [m]; the last entry is the planet radius.
     density_array, static_bulk_modulus_array, static_shear_modulus_array : array-like of float
-        Density [kg m-3] and unrelaxed bulk and shear moduli [Pa] at each radius.
+        Density [kg m-3] and unrelaxed moduli [Pa] at each radius.
     bulk_viscosity_array, shear_viscosity_array : array-like of float
-        Bulk and shear viscosities [Pa s] at each radius.
+        Viscosities [Pa s] at each radius.
     layer_upper_radius_tuple : sequence of float
-        Upper radius of each layer [m], increasing; the last entry must equal the planet radius.
-    layer_type_tuple : sequence of str
-        Per-layer type ("solid" or "liquid"); passed through to the output.
-    layer_is_static_tuple, layer_is_incompressible_tuple : sequence of bool
-        Per-layer static and incompressible flags; passed through to the output.
+        Increasing layer tops [m]; the last entry must equal the planet radius.
+    layer_type_tuple, layer_is_static_tuple, layer_is_incompressible_tuple : sequence
+        Per-layer "solid" or "liquid", static, and incompressible flags, passed through to the output.
     shear_rheology_model_tuple, bulk_rheology_model_tuple : rheology model, str, or sequence of them
-        ``TidalPy.rheology_x`` model instances (or model names accepted by ``make_rheology``). A single
-        model or name applies to every layer; a sequence supplies one per layer.
+        ``TidalPy.rheology_x`` models or ``make_rheology`` names; a single one applies to every layer.
     perform_checks : bool, default True
-        Kept for signature compatibility with the classic builder; the native builder always
-        validates its inputs.
+        Accepted for compatibility; inputs are always validated.
     warnings : bool, default True
         Log a warning for each grid repair.
 

@@ -1,18 +1,16 @@
 #pragma once
 /*
- * world_tides_base_.hpp — out-of-line definition of c_BaseWorld::calc_tides (the analytic
- * global tidal-dissipation path, common to all world types).
+ * world_tides_base_.hpp: out-of-line definition of c_BaseWorld::calc_tides, the analytic global tidal
+ * dissipation path shared by every world type.
  *
- * Runs the global-potential engine (eccentricity/obliquity functions + tidal potential of
- * Renaud et al. 2021) for the world's stored tide config + the supplied orbital/spin state,
- * then collapses the per-mode terms with the attached analytic tide model (cpl/ctl/ctl_q)
- * into the world's total tidal heating + the three orbital potential derivatives.
+ * Runs the global-potential engine (eccentricity and obliquity functions, tidal potential of Renaud et al.
+ * 2021) for the world's tide config and the supplied orbital and spin state, then collapses the per-mode terms
+ * with the attached analytic tide model (cpl, ctl, ctl_q) into the total tidal heating and the three orbital
+ * potential derivatives. The rheology model needs the radial solver, so c_LayeredWorld::calc_tides
+ * (world_tides_.hpp) hides this one.
  *
- * This is the path a layerless world (e.g. a star) uses. The rheology model needs the radial
- * solver and is handled by c_LayeredWorld::calc_tides (world_tides_.hpp), which hides this one.
- *
- * This header pulls in the heavy global-potential tables; force-include it in the base-world
- * extension only (other extensions reach c_BaseWorld::calc_tides through inheritance).
+ * This header pulls in the heavy global-potential tables; force-include it in the base-world extension only
+ * (other extensions reach c_BaseWorld::calc_tides through inheritance).
  */
 
 #include <stdexcept>

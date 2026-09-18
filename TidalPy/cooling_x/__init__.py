@@ -1,13 +1,8 @@
-"""TidalPy cooling_x — C++ cooling (heat-transport) model hierarchy.
+"""C++ cooling (heat-transport) models and their name-based factory.
 
-Exposes the three cooling models and a name-based factory:
-
-- ``OffCooling``         (alias ``"none"``)  — cooling disabled (zero flux).
-- ``ConvectiveCooling``  (alias ``"convective"``) — parameterized boundary-layer convection.
-- ``ConductiveCooling``  (alias ``"conductive"``) — conduction across the layer.
-
-Each model returns a ``CoolingResult`` (heat flux [W/m^2], boundary-layer
-thickness [m], Rayleigh and Nusselt numbers) via ``calc_cooling``.
+``OffCooling`` (alias "none"), ``ConvectiveCooling`` (parameterized boundary-layer convection), and
+``ConductiveCooling`` map a layer's thermal state to a ``CoolingResult`` (heat flux [W/m^2],
+boundary-layer thickness [m], Rayleigh and Nusselt numbers) through ``calc_cooling``.
 """
 
 from TidalPy.cooling_x.cooling import (
@@ -23,16 +18,13 @@ from TidalPy.cooling_x.cooling import (
 )
 
 __all__ = [
-    # Result container
     "CoolingResult",
-    # Model classes
     "CoolingBase",
     "OffCooling",
     "ConvectiveCooling",
     "ConductiveCooling",
-    # Factory
     "make_cooling",
-    # Direct convenience functions (float or np.ndarray inputs)
+    # Direct functions; each accepts floats or ndarrays.
     "cooling_off",
     "convective",
     "conductive",

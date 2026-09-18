@@ -1,16 +1,15 @@
 #pragma once
 /*
- * potential_3d_.hpp - Dynamic Kaula tidal-potential engine for the 3D stress/strain/heating path.
+ * potential_3d_.hpp - dynamic Kaula tidal-potential engine for the 3D stress, strain, and heating path.
  *
- * Given an orbital/spin state and truncation levels (max degree l, eccentricity truncation, obliquity
- * truncation), this returns every active tidal mode (l, m, p, q) with its signed forcing frequency and
- * the potential angular factor U(theta, phi, t) together with its first/second colatitude/longitude
- * derivatives (a complex c_PotentialPointC phasor). It is the class-free replacement for the old per-scenario
- * c_TidalPotentialBase models: the active modes and their coefficients are built dynamically from the
- * same eccentricity (G_lpq) and inclination/obliquity (F_lmp) functions the global (1D) path uses
- * (see potential/global_.hpp), plus the associated Legendre functions P_lm (Utilities_x/legendre).
+ * Given an orbital and spin state and truncation levels (max degree l, eccentricity truncation, obliquity
+ * truncation), this returns every active tidal mode (l, m, p, q) with its signed forcing frequency and the
+ * potential angular factor U(theta, phi, t) together with its first and second colatitude and longitude
+ * derivatives (a complex c_PotentialPointC phasor). The active modes and their coefficients are built from
+ * the same eccentricity (G_lpq) and obliquity (F_lmp) functions the global (1D) path uses (see
+ * potential/global_.hpp), plus the associated Legendre functions P_lm (Utilities_x/legendre).
  *
- * Governing equation: Kaula's tide-raising potential, Efroimsky & Williams (2009) Eq. 18 (= Kaula 1964):
+ * Governing equation: Kaula's tide-raising potential, Efroimsky and Williams (2009) Eq. 18 (= Kaula 1964):
  *
  *   W(R, theta, phi, t) = -(G M_host / a) sum_l (R/a)^l
  *                            sum_m (l-m)!/(l+m)! (2 - d_m0) P_lm(cos theta)
@@ -18,13 +17,13 @@
  *
  * with Trig_lm = cos for (l - m) even, sin for (l - m) odd, and the tidal mode
  *   omega_lmpq = (l - 2p + q) n - m * spin        (n = orbital mean motion, spin = rotation rate),
- * dropping periapse/node precession. This is LINEAR in F_lmp, G_lpq, and P_lm (the global path squares
- * F and G because global heating goes as the potential squared; here the heating bilinearity is applied
- * downstream, after the mode stress/strain tensors are summed). The r^2 (R/a)^l coefficient is taken at
+ * dropping periapse and node precession. This is linear in F_lmp, G_lpq, and P_lm; the global path squares F
+ * and G because global heating goes as the potential squared, while here the heating bilinearity is applied
+ * downstream, after the mode stress and strain tensors are summed. The r^2 (R/a)^l coefficient is taken at
  * the surface radius R; the depth dependence is carried by the radial-solver y-functions in the kernel.
  *
- * All quantities MKS; frequencies rad s-1; angles radians. The (l-m)!/(l+m)!(2-d_m0) factor is provided
- * by c_get_lm_coeff_map() (potential_common_.hpp).
+ * All quantities MKS; frequencies rad s-1; angles radians. The (l-m)!/(l+m)!(2-d_m0) factor comes from
+ * c_get_lm_coeff_map() (potential_common_.hpp).
  */
 
 #include <algorithm>
@@ -42,20 +41,19 @@
 
 namespace tidalpy {
 
-// One active tidal mode: its degree, signed forcing frequency, and COMPLEX potential angular-factor
+// One active tidal mode: its degree, signed forcing frequency, and complex potential angular-factor
 // amplitude (the mode's time factor e^{i omega t} pulled out, U(t) = Re[U_c e^{i omega t}]). The 3D
-// stress/strain/heating consumes these complex amplitudes so the cycle-average is exact (no time grid).
+// stress, strain, and heating paths consume these complex amplitudes so the cycle average is exact.
 struct c_TidalPotential3DMode {
     int degree_l = 0;
     double mode_frequency = 0.0;      // signed omega_lmpq [rad s-1]
     c_PotentialPointC potential;      // complex amplitude of U and its theta/phi derivatives
 };
 
-// Position-INDEPENDENT description of one active tidal mode: everything the engine can determine
-// without a colatitude/longitude. The angular factor at a point (P_lm and the e^{i m phi} phasor) is
-// evaluated on demand by c_eval_potential_point_3d below. Splitting the engine this way lets a batch /
-// map path build the mode list once and reuse it across every (radius, colatitude) query, and lets the
-// radial (Love-number) solve be amortized across points, since neither depends on m or on position.
+// Position-independent description of one active tidal mode: everything the engine can determine without
+// a colatitude or longitude. The angular factor at a point (P_lm and the e^{i m phi} phasor) is evaluated
+// on demand by c_eval_potential_point_3d below. Splitting the engine this way lets a batch or map path
+// build the mode list once and amortize the radial (Love-number) solve across every query point.
 struct c_TidalPotential3DModeCoeff {
     int degree_l = 0;
     int order_m = 0;
@@ -64,11 +62,10 @@ struct c_TidalPotential3DModeCoeff {
     double amplitude = 0.0;           // G_lpq * F_lmp * (R/a)^l * (G M_host / a) * (l-m)!/(l+m)!(2-d_m0)
 };
 
-// Evaluate a mode's complex potential angular factor U_c and its theta/phi derivatives at a point.
-// This is the position-DEPENDENT part of the Kaula engine, factored out of c_tidal_potential_3d_modes:
+// Evaluate a mode's complex potential angular factor U_c and its theta and phi derivatives at a point:
 //   even parity ((l-m) even): U_c = amplitude * P_lm(cos theta) * e^{i m phi}
 //   odd parity  ((l-m) odd):  U_c = -i * amplitude * P_lm(cos theta) * e^{i m phi}
-// theta derivatives act on P_lm; phi derivatives bring a factor i*m from d/dphi of e^{i m phi}.
+// Theta derivatives act on P_lm; phi derivatives bring a factor i*m from d/dphi of e^{i m phi}.
 inline c_PotentialPointC c_eval_potential_point_3d(
         const c_TidalPotential3DModeCoeff& coeff,
         double colatitude,
@@ -94,12 +91,11 @@ inline c_PotentialPointC c_eval_potential_point_3d(
     };
 }
 
-// Build the position-INDEPENDENT list of active tidal modes (degree, order, parity, signed frequency,
-// scalar amplitude) from the orbital/spin state and truncation levels. This is the mode-discovery loop
-// shared with the global (1D) engine, but LINEAR in F_lmp, G_lpq (the amplitude carries one power of
-// each) and carrying the (l, m) labels so the P_lm angular factor can be evaluated per point later.
-// Neither the mode list nor the downstream radial (Love-number) solve depends on colatitude/longitude,
-// so a batch / map path builds this once and reuses it across all query points.
+// Build the position-independent list of active tidal modes (degree, order, parity, signed frequency,
+// scalar amplitude). This is the mode-discovery loop shared with the global (1D) engine, but linear in
+// F_lmp and G_lpq (the amplitude carries one power of each) and carrying the (l, m) labels so the P_lm
+// angular factor can be evaluated per point later. Neither the mode list nor the downstream radial solve
+// depends on position, so a batch or map path builds this once and reuses it at every query point.
 inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs(
         double planet_radius,
         double semi_major_axis,
@@ -187,11 +183,10 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
     return coeffs;
 }
 
-// Per-mode complex-phasor angular factors at a single point: build the position-independent mode list once,
-// then evaluate each mode's angular factor at (colatitude, longitude), with U(t) = Re[U_c e^{i omega t}]. This
-// is the raw per-(l, m, p, q) view (exposed to Python as tidal_potential_3d_modes). The heating paths do not
-// consume it directly: they first merge the modes into coherent waves (c_coherent_tidal_waves_3d below), because
-// modes that share a real spatial function must be summed BEFORE the heating bilinear form.
+// Per-mode complex-phasor angular factors at a single point, with U(t) = Re[U_c e^{i omega t}]. This is the
+// raw per-(l, m, p, q) view (exposed to Python as tidal_potential_3d_modes). The heating paths do not consume
+// it directly: they first merge the modes into coherent waves (c_coherent_tidal_waves_3d below), because modes
+// that share a real spatial function must be summed before the heating bilinear form.
 inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
         double planet_radius,
         double semi_major_axis,
@@ -250,13 +245,13 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
 // The complex amplitude carries the parity phase (-i for odd l - m), the conjugation, and the coherent sum over
 // the merged modes.
 //
-// The reason for the merge is due to the secular heating at a frequency is (|omega|/2) Im(sigma_c : conj(eps_c)) of
-// the total complex amplitude there. Summing the cycle-averaged powers of two modes that are the same real sinusoid
+// The merge is needed because the secular heating at a frequency is (|omega|/2) Im(sigma_c : conj(eps_c)) of the
+// total complex amplitude there. Summing the cycle-averaged powers of two modes that are the same real sinusoid
 // instead halves their contribution ((a + a)^2 = 4 a^2, not 2 a^2). The m = 0 modes always come in such pairs:
-// (l, 0, p, q) at +omega and (l, 0, l-p, -q) at -omega carry equal amplitudes (F_l0p = +-F_l0,l-p with the parity sign,
-// and G_lpq = G_l,l-p,-q) and are the same function of time (cos(-x) = cos(x); for odd l the sin(-x) = -sin(x) is
-// compensated by the sign of F). For a homogeneous body at zero obliquity the zonal terms are 9/84 of the
-// degree-2 heating, so summing them incoherently loses 4.5/84 = 5.36% of the total at synchronous rotation,
+// (l, 0, p, q) at +omega and (l, 0, l-p, -q) at -omega carry equal amplitudes (F_l0p = +-F_l0,l-p with the parity
+// sign, and G_lpq = G_l,l-p,-q) and are the same function of time (cos(-x) = cos(x); for odd l the sin(-x) =
+// -sin(x) is compensated by the sign of F). For a homogeneous body at zero obliquity the zonal terms are 9/84 of
+// the degree-2 heating, so summing them incoherently loses 4.5/84 = 5.36% of the total at synchronous rotation,
 // where only the eccentricity modes survive. At nonzero obliquity, modes of the same (l, m) with different (p, q)
 // can also share a signed frequency; their relative phase is set by the argument of periapse, which this engine
 // takes as zero (no precession), so they are merged coherently too.

@@ -1,5 +1,4 @@
-// driver_.hpp - Dispatcher for starting conditions
-// Ported from TidalPy/RadialSolver/starting/driver.pyx
+// driver_.hpp: dispatcher for the shooting method's starting conditions.
 #pragma once
 
 #include <cmath>
@@ -11,42 +10,10 @@
 #include "saito_.hpp"
 
 
-// Dispatch to the correct starting condition function based on layer type, static/dynamic, and compressibility.
-//
-// Parameters
-// ----------
-// success_ptr : bool*, output
-//     Set to true on success, false on failure.
-// message : std::string&, output
-//     Error message on failure.
-// layer_type : int
-//     0 = solid, 1 = liquid.
-// is_static : int
-//     1 = static, 0 = dynamic.
-// is_incompressible : int
-//     1 = incompressible, 0 = compressible.
-// use_kamata : bool
-//     true = use Kamata (2015) starting conditions, false = use Takeuchi & Saito (1972).
-// frequency : double
-//     Forcing frequency [rad s-1]. Only used for dynamic cases.
-// radius : double
-//     Radius where the radial functions are calculated [m].
-// density : double
-//     Density at radius [kg m-3].
-// bulk_modulus : complex
-//     Bulk modulus at radius [Pa].
-// shear_modulus : complex
-//     Shear modulus at radius [Pa].
-// degree_l : int
-//     Tidal harmonic order.
-// G_to_use : double
-//     Gravitational constant.
-// num_ys : size_t
-//     Number of y-values per solution.
-// starting_conditions_ptr : complex*, output
-//     Output array for starting conditions.
-// run_y_checks : bool
-//     If true, validate num_ys matches expected value for the chosen method.
+// Fill starting_conditions_ptr (num_ys per solution) for the layer type and assumptions at radius [m], from
+// Kamata et al. (2015) when use_kamata, else Takeuchi and Saito (1972); static liquids always use Saito (1974).
+// Sets *success_ptr and message on an unsupported combination or, when run_y_checks, a wrong num_ys.
+// layer_type: 0 = solid, 1 = liquid. Units: density [kg m-3], moduli [Pa], frequency [rad s-1].
 inline void c_find_starting_conditions(
         bool* success_ptr,
         std::string& message,
@@ -67,13 +34,10 @@ inline void c_find_starting_conditions(
 {
     size_t num_ys_for_assumption;
 
-    // Assume success and adjust if not
     *success_ptr = true;
 
-    // For static liquid layers, no matter the other assumptions, we use Saito's method.
     if ((layer_type != 0) && is_static)
     {
-        // Liquid Static Layer
         if (run_y_checks)
         {
             num_ys_for_assumption = 2;
@@ -90,12 +54,9 @@ inline void c_find_starting_conditions(
                 );
         }
 
-    // Work through the Kamata models
     } else if (use_kamata)
     {
-        // Kamata solid layer
         if (layer_type == 0) {
-            // Solid layer
             if (is_static && is_incompressible)
             {
                 *success_ptr = false;
@@ -173,10 +134,9 @@ inline void c_find_starting_conditions(
             }
         } else
         {
-            // Kamata liquid layer
             if (is_static)
             {
-                // Covered by Saito method above
+                // Covered by Saito above.
             } else if ((!is_static) && is_incompressible)
             {
                 if (run_y_checks)
@@ -225,7 +185,6 @@ inline void c_find_starting_conditions(
             }
         }
 
-    // Work through the Takeuchi models
     } else
     {
         if (is_incompressible)
@@ -235,7 +194,6 @@ inline void c_find_starting_conditions(
         } else {
             if (layer_type == 0)
             {
-                // Solid layer
                 if (is_static) {
                     if (run_y_checks) {
                         num_ys_for_assumption = 6;
@@ -284,10 +242,9 @@ inline void c_find_starting_conditions(
                 }
             } else
             {
-                // Liquid layer
                 if (is_static)
                 {
-                    // Handled by Saito above
+                    // Covered by Saito above.
                 } else
                 {
                     if (run_y_checks)

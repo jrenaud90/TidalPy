@@ -1,19 +1,8 @@
 # distutils: language = c++
-"""
-classes.pxd
-Cython declarations for TidalPy's base class hierarchy.
+"""Cython declarations for TidalPy's base class hierarchy.
 
-Declares C++ classes and Cython extension types so other modules can cimport
-the types and call C-speed methods without going through Python dispatch.
-
-Usage in another extension::
-
-    from TidalPy.Utilities_x.classes_x.classes cimport (
-        TidalPyBaseClass, StructureBase, PhysicsBase,
-        c_TidalPyBaseClass, c_StructureBase, c_PhysicsBase)
-
-Note: cimporting this pxd brings `bool` (as `cpp_bool`) from libcpp into scope.
-Never call bool() as a function in the importing .pyx; use `True if x else False`.
+Warning: cimporting this pxd brings ``bool`` (as ``cpp_bool``) from libcpp into scope, so never call
+bool() as a function in the importing .pyx; use ``True if x else False``.
 """
 
 from libcpp cimport bool as cpp_bool

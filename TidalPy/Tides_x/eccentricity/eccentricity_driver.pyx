@@ -8,7 +8,7 @@ def eccentricity_func(
         int degree_l,
         object truncation = 3):
 
-    # Clean up input and check for issues. Numeric strings (e.g. "10") are accepted.
+    # Numeric strings such as "10" are accepted.
     if isinstance(truncation, str):
         try:
             truncation = int(truncation)
@@ -30,7 +30,6 @@ def eccentricity_func(
             f"Degree l = {degree_l} is not currently supported for eccentricity function calculations. "
             "Supported degrees: l = 2 through 10.")
     
-    # Call c function to get result.
     cdef int error_code = 0
     cdef EccentricityFuncOutput result_pair = c_eccentricity_func(
         &error_code,
@@ -38,7 +37,6 @@ def eccentricity_func(
         degree_l,
         truncation)
     
-    # Check for issues during calculation.
     if error_code != 0:
         if error_code == -1:
             raise NotImplementedError("Eccentricity function error code -1: Unsupported / Not implemented truncation provided.")
@@ -50,15 +48,14 @@ def eccentricity_func(
     # Convert output to a python safe structure.
     cdef IntMap3 result_by_lmp = IntMap3()
     result_by_lmp.intmap_cinst = result_pair.first
-    # For the results by l, m - the Python-accessible `IntMap` does not (currently) support non-numeric types.
-    # Instead we will just make a regular python dictionary and store the inner IntMap1's in it.
+    # The Python-accessible `IntMap` does not support non-numeric keys, so the results by (l, m) go into a
+    # plain dict of inner IntMap1's.
     cdef dict results_by_lm = dict()
     cdef size_t i
     cdef pair[c_Key2, c_IntMap[c_Key1, double]] c_key_value
     cdef IntMap1 tmp_map
     for i in range(result_pair.second.size()):
         c_key_value = result_pair.second.data[i]
-        # Store the IntMap as a Python tuple in the dict.
         tmp_map = IntMap1()
         tmp_map.intmap_cinst = c_key_value.second
         results_by_lm[(c_key_value.first.a, c_key_value.first.b)] = tmp_map

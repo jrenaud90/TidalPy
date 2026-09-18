@@ -1,29 +1,18 @@
 #pragma once
 /*
- * cooling_.hpp - Implements TidalPy's cooling (heat-transport) models.
+ * cooling_.hpp - TidalPy's cooling (heat-transport) models: c_OffCooling (alias "none"),
+ * c_ConvectiveCooling (parameterized boundary-layer convection), and c_ConductiveCooling.
  *
- * Inherits c_CoolingBase (cooling_base_.hpp), which itself inherits c_PhysicsBase.
- * Each model implements calc_cooling(c_CoolingInputs), returning a c_CoolingResult
- * (heat flux [W/m^2], boundary-layer thickness [m], Rayleigh and Nusselt numbers).
- *
- * Models (with config aliases handled by the factory):
- *   c_OffCooling         (alias "none")  — cooling disabled (zero flux)
- *   c_ConvectiveCooling                  — parameterized boundary-layer convection
- *   c_ConductiveCooling                  — conduction across the layer
- *
- * All quantities are MKS. The math mirrors the validated legacy implementation in
- * TidalPy/cooling/cooling_models.py.
+ * Each implements c_CoolingBase::calc_cooling and returns a c_CoolingResult (heat flux [W/m^2],
+ * boundary-layer thickness [m], Rayleigh and Nusselt numbers). All quantities are MKS.
  *
  * References
  * ----------
- * - Turcotte and Schubert (2002), Geodynamics — Rayleigh/Nusselt convection scaling.
- * - Solomatov (1995); Schubert, Turcotte, and Olson (2001) — boundary-layer theory.
+ * - Turcotte and Schubert (2002), Geodynamics: Rayleigh and Nusselt convection scaling.
+ * - Solomatov (1995); Schubert, Turcotte, and Olson (2001): boundary-layer theory.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::<Model> (401-403)
- *   payload: model_name length (uint32_t) | model_name bytes | model params (doubles)
- *   Off / Conduction write zero params; Convection writes its three scalars.
- *   The layer observer pointer (p_layer_ptr) is NOT serialized.
+ * Binary payload: the model name followed by the model's parameters as doubles. The observing
+ * layer pointer is not serialized.
  */
 
 #include <algorithm>
@@ -43,16 +32,13 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// Replace a magnitude smaller than the shared numerical floor (config_x
-// [numerical].numerical_floor) with a signed floor value, guarding denominators
-// that may approach zero.
-// -------------------------------------------------------------------------------
-// Smallest Nusselt number the convection model will report. Nu = 1 is pure conduction across the
-// layer; the classic implementation floors at 2 so a barely-convecting layer still loses heat through
-// a boundary layer half the layer thickness rather than the whole of it.
+// Smallest Nusselt number the convection model reports. Nu = 1 is pure conduction across the whole
+// layer; flooring at 2 keeps a barely-convecting layer losing heat through a boundary layer half the
+// layer thickness rather than the whole of it.
 inline constexpr double d_MIN_NUSSELT = 2.0;
 
+// Guard a denominator that may approach zero: a magnitude below the shared numerical floor
+// (config_x [numerical].numerical_floor) becomes a signed floor value.
 inline double cool_guard(double value) noexcept {
     const double floor_value = tidalpy_config_ptr->d_NUMERICAL_FLOOR;
     if (std::abs(value) < floor_value) {
@@ -61,10 +47,7 @@ inline double cool_guard(double value) noexcept {
     return value;
 }
 
-// -------------------------------------------------------------------------------
-// c_CoolingConfig — construction parameters for the convection model.
-// (The off and conduction models take no parameters.)
-// -------------------------------------------------------------------------------
+// c_CoolingConfig: construction parameters for the convection model (the others take none).
 struct c_CoolingConfig {
     double convection_alpha  = 1.0;                  // Nu = alpha * (Ra / Ra_crit)^beta  [dimensionless]
     double convection_beta   = 0.3333333333333333;   // convection exponent (~1/3)        [dimensionless]
@@ -73,9 +56,6 @@ struct c_CoolingConfig {
 
 // =====================================================================================================================
 // Cooling functions
-//
-// Each mirrors the validated legacy implementation in
-// TidalPy/cooling/cooling_models.py.
 // =====================================================================================================================
 
 // Off: no cooling. Boundary layer is half the layer thickness; flux zero.
@@ -106,9 +86,8 @@ inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
 //   boundary layer = thickness / Nu
 //   flux = k * delta_temp / boundary_layer
 //
-// Degenerate inputs (delta_temp <= 0, thickness below the minimum-layer-thickness
-// floor) collapse to the legacy edge behavior (Ra = 0, Nu = 2). The minimum
-// thickness comes from the shared TidalPy config (tidalpy_config_ptr->d_MIN_THICKNESS).
+// Degenerate inputs (delta_temp <= 0, or a thickness below tidalpy_config_ptr->d_MIN_THICKNESS)
+// collapse to Ra = 0 and Nu = 2.
 inline c_CoolingResult cool_convection(
         const c_CoolingInputs& in, const c_CoolingConfig& cfg) noexcept {
     const double eps = TidalPyConstants::d_EPS;
@@ -141,9 +120,7 @@ inline c_CoolingResult cool_convection(
     return result;
 }
 
-// -------------------------------------------------------------------------------
 // Lower-case a model name for case-insensitive factory lookup.
-// -------------------------------------------------------------------------------
 inline std::string cool_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -152,15 +129,9 @@ inline std::string cool_to_lower(std::string text) {
 
 // =====================================================================================================================
 // Cooling models
-//
-// Binary serialization uses the shared c_PhysicsBase helpers
-// (write_physics_binary / read_physics_binary): Off and Conduction write zero
-// params; Convection writes its three scalars.
 // =====================================================================================================================
 
-// -------------------------------------------------------------------------------
-// c_OffCooling — cooling disabled (alias "none").
-// -------------------------------------------------------------------------------
+// c_OffCooling: cooling disabled (alias "none").
 class c_OffCooling : public c_CoolingBase {
 public:
     c_OffCooling() : c_CoolingBase("off") {}
@@ -179,9 +150,7 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_ConductiveCooling — conduction across the layer.
-// -------------------------------------------------------------------------------
+// c_ConductiveCooling: conduction across the layer.
 class c_ConductiveCooling : public c_CoolingBase {
 public:
     c_ConductiveCooling() : c_CoolingBase("conduction") {}
@@ -200,9 +169,7 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_ConvectiveCooling — parameterized boundary-layer convection.
-// -------------------------------------------------------------------------------
+// c_ConvectiveCooling: parameterized boundary-layer convection.
 class c_ConvectiveCooling : public c_CoolingBase {
 public:
     c_ConvectiveCooling() : c_CoolingBase("convection") {}
@@ -254,26 +221,14 @@ protected:
 // Factory
 // =====================================================================================================================
 
-// -------------------------------------------------------------------------------
-// c_CoolingModel — one named value per cooling model.
-// -------------------------------------------------------------------------------
 enum class c_CoolingModel : uint8_t {
     Off        = 0,
     Convection = 1,
     Conduction = 2,
 };
 
-// -------------------------------------------------------------------------------
-// c_cooling_model_from_name — map a (case-insensitive) model name or alias to a
-// c_CoolingModel enum value.
-//
-// Recognized names and aliases:
-//   "off" / "none"
-//   "convection" / "convective"
-//   "conduction" / "conductive"
-//
-// Throws std::invalid_argument if the model name is unknown.
-// -------------------------------------------------------------------------------
+// Map a (case-insensitive) model name or alias to a c_CoolingModel value. Recognized names:
+// "off"/"none", "convection"/"convective", "conduction"/"conductive".
 inline c_CoolingModel c_cooling_model_from_name(const std::string& model_name) {
     const std::string name = cool_to_lower(model_name);
 
@@ -284,12 +239,7 @@ inline c_CoolingModel c_cooling_model_from_name(const std::string& model_name) {
     throw std::invalid_argument("TidalPy: unknown cooling model name '" + model_name + "'");
 }
 
-// -------------------------------------------------------------------------------
-// c_find_cooling — build the cooling model named by a c_CoolingModel enum.
-//
-// Returns a unique_ptr to a newly heap-allocated concrete model constructed from
-// the supplied config. Throws std::invalid_argument for an unrecognised enum value.
-// -------------------------------------------------------------------------------
+// Build the cooling model named by the enum; returns an owning unique_ptr.
 inline std::unique_ptr<c_CoolingBase> c_find_cooling(
         c_CoolingModel model, const c_CoolingConfig& cfg) {
     switch (model) {
@@ -300,24 +250,14 @@ inline std::unique_ptr<c_CoolingBase> c_find_cooling(
     throw std::invalid_argument("TidalPy: unrecognised c_CoolingModel enum value");
 }
 
-// -------------------------------------------------------------------------------
-// c_find_cooling (name overload) — maps a name/alias to the enum and builds the
-// model. Throws std::invalid_argument on unknown names.
-// -------------------------------------------------------------------------------
+// Name overload.
 inline std::unique_ptr<c_CoolingBase> c_find_cooling(
         const std::string& model_name, const c_CoolingConfig& cfg) {
     return c_find_cooling(c_cooling_model_from_name(model_name), cfg);
 }
 
-// -------------------------------------------------------------------------------
-// c_cooling_from_binary — reconstruct a cooling model from a binary stream.
-//
-// Peeks the upcoming record's BinaryClassID (without consuming the header),
-// constructs the matching default-initialized concrete model, then delegates to
-// its read_binary to restore the model name and parameters. Used by the layer
-// recursive deserialization (see structures_x/layers). Throws std::runtime_error
-// if the class id is not a known cooling model.
-// -------------------------------------------------------------------------------
+// Reconstruct a cooling model from a binary stream. The class id is peeked without consuming the
+// header so the matching default-constructed model can restore the record itself.
 inline std::unique_ptr<c_CoolingBase> c_cooling_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);

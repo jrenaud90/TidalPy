@@ -1,13 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-layered.pyx
-Cython/Python wrapper for TidalPy's layered world class.
+"""Cython wrapper for TidalPy's layered world class.
 
-LayeredWorld: a world built from an ordered stack of layers (inner to outer).
-Owns its layers, aggregates total mass and internal radiogenic heating, and
-validates layer-boundary continuity. Whole-planet EOS and radial (Love number)
-solves are provided as methods on this class.
+LayeredWorld owns an ordered stack of layers (inner to outer), aggregates total mass and internal radiogenic
+heating, and validates layer-boundary continuity. The whole-planet EOS and radial (Love number) solves are
+methods on this class.
 """
 
 cimport numpy as cnp
@@ -39,8 +36,8 @@ from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_na
 from TidalPy.Utilities_x.logging_x.logger import log_warning
 
 
-# Build the matching layer wrapper as a NON-owning view onto a layer the world owns, dispatched
-# by the C++ layer's concrete class id. The view keeps the world alive (see BaseLayer._view).
+# Build the matching layer wrapper as a non-owning view onto a layer the world owns, dispatched by the C++
+# layer's concrete class id. The view keeps the world alive (see BaseLayer._view).
 cdef BaseLayer _wrap_layer_view(c_BaseLayer* ptr, object world):
     cdef uint32_t class_id = ptr.get_layer_class_id()
     if class_id == 101:
@@ -78,11 +75,8 @@ cdef int _check_num_threads(int num_threads) except -1:
         raise ValueError(f"num_threads must be at least 1; got {num_threads}")
     return 0
 
-# ODEMethod, c_EOSSolution, and c_WorldEOSSolveConfig are provided by layered.pxd.
-
-# Translate an integration-method name to the CyRK enum (string handling stays at the
-# Cython/Python boundary). Case-insensitive; covers the explicit Runge-Kutta methods and
-# the implicit/stiff methods.
+# Translate an integration-method name to the CyRK enum (string handling stays at the Cython boundary).
+# Case-insensitive; covers the explicit Runge-Kutta methods and the implicit, stiff ones.
 cdef ODEMethod _resolve_integration_method(str integration_method) except *:
     cdef str method_upper = integration_method.upper()
     if method_upper == 'DOP853':
@@ -191,7 +185,7 @@ cdef class LayeredWorld(BaseWorld):
     Parameters
     ----------
     name : str
-        Human-readable world name.
+        World name.
     radius : float
         World radius [m].
     mass : float
@@ -256,9 +250,8 @@ cdef class LayeredWorld(BaseWorld):
     def add_layer(self, BaseLayer layer not None):
         """Add a layer to the world (inner to outer).
 
-        Ownership of the C++ layer (and its attached physics models) is
-        transferred into the world; the passed ``BaseLayer`` becomes an empty,
-        non-owning shell and must not be reused.
+        Ownership of the C++ layer and its attached physics models moves out of ``layer``, which is left an
+        empty shell and must not be reused.
 
         Parameters
         ----------
@@ -299,11 +292,9 @@ cdef class LayeredWorld(BaseWorld):
         return self._layered_ptr.get_num_layers()
 
     cdef list _ensure_layer_views(self):
-        """Build the per-layer view cache once (lazily); reuse it thereafter.
+        """Build the per-layer view cache once, lazily, and reuse it thereafter.
 
-        The views are non-owning wrappers onto the world's stable C++ layers, so they are built
-        a single time (on first access after the layers are added) and reused, rather than
-        re-allocated on every access. ``add_layer`` invalidates the cache.
+        The views are non-owning wrappers onto the world's stable C++ layers; ``add_layer`` invalidates them.
         """
         cdef size_t n, i
         cdef BaseLayer view
@@ -320,12 +311,10 @@ cdef class LayeredWorld(BaseWorld):
     def get_layer(self, index: int) -> BaseLayer:
         """Return a wrapper around the layer at ``index`` (0 = innermost).
 
-        The returned object is a **non-owning view**: the world still owns the C++ layer, so
-        the view exposes the layer's full Cython API (the matching ``PhysicsLayer`` /
-        ``SolidLiquidLayer`` / ``GasLayer`` / ``BaseLayer`` subclass) but must not outlive the
-        world (it keeps a reference to the world to prevent that). The views are cached (built
-        once), so repeated access is cheap. Negative indices count from the end. Raises
-        ``IndexError`` if out of range.
+        The returned object is a non-owning view: the world still owns the C++ layer, so the view exposes the
+        matching subclass API but must not outlive the world (it holds a reference to the world to prevent
+        that). Views are cached, so repeated access is cheap. Negative indices count from the end; an index
+        out of range raises ``IndexError``.
         """
         cdef list views = self._ensure_layer_views()
         cdef Py_ssize_t n = len(views)
@@ -362,13 +351,9 @@ cdef class LayeredWorld(BaseWorld):
     def __getattr__(self, name):
         """Resolve ``world.<layer_name>`` to that layer's view (after normal attribute lookup).
 
-        Only consulted when ``name`` is not a real attribute/method, so defined members always
-        win. Names starting with ``_`` are never treated as layers (so dunder/internal probes
-        are not intercepted). The view is taken from the cache (built once).
-
-        This __getattr__ is only a fallback that is called if the standard getattr fails to find 
-        a member attribute. So accessing attributes like `<world>.calc_internal_heating` will
-        still work.
+        Only consulted when ``name`` is not a real attribute or method, so defined members such as
+        ``calc_internal_heating`` always win. Names starting with ``_`` are never treated as layers, so
+        internal probes are not intercepted.
         """
         if name.startswith("_") or self._layered_ptr == NULL:
             raise AttributeError(name)
@@ -413,18 +398,15 @@ cdef class LayeredWorld(BaseWorld):
             cpp_bool verbose        = False) -> dict:
         """Solve the whole-planet equation of state.
 
-        Integrates gravity, pressure, enclosed mass, and moment of inertia
-        radially from the planet center to its surface, using each layer's
-        attached material EOS model (see :meth:`BaseLayer.set_eos`) as the local
-        density source. A convergence loop on the surface pressure determines the
-        central pressure. On success, every layer's EOS profile is populated so
-        that :meth:`get_density`, :meth:`get_gravity`, and :meth:`get_pressure`
-        (on this world or on the individual layers) become available, and every
-        layer's mass (and so its density_bulk) is set to the mass the solved
-        density profile places between its inner and outer radii.
+        Integrates gravity, pressure, enclosed mass, and moment of inertia from the planet center to its
+        surface with each layer's attached material EOS model (see :meth:`BaseLayer.set_eos`) as the local
+        density source; a convergence loop on the surface pressure sets the central pressure. On success every
+        layer's EOS profile is populated, so :meth:`get_density`, :meth:`get_gravity`, and
+        :meth:`get_pressure` work on the world and on the individual layers, and every layer's mass (and so
+        its density_bulk) is set to the mass the solved density profile places between its radii.
 
-        Every solver setting left as ``None`` takes the ``[eos_solver]`` value of the TidalPy
-        configuration (``TidalPy.config_x``), the same defaults the standalone ``radial_solver`` uses.
+        Every solver setting left as ``None`` takes the ``[eos_solver]`` value of the TidalPy configuration
+        (``TidalPy.config_x``), the same defaults the standalone ``radial_solver`` uses.
 
         Parameters
         ----------
@@ -433,60 +415,48 @@ cdef class LayeredWorld(BaseWorld):
         slices_per_layer : int, optional
             Number of radial sample points generated per layer (>= 2).
         G_to_use : float, optional
-            Gravitational constant [m^3 kg^-1 s^-2]. If negative (default), the
-            TidalPy config value is used.
+            Gravitational constant [m^3 kg^-1 s^-2]. If negative (default), the TidalPy config value is used.
         integration_method : str, optional
-            CyRK integration method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the
-            implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
-            The structure ODE is singular at the planet's center; LSODA's startup can
-            fail to take its first step there (a clean unsuccessful result), while BDF
-            and Radau handle the singular start.
+            CyRK integration method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the implicit (stiff) methods
+            ``'BDF'``, ``'LSODA'``, ``'Radau'``. The structure ODE is singular at the planet's center, where
+            LSODA's startup can fail to take its first step (a clean unsuccessful result) while BDF and Radau
+            handle the singular start.
         rtol, atol : float, optional
-            Relative / absolute integration tolerances.
+            Relative and absolute integration tolerances.
         pressure_tol : float, optional
-            Convergence tolerance on the surface-pressure mismatch, relative to the
-            central-pressure scale (2/3) pi G rho^2 R^2. Keep it above ``rtol``, the
-            integrator's own noise on the surface pressure.
+            Convergence tolerance on the surface-pressure mismatch, relative to the central-pressure scale
+            (2/3) pi G rho^2 R^2. Keep it above ``rtol``, the integrator's own noise on the surface pressure.
         max_iters : int, optional
-            Maximum central-pressure iterations. Hitting the cap logs a warning, sets
-            ``max_iters_hit`` in the result, and keeps the last iteration's profile.
+            Maximum central-pressure iterations. Hitting the cap logs a warning, sets ``max_iters_hit`` in the
+            result, and keeps the last iteration's profile.
         nondimensionalize : bool, optional
-            Integrate in non-dimensional units (the planet radius, its bulk density, and
-            1/sqrt(pi G rho) as the length, density, and time units) so the tolerances mean
-            the same thing for every planet. Results are always returned in SI.
+            Integrate in non-dimensional units (the planet radius, its bulk density, and 1/sqrt(pi G rho) as
+            the length, density, and time units) so the tolerances mean the same thing for every planet.
+            Results are always returned in SI.
         temperature : float, optional
-            Temperature [K] passed to each EOS model's ``calc_density`` (unused
-            by the current isothermal models). Default 0.0.
+            Temperature [K] passed to each EOS model's ``calc_density`` (unused by the current isothermal
+            models). Default 0.0.
         verbose : bool, optional
             Print solver status messages. Default False.
 
         Returns
         -------
         dict
-            ``success``, ``message``, ``iterations``, ``max_iters_hit``, ``pressure_error``
-            [Pa], the radial profile arrays (``radius``, ``gravity``, ``pressure``,
-            ``mass``, ``moi``, ``density``), and the scalar surface/planet
-            results (``surface_gravity``, ``surface_pressure``,
-            ``central_pressure``, ``planet_mass``, ``planet_moi``).
+            ``success``, ``message``, ``iterations``, ``max_iters_hit``, ``pressure_error`` [Pa], the radial
+            profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``), and the
+            scalar results (``surface_gravity``, ``surface_pressure``, ``central_pressure``, ``planet_mass``,
+            ``planet_moi``).
 
         Raises
         ------
         ValueError
-            If the world has no layers, any layer lacks a material EOS model, an
-            unsupported integration method is given, or ``slices_per_layer < 2``.
+            If the world has no layers, any layer lacks a material EOS model, an unsupported integration
+            method is given, or ``slices_per_layer < 2``.
 
         Assumptions
         -----------
         - Spherical symmetry; all quantities MKS.
         - Each layer's density comes from its attached material EOS model.
-
-        Notes
-        -----
-        The whole solve (radius-grid generation, bulk-density estimate, the CyRK
-        ODE integration with its surface-pressure loop, and populating each
-        layer's profile) runs in pure C++ (``c_LayeredWorld::solve_eos``); this
-        wrapper only translates the integration-method string to the CyRK enum and
-        builds the Python result dict from the retained C++ solution.
         """
         # The config struct starts from the [eos_solver] section of the TidalPy configuration; only the
         # arguments given here override it.
@@ -573,11 +543,11 @@ cdef class LayeredWorld(BaseWorld):
         return self._layered_ptr.get_all_eos_set()
 
     # ------------------------------------------------------------------------------------------------------------------
-    # Structure + viscoelastic profile queries (delegate to the containing layer).
+    # Structure and viscoelastic profile queries (delegate to the containing layer).
     #
-    # Every getter accepts a scalar radius [m] (returns a float / complex) OR a NumPy
-    # array of radii (returns an array of the same shape). NaN where the EOS is
-    # unsolved, the layer is geometry-only, or no rheology is attached.
+    # Every getter takes a scalar radius [m] (returning a float or complex) or a NumPy array of radii
+    # (returning an array of the same shape). NaN where the EOS is unsolved, the layer is geometry-only, or
+    # no rheology is attached.
     # ------------------------------------------------------------------------------------------------------------------
     cdef double _eval_real(self, int kind, double radius) noexcept nogil:
         if   kind == _KIND_DENSITY:        return self._layered_ptr.get_density(radius)
@@ -848,14 +818,13 @@ cdef class LayeredWorld(BaseWorld):
             fixed_dt           = None) -> dict:
         """Solve for whole-planet tidal Love numbers (radial solver, propagation matrix, or analytic methods).
 
-        Requires :meth:`solve_eos` to have been called first.  For each radial
-        slice the layer's attached rheology model is evaluated at
-        ``frequency`` to obtain the complex moduli; the deformation ODEs are then
-        shot from the center to the surface on the solved structure to yield k, h, l.
+        Requires :meth:`solve_eos` first. Each layer's attached rheology is evaluated at ``frequency`` for the
+        complex moduli, then the deformation ODEs are shot from the center to the surface on the solved
+        structure to give k, h, l.
 
-        Every solver setting left as ``None`` takes the ``[radial_solver]`` value of the TidalPy
-        configuration (``TidalPy.config_x``), the same defaults the standalone ``radial_solver`` and the
-        world's tidal solves use.
+        Every solver setting left as ``None`` takes the ``[radial_solver]`` value of the TidalPy configuration
+        (``TidalPy.config_x``), the same defaults the standalone ``radial_solver`` and the world's tidal
+        solves use.
 
         Parameters
         ----------
@@ -864,26 +833,25 @@ cdef class LayeredWorld(BaseWorld):
         degree_l : int, optional
             Harmonic degree. Default 2.
         solve_for : str, optional
-            Surface boundary condition: ``'tidal'`` (default; tidal Love numbers k, h, l),
-            ``'loading'`` (load Love numbers k', h', l'), or ``'free'`` (free-surface
-            response). Same names as the standalone ``radial_solver``.
+            Surface boundary condition: ``'tidal'`` (default; tidal Love numbers k, h, l), ``'loading'``
+            (load Love numbers k', h', l'), or ``'free'`` (free-surface response). Same names as the
+            standalone ``radial_solver``.
         core_model : int, optional
-            Propagation-matrix core starting condition (0-4). Ignored by the
-            shooting method. Default 0.
+            Propagation-matrix core starting condition (0-4). Ignored by the shooting method. Default 0.
         use_kamata : bool, optional
-            Use Kamata starting conditions near the center (shooting method only)
-            instead of Takeuchi and Saito.
+            Use Kamata starting conditions near the center (shooting method only) instead of Takeuchi and
+            Saito.
         nondimensionalize : bool, optional
             Non-dimensionalize the problem internally (recommended).
         starting_radius : float, optional
-            Minimum radius [m] for the shooting start.  0 → auto. Default 0.
+            Minimum radius [m] for the shooting start; 0 selects it automatically. Default 0.
         start_radius_tol : float, optional
             Tolerance of the automatic starting radius, R * tol^(1/l).
         integration_method : str, optional
-            CyRK ODE method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the
-            implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
+            CyRK ODE method: ``'DOP853'``, ``'RK45'``, ``'RK23'``, or the implicit (stiff) methods ``'BDF'``,
+            ``'LSODA'``, ``'Radau'``.
         rtol, atol : float, optional
-            Relative / absolute ODE tolerances.
+            Relative and absolute ODE tolerances.
         scale_rtols : bool, optional
             Scale tolerances by layer type.
         max_num_steps : int, optional
@@ -891,30 +859,27 @@ cdef class LayeredWorld(BaseWorld):
         expected_size, max_ram_MB : int, optional
             CyRK memory hints.
         max_step : float, optional
-            Maximum ODE step size [m].  0 → auto. Default 0.
+            Maximum ODE step size [m]; 0 selects it automatically. Default 0.
         verbose : bool, optional
             Print solver status messages. Default False.
         warnings : bool, optional
             Emit solver warnings. Default True.
         love_method : str, optional
             How the Love numbers are obtained. ``None`` (default) uses the world's configured method
-            (``set_tide_config(love_method=...)`` or the ``[tides]`` table; ``'radial_solver'`` unless set).
-            ``'radial_solver'`` (aliases ``'shooting'``,
-            ``'rs'``) integrates the radial ODEs from the center to the surface;
-            ``'propagation_matrix'`` (``'prop_matrix'``, ``'pm'``, ``'prop'``) uses the matrix
-            method, which is only valid for a single solid, static, incompressible layer (an
-            incompatible world fails the solve gracefully: ``love_success`` is ``False`` with a
-            non-zero ``love_error_code``); ``'homogeneous'`` (``'homogen'``) applies the homogeneous-sphere formulas with
-            the volume-averaged complex shear modulus of the tidal layers (``is_tidal``), the
-            planet's bulk density, surface gravity, and radius; ``'cpl'`` and ``'ctl'`` apply them
-            to the static shear modulus and impose a constant phase lag ``(1 - i/Q)`` or time lag
-            ``(1 - i*omega*dt)`` on k, h, and l; ``'laterally_inhomogeneous'`` (``'3d'``,
-            ``'lat_inhom'``) is reserved and raises ``NotImplementedError``.
+            (``set_tide_config(love_method=...)`` or the ``[tides]`` table). ``'radial_solver'``
+            (``'shooting'``, ``'rs'``) integrates the radial ODEs from the center to the surface.
+            ``'propagation_matrix'`` (``'prop_matrix'``, ``'pm'``, ``'prop'``) is valid only for a single
+            solid, static, incompressible layer; an incompatible world fails the solve gracefully, with
+            ``love_success`` False and a non-zero ``love_error_code``. ``'homogeneous'`` (``'homogen'``)
+            applies the homogeneous-sphere formulas with the volume-averaged complex shear modulus of the
+            tidal layers (``is_tidal``), the planet's bulk density, surface gravity, and radius. ``'cpl'``
+            and ``'ctl'`` apply those to the static shear modulus with a constant phase lag ``(1 - i/Q)`` or
+            time lag ``(1 - i*omega*dt)``. ``'laterally_inhomogeneous'`` (``'3d'``, ``'lat_inhom'``) raises
+            ``NotImplementedError``.
         fixed_q, fixed_dt : float, optional
-            Quality factor for ``'cpl'`` and time lag [s] for ``'ctl'``. Left unset, the ``[tides]``
-            config values (``set_tide_config(love_fixed_q=..., love_fixed_dt=...)``) are used, then the
-            attached tide model's fixed Q / time lag for this degree (``ValueError`` when none is
-            available).
+            Quality factor for ``'cpl'`` and time lag [s] for ``'ctl'``. Left unset, the ``[tides]`` config
+            values (``set_tide_config(love_fixed_q=..., love_fixed_dt=...)``) are used, then the attached tide
+            model's fixed Q or time lag for this degree (``ValueError`` when none is available).
 
         Returns
         -------
@@ -930,7 +895,6 @@ cdef class LayeredWorld(BaseWorld):
         Assumptions
         -----------
         - Spherical symmetry; all quantities MKS.
-        - ``solve_eos`` must be called first.
         """
         # The config starts from the world's [tides] Love settings (method, fixed Q, fixed time lag) and the
         # [radial_solver] section of the TidalPy configuration; only the arguments given here override it.
@@ -1156,11 +1120,8 @@ cdef class LayeredWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     # Global (1D) tidal dissipation
     #
-    # The tide model holder, config, and the analytic result accessors are inherited from
-    # BaseWorld (set_tide_model / set_tide_config / tide_model_set / tides_solved /
-    # get_tidal_heating / get_tidal_potential_derivatives / get_num_tidal_modes /
-    # get_tidal_love_k). A layered world overrides calc_tides to add the rheology (radial-
-    # solver) path + per-layer heating, and adds the per-layer heating accessor.
+    # The tide model holder, config, and analytic result accessors are inherited from BaseWorld. A layered
+    # world overrides calc_tides to add the rheology (radial-solver) path and the per-layer heating.
     # ------------------------------------------------------------------------------------------------------------------
     def calc_tides(
             self,
@@ -1228,20 +1189,19 @@ cdef class LayeredWorld(BaseWorld):
             double host_mass,
             double radius,
             double colatitude) -> float:
-        """Secular (cycle/orbit-averaged) 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)``.
+        """Secular (cycle and orbit-averaged) 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)``.
 
-        This is the longitude mean of the time-averaged power density. The active tidal modes are built
-        from the world's ``[tides]`` truncation config (max degree l, eccentricity/obliquity truncation)
-        and merged into coherent waves (modes that share a real spatial function, such as the ``m = 0``
-        pairs at ``+omega`` and ``-omega``, are one wave), the world radial response is solved once per
-        ``(l, |omega|)``, and each frequency contributes ``(|omega|/2) Im(sigma_c : conj(eps_c))`` of its
-        total complex stress and strain. Cross terms between waves at one frequency with different
-        longitude structure are what make the heating of a synchronously rotating body depend on
-        longitude; they average to zero over longitude, so this method returns the zonal mean. For the
-        longitude-resolved secular field use :meth:`calc_3d_tides`. The volume integral over the planet
-        equals the 1D global tidal heating (:meth:`get_tidal_heating`). Requires the rheology tide model
-        (:meth:`set_tide_model`) and a solved EOS (:meth:`solve_eos`). Returns NaN at the center / below
-        the solver's starting radius and 0 in liquid layers.
+        This is the longitude mean of the time-averaged power density. The active tidal modes come from the
+        world's ``[tides]`` truncation config and are merged into coherent waves (modes sharing a real spatial
+        function, such as the ``m = 0`` pair at ``+omega`` and ``-omega``, form one wave); the world radial
+        response is solved once per ``(l, |omega|)``, and each frequency contributes
+        ``(|omega|/2) Im(sigma_c : conj(eps_c))`` of its total complex stress and strain. Cross terms between
+        waves at one frequency with different longitude structure make the heating of a synchronously
+        rotating body depend on longitude; they average to zero over longitude, so this method returns the
+        zonal mean and :meth:`calc_3d_tides` gives the longitude-resolved field. The volume integral over the
+        planet equals the 1D :meth:`get_tidal_heating`. Requires the rheology tide model
+        (:meth:`set_tide_model`) and a solved EOS (:meth:`solve_eos`). Returns NaN at the center and below the
+        solver's starting radius, and 0 in liquid layers.
         """
         cdef c_TideSolveConfig state
         state.orbital_frequency = orbital_frequency
@@ -1265,13 +1225,11 @@ cdef class LayeredWorld(BaseWorld):
             int num_threads=1):
         """Longitude-mean secular 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)`` points.
 
-        Vectorized batch form of :meth:`get_3d_tidal_heating`: ``radii`` and ``colatitudes`` are paired,
-        equal-length 1D arrays (point ``i`` is ``(radii[i], colatitudes[i])``), and a same-shape
-        ``np.ndarray`` of heating is returned. Same physics and preconditions as the scalar method, but
-        the world radial response is solved once per unique ``(degree l, |omega|)`` and reused across all
-        points (the solve does not depend on radius or colatitude), so this is the efficient way to build
-        a zonal-mean heating map. Entries are NaN for points at the center / below the solver's starting
-        radius and 0 in liquid layers. Requires the rheology tide model and a solved EOS.
+        Batch form of :meth:`get_3d_tidal_heating`: ``radii`` and ``colatitudes`` are paired, equal-length 1D
+        arrays (point ``i`` is ``(radii[i], colatitudes[i])``) and a same-shape ``np.ndarray`` of heating is
+        returned. Same physics and preconditions as the scalar method, but the world radial response is solved
+        once per unique ``(degree l, |omega|)`` and reused across all points, so this is the efficient way to
+        build a zonal-mean heating map.
 
         ``num_threads`` (default 1) spreads the per-point evaluation, which follows the radial solves on the
         calling thread, over that many threads; the result is identical for any thread count. Keep the
@@ -1421,12 +1379,12 @@ cdef class LayeredWorld(BaseWorld):
             int num_threads=1) -> dict:
         """Instantaneous tidal stress [Pa] and strain on the grid ``(radius, colatitude, longitude, time)``.
 
-        The active tidal modes come from the world's ``[tides]`` truncation config and are merged into coherent
-        waves, the radial response is solved once per unique ``(l, frequency)``, and at each point every wave's
-        complex stress and strain amplitude is added into the total of its frequency. Each component at time ``t``
-        is the sum over frequencies of ``Re[amplitude e^{i |frequency| t}]``, the convention of
-        :meth:`calc_3d_displacements` and of the instantaneous heating of :meth:`calc_3d_tides`. The C++ code
-        writes directly into the returned arrays.
+        The active tidal modes come from the world's ``[tides]`` truncation config and are merged into
+        coherent waves; the radial response is solved once per unique ``(l, frequency)``, and at each point
+        every wave's complex stress and strain amplitude is added into the total of its frequency. Each
+        component at time ``t`` is the sum over frequencies of ``Re[amplitude e^{i |frequency| t}]``, the
+        convention of :meth:`calc_3d_displacements` and of the instantaneous heating of
+        :meth:`calc_3d_tides`.
 
         Parameters
         ----------
@@ -1559,48 +1517,40 @@ cdef class LayeredWorld(BaseWorld):
             double colatitude_min=0.0,
             double colatitude_max=np.pi,
             int num_threads=1) -> dict:
-        """3D tidal heating as a full grid over ``(radius, colatitude, longitude[, time])`` or reduced.
+        """3D tidal heating as a grid over ``(radius, colatitude, longitude[, time])``, optionally reduced.
 
-        With ``orbit_averaged=True`` (default) the quantity is the secular (cycle-averaged) volumetric
-        heating density ``h_bar`` [W m-3]: the time average of the instantaneous power at each point. It
-        has no time axis, and it depends on longitude wherever waves at one frequency have different
-        longitude structure, as they do for a synchronously rotating body (every active mode at a
-        multiple of the mean motion). With ``orbit_averaged=False`` it is the instantaneous mechanical
-        power density ``sigma_ij(t) * eps_dot_ij(t)`` [W m-3] at each supplied time (a 4th axis), which
+        With ``orbit_averaged=True`` (default) the quantity is the secular volumetric heating density
+        ``h_bar`` [W m-3], the time average of the instantaneous power at each point. It has no time axis and
+        depends on longitude wherever waves at one frequency have different longitude structure, as they do
+        for a synchronously rotating body. With ``orbit_averaged=False`` it is the instantaneous mechanical
+        power density ``sigma_ij(t) * eps_dot_ij(t)`` [W m-3] at each supplied time (a fourth axis), which
         time-averages to ``h_bar``.
 
-        Any spatial dimension can be integrated out via ``latitude_summed`` / ``longitude_summed`` /
-        ``radial_summed``. Reduction convention: if any spatial axis is summed, the surviving spatial
-        axes carry their Jacobian (``r^2``, ``sin theta``, ``1``) so a plain integral over them recovers
-        the total; if none is summed the output is the raw density. The colatitude integral uses an
-        internal Gauss-Legendre grid (``latitude_nodes``), the radial integral ``radial_slices``
-        Gauss-Legendre nodes inside each layer (none on a layer boundary), and the longitude integral the
-        analytic ``2*pi`` times the longitude mean when averaged or a ``longitude_nodes`` trapezoid when
-        instantaneous.
+        Any spatial dimension can be integrated out with ``latitude_summed``, ``longitude_summed``, or
+        ``radial_summed``. If any spatial axis is summed, the surviving spatial axes carry their Jacobian
+        (``r^2``, ``sin theta``, ``1``) so a plain integral over them recovers the total; if none is summed
+        the output is the raw density. The colatitude integral uses an internal Gauss-Legendre grid
+        (``latitude_nodes``), the radial integral ``radial_slices`` Gauss-Legendre nodes inside each layer
+        (none on a layer boundary), and the longitude integral the analytic ``2*pi`` times the longitude mean
+        when averaged or a ``longitude_nodes`` trapezoid when instantaneous.
 
-        Non-summed spatial axes require the corresponding ``radii`` / ``colatitudes`` / ``longitudes``
-        arrays; the ``times`` array is required when ``orbit_averaged=False``. The returned dict carries
-        the surviving axes (``radii``, ``colatitudes``, ``longitudes``, and ``times`` when instantaneous)
-        plus either ``heating`` (the grid over the surviving axes, in the order radius, colatitude,
-        longitude, time) or, when all three spatial axes are summed, ``total`` [W] and ``per_layer`` [W]
-        (per-layer totals, innermost first; each an array over time when instantaneous). Requires the
-        rheology tide model and a solved EOS.
+        Non-summed spatial axes require the matching ``radii``, ``colatitudes``, or ``longitudes`` array, and
+        ``times`` is required when ``orbit_averaged=False``. The returned dict carries the surviving axes plus
+        either ``heating`` (ordered radius, colatitude, longitude, time) or, when all three spatial axes are
+        summed, ``total`` [W] and ``per_layer`` [W] (innermost first, each an array over time when
+        instantaneous). Requires the rheology tide model and a solved EOS.
 
-        When ``latitude_summed`` and ``orbit_averaged`` (the default), the colatitude integral uses the
-        precomputed analytic angular Gram table (exact, no theta grid); pass ``latitude_analytic=False``
-        to fall back to the Gauss-Legendre quadrature instead (they agree to quadrature accuracy).
-
-        When ``latitude_summed``, a latitude band can be integrated instead of the full sphere by
-        setting ``colatitude_min`` / ``colatitude_max`` [rad] (defaults 0 and pi). Band totals and
-        band profiles sum the heating within ``colatitude_min <= theta <= colatitude_max`` only,
-        so complementary bands add up to the full-sphere result. A band narrower than the full
-        sphere always uses the Gauss-Legendre quadrature (the analytic Gram table is full-sphere
-        only). The band has no effect when colatitude is not summed.
+        With ``latitude_summed`` and ``orbit_averaged`` the colatitude integral uses the precomputed analytic
+        angular Gram table (exact, no theta grid); ``latitude_analytic=False`` falls back to the
+        Gauss-Legendre quadrature, which agrees to quadrature accuracy. A latitude band can be integrated
+        instead of the full sphere by setting ``colatitude_min`` and ``colatitude_max`` [rad] (defaults 0 and
+        pi), so complementary bands add up to the full-sphere result; a band narrower than the full sphere
+        always uses the quadrature. The band has no effect when colatitude is not summed.
 
         ``num_threads`` (default 1) spreads the per-point evaluation, which follows the radial solves on the
-        calling thread, over colatitude rows on that many threads; the result is identical for any thread
-        count. The analytic colatitude collapse has no per-point grid and always runs on one thread. Keep
-        the default inside a process pool. The heating is written straight into the returned arrays.
+        calling thread, over colatitude rows; the result is identical for any thread count. The analytic
+        colatitude collapse has no per-point grid and always runs on one thread. Keep the default inside a
+        process pool.
         """
         _check_num_threads(num_threads)
         if not (0.0 <= colatitude_min < colatitude_max <= np.pi + 1.0e-12):
@@ -1758,10 +1708,10 @@ cdef class LayeredWorld(BaseWorld):
     cpdef dict get_config_dict(self):
         """Return the world config with a ``layers`` table keyed by layer name.
 
-        Each entry is the layer's own ``get_config_dict`` (``class``, scalars, attached-model
-        sub-tables) minus the standalone-only keys the builder derives itself (``name``,
-        ``radius_inner``, the Love-number components). The result validates against the world
-        schema and rebuilds the same structure through ``build_world``.
+        Each entry is the layer's own ``get_config_dict`` (``class``, scalars, attached-model sub-tables)
+        minus the standalone-only keys the builder derives itself (``name``, ``radius_inner``, the
+        Love-number components), so the result validates against the world schema and rebuilds the same
+        structure through ``build_world``.
 
         Returns
         -------

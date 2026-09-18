@@ -1,16 +1,8 @@
 #pragma once
 /*
- * radiogenics_base_.hpp - c_RadiogenicsBase: abstract base for all TidalPy radiogenics models.
- *
- * Inherits c_PhysicsBase (Utilities_x/classes_x/physics_base_.hpp).
- *
- * Defines the abstract interface that every radiogenics model must satisfy:
- *   calc_heating(time, mass) -> double [W]
- *
- * The three implemented models (Off, Isotope, Fixed) live in radiogenics_.hpp.
- *
- * All calc_* methods are const and operate in MKS units (time [s], mass [kg],
- * heating [W]).
+ * radiogenics_base_.hpp: c_RadiogenicsBase, the abstract base for TidalPy radiogenics models, derived
+ * from c_PhysicsBase. Every model implements calc_heating(time [s], mass [kg]) returning heating [W].
+ * The three models (Off, Isotope, Fixed) are in radiogenics_.hpp. All calc_* methods are const and MKS.
  */
 
 #include <stdexcept>
@@ -36,34 +28,16 @@ public:
     ~c_RadiogenicsBase() override = default;
 
     // -----------------------------------------------------------------------
-    // Radiogenic heating (pure virtual) [W]
-    //
-    // Each model overrides this to implement its decay law and return the total
-    // radiogenic heating produced by the given mass at the given time.
-    // c_SolidLiquidLayer calls this through calc_radiogenic_heating.
-    //
-    // Parameters
-    // ----------
-    // time : elapsed time [s] (must share its zero point with the reference
-    //          time stored on the model)
-    // mass : mass of the radiogenic material [kg]
-    //
-    // Returns
-    // -------
-    // double : radiogenic heating [W]
-    //
-    // Assumptions
-    // -----------
-    // - Exponential radioactive decay from a reference time.
-    // - All inputs and outputs are MKS.
+    // Radiogenic heating [W] (pure virtual): each model's decay law applied to
+    // `mass` [kg] at `time` [s], which shares its zero point with the reference
+    // time stored on the model. c_SolidLiquidLayer reaches this through
+    // calc_radiogenic_heating. Assumes exponential decay from the reference time.
     // -----------------------------------------------------------------------
     virtual double calc_heating(double time, double mass) const = 0;
 
     // -----------------------------------------------------------------------
-    // Vectorized heating — vary time at constant mass.
-    //
-    // Evaluates calc_heating over each time at the single constant mass.
-    // out_heating is resized to the time vector length.
+    // Vectorized heating: vary time at constant mass. out_heating is resized to
+    // the time vector length.
     // -----------------------------------------------------------------------
     void calc_heating_vectorize_time(
             const std::vector<double>& time,
@@ -77,10 +51,8 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Vectorized heating — vary mass at constant time.
-    //
-    // Evaluates calc_heating over each mass at the single constant time.
-    // out_heating is resized to the mass vector length.
+    // Vectorized heating: vary mass at constant time. out_heating is resized to
+    // the mass vector length.
     // -----------------------------------------------------------------------
     void calc_heating_vectorize_mass(
             double time,
@@ -94,10 +66,8 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Vectorized heating — vary both time and mass element-wise.
-    //
-    // The two input vectors must have the same length N; out_heating is resized
-    // to N.  Throws std::invalid_argument if the input vectors differ in length.
+    // Vectorized heating: vary time and mass element-wise. Both vectors must
+    // share length N; a mismatch throws std::invalid_argument.
     // -----------------------------------------------------------------------
     void calc_heating_vectorize_all(
             const std::vector<double>& time,

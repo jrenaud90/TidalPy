@@ -1,12 +1,9 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""
-gasgiant.pyx
-Cython/Python wrapper for TidalPy's gas-giant world class.
+"""Cython wrapper for TidalPy's gas-giant world class.
 
-GasGiantWorld: a layered world representing a gas giant. Behaves like a
-LayeredWorld (owns layers, supports the whole-planet EOS solve) but carries a
-distinct world type and binary class id.
+GasGiantWorld behaves like a LayeredWorld (it owns layers and supports the whole-planet EOS solve) but carries
+its own world type and binary class id.
 """
 
 from TidalPy.Utilities_x.logging_x.logger cimport (

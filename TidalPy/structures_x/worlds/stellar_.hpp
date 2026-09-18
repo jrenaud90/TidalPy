@@ -1,11 +1,9 @@
 #pragma once
 /*
- * stellar_.hpp — c_StarWorld: a star (no internal layers, no EOS).
+ * stellar_.hpp: c_StarWorld, a star with no internal layers and no equation of state.
  *
- * Inherits c_BaseWorld. A star carries no layer stack and needs no equation of
- * state. It will hold a luminosity model (c_LuminosityBase), exposed
- * here as scalar effective temperature and luminosity fields so the structure is
- * usable before the luminosity hierarchy lands.
+ * Built on c_BaseWorld. Carries scalar effective temperature and luminosity kept consistent by the
+ * Stefan-Boltzmann law, plus an optional c_LuminosityBase model that derives both from the star's mass.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::StarWorld (203)
@@ -25,17 +23,12 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_StarConfig — extends c_WorldConfig with stellar scalars.
-// -------------------------------------------------------------------------------
+// Construction parameters for c_StarWorld: c_WorldConfig plus the stellar scalars.
 struct c_StarConfig : public c_WorldConfig {
     double effective_temperature = 5772.0;   // [K] (solar default)
     double luminosity            = 0.0;      // [W] (0 => derive from T via Stefan-Boltzmann)
 };
 
-// -------------------------------------------------------------------------------
-// c_StarWorld
-// -------------------------------------------------------------------------------
 class c_StarWorld : public c_BaseWorld {
 public:
     c_StarWorld() { this->p_world_type = "star"; }
@@ -56,17 +49,12 @@ public:
 
     ~c_StarWorld() override = default;
 
-    // -----------------------------------------------------------------------
     // Getters
-    // -----------------------------------------------------------------------
     double get_effective_temperature() const noexcept { return this->p_effective_temperature; }
     double get_luminosity()            const noexcept { return this->p_luminosity; }
 
-    // -----------------------------------------------------------------------
-    // Stefan-Boltzmann luminosity <-> effective temperature (const, MKS)
-    //   L = 4 * pi * R^2 * sigma * T^4
-    // Returns 0.0 when the config pointer is null or inputs are non-positive.
-    // -----------------------------------------------------------------------
+    // Stefan-Boltzmann conversions between luminosity and effective temperature: L = 4 pi R^2 sigma T^4.
+    // Both return 0.0 when the config pointer is null or the input is non-positive.
     double calc_luminosity_from_temperature(double temperature) const noexcept {
         if (temperature <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
         const double sigma = tidalpy_config_ptr->d_SBC;
@@ -82,9 +70,7 @@ public:
         return std::pow(luminosity / (area * sigma), 0.25);
     }
 
-    // -----------------------------------------------------------------------
     // Mutators (keep T and L consistent via Stefan-Boltzmann)
-    // -----------------------------------------------------------------------
     void set_effective_temperature(double temperature) noexcept {
         this->p_effective_temperature = temperature;
         this->p_luminosity = this->calc_luminosity_from_temperature(temperature);
@@ -94,13 +80,9 @@ public:
         this->p_effective_temperature = this->calc_temperature_from_luminosity(luminosity);
     }
 
-    // -----------------------------------------------------------------------
-    // Luminosity model (c_LuminosityBase; a global-scale physics model owned by the star)
-    //
-    // When attached, the star can derive its luminosity (and effective temperature) from its own mass
-    // via the model's mass-luminosity relation. The star's own radius drives the Stefan-Boltzmann
-    // conversion. The model is optional; the star still keeps consistent scalar T/L without one.
-    // -----------------------------------------------------------------------
+    // Optional luminosity model owned by the star. When attached, the star derives its luminosity from its own
+    // mass and its effective temperature from that luminosity and its own radius. Without one the star still
+    // keeps a consistent scalar temperature and luminosity pair.
     void set_luminosity_model(std::unique_ptr<c_LuminosityBase> model) noexcept {
         this->p_luminosity_model = std::move(model);
     }
@@ -136,9 +118,7 @@ public:
         this->p_effective_temperature = this->calc_temperature_from_luminosity(this->p_luminosity);
     }
 
-    // -----------------------------------------------------------------------
     // Binary I/O
-    // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const uint64_t payload = this->world_payload_bytes() + sizeof(double) * 2;
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::StarWorld), payload);

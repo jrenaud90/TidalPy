@@ -1,22 +1,16 @@
 #pragma once
 /*
- * physics_.hpp — c_PhysicsLayer: mechanical-properties layer.
+ * physics_.hpp: c_PhysicsLayer, the mechanical-properties layer built on c_BaseLayer.
  *
- * Inherits c_BaseLayer (structures_x/layers/base_.hpp).
- * Adds static mechanical properties (shear modulus, bulk modulus, shear and bulk
- * viscosity) and three complex Love numbers (k, h, l) held in a c_LoveNumbers
- * struct.  Optional rheology objects (c_RheologyBase subclasses) enable
- * frequency-dependent complex modulus calculations.
- *
- * When no rheology is attached, calc_complex_shear/bulk_modulus() return the
- * static value as a purely real complex number (no dissipation).
- *
- * All spatial fields are in MKS units.
+ * Adds the static mechanical properties (shear modulus, bulk modulus, shear and bulk viscosity) and the three
+ * complex Love numbers held in a c_LoveNumbers struct. Attached c_RheologyBase models give frequency-dependent
+ * complex moduli; without one, calc_complex_shear/bulk_modulus return the static value as a purely real complex
+ * number (no dissipation). All MKS.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::PhysicsLayer (101)
  *   payload:
- *     [all c_BaseLayer fields — same byte layout as BaseLayer binary payload]
+ *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
  *     shear_modulus_static      (double, 8)
  *     bulk_modulus_static       (double, 8)
  *     shear_viscosity_static   (double, 8)
@@ -31,9 +25,8 @@
  *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_viscosity  presence flag (uint8_t, 1) + (if present) its binary record
  *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS model and physics models (rheology, viscosity, partial melt) are
- *   serialized recursively (presence flag + the model's own binary record); the six presence flags are
- *   part of this payload, and each nested model record follows as a separate record.
+ *   The attached material EOS model and physics models (rheology, viscosity, partial melt) are serialized
+ *   recursively: the six presence flags belong to this payload and each nested model follows as its own record.
  *   The EOS profile data is not serialized; re-run the world EOS solve after loading.
  */
 
@@ -53,10 +46,7 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_PhysicsConfig — construction parameters for c_PhysicsLayer.
-// Extends c_BaseLayerConfig with mechanical property fields.
-// -------------------------------------------------------------------------------
+// Construction parameters for c_PhysicsLayer: c_BaseLayerConfig plus the mechanical property fields.
 struct c_PhysicsConfig : public c_BaseLayerConfig {
     double        shear_modulus_static = 0.0;   // [Pa]
     double        bulk_modulus_static  = 0.0;   // [Pa]
@@ -69,14 +59,9 @@ struct c_PhysicsConfig : public c_BaseLayerConfig {
     bool          is_incompressible = false;  // use incompressible approximation
 };
 
-// -------------------------------------------------------------------------------
-// c_PhysicsLayer
-// -------------------------------------------------------------------------------
 class c_PhysicsLayer : public c_BaseLayer {
 public:
-    // -----------------------------------------------------------------------
     // Construction
-    // -----------------------------------------------------------------------
     c_PhysicsLayer() = default;
 
     explicit c_PhysicsLayer(const c_PhysicsConfig& cfg)
@@ -93,9 +78,8 @@ public:
 
     ~c_PhysicsLayer() override = default;
 
-    // unique_ptr members delete the implicit copy-assignment. Cython's stack
-    // allocation emits copy-assignment from freshly-constructed temporaries that
-    // always have null rheology pointers, so resetting them on copy is safe.
+    // The unique_ptr members delete the implicit copy assignment. Cython's stack allocation emits it from
+    // freshly constructed temporaries, which always have null model pointers, so resetting on copy is safe.
     c_PhysicsLayer& operator=(const c_PhysicsLayer& other) noexcept {
         if (this != &other) {
             c_BaseLayer::operator=(other);
@@ -122,15 +106,13 @@ public:
         return static_cast<uint32_t>(BinaryClassID::PhysicsLayer);
     }
 
-    // -----------------------------------------------------------------------
-    // Static mechanical property getters (all const, MKS)
-    // -----------------------------------------------------------------------
+    // Static mechanical property getters (const, MKS)
     double        get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static; }
     double        get_bulk_modulus_static()    const noexcept { return this->p_bulk_modulus_static; }
     double        get_shear_viscosity_static() const noexcept { return this->p_shear_viscosity_static; }
     double        get_bulk_viscosity_static()  const noexcept { return this->p_bulk_viscosity_static; }
 
-    // Love number getters — full struct or individual components
+    // Love number getters: full struct or individual components
     c_LoveNumbers        get_love_numbers()   const noexcept { return this->p_love_numbers; }
     std::complex<double> get_love_number_k()  const noexcept { return this->p_love_numbers.k; }
     std::complex<double> get_love_number_h()  const noexcept { return this->p_love_numbers.h; }
@@ -146,15 +128,9 @@ public:
     void set_is_static(bool value)         noexcept { this->p_is_static = value; }
     void set_is_incompressible(bool value) noexcept { this->p_is_incompressible = value; }
 
-    // -----------------------------------------------------------------------
-    // Complex shear modulus [Pa] at forcing frequency frequency.
-    //
-    // Delegates to p_shear_rheology->calc_complex_modulus when a rheology
-    // object is set; otherwise returns the static shear modulus as a purely
-    // real complex value. The static viscosity is NaN until set, so a viscous
-    // rheology returns NaN until the caller supplies it (the radius-resolved
-    // overload below uses the EOS-populated profile instead).
-    // -----------------------------------------------------------------------
+    // Complex shear modulus [Pa] at a forcing frequency, from the layer-constant static modulus and viscosity.
+    // Without a rheology the static modulus is returned with no imaginary part. The static viscosity is NaN
+    // until set, so a viscous rheology returns NaN; the radius-resolved overload uses the EOS profile instead.
     std::complex<double> calc_complex_shear_modulus(double frequency) const noexcept {
         if (this->p_shear_rheology) {
             return this->p_shear_rheology->calc_complex_modulus(
@@ -163,13 +139,7 @@ public:
         return std::complex<double>(this->p_shear_modulus_static, 0.0);
     }
 
-    // -----------------------------------------------------------------------
-    // Complex bulk modulus [Pa] at forcing frequency frequency.
-    //
-    // Delegates to p_bulk_rheology->calc_complex_modulus when set; otherwise
-    // returns the static bulk modulus as a purely real complex value. Same NaN
-    // rule as the shear overload.
-    // -----------------------------------------------------------------------
+    // Complex bulk modulus [Pa] at a forcing frequency; same rules as the shear overload above.
     std::complex<double> calc_complex_bulk_modulus(double frequency) const noexcept {
         if (this->p_bulk_rheology) {
             return this->p_bulk_rheology->calc_complex_modulus(
@@ -178,13 +148,9 @@ public:
         return std::complex<double>(this->p_bulk_modulus_static, 0.0);
     }
 
-    // -----------------------------------------------------------------------
-    // Radius-resolved complex moduli [Pa] at frequency, using the POST-MELT
-    // static modulus + viscosity stored at radius by the world EOS solve (rather
-    // than the single layer-constant static value). Feeds the radial Love-number
-    // solve. Returns the real static modulus (zero dissipation) when no rheology is
-    // attached; NaN if the viscoelastic state has not been populated.
-    // -----------------------------------------------------------------------
+    // Radius-resolved complex moduli [Pa], using the post-melt static modulus and viscosity stored at radius by
+    // the world EOS solve rather than the layer-constant values. Feeds the radial Love-number solve. Purely real
+    // (no dissipation) when no rheology is attached; NaN until the viscoelastic state is populated.
     std::complex<double> calc_complex_shear_modulus(
             double radius, double frequency) const noexcept {
         const double static_modulus = this->get_shear_modulus(radius);    // post-melt
@@ -205,10 +171,7 @@ public:
         return std::complex<double>(static_modulus, 0.0);
     }
 
-    // -----------------------------------------------------------------------
-    // Rheology setters (non-const; transfer ownership via unique_ptr)
-    // Each setter stores the object and registers this layer as the observer.
-    // -----------------------------------------------------------------------
+    // Rheology setters (transfer ownership; each registers this layer as the model's observer).
     void set_shear_rheology(std::unique_ptr<c_RheologyBase> shear) {
         this->p_shear_rheology = std::move(shear);
         if (this->p_shear_rheology) { this->p_shear_rheology->set_layer_ptr(this); }
@@ -226,13 +189,9 @@ public:
     c_RheologyBase* get_shear_rheology_model() const noexcept { return this->p_shear_rheology.get(); }
     c_RheologyBase* get_bulk_rheology_model()  const noexcept { return this->p_bulk_rheology.get(); }
 
-    // -----------------------------------------------------------------------
-    // Viscosity + partial-melt setters (non-const; transfer ownership).
-    // The shear/bulk viscosity models supply the pre-melt viscosities at (T, P);
-    // the partial-melt model weakens the static moduli and viscosities. These feed
-    // the frequency-independent state computed by the world EOS solve. Each setter
-    // registers this layer as the model's observer.
-    // -----------------------------------------------------------------------
+    // Viscosity and partial-melt setters (transfer ownership; each registers this layer as the observer). The
+    // viscosity models supply the pre-melt viscosities at (T, P) and the partial-melt model weakens the static
+    // moduli and viscosities; both feed the frequency-independent state built by the world EOS solve.
     void set_shear_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
         this->p_shear_viscosity = std::move(viscosity);
         if (this->p_shear_viscosity) { this->p_shear_viscosity->set_layer_ptr(this); }
@@ -252,20 +211,12 @@ public:
     bool get_bulk_viscosity_set()  const noexcept { return this->p_bulk_viscosity  != nullptr; }
     bool get_partial_melt_set()    const noexcept { return this->p_partial_melt    != nullptr; }
 
-    // Non-owning observer pointers (nullptr if unset) — used by the world EOS solve
-    // to compute the per-layer viscoelastic state.
+    // Non-owning observer pointers (nullptr if unset), read by the world EOS solve for the viscoelastic state.
     c_ViscosityBase*   get_shear_viscosity_model() const noexcept { return this->p_shear_viscosity.get(); }
     c_ViscosityBase*   get_bulk_viscosity_model()  const noexcept { return this->p_bulk_viscosity.get(); }
     c_PartialMeltBase* get_partial_melt_model()    const noexcept { return this->p_partial_melt.get(); }
 
-    // -----------------------------------------------------------------------
     // Binary I/O
-    // Writes a single record with class_id = PhysicsLayer (101).
-    // All c_BaseLayer fields are written first (same byte layout as BaseLayer
-    // binary payload), followed by 4 scalar doubles, 3 complex love numbers, the
-    // 3 classification flags, the attached material EOS model, and the attached physics models
-    // (recursively). The EOS profile data is not serialized.
-    // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const auto     name_len = static_cast<uint32_t>(this->p_name.size());
         const auto     mat_len  = static_cast<uint32_t>(this->p_material_name.size());
@@ -330,7 +281,6 @@ public:
             throw std::runtime_error("TidalPy: failed to write PhysicsLayer binary data");
         }
 
-        // Attached material EOS and physics models (presence flag + recursive record each).
         this->write_eos_model_binary(out);
         this->write_physics_models_binary(out);
     }
@@ -401,25 +351,17 @@ public:
             throw std::runtime_error("TidalPy: failed to read PhysicsLayer binary data");
         }
 
-        // Attached material EOS and physics models (presence flag + recursive record each).
         this->read_eos_model_binary(in, force);
         this->read_physics_models_binary(in, force);
 
-        // Recompute derived geometry fields from loaded radii.
         this->update_physicals();
     }
 
 protected:
-    // -----------------------------------------------------------------------
-    // Recursive (de)serialization of the optional attached physics models:
-    // shear/bulk rheology, shear/bulk viscosity, and partial melt.
-    //
-    // Shared by c_PhysicsLayer and its subclasses (c_SolidLiquidLayer,
-    // c_GasLayer) so this section has one canonical byte layout. Each model is
-    // written as a presence flag followed, when set, by the model's own binary
-    // record; on read the correct concrete model is rebuilt via that module's
-    // binary-dispatch factory and re-registered as this layer's observer.
-    // -----------------------------------------------------------------------
+    // Recursive (de)serialization of the optional physics models (shear and bulk rheology, shear and bulk
+    // viscosity, partial melt), shared by c_PhysicsLayer and its subclasses so the section keeps one byte
+    // layout: a presence flag each, followed when set by the model's own record. On read the concrete model is
+    // rebuilt through that module's binary-dispatch factory and re-registered as this layer's observer.
     void write_physics_models_binary(std::ostream& out) const {
         write_optional_binary(out, this->p_shear_rheology);
         write_optional_binary(out, this->p_bulk_rheology);
@@ -466,9 +408,8 @@ protected:
     std::unique_ptr<c_RheologyBase> p_shear_rheology;
     std::unique_ptr<c_RheologyBase> p_bulk_rheology;
 
-    // Optional viscosity + partial-melt objects (serialized recursively via
-    // write_physics_models_binary). Supply the pre-melt viscosities and the
-    // melt weakening consumed by the world EOS solve's state computation.
+    // Optional viscosity and partial-melt objects (serialized recursively): the pre-melt viscosities and the
+    // melt weakening consumed by the world EOS solve.
     std::unique_ptr<c_ViscosityBase>   p_shear_viscosity;
     std::unique_ptr<c_ViscosityBase>   p_bulk_viscosity;
     std::unique_ptr<c_PartialMeltBase> p_partial_melt;

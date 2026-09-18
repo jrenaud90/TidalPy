@@ -1,17 +1,6 @@
 # distutils: language = c++
-"""
-cooling.pxd
-Cython declarations for TidalPy's cooling model hierarchy.
-
-Exports the three C++ cooling models, the input/result/config structs, and the
-Python wrapper classes so other extensions can cimport and build/attach cooling
-models at C speed.
-
-Usage::
-
-    from TidalPy.cooling_x.cooling cimport (
-        CoolingBase, ConvectiveCooling,
-        c_CoolingBase, c_ConvectiveCooling, c_CoolingInputs, c_CoolingResult)
+"""Cython declarations for TidalPy's cooling models: the C++ classes, the input, result, and config
+structs, the enum factory, and the Python wrapper classes.
 """
 
 from libcpp.string cimport string
@@ -83,7 +72,6 @@ cdef extern from "cooling_.hpp" namespace "tidalpy" nogil:
         double get_convection_beta()   const
         double get_critical_rayleigh() const
 
-    # Enum naming each cooling model.
     cdef enum class c_CoolingModel:
         Off
         Convection

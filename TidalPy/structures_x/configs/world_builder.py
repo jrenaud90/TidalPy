@@ -5,21 +5,13 @@ Turns a validated configuration ``dict`` (see
 world: the world object, its ordered stack of layers, and each layer's attached
 physics models (EOS, rheology, viscosity, partial-melt, cooling, radiogenics).
 
-Two entry points are provided:
+:func:`build_world` resolves a source (bundled name, file path, or ``dict``), validates it, and
+returns the built world; :func:`construct_world` and :func:`construct_layer` take an already-parsed
+``dict``.
 
-* :func:`construct_world` / :func:`construct_layer`: lower-level builders that take
-  an already-parsed ``dict`` and return the underlying Cython world / layer object.
-* :func:`build_world`: resolves a source (bundled name, file path, or ``dict``),
-  validates it, and returns the built Cython world directly (a ``BaseWorld``
-  subclass). It is a thin wrapper over ``BaseWorld.build`` (the build logic lives on
-  the world class); the returned world retains its normalized configuration on
-  ``source_config`` and supports ``save_to_toml``.
-
-Default resolution follows a three-tier chain (see :func:`construct_layer`): a value
-the user omits is taken from the ``[layers.<type>]`` block of the ``_x`` config
-(``TidalPy_Configs_x.toml``, keyed by the layer's material ``type``), and only if
-that is also absent does the C++/Cython constructor or physics-model-factory default
-apply.
+A value the user omits is taken from the ``[layers.<type>]`` block of ``TidalPy_Configs_x.toml``,
+keyed by the layer's material ``type``, and only if that is also absent does the C++ or Cython
+constructor or physics-model-factory default apply.
 """
 
 import os
@@ -167,13 +159,11 @@ def _material_type_defaults(material_type: str | None, layer_class_name: str) ->
         return {}
 
 
-    # Get TidalPy configurations
     config_x = getattr(TidalPy, "config_x", None) or {}
     type_block = config_x.get("layers", {}).get(material_type, {})
     if not type_block:
         return {}
 
-    # Build default dict
     allowed_scalars = ALLOWED_LAYER_SCALAR_KEYS[layer_class_name]
     allowed_models = ALLOWED_MODEL_SECTIONS[layer_class_name]
     filtered = {}
@@ -197,17 +187,10 @@ def construct_layer(
         radius_outer: float):
     """Construct a single layer (and its attached physics models) from config.
 
-    The layer's geometry is supplied by the caller: ``radius_inner`` is the
-    previous layer's outer radius (0 for the innermost) and ``radius_outer`` is
-    resolved by the caller from the layer's outer-radius specifier (see
-    :func:`_resolve_outer_radius`). All other parameters and physics-model tables are
-    resolved through a three-tier chain:
-
-    1. The user-provided ``layer_cfg``.
-    2. The ``[layers.<type>]`` block of the TidalPy config file (``TidalPy_Configs_x.toml``),
-       selected by the layer's material ``type`` and filtered to what the layer
-       ``class`` can hold.
-    3. Otherwise the layer constructor / physics-model-factory default.
+    The geometry is supplied by the caller. Every other parameter and physics-model table resolves
+    through the three tiers: ``layer_cfg``, then the ``[layers.<type>]`` block of
+    ``TidalPy_Configs_x.toml`` filtered to what the layer ``class`` can hold, then the layer
+    constructor or physics-model-factory default.
 
     Parameters
     ----------
@@ -543,7 +526,6 @@ def construct_world(config: dict):
         # all world types, so wire its [tides] table too (default model: fixed_q).
         _attach_tides(world, config)
     elif world_type == "gasgiant":
-        # Layered families carry an inner-to-outer stack of layers.
         world = GasGiantWorld(world_type=world_type, **world_kwargs)
         _add_layers(world, config["layers"], world_radius)
         _attach_tides(world, config)
@@ -697,13 +679,11 @@ def _normalize_truncation_aliases(tides_cfg: dict, source: str) -> dict:
 def _attach_tides(world, config: dict) -> None:
     """Wire the optional ``[tides]`` table onto any world (layered, gas giant, or star).
 
-    Attaches a tide dissipation model (``set_tide_model``) and the truncation/degree
-    configuration (``set_tide_config``). Values resolve through the standard chain: the
-    world's ``[tides]`` table, then the ``[tides]`` defaults in the ``_x`` config
-    (``TidalPy_Configs_x.toml`` via ``defaultc_x.py``), then a built-in fallback. The default
-    dissipation model is chosen per world family (``[tides.default_model][<world_type>]``);
-    the per-degree analytic parameters (``fixed_k``/``fixed_q``/``fixed_dt``) are forwarded to
-    the model (consumed only by the analytic models).
+    Attaches a tide dissipation model (``set_tide_model``) and the truncation and degree
+    configuration (``set_tide_config``). Values resolve through the world's ``[tides]`` table, then
+    the ``[tides]`` defaults of ``TidalPy_Configs_x.toml``, then a built-in fallback. The default
+    dissipation model is per world family (``[tides.default_model][<world_type>]``); the per-degree
+    analytic parameters (``fixed_k``/``fixed_q``/``fixed_dt``) are forwarded to the model.
 
     Parameters
     ----------
@@ -799,11 +779,8 @@ def _resolve_outer_radius(
 def _add_layers(world, layers_cfg: dict, world_radius: float) -> None:
     """Build and add layers to a layered world in inner-to-outer order.
 
-    Layers are ordered by their explicit ``layer_index`` when given, otherwise by
-    declaration order. They are then built inner-to-outer: each layer's inner radius
-    is the previous layer's outer radius (0 for the innermost), and its outer radius
-    is resolved from the layer's outer-radius specifier (see
-    :func:`_resolve_outer_radius`).
+    Layers are ordered by their explicit ``layer_index`` when given, otherwise by declaration order.
+    Each layer's inner radius is the previous layer's outer radius (0 for the innermost).
 
     Parameters
     ----------
@@ -872,12 +849,8 @@ def build_world(source: Union[str, dict], force: bool = False):
     """Build a world from a bundled name, file path, or config dict.
 
     Thin wrapper over :meth:`BaseWorld.build
-    <TidalPy.structures_x.worlds.base.BaseWorld.build>`: it returns the underlying
-    Cython world directly (a ``LayeredWorld``, ``GasGiantWorld``, or ``StarWorld``,
-    per the configuration's world ``type``), with the normalized configuration
-    retained on its ``source_config`` attribute. The returned object exposes
-    ``solve_eos``, ``solve_love_numbers``, the ``get_*`` profile queries, and
-    ``save_to_toml`` directly.
+    <TidalPy.structures_x.worlds.base.BaseWorld.build>`. Returns the concrete world class for the
+    configuration's ``type``, with the normalized configuration on its ``source_config`` attribute.
 
     Parameters
     ----------
@@ -897,10 +870,8 @@ def build_world(source: Union[str, dict], force: bool = False):
 def available_worlds() -> list:
     """Return the sorted names of the bundled ``WorldPack_x`` example worlds.
 
-    Delegates to :func:`TidalPy.structures_x.configs.worldpack.available_worlds`,
-    combining the user data directory with the packaged worlds. The bundled system
-    configurations live in the same directory and are not listed here; see
-    :func:`TidalPy.structures_x.configs.system_builder.available_systems`.
+    Combines the user data directory with the packaged worlds. Bundled system configurations share
+    the directory and are listed by :func:`available_systems` instead.
 
     Returns
     -------

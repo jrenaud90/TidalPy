@@ -1,15 +1,5 @@
 # distutils: language = c++
-"""
-__init__.pxd
-Cython-level exports for TidalPy.cooling_x.
-
-Exposes the C++ cooling classes and the Python wrapper classes so other
-extensions can cimport them.
-
-Usage::
-
-    from TidalPy.cooling_x cimport CoolingBase, ConvectiveCooling, c_CoolingBase
-"""
+"""Cython-level exports for TidalPy.cooling_x: the C++ cooling classes and their Python wrappers."""
 
 from TidalPy.cooling_x.cooling cimport (
     CoolingResult,

@@ -1,4 +1,4 @@
-"""TidalPy structures_x — C++ world, layer, and system class hierarchy.
+"""TidalPy structures_x: the C++ world, layer, and system class hierarchy.
 
 The :mod:`~TidalPy.structures_x.configs` sub-package provides the TOML-driven
 world builder. Its main entry points are re-exported here so a world can be built

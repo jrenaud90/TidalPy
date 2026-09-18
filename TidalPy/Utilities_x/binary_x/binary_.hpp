@@ -1,6 +1,6 @@
 #pragma once
 /*
- * binary_.hpp — TidalPy binary file format utilities.
+ * binary_.hpp: TidalPy binary file format utilities.
  *
  * Every TidalPy binary file starts with a fixed 20-byte c_BinaryHeader:
  *
@@ -14,10 +14,9 @@
  *   12      8     payload_size (uint64_t, host byte order)
  *   Total: 20 bytes
  *
- * Fields are written individually — no implicit struct padding — so the byte
- * layout is identical on every platform.  Files use host (native) byte order.
- * All supported TidalPy platforms (Windows/Linux/macOS x64, ARM64) are
- * little-endian, so files are portable across these systems in practice.
+ * Fields are written individually (no implicit struct padding), so the byte layout is identical on
+ * every platform. Files use host byte order; every supported TidalPy platform (Windows, Linux, macOS on
+ * x64 and ARM64) is little-endian, so files are portable across them in practice.
  */
 
 #include <cstdint>
@@ -49,7 +48,7 @@ inline constexpr std::size_t TIDALPY_BINARY_HEADER_BYTES = 20;
 // Class type IDs
 // ---------------------------------------------------------------------------
 // Each serializable class has a unique ID stored in c_BinaryHeader.class_id.
-// Ranges: 1–99 utility/base, 100–199 layers, 200–299 worlds, 300+ physics.
+// Ranges: 1 to 99 utility and base, 100 to 199 layers, 200 to 299 worlds, 300+ physics.
 
 enum class BinaryClassID : uint32_t {
     Unknown          = 0,
@@ -227,12 +226,9 @@ inline bool check_binary_schema_version(
 // ---------------------------------------------------------------------------
 // Length-prefixed string serialization
 // ---------------------------------------------------------------------------
-// Strings are written as a uint32_t length followed by the raw UTF-8 bytes.
-// Used for model names and any other variable-length text in a binary payload.
-// Shared by all serializable classes (e.g. physics model names) so the encoding
-// lives in one place.
+// Strings are written as a uint32_t length followed by the raw UTF-8 bytes. Shared by every serializable
+// class so the encoding lives in one place.
 
-// Write a length-prefixed string to an output stream.
 inline void write_binary_string(std::ostream& out, const std::string& text) {
     const auto length = static_cast<uint32_t>(text.size());
     out.write(reinterpret_cast<const char*>(&length), sizeof(uint32_t));
@@ -241,7 +237,6 @@ inline void write_binary_string(std::ostream& out, const std::string& text) {
     }
 }
 
-// Read a length-prefixed string from an input stream.
 inline std::string read_binary_string(std::istream& in) {
     uint32_t length = 0;
     in.read(reinterpret_cast<char*>(&length), sizeof(uint32_t));
@@ -261,15 +256,12 @@ inline uint64_t binary_string_bytes(const std::string& text) {
 // ---------------------------------------------------------------------------
 // Optional sub-object serialization
 // ---------------------------------------------------------------------------
-// An owned, optional sub-object (held in a std::unique_ptr) is serialized as a
-// one-byte presence flag (0 = absent, 1 = present) followed, when present, by the
-// sub-object's own complete binary record (its TPYB header + payload, written by
-// its write_binary). The presence flag is part of the *owning* record's payload;
-// the nested record is a separate, self-describing record appended to the stream.
-// Used for recursive serialization of physics models held by layers (and, later,
-// layers held by worlds).
+// An owned, optional sub-object (held in a std::unique_ptr) is serialized as a one-byte presence flag
+// (0 = absent, 1 = present) followed, when present, by the sub-object's own complete binary record. The
+// presence flag belongs to the owning record's payload; the nested record is a separate, self-describing
+// record appended to the stream. Used for the recursive serialization of models held by layers and
+// layers held by worlds.
 
-// Write an optional sub-object: presence flag + (if present) its binary record.
 template <typename T>
 inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& obj) {
     const uint8_t present = obj ? 1 : 0;
@@ -282,9 +274,8 @@ inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& o
     }
 }
 
-// Read an optional sub-object: read the presence flag and, when set, reconstruct
-// the sub-object via the supplied factory (which peeks the record's class id and
-// returns an owning unique_ptr).  Returns nullptr when the flag is absent.
+// Read the presence flag and, when set, rebuild the sub-object through the supplied factory (which peeks
+// the record's class id and returns an owning unique_ptr). Returns nullptr when the flag is absent.
 template <typename T, typename Factory>
 inline std::unique_ptr<T> read_optional_binary(std::istream& in, bool force, Factory factory) {
     uint8_t present = 0;

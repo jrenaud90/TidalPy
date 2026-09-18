@@ -1,16 +1,6 @@
 # distutils: language = c++
-"""
-solidliquid.pxd
-Cython declarations for TidalPy's solid/liquid layer class.
-
-Exports c_SolidLiquidConfig, c_SolidLiquidLayer, and the Python wrapper
-SolidLiquidLayer so other extensions can cimport and use C-speed access.
-
-Usage::
-
-    from TidalPy.structures_x.layers.solidliquid cimport (
-        SolidLiquidLayer, c_SolidLiquidLayer, c_SolidLiquidConfig)
-"""
+"""Cython declarations for TidalPy's solid/liquid layer: c_SolidLiquidConfig, c_SolidLiquidLayer, and the Python
+wrapper SolidLiquidLayer."""
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string

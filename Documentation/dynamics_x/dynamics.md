@@ -1,6 +1,6 @@
 # Spin and Orbital Rates (`dynamics_x`)
 
-_Updated: 2026-09-12_
+_Updated: 2026-09-15_
 
 The module holds two calculators:
 
@@ -13,7 +13,7 @@ The inputs both classes depend on are $\partial U / \partial M$, $\partial U / \
 
 ## Spin
 
-A tidal torque changes a body's rotation rate at $\dot{\Omega}_{\text{spin}} = M_{\text{host}} \, (\partial U / \partial \Omega) / C$, where $C$ is the body's polar moment of inertia. The sign follows from the potential derivative: _usually_ a body spinning faster than its orbital mean motion is despun, and one spinning slower is spun up, until the two match and the torque vanishes. That fixed point is synchronous rotation, and `calc_synchronous_spin` simply returns the orbital mean motion, since a tidally locked body rotates once per orbit. The "usually" here hints at the complexity when analyzing tidal dissipation that utilizes many tidal modes. Depending on what assumptions you set, the thermal state of the planet, and the spin/orbital motion ratio at a given time: the spin up and spin down may not follow the typical trends (see Renaud et al. 2021 for more details). 
+A tidal torque changes a body's rotation rate at $\dot{\Omega}_{\text{spin}} = M_{\text{host}} \, (\partial U / \partial \Omega) / C$, where $C$ is the body's polar moment of inertia. The sign follows from the potential derivative: _usually_ a body spinning faster than its orbital mean motion is despun, and one spinning slower is spun up, until the two match and the torque vanishes. That fixed point is synchronous rotation, and `calc_synchronous_spin` simply returns the orbital mean motion, since a tidally locked body rotates once per orbit. The "usually" here hints at the complexity when analyzing tidal dissipation that utilizes many tidal modes. Depending on what assumptions you set, the thermal state of the planet, and the spin/orbital motion ratio at a given time: the spin up and spin down may not follow the typical trends (see Renaud et al. 2021 for more details).
 
 ```python
 from TidalPy.dynamics_x import Spin
@@ -26,11 +26,11 @@ synchronous = model.calc_synchronous_spin(orbital_frequency) # [rad s-1]
 
 ### Moment of Inertia
 
-Everything about the spin rate except the moment of inertia comes from the tidal solve, and the moment of inertia is where a body's internal structure enters. `Spin` carries only a simple estimate of it:
+The moment of inertia is where a body's internal structure enters the spin rate. `Spin` carries a simple estimate of it:
 
 $$C = f M R^2$$
 
-where $f$ is the constructor's `moment_of_inertia_factor`, the conventional dimensionless factor $C / (M R^2)$. A uniform sphere has $f = 0.4$, which is the default. A centrally condensed body has less, with the Earth at 0.3307, and no body with non-negative density can exceed $2/3$, the value for all of its mass in a thin surface shell. A factor that is not finite or lies outside $(0, 2/3]$ raises `ValueError`. That bound deliberately rejects 1.0, so code written against the older ratio-to-a-uniform-sphere convention fails loudly instead of producing a moment of inertia 2.5 times too large.
+where $f$ is the constructor's `moment_of_inertia_factor`, the conventional dimensionless factor $C / (M R^2)$. A uniform sphere has $f = 0.4$, which is the default. A centrally condensed body has less, with the Earth at 0.3307, and no body with non-negative density can exceed $2/3$, the value for all of its mass in a thin surface shell. A factor that is not finite or lies outside $(0, 2/3]$ raises `ValueError`.
 
 This estimate exists as a fallback. A `LayeredWorld` that has solved its equation of state has the real structure-resolved moment of inertia, and `world.get_moment_of_inertia()` returns that instead, falling back to the model's formula only when no solve has run.
 
@@ -83,9 +83,9 @@ For a system where both bodies dissipate, the two contributions are additive in 
 
 The spin and orbital rates are not independent. Together they must account for all the energy the tidal solve says is being dissipated:
 
-$$Q_{\text{tidal}} = -\left( \dot{E}_{\text{orbit}} + \dot{E}_{\text{spin}} \right), \qquad E_{\text{orbit}} = -\frac{G M_{\text{target}} M_{\text{host}}}{2 a}, \qquad E_{\text{spin}} = \frac{1}{2} I \Omega_{\text{spin}}^2$$
+$$Q_{\text{tidal}} = -\left( \dot{E}_{\text{orbit}} + \dot{E}_{\text{spin}} \right), \qquad E_{\text{orbit}} = -\frac{G M_{\text{target}} M_{\text{host}}}{2 a}, \qquad E_{\text{spin}} = \frac{1}{2} C \Omega_{\text{spin}}^2$$
 
-This is allows for a check on the whole chain, because it ties the rate equations here back to the heating computed by an entirely separate code path. Every evolution dict returned by `System` reports `dE_orbit_dt`, `dE_spin_dt`, and the `energy_residual` between them and the tidal heating, so a failure anywhere upstream shows up as a non-zero residual. The balance is verified to machine precision in `Tests/Test_Structures_x/Test_Worlds/test_world_spin_01.py`.
+This allows for a check on the whole chain: it ties the rate equations here back to the heating computed by a separate code path. Every evolution dict returned by `System` reports `dE_orbit_dt`, `dE_spin_dt`, and the `energy_residual` between them and the tidal heating, so a failure anywhere upstream shows up as a non-zero residual. The balance is verified to machine precision in `Tests/Test_Structures_x/Test_Worlds/test_world_spin_01.py`.
 
 ## Driving the Rates from a `System`
 
@@ -120,7 +120,7 @@ const c_OrbitDerivatives rates = solver.calc_derivatives(state, dU_dM, dU_dw);
 - `c_Spin` with `c_SpinConfig`: `calc_moment_of_inertia`, `calc_dspin_dt`, `calc_synchronous_spin`. The config constructor throws `std::invalid_argument` for a factor outside $(0, 2/3]$.
 - `c_OrbitSolver` with the `c_OrbitState` input struct and the `c_OrbitDerivatives` result struct: `calc_da_dt`, `calc_de_dt`, `calc_dn_dt`, `calc_derivatives`.
 
-Both classes are small, stateless value types with no heap allocation and no base class. The orbital state is passed as a struct rather than as five loose arguments, and the derivatives come back as a struct rather than through output parameters.
+Both classes are stateless value types with no heap allocation and no base class. The orbital state is passed as a struct and the derivatives are returned as a struct.
 
 ## References
 
