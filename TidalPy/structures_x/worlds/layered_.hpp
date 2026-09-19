@@ -100,6 +100,10 @@ struct c_WorldEOSSolveConfig {
     // relative change in the interface temperatures and flows that ends them.
     size_t    max_thermal_passes  = 12;
     double    thermal_tol         = 1.0e-8;
+    // Relative change in a floating layer's radius that ends the passes, and whether this solve redefines
+    // the mass every floating layer holds (otherwise the first solve of the world's life sets it).
+    double    radius_tol          = 1.0e-8;
+    bool      reset_layer_masses  = false;
     bool      verbose             = false;
 
     c_WorldEOSSolveConfig() {
@@ -249,6 +253,7 @@ public:
     // Rayleigh and Nusselt numbers of a convecting layer.
     const std::vector<c_LayerThermal>& get_layer_thermal() const noexcept { return this->p_layer_thermal; }
     size_t get_thermal_passes()    const noexcept { return this->p_thermal_passes; }
+    bool   get_geometry_converged() const noexcept { return this->p_geometry_converged; }
     bool   get_thermal_converged() const noexcept { return this->p_thermal_converged; }
 
     // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
@@ -369,11 +374,19 @@ public:
         std::vector<double> upper_radii(n_layers);
         double total_volume  = 0.0;
         double mass_estimate = 0.0;
+        // What a floating layer holds on to: its mass, from its configuration or from the first solve.
+        if (cfg.reset_layer_masses) { this->p_reference_mass.clear(); }
+        this->p_reference_mass.resize(n_layers, TidalPyConstants::d_NAN);
         for (std::size_t i = 0; i < n_layers; ++i) {
             c_BaseLayer* layer   = this->p_layers[i].get();
             const double r_inner = layer->get_radius_inner();
             const double r_outer = layer->get_radius_outer();
             upper_radii[i]       = r_outer;
+            if (!layer->get_is_volume_fixed() && !cfg.reset_layer_masses
+                && !std::isfinite(this->p_reference_mass[i])
+                && (layer->get_mass() > TidalPyConstants::d_EPS)) {
+                this->p_reference_mass[i] = layer->get_mass();
+            }
             for (std::size_t s = 0; s < slices; ++s) {
                 const double frac = static_cast<double>(s) / static_cast<double>(slices - 1);
                 full_radius[i * slices + s] = r_inner + frac * (r_outer - r_inner);
@@ -454,13 +467,38 @@ public:
         // Pass 0 is isothermal at each layer's own temperature, which is the whole solve for a world with no
         // temperature contrast. Each later pass integrates the profile, then relaxes the boundary layers,
         // interface temperatures, and heat flows against the structure it produced.
+        // A layer holding its mass lets its radii float, which moves every layer above it, so the same
+        // passes relax the geometry.
+        bool geometry_floats = false;
+        for (const auto& layer_uptr : this->p_layers) {
+            if (!layer_uptr->get_is_volume_fixed()) { geometry_floats = true; }
+        }
         std::vector<c_EOSSegment> segment_vec;
         std::shared_ptr<c_EOSSolution> solution;
-        const std::size_t last_pass = thermal_contrast ? cfg.max_thermal_passes : 0;
+        const std::size_t last_pass =
+            (thermal_contrast || geometry_floats) ? cfg.max_thermal_passes : 0;
         this->p_thermal_passes    = 0;
         this->p_thermal_converged = !thermal_contrast;
+        bool geometry_converged   = !geometry_floats;
         for (std::size_t pass = 0; pass <= last_pass; ++pass) {
             const bool integrate_temperature = thermal_contrast && (pass > 0);
+            if (pass > 0) {
+                // The layers may have moved, so the grid and the segment bounds follow them.
+                for (std::size_t i = 0; i < n_layers; ++i) {
+                    const c_BaseLayer* layer = this->p_layers[i].get();
+                    const double r_inner = layer->get_radius_inner() / length_scale;
+                    const double r_outer = layer->get_radius_outer() / length_scale;
+                    upper_radii[i] = r_outer;
+                    for (std::size_t s = 0; s < slices; ++s) {
+                        const double frac = static_cast<double>(s) / static_cast<double>(slices - 1);
+                        full_radius[i * slices + s] = r_inner + frac * (r_outer - r_inner);
+                    }
+                }
+                // The structure derivatives vanish above the planet radius, so a world that grew has to say so.
+                for (std::size_t i = 0; i < n_layers; ++i) {
+                    eos_input_vec[i].planet_radius = upper_radii.back();
+                }
+            }
             c_build_thermal_segments(
                 this->p_layer_thermal, this->p_layers, integrate_temperature,
                 length_scale, gravity_scale, segment_vec);
@@ -497,16 +535,21 @@ public:
             if (cfg.nondimensionalize) {
                 solution->dimensionalize_data(scales_uptr.get(), true);
             }
-            if (!solution->success || !thermal_contrast) { break; }
+            if (!solution->success) { break; }
+            this->p_thermal_passes = pass;
 
-            const double change = c_update_layer_thermal(
-                *solution, this->p_layers, cfg.surface_temperature, integrate_temperature, this->p_layer_thermal);
-            this->p_thermal_passes = pass + 1;
-            if (integrate_temperature && (change < cfg.thermal_tol)) {
-                this->p_thermal_converged = true;
-                break;
+            if (thermal_contrast) {
+                const double thermal_change = c_update_layer_thermal(
+                    *solution, this->p_layers, cfg.surface_temperature, integrate_temperature,
+                    this->p_layer_thermal);
+                this->p_thermal_converged = integrate_temperature && (thermal_change < cfg.thermal_tol);
             }
+            if (geometry_floats) {
+                geometry_converged = (this->update_floating_radii(*solution) < cfg.radius_tol);
+            }
+            if (this->p_thermal_converged && geometry_converged) { break; }
         }
+        this->p_geometry_converged = geometry_converged;
 
         // Store scalar results.
         this->p_eos_success          = solution->success;
@@ -1432,6 +1475,71 @@ protected:
     // models, NaN if unset), then the post-melt versions (the partial-melt model applied to the shear pair and
     // then the bulk pair; post equals pre without a melt model). No-op for a geometry-only BaseLayer.
     // temperature is the placeholder profile temperature.
+    // Step every floating layer toward the mass it holds, and carry the layers above it. Returns the largest
+    // relative radius change, which is what the solve watches to stop.
+    //
+    // A layer that holds its mass moves its top by the mass it is short of over the slope of the enclosed
+    // mass there, dm/dr = 4 pi r^2 rho. Its base has already moved with the layer below, which changes the
+    // mass between its faces by that base shell, so both ends enter the step. A layer that holds its volume
+    // keeps it, so its outer radius follows from its new base.
+    double update_floating_radii(const c_EOSSolution& solution) {
+        const std::size_t n_layers = this->p_layers.size();
+        double largest_change   = 0.0;
+        double radius_inner_new = 0.0;
+        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            c_BaseLayer* layer = this->p_layers[layer_i].get();
+            const double radius_inner = layer->get_radius_inner();
+            const double radius_outer = layer->get_radius_outer();
+            double radius_outer_new   = radius_outer;
+
+            if (layer->get_is_volume_fixed()) {
+                const double volume_term = radius_outer * radius_outer * radius_outer
+                    - radius_inner * radius_inner * radius_inner;
+                radius_outer_new = std::cbrt(
+                    radius_inner_new * radius_inner_new * radius_inner_new + volume_term);
+            } else {
+                // Step in enclosed volume, not radius: the mass the layer is short of occupies
+                // mass_missing / rho of it, and the shell keeps the rest. At constant density that lands the
+                // radius in one pass however far away it starts, where a step in radius would crawl in
+                // proportion to the cube root.
+                double state[C_EOS_DY_VALUES];
+                solution.call_si(layer_i, radius_outer, state);
+                const double mass_outer    = state[2];
+                const double density_outer = state[4];
+                solution.call_si(layer_i, radius_inner, state);
+                const double mass_inner = state[2];
+                // A layer whose reference mass is still unset adopts what it holds inside the boundaries it was
+                // given, so it stays where it is until something else moves.
+                if (!std::isfinite(this->p_reference_mass[layer_i])) {
+                    this->p_reference_mass[layer_i] = mass_outer - mass_inner;
+                }
+                const double target_mass = this->p_reference_mass[layer_i];
+                const double volume_term = radius_outer * radius_outer * radius_outer
+                    - radius_inner * radius_inner * radius_inner;
+                double radius_cubed = radius_inner_new * radius_inner_new * radius_inner_new + volume_term;
+                if (std::isfinite(target_mass) && (density_outer > TidalPyConstants::d_EPS)) {
+                    const double mass_missing = target_mass - (mass_outer - mass_inner);
+                    radius_cubed += 3.0 * mass_missing / (4.0 * TidalPyConstants::d_PI * density_outer);
+                }
+                if (!(radius_cubed > 0.0)) {
+                    throw std::runtime_error(
+                        "TidalPy: a layer holding its mass shrank past its own base during the EOS solve. "
+                        "Check the mass it holds against the density its material EOS model gives.");
+                }
+                radius_outer_new = std::cbrt(radius_cubed);
+            }
+
+            const double scale  = (radius_outer > TidalPyConstants::d_EPS) ? radius_outer : 1.0;
+            const double change = std::fabs(radius_outer_new - radius_outer) / scale;
+            if (change > largest_change) { largest_change = change; }
+            layer->set_radii(radius_inner_new, radius_outer_new);
+            radius_inner_new = radius_outer_new;
+        }
+        // The outermost layer's top is the world radius.
+        this->p_radius = radius_inner_new;
+        return largest_change;
+    }
+
     // One value of the evaluation layout at a radius [m], through the layer that holds it.
     double p_read_eos_state(double radius, std::size_t value_index) const noexcept {
         if (!this->p_eos_solved || !this->p_eos_solution) { return TidalPyConstants::d_NAN; }
@@ -1589,6 +1697,9 @@ protected:
     std::vector<c_MaterialEOSInput> p_eos_material_inputs;
     // Thermal description of every layer from the last solve, and how the thermal passes ended.
     std::vector<c_LayerThermal> p_layer_thermal;
+    // The mass each floating layer holds on to [kg]; NaN for a layer that holds its volume instead.
+    std::vector<double> p_reference_mass;
+    bool p_geometry_converged  = true;
     size_t p_thermal_passes    = 0;
     bool   p_thermal_converged = true;
 

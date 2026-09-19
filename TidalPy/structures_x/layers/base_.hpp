@@ -17,6 +17,7 @@
  *     material_name_len  (uint32_t, 4)
  *     material_name      (material_name_len bytes, UTF-8)
  *     is_tidal           (uint8_t, 1)
+ *     is_volume_fixed    (uint8_t, 1)
  *     tidal_scale        (double, 8)
  *     tidal_scale_method (uint8_t, 1)
  *     eos_model          presence flag (uint8_t, 1) + (if present) the model's own binary record
@@ -100,6 +101,8 @@ struct c_BaseLayerConfig {
     double             mass         = 0.0;   // [kg]
     std::string        material_name = "Unknown";
     bool               is_tidal    = true;
+    // False lets the layer grow or shrink to hold its mass while the solve redistributes the interior.
+    bool               is_volume_fixed = true;
     double             tidal_scale = 1.0;   // dimensionless
     c_TidalScaleMethod tidal_scale_method = c_TidalScaleMethod::user_provided;
 };
@@ -116,6 +119,7 @@ public:
           p_radius_inner(cfg.radius_inner),
           p_material_name(cfg.material_name),
           p_is_tidal(cfg.is_tidal),
+          p_is_volume_fixed(cfg.is_volume_fixed),
           p_tidal_scale(cfg.tidal_scale),
           p_tidal_scale_method(cfg.tidal_scale_method)
     {
@@ -139,6 +143,7 @@ public:
             this->p_surface_area_outer = other.p_surface_area_outer;
             this->p_material_name      = other.p_material_name;
             this->p_is_tidal           = other.p_is_tidal;
+            this->p_is_volume_fixed    = other.p_is_volume_fixed;
             this->p_tidal_scale        = other.p_tidal_scale;
             this->p_tidal_scale_method = other.p_tidal_scale_method;
             this->p_tidal_heating      = other.p_tidal_heating;
@@ -160,6 +165,16 @@ public:
     double             get_surface_area_outer()  const noexcept { return this->p_surface_area_outer; }
     const std::string& get_material_name()       const noexcept { return this->p_material_name; }
     bool               get_is_tidal()            const noexcept { return this->p_is_tidal; }
+    bool               get_is_volume_fixed()     const noexcept { return this->p_is_volume_fixed; }
+    void               set_is_volume_fixed(bool value) noexcept { this->p_is_volume_fixed = value; }
+
+    // Move the layer's boundaries, keeping every derived geometric quantity in step. The EOS solve calls it
+    // when a layer below has grown or shrunk, or when this layer is holding its mass rather than its volume.
+    void set_radii(double radius_inner, double radius_outer) noexcept {
+        this->p_radius_inner = radius_inner;
+        this->p_radius       = radius_outer;
+        this->update_physicals();
+    }
     double             get_tidal_scale()         const noexcept { return this->p_tidal_scale; }
     c_TidalScaleMethod get_tidal_scale_method()  const noexcept { return this->p_tidal_scale_method; }
 
@@ -261,7 +276,7 @@ public:
             sizeof(int32_t)  +               // layer_index
             sizeof(double)   +               // radius_inner
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
-            sizeof(uint8_t)  +               // is_tidal
+            sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
             sizeof(double)   +               // tidal_scale
             sizeof(uint8_t)  +               // tidal_scale_method
             optional_binary_flag_bytes();    // material EOS model presence flag
@@ -281,6 +296,8 @@ public:
 
         const uint8_t is_tidal = static_cast<uint8_t>(this->p_is_tidal);
         out.write(reinterpret_cast<const char*>(&is_tidal),         sizeof(uint8_t));
+        const uint8_t is_volume_fixed = static_cast<uint8_t>(this->p_is_volume_fixed);
+        out.write(reinterpret_cast<const char*>(&is_volume_fixed),  sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
         const uint8_t scale_method_byte = static_cast<uint8_t>(this->p_tidal_scale_method);
         out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
@@ -318,6 +335,9 @@ public:
         uint8_t is_tidal = 0;
         in.read(reinterpret_cast<char*>(&is_tidal), sizeof(uint8_t));
         this->p_is_tidal = static_cast<bool>(is_tidal);
+        uint8_t is_volume_fixed = 0;
+        in.read(reinterpret_cast<char*>(&is_volume_fixed), sizeof(uint8_t));
+        this->p_is_volume_fixed = static_cast<bool>(is_volume_fixed);
 
         in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
 
@@ -359,6 +379,7 @@ protected:
     double      p_surface_area_outer = 0.0;   // [m^2]
     std::string p_material_name;
     bool               p_is_tidal           = true;
+    bool               p_is_volume_fixed    = true;
     double             p_tidal_scale        = 1.0;   // dimensionless
     c_TidalScaleMethod p_tidal_scale_method = c_TidalScaleMethod::user_provided;
     double             p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve

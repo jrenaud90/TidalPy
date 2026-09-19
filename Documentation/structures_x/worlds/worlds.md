@@ -123,6 +123,21 @@ Every solver setting left as `None` takes the `[eos_solver]` value of the TidalP
 
 Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `max_iters_hit`, `pressure_error` \[Pa\], the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`, `temperature`, `heat_flow`), the per-layer lists (`layer_temperature`, `layer_heat_flow_in`, `layer_heat_flow_out`, `layer_temperature_rate`), the thermal-iteration report (`thermal_passes`, `thermal_converged`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
 
+#### Layer Size
+
+A layer holds its volume by default, so the boundaries a world was built with are the boundaries it solves with. Setting `is_volume_fixed = false` on a layer makes it hold its mass instead: the solve moves its outer radius using its EOS-derived density and constant mass. Every layer above it moves with it, each keeping its own volume (unless they too are not volume fixed). The world radius follows the outermost layer.
+
+The mass a floating layer holds is its `mass_kg`, or, when its configuration gives none, the mass its first solve finds inside the boundaries it was built with. `solve_eos(reset_layer_masses=True)` takes the current geometry as the new reference.
+
+Each pass measures how far the layer is from that mass and steps its outer radius by the mass it is short of over the slope of the enclosed mass, $dm/dr = 4 \pi r^2 \rho$, which is exact to first order, so a few passes settle it. `geometry_converged` says whether they did, and `layer_radius_outer` reports where the boundaries ended up. A layer whose mass cannot fit inside its own base raises `RuntimeError`.
+
+```python
+world.core.is_volume_fixed = False     # the core holds its mass, not its size
+result = world.solve_eos()
+result["layer_radius_outer"]           # [m] where the boundaries settled
+world.radius                           # follows the outermost layer
+```
+
 #### Temperature and Heat Flow
 
 Each layer carries its own temperature (`temperature_k`, see [PhysicsLayer](../layers/physics_layer.md)) and its [cooling model](../../cooling_x/cooling_models.md) says how heat moves inside it. The solve turns those into a temperature profile, the heat flowing through every radius, and the rate each layer's temperature changes at. `temperature` overrides every layer's value with one number, and `surface_temperature` \[K\] is what the outermost layer radiates to; left out, no heat leaves the world.

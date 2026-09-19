@@ -399,6 +399,7 @@ cdef class LayeredWorld(BaseWorld):
             temperature             = None,
             solve_temperature       = None,
             surface_temperature     = None,
+            reset_layer_masses      = False,
             cpp_bool verbose        = False) -> dict:
         """Solve the whole-planet equation of state.
 
@@ -474,6 +475,7 @@ cdef class LayeredWorld(BaseWorld):
             cfg.solve_temperature = <cpp_bool>bool(solve_temperature)
         if surface_temperature is not None:
             cfg.surface_temperature = <double>surface_temperature
+        cfg.reset_layer_masses = <cpp_bool>bool(reset_layer_masses)
         if slices_per_layer is not None:
             cfg.slices_per_layer = <size_t>int(slices_per_layer)
         if integration_method is not None:
@@ -520,12 +522,14 @@ cdef class LayeredWorld(BaseWorld):
         cdef list layer_heat_flow_in     = []
         cdef list layer_heat_flow_out    = []
         cdef list layer_temperature_rate = []
+        cdef list layer_radius_outer     = []
         if sol != NULL and self._layered_ptr.get_eos_solved():
             for j in range(num_layers):
                 layer_temperature.append(self._layered_ptr.get_layer_thermal()[j].temperature)
                 layer_heat_flow_in.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_in)
                 layer_heat_flow_out.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_out)
                 layer_temperature_rate.append(self._layered_ptr.calc_layer_temperature_rate(j))
+                layer_radius_outer.append(self._layered_ptr.get_layer(j).get_radius_outer())
             for j in range(n):
                 temperature_out[j] = sol.temperature_array_vec[j]
                 heat_flow_out[j]   = sol.heat_flow_array_vec[j]
@@ -556,10 +560,12 @@ cdef class LayeredWorld(BaseWorld):
             'temperature':      temperature_out,
             'heat_flow':        heat_flow_out,
             'thermal_passes':   self._layered_ptr.get_thermal_passes(),
-            'thermal_converged': bool(self._layered_ptr.get_thermal_converged()),
-            'layer_temperature': layer_temperature,
-            'layer_heat_flow_in':  layer_heat_flow_in,
-            'layer_heat_flow_out': layer_heat_flow_out,
+            'thermal_converged':      bool(self._layered_ptr.get_thermal_converged()),
+            'geometry_converged':     bool(self._layered_ptr.get_geometry_converged()),
+            'layer_radius_outer':     layer_radius_outer,
+            'layer_temperature':      layer_temperature,
+            'layer_heat_flow_in':     layer_heat_flow_in,
+            'layer_heat_flow_out':    layer_heat_flow_out,
             'layer_temperature_rate': layer_temperature_rate,
         }
 

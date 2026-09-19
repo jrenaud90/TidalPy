@@ -47,6 +47,8 @@ cdef class GasLayer(PhysicsLayer):
         Total layer mass [kg].
     material_name : str, optional
         Material identifier. Default ``""``.
+    is_volume_fixed : bool, optional
+        False lets the layer grow or shrink to hold its mass during an EOS solve. Default ``True``.
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
@@ -111,29 +113,30 @@ cdef class GasLayer(PhysicsLayer):
             double radius_inner,
             double radius_outer,
             double mass,
-            str    material_name        = "",
-            cpp_bool is_tidal           = True,
-            double tidal_scale          = 1.0,
-            double shear_modulus_static = 0.0,
-            double bulk_modulus_static  = 0.0,
+            str    material_name          = "",
+            cpp_bool is_tidal             = True,
+            cpp_bool is_volume_fixed      = True,
+            double tidal_scale            = 1.0,
+            double shear_modulus_static   = 0.0,
+            double bulk_modulus_static    = 0.0,
             double shear_viscosity_static = d_NAN,
-            double bulk_viscosity_static = d_NAN,
-            complex love_number_k        = 0+0j,
-            complex love_number_h        = 0+0j,
-            complex love_number_l        = 0+0j,
-            double mean_molecular_weight = 2.0e-3,
-            double adiabatic_index       = 1.4,
-            double reference_temperature = 300.0,
-            double reference_density  = 1.0,
-            str    tidal_scale_method = "user_provided",
-            cpp_bool is_solid          = False,
-            cpp_bool is_static         = True,
-            cpp_bool is_incompressible = False,
-            double temperature           = 0.0,
+            double bulk_viscosity_static  = d_NAN,
+            complex love_number_k         = 0+0j,
+            complex love_number_h         = 0+0j,
+            complex love_number_l         = 0+0j,
+            double mean_molecular_weight  = 2.0e-3,
+            double adiabatic_index        = 1.4,
+            double reference_temperature  = 300.0,
+            double reference_density      = 1.0,
+            str    tidal_scale_method     = "user_provided",
+            cpp_bool is_solid             = False,
+            cpp_bool is_static            = True,
+            cpp_bool is_incompressible    = False,
+            double temperature            = 0.0,
             double shear_modulus_pressure_derivative    = 0.0,
             double shear_modulus_temperature_derivative = 0.0,
             shear_modulus_reference_temperature         = None,
-            cpp_bool use_thermal_eos     = False):
+            cpp_bool use_thermal_eos = False):
         cdef c_GasConfig config
         config.name                 = name.encode("utf-8")
         config.layer_index          = layer_index
@@ -142,6 +145,7 @@ cdef class GasLayer(PhysicsLayer):
         config.mass                 = mass
         config.material_name        = material_name.encode("utf-8")
         config.is_tidal             = is_tidal
+        config.is_volume_fixed      = is_volume_fixed
         config.tidal_scale          = tidal_scale
         config.tidal_scale_method   = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         config.shear_modulus_static = shear_modulus_static

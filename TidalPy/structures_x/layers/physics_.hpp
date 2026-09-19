@@ -352,7 +352,7 @@ public:
             sizeof(int32_t)  +               // layer_index
             sizeof(double)   +               // radius_inner
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
-            sizeof(uint8_t)  +               // is_tidal
+            sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
             sizeof(double)   +               // tidal_scale
             sizeof(uint8_t)  +               // tidal_scale_method
             sizeof(double)   * 4 +           // shear modulus, bulk modulus, shear viscosity, bulk viscosity
@@ -375,7 +375,9 @@ public:
         out.write(reinterpret_cast<const char*>(&mat_len),              sizeof(uint32_t));
         if (mat_len > 0) { out.write(this->p_material_name.data(), mat_len); }
         const uint8_t is_tidal_byte = static_cast<uint8_t>(this->p_is_tidal);
+        const uint8_t is_volume_fixed_byte = static_cast<uint8_t>(this->p_is_volume_fixed);
         out.write(reinterpret_cast<const char*>(&is_tidal_byte),       sizeof(uint8_t));
+        out.write(reinterpret_cast<const char*>(&is_volume_fixed_byte), sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale), sizeof(double));
         const uint8_t scale_method_byte = static_cast<uint8_t>(this->p_tidal_scale_method);
         out.write(reinterpret_cast<const char*>(&scale_method_byte),   sizeof(uint8_t));
@@ -440,6 +442,9 @@ public:
         uint8_t is_tidal_byte = 0;
         in.read(reinterpret_cast<char*>(&is_tidal_byte), sizeof(uint8_t));
         this->p_is_tidal = static_cast<bool>(is_tidal_byte);
+        uint8_t is_volume_fixed_byte = 0;
+        in.read(reinterpret_cast<char*>(&is_volume_fixed_byte), sizeof(uint8_t));
+        this->p_is_volume_fixed = static_cast<bool>(is_volume_fixed_byte);
 
         in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
 

@@ -96,6 +96,7 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `mass_kg` | optional | all | Layer mass \[kg\]. Defaults to 0.0; every successful EOS solve overwrites it with the solved layer mass. |
 | `material_name` | optional | all | Free-form material label. |
 | `is_tidal` | optional | all | Whether the layer participates in tides. |
+| `is_volume_fixed` | optional | all | `false` lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior; the layers above it move with it. Default `true`. |
 | `tidal_scale` | optional | all | Tidal scaling factor, used for homogeneous tidal solvers. |
 | `shear_modulus_static_pa` | optional | physics, solidliquid, gas | Static shear modulus [Pa]. |
 | `bulk_modulus_static_pa` | optional | physics, solidliquid, gas | Static bulk modulus [Pa]. |

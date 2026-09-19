@@ -53,6 +53,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Total layer mass [kg].
     material_name : str, optional
         Material identifier. Default ``""``.
+    is_volume_fixed : bool, optional
+        False lets the layer grow or shrink to hold its mass during an EOS solve. Default ``True``.
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
@@ -130,16 +132,17 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             double radius_inner,
             double radius_outer,
             double mass,
-            str    material_name          = "",
-            cpp_bool   is_tidal           = True,
-            double tidal_scale            = 1.0,
-            double shear_modulus_static   = 0.0,
-            double bulk_modulus_static    = 0.0,
-            double shear_viscosity_static = d_NAN,
-            double bulk_viscosity_static  = d_NAN,
-            complex love_number_k         = 0+0j,
-            complex love_number_h         = 0+0j,
-            complex love_number_l         = 0+0j,
+            str    material_name            = "",
+            cpp_bool is_tidal               = True,
+            cpp_bool is_volume_fixed        = True,
+            double tidal_scale              = 1.0,
+            double shear_modulus_static     = 0.0,
+            double bulk_modulus_static      = 0.0,
+            double shear_viscosity_static   = d_NAN,
+            double bulk_viscosity_static    = d_NAN,
+            complex love_number_k           = 0+0j,
+            complex love_number_h           = 0+0j,
+            complex love_number_l           = 0+0j,
             double thermal_conductivity_ref = 4.0,
             double thermal_expansion_ref    = 3.0e-5,
             double heat_capacity_ref        = 1200.0,
@@ -168,6 +171,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         config.mass                 = mass
         config.material_name        = material_name.encode("utf-8")
         config.is_tidal             = is_tidal
+        config.is_volume_fixed      = is_volume_fixed
         config.tidal_scale          = tidal_scale
         config.tidal_scale_method   = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         config.shear_modulus_static = shear_modulus_static

@@ -61,6 +61,8 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double    surface_temperature
         size_t    max_thermal_passes
         double    thermal_tol
+        double    radius_tol
+        cpp_bool  reset_layer_masses
         cpp_bool  verbose
 
     cdef cppclass c_LoveSolveConfig:
@@ -101,6 +103,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_heat_flow(double radius)
         size_t       get_thermal_passes()
         cpp_bool     get_thermal_converged()
+        cpp_bool     get_geometry_converged()
         double       calc_layer_temperature_rate(size_t layer_index)
         const vector[c_LayerThermal]& get_layer_thermal()
         double       get_density(double radius) const

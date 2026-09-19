@@ -89,6 +89,9 @@ cdef class BaseLayer(StructureBase):
         Total layer mass [kg].
     material_name : str, optional
         Material identifier (e.g. ``"perovskite"``). Default ``""``.
+    is_volume_fixed : bool, optional
+        False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
+        Default ``True``.
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
@@ -114,6 +117,7 @@ cdef class BaseLayer(StructureBase):
             double mass,
             str    material_name      = "",
             cpp_bool   is_tidal           = True,
+            cpp_bool   is_volume_fixed    = True,
             double tidal_scale        = 1.0,
             str    tidal_scale_method = "user_provided"):
         cdef c_BaseLayerConfig config
@@ -124,6 +128,7 @@ cdef class BaseLayer(StructureBase):
         config.mass         = mass
         config.material_name = material_name.encode("utf-8")
         config.is_tidal    = is_tidal
+        config.is_volume_fixed = is_volume_fixed
         config.tidal_scale = tidal_scale
         config.tidal_scale_method = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         # The owning member is this same type, so make_unique's result moves straight in.
@@ -230,6 +235,15 @@ cdef class BaseLayer(StructureBase):
         return self._layer_ptr.get().get_material_name().decode("utf-8")
 
     @property
+    def is_volume_fixed(self) -> bool:
+        """False if the layer grows or shrinks to hold its mass during an EOS solve."""
+        return self._layer_ptr.get().get_is_volume_fixed()
+
+    @is_volume_fixed.setter
+    def is_volume_fixed(self, value: bool):
+        self._layer_ptr.get().set_is_volume_fixed(<cpp_bool>bool(value))
+
+    @property
     def is_tidal(self) -> bool:
         """Whether this layer contributes to tidal dissipation."""
         return self._layer_ptr.get().get_is_tidal()
@@ -274,6 +288,15 @@ cdef class BaseLayer(StructureBase):
     def eos_set(self) -> bool:
         """True after a material EOS model has been attached via :meth:`set_eos`."""
         return self._layer_ptr.get().get_eos_set()
+
+    def set_radii(self, double radius_inner, double radius_outer):
+        """Move the layer's boundaries [m], keeping every derived geometric quantity in step.
+
+        The world EOS solve calls this itself when a layer holding its mass grows or shrinks. Setting the
+        radii by hand leaves the world's own radius and its other layers untouched, so keep the stack
+        continuous.
+        """
+        self._layer_ptr.get().set_radii(radius_inner, radius_outer)
 
     def set_eos(self, MaterialEOSBase eos not None):
         """Attach a material EOS model, the layer's density source for the world-level ``solve_eos``.
@@ -449,7 +472,8 @@ cdef class BaseLayer(StructureBase):
         -------
         dict
             Keys: ``class``, ``type``, ``name``, ``layer_index``, ``radius_inner``, ``radius_outer``, ``mass``,
-            ``material_name``, ``is_tidal``, ``tidal_scale``, ``tidal_scale_method``, and ``eos`` when set.
+            ``material_name``, ``is_tidal``, ``is_volume_fixed``, ``tidal_scale``, ``tidal_scale_method``,
+            and ``eos`` when set.
         """
         # Deferred: the configs package imports the layer modules.
         from TidalPy.structures_x.configs.toml_loader import NO_MATERIAL_TYPE
@@ -467,6 +491,7 @@ cdef class BaseLayer(StructureBase):
             "mass_kg":            p.get_mass(),
             "material_name":      p.get_material_name().decode("utf-8"),
             "is_tidal":           bool(p.get_is_tidal()),
+            "is_volume_fixed":    bool(p.get_is_volume_fixed()),
             "tidal_scale":        p.get_tidal_scale(),
             "tidal_scale_method": method_bytes.decode("utf-8"),
         }

@@ -28,6 +28,7 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         double              mass
         string              material_name
         cpp_bool            is_tidal
+        cpp_bool            is_volume_fixed
         double              tidal_scale
         c_TidalScaleMethod  tidal_scale_method
         # PhysicsLayer additions:

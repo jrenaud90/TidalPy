@@ -131,7 +131,9 @@ _GEOMETRY_LAYER_KEYS = (
     "material_name",
     "is_tidal",
     "tidal_scale",
-    "tidal_scale_method"
+    "tidal_scale_method",
+    # False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
+    "is_volume_fixed"
 )
 _PHYSICS_LAYER_KEYS = (
     "shear_modulus_static_pa",
