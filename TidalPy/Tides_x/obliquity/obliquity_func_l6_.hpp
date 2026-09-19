@@ -288,10 +288,10 @@ ObliquityFuncOutput c_obliquity_function_l6_gen(double obliquity)
 }
 
 
-ObliquityFuncOutput c_obliquity_function_l6_2(double obliquity)
+ObliquityFuncOutput c_obliquity_function_l6_1(double obliquity)
 {
     // Inclination Functions Calculated for l = 6.
-    // Functions are taylor expanded and truncated at obliquity^2.
+    // Functions are taylor expanded and truncated at obliquity^1.
 
     //  Functions Calculated for l = 6.
 
@@ -389,18 +389,17 @@ ObliquityFuncOutput c_obliquity_function_l6_2(double obliquity)
 }
 
 
-ObliquityFuncOutput c_obliquity_function_l6_4(double obliquity)
+ObliquityFuncOutput c_obliquity_function_l6_2(double obliquity)
 {
     // Inclination Functions Calculated for l = 6.
-    // Functions are taylor expanded and truncated at obliquity^4.
+    // Functions are taylor expanded and truncated at obliquity^2.
 
     //  Functions Calculated for l = 6.
 
-    c_IntMap<c_Key3, double> result_by_lmp(22);
+    c_IntMap<c_Key3, double> result_by_lmp(17);
     c_IntMap<c_Key2, c_IntMap<c_Key1, double>> result_by_lm(7);
     // Optimizations
     double obliquity_2 = obliquity * obliquity;
-    double obliquity_3 = obliquity_2 * obliquity;
 
     c_IntMap<c_Key1, double> result_by_p(6);  // We don't know what size the inner loop will be but it should not be larger than l_
     double tmp_double;
@@ -425,22 +424,14 @@ ObliquityFuncOutput c_obliquity_function_l6_4(double obliquity)
     result_by_p.clear();
 
     // l , m = (6, 1).
-    // p = 1
-    tmp_double = 9.84375*obliquity_3;
-    result_by_lmp.set(c_Key3(6, 1, 1), tmp_double);
-    result_by_p.set(c_Key1(1), tmp_double);
     // p = 2
-    tmp_double = -32.265625*obliquity_3 + 6.5625*obliquity;
+    tmp_double = 6.5625*obliquity;
     result_by_lmp.set(c_Key3(6, 1, 2), tmp_double);
     result_by_p.set(c_Key1(2), tmp_double);
     // p = 3
-    tmp_double = 33.90625*obliquity_3 - 6.5625*obliquity;
+    tmp_double = -6.5625*obliquity;
     result_by_lmp.set(c_Key3(6, 1, 3), tmp_double);
     result_by_p.set(c_Key1(3), tmp_double);
-    // p = 4
-    tmp_double = -11.484375*obliquity_3;
-    result_by_lmp.set(c_Key3(6, 1, 4), tmp_double);
-    result_by_p.set(c_Key1(4), tmp_double);
     // Store the p table into the results_lm then reset it.
     
     result_by_lm.set(c_Key2(6, 1), result_by_p);
@@ -465,22 +456,14 @@ ObliquityFuncOutput c_obliquity_function_l6_4(double obliquity)
     result_by_p.clear();
 
     // l , m = (6, 3).
-    // p = 0
-    tmp_double = -216.5625*obliquity_3;
-    result_by_lmp.set(c_Key3(6, 3, 0), tmp_double);
-    result_by_p.set(c_Key1(0), tmp_double);
     // p = 1
-    tmp_double = 866.25*obliquity_3 - 236.25*obliquity;
+    tmp_double = -236.25*obliquity;
     result_by_lmp.set(c_Key3(6, 3, 1), tmp_double);
     result_by_p.set(c_Key1(1), tmp_double);
     // p = 2
-    tmp_double = -1043.4375*obliquity_3 + 236.25*obliquity;
+    tmp_double = 236.25*obliquity;
     result_by_lmp.set(c_Key3(6, 3, 2), tmp_double);
     result_by_p.set(c_Key1(2), tmp_double);
-    // p = 3
-    tmp_double = 393.75*obliquity_3;
-    result_by_lmp.set(c_Key3(6, 3, 3), tmp_double);
-    result_by_p.set(c_Key1(3), tmp_double);
     // Store the p table into the results_lm then reset it.
     
     result_by_lm.set(c_Key2(6, 3), result_by_p);
@@ -506,17 +489,13 @@ ObliquityFuncOutput c_obliquity_function_l6_4(double obliquity)
 
     // l , m = (6, 5).
     // p = 0
-    tmp_double = -7363.125*obliquity_3 + 5197.5*obliquity;
+    tmp_double = 5197.5*obliquity;
     result_by_lmp.set(c_Key3(6, 5, 0), tmp_double);
     result_by_p.set(c_Key1(0), tmp_double);
     // p = 1
-    tmp_double = 13860.0*obliquity_3 - 5197.5*obliquity;
+    tmp_double = -5197.5*obliquity;
     result_by_lmp.set(c_Key3(6, 5, 1), tmp_double);
     result_by_p.set(c_Key1(1), tmp_double);
-    // p = 2
-    tmp_double = -6496.875*obliquity_3;
-    result_by_lmp.set(c_Key3(6, 5, 2), tmp_double);
-    result_by_p.set(c_Key1(2), tmp_double);
     // Store the p table into the results_lm then reset it.
     
     result_by_lm.set(c_Key2(6, 5), result_by_p);

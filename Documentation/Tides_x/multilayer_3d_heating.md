@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides_x.multilayer`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-18_
 
 This module computes the depth- and direction-resolved tidal response (the complex strain and stress tensors and the volumetric heating) of a layered world. The response is evaluated at a single point on demand, so a map is built only when the caller evaluates a set of points.
 
@@ -24,7 +24,7 @@ omega_lmpq = (l - 2p + q) n - m * spin
 > [!WARNING]
 > This assumes no periapse or node precession. It also assumes that the change in the mean anomaly can be approximated by the mean motion.
 
-(`n` = orbital mean motion, `spin` = rotation rate), and the potential angular factor `U` with its first/second colatitude/longitude derivatives. The potential is linear in `F_lmp`, `G_lpq`, and `P_lm` (the global 1D path squares `F`, `G` because global heating goes as the potential squared). A mode whose `|frequency|` does not exceed `min_spin_orbit_diff` is switched off downstream.
+(`n` = orbital mean motion, `spin` = rotation rate), and the potential angular factor `U` with its first/second colatitude/longitude derivatives. Longitude `φ` is the body-fixed east longitude, increasing in the direction of rotation, and `φ = 0` is the host's meridian at `t = 0`, when the host is at its ascending node and at periapse. Each mode enters as `cos(omega_lmpq t - m φ)` (`sin` for odd `l - m`) with Kaula's associated Legendre functions, which carry no Condon-Shortley phase. The potential is linear in `F_lmp`, `G_lpq`, and `P_lm` (the global 1D path squares `F`, `G` because global heating goes as the potential squared). A mode whose `|frequency|` does not exceed `min_spin_orbit_diff` is switched off downstream.
 
 The user selects the truncation via three knobs (on the world's `[tides]` config): `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). A nonzero obliquity truncation turns on the odd-`m` (`P_21`, ...) harmonics automatically.
 

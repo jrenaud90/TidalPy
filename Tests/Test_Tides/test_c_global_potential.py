@@ -35,7 +35,7 @@ def _global_potential(**kwargs):
 
 
 @pytest.mark.parametrize('degree_l', (2, 3, 4))
-@pytest.mark.parametrize('obliquity_truncation', ('gen', 2, 4, 'off'))
+@pytest.mark.parametrize('obliquity_truncation', ('gen', 1, 2, 'off'))
 @pytest.mark.parametrize('eccentricity_truncation', (1, 2, 3, 4, 5, 10))
 def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_truncation):
     """Tests that global_potential runs without error and returns correct types for various parameters."""
@@ -54,16 +54,10 @@ def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_tru
     assert isinstance(unique_freq_list, list)
     assert isinstance(potential_dict, dict)
 
-    # For non-zero obliquity and eccentricity, we should generally have modes.
-    # Exception: with synchronous spin + obliquity='off' + low eccentricity truncation (e.g., 1),
-    # only q=0 modes exist and all have zero frequency, so they are all skipped.
-    if obliquity_truncation == 'off' and eccentricity_truncation == 1:
-        # May have no modes in this edge case (all zero-frequency at synchronous spin).
-        pass
-    else:
-        assert len(mode_map) > 0
-        assert len(unique_freq_list) > 0
-        assert len(potential_dict) > 0
+    # Every truncation keeps the e^1 terms, so a synchronous eccentric orbit always has active modes.
+    assert len(mode_map) > 0
+    assert len(unique_freq_list) > 0
+    assert len(potential_dict) > 0
 
     # Check that modes and potentials have the same keys
     mode_keys = set()
@@ -239,16 +233,17 @@ def test_global_potential_nonsynchronous():
         assert isclose(mode_val, expected_mode, rel_tol=1e-12)
 
 
-def test_global_potential_synchronous_heating_matches_analytic():
+@pytest.mark.parametrize('eccentricity_truncation', (1, 3))
+def test_global_potential_synchronous_heating_matches_analytic(eccentricity_truncation):
     """At synchronous rotation, zero obliquity, and low eccentricity, the summed mode heating per unit k2/Q
-    equals the classic (21/2) G M_host^2 R^5 n e^2 / a^6."""
+    equals the classic (21/2) G M_host^2 R^5 n e^2 / a^6, from the lowest truncation up."""
 
     eccentricity = 0.01
 
     mode_map, unique_freq_index_map, unique_freq_list, potential_dict = _global_potential(
         eccentricity=eccentricity,
         obliquity_truncation='off',
-        eccentricity_truncation=3
+        eccentricity_truncation=eccentricity_truncation
     )
 
     heating_per_k_over_q = sum(E_dot for (dU_dM, dU_dw, dU_dO, E_dot) in potential_dict.values())

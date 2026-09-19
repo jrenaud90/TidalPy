@@ -1,6 +1,6 @@
 # Eccentricity Functions
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-18_
 
 The eccentricity functions $G_{l,p,q}(e)$ are one of the two drivers of the tidal potential, alongside the [obliquity functions](obliquity.md); see $G_{lpq}(e)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). Unlike the obliquity functions they are defined by an infinite sum over $q$ and cannot be written down exactly, so a truncation level has to be chosen. As long as $e < 1$ that choice trades accuracy against the number of active tidal modes, and therefore against computation time.
 
@@ -13,18 +13,18 @@ TidalPy does not evaluate the series at runtime. The terms for each degree and t
 
 ## Choosing a Truncation
 
-The count below is the number of non-zero modes at degree $l = 2$; higher degrees activate more. Because the potential is squared to obtain heating, a truncation at $e^{n}$ in the potential gives heating accurate to $e^{2n}$.
+The count below is the number of non-zero modes at degree $l = 2$; higher degrees activate more. Truncation $n$ keeps every term of $G_{l,p,q}(e)$ through $e^{n}$. Heating goes as the potential squared, so it is complete through at least $e^{n}$ as well.
 
-| Truncation | Modes at $l=2$ | Potential terms | Heating terms | Notes |
-|---|---|---|---|---|
-| 1 | 3 | $e^{1}$ | $e^{2}$ | Close to the traditional formula, though not identical: exact factors such as $(1-e^{2})^{-3/2}$ are kept rather than expanded. |
-| 2 | 9 | $e^{2}$ | $e^{4}$ | Common choice. |
-| 3 | 13 | $e^{3}$ | $e^{6}$ | Common choice, and TidalPy's default. |
-| 4 | 19 | $e^{4}$ | $e^{8}$ | |
-| 5 | 25 | $e^{5}$ | $e^{10}$ | |
-| 10 | 55 | $e^{10}$ | $e^{20}$ | Used in [Renaud et al. (2021)](https://iopscience.iop.org/article/10.3847/1538-4357/abc0f2). |
-| 15 | 85 | $e^{15}$ | $e^{30}$ | |
-| 20 | 115 | $e^{20}$ | $e^{40}$ | |
+| Truncation | Modes at $l=2$ | Notes |
+|---|---|---|
+| 1 | 9 | Reproduces the traditional synchronous heating formula, $(21/2)(k_2/Q) G M^2 R^5 n e^2 / a^6$, at small $e$. Exact factors such as $(1-e^{2})^{-3/2}$ are kept rather than expanded. |
+| 2 | 13 | Common choice. |
+| 3 | 19 | Common choice, and TidalPy's default. |
+| 4 | 25 | |
+| 5 | 31 | |
+| 10 | 61 | Used in [Renaud et al. (2021)](https://iopscience.iop.org/article/10.3847/1538-4357/abc0f2). |
+| 15 | 91 | |
+| 20 | 121 | |
 
 The very large truncations can carry numerical error. Treat their results with suspicion and test sensitivity by pushing $e$ into the range where the extra terms start to matter, then check that the answer is stable.
 
@@ -40,7 +40,7 @@ from TidalPy.Tides_x.eccentricity import eccentricity_func
 eccentricity = 0.1                         # 0 <= e < 1
 modes_by_lpq, modes_by_lp = eccentricity_func(eccentricity, degree_l=2, truncation=4)
 
-print(len(modes_by_lpq))                   # 19 non-zero modes
+print(len(modes_by_lpq))                   # 25 non-zero modes
 print(modes_by_lpq[(2, 0, 0)])             # one mode by its (l, p, q) key
 
 for (l, p), by_q in modes_by_lpq.items():  # walk the modes grouped by (l, p)

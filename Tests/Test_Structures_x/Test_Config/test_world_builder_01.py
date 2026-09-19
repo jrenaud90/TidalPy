@@ -374,8 +374,8 @@ def test_eccentricity_truncation_alias_takes_effect(key):
 
 @pytest.mark.parametrize("key", ["obliquity_trunc_lvl", "obliquity_truncation"])
 def test_obliquity_truncation_alias_takes_effect(key):
-    tides = _terrestrial_with_tides({key: 4}).get_config_dict()["tides"]
-    assert tides["obliquity_trunc_lvl"] == 4
+    tides = _terrestrial_with_tides({key: 2}).get_config_dict()["tides"]
+    assert tides["obliquity_trunc_lvl"] == 2
 
 
 def test_obliquity_truncation_words_resolve():

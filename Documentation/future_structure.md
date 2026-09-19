@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
 
 Performance tests were run with the classic and the new backend. Both are timed after warm up as the best of seven batches, and each figure is the lowest of three independent runs in fresh processes, with console logging limited to errors so terminal output is not timed. The machine is an 8-core AMD desktop running Windows 11, Python 3.13, numpy 2.4, numba 0.67, scipy 1.18, and BurnMan 2.1. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
 
-The new backend is much faster where the classic path called out to BurnMan or paid a numba compile, 4 to 11 times faster on 3D heating maps, two to three times faster on array work and global tidal heating, about even on the radial solver, and slower on a few paths, which are listed too.
+The new backend is much faster where the classic path called out to BurnMan or paid a numba compile, 4 to 11 times faster on 3D heating maps, two to three times faster on array work, 1.6 to 2.4 times faster on global tidal heating, about even on the radial solver, and slower on a few paths, which are listed too.
 
 ### Where It Is Faster
 
@@ -36,16 +36,16 @@ The new backend is much faster where the classic path called out to BurnMan or p
 | Radiogenic heating, 10k times | 0.088 ms | 0.020 ms | **4.5x faster** |
 | Instantaneous 3D heating map (50 x 16 x 32 x 8 times) | 13.3 ms | 3.1 ms | **4.2x faster** |
 | Rheology, 10k complex moduli | 0.176 ms | 0.056 ms | **3.2x faster** |
-| Global tidal heating, e^2 truncation | 0.020 ms | 0.0076 ms | **2.7x faster** |
 | Homogeneous Love numbers (closed form) | 0.15 us | 0.064 us | **2.4x faster** |
+| Global tidal heating, e^2 truncation | 0.020 ms | 0.0084 ms | **2.4x faster** |
 | Build a world from config (2 layers, no interior solve) | 1.48 ms | 0.64 ms | **2.3x faster** |
-| Global tidal heating, e^4 truncation | 0.022 ms | 0.0096 ms | **2.3x faster** |
-| Global tidal heating, degrees 2 to 4, e^10 | 0.049 ms | 0.023 ms | **2.1x faster** |
-| Global tidal heating, e^10 truncation | 0.026 ms | 0.016 ms | **1.6x faster** |
+| Global tidal heating, degrees 2 to 4, e^10 | 0.048 ms | 0.023 ms | **2.1x faster** |
+| Global tidal heating, e^4 truncation | 0.021 ms | 0.010 ms | **2.0x faster** |
+| Global tidal heating, e^10 truncation | 0.025 ms | 0.016 ms | **1.6x faster** |
 
 The planet-building row is the largest change. The classic path handed the interior to BurnMan, which does mineral-physics lookups and its own root finding: the new path integrates the equation of state in C++. A fresh Io went from 1.4 seconds to about 3 milliseconds.
 
-The global tidal heating rows use the homogeneous Love method, which solves the same problem as the classic `quick_tidal_dissipation`, at eccentricity truncations both backends tabulate. The new backend accepts e^1 through e^5, e^10, e^15, and e^20 and promotes any other requested level to the next tabulated one, so a request for e^6 or e^8 runs at e^10. Its cost follows the number of distinct forcing frequencies rather than the number of modes: Love numbers are solved once per frequency and degree, and the layer-averaged shear modulus the homogeneous methods need is formed once per frequency and shared by every degree, so adding degrees adds little. With the `radial_solver` Love method each frequency and degree is a full radial solve instead, and that solve dominates.
+The global tidal heating rows use the homogeneous Love method, which solves the same problem as the classic `quick_tidal_dissipation`, at eccentricity truncations both backends tabulate. At level n both keep the eccentricity terms through $e^n$: the classic tables hold the squared $G^2$, the new ones every term of the unsquared $G$, so the new side sums more modes at the same level. The new backend accepts e^1 through e^5, e^10, e^15, and e^20 and promotes any other requested level to the next tabulated one, so a request for e^6 or e^8 runs at e^10. Its cost follows the number of distinct forcing frequencies rather than the number of modes: Love numbers are solved once per frequency and degree, and the layer-averaged shear modulus the homogeneous methods need is formed once per frequency and shared by every degree, so adding degrees adds little. With the `radial_solver` Love method each frequency and degree is a full radial solve instead, and that solve dominates.
 
 ### Where It Is About Even
 

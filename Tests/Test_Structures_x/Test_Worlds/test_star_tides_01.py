@@ -26,8 +26,9 @@ _ECC       = 0.05
 def _star(model="cpl", config=None):
     star = StarWorld("test_star", _STAR_RADIUS, _STAR_MASS)
     star.set_tide_model(make_tide(model, config if config is not None else {"fixed_k": [0.03], "fixed_q": [1.0e6]}))
+    # Truncation 1 keeps G through e^1: the leading-order e^2 dissipation of the analytic rate below.
     star.set_tide_config(min_degree_l=2, max_degree_l=2,
-                         eccentricity_truncation=2, obliquity_truncation=0)
+                         eccentricity_truncation=1, obliquity_truncation=0)
     return star
 
 

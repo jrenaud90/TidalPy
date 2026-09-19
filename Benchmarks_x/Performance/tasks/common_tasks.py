@@ -224,7 +224,7 @@ _grid_layer.set_shear_rheology(Maxwell())
 _grid_layer.set_bulk_rheology(Elastic())
 _grid_io.add_layer(_grid_layer)
 _grid_io.set_tide_model(make_tide("rheology"))
-_grid_io.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=10, obliquity_truncation=4)
+_grid_io.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=10, obliquity_truncation=2)
 _grid_io.solve_eos()
 _GRID_STATE = (_N_IO, 1.2 * _N_IO, 0.1, 0.2, _A_IO, _M_JUP)
 _GRID_AXES = dict(radii=np.linspace(0.05 * _R, 0.99 * _R, 20),

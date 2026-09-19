@@ -4,7 +4,9 @@ The expected values were produced on 2026-09-09 by the classic ``TidalPy.toolbox
 (cpl model, k2 = 0.3, Q = 50) with Newton's constant from SciPy (6.6743e-11) and the semi-major axis derived from the
 mean motion by Kepler's law with the target mass included. They are frozen here so the check outlives the classic
 modules. The new collapse agrees to 6e-9 or better; the residual is roundoff in the classic module's tabulated
-(l-m)!/(l+m)! constants.
+(l-m)!/(l+m)! constants. The classic functions were squared, so classic truncation 2 held G^2 through e^2; at
+synchronous rotation only the q = +-1 modes dissipate, and their G^2 through e^2 is exactly the new truncation 1
+(G through e^1). The new truncation 2 adds the q = +-2 modes, e^4 terms the classic level omits.
 """
 from math import isclose
 
@@ -20,9 +22,9 @@ SEMI_MAJOR_AXIS = 421682810.06527996   # From the mean motion, Jupiter's mass, a
 FIXED_K2 = 0.3
 FIXED_Q = 50.0
 
-# (spin / n, eccentricity, max degree l, eccentricity truncation, classic results)
+# (spin / n, eccentricity, max degree l, new eccentricity truncation, classic results)
 CASES = [
-    (1.0, 0.0041, 2, 2,
+    (1.0, 0.0041, 2, 1,
      dict(tidal_heating=37346752766277.4, dUdM=1.2991557524181804e-09, dUdw=8.205194225799033e-10,
           dUdO=8.205194225799033e-10, tidal_torque=1.5575099679411725e+18)),
     (1.0, 0.05, 2, 10,

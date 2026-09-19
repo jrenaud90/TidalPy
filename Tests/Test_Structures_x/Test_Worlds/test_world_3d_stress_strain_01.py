@@ -38,7 +38,7 @@ _SMA = orbital_motion2semi_a(_N, _HOST, _MASS)
 
 # (spin / mean motion, maximum degree, obliquity [rad], obliquity truncation): synchronous with frequency-sharing
 # waves, non-synchronous, two degrees, and an obliquity case with m = 1 waves.
-_CASES = [(1.0, 2, 0.0, 0), (1.5, 2, 0.0, 0), (1.5, 3, 0.0, 0), (1.2, 2, 0.2, 4)]
+_CASES = [(1.0, 2, 0.0, 0), (1.5, 2, 0.0, 0), (1.5, 3, 0.0, 0), (1.2, 2, 0.2, 2)]
 
 
 def _build_world(max_degree_l=2, obliquity_truncation=0, tide_model="rheology", solve_eos=True):
@@ -193,7 +193,7 @@ def test_grid_matches_point_helpers(spin_ratio, max_degree_l, obliquity, obliqui
             err_msg=name)
 
 
-@pytest.mark.parametrize("spin_ratio, obliquity, obliquity_truncation", [(1.0, 0.0, 0), (1.2, 0.2, 4)])
+@pytest.mark.parametrize("spin_ratio, obliquity, obliquity_truncation", [(1.0, 0.0, 0), (1.2, 0.2, 2)])
 def test_strain_is_symmetric_gradient_of_displacement(spin_ratio, obliquity, obliquity_truncation):
     """The strain grid equals the symmetric gradient of the displacement grid in spherical coordinates, taken by
     central differences in radius, colatitude, and longitude."""

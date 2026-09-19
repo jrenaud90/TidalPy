@@ -7,6 +7,7 @@ mode frequencies for a known configuration, and the finiteness/consistency of th
 """
 import numpy as np
 import pytest
+from scipy.special import eval_legendre
 
 from TidalPy.constants import G
 from TidalPy.Tides_x.potential.potential_3d import tidal_potential_3d_modes
@@ -152,3 +153,63 @@ def test_amplitude_truncation_convergence():
     assert errors[4] < errors[2]
     assert errors[10] < errors[4]
     assert errors[10] < 1.0e-10
+
+
+# =====================================================================================================================
+# The summed modes against the direct point-mass potential
+# =====================================================================================================================
+def _direct_potential(degree_l, colatitude, longitude, time, eccentricity, obliquity):
+    """(G M / r) (R / r)^l P_l(cos psi), with psi the angle between the point and the host.
+
+    The host's orbit has its ascending node on the body's x axis and its periapse at the node, is tilted by the
+    obliquity, and starts at periapse (mean anomaly n t). The body rotates prograde about z at the spin rate, and
+    longitude increases in the direction of rotation from the x axis at t = 0.
+    """
+    mean_anomaly = _N * time
+    ecc_anomaly = mean_anomaly
+    for _ in range(60):
+        ecc_anomaly = mean_anomaly + eccentricity * np.sin(ecc_anomaly)
+    distance = _SMA * (1.0 - eccentricity * np.cos(ecc_anomaly))
+    true_anomaly = 2.0 * np.arctan2(np.sqrt(1.0 + eccentricity) * np.sin(ecc_anomaly / 2.0),
+                                    np.sqrt(1.0 - eccentricity) * np.cos(ecc_anomaly / 2.0))
+    host = np.array([np.cos(true_anomaly),
+                     np.sin(true_anomaly) * np.cos(obliquity),
+                     np.sin(true_anomaly) * np.sin(obliquity)])
+    rotation = _SPIN * time
+    host_body = np.array([host[0] * np.cos(rotation) + host[1] * np.sin(rotation),
+                          -host[0] * np.sin(rotation) + host[1] * np.cos(rotation),
+                          host[2]])
+    point = np.array([np.sin(colatitude) * np.cos(longitude),
+                      np.sin(colatitude) * np.sin(longitude),
+                      np.cos(colatitude)])
+    cos_psi = float(point @ host_body)
+    return G * _HOST / distance * (_R / distance)**degree_l * eval_legendre(degree_l, cos_psi)
+
+
+@pytest.mark.parametrize('degree_l', (2, 3, 4, 5))
+def test_summed_modes_match_direct_potential(degree_l):
+    """Re[sum U_c e^{i omega t}] over every mode of one degree equals the host's degree-l point-mass potential.
+
+    This pins every convention at once: the obliquity and eccentricity function signs, the Legendre phase, the
+    parity phase of odd (l - m), the longitude direction, and the time dependence.
+    """
+    rng = np.random.default_rng(degree_l)
+    scale = G * _HOST / _SMA * (_R / _SMA)**degree_l
+    for _ in range(10):
+        colatitude = rng.uniform(0.1, np.pi - 0.1)
+        longitude = rng.uniform(0.0, 2.0 * np.pi)
+        time = rng.uniform(0.0, 3.0e5)
+        eccentricity = rng.uniform(0.0, 0.05)
+        obliquity = rng.uniform(0.0, 1.0)
+        _, freqs, pots = _modes(
+            colatitude=colatitude,
+            longitude=longitude,
+            eccentricity=eccentricity,
+            obliquity=obliquity,
+            min_degree_l=degree_l,
+            max_degree_l=degree_l,
+            eccentricity_truncation=20,
+            obliquity_truncation=10)
+        summed = float(np.sum(np.real(pots[:, 0] * np.exp(1j * freqs * time))))
+        direct = _direct_potential(degree_l, colatitude, longitude, time, eccentricity, obliquity)
+        assert abs(summed - direct) < 1.0e-12 * scale

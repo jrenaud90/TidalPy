@@ -13,11 +13,14 @@
  *
  *   W(R, theta, phi, t) = -(G M_host / a) sum_l (R/a)^l
  *                            sum_m (l-m)!/(l+m)! (2 - d_m0) P_lm(cos theta)
- *                              sum_p F_lmp(i) sum_q G_lpq(e) * Trig_lm( omega_lmpq t + m phi )
+ *                              sum_p F_lmp(i) sum_q G_lpq(e) * Trig_lm( omega_lmpq t - m phi )
  *
  * with Trig_lm = cos for (l - m) even, sin for (l - m) odd, and the tidal mode
  *   omega_lmpq = (l - 2p + q) n - m * spin        (n = orbital mean motion, spin = rotation rate),
- * dropping periapse and node precession. This is linear in F_lmp, G_lpq, and P_lm; the global path squares F
+ * dropping periapse and node precession. phi is the body-fixed east longitude (increasing in the direction of
+ * rotation), zero at the host's ascending node at t = 0, where the host sits when the mean anomaly is zero. Kaula's
+ * P_lm carries no Condon-Shortley phase while c_legendre does, so each amplitude carries (-1)^m to cancel it.
+ * This is linear in F_lmp, G_lpq, and P_lm; the global path squares F
  * and G because global heating goes as the potential squared, while here the heating bilinearity is applied
  * downstream, after the mode stress and strain tensors are summed. The r^2 (R/a)^l coefficient is taken at
  * the surface radius R; the depth dependence is carried by the radial-solver y-functions in the kernel.
@@ -59,13 +62,13 @@ struct c_TidalPotential3DModeCoeff {
     int order_m = 0;
     int parity = 0;                   // (l - m) & 1: 0 -> cos (even), 1 -> sin (odd)
     double mode_frequency = 0.0;      // signed omega_lmpq [rad s-1]
-    double amplitude = 0.0;           // G_lpq * F_lmp * (R/a)^l * (G M_host / a) * (l-m)!/(l+m)!(2-d_m0)
+    double amplitude = 0.0;           // (-1)^m G_lpq F_lmp (R/a)^l (G M_host / a) (l-m)!/(l+m)! (2-d_m0)
 };
 
 // Evaluate a mode's complex potential angular factor U_c and its theta and phi derivatives at a point:
-//   even parity ((l-m) even): U_c = amplitude * P_lm(cos theta) * e^{i m phi}
-//   odd parity  ((l-m) odd):  U_c = -i * amplitude * P_lm(cos theta) * e^{i m phi}
-// Theta derivatives act on P_lm; phi derivatives bring a factor i*m from d/dphi of e^{i m phi}.
+//   even parity ((l-m) even): U_c = amplitude * P_lm(cos theta) * e^{-i m phi}
+//   odd parity  ((l-m) odd):  U_c = -i * amplitude * P_lm(cos theta) * e^{-i m phi}
+// Theta derivatives act on P_lm; phi derivatives bring a factor -i*m from d/dphi of e^{-i m phi}.
 inline c_PotentialPointC c_eval_potential_point_3d(
         const c_TidalPotential3DModeCoeff& coeff,
         double colatitude,
@@ -77,9 +80,9 @@ inline c_PotentialPointC c_eval_potential_point_3d(
     const std::complex<double> base = (coeff.parity == 0)
         ? std::complex<double>(1.0, 0.0)
         : std::complex<double>(0.0, -1.0);
-    const std::complex<double> e_imphi(std::cos(m_d * longitude), std::sin(m_d * longitude));
+    const std::complex<double> e_imphi(std::cos(m_d * longitude), -std::sin(m_d * longitude));
     const std::complex<double> phasor = coeff.amplitude * base * e_imphi;
-    const std::complex<double> im(0.0, m_d);   // d/dphi -> factor i*m
+    const std::complex<double> im(0.0, -m_d);   // d/dphi -> factor -i*m
 
     return c_PotentialPointC {
         phasor * legendre.p,                     // U_c
@@ -175,7 +178,7 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
                 out.order_m = order_m;
                 out.parity = parity;
                 out.mode_frequency = mode;
-                out.amplitude = G_lpq * lmp_coeff;
+                out.amplitude = ((order_m & 1) ? -G_lpq : G_lpq) * lmp_coeff;
                 coeffs.push_back(out);
             }
         }
@@ -241,7 +244,7 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
 // A coherent tidal wave for the 3D heating paths. Every active mode is mapped onto a non-negative frequency (a mode
 // with omega < 0 contributes the complex conjugate of its phasor at +|omega|, since Re[U_c e^{i omega t}] =
 // Re[conj(U_c) e^{-i omega t}]) and merged with every other mode that shares the same real spatial function: the
-// same degree l, order m, |omega|, and azimuthal sign (e^{+i m phi} against e^{-i m phi}; irrelevant for m = 0).
+// same degree l, order m, |omega|, and azimuthal sign (e^{-i m phi} against e^{+i m phi}; irrelevant for m = 0).
 // The complex amplitude carries the parity phase (-i for odd l - m), the conjugation, and the coherent sum over
 // the merged modes.
 //
@@ -258,7 +261,7 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
 struct c_TidalWave3D {
     int degree_l = 0;
     int order_m = 0;
-    int azimuthal_sign = 1;                 // +1: e^{+i m phi}; -1: e^{-i m phi} (a conjugated omega < 0 mode); +1 for m = 0
+    int azimuthal_sign = 1;                 // -1: e^{-i m phi}; +1: e^{+i m phi} (conjugated omega < 0 mode, or m = 0)
     double frequency = 0.0;                 // |omega| [rad s-1], > 0
     std::complex<double> amplitude {0.0, 0.0};   // coherent complex amplitude (parity phase, conjugation, merge applied)
 };
@@ -289,7 +292,7 @@ inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
         const std::complex<double> phase = (mode.parity == 0)
             ? std::complex<double>(1.0, 0.0)
             : std::complex<double>(0.0, negative ? 1.0 : -1.0);
-        const int azimuthal_sign = (mode.order_m == 0 || !negative) ? 1 : -1;
+        const int azimuthal_sign = (mode.order_m == 0 || negative) ? 1 : -1;
         const std::complex<double> amplitude = mode.amplitude * phase;
 
         bool merged = false;

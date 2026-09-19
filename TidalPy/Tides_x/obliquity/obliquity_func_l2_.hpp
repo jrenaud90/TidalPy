@@ -86,10 +86,10 @@ ObliquityFuncOutput c_obliquity_function_l2_gen(double obliquity)
 }
 
 
-ObliquityFuncOutput c_obliquity_function_l2_2(double obliquity)
+ObliquityFuncOutput c_obliquity_function_l2_1(double obliquity)
 {
     // Inclination Functions Calculated for l = 2.
-    // Functions are taylor expanded and truncated at obliquity^2.
+    // Functions are taylor expanded and truncated at obliquity^1.
 
     //  Functions Calculated for l = 2.
 
@@ -139,18 +139,17 @@ ObliquityFuncOutput c_obliquity_function_l2_2(double obliquity)
 }
 
 
-ObliquityFuncOutput c_obliquity_function_l2_4(double obliquity)
+ObliquityFuncOutput c_obliquity_function_l2_2(double obliquity)
 {
     // Inclination Functions Calculated for l = 2.
-    // Functions are taylor expanded and truncated at obliquity^4.
+    // Functions are taylor expanded and truncated at obliquity^2.
 
     //  Functions Calculated for l = 2.
 
-    c_IntMap<c_Key3, double> result_by_lmp(8);
+    c_IntMap<c_Key3, double> result_by_lmp(7);
     c_IntMap<c_Key2, c_IntMap<c_Key1, double>> result_by_lm(3);
     // Optimizations
     double obliquity_2 = obliquity * obliquity;
-    double obliquity_3 = obliquity_2 * obliquity;
 
     c_IntMap<c_Key1, double> result_by_p(2);  // We don't know what size the inner loop will be but it should not be larger than l_
     double tmp_double;
@@ -176,17 +175,13 @@ ObliquityFuncOutput c_obliquity_function_l2_4(double obliquity)
 
     // l , m = (2, 1).
     // p = 0
-    tmp_double = -0.625*obliquity_3 + 1.5*obliquity;
+    tmp_double = 1.5*obliquity;
     result_by_lmp.set(c_Key3(2, 1, 0), tmp_double);
     result_by_p.set(c_Key1(0), tmp_double);
     // p = 1
-    tmp_double = obliquity_3 - 1.5*obliquity;
+    tmp_double = -1.5*obliquity;
     result_by_lmp.set(c_Key3(2, 1, 1), tmp_double);
     result_by_p.set(c_Key1(1), tmp_double);
-    // p = 2
-    tmp_double = -0.375*obliquity_3;
-    result_by_lmp.set(c_Key3(2, 1, 2), tmp_double);
-    result_by_p.set(c_Key1(2), tmp_double);
     // Store the p table into the results_lm then reset it.
     
     result_by_lm.set(c_Key2(2, 1), result_by_p);

@@ -26,7 +26,8 @@ def _world(filename):
 
 def _configure_tide(world, model, config):
     world.set_tide_model(make_tide(model, config))
-    world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
+    # Truncation 1 keeps G through e^1, so a synchronous body's dissipation is exactly the leading-order e^2 term.
+    world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=1, obliquity_truncation=0)
 
 
 # =====================================================================================================================

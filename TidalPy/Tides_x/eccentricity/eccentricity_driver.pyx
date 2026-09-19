@@ -7,6 +7,24 @@ def eccentricity_func(
         double eccentricity,
         int degree_l,
         object truncation = 3):
+    """Eccentricity functions G_lpq(e) of one degree at one eccentricity.
+
+    Parameters
+    ----------
+    eccentricity : float
+        Orbital eccentricity, 0 <= e < 1.
+    degree_l : int
+        Tidal harmonic degree, 2 to 10.
+    truncation : int or str, optional
+        Truncation level n: every term of G_lpq through e^n is kept. Tabulated at 1, 2, 3, 4, 5, 10, 15, 20.
+
+    Returns
+    -------
+    result_by_lpq : IntMap3
+        Non-zero G_lpq keyed by (l, p, q).
+    results_by_lp : dict
+        The same values as an ``IntMap1`` of G by (q,) for each (l, p).
+    """
 
     # Numeric strings such as "10" are accepted.
     if isinstance(truncation, str):

@@ -8,7 +8,7 @@ from TidalPy.Utilities_x.lookups import IntMap3
 
 
 @pytest.mark.parametrize('degree_l', (1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
-@pytest.mark.parametrize('truncation', ('gen', 2, 4, 'off', 5))
+@pytest.mark.parametrize('truncation', ('gen', 1, 2, 'off', 4))
 def test_obliquity_funcs(degree_l, truncation):
     """Tests TidalPy's obliquity functions for various degree_ls and various truncation levels."""
 
@@ -18,8 +18,8 @@ def test_obliquity_funcs(degree_l, truncation):
         # Degree l is currently not supported, check that it raises an error.
         with pytest.raises(NotImplementedError):
             ob_results_by_lmp, ob_results_by_lm = obliquity_func(obliquity, degree_l, truncation)
-    elif truncation == 5:
-        # Truncation = 5 is not supported, check that it raises an error.
+    elif truncation == 4:
+        # Truncation = 4 is not tabulated, check that it raises an error.
         with pytest.raises(NotImplementedError):
             ob_results_by_lmp, ob_results_by_lm = obliquity_func(obliquity, degree_l, truncation)
     else:
@@ -61,7 +61,7 @@ def test_obliquity_funcs(degree_l, truncation):
                 assert isclose(ob_results_by_lm[(2, 0)][(1,)], -0.5)
                 assert len(ob_results_by_lm[(2, 2)]) == 1
                 assert isclose(ob_results_by_lm[(2, 2)][(0,)], 3.0)
-            elif truncation == 2:
+            elif truncation == 1:
                 assert len(ob_results_by_lmp) == 4
                 assert isclose(ob_results_by_lmp[(2, 0, 1)], -0.5)
                 assert isclose(ob_results_by_lmp[(2, 1, 0)], 1.5 * obliquity)
@@ -70,15 +70,16 @@ def test_obliquity_funcs(degree_l, truncation):
                 assert isclose(ob_results_by_lm[(2, 1)][(0,)], 1.5 * obliquity)
                 assert isclose(ob_results_by_lm[(2, 1)][(1,)], -1.5 * obliquity)
                 assert len(ob_results_by_lm[(2, 2)]) == 1
-            elif truncation == 4:
-                assert len(ob_results_by_lmp) == 8
+            elif truncation == 2:
+                assert len(ob_results_by_lmp) == 7
                 assert isclose(ob_results_by_lmp[(2, 0, 1)], 0.75*obliquity**2 - 0.5)
-                assert isclose(ob_results_by_lmp[(2, 1, 0)], -0.625*obliquity**3 + 1.5*obliquity)
+                assert isclose(ob_results_by_lmp[(2, 1, 0)], 1.5 * obliquity)
                 assert len(ob_results_by_lm) == 3
-                assert len(ob_results_by_lm[(2, 1)]) == 3
-                assert isclose(ob_results_by_lm[(2, 1)][(0,)], -0.625*obliquity**3 + 1.5*obliquity)
-                assert isclose(ob_results_by_lm[(2, 1)][(1,)], obliquity**3 - 1.5*obliquity)
+                assert len(ob_results_by_lm[(2, 1)]) == 2
+                assert isclose(ob_results_by_lm[(2, 1)][(0,)], 1.5 * obliquity)
+                assert isclose(ob_results_by_lm[(2, 1)][(1,)], -1.5 * obliquity)
                 assert len(ob_results_by_lm[(2, 2)]) == 2
+                assert isclose(ob_results_by_lm[(2, 2)][(0,)], 3.0 - 1.5*obliquity**2)
             elif truncation == 'gen':
                 assert len(ob_results_by_lmp) == 9
                 assert isclose(ob_results_by_lmp[(2, 0, 1)], -np.sin(obliquity/2)**4 + np.sin(obliquity/2)**2 + 0.5*np.sin(obliquity)**2 - 0.5)
@@ -88,3 +89,30 @@ def test_obliquity_funcs(degree_l, truncation):
                 assert len(ob_results_by_lm[(2, 2)]) == 3
                 assert isclose(ob_results_by_lm[(2, 2)][(0,)], 3.0*np.cos(obliquity/2)**4)
                 assert isclose(ob_results_by_lm[(2, 2)][(2,)], 3.0*np.sin(obliquity/2)**4)
+
+
+@pytest.mark.parametrize('degree_l', (2, 3, 4, 5, 6, 7, 8, 9, 10))
+@pytest.mark.parametrize('truncation', (1, 2))
+def test_obliquity_truncation_order(degree_l, truncation):
+    """Truncation N keeps every term through I^N: halving I shrinks the gap to the exact form by at least 2^(N+1).
+
+    Modes the truncation drops count with a value of zero.
+    """
+
+    large_obliquity = 0.02
+    small_obliquity = 0.01
+    gaps = dict()
+    for obliquity in (large_obliquity, small_obliquity):
+        exact = dict(obliquity_func(obliquity, degree_l, 'gen')[0])
+        truncated = dict(obliquity_func(obliquity, degree_l, truncation)[0])
+        assert set(truncated) <= set(exact)
+        gaps[obliquity] = {key: abs(truncated.get(key, 0.0) - value) for key, value in exact.items()}
+
+    num_checked = 0
+    for key, gap_small in gaps[small_obliquity].items():
+        # Skip gaps at round-off, where the ratio carries no information.
+        if gap_small < 1.0e-12:
+            continue
+        num_checked += 1
+        assert gaps[large_obliquity][key] / gap_small > 0.9 * 2**(truncation + 1), key
+    assert num_checked > 0

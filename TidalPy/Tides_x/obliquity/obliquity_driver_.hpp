@@ -12,7 +12,7 @@
 #include "obliquity_func_l10_.hpp"
 
 // Dispatch to the tabulated obliquity function for (degree_l, truncation). Truncation 0 turns obliquity
-// off, 2 and 4 are the truncation order in obliquity, and 10 requests the general form. Sets
+// off, 1 and 2 keep every term through I^1 and I^2, and 10 requests the general form. Sets
 // *error_code_ptr to -1 for an untabulated truncation and -2 for an unsupported degree.
 ObliquityFuncOutput c_obliquity_func(
         int* error_code_ptr,
@@ -29,10 +29,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l2_off(obliquity);
+        case 1:
+            return c_obliquity_function_l2_1(obliquity);
         case 2:
             return c_obliquity_function_l2_2(obliquity);
-        case 4:
-            return c_obliquity_function_l2_4(obliquity);
         case 10:
             return c_obliquity_function_l2_gen(obliquity);
         default:
@@ -44,10 +44,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l3_off(obliquity);
+        case 1:
+            return c_obliquity_function_l3_1(obliquity);
         case 2:
             return c_obliquity_function_l3_2(obliquity);
-        case 4:
-            return c_obliquity_function_l3_4(obliquity);
         case 10:
             return c_obliquity_function_l3_gen(obliquity);
         default:
@@ -59,10 +59,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l4_off(obliquity);
+        case 1:
+            return c_obliquity_function_l4_1(obliquity);
         case 2:
             return c_obliquity_function_l4_2(obliquity);
-        case 4:
-            return c_obliquity_function_l4_4(obliquity);
         case 10:
             return c_obliquity_function_l4_gen(obliquity);
         default:
@@ -74,10 +74,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l5_off(obliquity);
+        case 1:
+            return c_obliquity_function_l5_1(obliquity);
         case 2:
             return c_obliquity_function_l5_2(obliquity);
-        case 4:
-            return c_obliquity_function_l5_4(obliquity);
         case 10:
             return c_obliquity_function_l5_gen(obliquity);
         default:
@@ -89,10 +89,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l6_off(obliquity);
+        case 1:
+            return c_obliquity_function_l6_1(obliquity);
         case 2:
             return c_obliquity_function_l6_2(obliquity);
-        case 4:
-            return c_obliquity_function_l6_4(obliquity);
         case 10:
             return c_obliquity_function_l6_gen(obliquity);
         default:
@@ -104,10 +104,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l7_off(obliquity);
+        case 1:
+            return c_obliquity_function_l7_1(obliquity);
         case 2:
             return c_obliquity_function_l7_2(obliquity);
-        case 4:
-            return c_obliquity_function_l7_4(obliquity);
         case 10:
             return c_obliquity_function_l7_gen(obliquity);
         default:
@@ -119,10 +119,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l8_off(obliquity);
+        case 1:
+            return c_obliquity_function_l8_1(obliquity);
         case 2:
             return c_obliquity_function_l8_2(obliquity);
-        case 4:
-            return c_obliquity_function_l8_4(obliquity);
         case 10:
             return c_obliquity_function_l8_gen(obliquity);
         default:
@@ -134,10 +134,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l9_off(obliquity);
+        case 1:
+            return c_obliquity_function_l9_1(obliquity);
         case 2:
             return c_obliquity_function_l9_2(obliquity);
-        case 4:
-            return c_obliquity_function_l9_4(obliquity);
         case 10:
             return c_obliquity_function_l9_gen(obliquity);
         default:
@@ -149,10 +149,10 @@ ObliquityFuncOutput c_obliquity_func(
         {
         case 0:
             return c_obliquity_function_l10_off(obliquity);
+        case 1:
+            return c_obliquity_function_l10_1(obliquity);
         case 2:
             return c_obliquity_function_l10_2(obliquity);
-        case 4:
-            return c_obliquity_function_l10_4(obliquity);
         case 10:
             return c_obliquity_function_l10_gen(obliquity);
         default:

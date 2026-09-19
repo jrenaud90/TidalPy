@@ -556,11 +556,11 @@ _DEFAULT_TIDE_MODEL_FALLBACK = {
 def _resolve_obliquity_truncation(value) -> int:
     """Resolve an obliquity truncation (string ``'gen'``/``'off'`` or int) to a tabulated level.
 
-    The obliquity functions are tabulated at truncations 0 (off), 2, 4, and 10 (the fully
-    general, untruncated form). A configured integer that is not tabulated is promoted to the
-    next tabulated level with a once-per-session warning (anything above 4 promotes to the
-    exact general form), so stale configuration files keep working while the accuracy never
-    silently decreases.
+    The obliquity functions are tabulated at truncations 0 (off), 1 and 2 (every term through I^1
+    and I^2), and 10 (the fully general, untruncated form). A configured integer that is not
+    tabulated is promoted to the next tabulated level with a once-per-session warning (anything
+    above 2 promotes to the exact general form), so stale configuration files keep working while
+    the accuracy never silently decreases.
     """
     if isinstance(value, str):
         text = value.lower()
@@ -598,7 +598,7 @@ def _tides_config_x() -> dict:
 
 
 SUPPORTED_ECCENTRICITY_TRUNCATIONS = (1, 2, 3, 4, 5, 10, 15, 20)
-SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 2, 4, 10)
+SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 1, 2, 10)
 
 # Untabulated obliquity levels already warned about (same once-per-session rule as the
 # eccentricity promotion below).

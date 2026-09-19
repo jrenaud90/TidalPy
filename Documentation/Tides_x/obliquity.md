@@ -1,6 +1,6 @@
 # Obliquity Functions
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-18_
 
 The obliquity functions $F_{l,m,p}(I)$ are the other forcing component of the tidal potential, alongside the [eccentricity functions](eccentricity.md); see $F_{lmp}(I)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). The potential built from them gives tidal strain, heating, and spin-orbit evolution.
 
@@ -15,14 +15,14 @@ As with the eccentricity functions, TidalPy uses analytically pre-computed terms
 
 ## Choosing a Truncation
 
-The truncation sets how many terms of the Taylor expansion in $I$ are kept. Pick the lowest one that covers your problem; the counts below are the active modes at degree $l = 2$. Unlike the eccentricity functions, these functions do converge and can be written down completely.
+Truncation $n$ keeps every term of the Taylor expansion of $F_{l,m,p}(I)$ through $I^{n}$. Heating goes as the potential squared, so it is an even function of $I$. At synchronous rotation only the $m = 1$ modes dissipate through obliquity, and truncation `1` already gives their full $I^2$ heating, the traditional obliquity-tide term. A non-synchronous body also dissipates through the aligned modes (such as the $(2, 2, 0, 0)$ tide), whose $F$ carry $I^2$ corrections ($F_{2,2,0} = 3 - 3 I^2/2 + \dots$) that only truncation `2` keeps. Pick the lowest truncation that covers your problem; the counts below are the active modes at degree $l = 2$. Unlike the eccentricity functions, these functions do converge and can be written down completely.
 
-| Truncation | Aliases | Modes at $l=2$ | When to use it |
-|---|---|---|---|
-| `0` | `"off"` | 2 | You know $I = 0$. Far cheaper than evaluating the general form at zero, and still returns the non-zero aligned modes. |
-| `2` | `"2"` | 4 | Terms through $I$. Accurate for small obliquity, and the usual choice in the literature when obliquity is included at all. |
-| `4` | `"4"` | 8 | Terms through $I^{3}$. Accurate for moderate to small obliquity. |
-| `10` | `"gen"`, `"general"` | 9 | No truncation: exact, and the slowest. |
+| Truncation | Aliases | Modes at $l=2$ | Heating complete through | When to use it |
+|---|---|---|---|---|
+| `0` | `"off"` | 2 | $I^{0}$ | You know $I = 0$. Far cheaper than evaluating the general form at zero, and still returns the non-zero aligned modes. |
+| `1` | `"1"` | 4 | $I^{2}$ at synchronous rotation; otherwise only the $I^{0}$ terms | Terms through $I$. The traditional obliquity heating of a synchronous body, and the usual choice in the literature when obliquity is included at all. |
+| `2` | `"2"` | 7 | $I^{2}$ | Terms through $I^{2}$. Small to moderate obliquity at any spin rate. |
+| `10` | `"gen"`, `"general"` | 9 | Exact | No truncation: exact, and the slowest. |
 
 At zero obliquity with truncation `0`, the two surviving degree-2 terms are $F_{2,0,1} = -1/2$ and $F_{2,2,0} = 3$.
 

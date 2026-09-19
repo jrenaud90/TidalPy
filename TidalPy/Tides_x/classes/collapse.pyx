@@ -85,10 +85,10 @@ cdef int _resolve_obliquity_truncation(object obliquity_truncation) except? -999
                 raise ValueError("Unexpected obliquity truncation encountered.")
     elif isinstance(obliquity_truncation, int):
         value = obliquity_truncation
-    if value not in (0, 2, 4, 10):
+    if value not in (0, 1, 2, 10):
         raise NotImplementedError(
             f"Obliquity truncation {value} is not tabulated. "
-            "Supported levels: 0 ('off'), 2, 4, 10 ('gen', fully general).")
+            "Supported levels: 0 ('off'), 1, 2, 10 ('gen', fully general).")
     return value
 
 

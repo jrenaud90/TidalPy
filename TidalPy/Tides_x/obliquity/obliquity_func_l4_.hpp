@@ -171,10 +171,10 @@ ObliquityFuncOutput c_obliquity_function_l4_gen(double obliquity)
 }
 
 
-ObliquityFuncOutput c_obliquity_function_l4_2(double obliquity)
+ObliquityFuncOutput c_obliquity_function_l4_1(double obliquity)
 {
     // Inclination Functions Calculated for l = 4.
-    // Functions are taylor expanded and truncated at obliquity^2.
+    // Functions are taylor expanded and truncated at obliquity^1.
 
     //  Functions Calculated for l = 4.
 
@@ -248,18 +248,17 @@ ObliquityFuncOutput c_obliquity_function_l4_2(double obliquity)
 }
 
 
-ObliquityFuncOutput c_obliquity_function_l4_4(double obliquity)
+ObliquityFuncOutput c_obliquity_function_l4_2(double obliquity)
 {
     // Inclination Functions Calculated for l = 4.
-    // Functions are taylor expanded and truncated at obliquity^4.
+    // Functions are taylor expanded and truncated at obliquity^2.
 
     //  Functions Calculated for l = 4.
 
-    c_IntMap<c_Key3, double> result_by_lmp(15);
+    c_IntMap<c_Key3, double> result_by_lmp(12);
     c_IntMap<c_Key2, c_IntMap<c_Key1, double>> result_by_lm(5);
     // Optimizations
     double obliquity_2 = obliquity * obliquity;
-    double obliquity_3 = obliquity_2 * obliquity;
 
     c_IntMap<c_Key1, double> result_by_p(4);  // We don't know what size the inner loop will be but it should not be larger than l_
     double tmp_double;
@@ -284,22 +283,14 @@ ObliquityFuncOutput c_obliquity_function_l4_4(double obliquity)
     result_by_p.clear();
 
     // l , m = (4, 1).
-    // p = 0
-    tmp_double = -2.1875*obliquity_3;
-    result_by_lmp.set(c_Key3(4, 1, 0), tmp_double);
-    result_by_p.set(c_Key1(0), tmp_double);
     // p = 1
-    tmp_double = 8.125*obliquity_3 - 3.75*obliquity;
+    tmp_double = -3.75*obliquity;
     result_by_lmp.set(c_Key3(4, 1, 1), tmp_double);
     result_by_p.set(c_Key1(1), tmp_double);
     // p = 2
-    tmp_double = -9.0625*obliquity_3 + 3.75*obliquity;
+    tmp_double = 3.75*obliquity;
     result_by_lmp.set(c_Key3(4, 1, 2), tmp_double);
     result_by_p.set(c_Key1(2), tmp_double);
-    // p = 3
-    tmp_double = 3.125*obliquity_3;
-    result_by_lmp.set(c_Key3(4, 1, 3), tmp_double);
-    result_by_p.set(c_Key1(3), tmp_double);
     // Store the p table into the results_lm then reset it.
     
     result_by_lm.set(c_Key2(4, 1), result_by_p);
@@ -325,17 +316,13 @@ ObliquityFuncOutput c_obliquity_function_l4_4(double obliquity)
 
     // l , m = (4, 3).
     // p = 0
-    tmp_double = -48.125*obliquity_3 + 52.5*obliquity;
+    tmp_double = 52.5*obliquity;
     result_by_lmp.set(c_Key3(4, 3, 0), tmp_double);
     result_by_p.set(c_Key1(0), tmp_double);
     // p = 1
-    tmp_double = 87.5*obliquity_3 - 52.5*obliquity;
+    tmp_double = -52.5*obliquity;
     result_by_lmp.set(c_Key3(4, 3, 1), tmp_double);
     result_by_p.set(c_Key1(1), tmp_double);
-    // p = 2
-    tmp_double = -39.375*obliquity_3;
-    result_by_lmp.set(c_Key3(4, 3, 2), tmp_double);
-    result_by_p.set(c_Key1(2), tmp_double);
     // Store the p table into the results_lm then reset it.
     
     result_by_lm.set(c_Key2(4, 3), result_by_p);

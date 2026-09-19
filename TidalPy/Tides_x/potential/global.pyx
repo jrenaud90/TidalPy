@@ -44,10 +44,10 @@ def global_potential(
                 raise ValueError("Unexpected obliquity truncation encountered.")
     elif isinstance(obliquity_truncation, int):
         i_obliquity_truncation = obliquity_truncation
-    if i_obliquity_truncation not in (0, 2, 4, 10):
+    if i_obliquity_truncation not in (0, 1, 2, 10):
         raise NotImplementedError(
             f"Obliquity truncation {i_obliquity_truncation} is not tabulated. "
-            "Supported levels: 0 ('off'), 2, 4, 10 ('gen', fully general).")
+            "Supported levels: 0 ('off'), 1, 2, 10 ('gen', fully general).")
     if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
         raise NotImplementedError(
             f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
