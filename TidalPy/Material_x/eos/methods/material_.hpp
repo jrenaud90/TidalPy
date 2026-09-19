@@ -18,7 +18,10 @@
 struct c_MaterialEOSInput
 {
     tidalpy::c_MaterialEOSBase* eos_model_ptr = nullptr;
+    // Temperature [K] handed to the EOS model, or NaN for its athermal density. A thermal solve overrides it
+    // with the local state temperature when the layer asked for a thermal EOS.
     double temperature   = 0.0;
+    bool   use_state_temperature = false;
     double length_scale  = 1.0;
     double pascal_scale  = 1.0;
     double density_scale = 1.0;
@@ -39,11 +42,14 @@ inline void c_preeval_material_eos(
 
     const double radius_si   = radius * eos_data->length_scale;
     const double pressure_si = radial_solutions[1] * eos_data->pascal_scale;
+    // The state temperature sits at index 4 of a thermal solve; the flag is only set for one.
+    const double temperature = eos_data->use_state_temperature
+        ? radial_solutions[4] : eos_data->temperature;
 
     tidalpy::c_MaterialEOSBase* eos_model = eos_data->eos_model_ptr;
 
     output->density = eos_model->calc_density(
-        pressure_si, eos_data->temperature, radius_si) / eos_data->density_scale;
+        pressure_si, temperature, radius_si) / eos_data->density_scale;
 
     if (ode_args->update_shear)
     {

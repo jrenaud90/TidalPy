@@ -47,6 +47,12 @@
 ///     Iteration cap; reported through max_iters_hit and the message, the solution is still returned.
 /// verbose : bool
 ///     Print status messages.
+/// segment_vec_ptr : const vector of c_EOSSegment, optional
+///     The radial segments to integrate, ascending, covering the planet. Null integrates one segment per
+///     layer, which is the layout of a solve that does not carry temperature.
+/// integrate_temperature : bool
+///     Carry temperature and heat flow as two extra state variables, with each segment's gradient form taken
+///     from the layout. Requires a segment layout.
 ///
 /// Assumptions
 /// -----------
@@ -65,7 +71,9 @@ inline void c_solve_eos(
         double atol,
         double pressure_tol,
         size_t max_iters,
-        bool verbose
+        bool verbose,
+        const std::vector<c_EOSSegment>* segment_vec_ptr = nullptr,
+        bool integrate_temperature = false
         ) noexcept
 {
     eos_solution_ptr->message = std::string("Equation of state solver finished without issue.");
@@ -89,10 +97,36 @@ inline void c_solve_eos(
 
     double radius_start   = 0.0;
     double radius_stop    = 0.0;
-    DiffeqFuncType diffeq = c_eos_diffeq;
 
-    // The initial central pressure is that of a uniform sphere at the bulk density.
-    double y0[4] = {r0_gravity, r0_pressure_guess, r0_mass, r0_moi};
+    // One segment per layer unless the caller supplied a layout.
+    std::vector<c_EOSSegment> segment_vec;
+    if (segment_vec_ptr == nullptr)
+    {
+        segment_vec.resize(eos_solution_ptr->num_layers);
+        for (size_t layer_i = 0; layer_i < eos_solution_ptr->num_layers; ++layer_i)
+        {
+            segment_vec[layer_i].upper_radius = eos_solution_ptr->upper_radius_bylayer_vec[layer_i];
+            segment_vec[layer_i].layer_index  = layer_i;
+        }
+        integrate_temperature = false;
+    }
+    else
+    {
+        segment_vec = *segment_vec_ptr;
+    }
+    const size_t num_segments = segment_vec.size();
+    eos_solution_ptr->set_segments(segment_vec);
+
+    DiffeqFuncType diffeq = integrate_temperature ? c_eos_diffeq_thermal : c_eos_diffeq;
+
+    // The initial central pressure is that of a uniform sphere at the bulk density. A thermal solve starts at
+    // the innermost segment's temperature with whatever heat flow it carries (zero at a regular center).
+    double y0[C_EOS_THERMAL_Y_VALUES] = {r0_gravity, r0_pressure_guess, r0_mass, r0_moi, 0.0, 0.0};
+    if (integrate_temperature && (num_segments > 0))
+    {
+        y0[4] = segment_vec[0].start_temperature;
+        y0[5] = segment_vec[0].start_heat_flow;
+    }
 
     // Secant iteration state on f(P_c) = P_surface(P_c) - surface_pressure. The convergence test is relative to
     // the central-pressure scale, which is the size of the integrator's own noise on the surface pressure.
@@ -102,11 +136,13 @@ inline void c_solve_eos(
 
     // Only the four structure variables are integrated; density, moduli, and viscosities are evaluated afterwards
     // from the retained dense output, so the dense interpolant stays a plain polynomial evaluation.
-    const size_t num_y     = C_EOS_Y_VALUES;
+    const size_t num_y     = integrate_temperature ? C_EOS_THERMAL_Y_VALUES : C_EOS_Y_VALUES;
     const size_t num_extra = 0;
+    eos_solution_ptr->num_y_solved = num_y;
 
-    size_t top_of_last_layer_index = 0;
-    std::vector<double> y0_bylayer_vec(4);
+    size_t top_of_last_segment_index = 0;
+    // CyRK takes the number of state variables from this vector, so it must hold exactly num_y of them.
+    std::vector<double> y0_bysegment_vec(num_y);
 
     std::vector<char> args_vec(sizeof(c_EOS_ODEInput));
     c_EOS_ODEInput* args_vec_eos_ptr = reinterpret_cast<c_EOS_ODEInput*>(args_vec.data());
@@ -136,8 +172,6 @@ inline void c_solve_eos(
     std::unique_ptr<CySolverResult> integration_result_uptr = std::make_unique<CySolverResult>(integration_method);
     CySolverResult* integration_result_ptr = nullptr;
 
-    const size_t num_layers = eos_solution_ptr->num_layers;
-
     // Surface-pressure convergence loop.
     while (true)
     {
@@ -148,23 +182,38 @@ inline void c_solve_eos(
             iterations++;
         }
 
-        // Integrate layer by layer from the center outward.
-        for (size_t layer_i = 0; layer_i < num_layers; layer_i++)
+        // Integrate segment by segment from the center outward.
+        for (size_t segment_i = 0; segment_i < num_segments; segment_i++)
         {
-            radius_stop = eos_solution_ptr->upper_radius_bylayer_vec[layer_i];
-            if (layer_i == 0)
+            const c_EOSSegment& segment = segment_vec[segment_i];
+            radius_stop = segment.upper_radius;
+            if (segment_i == 0)
             {
                 radius_start = 0.0;
                 for (size_t y_i = 0; y_i < num_y; y_i++)
                 {
-                    y0_bylayer_vec[y_i] = y0[y_i];
+                    y0_bysegment_vec[y_i] = y0[y_i];
                 }
             }
+            else if (integrate_temperature)
+            {
+                // A segment that sets its own base temperature breaks the profile there (an isothermal layer
+                // against its neighbor); the rest continue from the segment below.
+                if (std::isfinite(segment.start_temperature))
+                {
+                    y0_bysegment_vec[4] = segment.start_temperature;
+                }
+                y0_bysegment_vec[5] = segment.start_heat_flow;
+            }
 
-            // Maximum step of one third of the layer thickness.
+            // Maximum step of one third of the segment thickness.
             max_step = 0.33 * (radius_stop - radius_start);
 
-            eos_input_layer_ptr = &eos_input_bylayer_vec[layer_i];
+            eos_input_layer_ptr = &eos_input_bylayer_vec[segment.layer_index];
+            eos_input_layer_ptr->temperature_kind = segment.temperature_kind;
+            eos_input_layer_ptr->heating_rate     = segment.heating_rate;
+            eos_input_layer_ptr->conduction_coeff = segment.conduction_coeff;
+            eos_input_layer_ptr->adiabat_coeff    = segment.adiabat_coeff;
 
             // The integration needs only the density and captures no extra outputs, so the diffeq must not write
             // past the structure variables. Only the final run keeps its dense output.
@@ -175,7 +224,7 @@ inline void c_solve_eos(
 
             std::memcpy(args_vec_eos_ptr, eos_input_layer_ptr, sizeof(c_EOS_ODEInput));
 
-            layer_eos_func = eos_function_bylayer_ptr_vec[layer_i];
+            layer_eos_func = eos_function_bylayer_ptr_vec[segment.layer_index];
 
             if (!integration_result_uptr)
             {
@@ -186,9 +235,9 @@ inline void c_solve_eos(
             baseline_cysolve_ivp_noreturn(
                 integration_result_ptr,
                 diffeq,            // Differential equation [DiffeqFuncType]
-                radius_start,      // Start radius for this layer
-                radius_stop,       // Stop radius for this layer
-                y0_bylayer_vec,    // y0 array vector<double>
+                radius_start,      // Start radius for this segment
+                radius_stop,       // Stop radius for this segment
+                y0_bysegment_vec,  // y0 array vector<double>
                 expected_size,     // Expected final integration size [size_t]
                 num_extra,         // Number of extra outputs tracked [size_t]
                 args_vec,          // Extra input args to diffeq vector[char]
@@ -219,26 +268,26 @@ inline void c_solve_eos(
             {
                 // The whole result is kept for later dense calls; repoint after the move.
                 eos_solution_ptr->save_cyresult(std::move(integration_result_uptr));
-                integration_result_ptr = eos_solution_ptr->cysolver_results_uptr_bylayer_vec.back().get();
+                integration_result_ptr = eos_solution_ptr->cysolver_results_uptr_vec.back().get();
             }
-            else if ((layer_i == num_layers - 1) && !failed)
+            else if ((segment_i == num_segments - 1) && !failed)
             {
                 // Pressure of the last step: (total slices) - (num_y - pressure index) - 1.
                 size_t surface_pressure_index = (last_solution_size * num_y) - (num_y - 2) - 1;
                 calculated_surf_pressure      = integration_result_ptr->solution[surface_pressure_index];
             }
 
-            if ((num_layers > 1) && !failed)
+            if ((num_segments > 1) && !failed)
             {
-                radius_start = eos_solution_ptr->upper_radius_bylayer_vec[layer_i];
-                top_of_last_layer_index = (num_extra + num_y) * (last_solution_size - 1);
+                radius_start = segment.upper_radius;
+                top_of_last_segment_index = (num_extra + num_y) * (last_solution_size - 1);
 
-                // The next layer starts from the top of this one.
+                // The next segment starts from the top of this one.
                 if (integration_result_ptr)
                 {
                     std::memcpy(
-                        y0_bylayer_vec.data(),
-                        &integration_result_ptr->solution[top_of_last_layer_index],
+                        y0_bysegment_vec.data(),
+                        &integration_result_ptr->solution[top_of_last_segment_index],
                         sizeof(double) * num_y);
                 }
                 else

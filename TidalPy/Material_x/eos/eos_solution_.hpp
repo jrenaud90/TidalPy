@@ -73,7 +73,18 @@ public:
     // Store results from CyRK's cysolve_ivp.
     std::vector<double> upper_radius_bylayer_vec  = std::vector<double>();
     std::vector<size_t> steps_taken_vec           = std::vector<size_t>();
-    std::vector<std::unique_ptr<CySolverResult>> cysolver_results_uptr_bylayer_vec = std::vector<std::unique_ptr<CySolverResult>>();
+    // One retained integrator per radial segment, in ascending radius. A layer is one segment unless its
+    // temperature profile has a kink (see c_EOSSegment), so the mapping below finds a layer's segments.
+    std::vector<std::unique_ptr<CySolverResult>> cysolver_results_uptr_vec =
+        std::vector<std::unique_ptr<CySolverResult>>();
+    std::vector<double> segment_upper_radius_vec   = std::vector<double>();
+    std::vector<size_t> first_segment_bylayer_vec  = std::vector<size_t>();
+    std::vector<size_t> num_segments_bylayer_vec   = std::vector<size_t>();
+    // Uniform temperature [K] of each segment, used when the solve did not carry temperature.
+    std::vector<double> segment_temperature_vec    = std::vector<double>();
+    // State variables the retained integrators carry: C_EOS_Y_VALUES, or C_EOS_THERMAL_Y_VALUES when the
+    // solve integrated temperature and heat flow.
+    size_t num_y_solved = C_EOS_Y_VALUES;
 
     // Copy of user-provided radius array
     std::vector<double> radius_array_vec = std::vector<double>();
@@ -89,6 +100,9 @@ public:
     // Static (real) shear/bulk viscosity [Pa s] vs radius (EOS-model extra outputs).
     std::vector<double> shear_viscosity_array_vec = std::vector<double>();
     std::vector<double> bulk_viscosity_array_vec  = std::vector<double>();
+    // Temperature [K] and heat flow [W] vs radius.
+    std::vector<double> temperature_array_vec     = std::vector<double>();
+    std::vector<double> heat_flow_array_vec       = std::vector<double>();
 
     // Radial density derivative per slice (array units per unit radius). When present the density lookup is cubic
     // Hermite (slope continuous across slices, so the radial integrator sees no kinks). Filled by
@@ -112,12 +126,7 @@ public:
 
     virtual ~c_EOSSolution()
     {
-        for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
-        {
-            this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
-            this->cysolver_results_uptr_bylayer_vec[i].reset();
-        }
-        this->cysolver_results_uptr_bylayer_vec.clear();
+        this->clear_segments();
         this->upper_radius_bylayer_vec.clear();
         this->radius_array_vec.clear();
         this->gravity_array_vec.clear();
@@ -145,18 +154,83 @@ public:
             current_layers_saved(0),
             num_layers(num_layers_)
     {
-        this->cysolver_results_uptr_bylayer_vec.reserve(num_layers_);
+        this->cysolver_results_uptr_vec.reserve(num_layers_);
         this->upper_radius_bylayer_vec.resize(num_layers_);
         std::memcpy(this->upper_radius_bylayer_vec.data(), upper_radius_bylayer_ptr, this->num_layers * sizeof(double));
+        this->set_segments_from_layers();
         this->change_radius_array(radius_array_ptr, radius_array_size_);
     }
 
 
-    /// Save a CyRK solver result for one layer.
+    /// Save a CyRK solver result for one segment, in ascending radius.
     void save_cyresult(std::unique_ptr<CySolverResult> new_cysolver_result_uptr)
     {
-        this->cysolver_results_uptr_bylayer_vec.push_back(std::move(new_cysolver_result_uptr));
+        this->cysolver_results_uptr_vec.push_back(std::move(new_cysolver_result_uptr));
         this->current_layers_saved++;
+    }
+
+    /// Release the retained integrators and their dense output.
+    void clear_segments() noexcept
+    {
+        for (size_t i = 0; i < this->cysolver_results_uptr_vec.size(); i++)
+        {
+            if (this->cysolver_results_uptr_vec[i])
+            {
+                this->cysolver_results_uptr_vec[i]->dense_vec.clear();
+                this->cysolver_results_uptr_vec[i].reset();
+            }
+        }
+        this->cysolver_results_uptr_vec.clear();
+    }
+
+    /// One segment per layer: the layout of a solve that does not carry temperature.
+    void set_segments_from_layers()
+    {
+        this->segment_upper_radius_vec  = this->upper_radius_bylayer_vec;
+        this->first_segment_bylayer_vec.resize(this->num_layers);
+        this->num_segments_bylayer_vec.assign(this->num_layers, 1);
+        this->segment_temperature_vec.assign(this->num_layers, TidalPyConstants::d_NAN);
+        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
+        {
+            this->first_segment_bylayer_vec[layer_i] = layer_i;
+        }
+    }
+
+    /// Record a segment layout (ascending radius) before a solve.
+    void set_segments(const std::vector<c_EOSSegment>& segment_vec)
+    {
+        const size_t num_segments = segment_vec.size();
+        this->segment_upper_radius_vec.resize(num_segments);
+        this->segment_temperature_vec.resize(num_segments);
+        this->first_segment_bylayer_vec.assign(this->num_layers, 0);
+        this->num_segments_bylayer_vec.assign(this->num_layers, 0);
+        for (size_t segment_i = 0; segment_i < num_segments; ++segment_i)
+        {
+            const c_EOSSegment& segment = segment_vec[segment_i];
+            this->segment_upper_radius_vec[segment_i] = segment.upper_radius;
+            this->segment_temperature_vec[segment_i]  = segment.start_temperature;
+            const size_t layer_i = segment.layer_index;
+            if (layer_i >= this->num_layers) { continue; }
+            if (this->num_segments_bylayer_vec[layer_i] == 0)
+            {
+                this->first_segment_bylayer_vec[layer_i] = segment_i;
+            }
+            this->num_segments_bylayer_vec[layer_i]++;
+        }
+    }
+
+    /// The segment of a layer that holds a radius (the last one at or above it; its first as a fallback).
+    size_t segment_index(const size_t layer_index, const double radius_val) const noexcept
+    {
+        if (layer_index >= this->num_segments_bylayer_vec.size()) { return layer_index; }
+        const size_t first = this->first_segment_bylayer_vec[layer_index];
+        const size_t count = this->num_segments_bylayer_vec[layer_index];
+        if (count == 0) { return first; }
+        for (size_t offset = 0; offset < count - 1; ++offset)
+        {
+            if (radius_val <= this->segment_upper_radius_vec[first + offset]) { return first + offset; }
+        }
+        return first + count - 1;
     }
 
 
@@ -293,7 +367,28 @@ protected:
     /// that state. Writes C_EOS_DY_VALUES doubles; the extra outputs are NaN when no EOS function was saved.
     void p_evaluate_solver(const size_t layer_index, const double radius_val, double* y_interp_ptr) const
     {
-        this->cysolver_results_uptr_bylayer_vec[layer_index]->call(radius_val, y_interp_ptr);
+        // The retained integrator writes num_y_solved values, so it fills a buffer of its own and the
+        // structure variables are copied out; the evaluation layout uses slots 4 and 5 for the density and
+        // the shear modulus.
+        const size_t segment_i = this->segment_index(layer_index, radius_val);
+        double state_arr[C_EOS_THERMAL_Y_VALUES];
+        this->cysolver_results_uptr_vec[segment_i]->call(radius_val, &state_arr[0]);
+        for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
+        {
+            y_interp_ptr[value_i] = state_arr[value_i];
+        }
+        if (this->num_y_solved >= C_EOS_THERMAL_Y_VALUES)
+        {
+            y_interp_ptr[C_EOS_TEMPERATURE_INDEX] = state_arr[4];
+            y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]   = state_arr[5];
+        }
+        else
+        {
+            // A solve without temperature reports each segment's uniform value and no heat flow.
+            y_interp_ptr[C_EOS_TEMPERATURE_INDEX] = (segment_i < this->segment_temperature_vec.size())
+                ? this->segment_temperature_vec[segment_i] : TidalPyConstants::d_NAN;
+            y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]   = 0.0;
+        }
         if (layer_index < this->eos_function_bylayer_vec.size()
             && this->eos_function_bylayer_vec[layer_index] != nullptr)
         {
@@ -554,7 +649,13 @@ public:
         {
             throw std::out_of_range("Layer index out of range.");
         }
-        this->cysolver_results_uptr_bylayer_vec[layer_index]->call(radius_val, y_interp_ptr);
+        double state_arr[C_EOS_THERMAL_Y_VALUES];
+        this->cysolver_results_uptr_vec[this->segment_index(layer_index, radius_val)]->call(
+            radius_val, &state_arr[0]);
+        for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
+        {
+            y_interp_ptr[value_i] = state_arr[value_i];
+        }
         this->p_rescale_outputs(y_interp_ptr, C_EOS_Y_VALUES);
     }
 
@@ -591,12 +692,9 @@ public:
             this->complex_bulk_array_vec.clear();
             this->shear_viscosity_array_vec.clear();
             this->bulk_viscosity_array_vec.clear();
-            for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
-            {
-                this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
-                this->cysolver_results_uptr_bylayer_vec[i].reset();
-            }
-            this->cysolver_results_uptr_bylayer_vec.clear();
+            this->temperature_array_vec.clear();
+            this->heat_flow_array_vec.clear();
+            this->clear_segments();
             this->current_layers_saved = 0;
             this->other_vecs_set = false;
         }
@@ -686,6 +784,8 @@ public:
 
             this->shear_viscosity_array_vec.push_back(y_interp_ptr[9]);
             this->bulk_viscosity_array_vec.push_back(y_interp_ptr[10]);
+            this->temperature_array_vec.push_back(y_interp_ptr[C_EOS_TEMPERATURE_INDEX]);
+            this->heat_flow_array_vec.push_back(y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]);
 
             if (current_layer_index == 0 && radius_i == 0)
             {

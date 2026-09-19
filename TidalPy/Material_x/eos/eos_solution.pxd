@@ -49,7 +49,7 @@ cdef extern from "eos_solution_.hpp" nogil:
         double redim_pascal_scale
 
         vector[double] upper_radius_bylayer_vec
-        vector[unique_ptr[CySolverResult]] cysolver_results_uptr_bylayer_vec
+        vector[unique_ptr[CySolverResult]] cysolver_results_uptr_vec
         vector[size_t] steps_taken_vec
 
         vector[double] radius_array_vec
@@ -58,6 +58,8 @@ cdef extern from "eos_solution_.hpp" nogil:
         vector[double] mass_array_vec
         vector[double] moi_array_vec
         vector[double] density_array_vec
+        vector[double] temperature_array_vec
+        vector[double] heat_flow_array_vec
         vector[cpp_complex[double]] complex_shear_array_vec
         vector[cpp_complex[double]] complex_bulk_array_vec
 

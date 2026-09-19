@@ -133,6 +133,10 @@ schema_version = "{SCHEMA_VERSION_X}"
     pressure_tol = 1.0e-8
     # Cap on the central-pressure iterations (a secant iteration normally converges in under ten).
     max_iters = 100
+    # Carry temperature and heat flow through the structure solve, so each layer's profile follows its cooling
+    # model and its viscosity and melt models see the local temperature. A world whose layers are all at one
+    # temperature has no profile to integrate and keeps the four structure variables whatever this says.
+    solve_temperature = true
     # Integrate in non-dimensional units (the planet radius, its bulk density, and 1/sqrt(pi G rho) as the length,
     # density, and time units) so the tolerances above mean the same thing for every planet.
     nondimensionalize = true

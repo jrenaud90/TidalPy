@@ -1,6 +1,6 @@
 # Worlds (`structures_x.worlds`)
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-20_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry; a layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
 
@@ -117,11 +117,46 @@ p0     = world.get_pressure(0.0)                # central pressure [Pa]
 
 The solver carries pressure as a radial state variable, so analytic density-from-pressure models (Birch-Murnaghan, Vinet) are evaluated inline; the constant and interpolated models ignore pressure. The central pressure is found by a secant iteration on the surface-pressure mismatch: the first step assumes a unit slope (exact for an incompressible planet) and later steps use the slope measured between iterations, so a compressible planet converges in a few steps. The integration runs in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units) so the tolerances mean the same thing for every planet; every result is returned in SI.
 
-**`solve_eos(surface_pressure=0.0, slices_per_layer=None, G_to_use=-1.0, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=0.0, verbose=False) -> dict`**
+**`solve_eos(surface_pressure=0.0, slices_per_layer=None, G_to_use=-1.0, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=None, solve_temperature=None, surface_temperature=None, verbose=False) -> dict`**
 
 Every solver setting left as `None` takes the `[eos_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` uses. `pressure_tol` is relative to the central-pressure scale $(2/3) \pi G \rho^2 R^2$ and must stay above `rtol`, the integrator's own noise on the surface pressure. Hitting `max_iters` logs a warning, sets `max_iters_hit` in the result, and keeps the last iteration's profile.
 
-Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `max_iters_hit`, `pressure_error` \[Pa\], the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
+Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `max_iters_hit`, `pressure_error` \[Pa\], the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`, `temperature`, `heat_flow`), the per-layer lists (`layer_temperature`, `layer_heat_flow_in`, `layer_heat_flow_out`, `layer_temperature_rate`), the thermal-iteration report (`thermal_passes`, `thermal_converged`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
+
+#### Temperature and Heat Flow
+
+Each layer carries its own temperature (`temperature_k`, see [PhysicsLayer](../layers/physics_layer.md)) and its [cooling model](../../cooling_x/cooling_models.md) says how heat moves inside it. The solve turns those into a temperature profile, the heat flowing through every radius, and the rate each layer's temperature changes at. `temperature` overrides every layer's value with one number, and `surface_temperature` \[K\] is what the outermost layer radiates to; left out, no heat leaves the world.
+
+What each cooling model makes of its layer:
+
+| Model | Profile inside the layer | Where its temperature applies |
+|---|---|---|
+| `off` | Isothermal: one temperature throughout, and no modeled gradient, so the layer conducts perfectly. | Everywhere |
+| `conduction` | Two conducting halves, $T = T_0 - (L / 4 \pi k)(1/r_0 - 1/r)$. | The mid-radius |
+| `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. | The base of the interior |
+
+The layers form a chain of thermal resistances. A conducting spherical shell between $r_a$ and $r_b$ has
+
+$$R = \frac{1}{4 \pi k} \left( \frac{1}{r_a} - \frac{1}{r_b} \right)$$
+
+and the heat flow through an interface is $L = \Delta T / R$ across the two resistances facing it. Both layer temperatures are inputs, so that flow is generally not the same entering a layer as leaving it. The difference is the heat the layer stores or releases, which is what `layer_temperature_rate` reports:
+
+$$M c_p \frac{dT}{dt} = L_\mathrm{in} - L_\mathrm{out}$$
+
+A world whose layers are all at one temperature has no profile to integrate. The solve then keeps its four structure variables and returns exactly what it returns with `solve_temperature=False`, at the same cost; the profile queries still report each layer's own temperature. Otherwise the solve adds temperature and heat flow as two more state variables and repeats: the first pass is isothermal, and each later pass integrates the profile and then relaxes the boundary layers, interface temperatures, and heat flows against the structure it produced. `thermal_passes` counts them and `thermal_converged` says whether they settled.
+
+The viscosity and partial-melt models of every layer are evaluated at the solved temperature of each slice, so an Arrhenius layer is stiff where the profile is cold. A layer whose `use_thermal_eos` is set also passes that temperature to its EOS model, so its density follows the profile.
+
+```python
+world.mantle.temperature = 1600.0            # [K] the layer's own temperature
+world.mantle.set_cooling(make_cooling("convection"))
+result = world.solve_eos(
+    surface_temperature=250.0)               # [K] what the outermost layer radiates to
+
+world.get_temperature(0.9 * world.radius)    # [K] on the solved profile
+world.get_heat_flow(world.radius)            # [W] leaving the world
+result["layer_temperature_rate"]             # [K/s] per layer, from its heat imbalance
+```
 
 **Profile queries (after a successful solve)**
 
@@ -130,6 +165,8 @@ Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `s
 | `get_density(r)` | float [kg/m³] | Density at radius `r` [m] (NaN if unsolved). |
 | `get_gravity(r)` | float [m/s²] | Gravitational acceleration at `r`. |
 | `get_pressure(r)` | float [Pa] | Pressure at `r`. |
+| `get_temperature(r)` | float [K] | Temperature at `r` on the solved profile. |
+| `get_heat_flow(r)` | float [W] | Heat flowing outward through the sphere of radius `r`. |
 | `eos_solved` | bool | `True` once profiles are populated. |
 | `all_eos_set` | bool | `True` once every layer has an EOS model. |
 | `surface_gravity_eos`, `central_pressure`, `planet_mass_eos`, `planet_moi_eos` | float | Scalar results of the last solve (NaN if unsolved). |

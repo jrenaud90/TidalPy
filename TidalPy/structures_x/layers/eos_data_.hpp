@@ -17,20 +17,19 @@
 
 #include "constants_.hpp"   // TidalPyConstants::d_NAN
 #include "interp_.hpp"      // Utilities_x c_interp (numpy.interp-style linear interp)
+#include "eos_layout_.hpp"  // C_EOS_DY_VALUES and the evaluation-layout indices
 
 namespace tidalpy {
 
 class c_LayerEOSData {
 public:
-    // Dense EOS evaluator: fills a buffer of EOS_DENSE_SIZE doubles at a radius [m] from the CyRK dense output.
+    // Dense EOS evaluator: fills a buffer of C_EOS_DY_VALUES doubles at a radius [m] from the CyRK dense output.
     // Type-erased so the layer stays CyRK-free.
     using DenseEval = std::function<void(double radius, double* y_out)>;
 
     // CyRK EOS-ODE y-layout (see Material_x/eos/ode_.hpp):
     //   0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia, 4 density,
     //   5/6 shear modulus re/im, 7/8 bulk modulus re/im, 9 shear visc, 10 bulk visc.
-    // EOS_DENSE_SIZE must equal C_EOS_DY_VALUES in ode_.hpp (repeated as a literal to keep this header CyRK-free).
-    static constexpr std::size_t EOS_DENSE_SIZE     = 11;
     static constexpr std::size_t EOS_INDEX_GRAVITY  = 0;
     static constexpr std::size_t EOS_INDEX_PRESSURE = 1;
     static constexpr std::size_t EOS_INDEX_DENSITY  = 4;
@@ -148,7 +147,7 @@ private:
             double radius, std::size_t dense_index,
             const std::vector<double>& fallback_values) const noexcept {
         if (this->p_dense_eval) {
-            double dense_output[EOS_DENSE_SIZE] = {0.0};
+            double dense_output[C_EOS_DY_VALUES] = {0.0};
             this->p_dense_eval(radius, dense_output);
             return dense_output[dense_index];
         }

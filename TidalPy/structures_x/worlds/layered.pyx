@@ -170,6 +170,8 @@ cdef enum:
     _KIND_PRE_BULK_MOD   = 8
     _KIND_PRE_SHEAR_VISC = 9
     _KIND_PRE_BULK_VISC  = 10
+    _KIND_TEMPERATURE    = 11
+    _KIND_HEAT_FLOW      = 12
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -394,7 +396,9 @@ cdef class LayeredWorld(BaseWorld):
             pressure_tol            = None,
             max_iters               = None,
             nondimensionalize       = None,
-            double temperature      = 0.0,
+            temperature             = None,
+            solve_temperature       = None,
+            surface_temperature     = None,
             cpp_bool verbose        = False) -> dict:
         """Solve the whole-planet equation of state.
 
@@ -463,8 +467,13 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_WorldEOSSolveConfig cfg
         cfg.surface_pressure = surface_pressure
         cfg.G_to_use         = G_to_use
-        cfg.temperature      = temperature
         cfg.verbose          = <cpp_bool>verbose
+        if temperature is not None:
+            cfg.temperature = <double>temperature
+        if solve_temperature is not None:
+            cfg.solve_temperature = <cpp_bool>bool(solve_temperature)
+        if surface_temperature is not None:
+            cfg.surface_temperature = <double>surface_temperature
         if slices_per_layer is not None:
             cfg.slices_per_layer = <size_t>int(slices_per_layer)
         if integration_method is not None:
@@ -503,9 +512,23 @@ cdef class LayeredWorld(BaseWorld):
         cdef cnp.ndarray mass_out     = np.empty(n, dtype=np.float64)
         cdef cnp.ndarray moi_out      = np.empty(n, dtype=np.float64)
         cdef cnp.ndarray density_out  = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray temperature_out = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray heat_flow_out   = np.empty(n, dtype=np.float64)
         cdef size_t j
+        cdef size_t num_layers = self._layered_ptr.get_num_layers()
+        cdef list layer_temperature      = []
+        cdef list layer_heat_flow_in     = []
+        cdef list layer_heat_flow_out    = []
+        cdef list layer_temperature_rate = []
         if sol != NULL and self._layered_ptr.get_eos_solved():
+            for j in range(num_layers):
+                layer_temperature.append(self._layered_ptr.get_layer_thermal()[j].temperature)
+                layer_heat_flow_in.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_in)
+                layer_heat_flow_out.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_out)
+                layer_temperature_rate.append(self._layered_ptr.calc_layer_temperature_rate(j))
             for j in range(n):
+                temperature_out[j] = sol.temperature_array_vec[j]
+                heat_flow_out[j]   = sol.heat_flow_array_vec[j]
                 radius_out[j]   = sol.radius_array_vec[j]
                 gravity_out[j]  = sol.gravity_array_vec[j]
                 pressure_out[j] = sol.pressure_array_vec[j]
@@ -530,6 +553,14 @@ cdef class LayeredWorld(BaseWorld):
             'central_pressure': self._layered_ptr.get_central_pressure(),
             'planet_mass':      self._layered_ptr.get_planet_mass_eos(),
             'planet_moi':       self._layered_ptr.get_planet_moi_eos(),
+            'temperature':      temperature_out,
+            'heat_flow':        heat_flow_out,
+            'thermal_passes':   self._layered_ptr.get_thermal_passes(),
+            'thermal_converged': bool(self._layered_ptr.get_thermal_converged()),
+            'layer_temperature': layer_temperature,
+            'layer_heat_flow_in':  layer_heat_flow_in,
+            'layer_heat_flow_out': layer_heat_flow_out,
+            'layer_temperature_rate': layer_temperature_rate,
         }
 
     @property
@@ -561,6 +592,8 @@ cdef class LayeredWorld(BaseWorld):
         elif kind == _KIND_PRE_BULK_MOD:   return self._layered_ptr.get_premelt_bulk_modulus(radius)
         elif kind == _KIND_PRE_SHEAR_VISC: return self._layered_ptr.get_premelt_shear_viscosity(radius)
         elif kind == _KIND_PRE_BULK_VISC:  return self._layered_ptr.get_premelt_bulk_viscosity(radius)
+        elif kind == _KIND_TEMPERATURE:    return self._layered_ptr.get_temperature(radius)
+        elif kind == _KIND_HEAT_FLOW:      return self._layered_ptr.get_heat_flow(radius)
         return 0.0
 
     def _apply_real(self, radius, int kind):
@@ -620,6 +653,21 @@ cdef class LayeredWorld(BaseWorld):
     def get_pressure(self, radius):
         """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if unsolved."""
         return self._apply_real(radius, _KIND_PRESSURE)
+
+    def get_temperature(self, radius):
+        """Temperature [K] at radius [m] (float or np.ndarray) from the solved profile.
+
+        A solve with no temperature contrast reports each layer's own temperature. NaN if unsolved.
+        """
+        return self._apply_real(radius, _KIND_TEMPERATURE)
+
+    def get_heat_flow(self, radius):
+        """Heat flowing outward through the sphere of radius [m] (float or np.ndarray) \[W\].
+
+        Zero everywhere when the solve carried no temperature. The flow steps across the interior of a
+        convecting layer: that difference is the heat the layer stores or releases.
+        """
+        return self._apply_real(radius, _KIND_HEAT_FLOW)
 
     def get_shear_modulus(self, radius):
         """Post-melt static shear modulus [Pa] at radius [m] (float or np.ndarray)."""
