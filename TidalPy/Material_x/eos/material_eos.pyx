@@ -5,6 +5,10 @@
 A model returns a material's density [kg/m^3] from the local pressure [Pa] (analytic models) or radius [m]
 (interpolated model) and supplies a layer's density source for the whole-planet EOS solve. Models:
 ConstantDensityEOS ("constant"), BirchMurnaghanEOS ("bm"), VinetEOS ("vinet"), InterpolatedEOS ("interp").
+
+Every model takes a thermal expansivity and a reference temperature. Birch-Murnaghan and Vinet add the thermal
+pressure alpha0 K0 (T - T_ref) to their pressure law; the constant and interpolated models scale their density by
+exp(-alpha0 (T - T_ref)). A zero expansivity (the default) or no temperature gives the athermal EOS.
 """
 
 from libcpp.string cimport string
@@ -16,7 +20,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
 from TidalPy.Utilities_x.classes_x.classes import check_config_keys
 
@@ -58,13 +62,32 @@ cdef class MaterialEOSBase(PhysicsBase):
         self._eos_ptr.reset()
         self._ptr = NULL
 
-    def calc_density(self, double pressure, double temperature=0.0,
-                     double radius=0.0) -> float:
+    def calc_density(self, double pressure, temperature=None, double radius=0.0) -> float:
         """Density [kg/m^3] at pressure [Pa] (analytic models) or radius [m] (interpolated model).
 
-        Temperature [K] is accepted but unused (isothermal models).
+        ``temperature`` [K] enters through the model's thermal expansivity; ``None`` gives the athermal density.
         """
-        return self._eos_ptr.get().calc_density(pressure, temperature, radius)
+        cdef double temperature_value = d_NAN if temperature is None else <double>temperature
+        return self._eos_ptr.get().calc_density(pressure, temperature_value, radius)
+
+    def calc_bulk_modulus(self, double pressure, temperature=None, double radius=0.0) -> float:
+        """Isothermal bulk modulus K = rho dP/drho [Pa] at pressure [Pa] and temperature [K].
+
+        Birch-Murnaghan and Vinet return the modulus of their pressure law at the solved compression. The other
+        models return their bulk table at ``radius`` [m], or NaN when they have none.
+        """
+        cdef double temperature_value = d_NAN if temperature is None else <double>temperature
+        return self._eos_ptr.get().calc_bulk_modulus(pressure, temperature_value, radius)
+
+    @property
+    def thermal_expansion(self) -> float:
+        """Thermal expansivity alpha0 [1/K]; zero is the athermal EOS."""
+        return self._eos_ptr.get().get_thermal_expansion()
+
+    @property
+    def reference_temperature(self) -> float:
+        """Temperature [K] at which the reference density (and bulk modulus) apply."""
+        return self._eos_ptr.get().get_reference_temperature()
 
     def calc_static_shear_modulus(self, double radius) -> float:
         """Static shear modulus [Pa] at radius [m]; NaN unless the model carries a shear table."""
@@ -92,9 +115,13 @@ cdef class ConstantDensityEOS(MaterialEOSBase):
     def __cinit__(self, *args, **kwargs):
         self._constant_ptr = NULL
 
-    def __init__(self, double reference_density=3500.0):
+    def __init__(self, double reference_density=3500.0, double thermal_expansion=0.0, reference_temperature=None):
+        # None keeps the C++ default reference temperature.
         cdef c_MaterialEOSConfig config
         config.reference_density = reference_density
+        config.thermal_expansion = thermal_expansion
+        if reference_temperature is not None:
+            config.reference_temperature = <double>reference_temperature
         cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(
             c_MaterialEOSModel.Constant, config)
         self._constant_ptr = <c_ConstantDensityEOS*>ptr.get()
@@ -122,12 +149,17 @@ cdef class BirchMurnaghanEOS(MaterialEOSBase):
             double reference_bulk_modulus=1.0e11,
             double bulk_modulus_derivative=4.0,
             invert_rtol=None,
-            invert_max_iters=None):
-        # None keeps the C++ default inversion settings.
+            invert_max_iters=None,
+            double thermal_expansion=0.0,
+            reference_temperature=None):
+        # None keeps the C++ default inversion settings and reference temperature.
         cdef c_MaterialEOSConfig config
         config.reference_density   = reference_density
         config.reference_bulk_modulus = reference_bulk_modulus
         config.bulk_modulus_derivative   = bulk_modulus_derivative
+        config.thermal_expansion = thermal_expansion
+        if reference_temperature is not None:
+            config.reference_temperature = <double>reference_temperature
         if invert_rtol is not None:
             config.invert_rtol = <double>invert_rtol
         if invert_max_iters is not None:
@@ -179,12 +211,17 @@ cdef class VinetEOS(MaterialEOSBase):
             double reference_bulk_modulus=1.0e11,
             double bulk_modulus_derivative=4.0,
             invert_rtol=None,
-            invert_max_iters=None):
-        # None keeps the C++ default inversion settings.
+            invert_max_iters=None,
+            double thermal_expansion=0.0,
+            reference_temperature=None):
+        # None keeps the C++ default inversion settings and reference temperature.
         cdef c_MaterialEOSConfig config
         config.reference_density   = reference_density
         config.reference_bulk_modulus = reference_bulk_modulus
         config.bulk_modulus_derivative   = bulk_modulus_derivative
+        config.thermal_expansion = thermal_expansion
+        if reference_temperature is not None:
+            config.reference_temperature = <double>reference_temperature
         if invert_rtol is not None:
             config.invert_rtol = <double>invert_rtol
         if invert_max_iters is not None:
@@ -237,8 +274,13 @@ cdef class InterpolatedEOS(MaterialEOSBase):
             shear_modulus=None,
             bulk_modulus=None,
             shear_viscosity=None,
-            bulk_viscosity=None):
+            bulk_viscosity=None,
+            double thermal_expansion=0.0,
+            reference_temperature=None):
         cdef c_MaterialEOSConfig config
+        config.thermal_expansion = thermal_expansion
+        if reference_temperature is not None:
+            config.reference_temperature = <double>reference_temperature
         config.radius      = <vector[double]>radius
         config.density = <vector[double]>density
         if config.radius.size() != config.density.size():
@@ -281,7 +323,7 @@ cdef class InterpolatedEOS(MaterialEOSBase):
 MATERIAL_EOS_CONFIG_KEYS = frozenset({
     "reference_density_kg_m3", "reference_bulk_modulus_pa", "bulk_modulus_derivative", "invert_rtol",
     "invert_max_iters", "radius_m", "density_kg_m3", "shear_modulus_pa", "bulk_modulus_pa",
-    "shear_viscosity_pas", "bulk_viscosity_pas"})
+    "shear_viscosity_pas", "bulk_viscosity_pas", "thermal_expansion_1_k", "reference_temperature_k"})
 
 
 def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
@@ -295,7 +337,7 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
         ``reference_density_kg_m3``, ``reference_bulk_modulus_pa``, ``bulk_modulus_derivative``, ``invert_rtol``,
         ``invert_max_iters`` (analytic models); ``radius_m`` and ``density_kg_m3`` sequences plus the optional
         ``shear_modulus_pa``, ``bulk_modulus_pa``, ``shear_viscosity_pas``, ``bulk_viscosity_pas`` tables
-        (interpolated model).
+        (interpolated model); ``thermal_expansion_1_k`` and ``reference_temperature_k`` (every model).
 
     Returns
     -------
@@ -322,6 +364,10 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
         cfg.invert_rtol = config["invert_rtol"]
     if "invert_max_iters" in config:
         cfg.invert_max_iters = config["invert_max_iters"]
+    if "thermal_expansion_1_k" in config:
+        cfg.thermal_expansion = config["thermal_expansion_1_k"]
+    if "reference_temperature_k" in config:
+        cfg.reference_temperature = config["reference_temperature_k"]
     if "radius_m" in config:
         cfg.radius = <vector[double]>config["radius_m"]
     if "density_kg_m3" in config:

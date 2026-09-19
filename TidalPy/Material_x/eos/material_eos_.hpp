@@ -4,14 +4,20 @@
  *
  * A model returns a layer material's density [kg/m^3] from the local pressure [Pa] (analytic models) or
  * radius [m] (interpolated model); the whole-planet EOS solve evaluates it inline while integrating the
- * structure ODE. The analytic models are isothermal: temperature is accepted but unused. MKS throughout.
+ * structure ODE.
+ *
+ * Every model carries a thermal expansivity alpha0 [1/K] and a reference temperature T_ref [K]. Birch-Murnaghan
+ * and Vinet add the thermal pressure alpha0 K0 (T - T_ref) to their cold pressure law (alpha K_T taken constant,
+ * its high-temperature limit); the constant and interpolated models scale their density by
+ * exp(-alpha0 (T - T_ref)). A zero expansivity (the default) or a non-finite temperature gives the athermal EOS.
  *
  * Models (factory aliases): c_ConstantDensityEOS ("constant", "uniform"), c_BirchMurnaghanEOS ("bm",
  * "birch_murnaghan"), c_VinetEOS ("vinet"), c_InterpolatedEOS ("interpolate", "interp").
  *
  * References
  * ----------
- * Birch (1947), Phys. Rev. 71, 809. Vinet et al. (1987), J. Geophys. Res. 92, 9319.
+ * Birch (1947), Phys. Rev. 71, 809. Vinet et al. (1987), J. Geophys. Res. 92, 9319. Anderson (1995), Equations of
+ * State of Solids for Geophysics and Ceramic Science (thermal pressure).
  */
 
 #include <algorithm>
@@ -38,11 +44,18 @@ namespace tidalpy {
 inline constexpr double d_EOS_INVERT_RTOL      = 1.0e-13;
 inline constexpr int    d_EOS_INVERT_MAX_ITERS = 60;
 
+// Default reference temperature of the thermal terms [K]: ambient, where mineral-physics rho0 and K0 are quoted.
+inline constexpr double d_EOS_REFERENCE_TEMPERATURE = 300.0;
+
 // Combined construction parameters for all EOS models; each model reads only the fields it needs.
 struct c_MaterialEOSConfig {
     double reference_density      = 3500.0;    // rho0 [kg/m^3]
     double reference_bulk_modulus = 1.0e11;    // K0   [Pa]
     double bulk_modulus_derivative = 4.0;       // K0'  [dimensionless]
+
+    // Thermal terms, read by every model. A zero expansivity is the athermal EOS.
+    double thermal_expansion     = 0.0;                          // alpha0 [1/K]
+    double reference_temperature = d_EOS_REFERENCE_TEMPERATURE;  // T_ref [K], where rho0 and K0 apply
 
     double invert_rtol      = d_EOS_INVERT_RTOL;       // relative convergence tol on eta
     int    invert_max_iters = d_EOS_INVERT_MAX_ITERS;  // termination-safeguard cap
@@ -78,6 +91,26 @@ inline double eos_vinet_pressure(double eta, double K0, double K0_prime) noexcep
     const double inv_cbrt_eta = c_safe_pow(eta, -1.0 / 3.0);
     return 3.0 * K0 * (1.0 - inv_cbrt_eta) / (inv_cbrt_eta * inv_cbrt_eta)
         * c_safe_exp(1.5 * (K0_prime - 1.0) * (1.0 - inv_cbrt_eta));
+}
+
+// Isothermal bulk modulus K = eta dP/deta [Pa] of the 3rd-order Birch-Murnaghan law at compression eta.
+inline double eos_bm_bulk_modulus(double eta, double K0, double K0_prime) noexcept {
+    const double eta_23 = c_safe_pow(eta, 2.0 / 3.0);
+    const double eta_53 = c_safe_pow(eta, 5.0 / 3.0);
+    const double eta_73 = c_safe_pow(eta, 7.0 / 3.0);
+    const double strain_coeff = 0.75 * (K0_prime - 4.0);
+    return 1.5 * K0 * (
+        ((7.0 / 3.0) * eta_73 - (5.0 / 3.0) * eta_53) * (1.0 + strain_coeff * (eta_23 - 1.0))
+        + (eta_73 - eta_53) * strain_coeff * (2.0 / 3.0) * eta_23);
+}
+
+// Isothermal bulk modulus K = eta dP/deta [Pa] of the Vinet law at compression eta.
+inline double eos_vinet_bulk_modulus(double eta, double K0, double K0_prime) noexcept {
+    const double inv_cbrt_eta = c_safe_pow(eta, -1.0 / 3.0);
+    const double exponent_coeff = 1.5 * (K0_prime - 1.0);
+    return K0 * c_safe_exp(exponent_coeff * (1.0 - inv_cbrt_eta))
+        * (2.0 - inv_cbrt_eta + exponent_coeff * inv_cbrt_eta * (1.0 - inv_cbrt_eta))
+        / (inv_cbrt_eta * inv_cbrt_eta);
 }
 
 // Invert a pressure law for the compression eta = rho/rho0 at a target pressure by safeguarded Newton iteration
@@ -161,12 +194,45 @@ inline std::string eos_to_lower(std::string text) {
 class c_MaterialEOSBase : public c_PhysicsBase {
 public:
     explicit c_MaterialEOSBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
+    c_MaterialEOSBase(const std::string& model_name, const c_MaterialEOSConfig& cfg)
+        : c_PhysicsBase(model_name),
+          p_thermal_expansion(cfg.thermal_expansion),
+          p_reference_temperature(cfg.reference_temperature) {}
     ~c_MaterialEOSBase() override = default;
 
+    double get_thermal_expansion()     const noexcept { return this->p_thermal_expansion; }
+    double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_PhysicsBase::append_config_entries(out);
+        out.push_back(c_config_double("thermal_expansion_1_k", this->p_thermal_expansion));
+        out.push_back(c_config_double("reference_temperature_k", this->p_reference_temperature));
+    }
+
     // Density [kg/m^3] from pressure [Pa], temperature [K], and radius [m]; analytic models use the pressure, the
-    // interpolated model the radius.
+    // interpolated model the radius. A non-finite temperature gives the athermal density.
     virtual double calc_density(
         double pressure, double temperature, double radius) const = 0;
+
+    // Density and isothermal bulk modulus [Pa] together, so a model that inverts its pressure law does it once.
+    // The bulk modulus is NaN ("not provided": the layer constant applies) unless the model defines one.
+    virtual void calc_density_and_bulk_modulus(
+            double pressure,
+            double temperature,
+            double radius,
+            double& density,
+            double& bulk_modulus) const {
+        density      = this->calc_density(pressure, temperature, radius);
+        bulk_modulus = this->calc_static_bulk_modulus(radius);
+    }
+
+    // Isothermal bulk modulus [Pa] at a pressure, temperature, and radius (see calc_density_and_bulk_modulus).
+    double calc_bulk_modulus(double pressure, double temperature, double radius) const {
+        double density      = TidalPyConstants::d_NAN;
+        double bulk_modulus = TidalPyConstants::d_NAN;
+        this->calc_density_and_bulk_modulus(pressure, temperature, radius, density, bulk_modulus);
+        return bulk_modulus;
+    }
 
     // Optional radius-varying static moduli [Pa] and viscosities [Pa s]. NaN means "not provided", and the world
     // solve then falls back to the layer constant; only c_InterpolatedEOS overrides these.
@@ -182,6 +248,22 @@ public:
     virtual double calc_bulk_viscosity(double /*radius*/) const {
         return std::numeric_limits<double>::quiet_NaN();
     }
+
+protected:
+    // Temperature above the reference state [K]; zero (the athermal EOS) for a zero expansivity or a non-finite
+    // temperature.
+    double p_temperature_offset(double temperature) const noexcept {
+        if (this->p_thermal_expansion == 0.0 || !std::isfinite(temperature)) { return 0.0; }
+        return temperature - this->p_reference_temperature;
+    }
+
+    // Density factor exp(-alpha0 (T - T_ref)) of the models with no pressure law to carry a thermal pressure.
+    double p_thermal_expansion_factor(double temperature) const noexcept {
+        return c_safe_exp(-this->p_thermal_expansion * this->p_temperature_offset(temperature));
+    }
+
+    double p_thermal_expansion     = 0.0;
+    double p_reference_temperature = d_EOS_REFERENCE_TEMPERATURE;
 };
 
 // Incompressible (uniform) density.
@@ -189,7 +271,7 @@ class c_ConstantDensityEOS : public c_MaterialEOSBase {
 public:
     c_ConstantDensityEOS() : c_MaterialEOSBase("constant") {}
     explicit c_ConstantDensityEOS(const c_MaterialEOSConfig& cfg)
-        : c_MaterialEOSBase("constant"),
+        : c_MaterialEOSBase("constant", cfg),
           p_reference_density(cfg.reference_density) {}
     ~c_ConstantDensityEOS() override = default;
 
@@ -202,18 +284,21 @@ public:
 
     double calc_density(
             double /*pressure*/,
-            double /*temperature*/,
+            double temperature,
             double /*radius*/) const override {
-        return this->p_reference_density;
+        return this->p_reference_density * this->p_thermal_expansion_factor(temperature);
     }
 
     void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::ConstantDensityEOS),
-                                   {this->p_reference_density});
+        this->write_physics_binary(
+            out, static_cast<uint32_t>(BinaryClassID::ConstantDensityEOS),
+            {this->p_reference_density, this->p_thermal_expansion, this->p_reference_temperature});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 1);
-        this->p_reference_density = params[0];
+        const std::vector<double> params = this->read_physics_binary(in, force, 3);
+        this->p_reference_density     = params[0];
+        this->p_thermal_expansion     = params[1];
+        this->p_reference_temperature = params[2];
     }
 
 protected:
@@ -225,7 +310,7 @@ class c_BirchMurnaghanEOS : public c_MaterialEOSBase {
 public:
     c_BirchMurnaghanEOS() : c_MaterialEOSBase("birch_murnaghan") {}
     explicit c_BirchMurnaghanEOS(const c_MaterialEOSConfig& cfg)
-        : c_MaterialEOSBase("birch_murnaghan"),
+        : c_MaterialEOSBase("birch_murnaghan", cfg),
           p_reference_density(cfg.reference_density),
           p_reference_bulk_modulus(cfg.reference_bulk_modulus),
           p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
@@ -250,16 +335,21 @@ public:
 
     double calc_density(
             double pressure,
-            double /*temperature*/,
+            double temperature,
             double /*radius*/) const override {
-        const double eta = eos_invert_eta(
-            pressure,
-            this->p_reference_bulk_modulus,
-            this->p_bulk_modulus_derivative,
-            eos_bm_pressure,
-            this->p_invert_rtol,
-            this->p_invert_max_iters);
-        return this->p_reference_density * eta;
+        return this->p_reference_density * this->p_calc_compression(pressure, temperature);
+    }
+
+    void calc_density_and_bulk_modulus(
+            double pressure,
+            double temperature,
+            double /*radius*/,
+            double& density,
+            double& bulk_modulus) const override {
+        const double eta = this->p_calc_compression(pressure, temperature);
+        density      = this->p_reference_density * eta;
+        bulk_modulus = eos_bm_bulk_modulus(
+            eta, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -267,18 +357,35 @@ public:
             out, static_cast<uint32_t>(BinaryClassID::BirchMurnaghanEOS),
             {this->p_reference_density, this->p_reference_bulk_modulus,
              this->p_bulk_modulus_derivative, this->p_invert_rtol,
-             static_cast<double>(this->p_invert_max_iters)});
+             static_cast<double>(this->p_invert_max_iters),
+             this->p_thermal_expansion, this->p_reference_temperature});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 5);
+        const std::vector<double> params = this->read_physics_binary(in, force, 7);
         this->p_reference_density        = params[0];
         this->p_reference_bulk_modulus   = params[1];
         this->p_bulk_modulus_derivative  = params[2];
         this->p_invert_rtol              = params[3];
         this->p_invert_max_iters         = static_cast<int>(params[4]);
+        this->p_thermal_expansion        = params[5];
+        this->p_reference_temperature    = params[6];
     }
 
 protected:
+    // Compression eta = rho/rho0: the cold pressure law inverted at the pressure less the thermal pressure
+    // alpha0 K0 (T - T_ref).
+    double p_calc_compression(double pressure, double temperature) const noexcept {
+        const double thermal_pressure = this->p_thermal_expansion * this->p_reference_bulk_modulus
+            * this->p_temperature_offset(temperature);
+        return eos_invert_eta(
+            pressure - thermal_pressure,
+            this->p_reference_bulk_modulus,
+            this->p_bulk_modulus_derivative,
+            eos_bm_pressure,
+            this->p_invert_rtol,
+            this->p_invert_max_iters);
+    }
+
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;
@@ -291,7 +398,7 @@ class c_VinetEOS : public c_MaterialEOSBase {
 public:
     c_VinetEOS() : c_MaterialEOSBase("vinet") {}
     explicit c_VinetEOS(const c_MaterialEOSConfig& cfg)
-        : c_MaterialEOSBase("vinet"),
+        : c_MaterialEOSBase("vinet", cfg),
           p_reference_density(cfg.reference_density),
           p_reference_bulk_modulus(cfg.reference_bulk_modulus),
           p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
@@ -316,16 +423,21 @@ public:
 
     double calc_density(
             double pressure,
-            double /*temperature*/,
+            double temperature,
             double /*radius*/) const override {
-        const double eta = eos_invert_eta(
-            pressure,
-            this->p_reference_bulk_modulus,
-            this->p_bulk_modulus_derivative,
-            eos_vinet_pressure,
-            this->p_invert_rtol,
-            this->p_invert_max_iters);
-        return this->p_reference_density * eta;
+        return this->p_reference_density * this->p_calc_compression(pressure, temperature);
+    }
+
+    void calc_density_and_bulk_modulus(
+            double pressure,
+            double temperature,
+            double /*radius*/,
+            double& density,
+            double& bulk_modulus) const override {
+        const double eta = this->p_calc_compression(pressure, temperature);
+        density      = this->p_reference_density * eta;
+        bulk_modulus = eos_vinet_bulk_modulus(
+            eta, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -333,18 +445,35 @@ public:
             out, static_cast<uint32_t>(BinaryClassID::VinetEOS),
             {this->p_reference_density, this->p_reference_bulk_modulus,
              this->p_bulk_modulus_derivative, this->p_invert_rtol,
-             static_cast<double>(this->p_invert_max_iters)});
+             static_cast<double>(this->p_invert_max_iters),
+             this->p_thermal_expansion, this->p_reference_temperature});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 5);
+        const std::vector<double> params = this->read_physics_binary(in, force, 7);
         this->p_reference_density        = params[0];
         this->p_reference_bulk_modulus   = params[1];
         this->p_bulk_modulus_derivative  = params[2];
         this->p_invert_rtol              = params[3];
         this->p_invert_max_iters         = static_cast<int>(params[4]);
+        this->p_thermal_expansion        = params[5];
+        this->p_reference_temperature    = params[6];
     }
 
 protected:
+    // Compression eta = rho/rho0: the cold pressure law inverted at the pressure less the thermal pressure
+    // alpha0 K0 (T - T_ref).
+    double p_calc_compression(double pressure, double temperature) const noexcept {
+        const double thermal_pressure = this->p_thermal_expansion * this->p_reference_bulk_modulus
+            * this->p_temperature_offset(temperature);
+        return eos_invert_eta(
+            pressure - thermal_pressure,
+            this->p_reference_bulk_modulus,
+            this->p_bulk_modulus_derivative,
+            eos_vinet_pressure,
+            this->p_invert_rtol,
+            this->p_invert_max_iters);
+    }
+
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;
@@ -357,7 +486,7 @@ class c_InterpolatedEOS : public c_MaterialEOSBase {
 public:
     c_InterpolatedEOS() : c_MaterialEOSBase("interpolate") {}
     explicit c_InterpolatedEOS(const c_MaterialEOSConfig& cfg)
-        : c_MaterialEOSBase("interpolate"),
+        : c_MaterialEOSBase("interpolate", cfg),
           p_radius(cfg.radius),
           p_density(cfg.density),
           p_shear_modulus(cfg.shear_modulus),
@@ -396,10 +525,10 @@ public:
 
     double calc_density(
             double /*pressure*/,
-            double /*temperature*/,
+            double temperature,
             double radius) const override {
         // NaN for an empty table.
-        return c_interp(
+        return this->p_thermal_expansion_factor(temperature) * c_interp(
             radius,
             this->p_radius.data(),
             this->p_density.data(),
@@ -430,7 +559,8 @@ public:
             + sizeof(uint64_t)                       // point count
             + n * 2 * sizeof(double)                 // radius + density
             + 4 * sizeof(uint8_t)                    // 4 optional-array presence flags
-            + optional_count * n * sizeof(double);   // present optional arrays
+            + optional_count * n * sizeof(double)    // present optional arrays
+            + 2 * sizeof(double);                    // thermal expansivity + reference temperature
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::InterpolatedEOS), payload);
         write_binary_string(out, this->p_model_name);
         out.write(reinterpret_cast<const char*>(&n), sizeof(uint64_t));
@@ -442,6 +572,8 @@ public:
         this->p_write_optional_array(out, this->p_bulk_modulus);
         this->p_write_optional_array(out, this->p_shear_viscosity);
         this->p_write_optional_array(out, this->p_bulk_viscosity);
+        out.write(reinterpret_cast<const char*>(&this->p_thermal_expansion),     sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_reference_temperature), sizeof(double));
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write interpolated EOS binary data");
         }
@@ -461,6 +593,8 @@ public:
         this->p_read_optional_array(in, this->p_bulk_modulus, n);
         this->p_read_optional_array(in, this->p_shear_viscosity, n);
         this->p_read_optional_array(in, this->p_bulk_viscosity, n);
+        in.read(reinterpret_cast<char*>(&this->p_thermal_expansion),     sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_reference_temperature), sizeof(double));
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read interpolated EOS binary data");
         }

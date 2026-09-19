@@ -1,10 +1,10 @@
 # Material EOS Models (`Material_x.eos`)
 
-_Updated: 2026-09-15_
+_Updated: 2026-09-19_
 
-A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four are evaluated through the same call, `calc_density(pressure, temperature=0.0, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
+A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four are evaluated through the same call, `calc_density(pressure, temperature=None, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
 
-All of the models are built on an abstract base class deriving from `PhysicsBase`. The analytic models are isothermal: the temperature argument exists for interface uniformity and is not currently used.
+All of the models are built on an abstract base class deriving from `PhysicsBase`. Every model also takes a thermal expansivity [K$^{-1}$] and a reference temperature [K], so the density can depend on temperature; with the default expansivity of zero a model is athermal.
 
 ## Inheritance
 
@@ -18,7 +18,7 @@ c_TidalPyBaseClass
               └── c_InterpolatedEOS     aliases "interp", "interpolate", "interpolated"
 ```
 
-The base declares `calc_density(pressure, temperature, radius)` pure virtual and adds four optional radius-varying getters, described below. The Cython classes mirror the hierarchy: `MaterialEOSBase`, `ConstantDensityEOS`, `BirchMurnaghanEOS`, `VinetEOS`, `InterpolatedEOS`.
+The base declares `calc_density(pressure, temperature, radius)` pure virtual, holds the two thermal parameters, provides `calc_bulk_modulus(pressure, temperature, radius)`, and adds four optional radius-varying getters, described below. The Cython classes mirror the hierarchy: `MaterialEOSBase`, `ConstantDensityEOS`, `BirchMurnaghanEOS`, `VinetEOS`, `InterpolatedEOS`.
 
 ## Models
 
@@ -28,6 +28,8 @@ The base declares `calc_density(pressure, temperature, radius)` pure virtual and
 | `birch_murnaghan` (`bm`) | pressure | `reference_density`, `reference_bulk_modulus`, `bulk_modulus_derivative` |
 | `vinet` | pressure | same as Birch-Murnaghan |
 | `interpolated` (`interp`, `interpolate`) | radius, by table lookup | `radius`, `density`, and optional viscoelastic tables |
+
+Every model also accepts `thermal_expansion` and `reference_temperature`; see Thermal Terms below.
 
 ### Constant Density
 
@@ -54,6 +56,26 @@ Vinet and Birch-Murnaghan agree closely at modest compression and diverge at hig
 Linear interpolation of a sorted radius-to-density table, clamped at both ends. This is the route for any profile computed elsewhere: run a full mineral-physics or thermal-evolution code, export the result as arrays, and load them here. For example, TidalPy uses a PREM profile of the Earth via this model.
 
 The interpolated model optionally carries four more radius-varying tables alongside density: static shear modulus, static bulk modulus, shear viscosity, and bulk viscosity. When present they are read back with `calc_static_shear_modulus(radius)`, `calc_static_bulk_modulus(radius)`, `calc_shear_viscosity(radius)`, and `calc_bulk_viscosity(radius)`. These four getters exist on the base class, and the analytic models return NaN from all of them. During a whole-planet solve an interpolated layer's tabulated values take precedence over the layer's own constants, so a tabulated layer's moduli and viscosities vary with radius the way its density does. A world TOML that names a `data_file` gets these tables populated automatically (using a PREM-like data file format); see the [TOML schema](../structures_x/config/toml_schema.md).
+
+### Thermal Terms
+
+Each model holds a thermal expansivity $\alpha_0$ [K$^{-1}$] and a reference temperature $T_\mathrm{ref}$ [K], the temperature at which $\rho_0$ and $K_0$ apply (default 300 K, where mineral-physics parameters are usually quoted).
+
+Birch-Murnaghan and Vinet add a thermal pressure to their cold pressure law:
+
+$$P(\eta, T) = P_\mathrm{cold}(\eta) + \alpha_0 K_0 \left( T - T_\mathrm{ref} \right)$$
+
+The product $\alpha K_T$ is taken as constant, which is its high-temperature limit (Anderson 1995). The density then comes from inverting the cold law at $P - \alpha_0 K_0 (T - T_\mathrm{ref})$.
+
+The constant and interpolated models have no pressure law to carry a thermal pressure, so they scale their density by the thermal expansion directly:
+
+$$\rho(T) = \rho \, \exp\left[ -\alpha_0 \left( T - T_\mathrm{ref} \right) \right]$$
+
+A model is athermal when $\alpha_0 = 0$ (the default) or when no temperature is passed (`None` in Python, a non-finite value in C++).
+
+### Bulk Modulus
+
+`calc_bulk_modulus(pressure, temperature=None, radius=0.0)` returns the isothermal bulk modulus $K_T = \rho \, \partial P / \partial \rho$ [Pa]. Birch-Murnaghan and Vinet evaluate the analytic derivative of their pressure law at the solved compression, so the modulus is consistent with the density and equals $K_0$ at the reference state. The interpolated model returns its bulk table at `radius`, and a model with neither returns NaN, which tells a layer to use its own constant.
 
 ### Pressure Inversion
 
@@ -97,6 +119,16 @@ bm = BirchMurnaghanEOS(reference_density=3500.0,
                        bulk_modulus_derivative=4.5)
 density = bm.calc_density(5.0e10)       # [kg/m^3] at 50 GPa
 bm.reference_bulk_modulus               # 1.3e11
+bm.calc_bulk_modulus(5.0e10)            # [Pa] isothermal bulk modulus at 50 GPa
+
+# A thermal model: hotter material is less dense at the same pressure.
+hot = BirchMurnaghanEOS(reference_density=3500.0,
+                        reference_bulk_modulus=1.3e11,
+                        bulk_modulus_derivative=4.5,
+                        thermal_expansion=3.0e-5,
+                        reference_temperature=300.0)
+hot.calc_density(5.0e10, 2000.0)        # [kg/m^3] at 50 GPa and 2000 K
+hot.calc_density(5.0e10)                # no temperature: the athermal density
 
 # Name factory: case-insensitive, aliases accepted.
 eos = make_material_eos("vinet", {"reference_density_kg_m3":      3500.0,
@@ -121,6 +153,7 @@ vinet_pressure(1.2, 1.3e11, 4.5)
 | `reference_bulk_modulus_pa` | Birch-Murnaghan, Vinet | `reference_bulk_modulus` |
 | `bulk_modulus_derivative` | Birch-Murnaghan, Vinet | `bulk_modulus_derivative` |
 | `invert_rtol`, `invert_max_iters` | Birch-Murnaghan, Vinet | same |
+| `thermal_expansion_1_k`, `reference_temperature_k` | all | `thermal_expansion`, `reference_temperature` |
 | `radius_m`, `density_kg_m3` | interpolated | `radius`, `density` |
 | `shear_modulus_pa`, `bulk_modulus_pa`, `shear_viscosity_pas`, `bulk_viscosity_pas` | interpolated | `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity` |
 
@@ -184,16 +217,19 @@ One combined config shared by every model; each reads only the fields it needs. 
 | `bulk_modulus_derivative` | Birch-Murnaghan, Vinet | `4.0` |
 | `invert_rtol` | Birch-Murnaghan, Vinet | `d_EOS_INVERT_RTOL` (`1e-13`) |
 | `invert_max_iters` | Birch-Murnaghan, Vinet | `d_EOS_INVERT_MAX_ITERS` (`60`) |
+| `thermal_expansion` | all | `0.0` (athermal) |
+| `reference_temperature` | all | `d_EOS_REFERENCE_TEMPERATURE` (`300.0`) |
 | `radius`, `density` and the four viscoelastic tables | interpolated | empty vectors |
 
 ### Classes and Free Functions
 
-All models derive from `c_MaterialEOSBase : c_PhysicsBase` and override `calc_density(pressure, temperature, radius)`. Each has a default constructor and one taking the config. Accessors are `get_reference_density()` on all of them, plus `get_reference_bulk_modulus()`, `get_bulk_modulus_derivative()`, `get_invert_rtol()`, and `get_invert_max_iters()` on the two compressible models, and `get_num_points()` on the interpolated one.
+All models derive from `c_MaterialEOSBase : c_PhysicsBase` and override `calc_density(pressure, temperature, radius)`. The base also has `calc_bulk_modulus(pressure, temperature, radius)` and the virtual `calc_density_and_bulk_modulus(pressure, temperature, radius, density, bulk_modulus)`, which returns both from one pressure inversion. Each model has a default constructor and one taking the config. Accessors are `get_thermal_expansion()`, `get_reference_temperature()`, and `get_reference_density()` on all of them, plus `get_reference_bulk_modulus()`, `get_bulk_modulus_derivative()`, `get_invert_rtol()`, and `get_invert_max_iters()` on the two compressible models, and `get_num_points()` on the interpolated one.
 
 | Function | Description |
 |---|---|
 | `eos_bm_pressure(eta, K0, K0_prime)` | Third-order Birch-Murnaghan pressure [Pa] at compression $\eta$. |
 | `eos_vinet_pressure(eta, K0, K0_prime)` | Vinet pressure [Pa] at $\eta$. |
+| `eos_bm_bulk_modulus(eta, K0, K0_prime)`, `eos_vinet_bulk_modulus(eta, K0, K0_prime)` | Isothermal bulk modulus $\eta \, dP/d\eta$ [Pa] of each law at $\eta$. |
 | `eos_invert_eta(pressure_target, K0, K0_prime, pressure_fn, rtol, max_iters)` | Inverts a monotonic pressure law for $\eta$. Shared by both compressible models; pass one of the two pressure functions. |
 | `c_material_eos_model_from_name(name)` | Name or alias to enum, throwing `std::invalid_argument` on an unknown name. |
 | `c_find_material_eos(model, config)` | Heap-allocates the model as a `unique_ptr`. A name-string overload is also provided. |
@@ -205,7 +241,7 @@ All models derive from `c_MaterialEOSBase : c_PhysicsBase` and override `calc_de
 
 1. Add any new parameters to `c_MaterialEOSConfig` with sensible defaults.
 2. If the law is analytic, add a free pressure function monotonic in $\eta$ so the shared `eos_invert_eta` inverter can be reused. Otherwise compute the density directly.
-3. Add the model class deriving from `c_MaterialEOSBase`: constructors, `get_*` accessors, the `calc_density` override, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers.
+3. Add the model class deriving from `c_MaterialEOSBase`: constructors (pass the config to the base so the thermal parameters are stored), `get_*` accessors, the `calc_density` override, a `calc_density_and_bulk_modulus` override if the law defines a bulk modulus, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers, including the two thermal parameters.
 4. Add the enum value, the name and alias branch in `c_material_eos_model_from_name`, and the cases in `c_find_material_eos` and `c_material_eos_from_binary`.
 
 **C++ (`TidalPy/Utilities_x/binary_x/binary_.hpp`)**
@@ -229,5 +265,6 @@ No build-system change is needed; `Material_x.eos.material_eos` is already regis
 
 - Birch, F. (1947). Finite elastic strain of cubic crystals. *Physical Review*, 71(11), 809-824.
 - Vinet, P., Ferrante, J., Rose, J. H., and Smith, J. R. (1987). Compressibility of solids. *Journal of Geophysical Research*, 92(B9), 9319-9325.
+- Anderson, O. L. (1995). *Equations of State of Solids for Geophysics and Ceramic Science*. Oxford University Press. Thermal pressure and the near constancy of $\alpha K_T$ at high temperature.
 - Poirier, J.-P. (2000). *Introduction to the Physics of the Earth's Interior*, second edition. Comparison of the finite-strain and universal forms.
 - Dziewonski, A. M., and Anderson, D. L. (1981). Preliminary reference Earth model. *Physics of the Earth and Planetary Interiors*, 25(4), 297-356.

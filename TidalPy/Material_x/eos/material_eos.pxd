@@ -16,6 +16,9 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_MaterialEOSBase(c_PhysicsBase):
         double calc_density(double pressure, double temperature, double radius) const
+        double calc_bulk_modulus(double pressure, double temperature, double radius) const
+        double get_thermal_expansion() const
+        double get_reference_temperature() const
         double calc_static_shear_modulus(double radius) const
         double calc_static_bulk_modulus(double radius) const
         double calc_shear_viscosity(double radius) const
@@ -25,6 +28,8 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         double reference_density
         double reference_bulk_modulus
         double bulk_modulus_derivative
+        double thermal_expansion
+        double reference_temperature
         double invert_rtol
         int    invert_max_iters
         vector[double] radius
