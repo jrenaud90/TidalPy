@@ -1,6 +1,6 @@
 # Rheology Models (`rheology_x`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-19_
 
 A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss modulus, the part in quadrature, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$.
 
@@ -13,6 +13,30 @@ Each model implements one method, `calc_complex_modulus(modulus, viscosity, freq
 The scale common to every model is the Maxwell time $\tau = \eta / \mu$, the time a material takes to relax an applied stress by viscous flow. Forcing much faster than $\tau$ finds the material effectively elastic; forcing much slower finds it effectively fluid. Dissipation is largest when the forcing timescale is approximately the Maxwell time; the models differ mostly in how broad that window is and in what happens on its high-frequency side.
 
 Two conventions apply to the results. The returned imaginary part is non-negative for a positive forcing frequency: the models use the $e^{+i\omega t}$ convention, so a lagging response carries a positive imaginary modulus. The models are evaluated at a single frequency with no memory of previous calls, so they are safe to use across threads and in any order.
+
+## Physics
+
+A linear viscoelastic material forced at a frequency $\omega$, with the $e^{i\omega t}$ convention, responds as $\sigma = \mu^{*}(\omega)\,\varepsilon$ (the correspondence principle), where the complex modulus is the reciprocal of the complex compliance, $\mu^{*} = 1/J^{*}$. The complex compliance follows from the creep function $J(t)$, the strain that follows a unit step in stress (Efroimsky 2012):
+
+$$J^{*}(\omega) = J(0) + \int_{0}^{\infty}\dot{J}(t)\,e^{-i\omega t}\,dt.$$
+
+With the unrelaxed compliance $J = 1/\mu$ and the Maxwell time $\tau_{M} = \eta/\mu$, the elements TidalPy combines are:
+
+- Maxwell, a spring and a dashpot in series, with $J(t) = J + t/\eta$:
+
+  $$J_\mathrm{maxwell} = J - \frac{i}{\eta\,\omega}.$$
+
+- Voigt-Kelvin, a spring and a dashpot in parallel, with the compliance $J_{v} = J/f_{J}$ and the viscosity $\eta_{v} = f_{\eta}\,\eta$ set by `voigt_modulus_frac` ($f_{J}$) and `voigt_viscosity_frac` ($f_{\eta}$), and $J(t) = J_{v}\left(1 - e^{-t/(J_{v}\eta_{v})}\right)$:
+
+  $$J_\mathrm{voigt} = \frac{J_{v}}{1 + i\,J_{v}\eta_{v}\,\omega} = \frac{J_{v}}{1 + (J_{v}\eta_{v}\omega)^{2}} - i\,\frac{J_{v}^{2}\eta_{v}\,\omega}{1 + (J_{v}\eta_{v}\omega)^{2}}.$$
+
+- Andrade, a Maxwell element plus the transient creep $\beta t^{\alpha}$, with $\beta = J\,(\zeta\tau_{M})^{-\alpha}$, where $\zeta$ is the ratio of the Andrade timescale to the Maxwell time, and $J(t) = J + t/\eta + \beta t^{\alpha}$ (Efroimsky 2012; Renaud and Henning 2018):
+
+  $$J_\mathrm{andrade} = J_\mathrm{maxwell} + J\left(\zeta\tau_{M}\,\omega\right)^{-\alpha}\Gamma(1+\alpha)\left[\cos\frac{\pi\alpha}{2} - i\sin\frac{\pi\alpha}{2}\right],$$
+
+  where $\Gamma$ is the gamma function.
+
+Elements in series add their compliances: Burgers is Maxwell plus Voigt-Kelvin, and Sundberg-Cooper is Andrade plus Voigt-Kelvin (Sundberg and Cooper 2010). The single-element limits are the elastic spring, $\mu^{*} = \mu$, and the Newtonian dashpot, $\mu^{*} = i\eta\omega$. The loss tangent is $\mathrm{Im}[\mu^{*}]/\mathrm{Re}[\mu^{*}] = 1/Q$.
 
 ## Inheritance
 
@@ -45,15 +69,7 @@ Simple models (Elastic, Viscous, Maxwell, Voigt) are evaluated in closed form. T
 | `Andrade` | $1 / J_\mathrm{andrade}$ | `alpha`, `zeta` | Maxwell plus a transient term; loss falls only as $\omega^{-\alpha}$. |
 | `Sundberg` (`sundberg-cooper`) | $1 / (J_\mathrm{andrade} + J_\mathrm{voigt})$ | `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac` | Andrade's high-frequency tail plus Burgers' secondary peak. |
 
-The element compliances are,
-
-$$J_\mathrm{maxwell} = \frac{1}{\mu} - \frac{i}{\eta \omega}$$
-
-$$J_\mathrm{voigt} = \frac{J_v}{1 + (J_v \eta_v \omega)^2} - i \frac{J_v^2 \eta_v \omega}{1 + (J_v \eta_v \omega)^2}$$
-
-$$J_\mathrm{andrade} = J_\mathrm{maxwell} + \frac{1}{\mu} \left( \frac{\eta \omega \zeta}{\mu} \right)^{-\alpha} \Gamma(1 + \alpha) \left[ \cos\frac{\pi\alpha}{2} - i \sin\frac{\pi\alpha}{2} \right]$$
-
-where $f_J$ is `voigt_modulus_frac`, $J_v = (1/\mu) / f_J$ is the Voigt arm's compliance, $\eta_v = $ `voigt_viscosity_frac` $\times\, \eta$ is its viscosity, and $\Gamma$ is the gamma function.
+The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm{andrade}$ are defined in the Physics section above.
 
 | Parameter | Default | Meaning |
 |---|---|---|
@@ -226,3 +242,4 @@ No build-system change is needed; `rheology_x.rheology` is already registered in
 - Henning, W. G., O'Connell, R. J., and Sasselov, D. D. (2009). Tidally heated terrestrial exoplanets: Viscoelastic response models. *The Astrophysical Journal*, 707(2), 1000-1015. [DOI](https://doi.org/10.1088/0004-637X/707/2/1000). Maxwell, Voigt-Kelvin, and Burgers.
 - Efroimsky, M. (2012). Tidal dissipation compared to seismic dissipation: In small bodies, Earths, and super-Earths. *The Astrophysical Journal*, 746(2), 150. [DOI](https://doi.org/10.1088/0004-637X/746/2/150). Complex compliances and Love numbers.
 - Renaud, J. P., and Henning, W. G. (2018). Increased tidal dissipation using advanced rheological models: Implications for Io and tidally active exoplanets. *The Astrophysical Journal*, 857(2), 98. [DOI](https://doi.org/10.3847/1538-4357/aab784). Andrade and Sundberg-Cooper.
+- Sundberg, M., and Cooper, R. F. (2010). A composite viscoelastic model for incorporating grain boundary sliding and transient diffusion creep; correlating creep and attenuation responses for materials with a fine grain size. *Philosophical Magazine*, 90. The Sundberg-Cooper composite.

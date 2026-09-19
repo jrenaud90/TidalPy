@@ -1,6 +1,6 @@
 # System (`structures_x.system`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-19_
 
 A `System` links two or more worlds (a star, planets, moons) into a gravitationally bound group. It tracks two roles independently:
 
@@ -137,7 +137,15 @@ flux = system.calc_insolation_flux("earth")            # W/m^2 (orbit-averaged)
 temp = system.calc_equilibrium_temperature("earth")    # K
 ```
 
-`calc_insolation_flux` is the orbit-averaged incident stellar flux `F = L_star / (4 π a² √(1-e²))`, where the `√(1-e²)` is the time average of `1/r²` over the eccentric orbit (Méndez and Rivera-Valentín 2017), using the world's orbital elements about the star. `calc_equilibrium_temperature` applies the world's own gray-body radiative balance `T = ((1-A) F / (4 ε σ))^(1/4)` to that flux, with the world's albedo `A` and emissivity `ε`. Both raise `RuntimeError` if no star is set and return NaN for the star's own entry, an unset stellar semi-major axis, or a star with no luminosity.
+`calc_insolation_flux` is the orbit-averaged incident stellar flux, using the world's orbital elements about the star,
+
+$$F = \frac{L_{\star}}{4\pi a^{2}\sqrt{1-e^{2}}},$$
+
+where the factor $\sqrt{1-e^{2}}$ comes from the time average of $1/r^{2}$ over the eccentric orbit, $\langle 1/r^{2} \rangle = 1/(a^{2}\sqrt{1-e^{2}})$ (Méndez and Rivera-Valentín 2017). `calc_equilibrium_temperature` applies the world's own gray-body radiative balance to that flux,
+
+$$T = \left(\frac{(1-A)\,F}{4\,\varepsilon\,\sigma}\right)^{1/4},$$
+
+with the world's albedo $A$, its emissivity $\varepsilon$, and the Stefan-Boltzmann constant $\sigma$. Both raise `RuntimeError` if no star is set and return NaN for the star's own entry, an unset stellar semi-major axis, or a star with no luminosity.
 
 ## Orbital and Spin Evolution
 
@@ -153,7 +161,13 @@ ev["energy_residual"]                     # heating + dE_orbit/dt + dE_spin/dt (
 
 The returned dict also carries the state used (`orbital_frequency`, `semi_major_axis`, `eccentricity`, `spin_frequency`, `host_mass`, `target_mass`), the raw tidal outputs (`dU_dM`, `dU_dw`, `dU_dO`), the `moment_of_inertia` and `has_spin` flag, and the energy terms (`dE_orbit_dt`, `dE_spin_dt`). `evolved` is `False` for the host's own entry or a world with no usable orbit about the host; its rates are then zero. `calc_system_evolution()` returns one such dict per world, in index order.
 
-The rates follow the orbital rate engine (`dynamics_x`): `da/dt = (2/(n a)) dR/dM`, `de/dt = (√(1-e²)/(n a² e))(√(1-e²) dR/dM − dR/dw)` (zero at `e = 0`), and `dn/dt = −(3/2)(n/a) da/dt`, with the disturbing-function derivative `dR/dX = −((M_target + M_host)/M_target) dU/dX`. The spin rate comes from the world's attached spin model (`dspin/dt = M_host dU/dO / C`). The heating and the orbit and spin energy loss balance to `heating = −(dE_orbit/dt + dE_spin/dt)` with `E_orbit = −G M_host M_world / (2 a)` and `E_spin = ½ C spin²`.
+The rates follow the orbital rate engine (`dynamics_x`). With the tidal-potential derivatives $\partial U/\partial X$ of the [global tides](../../Tides_x/global_tides.md) converted to disturbing-function derivatives $\partial\mathcal{R}/\partial X = -\frac{M_{w} + M_{h}}{M_{w}}\,\partial U/\partial X$, for the world mass $M_{w}$ and the host mass $M_{h}$,
+
+$$\frac{da}{dt} = \frac{2}{na}\,\frac{\partial\mathcal{R}}{\partial\mathcal{M}}, \qquad \frac{de}{dt} = \frac{\sqrt{1-e^{2}}}{na^{2}e}\left(\sqrt{1-e^{2}}\,\frac{\partial\mathcal{R}}{\partial\mathcal{M}} - \frac{\partial\mathcal{R}}{\partial\varpi}\right), \qquad \frac{dn}{dt} = -\frac{3}{2}\,\frac{n}{a}\,\frac{da}{dt},$$
+
+with $de/dt = 0$ at $e = 0$. The spin rate comes from the world's attached spin model, $\ddot{\theta} = (M_{h}/C)\,\partial U/\partial\Omega$, with $C$ the polar moment of inertia. The heating and the orbit and spin energy loss balance,
+
+$$\dot{E} = -\left(\frac{dE_\mathrm{orbit}}{dt} + \frac{dE_\mathrm{spin}}{dt}\right), \qquad E_\mathrm{orbit} = -\frac{G M_{h} M_{w}}{2a}, \qquad E_\mathrm{spin} = \frac{1}{2}\,C\,\dot{\theta}^{2}.$$
 
 Each orbiting world evolves on its own two-body orbit about the host and dissipates independently.
 
@@ -170,7 +184,7 @@ pair["world"]                                   # the orbiting world's single-bo
 pair["host"]                                    # the host's single-body contribution (a dict)
 ```
 
-The `world` and `host` entries are each a full `calc_world_evolution`-style dict (their own solve, spin, heating, and share of the orbital rates and energy). The combined balance is the sum of the two single-body balances, `heating_world + heating_host = −(dE_orbit/dt + dE_spin_world/dt + dE_spin_host/dt)`. A body with no tide model attached is rigid and contributes nothing, so a rigid host reduces `calc_pair_evolution` to the single-body `calc_world_evolution` result.
+The `world` and `host` entries are each a full `calc_world_evolution`-style dict (their own solve, spin, heating, and share of the orbital rates and energy). The combined balance is the sum of the two single-body balances, $\dot{E}_{w} + \dot{E}_{h} = -\left(dE_\mathrm{orbit}/dt + dE_{\mathrm{spin},w}/dt + dE_{\mathrm{spin},h}/dt\right)$. A body with no tide model attached is rigid and contributes nothing, so a rigid host reduces `calc_pair_evolution` to the single-body `calc_world_evolution` result.
 
 ## Serialization
 

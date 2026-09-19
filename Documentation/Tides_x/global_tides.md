@@ -1,42 +1,53 @@
 # Global (1D) Tidal Dissipation (`Tides_x.classes`)
 
-_Updated: 2026-09-18_
+_Updated: 2026-09-19_
 
-The global (or "1D potential") approach computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal modes `(l, m, p, q)`. Each mode carries an orbital/spin frequency `omega_lmpq = (l − 2p + q)·n − m·spin` and a precomputed potential weight; a tide model supplies the per-mode dissipation multiplier `−Im[k_l(omega)]` that the collapse multiplies in and sums. Harmonic degrees `l = 2..10` are supported.
+The global (or "1D potential") approach computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal modes `(l, m, p, q)`. Each mode carries a forcing frequency $\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta}$ and a precomputed potential weight; a tide model supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}(\omega)]$ that the collapse multiplies in and sums. Harmonic degrees `l = 2..10` are supported.
 
-The model-independent per-mode weights (eccentricity functions `G_lpq`, obliquity functions `F_lmp`, and the common coefficient `G_lpq²·F_lmp²·(l−m)!/(l+m)!·(R/a)^(2l+1)·G·M_host/a`) come from [`c_global_potential`](../Tides/index.md). This page documents the tide models and the collapse that turn those weights into heating and torque.
+The model-independent per-mode weights (the eccentricity functions $G_{lpq}$, the obliquity functions $F_{lmp}$, and the common coefficient $G_{lpq}^{2}F_{lmp}^{2}\frac{(l-m)!}{(l+m)!}\left(2-\delta_{0m}\right)\left(\frac{R}{a}\right)^{2l+1}\frac{G M_{h}}{a}$) come from `c_global_potential`; the Physics section below derives them. This page documents the tide models and the collapse that turn those weights into heating and torque.
 
 The full complex Love-number suite (k, h, l) is always the transport type ([`c_LoveNumbers`](love/love_numbers.md)), even though only `k` drives heating and orbital dynamics, so the displacement Love numbers from the radial solver are never discarded. The analytic models cannot produce `h` and `l` (no radial solution) and return them as `NaN`.
 
+## Physics
+
+### Tidal Potential
+
+A host of mass $M_h$ on an orbit of semi-major axis $a$, eccentricity $e$, and obliquity $I$ relative to the body's equator raises, at the surface of a body of radius $R$, the tidal potential (Kaula 1964; Efroimsky and Williams 2009, Eq. 18)
+
+$$U(\theta, \phi, t) = \frac{G M_h}{a}\sum_{l=2}^{\infty}\left(\frac{R}{a}\right)^{l}\sum_{m=0}^{l}\frac{(l-m)!}{(l+m)!}\left(2-\delta_{0m}\right)P_{lm}(\cos\theta)\sum_{p=0}^{l}F_{lmp}(I)\sum_{q=-\infty}^{\infty}G_{lpq}(e)\,\mathcal{T}_{lm}\!\left(\omega_{lmpq}t - m\phi\right),$$
+
+where $\theta$ is the colatitude, $\phi$ the east longitude, $P_{lm}$ the associated Legendre functions without the Condon-Shortley phase, $\mathcal{T}_{lm}$ is $\cos$ for even $l - m$ and $\sin$ for odd $l - m$, and $F_{lmp}$ and $G_{lpq}$ are the [obliquity](obliquity.md) and [eccentricity](eccentricity.md) functions. Each $(l, m, p, q)$ is a tidal mode with the forcing frequency
+
+$$\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta},$$
+
+where $n$ is the orbital mean motion and $\dot{\theta}$ the spin rate \[rad s$^{-1}$\]. Periapse and node precession are neglected. The degree range and the two truncation levels decide which modes are kept.
+
+### Dissipation and Orbital Derivatives
+
+The body answers each mode with the complex Love number $k_l$ at the forcing frequency $\chi_{lmpq} = |\omega_{lmpq}|$, and the tide model supplies its dissipative part $K_{l} = -\mathrm{Im}[k_{l}(\chi_{lmpq})]$ (see Models below). Averaged over the orbit and over apsidal precession, the tidal heating $\dot{E}$ \[W\] and the derivatives of the tidal potential with respect to the mean anomaly $\mathcal{M}$, the argument of periapse $\varpi$, and the node $\Omega$ \[J kg$^{-1}$ rad$^{-1}$\] are (Renaud et al. 2021, Eq. 7)
+
+$$\begin{bmatrix} \partial U / \partial \mathcal{M} \\ \partial U / \partial \varpi \\ \partial U / \partial \Omega \\ \dot{E} \end{bmatrix} = \frac{G M_h}{a}\sum_{l=2}^{l_{\max}}\left(\frac{R}{a}\right)^{2l+1}\sum_{m=0}^{l}\frac{(l-m)!}{(l+m)!}\left(2-\delta_{0m}\right)\sum_{p=0}^{l}F_{lmp}^{2}(I)\sum_{q}G_{lpq}^{2}(e)\begin{bmatrix} (l-2p+q)\,\mathrm{sgn}(\omega_{lmpq})\,K_{l} \\ (l-2p)\,\mathrm{sgn}(\omega_{lmpq})\,K_{l} \\ m\,\mathrm{sgn}(\omega_{lmpq})\,K_{l} \\ \chi_{lmpq}\,M_h\,K_{l} \end{bmatrix}.$$
+
+Modes at zero frequency do not dissipate and are skipped. The derivatives set the orbital and spin rates (see [Dynamics](../dynamics_x/dynamics.md)). `collapse_global_tides` and a world's `calc_tides` return this sum; a layered world then splits the heating among its layers by their `tidal_scale`, so the whole-body sum itself uses the unscaled $K_l$.
+
+For a synchronously rotating body at zero obliquity, only the $q = \pm 1$ modes of degree 2 dissipate to leading order in $e$, and with $K_2 = k_2/Q$ the sum reduces to the constant-phase-lag heating (Peale and Cassen 1978)
+
+$$\dot{E} = \frac{21}{2}\,\frac{k_{2}}{Q}\,\frac{G M_h^{2} R^{5} n\, e^{2}}{a^{6}},$$
+
+Using TidalPy with an eccentricity truncation of 1 reproduces this classic formula.
+
 ## Models
 
-| Model | Alias | Complex Love number `k_l(omega)` | `−Im[k_l]` |
+| Model | Alias | Complex Love number $k_{l}(\omega)$ | $-\mathrm{Im}[k_{l}]$ |
 |-------|-------|----------------------------------|------------|
-| `RheologyTide` | `rheology` | supplied by the radial solver | `−Im[k_l]` from the solver |
-| `FixedQTide` | `cpl`, `fixed_q` | `k_l·(1 − i/Q_l)` | `k_l/Q_l` (frequency independent) |
-| `FixedLagTide` | `ctl`, `fixed_dt` | `k_l·(1 − i·omega·dt_l)` | `k_l·omega·dt_l` |
-| `CTLQTide` | `ctl_q`, `fixed_dt_q` | `k_l·(1 − i·omega·dt_l/Q_l)` | `k_l·omega·dt_l/Q_l` |
+| `RheologyTide` | `rheology` | supplied by the radial solver | $-\mathrm{Im}[k_{l}]$ from the solver |
+| `FixedQTide` | `cpl`, `fixed_q` | $k_{l}\,(1 - i/Q_{l})$ | $k_{l}/Q_{l}$ (frequency independent) |
+| `FixedLagTide` | `ctl`, `fixed_dt` | $k_{l}\,(1 - i\,\omega\,\Delta t_{l})$ | $k_{l}\,\omega\,\Delta t_{l}$ |
+| `CTLQTide` | `ctl_q`, `fixed_dt_q` | $k_{l}\,(1 - i\,\omega\,\Delta t_{l}/Q_{l})$ | $k_{l}\,\omega\,\Delta t_{l}/Q_{l}$ |
 
-Fixed per-degree parameters `k_l` (static Love number), `Q_l` (quality factor), and `dt_l` (time lag \[s\]) are supplied as lists indexed from degree `l = 2` (index 0 is `l = 2`). The `rheology` model needs the radial solver and is driven by the world's `calc_tides` method, not the standalone collapse below.
+Fixed per-degree parameters $k_{l}$ (static Love number, `fixed_k`), $Q_{l}$ (quality factor, `fixed_q`), and $\Delta t_{l}$ (time lag \[s\], `fixed_dt`) are supplied as lists indexed from degree `l = 2` (index 0 is `l = 2`). The `rheology` model needs the radial solver and is driven by the world's `calc_tides` method, not the standalone collapse below.
 
-A zero or absent `Q_l` is treated as purely elastic (no dissipation) rather than a divide by zero.
-
-## Collapse
-
-For a synchronously rotating, low-eccentricity body the `fixed_q` collapse reproduces the standard CPL tidal-heating rate exactly:
-
-```python
-E_dot = (21/2) · (k2/Q) · G · M_host² · R⁵ · n · e² / a⁶
-```
-
-The collapse sums over every active (nonzero-frequency) mode:
-
-```python
-E_dot += E_dot_term_lmpq · (−Im[k_l])  # heating  [W]
-dU/dX += dU_dX_term_lmpq · (−Im[k_l])  # X = M, w, O  [J kg⁻¹ rad⁻¹]
-```
-
-Layer-level heat partitioning (`tidal_scale`) is applied by the world afterward; the whole-body collapse uses the unscaled `−Im[k]`.
+A zero or absent $Q_{l}$ is treated as purely elastic (no dissipation) rather than a divide by zero.
 
 ## Python API
 
@@ -119,3 +130,6 @@ The C++ layer is canonical; the Cython classes are thin adapters.
 
 - Renaud, J. P., et al. (2021). Tidal dissipation in dual-body, highly eccentric, and nonsynchronously rotating systems: Applications to Pluto-Charon and the exoplanet TRAPPIST-1e. *The Planetary Science Journal*, 2(1), 4. The collapse form of global dual-body dissipation.
 - Efroimsky, M., and Makarov, V. V. (2013). Tidal friction and tidal lagging. Applicability limitations of a popular formula for the tidal torque. *The Astrophysical Journal*, 764(1), 26. The CPL and CTL frequency dependence.
+- Kaula, W. M. (1964). Tidal dissipation by solid friction and the resulting orbital evolution. *Reviews of Geophysics*, 2(4), 661-685. The tidal potential expansion.
+- Efroimsky, M., and Williams, J. G. (2009). Tidal torques: A critical review of some techniques. *Celestial Mechanics and Dynamical Astronomy*, 104, 257-289. Eq. 18, the tidal potential with mode-dependent Love numbers.
+- Peale, S. J., and Cassen, P. (1978). Contribution of tidal dissipation to lunar thermal history. *Icarus*, 36(2), 245-269. The synchronous heating formula.

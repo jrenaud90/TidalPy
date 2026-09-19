@@ -1,6 +1,6 @@
 # Worlds (`structures_x.worlds`)
 
-_Updated: 2026-09-18_
+_Updated: 2026-09-19_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry; a layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
 
@@ -40,10 +40,10 @@ welcome_to_earth = BaseWorld(
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `calc_surface_gravity()` | float [m/s²] | G·M/R². |
-| `calc_escape_velocity()` | float [m/s] | √(2·G·M/R). |
-| `calc_mean_density()` | float [kg/m³] | M / V_sphere(R). |
-| `calc_equilibrium_temperature(F)` | float [K] | `[ (1−A)·F / (4·ε·σ) ]^(1/4)` (fast rotator, `F` = insolation flux [W/m²]). |
+| `calc_surface_gravity()` | float [m/s²] | $GM/R^{2}$. |
+| `calc_escape_velocity()` | float [m/s] | $\sqrt{2GM/R}$. |
+| `calc_mean_density()` | float [kg/m³] | $M / (\tfrac{4}{3}\pi R^{3})$. |
+| `calc_equilibrium_temperature(F)` | float [K] | $\left[(1-A)\,F/(4\varepsilon\sigma)\right]^{1/4}$ (fast rotator, $F$ = insolation flux [W/m²]). |
 | `set_spin_frequency(ω)` | — | Set rotation rate [rad/s]. |
 | `set_obliquity(θ)` | — | Set axial obliquity [rad]. |
 
@@ -70,8 +70,8 @@ world.add_layer(SolidLiquidLayer("mantle", 1, 3.485e6, 6.371e6, 4.040e24))
 |--------|-------------|
 | `add_layer(layer)` | Add a layer inner-to-outer. Ownership of the layer (and its attached physics models) transfers into the world; the passed wrapper becomes an empty shell. Raises `ValueError` if the layer was already added or if its inner radius is not continuous with the current outermost radius (innermost must start at 0). A rejected layer is not consumed. |
 | `num_layers` | Number of layers (property). |
-| `calc_total_mass()` | Σ layer masses [kg]; equals `planet_mass_eos` after a successful EOS solve. |
-| `calc_internal_heating(time)` | Σ radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. Uses each layer's `mass`, so solve the EOS first when the layers were built without one. |
+| `calc_total_mass()` | Sum of the layer masses [kg]; equals `planet_mass_eos` after a successful EOS solve. |
+| `calc_internal_heating(time)` | Sum of the layer radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. Uses each layer's `mass`, so solve the EOS first when the layers were built without one. |
 | `validate_layers()` | `True` if every boundary is continuous and the innermost starts at 0. |
 
 **Accessing layers**
@@ -176,9 +176,9 @@ The `love_method` argument selects how the Love numbers are obtained (names are 
 |---|---|
 | `radial_solver` (`shooting`, `rs`; default) | Numerically integrates the radial ODEs from the center to the surface. Works for arbitrary multi-layer, solid/liquid, static/dynamic, compressible/incompressible worlds. |
 | `propagation_matrix` (`prop_matrix`, `pm`, `prop`) | Quasi-analytic matrix propagation, restricted to a single solid, static, incompressible layer. An incompatible world fails the solve gracefully (`love_success` is `False`, `love_error_code` non-zero). `core_model` selects the core starting condition. |
-| `homogeneous` (`homogen`) | The homogeneous incompressible-sphere formulas, `k_l = 3/(2(l-1)) / (1 + mu_eff)`, `h_l = (2l+1)/(2(l-1)) / (1 + mu_eff)`, `l_l = 3/(2l(l-1)) / (1 + mu_eff)` with `mu_eff = (2l^2 + 4l + 3)/l * mu / (rho g R)`, evaluated with the volume-averaged complex shear modulus of the layers flagged `is_tidal` (each layer's radius-resolved modulus and rheology at the forcing frequency), the planet's bulk density, EOS surface gravity, and radius. Fast; no radial functions. |
-| `cpl` | The same formulas are used on the volume-averaged static (unrelaxed) shear modulus, then a constant phase lag is applied: k, h, l are multiplied by `(1 - i/Q)` so `-Im[k] = Re[k]/Q`. `Q` is `fixed_q` (argument or `[tides]` config) or, when unset, the attached tide model's fixed Q for the degree. |
-| `ctl` | Similar to `cpl` but with a constant time lag `(1 - i omega dt)`; `dt` is `fixed_dt` or the tide model's fixed time lag. |
+| `homogeneous` (`homogen`) | The homogeneous incompressible-sphere formulas, $k_{l} = \frac{3}{2(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$, $h_{l} = \frac{2l+1}{2(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$, $l_{l} = \frac{3}{2l(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$ with $\bar{\mu}_{l} = \frac{2l^{2} + 4l + 3}{l}\,\frac{\mu}{\rho g R}$, evaluated with the volume-averaged complex shear modulus of the layers flagged `is_tidal` (each layer's radius-resolved modulus and rheology at the forcing frequency), the planet's bulk density, EOS surface gravity, and radius. Fast; no radial functions. |
+| `cpl` | The same formulas are used on the volume-averaged static (unrelaxed) shear modulus, then a constant phase lag is applied: $k$, $h$, $l$ are multiplied by $(1 - i/Q)$ so $-\mathrm{Im}[k] = \mathrm{Re}[k]/Q$. $Q$ is `fixed_q` (argument or `[tides]` config) or, when unset, the attached tide model's fixed Q for the degree. |
+| `ctl` | Similar to `cpl` but with a constant time lag, $(1 - i\,\omega\,\Delta t)$; $\Delta t$ is `fixed_dt` or the tide model's fixed time lag. |
 | `laterally_inhomogeneous` (`3d`, `lat_inhom`) | Reserved for a future 3D Love solver; raises `NotImplementedError`. |
 
 The analytic methods report the volume-averaged modulus and volume they used through `love_effective_shear_modulus` and `love_tidal_volume`, return `love_surface_amplification = 0`, and give NaN for the radial-function getters (`get_radial_solution_y`, ...). They have no depth-resolved solution, so the 3D stress/strain/heating path (`calc_3d_tides`, `get_3d_tidal_heating`) raises `RuntimeError` while an analytic method is the world's configured method. Free-function versions of the formulas live in `TidalPy.Tides_x.love` (`calc_homogeneous_love_numbers`, `calc_effective_rigidity`, `apply_fixed_q`, `apply_fixed_dt`; see [Love numbers](../../Tides_x/love/love_numbers.md)).
@@ -258,7 +258,7 @@ A default-constructed `c_LoveSolveConfig` (and `c_WorldEOSSolveConfig`) reads th
 
 `c_LayeredWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a cached helper, `c_WorldRadialSolver` (held by `p_radial_solver`), that separates the frequency-independent setup (built once and reused) from the frequency-dependent work (recomputed on every call), since the Love-number solve is the hot loop for frequency sweeps and orbital evolution.
 
-The non-dimensionalization is itself frequency-independent (the `c_NonDimensionalScales` time scale is `1/(π·G·ρ_bulk)`, not `1/ω`), so the only quantities that change between calls at different frequencies are the complex moduli and the shooting integration.
+The non-dimensionalization is itself frequency-independent (the `c_NonDimensionalScales` time scale is $1/\sqrt{\pi G \bar{\rho}}$ for the bulk density $\bar{\rho}$, not $1/\omega$), so the only quantities that change between calls at different frequencies are the complex moduli and the shooting integration.
 
 1. Validates `eos_solved` and `tidalpy_config_ptr`.
 2. If the cache does not match the current EOS grid/assumptions, `build_cache` captures (once): the non-dim radius/density/gravity/pressure/mass/moi arrays, per-layer metadata (solid/liquid, static, incompressible) and slice partitioning, the non-dim scalars (`G`, bulk density, surface pressure), and a reused `c_RadialSolutionStorage` whose internal `c_EOSSolution` arrays serve as the scratch buffers. The cache is invalidated automatically whenever `solve_eos` re-runs.
@@ -269,7 +269,7 @@ The non-dimensionalization is itself frequency-independent (the `c_NonDimensiona
 
 ### Global (1D) Tidal Dissipation
 
-`LayeredWorld.calc_tides(...)` computes the body's total tidal heating and three orbital potential partial derivatives by summing over the active tidal modes (the global / "1D potential" approach). A tide model (see [Global Tidal Dissipation](../../Tides_x/global_tides.md)) supplies the per-mode dissipation multiplier `−Im[k_l]`; the world runs the global-potential engine for its stored `[tides]` config + the supplied orbital/spin state, collapses, and distributes the heat to the layers by each layer's `tidal_scale_method` (see below).
+`LayeredWorld.calc_tides(...)` computes the body's total tidal heating and three orbital potential partial derivatives by summing over the active tidal modes (the global / "1D potential" approach). A tide model (see [Global Tidal Dissipation](../../Tides_x/global_tides.md)) supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}]$; the world runs the global-potential engine for its stored `[tides]` config + the supplied orbital/spin state, collapses, and distributes the heat to the layers by each layer's `tidal_scale_method` (see below).
 
 **Per-layer scaling (`tidal_scale_method`).** Each layer chooses how its share of the global heating is set (a per-layer config key; default `user_provided`):
 
@@ -277,7 +277,7 @@ The non-dimensionalization is itself frequency-independent (the `c_NonDimensiona
 |----------------------|------------------------------|
 | `user_provided` (`user_provided_scale`) | the layer's `tidal_scale` field |
 | `volume_fraction` (`volume_fraction_scale`) | layer volume / planet volume |
-| `tidal_timescale` (`tidal_timescale_scale`) | a log-Gaussian bell in the layer's Maxwell time `τ = η/μ` (from its static shear modulus + viscosity) peaking where `τ` equals the orbital forcing period `2π/n`; width [decades] from `set_tide_config(tidal_timescale_width_decades=...)`. 0 for a geometry-only layer or when `μ`/`η`/`n` are unusable. |
+| `tidal_timescale` (`tidal_timescale_scale`) | a log-Gaussian bell in the layer's Maxwell time $\tau = \eta/\mu$ (from its static shear modulus + viscosity) peaking where $\tau$ equals the orbital forcing period $2\pi/n$; width [decades] from `set_tide_config(tidal_timescale_width_decades=...)`. 0 for a geometry-only layer or when $\mu$, $\eta$, or $n$ is unusable. |
 
 A non-tidal layer (`is_tidal = false`) always gets 0. Methods may differ per layer.
 
@@ -297,11 +297,11 @@ world.get_tidal_potential_derivatives()  # (dUdM, dUdw, dUdO) [J kg-1 rad-1]
 world.get_layer_tidal_heating(0)         # = world heating × layer 0's tidal_scale
 ```
 
-For a synchronous, low-eccentricity body the `cpl` result reproduces the standard CPL rate `(21/2)(k₂/Q)·G·M_host²·R⁵·n·e²/a⁶`.
+For a synchronous, low-eccentricity body the `cpl` result reproduces the standard CPL rate $\frac{21}{2}\,\frac{k_{2}}{Q}\,\frac{G M_{h}^{2} R^{5} n e^{2}}{a^{6}}$ (host mass $M_{h}$).
 
 ### Rheology Model
 
-The analytic models (`cpl`/`ctl`/`ctl_q`) take `−Im[k_l]` from their fixed per-degree parameters and need no interior solution. The `rheology` model instead derives `−Im[k_l(ω)]` from the world radial solver: `calc_tides` runs the global-potential engine, then for each unique tidal frequency it solves the world's complex Love numbers (reusing the frequency-independent radial-solver cache), feeds the per-mode `k_l` into the collapse, and retains the full `k`/`h`/`l` suite per mode for inspection. Because it runs the radial solver, the EOS must be solved first:
+The analytic models (`cpl`/`ctl`/`ctl_q`) take $-\mathrm{Im}[k_{l}]$ from their fixed per-degree parameters and need no interior solution. The `rheology` model instead derives $-\mathrm{Im}[k_{l}(\omega)]$ from the world radial solver: `calc_tides` runs the global-potential engine, then for each unique tidal frequency it solves the world's complex Love numbers (reusing the frequency-independent radial-solver cache), feeds the per-mode `k_l` into the collapse, and retains the full `k`/`h`/`l` suite per mode for inspection. Because it runs the radial solver, the EOS must be solved first:
 
 ```python
 world.solve_eos(G_to_use=G, temperature=1500.0)   # required for the rheology model
@@ -348,7 +348,7 @@ The remaining public surface, grouped by what it is for.
 
 **Geometry.** `calc_surface_area(radius)`, `calc_volume_sphere(radius)`, and `calc_volume_shell(outer, inner)` are the shared spherical helpers every structure inherits.
 
-**Spin and orbit.** `set_spin_model(spin)` attaches a spin model; `get_moment_of_inertia()` returns the EOS-solved moment of inertia [kg m2] (or the spin model's `moment_of_inertia_factor * M R^2` estimate before a solve); `calc_spin_derivative(host_mass)` gives the spin rate of change [rad s-2] from the current tidal solution; `calc_synchronous_spin(orbital_frequency)` returns the synchronous rate [rad s-1]. See [Dynamics](../../dynamics_x/dynamics.md).
+**Spin and orbit.** `set_spin_model(spin)` attaches a spin model; `get_moment_of_inertia()` returns the EOS-solved moment of inertia [kg m2] (or the spin model's estimate `moment_of_inertia_factor` $\times\,M R^{2}$ before a solve); `calc_spin_derivative(host_mass)` gives the spin rate of change [rad s-2] from the current tidal solution; `calc_synchronous_spin(orbital_frequency)` returns the synchronous rate [rad s-1]. See [Dynamics](../../dynamics_x/dynamics.md).
 
 **State.** `get_state()` returns the world's current scalar state as a dict, and `calc_state()` recomputes it. `get_state()` is the cheap read.
 
@@ -370,7 +370,7 @@ jupiter.add_layer(GasLayer("envelope", 0, 0.0, 7.0e7, 1.898e27))
 
 ## `StarWorld`
 
-A star: no layers, no EOS. Effective temperature and luminosity are kept consistent through the Stefan-Boltzmann law `L = 4·π·R²·σ·T⁴`.
+A star: no layers, no EOS. Effective temperature and luminosity are kept consistent through the Stefan-Boltzmann law, $L = 4\pi R^{2}\sigma T^{4}$.
 
 ```python
 from TidalPy.structures_x.worlds import StarWorld

@@ -122,8 +122,10 @@ source_suffix = {
     '.md': 'markdown',
 }
 myst_enable_extensions = [
+    "amsmath",          # LaTeX environments such as \begin{aligned} in math blocks
     "colon_fence",      # ::: fenced directives
     "deflist",          # definition lists
+    "dollarmath",       # $inline$ and $$display$$ math, rendered by MathJax
     "linkify",          # auto-detect URLs
     "smartquotes",      # nicer quotes
 ]

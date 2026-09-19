@@ -13,6 +13,16 @@ The values returned are the unsquared $F_{l,m,p}(I)$.
 
 As with the eccentricity functions, TidalPy uses analytically pre-computed terms rather than evaluating the definition at runtime. That is faster and identifies the modes that cannot contribute: if $F_{lmp}(I)$ is identically zero for some $(l, m, p)$, that mode never enters the potential.
 
+## Physics
+
+Kaula (1966, Eq. 3.62) writes the obliquity functions as a triple sum. TidalPy evaluates the equivalent single sum in the half-angle form (Gooding and Wagner 2008; Renaud et al. 2021, Eq. C7),
+
+$$F_{lmp}(I) = (-1)^{\lfloor (l-m+1)/2 \rfloor}\,\frac{(l+m)!}{2^{l}\,p!\,(l-p)!}\sum_{\lambda=\lambda_{1}}^{\lambda_{2}}(-1)^{\lambda}\binom{2l-2p}{\lambda}\binom{2p}{l-m-\lambda}\cos^{3l-m-2p-2\lambda}\!\left(\frac{I}{2}\right)\sin^{m-l+2p+2\lambda}\!\left(\frac{I}{2}\right),$$
+
+with $\lambda_{1} = \max(0,\, l-m-2p)$ and $\lambda_{2} = \min(l-m,\, 2l-2p)$. The sign factor makes $F_{lmp}$ equal to Kaula's triple sum, sign included. The global (1D) heating uses $F_{lmp}^{2}$ and does not depend on it, but the [3D potential](multilayer_3d_heating.md) is linear in $F_{lmp}$ and does. $F_{lmp}$ is even in $I$ when $l - m$ is even and odd when $l - m$ is odd, so the odd-$(l - m)$ modes, such as $m = 1$ at $l = 2$, vanish at $I = 0$.
+
+The truncated tables are the Taylor series of this expression in $I$ with exact rational coefficients, cut after $I^{n}$. Truncation `off` evaluates it at $I = 0$, and `gen` compiles the closed form itself.
+
 ## Choosing a Truncation
 
 Truncation $n$ keeps every term of the Taylor expansion of $F_{l,m,p}(I)$ through $I^{n}$. Heating goes as the potential squared, so it is an even function of $I$. At synchronous rotation only the $m = 1$ modes dissipate through obliquity, and truncation `1` already gives their full $I^2$ heating, the traditional obliquity-tide term. A non-synchronous body also dissipates through the aligned modes (such as the $(2, 2, 0, 0)$ tide), whose $F$ carry $I^2$ corrections ($F_{2,2,0} = 3 - 3 I^2/2 + \dots$) that only truncation `2` keeps. Pick the lowest truncation that covers your problem; the counts below are the active modes at degree $l = 2$. Unlike the eccentricity functions, these functions do converge and can be written down completely.
@@ -59,3 +69,9 @@ world.set_tide_config(max_degree_l=2, eccentricity_truncation=3, obliquity_trunc
 ```
 
 The TOML spelling is `obliquity_trunc_lvl`, which also accepts `"off"`. See [Global Tides](global_tides.md) and the [TOML schema](../structures_x/config/toml_schema.md).
+
+## References
+
+- Kaula, W. M. (1966). *Theory of Satellite Geodesy: Applications of Satellites to Geodesy*. Blaisdell. Eq. 3.62, the triple sum.
+- Gooding, R. H., and Wagner, C. A. (2008). On the inclination functions and a rapid stable procedure for their evaluation together with derivatives. *Celestial Mechanics and Dynamical Astronomy*, 101. The single-sum form.
+- Renaud, J. P., et al. (2021). Tidal dissipation in dual-body, highly eccentric, and nonsynchronously rotating systems: Applications to Pluto-Charon and the exoplanet TRAPPIST-1e. *The Planetary Science Journal*, 2(1), 4. Appendix C.

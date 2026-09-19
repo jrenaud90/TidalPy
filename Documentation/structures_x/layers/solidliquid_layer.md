@@ -1,16 +1,16 @@
 # SolidLiquidLayer
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-19_
 
 `TidalPy.structures_x.layers.SolidLiquidLayer` extends `PhysicsLayer` with thermomechanical behavior: melt-fraction tracking, an Arrhenius viscosity, a melt-weakened shear modulus, thermal transport, and optional sub-models for radiogenic heating and convective or conductive cooling.
 
 The physics:
 
-- Melt fraction: power-law interpolation between solidus and liquidus, φ = clamp((T − T_s) / (T_l − T_s), 0, 1)^n.
-- Arrhenius viscosity with pressure correction and partial-melt reduction: η = η_ref · exp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref)) · exp(−C · φ).
-- Melt-weakened shear modulus: G_eff = G_static · (1 − φ).
-- Thermal transport: constant-k conductivity; diffusivity κ = k/(ρ_ref·c_p); adiabatic gradient α·T·g/c_p (requires EOS data for gravity).
-- Conductive heat flux: F = k · (T_base − T_top) / h.
+- Melt fraction: power-law interpolation between the solidus $T_{s}$ and the liquidus $T_{l}$, $\phi = \left[\operatorname{clamp}\!\left(\frac{T - T_{s}}{T_{l} - T_{s}}, 0, 1\right)\right]^{n}$.
+- Arrhenius viscosity with a pressure correction and a partial-melt reduction, $\eta = \eta_\mathrm{ref}\exp\!\left(\frac{E_{a} + P V_{a}}{R T} - \frac{E_{a}}{R T_\mathrm{ref}}\right)\exp(-C\phi)$.
+- Melt-weakened shear modulus, $G_\mathrm{eff} = G_\mathrm{static}(1 - \phi)$.
+- Thermal transport: a constant conductivity $k$; the diffusivity $\kappa = k/(\rho_\mathrm{ref}\,c_{p})$; the adiabatic gradient $\alpha T g / c_{p}$ (requires EOS data for gravity).
+- Conductive heat flux, $F = k\,(T_\mathrm{base} - T_\mathrm{top})/h$.
 
 The solidus and liquidus temperatures are constant: the melt curve carries no pressure dependence.
 
@@ -121,12 +121,9 @@ _Read-only properties._
 
 ### `calc_melt_fraction(temperature, pressure=0.0)` → float
 
-Volumetric melt fraction φ ∈ [0, 1]:
+Volumetric melt fraction $\phi \in [0, 1]$:
 
-```
-τ = clamp((T − T_s) / (T_l − T_s), 0, 1)
-φ = τ^n
-```
+$$\phi = \left[\operatorname{clamp}\!\left(\frac{T - T_{s}}{T_{l} - T_{s}}, 0, 1\right)\right]^{n}$$
 
 `pressure` is accepted for interface uniformity and is unused: the melt curve carries no pressure dependence.
 
@@ -138,12 +135,9 @@ phi = layer.calc_melt_fraction(3200.0)  # T = 3200 K, P = 0
 
 Effective dynamic viscosity [Pa·s]:
 
-```
-η = η_ref · exp(clamp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref), −100, 100))
-          · exp(clamp(−C · φ, −100, 0))
-```
+$$\eta = \eta_\mathrm{ref}\,\exp\!\left[\operatorname{clamp}\!\left(\frac{E_{a} + P V_{a}}{R T} - \frac{E_{a}}{R T_\mathrm{ref}}, -100, 100\right)\right]\exp\!\left[\operatorname{clamp}(-C\phi, -100, 0)\right]$$
 
-The Arrhenius exponent is clamped to [−100, 100] to prevent overflow. Returns `η_ref` when T = 0 K.
+The Arrhenius exponent is clamped to $[-100, 100]$ to prevent overflow. Returns `η_ref` when $T = 0$ K.
 
 ```python
 eta = layer.calc_viscosity(3000.0, 1e11)  # T = 3000 K, P = 100 GPa
@@ -153,9 +147,7 @@ eta = layer.calc_viscosity(3000.0, 1e11)  # T = 3000 K, P = 100 GPa
 
 Effective shear modulus [Pa] accounting for partial melt:
 
-```
-G_eff = G_static · (1 − φ)
-```
+$$G_\mathrm{eff} = G_\mathrm{static}\,(1 - \phi)$$
 
 ```python
 G = layer.calc_shear_modulus(3000.0)
@@ -167,11 +159,11 @@ Returns the reference thermal conductivity k [W/(m·K)]. Temperature dependence 
 
 ### `calc_thermal_diffusivity(temperature)` → float
 
-Thermal diffusivity [m²/s] = k / (ρ_ref · c_p).
+Thermal diffusivity [m²/s], $\kappa = k/(\rho_\mathrm{ref}\,c_{p})$.
 
 ### `calc_adiabatic_temperature_gradient(temperature, pressure=0.0)` → float
 
-Adiabatic temperature gradient [K/m] = α · T · g / c_p.
+Adiabatic temperature gradient [K/m], $\alpha T g / c_{p}$.
 
 Gravity g is read from the EOS profile at the outer radius. Returns `0.0` when EOS data has not been populated via `update_eos_data`.
 
@@ -184,11 +176,9 @@ grad = layer.calc_adiabatic_temperature_gradient(3000.0)
 
 Conductive heat flux [W/m²]:
 
-```
-F = k · (T_base − T_top) / h
-```
+$$F = \frac{k\,(T_\mathrm{base} - T_\mathrm{top})}{h}$$
 
-where h is the layer thickness. Returns `0.0` for zero-thickness layers.
+where $h$ is the layer thickness. Returns `0.0` for zero-thickness layers.
 
 ```python
 flux = layer.calc_heat_flux_conductive(temperature_base=3500.0, temperature_top=1500.0)

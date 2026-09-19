@@ -11,6 +11,28 @@ TidalPy does not evaluate the series at runtime. The terms for each degree and t
 > [!NOTE]
 > TidalPy's eccentricity functions require $0 \le e < 1$; parabolic and hyperbolic orbits are outside their domain.
 
+## Physics
+
+The eccentricity functions are Hansen coefficients (Kaula 1964),
+
+$$G_{lpq}(e) = X^{-(l+1),\,l-2p}_{l-2p+q}(e), \qquad X^{n,m}_{k}(e) = \frac{1}{2\pi}\int_{0}^{2\pi}\left(\frac{r}{a}\right)^{n} e^{i(mf - k\mathcal{M})}\,d\mathcal{M},$$
+
+where $r$ is the orbital distance, $a$ the semi-major axis, $f$ the true anomaly, and $\mathcal{M}$ the mean anomaly. $G_{lpq}$ is of order $e^{|q|}$. The functions are symmetric, $G_{lpq} = G_{l,\,l-p,\,-q}$.
+
+For $k \equiv l - 2p + q = 0$ the coefficient has a closed form (Laskar and Boué 2010; Renaud et al. 2021, Eq. C3). With $n' = -n = l + 1$ and $0 \le m \le n' - 2$ (the coefficient is even in $m$ and zero for larger $|m|$),
+
+$$X^{-n',\,m}_{0}(e) = \left(1-e^{2}\right)^{3/2-n'}\sum_{j=0}^{\lfloor (n'-2-m)/2 \rfloor}\frac{(n'-2)!}{j!\,(m+j)!\,(n'-2-m-2j)!}\left(\frac{e}{2}\right)^{m+2j}.$$
+
+The prefactor is kept exact, which is why a factor such as $(1-e^{2})^{-3/2}$ appears unexpanded, and only the sum is truncated.
+
+For $k \neq 0$ the coefficient is a double series in Bessel functions of the first kind (Veras et al. 2019; Renaud et al. 2021, Eq. C5),
+
+$$X^{n,m}_{k}(e) = \left(1+\beta^{2}\right)^{-(n+1)}\sum_{j=0}^{\infty}(-\beta)^{j}\sum_{h=0}^{j}\binom{1+n+m}{j-h}\binom{1+n-m}{h}J_{k-m+j-2h}(ke), \qquad \beta = \frac{1-\sqrt{1-e^{2}}}{e},$$
+
+with $J_{-\nu} = (-1)^{\nu}J_{\nu}$ and generalized binomial coefficients for negative upper arguments.
+
+The tables are generated ahead of time with exact rational arithmetic: $\beta$, every Bessel function, and every product are expanded in $e$ and cut after $e^{n}$, so truncation $n$ holds every term of every $G_{lpq}$ through $e^{n}$, including every $|q| \le n$. The coefficients are then printed to 25 significant digits and compiled.
+
 ## Choosing a Truncation
 
 The count below is the number of non-zero modes at degree $l = 2$; higher degrees activate more. Truncation $n$ keeps every term of $G_{l,p,q}(e)$ through $e^{n}$. Heating goes as the potential squared, so it is complete through at least $e^{n}$ as well.
@@ -22,7 +44,7 @@ The count below is the number of non-zero modes at degree $l = 2$; higher degree
 | 3 | 19 | Common choice, and TidalPy's default. |
 | 4 | 25 | |
 | 5 | 31 | |
-| 10 | 61 | Used in [Renaud et al. (2021)](https://iopscience.iop.org/article/10.3847/1538-4357/abc0f2). |
+| 10 | 61 | Used in [Renaud et al. (2021)](https://doi.org/10.3847/PSJ/abc0f3). |
 | 15 | 91 | |
 | 20 | 121 | |
 
@@ -63,3 +85,10 @@ world.set_tide_config(max_degree_l=2, eccentricity_truncation=3, obliquity_trunc
 ```
 
 The same value can be given in a world TOML file as `eccentricity_trunc_lvl`. See [Global Tides](global_tides.md) and the [TOML schema](../structures_x/config/toml_schema.md).
+
+## References
+
+- Kaula, W. M. (1964). Tidal dissipation by solid friction and the resulting orbital evolution. *Reviews of Geophysics*, 2(4), 661-685.
+- Laskar, J., and Boué, G. (2010). Explicit expansion of the three-body disturbing function for arbitrary eccentricities and inclinations. *Astronomy and Astrophysics*, 522, A60. The closed form at $k = 0$.
+- Veras, D., et al. (2019). Orbital relaxation and excitation of planets tidally interacting with white dwarfs. *Monthly Notices of the Royal Astronomical Society*, 486. The Bessel series at $k \neq 0$.
+- Renaud, J. P., et al. (2021). Tidal dissipation in dual-body, highly eccentric, and nonsynchronously rotating systems: Applications to Pluto-Charon and the exoplanet TRAPPIST-1e. *The Planetary Science Journal*, 2(1), 4. Appendix C collects the forms used here.

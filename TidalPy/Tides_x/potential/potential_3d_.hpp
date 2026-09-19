@@ -11,7 +11,7 @@
  *
  * Governing equation: Kaula's tide-raising potential, Efroimsky and Williams (2009) Eq. 18 (= Kaula 1964):
  *
- *   W(R, theta, phi, t) = -(G M_host / a) sum_l (R/a)^l
+ *   W(R, theta, phi, t) =  (G M_host / a) sum_l (R/a)^l
  *                            sum_m (l-m)!/(l+m)! (2 - d_m0) P_lm(cos theta)
  *                              sum_p F_lmp(i) sum_q G_lpq(e) * Trig_lm( omega_lmpq t - m phi )
  *
