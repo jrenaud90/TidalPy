@@ -1,34 +1,29 @@
-# Luna: the Moon as a four-layer body that matches every bulk observable it has, including its k2.
+# Luna: the Moon as a four-layer body that matches observables, including its k2.
 #
-# Rebuilt from the classic BurnMan-based WorldPack luna.toml, which supplied the radius and the two core
-# boundaries (solid inner core to 160 km, outer core to 350 km). Mass comes from GM = 4902.800118 km3/s2
-# (DE440) with G = 6.67430e-11, giving 7.34579e22 kg; the classic file carried no mass of its own because
-# BurnMan derived it from the mineral assemblage.
-#
-# Structure. The core densities are the Apollo seismic reanalysis of Weber et al. (2011): 8000 kg/m3 for
+# Structure
+# The core densities are the Apollo seismic reanalysis of Weber et al. (2011): 8000 kg/m3 for
 # the solid inner core and 5100 kg/m3 for the fluid outer core, both incompressible because the lunar
 # core's composition is the least constrained part of the model. Above them sit a silicate mantle and the
-# low-density crust GRAIL measured, 34 to 43 km thick with a grain density near 2550 kg/m3 (Wieczorek et
-# al. 2013).
+# low-density crust GRAIL measured, 34 to 43 km thick with a density near 2550 kg/m3 (Wieczorek et al. 2013).
 #
-# Two numbers are fitted, one per observable. The mantle's Birch-Murnaghan reference density, 3324.97
+# Three numbers are fitted, one per observable. The mantle's Birch-Murnaghan reference density, 3324.97
 # kg/m3, reproduces the published mass. The crust thickness, 34 km, reproduces the moment-of-inertia
-# factor: C/MR2 measures how centrally concentrated the mass is, a uniform sphere gives 0.4, and a Moon
-# with no crust overshoots at 0.3965 against the measured 0.3931 +/- 0.0002 (Williams et al. 2014). The
-# core radius has almost no leverage there, moving C/MR2 only from 0.3968 to 0.3948 across a 330 to 450 km
-# core, while the crust has plenty, and 34 km is the bottom of the GRAIL range rather than a free
-# parameter. The result is C/MR2 = 0.39312, a surface gravity of 1.6242 m/s2 against the observed 1.622,
-# and a central pressure of 5.44 GPa.
+# factor: C/MR2 a Moon with no crust overshoots at 0.3965 against the measured 0.3931 +/- 0.0002
+# (Williams et al. 2014). The core radius provides little change, moving C/MR2 only from 0.3968 to 0.3948
+# across a 330 to 450 km core. The result is C/MR2 = 0.39312, a surface gravity of 1.6242 m/s2 against the
+# observed 1.622, and a central pressure of 5.44 GPa.
 #
-# Tides. With nothing tuned to it, this interior returns k2 = 0.0241 at the monthly period against the
-# measured 0.02422 +/- 0.00022 (Williams et al. 2014), which is the strongest available check that the
-# density and rigidity profile is right. The dissipation is not calibrated: the default cold mantle
-# viscosity gives k2/Q near 1.3e-7 where lunar laser ranging measures 6.4e-4, so tidal heating from this
-# file is orders of magnitude too low. Override the mantle viscosity and rheology to model the warm
-# low-viscosity zone that the measured Q requires.
+# Tides
+# The outer core is a static liquid. With it and the 6.0e10 Pa default mantle rigidity this interior gives
+# k2 = 0.02526 at the monthly period, 4 percent above the measured 0.02422 +/- 0.00022 (Williams et al. 2014),
+# so the mantle shear modulus is the third fitted number: 6.27e10 Pa gives 0.02421. The core is 4 percent of
+# the volume, yet a solid outer core would move k2 to 0.02315, five times the measurement uncertainty.
 #
-# The outer core is built as a solid because the schema has no way to declare a layer fluid. For the Moon
-# that costs little: the core is 4 percent of the volume and k2 comes out right regardless.
+# The dissipation is not calibrated. The mantle and crust are elastic at the temperature of the
+# equation-of-state solve (their default viscosity is infinite there), so the only layer with a finite
+# viscosity is the solid inner core, and k2/Q is near 3e-13 where lunar laser ranging measures 6.4e-4. Tidal
+# heating from this file is therefore many orders of magnitude too low. Override the mantle viscosity and
+# rheology to model the warm low-viscosity zone that the measured Q requires.
 #
 # Orbital state is not a world property in this schema; add Luna to a System to give it an orbit. The spin
 # frequency is the synchronous rate from the classic file's 27.322 day spin period.
@@ -57,6 +52,7 @@ type = "iron"
 layer_index = 1
 radius_outer_m = 350000.0
 is_tidal = false
+is_solid = false                     # fluid outer core, solved as a static liquid
 
 [layers.outer_core.eos]
 model = "constant"
@@ -68,6 +64,7 @@ type = "mantle_rock"
 layer_index = 2
 radius_outer_m = 1703400.0
 is_tidal = true
+shear_modulus_static_pa = 6.27e10     # fitted to the measured k2 with the liquid outer core
 
 [layers.mantle.eos]
 model = "bm"

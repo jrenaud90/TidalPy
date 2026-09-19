@@ -22,6 +22,8 @@
 #
 # The per-layer tidal_scale values are not guesses. Integrating the depth-resolved 3D secular heating
 # over each layer puts 95.9% of the dissipation in the asthenosphere and 4.1% in the mantle, and that
+# volume integral agrees with the 1D total to better than one part in a billion. Those fractions are the
+# scales below, so the two layers' heating sums to the world total instead of double counting it.
 schema_version = "0.2.0"
 name = "Io"
 type = "terrestrial"
