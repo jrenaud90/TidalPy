@@ -73,6 +73,15 @@ cdef class GasLayer(PhysicsLayer):
         Reference temperature [K]. Default ``300.0``.
     reference_density : float, optional
         Reference density [kg/m³]. Default ``1.0``.
+    tidal_scale_method : str, optional
+        How the layer's share of the world's tidal heating is set. Default ``"user_provided"``.
+    is_solid : bool, optional
+        True marks the layer solid for the radial Love-number solver. Default ``False``: a gas carries no
+        shear stress, so it is solved as a liquid.
+    is_static : bool, optional
+        Use the static (no inertia) approximation in the radial solver. Default ``True``.
+    is_incompressible : bool, optional
+        Use the incompressible approximation in the radial solver. Default ``False``.
 
     Assumptions
     -----------
@@ -105,7 +114,10 @@ cdef class GasLayer(PhysicsLayer):
             double adiabatic_index       = 1.4,
             double reference_temperature = 300.0,
             double reference_density  = 1.0,
-            str    tidal_scale_method = "user_provided"):
+            str    tidal_scale_method = "user_provided",
+            cpp_bool is_solid          = False,
+            cpp_bool is_static         = True,
+            cpp_bool is_incompressible = False):
         cdef c_GasConfig config
         config.name                 = name.encode("utf-8")
         config.layer_index          = layer_index
@@ -124,6 +136,9 @@ cdef class GasLayer(PhysicsLayer):
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
             cpp_complex[double](love_number_l.real, love_number_l.imag))
+        config.is_solid              = is_solid
+        config.is_static             = is_static
+        config.is_incompressible     = is_incompressible
         config.mean_molecular_weight = mean_molecular_weight
         config.adiabatic_index       = adiabatic_index
         config.reference_temperature = reference_temperature

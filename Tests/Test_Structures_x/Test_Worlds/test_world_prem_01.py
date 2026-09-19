@@ -43,6 +43,8 @@ def test_earth_prem_builds_three_layers_with_a_liquid_outer_core():
     assert [layer.is_solid for layer in world] == [True, False, True]
     assert [layer.is_static for layer in world] == [True, True, True]
     assert [layer.is_tidal for layer in world] == [True, False, True]
+    # The detected flags are config keys, so the expanded configuration carries them.
+    assert [cfg["is_solid"] for cfg in world.source_config["layers"].values()] == [True, False, True]
 
 
 def test_earth_prem_eos_solve_converges_and_reproduces_earth():
@@ -110,7 +112,7 @@ def test_earth_prem_toml_override_of_modulus(tmp_path):
         "data_file": prem_path,
         "layers": {
             "layer_0": {"class": "solidliquid", "layer_index": 0},
-            "layer_1": {"class": "physics", "layer_index": 1},
+            "layer_1": {"class": "physics", "layer_index": 1, "is_incompressible": True},
             "layer_2": {"class": "solidliquid", "layer_index": 2,
                         "bulk_modulus_static_pa": 1.0e11},
         },
@@ -119,8 +121,9 @@ def test_earth_prem_toml_override_of_modulus(tmp_path):
     world.solve_eos(G_to_use=G, verbose=False)
     # The mantle bulk modulus is now the constant override (not the PREM value).
     assert math.isclose(world.get_bulk_modulus(_MANTLE_RADIUS_M), 1.0e11, rel_tol=1e-6)
-    # The user tables do not change the detected liquid flag of the outer core.
+    # The user tables keep the detected liquid flag of the outer core and can add the other flags.
     assert [layer.is_solid for layer in world] == [True, False, True]
+    assert [layer.is_incompressible for layer in world] == [False, True, False]
 
 
 def test_earth_prem_layer_count_mismatch_raises():

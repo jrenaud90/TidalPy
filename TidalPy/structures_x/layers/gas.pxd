@@ -32,6 +32,9 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         double              shear_viscosity_static
         double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
+        cpp_bool            is_solid
+        cpp_bool            is_static
+        cpp_bool            is_incompressible
         # GasLayer additions:
         double              mean_molecular_weight
         double              adiabatic_index

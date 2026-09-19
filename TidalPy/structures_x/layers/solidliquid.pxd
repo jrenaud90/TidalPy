@@ -36,6 +36,9 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         double              shear_viscosity_static
         double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
+        cpp_bool            is_solid
+        cpp_bool            is_static
+        cpp_bool            is_incompressible
         # SolidLiquidLayer additions:
         double              thermal_conductivity_ref
         double              thermal_expansion_ref

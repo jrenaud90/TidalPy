@@ -123,6 +123,14 @@ def test_solidliquid_defaults():
     assert sl.melt_viscosity_reduction  == pytest.approx(25.0)
     assert math.isnan(sl.shear_viscosity_static)
     assert math.isnan(sl.bulk_viscosity_static)
+    assert (sl.is_solid, sl.is_static, sl.is_incompressible) == (True, True, False)
+
+
+def test_solidliquid_layer_assumption_flags_from_constructor():
+    sl = _make_layer(is_solid=False, is_static=False, is_incompressible=True)
+    assert (sl.is_solid, sl.is_static, sl.is_incompressible) == (False, False, True)
+    cfg = sl.get_config_dict()
+    assert (cfg["is_solid"], cfg["is_static"], cfg["is_incompressible"]) == (False, False, True)
 
 
 # =====================================================================================================================

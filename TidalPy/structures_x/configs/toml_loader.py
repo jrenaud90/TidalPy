@@ -137,7 +137,11 @@ _PHYSICS_LAYER_KEYS = (
     "shear_modulus_static_pa",
     "bulk_modulus_static_pa",
     "shear_viscosity_static_pas",
-    "bulk_viscosity_static_pas"
+    "bulk_viscosity_static_pas",
+    # Radial-solver flags: a liquid layer sets is_solid = false and stays static unless is_static = false.
+    "is_solid",
+    "is_static",
+    "is_incompressible"
 )
 _SOLIDLIQUID_LAYER_KEYS = (
     "thermal_conductivity_ref_w_mk",

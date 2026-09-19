@@ -131,6 +131,68 @@ def test_hand_built_world_rebuilds_from_config_dict():
     assert rebuilt.get_density(query_radius) == pytest.approx(world.get_density(query_radius), rel=1e-9)
 
 
+def _liquid_core_config(**core_flags):
+    """A two-layer world whose core carries the given radial-solver flags."""
+    core = {
+        "class": "physics",
+        "type": "iron",
+        "layer_index": 0,
+        "radius_outer_m": 3.0e6,
+        "is_tidal": False,
+    }
+    core.update(core_flags)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "name": "liquid_core",
+        "type": "terrestrial",
+        "radius_m": 6.0e6,
+        "mass_kg": 5.0e24,
+        "layers": {
+            "core": core,
+            "mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 1, "radius_fraction": 1.0},
+        },
+    }
+
+
+def test_layer_assumption_flags_round_trip_through_the_builder(tmp_path):
+    world = construct_world(_liquid_core_config(is_solid=False, is_incompressible=True))
+    assert (world.core.is_solid, world.core.is_static, world.core.is_incompressible) == (False, True, True)
+    assert (world.mantle.is_solid, world.mantle.is_static, world.mantle.is_incompressible) == (True, True, False)
+
+    cfg = world.get_config_dict()
+    assert (cfg["layers"]["core"]["is_solid"], cfg["layers"]["core"]["is_incompressible"]) == (False, True)
+    validate_world_config(cfg)
+    assert _nan_equal(construct_world(cfg).get_config_dict(), cfg)
+
+    world.source_config = None   # force the get_config_dict fallback of save_to_toml
+    path = tmp_path / "liquid_core.toml"
+    world.save_to_toml(str(path))
+    reloaded = build_world(str(path))
+    assert (reloaded.core.is_solid, reloaded.core.is_incompressible) == (False, True)
+
+
+def test_liquid_layer_key_matches_setting_the_flag_on_the_built_layer():
+    """A liquid layer declared in the config gives the same Love number as flagging the built layer."""
+    frequency = 2.0 * math.pi / 86400.0
+    declared = construct_world(_liquid_core_config(is_solid=False))
+    declared.solve_eos(verbose=False)
+    declared.solve_love_numbers(frequency)
+
+    flagged = construct_world(_liquid_core_config())
+    flagged.core.is_solid = False
+    flagged.solve_eos(verbose=False)
+    flagged.solve_love_numbers(frequency)
+
+    solid = construct_world(_liquid_core_config())
+    solid.solve_eos(verbose=False)
+    solid.solve_love_numbers(frequency)
+
+    assert declared.love_success and flagged.love_success and solid.love_success
+    assert declared.love_number_k == flagged.love_number_k
+    # The liquid core has no shear strength, so the world deforms more than with a solid core.
+    assert declared.love_number_k.real > 1.1 * solid.love_number_k.real
+
+
 def test_bare_base_world_fallback_save_is_rejected(tmp_path):
     """A world with no layers cannot be rebuilt, so the validated fallback refuses to write it."""
     world = BaseWorld("bare", 1.0e6, 1.0e20)

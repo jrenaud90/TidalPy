@@ -76,6 +76,15 @@ cdef class PhysicsLayer(BaseLayer):
         Radial displacement Love number (placeholder). Default ``0+0j``.
     love_number_l : complex, optional
         Tangential displacement Love number (placeholder). Default ``0+0j``.
+    tidal_scale_method : str, optional
+        How the layer's share of the world's tidal heating is set. Default ``"user_provided"``.
+    is_solid : bool, optional
+        False marks the layer liquid for the radial Love-number solver. Default ``True``.
+    is_static : bool, optional
+        Use the static (no inertia) approximation in the radial solver. Default ``True``, so a liquid layer
+        is a static liquid unless this is set False.
+    is_incompressible : bool, optional
+        Use the incompressible approximation in the radial solver. Default ``False``.
 
     Assumptions
     -----------
@@ -103,7 +112,10 @@ cdef class PhysicsLayer(BaseLayer):
             complex love_number_k        = 0+0j,
             complex love_number_h        = 0+0j,
             complex love_number_l        = 0+0j,
-            str    tidal_scale_method    = "user_provided"):
+            str    tidal_scale_method    = "user_provided",
+            cpp_bool is_solid            = True,
+            cpp_bool is_static           = True,
+            cpp_bool is_incompressible   = False):
         cdef c_PhysicsConfig config
         config.name               = name.encode("utf-8")
         config.layer_index        = layer_index
@@ -122,6 +134,9 @@ cdef class PhysicsLayer(BaseLayer):
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
             cpp_complex[double](love_number_l.real, love_number_l.imag))
+        config.is_solid          = is_solid
+        config.is_static         = is_static
+        config.is_incompressible = is_incompressible
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_PhysicsLayer] built = make_unique[c_PhysicsLayer](config)
@@ -438,15 +453,19 @@ cdef class PhysicsLayer(BaseLayer):
         -------
         dict
             The BaseLayer keys plus ``shear_modulus_static``, ``bulk_modulus_static``,
-            ``shear_viscosity_static``, ``bulk_viscosity_static``, the six Love number components, and one
-            sub-table per attached model (``shear_rheology``, ``bulk_rheology``, ``shear_viscosity``,
-            ``bulk_viscosity``, ``partial_melt``).
+            ``shear_viscosity_static``, ``bulk_viscosity_static``, the radial-solver flags ``is_solid``,
+            ``is_static``, and ``is_incompressible``, the six Love number components, and one sub-table per
+            attached model (``shear_rheology``, ``bulk_rheology``, ``shear_viscosity``, ``bulk_viscosity``,
+            ``partial_melt``).
         """
         d = BaseLayer.get_config_dict(self)
         d["shear_modulus_static_pa"]      = self._physics_ptr.get_shear_modulus_static()
         d["bulk_modulus_static_pa"]       = self._physics_ptr.get_bulk_modulus_static()
         d["shear_viscosity_static_pas"]   = self._physics_ptr.get_shear_viscosity_static()
         d["bulk_viscosity_static_pas"]    = self._physics_ptr.get_bulk_viscosity_static()
+        d["is_solid"]          = bool(self._physics_ptr.get_is_solid())
+        d["is_static"]         = bool(self._physics_ptr.get_is_static())
+        d["is_incompressible"] = bool(self._physics_ptr.get_is_incompressible())
         cdef c_LoveNumbers ln = self._physics_ptr.get_love_numbers()
         d["love_number_k_re"] = ln.k.real()
         d["love_number_k_im"] = ln.k.imag()

@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
-_Updated: 2026-09-18_
+_Updated: 2026-09-19_
 
 Schema version `0.2.0`.
 
@@ -101,6 +101,9 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `bulk_modulus_static_pa` | optional | physics, solidliquid, gas | Static bulk modulus [Pa]. |
 | `shear_viscosity_static_pas` | optional | physics, solidliquid, gas | Static shear viscosity \[Pa s\]; NaN (unset) when omitted and no material default applies. |
 | `bulk_viscosity_static_pas` | optional | physics, solidliquid, gas | Static bulk viscosity \[Pa s\]; NaN (unset) when omitted and no material default applies. |
+| `is_solid` | optional | physics, solidliquid, gas | `false` makes the layer a liquid in the radial Love-number solve. Default `true` (`false` for `gas`). |
+| `is_static` | optional | physics, solidliquid, gas | Static approximation (no inertia) in the radial solve. Default `true`, so a liquid layer is a static liquid unless this is `false`. |
+| `is_incompressible` | optional | physics, solidliquid, gas | Incompressible approximation in the radial solve. Default `false`. |
 | solidliquid thermal/melt params | optional | solidliquid | See below. |
 | gas params | optional | gas | See below. |
 
@@ -284,7 +287,7 @@ The file may be ordered surface-first or center-first (it is sorted internally).
 
 ### Automatic Layer Detection
 
-The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` (zero shear) is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius boundary points are absorbed so no zero-thickness layers are produced, and a duplicated boundary radius keeps the lower layer's row first whichever way the file is ordered. A liquid layer is flagged `is_solid = false` (and `is_static = true`) on the built layer so the radial solver treats it as a static liquid; the flag is not a schema key. For the bundled `PREM.csv`, which replaces PREM's 3 km ocean with the upper crust, this yields three layers: inner core (solid), outer core (liquid), mantle plus crust (solid).
+The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` (zero shear) is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius boundary points are absorbed so no zero-thickness layers are produced, and a duplicated boundary radius keeps the lower layer's row first whichever way the file is ordered. A liquid layer gets `is_solid = false` and `is_static = true`, so the radial solver treats it as a static liquid; a `[layers.layer_N]` table can override either flag. For the bundled `PREM.csv`, which replaces PREM's 3 km ocean with the upper crust, this yields three layers: inner core (solid), outer core (liquid), mantle plus crust (solid).
 
 Each detected layer gets an interpolated EOS carrying that layer's radius-varying density and static shear/bulk moduli (and viscosities, if the file has those columns). During `solve_eos` the structure ODE integrates using the interpolated density, and the world's viscoelastic profile is taken from the interpolated moduli/viscosities (rather than a per-layer constant).
 

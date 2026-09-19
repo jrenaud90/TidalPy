@@ -87,6 +87,14 @@ def test_gas_defaults():
     assert gl.adiabatic_index       == pytest.approx(1.4)
     assert gl.reference_temperature == pytest.approx(300.0)
     assert gl.reference_density     == pytest.approx(1.0)
+    # A gas carries no shear stress, so the radial solver treats it as a static liquid by default.
+    assert (gl.is_solid, gl.is_static, gl.is_incompressible) == (False, True, False)
+    assert gl.get_config_dict()["is_solid"] is False
+
+
+def test_gas_layer_assumption_flags_from_constructor():
+    gl = _make_layer(is_solid=True, is_static=False, is_incompressible=True)
+    assert (gl.is_solid, gl.is_static, gl.is_incompressible) == (True, False, True)
 
 
 # =====================================================================================================================

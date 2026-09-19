@@ -286,26 +286,23 @@ def _build_prem_layers(data_path: str) -> list:
     Returns
     -------
     list of (str, dict)
-        ``(layer_name, layer_config)`` pairs, inner to outer.
-    list of str
-        The names of the layers detected as liquid (zero shear modulus). The flag is not a schema key, so
-        :func:`construct_world` applies it to the built layers.
+        ``(layer_name, layer_config)`` pairs, inner to outer. A layer detected as liquid (zero shear
+        modulus) carries ``is_solid = False`` and ``is_static = True``.
     """
     import numpy as np
     from TidalPy.structures_x.configs import prem
 
     arrays = prem.load_prem_arrays(data_path)
-    radius = arrays["radius_m"]
-    density = arrays["density_kg_m3"]
-    shear = arrays["shear_modulus_pa"]
-    bulk  = arrays["bulk_modulus_pa"]
+    radius     = arrays["radius_m"]
+    density    = arrays["density_kg_m3"]
+    shear      = arrays["shear_modulus_pa"]
+    bulk       = arrays["bulk_modulus_pa"]
     shear_visc = arrays["shear_viscosity_pas"]
     bulk_visc  = arrays["bulk_viscosity_pas"]
 
     boundaries = prem.detect_layer_boundaries(radius, shear)
 
     auto_layers = []
-    liquid_layer_names = []
     for index, (start, end, is_solid) in enumerate(boundaries):
         stop = end + 1
         radius_slice = radius[start:stop]
@@ -327,6 +324,9 @@ def _build_prem_layers(data_path: str) -> list:
             "layer_index":             index,
             "radius_outer_m":          float(radius_slice[-1]),
             "is_tidal":                bool(is_solid),
+            # A liquid layer (zero shear velocity) is solved as a static liquid.
+            "is_solid":                bool(is_solid),
+            "is_static":               True,
             # Representative per-layer constants (fallbacks; the EOS arrays above are
             # what the solve actually interpolates).
             "shear_modulus_static_pa": float(np.mean(shear_slice)),
@@ -334,9 +334,7 @@ def _build_prem_layers(data_path: str) -> list:
             "eos":                     eos_cfg,
         }
         auto_layers.append((f"layer_{index}", layer_cfg))
-        if not is_solid:
-            liquid_layer_names.append(f"layer_{index}")
-    return auto_layers, liquid_layer_names
+    return auto_layers
 
 
 def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer_name: str) -> dict:
@@ -390,21 +388,20 @@ def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer
     return merged
 
 
-def _expand_data_file(config: dict) -> tuple:
+def _expand_data_file(config: dict) -> dict:
     """Expand a ``data_file`` world config into auto-detected (PREM) layers.
 
     Returns a copy of ``config`` whose ``layers`` table is built from the PREM-like
     data file, merged with any user-provided ``[layers.*]`` tables (matched in order;
-    a layer-count or per-layer radius mismatch raises), and the names of the layers
-    detected as liquid. If the config has no ``data_file`` it is returned unchanged
-    with an empty list.
+    a layer-count or per-layer radius mismatch raises). If the config has no
+    ``data_file`` it is returned unchanged.
     """
     if "data_file" not in config:
-        return config, []
+        return config
 
     config = dict(config)
     data_path = worldpack.resolve_data_file(config["data_file"])
-    auto_layers, liquid_layer_names = _build_prem_layers(data_path)
+    auto_layers = _build_prem_layers(data_path)
 
     user_layers = config.get("layers", {}) or {}
     if user_layers:
@@ -429,19 +426,7 @@ def _expand_data_file(config: dict) -> tuple:
         config["layers"] = merged_layers
     else:
         config["layers"] = {name: cfg for name, cfg in auto_layers}
-    return config, liquid_layer_names
-
-
-def _mark_liquid_layers(world, liquid_layer_names: list) -> None:
-    """Flag the named layers of a built world as liquid (static) for the radial solver.
-
-    A PREM-like data file marks a liquid layer by a zero shear velocity. The solver flag is not a
-    schema key, so it is applied here after construction.
-    """
-    for layer in world:
-        if layer.name in liquid_layer_names:
-            layer.is_solid = False
-            layer.is_static = True
+    return config
 
 
 # =====================================================================================================================
@@ -498,7 +483,7 @@ def construct_world(config: dict):
     ValueError
         If the configuration fails structural validation.
     """
-    config, liquid_layer_names = _expand_data_file(config)
+    config = _expand_data_file(config)
     validate_world_config(config)
     world_type = config["type"]
 
@@ -533,7 +518,6 @@ def construct_world(config: dict):
         # "terrestrial" and "layered" both map to LayeredWorld.
         world = LayeredWorld(world_type=world_type, **world_kwargs)
         _add_layers(world, config["layers"], world_radius)
-        _mark_liquid_layers(world, liquid_layer_names)
         _attach_tides(world, config)
 
     # Retain the normalized config on the world for a faithful save_to_toml.

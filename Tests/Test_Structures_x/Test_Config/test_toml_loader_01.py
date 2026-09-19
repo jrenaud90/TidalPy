@@ -264,6 +264,19 @@ def test_layer_unknown_scalar_key_raises():
         tl.validate_layer_config("L", {"class": "base", "radius_outer_m": 1.0, "bogus": 1.0})
 
 
+@pytest.mark.parametrize("layer_class", ["physics", "solidliquid", "gas"])
+def test_layer_assumption_flags_are_schema_keys(layer_class):
+    cfg = {"class": layer_class, "radius_outer_m": 1.0,
+           "is_solid": False, "is_static": False, "is_incompressible": True}
+    tl.validate_layer_config("L", cfg)
+
+
+def test_base_layer_rejects_layer_assumption_flags():
+    # A geometry-only base layer has no radial-solver flags; the solver treats it as a static solid.
+    with pytest.raises(ValueError, match="Unexpected key"):
+        tl.validate_layer_config("L", {"class": "base", "radius_outer_m": 1.0, "is_solid": False})
+
+
 def test_base_layer_rejects_rheology():
     # A geometry-only base layer cannot hold a rheology model.
     cfg = {"class": "base", "radius_outer_m": 1.0,

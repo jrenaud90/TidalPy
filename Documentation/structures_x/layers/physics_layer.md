@@ -1,6 +1,6 @@
 # PhysicsLayer
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-19_
 
 `TidalPy.structures_x.layers.PhysicsLayer` extends `BaseLayer` with the static mechanical properties a tidal calculation needs: the shear and bulk moduli \[Pa\] and the shear and bulk viscosities \[Pa s\].
 
@@ -35,6 +35,9 @@ PhysicsLayer(
     love_number_h:          complex = 0+0j,
     love_number_l:          complex = 0+0j,
     tidal_scale_method:     str     = "user_provided",
+    is_solid:               bool    = True,
+    is_static:              bool    = True,
+    is_incompressible:      bool    = False,
 )
 ```
 
@@ -57,6 +60,8 @@ PhysicsLayer(
 | `love_number_k` | `complex` | — | Potential Love number k (placeholder). Default `0+0j`. |
 | `love_number_h` | `complex` | — | Radial displacement Love number h (placeholder). Default `0+0j`. |
 | `love_number_l` | `complex` | — | Tangential displacement Love number l (placeholder). Default `0+0j`. |
+| `tidal_scale_method` | `str` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
+| `is_solid`, `is_static`, `is_incompressible` | `bool` | - | Radial-solver assumptions; see Layer Assumptions below. Defaults `True`, `True`, `False`. |
 
 ## Properties
 
@@ -86,7 +91,7 @@ _Read-only properties._
 
 ### Layer Assumptions
 
-These three flags decide which equations the radial solver uses inside this layer, and they are writable after construction.
+These three flags decide which equations the radial solver uses inside this layer. They are constructor arguments, layer keys in a world TOML (see [TOML schema](../config/toml_schema.md)), and writable after construction. A liquid layer is static unless `is_static` is set `False`.
 
 | Property | Meaning |
 |---|---|
@@ -147,11 +152,11 @@ Attach a partial-melt model from [`partial_melt_x`](../../partial_melt_x/partial
 
 `update_eos_data`, `get_density`, `get_gravity`, `get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`, `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
 
-`get_config_dict()` adds the four static moduli and viscosities, the Love-number components, and one sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosity`, `bulk_viscosity`, `partial_melt`), each keyed by `model` exactly as the world builder reads it.
+`get_config_dict()` adds the four static moduli and viscosities, the three layer-assumption flags, the Love-number components, and one sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosity`, `bulk_viscosity`, `partial_melt`), each keyed by `model` exactly as the world builder reads it.
 
 ## Binary Serialization
 
-`save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by ten doubles in order: `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im (6 doubles total for the Love numbers).
+`save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by ten doubles in order: `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im (6 doubles total for the Love numbers), then one byte each for `is_solid`, `is_static`, and `is_incompressible`.
 
 Following the scalar payload, an optional sub-model section is written: one-byte presence flags for the material EOS model, the shear and bulk rheology, the shear and bulk viscosity, and the partial-melt model, each followed (when set) by that model's own binary record. On load, attached models are reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with its models intact (verify with `eos_set`, `shear_rheology_set`, `shear_viscosity_set`, and `partial_melt_set`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 

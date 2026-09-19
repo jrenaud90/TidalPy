@@ -93,6 +93,15 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Reference temperature for Arrhenius viscosity [K]. Default ``1600.0``.
     melt_viscosity_reduction : float, optional
         Exponential melt-viscosity reduction coefficient. Default ``25.0``.
+    tidal_scale_method : str, optional
+        How the layer's share of the world's tidal heating is set. Default ``"user_provided"``.
+    is_solid : bool, optional
+        False marks the layer liquid for the radial Love-number solver. Default ``True``.
+    is_static : bool, optional
+        Use the static (no inertia) approximation in the radial solver. Default ``True``, so a liquid layer
+        is a static liquid unless this is set False.
+    is_incompressible : bool, optional
+        Use the incompressible approximation in the radial solver. Default ``False``.
 
     Assumptions
     -----------
@@ -131,7 +140,10 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             double reference_density        = 3500.0,
             double reference_temperature    = 1600.0,
             double melt_viscosity_reduction = 25.0,
-            str    tidal_scale_method       = "user_provided"):
+            str    tidal_scale_method       = "user_provided",
+            cpp_bool   is_solid             = True,
+            cpp_bool   is_static            = True,
+            cpp_bool   is_incompressible    = False):
         cdef c_SolidLiquidConfig config
         config.name                 = name.encode("utf-8")
         config.layer_index          = layer_index
@@ -150,6 +162,9 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
             cpp_complex[double](love_number_l.real, love_number_l.imag))
+        config.is_solid             = is_solid
+        config.is_static            = is_static
+        config.is_incompressible    = is_incompressible
         config.thermal_conductivity_ref = thermal_conductivity_ref
         config.thermal_expansion_ref = thermal_expansion_ref
         config.heat_capacity_ref     = heat_capacity_ref

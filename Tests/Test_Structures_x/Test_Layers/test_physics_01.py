@@ -218,6 +218,7 @@ def test_get_config_dict_has_all_keys():
                 "mass_kg", "material_name", "is_tidal", "tidal_scale",
                 "shear_modulus_static_pa", "bulk_modulus_static_pa",
                 "shear_viscosity_static_pas", "bulk_viscosity_static_pas",
+                "is_solid", "is_static", "is_incompressible",
                 "love_number_k_re", "love_number_k_im",
                 "love_number_h_re", "love_number_h_im",
                 "love_number_l_re", "love_number_l_im"):
@@ -241,6 +242,20 @@ def test_get_config_dict_values():
     assert cfg["love_number_k_im"]            == pytest.approx(0.0)
     assert cfg["love_number_h_re"]            == pytest.approx(0.0)
     assert cfg["love_number_l_re"]            == pytest.approx(0.0)
+    # A default physics layer is a compressible static solid.
+    assert cfg["is_solid"]          is True
+    assert cfg["is_static"]         is True
+    assert cfg["is_incompressible"] is False
+
+
+def test_layer_assumption_flags_from_constructor():
+    """The radial-solver flags are constructor arguments, reported by the properties and get_config_dict."""
+    mod = _import_physics()
+    pl = mod.PhysicsLayer("ocean", 0, 0.0, 1e6, 1e20,
+                          is_solid=False, is_static=False, is_incompressible=True)
+    assert (pl.is_solid, pl.is_static, pl.is_incompressible) == (False, False, True)
+    cfg = pl.get_config_dict()
+    assert (cfg["is_solid"], cfg["is_static"], cfg["is_incompressible"]) == (False, False, True)
 
 
 # =====================================================================================================================

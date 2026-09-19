@@ -55,6 +55,9 @@ SolidLiquidLayer(
     reference_temperature:    float   = 1600.0,
     melt_viscosity_reduction: float   = 25.0,
     tidal_scale_method:       str     = "user_provided",
+    is_solid:                 bool    = True,
+    is_static:                bool    = True,
+    is_incompressible:        bool    = False,
 )
 ```
 
@@ -86,12 +89,14 @@ SolidLiquidLayer(
 | `reference_density` | kg/m³ | Reference density ρ_ref for thermal diffusivity. Default `3500.0`. |
 | `reference_temperature` | K | Reference temperature T_ref for Arrhenius viscosity. Default `1600.0`. |
 | `melt_viscosity_reduction` | — | Coefficient C in exp(−C·φ) melt-viscosity reduction. Default `25.0`. |
+| `tidal_scale_method` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
+| `is_solid`, `is_static`, `is_incompressible` | - | Radial-solver assumptions; see [PhysicsLayer](physics_layer.md). Defaults `True`, `True`, `False`. |
 
 ## Properties
 
 ### Inherited from `PhysicsLayer`
 
-See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `love_numbers`, `love_number_k`, `love_number_h`, `love_number_l`, `shear_rheology_set`, `bulk_rheology_set`.
+See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `love_numbers`, `love_number_k`, `love_number_h`, `love_number_l`, `shear_rheology_set`, `bulk_rheology_set`, `is_solid`, `is_static`, `is_incompressible`.
 
 ### Inherited from `BaseLayer`
 
