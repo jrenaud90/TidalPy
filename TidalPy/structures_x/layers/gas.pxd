@@ -35,6 +35,11 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         cpp_bool            is_solid
         cpp_bool            is_static
         cpp_bool            is_incompressible
+        double              temperature
+        double              shear_modulus_pressure_derivative
+        double              shear_modulus_temperature_derivative
+        double              shear_modulus_reference_temperature
+        cpp_bool            use_thermal_eos
         # GasLayer additions:
         double              mean_molecular_weight
         double              adiabatic_index

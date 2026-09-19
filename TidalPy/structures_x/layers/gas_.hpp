@@ -145,6 +145,7 @@ public:
             sizeof(uint8_t)  +               // tidal_scale_method
             sizeof(double)   * 10 +          // shear/bulk modulus, shear/bulk viscosity, love_numbers k/h/l re+im
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
+            material_law_bytes() +           // temperature, shear law, use_thermal_eos
             sizeof(double)   * 4 +           // GasLayer fields
             optional_binary_flag_bytes() +         // material EOS model presence flag
             this->physics_models_presence_bytes(); // rheology + viscosity + partial-melt presence flags
@@ -188,6 +189,7 @@ public:
         out.write(reinterpret_cast<const char*>(&is_solid_byte),          sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&is_static_byte),         sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&is_incompressible_byte), sizeof(uint8_t));
+        this->write_material_law_binary(out);
 
         // c_GasLayer fields
         out.write(reinterpret_cast<const char*>(&this->p_mean_molecular_weight), sizeof(double));
@@ -261,6 +263,7 @@ public:
         this->p_is_solid          = static_cast<bool>(is_solid_byte);
         this->p_is_static         = static_cast<bool>(is_static_byte);
         this->p_is_incompressible = static_cast<bool>(is_incompressible_byte);
+        this->read_material_law_binary(in);
 
         // c_GasLayer fields
         in.read(reinterpret_cast<char*>(&this->p_mean_molecular_weight), sizeof(double));

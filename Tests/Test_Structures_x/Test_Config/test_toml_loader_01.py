@@ -271,6 +271,21 @@ def test_layer_assumption_flags_are_schema_keys(layer_class):
     tl.validate_layer_config("L", cfg)
 
 
+@pytest.mark.parametrize("key,value", [
+    ("temperature_k", 1600.0),
+    ("shear_modulus_pressure_derivative", 1.4),
+    ("shear_modulus_temperature_derivative_pa_k", -8.0e6),
+    ("shear_modulus_reference_temperature_k", 1600.0),
+    ("use_thermal_eos", True),
+])
+def test_material_state_keys_are_schema_keys(key, value):
+    for layer_class in ("physics", "solidliquid", "gas"):
+        tl.validate_layer_config("L", {"class": layer_class, "radius_outer_m": 1.0, key: value})
+    # A geometry-only base layer holds no material state.
+    with pytest.raises(ValueError, match="Unexpected key"):
+        tl.validate_layer_config("L", {"class": "base", "radius_outer_m": 1.0, key: value})
+
+
 def test_base_layer_rejects_layer_assumption_flags():
     # A geometry-only base layer has no radial-solver flags; the solver treats it as a static solid.
     with pytest.raises(ValueError, match="Unexpected key"):

@@ -40,6 +40,25 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            is_solid
         cpp_bool            is_static
         cpp_bool            is_incompressible
+        double              temperature
+        double              shear_modulus_pressure_derivative
+        double              shear_modulus_temperature_derivative
+        double              shear_modulus_reference_temperature
+        cpp_bool            use_thermal_eos
+
+    cdef cppclass c_MaterialState:
+        double              density
+        double              melt_fraction
+        double              premelt_shear_modulus
+        double              premelt_bulk_modulus
+        double              premelt_shear_viscosity
+        double              premelt_bulk_viscosity
+        double              shear_modulus
+        double              bulk_modulus
+        double              shear_viscosity
+        double              bulk_viscosity
+        cpp_complex[double] complex_shear_modulus
+        cpp_complex[double] complex_bulk_modulus
 
     cdef cppclass c_PhysicsLayer(c_BaseLayer):
         c_PhysicsLayer() except +
@@ -77,6 +96,19 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         void                set_is_solid(cpp_bool)
         void                set_is_static(cpp_bool)
         void                set_is_incompressible(cpp_bool)
+        double              get_temperature()                          const
+        cpp_bool            get_use_thermal_eos()                      const
+        double              get_shear_modulus_pressure_derivative()    const
+        double              get_shear_modulus_temperature_derivative() const
+        double              get_shear_modulus_reference_temperature()  const
+        void                set_temperature(double)
+        void                set_use_thermal_eos(cpp_bool)
+        void                calc_material_state(
+            double radius,
+            double pressure,
+            double temperature,
+            double frequency,
+            c_MaterialState& out) const
 
 
 # =====================================================================================================================

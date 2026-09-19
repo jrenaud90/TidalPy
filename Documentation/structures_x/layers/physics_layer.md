@@ -38,6 +38,11 @@ PhysicsLayer(
     is_solid:               bool    = True,
     is_static:              bool    = True,
     is_incompressible:      bool    = False,
+    temperature:                          float = 0.0,
+    shear_modulus_pressure_derivative:    float = 0.0,
+    shear_modulus_temperature_derivative: float = 0.0,
+    shear_modulus_reference_temperature:  float = None,
+    use_thermal_eos:                      bool  = False,
 )
 ```
 
@@ -62,6 +67,11 @@ PhysicsLayer(
 | `love_number_l` | `complex` | — | Tangential displacement Love number l (placeholder). Default `0+0j`. |
 | `tidal_scale_method` | `str` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
 | `is_solid`, `is_static`, `is_incompressible` | `bool` | - | Radial-solver assumptions; see Layer Assumptions below. Defaults `True`, `True`, `False`. |
+| `temperature` | `float` | K | Layer temperature at which the viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
+| `shear_modulus_pressure_derivative` | `float` | - | Pressure derivative of the static shear modulus. Default `0.0`. |
+| `shear_modulus_temperature_derivative` | `float` | Pa/K | Temperature derivative of the static shear modulus. Default `0.0`. |
+| `shear_modulus_reference_temperature` | `float` | K | Temperature at which `shear_modulus_static` applies. `None` keeps the default of 300 K. |
+| `use_thermal_eos` | `bool` | - | Pass the temperature to the EOS model, so the density and bulk modulus depend on it. Default `False`. |
 
 ## Properties
 
@@ -88,6 +98,16 @@ _Read-only properties._
 | `shear_rheology_set`, `bulk_rheology_set` | — | `True` after the corresponding rheology model is attached. |
 | `shear_viscosity_set`, `bulk_viscosity_set` | — | `True` after the corresponding viscosity model is attached. |
 | `partial_melt_set` | — | `True` after a partial-melt model is attached. |
+
+### Material State
+
+| Property | Units | Description |
+|----------|-------|-------------|
+| `temperature` | K | Layer temperature. Writable. |
+| `use_thermal_eos` | - | `True` if the EOS model receives the temperature. Writable. |
+| `shear_modulus_pressure_derivative` | - | $\mu'_P$ of the shear law below. |
+| `shear_modulus_temperature_derivative` | Pa/K | $\mu'_T$ of the shear law below. |
+| `shear_modulus_reference_temperature` | K | $T_\mathrm{ref}$ of the shear law below. |
 
 ### Layer Assumptions
 
@@ -140,6 +160,41 @@ mu_of_r = mantle.calc_complex_shear_modulus(radii, 2.0 * math.pi / 86400.0)
 
 Complex bulk modulus [Pa]; both the layer-constant `(frequency)` and the radius-resolved `(radius, frequency)` forms, with the same delegation logic as `calc_complex_shear_modulus`.
 
+### `calc_material_state(pressure, temperature=None, frequency=None, radius=0.0)` -> dict
+
+Material properties at a pressure \[Pa\] and temperature \[K\] from the layer's attached models. This is the one place a point's state is mapped onto those models, in this order:
+
+1. The density and the bulk modulus from the EOS model. The EOS receives the temperature only when `use_thermal_eos` is set; see [Material EOS Models](../../material_x/material_eos.md).
+2. The static moduli. The shear modulus follows the layer's linear law
+
+   $$\mu = \mu_0 + \mu'_P P + \mu'_T \left( T - T_\mathrm{ref} \right)$$
+
+   with $\mu_0$ the `shear_modulus_static`, floored at the config's `minimum_modulus`. The bulk modulus is `bulk_modulus_static`. A value the EOS model provides takes precedence over either: a table of an interpolated model, or the bulk modulus of a Birch-Murnaghan or Vinet law.
+3. The viscosities: an EOS table, else the attached viscosity model at the temperature and pressure, else the layer's static viscosity.
+4. The partial-melt model, applied to the shear modulus and viscosity and then to the bulk pair.
+5. The rheologies at `frequency` \[rad s$^{-1}$\], giving the complex moduli. With `frequency=None` they are skipped and the complex moduli are the post-melt static moduli.
+
+`temperature=None` uses the layer's `temperature`. `radius` \[m\] is read only by an interpolated EOS model.
+
+The dict holds `density`, `melt_fraction`, `premelt_shear_modulus`, `premelt_bulk_modulus`, `premelt_shear_viscosity`, `premelt_bulk_viscosity`, the post-melt `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity`, and `complex_shear_modulus`, `complex_bulk_modulus`.
+
+```python
+from TidalPy.rheology_x import Maxwell
+from TidalPy.viscosity_x import make_viscosity
+
+mantle.set_shear_viscosity(make_viscosity("reference", {
+    "reference_viscosity_pas": 1.0e19,
+    "reference_temperature_k": 1400.0}))
+mantle.set_shear_rheology(Maxwell())
+
+# Properties at 20 GPa and 1500 K, forced at the orbital frequency
+state = mantle.calc_material_state(
+    pressure=2.0e10,
+    temperature=1500.0,
+    frequency=freq)
+print(state["shear_viscosity"], state["complex_shear_modulus"])
+```
+
 ### `set_shear_viscosity(model)` / `set_bulk_viscosity(model)`
 
 Attach a viscosity model from [`viscosity_x`](../../viscosity_x/viscosity_models.md). The model turns the layer's temperature and pressure into the viscosity the rheology then uses. A layer with a rheology but no viscosity model falls back to its static viscosity, which is NaN unless you supplied one at construction.
@@ -152,11 +207,11 @@ Attach a partial-melt model from [`partial_melt_x`](../../partial_melt_x/partial
 
 `update_eos_data`, `get_density`, `get_gravity`, `get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`, `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
 
-`get_config_dict()` adds the four static moduli and viscosities, the three layer-assumption flags, the Love-number components, and one sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosity`, `bulk_viscosity`, `partial_melt`), each keyed by `model` exactly as the world builder reads it.
+`get_config_dict()` adds the four static moduli and viscosities, the three layer-assumption flags, the material-state keys (`temperature_k`, `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative_pa_k`, `shear_modulus_reference_temperature_k`, `use_thermal_eos`), the Love-number components, and one sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosity`, `bulk_viscosity`, `partial_melt`), each keyed by `model` exactly as the world builder reads it.
 
 ## Binary Serialization
 
-`save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by ten doubles in order: `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im (6 doubles total for the Love numbers), then one byte each for `is_solid`, `is_static`, and `is_incompressible`.
+`save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by ten doubles in order: `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im (6 doubles total for the Love numbers), then one byte each for `is_solid`, `is_static`, and `is_incompressible`, then four doubles (`temperature` and the three shear-law parameters) and one byte for `use_thermal_eos`.
 
 Following the scalar payload, an optional sub-model section is written: one-byte presence flags for the material EOS model, the shear and bulk rheology, the shear and bulk viscosity, and the partial-melt model, each followed (when set) by that model's own binary record. On load, attached models are reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with its models intact (verify with `eos_set`, `shear_rheology_set`, `shear_viscosity_set`, and `partial_melt_set`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 

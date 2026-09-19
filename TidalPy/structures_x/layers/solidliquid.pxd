@@ -39,6 +39,11 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         cpp_bool            is_solid
         cpp_bool            is_static
         cpp_bool            is_incompressible
+        double              temperature
+        double              shear_modulus_pressure_derivative
+        double              shear_modulus_temperature_derivative
+        double              shear_modulus_reference_temperature
+        cpp_bool            use_thermal_eos
         # SolidLiquidLayer additions:
         double              thermal_conductivity_ref
         double              thermal_expansion_ref

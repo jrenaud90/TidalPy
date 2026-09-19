@@ -85,6 +85,17 @@ cdef class PhysicsLayer(BaseLayer):
         is a static liquid unless this is set False.
     is_incompressible : bool, optional
         Use the incompressible approximation in the radial solver. Default ``False``.
+    temperature : float, optional
+        Layer temperature [K] at which its viscosity and melt models are evaluated. Default ``0.0``, the cold
+        rigid limit of the viscosity laws.
+    shear_modulus_pressure_derivative : float, optional
+        Pressure derivative of the static shear modulus [Pa/Pa]. Default ``0.0``.
+    shear_modulus_temperature_derivative : float, optional
+        Temperature derivative of the static shear modulus [Pa/K]. Default ``0.0``.
+    shear_modulus_reference_temperature : float, optional
+        Temperature [K] at which ``shear_modulus_static`` applies. ``None`` keeps the default of 300 K.
+    use_thermal_eos : bool, optional
+        Pass the temperature to the EOS model, so the density and bulk modulus depend on it. Default ``False``.
 
     Assumptions
     -----------
@@ -115,7 +126,12 @@ cdef class PhysicsLayer(BaseLayer):
             str    tidal_scale_method    = "user_provided",
             cpp_bool is_solid            = True,
             cpp_bool is_static           = True,
-            cpp_bool is_incompressible   = False):
+            cpp_bool is_incompressible   = False,
+            double temperature           = 0.0,
+            double shear_modulus_pressure_derivative    = 0.0,
+            double shear_modulus_temperature_derivative = 0.0,
+            shear_modulus_reference_temperature         = None,
+            cpp_bool use_thermal_eos     = False):
         cdef c_PhysicsConfig config
         config.name               = name.encode("utf-8")
         config.layer_index        = layer_index
@@ -137,6 +153,13 @@ cdef class PhysicsLayer(BaseLayer):
         config.is_solid          = is_solid
         config.is_static         = is_static
         config.is_incompressible = is_incompressible
+        config.temperature       = temperature
+        config.shear_modulus_pressure_derivative    = shear_modulus_pressure_derivative
+        config.shear_modulus_temperature_derivative = shear_modulus_temperature_derivative
+        # None keeps the C++ default reference temperature.
+        if shear_modulus_reference_temperature is not None:
+            config.shear_modulus_reference_temperature = <double>shear_modulus_reference_temperature
+        config.use_thermal_eos   = use_thermal_eos
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_PhysicsLayer] built = make_unique[c_PhysicsLayer](config)
@@ -241,6 +264,91 @@ cdef class PhysicsLayer(BaseLayer):
     @is_incompressible.setter
     def is_incompressible(self, value: bool):
         self._physics_ptr.set_is_incompressible(<cpp_bool>bool(value))
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Material state
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def temperature(self) -> float:
+        """Layer temperature [K] at which the viscosity and melt models are evaluated."""
+        return self._physics_ptr.get_temperature()
+
+    @temperature.setter
+    def temperature(self, double value):
+        self._physics_ptr.set_temperature(value)
+
+    @property
+    def use_thermal_eos(self) -> bool:
+        """True if the EOS model receives the temperature (thermal density and bulk modulus)."""
+        return bool(self._physics_ptr.get_use_thermal_eos())
+
+    @use_thermal_eos.setter
+    def use_thermal_eos(self, value: bool):
+        self._physics_ptr.set_use_thermal_eos(<cpp_bool>bool(value))
+
+    @property
+    def shear_modulus_pressure_derivative(self) -> float:
+        """Pressure derivative of the static shear modulus [Pa/Pa]."""
+        return self._physics_ptr.get_shear_modulus_pressure_derivative()
+
+    @property
+    def shear_modulus_temperature_derivative(self) -> float:
+        """Temperature derivative of the static shear modulus [Pa/K]."""
+        return self._physics_ptr.get_shear_modulus_temperature_derivative()
+
+    @property
+    def shear_modulus_reference_temperature(self) -> float:
+        """Temperature [K] at which ``shear_modulus_static`` applies."""
+        return self._physics_ptr.get_shear_modulus_reference_temperature()
+
+    def calc_material_state(self, double pressure, temperature=None, frequency=None, double radius=0.0) -> dict:
+        """Material properties at a pressure [Pa] and temperature [K] from the layer's attached models.
+
+        Evaluates, in order, the EOS density and bulk modulus (athermal unless ``use_thermal_eos``), the static
+        moduli (an EOS-provided value takes precedence over the layer's shear law and bulk constant), the
+        viscosities (EOS table, else the viscosity model at the temperature and pressure, else the layer
+        constant), the partial-melt model, and the rheologies.
+
+        Parameters
+        ----------
+        pressure : float
+            Pressure [Pa].
+        temperature : float, optional
+            Temperature [K]. ``None`` uses the layer's ``temperature``.
+        frequency : float, optional
+            Forcing frequency [rad/s] for the complex moduli. ``None`` skips the rheologies, so the complex
+            moduli are the post-melt static moduli.
+        radius : float, optional
+            Radius [m], read only by an interpolated EOS model. Default ``0.0``.
+
+        Returns
+        -------
+        dict
+            ``density`` [kg/m^3], ``melt_fraction``, the ``premelt_`` and post-melt ``shear_modulus``,
+            ``bulk_modulus`` [Pa], ``shear_viscosity``, ``bulk_viscosity`` [Pa·s], and ``complex_shear_modulus``,
+            ``complex_bulk_modulus`` [Pa].
+        """
+        cdef double temperature_value = (
+            self._physics_ptr.get_temperature() if temperature is None else <double>temperature)
+        cdef double frequency_value = d_NAN if frequency is None else <double>frequency
+        cdef c_MaterialState state
+        self._physics_ptr.calc_material_state(radius, pressure, temperature_value, frequency_value, state)
+        return {
+            "density":                 state.density,
+            "melt_fraction":           state.melt_fraction,
+            "premelt_shear_modulus":   state.premelt_shear_modulus,
+            "premelt_bulk_modulus":    state.premelt_bulk_modulus,
+            "premelt_shear_viscosity": state.premelt_shear_viscosity,
+            "premelt_bulk_viscosity":  state.premelt_bulk_viscosity,
+            "shear_modulus":           state.shear_modulus,
+            "bulk_modulus":            state.bulk_modulus,
+            "shear_viscosity":         state.shear_viscosity,
+            "bulk_viscosity":          state.bulk_viscosity,
+            "complex_shear_modulus":   complex(
+                state.complex_shear_modulus.real(), state.complex_shear_modulus.imag()),
+            "complex_bulk_modulus":    complex(
+                state.complex_bulk_modulus.real(), state.complex_bulk_modulus.imag()),
+        }
 
     # ------------------------------------------------------------------------------------------------------------------
     # Rheology attachment
@@ -454,7 +562,8 @@ cdef class PhysicsLayer(BaseLayer):
         dict
             The BaseLayer keys plus ``shear_modulus_static``, ``bulk_modulus_static``,
             ``shear_viscosity_static``, ``bulk_viscosity_static``, the radial-solver flags ``is_solid``,
-            ``is_static``, and ``is_incompressible``, the six Love number components, and one sub-table per
+            ``is_static``, and ``is_incompressible``, the material-state keys (``temperature_k``, the three
+            shear-law keys, ``use_thermal_eos``), the six Love number components, and one sub-table per
             attached model (``shear_rheology``, ``bulk_rheology``, ``shear_viscosity``, ``bulk_viscosity``,
             ``partial_melt``).
         """
@@ -466,6 +575,13 @@ cdef class PhysicsLayer(BaseLayer):
         d["is_solid"]          = bool(self._physics_ptr.get_is_solid())
         d["is_static"]         = bool(self._physics_ptr.get_is_static())
         d["is_incompressible"] = bool(self._physics_ptr.get_is_incompressible())
+        d["temperature_k"]     = self._physics_ptr.get_temperature()
+        d["shear_modulus_pressure_derivative"] = self._physics_ptr.get_shear_modulus_pressure_derivative()
+        d["shear_modulus_temperature_derivative_pa_k"] = (
+            self._physics_ptr.get_shear_modulus_temperature_derivative())
+        d["shear_modulus_reference_temperature_k"] = (
+            self._physics_ptr.get_shear_modulus_reference_temperature())
+        d["use_thermal_eos"]   = bool(self._physics_ptr.get_use_thermal_eos())
         cdef c_LoveNumbers ln = self._physics_ptr.get_love_numbers()
         d["love_number_k_re"] = ln.k.real()
         d["love_number_k_im"] = ln.k.imag()

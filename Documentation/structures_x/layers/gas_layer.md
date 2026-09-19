@@ -45,7 +45,7 @@ layer = GasLayer(
 
 ### Parameters
 
-All parameters from `PhysicsLayer` are accepted, except that `is_solid` defaults to `False` (a gas carries no shear stress, so the radial solver treats it as a static liquid), plus:
+All parameters from `PhysicsLayer` are accepted, including the material-state parameters (`temperature`, the shear law, `use_thermal_eos`), except that `is_solid` defaults to `False` (a gas carries no shear stress, so the radial solver treats it as a static liquid), plus:
 
 | Parameter | Unit | Default | Description |
 |---|---|---|---|

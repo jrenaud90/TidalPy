@@ -82,6 +82,17 @@ cdef class GasLayer(PhysicsLayer):
         Use the static (no inertia) approximation in the radial solver. Default ``True``.
     is_incompressible : bool, optional
         Use the incompressible approximation in the radial solver. Default ``False``.
+    temperature : float, optional
+        Layer temperature [K] at which its viscosity and melt models are evaluated. Default ``0.0``, the cold
+        rigid limit of the viscosity laws.
+    shear_modulus_pressure_derivative : float, optional
+        Pressure derivative of the static shear modulus [Pa/Pa]. Default ``0.0``.
+    shear_modulus_temperature_derivative : float, optional
+        Temperature derivative of the static shear modulus [Pa/K]. Default ``0.0``.
+    shear_modulus_reference_temperature : float, optional
+        Temperature [K] at which ``shear_modulus_static`` applies. ``None`` keeps the default of 300 K.
+    use_thermal_eos : bool, optional
+        Pass the temperature to the EOS model, so the density and bulk modulus depend on it. Default ``False``.
 
     Assumptions
     -----------
@@ -117,7 +128,12 @@ cdef class GasLayer(PhysicsLayer):
             str    tidal_scale_method = "user_provided",
             cpp_bool is_solid          = False,
             cpp_bool is_static         = True,
-            cpp_bool is_incompressible = False):
+            cpp_bool is_incompressible = False,
+            double temperature           = 0.0,
+            double shear_modulus_pressure_derivative    = 0.0,
+            double shear_modulus_temperature_derivative = 0.0,
+            shear_modulus_reference_temperature         = None,
+            cpp_bool use_thermal_eos     = False):
         cdef c_GasConfig config
         config.name                 = name.encode("utf-8")
         config.layer_index          = layer_index
@@ -139,6 +155,13 @@ cdef class GasLayer(PhysicsLayer):
         config.is_solid              = is_solid
         config.is_static             = is_static
         config.is_incompressible     = is_incompressible
+        config.temperature       = temperature
+        config.shear_modulus_pressure_derivative    = shear_modulus_pressure_derivative
+        config.shear_modulus_temperature_derivative = shear_modulus_temperature_derivative
+        # None keeps the C++ default reference temperature.
+        if shear_modulus_reference_temperature is not None:
+            config.shear_modulus_reference_temperature = <double>shear_modulus_reference_temperature
+        config.use_thermal_eos   = use_thermal_eos
         config.mean_molecular_weight = mean_molecular_weight
         config.adiabatic_index       = adiabatic_index
         config.reference_temperature = reference_temperature

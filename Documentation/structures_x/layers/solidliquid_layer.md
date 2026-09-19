@@ -58,6 +58,11 @@ SolidLiquidLayer(
     is_solid:                 bool    = True,
     is_static:                bool    = True,
     is_incompressible:        bool    = False,
+    temperature:                          float = 0.0,
+    shear_modulus_pressure_derivative:    float = 0.0,
+    shear_modulus_temperature_derivative: float = 0.0,
+    shear_modulus_reference_temperature:  float = None,
+    use_thermal_eos:                      bool  = False,
 )
 ```
 
@@ -91,12 +96,13 @@ SolidLiquidLayer(
 | `melt_viscosity_reduction` | — | Coefficient C in exp(−C·φ) melt-viscosity reduction. Default `25.0`. |
 | `tidal_scale_method` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
 | `is_solid`, `is_static`, `is_incompressible` | - | Radial-solver assumptions; see [PhysicsLayer](physics_layer.md). Defaults `True`, `True`, `False`. |
+| `temperature`, `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative`, `shear_modulus_reference_temperature`, `use_thermal_eos` | | Material-state parameters; see [PhysicsLayer](physics_layer.md). |
 
 ## Properties
 
 ### Inherited from `PhysicsLayer`
 
-See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `love_numbers`, `love_number_k`, `love_number_h`, `love_number_l`, `shear_rheology_set`, `bulk_rheology_set`, `is_solid`, `is_static`, `is_incompressible`.
+See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `love_numbers`, `love_number_k`, `love_number_h`, `love_number_l`, `shear_rheology_set`, `bulk_rheology_set`, `is_solid`, `is_static`, `is_incompressible`, `temperature`, `use_thermal_eos`, and the three shear-law properties.
 
 ### Inherited from `BaseLayer`
 

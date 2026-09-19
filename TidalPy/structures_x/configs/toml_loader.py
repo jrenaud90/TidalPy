@@ -141,7 +141,13 @@ _PHYSICS_LAYER_KEYS = (
     # Radial-solver flags: a liquid layer sets is_solid = false and stays static unless is_static = false.
     "is_solid",
     "is_static",
-    "is_incompressible"
+    "is_incompressible",
+    # Material state: the layer temperature, the linear static shear-modulus law, and whether the EOS sees T.
+    "temperature_k",
+    "shear_modulus_pressure_derivative",
+    "shear_modulus_temperature_derivative_pa_k",
+    "shear_modulus_reference_temperature_k",
+    "use_thermal_eos"
 )
 _SOLIDLIQUID_LAYER_KEYS = (
     "thermal_conductivity_ref_w_mk",

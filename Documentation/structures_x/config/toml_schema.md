@@ -104,6 +104,11 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `is_solid` | optional | physics, solidliquid, gas | `false` makes the layer a liquid in the radial Love-number solve. Default `true` (`false` for `gas`). |
 | `is_static` | optional | physics, solidliquid, gas | Static approximation (no inertia) in the radial solve. Default `true`, so a liquid layer is a static liquid unless this is `false`. |
 | `is_incompressible` | optional | physics, solidliquid, gas | Incompressible approximation in the radial solve. Default `false`. |
+| `temperature_k` | optional | physics, solidliquid, gas | Layer temperature \[K\] at which the viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
+| `shear_modulus_pressure_derivative` | optional | physics, solidliquid, gas | $\mu'_P$ of the static shear-modulus law $\mu = \mu_0 + \mu'_P P + \mu'_T (T - T_\mathrm{ref})$. Default `0.0`. |
+| `shear_modulus_temperature_derivative_pa_k` | optional | physics, solidliquid, gas | $\mu'_T$ of the same law \[Pa K$^{-1}$\]. Default `0.0`. |
+| `shear_modulus_reference_temperature_k` | optional | physics, solidliquid, gas | $T_\mathrm{ref}$ of the same law \[K\]. Default `300.0`. |
+| `use_thermal_eos` | optional | physics, solidliquid, gas | Pass the temperature to the layer's EOS model, so its density and bulk modulus depend on it (set `thermal_expansion_1_k` in the `eos` table). Default `false`. |
 | solidliquid thermal/melt params | optional | solidliquid | See below. |
 | gas params | optional | gas | See below. |
 
