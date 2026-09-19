@@ -7,16 +7,16 @@ mismatch, so the mass check is the substance of these tests rather than a formal
 checked against its published value as an independent handle: it follows from mass and radius, so it
 catches a radius that disagrees with the one the interior was fitted to.
 
-The moment-of-inertia factor is the stronger check, because no world file is fitted to it. C/MR2 measures
-how centrally concentrated the mass is, so it constrains the core size rather than the total mass, and
-each body carries its own tolerance recording how well its model does against the measured value.
+The moment-of-inertia factor is the stronger check, because only Luna's crust thickness is fitted to it.
+C/MR2 measures how centrally concentrated the mass is, so it constrains the core size rather than the total
+mass, and each body carries its own tolerance recording how well its model does against the measured value.
 
 Three bodies pin a tidal observable as well. Io has its asthenosphere viscosity fitted so that the total
 dissipation matches the astrometric value of Lainey et al. (2009), and its per-layer tidal_scale values
 come from integrating the depth-resolved 3D heating; both are claims its comments make and either could
-rot silently. Luna's k2 is not fitted to anything and comes out within half a percent of the lunar laser
-ranging value, which is the check that its density and rigidity profile is right. Mercury's k2 only works
-with a fluid outer core, which the schema cannot declare, so the size of that gap is pinned too.
+rot silently. Mercury and Luna declare their fluid outer cores as static liquids and have their mantle
+rigidity fitted to the measured k2. For Mercury the fluid core is worth a factor of five in k2, so that
+is pinned too.
 
 Expected values come from the TOML comments, which record where each number came from.
 """
@@ -46,6 +46,7 @@ class Body:
                  spin_period_days,
                  moi_factor,
                  moi_tolerance,
+                 liquid_layers=(),
                  semi_major_axis=None,
                  eccentricity=None,
                  love_k=None,
@@ -57,6 +58,7 @@ class Body:
         self.gravity = gravity
         self.layers = layers
         self.tidal_layers = tidal_layers
+        self.liquid_layers = list(liquid_layers)
         self.spin_period_days = spin_period_days
         self.moi_factor = moi_factor
         self.moi_tolerance = moi_tolerance
@@ -77,11 +79,12 @@ _BODIES = [
          3.551181, moi_factor=0.346, moi_tolerance=1.0e-2),
     Body("luna", 1737400.0, 7.34579e22, 1.6242,
          ["inner_core", "outer_core", "mantle", "crust"], ["mantle"],
-         27.322, moi_factor=0.3931, moi_tolerance=1.0e-3,
+         27.322, moi_factor=0.3931, moi_tolerance=1.0e-3, liquid_layers=["outer_core"],
          love_k=0.02422, love_period_days=27.3217, love_tolerance=1.0e-2),
     Body("mercury", 2440000.0, 3.30103e23, 3.7007,
          ["inner_core", "outer_core", "mantle"], ["mantle"],
-         58.6462, moi_factor=0.346, moi_tolerance=1.0e-2),
+         58.6462, moi_factor=0.346, moi_tolerance=1.0e-2, liquid_layers=["outer_core"],
+         love_k=0.569, love_period_days=87.9691, love_tolerance=1.0e-2),
 ]
 
 
@@ -143,6 +146,15 @@ def test_bundled_body_density_profile_is_physical(body):
 def test_bundled_body_dissipates_in_the_intended_layers(body):
     world = build_world(body.name)
     assert [layer.name for layer in world if layer.is_tidal] == body.tidal_layers
+
+
+@pytest.mark.parametrize("body", _cases())
+def test_bundled_body_declares_its_liquid_layers(body):
+    """Fluid cores are static liquids; no icy moon carries a liquid layer (author decision 2026-09-19)."""
+    world = build_world(body.name)
+    assert [layer.name for layer in world if not layer.is_solid] == body.liquid_layers
+    assert all(layer.is_static for layer in world)
+    assert not any(layer.is_incompressible for layer in world)
 
 
 @pytest.mark.parametrize("body", _cases())
@@ -234,24 +246,21 @@ _MERCURY_TIDAL_PERIOD_DAYS = 87.9691
 
 
 def test_mercury_needs_a_fluid_outer_core_for_its_measured_love_number():
-    """The schema cannot mark a layer fluid, so the built world understates k2 by a factor of four.
+    """Mercury's large k2 is the evidence for its fluid outer core: with that layer solid, k2 drops fivefold.
 
-    Setting is_solid on the built layer is the documented way to recover it. This pins both numbers, so
-    that the file's comment stays true and so that a future schema flag has a value to reproduce.
+    The mantle rigidity is fitted with the core liquid, so the measured value is reached only that way. This
+    pins the solid-core counterfactual that the file's comment quotes.
     """
     frequency = 2.0 * math.pi / (_MERCURY_TIDAL_PERIOD_DAYS * 86400.0)
     world = build_world("mercury")
     world.solve_eos()
     world.solve_love_numbers(frequency)
-    solid_core_k = world.love_number_k.real
-    assert solid_core_k == pytest.approx(0.1106, rel=1e-2)
-    assert solid_core_k < 0.5 * _MERCURY_LOVE_K
+    fluid_core_k = world.love_number_k.real
+    assert fluid_core_k == pytest.approx(_MERCURY_LOVE_K, rel=1e-2)
 
-    world.outer_core.is_solid = False
+    world.outer_core.is_solid = True
     world.solve_eos()
     world.solve_love_numbers(frequency)
-    fluid_core_k = world.love_number_k.real
-    assert fluid_core_k == pytest.approx(0.4784, rel=1e-2)
+    solid_core_k = world.love_number_k.real
+    assert solid_core_k == pytest.approx(0.1159, rel=1e-2)
     assert fluid_core_k > 4.0 * solid_core_k
-    # What is left is the uncalibrated mantle rigidity, not the core state.
-    assert abs(fluid_core_k - _MERCURY_LOVE_K) / _MERCURY_LOVE_K < 0.2
