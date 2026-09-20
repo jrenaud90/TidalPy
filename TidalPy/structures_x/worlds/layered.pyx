@@ -166,10 +166,7 @@ cdef enum:
     _KIND_BULK_MOD       = 4
     _KIND_SHEAR_VISC     = 5
     _KIND_BULK_VISC      = 6
-    _KIND_PRE_SHEAR_MOD  = 7
-    _KIND_PRE_BULK_MOD   = 8
-    _KIND_PRE_SHEAR_VISC = 9
-    _KIND_PRE_BULK_VISC  = 10
+    _KIND_MELT_FRACTION  = 7
     _KIND_TEMPERATURE    = 11
     _KIND_HEAT_FLOW      = 12
 
@@ -594,10 +591,7 @@ cdef class LayeredWorld(BaseWorld):
         elif kind == _KIND_BULK_MOD:       return self._layered_ptr.get_bulk_modulus(radius)
         elif kind == _KIND_SHEAR_VISC:     return self._layered_ptr.get_shear_viscosity(radius)
         elif kind == _KIND_BULK_VISC:      return self._layered_ptr.get_bulk_viscosity(radius)
-        elif kind == _KIND_PRE_SHEAR_MOD:  return self._layered_ptr.get_premelt_shear_modulus(radius)
-        elif kind == _KIND_PRE_BULK_MOD:   return self._layered_ptr.get_premelt_bulk_modulus(radius)
-        elif kind == _KIND_PRE_SHEAR_VISC: return self._layered_ptr.get_premelt_shear_viscosity(radius)
-        elif kind == _KIND_PRE_BULK_VISC:  return self._layered_ptr.get_premelt_bulk_viscosity(radius)
+        elif kind == _KIND_MELT_FRACTION:  return self._layered_ptr.get_melt_fraction(radius)
         elif kind == _KIND_TEMPERATURE:    return self._layered_ptr.get_temperature(radius)
         elif kind == _KIND_HEAT_FLOW:      return self._layered_ptr.get_heat_flow(radius)
         return 0.0
@@ -691,21 +685,9 @@ cdef class LayeredWorld(BaseWorld):
         """Post-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray)."""
         return self._apply_real(radius, _KIND_BULK_VISC)
 
-    def get_premelt_shear_modulus(self, radius):
-        """Pre-melt static shear modulus [Pa] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_PRE_SHEAR_MOD)
-
-    def get_premelt_bulk_modulus(self, radius):
-        """Pre-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_PRE_BULK_MOD)
-
-    def get_premelt_shear_viscosity(self, radius):
-        """Pre-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_PRE_SHEAR_VISC)
-
-    def get_premelt_bulk_viscosity(self, radius):
-        """Pre-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_PRE_BULK_VISC)
+    def get_melt_fraction(self, radius):
+        """Melt fraction at radius [m] (float or np.ndarray); 0.0 where the material has no partial-melt model."""
+        return self._apply_real(radius, _KIND_MELT_FRACTION)
 
     def calc_complex_shear_modulus(self, radius, double frequency, cpp_bool recalc_eos=False):
         """Complex shear modulus [Pa] at radius [m] (float or np.ndarray) and frequency [rad/s].

@@ -288,21 +288,9 @@ public:
         const c_BaseLayer* layer = this->find_layer_for_radius(radius);
         return (layer != nullptr) ? layer->get_bulk_viscosity(radius) : TidalPyConstants::d_NAN;
     }
-    double get_premelt_shear_modulus(double radius) const noexcept {
+    double get_melt_fraction(double radius) const noexcept {
         const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_premelt_shear_modulus(radius) : TidalPyConstants::d_NAN;
-    }
-    double get_premelt_bulk_modulus(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_premelt_bulk_modulus(radius) : TidalPyConstants::d_NAN;
-    }
-    double get_premelt_shear_viscosity(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_premelt_shear_viscosity(radius) : TidalPyConstants::d_NAN;
-    }
-    double get_premelt_bulk_viscosity(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_premelt_bulk_viscosity(radius) : TidalPyConstants::d_NAN;
+        return (layer != nullptr) ? layer->get_melt_fraction(radius) : TidalPyConstants::d_NAN;
     }
 
     // Radius-resolved complex moduli [Pa] at a frequency, the only per-frequency step: find the layer and apply
@@ -503,12 +491,13 @@ public:
                 this->p_layer_thermal, this->p_layers, integrate_temperature,
                 length_scale, gravity_scale, segment_vec);
             for (std::size_t i = 0; i < n_layers; ++i) {
-                // A layer sees the temperature in its EOS only when it asked for a thermal one.
+                // The viscosity and melt models of the material always see the temperature; its density law
+                // sees it only when the layer asked for a thermal EOS.
                 const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[i].get());
                 const bool thermal_eos = (physics_layer != nullptr) && physics_layer->get_use_thermal_eos();
-                this->p_eos_material_inputs[i].temperature =
-                    thermal_eos ? this->p_layer_thermal[i].temperature : TidalPyConstants::d_NAN;
-                this->p_eos_material_inputs[i].use_state_temperature = thermal_eos && integrate_temperature;
+                this->p_eos_material_inputs[i].temperature           = this->p_layer_thermal[i].temperature;
+                this->p_eos_material_inputs[i].use_state_temperature = integrate_temperature;
+                this->p_eos_material_inputs[i].thermal_density       = thermal_eos;
             }
 
             solution = std::make_shared<c_EOSSolution>(
@@ -844,13 +833,18 @@ public:
                 const auto* physics_layer =
                     dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_index].get());
                 if (physics_layer == nullptr) { return; }
-                c_MaterialState state;
-                if (!physics_layer->calc_material_state_at(radius_si, frequency, state)) { return; }
-                out5[0] = state.density;
-                out5[1] = state.complex_shear_modulus.real();
-                out5[2] = state.complex_shear_modulus.imag();
-                out5[3] = state.complex_bulk_modulus.real();
-                out5[4] = state.complex_bulk_modulus.imag();
+                // One dense call gives the static state; the rheology is the only thing that knows the frequency.
+                double state[C_EOS_DY_VALUES];
+                physics_layer->get_eos_state(radius_si, state);
+                const std::complex<double> shear = physics_layer->apply_shear_rheology(
+                    state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
+                const std::complex<double> bulk = physics_layer->apply_bulk_rheology(
+                    state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
+                out5[0] = state[C_EOS_DENSITY_INDEX];
+                out5[1] = shear.real();
+                out5[2] = shear.imag();
+                out5[3] = bulk.real();
+                out5[4] = bulk.imag();
             });
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);

@@ -117,11 +117,11 @@ inline void c_init_layer_thermal(
         thermal.node_temperature = thermal.temperature;
         thermal.kind            = c_layer_temperature_kind(layer);
 
-        const auto* solidliquid_layer = dynamic_cast<const c_SolidLiquidLayer*>(layer);
-        if (solidliquid_layer != nullptr) {
-            thermal.conductivity      = solidliquid_layer->calc_thermal_conductivity(thermal.temperature);
-            thermal.thermal_expansion = solidliquid_layer->get_thermal_expansion_ref();
-            thermal.heat_capacity     = solidliquid_layer->get_heat_capacity_ref();
+        // The thermal constants belong to the material, so any layer with an EOS model has them.
+        if (const c_MaterialEOSBase* eos_model = layer->get_eos()) {
+            thermal.conductivity      = eos_model->get_thermal_conductivity();
+            thermal.thermal_expansion = eos_model->get_thermal_expansion();
+            thermal.heat_capacity     = eos_model->get_heat_capacity();
         }
         if (!(thermal.conductivity > TidalPyConstants::d_EPS)) {
             // Without a conductivity there is no gradient to integrate.
@@ -190,9 +190,13 @@ inline double c_update_layer_thermal(
 
         const auto* solidliquid_layer = dynamic_cast<const c_SolidLiquidLayer*>(layer);
         const c_CoolingBase* cooling_model = solidliquid_layer->get_cooling_model();
+        // The material at the layer's own (lumped) temperature, which is not the local temperature of the
+        // profile at this radius, so it is asked of the EOS model rather than read from the solution.
         c_MaterialState material;
-        solidliquid_layer->calc_material_state(
-            radius_mid, pressure, thermal.temperature, TidalPyConstants::d_NAN, material);
+        if (const c_MaterialEOSBase* eos_model = layer->get_eos()) {
+            eos_model->calc_material_state(
+                pressure, thermal.temperature, solidliquid_layer->get_use_thermal_eos(), radius_mid, material);
+        }
 
         const double outer_temperature = (layer_i + 1 < n_layers)
             ? thermal_vec[layer_i + 1].temperature
@@ -205,7 +209,9 @@ inline double c_update_layer_thermal(
         cooling_inputs.density    = std::isfinite(material.density) ? material.density : layer->get_density_bulk();
         cooling_inputs.viscosity  = material.shear_viscosity;
         cooling_inputs.thermal_conductivity = thermal.conductivity;
-        cooling_inputs.thermal_diffusivity  = solidliquid_layer->calc_thermal_diffusivity(thermal.temperature);
+        // The diffusivity uses the density the material has here, not a separate reference density.
+        cooling_inputs.thermal_diffusivity  =
+            thermal.conductivity / (cooling_inputs.density * thermal.heat_capacity);
         cooling_inputs.thermal_expansion    = thermal.thermal_expansion;
         const c_CoolingResult cooling_result = cooling_model->calc_cooling(cooling_inputs);
 
