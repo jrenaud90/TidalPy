@@ -53,14 +53,6 @@ cdef class GasLayer(PhysicsLayer):
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
         Dimensionless tidal heating scale. Default ``1.0``.
-    shear_modulus_static : float, optional
-        Unrelaxed shear modulus [Pa]. Default ``0.0``.
-    bulk_modulus_static : float, optional
-        Unrelaxed bulk modulus [Pa]. Default ``0.0``.
-    shear_viscosity_static : float, optional
-        Reference dynamic shear viscosity [Pa·s]. Default NaN (unset).
-    bulk_viscosity_static : float, optional
-        Reference dynamic bulk viscosity [Pa·s]. Default NaN (unset).
     love_number_k : complex, optional
         Potential Love number k (placeholder). Default ``0+0j``.
     love_number_h : complex, optional
@@ -87,12 +79,6 @@ cdef class GasLayer(PhysicsLayer):
     temperature : float, optional
         Layer temperature [K] at which its viscosity and melt models are evaluated. Default ``0.0``, the cold
         rigid limit of the viscosity laws.
-    shear_modulus_pressure_derivative : float, optional
-        Pressure derivative of the static shear modulus [Pa/Pa]. Default ``0.0``.
-    shear_modulus_temperature_derivative : float, optional
-        Temperature derivative of the static shear modulus [Pa/K]. Default ``0.0``.
-    shear_modulus_reference_temperature : float, optional
-        Temperature [K] at which ``shear_modulus_static`` applies. ``None`` keeps the default of 300 K.
     use_thermal_eos : bool, optional
         Pass the temperature to the EOS model, so the density and bulk modulus depend on it. Default ``False``.
 
@@ -117,10 +103,6 @@ cdef class GasLayer(PhysicsLayer):
             cpp_bool is_tidal             = True,
             cpp_bool is_volume_fixed      = True,
             double tidal_scale            = 1.0,
-            double shear_modulus_static   = 0.0,
-            double bulk_modulus_static    = 0.0,
-            double shear_viscosity_static = d_NAN,
-            double bulk_viscosity_static  = d_NAN,
             complex love_number_k         = 0+0j,
             complex love_number_h         = 0+0j,
             complex love_number_l         = 0+0j,
@@ -133,9 +115,6 @@ cdef class GasLayer(PhysicsLayer):
             cpp_bool is_static            = True,
             cpp_bool is_incompressible    = False,
             double temperature            = 0.0,
-            double shear_modulus_pressure_derivative    = 0.0,
-            double shear_modulus_temperature_derivative = 0.0,
-            shear_modulus_reference_temperature         = None,
             cpp_bool use_thermal_eos = False):
         cdef c_GasConfig config
         config.name                 = name.encode("utf-8")
@@ -148,10 +127,6 @@ cdef class GasLayer(PhysicsLayer):
         config.is_volume_fixed      = is_volume_fixed
         config.tidal_scale          = tidal_scale
         config.tidal_scale_method   = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
-        config.shear_modulus_static = shear_modulus_static
-        config.bulk_modulus_static  = bulk_modulus_static
-        config.shear_viscosity_static = shear_viscosity_static
-        config.bulk_viscosity_static  = bulk_viscosity_static
         config.love_numbers = c_LoveNumbers(
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
@@ -160,11 +135,6 @@ cdef class GasLayer(PhysicsLayer):
         config.is_static             = is_static
         config.is_incompressible     = is_incompressible
         config.temperature       = temperature
-        config.shear_modulus_pressure_derivative    = shear_modulus_pressure_derivative
-        config.shear_modulus_temperature_derivative = shear_modulus_temperature_derivative
-        # None keeps the C++ default reference temperature.
-        if shear_modulus_reference_temperature is not None:
-            config.shear_modulus_reference_temperature = <double>shear_modulus_reference_temperature
         config.use_thermal_eos   = use_thermal_eos
         config.mean_molecular_weight = mean_molecular_weight
         config.adiabatic_index       = adiabatic_index

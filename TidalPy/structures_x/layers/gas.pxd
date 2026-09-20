@@ -28,18 +28,11 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         double              tidal_scale
         c_TidalScaleMethod  tidal_scale_method
         # From c_PhysicsConfig:
-        double              shear_modulus_static
-        double              bulk_modulus_static
-        double              shear_viscosity_static
-        double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
         cpp_bool            is_solid
         cpp_bool            is_static
         cpp_bool            is_incompressible
         double              temperature
-        double              shear_modulus_pressure_derivative
-        double              shear_modulus_temperature_derivative
-        double              shear_modulus_reference_temperature
         cpp_bool            use_thermal_eos
         # GasLayer additions:
         double              mean_molecular_weight

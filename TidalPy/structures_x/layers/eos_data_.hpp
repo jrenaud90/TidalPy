@@ -8,9 +8,9 @@
  * linear interpolation of arrays a caller supplied through update_eos_data, which is how a layer carries a profile
  * that no solve produced. Getters return NaN until populated.
  *
- * The viscoelastic state is not stored here. Moduli and viscosities are evaluated on demand from this structure
- * through c_PhysicsLayer::calc_material_state, so a layer and the solve that used it cannot disagree about them
- * and no value is read off a slice grid. All MKS.
+ * The dense evaluator also reports the material state (static moduli, viscosities, melt fraction), which the
+ * material evaluated while the structure was integrated, so reading it back calculates nothing and a layer and the
+ * solve that used it cannot disagree. All MKS.
  */
 
 #include <cstddef>
@@ -32,7 +32,7 @@ public:
     // CyRK EOS-ODE y-layout (see Material_x/eos/ode_.hpp):
     //   0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia, 4 density,
     //   5/6 shear modulus re/im, 7/8 bulk modulus re/im, 9 shear visc, 10 bulk visc,
-    //   11 temperature, 12 heat flow.
+    //   11 temperature, 12 heat flow, 13 melt fraction.
     static constexpr std::size_t EOS_INDEX_GRAVITY  = 0;
     static constexpr std::size_t EOS_INDEX_PRESSURE = 1;
     static constexpr std::size_t EOS_INDEX_DENSITY  = 4;
@@ -43,6 +43,8 @@ public:
     bool is_populated() const noexcept {
         return static_cast<bool>(this->p_dense_eval) || !this->p_radius.empty();
     }
+    // True once a world EOS solve installed its dense evaluator, which is what carries the material state.
+    bool has_dense_eval() const noexcept { return static_cast<bool>(this->p_dense_eval); }
 
     // Structure getters: CyRK dense output when available, else the linear fallback.
     double get_density(double radius) const noexcept {

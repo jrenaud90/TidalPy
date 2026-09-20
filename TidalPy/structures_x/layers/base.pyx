@@ -29,7 +29,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport (
     c_PhysicsBase,
     cy_physics_model_config,
 )
-from TidalPy.Material_x.eos.material_eos cimport MaterialEOSBase
+from TidalPy.Material_x.eos.material_eos cimport MaterialEOSBase, cy_material_config
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -59,10 +59,6 @@ cdef enum:
     _KIND_BULK_MOD       = 4
     _KIND_SHEAR_VISC     = 5
     _KIND_BULK_VISC      = 6
-    _KIND_PRE_SHEAR_MOD  = 7
-    _KIND_PRE_BULK_MOD   = 8
-    _KIND_PRE_SHEAR_VISC = 9
-    _KIND_PRE_BULK_VISC  = 10
     _KIND_MELT_FRACTION  = 11
 
 
@@ -359,10 +355,6 @@ cdef class BaseLayer(StructureBase):
         elif kind == _KIND_BULK_MOD:       return layer.get_bulk_modulus(radius)
         elif kind == _KIND_SHEAR_VISC:     return layer.get_shear_viscosity(radius)
         elif kind == _KIND_BULK_VISC:      return layer.get_bulk_viscosity(radius)
-        elif kind == _KIND_PRE_SHEAR_MOD:  return layer.get_premelt_shear_modulus(radius)
-        elif kind == _KIND_PRE_BULK_MOD:   return layer.get_premelt_bulk_modulus(radius)
-        elif kind == _KIND_PRE_SHEAR_VISC: return layer.get_premelt_shear_viscosity(radius)
-        elif kind == _KIND_PRE_BULK_VISC:  return layer.get_premelt_bulk_viscosity(radius)
         elif kind == _KIND_MELT_FRACTION:  return layer.get_melt_fraction(radius)
         return 0.0
 
@@ -420,22 +412,6 @@ cdef class BaseLayer(StructureBase):
     def get_bulk_viscosity(self, radius):
         """Post-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
         return self._apply_real(radius, _KIND_BULK_VISC)
-
-    def get_premelt_shear_modulus(self, radius):
-        """Pre-melt static shear modulus [Pa] at radius [m] (float or np.ndarray); NaN if unpopulated."""
-        return self._apply_real(radius, _KIND_PRE_SHEAR_MOD)
-
-    def get_premelt_bulk_modulus(self, radius):
-        """Pre-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray); NaN if unpopulated."""
-        return self._apply_real(radius, _KIND_PRE_BULK_MOD)
-
-    def get_premelt_shear_viscosity(self, radius):
-        """Pre-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
-        return self._apply_real(radius, _KIND_PRE_SHEAR_VISC)
-
-    def get_premelt_bulk_viscosity(self, radius):
-        """Pre-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
-        return self._apply_real(radius, _KIND_PRE_BULK_VISC)
 
     def get_melt_fraction(self, radius):
         """Melt fraction at radius [m] (float or np.ndarray) from the attached partial-melt model.
@@ -506,5 +482,5 @@ cdef class BaseLayer(StructureBase):
             "tidal_scale_method": method_bytes.decode("utf-8"),
         }
         if p.get_eos_set():
-            config["eos"] = cy_physics_model_config(<const c_PhysicsBase*>p.get_eos())
+            config["material"] = cy_material_config(p.get_eos())
         return config

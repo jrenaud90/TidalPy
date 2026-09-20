@@ -10,8 +10,8 @@
  *   header: class_id = BinaryClassID::SolidLiquidLayer (102)
  *   payload:
  *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
- *     [all c_PhysicsLayer additions: shear modulus, bulk modulus,
- *      shear viscosity, bulk viscosity, love_numbers k/h/l re+im (10×8)]
+ *     [all c_PhysicsLayer additions: love_numbers k/h/l re+im (6×8), the three classification flags,
+ *      temperature, use_thermal_eos]
  *     thermal_conductivity_ref (double, 8)
  *     thermal_expansion_ref    (double, 8)
  *     heat_capacity_ref        (double, 8)
@@ -20,13 +20,11 @@
  *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
- *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
- *     bulk_viscosity  presence flag (uint8_t, 1) + (if present) its binary record
- *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
  *     cooling         presence flag (uint8_t, 1) + (if present) its binary record
  *     radiogenics     presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models are serialized
- *   recursively: the eight presence flags belong to this payload and each nested model follows as its own
+ *   The attached material EOS (which carries its own viscosity and partial-melt models), rheology, cooling, and
+ *   radiogenics models are serialized recursively: the five presence flags belong to this payload and each
+ *   nested model follows as its own
  *   record. The EOS profile data is not serialized; re-run the world EOS solve after loading.
  */
 
@@ -169,12 +167,12 @@ public:
             sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
             sizeof(double)   +               // tidal_scale
             sizeof(uint8_t)  +               // tidal_scale_method
-            sizeof(double)   * 10 +          // shear/bulk modulus, shear/bulk viscosity, love_numbers k/h/l re+im
+            sizeof(double)   * 6 +           // love_numbers k/h/l re+im
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
-            material_law_bytes() +           // temperature, shear law, use_thermal_eos
+            material_law_bytes() +           // temperature, use_thermal_eos
             sizeof(double)   * 5 +           // SolidLiquidLayer thermal fields
             optional_binary_flag_bytes() +             // material EOS model presence flag
-            this->physics_models_presence_bytes() +    // rheology + viscosity + partial-melt presence flags
+            this->physics_models_presence_bytes() +    // shear and bulk rheology presence flags
             2 * optional_binary_flag_bytes();    // cooling + radiogenics presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer), payload);
@@ -198,10 +196,6 @@ public:
         out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
 
         // c_PhysicsLayer fields
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static),    sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static),     sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static),  sizeof(double));
         auto write_complex = [&](const std::complex<double>& c) {
             const double re = c.real(), im = c.imag();
             out.write(reinterpret_cast<const char*>(&re), sizeof(double));
@@ -273,10 +267,6 @@ public:
         this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
 
         // c_PhysicsLayer fields
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static),    sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static),     sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static),  sizeof(double));
         auto read_complex = [&](std::complex<double>& c) {
             double re = 0.0, im = 0.0;
             in.read(reinterpret_cast<char*>(&re), sizeof(double));

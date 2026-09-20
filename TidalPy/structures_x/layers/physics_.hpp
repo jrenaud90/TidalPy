@@ -1,36 +1,30 @@
 #pragma once
 /*
- * physics_.hpp: c_PhysicsLayer, the mechanical-properties layer built on c_BaseLayer.
+ * physics_.hpp: c_PhysicsLayer, the mechanical layer built on c_BaseLayer.
  *
- * Adds the static mechanical properties (shear modulus, bulk modulus, shear and bulk viscosity) and the three
- * complex Love numbers held in a c_LoveNumbers struct. Attached c_RheologyBase models give frequency-dependent
- * complex moduli; without one, calc_complex_shear/bulk_modulus return the static value as a purely real complex
- * number (no dissipation). All MKS.
+ * Adds the radial-solver classification flags, the layer temperature, the three complex Love numbers held in a
+ * c_LoveNumbers struct, and the shear and bulk rheology. The material itself (static moduli, the shear law,
+ * viscosities, partial melt) belongs to the layer's EOS model: the setters here that take a viscosity or
+ * partial-melt model hand it to that EOS, and the static getters read it back. A complex modulus is the rheology
+ * applied to the static modulus and viscosity the solved EOS reports at a radius; without a rheology it is the
+ * static value as a purely real number (no dissipation). All MKS.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::PhysicsLayer (101)
  *   payload:
  *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
- *     shear_modulus_static      (double, 8)
- *     bulk_modulus_static       (double, 8)
- *     shear_viscosity_static   (double, 8)
- *     bulk_viscosity_static    (double, 8)
- *     love_number_k  re, im        (double×2, 16)
- *     love_number_h  re, im        (double×2, 16)
- *     love_number_l  re, im        (double×2, 16)
- *     is_solid, is_static, is_incompressible (uint8_t×3, 3)
- *     temperature, shear-modulus pressure derivative, temperature derivative, and reference temperature
- *                                   (double×4, 32)
+ *     love_number_k  re, im        (double x2, 16)
+ *     love_number_h  re, im        (double x2, 16)
+ *     love_number_l  re, im        (double x2, 16)
+ *     is_solid, is_static, is_incompressible (uint8_t x3, 3)
+ *     temperature                   (double, 8)
  *     use_thermal_eos               (uint8_t, 1)
  *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
- *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
- *     bulk_viscosity  presence flag (uint8_t, 1) + (if present) its binary record
- *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS model and physics models (rheology, viscosity, partial melt) are serialized
- *   recursively: the six presence flags belong to this payload and each nested model follows as its own record.
- *   The EOS profile data is not serialized; re-run the world EOS solve after loading.
+ *   The attached material EOS model (which carries its own viscosity and partial-melt models) and the two
+ *   rheologies are serialized recursively: the three presence flags belong to this payload and each nested model
+ *   follows as its own record. The EOS profile data is not serialized; re-run the world EOS solve after loading.
  */
 
 #include <complex>
@@ -44,47 +38,19 @@
 #include "base_.hpp"
 #include "love_.hpp"
 #include "rheology_.hpp"
-#include "viscosity_.hpp"      // c_ViscosityBase (shear/bulk pre-melt viscosity)
-#include "partial_melt_.hpp"   // c_PartialMeltBase (melt weakening)
 
 namespace tidalpy {
 
-// Construction parameters for c_PhysicsLayer: c_BaseLayerConfig plus the mechanical property fields.
+// Construction parameters for c_PhysicsLayer: c_BaseLayerConfig plus the mechanical fields.
 struct c_PhysicsConfig : public c_BaseLayerConfig {
-    double        shear_modulus_static = 0.0;   // [Pa]
-    double        bulk_modulus_static  = 0.0;   // [Pa]
-    double        shear_viscosity_static = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
-    double        bulk_viscosity_static  = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
     c_LoveNumbers love_numbers;                       // k, h, l [dimensionless] placeholder
     // Radial-solver layer classification flags.
     bool          is_solid          = true;   // false for liquid layers
     bool          is_static         = true;   // use static (no dynamic terms) approximation
     bool          is_incompressible = false;  // use incompressible approximation
-    // Material state. The layer temperature is 0 K until set: the cold, rigid limit of the viscosity laws.
+    // The layer temperature is 0 K until set: the cold, rigid limit of the viscosity laws.
     double        temperature = 0.0;   // [K]
-    // Static shear modulus law: mu = mu0 + mu'_P P + mu'_T (T - T_ref), with mu0 = shear_modulus_static.
-    double        shear_modulus_pressure_derivative    = 0.0;                          // mu'_P [Pa/Pa]
-    double        shear_modulus_temperature_derivative = 0.0;                          // mu'_T [Pa/K]
-    double        shear_modulus_reference_temperature  = d_EOS_REFERENCE_TEMPERATURE;  // T_ref [K]
     bool          use_thermal_eos = false;    // the EOS density and bulk modulus see the temperature
-};
-
-// Material properties of a layer at one point: c_PhysicsLayer::calc_material_state.
-struct c_MaterialState {
-    double density       = TidalPyConstants::d_NAN;   // [kg/m^3]; NaN without an EOS model
-    double melt_fraction = 0.0;                       // [m^3/m^3]
-    // Static moduli [Pa] and viscosities [Pa·s] before the partial-melt model, then after it.
-    double premelt_shear_modulus   = TidalPyConstants::d_NAN;
-    double premelt_bulk_modulus    = TidalPyConstants::d_NAN;
-    double premelt_shear_viscosity = TidalPyConstants::d_NAN;
-    double premelt_bulk_viscosity  = TidalPyConstants::d_NAN;
-    double shear_modulus   = TidalPyConstants::d_NAN;
-    double bulk_modulus    = TidalPyConstants::d_NAN;
-    double shear_viscosity = TidalPyConstants::d_NAN;
-    double bulk_viscosity  = TidalPyConstants::d_NAN;
-    // Complex moduli [Pa] at the forcing frequency; the post-melt static moduli for a non-finite frequency.
-    std::complex<double> complex_shear_modulus = {TidalPyConstants::d_NAN, 0.0};
-    std::complex<double> complex_bulk_modulus  = {TidalPyConstants::d_NAN, 0.0};
 };
 
 class c_PhysicsLayer : public c_BaseLayer {
@@ -94,18 +60,11 @@ public:
 
     explicit c_PhysicsLayer(const c_PhysicsConfig& cfg)
         : c_BaseLayer(cfg),
-          p_shear_modulus_static(cfg.shear_modulus_static),
-          p_bulk_modulus_static(cfg.bulk_modulus_static),
-          p_shear_viscosity_static(cfg.shear_viscosity_static),
-          p_bulk_viscosity_static(cfg.bulk_viscosity_static),
           p_love_numbers(cfg.love_numbers),
           p_is_solid(cfg.is_solid),
           p_is_static(cfg.is_static),
           p_is_incompressible(cfg.is_incompressible),
           p_temperature(cfg.temperature),
-          p_shear_modulus_pressure_derivative(cfg.shear_modulus_pressure_derivative),
-          p_shear_modulus_temperature_derivative(cfg.shear_modulus_temperature_derivative),
-          p_shear_modulus_reference_temperature(cfg.shear_modulus_reference_temperature),
           p_use_thermal_eos(cfg.use_thermal_eos)
     {}
 
@@ -116,25 +75,15 @@ public:
     c_PhysicsLayer& operator=(const c_PhysicsLayer& other) noexcept {
         if (this != &other) {
             c_BaseLayer::operator=(other);
-            this->p_shear_modulus_static = other.p_shear_modulus_static;
-            this->p_bulk_modulus_static  = other.p_bulk_modulus_static;
-            this->p_shear_viscosity_static = other.p_shear_viscosity_static;
-            this->p_bulk_viscosity_static = other.p_bulk_viscosity_static;
             this->p_love_numbers      = other.p_love_numbers;
             this->p_is_solid          = other.p_is_solid;
             this->p_is_static         = other.p_is_static;
             this->p_is_incompressible = other.p_is_incompressible;
             this->p_temperature       = other.p_temperature;
-            this->p_shear_modulus_pressure_derivative    = other.p_shear_modulus_pressure_derivative;
-            this->p_shear_modulus_temperature_derivative = other.p_shear_modulus_temperature_derivative;
-            this->p_shear_modulus_reference_temperature  = other.p_shear_modulus_reference_temperature;
             this->p_use_thermal_eos   = other.p_use_thermal_eos;
             // Owned model pointers cannot be copied; source temporaries always have null ptrs.
             this->p_shear_rheology.reset();
             this->p_bulk_rheology.reset();
-            this->p_shear_viscosity.reset();
-            this->p_bulk_viscosity.reset();
-            this->p_partial_melt.reset();
         }
         return *this;
     }
@@ -144,11 +93,19 @@ public:
         return static_cast<uint32_t>(BinaryClassID::PhysicsLayer);
     }
 
-    // Static mechanical property getters (const, MKS)
-    double get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static; }
-    double get_bulk_modulus_static()    const noexcept { return this->p_bulk_modulus_static; }
-    double get_shear_viscosity_static() const noexcept { return this->p_shear_viscosity_static; }
-    double get_bulk_viscosity_static()  const noexcept { return this->p_bulk_viscosity_static; }
+    // Static constants of the material, read from the layer's EOS model (NaN when none is attached).
+    double get_shear_modulus_static() const noexcept {
+        return this->p_eos ? this->p_eos->get_shear_modulus_static() : TidalPyConstants::d_NAN;
+    }
+    double get_bulk_modulus_static() const noexcept {
+        return this->p_eos ? this->p_eos->get_bulk_modulus_static() : TidalPyConstants::d_NAN;
+    }
+    double get_shear_viscosity_static() const noexcept {
+        return this->p_eos ? this->p_eos->get_shear_viscosity_static() : TidalPyConstants::d_NAN;
+    }
+    double get_bulk_viscosity_static() const noexcept {
+        return this->p_eos ? this->p_eos->get_bulk_viscosity_static() : TidalPyConstants::d_NAN;
+    }
 
     // Love number getters: full struct or individual components
     c_LoveNumbers        get_love_numbers()   const noexcept { return this->p_love_numbers; }
@@ -166,183 +123,57 @@ public:
     void set_is_static(bool value)         noexcept { this->p_is_static = value; }
     void set_is_incompressible(bool value) noexcept { this->p_is_incompressible = value; }
 
-    // Material-state parameters.
+    // Layer temperature [K] and whether the EOS density law sees it.
     double get_temperature()     const noexcept { return this->p_temperature; }
     bool   get_use_thermal_eos() const noexcept { return this->p_use_thermal_eos; }
-    double get_shear_modulus_pressure_derivative() const noexcept {
-        return this->p_shear_modulus_pressure_derivative;
-    }
-    double get_shear_modulus_temperature_derivative() const noexcept {
-        return this->p_shear_modulus_temperature_derivative;
-    }
-    double get_shear_modulus_reference_temperature() const noexcept {
-        return this->p_shear_modulus_reference_temperature;
-    }
     void set_temperature(double value)   noexcept { this->p_temperature = value; }
     void set_use_thermal_eos(bool value) noexcept { this->p_use_thermal_eos = value; }
 
-    // Material properties at a radius [m], pressure [Pa], and temperature [K]
-    void calc_material_state(
-            double radius,
-            double pressure,
-            double temperature,
-            double frequency,
-            c_MaterialState& out) const noexcept {
-        const double min_modulus = tidalpy_config_ptr->d_MIN_MODULUS;
-
-        // Shear law of the layer, floored so a steep temperature derivative cannot drive it negative.
-        double shear = this->p_shear_modulus_static + this->p_shear_modulus_pressure_derivative * pressure;
-        if (std::isfinite(temperature)) {
-            shear += this->p_shear_modulus_temperature_derivative
-                * (temperature - this->p_shear_modulus_reference_temperature);
-        }
-        double bulk            = this->p_bulk_modulus_static;
-        double shear_viscosity = this->p_shear_viscosity
-            ? this->p_shear_viscosity->calc_viscosity(temperature, pressure) : this->p_shear_viscosity_static;
-        double bulk_viscosity  = this->p_bulk_viscosity
-            ? this->p_bulk_viscosity->calc_viscosity(temperature, pressure) : this->p_bulk_viscosity_static;
-
-        out.density = TidalPyConstants::d_NAN;
-        if (this->p_eos) {
-            const double eos_temperature = this->p_use_thermal_eos ? temperature : TidalPyConstants::d_NAN;
-            double eos_bulk = TidalPyConstants::d_NAN;
-            this->p_eos->calc_density_and_bulk_modulus(pressure, eos_temperature, radius, out.density, eos_bulk);
-            const double eos_shear           = this->p_eos->calc_static_shear_modulus(radius);
-            const double eos_shear_viscosity = this->p_eos->calc_shear_viscosity(radius);
-            const double eos_bulk_viscosity  = this->p_eos->calc_bulk_viscosity(radius);
-            if (std::isfinite(eos_shear))           { shear = eos_shear; }
-            if (std::isfinite(eos_bulk))            { bulk = eos_bulk; }
-            if (std::isfinite(eos_shear_viscosity)) { shear_viscosity = eos_shear_viscosity; }
-            if (std::isfinite(eos_bulk_viscosity))  { bulk_viscosity = eos_bulk_viscosity; }
-        }
-        if (shear < min_modulus) { shear = min_modulus; }
-
-        out.premelt_shear_modulus   = shear;
-        out.premelt_bulk_modulus    = bulk;
-        out.premelt_shear_viscosity = shear_viscosity;
-        out.premelt_bulk_viscosity  = bulk_viscosity;
-        out.melt_fraction           = 0.0;
-        if (this->p_partial_melt) {
-            // The liquid viscosity is the pre-melt viscosity until a dedicated liquid-viscosity model exists.
-            c_PartialMeltInputs inputs;
-            inputs.temperature       = temperature;
-            inputs.premelt_viscosity = shear_viscosity;
-            inputs.premelt_shear     = shear;
-            inputs.liquid_viscosity  = shear_viscosity;
-            const c_PartialMeltResult shear_result = this->p_partial_melt->calc_partial_melt(inputs);
-            inputs.premelt_viscosity = bulk_viscosity;
-            inputs.premelt_shear     = bulk;
-            inputs.liquid_viscosity  = bulk_viscosity;
-            const c_PartialMeltResult bulk_result = this->p_partial_melt->calc_partial_melt(inputs);
-            out.melt_fraction = shear_result.melt_fraction;
-            shear             = shear_result.postmelt_shear_modulus;
-            shear_viscosity   = shear_result.postmelt_viscosity;
-            bulk              = bulk_result.postmelt_shear_modulus;
-            bulk_viscosity    = bulk_result.postmelt_viscosity;
-        }
-        out.shear_modulus   = shear;
-        out.bulk_modulus    = bulk;
-        out.shear_viscosity = shear_viscosity;
-        out.bulk_viscosity  = bulk_viscosity;
-
-        const bool use_rheology = std::isfinite(frequency);
-        out.complex_shear_modulus = (use_rheology && this->p_shear_rheology)
-            ? this->p_shear_rheology->calc_complex_modulus(shear, shear_viscosity, frequency)
-            : std::complex<double>(shear, 0.0);
-        out.complex_bulk_modulus = (use_rheology && this->p_bulk_rheology)
-            ? this->p_bulk_rheology->calc_complex_modulus(bulk, bulk_viscosity, frequency)
-            : std::complex<double>(bulk, 0.0);
-    }
-
-    // Complex shear modulus [Pa] at a forcing frequency, from the layer-constant static modulus and viscosity.
-    // Without a rheology the static modulus is returned with no imaginary part. The static viscosity is NaN
-    // until set, so a viscous rheology returns NaN; the radius-resolved overload uses the EOS profile instead.
+    // Complex shear modulus [Pa] at a forcing frequency from the material's static constants: the rheology
+    // applied to them, or the static modulus as a purely real number without one. The static viscosity is NaN
+    // until set, so a viscous rheology then returns NaN; the radius-resolved overload reads the solved EOS.
     std::complex<double> calc_complex_shear_modulus(double frequency) const noexcept {
-        if (this->p_shear_rheology) {
-            return this->p_shear_rheology->calc_complex_modulus(
-                this->p_shear_modulus_static, this->p_shear_viscosity_static, frequency);
-        }
-        return std::complex<double>(this->p_shear_modulus_static, 0.0);
+        return this->apply_shear_rheology(
+            this->get_shear_modulus_static(), this->get_shear_viscosity_static(), frequency);
     }
 
     // Complex bulk modulus [Pa] at a forcing frequency; same rules as the shear overload above.
     std::complex<double> calc_complex_bulk_modulus(double frequency) const noexcept {
-        if (this->p_bulk_rheology) {
-            return this->p_bulk_rheology->calc_complex_modulus(
-                this->p_bulk_modulus_static, this->p_bulk_viscosity_static, frequency);
-        }
-        return std::complex<double>(this->p_bulk_modulus_static, 0.0);
+        return this->apply_bulk_rheology(
+            this->get_bulk_modulus_static(), this->get_bulk_viscosity_static(), frequency);
     }
 
-    // The layer's material state at a radius on the solved structure: reads the pressure and temperature from the
-    // EOS profile and maps them onto the attached models. This is the one route every radius-resolved getter and
-    // the radial Love solve take, so none of them can read a value off a slice grid or disagree with the solve.
-    // A non-finite frequency skips the rheology and leaves the complex moduli at the static values. Returns false,
-    // leaving out at its defaults, before an EOS profile is stored.
-    bool calc_material_state_at(double radius, double frequency, c_MaterialState& out) const noexcept {
-        if (!this->p_eos_data.is_populated()) { return false; }
+    // The rheology applied to a static modulus [Pa] and viscosity [Pa s] at a forcing frequency [rad/s]. This is
+    // the only place a complex modulus comes from: the EOS supplies the two static inputs and knows nothing about
+    // frequency. Purely real (no dissipation) when no rheology is attached.
+    std::complex<double> apply_shear_rheology(
+            double static_modulus, double viscosity, double frequency) const noexcept {
+        if (this->p_shear_rheology) {
+            return this->p_shear_rheology->calc_complex_modulus(static_modulus, viscosity, frequency);
+        }
+        return std::complex<double>(static_modulus, 0.0);
+    }
+    std::complex<double> apply_bulk_rheology(
+            double static_modulus, double viscosity, double frequency) const noexcept {
+        if (this->p_bulk_rheology) {
+            return this->p_bulk_rheology->calc_complex_modulus(static_modulus, viscosity, frequency);
+        }
+        return std::complex<double>(static_modulus, 0.0);
+    }
+
+    // Radius-resolved complex moduli [Pa] at a forcing frequency: the rheology applied to the static modulus and
+    // viscosity the solved EOS reports at that radius. NaN before an EOS profile is stored.
+    std::complex<double> calc_complex_shear_modulus(double radius, double frequency) const noexcept {
         double state[C_EOS_DY_VALUES];
         this->p_eos_data.evaluate(radius, state);
-        // The solve stores a temperature at every radius (its segment's uniform value when temperature was not
-        // integrated); a profile supplied through update_eos_data carries none, so the layer's own is used.
-        double temperature = state[C_EOS_TEMPERATURE_INDEX];
-        if (!std::isfinite(temperature)) { temperature = this->p_temperature; }
-        this->calc_material_state(radius, state[c_LayerEOSData::EOS_INDEX_PRESSURE], temperature, frequency, out);
-        return true;
+        return this->apply_shear_rheology(
+            state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
     }
-
-    // Radius-resolved viscoelastic state, evaluated on demand through calc_material_state_at.
-    bool get_viscoelastic_populated() const noexcept override { return this->p_eos_data.is_populated(); }
-
-    double get_shear_modulus(double radius)   const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::shear_modulus);
-    }
-    double get_bulk_modulus(double radius)    const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::bulk_modulus);
-    }
-    double get_shear_viscosity(double radius) const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::shear_viscosity);
-    }
-    double get_bulk_viscosity(double radius)  const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::bulk_viscosity);
-    }
-    double get_premelt_shear_modulus(double radius)   const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::premelt_shear_modulus);
-    }
-    double get_premelt_bulk_modulus(double radius)    const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::premelt_bulk_modulus);
-    }
-    double get_premelt_shear_viscosity(double radius) const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::premelt_shear_viscosity);
-    }
-    double get_premelt_bulk_viscosity(double radius)  const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::premelt_bulk_viscosity);
-    }
-
-    // Melt fraction at a radius on the solved structure; 0 without a partial-melt model, NaN before a solve.
-    double get_melt_fraction(double radius) const noexcept override {
-        return this->p_state_value(radius, &c_MaterialState::melt_fraction);
-    }
-
-    // Radius-resolved complex moduli [Pa] at a forcing frequency, from the material state at that radius.
-    // Feeds the radial Love-number solve. Purely real (no dissipation) when no rheology is attached; NaN before
-    // an EOS profile is stored.
-    std::complex<double> calc_complex_shear_modulus(
-            double radius, double frequency) const noexcept {
-        c_MaterialState state;
-        if (!this->calc_material_state_at(radius, frequency, state)) {
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        }
-        return state.complex_shear_modulus;
-    }
-
-    std::complex<double> calc_complex_bulk_modulus(
-            double radius, double frequency) const noexcept {
-        c_MaterialState state;
-        if (!this->calc_material_state_at(radius, frequency, state)) {
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        }
-        return state.complex_bulk_modulus;
+    std::complex<double> calc_complex_bulk_modulus(double radius, double frequency) const noexcept {
+        double state[C_EOS_DY_VALUES];
+        this->p_eos_data.evaluate(radius, state);
+        return this->apply_bulk_rheology(
+            state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
     }
 
     // Rheology setters (transfer ownership; each registers this layer as the model's observer).
@@ -363,32 +194,33 @@ public:
     c_RheologyBase* get_shear_rheology_model() const noexcept { return this->p_shear_rheology.get(); }
     c_RheologyBase* get_bulk_rheology_model()  const noexcept { return this->p_bulk_rheology.get(); }
 
-    // Viscosity and partial-melt setters (transfer ownership; each registers this layer as the observer). The
-    // viscosity models supply the pre-melt viscosities at (T, P) and the partial-melt model weakens the static
-    // moduli and viscosities; both feed the frequency-independent state built by the world EOS solve.
+    // Viscosity and partial-melt helpers. The material owns these models, so each call hands the model to the
+    // layer's EOS; they exist so a layer can be configured in one place. Attach the EOS first: without one there
+    // is no material to give the model to.
     void set_shear_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
-        this->p_shear_viscosity = std::move(viscosity);
-        if (this->p_shear_viscosity) { this->p_shear_viscosity->set_layer_ptr(this); }
+        this->p_require_eos("a shear viscosity model")->set_shear_viscosity(std::move(viscosity));
     }
-
     void set_bulk_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
-        this->p_bulk_viscosity = std::move(viscosity);
-        if (this->p_bulk_viscosity) { this->p_bulk_viscosity->set_layer_ptr(this); }
+        this->p_require_eos("a bulk viscosity model")->set_bulk_viscosity(std::move(viscosity));
     }
-
     void set_partial_melt(std::unique_ptr<c_PartialMeltBase> partial_melt) {
-        this->p_partial_melt = std::move(partial_melt);
-        if (this->p_partial_melt) { this->p_partial_melt->set_layer_ptr(this); }
+        this->p_require_eos("a partial-melt model")->set_partial_melt(std::move(partial_melt));
     }
 
-    bool get_shear_viscosity_set() const noexcept { return this->p_shear_viscosity != nullptr; }
-    bool get_bulk_viscosity_set()  const noexcept { return this->p_bulk_viscosity  != nullptr; }
-    bool get_partial_melt_set()    const noexcept { return this->p_partial_melt    != nullptr; }
+    bool get_shear_viscosity_set() const noexcept { return this->get_shear_viscosity_model() != nullptr; }
+    bool get_bulk_viscosity_set()  const noexcept { return this->get_bulk_viscosity_model()  != nullptr; }
+    bool get_partial_melt_set()    const noexcept { return this->get_partial_melt_model()    != nullptr; }
 
-    // Non-owning observer pointers (nullptr if unset), read by the world EOS solve for the viscoelastic state.
-    c_ViscosityBase*   get_shear_viscosity_model() const noexcept { return this->p_shear_viscosity.get(); }
-    c_ViscosityBase*   get_bulk_viscosity_model()  const noexcept { return this->p_bulk_viscosity.get(); }
-    c_PartialMeltBase* get_partial_melt_model()    const noexcept { return this->p_partial_melt.get(); }
+    // Non-owning observer pointers into the EOS (nullptr if unset or no EOS is attached).
+    c_ViscosityBase* get_shear_viscosity_model() const noexcept {
+        return this->p_eos ? this->p_eos->get_shear_viscosity_model() : nullptr;
+    }
+    c_ViscosityBase* get_bulk_viscosity_model() const noexcept {
+        return this->p_eos ? this->p_eos->get_bulk_viscosity_model() : nullptr;
+    }
+    c_PartialMeltBase* get_partial_melt_model() const noexcept {
+        return this->p_eos ? this->p_eos->get_partial_melt_model() : nullptr;
+    }
 
     // Binary I/O
     void write_binary(std::ostream& out) const override {
@@ -403,12 +235,11 @@ public:
             sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
             sizeof(double)   +               // tidal_scale
             sizeof(uint8_t)  +               // tidal_scale_method
-            sizeof(double)   * 4 +           // shear modulus, bulk modulus, shear viscosity, bulk viscosity
             sizeof(double)   * 6 +           // love_number k, h, l (each: re + im)
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
-            material_law_bytes() +           // temperature, shear law, use_thermal_eos
+            material_law_bytes() +           // temperature, use_thermal_eos
             optional_binary_flag_bytes() +         // material EOS model presence flag
-            this->physics_models_presence_bytes(); // rheology + viscosity + partial-melt presence flags
+            this->physics_models_presence_bytes(); // shear and bulk rheology presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::PhysicsLayer), payload);
 
@@ -429,12 +260,6 @@ public:
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale), sizeof(double));
         const uint8_t scale_method_byte = static_cast<uint8_t>(this->p_tidal_scale_method);
         out.write(reinterpret_cast<const char*>(&scale_method_byte),   sizeof(uint8_t));
-
-        // c_PhysicsLayer scalar fields
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static),    sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static),     sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static),  sizeof(double));
 
         // Love numbers k, h, l
         auto write_complex = [&](const std::complex<double>& c) {
@@ -500,12 +325,6 @@ public:
         in.read(reinterpret_cast<char*>(&scale_method_byte), sizeof(uint8_t));
         this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
 
-        // c_PhysicsLayer scalar fields
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static),    sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static),     sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static),  sizeof(double));
-
         // Love numbers k, h, l
         auto read_complex = [&](std::complex<double>& c) {
             double re = 0.0, im = 0.0;
@@ -540,26 +359,23 @@ public:
     }
 
 protected:
-    // One field of the material state at a radius, for the radius-resolved getters. The rheology is skipped
-    // (NaN frequency), so this costs the EOS inversion and the static models only.
-    double p_state_value(double radius, double c_MaterialState::* field) const noexcept {
-        c_MaterialState state;
-        if (!this->calc_material_state_at(radius, TidalPyConstants::d_NAN, state)) {
-            return TidalPyConstants::d_NAN;
+    // The attached EOS model, or a clear error naming what needed it.
+    c_MaterialEOSBase* p_require_eos(const char* what) const {
+        if (!this->p_eos) {
+            throw std::logic_error(
+                std::string("TidalPy: attach an EOS model to layer '") + this->p_name + "' before giving it "
+                + what + ": the material owns it.");
         }
-        return state.*field;
+        return this->p_eos.get();
     }
 
-    // Recursive (de)serialization of the optional physics models (shear and bulk rheology, shear and bulk
-    // viscosity, partial melt), shared by c_PhysicsLayer and its subclasses so the section keeps one byte
-    // layout: a presence flag each, followed when set by the model's own record. On read the concrete model is
-    // rebuilt through that module's binary-dispatch factory and re-registered as this layer's observer.
+    // Recursive (de)serialization of the two optional rheology models, shared by c_PhysicsLayer and its
+    // subclasses so the section keeps one byte layout: a presence flag each, followed when set by the model's
+    // own record. On read the concrete model is rebuilt through the rheology binary-dispatch factory and
+    // re-registered as this layer's observer.
     void write_physics_models_binary(std::ostream& out) const {
         write_optional_binary(out, this->p_shear_rheology);
         write_optional_binary(out, this->p_bulk_rheology);
-        write_optional_binary(out, this->p_shear_viscosity);
-        write_optional_binary(out, this->p_bulk_viscosity);
-        write_optional_binary(out, this->p_partial_melt);
     }
 
     void read_physics_models_binary(std::istream& in, bool force) {
@@ -569,71 +385,44 @@ protected:
         this->p_bulk_rheology =
             read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
         if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
-        this->p_shear_viscosity =
-            read_optional_binary<c_ViscosityBase>(in, force, c_viscosity_from_binary);
-        if (this->p_shear_viscosity) { this->p_shear_viscosity->set_layer_ptr(this); }
-        this->p_bulk_viscosity =
-            read_optional_binary<c_ViscosityBase>(in, force, c_viscosity_from_binary);
-        if (this->p_bulk_viscosity) { this->p_bulk_viscosity->set_layer_ptr(this); }
-        this->p_partial_melt =
-            read_optional_binary<c_PartialMeltBase>(in, force, c_partial_melt_from_binary);
-        if (this->p_partial_melt) { this->p_partial_melt->set_layer_ptr(this); }
     }
 
-    // The material-state scalars (temperature, shear law, use_thermal_eos), shared with the subclasses so the
-    // three layer records keep one byte layout for them.
-    static constexpr uint64_t material_law_bytes() { return 4 * sizeof(double) + sizeof(uint8_t); }
+    // The layer-state scalars (temperature, use_thermal_eos), shared with the subclasses so the three layer
+    // records keep one byte layout for them.
+    static constexpr uint64_t material_law_bytes() { return sizeof(double) + sizeof(uint8_t); }
 
     void write_material_law_binary(std::ostream& out) const {
         out.write(reinterpret_cast<const char*>(&this->p_temperature), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_pressure_derivative),    sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_temperature_derivative), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_reference_temperature),  sizeof(double));
         const uint8_t use_thermal_eos_byte = static_cast<uint8_t>(this->p_use_thermal_eos);
         out.write(reinterpret_cast<const char*>(&use_thermal_eos_byte), sizeof(uint8_t));
     }
 
     void read_material_law_binary(std::istream& in) {
         in.read(reinterpret_cast<char*>(&this->p_temperature), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_pressure_derivative),    sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_temperature_derivative), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_reference_temperature),  sizeof(double));
         uint8_t use_thermal_eos_byte = 0;
         in.read(reinterpret_cast<char*>(&use_thermal_eos_byte), sizeof(uint8_t));
         this->p_use_thermal_eos = static_cast<bool>(use_thermal_eos_byte);
     }
 
-    // Payload bytes contributed by the five model presence flags (the nested
-    // model records follow as separate appended records).
+    // Payload bytes contributed by the two rheology presence flags (the nested records follow the payload).
     static constexpr uint64_t physics_models_presence_bytes() {
-        return 5 * optional_binary_flag_bytes();
+        return 2 * optional_binary_flag_bytes();
     }
 
-    double        p_shear_modulus_static = 0.0;   // [Pa]
-    double        p_bulk_modulus_static  = 0.0;   // [Pa]
-    double        p_shear_viscosity_static = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
-    double        p_bulk_viscosity_static  = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
-    c_LoveNumbers p_love_numbers;                       // k, h, l [dimensionless] placeholder
+    c_LoveNumbers p_love_numbers;
+
     // Radial-solver layer classification.
-    bool          p_is_solid          = true;
-    bool          p_is_static         = true;
-    bool          p_is_incompressible = false;
-    // Material state (see c_PhysicsConfig).
-    double        p_temperature = 0.0;   // [K]
-    double        p_shear_modulus_pressure_derivative    = 0.0;                          // [Pa/Pa]
-    double        p_shear_modulus_temperature_derivative = 0.0;                          // [Pa/K]
-    double        p_shear_modulus_reference_temperature  = d_EOS_REFERENCE_TEMPERATURE;  // [K]
-    bool          p_use_thermal_eos = false;
+    bool p_is_solid          = true;
+    bool p_is_static         = true;
+    bool p_is_incompressible = false;
+
+    // Layer state (see c_PhysicsConfig).
+    double p_temperature     = 0.0;
+    bool   p_use_thermal_eos = false;
 
     // Optional rheology objects (serialized recursively via write_physics_models_binary).
     std::unique_ptr<c_RheologyBase> p_shear_rheology;
     std::unique_ptr<c_RheologyBase> p_bulk_rheology;
-
-    // Optional viscosity and partial-melt objects (serialized recursively): the pre-melt viscosities and the
-    // melt weakening consumed by the world EOS solve.
-    std::unique_ptr<c_ViscosityBase>   p_shear_viscosity;
-    std::unique_ptr<c_ViscosityBase>   p_bulk_viscosity;
-    std::unique_ptr<c_PartialMeltBase> p_partial_melt;
 };
 
 } // namespace tidalpy

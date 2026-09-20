@@ -32,34 +32,13 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         double              tidal_scale
         c_TidalScaleMethod  tidal_scale_method
         # PhysicsLayer additions:
-        double              shear_modulus_static
-        double              bulk_modulus_static
-        double              shear_viscosity_static
-        double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
         # Radial-solver layer classification flags:
         cpp_bool            is_solid
         cpp_bool            is_static
         cpp_bool            is_incompressible
         double              temperature
-        double              shear_modulus_pressure_derivative
-        double              shear_modulus_temperature_derivative
-        double              shear_modulus_reference_temperature
         cpp_bool            use_thermal_eos
-
-    cdef cppclass c_MaterialState:
-        double              density
-        double              melt_fraction
-        double              premelt_shear_modulus
-        double              premelt_bulk_modulus
-        double              premelt_shear_viscosity
-        double              premelt_bulk_viscosity
-        double              shear_modulus
-        double              bulk_modulus
-        double              shear_viscosity
-        double              bulk_viscosity
-        cpp_complex[double] complex_shear_modulus
-        cpp_complex[double] complex_bulk_modulus
 
     cdef cppclass c_PhysicsLayer(c_BaseLayer):
         c_PhysicsLayer() except +
@@ -85,9 +64,9 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            get_bulk_rheology_set()                  const
         void                set_shear_rheology(unique_ptr[c_RheologyBase] shear)
         void                set_bulk_rheology(unique_ptr[c_RheologyBase] bulk)
-        void                set_shear_viscosity(unique_ptr[c_ViscosityBase] viscosity)
-        void                set_bulk_viscosity(unique_ptr[c_ViscosityBase] viscosity)
-        void                set_partial_melt(unique_ptr[c_PartialMeltBase] partial_melt)
+        void                set_shear_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
+        void                set_bulk_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
+        void                set_partial_melt(unique_ptr[c_PartialMeltBase] partial_melt) except +
         cpp_bool            get_shear_viscosity_set()                const
         cpp_bool            get_bulk_viscosity_set()                 const
         cpp_bool            get_partial_melt_set()                   const
@@ -99,17 +78,8 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         void                set_is_incompressible(cpp_bool)
         double              get_temperature()                          const
         cpp_bool            get_use_thermal_eos()                      const
-        double              get_shear_modulus_pressure_derivative()    const
-        double              get_shear_modulus_temperature_derivative() const
-        double              get_shear_modulus_reference_temperature()  const
         void                set_temperature(double)
         void                set_use_thermal_eos(cpp_bool)
-        void                calc_material_state(
-            double radius,
-            double pressure,
-            double temperature,
-            double frequency,
-            c_MaterialState& out) const
 
 
 # =====================================================================================================================

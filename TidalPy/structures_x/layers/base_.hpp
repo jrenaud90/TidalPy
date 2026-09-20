@@ -207,27 +207,33 @@ public:
     double get_pressure(double radius)        const noexcept { return this->p_eos_data.get_pressure(radius); }
     void   update_eos_data(const c_LayerEOSData& data) { this->p_eos_data = data; }
 
-    // Viscoelastic state (post-melt by default, pre-melt through the premelt getters), evaluated on demand from
-    // the solved structure by c_PhysicsLayer. A geometry-only BaseLayer holds no models, so it reports NaN.
-    virtual bool   get_viscoelastic_populated()         const noexcept { return false; }
-    virtual double get_shear_modulus(double /*radius*/)   const noexcept { return TidalPyConstants::d_NAN; }
-    virtual double get_bulk_modulus(double /*radius*/)    const noexcept { return TidalPyConstants::d_NAN; }
-    virtual double get_shear_viscosity(double /*radius*/) const noexcept { return TidalPyConstants::d_NAN; }
-    virtual double get_bulk_viscosity(double /*radius*/)  const noexcept { return TidalPyConstants::d_NAN; }
-    virtual double get_premelt_shear_modulus(double /*radius*/)   const noexcept {
-        return TidalPyConstants::d_NAN;
+    // Static material state at a radius, read from the solved EOS: the material evaluated these as the structure
+    // was integrated, so nothing is calculated here and every value is the one the solve used. They are the
+    // frequency-independent moduli [Pa], viscosities [Pa s], and melt fraction after the partial-melt model. NaN
+    // before a solve, and for a profile supplied by hand, which carries density, gravity, and pressure alone.
+    bool   get_viscoelastic_populated()         const noexcept { return this->p_eos_data.has_dense_eval(); }
+    double get_shear_modulus(double radius)   const noexcept {
+        return this->p_eos_value(radius, C_EOS_SHEAR_MODULUS_INDEX);
     }
-    virtual double get_premelt_bulk_modulus(double /*radius*/)    const noexcept {
-        return TidalPyConstants::d_NAN;
+    double get_bulk_modulus(double radius)    const noexcept {
+        return this->p_eos_value(radius, C_EOS_BULK_MODULUS_INDEX);
     }
-    virtual double get_premelt_shear_viscosity(double /*radius*/) const noexcept {
-        return TidalPyConstants::d_NAN;
+    double get_shear_viscosity(double radius) const noexcept {
+        return this->p_eos_value(radius, C_EOS_SHEAR_VISCOSITY_INDEX);
     }
-    virtual double get_premelt_bulk_viscosity(double /*radius*/)  const noexcept {
-        return TidalPyConstants::d_NAN;
+    double get_bulk_viscosity(double radius)  const noexcept {
+        return this->p_eos_value(radius, C_EOS_BULK_VISCOSITY_INDEX);
     }
-    // Melt fraction [m^3/m^3] at a radius, from the layer's partial-melt model; NaN without one.
-    virtual double get_melt_fraction(double /*radius*/) const noexcept { return TidalPyConstants::d_NAN; }
+    double get_melt_fraction(double radius)   const noexcept {
+        return this->p_eos_value(radius, C_EOS_MELT_FRACTION_INDEX);
+    }
+    double get_temperature_at(double radius)  const noexcept {
+        return this->p_eos_value(radius, C_EOS_TEMPERATURE_INDEX);
+    }
+
+    // Every solved quantity at a radius in one dense evaluation, for a caller that wants more than one of them:
+    // C_EOS_DY_VALUES doubles in the evaluation layout of eos_layout_.hpp.
+    void get_eos_state(double radius, double* y_out) const noexcept { this->p_eos_data.evaluate(radius, y_out); }
 
     // Material EOS model: the per-layer density source used by the world-level EOS solve. Ownership transfers in.
     void set_eos(std::unique_ptr<c_MaterialEOSBase> eos) {
@@ -336,6 +342,13 @@ public:
     }
 
 protected:
+    // One entry of the evaluation layout at a radius.
+    double p_eos_value(double radius, std::size_t index) const noexcept {
+        double state[C_EOS_DY_VALUES];
+        this->p_eos_data.evaluate(radius, state);
+        return state[index];
+    }
+
     // Recursive (de)serialization of the optional material EOS model, shared by every layer class so the section
     // has one byte layout: a presence flag followed, when set, by the model's own binary record. On read the
     // concrete model is rebuilt through the material EOS binary-dispatch factory and re-registered as this
