@@ -363,6 +363,17 @@ public:
         storage_eos->radius_array_set       = true;
         storage_eos->other_vecs_set         = true;
 
+        // This storage's EOS stands in for the world's, so it also reports the world's solve diagnostics. Without
+        // this they stay at their "never solved" defaults, which an exported solution would report as its own.
+        if (structure_dense_source) {
+            storage_eos->iterations        = structure_dense_source->iterations;
+            storage_eos->pressure_error    = structure_dense_source->pressure_error;
+            storage_eos->max_iters_hit     = structure_dense_source->max_iters_hit;
+            storage_eos->message           = structure_dense_source->message;
+            storage_eos->steps_taken_vec   = structure_dense_source->steps_taken_vec;
+            storage_eos->num_cyolver_calls = structure_dense_source->num_cyolver_calls;
+        }
+
         // Gravity, pressure, mass, and moi are read from the world's dense SI EOS during shooting; the scales convert
         // the non-dim shooting radius up and the SI outputs back down.
         storage_eos->p_structure_dense_source = structure_dense_source.get();

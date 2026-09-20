@@ -111,12 +111,14 @@ cdef class RadialSolverSolution:
         if not solution.solution_storage_ptr:
             raise RuntimeError("Released radial-solution storage was empty.")
 
-        solution.num_ytypes        = solution.solution_storage_ptr.num_ytypes
-        solution.num_layers        = solution.solution_storage_ptr.num_layers
-        solution.radius_array_size = solution.solution_storage_ptr.num_slices
-        solution.ytype_names_set   = False
+        solution.num_ytypes      = solution.solution_storage_ptr.num_ytypes
+        solution.num_layers      = solution.solution_storage_ptr.num_layers
+        solution.ytype_names_set = False
         if solution.solution_storage_ptr.p_bc_models.size() == solution.num_ytypes:
             solution.set_model_names(solution.solution_storage_ptr.p_bc_models.data())
+        
+        # Wrap the storage's vectors for Python without touching the storage itself.
+        solution.change_radius_array(NULL, solution.solution_storage_ptr.num_slices, array_changed=False)
         solution.finalize_python_storage()
         return solution
 

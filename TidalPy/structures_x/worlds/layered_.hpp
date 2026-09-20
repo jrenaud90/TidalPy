@@ -813,7 +813,8 @@ public:
         // The captured `this` is safe: the provider lives on the solver's storage, which this world owns, and it is
         // cleared once the solve returns.
         const double frequency = cfg.frequency;
-        solver->set_material_eval(this->make_material_eval(frequency));
+        this->p_export_material_eval = this->make_material_eval(frequency);
+        solver->set_material_eval(this->p_export_material_eval);
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         solver->solve(rt);
@@ -902,16 +903,22 @@ public:
             in_first_by_layer[layer_i] = in_first;
             in_count_by_layer[layer_i] = in_last - in_first + 1;
         }
-        solver->set_material_eval(
-            [this, shear_in, bulk_in, radius_in, &in_first_by_layer, &in_count_by_layer](
+        // The provider owns copies of the supplied profile rather than borrowing the caller's arrays, because it
+        // is also what an exported solution reads: it has to outlive this call. The layer runs are captured the
+        // same way for the same reason.
+        std::vector<double>               radius_copy(radius_in, radius_in + n_in);
+        std::vector<std::complex<double>> shear_copy(shear_in, shear_in + n_in);
+        std::vector<std::complex<double>> bulk_copy(bulk_in, bulk_in + n_in);
+        this->p_export_material_eval =
+            [this, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer](
                     std::size_t layer_index, double radius_si, double* out) {
                 if (layer_index >= this->p_layers.size()) { return; }
                 const std::size_t in_first = in_first_by_layer[layer_index];
                 const std::size_t in_count = in_count_by_layer[layer_index];
-                const std::complex<double> shear =
-                    c_interp_complex(radius_si, radius_in + in_first, shear_in + in_first, in_count, 0);
-                const std::complex<double> bulk =
-                    c_interp_complex(radius_si, radius_in + in_first, bulk_in + in_first, in_count, 0);
+                const std::complex<double> shear = c_interp_complex(
+                    radius_si, radius_copy.data() + in_first, shear_copy.data() + in_first, in_count, 0);
+                const std::complex<double> bulk = c_interp_complex(
+                    radius_si, radius_copy.data() + in_first, bulk_copy.data() + in_first, in_count, 0);
                 out[0] = this->p_layers[layer_index]->get_density(radius_si);
                 // Supplied moduli carry no separate unrelaxed value, so the real part stands in for it.
                 out[1] = shear.real();
@@ -920,7 +927,11 @@ public:
                 out[4] = shear.imag();
                 out[5] = bulk.real();
                 out[6] = bulk.imag();
-            });
+                // The profile said nothing about viscosity; it gave the response directly.
+                out[7] = TidalPyConstants::d_NAN;
+                out[8] = TidalPyConstants::d_NAN;
+            };
+        solver->set_material_eval(this->p_export_material_eval);
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         rt.redim_eos_arrays = true;
@@ -976,16 +987,9 @@ public:
     std::unique_ptr<::c_RadialSolutionStorage> release_radial_storage() {
         if (!this->p_radial_solver) { return nullptr; }
         if (::c_RadialSolutionStorage* storage = this->p_radial_solver->get_storage()) {
-            this->p_radial_solver->set_material_eval(
-                this->make_material_eval(storage->p_love_frequency_si));
-            // A solve keeps its readout in solve units so the cache survives the next frequency.
-            if (c_EOSSolution* storage_eos = storage->get_eos_solution_ptr()) {
-                storage_eos->p_structure_gravity_scale = 1.0;
-                storage_eos->p_structure_pascal_scale  = 1.0;
-                storage_eos->p_structure_mass_scale    = 1.0;
-                storage_eos->p_structure_moi_scale     = 1.0;
-                storage_eos->p_structure_density_scale = 1.0;
-            }
+            // Whichever provider the last radial solve used, so a supplied-moduli solve exports the profile it
+            // was given rather than a rheology it never had.
+            this->p_radial_solver->set_material_eval(this->p_export_material_eval);
         }
         return this->p_radial_solver->release_storage();
     }
@@ -1637,6 +1641,11 @@ protected:
     std::complex<double> p_love_analytic_shear = {TidalPyConstants::d_NAN, 0.0};   // volume-averaged shear [Pa]
     double        p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;          // averaged volume [m3]
     std::unique_ptr<::c_WorldRadialSolver> p_radial_solver;
+
+    // The material provider the last radial solve used, kept so an exported solution can be given it back. The
+    // solve-time copy is cleared when the solve returns; this one is what makes the export answer correctly,
+    // and which of the two kinds it is (rheology or supplied profile) depends on which solve ran.
+    c_EOSSolution::MaterialEval p_export_material_eval;
 
     // Global (1D) tidal dissipation: the model/config/result state lives on c_BaseWorld;
     // c_LayeredWorld adds only the per-layer heating distribution (results not serialized).

@@ -39,10 +39,9 @@ public:
     bool max_iters_hit         = false;
     bool radius_array_set      = false;
     bool other_vecs_set        = false;
-    bool p_use_array_interp    = false;  // set by inject_from_world_eos; call() uses array interpolation
 
-    // Optional non-owning dense structure source (the world Love solve). With p_use_array_interp, gravity, pressure,
-    // mass, and moi are read from it at dense accuracy while density and the complex moduli stay array-interpolated.
+    // Optional non-owning dense structure source (the world Love solve): gravity, pressure, mass, and moi are
+    // read from it at dense accuracy.
     // The source is SI: source_radius = this_radius * p_structure_length_scale, this_value = source_value / scale.
     const c_EOSSolution* p_structure_dense_source = nullptr;
     // Co-ownership of that source, so a solution exported to Python keeps answering after the world it came from
@@ -116,11 +115,6 @@ public:
     // Temperature [K] and heat flow [W] vs radius.
     std::vector<double> temperature_array_vec     = std::vector<double>();
     std::vector<double> heat_flow_array_vec       = std::vector<double>();
-
-    // Radial density derivative per slice (array units per unit radius). When present the density lookup is cubic
-    // Hermite (slope continuous across slices, so the radial integrator sees no kinks). Filled by
-    // inject_from_world_eos; empty otherwise.
-    std::vector<double> density_slope_array_vec = std::vector<double>();
 
     // Per-layer EOS functions and arguments saved by c_solve_eos. The retained integrators carry only the four
     // structure variables; density, moduli, and viscosities are evaluated on demand from the interpolated state.
@@ -313,37 +307,6 @@ public:
     }
 
 
-    /// Linear interpolation of gravity and density inside one layer's slices, in array units. Used where the dense
-    /// output is unavailable (the dynamic-liquid y3 reconstruction).
-    void interp_structure_in_layer(
-        const size_t layer_index,
-        const double radius_val,
-        double* gravity_ptr,
-        double* density_ptr) const noexcept
-    {
-        size_t first = 0;
-        size_t n     = this->radius_array_vec.size();
-        if (layer_index < this->num_slices_bylayer_vec.size() && this->num_slices_bylayer_vec[layer_index] > 1)
-        {
-            first = this->first_slice_bylayer_vec[layer_index];
-            n     = this->num_slices_bylayer_vec[layer_index];
-        }
-        if (n == 0)
-        {
-            *gravity_ptr = TidalPyConstants::d_NAN;
-            *density_ptr = TidalPyConstants::d_NAN;
-            return;
-        }
-        double* radius_data_ptr = const_cast<double*>(this->radius_array_vec.data()) + first;
-        double  radius_query    = radius_val;
-        size_t  j               = this->p_seed_index(radius_val, radius_data_ptr, n);
-        int     b_code          = 0;
-        j = c_binary_search_with_guess(radius_val, radius_data_ptr, n, j, &b_code);
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->gravity_array_vec.data()) + first, n, &j,
-                 gravity_ptr);
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->density_array_vec.data()) + first, n, &j,
-                 density_ptr);
-    }
 
 
     /// Radius in solve units for an SI radius: the retained integrators live in the units the solve ran in, so a
@@ -491,165 +454,6 @@ protected:
 public:
 
 
-    /// Interpolate every EOS output from the stored arrays, searching only the calling layer's slices (see
-    /// update_slice_partition). Used when p_use_array_interp is true (set by inject_from_world_eos). The arrays
-    /// stay in the units they were injected in; no scaling is applied.
-    /// When material_out is given it also receives the gravity, density, and the moduli interpolated complex,
-    /// which the evaluation layout cannot carry.
-    void _call_interp_arrays(
-        const size_t layer_index,
-        const double radius_val,
-        double* y_interp_ptr,
-        c_EOSMaterialState* material_out = nullptr) const noexcept
-    {
-        size_t first = 0;
-        size_t n     = this->radius_array_size;
-        if (layer_index < this->num_slices_bylayer_vec.size() && this->num_slices_bylayer_vec[layer_index] > 1)
-        {
-            first = this->first_slice_bylayer_vec[layer_index];
-            n     = this->num_slices_bylayer_vec[layer_index];
-        }
-        if (n == 0)
-        {
-            // NaN rather than reading uninitialized memory.
-            for (size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i)
-            {
-                y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
-            }
-            return;
-        }
-        // c_interp/c_binary_search_with_guess take non-const double* but only read the data.
-        double* radius_data_ptr = const_cast<double*>(this->radius_array_vec.data()) + first;
-        double  radius_query = radius_val;   // mutable copy for c_interp's desired_x_ptr arg
-
-        size_t j      = this->p_seed_index(radius_val, radius_data_ptr, n);
-        int    b_code = 0;
-        j = c_binary_search_with_guess(radius_val, radius_data_ptr, n, j, &b_code);
-
-        // Density: cubic Hermite between the bracketing slices when the slopes are stored, else linear below.
-        const bool hermite_density = (this->density_slope_array_vec.size() == this->radius_array_size) && (n >= 2);
-        if (hermite_density)
-        {
-            size_t left = (b_code == -1) ? 0 : j;
-            if (left >= n - 1)
-            {
-                left = n - 2;
-            }
-            const double* density_ptr = this->density_array_vec.data() + first;
-            const double* slope_ptr   = this->density_slope_array_vec.data() + first;
-            const double  r_left      = radius_data_ptr[left];
-            const double  span        = radius_data_ptr[left + 1] - r_left;
-            double t = (span > 0.0) ? (radius_val - r_left) / span : 0.0;
-            t = (t < 0.0) ? 0.0 : ((t > 1.0) ? 1.0 : t);
-            const double t2 = t * t;
-            const double t3 = t2 * t;
-            y_interp_ptr[4] =
-                (2.0 * t3 - 3.0 * t2 + 1.0) * density_ptr[left]
-                + (t3 - 2.0 * t2 + t) * span * slope_ptr[left]
-                + (-2.0 * t3 + 3.0 * t2) * density_ptr[left + 1]
-                + (t3 - t2) * span * slope_ptr[left + 1];
-        }
-
-        // Output follows the evaluation layout: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
-        // [5] shear modulus, [6] bulk modulus, [7] shear viscosity, [8] bulk viscosity.
-        c_interp(
-            &radius_query,
-            radius_data_ptr,
-            const_cast<double*>(this->gravity_array_vec.data()) + first,
-            n,
-            &j,
-            &y_interp_ptr[0]);
-        c_interp(
-            &radius_query,
-            radius_data_ptr,
-            const_cast<double*>(this->pressure_array_vec.data()) + first,
-            n,
-            &j,
-            &y_interp_ptr[1]);
-        c_interp(
-            &radius_query,
-            radius_data_ptr,
-            const_cast<double*>(this->mass_array_vec.data()) + first,
-            n,
-            &j,
-            &y_interp_ptr[2]);
-        c_interp(
-            &radius_query,
-            radius_data_ptr,
-            const_cast<double*>(this->moi_array_vec.data()) + first,
-            n,
-            &j,
-            &y_interp_ptr[3]);
-        if (!hermite_density)
-        {
-            c_interp(
-                &radius_query,
-                radius_data_ptr,
-                const_cast<double*>(this->density_array_vec.data()) + first,
-                n,
-                &j,
-                &y_interp_ptr[4]);
-        }
-
-        double shear_result[2] = {0.0, 0.0};
-        c_interp_complex(
-            radius_val,
-            radius_data_ptr,
-            const_cast<double*>(reinterpret_cast<const double*>(this->complex_shear_array_vec.data() + first)),
-            n,
-            &j,
-            shear_result);
-        y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX] = shear_result[0];
-        if (material_out)
-        {
-            material_out->shear_modulus = std::complex<double>(shear_result[0], shear_result[1]);
-        }
-
-        double bulk_result[2] = {0.0, 0.0};
-        c_interp_complex(
-            radius_val,
-            radius_data_ptr,
-            const_cast<double*>(reinterpret_cast<const double*>(this->complex_bulk_array_vec.data() + first)),
-            n,
-            &j,
-            bulk_result);
-        y_interp_ptr[C_EOS_BULK_MODULUS_INDEX] = bulk_result[0];
-        if (material_out)
-        {
-            material_out->bulk_modulus = std::complex<double>(bulk_result[0], bulk_result[1]);
-            material_out->gravity      = y_interp_ptr[0];
-            material_out->density      = y_interp_ptr[C_EOS_DENSITY_INDEX];
-        }
-
-        // Viscosities are NaN when not stored.
-        if (this->shear_viscosity_array_vec.size() == this->radius_array_size
-            && this->bulk_viscosity_array_vec.size() == this->radius_array_size)
-        {
-            c_interp(
-                &radius_query,
-                radius_data_ptr,
-                const_cast<double*>(this->shear_viscosity_array_vec.data()) + first,
-                n,
-                &j,
-                &y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX]);
-            c_interp(
-                &radius_query,
-                radius_data_ptr,
-                const_cast<double*>(this->bulk_viscosity_array_vec.data()) + first,
-                n,
-                &j,
-                &y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]);
-        }
-        else
-        {
-            y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX] = TidalPyConstants::d_NAN;
-            y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]  = TidalPyConstants::d_NAN;
-        }
-        // Injected arrays carry no thermal or melt state.
-        y_interp_ptr[C_EOS_TEMPERATURE_INDEX]   = TidalPyConstants::d_NAN;
-        y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]     = TidalPyConstants::d_NAN;
-        y_interp_ptr[C_EOS_MELT_FRACTION_INDEX] = TidalPyConstants::d_NAN;
-    }
 
 
     /// Evaluate every EOS output at a single radius in solve units for a specific layer, writing C_EOS_DY_VALUES
@@ -677,10 +481,10 @@ public:
                 double src_out[C_EOS_Y_VALUES];
                 const double src_radius = radius_val * this->p_structure_length_scale;
                 this->p_structure_dense_source->call_y_si(layer_index, src_radius, src_out);
-                y_interp_ptr[0] = src_out[0] / this->p_structure_gravity_scale;   // gravity
-                y_interp_ptr[1] = src_out[1] / this->p_structure_pascal_scale;    // pressure
-                y_interp_ptr[2] = src_out[2] / this->p_structure_mass_scale;      // mass
-                y_interp_ptr[3] = src_out[3] / this->p_structure_moi_scale;       // moment of inertia
+                y_interp_ptr[0] = src_out[0];   // gravity
+                y_interp_ptr[1] = src_out[1];   // pressure
+                y_interp_ptr[2] = src_out[2];   // mass
+                y_interp_ptr[3] = src_out[3];   // moment of inertia
             }
             if (this->p_material_eval)
             {
@@ -688,20 +492,12 @@ public:
                 this->p_call_material_eval(layer_index, radius_val, mat_out);
                 // Only the frequency-independent values belong in this layout; the provider's complex moduli
                 // reach the solver through call_material.
-                y_interp_ptr[C_EOS_DENSITY_INDEX]       = mat_out[0] / this->p_structure_density_scale;
-                y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX] = mat_out[1] / this->p_structure_pascal_scale;
-                y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]  = mat_out[2] / this->p_structure_pascal_scale;
-                // Viscosities are SI in every state, like the rest of this layout.
+                y_interp_ptr[C_EOS_DENSITY_INDEX]         = mat_out[0];
+                y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX]   = mat_out[1];
+                y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]    = mat_out[2];
                 y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX] = mat_out[7];
                 y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]  = mat_out[8];
             }
-            return;
-        }
-
-        // Array mode: the standalone solver, which is handed its profile as arrays and owns no solved EOS.
-        if (this->p_use_array_interp) [[unlikely]]
-        {
-            this->_call_interp_arrays(layer_index, radius_val, y_interp_ptr);
             return;
         }
 
@@ -746,14 +542,6 @@ public:
             return;
         }
 
-        // Array mode: the moduli come back complex straight off the injected arrays.
-        if (this->p_use_array_interp) [[unlikely]]
-        {
-            double scratch[C_EOS_DY_VALUES];
-            this->_call_interp_arrays(layer_index, radius_val, scratch, &out);
-            return;
-        }
-
         // Integrator mode: this solution's own retained integrators plus the layer's EOS model.
         if (layer_index >= this->current_layers_saved) [[unlikely]]
         {
@@ -793,16 +581,6 @@ public:
         const double radius_val,
         double* y_interp_ptr) const
     {
-        if (this->p_use_array_interp) [[unlikely]]
-        {
-            double full_out[C_EOS_DY_VALUES];
-            this->call(layer_index, radius_val, full_out);
-            for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
-            {
-                y_interp_ptr[value_i] = full_out[value_i];
-            }
-            return;
-        }
         if (layer_index >= this->current_layers_saved) [[unlikely]]
         {
             throw std::out_of_range("Layer index out of range.");
@@ -979,61 +757,6 @@ public:
         this->other_vecs_set = true;
     }
 
-    /// Populate the structure arrays from a world's solved EOS without re-integrating, in whatever units the
-    /// arrays are given in. A density_slope_ptr (radial density derivative per slice) switches the density lookup
-    /// to cubic Hermite; null keeps it linear.
-    void inject_from_world_eos(
-        const double* radius_ptr,
-        const double* gravity_ptr,
-        const double* pressure_ptr,
-        const double* mass_ptr,
-        const double* moi_ptr,
-        const double* density_ptr,
-        const std::complex<double>* complex_shear_ptr,
-        const std::complex<double>* complex_bulk_ptr,
-        size_t n,
-        const double* density_slope_ptr = nullptr)
-    {
-        if (n == 0)
-        {
-            throw std::invalid_argument("inject_from_world_eos: array length n must be > 0.");
-        }
-
-        this->radius_array_size = n;
-
-        this->radius_array_vec.assign(radius_ptr,        radius_ptr        + n);
-        this->gravity_array_vec.assign(gravity_ptr,      gravity_ptr       + n);
-        this->pressure_array_vec.assign(pressure_ptr,    pressure_ptr      + n);
-        this->mass_array_vec.assign(mass_ptr,            mass_ptr          + n);
-        this->moi_array_vec.assign(moi_ptr,              moi_ptr           + n);
-        this->density_array_vec.assign(density_ptr,      density_ptr       + n);
-        this->complex_shear_array_vec.assign(complex_shear_ptr, complex_shear_ptr + n);
-        this->complex_bulk_array_vec.assign(complex_bulk_ptr,   complex_bulk_ptr  + n);
-        if (density_slope_ptr != nullptr)
-        {
-            this->density_slope_array_vec.assign(density_slope_ptr, density_slope_ptr + n);
-        }
-        else
-        {
-            this->density_slope_array_vec.clear();
-        }
-
-        this->radius           = radius_ptr[n - 1];
-        this->surface_gravity  = gravity_ptr[n - 1];
-        this->surface_pressure = pressure_ptr[n - 1];
-        this->mass             = mass_ptr[n - 1];
-        this->moi              = moi_ptr[n - 1];
-        this->central_pressure = pressure_ptr[0];
-
-        this->nondim_status          = 0;
-        this->solution_nondim_status = 0;
-        this->success                = true;
-        this->error_code             = 0;
-        this->radius_array_set       = true;
-        this->other_vecs_set         = true;
-        this->p_use_array_interp     = true;
-        this->update_slice_partition();
-    }
 
 
     /// Scale the structure variables, density, and moduli into or out of non-dimensional units. The viscosity

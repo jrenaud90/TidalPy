@@ -40,6 +40,7 @@ from TidalPy.structures_x.configs.toml_loader import (
     ALLOWED_LAYER_SCALAR_KEYS,
     ALLOWED_MODEL_SECTIONS,
     LAYER_GEOMETRY_SPEC_KEYS,
+    SCHEMA_VERSION,
     validate_world_config,
 )
 from TidalPy.structures_x.configs.toml_loader import DEFAULT_MATERIAL_TYPE, NO_MATERIAL_TYPE
@@ -298,35 +299,183 @@ def _layers_from_radial_data(arrays: dict) -> list:
     auto_layers = []
     for index, (start, end, is_solid) in enumerate(data_file.detect_layer_boundaries(radius, shear)):
         stop = end + 1
-        material_cfg = {
-            "model":            "interpolate",
-            "radius_m":         radius[start:stop].tolist(),
-            "density_kg_m3":    arrays["density_kg_m3"][start:stop].tolist(),
-            "shear_modulus_pa": shear[start:stop].tolist(),
-            "bulk_modulus_pa":  arrays["bulk_modulus_pa"][start:stop].tolist(),
-        }
-        if shear_visc is not None:
-            material_cfg["shear_viscosity_pas"] = shear_visc[start:stop].tolist()
-        if bulk_visc is not None:
-            material_cfg["bulk_viscosity_pas"] = bulk_visc[start:stop].tolist()
-        layer_cfg = {
-            "class":          "solidliquid",
-            # The profile is the material, so the layer takes no defaults from a material type: no
-            # viscosity model, no partial-melt model, and no rheology it did not ask for. A layer
-            # table naming a `type` gets that block back.
-            "type":           NO_MATERIAL_TYPE,
-            "layer_index":    index,
-            "radius_outer_m": float(radius[end]),
-            "is_tidal":       bool(is_solid),
+        layer_cfg = _interpolated_layer_config(
+            index          = index,
+            radius         = radius[start:stop],
+            density        = arrays["density_kg_m3"][start:stop],
+            shear_modulus  = shear[start:stop],
+            bulk_modulus   = arrays["bulk_modulus_pa"][start:stop],
+            is_solid       = bool(is_solid),
             # A liquid layer (zero shear velocity) is solved as a static liquid.
-            "is_solid":       bool(is_solid),
-            "is_static":      True,
-            "material":       material_cfg,
-        }
+            is_static      = True,
+            shear_viscosity = None if shear_visc is None else shear_visc[start:stop],
+            bulk_viscosity  = None if bulk_visc is None else bulk_visc[start:stop],
+        )
         auto_layers.append((f"layer_{index}", layer_cfg))
     if not auto_layers:
         raise ValueError("The radial profile yielded no layers of non-zero thickness.")
     return auto_layers
+
+
+def _interpolated_layer_config(
+        index: int,
+        radius,
+        density,
+        shear_modulus,
+        bulk_modulus,
+        is_solid: bool,
+        is_static: bool,
+        is_incompressible: Optional[bool] = None,
+        shear_viscosity=None,
+        bulk_viscosity=None) -> dict:
+    """One layer config whose material is the slice of a radial profile that falls inside it.
+
+    Shared by the two ways a profile becomes layers: boundaries detected from the shear profile
+    (:func:`_layers_from_radial_data`) and boundaries stated by the caller
+    (:func:`build_world_from_layered_profile`). Only where the slice and the flags come from differs; the
+    layer it produces is the same kind either way.
+
+    Parameters
+    ----------
+    index : int
+        Position of this layer, inner to outer.
+    radius, density, shear_modulus, bulk_modulus : np.ndarray[float64]
+        This layer's slice of the profile [m, kg m-3, Pa, Pa]. The moduli are the static (unrelaxed) ones.
+    is_solid, is_static : bool
+        Radial-solver assumptions for this layer.
+    is_incompressible : bool, optional
+        Set only when the caller states it; otherwise the layer default stands.
+    shear_viscosity, bulk_viscosity : np.ndarray[float64], optional
+        Viscosities [Pa s] when the profile carried them. Absent means an elastic layer.
+
+    Returns
+    -------
+    dict
+    """
+    material_cfg = {
+        "model":            "interpolate",
+        "radius_m":         [float(value) for value in radius],
+        "density_kg_m3":    [float(value) for value in density],
+        "shear_modulus_pa": [float(value) for value in shear_modulus],
+        "bulk_modulus_pa":  [float(value) for value in bulk_modulus],
+    }
+    if shear_viscosity is not None:
+        material_cfg["shear_viscosity_pas"] = [float(value) for value in shear_viscosity]
+    if bulk_viscosity is not None:
+        material_cfg["bulk_viscosity_pas"] = [float(value) for value in bulk_viscosity]
+
+    layer_cfg = {
+        "class":          "solidliquid",
+        # The profile is the material, so the layer takes no defaults from a material type: no
+        # viscosity model, no partial-melt model, and no rheology it did not ask for. A layer
+        # table naming a `type` gets that block back.
+        "type":           NO_MATERIAL_TYPE,
+        "layer_index":    index,
+        "radius_outer_m": float(radius[-1]),
+        "is_tidal":       bool(is_solid),
+        "is_solid":       bool(is_solid),
+        "is_static":      bool(is_static),
+        "material":       material_cfg,
+    }
+    if is_incompressible is not None:
+        layer_cfg["is_incompressible"] = bool(is_incompressible)
+    return layer_cfg
+
+
+def build_world_from_layered_profile(
+        radius,
+        density,
+        shear_modulus,
+        bulk_modulus,
+        upper_radius_bylayer,
+        layer_is_solid,
+        layer_is_static,
+        layer_is_incompressible,
+        planet_bulk_density,
+        name: str = "radial_solver_profile"):
+    """Build a world from a radial profile whose layers are already known.
+
+    The sibling of :func:`_layers_from_radial_data`: both turn a profile into interpolated-material layers
+    through :func:`_interpolated_layer_config`, and they differ only in where the boundaries come from. That
+    path detects them from the shear profile, which merges any solid/solid interface and can only produce
+    static layers. This one is told them, so it keeps every interface the caller declared and carries all
+    three radial-solver assumptions per layer. It is what lets the standalone ``radial_solver`` reach the
+    world-attached solver without its arrays acquiring physics they did not ask for.
+
+    Interface radii appear twice in the profile, once as the top of the lower layer and once as the base of
+    the upper one, and each copy belongs to its own layer.
+
+    Parameters
+    ----------
+    radius, density, shear_modulus, bulk_modulus : np.ndarray[float64]
+        The profile [m, kg m-3, Pa, Pa]. The moduli are the static (unrelaxed) ones; a viscoelastic response
+        is supplied separately to the Love solve.
+    upper_radius_bylayer : np.ndarray[float64]
+        Upper radius of each layer [m], inner to outer.
+    layer_is_solid, layer_is_static, layer_is_incompressible : sequence of bool
+        Per-layer radial-solver assumptions.
+    planet_bulk_density : float
+        Bulk density [kg m-3], which fixes the world's mass and so its non-dimensional scales.
+    name : str, optional
+        Name for the constructed world.
+
+    Returns
+    -------
+    LayeredWorld
+
+    Raises
+    ------
+    ValueError
+        If a layer would hold fewer than two profile points.
+    """
+    import numpy as np
+
+    radius_arr = np.asarray(radius, dtype=np.float64)
+    num_layers = len(upper_radius_bylayer)
+    planet_radius = float(radius_arr[-1])
+
+    layers_cfg = {}
+    first_index = 0
+    for layer_i in range(num_layers):
+        layer_top = float(upper_radius_bylayer[layer_i])
+        # A layer runs to the first copy of its upper radius; the second copy starts the layer above.
+        stop = first_index
+        seen_top = 0
+        while stop < radius_arr.size:
+            radius_here = float(radius_arr[stop])
+            if np.isclose(radius_here, layer_top, rtol=1.0e-9, atol=0.0):
+                seen_top += 1
+                if seen_top > 1:
+                    break
+            elif radius_here > layer_top:
+                break
+            stop += 1
+        if stop - first_index < 2:
+            raise ValueError(
+                f"Layer {layer_i} of the supplied profile holds fewer than two points; a layer needs at "
+                f"least two to interpolate across.")
+        layer_slice = slice(first_index, stop)
+        layers_cfg[f"layer_{layer_i}"] = _interpolated_layer_config(
+            index             = layer_i,
+            radius            = radius_arr[layer_slice],
+            density           = np.asarray(density, dtype=np.float64)[layer_slice],
+            shear_modulus     = np.asarray(shear_modulus, dtype=np.float64)[layer_slice],
+            bulk_modulus      = np.asarray(bulk_modulus, dtype=np.float64)[layer_slice],
+            is_solid          = bool(layer_is_solid[layer_i]),
+            is_static         = bool(layer_is_static[layer_i]),
+            is_incompressible = bool(layer_is_incompressible[layer_i]),
+        )
+        first_index = stop
+
+    planet_mass = planet_bulk_density * (4.0 / 3.0) * np.pi * planet_radius ** 3
+    return construct_world({
+        "schema_version": SCHEMA_VERSION,
+        "name":           name,
+        "type":           "layered",
+        "radius_m":       planet_radius,
+        "mass_kg":        float(planet_mass),
+        "layers":         layers_cfg,
+    })
 
 
 def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer_name: str) -> dict:

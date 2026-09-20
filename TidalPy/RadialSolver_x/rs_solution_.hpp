@@ -13,7 +13,6 @@
 #include "love_.hpp"
 #include "rs_constants_.hpp"
 #include "../Material_x/eos/eos_solution_.hpp"   // also provides CyRK's CySolverResult (complete type)
-#include "../Material_x/eos/methods/interpolate_.hpp"  // c_InterpolateEOSInput (persisted standalone EOS args)
 #include "../../constants_.hpp"
 #include "../Utilities_x/dimensions/nondimensional_.hpp"
 #include "../utilities/arrays/interp_.hpp"        // c_interp / c_binary_search_with_guess (shared array-interp)
@@ -124,10 +123,14 @@ public:
 
         // No rheology to apply, because this solve was provided arrays of moduli. So instead we will use
         // linear interpolation on those input arrays to return the moduli if requested.
+        //
+        // call_material answers in the units the solve ran in, because that is what the integrator wants. This
+        // is a readout, so the pascal scale converts back to SI; it is one in a solve that ran dimensional.
         c_EOSMaterialState material_state;
         this->eos_solution_uptr->call_material(layer_i, solve_r, material_state);
-        shear_out = material_state.shear_modulus;
-        bulk_out  = material_state.bulk_modulus;
+        const double pascal_scale = this->eos_solution_uptr->p_structure_pascal_scale;
+        shear_out = material_state.shear_modulus * pascal_scale;
+        bulk_out  = material_state.bulk_modulus * pascal_scale;
     }
 
     // Dense CyRK results [layer][solution]; owns the force-retained integrators.
@@ -157,14 +160,6 @@ public:
     bool   p_eos_is_nondim = false;
     double p_grav_conv     = 1.0;
     double p_dens_conv     = 1.0;
-
-    // Persisted EOS inputs for the standalone shooting path, in EOS solve units. The dense EOS re-evaluation
-    // references them through c_InterpolateEOSInput, so they must outlive c_radial_solver. Unused by the world path.
-    std::vector<double> p_eos_in_radius_nd  = std::vector<double>();
-    std::vector<double> p_eos_in_density_nd = std::vector<double>();
-    std::vector<std::complex<double>> p_eos_in_bulk_nd  = std::vector<std::complex<double>>();
-    std::vector<std::complex<double>> p_eos_in_shear_nd = std::vector<std::complex<double>>();
-    std::vector<c_InterpolateEOSInput> p_eos_interp_inputs = std::vector<c_InterpolateEOSInput>();
 
     c_RadialSolutionStorage() = default;
 
@@ -480,14 +475,17 @@ public:
 
         if (calculate_y3)
         {
-            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units; gravity and density come from this layer's own
-            // slices so an interface radius takes this layer's density rather than the neighbor's.
-            const double eos_r = this->p_eos_is_nondim ? radius_solve : radius_solve * this->p_length_conv;
-            double g_solve = 0.0, rho_solve = 0.0;
-            this->eos_solution_uptr->interp_structure_in_layer(target_layer_i, eos_r, &g_solve, &rho_solve);
-            if (!this->p_eos_is_nondim) { g_solve /= this->p_grav_conv; rho_solve /= this->p_dens_conv; }
+            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units. Gravity and density are asked of the layer
+            // that owns this radius, so an interface takes this layer's density rather than the neighbor's, and
+            // they come back in the units the solve ran in. This goes through call_material rather than the
+            // stored slice arrays because a world-attached solve grids nothing: those arrays are empty there,
+            // and reading them gave an uninitialized density (y3 came out infinite through a whole dynamic
+            // liquid layer).
+            c_EOSMaterialState material_state;
+            this->eos_solution_uptr->call_material(target_layer_i, radius_solve, material_state);
             const double w = this->p_frequency_solve;
-            out6[2] = (1.0 / (w * w * radius_solve)) * (out6[0] * g_solve - out6[1] / rho_solve - out6[4]);
+            out6[2] = (1.0 / (w * w * radius_solve))
+                * (out6[0] * material_state.gravity - out6[1] / material_state.density - out6[4]);
         }
         return true;
     }
