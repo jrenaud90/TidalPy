@@ -207,46 +207,27 @@ public:
     double get_pressure(double radius)        const noexcept { return this->p_eos_data.get_pressure(radius); }
     void   update_eos_data(const c_LayerEOSData& data) { this->p_eos_data = data; }
 
-    // Viscoelastic state (post-melt by default, pre-melt through the premelt getters). Populated by the world EOS
-    // solve's post-pass on PhysicsLayer and its subclasses; NaN on a geometry-only BaseLayer or before the solve.
-    bool   get_viscoelastic_populated()         const noexcept { return this->p_eos_data.is_viscoelastic_populated(); }
-    double get_shear_modulus(double radius)   const noexcept { return this->p_eos_data.get_shear_modulus(radius); }
-    double get_bulk_modulus(double radius)    const noexcept { return this->p_eos_data.get_bulk_modulus(radius); }
-    double get_shear_viscosity(double radius) const noexcept { return this->p_eos_data.get_shear_viscosity(radius); }
-    double get_bulk_viscosity(double radius)  const noexcept { return this->p_eos_data.get_bulk_viscosity(radius); }
-    double get_premelt_shear_modulus(double radius)   const noexcept {
-        return this->p_eos_data.get_premelt_shear_modulus(radius);
+    // Viscoelastic state (post-melt by default, pre-melt through the premelt getters), evaluated on demand from
+    // the solved structure by c_PhysicsLayer. A geometry-only BaseLayer holds no models, so it reports NaN.
+    virtual bool   get_viscoelastic_populated()         const noexcept { return false; }
+    virtual double get_shear_modulus(double /*radius*/)   const noexcept { return TidalPyConstants::d_NAN; }
+    virtual double get_bulk_modulus(double /*radius*/)    const noexcept { return TidalPyConstants::d_NAN; }
+    virtual double get_shear_viscosity(double /*radius*/) const noexcept { return TidalPyConstants::d_NAN; }
+    virtual double get_bulk_viscosity(double /*radius*/)  const noexcept { return TidalPyConstants::d_NAN; }
+    virtual double get_premelt_shear_modulus(double /*radius*/)   const noexcept {
+        return TidalPyConstants::d_NAN;
     }
-    double get_premelt_bulk_modulus(double radius)    const noexcept {
-        return this->p_eos_data.get_premelt_bulk_modulus(radius);
+    virtual double get_premelt_bulk_modulus(double /*radius*/)    const noexcept {
+        return TidalPyConstants::d_NAN;
     }
-    double get_premelt_shear_viscosity(double radius) const noexcept {
-        return this->p_eos_data.get_premelt_shear_viscosity(radius);
+    virtual double get_premelt_shear_viscosity(double /*radius*/) const noexcept {
+        return TidalPyConstants::d_NAN;
     }
-    double get_premelt_bulk_viscosity(double radius)  const noexcept {
-        return this->p_eos_data.get_premelt_bulk_viscosity(radius);
+    virtual double get_premelt_bulk_viscosity(double /*radius*/)  const noexcept {
+        return TidalPyConstants::d_NAN;
     }
-
-    // Store the pre/post-melt viscoelastic profiles (called by the world solve).
-    void update_viscoelastic_data(
-            const std::vector<double>& premelt_shear,
-            const std::vector<double>& premelt_bulk,
-            const std::vector<double>& premelt_shear_visc,
-            const std::vector<double>& premelt_bulk_visc,
-            const std::vector<double>& postmelt_shear,
-            const std::vector<double>& postmelt_bulk,
-            const std::vector<double>& postmelt_shear_visc,
-            const std::vector<double>& postmelt_bulk_visc) {
-        this->p_eos_data.populate_viscoelastic(
-            premelt_shear,
-            premelt_bulk,
-            premelt_shear_visc,
-            premelt_bulk_visc,
-            postmelt_shear,
-            postmelt_bulk,
-            postmelt_shear_visc,
-            postmelt_bulk_visc);
-    }
+    // Melt fraction [m^3/m^3] at a radius, from the layer's partial-melt model; NaN without one.
+    virtual double get_melt_fraction(double /*radius*/) const noexcept { return TidalPyConstants::d_NAN; }
 
     // Material EOS model: the per-layer density source used by the world-level EOS solve. Ownership transfers in.
     void set_eos(std::unique_ptr<c_MaterialEOSBase> eos) {

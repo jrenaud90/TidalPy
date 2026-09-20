@@ -274,27 +274,75 @@ public:
         return std::complex<double>(this->p_bulk_modulus_static, 0.0);
     }
 
-    // Radius-resolved complex moduli [Pa], using the post-melt static modulus and viscosity stored at radius by
-    // the world EOS solve rather than the layer-constant values. Feeds the radial Love-number solve. Purely real
-    // (no dissipation) when no rheology is attached; NaN until the viscoelastic state is populated.
+    // The layer's material state at a radius on the solved structure: reads the pressure and temperature from the
+    // EOS profile and maps them onto the attached models. This is the one route every radius-resolved getter and
+    // the radial Love solve take, so none of them can read a value off a slice grid or disagree with the solve.
+    // A non-finite frequency skips the rheology and leaves the complex moduli at the static values. Returns false,
+    // leaving out at its defaults, before an EOS profile is stored.
+    bool calc_material_state_at(double radius, double frequency, c_MaterialState& out) const noexcept {
+        if (!this->p_eos_data.is_populated()) { return false; }
+        double state[C_EOS_DY_VALUES];
+        this->p_eos_data.evaluate(radius, state);
+        // The solve stores a temperature at every radius (its segment's uniform value when temperature was not
+        // integrated); a profile supplied through update_eos_data carries none, so the layer's own is used.
+        double temperature = state[C_EOS_TEMPERATURE_INDEX];
+        if (!std::isfinite(temperature)) { temperature = this->p_temperature; }
+        this->calc_material_state(radius, state[c_LayerEOSData::EOS_INDEX_PRESSURE], temperature, frequency, out);
+        return true;
+    }
+
+    // Radius-resolved viscoelastic state, evaluated on demand through calc_material_state_at.
+    bool get_viscoelastic_populated() const noexcept override { return this->p_eos_data.is_populated(); }
+
+    double get_shear_modulus(double radius)   const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::shear_modulus);
+    }
+    double get_bulk_modulus(double radius)    const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::bulk_modulus);
+    }
+    double get_shear_viscosity(double radius) const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::shear_viscosity);
+    }
+    double get_bulk_viscosity(double radius)  const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::bulk_viscosity);
+    }
+    double get_premelt_shear_modulus(double radius)   const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::premelt_shear_modulus);
+    }
+    double get_premelt_bulk_modulus(double radius)    const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::premelt_bulk_modulus);
+    }
+    double get_premelt_shear_viscosity(double radius) const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::premelt_shear_viscosity);
+    }
+    double get_premelt_bulk_viscosity(double radius)  const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::premelt_bulk_viscosity);
+    }
+
+    // Melt fraction at a radius on the solved structure; 0 without a partial-melt model, NaN before a solve.
+    double get_melt_fraction(double radius) const noexcept override {
+        return this->p_state_value(radius, &c_MaterialState::melt_fraction);
+    }
+
+    // Radius-resolved complex moduli [Pa] at a forcing frequency, from the material state at that radius.
+    // Feeds the radial Love-number solve. Purely real (no dissipation) when no rheology is attached; NaN before
+    // an EOS profile is stored.
     std::complex<double> calc_complex_shear_modulus(
             double radius, double frequency) const noexcept {
-        const double static_modulus = this->get_shear_modulus(radius);    // post-melt
-        const double viscosity      = this->get_shear_viscosity(radius);  // post-melt
-        if (this->p_shear_rheology) {
-            return this->p_shear_rheology->calc_complex_modulus(static_modulus, viscosity, frequency);
+        c_MaterialState state;
+        if (!this->calc_material_state_at(radius, frequency, state)) {
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         }
-        return std::complex<double>(static_modulus, 0.0);
+        return state.complex_shear_modulus;
     }
 
     std::complex<double> calc_complex_bulk_modulus(
             double radius, double frequency) const noexcept {
-        const double static_modulus = this->get_bulk_modulus(radius);    // post-melt
-        const double viscosity      = this->get_bulk_viscosity(radius);  // post-melt
-        if (this->p_bulk_rheology) {
-            return this->p_bulk_rheology->calc_complex_modulus(static_modulus, viscosity, frequency);
+        c_MaterialState state;
+        if (!this->calc_material_state_at(radius, frequency, state)) {
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         }
-        return std::complex<double>(static_modulus, 0.0);
+        return state.complex_bulk_modulus;
     }
 
     // Rheology setters (transfer ownership; each registers this layer as the model's observer).
@@ -492,6 +540,16 @@ public:
     }
 
 protected:
+    // One field of the material state at a radius, for the radius-resolved getters. The rheology is skipped
+    // (NaN frequency), so this costs the EOS inversion and the static models only.
+    double p_state_value(double radius, double c_MaterialState::* field) const noexcept {
+        c_MaterialState state;
+        if (!this->calc_material_state_at(radius, TidalPyConstants::d_NAN, state)) {
+            return TidalPyConstants::d_NAN;
+        }
+        return state.*field;
+    }
+
     // Recursive (de)serialization of the optional physics models (shear and bulk rheology, shear and bulk
     // viscosity, partial melt), shared by c_PhysicsLayer and its subclasses so the section keeps one byte
     // layout: a presence flag each, followed when set by the model's own record. On read the concrete model is

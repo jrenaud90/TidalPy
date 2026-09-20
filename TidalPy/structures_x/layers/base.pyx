@@ -63,6 +63,7 @@ cdef enum:
     _KIND_PRE_BULK_MOD   = 8
     _KIND_PRE_SHEAR_VISC = 9
     _KIND_PRE_BULK_VISC  = 10
+    _KIND_MELT_FRACTION  = 11
 
 
 # =====================================================================================================================
@@ -362,6 +363,7 @@ cdef class BaseLayer(StructureBase):
         elif kind == _KIND_PRE_BULK_MOD:   return layer.get_premelt_bulk_modulus(radius)
         elif kind == _KIND_PRE_SHEAR_VISC: return layer.get_premelt_shear_viscosity(radius)
         elif kind == _KIND_PRE_BULK_VISC:  return layer.get_premelt_bulk_viscosity(radius)
+        elif kind == _KIND_MELT_FRACTION:  return layer.get_melt_fraction(radius)
         return 0.0
 
     def _apply_real(self, radius, int kind):
@@ -435,6 +437,13 @@ cdef class BaseLayer(StructureBase):
         """Pre-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
         return self._apply_real(radius, _KIND_PRE_BULK_VISC)
 
+    def get_melt_fraction(self, radius):
+        """Melt fraction at radius [m] (float or np.ndarray) from the attached partial-melt model.
+
+        0.0 where no partial-melt model is attached; NaN if unpopulated.
+        """
+        return self._apply_real(radius, _KIND_MELT_FRACTION)
+
     # ------------------------------------------------------------------------------------------------------------------
     # Shorthand bundles (one call returns several profiles at once; mirrors the world-level surface)
     # ------------------------------------------------------------------------------------------------------------------
@@ -455,6 +464,7 @@ cdef class BaseLayer(StructureBase):
             "shear_viscosity": self.get_shear_viscosity(radius),
             "bulk_modulus":    self.get_bulk_modulus(radius),
             "bulk_viscosity":  self.get_bulk_viscosity(radius),
+            "melt_fraction":   self.get_melt_fraction(radius),
         }
 
     # ------------------------------------------------------------------------------------------------------------------

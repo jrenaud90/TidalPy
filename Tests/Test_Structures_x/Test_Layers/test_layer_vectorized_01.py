@@ -136,7 +136,7 @@ def test_get_state_bundle():
     layer = world.mantle
     state = layer.get_state(0.5 * _RADIUS)
     expected_keys = {"density", "gravity", "pressure", "shear_modulus", "shear_viscosity",
-                     "bulk_modulus", "bulk_viscosity"}
+                     "bulk_modulus", "bulk_viscosity", "melt_fraction"}
     assert set(state.keys()) == expected_keys
     assert math.isclose(state["density"], _DENSITY, rel_tol=1e-9)
     radii = np.linspace(0.2 * _RADIUS, 0.8 * _RADIUS, 3)

@@ -217,9 +217,19 @@ public:
         return std::move(this->p_storage);
     }
 
-    // SI complex-moduli scratch (total_slices long) that the world fills each solve.
+    // SI complex-moduli scratch (total_slices long) that the world fills each solve. Only the supplied-moduli path
+    // fills it now: the world's own Love solve installs a material-state provider instead.
     std::complex<double>* shear_scratch_data() noexcept { return this->p_shear_si.data(); }
     std::complex<double>* bulk_scratch_data()  noexcept { return this->p_bulk_si.data(); }
+
+    // Install (or clear, with an empty callable) the per-layer material-state provider the shooting solve reads
+    // density and the complex moduli from, at the exact integration radius. Set per Love solve, because the
+    // callable carries that solve's forcing frequency. See c_EOSSolution::MaterialEval.
+    void set_material_eval(c_EOSSolution::MaterialEval eval) {
+        if (this->p_storage) {
+            this->p_storage->get_eos_solution_ptr()->p_material_eval = std::move(eval);
+        }
+    }
     size_t total_slices() const noexcept { return this->p_total_slices; }
     const std::vector<double>& radius_si() const noexcept { return this->p_radius_si; }
     // Per-layer slice partition. An interface radius is the last slice of the lower layer and the first of the upper
@@ -249,8 +259,7 @@ public:
         double bulk_density,
         int degree_l,
         bool nondimensionalize,
-        const c_EOSSolution* structure_dense_source = nullptr,
-        const std::vector<double>* density_slope_si = nullptr)
+        const c_EOSSolution* structure_dense_source = nullptr)
     {
         const size_t total_slices = radius_si.size();
 
@@ -299,15 +308,6 @@ public:
                 this->p_pressure_nd[slice_i] /= pascal_conv;
                 this->p_mass_nd[slice_i]     /= mass_conv;
                 this->p_moi_nd[slice_i]      /= moi_conv;
-            }
-        }
-        // Density slope per slice (for the Hermite density lookup), in the solve units.
-        this->p_density_slope_nd.clear();
-        if (density_slope_si != nullptr && density_slope_si->size() == total_slices) {
-            this->p_density_slope_nd = *density_slope_si;
-            if (nondimensionalize) {
-                const double slope_conv = density_conv / length_conv;
-                for (double& slope : this->p_density_slope_nd) { slope /= slope_conv; }
             }
         }
 
@@ -391,21 +391,21 @@ public:
             this->p_density_nd.data(),
             this->p_shear_nd.data(),
             this->p_bulk_nd.data(),
-            total_slices,
-            this->p_density_slope_nd.empty() ? nullptr : this->p_density_slope_nd.data()
+            total_slices
         );
 
         // Gravity, pressure, mass, and moi are read from the world's dense SI EOS during shooting; the scales convert
         // the non-dim shooting radius up and the SI outputs back down.
         c_EOSSolution* storage_eos = this->p_storage->get_eos_solution_ptr();
         storage_eos->p_structure_dense_source = structure_dense_source;
-        if (structure_dense_source != nullptr) {
-            storage_eos->p_structure_length_scale  = nondimensionalize ? length_conv  : 1.0;
-            storage_eos->p_structure_gravity_scale = nondimensionalize ? gravity_conv : 1.0;
-            storage_eos->p_structure_pascal_scale  = nondimensionalize ? pascal_conv  : 1.0;
-            storage_eos->p_structure_mass_scale    = nondimensionalize ? mass_conv    : 1.0;
-            storage_eos->p_structure_moi_scale     = nondimensionalize ? moi_conv     : 1.0;
-        }
+        // The scales convert the non-dim shooting radius up to SI and the SI values back down. They are needed by
+        // the dense structure source and by the material-state provider, so they are set either way.
+        storage_eos->p_structure_length_scale  = nondimensionalize ? length_conv  : 1.0;
+        storage_eos->p_structure_gravity_scale = nondimensionalize ? gravity_conv : 1.0;
+        storage_eos->p_structure_pascal_scale  = nondimensionalize ? pascal_conv  : 1.0;
+        storage_eos->p_structure_mass_scale    = nondimensionalize ? mass_conv    : 1.0;
+        storage_eos->p_structure_moi_scale     = nondimensionalize ? moi_conv     : 1.0;
+        storage_eos->p_structure_density_scale = nondimensionalize ? density_conv : 1.0;
 
         this->p_cache_valid = true;
         return true;
@@ -454,8 +454,7 @@ public:
                 this->p_density_nd.data(),
                 this->p_shear_nd.data(),
                 this->p_bulk_nd.data(),
-                total_slices,
-                this->p_density_slope_nd.empty() ? nullptr : this->p_density_slope_nd.data()
+                total_slices
             );
         } else {
             // Fast path: only the complex moduli change.
@@ -576,9 +575,6 @@ public:
     std::vector<double> p_radius_si;
     // Non-dim master arrays.
     std::vector<double> p_radius_nd, p_density_nd, p_gravity_nd, p_pressure_nd, p_mass_nd, p_moi_nd;
-    // Density slope per slice in solve units (empty when the world supplied none).
-    std::vector<double> p_density_slope_nd;
-
     // Frequency-dependent scratch.
     std::vector<std::complex<double>> p_shear_si, p_bulk_si;   // dimensional, filled by the world
     std::vector<std::complex<double>> p_shear_nd, p_bulk_nd;   // non-dim, fed to the solver

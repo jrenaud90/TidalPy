@@ -48,6 +48,16 @@ public:
     double p_structure_pascal_scale  = 1.0;
     double p_structure_mass_scale    = 1.0;
     double p_structure_moi_scale     = 1.0;
+    double p_structure_density_scale = 1.0;
+
+    // Optional material-state provider (the world Love solve). Fills five SI doubles at an SI radius for one
+    // layer: density, then the complex shear and bulk moduli as real/imaginary pairs, from that layer's attached
+    // models at the solved pressure and temperature. When set it replaces the array-interpolated density and
+    // moduli, so the radial solver reads its material properties at the exact radius the integrator asks for
+    // rather than off the slice grid. Type-erased because the layer classes live above this header. The frequency
+    // is baked into the callable, so the world installs a fresh one per Love solve.
+    using MaterialEval = std::function<void(size_t layer_index, double radius_si, double* out5)>;
+    MaterialEval p_material_eval;
 
     std::string message         = "No Message Set.";
     size_t current_layers_saved = 0;
@@ -604,8 +614,7 @@ public:
         {
             this->_call_interp_arrays(layer_index, radius_val, y_interp_ptr);
 
-            // The structure variables come from the dense source at its accuracy; density and moduli stay
-            // array-interpolated.
+            // The structure variables come from the dense source at its accuracy.
             if (this->p_structure_dense_source) [[unlikely]]
             {
                 double src_out[C_EOS_Y_VALUES];
@@ -615,6 +624,29 @@ public:
                 y_interp_ptr[1] = src_out[1] / this->p_structure_pascal_scale;    // pressure
                 y_interp_ptr[2] = src_out[2] / this->p_structure_mass_scale;      // mass
                 y_interp_ptr[3] = src_out[3] / this->p_structure_moi_scale;       // moment of inertia
+            }
+            // Density and the complex moduli come from the layer's own models at this radius, so no value the
+            // radial solver reads is interpolated between slices.
+            if (this->p_material_eval) [[unlikely]]
+            {
+                double mat_out[5] = {
+                    TidalPyConstants::d_NAN, TidalPyConstants::d_NAN, TidalPyConstants::d_NAN,
+                    TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
+                const double mat_radius = radius_val * this->p_structure_length_scale;
+                this->p_material_eval(layer_index, mat_radius, mat_out);
+                // A NaN means the provider does not supply that value, so the injected array stands. The supplied-
+                // moduli path uses this to take density from the layer while keeping the moduli it was handed.
+                const double scales[5] = {
+                    this->p_structure_density_scale, this->p_structure_pascal_scale,
+                    this->p_structure_pascal_scale, this->p_structure_pascal_scale,
+                    this->p_structure_pascal_scale};
+                for (size_t value_i = 0; value_i < 5; ++value_i)
+                {
+                    if (std::isfinite(mat_out[value_i]))
+                    {
+                        y_interp_ptr[4 + value_i] = mat_out[value_i] / scales[value_i];
+                    }
+                }
             }
             return;
         }

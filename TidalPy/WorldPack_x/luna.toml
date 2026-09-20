@@ -16,7 +16,7 @@
 # Tides
 # The outer core is a static liquid. With it and the 6.0e10 Pa default mantle rigidity this interior gives
 # k2 = 0.02526 at the monthly period, 4 percent above the measured 0.02422 +/- 0.00022 (Williams et al. 2014),
-# so the mantle shear modulus is the third fitted number: 6.27e10 Pa gives 0.02421. The core is 4 percent of
+# so the mantle shear modulus is the third fitted number: 6.28e10 Pa gives 0.02422. The core is 4 percent of
 # the volume, yet a solid outer core would move k2 to 0.02315, five times the measurement uncertainty.
 #
 # The dissipation is not calibrated. The mantle and crust are elastic at the temperature of the
@@ -64,7 +64,7 @@ type = "mantle_rock"
 layer_index = 2
 radius_outer_m = 1703400.0
 is_tidal = true
-shear_modulus_static_pa = 6.27e10     # fitted to the measured k2 with the liquid outer core
+shear_modulus_static_pa = 6.28e10     # fitted to the measured k2 with the liquid outer core
 
 [layers.mantle.eos]
 model = "bm"

@@ -94,6 +94,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_premelt_bulk_modulus(double radius) const
         double   get_premelt_shear_viscosity(double radius) const
         double   get_premelt_bulk_viscosity(double radius) const
+        double   get_melt_fraction(double radius) const
 
 
 # =====================================================================================================================

@@ -602,14 +602,6 @@ public:
                         });
                 }
                 layer->update_eos_data(eos_data);
-
-                // Frequency-independent viscoelastic post-pass (PhysicsLayers only).
-                this->populate_layer_viscoelastic(
-                    layer,
-                    *solution,
-                    slice_start,
-                    slices,
-                    cfg.temperature);
             }
         }
 
@@ -723,49 +715,6 @@ public:
         const double vol      = (4.0 / 3.0) * TidalPyConstants::d_PI * r_planet * r_planet * r_planet;
         const double bulk_rho = (vol > TidalPyConstants::d_EPS) ? this->p_planet_mass_eos / vol : 3500.0;
 
-        // Radial density slope at every slice [kg m-4], from each layer's EOS model along the solved structure
-        // (central differences inside a layer, second-order one-sided at its ends). The radial solver interpolates
-        // the density between slices with these slopes (cubic Hermite), so a compressible layer's density has no
-        // kinks at the slices and the Love solve converges as the tolerance tightens instead of stalling.
-        std::vector<double> density_slope_si(total_slices, 0.0);
-        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-            c_BaseLayer* layer = this->p_layers[layer_i].get();
-            const c_MaterialEOSBase* eos_model = layer->get_eos();
-            if (eos_model == nullptr || layer_i >= world_eos->num_slices_bylayer_vec.size()) { continue; }
-            const bool thermal_eos = (layer_i < this->p_eos_material_inputs.size())
-                && this->p_eos_material_inputs[layer_i].use_state_temperature;
-            const double layer_temperature = (layer_i < this->p_eos_material_inputs.size())
-                ? this->p_eos_material_inputs[layer_i].temperature : TidalPyConstants::d_NAN;
-            const double r_inner = layer->get_radius_inner();
-            const double r_outer = layer->get_radius_outer();
-            const double delta   = 1.0e-4 * (r_outer - r_inner);
-            if (!(delta > 0.0)) { continue; }
-            auto density_at = [&](double radius) {
-                double state[C_EOS_DY_VALUES];
-                world_eos->call_si(layer_i, radius, state);
-                const double temperature =
-                    thermal_eos ? state[C_EOS_TEMPERATURE_INDEX] : layer_temperature;
-                return eos_model->calc_density(state[1], temperature, radius);
-            };
-            const std::size_t first = world_eos->first_slice_bylayer_vec[layer_i];
-            const std::size_t last  = first + world_eos->num_slices_bylayer_vec[layer_i];
-            for (std::size_t slice_i = first; slice_i < last && slice_i < total_slices; ++slice_i) {
-                const double radius = world_eos->radius_array_vec[slice_i];
-                if (radius - delta >= r_inner && radius + delta <= r_outer) {
-                    density_slope_si[slice_i] =
-                        (density_at(radius + delta) - density_at(radius - delta)) / (2.0 * delta);
-                } else if (radius + 2.0 * delta <= r_outer) {
-                    density_slope_si[slice_i] =
-                        (-3.0 * density_at(radius) + 4.0 * density_at(radius + delta)
-                         - density_at(radius + 2.0 * delta)) / (2.0 * delta);
-                } else {
-                    density_slope_si[slice_i] =
-                        (3.0 * density_at(radius) - 4.0 * density_at(radius - delta)
-                         + density_at(radius - 2.0 * delta)) / (2.0 * delta);
-                }
-            }
-        }
-
         return solver->build_cache(
             world_eos->radius_array_vec,
             world_eos->density_array_vec,
@@ -782,22 +731,22 @@ public:
             bulk_rho,
             cfg.degree_l,
             cfg.nondimensionalize,
-            // Read the solved structure variables (gravity, ...) from the world's dense EOS, not array interpolation.
-            world_eos,
-            &density_slope_si
+            // Read the solved structure variables (gravity, ...) from the world's dense EOS, not array
+            // interpolation. Density and the moduli come from the material-state provider each solve installs.
+            world_eos
         );
     }
 
     // Build the per-call runtime config from the user-facing solve config.
     c_LoveSolveRuntimeConfig make_runtime_config(const c_LoveSolveConfig& cfg) const {
         c_LoveSolveRuntimeConfig rt;
-        rt.frequency       = cfg.frequency;
-        rt.bc_model        = cfg.bc_model;
-        rt.use_prop_matrix = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
-        rt.core_model      = cfg.core_model;
-        rt.use_kamata      = cfg.use_kamata;
-        rt.starting_radius = cfg.starting_radius;
-        rt.start_radius_tol = cfg.start_radius_tol;
+        rt.frequency          = cfg.frequency;
+        rt.bc_model           = cfg.bc_model;
+        rt.use_prop_matrix    = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
+        rt.core_model         = cfg.core_model;
+        rt.use_kamata         = cfg.use_kamata;
+        rt.starting_radius    = cfg.starting_radius;
+        rt.start_radius_tol   = cfg.start_radius_tol;
         rt.integration_method = cfg.integration_method;
         rt.rtol               = cfg.rtol;
         rt.atol               = cfg.atol;
@@ -859,10 +808,18 @@ public:
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        // Frequency-dependent step: fill the complex moduli from the layer rheology, then solve. The fill walks each
-        // layer's own slice range instead of looking the layer up by radius. An interface radius appears twice in the
-        // grid (top of the lower layer, base of the upper), and a radius lookup gives both copies the lower layer's
-        // modulus, so the upper layer's first slice interval would ramp from the wrong modulus to its own.
+        // Frequency-dependent step: hand the solver a provider that evaluates each layer's material state at the
+        // radius the integrator asks for, then solve. Nothing is sampled onto the slice grid, so the Love numbers
+        // no longer carry the first-order slice error, and the layer the provider is asked about is the one the
+        // solver is integrating: an interface radius belongs to two layers, and a lookup by radius alone would give
+        // both copies the lower layer's material. The provider captures this solve's frequency.
+        //
+        // The captured `this` is safe: the provider lives on the solver's storage, which this world owns, and it is
+        // cleared below once the solve returns.
+        // The slice arrays are still filled, for two consumers that are not the shooting solve: the propagation-
+        // matrix method, which propagates across slices and so is discretized by construction, and the world's
+        // array properties, where slices_per_layer now means output sampling and nothing else. The fill walks each
+        // layer's own slice range rather than looking the layer up by radius, for the interface reason above.
         const std::vector<double>& radius_si = solver->radius_si();
         std::complex<double>* shear_out = solver->shear_scratch_data();
         std::complex<double>* bulk_out  = solver->bulk_scratch_data();
@@ -879,6 +836,22 @@ public:
                     ? physics_layer->calc_complex_bulk_modulus(r, cfg.frequency) : nan_modulus;
             }
         }
+
+        const double frequency = cfg.frequency;
+        solver->set_material_eval(
+            [this, frequency](std::size_t layer_index, double radius_si, double* out5) {
+                if (layer_index >= this->p_layers.size()) { return; }
+                const auto* physics_layer =
+                    dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_index].get());
+                if (physics_layer == nullptr) { return; }
+                c_MaterialState state;
+                if (!physics_layer->calc_material_state_at(radius_si, frequency, state)) { return; }
+                out5[0] = state.density;
+                out5[1] = state.complex_shear_modulus.real();
+                out5[2] = state.complex_shear_modulus.imag();
+                out5[3] = state.complex_bulk_modulus.real();
+                out5[4] = state.complex_bulk_modulus.imag();
+            });
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         solver->solve(rt);
@@ -937,6 +910,14 @@ public:
                 bulk_out[i]  = c_interp_complex(r, radius_in + in_first, bulk_in + in_first, in_count, seed);
             }
         }
+
+        // The moduli are the caller's, but density is still the world's, so a density-only provider keeps it off
+        // the slice grid too. The four NaNs tell the solution to leave the supplied moduli alone.
+        solver->set_material_eval(
+            [this](std::size_t layer_index, double radius_si, double* out5) {
+                if (layer_index >= this->p_layers.size()) { return; }
+                out5[0] = this->p_layers[layer_index]->get_density(radius_si);
+            });
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         rt.redim_eos_arrays = true;
@@ -1552,114 +1533,6 @@ protected:
             }
         }
         return TidalPyConstants::d_NAN;
-    }
-
-    void populate_layer_viscoelastic(
-            c_BaseLayer* layer,
-            const c_EOSSolution& solution,
-            std::size_t slice_start,
-            std::size_t slice_count,
-            double temperature) const {
-        auto* physics_layer = dynamic_cast<c_PhysicsLayer*>(layer);
-        if (physics_layer == nullptr) { return; }
-
-        const double const_shear = physics_layer->get_shear_modulus_static();
-        const double const_bulk  = physics_layer->get_bulk_modulus_static();
-        c_ViscosityBase*   shear_viscosity_model = physics_layer->get_shear_viscosity_model();
-        c_ViscosityBase*   bulk_viscosity_model  = physics_layer->get_bulk_viscosity_model();
-        c_PartialMeltBase* partial_melt_model    = physics_layer->get_partial_melt_model();
-
-        // The static moduli and viscosities ride along as extra outputs of the EOS ODE, filled by each layer's
-        // EOS model during the CyRK solve and stored on the solution. A layer whose EOS supplies them (the
-        // interpolated or PREM model) uses those radius-varying values; a NaN means not provided, so the
-        // layer's constant modulus, or its viscosity model, is used instead.
-        const bool have_eos_extras =
-            solution.other_vecs_set
-            && solution.complex_shear_array_vec.size() == solution.radius_array_size
-            && solution.shear_viscosity_array_vec.size() == solution.radius_array_size;
-
-        std::vector<double> premelt_shear(slice_count);
-        std::vector<double> premelt_bulk(slice_count);
-        std::vector<double> premelt_shear_visc(slice_count);
-        std::vector<double> premelt_bulk_visc(slice_count);
-        std::vector<double> postmelt_shear(slice_count);
-        std::vector<double> postmelt_bulk(slice_count);
-        std::vector<double> postmelt_shear_visc(slice_count);
-        std::vector<double> postmelt_bulk_visc(slice_count);
-
-        const bool have_profile = (solution.temperature_array_vec.size() == solution.radius_array_size);
-        for (std::size_t slice_offset = 0; slice_offset < slice_count; ++slice_offset) {
-            const std::size_t global_slice = slice_start + slice_offset;
-            const double pressure = solution.pressure_array_vec[global_slice];
-            // The viscosity and melt models see the solved temperature at this slice.
-            const double slice_temperature = have_profile
-                ? solution.temperature_array_vec[global_slice] : temperature;
-
-            // Static moduli: prefer the EOS extra output, else the layer constant.
-            double static_shear = const_shear;
-            double static_bulk  = const_bulk;
-            if (have_eos_extras) {
-                const double eos_shear = solution.complex_shear_array_vec[global_slice].real();
-                if (std::isfinite(eos_shear)) { static_shear = eos_shear; }
-                const double eos_bulk = solution.complex_bulk_array_vec[global_slice].real();
-                if (std::isfinite(eos_bulk)) { static_bulk = eos_bulk; }
-            }
-            premelt_shear[slice_offset] = static_shear;
-            premelt_bulk[slice_offset]  = static_bulk;
-
-            // Pre-melt viscosities: the viscosity-model value, overridden by an EOS extra output when present.
-            double slice_shear_visc = (shear_viscosity_model != nullptr)
-                ? shear_viscosity_model->calc_viscosity(slice_temperature, pressure)
-                : TidalPyConstants::d_NAN;
-            double slice_bulk_visc = (bulk_viscosity_model != nullptr)
-                ? bulk_viscosity_model->calc_viscosity(slice_temperature, pressure)
-                : TidalPyConstants::d_NAN;
-            if (have_eos_extras) {
-                const double eos_shear_visc = solution.shear_viscosity_array_vec[global_slice];
-                if (std::isfinite(eos_shear_visc)) { slice_shear_visc = eos_shear_visc; }
-                const double eos_bulk_visc = solution.bulk_viscosity_array_vec[global_slice];
-                if (std::isfinite(eos_bulk_visc)) { slice_bulk_visc = eos_bulk_visc; }
-            }
-            premelt_shear_visc[slice_offset] = slice_shear_visc;
-            premelt_bulk_visc[slice_offset]  = slice_bulk_visc;
-
-            if (partial_melt_model != nullptr) {
-                // Apply the melt model to the shear pair, then the bulk pair. The liquid viscosity is a
-                // placeholder (the pre-melt viscosity) until a dedicated liquid-viscosity model exists.
-                c_PartialMeltInputs shear_inputs;
-                shear_inputs.temperature     = slice_temperature;
-                shear_inputs.premelt_viscosity = slice_shear_visc;
-                shear_inputs.premelt_shear    = static_shear;
-                shear_inputs.liquid_viscosity = slice_shear_visc;
-                const c_PartialMeltResult shear_result = partial_melt_model->calc_partial_melt(shear_inputs);
-                postmelt_shear[slice_offset]       = shear_result.postmelt_shear_modulus;
-                postmelt_shear_visc[slice_offset] = shear_result.postmelt_viscosity;
-
-                c_PartialMeltInputs bulk_inputs;
-                bulk_inputs.temperature     = slice_temperature;
-                bulk_inputs.premelt_viscosity = slice_bulk_visc;
-                bulk_inputs.premelt_shear    = static_bulk;
-                bulk_inputs.liquid_viscosity = slice_bulk_visc;
-                const c_PartialMeltResult bulk_result = partial_melt_model->calc_partial_melt(bulk_inputs);
-                postmelt_bulk[slice_offset]       = bulk_result.postmelt_shear_modulus;
-                postmelt_bulk_visc[slice_offset] = bulk_result.postmelt_viscosity;
-            } else {
-                postmelt_shear[slice_offset] = static_shear;
-                postmelt_bulk[slice_offset]  = static_bulk;
-                postmelt_shear_visc[slice_offset] = slice_shear_visc;
-                postmelt_bulk_visc[slice_offset]  = slice_bulk_visc;
-            }
-        }
-
-        layer->update_viscoelastic_data(
-            premelt_shear,
-            premelt_bulk,
-            premelt_shear_visc,
-            premelt_bulk_visc,
-            postmelt_shear,
-            postmelt_bulk,
-            postmelt_shear_visc,
-            postmelt_bulk_visc);
     }
 
     // Non-owning observer pointer to the layer whose radial span contains radius [m]. Radii beyond the surface
