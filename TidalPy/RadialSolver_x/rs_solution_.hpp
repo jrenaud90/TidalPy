@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <functional>
 
 #include "love_.hpp"
 #include "rs_constants_.hpp"
@@ -74,6 +75,56 @@ public:
     // The propagation matrix's own radius grid (solve units), laid down inside c_matrix_propagate and kept only
     // because full_solution_vec is interpolated against it. Empty after a shooting solve, which grids nothing.
     std::vector<double> p_matrix_radius_solve = std::vector<double>();
+
+    // Rebuilds the complex moduli this solve used, from a layer's static modulus and viscosity. The world
+    // installs it holding shared ownership of the layers' rheologies and the solved frequency, so it keeps
+    // working after those layers are gone; the rheology models are pure in their three arguments, which is what
+    // makes that safe. Type-erased because the rheology classes live above this header, the same reason
+    // c_EOSSolution::MaterialEval is. Empty when the solve was handed its moduli rather than deriving them (the
+    // supplied-moduli path), and then the complex getters report NaN while the static ones still answer.
+    using ComplexModuliEval = std::function<void(
+        size_t layer_index,
+        double static_shear, double shear_viscosity,
+        double static_bulk,  double bulk_viscosity,
+        std::complex<double>& shear_out, std::complex<double>& bulk_out)>;
+    ComplexModuliEval p_complex_moduli_eval;
+    double p_love_frequency_si = TidalPyConstants::d_NAN;
+
+    /// The complex shear and bulk moduli [Pa] at an SI radius, rebuilt the way the solve built them: the layer's
+    /// rheology applied to the static modulus and viscosity the solved EOS reports there, at the solved
+    /// frequency. Both NaN when this solution carries no rheology.
+    void get_complex_moduli_si(
+        const double radius_si,
+        std::complex<double>& shear_out,
+        std::complex<double>& bulk_out) const
+    {
+        const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
+        shear_out = cNAN;
+        bulk_out  = cNAN;
+
+        const c_EOSSolution* eos = this->eos_solution_uptr.get();
+        if (!eos) { return; }
+
+        double state[C_EOS_DY_VALUES];
+        if (!this->get_eos_si(radius_si, &state[0])) { return; }
+
+        if (this->p_complex_moduli_eval)
+        {
+            this->p_complex_moduli_eval(
+                eos->layer_at_radius_si(radius_si),
+                state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX],
+                state[C_EOS_BULK_MODULUS_INDEX],  state[C_EOS_BULK_VISCOSITY_INDEX],
+                shear_out, bulk_out);
+            return;
+        }
+
+        // No rheology to apply, because this solve was provided arrays of moduli. So instead we will use
+        // linear interpolation on those input arrays to return the moduli if requested.
+        shear_out = std::complex<double>(
+            state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_MODULUS_INDEX + 1]);
+        bulk_out = std::complex<double>(
+            state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_MODULUS_INDEX + 1]);
+    }
 
     // Dense CyRK results [layer][solution]; owns the force-retained integrators.
     std::vector<std::vector<std::unique_ptr<CySolverResult>>> p_interp_by_layer_sol;

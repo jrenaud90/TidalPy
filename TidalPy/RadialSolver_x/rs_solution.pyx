@@ -424,17 +424,45 @@ cdef class RadialSolverSolution:
         return self._eos_at(radius, C_EOS_DENSITY_INDEX)
 
     def get_shear_modulus(self, radius):
-        """Static shear modulus [Pa] at radius [m].
-
-        This is the material's frequency-independent modulus. The complex modulus is the rheology applied to it,
-        which is the world's to answer (``world.get_complex_shear_modulus(radius, frequency)``), not this
-        solution's: a released solution no longer carries the rheology or the frequency it was solved at.
-        """
+        """Static shear modulus [Pa] at radius [m]."""
         return self._eos_at(radius, C_EOS_SHEAR_MODULUS_INDEX)
 
     def get_bulk_modulus(self, radius):
         """Static bulk modulus [Pa] at radius [m]. See :meth:`get_shear_modulus` on the complex counterpart."""
         return self._eos_at(radius, C_EOS_BULK_MODULUS_INDEX)
+
+    def _complex_moduli_at(self, double radius):
+        """The complex shear and bulk moduli [Pa] at one radius [m]."""
+        cdef cpp_complex[double] shear
+        cdef cpp_complex[double] bulk
+        self.solution_storage_ptr.get_complex_moduli_si(radius, shear, bulk)
+        return (complex(shear.real(), shear.imag()), complex(bulk.real(), bulk.imag()))
+
+    def get_complex_shear_modulus(self, radius):
+        """Complex shear modulus [Pa] at radius [m], as the solve used it.
+
+        The layer's rheology applied to the static modulus and viscosity the solved EOS reports there, at the
+        frequency this solution was solved at. NaN when the solve carried no rheology (the supplied-moduli path),
+        in which case the moduli were the caller's to begin with.
+        """
+        if np.ndim(radius) == 0:
+            return self._complex_moduli_at(<double>radius)[0]
+        radii = np.ascontiguousarray(radius, dtype=np.float64)
+        out = np.array([self._complex_moduli_at(<double>r)[0] for r in radii.ravel()], dtype=np.complex128)
+        return out.reshape(np.shape(radius))
+
+    def get_complex_bulk_modulus(self, radius):
+        """Complex bulk modulus [Pa] at radius [m]. See :meth:`get_complex_shear_modulus`."""
+        if np.ndim(radius) == 0:
+            return self._complex_moduli_at(<double>radius)[1]
+        radii = np.ascontiguousarray(radius, dtype=np.float64)
+        out = np.array([self._complex_moduli_at(<double>r)[1] for r in radii.ravel()], dtype=np.complex128)
+        return out.reshape(np.shape(radius))
+
+    @property
+    def love_frequency(self):
+        """The forcing frequency [rad/s] this solution was solved at; NaN if it carries none."""
+        return self.solution_storage_ptr.p_love_frequency_si
 
     def get_shear_viscosity(self, radius):
         """Shear viscosity [Pa s] at radius [m]; NaN when the material names none."""

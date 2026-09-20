@@ -37,6 +37,7 @@ cdef extern from "rs_solution_.hpp" nogil:
         vector[c_LoveNumbers] complex_love_vec
         vector[size_t] shooting_method_steps_taken_vec
         double surface_amplification
+        double p_love_frequency_si
 
         c_EOSSolution* get_eos_solution_ptr()
         void change_radius_array(
@@ -54,6 +55,7 @@ cdef extern from "rs_solution_.hpp" nogil:
             cpp_complex[double]* out)
         cpp_bool get_surface_y(size_t ytype_i, cpp_complex[double]* out6)
         cpp_bool get_eos_si(double radius_si, double* out)
+        void get_complex_moduli_si(double radius_si, cpp_complex[double]& shear_out, cpp_complex[double]& bulk_out)
         void find_love()
         void dimensionalize_data(
             c_NonDimensionalScales* nondim_scales,

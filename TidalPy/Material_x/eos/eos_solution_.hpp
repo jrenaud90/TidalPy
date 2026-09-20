@@ -723,6 +723,22 @@ public:
     }
 
 
+    /// The layer holding an SI radius [m]: the innermost whose upper radius reaches it. An interface radius
+    /// belongs to the lower layer, matching the convention the rest of this solution uses.
+    size_t layer_at_radius_si(const double radius_si) const noexcept
+    {
+        const double radius_solve = this->convert_radius_si_to_solve(radius_si);
+        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
+        {
+            if (radius_solve <= this->upper_radius_bylayer_vec[layer_i])
+            {
+                return layer_i;
+            }
+        }
+        return (this->num_layers > 0) ? (this->num_layers - 1) : 0;
+    }
+
+
 
 
     /// Prepare storage vectors for a new or changed radius array.

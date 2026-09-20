@@ -828,13 +828,51 @@ public:
         solver->solve(rt);
         // The provider closes over this world and this solve's frequency, so it does not outlive the solve.
         solver->set_material_eval(nullptr);
+        // What the provider did, kept in a form that outlives this world: the rheologies are shared rather than
+        // borrowed, and calc_complex_modulus reads only the arguments handed to it, so the exported solution can
+        // rebuild any complex modulus this solve used, at any radius.
+        if (::c_RadialSolutionStorage* storage = solver->get_storage()) {
+            const std::size_t n_layers = this->p_layers.size();
+            std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
+            std::vector<std::shared_ptr<const c_RheologyBase>> bulk_bylayer(n_layers);
+            for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+                const auto* physics_layer =
+                    dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
+                if (physics_layer == nullptr) { continue; }
+                shear_bylayer[layer_i] = physics_layer->share_shear_rheology();
+                bulk_bylayer[layer_i]  = physics_layer->share_bulk_rheology();
+            }
+            // Captured by value: the vectors hold shared ownership, so this outlives the layers.
+            storage->p_complex_moduli_eval =
+                [shear_bylayer, bulk_bylayer, frequency](
+                    std::size_t layer_index,
+                    double static_shear, double shear_viscosity,
+                    double static_bulk,  double bulk_viscosity,
+                    std::complex<double>& shear_out, std::complex<double>& bulk_out)
+                {
+                    if (layer_index < shear_bylayer.size() && shear_bylayer[layer_index])
+                    {
+                        shear_out = shear_bylayer[layer_index]->calc_complex_modulus(
+                            static_shear, shear_viscosity, frequency);
+                    } else
+                    {
+                        shear_out = std::complex<double>(static_shear, 0.0);
+                    }
+                    if (layer_index < bulk_bylayer.size() && bulk_bylayer[layer_index])
+                    {
+                        bulk_out = bulk_bylayer[layer_index]->calc_complex_modulus(
+                            static_bulk, bulk_viscosity, frequency);
+                    } else
+                    {
+                        bulk_out = std::complex<double>(static_bulk, 0.0);
+                    }
+                };
+            storage->p_love_frequency_si = frequency;
+        }
         this->p_love_solved = solver->get_solved();
     }
 
     // Solve using externally-supplied complex moduli (the standalone array API path) instead of the layer rheology.
-    // shear_in / bulk_in are defined at the radii radius_in (length n_in) and are linearly interpolated onto the
-    // world EOS radius grid. Runs in export mode: the storage EOS arrays are redimensionalized and its scalar
-    // results are copied from the world own EOS so the released solution reports SI values.
     void solve_love_numbers_supplied(
             const c_LoveSolveConfig& cfg,
             const std::complex<double>* shear_in,

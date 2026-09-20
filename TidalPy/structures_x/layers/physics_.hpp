@@ -194,6 +194,10 @@ public:
     c_RheologyBase* get_shear_rheology_model() const noexcept { return this->p_shear_rheology.get(); }
     c_RheologyBase* get_bulk_rheology_model()  const noexcept { return this->p_bulk_rheology.get(); }
 
+    // Shared handles, for a consumer that must outlive this layer (see the member declarations).
+    std::shared_ptr<const c_RheologyBase> share_shear_rheology() const noexcept { return this->p_shear_rheology; }
+    std::shared_ptr<const c_RheologyBase> share_bulk_rheology()  const noexcept { return this->p_bulk_rheology; }
+
     // Viscosity and partial-melt helpers. The material owns these models, so each call hands the model to the
     // layer's EOS; they exist so a layer can be configured in one place. Attach the EOS first: without one there
     // is no material to give the model to.
@@ -421,8 +425,11 @@ protected:
     bool   p_use_thermal_eos = false;
 
     // Optional rheology objects (serialized recursively via write_physics_models_binary).
-    std::unique_ptr<c_RheologyBase> p_shear_rheology;
-    std::unique_ptr<c_RheologyBase> p_bulk_rheology;
+    // The rheology classes are shared not unique: a radial-solver solution exported to Python keeps a
+    // copy of these pointers so it can reproduce the complex moduli it was solved with, at any radius, after
+    // potentially after this layer is gone.
+    std::shared_ptr<c_RheologyBase> p_shear_rheology;
+    std::shared_ptr<c_RheologyBase> p_bulk_rheology;
 };
 
 } // namespace tidalpy

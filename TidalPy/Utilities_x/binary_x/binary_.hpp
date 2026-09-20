@@ -256,14 +256,29 @@ inline uint64_t binary_string_bytes(const std::string& text) {
 // ---------------------------------------------------------------------------
 // Optional sub-object serialization
 // ---------------------------------------------------------------------------
-// An owned, optional sub-object (held in a std::unique_ptr) is serialized as a one-byte presence flag
-// (0 = absent, 1 = present) followed, when present, by the sub-object's own complete binary record. The
-// presence flag belongs to the owning record's payload; the nested record is a separate, self-describing
+// An owned, optional sub-object (held in a std::unique_ptr) is serialized as a one-byte
+// presence flag (0 = absent, 1 = present) followed, when present, by the sub-object's own complete binary record.
+// The presence flag belongs to the owning record's payload; the nested record is a separate, self-describing
 // record appended to the stream. Used for the recursive serialization of models held by layers and
 // layers held by worlds.
 
 template <typename T>
 inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& obj) {
+    const uint8_t present = obj ? 1 : 0;
+    out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
+    if (obj) {
+        obj->write_binary(out);
+    }
+    if (!out) {
+        throw std::runtime_error("TidalPy: failed to write optional sub-object binary data");
+    }
+}
+
+
+// The same, for a sub-object held by shared_ptr (a layer's rheologies, which an exported radial solution
+// co-owns). The record written is identical; only the ownership differs.
+template <typename T>
+inline void write_optional_binary(std::ostream& out, const std::shared_ptr<T>& obj) {
     const uint8_t present = obj ? 1 : 0;
     out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
     if (obj) {
