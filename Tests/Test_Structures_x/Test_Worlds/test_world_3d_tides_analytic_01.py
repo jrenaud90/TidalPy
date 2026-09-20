@@ -37,10 +37,10 @@ def _build_world(max_degree_l=2, two_layer=False):
 
     def _mk(name, idx, r_in, r_out):
         mass = (4.0 / 3.0) * math.pi * (r_out ** 3 - r_in ** 3) * _DENSITY
-        layer = PhysicsLayer(name, idx, r_in, r_out, mass,
-                             shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
+        layer = PhysicsLayer(name, idx, r_in, r_out, mass)
         layer.is_static = False
-        layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+        layer.set_eos(ConstantDensityEOS(
+            reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
         layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
         layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
         layer.set_shear_rheology(Maxwell())

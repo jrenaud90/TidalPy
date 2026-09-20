@@ -47,30 +47,17 @@ def _terrestrial_dict():
         "mass_kg": 5.0e24,
         "spin_frequency_rad_s": 7.0e-5,
         "layers": {
-            "core": {
-                "class": "physics",
-                "layer_index": 0,
-                "radius_outer_m": 3.0e6,
-                "is_tidal": False,
-                "eos": {"model": "constant", "reference_density_kg_m3": 9000.0},
-            },
-            "mantle": {
-                "class": "solidliquid",
-                "layer_index": 1,
-                "radius_outer_m": 6.0e6,
-                "mass_kg": 3.0e24,
-                "is_tidal": True,
-                "shear_modulus_static_pa": 8.0e10,
-                "bulk_modulus_static_pa": 2.0e11,
-                "eos": {"model": "constant", "reference_density_kg_m3": 4000.0},
-                "shear_rheology": {"model": "maxwell"},
-                "bulk_rheology": {"model": "elastic"},
-                "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21},
-                "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e22},
-                "partial_melt": {"model": "off"},
-                "cooling": {"model": "convection"},
-                "radiogenics": {"model": "fixed", "fixed_heat_production_w_kg": 5.0e-12},
-            },
+            "core": {"class": "physics", "layer_index": 0, "radius_outer_m": 3.0e6, "is_tidal": False,
+                     "material": {"model": "constant", "reference_density_kg_m3": 9000.0}},
+            "mantle": {"class": "solidliquid", "layer_index": 1, "radius_outer_m": 6.0e6, "mass_kg": 3.0e24,
+                       "is_tidal": True,
+                       "material": {"model": "constant", "reference_density_kg_m3": 4000.0,
+                                    "shear_modulus_static_pa": 8.0e10, "bulk_modulus_static_pa": 2.0e11,
+                                    "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21},
+                                    "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e22},
+                                    "partial_melt": {"model": "off"}}, "shear_rheology": {"model": "maxwell"},
+                       "bulk_rheology": {"model": "elastic"}, "cooling": {"model": "convection"},
+                       "radiogenics": {"model": "fixed", "fixed_heat_production_w_kg": 5.0e-12}},
         },
     }
 
@@ -106,7 +93,7 @@ def test_construct_gasgiant_class():
     config = {
         "name": "G", "type": "gasgiant", "radius_m": 7.0e7, "mass_kg": 1.9e27,
         "layers": {"env": {"class": "gas", "radius_outer_m": 7.0e7,
-                           "eos": {"model": "constant", "reference_density_kg_m3": 1300.0}}},
+                           "material": {"model": "constant", "reference_density_kg_m3": 1300.0}}},
     }
     world = construct_world(config)
     assert isinstance(world, GasGiantWorld)
@@ -169,8 +156,8 @@ def test_radiogenics_wired_produces_heating():
 def test_unrecognized_model_key_names_the_table():
     """A misspelled key in a layer model table raises ValueError naming the TOML table and the key."""
     config = _terrestrial_dict()
-    config["layers"]["mantle"]["partial_melt"] = {"model": "henning", "solidus": 1500.0}
-    with pytest.raises(ValueError, match=r"\[layers\.mantle\.partial_melt\].*'solidus'"):
+    config["layers"]["mantle"]["material"]["partial_melt"] = {"model": "henning", "solidus": 1500.0}
+    with pytest.raises(ValueError, match=r"\[layers\.mantle\.material\].*partial_melt.*'solidus'"):
         construct_world(config)
 
 
@@ -187,7 +174,7 @@ def test_rheology_and_viscosity_wired_give_complex_modulus():
 def test_missing_eos_on_a_layer_blocks_solve():
     """A layer without an EOS model blocks the solve; ``type = "none"`` keeps the builder from supplying one."""
     config = _terrestrial_dict()
-    del config["layers"]["core"]["eos"]
+    del config["layers"]["core"]["material"]
     config["layers"]["core"]["type"] = "none"
     world = construct_world(config)
     assert world.all_eos_set is False
@@ -198,7 +185,7 @@ def test_missing_eos_on_a_layer_blocks_solve():
 def test_typeless_layer_takes_the_default_eos():
     """A layer that names no material type takes its EOS from the ``[layers.default]`` block."""
     config = _terrestrial_dict()
-    del config["layers"]["core"]["eos"]
+    del config["layers"]["core"]["material"]
     world = construct_world(config)
     assert world.all_eos_set is True
     world.solve_eos(G_to_use=G, verbose=False)
@@ -226,7 +213,7 @@ def test_no_material_type_uses_the_default_block():
     from_none = world_builder._material_type_defaults(None, "solidliquid")
     assert from_none == world_builder._material_type_defaults("default", "solidliquid")
     assert from_none == world_builder._material_type_defaults("mantle_rock", "solidliquid")
-    assert from_none["eos"]["model"] == "constant"
+    assert from_none["material"]["model"] == "constant"
     assert world_builder._material_type_defaults("none", "solidliquid") == {}
 
 
@@ -244,7 +231,7 @@ def test_user_value_overrides_material_default():
     # An explicit eos density (tier 1) beats the mantle_rock default (tier 2).
     world = construct_world(_single_layer_world({
         "type": "mantle_rock",
-        "eos": {"model": "constant", "reference_density_kg_m3": 5200.0},
+        "material": {"model": "constant", "reference_density_kg_m3": 5200.0},
     }))
     world.solve_eos(G_to_use=G, verbose=False)
     assert math.isclose(world.get_density(3.0e6), 5200.0, rel_tol=0.05)
@@ -298,11 +285,11 @@ def test_inner_radius_derived_from_previous_layer():
         "name": "D", "type": "terrestrial", "radius_m": 6.0e6, "mass_kg": 5.0e24,
         "layers": {
             "core": {"class": "physics", "layer_index": 0, "radius_outer_m": 2.0e6,
-                     "eos": {"model": "constant", "reference_density_kg_m3": 8000.0}},
+                     "material": {"model": "constant", "reference_density_kg_m3": 8000.0}},
             "mid": {"class": "physics", "layer_index": 1, "radius_fraction": 0.75,
-                    "eos": {"model": "constant", "reference_density_kg_m3": 5000.0}},
+                    "material": {"model": "constant", "reference_density_kg_m3": 5000.0}},
             "shell": {"class": "physics", "layer_index": 2, "volume_fraction": 0.125,
-                      "eos": {"model": "constant", "reference_density_kg_m3": 3000.0}},
+                      "material": {"model": "constant", "reference_density_kg_m3": 3000.0}},
         }}
     world = construct_world(config)
     outers = _layer_outer_radii(world)

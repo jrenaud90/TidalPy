@@ -32,20 +32,16 @@ _EXPANSION = 3.0e-5       # [1/K]
 
 def _config(core_temperature=1800.0, mantle_temperature=1600.0, cooling="conduction", **mantle_keys):
     """A two-layer world: an isothermal iron core under a silicate mantle with the given cooling model."""
-    mantle = {
-        "class": "solidliquid",
-        "type": "none",
-        "layer_index": 1,
-        "radius_fraction": 1.0,
-        "temperature_k": mantle_temperature,
-        "thermal_conductivity_ref_w_mk": _CONDUCTIVITY,
-        "heat_capacity_ref_j_kgk": _HEAT_CAPACITY,
-        "thermal_expansion_ref_1_k": _EXPANSION,
-        "shear_modulus_static_pa": 6.0e10,
-        "eos": {"model": "constant", "reference_density_kg_m3": _MANTLE_DENSITY},
-        "cooling": {"model": cooling},
-    }
-    mantle.update(mantle_keys)
+    mantle = {"class": "solidliquid", "type": "none", "layer_index": 1, "radius_fraction": 1.0,
+              "temperature_k": mantle_temperature,
+              # The thermal constants are the material's. Its one expansivity drives the adiabat and convection,
+              # and the density law too, but only for a layer that sets use_thermal_eos.
+              "material": {"model": "constant", "reference_density_kg_m3": _MANTLE_DENSITY,
+                           "shear_modulus_static_pa": 6.0e10, "thermal_conductivity_w_mk": _CONDUCTIVITY,
+                           "heat_capacity_j_kgk": _HEAT_CAPACITY, "thermal_expansion_1_k": _EXPANSION},
+              "cooling": {"model": cooling}}
+    # Extra keys are the material's (a viscosity table, say), so they go into its table.
+    mantle["material"].update(mantle_keys)
     return {
         "schema_version": "0.2.0",
         "name": "thermal_test",
@@ -53,17 +49,11 @@ def _config(core_temperature=1800.0, mantle_temperature=1600.0, cooling="conduct
         "radius_m": _RADIUS,
         "mass_kg": _MASS,
         "layers": {
-            "core": {
-                "class": "solidliquid",
-                "type": "none",
-                "layer_index": 0,
-                "radius_fraction": _CORE_FRACTION,
-                "temperature_k": core_temperature,
-                "thermal_conductivity_ref_w_mk": _CONDUCTIVITY,
-                "heat_capacity_ref_j_kgk": _HEAT_CAPACITY,
-                "eos": {"model": "constant", "reference_density_kg_m3": _CORE_DENSITY},
-                "cooling": {"model": "off"},
-            },
+            "core": {"class": "solidliquid", "type": "none", "layer_index": 0, "radius_fraction": _CORE_FRACTION,
+                     "temperature_k": core_temperature,
+                     "material": {"model": "constant", "reference_density_kg_m3": _CORE_DENSITY,
+                                  "thermal_conductivity_w_mk": _CONDUCTIVITY, "heat_capacity_j_kgk": _HEAT_CAPACITY},
+                     "cooling": {"model": "off"}},
             "mantle": mantle,
         },
     }
@@ -231,7 +221,7 @@ def test_layer_temperature_rate_is_the_heat_imbalance():
 def test_viscosity_follows_the_solved_profile():
     """An Arrhenius layer is stiffer where the profile is colder."""
     config = _config(cooling="conduction")
-    config["layers"]["mantle"]["shear_viscosity"] = {
+    config["layers"]["mantle"]["material"]["shear_viscosity"] = {
         "model": "reference",
         "reference_viscosity_pas": 1.0e20,
         "reference_temperature_k": 1600.0,
@@ -259,8 +249,8 @@ def test_thermal_eos_expands_the_hot_interior():
     for config in (cold, hot):
         for layer in config["layers"].values():
             layer["use_thermal_eos"] = True
-            layer["eos"]["thermal_expansion_1_k"] = _EXPANSION
-            layer["eos"]["reference_temperature_k"] = 300.0
+            layer["material"]["thermal_expansion_1_k"] = _EXPANSION
+            layer["material"]["reference_temperature_k"] = 300.0
     _, cold_result = _solve(cold)
     _, hot_result = _solve(hot)
     assert hot_result["planet_mass"] < cold_result["planet_mass"]
@@ -272,11 +262,11 @@ def test_thermal_eos_expands_the_hot_interior():
 def test_thermal_eos_is_off_by_default():
     hot = _config(core_temperature=2500.0, mantle_temperature=2500.0)
     for layer in hot.values() if False else hot["layers"].values():
-        layer["eos"]["thermal_expansion_1_k"] = _EXPANSION
+        layer["material"]["thermal_expansion_1_k"] = _EXPANSION
     _, hot_result = _solve(hot)
     cold = _config(core_temperature=300.0, mantle_temperature=300.0)
     for layer in cold["layers"].values():
-        layer["eos"]["thermal_expansion_1_k"] = _EXPANSION
+        layer["material"]["thermal_expansion_1_k"] = _EXPANSION
     _, cold_result = _solve(cold)
     assert hot_result["planet_mass"] == pytest.approx(cold_result["planet_mass"], rel=1e-12)
 

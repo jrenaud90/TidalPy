@@ -52,10 +52,9 @@ def _build_world(core_state):
         name, r_inner, r_outer, density, shear, viscosity = layer_data
         if name == "core" and core_state == "liquid_zero_shear":
             shear = 0.0
-        layer = PhysicsLayer(name, index, r_inner, r_outer, mass,
-                             shear_modulus_static=shear,
-                             bulk_modulus_static=_BULK)
-        layer.set_eos(ConstantDensityEOS(reference_density=density))
+        layer = PhysicsLayer(name, index, r_inner, r_outer, mass)
+        layer.set_eos(ConstantDensityEOS(
+            reference_density=density, shear_modulus_static=shear, bulk_modulus_static=_BULK))
         layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": viscosity}))
         layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
         layer.set_shear_rheology(Maxwell())

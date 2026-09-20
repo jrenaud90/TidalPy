@@ -28,11 +28,12 @@ def _import_models():
 
 def _build_layer(cls):
     make_viscosity, make_partial_melt = _import_models()
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     layer = cls(
         "mantle", 0, 0.0, 1.0e6, 1.0e22,
-        shear_modulus_static=6.0e10,
-        bulk_modulus_static=2.0e11,
         tidal_scale_method="tidal_timescale")
+    # The material owns the static constants and the viscosity and partial-melt models attached below.
+    layer.set_eos(ConstantDensityEOS(shear_modulus_static=6.0e10, bulk_modulus_static=2.0e11))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 3.0e19}))
     layer.set_bulk_viscosity(make_viscosity("reference", {
         "reference_viscosity_pas": 5.0e21, "reference_temperature_k": 1400.0}))
@@ -96,7 +97,7 @@ def test_eos_model_binary_roundtrip(class_key, tmp_path):
     original = layer_class("mantle", 0, 0.0, 2.0e6, 1.0e22)
     original.set_eos(InterpolatedEOS(radius=[0.0, 1.0e6, 2.0e6], density=[5000.0, 4000.0, 3000.0],
                                      shear_modulus=[1.0e11, 8.0e10, 6.0e10]))
-    expected = original.get_config_dict()["eos"]
+    expected = original.get_config_dict()["material"]
     path = str(tmp_path / f"{class_key}.tpyb")
     original.save_binary(path)
 
@@ -104,4 +105,4 @@ def test_eos_model_binary_roundtrip(class_key, tmp_path):
     loaded.load_binary(path)
 
     assert loaded.eos_set
-    assert loaded.get_config_dict()["eos"] == expected
+    assert loaded.get_config_dict()["material"] == expected

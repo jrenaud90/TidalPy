@@ -48,10 +48,10 @@ def _host():
 def _moon(spin_factor=1.5, eccentricity=_ECC):
     """A homogeneous Maxwell moon that dissipates tidally and carries a spin model."""
     moon = LayeredWorld("moon", _R, _MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS,
-                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
+    layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_shear_rheology(Maxwell())
@@ -230,10 +230,10 @@ def _layered(name, radius, spin_frequency):
     """A homogeneous Maxwell body that dissipates tidally and carries a spin model."""
     mass = _mass(radius)
     world = LayeredWorld(name, radius, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, radius, mass,
-                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
+    layer = PhysicsLayer("mantle", 0, 0.0, radius, mass)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_shear_rheology(Maxwell())

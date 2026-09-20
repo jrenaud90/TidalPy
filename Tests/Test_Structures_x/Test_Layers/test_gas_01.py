@@ -40,7 +40,12 @@ _T_REF_K     = 300.0     # [K]
 _RHO_REF     = 1.2       # [kg/m³]
 
 
+_MATERIAL_KEYS = ("shear_modulus_static", "bulk_modulus_static", "shear_viscosity_static",
+                  "bulk_viscosity_static")
+
+
 def _make_layer(**kw):
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     mod = _import_gas()
     defaults = dict(
         name         = "atmosphere",
@@ -57,7 +62,11 @@ def _make_layer(**kw):
         reference_density     = _RHO_REF,
     )
     defaults.update(kw)
-    return mod.GasLayer(**defaults)
+    # The static constants belong to the material, so they go to the EOS model the layer is given.
+    material = {key: defaults.pop(key) for key in _MATERIAL_KEYS if key in defaults}
+    layer = mod.GasLayer(**defaults)
+    layer.set_eos(ConstantDensityEOS(**material))
+    return layer
 
 
 # =====================================================================================================================
@@ -126,8 +135,6 @@ def test_gas_inherits_eos():
 _ALL_KEYS = (
     "name", "layer_index", "radius_inner_m", "radius_outer_m", "mass_kg",
     "material_name", "is_tidal", "tidal_scale",
-    "shear_modulus_static_pa", "bulk_modulus_static_pa",
-    "shear_viscosity_static_pas", "bulk_viscosity_static_pas",
     "love_number_k_re", "love_number_k_im",
     "love_number_h_re", "love_number_h_im",
     "love_number_l_re", "love_number_l_im",

@@ -32,10 +32,10 @@ def _build_world(obliquity_truncation):
     from TidalPy.Tides_x.classes.tide import make_tide
 
     world = LayeredWorld("w", _R, _MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS,
-                         shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11)
+    layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
     layer.set_shear_rheology(Maxwell())

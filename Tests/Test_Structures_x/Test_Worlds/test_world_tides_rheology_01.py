@@ -56,10 +56,9 @@ def _rheology_world(tidal_scale: float = _TIDAL_SCALE):
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("rheo_planet", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static=_STATIC_SHEAR,
-                         bulk_modulus_static=_STATIC_BULK,
                          tidal_scale=tidal_scale)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
@@ -148,10 +147,9 @@ def test_analytic_model_love_k_is_nan():
      make_viscosity, Maxwell, make_tide) = _imports()
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("cpl_planet", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static=_STATIC_SHEAR,
-                         bulk_modulus_static=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     world.add_layer(layer)
     world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))
     world.set_tide_config(min_degree_l=2, max_degree_l=2,

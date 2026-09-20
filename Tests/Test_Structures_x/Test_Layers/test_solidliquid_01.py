@@ -39,14 +39,21 @@ _MASS_KG        = 4.043e24   # [kg]
 _SHEAR_PA       = 1.67e11    # [Pa]
 _SHEAR_VISC_PAS = 1.0e21     # [Pa·s]
 _BULK_VISC_PAS  = 2.0e21     # [Pa·s]
-_T_REF_K        = 3000.0     # [K]
 _K_COND         = 4.5        # [W/(m·K)]
 _ALPHA          = 2.0e-5     # [1/K]
 _CP             = 1200.0     # [J/(kg·K)]
-_RHO_REF        = 4000.0     # [kg/m³]
+_RHO_EOS        = 4000.0     # [kg/m³] the material's density
+
+
+# Everything about the material goes to the EOS model the layer is given: the static constants and the thermal
+# constants (conductivity, expansivity, heat capacity) alike.
+_MATERIAL_KEYS = ("shear_modulus_static", "bulk_modulus_static", "shear_viscosity_static",
+                  "bulk_viscosity_static", "thermal_conductivity", "thermal_expansion", "heat_capacity",
+                  "reference_density")
 
 
 def _make_layer(**kw):
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     mod = _import_solidliquid()
     defaults = dict(
         name                 = "mantle",
@@ -61,14 +68,16 @@ def _make_layer(**kw):
         bulk_modulus_static  = 3.57e11,
         shear_viscosity_static = _SHEAR_VISC_PAS,
         bulk_viscosity_static  = _BULK_VISC_PAS,
-        thermal_conductivity_ref = _K_COND,
-        thermal_expansion_ref = _ALPHA,
-        heat_capacity_ref     = _CP,
-        reference_density     = _RHO_REF,
-        reference_temperature = _T_REF_K,
+        thermal_conductivity = _K_COND,
+        thermal_expansion    = _ALPHA,
+        heat_capacity        = _CP,
+        reference_density    = _RHO_EOS,
     )
     defaults.update(kw)
-    return mod.SolidLiquidLayer(**defaults)
+    material = {key: defaults.pop(key) for key in _MATERIAL_KEYS if key in defaults}
+    layer = mod.SolidLiquidLayer(**defaults)
+    layer.set_eos(ConstantDensityEOS(**material))
+    return layer
 
 
 # =====================================================================================================================
@@ -82,22 +91,23 @@ def test_solidliquid_construction_basic():
     assert sl.shear_modulus_static         == pytest.approx(_SHEAR_PA)
     assert sl.shear_viscosity_static       == pytest.approx(_SHEAR_VISC_PAS)
     assert sl.bulk_viscosity_static        == pytest.approx(_BULK_VISC_PAS)
-    assert sl.thermal_conductivity_ref     == pytest.approx(_K_COND)
-    assert sl.thermal_expansion_ref        == pytest.approx(_ALPHA)
-    assert sl.heat_capacity_ref            == pytest.approx(_CP)
-    assert sl.reference_density            == pytest.approx(_RHO_REF)
-    assert sl.reference_temperature        == pytest.approx(_T_REF_K)
+    # The thermal constants are read from the layer's material.
+    assert sl.thermal_conductivity         == pytest.approx(_K_COND)
+    assert sl.thermal_expansion            == pytest.approx(_ALPHA)
+    assert sl.heat_capacity                == pytest.approx(_CP)
 
 
 def test_solidliquid_defaults():
-    """SolidLiquidLayer optional parameters default to expected values."""
+    """Without a material the thermal constants are NaN; a default material supplies k = 4, alpha = 0, c_p = 1200."""
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     mod = _import_solidliquid()
     sl  = mod.SolidLiquidLayer("test", 0, 0.0, 1e6, 1e20)
-    assert sl.thermal_conductivity_ref  == pytest.approx(4.0)
-    assert sl.thermal_expansion_ref     == pytest.approx(3.0e-5)
-    assert sl.heat_capacity_ref         == pytest.approx(1200.0)
-    assert sl.reference_density         == pytest.approx(3500.0)
-    assert sl.reference_temperature     == pytest.approx(1600.0)
+    assert math.isnan(sl.thermal_conductivity)
+    assert math.isnan(sl.shear_viscosity_static)
+    sl.set_eos(ConstantDensityEOS())
+    assert sl.thermal_conductivity      == pytest.approx(4.0)
+    assert sl.thermal_expansion         == 0.0          # one alpha: zero keeps the density law athermal
+    assert sl.heat_capacity             == pytest.approx(1200.0)
     assert math.isnan(sl.shear_viscosity_static)
     assert math.isnan(sl.bulk_viscosity_static)
     assert (sl.is_solid, sl.is_static, sl.is_incompressible) == (True, True, False)
@@ -167,9 +177,9 @@ def test_thermal_conductivity_constant():
 
 
 def test_thermal_diffusivity_formula():
-    """calc_thermal_diffusivity = k / (rho_ref * c_p)."""
+    """calc_thermal_diffusivity = k / (rho c_p), with the layer's bulk density (its mass over its volume)."""
     sl       = _make_layer()
-    expected = _K_COND / (_RHO_REF * _CP)
+    expected = _K_COND / (sl.density_bulk * _CP)
     assert sl.calc_thermal_diffusivity(2000.0) == pytest.approx(expected)
 
 
@@ -235,15 +245,12 @@ def test_cooling_not_set_initially():
 _ALL_KEYS = (
     "name", "layer_index", "radius_inner_m", "radius_outer_m", "mass_kg",
     "material_name", "is_tidal", "tidal_scale",
-    "shear_modulus_static_pa", "bulk_modulus_static_pa",
-    "shear_viscosity_static_pas", "bulk_viscosity_static_pas",
     "love_number_k_re", "love_number_k_im",
     "love_number_h_re", "love_number_h_im",
     "love_number_l_re", "love_number_l_im",
-    "thermal_conductivity_ref_w_mk", "thermal_expansion_ref_1_k",
-    "heat_capacity_ref_j_kgk",
-    "reference_density_kg_m3", "reference_temperature_k",
 )
+# The thermal constants sit in the material table.
+_MATERIAL_TABLE_KEYS = ("thermal_conductivity_w_mk", "thermal_expansion_1_k", "heat_capacity_j_kgk")
 
 
 def test_get_config_dict_has_all_keys():
@@ -252,6 +259,8 @@ def test_get_config_dict_has_all_keys():
     cfg = sl.get_config_dict()
     for key in _ALL_KEYS:
         assert key in cfg, f"Missing key: {key}"
+    for key in _MATERIAL_TABLE_KEYS:
+        assert key in cfg["material"], f"Missing material key: {key}"
 
 
 def test_get_config_dict_values():
@@ -260,12 +269,15 @@ def test_get_config_dict_values():
     cfg = sl.get_config_dict()
     assert cfg["name"]                          == "mantle"
     assert cfg["layer_index"]                   == 1
-    assert cfg["shear_modulus_static_pa"]       == pytest.approx(_SHEAR_PA)
-    assert cfg["shear_viscosity_static_pas"]    == pytest.approx(_SHEAR_VISC_PAS)
-    assert cfg["bulk_viscosity_static_pas"]     == pytest.approx(_BULK_VISC_PAS)
-    assert cfg["thermal_conductivity_ref_w_mk"] == pytest.approx(_K_COND)
-    assert cfg["reference_density_kg_m3"]       == pytest.approx(_RHO_REF)
-    assert cfg["reference_temperature_k"]       == pytest.approx(_T_REF_K)
+    assert cfg["material"]["shear_modulus_static_pa"]       == pytest.approx(_SHEAR_PA)
+    assert cfg["material"]["shear_viscosity_static_pas"]    == pytest.approx(_SHEAR_VISC_PAS)
+    assert cfg["material"]["bulk_viscosity_static_pas"]     == pytest.approx(_BULK_VISC_PAS)
+    assert cfg["material"]["thermal_conductivity_w_mk"] == pytest.approx(_K_COND)
+    assert cfg["material"]["thermal_expansion_1_k"]     == pytest.approx(_ALPHA)
+    assert cfg["material"]["heat_capacity_j_kgk"]       == pytest.approx(_CP)
+    assert cfg["material"]["reference_density_kg_m3"]   == pytest.approx(_RHO_EOS)
+    for moved in ("thermal_conductivity_ref_w_mk", "reference_density_kg_m3", "reference_temperature_k"):
+        assert moved not in cfg
     assert cfg["love_number_k_re"]              == pytest.approx(0.0)
     assert cfg["love_number_k_im"]              == pytest.approx(0.0)
 
@@ -291,8 +303,8 @@ def test_save_config_solidliquid():
         with open(path, "rb") as f:
             data = tomllib.load(f)
         assert data["name"]                          == "mantle"
-        assert data["thermal_conductivity_ref_w_mk"] == pytest.approx(_K_COND)
-        assert data["reference_temperature_k"]       == pytest.approx(_T_REF_K)
+        assert data["material"]["thermal_conductivity_w_mk"] == pytest.approx(_K_COND)
+        assert data["material"]["heat_capacity_j_kgk"]       == pytest.approx(_CP)
     finally:
         os.unlink(path)
 
@@ -318,9 +330,9 @@ def test_binary_roundtrip_solidliquid():
         assert sl2.shear_modulus_static         == pytest.approx(_SHEAR_PA)
         assert sl2.shear_viscosity_static       == pytest.approx(_SHEAR_VISC_PAS)
         assert sl2.bulk_viscosity_static        == pytest.approx(_BULK_VISC_PAS)
-        assert sl2.thermal_conductivity_ref     == pytest.approx(_K_COND)
-        assert sl2.reference_density            == pytest.approx(_RHO_REF)
-        assert sl2.reference_temperature        == pytest.approx(_T_REF_K)
+        assert sl2.thermal_conductivity         == pytest.approx(_K_COND)
+        assert sl2.thermal_expansion            == pytest.approx(_ALPHA)
+        assert sl2.heat_capacity                == pytest.approx(_CP)
     finally:
         os.unlink(path)
 

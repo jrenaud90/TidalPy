@@ -15,6 +15,7 @@ from TidalPy.structures_x.worlds.layered import LayeredWorld
 from TidalPy.structures_x.layers.base import BaseLayer
 from TidalPy.structures_x.layers.physics import PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid import SolidLiquidLayer
+from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
 from TidalPy.Tides_x.classes.tide import make_tide
 
 
@@ -27,11 +28,11 @@ def _two_layer_world():
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0
     world = LayeredWorld("planet", _R, mass)
     core = SolidLiquidLayer("core", 0, 0.0, _R_CORE, 0.0,
-                            shear_modulus_static=8.0e10, bulk_modulus_static=2.5e11,
                             tidal_scale=0.3)
+    core.set_eos(ConstantDensityEOS(shear_modulus_static=8.0e10, bulk_modulus_static=2.5e11))
     mantle = PhysicsLayer("mantle", 1, _R_CORE, _R, 0.0,
-                          shear_modulus_static=6.0e10, bulk_modulus_static=2.0e11,
                           tidal_scale=0.7)
+    mantle.set_eos(ConstantDensityEOS(shear_modulus_static=6.0e10, bulk_modulus_static=2.0e11))
     world.add_layer(core)
     world.add_layer(mantle)
     return world

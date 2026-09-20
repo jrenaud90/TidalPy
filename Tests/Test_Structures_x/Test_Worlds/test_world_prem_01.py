@@ -113,8 +113,7 @@ def test_earth_prem_toml_override_of_modulus(tmp_path):
         "layers": {
             "layer_0": {"class": "solidliquid", "layer_index": 0},
             "layer_1": {"class": "physics", "layer_index": 1, "is_incompressible": True},
-            "layer_2": {"class": "solidliquid", "layer_index": 2,
-                        "bulk_modulus_static_pa": 1.0e11},
+            "layer_2": {"class": "solidliquid", "layer_index": 2, "material": {"bulk_modulus_static_pa": 1.0e11}},
         },
     }
     world = build_world(config)

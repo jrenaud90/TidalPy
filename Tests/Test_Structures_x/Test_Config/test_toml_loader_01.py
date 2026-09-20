@@ -30,21 +30,11 @@ def _valid_terrestrial():
         "radius_m": 6.0e6,
         "mass_kg": 5.0e24,
         "layers": {
-            "core": {
-                "class": "physics",
-                "type": "iron",
-                "layer_index": 0,
-                "radius_outer_m": 3.0e6,
-                "eos": {"model": "constant", "reference_density_kg_m3": 9000.0},
-            },
-            "mantle": {
-                "class": "solidliquid",
-                "type": "mantle_rock",
-                "layer_index": 1,
-                "radius_outer_m": 6.0e6,
-                "eos": {"model": "constant", "reference_density_kg_m3": 4000.0},
-                "cooling": {"model": "convection"},
-            },
+            "core": {"class": "physics", "type": "iron", "layer_index": 0, "radius_outer_m": 3.0e6,
+                     "material": {"model": "constant", "reference_density_kg_m3": 9000.0}},
+            "mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 1, "radius_outer_m": 6.0e6,
+                       "material": {"model": "constant", "reference_density_kg_m3": 4000.0},
+                       "cooling": {"model": "convection"}},
         },
     }
 
@@ -272,13 +262,43 @@ def test_layer_assumption_flags_are_schema_keys(layer_class):
 
 
 @pytest.mark.parametrize("key,value", [
-    ("temperature_k", 1600.0),
+    ("shear_modulus_static_pa", 6.0e10),
+    ("shear_viscosity_static_pas", 1.0e21),
     ("shear_modulus_pressure_derivative", 1.4),
     ("shear_modulus_temperature_derivative_pa_k", -8.0e6),
     ("shear_modulus_reference_temperature_k", 1600.0),
+])
+def test_material_keys_belong_to_the_material_table(key, value):
+    for layer_class in ("base", "physics", "solidliquid", "gas"):
+        # On the layer they are rejected, and the message says where they moved.
+        with pytest.raises(ValueError, match=r"layers\.L\.material"):
+            tl.validate_layer_config("L", {"class": layer_class, "radius_outer_m": 1.0, key: value})
+        # Inside the material table they validate, with or without restating the model.
+        tl.validate_layer_config("L", {"class": layer_class, "radius_outer_m": 1.0, "material": {key: value}})
+
+
+@pytest.mark.parametrize("old_key, new_key", [
+    ("thermal_conductivity_ref_w_mk", "thermal_conductivity_w_mk"),
+    ("thermal_expansion_ref_1_k", "thermal_expansion_1_k"),
+    ("heat_capacity_ref_j_kgk", "heat_capacity_j_kgk"),
+])
+def test_thermal_keys_left_on_the_layer_name_their_material_key(old_key, new_key):
+    with pytest.raises(ValueError, match=new_key + r".*layers\.L\.material"):
+        tl.validate_layer_config("L", {"class": "solidliquid", "radius_outer_m": 1.0, old_key: 1.0})
+    tl.validate_layer_config("L", {"class": "solidliquid", "radius_outer_m": 1.0, "material": {new_key: 1.0}})
+
+
+@pytest.mark.parametrize("table", ["eos", "shear_viscosity", "bulk_viscosity", "partial_melt"])
+def test_tables_that_moved_into_the_material_say_so(table):
+    with pytest.raises(ValueError, match=r"layers\.L\.material"):
+        tl.validate_layer_config("L", {"class": "physics", "radius_outer_m": 1.0, table: {"model": "constant"}})
+
+
+@pytest.mark.parametrize("key,value", [
+    ("temperature_k", 1600.0),
     ("use_thermal_eos", True),
 ])
-def test_material_state_keys_are_schema_keys(key, value):
+def test_layer_state_keys_are_schema_keys(key, value):
     for layer_class in ("physics", "solidliquid", "gas"):
         tl.validate_layer_config("L", {"class": layer_class, "radius_outer_m": 1.0, key: value})
     # A geometry-only base layer holds no material state.
@@ -309,17 +329,11 @@ def test_physics_layer_rejects_cooling():
 
 
 def test_solidliquid_layer_accepts_all_models():
-    cfg = {
-        "class": "solidliquid", "radius_outer_m": 1.0,
-        "eos": {"model": "constant"},
-        "shear_rheology": {"model": "maxwell"},
-        "bulk_rheology": {"model": "elastic"},
-        "shear_viscosity": {"model": "constant"},
-        "bulk_viscosity": {"model": "constant"},
-        "partial_melt": {"model": "off"},
-        "cooling": {"model": "convection"},
-        "radiogenics": {"model": "off"},
-    }
+    cfg = {"class": "solidliquid", "radius_outer_m": 1.0,
+           "material": {"model": "constant", "shear_viscosity": {"model": "constant"},
+                        "bulk_viscosity": {"model": "constant"}, "partial_melt": {"model": "off"}},
+           "shear_rheology": {"model": "maxwell"},
+           "bulk_rheology": {"model": "elastic"}, "cooling": {"model": "convection"}, "radiogenics": {"model": "off"}}
     tl.validate_layer_config("L", cfg)
 
 

@@ -66,8 +66,8 @@ def test_config_x_has_numerical_section():
 def test_config_x_has_each_material_block(material_type):
     layers = TidalPy.config_x["layers"]
     assert material_type in layers
-    # Every material block carries an EOS default.
-    assert "eos" in layers[material_type]
+    # Every material block carries a material (EOS model) default.
+    assert "model" in layers[material_type]["material"]
 
 
 def test_default_material_block_is_a_copy_of_mantle_rock():

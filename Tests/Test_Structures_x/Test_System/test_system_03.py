@@ -133,10 +133,10 @@ _EVO_SMA = orbital_motion2semi_a(_EVO_N, _EVO_HOST_MASS, _EVO_MOON_MASS)
 def _dissipating_moon():
     """A homogeneous Maxwell moon with tide + spin models attached and its EOS solved."""
     moon = LayeredWorld("moon", _EVO_RADIUS, _EVO_MOON_MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS,
-                         shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11)
+    layer = PhysicsLayer("mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density=_EVO_DENSITY))
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_EVO_DENSITY, shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _EVO_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _EVO_VISC}))
     layer.set_shear_rheology(Maxwell())

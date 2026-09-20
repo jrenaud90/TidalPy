@@ -38,10 +38,9 @@ def _uniform_physics_world(with_viscosity=True, with_melt=False, with_rheology=F
     LayeredWorld, PhysicsLayer, ConstantDensityEOS, make_viscosity, make_partial_melt, Maxwell = _imports()
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("rocky", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static=_STATIC_SHEAR,
-                         bulk_modulus_static=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     if with_viscosity:
         layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
         layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _BULK_VISC}))
@@ -67,11 +66,10 @@ def test_static_moduli_recovered_no_melt():
     world = _uniform_physics_world(with_viscosity=True, with_melt=False)
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
     radius = _PLANET_RADIUS * 0.5
-    # No melt model -> post-melt equals pre-melt equals the layer's static value.
+    # No melt model -> the solved moduli are the material's static values, and nothing melted.
     assert world.get_shear_modulus(radius) == pytest.approx(_STATIC_SHEAR)
     assert world.get_bulk_modulus(radius) == pytest.approx(_STATIC_BULK)
-    assert world.get_premelt_shear_modulus(radius) == pytest.approx(_STATIC_SHEAR)
-    assert world.get_premelt_bulk_modulus(radius) == pytest.approx(_STATIC_BULK)
+    assert world.get_melt_fraction(radius) == 0.0
 
 
 def test_viscosity_from_models():
@@ -99,8 +97,8 @@ def test_melt_weakens_shear_at_high_temperature():
     # T = 1800 K -> melt fraction 0.5 (solidus 1600, liquidus 2000): Henning weakens shear.
     world.solve_eos(G_to_use=G, temperature=1800.0, verbose=False)
     radius = _PLANET_RADIUS * 0.5
-    assert world.get_shear_modulus(radius) < world.get_premelt_shear_modulus(radius)
-    assert world.get_premelt_shear_modulus(radius) == pytest.approx(_STATIC_SHEAR)
+    assert world.get_shear_modulus(radius) < _STATIC_SHEAR
+    assert world.get_melt_fraction(radius) == pytest.approx(0.5)
 
 
 def test_no_melt_below_solidus():
@@ -160,9 +158,9 @@ def test_layer_getters_match_world():
     LayeredWorld, PhysicsLayer, ConstantDensityEOS, make_viscosity, _, _ = _imports()
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("rocky", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     world.add_layer(layer)
     # The layer's C++ object was moved into the world; query through the world's layer view.
