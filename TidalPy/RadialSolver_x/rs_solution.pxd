@@ -77,14 +77,6 @@ cdef class RadialSolverSolution:
     cdef cnp.ndarray full_solution_arr
 
     # EOS solution arrays
-    cdef cnp.ndarray radius_array_cnp
-    cdef cnp.ndarray gravity_array_cnp
-    cdef cnp.ndarray pressure_array_cnp
-    cdef cnp.ndarray mass_array_cnp
-    cdef cnp.ndarray moi_array_cnp
-    cdef cnp.ndarray density_array_cnp
-    cdef cnp.ndarray shear_modulus_array_cnp
-    cdef cnp.ndarray bulk_modulus_array_cnp
 
     # Shooting method diagnostics
     cdef cnp.ndarray shooting_method_steps_taken_array

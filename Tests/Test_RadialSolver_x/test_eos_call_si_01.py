@@ -49,18 +49,17 @@ def _build_homogeneous(nondimensionalize=True):
 def test_eos_call_si_matches_supplied_moduli_at_grid_radii(nondimensionalize):
     """At each grid radius the dense getter reproduces the gridded SI moduli (and the supplied constants)."""
     solution, fed_shear, fed_bulk, fed_density, _ = _build_homogeneous(nondimensionalize)
-    radius_array = np.asarray(solution.radius_array)
-    shear_grid = np.asarray(solution.shear_modulus_array)
-    bulk_grid = np.asarray(solution.bulk_modulus_array)
+    radius_array = solution.sample_radii()
 
     # Skip the exact center (r = 0): the structure ODE zeros its derivatives there.
     for index in range(1, radius_array.size):
-        eos = solution.eos_call_si(float(radius_array[index]))
+        radius = float(radius_array[index])
+        eos = solution.eos_call_si(radius)
         dense_shear = complex(eos[5], eos[6])
         dense_bulk = complex(eos[7], eos[8])
-        # Dense readout reproduces the gridded modulus arrays (which are the redimensionalized solve output).
-        assert dense_shear == pytest.approx(shear_grid[index], rel=1e-6)
-        assert dense_bulk == pytest.approx(bulk_grid[index], rel=1e-6)
+        # The radius getters report the same static moduli the dense readout carries.
+        assert dense_shear.real == pytest.approx(solution.get_shear_modulus(radius), rel=1e-6)
+        assert dense_bulk.real == pytest.approx(solution.get_bulk_modulus(radius), rel=1e-6)
         # The body is homogeneous, so both equal the supplied constants - NOT the bug's *bulk-density garbage.
         assert dense_shear == pytest.approx(fed_shear, rel=1e-6)
         assert dense_bulk == pytest.approx(fed_bulk, rel=1e-6)

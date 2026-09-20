@@ -32,8 +32,9 @@ solution = radial_solver(*build_data, degree_l=2, solve_for=("tidal", "loading")
 figure, axes = solution.plot_ys(show_plot=False)
 
 # From arrays: an (N, 6) or (6, N) complex array, or a list of them, plus the radius grid.
-radial_functions = solution.get_radial_solution_array(solution.radius_array, 0)
-figure, axes = plot_ys(radial_functions, solution.radius_array,
+radius = solution.sample_radii()
+radial_functions = solution.get_radial_solution_array(radius, 0)
+figure, axes = plot_ys(radial_functions, radius,
                        labels=["Enceladus"], benchmarks="tobie2005", use_tobie_limits=True)
 ```
 
@@ -63,10 +64,11 @@ from TidalPy.Utilities_x.graphics_x import plot_interior
 # From a solution; the equation-of-state solve must have succeeded.
 figure, axes = solution.plot_interior(show_plot=False, planet_name="Enceladus")
 
-# From arrays: MKS in, km and GPa on the axes.
+# From arrays: MKS in, km and GPa on the axes. The solution answers at any radius, so pick the grid you want.
+radius = solution.sample_radii()
 figure, axes = plot_interior(
-    solution.radius_array, solution.gravity_array, solution.pressure_array, solution.density_array,
-    shear_modulus=solution.shear_modulus_array, bulk_modulus=solution.bulk_modulus_array,
+    radius, solution.get_gravity(radius), solution.get_pressure(radius), solution.get_density(radius),
+    shear_modulus=solution.get_shear_modulus(radius), bulk_modulus=solution.get_bulk_modulus(radius),
     planet_radius=solution.radius, bulk_density=solution.density_bulk, depth_plot=True)
 ```
 

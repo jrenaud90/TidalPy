@@ -43,6 +43,9 @@ public:
     // mass, and moi are read from it at dense accuracy while density and the complex moduli stay array-interpolated.
     // The source is SI: source_radius = this_radius * p_structure_length_scale, this_value = source_value / scale.
     const c_EOSSolution* p_structure_dense_source = nullptr;
+    // Co-ownership of that source, so a solution exported to Python keeps answering after the world it came from
+    // is gone. Null when the source is not owned this way (the raw pointer above is then the only handle).
+    std::shared_ptr<const c_EOSSolution> p_structure_dense_owner;
     double p_structure_length_scale  = 1.0;
     double p_structure_gravity_scale = 1.0;
     double p_structure_pascal_scale  = 1.0;
@@ -718,6 +721,8 @@ public:
     {
         this->call_y(layer_index, this->convert_radius_si_to_solve(radius_si), y_interp_ptr);
     }
+
+
 
 
     /// Prepare storage vectors for a new or changed radius array.

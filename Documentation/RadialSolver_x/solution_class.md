@@ -32,8 +32,10 @@ The solver runs an equation of state before the deformation problem, and keeps t
 |---|---|
 | `eos_success`, `eos_error_code`, `eos_message` | Outcome of the equation-of-state solve. |
 | `eos_pressure_error`, `eos_iterations`, `eos_steps_taken` | Convergence of the interior pressure iteration. |
-| `radius_array`, `gravity_array`, `pressure_array`, `mass_array`, `moi_array`, `density_array` | Real-valued profiles through the planet. |
-| `shear_modulus_array`, `bulk_modulus_array` | Complex moduli through the planet. |
+| `get_gravity(r)`, `get_pressure(r)`, `get_mass(r)`, `get_moi(r)`, `get_density(r)` | The interior at radius `r` [m], a float or an array of radii. The solution keeps the solved EOS it came from and evaluates it, so nothing is tabulated and any radius may be asked for. |
+| `get_shear_modulus(r)`, `get_bulk_modulus(r)` | The material's **static** moduli [Pa] at `r`. The complex modulus is the rheology applied to these at a forcing frequency, which the world answers (`world.get_complex_shear_modulus(r, frequency)`); a released solution carries neither the rheology nor the frequency. |
+| `get_shear_viscosity(r)`, `get_bulk_viscosity(r)` | Viscosities [Pa s] at `r`; NaN when the material names none. |
+| `sample_radii(num_points=0)` | A radius grid [m] spanning the body, for a caller that wants one (plotting, tabulating). Nothing in the solve uses it and the solution keeps no copy; it defaults to the slice count the solve was configured with. |
 | `layer_upper_radius_array` | Upper radius of each layer [m]. |
 | `radius`, `volume`, `mass`, `moi`, `density_bulk` | Whole-planet scalars. |
 | `moi_factor` | The moment of inertia factor `moi / (M R^2)`: 0.4 for a uniform sphere, 0.3307 for Earth, and smaller the more mass sits near the center. |

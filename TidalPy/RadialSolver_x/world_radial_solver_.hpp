@@ -193,22 +193,8 @@ public:
 
     bool get_solved() const noexcept { return this->p_solved; }
 
-    // Move the storage out (one-shot export) and invalidate the cache. The non-owning dense-source pointer is
-    // cleared because the exported storage may outlive the world's EOS solution; it then answers EOS queries from
-    // its own arrays.
     std::unique_ptr<c_RadialSolutionStorage> release_storage() noexcept {
         this->p_cache_valid = false;
-        if (this->p_storage) {
-            c_EOSSolution* storage_eos = this->p_storage->get_eos_solution_ptr();
-            if (storage_eos) {
-                storage_eos->p_structure_dense_source = nullptr;
-                storage_eos->p_structure_length_scale  = 1.0;
-                storage_eos->p_structure_gravity_scale = 1.0;
-                storage_eos->p_structure_pascal_scale  = 1.0;
-                storage_eos->p_structure_mass_scale    = 1.0;
-                storage_eos->p_structure_moi_scale     = 1.0;
-            }
-        }
         return std::move(this->p_storage);
     }
 
@@ -240,7 +226,7 @@ public:
         double bulk_density,
         int degree_l,
         bool nondimensionalize,
-        const c_EOSSolution* structure_dense_source = nullptr)
+        std::shared_ptr<const c_EOSSolution> structure_dense_source = nullptr)
     {
         const size_t total_slices = radius_si.size();
 
@@ -367,7 +353,8 @@ public:
 
         // Gravity, pressure, mass, and moi are read from the world's dense SI EOS during shooting; the scales convert
         // the non-dim shooting radius up and the SI outputs back down.
-        storage_eos->p_structure_dense_source = structure_dense_source;
+        storage_eos->p_structure_dense_source = structure_dense_source.get();
+        storage_eos->p_structure_dense_owner  = std::move(structure_dense_source);
         // The scales convert the non-dim shooting radius up to SI and the SI values back down. They are needed by
         // the dense structure source and by the material-state provider, so they are set either way.
         storage_eos->p_structure_length_scale  = nondimensionalize ? length_conv  : 1.0;

@@ -720,9 +720,7 @@ public:
             bulk_rho,
             cfg.degree_l,
             cfg.nondimensionalize,
-            // Read the solved structure variables (gravity, ...) from the world's dense EOS, not array
-            // interpolation. Density and the moduli come from the material-state provider each solve installs.
-            world_eos
+            std::const_pointer_cast<const c_EOSSolution>(this->p_eos_solution)
         );
     }
 

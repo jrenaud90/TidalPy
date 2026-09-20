@@ -105,14 +105,14 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
             assert type(out.eos_iterations) is int
             assert out.eos_iterations >= 1
             assert type(out.eos_steps_taken) is np.ndarray
-            assert type(out.radius_array) is np.ndarray
-            assert type(out.gravity_array) is np.ndarray
-            assert type(out.pressure_array) is np.ndarray
-            assert type(out.mass_array) is np.ndarray
-            assert type(out.moi_array) is np.ndarray
-            assert type(out.density_array) is np.ndarray
-            assert type(out.shear_modulus_array) is np.ndarray
-            assert type(out.bulk_modulus_array) is np.ndarray
+            # The EOS profile is answered at a radius rather than handed over as arrays.
+            mid_radius = 0.5 * out.radius
+            for getter in (out.get_gravity, out.get_pressure, out.get_mass, out.get_moi, out.get_density,
+                           out.get_shear_modulus, out.get_bulk_modulus):
+                assert type(getter(mid_radius)) is float
+                assert type(getter(out.sample_radii(8))) is np.ndarray
+            assert out.get_density(mid_radius) > 0.0
+            assert type(out.sample_radii()) is np.ndarray
             assert type(out.layer_upper_radius_array) is np.ndarray
             assert type(out.radius) in (float, )
             assert type(out.volume) in (float, )
