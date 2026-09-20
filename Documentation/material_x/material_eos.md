@@ -1,10 +1,12 @@
 # Material EOS Models (`Material_x.eos`)
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-20_
 
 A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four are evaluated through the same call, `calc_density(pressure, temperature=None, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
 
 All of the models are built on an abstract base class deriving from `PhysicsBase`. Every model also takes a thermal expansivity [K$^{-1}$] and a reference temperature [K], so the density can depend on temperature; with the default expansivity of zero a model is athermal.
+
+An EOS model is the layer's **material**. It owns every frequency-independent property of the layer (the static moduli, the shear law, the static viscosities, and the optional viscosity and partial-melt models), and it is the only thing that calculates them; see [The Material](#the-material).
 
 ## Inheritance
 
@@ -55,7 +57,7 @@ Vinet and Birch-Murnaghan agree closely at modest compression and diverge at hig
 
 Linear interpolation of a sorted radius-to-density table, clamped at both ends. This is the route for any profile computed elsewhere: run a full mineral-physics or thermal-evolution code, export the result as arrays, and load them here. For example, TidalPy uses a PREM profile of the Earth via this model.
 
-The interpolated model optionally carries four more radius-varying tables alongside density: static shear modulus, static bulk modulus, shear viscosity, and bulk viscosity. When present they are read back with `calc_static_shear_modulus(radius)`, `calc_static_bulk_modulus(radius)`, `calc_shear_viscosity(radius)`, and `calc_bulk_viscosity(radius)`. These four getters exist on the base class, and the analytic models return NaN from all of them. During a whole-planet solve an interpolated layer's tabulated values take precedence over the layer's own constants, so a tabulated layer's moduli and viscosities vary with radius the way its density does. A world TOML that names a `data_file` gets these tables populated automatically (using a PREM-like data file format); see the [TOML schema](../structures_x/config/toml_schema.md).
+The interpolated model optionally carries four more radius-varying tables alongside density: static shear modulus, static bulk modulus, shear viscosity, and bulk viscosity. When present they are read back with `get_tabulated_shear_modulus(radius)`, `get_tabulated_bulk_modulus(radius)`, `get_tabulated_shear_viscosity(radius)`, and `get_tabulated_bulk_viscosity(radius)`. These four lookups exist on the base class, and the analytic models return NaN from all of them. A tabulated value takes precedence over the material's law or constant (see [The Material](#the-material)), so a tabulated layer's moduli and viscosities vary with radius the way its density does. A world TOML that names a `data_file` gets these tables populated automatically (using a PREM-like data file format); see the [TOML schema](../structures_x/config/toml_schema.md).
 
 ### Thermal Terms
 
@@ -76,6 +78,58 @@ A model is athermal when $\alpha_0 = 0$ (the default) or when no temperature is 
 ### Bulk Modulus
 
 `calc_bulk_modulus(pressure, temperature=None, radius=0.0)` returns the isothermal bulk modulus $K_T = \rho \, \partial P / \partial \rho$ [Pa]. Birch-Murnaghan and Vinet evaluate the analytic derivative of their pressure law at the solved compression, so the modulus is consistent with the density and equals $K_0$ at the reference state. The interpolated model returns its bulk table at `radius`, and a model with neither returns NaN, which tells a layer to use its own constant.
+
+### The Material
+
+The EOS model carries the layer's material information:
+
+| Parameter | Units | Default | Meaning |
+|---|---|---|---|
+| `shear_modulus_static` | Pa | `0.0` | $\mu_0$ of the shear law below. |
+| `bulk_modulus_static` | Pa | `0.0` | Bulk modulus of a model with no pressure law or bulk table of its own. |
+| `shear_viscosity_static`, `bulk_viscosity_static` | Pa s | NaN (unset) | Used when no viscosity model is attached. |
+| `shear_modulus_pressure_derivative` | - | `0.0` | $\mu'_P$ of the shear law. |
+| `shear_modulus_temperature_derivative` | Pa K$^{-1}$ | `0.0` | $\mu'_T$ of the shear law. |
+| `shear_modulus_reference_temperature` | K | `300.0` | $T_\mathrm{ref}$ of the shear law. |
+| `thermal_conductivity` | W m$^{-1}$ K$^{-1}$ | `4.0` | Conductivity $k$ of a conducting layer and of a convecting layer's boundary layers. |
+| `heat_capacity` | J kg$^{-1}$ K$^{-1}$ | `1200.0` | Specific heat $c_p$: the adiabat, the diffusivity, and the secular cooling rate. |
+
+The thermal expansivity is the `thermal_expansion` every model already takes. There is one $\alpha$ per material: it sets the adiabatic gradient $\alpha T g / c_p$ and the Rayleigh number of a convecting layer, and the density law uses the same number, but only when it is handed a temperature, which a layer controls with `use_thermal_eos`. `calc_thermal_diffusivity(density)` returns $\kappa = k / (\rho c_p)$.
+
+The material also holds three optional models, attached with `set_shear_viscosity(model)`, `set_bulk_viscosity(model)` (from [`viscosity_x`](../viscosity_x/viscosity_models.md)) and `set_partial_melt(model)` (from [`partial_melt_x`](../partial_melt_x/partial_melt_models.md)). A layer has the same three methods as helpers; they hand the model to its EOS.
+
+`calc_material_state(pressure, temperature=None, radius=0.0, thermal_density=True)` maps a point onto all of it, in this order:
+
+1. The static shear modulus from the linear law
+
+   $$\mu = \mu_0 + \mu'_P P + \mu'_T \left( T - T_\mathrm{ref} \right)$$
+
+   floored at the config's `minimum_modulus`, and the bulk modulus from `bulk_modulus_static`.
+2. The viscosities: the attached viscosity model at the temperature and pressure, else the static viscosity.
+3. The density and, where the model defines one, the bulk modulus of the density law. The law sees the temperature only when `thermal_density` is set, which is what a layer's `use_thermal_eos` switch controls; the viscosity and partial-melt models always see it.
+4. A table of an interpolated model replaces the law or constant, and the bulk modulus of a Birch-Murnaghan or Vinet law replaces `bulk_modulus_static`.
+5. The partial-melt model, applied to the shear modulus and viscosity and then to the bulk pair.
+
+It returns a dict of `density`, `melt_fraction`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, and `bulk_viscosity`, all after the partial-melt step.
+
+This is what the whole-planet EOS solve evaluates as it integrates, so there is one path to these numbers. **After a solve, do not call it to find the state of the planet**: read the world and layer getters (`get_shear_modulus(radius)`, `get_melt_fraction(radius)`, `get_state(radius)`, ...), which report what the solve used. `calc_material_state` is for asking the material about a pressure and temperature of your choosing.
+
+```python
+from TidalPy.Material_x.eos import BirchMurnaghanEOS
+from TidalPy.viscosity_x import make_viscosity
+from TidalPy.partial_melt_x import make_partial_melt
+
+rock = BirchMurnaghanEOS(
+    reference_density=3300.0, reference_bulk_modulus=1.3e11, bulk_modulus_derivative=4.2,
+    shear_modulus_static=6.0e10, shear_modulus_pressure_derivative=1.4,
+    shear_modulus_temperature_derivative=-8.0e6)
+rock.set_shear_viscosity(make_viscosity("reference", {
+    "reference_viscosity_pas": 1.0e19, "reference_temperature_k": 1400.0}))
+rock.set_partial_melt(make_partial_melt("henning"))
+
+state = rock.calc_material_state(pressure=2.0e10, temperature=1700.0)
+print(state["shear_modulus"], state["shear_viscosity"], state["melt_fraction"])
+```
 
 ### Pressure Inversion
 
@@ -177,9 +231,9 @@ world.solve_eos(surface_pressure=0.0)
 
 Every model supports the standard interfaces inherited from the base class.
 
-- `get_config_dict()` returns the model name under the key `model` plus its parameters, with the interpolated tables as lists. The dict is accepted by `make_material_eos`, so a model round-trips through it.
+- `get_config_dict()` returns the model name under the key `model` plus its parameters, with the interpolated tables as lists, the material keys (`shear_modulus_static_pa`, `bulk_modulus_static_pa`, the two `*_viscosity_static_pas` when set, and the three shear-law keys), and a sub-table for each attached model (`shear_viscosity`, `bulk_viscosity`, `partial_melt`). The dict is accepted by `make_material_eos`, which builds and attaches the nested models, so a material round-trips through it. This is the `[layers.<name>.material]` table of a world TOML.
 - `save_config(path)` writes the same content as TOML.
-- `save_binary(path)` and `load_binary(path, force=False)` use the TidalPy binary format, through the shared `c_PhysicsBase` helpers.
+- `save_binary(path)` and `load_binary(path, force=False)` use the TidalPy binary format, through the shared `c_PhysicsBase` helpers. Each model's record is followed by the material section: nine doubles (the four static constants, the three shear-law parameters, the conductivity, and the heat capacity), then a presence flag and nested record for each of the three optional models.
 
 Binary class ids: 601 constant, 602 Birch-Murnaghan, 603 Vinet, 604 interpolated.
 
@@ -219,6 +273,11 @@ One combined config shared by every model; each reads only the fields it needs. 
 | `invert_max_iters` | Birch-Murnaghan, Vinet | `d_EOS_INVERT_MAX_ITERS` (`60`) |
 | `thermal_expansion` | all | `0.0` (athermal) |
 | `reference_temperature` | all | `d_EOS_REFERENCE_TEMPERATURE` (`300.0`) |
+| `shear_modulus_static`, `bulk_modulus_static` | all | `0.0` |
+| `shear_viscosity_static`, `bulk_viscosity_static` | all | NaN (unset) |
+| `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative` | all | `0.0` |
+| `shear_modulus_reference_temperature` | all | `d_EOS_REFERENCE_TEMPERATURE` (`300.0`) |
+| `thermal_conductivity`, `heat_capacity` | all | `4.0`, `1200.0` |
 | `radius`, `density` and the four viscoelastic tables | interpolated | empty vectors |
 
 ### Classes and Free Functions

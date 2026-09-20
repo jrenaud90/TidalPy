@@ -98,30 +98,16 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `is_tidal` | optional | all | Whether the layer participates in tides. |
 | `is_volume_fixed` | optional | all | `false` lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior; the layers above it move with it. Default `true`. |
 | `tidal_scale` | optional | all | Tidal scaling factor, used for homogeneous tidal solvers. |
-| `shear_modulus_static_pa` | optional | physics, solidliquid, gas | Static shear modulus [Pa]. |
-| `bulk_modulus_static_pa` | optional | physics, solidliquid, gas | Static bulk modulus [Pa]. |
-| `shear_viscosity_static_pas` | optional | physics, solidliquid, gas | Static shear viscosity \[Pa s\]; NaN (unset) when omitted and no material default applies. |
-| `bulk_viscosity_static_pas` | optional | physics, solidliquid, gas | Static bulk viscosity \[Pa s\]; NaN (unset) when omitted and no material default applies. |
 | `is_solid` | optional | physics, solidliquid, gas | `false` makes the layer a liquid in the radial Love-number solve. Default `true` (`false` for `gas`). |
 | `is_static` | optional | physics, solidliquid, gas | Static approximation (no inertia) in the radial solve. Default `true`, so a liquid layer is a static liquid unless this is `false`. |
 | `is_incompressible` | optional | physics, solidliquid, gas | Incompressible approximation in the radial solve. Default `false`. |
-| `temperature_k` | optional | physics, solidliquid, gas | Layer temperature \[K\] at which the viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
-| `shear_modulus_pressure_derivative` | optional | physics, solidliquid, gas | $\mu'_P$ of the static shear-modulus law $\mu = \mu_0 + \mu'_P P + \mu'_T (T - T_\mathrm{ref})$. Default `0.0`. |
-| `shear_modulus_temperature_derivative_pa_k` | optional | physics, solidliquid, gas | $\mu'_T$ of the same law \[Pa K$^{-1}$\]. Default `0.0`. |
-| `shear_modulus_reference_temperature_k` | optional | physics, solidliquid, gas | $T_\mathrm{ref}$ of the same law \[K\]. Default `300.0`. |
-| `use_thermal_eos` | optional | physics, solidliquid, gas | Pass the temperature to the layer's EOS model, so its density and bulk modulus depend on it (set `thermal_expansion_1_k` in the `eos` table). Default `false`. |
-| solidliquid thermal params | optional | solidliquid | See below. |
+| `temperature_k` | optional | physics, solidliquid, gas | Layer temperature \[K\] at which the material's viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
+| `use_thermal_eos` | optional | physics, solidliquid, gas | Let the density law of the layer's material see the temperature, so its density and bulk modulus depend on it (set `thermal_expansion_1_k` in the `material` table). Default `false`. |
 | gas params | optional | gas | See below. |
 
-**Solid-liquid thermal parameters:**
-- `thermal_conductivity_ref_w_mk`
-- `thermal_expansion_ref_1_k`
-- `heat_capacity_ref_j_kgk`
-- `reference_density_kg_m3`
-- `reference_temperature_k`.
-
-Viscosity and melting parameters are not layer keys: they belong to the `shear_viscosity`, `bulk_viscosity`
-and `partial_melt` model tables, so the layer and the solve read the same numbers.
+The static moduli, the shear law, the thermal constants, and the viscosity and melting parameters are not layer keys. They are
+properties of the material, so they live in the layer's `material` table (below), and the layer and the solve read
+the same numbers. Setting one of them on the layer is a validation error whose message says where it moved.
 
 **Gas layer parameters:**
 - `mean_molecular_weight_kg_mol`
@@ -141,16 +127,40 @@ A layer attaches a physics model through a nested table carrying a `model` key p
 
 | Model table | Factory | Allowed layer classes |
 |-------------|---------|-----------------------|
-| `[layers.<name>.eos]` | `make_material_eos` | base, physics, solidliquid, gas |
+| `[layers.<name>.material]` | `make_material_eos` | base, physics, solidliquid, gas |
 | `[layers.<name>.shear_rheology]` | `make_rheology` | physics, solidliquid, gas |
 | `[layers.<name>.bulk_rheology]` | `make_rheology` | physics, solidliquid, gas |
-| `[layers.<name>.shear_viscosity]` | `make_viscosity` | physics, solidliquid, gas |
-| `[layers.<name>.bulk_viscosity]` | `make_viscosity` | physics, solidliquid, gas |
-| `[layers.<name>.partial_melt]` | `make_partial_melt` | physics, solidliquid, gas |
 | `[layers.<name>.cooling]` | `make_cooling` | solidliquid only |
 | `[layers.<name>.radiogenics]` | `make_radiogenics` | solidliquid only |
 
 See each module's documentation for the available model names and parameters.
+
+### The Material Table
+
+`[layers.<name>.material]` is the layer's EOS model, and the EOS model is the layer's material:
+
+- The density law: `model` (`"constant"`, `"bm"`, `"vinet"`, `"interpolate"`) and its parameters (`reference_density_kg_m3`, `reference_bulk_modulus_pa`, `thermal_expansion_1_k`, ...);
+- The static constants `shear_modulus_static_pa`, `bulk_modulus_static_pa`, `shear_viscosity_static_pas`, and `bulk_viscosity_static_pas` (a viscosity left out is unset);
+- The thermal constants `thermal_conductivity_w_mk` (default `4.0`), `heat_capacity_j_kgk` (default `1200.0`), and `thermal_expansion_1_k` (default `0.0`). There is one expansivity: it sets the adiabat and convection of a cooling layer, and the density law uses the same number, but only on a layer that sets `use_thermal_eos`;
+- The static shear law $\mu = \mu_0 + \mu'_P P + \mu'_T (T - T_\mathrm{ref})$ through `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative_pa_k` \[Pa K$^{-1}$\], and `shear_modulus_reference_temperature_k` \[K\] (defaults `0.0`, `0.0`, `300.0`);
+- Three optional nested model tables, each with its own `model` key: `[layers.<name>.material.shear_viscosity]` and `[layers.<name>.material.bulk_viscosity]` (built by `make_viscosity`) and `[layers.<name>.material.partial_melt]` (built by `make_partial_melt`).
+
+The whole table is handed to `make_material_eos`; see [Material EOS Models](../../material_x/material_eos.md). The rheology tables stay on the layer, because the rheology is the one thing that needs a frequency.
+
+Unlike the other model tables, `material` may leave out `model` when the layer's material `type` supplies one, so a fitted number can be overridden without restating the rest:
+
+```toml
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+radius_fraction = 1.0
+
+[layers.mantle.material]
+shear_modulus_static_pa = 4.17e10     # everything else comes from the mantle_rock defaults
+
+[layers.mantle.material.shear_viscosity]
+reference_viscosity_pas = 3.0e21      # one key of a nested default table
+```
 
 ## Tidal Dissipation (`[tides]`)
 
@@ -240,13 +250,13 @@ is_tidal = true
 Any default can be overridden by adding the key or sub-table. For example, to give the mantle a specific shear viscosity and override its EOS density:
 
 ```toml
-[layers.mantle.shear_viscosity]
-model = "constant"
-reference_viscosity_pas = 1.0e21
-
-[layers.mantle.eos]
+[layers.mantle.material]
 model = "constant"
 reference_density_kg_m3 = 4500.0
+
+[layers.mantle.material.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e21
 ```
 
 A star is far simpler (no layers):

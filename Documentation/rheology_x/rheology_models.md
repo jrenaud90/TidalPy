@@ -177,12 +177,15 @@ The signatures follow the classes: `elastic/viscous/maxwell(modulus, viscosity, 
 ### Attaching a Rheology to a `Layer`
 
 ```python
+from TidalPy.Material_x.eos import ConstantDensityEOS
 from TidalPy.rheology_x import Maxwell, make_rheology
 from TidalPy.structures_x.layers.physics import PhysicsLayer
 
-mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19,
-                      shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9,
-                      shear_viscosity_static=1.0e20, bulk_viscosity_static=1.0e20)
+mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
+# The static moduli and viscosities the rheology works on belong to the material, the layer's EOS model.
+mantle.set_eos(ConstantDensityEOS(
+    shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9,
+    shear_viscosity_static=1.0e20, bulk_viscosity_static=1.0e20))
 
 mantle.set_shear_rheology(Maxwell())
 mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))

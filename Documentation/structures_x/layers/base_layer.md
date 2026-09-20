@@ -1,6 +1,6 @@
 # BaseLayer
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-20_
 
 `TidalPy.structures_x.layers.BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii \[m\], total mass \[kg\], and an optional material identifier for one spherically symmetric shell inside a planetary body. Derived geometry (thickness, volume, surface areas) is computed at construction and accessible through read-only properties.
 
@@ -123,16 +123,14 @@ Pressure at `radius` [Pa]. Returns `NaN` if not populated.
 
 ### Viscoelastic profile getters -> float or ndarray
 
-After the world EOS solve populates the layer, the radius-resolved viscoelastic state is readable through the same getter names the world exposes: `get_shear_modulus`, `get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity` (post-melt), their `get_premelt_*` counterparts (before the partial-melt step), `get_melt_fraction`, and the shorthand bundles `get_static_viscoelastics(radius)` (the post-melt 4-tuple) and `get_state(radius)` (all profiles as a dict). All return `NaN` before the profile is populated.
+After the world EOS solve populates the layer, the radius-resolved viscoelastic state is readable through the same getter names the world exposes: `get_shear_modulus`, `get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity` (all after the partial-melt step), `get_melt_fraction`, and the shorthand bundles `get_static_viscoelastics(radius)` (the post-melt 4-tuple) and `get_state(radius)` (all profiles as a dict). All return `NaN` before the profile is populated.
 
-Nothing here is stored on a grid. Each getter reads the pressure and temperature at that radius from the solved structure and evaluates the layer's attached models through [`calc_material_state`](physics_layer.md#calc_material_state), so a getter and the solve that used the layer always agree, and a value between two slices is computed rather than interpolated. A geometry-only `BaseLayer` holds no models and reports `NaN`.
+Nothing here is stored on a grid, and nothing is calculated by the layer. The layer's material (its EOS model) evaluated these properties while the structure was integrated, and each getter reads them back from that solved EOS at the radius asked for, so a getter and the solve always agree. Every layer class has them, because the material belongs to the EOS model rather than to the layer class. A profile supplied by hand through `update_eos_data` carries density, gravity, and pressure alone, so these report `NaN` for it.
 
 | Getter | Returns |
 |---|---|
 | `get_shear_modulus`, `get_bulk_modulus` | Static moduli [Pa] after melt weakening. |
 | `get_shear_viscosity`, `get_bulk_viscosity` | Viscosities [Pa s] after melt weakening. |
-| `get_premelt_shear_modulus`, `get_premelt_bulk_modulus` | The same moduli before the partial-melt step. |
-| `get_premelt_shear_viscosity`, `get_premelt_bulk_viscosity` | The same viscosities before the partial-melt step. |
 | `get_melt_fraction` | Melt fraction from the attached partial-melt model; `0.0` without one. |
 | `get_static_viscoelastics(radius)` | The post-melt four-tuple in one call. |
 | `get_state(radius)` | Every profile at that radius as a dict. |
@@ -184,7 +182,7 @@ The dict follows the world builder's layer schema: `class` names the layer class
 
 ```python
 layer.set_eos(ConstantDensityEOS(reference_density=4400.0))
-layer.get_config_dict()["eos"]  # {'model': 'constant', 'reference_density_kg_m3': 4400.0}
+layer.get_config_dict()["material"]  # {'model': 'constant', 'reference_density_kg_m3': 4400.0}
 ```
 
 ### Tidal Bookkeeping

@@ -245,9 +245,9 @@ from TidalPy.rheology_x import make_rheology
 from TidalPy.viscosity_x import make_viscosity
 
 world = LayeredWorld("planet", 6.0e6, 4.2e24)
-layer = SolidLiquidLayer("mantle", 0, 0.0, 6.0e6, 4.2e24,
-                         shear_modulus_static=6.0e10, bulk_modulus_static=1.3e11)
-layer.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 4000.0}))
+layer = SolidLiquidLayer("mantle", 0, 0.0, 6.0e6, 4.2e24)
+layer.set_eos(make_material_eos(
+    "constant", {"reference_density_kg_m3": 4000.0, "shear_modulus_static_pa": 6.0e10, "bulk_modulus_static_pa": 1.3e11}))
 layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
 layer.set_shear_rheology(make_rheology("maxwell"))
 world.add_layer(layer)
@@ -265,7 +265,7 @@ The moduli and the viscosity are properties of the layer, not of the rheology mo
 
 Every solver setting left as `None` takes the `[radial_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` and the world's own tidal solves use; `love_method`, `fixed_q`, and `fixed_dt` left as `None` take the world's `[tides]` settings. Raises `ValueError` if the EOS has not yet been solved. Returns a dict (`success`, `error_code`, `message`, `love_method`, `love_number_k/h/l`); the results are also stored internally and accessed through the properties below.
 
-The solver interpolates nothing between EOS slices. Gravity, pressure, mass, and moment of inertia come from the world's dense EOS solution, and the density and complex moduli from the layer's `calc_material_state` at the exact radius the integrator asks for, at that solve's frequency. The Love numbers therefore converge with the integration tolerance alone and are independent of `slices_per_layer` exactly, not just to within an interpolation error, whether or not the moduli and viscosities vary with depth.
+The solver interpolates nothing between EOS slices. Gravity, pressure, mass, and moment of inertia come from the world's dense EOS solution, the density and the static moduli and viscosities from the same solution (the layer's material evaluated them as the structure was integrated), and the complex moduli from the layer's rheology applied to those static values at that solve's frequency, all at the exact radius the integrator asks for. The Love numbers therefore converge with the integration tolerance alone and are independent of `slices_per_layer` exactly, not just to within an interpolation error, whether or not the moduli and viscosities vary with depth.
 
 `slices_per_layer` still sizes the profile arrays the solve returns and the `[layers.*]` array properties, and the propagation-matrix method still propagates across those slices, so it remains a real knob for those. It no longer affects a shooting-method Love number.
 
@@ -398,7 +398,7 @@ The remaining public surface, grouped by what it is for.
 | `calc_shear_modulus`, `calc_bulk_modulus` | Complex moduli [Pa] at a forcing frequency. |
 | `calc_shear_viscosity`, `calc_bulk_viscosity` | Viscosities [Pa s], after any melt weakening. |
 | `calc_static_viscoelastics`, `get_static_viscoelastics` | The static (unrelaxed) moduli and viscosities together. |
-| `get_premelt_shear_modulus`, `get_premelt_bulk_modulus`, `get_premelt_shear_viscosity`, `get_premelt_bulk_viscosity` | The same quantities before melt weakening is applied. |
+| `get_melt_fraction` | Melt fraction from the material's partial-melt model; `0.0` where it has none. |
 
 **Geometry.** `calc_surface_area(radius)`, `calc_volume_sphere(radius)`, and `calc_volume_shell(outer, inner)` are the shared spherical helpers every structure inherits.
 

@@ -1,15 +1,15 @@
 # SolidLiquidLayer
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-20_
 
-`TidalPy.structures_x.layers.SolidLiquidLayer` extends `PhysicsLayer` with thermal transport and optional sub-models for radiogenic heating and convective or conductive cooling.
+`TidalPy.structures_x.layers.SolidLiquidLayer` extends `PhysicsLayer` with optional sub-models for radiogenic heating and convective or conductive cooling, and with the thermal-transport calculations that need the layer's geometry or solved profile. It adds no parameters of its own.
 
 The physics:
 
-- Thermal transport: a constant conductivity $k$; the diffusivity $\kappa = k/(\rho_\mathrm{ref}\,c_{p})$; the adiabatic gradient $\alpha T g / c_{p}$ (requires EOS data for gravity).
+- Thermal transport: a constant conductivity $k$; the diffusivity $\kappa = k/(\rho\,c_{p})$ at the layer's bulk density; the adiabatic gradient $\alpha T g / c_{p}$ (requires EOS data for gravity).
 - Conductive heat flux, $F = k\,(T_\mathrm{base} - T_\mathrm{top})/h$.
 
-Viscosity, melt fraction, and the melt-weakened shear modulus are not layer parameters. They come from the viscosity and partial-melt models attached to the layer, which [`calc_material_state`](physics_layer.md) evaluates against the layer state, so a layer and the solve it feeds cannot disagree about them. See [viscosity_models.md](../../viscosity_x/viscosity_models.md) for the Arrhenius law and its `molar_activation_energy_j_mol` and `molar_activation_volume_m3_mol` parameters.
+The thermal constants these read ($k$, $\alpha$, $c_{p}$) are not layer parameters, and neither are viscosity, melt fraction, the static moduli, or the melt-weakened shear modulus. They belong to the layer's material, which is its EOS model (see [Material EOS Models](../../material_x/material_eos.md#the-material)): the whole-planet EOS solve evaluates them as it integrates, and the layer's radius getters read them back, so a layer and the solve it feeds cannot disagree about them. `set_shear_viscosity`, `set_bulk_viscosity`, and `set_partial_melt` are helpers that hand the model to the attached EOS. See [viscosity_models.md](../../viscosity_x/viscosity_models.md) for the Arrhenius law and its `molar_activation_energy_j_mol` and `molar_activation_volume_m3_mol` parameters.
 
 ## Inheritance
 
@@ -33,26 +33,14 @@ SolidLiquidLayer(
     material_name:            str     = "",
     is_tidal:                 bool    = True,
     tidal_scale:              float   = 1.0,
-    shear_modulus_static:     float   = 0.0,
-    bulk_modulus_static:      float   = 0.0,
-    shear_viscosity_static:   float   = nan,
-    bulk_viscosity_static:    float   = nan,
     love_number_k:            complex = 0+0j,
     love_number_h:            complex = 0+0j,
     love_number_l:            complex = 0+0j,
-    thermal_conductivity_ref: float   = 4.0,
-    thermal_expansion_ref:    float   = 3.0e-5,
-    heat_capacity_ref:        float   = 1200.0,
-    reference_density:        float   = 3500.0,
-    reference_temperature:    float   = 1600.0,
     tidal_scale_method:       str     = "user_provided",
     is_solid:                 bool    = True,
     is_static:                bool    = True,
     is_incompressible:        bool    = False,
     temperature:                          float = 0.0,
-    shear_modulus_pressure_derivative:    float = 0.0,
-    shear_modulus_temperature_derivative: float = 0.0,
-    shear_modulus_reference_temperature:  float = None,
     use_thermal_eos:                      bool  = False,
 )
 ```
@@ -69,25 +57,16 @@ SolidLiquidLayer(
 | `material_name` | — | Material identifier. Default `""`. |
 | `is_tidal` | — | Tidal dissipation flag. Default `True`. |
 | `tidal_scale` | — | Dimensionless tidal heating scale. Default `1.0`. |
-| `shear_modulus_static` | Pa | Unrelaxed shear modulus. Default `0.0`. |
-| `bulk_modulus_static` | Pa | Unrelaxed bulk modulus. Default `0.0`. |
-| `shear_viscosity_static` | Pa·s | Reference shear viscosity (at `reference_temperature`, P=0). Default `nan`, meaning unset: attach a viscosity model instead, or a viscous rheology returns NaN. |
-| `bulk_viscosity_static` | Pa·s | Reference bulk viscosity. Default `nan`, as above. |
 | `love_number_k`, `love_number_h`, `love_number_l` | — | Per-layer complex Love numbers, if you want to carry them on the layer. Default `0+0j`. |
-| `thermal_conductivity_ref` | W/(m·K) | Reference thermal conductivity. Default `4.0`. |
-| `thermal_expansion_ref` | 1/K | Reference thermal expansion coefficient α. Default `3e-5`. |
-| `heat_capacity_ref` | J/(kg·K) | Reference specific heat capacity c_p. Default `1200.0`. |
-| `reference_density` | kg/m³ | Reference density ρ_ref for thermal diffusivity. Default `3500.0`. |
-| `reference_temperature` | K | Reference temperature of the layer thermal properties. Default `1600.0`. |
 | `tidal_scale_method` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
 | `is_solid`, `is_static`, `is_incompressible` | - | Radial-solver assumptions; see [PhysicsLayer](physics_layer.md). Defaults `True`, `True`, `False`. |
-| `temperature`, `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative`, `shear_modulus_reference_temperature`, `use_thermal_eos` | | Material-state parameters; see [PhysicsLayer](physics_layer.md). |
+| `temperature`, `use_thermal_eos` | | Layer-state parameters; see [PhysicsLayer](physics_layer.md). |
 
 ## Properties
 
 ### Inherited from `PhysicsLayer`
 
-See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `love_numbers`, `love_number_k`, `love_number_h`, `love_number_l`, `shear_rheology_set`, `bulk_rheology_set`, `is_solid`, `is_static`, `is_incompressible`, `temperature`, `use_thermal_eos`, and the three shear-law properties.
+See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `love_numbers`, `love_number_k`, `love_number_h`, `love_number_l`, `shear_rheology_set`, `bulk_rheology_set`, `is_solid`, `is_static`, `is_incompressible`, `temperature`, and `use_thermal_eos`. The four static constants read the layer's material (its EOS model).
 
 ### Inherited from `BaseLayer`
 
@@ -99,11 +78,9 @@ _Read-only properties._
 
 | Property | Units | Description |
 |----------|-------|-------------|
-| `thermal_conductivity_ref` | W/(m·K) | Reference thermal conductivity. |
-| `thermal_expansion_ref` | 1/K | Reference thermal expansion coefficient α. |
-| `heat_capacity_ref` | J/(kg·K) | Reference specific heat capacity c_p. |
-| `reference_density` | kg/m³ | Reference density for thermal diffusivity. |
-| `reference_temperature` | K | Reference temperature of the layer thermal properties. |
+| `thermal_conductivity` | W/(m·K) | Thermal conductivity k of the layer's material (its EOS model). NaN when none is attached. |
+| `thermal_expansion` | 1/K | Thermal expansivity α of the material, the same α its density law uses. |
+| `heat_capacity` | J/(kg·K) | Specific heat capacity c_p of the material. |
 | `cooling_set` | — | `True` after a cooling sub-model is attached. |
 | `radiogenics_set` | — | `True` after a radiogenics sub-model is attached. |
 
@@ -111,11 +88,11 @@ _Read-only properties._
 
 ### `calc_thermal_conductivity(temperature)` -> float
 
-Returns the reference thermal conductivity k [W/(m·K)]. Temperature dependence is not modeled.
+Returns the material's thermal conductivity k [W/(m·K)]. Temperature dependence is not modeled.
 
 ### `calc_thermal_diffusivity(temperature)` -> float
 
-Thermal diffusivity [m²/s], $\kappa = k/(\rho_\mathrm{ref}\,c_{p})$.
+Thermal diffusivity [m²/s], $\kappa = k/(\rho\,c_{p})$, with $\rho$ the layer's bulk density (its mass over its volume). The material itself answers for any density: `MaterialEOSBase.calc_thermal_diffusivity(density)`, which is what the thermal solve uses with the local density.
 
 ### `calc_adiabatic_temperature_gradient(temperature, pressure=0.0)` -> float
 
@@ -163,24 +140,15 @@ Radiogenic heating power [W] from the attached sub-model. Returns `0.0` when no 
 
 ## `get_config_dict()` -> dict
 
-Returns all configuration values as a Python dictionary (MKS). Includes all `BaseLayer` + `PhysicsLayer` keys (with `class = "solidliquid"` and the attached model sub-tables) plus the 5 SolidLiquidLayer parameters, and the `cooling` and `radiogenics` sub-tables when those models are attached.
-
-| Key | Units | Description |
-|-----|-------|-------------|
-| `thermal_conductivity_ref` | W/(m·K) | Reference thermal conductivity. |
-| `thermal_expansion_ref` | 1/K | Reference thermal expansion coefficient. |
-| `heat_capacity_ref` | J/(kg·K) | Reference specific heat capacity. |
-| `reference_density` | kg/m³ | Reference density. |
-| `reference_temperature` | K | Reference temperature. |
+Returns all configuration values as a Python dictionary (MKS): all `BaseLayer` + `PhysicsLayer` keys (with `class = "solidliquid"` and the attached model sub-tables), plus the `cooling` and `radiogenics` sub-tables when those models are attached. The layer adds no scalar keys: its thermal constants are `thermal_conductivity_w_mk`, `thermal_expansion_1_k`, and `heat_capacity_j_kgk` in the `material` table.
 
 ## Binary Serialization
 
 `save_binary` / `load_binary` serialize fields in this order:
 
 1. All `BaseLayer` fields (name, geometry, mass).
-2. All `PhysicsLayer` mechanical fields (G, K, η, love number re+im).
-3. The 5 SolidLiquidLayer doubles in constructor order.
-4. An optional sub-model section: presence flags + recursive binary records for the material EOS model, shear rheology, bulk rheology, shear viscosity, bulk viscosity, partial melt, cooling, and radiogenics models (in that order).
+2. All `PhysicsLayer` fields (Love numbers re+im, the three layer-assumption flags, `temperature`, `use_thermal_eos`).
+3. An optional sub-model section: presence flags + recursive binary records for the material EOS model, shear rheology, bulk rheology, cooling, and radiogenics models (in that order). The EOS record carries the whole material with it: the static and thermal constants, the shear law, and its viscosity and partial-melt models.
 
 On load, every attached sub-model is reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with all of its physics intact (verify with `eos_set`, `shear_rheology_set`, `cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and `calc_radiogenic_heating`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 
@@ -192,6 +160,7 @@ The EOS profile data is not serialized; re-run the world's `solve_eos` after loa
 
 ```python
 import math
+from TidalPy.Material_x.eos import ConstantDensityEOS
 from TidalPy.structures_x.layers import SolidLiquidLayer
 
 mantle = SolidLiquidLayer(
@@ -201,24 +170,28 @@ mantle = SolidLiquidLayer(
     radius_outer             = 6.371e6,
     mass                     = 4.043e24,
     material_name            = "perovskite",
-    shear_modulus_static     = 1.67e11,
-    bulk_modulus_static      = 3.57e11,
-    shear_viscosity_static   = 1.0e21,
-    thermal_conductivity_ref = 4.5,
-    heat_capacity_ref        = 1200.0,
-    thermal_expansion_ref    = 2.0e-5,
-    reference_density        = 4000.0,
-    reference_temperature    = 3000.0,
 )
+
+# The material: density law, static moduli, static viscosity, thermal constants. Attach a viscosity and a
+# partial-melt model to it
+# (mantle.set_shear_viscosity(...), mantle.set_partial_melt(...)) and the same query returns their answers.
+mantle.set_eos(ConstantDensityEOS(
+    reference_density      = 4000.0,
+    shear_modulus_static   = 1.67e11,
+    bulk_modulus_static    = 3.57e11,
+    shear_viscosity_static = 1.0e21,
+    thermal_conductivity   = 4.5,
+    heat_capacity          = 1200.0,
+    thermal_expansion      = 2.0e-5,
+))
 
 T = 3200.0    # K — hot lower mantle
 P = 1e11      # Pa — ~100 GPa
 
-# Melt fraction, viscosity, and the weakened moduli come from the attached models, through the one call that
-# maps a point onto them (see PhysicsLayer.calc_material_state). No model is attached here, so this prints the
-# fallbacks: no melt, and the static viscosity and shear modulus. Attach a viscosity and a partial-melt model
-# and the same call returns their answers instead.
-state = mantle.calc_material_state(pressure=P, temperature=T)
+# Before attaching it, ask the material about a pressure and temperature directly. Once the layer sits in a solved
+# world, read mantle.get_shear_modulus(radius) and friends instead: they report what the solve used.
+material = ConstantDensityEOS(reference_density=4000.0, shear_modulus_static=1.67e11, shear_viscosity_static=1.0e21)
+state = material.calc_material_state(pressure=P, temperature=T)
 phi = state["melt_fraction"]
 eta = state["shear_viscosity"]
 G   = state["shear_modulus"]
@@ -238,5 +211,5 @@ print(f"Conductive heat flux:  {F:.3f} W/m²")
 mantle.save_binary("mantle.tpyb")
 restored = SolidLiquidLayer("placeholder", 0, 0.0, 1.0, 1.0)
 restored.load_binary("mantle.tpyb")
-assert restored.reference_density == mantle.reference_density
+assert restored.thermal_conductivity == mantle.thermal_conductivity
 ```

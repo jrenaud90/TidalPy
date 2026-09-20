@@ -84,17 +84,18 @@ Parameters are read-only properties under their code names: `reference_viscosity
 ### Attaching a Model to a `Layer`
 
 ```python
+from TidalPy.Material_x.eos import ConstantDensityEOS
 from TidalPy.viscosity_x import make_viscosity
 from TidalPy.structures_x.layers.physics import PhysicsLayer
 
-mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19,
-                      shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9)
+mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
+mantle.set_eos(ConstantDensityEOS(shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9))
 
 mantle.set_shear_viscosity(make_viscosity("reference", {"reference_viscosity_pas": 1.0e20}))
 mantle.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e20}))
 ```
 
-Ownership of the C++ model transfers into the layer, as it does for a rheology. During the world's equation-of-state solve each radial slice's temperature and pressure are evaluated through the model, an equation of state that supplies its own viscosity profile overrides the result slice by slice, and the partial-melt model then weakens what remains. Read the outcome back with the layer's `get_shear_viscosity(radius)` and `get_premelt_shear_viscosity(radius)`. The declarative form is a `[layers.<name>.shear_viscosity]` table in a world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).
+A viscosity model belongs to the layer's material, which is its EOS model: the layer's `set_shear_viscosity` and `set_bulk_viscosity` are helpers that hand the model to the attached EOS (so attach the EOS first), and the same two methods are on the EOS model itself. Ownership of the C++ model transfers, as it does for a rheology. The world's equation-of-state solve evaluates the model at the local temperature and pressure as it integrates, a table the EOS model carries overrides the result, and the partial-melt model then weakens what remains. Read the outcome back with `get_shear_viscosity(radius)` on the layer or the world. The declarative form is a `[layers.<name>.material.shear_viscosity]` table in a world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).
 
 ## C++ API
 
