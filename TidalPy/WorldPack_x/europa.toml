@@ -35,7 +35,7 @@ layer_index = 0
 radius_outer_m = 599000.0
 is_tidal = false
 
-[layers.core.eos]
+[layers.core.material]
 model = "constant"
 reference_density_kg_m3 = 5150.0
 
@@ -46,7 +46,7 @@ layer_index = 1
 radius_outer_m = 1421000.0
 is_tidal = false
 
-[layers.mantle.eos]
+[layers.mantle.material]
 model = "bm"
 reference_density_kg_m3 = 3532.3413
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
@@ -59,7 +59,7 @@ layer_index = 2
 radius_fraction = 1.0
 is_tidal = true
 
-[layers.ice_shell.eos]
+[layers.ice_shell.material]
 model = "bm"
 reference_density_kg_m3 = 917.0
 reference_bulk_modulus_pa = 9.6e9     # ice I

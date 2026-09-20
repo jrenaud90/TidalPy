@@ -32,8 +32,6 @@ from TidalPy.structures_x.worlds.stellar import StarWorld
 from TidalPy.rheology_x.rheology import make_rheology
 from TidalPy.cooling_x.cooling import make_cooling
 from TidalPy.radiogenics_x.radiogenics import make_radiogenics
-from TidalPy.viscosity_x.viscosity import make_viscosity
-from TidalPy.partial_melt_x.partial_melt import make_partial_melt
 from TidalPy.Material_x.eos.material_eos import make_material_eos
 from TidalPy.Tides_x.classes.tide import make_tide
 
@@ -56,12 +54,9 @@ _LAYER_CLASSES = {
 
 # Model section name -> (factory function, layer setter method name).
 _MODEL_DISPATCH = {
-    "eos":             (make_material_eos, "set_eos"),
+    "material":        (make_material_eos, "set_eos"),
     "shear_rheology":  (make_rheology,     "set_shear_rheology"),
     "bulk_rheology":   (make_rheology,     "set_bulk_rheology"),
-    "shear_viscosity": (make_viscosity,    "set_shear_viscosity"),
-    "bulk_viscosity":  (make_viscosity,    "set_bulk_viscosity"),
-    "partial_melt":    (make_partial_melt, "set_partial_melt"),
     "cooling":         (make_cooling,      "set_cooling"),
     "radiogenics":     (make_radiogenics,  "set_radiogenics"),
 }
@@ -88,6 +83,8 @@ def _build_model(make_func: Callable, section_cfg: dict):
     object
         The constructed physics-model object.
     """
+    if "model" not in section_cfg:
+        raise ValueError("the table names no 'model', and the layer's material type supplies none.")
     model_name = section_cfg["model"]
     params = {key: value for key, value in section_cfg.items() if key != "model"}
     return make_func(model_name, params if params else None)
@@ -109,20 +106,22 @@ _CONFIG_KEY_TO_ARGUMENT = {
     "luminosity_w":                 "luminosity",
     "radius_inner_m":               "radius_inner",
     "radius_outer_m":               "radius_outer",
-    "shear_modulus_static_pa":      "shear_modulus_static",
-    "bulk_modulus_static_pa":       "bulk_modulus_static",
-    "shear_viscosity_static_pas":   "shear_viscosity_static",
-    "bulk_viscosity_static_pas":    "bulk_viscosity_static",
     "temperature_k":                "temperature",
-    "shear_modulus_temperature_derivative_pa_k": "shear_modulus_temperature_derivative",
-    "shear_modulus_reference_temperature_k":     "shear_modulus_reference_temperature",
-    "thermal_conductivity_ref_w_mk": "thermal_conductivity_ref",
-    "thermal_expansion_ref_1_k":    "thermal_expansion_ref",
-    "heat_capacity_ref_j_kgk":      "heat_capacity_ref",
     "reference_density_kg_m3":      "reference_density",
     "reference_temperature_k":      "reference_temperature",
     "mean_molecular_weight_kg_mol": "mean_molecular_weight",
 }
+
+
+def _merge_section(defaults: dict, overrides: dict) -> dict:
+    """Overlay a model table on its defaults key by key; nested tables (the material's models) merge the same way."""
+    section = dict(defaults)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(section.get(key), dict):
+            section[key] = _merge_section(section[key], value)
+        else:
+            section[key] = value
+    return section
 
 
 def _as_constructor_kwargs(config_items) -> dict:
@@ -169,7 +168,7 @@ def _material_type_defaults(material_type: str | None, layer_class_name: str) ->
     for key, value in type_block.items():
         if isinstance(value, dict):
             if key in allowed_models:
-                filtered[key] = dict(value)
+                filtered[key] = _merge_section({}, value)
         elif key in allowed_scalars:
             filtered[key] = value
     return filtered
@@ -232,9 +231,7 @@ def construct_layer(
         if key in ("class", "type", "layer_index") or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
         if isinstance(value, dict):
-            section = dict(merged.get(key, {}))
-            section.update(value)
-            merged[key] = section
+            merged[key] = _merge_section(merged.get(key, {}), value)
         else:
             merged[key] = value
 
@@ -318,6 +315,9 @@ def _build_prem_layers(data_path: str) -> list:
             eos_cfg["shear_viscosity_pas"] = shear_visc[start:stop].tolist()
         if bulk_visc is not None:
             eos_cfg["bulk_viscosity_pas"] = bulk_visc[start:stop].tolist()
+        # Representative constants (fallbacks; the tables above are what the solve interpolates).
+        eos_cfg["shear_modulus_static_pa"] = float(np.mean(shear_slice))
+        eos_cfg["bulk_modulus_static_pa"]  = float(np.mean(bulk_slice))
         layer_cfg = {
             "class":                   "solidliquid",
             "layer_index":             index,
@@ -326,11 +326,7 @@ def _build_prem_layers(data_path: str) -> list:
             # A liquid layer (zero shear velocity) is solved as a static liquid.
             "is_solid":                bool(is_solid),
             "is_static":               True,
-            # Representative per-layer constants (fallbacks; the EOS arrays above are
-            # what the solve actually interpolates).
-            "shear_modulus_static_pa": float(np.mean(shear_slice)),
-            "bulk_modulus_static_pa":  float(np.mean(bulk_slice)),
-            "eos":                     eos_cfg,
+            "material":                eos_cfg,
         }
         auto_layers.append((f"layer_{index}", layer_cfg))
     return auto_layers
@@ -363,7 +359,8 @@ def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer
             f"not match the radius {auto_outer:.6g} m detected from the data file.")
 
     # A user-provided constant overrides the PREM array (constant across the layer).
-    num_points = len(merged["eos"]["radius_m"])
+    num_points = len(merged["material"]["radius_m"])
+    user_material = user_cfg.get("material", {}) or {}
     _const_override = {
         "shear_modulus_static_pa":   "shear_modulus_pa",
         "bulk_modulus_static_pa":    "bulk_modulus_pa",
@@ -371,17 +368,15 @@ def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer
         "bulk_viscosity_static_pas":  "bulk_viscosity_pas",
     }
     for scalar_key, array_key in _const_override.items():
-        if scalar_key in user_cfg:
-            merged["eos"][array_key] = [float(user_cfg[scalar_key])] * num_points
+        if scalar_key in user_material:
+            merged["material"][array_key] = [float(user_material[scalar_key])] * num_points
 
     # Overlay remaining user keys (geometry specifiers already handled above).
     for key, value in user_cfg.items():
         if key == "layer_index" or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
-        if key == "eos" and isinstance(value, dict):
-            merged_eos = dict(merged["eos"])
-            merged_eos.update(value)
-            merged["eos"] = merged_eos
+        if key == "material" and isinstance(value, dict):
+            merged["material"] = _merge_section(merged["material"], value)
         else:
             merged[key] = value
     return merged

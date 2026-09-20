@@ -23,38 +23,28 @@ def _rock_layer_block(section: str) -> str:
     ``type`` takes), so the two cannot drift apart.
     """
     return f"""[layers.{section}]
-    shear_modulus_static_pa = 6.0e10
-    bulk_modulus_static_pa = 2.0e11
-    thermal_conductivity_ref_w_mk = 3.75
-    thermal_expansion_ref_1_k = 5.2e-5
-    heat_capacity_ref_j_kgk = 1200.0
-    reference_density_kg_m3 = 3500.0
-    reference_temperature_k = 1600.0
 
-    [layers.{section}.eos]
+    [layers.{section}.material]
         model = "constant"
+        thermal_conductivity_w_mk = 3.75
+        thermal_expansion_1_k = 5.2e-5
+        heat_capacity_j_kgk = 1200.0
+        shear_modulus_static_pa = 6.0e10
+        bulk_modulus_static_pa = 2.0e11
         reference_density_kg_m3 = 3500.0
 
-    [layers.{section}.shear_rheology]
-        model = "andrade"
-        alpha = 0.3
-        zeta = 1.0
-
-    [layers.{section}.bulk_rheology]
-        model = "elastic"
-
-    [layers.{section}.shear_viscosity]
+    [layers.{section}.material.shear_viscosity]
         model = "reference"
         reference_viscosity_pas = 1.0e22
         reference_temperature_k = 1000.0
         molar_activation_energy_j_mol = 3.0e5
         molar_activation_volume_m3_mol = 0.0
 
-    [layers.{section}.bulk_viscosity]
+    [layers.{section}.material.bulk_viscosity]
         model = "constant"
         reference_viscosity_pas = 1.0e22
 
-    [layers.{section}.partial_melt]
+    [layers.{section}.material.partial_melt]
         model = "henning"
         solidus_k = 1600.0
         liquidus_k = 2000.0
@@ -67,6 +57,14 @@ def _rock_layer_block(section: str) -> str:
         hn_shear_param_2 = 25.0
         hn_shear_falloff_slope = 700.0
 
+    [layers.{section}.shear_rheology]
+        model = "andrade"
+        alpha = 0.3
+        zeta = 1.0
+
+    [layers.{section}.bulk_rheology]
+        model = "elastic"
+
     [layers.{section}.cooling]
         model = "convection"
         convection_alpha = 1.0
@@ -76,6 +74,7 @@ def _rock_layer_block(section: str) -> str:
     [layers.{section}.radiogenics]
         model = "isotope"
         isotopes = "modern_day_chondritic"
+
 """
 
 
@@ -243,36 +242,34 @@ schema_version = "{SCHEMA_VERSION_X}"
 
 # Iron (metallic core). Typically a non-tidal solidliquid layer.
 [layers.iron]
-    shear_modulus_static_pa = 5.25e10
-    bulk_modulus_static_pa = 1.6e11
-    thermal_conductivity_ref_w_mk = 7.95
-    thermal_expansion_ref_1_k = 1.2e-5
-    heat_capacity_ref_j_kgk = 840.0
-    reference_density_kg_m3 = 8000.0
-    reference_temperature_k = 4000.0
 
-    [layers.iron.eos]
+    [layers.iron.material]
         model = "constant"
+        thermal_conductivity_w_mk = 7.95
+        thermal_expansion_1_k = 1.2e-5
+        heat_capacity_j_kgk = 840.0
+        shear_modulus_static_pa = 5.25e10
+        bulk_modulus_static_pa = 1.6e11
         reference_density_kg_m3 = 8000.0
+
+    [layers.iron.material.shear_viscosity]
+        model = "constant"
+        reference_viscosity_pas = 1.0e20
+
+    [layers.iron.material.bulk_viscosity]
+        model = "constant"
+        reference_viscosity_pas = 1.0e22
+
+    [layers.iron.material.partial_melt]
+        model = "off"
+        solidus_k = 4000.0
+        liquidus_k = 5000.0
 
     [layers.iron.shear_rheology]
         model = "maxwell"
 
     [layers.iron.bulk_rheology]
         model = "elastic"
-
-    [layers.iron.shear_viscosity]
-        model = "constant"
-        reference_viscosity_pas = 1.0e20
-
-    [layers.iron.bulk_viscosity]
-        model = "constant"
-        reference_viscosity_pas = 1.0e22
-
-    [layers.iron.partial_melt]
-        model = "off"
-        solidus_k = 4000.0
-        liquidus_k = 5000.0
 
     [layers.iron.cooling]
         model = "off"
@@ -287,25 +284,17 @@ schema_version = "{SCHEMA_VERSION_X}"
 {_rock_layer_block("mantle_rock")}
 # Low-pressure water ice (ice Ih). Tidally active outer-shell material.
 [layers.ice]
-    shear_modulus_static_pa = 3.3e9
-    bulk_modulus_static_pa = 9.2e9
-    thermal_conductivity_ref_w_mk = 2.3
-    thermal_expansion_ref_1_k = 5.0e-5
-    heat_capacity_ref_j_kgk = 2000.0
-    reference_density_kg_m3 = 1000.0
-    reference_temperature_k = 250.0
 
-    [layers.ice.eos]
+    [layers.ice.material]
         model = "constant"
+        thermal_conductivity_w_mk = 2.3
+        thermal_expansion_1_k = 5.0e-5
+        heat_capacity_j_kgk = 2000.0
+        shear_modulus_static_pa = 3.3e9
+        bulk_modulus_static_pa = 9.2e9
         reference_density_kg_m3 = 1000.0
 
-    [layers.ice.shear_rheology]
-        model = "maxwell"
-
-    [layers.ice.bulk_rheology]
-        model = "elastic"
-
-    [layers.ice.shear_viscosity]
+    [layers.ice.material.shear_viscosity]
         model = "arrhenius"
         arrhenius_coeff = 1.1037527593819e07
         additional_temp_dependence = true
@@ -316,14 +305,20 @@ schema_version = "{SCHEMA_VERSION_X}"
         molar_activation_energy_j_mol = 59.4e3
         molar_activation_volume_m3_mol = 0.0
 
-    [layers.ice.bulk_viscosity]
+    [layers.ice.material.bulk_viscosity]
         model = "constant"
         reference_viscosity_pas = 1.0e22
 
-    [layers.ice.partial_melt]
+    [layers.ice.material.partial_melt]
         model = "off"
         solidus_k = 250.0
         liquidus_k = 273.15
+
+    [layers.ice.shear_rheology]
+        model = "maxwell"
+
+    [layers.ice.bulk_rheology]
+        model = "elastic"
 
     [layers.ice.cooling]
         model = "convection"
@@ -336,27 +331,17 @@ schema_version = "{SCHEMA_VERSION_X}"
 
 # High-pressure water ice (e.g. ice VI/VII in large icy worlds). Denser and stiffer.
 [layers.hp_ice]
-    shear_modulus_static_pa = 6.0e9
-    bulk_modulus_static_pa = 1.4e10
-    thermal_conductivity_ref_w_mk = 2.3
-    thermal_expansion_ref_1_k = 4.0e-5
-    heat_capacity_ref_j_kgk = 2000.0
-    reference_density_kg_m3 = 1300.0
-    reference_temperature_k = 270.0
 
-    [layers.hp_ice.eos]
+    [layers.hp_ice.material]
         model = "constant"
+        thermal_conductivity_w_mk = 2.3
+        thermal_expansion_1_k = 4.0e-5
+        heat_capacity_j_kgk = 2000.0
+        shear_modulus_static_pa = 6.0e9
+        bulk_modulus_static_pa = 1.4e10
         reference_density_kg_m3 = 1300.0
 
-    [layers.hp_ice.shear_rheology]
-        model = "andrade"
-        alpha = 0.3
-        zeta = 1.0
-
-    [layers.hp_ice.bulk_rheology]
-        model = "elastic"
-
-    [layers.hp_ice.shear_viscosity]
+    [layers.hp_ice.material.shear_viscosity]
         model = "arrhenius"
         arrhenius_coeff = 1.1037527593819e07
         additional_temp_dependence = true
@@ -367,14 +352,22 @@ schema_version = "{SCHEMA_VERSION_X}"
         molar_activation_energy_j_mol = 59.4e3
         molar_activation_volume_m3_mol = 0.0
 
-    [layers.hp_ice.bulk_viscosity]
+    [layers.hp_ice.material.bulk_viscosity]
         model = "constant"
         reference_viscosity_pas = 1.0e22
 
-    [layers.hp_ice.partial_melt]
+    [layers.hp_ice.material.partial_melt]
         model = "off"
         solidus_k = 270.0
         liquidus_k = 300.0
+
+    [layers.hp_ice.shear_rheology]
+        model = "andrade"
+        alpha = 0.3
+        zeta = 1.0
+
+    [layers.hp_ice.bulk_rheology]
+        model = "elastic"
 
     [layers.hp_ice.cooling]
         model = "convection"
@@ -392,11 +385,11 @@ schema_version = "{SCHEMA_VERSION_X}"
     adiabatic_index = 1.4
     reference_temperature_k = 165.0
     reference_density_kg_m3 = 1000.0
-    shear_modulus_static_pa = 0.0
-    bulk_modulus_static_pa = 1.0e5
 
-    [layers.gas.eos]
+    [layers.gas.material]
         model = "constant"
+        shear_modulus_static_pa = 0.0
+        bulk_modulus_static_pa = 1.0e5
         reference_density_kg_m3 = 1000.0
 
     [layers.gas.shear_rheology]
@@ -404,4 +397,5 @@ schema_version = "{SCHEMA_VERSION_X}"
 
     [layers.gas.bulk_rheology]
         model = "elastic"
+
 """

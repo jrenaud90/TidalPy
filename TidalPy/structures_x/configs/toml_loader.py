@@ -64,47 +64,40 @@ MATERIAL_TYPES = (
     "iron"
 )
 
-# Names of the nested physics-model tables a layer may carry.
+# Names of the nested physics-model tables a layer may carry. ``material`` is the layer's EOS model: it holds the
+# density law, the static moduli and viscosities, the shear law, and its own nested ``shear_viscosity``,
+# ``bulk_viscosity`` and ``partial_melt`` tables, so everything frequency-independent sits in one place.
 LAYER_MODEL_SECTIONS = (
-    "eos",
+    "material",
     "shear_rheology",
     "bulk_rheology",
-    "shear_viscosity",
-    "bulk_viscosity",
-    "partial_melt",
     "cooling",
     "radiogenics",
 )
+
+# Tables that used to sit on the layer and now belong inside ``material``; named so the error can say where.
+MOVED_TO_MATERIAL = ("eos", "shear_viscosity", "bulk_viscosity", "partial_melt")
 
 # Which model sections each layer type is allowed to carry. Attaching a model the
 # layer class cannot hold is a configuration error caught up front.
 ALLOWED_MODEL_SECTIONS = {
     "base": (
-        "eos",
+        "material",
     ),
     "physics": (
-        "eos",
+        "material",
         "shear_rheology",
-        "bulk_rheology",
-        "shear_viscosity",
-        "bulk_viscosity",
-        "partial_melt"
+        "bulk_rheology"
     ),
     "gas": (
-        "eos",
+        "material",
         "shear_rheology",
-        "bulk_rheology",
-        "shear_viscosity",
-        "bulk_viscosity",
-        "partial_melt"
+        "bulk_rheology"
     ),
     "solidliquid": (
-        "eos",
+        "material",
         "shear_rheology",
         "bulk_rheology",
-        "shear_viscosity",
-        "bulk_viscosity",
-        "partial_melt",
         "cooling",
         "radiogenics"
     ),
@@ -136,28 +129,35 @@ _GEOMETRY_LAYER_KEYS = (
     "is_volume_fixed"
 )
 _PHYSICS_LAYER_KEYS = (
-    "shear_modulus_static_pa",
-    "bulk_modulus_static_pa",
-    "shear_viscosity_static_pas",
-    "bulk_viscosity_static_pas",
     # Radial-solver flags: a liquid layer sets is_solid = false and stays static unless is_static = false.
     "is_solid",
     "is_static",
     "is_incompressible",
-    # Material state: the layer temperature, the linear static shear-modulus law, and whether the EOS sees T.
+    # Layer state: its temperature, and whether the density law of its material sees it.
     "temperature_k",
+    "use_thermal_eos"
+)
+
+# Scalar keys that used to sit on the layer and now belong inside its ``material`` table.
+MATERIAL_SCALAR_KEYS = (
+    "shear_modulus_static_pa",
+    "bulk_modulus_static_pa",
+    "shear_viscosity_static_pas",
+    "bulk_viscosity_static_pas",
     "shear_modulus_pressure_derivative",
     "shear_modulus_temperature_derivative_pa_k",
     "shear_modulus_reference_temperature_k",
-    "use_thermal_eos"
 )
-_SOLIDLIQUID_LAYER_KEYS = (
-    "thermal_conductivity_ref_w_mk",
-    "thermal_expansion_ref_1_k",
-    "heat_capacity_ref_j_kgk",
-    "reference_density_kg_m3",
-    "reference_temperature_k"
-)
+# A solid-liquid layer adds no scalar keys of its own: its thermal constants are the material's.
+_SOLIDLIQUID_LAYER_KEYS = ()
+
+# Thermal keys that used to sit on a solid-liquid layer, and the material key each became. The layer's reference
+# density and reference temperature have no successor: the density law has its own, and nothing read the other.
+MOVED_THERMAL_KEYS = {
+    "thermal_conductivity_ref_w_mk": "thermal_conductivity_w_mk",
+    "thermal_expansion_ref_1_k":     "thermal_expansion_1_k",
+    "heat_capacity_ref_j_kgk":       "heat_capacity_j_kgk",
+}
 _GAS_LAYER_KEYS = (
     "mean_molecular_weight_kg_mol",
     "adiabatic_index",
@@ -465,6 +465,11 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
         if key in ("class", "type", "layer_index") or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
         if isinstance(value, dict):
+            if key in MOVED_TO_MATERIAL:
+                inside = "material" if key == "eos" else f"material.{key}"
+                raise ValueError(
+                    f"Layer '{layer_name}' has a '[{key}]' table. The material owns that now: move it to "
+                    f"'[layers.{layer_name}.{inside}]'.")
             if key not in LAYER_MODEL_SECTIONS:
                 raise ValueError(
                     f"Layer '{layer_name}' has unknown model table '[{key}]'. "
@@ -473,10 +478,21 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
                 raise ValueError(
                     f"Layer '{layer_name}' of class '{layer_class}' cannot hold a "
                     f"'{key}' model. Allowed for this class: {allowed_models}.")
-            if "model" not in value:
+            # The material table is mostly scalars, and overriding one of them (a fitted shear modulus, say)
+            # should not mean restating the model the layer's material type already names. The builder checks
+            # that a model is there once the defaults are merged in.
+            if "model" not in value and key != "material":
                 raise ValueError(
                     f"Model table '[{key}]' on layer '{layer_name}' is missing the "
                     "required 'model' key.")
+        elif key in MOVED_THERMAL_KEYS:
+            raise ValueError(
+                f"Layer '{layer_name}' sets '{key}' on the layer. It is a property of the material: set "
+                f"'{MOVED_THERMAL_KEYS[key]}' in '[layers.{layer_name}.material]'.")
+        elif key in MATERIAL_SCALAR_KEYS:
+            raise ValueError(
+                f"Layer '{layer_name}' sets '{key}' on the layer. It is a property of the material: move it "
+                f"into '[layers.{layer_name}.material]'.")
         elif key not in allowed_scalars:
             raise ValueError(
                 f"Unexpected key '{key}' on layer '{layer_name}' of class "

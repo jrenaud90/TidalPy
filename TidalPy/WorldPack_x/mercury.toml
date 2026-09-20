@@ -45,7 +45,7 @@ layer_index = 0
 radius_outer_m = 1277250.0
 is_tidal = false
 
-[layers.inner_core.eos]
+[layers.inner_core.material]
 model = "constant"
 reference_density_kg_m3 = 7305.6948   # fitted to the published mass; mean core density
 
@@ -57,7 +57,7 @@ radius_outer_m = 1965000.0
 is_tidal = false
 is_solid = false                      # fluid outer core, solved as a static liquid
 
-[layers.outer_core.eos]
+[layers.outer_core.material]
 model = "constant"
 reference_density_kg_m3 = 7305.6948   # same composition as the inner core in the classic model
 
@@ -67,10 +67,10 @@ type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0
 is_tidal = true
-shear_modulus_static_pa = 4.17e10     # fitted to the measured k2 with the liquid outer core
 
-[layers.mantle.eos]
+[layers.mantle.material]
 model = "bm"
+shear_modulus_static_pa = 4.17e10     # fitted to the measured k2 with the liquid outer core
 reference_density_kg_m3 = 3300.0      # fixed silicate mantle; the core is the fitted layer here
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
