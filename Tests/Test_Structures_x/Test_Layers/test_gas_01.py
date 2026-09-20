@@ -2,8 +2,7 @@
 Tests for TidalPy.structures_x.layers.gas — GasLayer.
 
 Covers construction, geometry/EOS/tidal inheritance (via _layer_ptr), gas
-property getters, thermodynamic calculations, binary round-trip, TOML config
-save, and isinstance checks.
+property getters, binary round-trip, TOML config save, and isinstance checks.
 
 Requires the Cython extension to be compiled first::
 
@@ -39,10 +38,6 @@ _MW          = 2.0e-3    # [kg/mol] hydrogen
 _GAMMA       = 1.4       # [dimensionless]
 _T_REF_K     = 300.0     # [K]
 _RHO_REF     = 1.2       # [kg/m³]
-_R_GAS       = 8.314462618  # [J/(mol·K)]
-
-# Gravity for use in thermodynamic tests
-_GRAVITY     = 25.0      # [m/s²] — representative surface gravity
 
 
 def _make_layer(**kw):
@@ -126,97 +121,6 @@ def test_gas_inherits_eos():
 
 
 # =====================================================================================================================
-# Adiabatic lapse rate
-# =====================================================================================================================
-def test_adiabatic_lapse_rate_formula():
-    """calc_adiabatic_lapse_rate = g * (γ-1) * M / (γ * R)."""
-    gl       = _make_layer()
-    expected = _GRAVITY * (_GAMMA - 1.0) * _MW / (_GAMMA * _R_GAS)
-    assert gl.calc_adiabatic_lapse_rate(_GRAVITY) == pytest.approx(expected, rel=1e-6)
-
-
-def test_adiabatic_lapse_rate_zero_gravity():
-    """calc_adiabatic_lapse_rate returns 0 when gravity is 0."""
-    gl = _make_layer()
-    assert gl.calc_adiabatic_lapse_rate(0.0) == pytest.approx(0.0)
-
-
-def test_adiabatic_lapse_rate_negative_gravity():
-    """calc_adiabatic_lapse_rate returns 0 for negative gravity."""
-    gl = _make_layer()
-    assert gl.calc_adiabatic_lapse_rate(-1.0) == pytest.approx(0.0)
-
-
-# =====================================================================================================================
-# Scale height
-# =====================================================================================================================
-def test_scale_height_formula():
-    """calc_scale_height = R * T / (g * M)."""
-    gl       = _make_layer()
-    T        = 500.0
-    expected = _R_GAS * T / (_GRAVITY * _MW)
-    assert gl.calc_scale_height(T, _GRAVITY) == pytest.approx(expected, rel=1e-6)
-
-
-def test_scale_height_zero_gravity():
-    """calc_scale_height returns 0 when gravity is 0."""
-    gl = _make_layer()
-    assert gl.calc_scale_height(300.0, 0.0) == pytest.approx(0.0)
-
-
-def test_scale_height_zero_temperature():
-    """calc_scale_height returns 0 when temperature is 0."""
-    gl = _make_layer()
-    assert gl.calc_scale_height(0.0, _GRAVITY) == pytest.approx(0.0)
-
-
-# =====================================================================================================================
-# Ideal gas pressure
-# =====================================================================================================================
-def test_pressure_ideal_gas_formula():
-    """calc_pressure_ideal_gas = rho * R * T / M."""
-    gl       = _make_layer()
-    T, rho   = 500.0, 2.0
-    expected = rho * _R_GAS * T / _MW
-    assert gl.calc_pressure_ideal_gas(T, rho) == pytest.approx(expected, rel=1e-6)
-
-
-def test_pressure_ideal_gas_zero_density():
-    """calc_pressure_ideal_gas returns 0 when density is 0."""
-    gl = _make_layer()
-    assert gl.calc_pressure_ideal_gas(300.0, 0.0) == pytest.approx(0.0)
-
-
-def test_pressure_ideal_gas_zero_temperature():
-    """calc_pressure_ideal_gas returns 0 when temperature is 0."""
-    gl = _make_layer()
-    assert gl.calc_pressure_ideal_gas(0.0, 1.0) == pytest.approx(0.0)
-
-
-# =====================================================================================================================
-# Sound speed
-# =====================================================================================================================
-def test_sound_speed_formula():
-    """calc_sound_speed = sqrt(γ * R * T / M)."""
-    gl       = _make_layer()
-    T        = 500.0
-    expected = math.sqrt(_GAMMA * _R_GAS * T / _MW)
-    assert gl.calc_sound_speed(T) == pytest.approx(expected, rel=1e-6)
-
-
-def test_sound_speed_zero_temperature():
-    """calc_sound_speed returns 0 when temperature is 0."""
-    gl = _make_layer()
-    assert gl.calc_sound_speed(0.0) == pytest.approx(0.0)
-
-
-def test_sound_speed_increases_with_temperature():
-    """Sound speed is higher at higher temperature."""
-    gl = _make_layer()
-    assert gl.calc_sound_speed(1000.0) > gl.calc_sound_speed(300.0)
-
-
-# =====================================================================================================================
 # get_config_dict
 # =====================================================================================================================
 _ALL_KEYS = (
@@ -232,6 +136,7 @@ _ALL_KEYS = (
 )
 
 
+# =====================================================================================================================
 def test_get_config_dict_has_all_keys():
     """get_config_dict contains all expected keys."""
     gl  = _make_layer()
@@ -314,23 +219,6 @@ def test_binary_roundtrip_derived_fields():
         gl2 = mod.GasLayer("placeholder", 0, 0.0, 1.0, 1.0)
         gl2.load_binary(path)
         assert gl2.thickness == pytest.approx(7e7 - 1e7)
-    finally:
-        os.unlink(path)
-
-
-def test_binary_roundtrip_sound_speed():
-    """After load_binary, calc_sound_speed works with restored gas config."""
-    mod = _import_gas()
-    gl1 = _make_layer()
-    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
-        path = f.name
-    try:
-        gl1.save_binary(path)
-        gl2 = mod.GasLayer("placeholder", 0, 0.0, 1.0, 1.0)
-        gl2.load_binary(path)
-        T        = 500.0
-        expected = math.sqrt(_GAMMA * _R_GAS * T / _MW)
-        assert gl2.calc_sound_speed(T) == pytest.approx(expected, rel=1e-6)
     finally:
         os.unlink(path)
 

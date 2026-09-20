@@ -33,11 +33,11 @@ public:
     int error_code             = -100;
     int nondim_status          = 0;
     int solution_nondim_status = 0;
-    bool success          = false;
-    bool max_iters_hit    = false;
-    bool radius_array_set  = false;
-    bool other_vecs_set    = false;
-    bool p_use_array_interp = false;  // set by inject_from_world_eos; call() uses array interpolation
+    bool success               = false;
+    bool max_iters_hit         = false;
+    bool radius_array_set      = false;
+    bool other_vecs_set        = false;
+    bool p_use_array_interp    = false;  // set by inject_from_world_eos; call() uses array interpolation
 
     // Optional non-owning dense structure source (the world Love solve). With p_use_array_interp, gravity, pressure,
     // mass, and moi are read from it at dense accuracy while density and the complex moduli stay array-interpolated.

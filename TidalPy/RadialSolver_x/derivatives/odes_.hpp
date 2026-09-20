@@ -247,10 +247,10 @@ inline void c_solid_dynamic_incompressible(
     std::complex<double> y1, y2, y3, y4, y5, y6;
     c_read_y6(y_ptr, y1, y2, y3, y4, y5, y6);
 
-    const double r_inverse               = 1.0 / radius;
-    const double density_gravity         = density * gravity;
-    const double dynamic_term            = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
-    const double grav_term               = rs_args_ptr->grav_coeff * density;
+    const double r_inverse       = 1.0 / radius;
+    const double density_gravity = density * gravity;
+    const double dynamic_term    = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
+    const double grav_term       = rs_args_ptr->grav_coeff * density;
     const std::complex<double> two_shear_r_inv = 2.0 * shear_modulus * r_inverse;
     const std::complex<double> y1_y3_term      = 2.0 * y1 - rs_args_ptr->llp1 * y3;
 

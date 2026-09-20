@@ -55,11 +55,6 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         double get_adiabatic_index()        const
         double get_reference_temperature()  const
         double get_reference_density()      const
-        # Calculations
-        double calc_adiabatic_lapse_rate(double gravity)                      const
-        double calc_scale_height(double temperature, double gravity)        const
-        double calc_pressure_ideal_gas(double temperature, double density) const
-        double calc_sound_speed(double temperature)                               const
 
 
 # =====================================================================================================================

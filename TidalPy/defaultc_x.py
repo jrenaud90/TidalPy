@@ -28,13 +28,8 @@ def _rock_layer_block(section: str) -> str:
     thermal_conductivity_ref_w_mk = 3.75
     thermal_expansion_ref_1_k = 5.2e-5
     heat_capacity_ref_j_kgk = 1200.0
-    activation_energy_j_mol = 3.0e5
-    activation_volume_m3_mol = 5.0e-6
-    solidus_temperature_k = 1600.0
-    liquidus_temperature_k = 2000.0
     reference_density_kg_m3 = 3500.0
     reference_temperature_k = 1600.0
-    melt_viscosity_reduction = 25.0
 
     [layers.{section}.eos]
         model = "constant"
@@ -253,8 +248,6 @@ schema_version = "{SCHEMA_VERSION_X}"
     thermal_conductivity_ref_w_mk = 7.95
     thermal_expansion_ref_1_k = 1.2e-5
     heat_capacity_ref_j_kgk = 840.0
-    solidus_temperature_k = 4000.0
-    liquidus_temperature_k = 5000.0
     reference_density_kg_m3 = 8000.0
     reference_temperature_k = 4000.0
 
@@ -299,8 +292,6 @@ schema_version = "{SCHEMA_VERSION_X}"
     thermal_conductivity_ref_w_mk = 2.3
     thermal_expansion_ref_1_k = 5.0e-5
     heat_capacity_ref_j_kgk = 2000.0
-    solidus_temperature_k = 250.0
-    liquidus_temperature_k = 273.15
     reference_density_kg_m3 = 1000.0
     reference_temperature_k = 250.0
 
@@ -350,8 +341,6 @@ schema_version = "{SCHEMA_VERSION_X}"
     thermal_conductivity_ref_w_mk = 2.3
     thermal_expansion_ref_1_k = 4.0e-5
     heat_capacity_ref_j_kgk = 2000.0
-    solidus_temperature_k = 270.0
-    liquidus_temperature_k = 300.0
     reference_density_kg_m3 = 1300.0
     reference_temperature_k = 270.0
 

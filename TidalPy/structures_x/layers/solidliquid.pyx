@@ -2,8 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrapper for TidalPy's solid/liquid layer class.
 
-SolidLiquidLayer extends PhysicsLayer with thermal properties, Arrhenius viscosity, melt-fraction tracking, and
-optional cooling and radiogenics sub-models.
+SolidLiquidLayer extends PhysicsLayer with reference thermal properties and optional cooling and radiogenics
+sub-models.
 """
 
 from libcpp.complex cimport complex as cpp_complex
@@ -32,12 +32,11 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # SolidLiquidLayer
 # =====================================================================================================================
 cdef class SolidLiquidLayer(PhysicsLayer):
-    """Thermo-mechanical layer with phase-change tracking, Arrhenius viscosity, and optional cooling and
-    radiogenics sub-models.
+    """Thermo-mechanical layer with reference thermal properties and optional cooling and radiogenics sub-models.
 
-    Extends PhysicsLayer with a temperature-dependent melt fraction (power law between solidus and liquidus), an
-    Arrhenius viscosity carrying pressure and melt corrections, a melt-reduced shear modulus, thermal
-    conductivity, diffusivity, the adiabatic gradient, and conductive heat flux.
+    Extends PhysicsLayer with thermal conductivity, diffusivity, the adiabatic gradient, and conductive heat flux.
+    Viscosity, melt fraction, and the melt-reduced shear modulus come from the models attached to the layer, which
+    ``calc_material_state`` evaluates against the layer state.
 
     Parameters
     ----------
@@ -79,22 +78,10 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Reference thermal expansion coefficient [1/K]. Default ``3e-5``.
     heat_capacity_ref : float, optional
         Reference specific heat capacity [J/(kg·K)]. Default ``1200.0``.
-    activation_energy : float, optional
-        Arrhenius activation energy [J/mol]. Default ``300e3``.
-    activation_volume : float, optional
-        Arrhenius activation volume [m³/mol]. Default ``5e-6``.
-    solidus_temperature : float, optional
-        Solidus temperature [K]. Default ``1600.0``.
-    liquidus_temperature : float, optional
-        Liquidus temperature [K]. Default ``2000.0``.
-    melt_fraction_exponent : float, optional
-        Exponent in melt-fraction parameterization. Default ``1.0``.
     reference_density : float, optional
         Reference density for thermal diffusivity [kg/m³]. Default ``3500.0``.
     reference_temperature : float, optional
-        Reference temperature for Arrhenius viscosity [K]. Default ``1600.0``.
-    melt_viscosity_reduction : float, optional
-        Exponential melt-viscosity reduction coefficient. Default ``25.0``.
+        Reference temperature of the layer thermal properties [K]. Default ``1600.0``.
     tidal_scale_method : str, optional
         How the layer's share of the world's tidal heating is set. Default ``"user_provided"``.
     is_solid : bool, optional
@@ -146,14 +133,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             double thermal_conductivity_ref = 4.0,
             double thermal_expansion_ref    = 3.0e-5,
             double heat_capacity_ref        = 1200.0,
-            double activation_energy        = 300.0e3,
-            double activation_volume        = 5.0e-6,
-            double solidus_temperature      = 1600.0,
-            double liquidus_temperature     = 2000.0,
-            double melt_fraction_exponent   = 1.0,
             double reference_density        = 3500.0,
             double reference_temperature    = 1600.0,
-            double melt_viscosity_reduction = 25.0,
             str    tidal_scale_method       = "user_provided",
             cpp_bool   is_solid             = True,
             cpp_bool   is_static            = True,
@@ -195,14 +176,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         config.thermal_conductivity_ref = thermal_conductivity_ref
         config.thermal_expansion_ref = thermal_expansion_ref
         config.heat_capacity_ref     = heat_capacity_ref
-        config.activation_energy     = activation_energy
-        config.activation_volume = activation_volume
-        config.solidus_temperature    = solidus_temperature
-        config.liquidus_temperature   = liquidus_temperature
-        config.melt_fraction_exponent = melt_fraction_exponent
-        config.reference_density      = reference_density
-        config.reference_temperature  = reference_temperature
-        config.melt_viscosity_reduction = melt_viscosity_reduction
+        config.reference_density     = reference_density
+        config.reference_temperature = reference_temperature
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_SolidLiquidLayer] built = make_unique[c_SolidLiquidLayer](config)
@@ -242,44 +217,14 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         return self._solidliquid_ptr.get_heat_capacity_ref()
 
     @property
-    def activation_energy(self) -> float:
-        """Arrhenius activation energy [J/mol]."""
-        return self._solidliquid_ptr.get_activation_energy()
-
-    @property
-    def activation_volume(self) -> float:
-        """Arrhenius activation volume [m³/mol]."""
-        return self._solidliquid_ptr.get_activation_volume()
-
-    @property
-    def solidus_temperature(self) -> float:
-        """Solidus temperature [K]."""
-        return self._solidliquid_ptr.get_solidus_temperature()
-
-    @property
-    def liquidus_temperature(self) -> float:
-        """Liquidus temperature [K]."""
-        return self._solidliquid_ptr.get_liquidus_temperature()
-
-    @property
-    def melt_fraction_exponent(self) -> float:
-        """Exponent in melt-fraction parameterization [dimensionless]."""
-        return self._solidliquid_ptr.get_melt_fraction_exponent()
-
-    @property
     def reference_density(self) -> float:
         """Reference density used for thermal diffusivity [kg/m³]."""
         return self._solidliquid_ptr.get_reference_density()
 
     @property
     def reference_temperature(self) -> float:
-        """Reference temperature for Arrhenius viscosity [K]."""
+        """Reference temperature of the layer thermal properties [K]."""
         return self._solidliquid_ptr.get_reference_temperature()
-
-    @property
-    def melt_viscosity_reduction(self) -> float:
-        """Exponential melt-viscosity reduction coefficient [dimensionless]."""
-        return self._solidliquid_ptr.get_melt_viscosity_reduction()
 
     @property
     def cooling_set(self) -> bool:
@@ -338,64 +283,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_melt_fraction(self, double temperature, double pressure = 0.0) -> float:
-        """Volumetric melt fraction [0, 1] at temperature and pressure.
-
-        Uses a power-law interpolation between solidus and liquidus:
-        φ = clamp((T - T_solidus)/(T_liquidus - T_solidus), 0, 1)^n
-
-        Parameters
-        ----------
-        temperature : float
-            Temperature [K].
-        pressure : float, optional
-            Pressure [Pa]. Not used by the current melt curve. Default ``0.0``.
-
-        Returns
-        -------
-        float
-            Melt fraction [0, 1].
-        """
-        return self._solidliquid_ptr.calc_melt_fraction(temperature, pressure)
-
-    def calc_viscosity(self, double temperature, double pressure = 0.0) -> float:
-        """Effective viscosity [Pa·s] via Arrhenius + partial-melt reduction.
-
-        η(T,P) = η_ref · exp((E_a + P·V_a)/(R·T) - E_a/(R·T_ref)) · exp(-C·φ)
-
-        Parameters
-        ----------
-        temperature : float
-            Temperature [K].
-        pressure : float, optional
-            Pressure [Pa]. Default ``0.0``.
-
-        Returns
-        -------
-        float
-            Effective viscosity [Pa·s]; NaN when the reference shear viscosity was never set.
-        """
-        return self._solidliquid_ptr.calc_viscosity(temperature, pressure)
-
-    def calc_shear_modulus(self, double temperature, double pressure = 0.0) -> float:
-        """Effective shear modulus [Pa] accounting for melt fraction.
-
-        G_eff = G_static · (1 - φ)
-
-        Parameters
-        ----------
-        temperature : float
-            Temperature [K].
-        pressure : float, optional
-            Pressure [Pa]. Default ``0.0``.
-
-        Returns
-        -------
-        float
-            Effective shear modulus [Pa].
-        """
-        return self._solidliquid_ptr.calc_shear_modulus(temperature, pressure)
-
     def calc_thermal_conductivity(self, double temperature) -> float:
         """Thermal conductivity [W/(m·K)]: the reference value, with no temperature dependence modeled.
 
@@ -492,21 +379,15 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Returns
         -------
         dict
-            The PhysicsLayer keys plus the SolidLiquidLayer thermal and melt parameters, and the ``cooling`` and
+            The PhysicsLayer keys plus the SolidLiquidLayer thermal parameters, and the ``cooling`` and
             ``radiogenics`` sub-tables when those models are attached.
         """
         d = PhysicsLayer.get_config_dict(self)
         d["thermal_conductivity_ref_w_mk"] = self._solidliquid_ptr.get_thermal_conductivity_ref()
         d["thermal_expansion_ref_1_k"]     = self._solidliquid_ptr.get_thermal_expansion_ref()
         d["heat_capacity_ref_j_kgk"]       = self._solidliquid_ptr.get_heat_capacity_ref()
-        d["activation_energy_j_mol"]       = self._solidliquid_ptr.get_activation_energy()
-        d["activation_volume_m3_mol"]      = self._solidliquid_ptr.get_activation_volume()
-        d["solidus_temperature_k"]         = self._solidliquid_ptr.get_solidus_temperature()
-        d["liquidus_temperature_k"]        = self._solidliquid_ptr.get_liquidus_temperature()
-        d["melt_fraction_exponent"]        = self._solidliquid_ptr.get_melt_fraction_exponent()
         d["reference_density_kg_m3"]       = self._solidliquid_ptr.get_reference_density()
         d["reference_temperature_k"]       = self._solidliquid_ptr.get_reference_temperature()
-        d["melt_viscosity_reduction"]      = self._solidliquid_ptr.get_melt_viscosity_reduction()
         cdef const c_PhysicsBase* model_ptr
         model_ptr = <const c_PhysicsBase*>self._solidliquid_ptr.get_cooling_model()
         if model_ptr != NULL:

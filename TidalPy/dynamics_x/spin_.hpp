@@ -8,7 +8,7 @@
  * (c_GlobalTideResult.dU_dO) and is passed in as a plain scalar so this module does not depend on
  * the Tides_x headers.
  *
- * The moment of inertia is I = f M R^2 with the conventional dimensionless factor f = C / (M R^2).
+ * The moment of inertia is C = f M R^2 with the conventional dimensionless factor f = C / (M R^2).
  * Reference: Ferraz-Mello et al. (2008) for the spin-rate torque.
  */
 

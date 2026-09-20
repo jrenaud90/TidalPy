@@ -155,14 +155,8 @@ _SOLIDLIQUID_LAYER_KEYS = (
     "thermal_conductivity_ref_w_mk",
     "thermal_expansion_ref_1_k",
     "heat_capacity_ref_j_kgk",
-    "activation_energy_j_mol",
-    "activation_volume_m3_mol",
-    "solidus_temperature_k",
-    "liquidus_temperature_k",
-    "melt_fraction_exponent",
     "reference_density_kg_m3",
-    "reference_temperature_k",
-    "melt_viscosity_reduction"
+    "reference_temperature_k"
 )
 _GAS_LAYER_KEYS = (
     "mean_molecular_weight_kg_mol",

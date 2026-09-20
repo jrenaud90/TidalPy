@@ -2,8 +2,8 @@
 /*
  * gas_.hpp: c_GasLayer, an ideal-gas layer built on c_PhysicsLayer.
  *
- * Adds ideal-gas thermodynamics (adiabatic lapse rate, scale height, pressure, sound speed). No phase changes,
- * no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
+ * Adds the ideal-gas parameters an attached EOS model reads (mean molecular weight, adiabatic index, and the
+ * reference state). No phase changes, no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::GasLayer (103)
@@ -85,50 +85,6 @@ public:
     double get_adiabatic_index()       const noexcept { return this->p_adiabatic_index; }
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
     double get_reference_density()     const noexcept { return this->p_reference_density; }
-
-    // Dry adiabatic lapse rate [K/m] for an ideal gas: Γ = g (γ - 1) M / (γ R), with M the mean molecular weight
-    // [kg/mol] and R the universal gas constant [J/(mol·K)]. Returns 0.0 on invalid input or an unwired config.
-    double calc_adiabatic_lapse_rate(double gravity) const noexcept {
-        if (gravity <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
-        const double R = tidalpy_config_ptr->d_R;
-        if (R <= 0.0 || this->p_adiabatic_index <= 1.0) { return 0.0; }
-        return gravity * (this->p_adiabatic_index - 1.0) * this->p_mean_molecular_weight
-               / (this->p_adiabatic_index * R);
-    }
-
-    // Barometric (pressure) scale height [m]: H = R T / (g M). Returns 0.0 on non-positive input or no config.
-    double calc_scale_height(double temperature, double gravity) const noexcept {
-        if (temperature <= 0.0 || gravity <= 0.0
-                || this->p_mean_molecular_weight <= 0.0
-                || tidalpy_config_ptr == nullptr) {
-            return 0.0;
-        }
-        const double R = tidalpy_config_ptr->d_R;
-        return R * temperature / (gravity * this->p_mean_molecular_weight);
-    }
-
-    // Ideal gas law [Pa]: P = ρ R T / M. Returns 0.0 on non-positive input or an unwired config.
-    double calc_pressure_ideal_gas(double temperature,
-                                   double density) const noexcept {
-        if (temperature <= 0.0 || density <= 0.0
-                || this->p_mean_molecular_weight <= 0.0
-                || tidalpy_config_ptr == nullptr) {
-            return 0.0;
-        }
-        const double R = tidalpy_config_ptr->d_R;
-        return density * R * temperature / this->p_mean_molecular_weight;
-    }
-
-    // Adiabatic sound speed [m/s]: c_s = sqrt(γ R T / M). Returns 0.0 on invalid input or an unwired config.
-    double calc_sound_speed(double temperature) const noexcept {
-        if (temperature <= 0.0 || this->p_mean_molecular_weight <= 0.0
-                || tidalpy_config_ptr == nullptr) {
-            return 0.0;
-        }
-        const double R = tidalpy_config_ptr->d_R;
-        return std::sqrt(this->p_adiabatic_index * R * temperature
-                         / this->p_mean_molecular_weight);
-    }
 
     // Binary I/O
     void write_binary(std::ostream& out) const override {

@@ -145,10 +145,10 @@ public:
     }
 
     // Static mechanical property getters (const, MKS)
-    double        get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static; }
-    double        get_bulk_modulus_static()    const noexcept { return this->p_bulk_modulus_static; }
-    double        get_shear_viscosity_static() const noexcept { return this->p_shear_viscosity_static; }
-    double        get_bulk_viscosity_static()  const noexcept { return this->p_bulk_viscosity_static; }
+    double get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static; }
+    double get_bulk_modulus_static()    const noexcept { return this->p_bulk_modulus_static; }
+    double get_shear_viscosity_static() const noexcept { return this->p_shear_viscosity_static; }
+    double get_bulk_viscosity_static()  const noexcept { return this->p_bulk_viscosity_static; }
 
     // Love number getters: full struct or individual components
     c_LoveNumbers        get_love_numbers()   const noexcept { return this->p_love_numbers; }

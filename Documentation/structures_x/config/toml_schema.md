@@ -110,21 +110,18 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `shear_modulus_temperature_derivative_pa_k` | optional | physics, solidliquid, gas | $\mu'_T$ of the same law \[Pa K$^{-1}$\]. Default `0.0`. |
 | `shear_modulus_reference_temperature_k` | optional | physics, solidliquid, gas | $T_\mathrm{ref}$ of the same law \[K\]. Default `300.0`. |
 | `use_thermal_eos` | optional | physics, solidliquid, gas | Pass the temperature to the layer's EOS model, so its density and bulk modulus depend on it (set `thermal_expansion_1_k` in the `eos` table). Default `false`. |
-| solidliquid thermal/melt params | optional | solidliquid | See below. |
+| solidliquid thermal params | optional | solidliquid | See below. |
 | gas params | optional | gas | See below. |
 
-**Solid-liquid thermal and melting parameters:**
+**Solid-liquid thermal parameters:**
 - `thermal_conductivity_ref_w_mk`
 - `thermal_expansion_ref_1_k`
 - `heat_capacity_ref_j_kgk`
-- `activation_energy_j_mol`
-- `activation_volume_m3_mol`
-- `solidus_temperature_k`
-- `liquidus_temperature_k`
-- `melt_fraction_exponent`
 - `reference_density_kg_m3`
-- `reference_temperature_k`
-- `melt_viscosity_reduction`.
+- `reference_temperature_k`.
+
+Viscosity and melting parameters are not layer keys: they belong to the `shear_viscosity`, `bulk_viscosity`
+and `partial_melt` model tables, so the layer and the solve read the same numbers.
 
 **Gas layer parameters:**
 - `mean_molecular_weight_kg_mol`

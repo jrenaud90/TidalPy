@@ -61,7 +61,7 @@ struct c_CoolingConfig {
 // Off: no cooling. Boundary layer is half the layer thickness; flux zero.
 inline c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
-    result.cooling_flux = 0.0;
+    result.cooling_flux    = 0.0;
     result.blt             = 0.5 * in.thickness;
     result.rayleigh_number = 0.0;
     result.nusselt_number  = 1.0;
@@ -72,10 +72,9 @@ inline c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
 inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
     result.blt             = in.thickness;
-    result.cooling_flux = in.thermal_conductivity * in.delta_temp
-                             / cool_guard(in.thickness);
-    result.rayleigh_number   = 0.0;
-    result.nusselt_number    = 1.0;
+    result.cooling_flux    = in.thermal_conductivity * in.delta_temp / cool_guard(in.thickness);
+    result.rayleigh_number = 0.0;
+    result.nusselt_number  = 1.0;
     return result;
 }
 
@@ -100,7 +99,7 @@ inline c_CoolingResult cool_convection(
                                   / cool_guard(in.viscosity);
 
     double rayleigh = parcel_rise_rate / cool_guard(rate_heat_loss);
-    if (!(in.delta_temp > eps))          { rayleigh = 0.0; }
+    if (!(in.delta_temp > eps))            { rayleigh = 0.0; }
     if (!(in.thickness  >= min_thickness)) { rayleigh = 0.0; }
 
     double nusselt = cfg.convection_alpha
@@ -113,7 +112,7 @@ inline c_CoolingResult cool_convection(
     if (in.delta_temp <= eps)            { blt = 1.0; }
     if (in.thickness  <= min_thickness)  { blt = in.thickness; }
 
-    result.cooling_flux = in.thermal_conductivity * in.delta_temp / cool_guard(blt);
+    result.cooling_flux    = in.thermal_conductivity * in.delta_temp / cool_guard(blt);
     result.blt             = blt;
     result.rayleigh_number = rayleigh;
     result.nusselt_number  = nusselt;

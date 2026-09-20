@@ -109,19 +109,19 @@ layer.update_eos_data(r, rho, g, p)
 
 In the normal workflow the world EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)) calls this. All sequences must be the same length and `radius` must be sorted ascending. Linear interpolation is used; values are clamped at the layer boundaries.
 
-### `get_density(radius)` → float or ndarray
+### `get_density(radius)` -> float or ndarray
 
 Density at `radius` [kg/m³]. Returns `NaN` if EOS data not populated.
 
-### `get_gravity(radius)` → float or ndarray
+### `get_gravity(radius)` -> float or ndarray
 
 Gravitational acceleration at `radius` [m/s²]. Returns `NaN` if not populated.
 
-### `get_pressure(radius)` → float or ndarray
+### `get_pressure(radius)` -> float or ndarray
 
 Pressure at `radius` [Pa]. Returns `NaN` if not populated.
 
-### Viscoelastic profile getters → float or ndarray
+### Viscoelastic profile getters -> float or ndarray
 
 After the world EOS solve populates the layer, the radius-resolved viscoelastic state is readable through the same getter names the world exposes: `get_shear_modulus`, `get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity` (post-melt), their `get_premelt_*` counterparts (before the partial-melt step), and the shorthand bundles `get_static_viscoelastics(radius)` (the post-melt 4-tuple) and `get_state(radius)` (all profiles as a dict). All return `NaN` before the profile is populated.
 
@@ -174,7 +174,7 @@ restored.load_binary("layer.tpyb")
 
 ```python
 layer.save_config("layer.toml")
-cfg = layer.get_config_dict()  # → dict with all construction parameters
+cfg = layer.get_config_dict()  # -> dict with all construction parameters
 ```
 
 The dict follows the world builder's layer schema: `class` names the layer class (`base`, `physics`, `solidliquid`, or `gas`), the scalar keys are the constructor parameters, and each attached physics model is a sub-table keyed by `model` (`eos` here; subclasses add their own). `name` and `radius_inner` belong to a standalone layer only; a world drops them when it nests the layer under its name (`LAYER_STANDALONE_CONFIG_KEYS`).

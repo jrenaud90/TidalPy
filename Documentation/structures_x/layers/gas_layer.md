@@ -65,41 +65,6 @@ Inherits all `BaseLayer` and `PhysicsLayer` properties, plus:
 | `reference_temperature` | K | Reference temperature |
 | `reference_density` | kg/m³ | Reference density |
 
-## Methods
-
-### `calc_adiabatic_lapse_rate(gravity)`
-
-Dry adiabatic lapse rate for an ideal gas [K/m]:
-
-$$\Gamma = \frac{g \, (\gamma - 1) \, M}{\gamma \, R}$$
-
-where $g$ is gravitational acceleration, $\gamma$ is the adiabatic index, $M$ is the mean molar mass, and $R$ is the universal gas constant.
-
-**Returns** `float` [K/m].
-
-### `calc_scale_height(temperature, gravity)`
-
-Barometric (pressure) scale height [m]:
-
-$$H = \frac{R \, T}{g \, M}$$
-
-**Returns** `float` [m].
-
-### `calc_pressure_ideal_gas(temperature, density)`
-
-Ideal gas pressure [Pa]:
-
-$$P = \frac{\rho \, R \, T}{M}$$
-
-**Returns** `float` [Pa].
-
-### `calc_sound_speed(temperature)`
-
-Adiabatic sound speed for an ideal gas [m/s]:
-
-$$c_s = \sqrt{\frac{\gamma \, R \, T}{M}}$$
-
-**Returns** `float` [m/s].
 
 ## Binary Serialization
 

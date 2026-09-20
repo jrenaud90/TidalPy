@@ -135,7 +135,7 @@ mantle.set_shear_rheology(Maxwell())
 mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 ```
 
-### `calc_complex_shear_modulus(frequency)` → complex
+### `calc_complex_shear_modulus(frequency)` -> complex
 
 Complex shear modulus \[Pa\] at the given tidal forcing frequency, from the layer-constant static properties.
 
@@ -146,7 +146,7 @@ mu = mantle.calc_complex_shear_modulus(2.0 * math.pi / 86400.0)
 print(f"Re(μ) = {mu.real:.3e} Pa,  Im(μ) = {mu.imag:.3e} Pa")
 ```
 
-### `calc_complex_shear_modulus(radius, frequency)` → complex or ndarray
+### `calc_complex_shear_modulus(radius, frequency)` -> complex or ndarray
 
 Radius-resolved form: applies the shear rheology to the post-melt static modulus and viscosity stored at `radius` by the world EOS solve, exactly like the world-level [`LayeredWorld.calc_complex_shear_modulus`](../worlds/worlds.md). `radius` may be a float (returns `complex`) or an `np.ndarray` of radii (returns a same-shape complex array). Returns `NaN` before the world EOS solve populates the layer.
 
@@ -156,7 +156,7 @@ radii = np.linspace(3.5e6, 6.3e6, 100)
 mu_of_r = mantle.calc_complex_shear_modulus(radii, 2.0 * math.pi / 86400.0)
 ```
 
-### `calc_complex_bulk_modulus(...)` → complex or ndarray
+### `calc_complex_bulk_modulus(...)` -> complex or ndarray
 
 Complex bulk modulus [Pa]; both the layer-constant `(frequency)` and the radius-resolved `(radius, frequency)` forms, with the same delegation logic as `calc_complex_shear_modulus`.
 

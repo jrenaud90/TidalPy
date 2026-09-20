@@ -49,8 +49,8 @@ inline constexpr double d_EOS_REFERENCE_TEMPERATURE = 300.0;
 
 // Combined construction parameters for all EOS models; each model reads only the fields it needs.
 struct c_MaterialEOSConfig {
-    double reference_density      = 3500.0;    // rho0 [kg/m^3]
-    double reference_bulk_modulus = 1.0e11;    // K0   [Pa]
+    double reference_density       = 3500.0;    // rho0 [kg/m^3]
+    double reference_bulk_modulus  = 1.0e11;    // K0   [Pa]
     double bulk_modulus_derivative = 4.0;       // K0'  [dimensionless]
 
     // Thermal terms, read by every model. A zero expansivity is the athermal EOS.

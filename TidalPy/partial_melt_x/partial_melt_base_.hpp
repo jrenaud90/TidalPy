@@ -35,8 +35,8 @@ namespace tidalpy {
 struct c_PartialMeltInputs {
     double temperature       = 0.0;   // local temperature [K]
     double premelt_viscosity = 0.0;   // solid (pre-melt) viscosity [Pa·s]
-    double premelt_shear    = 0.0;   // solid (pre-melt) shear modulus [Pa]
-    double liquid_viscosity = 0.0;   // viscosity if fully molten at this T [Pa·s]
+    double premelt_shear     = 0.0;   // solid (pre-melt) shear modulus [Pa]
+    double liquid_viscosity  = 0.0;   // viscosity if fully molten at this T [Pa·s]
 };
 
 // -------------------------------------------------------------------------------
@@ -135,8 +135,8 @@ public:
     }
 
 protected:
-    double p_solidus  = 1600.0;  // [K]
-    double p_liquidus = 2000.0;  // [K]
+    double p_solidus      = 1600.0;  // [K]
+    double p_liquidus     = 2000.0;  // [K]
     double p_liquid_shear = 1.0e-5;  // [Pa]
 };
 

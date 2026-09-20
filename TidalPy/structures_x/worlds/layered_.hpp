@@ -132,7 +132,7 @@ struct c_LoveSolveConfig {
     int       core_model         = 0;                  // propagation-matrix core starting condition (0-4)
     bool      use_kamata         = false;
     bool      nondimensionalize  = true;
-    double    starting_radius    = 0.0;                // [m]; 0 → auto
+    double    starting_radius    = 0.0;                // [m]; 0 -> auto
     double    start_radius_tol   = 1.0e-5;
     ODEMethod integration_method = ODEMethod::DOP853;
     double    rtol               = 1.0e-6;

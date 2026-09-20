@@ -49,42 +49,27 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         double              thermal_conductivity_ref
         double              thermal_expansion_ref
         double              heat_capacity_ref
-        double              activation_energy
-        double              activation_volume
-        double              solidus_temperature
-        double              liquidus_temperature
-        double              melt_fraction_exponent
         double              reference_density
         double              reference_temperature
-        double              melt_viscosity_reduction
 
     cdef cppclass c_SolidLiquidLayer(c_PhysicsLayer):
         c_SolidLiquidLayer() except +
         c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg) except +
         # Thermal property getters
-        double get_thermal_conductivity_ref()   const
-        double get_thermal_expansion_ref()      const
-        double get_heat_capacity_ref()          const
-        double get_activation_energy()          const
-        double get_activation_volume()          const
-        double get_solidus_temperature()        const
-        double get_liquidus_temperature()       const
-        double get_melt_fraction_exponent()     const
-        double get_reference_density()          const
-        double get_reference_temperature()      const
-        double get_melt_viscosity_reduction()   const
+        double get_thermal_conductivity_ref() const
+        double get_thermal_expansion_ref()    const
+        double get_heat_capacity_ref()        const
+        double get_reference_density()        const
+        double get_reference_temperature()    const
         # Calculations
-        double calc_melt_fraction(double temperature, double pressure)     const
-        double calc_viscosity(double temperature, double pressure)         const
-        double calc_shear_modulus(double temperature, double pressure)     const
-        double calc_thermal_conductivity(double temperature)                  const
-        double calc_thermal_diffusivity(double temperature)                   const
+        double calc_thermal_conductivity(double temperature) const
+        double calc_thermal_diffusivity(double temperature)  const
         double calc_adiabatic_temperature_gradient(double temperature, double pressure) const
         double calc_heat_flux_conductive(double temperature_base, double temperature_top) const
-        double calc_radiogenic_heating(double time, double mass)           const
+        double calc_radiogenic_heating(double time, double mass) const
         # Sub-model flags
-        cpp_bool get_cooling_set()      const
-        cpp_bool get_radiogenics_set()  const
+        cpp_bool get_cooling_set()     const
+        cpp_bool get_radiogenics_set() const
         c_CoolingBase*     get_cooling_model()     const
         c_RadiogenicsBase* get_radiogenics_model() const
         # Sub-model setters (transfer ownership)
