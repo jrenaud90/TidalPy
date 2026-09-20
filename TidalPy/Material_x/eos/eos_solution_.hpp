@@ -619,12 +619,17 @@ public:
         const double radius_val,
         double* y_interp_ptr) const
     {
-        if (this->p_use_array_interp) [[unlikely]]
+        // Provider mode, installed by the world's Love solve: this solution stores no grid at all. The structure
+        // comes from the world's solved EOS at dense accuracy and the material from the layer's own models and
+        // rheology, both at the exact radius asked for. Anything neither supplies stays NaN, which is the honest
+        // answer: this solution never held it.
+        if (this->p_structure_dense_source || this->p_material_eval) [[unlikely]]
         {
-            this->_call_interp_arrays(layer_index, radius_val, y_interp_ptr);
-
-            // The structure variables come from the dense source at its accuracy.
-            if (this->p_structure_dense_source) [[unlikely]]
+            for (size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i)
+            {
+                y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
+            }
+            if (this->p_structure_dense_source)
             {
                 double src_out[C_EOS_Y_VALUES];
                 const double src_radius = radius_val * this->p_structure_length_scale;
@@ -634,29 +639,29 @@ public:
                 y_interp_ptr[2] = src_out[2] / this->p_structure_mass_scale;      // mass
                 y_interp_ptr[3] = src_out[3] / this->p_structure_moi_scale;       // moment of inertia
             }
-            // Density and the complex moduli come from the layer's own models at this radius, so no value the
-            // radial solver reads is interpolated between slices.
-            if (this->p_material_eval) [[unlikely]]
+            if (this->p_material_eval)
             {
                 double mat_out[5] = {
                     TidalPyConstants::d_NAN, TidalPyConstants::d_NAN, TidalPyConstants::d_NAN,
                     TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
                 const double mat_radius = radius_val * this->p_structure_length_scale;
                 this->p_material_eval(layer_index, mat_radius, mat_out);
-                // A NaN means the provider does not supply that value, so the injected array stands. The supplied-
-                // moduli path uses this to take density from the layer while keeping the moduli it was handed.
                 const double scales[5] = {
                     this->p_structure_density_scale, this->p_structure_pascal_scale,
                     this->p_structure_pascal_scale, this->p_structure_pascal_scale,
                     this->p_structure_pascal_scale};
                 for (size_t value_i = 0; value_i < 5; ++value_i)
                 {
-                    if (std::isfinite(mat_out[value_i]))
-                    {
-                        y_interp_ptr[4 + value_i] = mat_out[value_i] / scales[value_i];
-                    }
+                    y_interp_ptr[4 + value_i] = mat_out[value_i] / scales[value_i];
                 }
             }
+            return;
+        }
+
+        // Array mode: the standalone solver, which is handed its profile as arrays and owns no solved EOS.
+        if (this->p_use_array_interp) [[unlikely]]
+        {
+            this->_call_interp_arrays(layer_index, radius_val, y_interp_ptr);
             return;
         }
 

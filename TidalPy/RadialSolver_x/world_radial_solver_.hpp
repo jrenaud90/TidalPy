@@ -64,17 +64,14 @@ struct c_ShootingInputs {
 
 // Propagation-matrix-method inputs (only valid for a single solid, static, incompressible layer).
 struct c_MatrixInputs {
-    size_t              num_layers = 1;
-    std::vector<size_t> first_slice_index_by_layer;
-    std::vector<size_t> num_slices_by_layer;
-
-    int    bc_model      = 1;
-    size_t num_bc_models = 1;
-
+    size_t num_layers          = 1;
+    // The method lays its own grid down inside c_matrix_propagate; this is the only thing left to say about it.
+    size_t slices_per_layer    = 0;
+    int    bc_model            = 1;
+    size_t num_bc_models       = 1;
     double planet_bulk_density = 0.0;
     double G                   = 0.0;
     int    degree_l            = 2;
-
     double starting_radius     = 0.0;   // non-dim
     double start_radius_tol    = 1.0e-4;
     int    core_model          = 0;
@@ -117,9 +114,7 @@ inline int c_matrix_solve(
         storage,
         frequency,
         in.planet_bulk_density,
-        in.first_slice_index_by_layer.data(),
-        in.num_slices_by_layer.data(),
-        in.num_layers,
+        in.slices_per_layer,
         in.num_bc_models,
         &in.bc_model,
         in.G,
@@ -217,29 +212,15 @@ public:
         return std::move(this->p_storage);
     }
 
-    // SI complex-moduli scratch (total_slices long) that the world fills each solve. Only the supplied-moduli path
-    // fills it now: the world's own Love solve installs a material-state provider instead.
-    std::complex<double>* shear_scratch_data() noexcept { return this->p_shear_si.data(); }
-    std::complex<double>* bulk_scratch_data()  noexcept { return this->p_bulk_si.data(); }
-
-    // Install (or clear, with an empty callable) the per-layer material-state provider the shooting solve reads
-    // density and the complex moduli from, at the exact integration radius. Set per Love solve, because the
-    // callable carries that solve's forcing frequency. See c_EOSSolution::MaterialEval.
+    // Install (or clear, by passing nullptr) the per-layer material-state provider that both methods read density
+    // and the complex moduli from, at the exact radius asked for. Set per Love solve, because the callable carries
+    // that solve's forcing frequency, and cleared when it returns. See c_EOSSolution::MaterialEval.
     void set_material_eval(c_EOSSolution::MaterialEval eval) {
         if (this->p_storage) {
             this->p_storage->get_eos_solution_ptr()->p_material_eval = std::move(eval);
         }
     }
     size_t total_slices() const noexcept { return this->p_total_slices; }
-    const std::vector<double>& radius_si() const noexcept { return this->p_radius_si; }
-    // Per-layer slice partition. An interface radius is the last slice of the lower layer and the first of the upper
-    // one, so per-slice fills must follow this partition rather than look the layer up by radius.
-    const std::vector<size_t>& first_slice_index_by_layer() const noexcept {
-        return this->p_shooting_inputs.first_slice_index_by_layer;
-    }
-    const std::vector<size_t>& num_slices_by_layer() const noexcept {
-        return this->p_shooting_inputs.num_slices_by_layer;
-    }
 
     // Frequency-independent setup from SI inputs. Returns false (with an error on the storage) if the layer slice
     // partition is invalid.
@@ -269,8 +250,6 @@ public:
         this->p_nondim             = nondimensionalize;
         this->p_surface_gravity_si = gravity_si[total_slices - 1];
 
-        this->p_radius_si = radius_si;
-
         // unique_ptr because c_NonDimensionalScales is not assignable.
         this->p_non_dim_uptr = std::make_unique<c_NonDimensionalScales>(planet_radius, bulk_density);
 
@@ -293,29 +272,15 @@ public:
             rho_nd = bulk_density / density_conv;
         }
 
-        // Non-dim master copies of the structure arrays.
-        this->p_radius_nd   = radius_si;
-        this->p_density_nd  = density_si;
-        this->p_gravity_nd  = gravity_si;
-        this->p_pressure_nd = pressure_si;
-        this->p_mass_nd     = mass_si;
-        this->p_moi_nd      = moi_si;
+        // The non-dim radius grid is built here and handed to the storage, which keeps it only to size its output
+        // sampling. No other structure array is copied: everything the solve reads comes from the world's solved
+        // EOS and the layer's models, through the dense source and provider installed below.
+        this->p_radius_nd = radius_si;
         if (nondimensionalize) {
             for (size_t slice_i = 0; slice_i < total_slices; ++slice_i) {
-                this->p_radius_nd[slice_i]   /= length_conv;
-                this->p_density_nd[slice_i]  /= density_conv;
-                this->p_gravity_nd[slice_i]  /= gravity_conv;
-                this->p_pressure_nd[slice_i] /= pascal_conv;
-                this->p_mass_nd[slice_i]     /= mass_conv;
-                this->p_moi_nd[slice_i]      /= moi_conv;
+                this->p_radius_nd[slice_i] /= length_conv;
             }
         }
-
-        // Frequency-dependent scratch (filled per solve).
-        this->p_shear_si.assign(total_slices, std::complex<double>(0.0, 0.0));
-        this->p_bulk_si.assign(total_slices,  std::complex<double>(0.0, 0.0));
-        this->p_shear_nd.assign(total_slices, std::complex<double>(0.0, 0.0));
-        this->p_bulk_nd.assign(total_slices,  std::complex<double>(0.0, 0.0));
 
         // (Re)build the reusable solution storage with the non-dim radius grid.
         this->p_storage = std::make_unique<c_RadialSolutionStorage>(
@@ -371,32 +336,37 @@ public:
         shoot.G                          = G_nd;
         shoot.degree_l                   = degree_l;
 
-        // Populate the propagation-matrix inputs (structural fields).
+        // Populate the propagation-matrix inputs (structural fields). It builds its own grid, so all it needs is how
+        // fine that grid should be; the count matches what the caller asked for so the output sampling is unchanged.
         c_MatrixInputs& mat = this->p_matrix_inputs;
-        mat.num_layers                 = n_layers;
-        mat.first_slice_index_by_layer = first_slice_idx;
-        mat.num_slices_by_layer        = num_slices;
-        mat.planet_bulk_density        = rho_nd;
-        mat.G                          = G_nd;
-        mat.degree_l                   = degree_l;
+        mat.num_layers          = n_layers;
+        mat.slices_per_layer    = (n_layers > 0) ? total_slices / n_layers : 0;
+        mat.planet_bulk_density = rho_nd;
+        mat.G                   = G_nd;
+        mat.degree_l            = degree_l;
 
-        // The structure arrays are injected once and stay non-dim across solves; only the complex moduli change per
-        // frequency (they start at zero here).
-        this->p_storage->get_eos_solution_ptr()->inject_from_world_eos(
-            this->p_radius_nd.data(),
-            this->p_gravity_nd.data(),
-            this->p_pressure_nd.data(),
-            this->p_mass_nd.data(),
-            this->p_moi_nd.data(),
-            this->p_density_nd.data(),
-            this->p_shear_nd.data(),
-            this->p_bulk_nd.data(),
-            total_slices
-        );
+        // The solve reads no stored profile, but the solution still reports the planet's scalars, and find_love
+        // runs only on a solution marked solved. These are the same values inject_from_world_eos used to take off
+        // the ends of the arrays it copied, in the units the methods work in.
+        c_EOSSolution* storage_eos = this->p_storage->get_eos_solution_ptr();
+        const auto to_nd = [nondimensionalize](double value, double conv) {
+            return nondimensionalize ? value / conv : value;
+        };
+        storage_eos->radius                 = to_nd(radius_si[total_slices - 1],   length_conv);
+        storage_eos->surface_gravity        = to_nd(gravity_si[total_slices - 1],  gravity_conv);
+        storage_eos->surface_pressure       = to_nd(pressure_si[total_slices - 1], pascal_conv);
+        storage_eos->central_pressure       = to_nd(pressure_si[0],                pascal_conv);
+        storage_eos->mass                   = to_nd(mass_si[total_slices - 1],     mass_conv);
+        storage_eos->moi                    = to_nd(moi_si[total_slices - 1],      moi_conv);
+        storage_eos->nondim_status          = 0;
+        storage_eos->solution_nondim_status = 0;
+        storage_eos->success                = true;
+        storage_eos->error_code             = 0;
+        storage_eos->radius_array_set       = true;
+        storage_eos->other_vecs_set         = true;
 
         // Gravity, pressure, mass, and moi are read from the world's dense SI EOS during shooting; the scales convert
         // the non-dim shooting radius up and the SI outputs back down.
-        c_EOSSolution* storage_eos = this->p_storage->get_eos_solution_ptr();
         storage_eos->p_structure_dense_source = structure_dense_source;
         // The scales convert the non-dim shooting radius up to SI and the SI values back down. They are needed by
         // the dense structure source and by the material-state provider, so they are set either way.
@@ -432,34 +402,6 @@ public:
                 this->p_solved      = false;
                 return;
             }
-        }
-
-        const size_t total_slices = this->p_total_slices;
-
-        const double pascal_conv = this->p_nondim ? this->p_non_dim_uptr->pascal_conversion : 1.0;
-        for (size_t slice_i = 0; slice_i < total_slices; ++slice_i) {
-            this->p_shear_nd[slice_i] = this->p_shear_si[slice_i] / pascal_conv;
-            this->p_bulk_nd[slice_i]  = this->p_bulk_si[slice_i]  / pascal_conv;
-        }
-
-        c_EOSSolution* eos = storage->get_eos_solution_ptr();
-        if (rt.redim_eos_arrays) {
-            // Export mode: re-inject every non-dim array so the post-solve re-dimensionalization yields SI EOS arrays.
-            eos->inject_from_world_eos(
-                this->p_radius_nd.data(),
-                this->p_gravity_nd.data(),
-                this->p_pressure_nd.data(),
-                this->p_mass_nd.data(),
-                this->p_moi_nd.data(),
-                this->p_density_nd.data(),
-                this->p_shear_nd.data(),
-                this->p_bulk_nd.data(),
-                total_slices
-            );
-        } else {
-            // Fast path: only the complex moduli change.
-            eos->complex_shear_array_vec.assign(this->p_shear_nd.begin(), this->p_shear_nd.end());
-            eos->complex_bulk_array_vec.assign(this->p_bulk_nd.begin(),  this->p_bulk_nd.end());
         }
 
         const double freq_nd = this->p_nondim
@@ -570,14 +512,8 @@ public:
     c_MatrixInputs   p_matrix_inputs;
 
     std::vector<double> p_upper_radii_nd;
-
-    // SI radius grid at which the world fills the complex moduli.
-    std::vector<double> p_radius_si;
-    // Non-dim master arrays.
-    std::vector<double> p_radius_nd, p_density_nd, p_gravity_nd, p_pressure_nd, p_mass_nd, p_moi_nd;
-    // Frequency-dependent scratch.
-    std::vector<std::complex<double>> p_shear_si, p_bulk_si;   // dimensional, filled by the world
-    std::vector<std::complex<double>> p_shear_nd, p_bulk_nd;   // non-dim, fed to the solver
+    // The non-dim radius grid, kept only to size and place the storage's output sampling.
+    std::vector<double> p_radius_nd;
 
     std::unique_ptr<c_RadialSolutionStorage> p_storage;
 };

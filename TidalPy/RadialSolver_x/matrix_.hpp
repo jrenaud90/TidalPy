@@ -34,8 +34,10 @@
 ///     Forcing frequency [rad s-1].
 /// planet_bulk_density : double
 ///     [kg m-3].
-/// first_slice_index_by_layer_ptr, num_slices_by_layer_ptr : size_t*
-///     Per-layer slice partition, num_layers_for_slices entries each.
+/// slices_per_layer : size_t
+///     Slices this call lays down in each layer. The method propagates from one slice to the next, so it is
+///     discretized by construction; this is the only grid left in the radial solver, and it does not outlive
+///     the call (bar the radii, which the y-grid is interpolated against).
 /// num_bc_models, bc_models_ptr
 ///     Boundary condition models (free = 0, tidal = 1, loading = 2).
 /// G_to_use : double
@@ -57,9 +59,7 @@ inline int c_matrix_propagate(
     c_RadialSolutionStorage* solution_storage_ptr,
     double frequency,
     double planet_bulk_density,
-    size_t* first_slice_index_by_layer_ptr,
-    size_t* num_slices_by_layer_ptr,
-    size_t num_layers_for_slices,
+    size_t slices_per_layer,
     size_t num_bc_models,
     int* bc_models_ptr,
     double G_to_use,
@@ -84,15 +84,61 @@ inline int c_matrix_propagate(
     solution_storage_ptr->reset_interpolant_storage();
 
     const size_t num_layers     = eos_solution_storage_ptr->num_layers;
-    const size_t total_slices   = eos_solution_storage_ptr->radius_array_size;
+    const size_t total_slices   = num_layers * slices_per_layer;
     const size_t top_slice_i    = total_slices - 1;
 
-    double* radius_array_ptr  = eos_solution_storage_ptr->radius_array_vec.data();
-    double* gravity_array_ptr = eos_solution_storage_ptr->gravity_array_vec.data();
-    double* density_array_ptr = eos_solution_storage_ptr->density_array_vec.data();
+    if (num_layers == 0 || slices_per_layer < 5)
+    {
+        solution_storage_ptr->message = "RadialSolver.PropMatrixMethod:: at least 5 slices per layer are required.";
+        solution_storage_ptr->error_code = -5;
+        solution_storage_ptr->success    = false;
+        return solution_storage_ptr->error_code;
+    }
 
-    std::complex<double>* complex_shear_array_ptr =
-        reinterpret_cast<std::complex<double>*>(eos_solution_storage_ptr->complex_shear_array_vec.data());
+    // The method propagates from one slice to the next, so it needs a grid. That grid is built here.
+    std::vector<double>& radius_grid = solution_storage_ptr->p_matrix_radius_solve;
+    radius_grid.assign(total_slices, 0.0);
+    std::vector<double> gravity_grid(total_slices, 0.0);
+    std::vector<double> density_grid(total_slices, 0.0);
+    std::vector<std::complex<double>> shear_grid(total_slices, cmplx_zero);
+    std::vector<size_t> first_slice_index_by_layer(num_layers, 0);
+    std::vector<size_t> num_slices_by_layer(num_layers, slices_per_layer);
+    {
+        double eos_out[C_EOS_DY_VALUES];
+        const double last_span = static_cast<double>(slices_per_layer - 1);
+        for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
+        {
+            const double radius_top = eos_solution_storage_ptr->upper_radius_bylayer_vec[layer_i];
+            const double radius_bot = (layer_i == 0)
+                ? 0.0
+                : eos_solution_storage_ptr->upper_radius_bylayer_vec[layer_i - 1];
+            first_slice_index_by_layer[layer_i] = layer_i * slices_per_layer;
+            for (size_t slice_j = 0; slice_j < slices_per_layer; ++slice_j)
+            {
+                const size_t slice_i = first_slice_index_by_layer[layer_i] + slice_j;
+                const double radius_here =
+                    radius_bot + (static_cast<double>(slice_j) / last_span) * (radius_top - radius_bot);
+                radius_grid[slice_i] = radius_here;
+                eos_solution_storage_ptr->call(layer_i, radius_here, &eos_out[0]);
+                gravity_grid[slice_i] = eos_out[0];
+                density_grid[slice_i] = eos_out[C_EOS_DENSITY_INDEX];
+                shear_grid[slice_i]   = std::complex<double>(
+                    eos_out[C_EOS_SHEAR_MODULUS_INDEX], eos_out[C_EOS_SHEAR_MODULUS_INDEX + 1]);
+            }
+        }
+    }
+    // The y-grid follows the grid this call chose.
+    solution_storage_ptr->num_slices = total_slices;
+    solution_storage_ptr->total_size =
+        static_cast<size_t>(C_MAX_NUM_Y_REAL) * total_slices * solution_storage_ptr->num_ytypes;
+    solution_storage_ptr->full_solution_vec.resize(solution_storage_ptr->total_size);
+
+    const size_t* first_slice_index_by_layer_ptr = first_slice_index_by_layer.data();
+    const size_t* num_slices_by_layer_ptr        = num_slices_by_layer.data();
+    double* radius_array_ptr  = radius_grid.data();
+    double* gravity_array_ptr = gravity_grid.data();
+    double* density_array_ptr = density_grid.data();
+    std::complex<double>* complex_shear_array_ptr = shear_grid.data();
 
     const double planet_radius = radius_array_ptr[top_slice_i];
 

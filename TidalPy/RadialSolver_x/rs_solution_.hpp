@@ -71,6 +71,10 @@ public:
     // get_radial_solution then interpolates linearly.
     bool p_uses_interpolants = false;
 
+    // The propagation matrix's own radius grid (solve units), laid down inside c_matrix_propagate and kept only
+    // because full_solution_vec is interpolated against it. Empty after a shooting solve, which grids nothing.
+    std::vector<double> p_matrix_radius_solve = std::vector<double>();
+
     // Dense CyRK results [layer][solution]; owns the force-retained integrators.
     std::vector<std::vector<std::unique_ptr<CySolverResult>>> p_interp_by_layer_sol;
 
@@ -455,8 +459,8 @@ public:
         for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
         if (!this->success || ytype_i >= this->num_ytypes || this->num_slices < 2) return false;
 
-        const c_EOSSolution* eos = this->eos_solution_uptr.get();
-        const std::vector<double>& rad = eos->radius_array_vec;     // EOS units (non-dim or SI per p_eos_is_nondim)
+        // The matrix method's grid
+        const std::vector<double>& rad = this->p_matrix_radius_solve;
         const double eos_r = this->p_eos_is_nondim ? (radius_si / this->p_length_conv) : radius_si;
         const size_t n = this->num_slices;
         if (n == 0 || rad.size() < n) return false;

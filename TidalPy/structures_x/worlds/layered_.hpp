@@ -804,28 +804,7 @@ public:
         // both copies the lower layer's material. The provider captures this solve's frequency.
         //
         // The captured `this` is safe: the provider lives on the solver's storage, which this world owns, and it is
-        // cleared below once the solve returns.
-        // The slice arrays are still filled, for two consumers that are not the shooting solve: the propagation-
-        // matrix method, which propagates across slices and so is discretized by construction, and the world's
-        // array properties, where slices_per_layer now means output sampling and nothing else. The fill walks each
-        // layer's own slice range rather than looking the layer up by radius, for the interface reason above.
-        const std::vector<double>& radius_si = solver->radius_si();
-        std::complex<double>* shear_out = solver->shear_scratch_data();
-        std::complex<double>* bulk_out  = solver->bulk_scratch_data();
-        const std::complex<double> nan_modulus(TidalPyConstants::d_NAN, 0.0);
-        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
-            const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
-            const std::size_t first_slice = solver->first_slice_index_by_layer()[layer_i];
-            const std::size_t end_slice   = first_slice + solver->num_slices_by_layer()[layer_i];
-            for (std::size_t i = first_slice; i < end_slice; ++i) {
-                const double r = radius_si[i];
-                shear_out[i] = (physics_layer != nullptr)
-                    ? physics_layer->calc_complex_shear_modulus(r, cfg.frequency) : nan_modulus;
-                bulk_out[i]  = (physics_layer != nullptr)
-                    ? physics_layer->calc_complex_bulk_modulus(r, cfg.frequency) : nan_modulus;
-            }
-        }
-
+        // cleared once the solve returns.
         const double frequency = cfg.frequency;
         solver->set_material_eval(
             [this, frequency](std::size_t layer_index, double radius_si, double* out5) {
@@ -849,6 +828,8 @@ public:
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         solver->solve(rt);
+        // The provider closes over this world and this solve's frequency, so it does not outlive the solve.
+        solver->set_material_eval(nullptr);
         this->p_love_solved = solver->get_solved();
     }
 
@@ -872,17 +853,15 @@ public:
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        const std::vector<double>& radius_si = solver->radius_si();
-        std::complex<double>* shear_out = solver->shear_scratch_data();
-        std::complex<double>* bulk_out  = solver->bulk_scratch_data();
-        // Interpolate the supplied complex moduli (defined at radius_in) onto the world's EOS grid one layer at a
-        // time, using only the supplied points that bound the layer: the last point at its base through the first
-        // point at its top. A repeated interface radius then gives the upper copy to the layer above and the lower
-        // copy to the layer below; interpolating across all layers at once would give a lower layer's top slice the
-        // upper layer's value. The bounds match within the relative tolerance build_cache uses for interfaces, so
-        // copies that differ by rounding still count as the interface. Both grids ascend, so seeding each search
-        // from the aligned fractional position keeps the lookup near O(1).
+        // Find, once per layer, the run of supplied points that bounds it. The last point at its base through the
+        // first point at its top. The provider below then interpolates inside that run, so a repeated interface
+        // radius gives the upper copy to the layer above and the lower copy to the layer below; interpolating
+        // across all layers at once would give a lower layer's top the upper layer's value. The bounds match
+        // within the relative tolerance the cache uses for interfaces, so copies that differ by rounding still
+        // count as the interface.
         const double* radius_in_end = radius_in + n_in;
+        std::vector<std::size_t> in_first_by_layer(this->p_layers.size(), 0);
+        std::vector<std::size_t> in_count_by_layer(this->p_layers.size(), 0);
         for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
             const double r_inner   = this->p_layers[layer_i]->get_radius_inner();
             const double r_outer   = this->p_layers[layer_i]->get_radius_outer();
@@ -893,29 +872,30 @@ public:
                 std::lower_bound(radius_in, radius_in_end, r_outer - tolerance) - radius_in);
             const std::size_t in_first = (past_base > 0) ? past_base - 1 : 0;
             const std::size_t in_last  = (at_top < n_in) ? at_top : n_in - 1;
-            const std::size_t in_count = in_last - in_first + 1;
-            const std::size_t first_slice = solver->first_slice_index_by_layer()[layer_i];
-            const std::size_t num_slices  = solver->num_slices_by_layer()[layer_i];
-            for (std::size_t slice_i = 0; slice_i < num_slices; ++slice_i) {
-                const std::size_t i    = first_slice + slice_i;
-                const double r         = radius_si[i];
-                const std::size_t seed = (slice_i * in_count) / num_slices;
-                shear_out[i] = c_interp_complex(r, radius_in + in_first, shear_in + in_first, in_count, seed);
-                bulk_out[i]  = c_interp_complex(r, radius_in + in_first, bulk_in + in_first, in_count, seed);
-            }
+            in_first_by_layer[layer_i] = in_first;
+            in_count_by_layer[layer_i] = in_last - in_first + 1;
         }
-
-        // The moduli are the caller's, but density is still the world's, so a density-only provider keeps it off
-        // the slice grid too. The four NaNs tell the solution to leave the supplied moduli alone.
         solver->set_material_eval(
-            [this](std::size_t layer_index, double radius_si, double* out5) {
+            [this, shear_in, bulk_in, radius_in, &in_first_by_layer, &in_count_by_layer](
+                    std::size_t layer_index, double radius_si, double* out5) {
                 if (layer_index >= this->p_layers.size()) { return; }
+                const std::size_t in_first = in_first_by_layer[layer_index];
+                const std::size_t in_count = in_count_by_layer[layer_index];
+                const std::complex<double> shear =
+                    c_interp_complex(radius_si, radius_in + in_first, shear_in + in_first, in_count, 0);
+                const std::complex<double> bulk =
+                    c_interp_complex(radius_si, radius_in + in_first, bulk_in + in_first, in_count, 0);
                 out5[0] = this->p_layers[layer_index]->get_density(radius_si);
+                out5[1] = shear.real();
+                out5[2] = shear.imag();
+                out5[3] = bulk.real();
+                out5[4] = bulk.imag();
             });
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         rt.redim_eos_arrays = true;
         solver->solve(rt);
+        solver->set_material_eval(nullptr);
 
         // Report SI EOS scalars on the released storage (the world own EOS solution is dimensional).
         if (solver->get_storage() != nullptr) {
