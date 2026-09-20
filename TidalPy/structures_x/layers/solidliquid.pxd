@@ -38,22 +38,14 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         cpp_bool            is_incompressible
         double              temperature
         cpp_bool            use_thermal_eos
-        # SolidLiquidLayer additions:
-        double              thermal_conductivity_ref
-        double              thermal_expansion_ref
-        double              heat_capacity_ref
-        double              reference_density
-        double              reference_temperature
 
     cdef cppclass c_SolidLiquidLayer(c_PhysicsLayer):
         c_SolidLiquidLayer() except +
         c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg) except +
-        # Thermal property getters
-        double get_thermal_conductivity_ref() const
-        double get_thermal_expansion_ref()    const
-        double get_heat_capacity_ref()        const
-        double get_reference_density()        const
-        double get_reference_temperature()    const
+        # Thermal constants of the material (read from the layer's EOS model)
+        double get_thermal_conductivity() const
+        double get_thermal_expansion()    const
+        double get_heat_capacity()        const
         # Calculations
         double calc_thermal_conductivity(double temperature) const
         double calc_thermal_diffusivity(double temperature)  const

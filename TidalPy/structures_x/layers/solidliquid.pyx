@@ -2,8 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrapper for TidalPy's solid/liquid layer class.
 
-SolidLiquidLayer extends PhysicsLayer with reference thermal properties and optional cooling and radiogenics
-sub-models.
+SolidLiquidLayer extends PhysicsLayer with optional cooling and radiogenics sub-models and the conductive and
+adiabatic calculations that need the layer's geometry or solved profile.
 """
 
 from libcpp.complex cimport complex as cpp_complex
@@ -32,11 +32,12 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # SolidLiquidLayer
 # =====================================================================================================================
 cdef class SolidLiquidLayer(PhysicsLayer):
-    """Thermo-mechanical layer with reference thermal properties and optional cooling and radiogenics sub-models.
+    """Thermo-mechanical layer with optional cooling and radiogenics sub-models.
 
-    Extends PhysicsLayer with thermal conductivity, diffusivity, the adiabatic gradient, and conductive heat flux.
-    Viscosity, melt fraction, and the melt-reduced shear modulus belong to the layer's material (its EOS model),
-    which the EOS solve evaluates; read them back with the radius getters.
+    Extends PhysicsLayer with thermal diffusivity, the adiabatic gradient, and conductive heat flux, which read
+    the thermal constants (conductivity, expansivity, heat capacity) of the layer's material, its EOS model.
+    Viscosity, melt fraction, and the melt-reduced shear modulus belong to the material too; the EOS solve
+    evaluates them, and the radius getters read them back.
 
     Parameters
     ----------
@@ -64,16 +65,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Radial displacement Love number h (placeholder). Default ``0+0j``.
     love_number_l : complex, optional
         Tangential displacement Love number l (placeholder). Default ``0+0j``.
-    thermal_conductivity_ref : float, optional
-        Reference thermal conductivity [W/(m·K)]. Default ``4.0``.
-    thermal_expansion_ref : float, optional
-        Reference thermal expansion coefficient [1/K]. Default ``3e-5``.
-    heat_capacity_ref : float, optional
-        Reference specific heat capacity [J/(kg·K)]. Default ``1200.0``.
-    reference_density : float, optional
-        Reference density for thermal diffusivity [kg/m³]. Default ``3500.0``.
-    reference_temperature : float, optional
-        Reference temperature of the layer thermal properties [K]. Default ``1600.0``.
     tidal_scale_method : str, optional
         How the layer's share of the world's tidal heating is set. Default ``"user_provided"``.
     is_solid : bool, optional
@@ -111,11 +102,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             complex love_number_k           = 0+0j,
             complex love_number_h           = 0+0j,
             complex love_number_l           = 0+0j,
-            double thermal_conductivity_ref = 4.0,
-            double thermal_expansion_ref    = 3.0e-5,
-            double heat_capacity_ref        = 1200.0,
-            double reference_density        = 3500.0,
-            double reference_temperature    = 1600.0,
             str    tidal_scale_method       = "user_provided",
             cpp_bool   is_solid             = True,
             cpp_bool   is_static            = True,
@@ -142,11 +128,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         config.is_incompressible    = is_incompressible
         config.temperature       = temperature
         config.use_thermal_eos   = use_thermal_eos
-        config.thermal_conductivity_ref = thermal_conductivity_ref
-        config.thermal_expansion_ref = thermal_expansion_ref
-        config.heat_capacity_ref     = heat_capacity_ref
-        config.reference_density     = reference_density
-        config.reference_temperature = reference_temperature
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_SolidLiquidLayer] built = make_unique[c_SolidLiquidLayer](config)
@@ -171,29 +152,19 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     # Thermal properties
     # ------------------------------------------------------------------------------------------------------------------
     @property
-    def thermal_conductivity_ref(self) -> float:
-        """Reference thermal conductivity [W/(m·K)]."""
-        return self._solidliquid_ptr.get_thermal_conductivity_ref()
+    def thermal_conductivity(self) -> float:
+        """Thermal conductivity k [W/(m K)] of the layer's material (its EOS model); NaN when none is attached."""
+        return self._solidliquid_ptr.get_thermal_conductivity()
 
     @property
-    def thermal_expansion_ref(self) -> float:
-        """Reference thermal expansion coefficient [1/K]."""
-        return self._solidliquid_ptr.get_thermal_expansion_ref()
+    def thermal_expansion(self) -> float:
+        """Thermal expansivity alpha [1/K] of the layer's material; NaN when none is attached."""
+        return self._solidliquid_ptr.get_thermal_expansion()
 
     @property
-    def heat_capacity_ref(self) -> float:
-        """Reference specific heat capacity [J/(kg·K)]."""
-        return self._solidliquid_ptr.get_heat_capacity_ref()
-
-    @property
-    def reference_density(self) -> float:
-        """Reference density used for thermal diffusivity [kg/m³]."""
-        return self._solidliquid_ptr.get_reference_density()
-
-    @property
-    def reference_temperature(self) -> float:
-        """Reference temperature of the layer thermal properties [K]."""
-        return self._solidliquid_ptr.get_reference_temperature()
+    def heat_capacity(self) -> float:
+        """Specific heat capacity c_p [J/(kg K)] of the layer's material; NaN when none is attached."""
+        return self._solidliquid_ptr.get_heat_capacity()
 
     @property
     def cooling_set(self) -> bool:
@@ -348,15 +319,10 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Returns
         -------
         dict
-            The PhysicsLayer keys plus the SolidLiquidLayer thermal parameters, and the ``cooling`` and
-            ``radiogenics`` sub-tables when those models are attached.
+            The PhysicsLayer keys plus the ``cooling`` and ``radiogenics`` sub-tables when those models are
+            attached. The thermal constants are the material's, so they sit in the ``material`` table.
         """
         d = PhysicsLayer.get_config_dict(self)
-        d["thermal_conductivity_ref_w_mk"] = self._solidliquid_ptr.get_thermal_conductivity_ref()
-        d["thermal_expansion_ref_1_k"]     = self._solidliquid_ptr.get_thermal_expansion_ref()
-        d["heat_capacity_ref_j_kgk"]       = self._solidliquid_ptr.get_heat_capacity_ref()
-        d["reference_density_kg_m3"]       = self._solidliquid_ptr.get_reference_density()
-        d["reference_temperature_k"]       = self._solidliquid_ptr.get_reference_temperature()
         cdef const c_PhysicsBase* model_ptr
         model_ptr = <const c_PhysicsBase*>self._solidliquid_ptr.get_cooling_model()
         if model_ptr != NULL:

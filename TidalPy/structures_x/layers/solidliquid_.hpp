@@ -2,9 +2,9 @@
 /*
  * solidliquid_.hpp: c_SolidLiquidLayer, a thermo-mechanical layer with phase changes, built on c_PhysicsLayer.
  *
- * Adds the reference thermal properties the conductive and adiabatic calculations need, plus optional cooling
- * and radiogenics sub-models. Arrhenius viscosity and melt fraction belong to the attached viscosity and
- * partial-melt models, which read the layer state rather than these fields. All MKS.
+ * Adds the optional cooling and radiogenics sub-models, and the conductive and adiabatic calculations that need
+ * the layer's geometry or solved profile. The thermal constants those read (conductivity, expansivity, heat
+ * capacity) belong to the material, the layer's EOS model, like every other material property. All MKS.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::SolidLiquidLayer (102)
@@ -12,11 +12,6 @@
  *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
  *     [all c_PhysicsLayer additions: love_numbers k/h/l re+im (6×8), the three classification flags,
  *      temperature, use_thermal_eos]
- *     thermal_conductivity_ref (double, 8)
- *     thermal_expansion_ref    (double, 8)
- *     heat_capacity_ref        (double, 8)
- *     reference_density        (double, 8)
- *     reference_temperature    (double, 8)
  *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
@@ -43,14 +38,9 @@
 
 namespace tidalpy {
 
-// Construction parameters for c_SolidLiquidLayer: c_PhysicsConfig plus the thermal and melt-fraction fields.
-struct c_SolidLiquidConfig : public c_PhysicsConfig {
-    double thermal_conductivity_ref = 4.0;     // [W/m/K]
-    double thermal_expansion_ref    = 3.0e-5;  // [1/K]
-    double heat_capacity_ref        = 1200.0;  // [J/(kg·K)]
-    double reference_density        = 3500.0;  // [kg/m³] used for thermal diffusivity
-    double reference_temperature    = 1600.0;  // [K] reference state of the thermal properties
-};
+// Construction parameters for c_SolidLiquidLayer. It adds no scalars to c_PhysicsConfig: what distinguishes the
+// class is the cooling and radiogenics models it can hold.
+struct c_SolidLiquidConfig : public c_PhysicsConfig {};
 
 class c_SolidLiquidLayer : public c_PhysicsLayer {
 public:
@@ -58,12 +48,7 @@ public:
     c_SolidLiquidLayer() = default;
 
     explicit c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg)
-        : c_PhysicsLayer(cfg),
-          p_thermal_conductivity_ref(cfg.thermal_conductivity_ref),
-          p_thermal_expansion_ref(cfg.thermal_expansion_ref),
-          p_heat_capacity_ref(cfg.heat_capacity_ref),
-          p_reference_density(cfg.reference_density),
-          p_reference_temperature(cfg.reference_temperature)
+        : c_PhysicsLayer(cfg)
     {}
 
     ~c_SolidLiquidLayer() override = default;
@@ -73,11 +58,6 @@ public:
     c_SolidLiquidLayer& operator=(const c_SolidLiquidLayer& other) noexcept {
         if (this != &other) {
             c_PhysicsLayer::operator=(other);
-            this->p_thermal_conductivity_ref  = other.p_thermal_conductivity_ref;
-            this->p_thermal_expansion_ref     = other.p_thermal_expansion_ref;
-            this->p_heat_capacity_ref         = other.p_heat_capacity_ref;
-            this->p_reference_density         = other.p_reference_density;
-            this->p_reference_temperature     = other.p_reference_temperature;
             this->p_cooling.reset();
             this->p_radiogenics.reset();
         }
@@ -85,31 +65,34 @@ public:
     }
     c_SolidLiquidLayer& operator=(c_SolidLiquidLayer&&) noexcept = default;
 
-    // Thermal property getters (const, MKS)
-    double get_thermal_conductivity_ref()  const noexcept { return this->p_thermal_conductivity_ref; }
-    double get_thermal_expansion_ref()     const noexcept { return this->p_thermal_expansion_ref; }
-    double get_heat_capacity_ref()         const noexcept { return this->p_heat_capacity_ref; }
-    double get_reference_density()         const noexcept { return this->p_reference_density; }
-    double get_reference_temperature()     const noexcept { return this->p_reference_temperature; }
+    // Thermal constants of the material, read from the layer's EOS model (NaN when none is attached).
+    double get_thermal_conductivity() const noexcept {
+        return this->p_eos ? this->p_eos->get_thermal_conductivity() : TidalPyConstants::d_NAN;
+    }
+    double get_thermal_expansion() const noexcept {
+        return this->p_eos ? this->p_eos->get_thermal_expansion() : TidalPyConstants::d_NAN;
+    }
+    double get_heat_capacity() const noexcept {
+        return this->p_eos ? this->p_eos->get_heat_capacity() : TidalPyConstants::d_NAN;
+    }
 
     uint32_t get_layer_class_id() const noexcept override {
         return static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer);
     }
 
-    // Thermal transport (const, MKS)
+    // Thermal transport (const, MKS). Each reads the material's constants; what the layer adds is its geometry
+    // and its solved profile.
     double calc_thermal_conductivity(double /*temperature*/) const noexcept {
-        return this->p_thermal_conductivity_ref;
+        return this->get_thermal_conductivity();
     }
 
-    // κ = k / (ρ_ref · c_p)  [m²/s]
-    double calc_thermal_diffusivity(double temperature) const noexcept {
-        const double k   = calc_thermal_conductivity(temperature);
-        const double rho = (this->p_reference_density > 0.0) ? this->p_reference_density : 1.0;
-        const double cp  = (this->p_heat_capacity_ref > 0.0)  ? this->p_heat_capacity_ref  : 1.0;
-        return k / (rho * cp);
+    // kappa = k / (rho c_p)  [m^2/s], at the layer's bulk density (its mass over its volume).
+    double calc_thermal_diffusivity(double /*temperature*/) const noexcept {
+        return this->p_eos ? this->p_eos->calc_thermal_diffusivity(this->get_density_bulk())
+                           : TidalPyConstants::d_NAN;
     }
 
-    // Adiabatic temperature gradient [K/m]: dT/dr = α · T · g / c_p. Gravity comes from the EOS profile at the
+    // Adiabatic temperature gradient [K/m]: dT/dr = alpha T g / c_p. Gravity comes from the EOS profile at the
     // layer's outer boundary; 0.0 when that profile is unpopulated.
     double calc_adiabatic_temperature_gradient(double temperature,
                                                double /*pressure*/) const noexcept {
@@ -118,14 +101,14 @@ public:
             g = this->p_eos_data.get_gravity(this->p_radius);
         }
         if (g <= 0.0 || temperature <= 0.0) { return 0.0; }
-        return this->p_thermal_expansion_ref * temperature * g / this->p_heat_capacity_ref;
+        return this->get_thermal_expansion() * temperature * g / this->get_heat_capacity();
     }
 
-    // Conductive heat flux [W/m²]: q = k · (T_base − T_top) / thickness; 0.0 for a zero-thickness layer.
+    // Conductive heat flux [W/m^2]: q = k (T_base - T_top) / thickness; 0.0 for a zero-thickness layer.
     double calc_heat_flux_conductive(double temperature_base,
                                      double temperature_top) const noexcept {
         if (this->p_thickness <= 0.0) { return 0.0; }
-        return this->p_thermal_conductivity_ref
+        return this->get_thermal_conductivity()
                * (temperature_base - temperature_top)
                / this->p_thickness;
     }
@@ -170,7 +153,6 @@ public:
             sizeof(double)   * 6 +           // love_numbers k/h/l re+im
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
             material_law_bytes() +           // temperature, use_thermal_eos
-            sizeof(double)   * 5 +           // SolidLiquidLayer thermal fields
             optional_binary_flag_bytes() +             // material EOS model presence flag
             this->physics_models_presence_bytes() +    // shear and bulk rheology presence flags
             2 * optional_binary_flag_bytes();    // cooling + radiogenics presence flags
@@ -215,11 +197,6 @@ public:
         this->write_material_law_binary(out);
 
         // c_SolidLiquidLayer fields
-        out.write(reinterpret_cast<const char*>(&this->p_thermal_conductivity_ref), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_thermal_expansion_ref),    sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_heat_capacity_ref),        sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_reference_density),        sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_reference_temperature),    sizeof(double));
 
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write SolidLiquidLayer binary data");
@@ -290,11 +267,6 @@ public:
         this->read_material_law_binary(in);
 
         // c_SolidLiquidLayer fields
-        in.read(reinterpret_cast<char*>(&this->p_thermal_conductivity_ref), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_thermal_expansion_ref),    sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_heat_capacity_ref),        sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_reference_density),        sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_reference_temperature),    sizeof(double));
 
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read SolidLiquidLayer binary data");
@@ -326,11 +298,6 @@ protected:
         if (this->p_radiogenics) { this->p_radiogenics->set_layer_ptr(this); }
     }
 
-    double p_thermal_conductivity_ref = 4.0;       // [W/m/K]
-    double p_thermal_expansion_ref    = 3.0e-5;    // [1/K]
-    double p_heat_capacity_ref        = 1200.0;    // [J/(kg·K)]
-    double p_reference_density        = 3500.0;    // [kg/m³]
-    double p_reference_temperature    = 1600.0;    // [K]
 
     std::unique_ptr<c_CoolingBase>      p_cooling;
     std::unique_ptr<c_RadiogenicsBase>  p_radiogenics;

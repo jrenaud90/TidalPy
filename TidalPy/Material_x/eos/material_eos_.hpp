@@ -8,7 +8,8 @@
  * the solved structure is the one place those properties are read from afterwards.
  *
  * The material owns the static shear law mu = mu0 + mu'_P P + mu'_T (T - T_ref), the constant bulk modulus of
- * the models with no pressure law, the static viscosities, and the optional viscosity and partial-melt models.
+ * the models with no pressure law, the static viscosities, the optional viscosity and partial-melt models, and
+ * the thermal constants (conductivity, heat capacity, and the expansivity the density law shares).
  * Nothing here depends on a forcing frequency: complex moduli are the rheology's job.
  *
  * Every model carries a thermal expansivity alpha0 [1/K] and a reference temperature T_ref [K]. Birch-Murnaghan
@@ -78,6 +79,10 @@ struct c_MaterialEOSConfig {
     double shear_modulus_pressure_derivative    = 0.0;                          // [dimensionless]
     double shear_modulus_temperature_derivative = 0.0;                          // [Pa/K]
     double shear_modulus_reference_temperature  = d_EOS_REFERENCE_TEMPERATURE;  // [K]
+    // Thermal constants. The expansivity is thermal_expansion above: one alpha serves the density law, the
+    // adiabat, and convection.
+    double thermal_conductivity = 4.0;      // k   [W/(m K)]
+    double heat_capacity        = 1200.0;   // c_p [J/(kg K)]
 
     // Interpolated model: sorted-ascending radius [m] and matching density [kg/m^3].
     std::vector<double> radius;
@@ -238,7 +243,9 @@ public:
           p_bulk_viscosity_static(cfg.bulk_viscosity_static),
           p_shear_modulus_pressure_derivative(cfg.shear_modulus_pressure_derivative),
           p_shear_modulus_temperature_derivative(cfg.shear_modulus_temperature_derivative),
-          p_shear_modulus_reference_temperature(cfg.shear_modulus_reference_temperature) {}
+          p_shear_modulus_reference_temperature(cfg.shear_modulus_reference_temperature),
+          p_thermal_conductivity(cfg.thermal_conductivity),
+          p_heat_capacity(cfg.heat_capacity) {}
     ~c_MaterialEOSBase() override = default;
 
     double get_thermal_expansion()     const noexcept { return this->p_thermal_expansion; }
@@ -258,6 +265,15 @@ public:
     double get_shear_modulus_reference_temperature() const noexcept {
         return this->p_shear_modulus_reference_temperature;
     }
+    // Thermal constants. The thermal diffusivity [m^2/s] is k / (rho c_p) at a density [kg/m^3]; NaN when the
+    // density or heat capacity is not positive.
+    double get_thermal_conductivity() const noexcept { return this->p_thermal_conductivity; }
+    double get_heat_capacity()        const noexcept { return this->p_heat_capacity; }
+    double calc_thermal_diffusivity(double density) const noexcept {
+        if (!(density > 0.0) || !(this->p_heat_capacity > 0.0)) { return TidalPyConstants::d_NAN; }
+        return this->p_thermal_conductivity / (density * this->p_heat_capacity);
+    }
+
     void set_shear_modulus_static(double value)   noexcept { this->p_shear_modulus_static = value; }
     void set_bulk_modulus_static(double value)    noexcept { this->p_bulk_modulus_static = value; }
     void set_shear_viscosity_static(double value) noexcept { this->p_shear_viscosity_static = value; }
@@ -296,6 +312,8 @@ public:
             "shear_modulus_temperature_derivative_pa_k", this->p_shear_modulus_temperature_derivative));
         out.push_back(c_config_double(
             "shear_modulus_reference_temperature_k", this->p_shear_modulus_reference_temperature));
+        out.push_back(c_config_double("thermal_conductivity_w_mk", this->p_thermal_conductivity));
+        out.push_back(c_config_double("heat_capacity_j_kgk", this->p_heat_capacity));
     }
 
     // Density [kg/m^3] from pressure [Pa], temperature [K], and radius [m]; analytic models use the pressure, the
@@ -427,14 +445,16 @@ protected:
         return c_safe_exp(-this->p_thermal_expansion * this->p_temperature_offset(temperature));
     }
 
-    // The material section every model appends after its own binary record: the seven doubles of the constants
-    // and the shear law, then a presence flag and nested record for each of the three optional models.
+    // The material section every model appends after its own binary record: nine doubles (the static constants,
+    // the shear law, the conductivity, and the heat capacity), then a presence flag and nested record for each
+    // of the three optional models.
     void write_material_binary(std::ostream& out) const {
-        const double values[7] = {
+        const double values[9] = {
             this->p_shear_modulus_static, this->p_bulk_modulus_static,
             this->p_shear_viscosity_static, this->p_bulk_viscosity_static,
             this->p_shear_modulus_pressure_derivative, this->p_shear_modulus_temperature_derivative,
-            this->p_shear_modulus_reference_temperature};
+            this->p_shear_modulus_reference_temperature,
+            this->p_thermal_conductivity, this->p_heat_capacity};
         out.write(reinterpret_cast<const char*>(values), sizeof(values));
         if (!out) { throw std::runtime_error("TidalPy: failed to write material EOS binary data"); }
         write_optional_binary(out, this->p_shear_viscosity_model);
@@ -443,7 +463,7 @@ protected:
     }
 
     void read_material_binary(std::istream& in, bool force) {
-        double values[7];
+        double values[9];
         in.read(reinterpret_cast<char*>(values), sizeof(values));
         if (!in) { throw std::runtime_error("TidalPy: failed to read material EOS binary data"); }
         this->p_shear_modulus_static                 = values[0];
@@ -453,6 +473,8 @@ protected:
         this->p_shear_modulus_pressure_derivative    = values[4];
         this->p_shear_modulus_temperature_derivative = values[5];
         this->p_shear_modulus_reference_temperature  = values[6];
+        this->p_thermal_conductivity                 = values[7];
+        this->p_heat_capacity                        = values[8];
         this->p_shear_viscosity_model = read_optional_binary<c_ViscosityBase>(in, force, c_viscosity_from_binary);
         this->p_bulk_viscosity_model  = read_optional_binary<c_ViscosityBase>(in, force, c_viscosity_from_binary);
         this->p_partial_melt_model    = read_optional_binary<c_PartialMeltBase>(in, force, c_partial_melt_from_binary);
@@ -468,6 +490,8 @@ protected:
     double p_shear_modulus_pressure_derivative    = 0.0;
     double p_shear_modulus_temperature_derivative = 0.0;
     double p_shear_modulus_reference_temperature  = d_EOS_REFERENCE_TEMPERATURE;
+    double p_thermal_conductivity = 4.0;
+    double p_heat_capacity        = 1200.0;
 
     std::unique_ptr<c_ViscosityBase>   p_shear_viscosity_model;
     std::unique_ptr<c_ViscosityBase>   p_bulk_viscosity_model;

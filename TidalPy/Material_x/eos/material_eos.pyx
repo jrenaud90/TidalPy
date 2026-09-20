@@ -171,6 +171,20 @@ cdef class MaterialEOSBase(PhysicsBase):
         """Reference temperature of the static shear law [K]."""
         return self._model().get_shear_modulus_reference_temperature()
 
+    @property
+    def thermal_conductivity(self) -> float:
+        """Thermal conductivity k [W/(m K)]."""
+        return self._model().get_thermal_conductivity()
+
+    @property
+    def heat_capacity(self) -> float:
+        """Specific heat capacity c_p [J/(kg K)]."""
+        return self._model().get_heat_capacity()
+
+    def calc_thermal_diffusivity(self, double density) -> float:
+        """Thermal diffusivity k / (rho c_p) [m^2/s] at a density [kg/m^3]."""
+        return self._model().calc_thermal_diffusivity(density)
+
     def set_shear_viscosity(self, ViscosityBase viscosity not None):
         """Attach a viscosity model supplying the shear viscosity before the partial-melt model.
 
@@ -276,7 +290,7 @@ cdef dict cy_material_config(const c_MaterialEOSBase* eos_ptr):
 _MATERIAL_KWARGS = (
     "shear_modulus_static", "bulk_modulus_static", "shear_viscosity_static", "bulk_viscosity_static",
     "shear_modulus_pressure_derivative", "shear_modulus_temperature_derivative",
-    "shear_modulus_reference_temperature")
+    "shear_modulus_reference_temperature", "thermal_conductivity", "heat_capacity")
 
 
 cdef int _fill_material_config(c_MaterialEOSConfig& config, dict material) except -1:
@@ -297,6 +311,10 @@ cdef int _fill_material_config(c_MaterialEOSConfig& config, dict material) excep
         config.shear_modulus_temperature_derivative = material["shear_modulus_temperature_derivative"]
     if material.get("shear_modulus_reference_temperature") is not None:
         config.shear_modulus_reference_temperature = material["shear_modulus_reference_temperature"]
+    if "thermal_conductivity" in material:
+        config.thermal_conductivity = material["thermal_conductivity"]
+    if "heat_capacity" in material:
+        config.heat_capacity = material["heat_capacity"]
     return 0
 
 
@@ -529,7 +547,7 @@ MATERIAL_EOS_CONFIG_KEYS = frozenset({
     "shear_viscosity_pas", "bulk_viscosity_pas", "thermal_expansion_1_k", "reference_temperature_k",
     "shear_modulus_static_pa", "bulk_modulus_static_pa", "shear_viscosity_static_pas", "bulk_viscosity_static_pas",
     "shear_modulus_pressure_derivative", "shear_modulus_temperature_derivative_pa_k",
-    "shear_modulus_reference_temperature_k",
+    "shear_modulus_reference_temperature_k", "thermal_conductivity_w_mk", "heat_capacity_j_kgk",
     # Nested model tables ({"model": ..., ...}), built with make_viscosity / make_partial_melt and attached.
     "shear_viscosity", "bulk_viscosity", "partial_melt"})
 
@@ -549,7 +567,8 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
         material keys, also for every model: ``shear_modulus_static_pa``, ``bulk_modulus_static_pa``,
         ``shear_viscosity_static_pas``, ``bulk_viscosity_static_pas``, the shear law's
         ``shear_modulus_pressure_derivative``, ``shear_modulus_temperature_derivative_pa_k`` and
-        ``shear_modulus_reference_temperature_k``, and the nested model tables ``shear_viscosity``,
+        ``shear_modulus_reference_temperature_k``, the thermal constants ``thermal_conductivity_w_mk`` and
+        ``heat_capacity_j_kgk``, and the nested model tables ``shear_viscosity``,
         ``bulk_viscosity`` and ``partial_melt`` (each a dict with a ``model`` key and that model's own keys).
 
     Returns
@@ -607,6 +626,10 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
         cfg.shear_modulus_temperature_derivative = config["shear_modulus_temperature_derivative_pa_k"]
     if "shear_modulus_reference_temperature_k" in config:
         cfg.shear_modulus_reference_temperature = config["shear_modulus_reference_temperature_k"]
+    if "thermal_conductivity_w_mk" in config:
+        cfg.thermal_conductivity = config["thermal_conductivity_w_mk"]
+    if "heat_capacity_j_kgk" in config:
+        cfg.heat_capacity = config["heat_capacity_j_kgk"]
 
     cdef c_MaterialEOSModel model = c_material_eos_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(model, cfg)

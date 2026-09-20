@@ -43,6 +43,9 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         double get_shear_modulus_pressure_derivative() const
         double get_shear_modulus_temperature_derivative() const
         double get_shear_modulus_reference_temperature() const
+        double get_thermal_conductivity() const
+        double get_heat_capacity() const
+        double calc_thermal_diffusivity(double density) const
         void set_shear_modulus_static(double value)
         void set_bulk_modulus_static(double value)
         void set_shear_viscosity_static(double value)
@@ -70,6 +73,8 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         double shear_modulus_pressure_derivative
         double shear_modulus_temperature_derivative
         double shear_modulus_reference_temperature
+        double thermal_conductivity
+        double heat_capacity
         vector[double] radius
         vector[double] density
         vector[double] shear_modulus
