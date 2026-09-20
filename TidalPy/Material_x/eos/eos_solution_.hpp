@@ -691,6 +691,9 @@ public:
                 y_interp_ptr[C_EOS_DENSITY_INDEX]       = mat_out[0] / this->p_structure_density_scale;
                 y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX] = mat_out[1] / this->p_structure_pascal_scale;
                 y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]  = mat_out[2] / this->p_structure_pascal_scale;
+                // Viscosities are SI in every state, like the rest of this layout.
+                y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX] = mat_out[7];
+                y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]  = mat_out[8];
             }
             return;
         }

@@ -38,9 +38,10 @@ struct c_ShootingInputs {
     std::vector<size_t> first_slice_index_by_layer;
     std::vector<size_t> num_slices_by_layer;
 
-    // Boundary condition (tidal = 1, free = 0, loading = 2). Single model for the world path.
-    int    bc_model      = 1;
-    size_t num_bc_models = 1;
+    // Surface boundary conditions to solve for, in order (tidal = 1, free = 0, loading = 2). One solve produces a
+    // block of radial functions per entry. The independent solutions do not depend on the boundary condition, so
+    // n conditions cost one integration and n surface solves, not n integrations.
+    std::vector<int> bc_models = {1};
 
     // Non-dim planet scalars.
     double planet_bulk_density = 0.0;
@@ -67,8 +68,7 @@ struct c_MatrixInputs {
     size_t num_layers          = 1;
     // The method lays its own grid down inside c_matrix_propagate; this is the only thing left to say about it.
     size_t slices_per_layer    = 0;
-    int    bc_model            = 1;
-    size_t num_bc_models       = 1;
+    std::vector<int> bc_models = {1};
     double planet_bulk_density = 0.0;
     double G                   = 0.0;
     int    degree_l            = 2;
@@ -89,8 +89,8 @@ inline int c_shooting_solve(
             in.is_incompressible.get(),
             in.first_slice_index_by_layer,
             in.num_slices_by_layer,
-            in.num_bc_models,
-            &in.bc_model,
+            in.bc_models.size(),
+            in.bc_models.data(),
             in.G,
             in.degree_l,
             in.use_kamata,
@@ -115,8 +115,8 @@ inline int c_matrix_solve(
         frequency,
         in.planet_bulk_density,
         in.slices_per_layer,
-        in.num_bc_models,
-        &in.bc_model,
+        in.bc_models.size(),
+        in.bc_models.data(),
         in.G,
         in.degree_l,
         in.starting_radius,
@@ -132,7 +132,7 @@ inline int c_matrix_solve(
 // =====================================================================================================================
 struct c_LoveSolveRuntimeConfig {
     double    frequency       = 1.0e-5;             // [rad/s]; the only physically per-call quantity
-    int       bc_model        = 1;                  // tidal = 1, free = 0, loading = 2
+    std::vector<int> bc_models = {1};               // tidal = 1, free = 0, loading = 2; one output block each
     bool      use_prop_matrix = false;              // false = shooting method, true = propagation matrix
     int       core_model      = 0;                  // propagation-matrix core starting condition (0-4)
     bool      use_kamata      = false;
@@ -160,13 +160,22 @@ public:
     c_WorldRadialSolver() = default;
     ~c_WorldRadialSolver() = default;
 
-    // Cache signature check (layer count, slice count, degree, nondim flag) so the world can skip a rebuild.
-    bool cache_matches(size_t n_layers, size_t total_slices, int degree_l, bool nondimensionalize) const noexcept {
+    // Cache signature check (layer count, slice count, degree, nondim flag, output-block count) so the world can
+    // skip a rebuild. The block count is in the signature because it sizes the storage, so asking for a different
+    // set of boundary conditions has to rebuild.
+    bool cache_matches(
+        size_t n_layers,
+        size_t total_slices,
+        int degree_l,
+        bool nondimensionalize,
+        size_t num_ytypes) const noexcept
+    {
         return this->p_cache_valid
             && this->p_n_layers     == n_layers
             && this->p_total_slices == total_slices
             && this->p_degree_l     == degree_l
-            && this->p_nondim       == nondimensionalize;
+            && this->p_nondim       == nondimensionalize
+            && this->p_num_ytypes   == num_ytypes;
     }
 
     // The layer flags are user-mutable without an EOS re-solve, so a cache hit must also confirm them.
@@ -226,14 +235,17 @@ public:
         double bulk_density,
         int degree_l,
         bool nondimensionalize,
-        std::shared_ptr<const c_EOSSolution> structure_dense_source = nullptr)
+        std::shared_ptr<const c_EOSSolution> structure_dense_source = nullptr,
+        size_t num_ytypes = 1)
     {
         const size_t total_slices = radius_si.size();
+        if (num_ytypes == 0) { num_ytypes = 1; }
 
         this->p_n_layers           = n_layers;
         this->p_total_slices       = total_slices;
         this->p_degree_l           = degree_l;
         this->p_nondim             = nondimensionalize;
+        this->p_num_ytypes         = num_ytypes;
         this->p_surface_gravity_si = gravity_si[total_slices - 1];
 
         // unique_ptr because c_NonDimensionalScales is not assignable.
@@ -270,7 +282,7 @@ public:
 
         // (Re)build the reusable solution storage with the non-dim radius grid.
         this->p_storage = std::make_unique<c_RadialSolutionStorage>(
-            1 /*num_ytypes*/,
+            num_ytypes,
             this->p_upper_radii_nd.data(),
             n_layers,
             this->p_radius_nd.data(),
@@ -373,6 +385,7 @@ public:
         c_RadialSolutionStorage* storage = this->p_storage.get();
         storage->success    = false;
         storage->error_code = 0;
+        storage->p_bc_models = rt.bc_models;
         this->p_solved      = false;
 
         // Propagation matrix is only valid for a single solid, static, incompressible layer.
@@ -400,14 +413,14 @@ public:
 
         if (rt.use_prop_matrix) {
             c_MatrixInputs& mat = this->p_matrix_inputs;
-            mat.bc_model         = rt.bc_model;
+            mat.bc_models        = rt.bc_models;
             mat.starting_radius  = start_r;
             mat.start_radius_tol = rt.start_radius_tol;
             mat.core_model       = rt.core_model;
             c_matrix_solve(storage, mat, freq_nd, rt.verbose);
         } else {
             c_ShootingInputs& shoot = this->p_shooting_inputs;
-            shoot.bc_model           = rt.bc_model;
+            shoot.bc_models          = rt.bc_models;
             shoot.use_kamata         = rt.use_kamata;
             shoot.starting_radius    = start_r;
             shoot.start_radius_tol   = rt.start_radius_tol;
@@ -491,6 +504,7 @@ public:
     int    p_degree_l     = 0;
     bool   p_nondim       = true;
     bool   p_solved       = false;
+    size_t p_num_ytypes   = 1;
     double p_surface_gravity_si = TidalPyConstants::d_NAN;
 
     std::unique_ptr<c_NonDimensionalScales> p_non_dim_uptr;

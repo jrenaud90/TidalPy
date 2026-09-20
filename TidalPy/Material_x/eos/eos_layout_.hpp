@@ -33,7 +33,8 @@ static const std::size_t C_EOS_HEAT_FLOW_INDEX       = 10;
 static const std::size_t C_EOS_MELT_FRACTION_INDEX   = 11;
 
 // Material-provider layout (c_EOSSolution::MaterialEval), all SI: [0] density, [1] static shear modulus,
-// [2] static bulk modulus, [3, 4] complex shear modulus (real, imaginary), [5, 6] complex bulk modulus. One call
-// serves both the frequency-independent evaluation layout above and the solver's complex state.
-static const std::size_t C_EOS_MATERIAL_EVAL_VALUES = 7;
+// [2] static bulk modulus, [3, 4] complex shear modulus (real, imaginary), [5, 6] complex bulk modulus,
+// [7] shear viscosity, [8] bulk viscosity. One call serves both the frequency-independent evaluation layout
+// above and the solver's complex state.
+static const std::size_t C_EOS_MATERIAL_EVAL_VALUES = 9;
 

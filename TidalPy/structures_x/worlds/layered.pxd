@@ -68,7 +68,8 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_LoveSolveConfig:
         double    frequency
         int       degree_l
-        int       bc_model
+        vector[int] bc_models
+        void      set_bc_models(const int* models_ptr, size_t num_models) except +
         int       love_method
         double    fixed_q
         double    fixed_dt

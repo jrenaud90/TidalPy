@@ -57,6 +57,10 @@ public:
     // Surface y-solution (SI), laid out [ytype * C_MAX_NUM_Y + y_index], cached by find_love once per solve.
     std::vector<std::complex<double>> p_surface_y_si = std::vector<std::complex<double>>();
 
+    // The surface boundary conditions this solve produced blocks for, in order (tidal = 1, free = 0,
+    // loading = 2).
+    std::vector<int> p_bc_models = std::vector<int>();
+
     // Diagnostic data
     std::vector<size_t> shooting_method_steps_taken_vec = std::vector<size_t>();
 

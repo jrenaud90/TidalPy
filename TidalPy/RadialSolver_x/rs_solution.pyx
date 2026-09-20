@@ -1,9 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libcpp.memory cimport make_unique
+from libcpp.memory cimport make_unique, unique_ptr
 from libcpp.string cimport string as cpp_string
 from libcpp.complex cimport complex as cpp_complex
+from libcpp.utility cimport move
 
 from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_Y
 from TidalPy.Material_x.eos.ode cimport (
@@ -89,6 +90,35 @@ cdef class RadialSolverSolution:
             raise RuntimeError("c_RadialSolutionStorage extension class could not be initialized.")
 
         self.change_radius_array(radius_array_ptr, radius_array_size, array_changed=False)
+
+    @staticmethod
+    cdef RadialSolverSolution _adopt(
+            unique_ptr[c_RadialSolutionStorage] storage_uptr,
+            object source_world):
+        """Take ownership of a storage a world released, without building a new one.
+
+        The storage already carries its solved state, its EOS solution, the boundary conditions it solved for,
+        and (for a world solve) the shared rheologies that reproduce the complex moduli, so nothing is copied
+        and nothing is re-solved. ``__init__`` is bypassed deliberately: it exists to *create* a storage.
+
+        ``source_world`` is kept alive by this reference: the material provider the world installed on its way
+        out points back at it, and that provider is what answers every interior getter.
+        """
+        cdef RadialSolverSolution solution = RadialSolverSolution.__new__(RadialSolverSolution)
+        solution.p_source_world        = source_world
+        solution.solution_storage_uptr = move(storage_uptr)
+        solution.solution_storage_ptr  = solution.solution_storage_uptr.get()
+        if not solution.solution_storage_ptr:
+            raise RuntimeError("Released radial-solution storage was empty.")
+
+        solution.num_ytypes        = solution.solution_storage_ptr.num_ytypes
+        solution.num_layers        = solution.solution_storage_ptr.num_layers
+        solution.radius_array_size = solution.solution_storage_ptr.num_slices
+        solution.ytype_names_set   = False
+        if solution.solution_storage_ptr.p_bc_models.size() == solution.num_ytypes:
+            solution.set_model_names(solution.solution_storage_ptr.p_bc_models.data())
+        solution.finalize_python_storage()
+        return solution
 
     def __dealloc__(self):
         self.solution_storage_uptr.reset()
@@ -769,7 +799,13 @@ cdef class RadialSolverSolution:
             if not found:
                 raise ValueError('Unknown solution type requested.')
 
-            return np.copy(self.result[C_MAX_NUM_Y * (requested_sol_num): C_MAX_NUM_Y * (requested_sol_num + 1)])
+            gridded = self.result
+            if gridded is None or gridded.ndim != 2:
+                raise RuntimeError(
+                    "This solution holds no sampled y-grid, so it cannot be indexed by boundary-condition name. "
+                    "A world-attached solve evaluates its dense interpolants instead of gridding them; use "
+                    "get_radial_solution(radius) or get_radial_solution_array(radii).")
+            return np.copy(gridded[C_MAX_NUM_Y * (requested_sol_num): C_MAX_NUM_Y * (requested_sol_num + 1)])
         else:
             return None
 

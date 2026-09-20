@@ -124,7 +124,8 @@ struct c_WorldEOSSolveConfig {
 struct c_LoveSolveConfig {
     double    frequency = 1.0e-5;            // [rad/s]; tidal forcing frequency
     int       degree_l  = 2;                  // harmonic degree
-    int       bc_model  = 1;                  // surface boundary condition: 1 = tidal, 2 = loading, 0 = free
+    // Surface boundary conditions to solve for, in order: 1 = tidal, 2 = loading, 0 = free.
+    std::vector<int> bc_models = {1};
     int       love_method = 0;                  // c_LoveMethod as int: 0 radial_solver, 1 propagation_matrix,
                                                        // 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous
     double    fixed_q            = TidalPyConstants::d_NAN;   // cpl quality factor (NaN: from the tide model)
@@ -158,6 +159,12 @@ struct c_LoveSolveConfig {
         this->max_num_steps      = static_cast<size_t>(config.d_RADIAL_SOLVER_MAX_NUM_STEPS);
         this->expected_size      = static_cast<size_t>(config.d_RADIAL_SOLVER_EXPECTED_SIZE);
         this->max_ram_MB         = static_cast<size_t>(config.d_RADIAL_SOLVER_MAX_RAM_MB);
+    }
+
+    // Set the boundary conditions from a plain array, for the Cython wrappers.
+    void set_bc_models(const int* models_ptr, size_t num_models) {
+        if (models_ptr == nullptr || num_models == 0) { return; }
+        this->bc_models.assign(models_ptr, models_ptr + num_models);
     }
 };
 
@@ -695,7 +702,8 @@ public:
             upper_radii[i] = this->p_layers[i]->get_radius_outer();
         }
 
-        if (solver->cache_matches(n_layers, total_slices, cfg.degree_l, cfg.nondimensionalize)
+        const std::size_t num_ytypes = cfg.bc_models.empty() ? 1 : cfg.bc_models.size();
+        if (solver->cache_matches(n_layers, total_slices, cfg.degree_l, cfg.nondimensionalize, num_ytypes)
             && solver->layer_flags_match(layer_types.get(), is_static_arr.get(), is_incomp_arr.get(), n_layers))
             return true;
 
@@ -720,7 +728,8 @@ public:
             bulk_rho,
             cfg.degree_l,
             cfg.nondimensionalize,
-            std::const_pointer_cast<const c_EOSSolution>(this->p_eos_solution)
+            std::const_pointer_cast<const c_EOSSolution>(this->p_eos_solution),
+            num_ytypes
         );
     }
 
@@ -728,7 +737,7 @@ public:
     c_LoveSolveRuntimeConfig make_runtime_config(const c_LoveSolveConfig& cfg) const {
         c_LoveSolveRuntimeConfig rt;
         rt.frequency          = cfg.frequency;
-        rt.bc_model           = cfg.bc_model;
+        rt.bc_models          = cfg.bc_models;
         rt.use_prop_matrix    = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
         rt.core_model         = cfg.core_model;
         rt.use_kamata         = cfg.use_kamata;
@@ -804,29 +813,7 @@ public:
         // The captured `this` is safe: the provider lives on the solver's storage, which this world owns, and it is
         // cleared once the solve returns.
         const double frequency = cfg.frequency;
-        solver->set_material_eval(
-            [this, frequency](std::size_t layer_index, double radius_si, double* out) {
-                if (layer_index >= this->p_layers.size()) { return; }
-                const auto* physics_layer =
-                    dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_index].get());
-                if (physics_layer == nullptr) { return; }
-                // One dense call gives the static state; the rheology is the only thing that knows the frequency.
-                double state[C_EOS_DY_VALUES];
-                physics_layer->get_eos_state(radius_si, state);
-                const double static_shear = state[C_EOS_SHEAR_MODULUS_INDEX];
-                const double static_bulk  = state[C_EOS_BULK_MODULUS_INDEX];
-                const std::complex<double> shear = physics_layer->apply_shear_rheology(
-                    static_shear, state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
-                const std::complex<double> bulk = physics_layer->apply_bulk_rheology(
-                    static_bulk, state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
-                out[0] = state[C_EOS_DENSITY_INDEX];
-                out[1] = static_shear;
-                out[2] = static_bulk;
-                out[3] = shear.real();
-                out[4] = shear.imag();
-                out[5] = bulk.real();
-                out[6] = bulk.imag();
-            });
+        solver->set_material_eval(this->make_material_eval(frequency));
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         solver->solve(rt);
@@ -954,9 +941,53 @@ public:
         this->p_love_solved = solver->get_solved();
     }
 
+    // The per-layer material-state provider the radial solver reads at each integration radius: one dense EOS call
+    // for the frequency-independent state, then the layer's rheology, which is the only part that knows the
+    // frequency. Fills the material-provider layout of eos_layout_.hpp.
+    //
+    // The returned callable captures this world by pointer, so it must not outlive it.
+    c_EOSSolution::MaterialEval make_material_eval(double frequency) const {
+        return [this, frequency](std::size_t layer_index, double radius_si, double* out) {
+            if (layer_index >= this->p_layers.size()) { return; }
+            const auto* physics_layer =
+                dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_index].get());
+            if (physics_layer == nullptr) { return; }
+            double state[C_EOS_DY_VALUES];
+            physics_layer->get_eos_state(radius_si, state);
+            const double static_shear = state[C_EOS_SHEAR_MODULUS_INDEX];
+            const double static_bulk  = state[C_EOS_BULK_MODULUS_INDEX];
+            const std::complex<double> shear = physics_layer->apply_shear_rheology(
+                static_shear, state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
+            const std::complex<double> bulk = physics_layer->apply_bulk_rheology(
+                static_bulk, state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
+            out[0] = state[C_EOS_DENSITY_INDEX];
+            out[1] = static_shear;
+            out[2] = static_bulk;
+            out[3] = shear.real();
+            out[4] = shear.imag();
+            out[5] = bulk.real();
+            out[6] = bulk.imag();
+            out[7] = state[C_EOS_SHEAR_VISCOSITY_INDEX];
+            out[8] = state[C_EOS_BULK_VISCOSITY_INDEX];
+        };
+    }
+
     // Move the radial-solution storage out of the helper (one-shot export to a RadialSolverSolution).
     std::unique_ptr<::c_RadialSolutionStorage> release_radial_storage() {
-        return this->p_radial_solver ? this->p_radial_solver->release_storage() : nullptr;
+        if (!this->p_radial_solver) { return nullptr; }
+        if (::c_RadialSolutionStorage* storage = this->p_radial_solver->get_storage()) {
+            this->p_radial_solver->set_material_eval(
+                this->make_material_eval(storage->p_love_frequency_si));
+            // A solve keeps its readout in solve units so the cache survives the next frequency.
+            if (c_EOSSolution* storage_eos = storage->get_eos_solution_ptr()) {
+                storage_eos->p_structure_gravity_scale = 1.0;
+                storage_eos->p_structure_pascal_scale  = 1.0;
+                storage_eos->p_structure_mass_scale    = 1.0;
+                storage_eos->p_structure_moi_scale     = 1.0;
+                storage_eos->p_structure_density_scale = 1.0;
+            }
+        }
+        return this->p_radial_solver->release_storage();
     }
 
     // Love-number solve result accessors, valid after solve_love_numbers succeeds and NaN or empty otherwise.

@@ -35,6 +35,7 @@ cdef extern from "rs_solution_.hpp" nogil:
         unique_ptr[c_EOSSolution] eos_solution_uptr
         vector[double] full_solution_vec
         vector[c_LoveNumbers] complex_love_vec
+        vector[int] p_bc_models
         vector[size_t] shooting_method_steps_taken_vec
         double surface_amplification
         double p_love_frequency_si
@@ -75,6 +76,9 @@ cdef class RadialSolverSolution:
     cdef unique_ptr[c_RadialSolutionStorage] solution_storage_uptr
     cdef c_RadialSolutionStorage* solution_storage_ptr
 
+    # The world this solution was released from, if any.
+    cdef object p_source_world
+
     # Result pointers and data
     cdef cnp.ndarray full_solution_arr
 
@@ -85,6 +89,12 @@ cdef class RadialSolverSolution:
     cdef cnp.ndarray eos_steps_taken_array
 
     cdef void finalize_python_storage(self) noexcept
+
+    # Adopt a storage released by a world, instead of building one (see the .pyx).
+    @staticmethod
+    cdef RadialSolverSolution _adopt(
+        unique_ptr[c_RadialSolutionStorage] storage_uptr,
+        object source_world)
 
     cdef void set_model_names(
         self,

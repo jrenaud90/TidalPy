@@ -31,6 +31,8 @@ from TidalPy.structures_x.layers.base import LAYER_STANDALONE_CONFIG_KEYS
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
 from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
+from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_YTYPES
+from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_name_int
 from TidalPy.Utilities_x.logging_x.logger import log_warning
@@ -147,6 +149,28 @@ cdef int _resolve_solve_for(str solve_for) except? -999:
         return 0
     raise ValueError(
         f"Unsupported solve_for: {solve_for}. Supported: 'tidal', 'loading', 'free'.")
+
+
+cdef void _set_solve_for(c_LoveSolveConfig* cfg, solve_for) except *:
+    # Accept one boundary-condition name or a sequence of them, and write them onto the config in order. A
+    # sequence produces one block of radial functions each, from a single integration.
+    cdef list names
+    cdef vector[int] models
+    if isinstance(solve_for, str):
+        names = [solve_for]
+    else:
+        names = list(solve_for)
+    if len(names) == 0:
+        raise ValueError("solve_for must name at least one surface boundary condition.")
+    if len(names) > C_MAX_NUM_YTYPES:
+        raise ValueError(
+            f"solve_for accepts at most {C_MAX_NUM_YTYPES} boundary conditions; {len(names)} were given.")
+    if len(set(name.lower() for name in names)) != len(names):
+        raise ValueError(f"solve_for entries must be distinct; got {tuple(names)}.")
+    for name in names:
+        models.push_back(_resolve_solve_for(name))
+    cfg.set_bc_models(models.data(), models.size())
+
 
 cdef int _resolve_love_method(str love_method) except? -999:
     # Map a Love-number method name (or alias) to its c_LoveMethod index.
@@ -831,10 +855,10 @@ cdef class LayeredWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     def solve_love_numbers(
             self,
-            double frequency = 1.0e-5,
-            int degree_l     = 2,
-            str solve_for    = 'tidal',
-            int core_model   = 0,
+            double frequency  = 1.0e-5,
+            int degree_l      = 2,
+            solve_for         = 'tidal',
+            int core_model    = 0,
             use_kamata        = None,
             nondimensionalize = None,
             double starting_radius = 0.0,
@@ -868,10 +892,12 @@ cdef class LayeredWorld(BaseWorld):
             Tidal forcing frequency [rad/s]. Default 1e-5.
         degree_l : int, optional
             Harmonic degree. Default 2.
-        solve_for : str, optional
+        solve_for : str or sequence of str, optional
             Surface boundary condition: ``'tidal'`` (default; tidal Love numbers k, h, l), ``'loading'``
             (load Love numbers k', h', l'), or ``'free'`` (free-surface response). Same names as the
-            standalone ``radial_solver``.
+            standalone ``radial_solver``. A sequence solves for several in one pass, which costs one
+            integration rather than one each because the independent solutions do not depend on the
+            boundary condition; the Love-number properties then report the first entry.
         core_model : int, optional
             Propagation-matrix core starting condition (0-4). Ignored by the shooting method. Default 0.
         use_kamata : bool, optional
@@ -937,7 +963,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_LoveSolveConfig cfg = self._layered_ptr.make_love_solve_config()
         cfg.frequency = frequency
         cfg.degree_l  = degree_l
-        cfg.bc_model  = _resolve_solve_for(solve_for)
+        _set_solve_for(&cfg, solve_for)
         if love_method is not None:
             cfg.love_method = _resolve_love_method(love_method)
         if fixed_q is not None:
@@ -967,7 +993,7 @@ cdef class LayeredWorld(BaseWorld):
             double[::1] radius_array not None,
             double frequency  = 1.0e-5,
             int    degree_l   = 2,
-            str    solve_for  = 'tidal',
+            solve_for         = 'tidal',
             int    core_model = 0,
             use_kamata        = None,
             nondimensionalize = None,
@@ -1001,7 +1027,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_LoveSolveConfig cfg
         cfg.frequency   = frequency
         cfg.degree_l    = degree_l
-        cfg.bc_model    = _resolve_solve_for(solve_for)
+        _set_solve_for(&cfg, solve_for)
         cfg.love_method = _resolve_love_method(love_method)
         cfg.core_model  = core_model
         cfg.starting_radius = starting_radius
@@ -1026,6 +1052,31 @@ cdef class LayeredWorld(BaseWorld):
         if warnings:
             check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
         return self._build_love_result()
+
+    def release_radial_solution(self):
+        """Move the last radial Love solve's storage out of this world into a ``RadialSolverSolution``.
+
+        The solution owns the storage afterwards, so this world's radial cache is emptied and the next
+        ``solve_love_numbers`` call rebuilds it. The solution holds a reference back to this world, which is
+        what lets its interior getters keep answering: they read the material provider installed on the way
+        out, and that provider evaluates this world's layers.
+
+        Returns
+        -------
+        RadialSolverSolution
+            The solved radial functions, Love numbers, and interior of the last radial solve.
+
+        Raises
+        ------
+        RuntimeError
+            If no radial Love solve has been run, or the last one did not use a radial method.
+        """
+        cdef unique_ptr[c_RadialSolutionStorage] storage_uptr = self._layered_ptr.release_radial_storage()
+        if not storage_uptr:
+            raise RuntimeError(
+                "No radial solution to release: run solve_love_numbers with the 'radial_solver' or "
+                "'propagation_matrix' method first.")
+        return RadialSolverSolution._adopt(move(storage_uptr), self)
 
     def _build_love_result(self):
         """Assemble the Python result dict from the retained C++ Love-number solution."""
