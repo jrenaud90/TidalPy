@@ -2,9 +2,14 @@
 /*
  * material_eos_.hpp: material equation-of-state (EOS) models.
  *
- * A model returns a layer material's density [kg/m^3] from the local pressure [Pa] (analytic models) or
- * radius [m] (interpolated model); the whole-planet EOS solve evaluates it inline while integrating the
- * structure ODE.
+ * A model is a layer's material: it returns the density [kg/m^3] from the local pressure [Pa] (analytic models)
+ * or radius [m] (interpolated model), and every other frequency-independent property with it, through
+ * calc_material_state. The whole-planet EOS solve evaluates it inline while integrating the structure ODE, so
+ * the solved structure is the one place those properties are read from afterwards.
+ *
+ * The material owns the static shear law mu = mu0 + mu'_P P + mu'_T (T - T_ref), the constant bulk modulus of
+ * the models with no pressure law, the static viscosities, and the optional viscosity and partial-melt models.
+ * Nothing here depends on a forcing frequency: complex moduli are the rheology's job.
  *
  * Every model carries a thermal expansivity alpha0 [1/K] and a reference temperature T_ref [K]. Birch-Murnaghan
  * and Vinet add the thermal pressure alpha0 K0 (T - T_ref) to their cold pressure law (alpha K_T taken constant,
@@ -34,6 +39,9 @@
 
 #include "physics_base_.hpp"
 #include "interp_.hpp"
+#include "binary_.hpp"                                   // write_optional_binary, read_optional_binary
+#include "../../viscosity_x/viscosity_.hpp"              // c_ViscosityBase, c_viscosity_from_binary
+#include "../../partial_melt_x/partial_melt_.hpp"        // c_PartialMeltBase, c_partial_melt_from_binary
 #include "../../constants_.hpp"                    // TidalPyConstants::d_EPS
 #include "../../Utilities_x/math_x/numerics_.hpp"  // c_safe_pow, c_safe_exp
 
@@ -60,11 +68,22 @@ struct c_MaterialEOSConfig {
     double invert_rtol      = d_EOS_INVERT_RTOL;       // relative convergence tol on eta
     int    invert_max_iters = d_EOS_INVERT_MAX_ITERS;  // termination-safeguard cap
 
+    // Static (unrelaxed) moduli [Pa] and viscosities [Pa s]. The bulk constant applies to a model with no
+    // pressure law of its own; a NaN viscosity means unset (attach a viscosity model instead).
+    double shear_modulus_static   = 0.0;
+    double bulk_modulus_static    = 0.0;
+    double shear_viscosity_static = std::numeric_limits<double>::quiet_NaN();
+    double bulk_viscosity_static  = std::numeric_limits<double>::quiet_NaN();
+    // Linear static shear law: mu = mu0 + mu'_P P + mu'_T (T - T_ref).
+    double shear_modulus_pressure_derivative    = 0.0;                          // [dimensionless]
+    double shear_modulus_temperature_derivative = 0.0;                          // [Pa/K]
+    double shear_modulus_reference_temperature  = d_EOS_REFERENCE_TEMPERATURE;  // [K]
+
     // Interpolated model: sorted-ascending radius [m] and matching density [kg/m^3].
     std::vector<double> radius;
     std::vector<double> density;
     // Interpolated model, optional radius-varying static moduli [Pa] and viscosities [Pa s]; an empty table means
-    // "not provided" (the world solve falls back to the layer constant). Non-empty tables must match radius.
+    // "not provided" (the material's law or constant applies). Non-empty tables must match radius.
     std::vector<double> shear_modulus;
     std::vector<double> bulk_modulus;
     std::vector<double> shear_viscosity;
@@ -189,6 +208,21 @@ inline std::string eos_to_lower(std::string text) {
 }
 
 // =====================================================================================================================
+// c_MaterialState: the frequency-independent properties of a material at one point
+// =====================================================================================================================
+// What c_MaterialEOSBase::calc_material_state fills and what the solved EOS reports at a radius. The moduli and
+// viscosities are the values after the partial-melt model; a complex modulus is for the rheology to compute from
+// them.
+struct c_MaterialState {
+    double density         = std::numeric_limits<double>::quiet_NaN();  // [kg/m^3]
+    double melt_fraction   = 0.0;                                       // [m^3/m^3]
+    double shear_modulus   = std::numeric_limits<double>::quiet_NaN();  // [Pa]
+    double bulk_modulus    = std::numeric_limits<double>::quiet_NaN();  // [Pa]
+    double shear_viscosity = std::numeric_limits<double>::quiet_NaN();  // [Pa s]
+    double bulk_viscosity  = std::numeric_limits<double>::quiet_NaN();  // [Pa s]
+};
+
+// =====================================================================================================================
 // c_MaterialEOSBase: abstract base for all EOS models
 // =====================================================================================================================
 class c_MaterialEOSBase : public c_PhysicsBase {
@@ -197,16 +231,71 @@ public:
     c_MaterialEOSBase(const std::string& model_name, const c_MaterialEOSConfig& cfg)
         : c_PhysicsBase(model_name),
           p_thermal_expansion(cfg.thermal_expansion),
-          p_reference_temperature(cfg.reference_temperature) {}
+          p_reference_temperature(cfg.reference_temperature),
+          p_shear_modulus_static(cfg.shear_modulus_static),
+          p_bulk_modulus_static(cfg.bulk_modulus_static),
+          p_shear_viscosity_static(cfg.shear_viscosity_static),
+          p_bulk_viscosity_static(cfg.bulk_viscosity_static),
+          p_shear_modulus_pressure_derivative(cfg.shear_modulus_pressure_derivative),
+          p_shear_modulus_temperature_derivative(cfg.shear_modulus_temperature_derivative),
+          p_shear_modulus_reference_temperature(cfg.shear_modulus_reference_temperature) {}
     ~c_MaterialEOSBase() override = default;
 
     double get_thermal_expansion()     const noexcept { return this->p_thermal_expansion; }
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
 
+    // Static constants and the shear law (see c_MaterialEOSConfig).
+    double get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static; }
+    double get_bulk_modulus_static()    const noexcept { return this->p_bulk_modulus_static; }
+    double get_shear_viscosity_static() const noexcept { return this->p_shear_viscosity_static; }
+    double get_bulk_viscosity_static()  const noexcept { return this->p_bulk_viscosity_static; }
+    double get_shear_modulus_pressure_derivative() const noexcept {
+        return this->p_shear_modulus_pressure_derivative;
+    }
+    double get_shear_modulus_temperature_derivative() const noexcept {
+        return this->p_shear_modulus_temperature_derivative;
+    }
+    double get_shear_modulus_reference_temperature() const noexcept {
+        return this->p_shear_modulus_reference_temperature;
+    }
+    void set_shear_modulus_static(double value)   noexcept { this->p_shear_modulus_static = value; }
+    void set_bulk_modulus_static(double value)    noexcept { this->p_bulk_modulus_static = value; }
+    void set_shear_viscosity_static(double value) noexcept { this->p_shear_viscosity_static = value; }
+    void set_bulk_viscosity_static(double value)  noexcept { this->p_bulk_viscosity_static = value; }
+
+    // Viscosity and partial-melt models (ownership transfers in; each is optional).
+    void set_shear_viscosity(std::unique_ptr<c_ViscosityBase> model) {
+        this->p_shear_viscosity_model = std::move(model);
+    }
+    void set_bulk_viscosity(std::unique_ptr<c_ViscosityBase> model) {
+        this->p_bulk_viscosity_model = std::move(model);
+    }
+    void set_partial_melt(std::unique_ptr<c_PartialMeltBase> model) {
+        this->p_partial_melt_model = std::move(model);
+    }
+    c_ViscosityBase*   get_shear_viscosity_model() const noexcept { return this->p_shear_viscosity_model.get(); }
+    c_ViscosityBase*   get_bulk_viscosity_model()  const noexcept { return this->p_bulk_viscosity_model.get(); }
+    c_PartialMeltBase* get_partial_melt_model()    const noexcept { return this->p_partial_melt_model.get(); }
+
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_PhysicsBase::append_config_entries(out);
         out.push_back(c_config_double("thermal_expansion_1_k", this->p_thermal_expansion));
         out.push_back(c_config_double("reference_temperature_k", this->p_reference_temperature));
+        out.push_back(c_config_double("shear_modulus_static_pa", this->p_shear_modulus_static));
+        out.push_back(c_config_double("bulk_modulus_static_pa", this->p_bulk_modulus_static));
+        // An unset (NaN) static viscosity is left out: absence means unset on the way back in, and a config
+        // that holds no NaN compares equal to itself.
+        if (std::isfinite(this->p_shear_viscosity_static)) {
+            out.push_back(c_config_double("shear_viscosity_static_pas", this->p_shear_viscosity_static));
+        }
+        if (std::isfinite(this->p_bulk_viscosity_static)) {
+            out.push_back(c_config_double("bulk_viscosity_static_pas", this->p_bulk_viscosity_static));
+        }
+        out.push_back(c_config_double("shear_modulus_pressure_derivative", this->p_shear_modulus_pressure_derivative));
+        out.push_back(c_config_double(
+            "shear_modulus_temperature_derivative_pa_k", this->p_shear_modulus_temperature_derivative));
+        out.push_back(c_config_double(
+            "shear_modulus_reference_temperature_k", this->p_shear_modulus_reference_temperature));
     }
 
     // Density [kg/m^3] from pressure [Pa], temperature [K], and radius [m]; analytic models use the pressure, the
@@ -215,7 +304,7 @@ public:
         double pressure, double temperature, double radius) const = 0;
 
     // Density and isothermal bulk modulus [Pa] together, so a model that inverts its pressure law does it once.
-    // The bulk modulus is NaN ("not provided": the layer constant applies) unless the model defines one.
+    // The bulk modulus is NaN (the material constant applies) unless the model defines one.
     virtual void calc_density_and_bulk_modulus(
             double pressure,
             double temperature,
@@ -223,7 +312,8 @@ public:
             double& density,
             double& bulk_modulus) const {
         density      = this->calc_density(pressure, temperature, radius);
-        bulk_modulus = this->calc_static_bulk_modulus(radius);
+        bulk_modulus = this->p_has_bulk_modulus_table
+            ? this->get_tabulated_bulk_modulus(radius) : TidalPyConstants::d_NAN;
     }
 
     // Isothermal bulk modulus [Pa] at a pressure, temperature, and radius (see calc_density_and_bulk_modulus).
@@ -234,19 +324,94 @@ public:
         return bulk_modulus;
     }
 
-    // Optional radius-varying static moduli [Pa] and viscosities [Pa s]. NaN means "not provided", and the world
-    // solve then falls back to the layer constant; only c_InterpolatedEOS overrides these.
-    virtual double calc_static_shear_modulus(double /*radius*/) const {
+    // Radius-varying static moduli [Pa] and viscosities [Pa s] from a model that stores tables of them. NaN means
+    // the model holds no such table, and the law or constant of the material applies; only c_InterpolatedEOS
+    // has any.
+    virtual double get_tabulated_shear_modulus(double /*radius*/) const {
         return std::numeric_limits<double>::quiet_NaN();
     }
-    virtual double calc_static_bulk_modulus(double /*radius*/) const {
+    virtual double get_tabulated_bulk_modulus(double /*radius*/) const {
         return std::numeric_limits<double>::quiet_NaN();
     }
-    virtual double calc_shear_viscosity(double /*radius*/) const {
+    virtual double get_tabulated_shear_viscosity(double /*radius*/) const {
         return std::numeric_limits<double>::quiet_NaN();
     }
-    virtual double calc_bulk_viscosity(double /*radius*/) const {
+    virtual double get_tabulated_bulk_viscosity(double /*radius*/) const {
         return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    // Every frequency-independent property of the material at a pressure [Pa], temperature [K], and radius [m]:
+    // the one place a point is mapped onto the laws and models of the material, called by the EOS solve as it
+    // integrates. thermal_density says whether the density law sees the temperature (the viscosity and melt
+    // models always do). Each property comes from one source and only that source is evaluated: a table when
+    // the model carries one (the p_has_*_table flags), else the shear law, the K of the pressure law, a viscosity
+    // model, or the constant. The partial-melt model then weakens the shear pair and the bulk pair.
+    void calc_material_state(
+            double pressure,
+            double temperature,
+            bool thermal_density,
+            double radius,
+            c_MaterialState& out) const {
+        /* Density and Bulk Modulus */
+        const double density_temperature = thermal_density ? temperature : TidalPyConstants::d_NAN;
+        double bulk = TidalPyConstants::d_NAN;
+        this->calc_density_and_bulk_modulus(pressure, density_temperature, radius, out.density, bulk);
+        if (!std::isfinite(bulk)) { bulk = this->p_bulk_modulus_static; }
+        
+        /* Shear Modulus */
+        double shear = this->p_has_shear_modulus_table
+            ? this->get_tabulated_shear_modulus(radius) : TidalPyConstants::d_NAN;
+        if (!std::isfinite(shear)) {
+            shear = this->p_shear_modulus_static + this->p_shear_modulus_pressure_derivative * pressure;
+            if (std::isfinite(temperature)) {
+                shear += this->p_shear_modulus_temperature_derivative
+                    * (temperature - this->p_shear_modulus_reference_temperature);
+            }
+        }
+        // Floored so a steep temperature derivative cannot drive the shear law negative.
+        const double min_modulus = tidalpy_config_ptr->d_MIN_MODULUS;
+        if (shear < min_modulus) { shear = min_modulus; }
+
+        /* Viscosities */
+        double shear_viscosity = this->p_has_shear_viscosity_table
+            ? this->get_tabulated_shear_viscosity(radius) : TidalPyConstants::d_NAN;
+        if (!std::isfinite(shear_viscosity)) {
+            shear_viscosity = this->p_shear_viscosity_model
+                ? this->p_shear_viscosity_model->calc_viscosity(temperature, pressure)
+                : this->p_shear_viscosity_static;
+        }
+        double bulk_viscosity = this->p_has_bulk_viscosity_table
+            ? this->get_tabulated_bulk_viscosity(radius) : TidalPyConstants::d_NAN;
+        if (!std::isfinite(bulk_viscosity)) {
+            bulk_viscosity = this->p_bulk_viscosity_model
+                ? this->p_bulk_viscosity_model->calc_viscosity(temperature, pressure)
+                : this->p_bulk_viscosity_static;
+        }
+        
+        /* Partial Melting */
+        out.melt_fraction = 0.0;
+        if (this->p_partial_melt_model) {
+            // The liquid viscosity is the pre-melt viscosity until a dedicated liquid-viscosity model exists.
+            c_PartialMeltInputs inputs;
+            inputs.temperature       = temperature;
+            inputs.premelt_viscosity = shear_viscosity;
+            inputs.premelt_shear     = shear;
+            inputs.liquid_viscosity  = shear_viscosity;
+            const c_PartialMeltResult shear_result = this->p_partial_melt_model->calc_partial_melt(inputs);
+            inputs.premelt_viscosity = bulk_viscosity;
+            inputs.premelt_shear     = bulk;
+            inputs.liquid_viscosity  = bulk_viscosity;
+            const c_PartialMeltResult bulk_result = this->p_partial_melt_model->calc_partial_melt(inputs);
+            out.melt_fraction = shear_result.melt_fraction;
+            shear             = shear_result.postmelt_shear_modulus;
+            shear_viscosity   = shear_result.postmelt_viscosity;
+            bulk              = bulk_result.postmelt_shear_modulus;
+            bulk_viscosity    = bulk_result.postmelt_viscosity;
+        }
+        out.shear_modulus   = shear;
+        out.bulk_modulus    = bulk;
+        out.shear_viscosity = shear_viscosity;
+        out.bulk_viscosity  = bulk_viscosity;
     }
 
 protected:
@@ -262,8 +427,58 @@ protected:
         return c_safe_exp(-this->p_thermal_expansion * this->p_temperature_offset(temperature));
     }
 
+    // The material section every model appends after its own binary record: the seven doubles of the constants
+    // and the shear law, then a presence flag and nested record for each of the three optional models.
+    void write_material_binary(std::ostream& out) const {
+        const double values[7] = {
+            this->p_shear_modulus_static, this->p_bulk_modulus_static,
+            this->p_shear_viscosity_static, this->p_bulk_viscosity_static,
+            this->p_shear_modulus_pressure_derivative, this->p_shear_modulus_temperature_derivative,
+            this->p_shear_modulus_reference_temperature};
+        out.write(reinterpret_cast<const char*>(values), sizeof(values));
+        if (!out) { throw std::runtime_error("TidalPy: failed to write material EOS binary data"); }
+        write_optional_binary(out, this->p_shear_viscosity_model);
+        write_optional_binary(out, this->p_bulk_viscosity_model);
+        write_optional_binary(out, this->p_partial_melt_model);
+    }
+
+    void read_material_binary(std::istream& in, bool force) {
+        double values[7];
+        in.read(reinterpret_cast<char*>(values), sizeof(values));
+        if (!in) { throw std::runtime_error("TidalPy: failed to read material EOS binary data"); }
+        this->p_shear_modulus_static                 = values[0];
+        this->p_bulk_modulus_static                  = values[1];
+        this->p_shear_viscosity_static               = values[2];
+        this->p_bulk_viscosity_static                = values[3];
+        this->p_shear_modulus_pressure_derivative    = values[4];
+        this->p_shear_modulus_temperature_derivative = values[5];
+        this->p_shear_modulus_reference_temperature  = values[6];
+        this->p_shear_viscosity_model = read_optional_binary<c_ViscosityBase>(in, force, c_viscosity_from_binary);
+        this->p_bulk_viscosity_model  = read_optional_binary<c_ViscosityBase>(in, force, c_viscosity_from_binary);
+        this->p_partial_melt_model    = read_optional_binary<c_PartialMeltBase>(in, force, c_partial_melt_from_binary);
+    }
+
     double p_thermal_expansion     = 0.0;
     double p_reference_temperature = d_EOS_REFERENCE_TEMPERATURE;
+
+    double p_shear_modulus_static   = 0.0;
+    double p_bulk_modulus_static    = 0.0;
+    double p_shear_viscosity_static = std::numeric_limits<double>::quiet_NaN();
+    double p_bulk_viscosity_static  = std::numeric_limits<double>::quiet_NaN();
+    double p_shear_modulus_pressure_derivative    = 0.0;
+    double p_shear_modulus_temperature_derivative = 0.0;
+    double p_shear_modulus_reference_temperature  = d_EOS_REFERENCE_TEMPERATURE;
+
+    std::unique_ptr<c_ViscosityBase>   p_shear_viscosity_model;
+    std::unique_ptr<c_ViscosityBase>   p_bulk_viscosity_model;
+    std::unique_ptr<c_PartialMeltBase> p_partial_melt_model;
+
+    // Which properties the model tabulates by radius. Set by a model that holds tables (c_InterpolatedEOS), so
+    // calc_material_state asks for a table only where there is one and evaluates a law only where there is not.
+    bool p_has_shear_modulus_table   = false;
+    bool p_has_bulk_modulus_table    = false;
+    bool p_has_shear_viscosity_table = false;
+    bool p_has_bulk_viscosity_table  = false;
 };
 
 // Incompressible (uniform) density.
@@ -293,12 +508,14 @@ public:
         this->write_physics_binary(
             out, static_cast<uint32_t>(BinaryClassID::ConstantDensityEOS),
             {this->p_reference_density, this->p_thermal_expansion, this->p_reference_temperature});
+        this->write_material_binary(out);
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 3);
         this->p_reference_density     = params[0];
         this->p_thermal_expansion     = params[1];
         this->p_reference_temperature = params[2];
+        this->read_material_binary(in, force);
     }
 
 protected:
@@ -359,6 +576,7 @@ public:
              this->p_bulk_modulus_derivative, this->p_invert_rtol,
              static_cast<double>(this->p_invert_max_iters),
              this->p_thermal_expansion, this->p_reference_temperature});
+        this->write_material_binary(out);
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 7);
@@ -369,6 +587,7 @@ public:
         this->p_invert_max_iters         = static_cast<int>(params[4]);
         this->p_thermal_expansion        = params[5];
         this->p_reference_temperature    = params[6];
+        this->read_material_binary(in, force);
     }
 
 protected:
@@ -447,6 +666,7 @@ public:
              this->p_bulk_modulus_derivative, this->p_invert_rtol,
              static_cast<double>(this->p_invert_max_iters),
              this->p_thermal_expansion, this->p_reference_temperature});
+        this->write_material_binary(out);
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 7);
@@ -457,6 +677,7 @@ public:
         this->p_invert_max_iters         = static_cast<int>(params[4]);
         this->p_thermal_expansion        = params[5];
         this->p_reference_temperature    = params[6];
+        this->read_material_binary(in, force);
     }
 
 protected:
@@ -496,6 +717,7 @@ public:
     {
         // A table longer than the radius table would otherwise read past the end of the radius array.
         this->p_validate_tables();
+        this->p_update_table_flags();
     }
     ~c_InterpolatedEOS() override = default;
 
@@ -536,16 +758,16 @@ public:
     }
 
     // Each returns NaN when its table is empty.
-    double calc_static_shear_modulus(double radius) const override {
+    double get_tabulated_shear_modulus(double radius) const override {
         return this->p_interp_optional(radius, this->p_shear_modulus);
     }
-    double calc_static_bulk_modulus(double radius) const override {
+    double get_tabulated_bulk_modulus(double radius) const override {
         return this->p_interp_optional(radius, this->p_bulk_modulus);
     }
-    double calc_shear_viscosity(double radius) const override {
+    double get_tabulated_shear_viscosity(double radius) const override {
         return this->p_interp_optional(radius, this->p_shear_viscosity);
     }
-    double calc_bulk_viscosity(double radius) const override {
+    double get_tabulated_bulk_viscosity(double radius) const override {
         return this->p_interp_optional(radius, this->p_bulk_viscosity);
     }
 
@@ -577,6 +799,7 @@ public:
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write interpolated EOS binary data");
         }
+        this->write_material_binary(out);
     }
     void read_binary(std::istream& in, bool force = false) override {
         c_TidalPyBaseClass::read_binary(in, force);
@@ -593,14 +816,23 @@ public:
         this->p_read_optional_array(in, this->p_bulk_modulus, n);
         this->p_read_optional_array(in, this->p_shear_viscosity, n);
         this->p_read_optional_array(in, this->p_bulk_viscosity, n);
+        this->p_update_table_flags();
         in.read(reinterpret_cast<char*>(&this->p_thermal_expansion),     sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_reference_temperature), sizeof(double));
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read interpolated EOS binary data");
         }
+        this->read_material_binary(in, force);
     }
 
 protected:
+    void p_update_table_flags() noexcept {
+        this->p_has_shear_modulus_table   = this->has_shear_modulus();
+        this->p_has_bulk_modulus_table    = this->has_bulk_modulus();
+        this->p_has_shear_viscosity_table = this->has_shear_viscosity();
+        this->p_has_bulk_viscosity_table  = this->has_bulk_viscosity();
+    }
+
     // Throw unless density and every non-empty optional table match the radius table in length.
     void p_validate_tables() const {
         const std::size_t num_points = this->p_radius.size();

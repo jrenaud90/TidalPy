@@ -406,8 +406,10 @@ protected:
             // The EOS functions take their arguments through non-const pointers but leave this solution unchanged.
             char* input_ptr = const_cast<char*>(
                 reinterpret_cast<const char*>(&this->eos_input_bylayer_vec[layer_index]));
+            // The EOS function reads the state layout, where a thermal solve keeps its temperature at index 4;
+            // in the evaluation layout that slot is the density this call is about to fill.
             this->eos_function_bylayer_vec[layer_index](
-                reinterpret_cast<char*>(&eos_output), radius_val, y_interp_ptr, input_ptr);
+                reinterpret_cast<char*>(&eos_output), radius_val, &state_arr[0], input_ptr);
             y_interp_ptr[4]  = eos_output.density;
             y_interp_ptr[5]  = eos_output.shear_modulus.real();
             y_interp_ptr[6]  = eos_output.shear_modulus.imag();
@@ -415,13 +417,16 @@ protected:
             y_interp_ptr[8]  = eos_output.bulk_modulus.imag();
             y_interp_ptr[9]  = eos_output.shear_viscosity;
             y_interp_ptr[10] = eos_output.bulk_viscosity;
+            y_interp_ptr[C_EOS_MELT_FRACTION_INDEX] = eos_output.melt_fraction;
         }
         else
         {
-            for (size_t value_i = C_EOS_Y_VALUES; value_i < C_EOS_DY_VALUES; ++value_i)
+            // The temperature and heat flow set above stand; only the material outputs are unknown.
+            for (size_t value_i = C_EOS_Y_VALUES; value_i < C_EOS_TEMPERATURE_INDEX; ++value_i)
             {
                 y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
             }
+            y_interp_ptr[C_EOS_MELT_FRACTION_INDEX] = TidalPyConstants::d_NAN;
         }
     }
 
@@ -598,6 +603,10 @@ public:
             y_interp_ptr[9]  = TidalPyConstants::d_NAN;
             y_interp_ptr[10] = TidalPyConstants::d_NAN;
         }
+        // Injected arrays carry no thermal or melt state.
+        y_interp_ptr[C_EOS_TEMPERATURE_INDEX]   = TidalPyConstants::d_NAN;
+        y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]     = TidalPyConstants::d_NAN;
+        y_interp_ptr[C_EOS_MELT_FRACTION_INDEX] = TidalPyConstants::d_NAN;
     }
 
 

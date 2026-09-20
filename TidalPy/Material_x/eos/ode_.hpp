@@ -19,6 +19,7 @@ struct c_EOSOutput
     std::complex<double> shear_modulus    = {TidalPyConstants::d_NAN, 0.0};
     double shear_viscosity                = TidalPyConstants::d_NAN;
     double bulk_viscosity                 = TidalPyConstants::d_NAN;
+    double melt_fraction                  = 0.0;
 };
 
 
