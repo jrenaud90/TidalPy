@@ -20,8 +20,10 @@
 
 /// C++ class storing the equation of state integration results for a layered planet.
 ///
-/// Stores CyRK integration results for each layer, and provides methods for interpolating
-/// the full planet's gravity, pressure, mass, moment of inertia, density, and complex moduli.
+/// Stores CyRK integration results for each layer, and provides methods for interpolating the full planet's
+/// gravity, pressure, mass, moment of inertia, density, and unrelaxed moduli at any radius. The viscoelastic
+/// response at a forcing frequency belongs to a rheology rather than to the equation of state and is reached
+/// through call_material.
 class c_EOSSolution
 {
 
@@ -53,13 +55,11 @@ public:
     double p_structure_moi_scale     = 1.0;
     double p_structure_density_scale = 1.0;
 
-    // Optional material-state provider (the world Love solve). Fills five SI doubles at an SI radius for one
-    // layer: density, then the complex shear and bulk moduli as real/imaginary pairs, from that layer's attached
-    // models at the solved pressure and temperature. When set it replaces the array-interpolated density and
-    // moduli, so the radial solver reads its material properties at the exact radius the integrator asks for
-    // rather than off the slice grid. Type-erased because the layer classes live above this header. The frequency
-    // is baked into the callable, so the world installs a fresh one per Love solve.
-    using MaterialEval = std::function<void(size_t layer_index, double radius_si, double* out5)>;
+    // Optional material-state provider (the world Love solve). Fills C_EOS_MATERIAL_EVAL_VALUES SI doubles at an
+    // SI radius for one layer, in the material-provider layout of eos_layout_.hpp: density, the two unrelaxed
+    // moduli, then the complex shear and bulk moduli as real/imaginary pairs, from that layer's attached models at
+    // the solved pressure and temperature.
+    using MaterialEval = std::function<void(size_t layer_index, double radius_si, double* out)>;
     MaterialEval p_material_eval;
 
     std::string message         = "No Message Set.";
@@ -378,7 +378,11 @@ protected:
     /// Evaluate one layer's retained integrator at a radius in solve units, with no rescaling: the four structure
     /// variables from the dense output, then the density, moduli, and viscosities from the layer's EOS function at
     /// that state. Writes C_EOS_DY_VALUES doubles; the extra outputs are NaN when no EOS function was saved.
-    void p_evaluate_solver(const size_t layer_index, const double radius_val, double* y_interp_ptr) const
+    void p_evaluate_solver(
+        const size_t layer_index,
+        const double radius_val,
+        double* y_interp_ptr,
+        c_EOSMaterialState* material_out = nullptr) const
     {
         // The retained integrator writes num_y_solved values, so it fills a buffer of its own and the
         // structure variables are copied out; the evaluation layout uses slots 4 and 5 for the density and
@@ -389,6 +393,10 @@ protected:
         for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
         {
             y_interp_ptr[value_i] = state_arr[value_i];
+        }
+        if (material_out)
+        {
+            material_out->gravity = y_interp_ptr[0];
         }
         if (this->num_y_solved >= C_EOS_THERMAL_Y_VALUES)
         {
@@ -413,14 +421,18 @@ protected:
             // in the evaluation layout that slot is the density this call is about to fill.
             this->eos_function_bylayer_vec[layer_index](
                 reinterpret_cast<char*>(&eos_output), radius_val, &state_arr[0], input_ptr);
-            y_interp_ptr[4]  = eos_output.density;
-            y_interp_ptr[5]  = eos_output.shear_modulus.real();
-            y_interp_ptr[6]  = eos_output.shear_modulus.imag();
-            y_interp_ptr[7]  = eos_output.bulk_modulus.real();
-            y_interp_ptr[8]  = eos_output.bulk_modulus.imag();
-            y_interp_ptr[9]  = eos_output.shear_viscosity;
-            y_interp_ptr[10] = eos_output.bulk_viscosity;
-            y_interp_ptr[C_EOS_MELT_FRACTION_INDEX] = eos_output.melt_fraction;
+            y_interp_ptr[C_EOS_DENSITY_INDEX]         = eos_output.density;
+            y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX]   = eos_output.shear_modulus.real();
+            y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]    = eos_output.bulk_modulus.real();
+            y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX] = eos_output.shear_viscosity;
+            y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]  = eos_output.bulk_viscosity;
+            y_interp_ptr[C_EOS_MELT_FRACTION_INDEX]   = eos_output.melt_fraction;
+            if (material_out)
+            {
+                material_out->density       = eos_output.density;
+                material_out->shear_modulus = eos_output.shear_modulus;
+                material_out->bulk_modulus  = eos_output.bulk_modulus;
+            }
         }
         else
         {
@@ -435,18 +447,19 @@ protected:
 
 
     /// Apply the solution's dimensional state to the first `count` outputs of an evaluation (structure variables,
-    /// density, and moduli). The viscosities (indices 9 and 10) are always SI and are left alone.
+    /// density, and the two static moduli). The viscosities and everything past them are always SI and are left
+    /// alone.
     void p_rescale_outputs(double* y_interp_ptr, const size_t count) const noexcept
     {
         if (this->nondim_status == 0)
         {
             return;
         }
-        double scales[9] = {
+        const size_t scaled_values = C_EOS_SHEAR_VISCOSITY_INDEX;  // slots 0 through the last modulus
+        double scales[C_EOS_SHEAR_VISCOSITY_INDEX] = {
             this->redim_gravity_scale, this->redim_pascal_scale, this->redim_mass_scale, this->redim_moi_scale,
-            this->redim_density_scale, this->redim_pascal_scale, this->redim_pascal_scale, this->redim_pascal_scale,
-            this->redim_pascal_scale};
-        const size_t limit = (count < 9) ? count : 9;
+            this->redim_density_scale, this->redim_pascal_scale, this->redim_pascal_scale};
+        const size_t limit = (count < scaled_values) ? count : scaled_values;
         if (this->nondim_status == 1)
         {
             for (size_t value_i = 0; value_i < limit; ++value_i)
@@ -463,13 +476,31 @@ protected:
         }
     }
 
+    /// Run the installed material provider for one layer at a radius in solve units, writing
+    /// C_EOS_MATERIAL_EVAL_VALUES SI doubles. Slots the provider declines to fill stay NaN.
+    void p_call_material_eval(const size_t layer_index, const double radius_val, double* mat_out) const
+    {
+        for (size_t value_i = 0; value_i < C_EOS_MATERIAL_EVAL_VALUES; ++value_i)
+        {
+            mat_out[value_i] = TidalPyConstants::d_NAN;
+        }
+        this->p_material_eval(layer_index, radius_val * this->p_structure_length_scale, mat_out);
+    }
+
+
 public:
 
 
     /// Interpolate every EOS output from the stored arrays, searching only the calling layer's slices (see
     /// update_slice_partition). Used when p_use_array_interp is true (set by inject_from_world_eos). The arrays
     /// stay in the units they were injected in; no scaling is applied.
-    void _call_interp_arrays(const size_t layer_index, const double radius_val, double* y_interp_ptr) const noexcept
+    /// When material_out is given it also receives the gravity, density, and the moduli interpolated complex,
+    /// which the evaluation layout cannot carry.
+    void _call_interp_arrays(
+        const size_t layer_index,
+        const double radius_val,
+        double* y_interp_ptr,
+        c_EOSMaterialState* material_out = nullptr) const noexcept
     {
         size_t first = 0;
         size_t n     = this->radius_array_size;
@@ -519,8 +550,8 @@ public:
                 + (t3 - t2) * span * slope_ptr[left + 1];
         }
 
-        // Output layout matches the CySolverResult: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
-        // [5] shear_real, [6] shear_imag, [7] bulk_real, [8] bulk_imag, [9] shear viscosity, [10] bulk viscosity.
+        // Output follows the evaluation layout: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
+        // [5] shear modulus, [6] bulk modulus, [7] shear viscosity, [8] bulk viscosity.
         c_interp(
             &radius_query,
             radius_data_ptr,
@@ -568,8 +599,11 @@ public:
             n,
             &j,
             shear_result);
-        y_interp_ptr[5] = shear_result[0];
-        y_interp_ptr[6] = shear_result[1];
+        y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX] = shear_result[0];
+        if (material_out)
+        {
+            material_out->shear_modulus = std::complex<double>(shear_result[0], shear_result[1]);
+        }
 
         double bulk_result[2] = {0.0, 0.0};
         c_interp_complex(
@@ -579,8 +613,13 @@ public:
             n,
             &j,
             bulk_result);
-        y_interp_ptr[7] = bulk_result[0];
-        y_interp_ptr[8] = bulk_result[1];
+        y_interp_ptr[C_EOS_BULK_MODULUS_INDEX] = bulk_result[0];
+        if (material_out)
+        {
+            material_out->bulk_modulus = std::complex<double>(bulk_result[0], bulk_result[1]);
+            material_out->gravity      = y_interp_ptr[0];
+            material_out->density      = y_interp_ptr[C_EOS_DENSITY_INDEX];
+        }
 
         // Viscosities are NaN when not stored.
         if (this->shear_viscosity_array_vec.size() == this->radius_array_size
@@ -592,19 +631,19 @@ public:
                 const_cast<double*>(this->shear_viscosity_array_vec.data()) + first,
                 n,
                 &j,
-                &y_interp_ptr[9]);
+                &y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX]);
             c_interp(
                 &radius_query,
                 radius_data_ptr,
                 const_cast<double*>(this->bulk_viscosity_array_vec.data()) + first,
                 n,
                 &j,
-                &y_interp_ptr[10]);
+                &y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]);
         }
         else
         {
-            y_interp_ptr[9]  = TidalPyConstants::d_NAN;
-            y_interp_ptr[10] = TidalPyConstants::d_NAN;
+            y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX] = TidalPyConstants::d_NAN;
+            y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]  = TidalPyConstants::d_NAN;
         }
         // Injected arrays carry no thermal or melt state.
         y_interp_ptr[C_EOS_TEMPERATURE_INDEX]   = TidalPyConstants::d_NAN;
@@ -614,9 +653,10 @@ public:
 
 
     /// Evaluate every EOS output at a single radius in solve units for a specific layer, writing C_EOS_DY_VALUES
-    /// doubles: gravity, pressure, mass, moment of inertia, density, shear modulus (real, imaginary), bulk modulus
-    /// (real, imaginary), shear viscosity, bulk viscosity. A re-dimensionalized solution returns SI values for all
-    /// but the viscosities, which are SI in every state.
+    /// doubles in the evaluation layout of eos_layout_.hpp: gravity, pressure, mass, moment of inertia, density,
+    /// the unrelaxed shear and bulk moduli, the shear and bulk viscosities, temperature, heat flow, and melt
+    /// fraction. A re-dimensionalized solution returns SI values for all but the viscosities, which are SI in
+    /// every state. Frequency-independent throughout: a viscoelastic response comes from call_material.
     void call(
         const size_t layer_index,
         const double radius_val,
@@ -644,19 +684,13 @@ public:
             }
             if (this->p_material_eval)
             {
-                double mat_out[5] = {
-                    TidalPyConstants::d_NAN, TidalPyConstants::d_NAN, TidalPyConstants::d_NAN,
-                    TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
-                const double mat_radius = radius_val * this->p_structure_length_scale;
-                this->p_material_eval(layer_index, mat_radius, mat_out);
-                const double scales[5] = {
-                    this->p_structure_density_scale, this->p_structure_pascal_scale,
-                    this->p_structure_pascal_scale, this->p_structure_pascal_scale,
-                    this->p_structure_pascal_scale};
-                for (size_t value_i = 0; value_i < 5; ++value_i)
-                {
-                    y_interp_ptr[4 + value_i] = mat_out[value_i] / scales[value_i];
-                }
+                double mat_out[C_EOS_MATERIAL_EVAL_VALUES];
+                this->p_call_material_eval(layer_index, radius_val, mat_out);
+                // Only the frequency-independent values belong in this layout; the provider's complex moduli
+                // reach the solver through call_material.
+                y_interp_ptr[C_EOS_DENSITY_INDEX]       = mat_out[0] / this->p_structure_density_scale;
+                y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX] = mat_out[1] / this->p_structure_pascal_scale;
+                y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]  = mat_out[2] / this->p_structure_pascal_scale;
             }
             return;
         }
@@ -674,6 +708,78 @@ public:
         }
         this->p_evaluate_solver(layer_index, radius_val, y_interp_ptr);
         this->p_rescale_outputs(y_interp_ptr, C_EOS_DY_VALUES);
+    }
+
+
+    /// The radial solver's read at an integration radius in solve units: gravity, density, and the complex shear
+    /// and bulk moduli, in the solution's current units.
+    void call_material(
+        const size_t layer_index,
+        const double radius_val,
+        c_EOSMaterialState& out) const
+    {
+        out = c_EOSMaterialState();
+
+        // Provider mode: the world Love solve. Structure from the world's solved EOS, material from the layer's
+        // own models and rheology, both at the exact radius asked for.
+        if (this->p_structure_dense_source || this->p_material_eval) [[unlikely]]
+        {
+            if (this->p_structure_dense_source)
+            {
+                double src_out[C_EOS_Y_VALUES];
+                const double src_radius = radius_val * this->p_structure_length_scale;
+                this->p_structure_dense_source->call_y_si(layer_index, src_radius, src_out);
+                out.gravity = src_out[0] / this->p_structure_gravity_scale;
+            }
+            if (this->p_material_eval)
+            {
+                double mat_out[C_EOS_MATERIAL_EVAL_VALUES];
+                this->p_call_material_eval(layer_index, radius_val, mat_out);
+                const double pascal_scale = this->p_structure_pascal_scale;
+                out.density       = mat_out[0] / this->p_structure_density_scale;
+                out.shear_modulus = std::complex<double>(mat_out[3], mat_out[4]) / pascal_scale;
+                out.bulk_modulus  = std::complex<double>(mat_out[5], mat_out[6]) / pascal_scale;
+            }
+            return;
+        }
+
+        // Array mode: the moduli come back complex straight off the injected arrays.
+        if (this->p_use_array_interp) [[unlikely]]
+        {
+            double scratch[C_EOS_DY_VALUES];
+            this->_call_interp_arrays(layer_index, radius_val, scratch, &out);
+            return;
+        }
+
+        // Integrator mode: this solution's own retained integrators plus the layer's EOS model.
+        if (layer_index >= this->current_layers_saved) [[unlikely]]
+        {
+            throw std::out_of_range("Layer index out of range.");
+        }
+        double scratch[C_EOS_DY_VALUES];
+        this->p_evaluate_solver(layer_index, radius_val, scratch, &out);
+        // The same rescale the evaluation layout applies, on the four values this carries.
+        if (this->nondim_status == 1)
+        {
+            out.gravity       *= this->redim_gravity_scale;
+            out.density       *= this->redim_density_scale;
+            out.shear_modulus *= this->redim_pascal_scale;
+            out.bulk_modulus  *= this->redim_pascal_scale;
+        }
+        else if (this->nondim_status != 0)
+        {
+            out.gravity       /= this->redim_gravity_scale;
+            out.density       /= this->redim_density_scale;
+            out.shear_modulus /= this->redim_pascal_scale;
+            out.bulk_modulus  /= this->redim_pascal_scale;
+        }
+    }
+
+
+    /// `call_material` for an SI radius [m]: the radius is converted into solve units first.
+    void call_material_si(const size_t layer_index, const double radius_si, c_EOSMaterialState& out) const
+    {
+        this->call_material(layer_index, this->convert_radius_si_to_solve(radius_si), out);
     }
 
 
@@ -837,20 +943,21 @@ public:
                 }
             }
 
-            this->p_evaluate_solver(current_layer_index, radius_val, y_interp_ptr);
+            // The evaluation layout carries only the unrelaxed moduli, so the complex ones come back alongside it.
+            c_EOSMaterialState material_state;
+            this->p_evaluate_solver(current_layer_index, radius_val, y_interp_ptr, &material_state);
 
             this->gravity_array_vec.push_back(y_interp_ptr[0]);
             this->pressure_array_vec.push_back(y_interp_ptr[1]);
             this->mass_array_vec.push_back(y_interp_ptr[2]);
             this->moi_array_vec.push_back(y_interp_ptr[3]);
-            this->density_array_vec.push_back(y_interp_ptr[4]);
+            this->density_array_vec.push_back(y_interp_ptr[C_EOS_DENSITY_INDEX]);
 
-            // CyRK carries the moduli as real and imaginary double pairs.
-            this->complex_shear_array_vec.push_back(std::complex<double>(y_interp_ptr[5], y_interp_ptr[6]));
-            this->complex_bulk_array_vec.push_back(std::complex<double>(y_interp_ptr[7], y_interp_ptr[8]));
+            this->complex_shear_array_vec.push_back(material_state.shear_modulus);
+            this->complex_bulk_array_vec.push_back(material_state.bulk_modulus);
 
-            this->shear_viscosity_array_vec.push_back(y_interp_ptr[9]);
-            this->bulk_viscosity_array_vec.push_back(y_interp_ptr[10]);
+            this->shear_viscosity_array_vec.push_back(y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX]);
+            this->bulk_viscosity_array_vec.push_back(y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]);
             this->temperature_array_vec.push_back(y_interp_ptr[C_EOS_TEMPERATURE_INDEX]);
             this->heat_flow_array_vec.push_back(y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]);
 

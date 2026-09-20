@@ -29,10 +29,10 @@ public:
     // Type-erased so the layer stays CyRK-free.
     using DenseEval = std::function<void(double radius, double* y_out)>;
 
-    // CyRK EOS-ODE y-layout (see Material_x/eos/ode_.hpp):
+    // Evaluation layout (see Material_x/eos/eos_layout_.hpp):
     //   0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia, 4 density,
-    //   5/6 shear modulus re/im, 7/8 bulk modulus re/im, 9 shear visc, 10 bulk visc,
-    //   11 temperature, 12 heat flow, 13 melt fraction.
+    //   5 shear modulus, 6 bulk modulus, 7 shear visc, 8 bulk visc,
+    //   9 temperature, 10 heat flow, 11 melt fraction.
     static constexpr std::size_t EOS_INDEX_GRAVITY  = 0;
     static constexpr std::size_t EOS_INDEX_PRESSURE = 1;
     static constexpr std::size_t EOS_INDEX_DENSITY  = 4;

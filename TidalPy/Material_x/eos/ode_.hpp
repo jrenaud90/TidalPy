@@ -22,6 +22,14 @@ struct c_EOSOutput
     double melt_fraction                  = 0.0;
 };
 
+struct c_EOSMaterialState
+{
+    double gravity = TidalPyConstants::d_NAN;
+    double density = TidalPyConstants::d_NAN;
+    std::complex<double> shear_modulus = {TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
+    std::complex<double> bulk_modulus  = {TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
+};
+
 
 /// How a radial segment sets its temperature gradient.
 enum class c_TemperatureKind : uint8_t
@@ -101,19 +109,15 @@ inline void c_eos_diffeq(
         dy_ptr[3] = (2.0 / 3.0) * dy_ptr[2] * r2;
     }
 
-    // The extras are stored on the final solve only and are not integrated.
+    // The extras are stored on the final solve only and are not integrated. They follow the evaluation layout of
+    // eos_layout_.hpp, so only the unrelaxed real part of each modulus is carried.
     if (eos_input_ptr->final_solve)
     {
         dy_ptr[4] = eos_output.density;
-
         dy_ptr[5] = eos_output.shear_modulus.real();
-        dy_ptr[6] = eos_output.shear_modulus.imag();
-
-        dy_ptr[7] = eos_output.bulk_modulus.real();
-        dy_ptr[8] = eos_output.bulk_modulus.imag();
-
-        dy_ptr[9]  = eos_output.shear_viscosity;
-        dy_ptr[10] = eos_output.bulk_viscosity;
+        dy_ptr[6] = eos_output.bulk_modulus.real();
+        dy_ptr[7] = eos_output.shear_viscosity;
+        dy_ptr[8] = eos_output.bulk_viscosity;
     }
 }
 

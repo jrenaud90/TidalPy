@@ -805,7 +805,7 @@ public:
         // cleared once the solve returns.
         const double frequency = cfg.frequency;
         solver->set_material_eval(
-            [this, frequency](std::size_t layer_index, double radius_si, double* out5) {
+            [this, frequency](std::size_t layer_index, double radius_si, double* out) {
                 if (layer_index >= this->p_layers.size()) { return; }
                 const auto* physics_layer =
                     dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_index].get());
@@ -813,15 +813,19 @@ public:
                 // One dense call gives the static state; the rheology is the only thing that knows the frequency.
                 double state[C_EOS_DY_VALUES];
                 physics_layer->get_eos_state(radius_si, state);
+                const double static_shear = state[C_EOS_SHEAR_MODULUS_INDEX];
+                const double static_bulk  = state[C_EOS_BULK_MODULUS_INDEX];
                 const std::complex<double> shear = physics_layer->apply_shear_rheology(
-                    state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
+                    static_shear, state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
                 const std::complex<double> bulk = physics_layer->apply_bulk_rheology(
-                    state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
-                out5[0] = state[C_EOS_DENSITY_INDEX];
-                out5[1] = shear.real();
-                out5[2] = shear.imag();
-                out5[3] = bulk.real();
-                out5[4] = bulk.imag();
+                    static_bulk, state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
+                out[0] = state[C_EOS_DENSITY_INDEX];
+                out[1] = static_shear;
+                out[2] = static_bulk;
+                out[3] = shear.real();
+                out[4] = shear.imag();
+                out[5] = bulk.real();
+                out[6] = bulk.imag();
             });
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
@@ -913,7 +917,7 @@ public:
         }
         solver->set_material_eval(
             [this, shear_in, bulk_in, radius_in, &in_first_by_layer, &in_count_by_layer](
-                    std::size_t layer_index, double radius_si, double* out5) {
+                    std::size_t layer_index, double radius_si, double* out) {
                 if (layer_index >= this->p_layers.size()) { return; }
                 const std::size_t in_first = in_first_by_layer[layer_index];
                 const std::size_t in_count = in_count_by_layer[layer_index];
@@ -921,11 +925,14 @@ public:
                     c_interp_complex(radius_si, radius_in + in_first, shear_in + in_first, in_count, 0);
                 const std::complex<double> bulk =
                     c_interp_complex(radius_si, radius_in + in_first, bulk_in + in_first, in_count, 0);
-                out5[0] = this->p_layers[layer_index]->get_density(radius_si);
-                out5[1] = shear.real();
-                out5[2] = shear.imag();
-                out5[3] = bulk.real();
-                out5[4] = bulk.imag();
+                out[0] = this->p_layers[layer_index]->get_density(radius_si);
+                // Supplied moduli carry no separate unrelaxed value, so the real part stands in for it.
+                out[1] = shear.real();
+                out[2] = bulk.real();
+                out[3] = shear.real();
+                out[4] = shear.imag();
+                out[5] = bulk.real();
+                out[6] = bulk.imag();
             });
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);

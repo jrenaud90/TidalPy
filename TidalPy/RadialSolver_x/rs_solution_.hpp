@@ -102,16 +102,16 @@ public:
         shear_out = cNAN;
         bulk_out  = cNAN;
 
-        const c_EOSSolution* eos = this->eos_solution_uptr.get();
-        if (!eos) { return; }
-
-        double state[C_EOS_DY_VALUES];
-        if (!this->get_eos_si(radius_si, &state[0])) { return; }
+        size_t layer_i = 0;
+        double solve_r = 0.0;
+        if (!this->p_locate_eos(radius_si, layer_i, solve_r)) { return; }
 
         if (this->p_complex_moduli_eval)
         {
+            double state[C_EOS_DY_VALUES];
+            this->eos_solution_uptr->call(layer_i, solve_r, &state[0]);
             this->p_complex_moduli_eval(
-                eos->layer_at_radius_si(radius_si),
+                layer_i,
                 state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX],
                 state[C_EOS_BULK_MODULUS_INDEX],  state[C_EOS_BULK_VISCOSITY_INDEX],
                 shear_out, bulk_out);
@@ -120,10 +120,10 @@ public:
 
         // No rheology to apply, because this solve was provided arrays of moduli. So instead we will use
         // linear interpolation on those input arrays to return the moduli if requested.
-        shear_out = std::complex<double>(
-            state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_MODULUS_INDEX + 1]);
-        bulk_out = std::complex<double>(
-            state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_MODULUS_INDEX + 1]);
+        c_EOSMaterialState material_state;
+        this->eos_solution_uptr->call_material(layer_i, solve_r, material_state);
+        shear_out = material_state.shear_modulus;
+        bulk_out  = material_state.bulk_modulus;
     }
 
     // Dense CyRK results [layer][solution]; owns the force-retained integrators.
@@ -560,26 +560,49 @@ public:
         return true;
     }
 
-    // Dense EOS evaluation at an SI radius: the radius is converted into the interpolant's solve-unit domain, the
-    // layer located there, and eos->call re-dimensionalizes the outputs. out holds C_EOS_DY_VALUES doubles:
-    // [0] gravity [1] pressure [2] mass [3] moi [4] density [5,6] shear re/im [7,8] bulk re/im [9,10] viscosities.
-    bool get_eos_si(double radius_si, double* out) const
+    // The layer holding an SI radius and that radius in the interpolant's solve-unit domain. False when there is
+    // nothing to read. Shared by the EOS readers below so they always agree on which layer a radius belongs to.
+    bool p_locate_eos(double radius_si, size_t& layer_out, double& solve_radius_out) const
     {
         if (!this->eos_solution_uptr || !this->success) return false;
-        const double solve_r = radius_si / this->p_length_conv;
-        size_t target_layer_i = (this->num_layers == 0) ? 0 : this->num_layers - 1;
+        solve_radius_out = radius_si / this->p_length_conv;
+        layer_out = (this->num_layers == 0) ? 0 : this->num_layers - 1;
         for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
         {
             const double upper = (layer_i < this->p_upper_radii_solve.size())
                 ? this->p_upper_radii_solve[layer_i]
                 : TidalPyConstants::d_INF;
-            if (solve_r <= upper * (1.0 + 1.0e-12) + 1.0e-300)
+            if (solve_radius_out <= upper * (1.0 + 1.0e-12) + 1.0e-300)
             {
-                target_layer_i = layer_i;
+                layer_out = layer_i;
                 break;
             }
         }
+        return true;
+    }
+
+    // Dense EOS evaluation at an SI radius: the radius is converted into the interpolant's solve-unit domain, the
+    // layer located there, and eos->call re-dimensionalizes the outputs. out holds C_EOS_DY_VALUES doubles in the
+    // evaluation layout of eos_layout_.hpp, which is frequency-independent: [0] gravity [1] pressure [2] mass
+    // [3] moi [4] density [5] shear modulus [6] bulk modulus [7,8] viscosities [9] temperature [10] heat flow
+    // [11] melt fraction.
+    bool get_eos_si(double radius_si, double* out) const
+    {
+        size_t target_layer_i = 0;
+        double solve_r        = 0.0;
+        if (!this->p_locate_eos(radius_si, target_layer_i, solve_r)) return false;
         this->eos_solution_uptr->call(target_layer_i, solve_r, out);
+        return true;
+    }
+
+    // The complex moduli the EOS itself carries at an SI radius, which is a real answer only on a path that was
+    // handed its moduli as arrays (see get_complex_moduli_si).
+    bool get_eos_material_si(double radius_si, c_EOSMaterialState& out) const
+    {
+        size_t target_layer_i = 0;
+        double solve_r        = 0.0;
+        if (!this->p_locate_eos(radius_si, target_layer_i, solve_r)) return false;
+        this->eos_solution_uptr->call_material(target_layer_i, solve_r, out);
         return true;
     }
 

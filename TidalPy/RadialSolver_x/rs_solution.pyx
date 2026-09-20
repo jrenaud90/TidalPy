@@ -203,8 +203,10 @@ cdef class RadialSolverSolution:
     def eos_call_si(self, double radius):
         """Dense EOS outputs (SI) at an SI radius [m]; ``eos_call`` takes a non-dimensional radius instead.
 
-        Layout: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density, [5, 6] shear re/im, [7, 8] bulk re/im,
-        [9, 10] shear and bulk viscosity. NaN when the solve failed.
+        Layout: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density, [5] shear modulus, [6] bulk modulus,
+        [7, 8] shear and bulk viscosity, [9] temperature, [10] heat flow, [11] melt fraction. Every value is
+        frequency-independent, so the moduli are the unrelaxed ones; for the viscoelastic response at the solved
+        frequency use ``get_complex_shear_modulus`` and ``get_complex_bulk_modulus``. NaN when the solve failed.
         """
         cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
         cdef double[::1] eos_interp_view = eos_interp

@@ -104,7 +104,7 @@ inline int c_matrix_propagate(
     std::vector<size_t> first_slice_index_by_layer(num_layers, 0);
     std::vector<size_t> num_slices_by_layer(num_layers, slices_per_layer);
     {
-        double eos_out[C_EOS_DY_VALUES];
+        c_EOSMaterialState eos_material_state;
         const double last_span = static_cast<double>(slices_per_layer - 1);
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
         {
@@ -119,11 +119,10 @@ inline int c_matrix_propagate(
                 const double radius_here =
                     radius_bot + (static_cast<double>(slice_j) / last_span) * (radius_top - radius_bot);
                 radius_grid[slice_i] = radius_here;
-                eos_solution_storage_ptr->call(layer_i, radius_here, &eos_out[0]);
-                gravity_grid[slice_i] = eos_out[0];
-                density_grid[slice_i] = eos_out[C_EOS_DENSITY_INDEX];
-                shear_grid[slice_i]   = std::complex<double>(
-                    eos_out[C_EOS_SHEAR_MODULUS_INDEX], eos_out[C_EOS_SHEAR_MODULUS_INDEX + 1]);
+                eos_solution_storage_ptr->call_material(layer_i, radius_here, eos_material_state);
+                gravity_grid[slice_i] = eos_material_state.gravity;
+                density_grid[slice_i] = eos_material_state.density;
+                shear_grid[slice_i]   = eos_material_state.shear_modulus;
             }
         }
     }

@@ -1,12 +1,12 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides_x.multilayer`)
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-20_
 
 This module computes the depth- and direction-resolved tidal response (the complex strain and stress tensors and the volumetric heating) of a layered world. The response is evaluated at a single point on demand, so a map is built only when the caller evaluates a set of points.
 
 ## Physics
 
-The response at a point $(r, \theta, \phi, t)$ factorizes into a radial part as well as an angular and time part. The radial part is the set of viscoelastic-gravitational functions $y_1 \dots y_6$ from the radial solver (Takeuchi and Saito 1972), evaluated at $r$ through the dense calling system (`RadialSolverSolution.get_radial_solution`), together with the complex shear and bulk moduli $\mu^{*}$ and $K^{*}$ at $r$, read through the dense EOS path (`RadialSolverSolution.eos_call_si`). The angular and time part is the tidal potential $W(\theta, \phi, t)$ and its first and second $\theta$ and $\phi$ derivatives. The radial problem depends on the degree $l$ and the frequency $|\omega|$ only, not on $m$, so it is solved once per $(l, |\omega|)$.
+The response at a point $(r, \theta, \phi, t)$ factorizes into a radial part as well as an angular and time part. The radial part is the set of viscoelastic-gravitational functions $y_1 \dots y_6$ from the radial solver (Takeuchi and Saito 1972), evaluated at $r$ through the dense calling system (`RadialSolverSolution.get_radial_solution`), together with the complex shear and bulk moduli $\mu^{*}$ and $K^{*}$ at $r$, read at the solved frequency through the dense material path (`c_EOSSolution::call_material`, exposed in Python as `RadialSolverSolution.get_complex_shear_modulus`). The angular and time part is the tidal potential $W(\theta, \phi, t)$ and its first and second $\theta$ and $\phi$ derivatives. The radial problem depends on the degree $l$ and the frequency $|\omega|$ only, not on $m$, so it is solved once per $(l, |\omega|)$.
 
 ### Tidal Potential
 
