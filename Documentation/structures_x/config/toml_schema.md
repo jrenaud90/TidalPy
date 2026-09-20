@@ -270,9 +270,9 @@ mass_kg = 1.988435e30
 effective_temperature_k = 5772.0
 ```
 
-## Building a World for a PREM-like Data File
+## Building a World From a Radial Profile
 
-Instead of writing layer tables by hand, a world can be built from a PREM-like radial data file by giving a top-level `data_file` key. The layers are then auto-detected from the data.
+Instead of writing layer tables by hand, a world can describe its interior with a PREM-like radial profile. This is useful if comparing to published data or if you use a more sophisticated EOS solver and want to feed those results into TidalPy for, _e.g._, Love number calculations. These files are defined via a top-level `data_file` key naming a delimited file.
 
 ```toml
 schema_version = "0.2.0"
@@ -280,41 +280,58 @@ name = "Earth-PREM"
 type = "terrestrial"
 radius_m = 6371000.0
 mass_kg = 5.972e24
-data_file = "PREM.csv"
+data_file = "PREM.csv"  # Can be a path to a file too.
 ```
 
-### Data File Format
+From Python the same world is built by handing `build_world` the arrays themselves under a `data` key, which is the `build_world` equivalent of a data file. A world gives its profile one way or the other, never both.
 
-A delimited table (comma, tab, or whitespace; `#` comment lines ignored) with columns:
+```python
+world = build_world({
+    "schema_version": "0.2.0", "name": "My-Earth", "type": "terrestrial",
+    "radius_m": 6371000.0, "mass_kg": 5.972e24,
+    "data": {"radius_km": radius, "density": density, "vp": vp, "vs": vs},
+})
+```
 
-| Column | Quantity | Units |
-|--------|----------|-------|
-| 1 | radius | km |
-| 2 | density | kg/m³ |
-| 3 | P-wave velocity `Vp` | m/s |
-| 4 | S-wave velocity `Vs` | m/s |
-| 5 *(optional)* | shear viscosity | Pa s |
-| 6 *(optional)* | bulk viscosity | Pa s |
+### Profile Format
 
-The file may be ordered surface-first or center-first (it is sorted internally). Static moduli are derived per row: shear `μ = ρ·Vs²`, bulk `K = ρ·(Vp² − 4/3·Vs²)`.
+A delimited table (comma, semicolon, tab, or whitespace; `#` comment lines ignored), or a mapping of arrays with the same names. A profile must give a radius and a density, and must give either both seismic velocities or both static moduli:
 
-### Automatic Layer Detection
+| Quantity | Accepted names | Units | Required |
+|----------|----------------|-------|----------|
+| radius | `radius`, `r`, `rad`, `radii` | m or km | yes, or a depth |
+| depth | `depth`, `z` | m or km | converted with the world's `radius_m` |
+| density | `density`, `rho`, `dens` | kg/m³ | yes |
+| P-wave velocity | `vp`, `v_p`, `p_velocity`, … | m/s or km/s | yes, unless moduli are given |
+| S-wave velocity | `vs`, `v_s`, `shear_velocity`, … | m/s or km/s | yes, unless moduli are given |
+| shear modulus | `shear_modulus`, `mu`, `rigidity` | Pa | instead of the velocities |
+| bulk modulus | `bulk_modulus`, `k`, `incompressibility` | Pa | instead of the velocities |
+| shear viscosity | `shear_viscosity`, `eta`, `viscosity` | Pa s | no |
+| bulk viscosity | `bulk_viscosity`, `eta_bulk`, `zeta` | Pa s | no |
 
-The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` (zero shear) is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius boundary points are absorbed so no zero-thickness layers are produced, and a duplicated boundary radius keeps the lower layer's row first whichever way the file is ordered. A liquid layer gets `is_solid = false` and `is_static = true`, so the radial solver treats it as a static liquid; a `[layers.layer_N]` table can override either flag. For the bundled `PREM.csv`, which replaces PREM's 3 km ocean with the upper crust, this yields three layers: inner core (solid), outer core (liquid), mantle plus crust (solid).
+Names are matched ignoring case and punctuation, so `Vp`, `V_P` and `vp` are one name, and a name may state its unit: `radius_km`, `Vp [km/s]`, `rho_kg_m3`. A unit this reader does not convert is taken to be MKS already. Columns are found by name, so their **order does not matter**; the names come from a header row or from the last `#` comment line before the data (which must name every column, so prose about the data is not mistaken for a header). A file with no header at all is read positionally as radius, density, `Vp`, `Vs`, shear viscosity, bulk viscosity.
 
-Each detected layer gets an interpolated EOS carrying that layer's radius-varying density and static shear/bulk moduli (and viscosities, if the file has those columns). During `solve_eos` the structure ODE integrates using the interpolated density, and the world's viscoelastic profile is taken from the interpolated moduli/viscosities (rather than a per-layer constant).
+A radius or depth with no stated unit is read as kilometers below 100 km and as meters above it, ranges that cannot overlap for a real body. The file may be ordered surface-first or center-first (it is sorted internally). Where the velocities are given, the static moduli are derived per row: shear `μ = ρ·Vs²`, bulk `K = ρ·(Vp² − 4/3·Vs²)`.
 
-### Refining Auto-Detected Layers
+### Layer Detection
 
-Add `[layers.layer_N]` tables to refine the auto-detected layers (_e.g._, attach a shear rheology, or override a modulus). When layer tables are provided there must be one per detected layer (matched in `layer_index` order, inner to outer); a count mismatch raises. A provided outer radius (`radius_outer_m` or `radius_fraction`) must match the detected boundary or an error is raised. A user-provided constant modulus or viscosity (e.g. `bulk_modulus_static_pa = 1.0e11`) replaces that layer's interpolated array with the constant ("TOML overrides the data file"), while other keys (`class`, rheology sub-tables, …) override the auto values.
+The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` (zero shear) is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius boundary points are absorbed so no zero-thickness layers are produced, and a duplicated boundary radius keeps the lower layer's row first whichever way the file is ordered. A liquid layer gets `is_solid = false` and `is_static = true`, so the radial solver treats it as a static liquid; a layer table can override either flag. For the bundled `PREM.csv`, which replaces PREM's 3 km ocean with the upper crust, this yields three layers: inner core (solid), outer core (liquid), mantle plus crust (solid).
+
+Each layer's slice of the profile becomes its material: an interpolated EOS carrying that layer's density, static shear and bulk moduli, and viscosities when the profile gave any. That EOS owns those arrays, and is the only place a radial grid persists. A layer built this way takes **no defaults from a material type**, so a profile that names no viscosity produces an elastic layer: no viscosity model, no partial-melt model, and no rheology it did not ask for.
+
+### Refining Detected Layers
+
+A profile fixes how many layers the world has, where their boundaries are, and what each is made of. It does not hold complex moduli, so a rheology is still named in a `[layers.<name>]` table, as are a cooling model and radiogenics.
+
+Such a table says which detected layer it refines with `layer_index` (or by being named `layer_N`), and **only the layers being refined need a table**. The table lends the layer its name. A provided outer radius (`radius_outer_m` or `radius_fraction`) must match the detected boundary, two tables may not claim the same layer, and an index outside the detected range raises. A constant modulus or viscosity (e.g. `bulk_modulus_static_pa = 1.0e11`) replaces that layer's array with the constant ("TOML overrides the data file"); other keys (`class`, `type`, the model sub-tables, …) override the detected values. Naming a `type` brings that material block's defaults back.
 
 ```toml
-[layers.layer_2]            # the solid mantle
-class = "solidliquid"
+[layers.mantle]             # refines the outermost detected layer; the other two need no table
 layer_index = 2
-bulk_modulus_static_pa = 1.0e11   # override the PREM bulk profile with a constant
-[layers.layer_2.shear_rheology]
+[layers.mantle.shear_rheology]
 model = "maxwell"
+[layers.mantle.material]
+shear_viscosity_static_pas = 1.0e21   # the profile named no viscosity, so give one here
 ```
 
 The `data_file` path is resolved relative to the world TOML's directory, then the worlds data directory, then the packaged `WorldPack_x` (see [`worldpack.md`](worldpack.md)).
@@ -366,6 +383,7 @@ All entry points are re-exported from `TidalPy.structures_x` and from `TidalPy.s
 ### High Level
 
 * `build_world(source, force=False) -> BaseWorld`: resolve `source` (bundled name / file path / dict), validate, and return the built Cython world directly. `force=True` bypasses the schema-version warning. Thin wrapper over `BaseWorld.build(source, force=False)`, which holds the build logic and returns the type-appropriate subclass.
+* `load_radial_data(source, surface_radius=None) -> dict`: read a radial profile (a data-file path or a mapping of arrays) into MKS arrays ascending in radius, the same reader `data_file` and `data` worlds use. `detect_layer_boundaries(radius, shear_modulus)` returns the `(start, end, is_solid)` runs it splits into.
 * The returned world exposes its methods directly: `world.solve_eos(...)`, `world.solve_love_numbers(...)`, `world.get_density(r)`, etc.
 * `world.save_to_toml(path, overwrite=True)`: write the retained build configuration (stamped with the current `schema_version`); falls back to `get_config_dict()` if the world was constructed directly rather than via `build_world`. The fallback is validated against this schema first, so it writes a buildable file or raises `ValueError`.
 * `world.get_config_dict()`: the live world as a builder-valid table (`type`, name-keyed `layers` with `class` and attached-model sub-tables, `tides`, `schema_version`).

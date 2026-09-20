@@ -361,7 +361,9 @@ def validate_world_config(config: dict) -> None:
     # Flag unknown world-level scalar keys (typo protection). Reserved structural
     # keys and the optional '[tides]' table (validated separately below) are tolerated.
     allowed = ALLOWED_WORLD_SCALAR_KEYS[world_type]
-    structural = {"name", "type", "schema_version", "layers", "tides", "data_file"}
+    # 'data_file' (a path) and 'data' (a mapping of arrays) are the two ways to give a radial
+    # profile in place of layer tables; the builder expands either into 'layers' before validation.
+    structural = {"name", "type", "schema_version", "layers", "tides", "data_file", "data"}
     for key, value in config.items():
         if key == "tides":
             if not isinstance(value, dict):

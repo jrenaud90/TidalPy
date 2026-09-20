@@ -15,6 +15,7 @@ constructor or physics-model-factory default apply.
 """
 
 import os
+import re
 import warnings
 from typing import Optional, Union, Callable
 
@@ -264,82 +265,78 @@ def construct_layer(
 
 
 # =====================================================================================================================
-# PREM-like data file expansion
+# Radial data expansion: a PREM-like profile describes the world's geometry and materials
 # =====================================================================================================================
-def _build_prem_layers(data_path: str) -> list:
-    """Auto-detect layers from a PREM-like data file and build their configs.
+def _layers_from_radial_data(arrays: dict) -> list:
+    """Split a normalized radial profile into layers and give each one an interpolated material.
 
-    The file is loaded and split into layers by shear modulus (solid vs liquid, see
-    :mod:`TidalPy.structures_x.configs.prem`); each detected layer becomes a config
-    dict with an interpolated EOS carrying that layer's radius-varying density and
-    (static) shear/bulk moduli (and viscosities if the file provides them).
+    The profile is split at every solid/liquid transition (see
+    :mod:`TidalPy.structures_x.configs.data_file`) and each layer takes the slice of the profile that
+    falls inside it: its density, its static shear and bulk moduli, and its viscosities when the
+    profile gave any. That slice is the layer's material, an interpolated EOS, and the only grid this
+    world keeps. No viscosity or partial-melt model is built: a profile without viscosities describes
+    an elastic body, and one with them has already said what they are at every radius.
 
     Parameters
     ----------
-    data_path : str
-        Absolute path to the PREM-like data file.
+    arrays : dict
+        The MKS arrays from :func:`data_file.load_radial_data`.
 
     Returns
     -------
     list of (str, dict)
         ``(layer_name, layer_config)`` pairs, inner to outer. A layer detected as liquid (zero shear
-        modulus) carries ``is_solid = False`` and ``is_static = True``.
+        modulus) carries ``is_solid = False``, and every layer is static.
     """
-    import numpy as np
-    from TidalPy.structures_x.configs import prem
+    from TidalPy.structures_x.configs import data_file
 
-    arrays = prem.load_prem_arrays(data_path)
     radius     = arrays["radius_m"]
-    density    = arrays["density_kg_m3"]
     shear      = arrays["shear_modulus_pa"]
-    bulk       = arrays["bulk_modulus_pa"]
     shear_visc = arrays["shear_viscosity_pas"]
     bulk_visc  = arrays["bulk_viscosity_pas"]
 
-    boundaries = prem.detect_layer_boundaries(radius, shear)
-
     auto_layers = []
-    for index, (start, end, is_solid) in enumerate(boundaries):
+    for index, (start, end, is_solid) in enumerate(data_file.detect_layer_boundaries(radius, shear)):
         stop = end + 1
-        radius_slice = radius[start:stop]
-        shear_slice = shear[start:stop]
-        bulk_slice  = bulk[start:stop]
-        eos_cfg = {
+        material_cfg = {
             "model":            "interpolate",
-            "radius_m":         radius_slice.tolist(),
-            "density_kg_m3":    density[start:stop].tolist(),
-            "shear_modulus_pa": shear_slice.tolist(),
-            "bulk_modulus_pa":  bulk_slice.tolist(),
+            "radius_m":         radius[start:stop].tolist(),
+            "density_kg_m3":    arrays["density_kg_m3"][start:stop].tolist(),
+            "shear_modulus_pa": shear[start:stop].tolist(),
+            "bulk_modulus_pa":  arrays["bulk_modulus_pa"][start:stop].tolist(),
         }
         if shear_visc is not None:
-            eos_cfg["shear_viscosity_pas"] = shear_visc[start:stop].tolist()
+            material_cfg["shear_viscosity_pas"] = shear_visc[start:stop].tolist()
         if bulk_visc is not None:
-            eos_cfg["bulk_viscosity_pas"] = bulk_visc[start:stop].tolist()
-        # Representative constants (fallbacks; the tables above are what the solve interpolates).
-        eos_cfg["shear_modulus_static_pa"] = float(np.mean(shear_slice))
-        eos_cfg["bulk_modulus_static_pa"]  = float(np.mean(bulk_slice))
+            material_cfg["bulk_viscosity_pas"] = bulk_visc[start:stop].tolist()
         layer_cfg = {
-            "class":                   "solidliquid",
-            "layer_index":             index,
-            "radius_outer_m":          float(radius_slice[-1]),
-            "is_tidal":                bool(is_solid),
+            "class":          "solidliquid",
+            # The profile is the material, so the layer takes no defaults from a material type: no
+            # viscosity model, no partial-melt model, and no rheology it did not ask for. A layer
+            # table naming a `type` gets that block back.
+            "type":           NO_MATERIAL_TYPE,
+            "layer_index":    index,
+            "radius_outer_m": float(radius[end]),
+            "is_tidal":       bool(is_solid),
             # A liquid layer (zero shear velocity) is solved as a static liquid.
-            "is_solid":                bool(is_solid),
-            "is_static":               True,
-            "material":                eos_cfg,
+            "is_solid":       bool(is_solid),
+            "is_static":      True,
+            "material":       material_cfg,
         }
         auto_layers.append((f"layer_{index}", layer_cfg))
+    if not auto_layers:
+        raise ValueError("The radial profile yielded no layers of non-zero thickness.")
     return auto_layers
 
 
-def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer_name: str) -> dict:
-    """Merge a user layer table over a PREM auto-detected layer.
+def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer_name: str) -> dict:
+    """Merge a user layer table over a layer detected from a radial profile.
 
-    The user's outer radius (if given) is cross-checked against the detected radius
-    (mismatch is an error). A user-supplied constant modulus/viscosity overrides the
-    PREM array by replacing it with a constant array (so the interpolation returns
-    the constant). Remaining user keys (``class``, physics-model sub-tables, ...)
-    override the auto values.
+    The user's outer radius (if given) is cross-checked against the detected radius (a mismatch is an
+    error). A user-supplied constant modulus or viscosity replaces that layer's array with a constant
+    one, so the interpolation returns the constant. Remaining user keys (``class``, the physics-model
+    sub-tables, ...) override the detected values, ``type`` among them: naming a material type brings
+    that block's defaults back to a layer the profile otherwise leaves bare.
     """
     import copy
     import math
@@ -355,15 +352,15 @@ def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer
         user_outer = float(user_cfg["radius_fraction"]) * world_radius
     if user_outer is not None and not math.isclose(user_outer, auto_outer, rel_tol=1.0e-3):
         raise ValueError(
-            f"PREM layer '{layer_name}': provided outer radius {user_outer:.6g} m does "
-            f"not match the radius {auto_outer:.6g} m detected from the data file.")
+            f"Layer '{layer_name}': provided outer radius {user_outer:.6g} m does not match the "
+            f"radius {auto_outer:.6g} m detected from the radial profile.")
 
-    # A user-provided constant overrides the PREM array (constant across the layer).
+    # A user-provided constant overrides the profile's array (constant across the layer).
     num_points = len(merged["material"]["radius_m"])
     user_material = user_cfg.get("material", {}) or {}
     _const_override = {
-        "shear_modulus_static_pa":   "shear_modulus_pa",
-        "bulk_modulus_static_pa":    "bulk_modulus_pa",
+        "shear_modulus_static_pa":    "shear_modulus_pa",
+        "bulk_modulus_static_pa":     "bulk_modulus_pa",
         "shear_viscosity_static_pas": "shear_viscosity_pas",
         "bulk_viscosity_static_pas":  "bulk_viscosity_pas",
     }
@@ -382,44 +379,86 @@ def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer
     return merged
 
 
-def _expand_data_file(config: dict) -> dict:
-    """Expand a ``data_file`` world config into auto-detected (PREM) layers.
+def _user_layer_index(layer_name: str, user_cfg: dict, num_detected: int, world_name: Optional[str]) -> int:
+    """Resolve which detected layer a user layer table refines, by its ``layer_index`` or its name."""
+    index = user_cfg.get("layer_index")
+    if index is None:
+        match = re.fullmatch(r"layer_(\d+)", str(layer_name))
+        if match is None:
+            raise ValueError(
+                f"World '{world_name}': layer table '{layer_name}' refines a layer detected from the "
+                "radial profile, so it needs a 'layer_index' key saying which one (0 is the "
+                f"innermost, {num_detected - 1} the outermost).")
+        index = int(match.group(1))
+    index = int(index)
+    if not 0 <= index < num_detected:
+        raise ValueError(
+            f"World '{world_name}': layer table '{layer_name}' has layer_index {index}, but "
+            f"{num_detected} layer(s) were detected from the radial profile (valid indices are 0 to "
+            f"{num_detected - 1}).")
+    return index
 
-    Returns a copy of ``config`` whose ``layers`` table is built from the PREM-like
-    data file, merged with any user-provided ``[layers.*]`` tables (matched in order;
-    a layer-count or per-layer radius mismatch raises). If the config has no
-    ``data_file`` it is returned unchanged.
+
+def _expand_radial_data(config: dict) -> dict:
+    """Expand a world config that gives a radial profile in place of its layer geometry and materials.
+
+    The profile is either ``data_file`` (a path to a delimited file, resolved like any world data
+    file) or ``data`` (a mapping of column name to array, the way to do this from Python). It fixes
+    how many layers the world has, where their boundaries are, and what each one is made of.
+
+    It does not fix everything a layer can carry: a profile holds no rheology, no cooling model and
+    no radiogenics, so those are still given in ``[layers.<name>]`` tables. Such a table names the
+    layer it refines with ``layer_index`` (or by being called ``layer_<N>``), and only the layers
+    being refined need one. Returns a copy of ``config`` whose ``layers`` table is the detected
+    layers with those refinements merged in; a config with neither profile key is returned
+    unchanged.
     """
-    if "data_file" not in config:
+    from TidalPy.structures_x.configs import data_file
+
+    has_file = "data_file" in config
+    has_data = "data" in config
+    if not (has_file or has_data):
         return config
+    if has_file and has_data:
+        raise ValueError(
+            f"World '{config.get('name')}' gives both 'data_file' and 'data'; a world takes its "
+            "radial profile from one or the other.")
 
     config = dict(config)
-    data_path = worldpack.resolve_data_file(config["data_file"])
-    auto_layers = _build_prem_layers(data_path)
+    if "radius_m" not in config:
+        raise ValueError(
+            f"World '{config.get('name')}' gives a radial profile but is missing the required "
+            "'radius_m' key.")
+    world_radius = config["radius_m"]
+    world_name = config.get("name")
 
-    user_layers = config.get("layers", {}) or {}
-    if user_layers:
-        user_items = sorted(
-            user_layers.items(),
-            key=lambda item: item[1].get("layer_index", 0))
-        if len(user_items) != len(auto_layers):
-            raise ValueError(
-                f"World '{config.get('name')}' provides {len(user_items)} layer table(s) "
-                f"but {len(auto_layers)} layer(s) were detected from the data file "
-                f"'{config['data_file']}'. Provide one table per detected layer "
-                "(inner to outer) or none.")
-        if "radius_m" not in config:
-            raise ValueError(
-                f"World '{config.get('name')}' uses a data_file but is missing the "
-                "required 'radius_m' key.")
-        world_radius = config["radius_m"]
-        merged_layers = {}
-        for (auto_name, auto_cfg), (user_name, user_cfg) in zip(auto_layers, user_items):
-            merged_layers[auto_name] = _merge_prem_layer(
-                auto_cfg, user_cfg, world_radius, auto_name)
-        config["layers"] = merged_layers
+    if has_file:
+        source = worldpack.resolve_data_file(config["data_file"])
     else:
-        config["layers"] = {name: cfg for name, cfg in auto_layers}
+        source = config.pop("data")     # the arrays live on in each layer's material
+    auto_layers = _layers_from_radial_data(data_file.load_radial_data(source, surface_radius=world_radius))
+
+    # Each user table refines one detected layer, and lends it its own name.
+    names = [name for name, _ in auto_layers]
+    merged = [cfg for _, cfg in auto_layers]
+    claimed = {}
+    for layer_name, user_cfg in (config.get("layers", {}) or {}).items():
+        index = _user_layer_index(layer_name, user_cfg, len(auto_layers), world_name)
+        if index in claimed:
+            raise ValueError(
+                f"World '{world_name}': layer tables '{claimed[index]}' and '{layer_name}' both "
+                f"refine detected layer {index}.")
+        claimed[index] = layer_name
+        names[index] = layer_name
+        merged[index] = _merge_radial_data_layer(merged[index], user_cfg, world_radius, layer_name)
+
+    # A table named after a layer it does not refine would otherwise silently take that layer's place.
+    duplicates = {name for name in names if names.count(name) > 1}
+    if duplicates:
+        raise ValueError(
+            f"World '{world_name}': the layer name(s) {sorted(duplicates)} would belong to more than one "
+            "layer. A layer table that refines one detected layer may not be named after another.")
+    config["layers"] = {name: cfg for name, cfg in zip(names, merged)}
     return config
 
 
@@ -455,9 +494,9 @@ def _world_type_defaults(world_type: str) -> dict:
 def construct_world(config: dict):
     """Construct a world (and all its layers) from a validated configuration dict.
 
-    If the config carries a ``data_file`` key (a PREM-like radial data file), its
-    layers are auto-detected from that file (and merged with any user ``[layers.*]``
-    tables) before construction; see :func:`_expand_data_file`.
+    If the config carries a radial profile (``data_file``, a path, or ``data``, a mapping of
+    arrays) instead of layer tables, its layers are detected from that profile (and merged with any
+    user ``[layers.*]`` tables) before construction; see :func:`_expand_radial_data`.
 
     Parameters
     ----------
@@ -477,7 +516,7 @@ def construct_world(config: dict):
     ValueError
         If the configuration fails structural validation.
     """
-    config = _expand_data_file(config)
+    config = _expand_radial_data(config)
     validate_world_config(config)
     world_type = config["type"]
 

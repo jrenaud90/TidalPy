@@ -1,20 +1,22 @@
-# PREM Earth for the structures_x world builder, built from a PREM-like data file.
+# PREM Earth for the structures_x world builder, built from a radial data file.
 #
-# `data_file` points to a delimited radial profile with columns
-# radius[km], density[kg/m^3], Vp[m/s], Vs[m/s] (and, optionally, shear and bulk
-# viscosity columns). On build the file is loaded and split into layers
-# automatically by shear modulus (Vs = 0 -> liquid; each solid<->liquid transition
-# starts a new layer, named layer_0, layer_1, ... from the center outward). Each
-# layer gets an interpolated EOS carrying its radius-varying density and static
-# shear/bulk moduli, and a liquid layer is flagged `is_solid = false` (static).
-# The bundled PREM.csv replaces PREM's 3 km surface ocean with the upper crust, so
-# it gives three layers: inner core (solid), outer core (liquid), and mantle plus
-# crust (solid). The solid-body degree-2 Love number k2 is about 0.30.
+# `data_file` points to a delimited radial profile giving radius, density, Vp, and Vs
+# (and, optionally, a shear and a bulk viscosity). Columns are found by name, so their
+# order does not matter and they may state their units. On build the profile is split
+# into layers by shear modulus (Vs = 0 -> liquid; each solid<->liquid transition starts
+# a new layer, named layer_0, layer_1, ... from the center outward), and each layer's
+# slice of the profile becomes its material: an interpolated EOS carrying that layer's
+# density and static shear/bulk moduli. A liquid layer is flagged `is_solid = false`.
+# The bundled PREM.csv replaces PREM's 3 km surface ocean with the upper crust, so it
+# gives three layers: inner core (solid), outer core (liquid), and mantle plus crust
+# (solid). It names no viscosity, so the body is elastic and its degree-2 Love number
+# k2 is about 0.30, purely real.
 #
-# Layer tables are optional here. To refine an auto-detected layer (e.g. attach a
-# shear rheology, or override a modulus with a constant), add a [layers.layer_N]
-# table with a matching layer_index; a provided outer radius must match the detected
-# boundary. See Documentation/structures_x/config/toml_schema.md.
+# A profile holds no complex moduli, so a rheology is still named in a layer table, as
+# are a cooling model and radiogenics. Add a [layers.<name>] table with a `layer_index`
+# saying which detected layer it refines (or call it layer_N); only the layers you are
+# refining need one, and a provided outer radius must match the detected boundary.
+# See Documentation/structures_x/config/toml_schema.md.
 schema_version = "0.2.0"
 name = "Earth-PREM"
 type = "terrestrial"
