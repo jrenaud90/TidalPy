@@ -39,6 +39,7 @@ PhysicsLayer(
     is_incompressible:  bool    = False,
     temperature:        float   = 0.0,
     use_thermal_eos:    bool    = False,
+    use_heating:        bool    = False,
 )
 ```
 
@@ -62,6 +63,7 @@ PhysicsLayer(
 | `is_solid`, `is_static`, `is_incompressible` | `bool` | - | Radial-solver assumptions; see Layer Assumptions below. Defaults `True`, `True`, `False`. |
 | `temperature` | `float` | K | Layer temperature at which the material's viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
 | `use_thermal_eos` | `bool` | - | Let the material's density law see the temperature, so the density and bulk modulus depend on it. Default `False`. |
+| `use_heating` | `bool` | - | Let the world's heat sources act inside the layer during a thermal EOS solve. Default `False`. |
 
 The static moduli and viscosities and the shear law are arguments of the EOS model, not of the layer:
 
@@ -105,6 +107,7 @@ _Read-only properties._
 |----------|-------|-------------|
 | `temperature` | K | Layer temperature. Writable. |
 | `use_thermal_eos` | - | `True` if the material's density law receives the temperature. Writable. |
+| `use_heating` | - | `True` if the world's heat sources act inside the layer during a thermal EOS solve (see [Worlds](../worlds/worlds.md)). Writable. |
 
 ### Layer Assumptions
 
@@ -177,11 +180,11 @@ Complex bulk modulus [Pa]; both the material-constant `(frequency)` and the radi
 
 `update_eos_data`, `get_density`, `get_gravity`, `get_pressure`, the static material getters (`get_shear_modulus`, `get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity`, `get_melt_fraction`, `get_state`), `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`, `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
 
-`get_config_dict()` adds the three layer-assumption flags, `temperature_k`, `use_thermal_eos`, the Love-number components, and a sub-table for each attached rheology (`shear_rheology`, `bulk_rheology`), keyed by `model` exactly as the world builder reads it. The `material` table (from `BaseLayer`) carries the EOS model with its static constants, its shear law, and its own `shear_viscosity`, `bulk_viscosity`, and `partial_melt` tables.
+`get_config_dict()` adds the three layer-assumption flags, `temperature_k`, `use_thermal_eos`, `use_heating`, the Love-number components, and a sub-table for each attached rheology (`shear_rheology`, `bulk_rheology`), keyed by `model` exactly as the world builder reads it. The `material` table (from `BaseLayer`) carries the EOS model with its static constants, its shear law, and its own `shear_viscosity`, `bulk_viscosity`, and `partial_melt` tables.
 
 ## Binary Serialization
 
-`save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by six doubles for the Love numbers (`love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im), one byte each for `is_solid`, `is_static`, and `is_incompressible`, then one double for `temperature` and one byte for `use_thermal_eos`.
+`save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by six doubles for the Love numbers (`love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im), one byte each for `is_solid`, `is_static`, and `is_incompressible`, then one double for `temperature` and one byte each for `use_thermal_eos` and `use_heating`.
 
 Following the scalar payload, an optional sub-model section is written: one-byte presence flags for the material EOS model and the shear and bulk rheology, each followed (when set) by that model's own binary record. The EOS record carries the material with it: the static constants, the shear law, and its viscosity and partial-melt models. On load, attached models are reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with its models intact (verify with `eos_set`, `shear_rheology_set`, `shear_viscosity_set`, and `partial_melt_set`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 

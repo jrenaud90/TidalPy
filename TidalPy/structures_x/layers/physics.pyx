@@ -84,6 +84,9 @@ cdef class PhysicsLayer(BaseLayer):
         rigid limit of the viscosity laws.
     use_thermal_eos : bool, optional
         Pass the temperature to the EOS model, so the density and bulk modulus depend on it. Default ``False``.
+    use_heating : bool, optional
+        Let the world's heat sources (this layer's radiogenics model among them) act inside the layer during a
+        thermal EOS solve. Default ``False``.
 
     Assumptions
     -----------
@@ -113,7 +116,8 @@ cdef class PhysicsLayer(BaseLayer):
             cpp_bool is_static            = True,
             cpp_bool is_incompressible    = False,
             double temperature            = 0.0,
-            cpp_bool use_thermal_eos = False):
+            cpp_bool use_thermal_eos = False,
+            cpp_bool use_heating     = False):
         cdef c_PhysicsConfig config
         config.name               = name.encode("utf-8")
         config.layer_index        = layer_index
@@ -134,6 +138,7 @@ cdef class PhysicsLayer(BaseLayer):
         config.is_incompressible = is_incompressible
         config.temperature       = temperature
         config.use_thermal_eos   = use_thermal_eos
+        config.use_heating       = use_heating
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_PhysicsLayer] built = make_unique[c_PhysicsLayer](config)
@@ -259,6 +264,15 @@ cdef class PhysicsLayer(BaseLayer):
     @use_thermal_eos.setter
     def use_thermal_eos(self, value: bool):
         self._physics_ptr.set_use_thermal_eos(<cpp_bool>bool(value))
+
+    @property
+    def use_heating(self) -> bool:
+        """True if the world's heat sources act inside this layer during a thermal EOS solve."""
+        return bool(self._physics_ptr.get_use_heating())
+
+    @use_heating.setter
+    def use_heating(self, value: bool):
+        self._physics_ptr.set_use_heating(<cpp_bool>bool(value))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Rheology attachment
@@ -492,7 +506,8 @@ cdef class PhysicsLayer(BaseLayer):
         dict
             The BaseLayer keys (with the ``material`` table of the attached EOS model, which carries the static
             constants, the shear law, and its viscosity and partial-melt models) plus the radial-solver flags
-            ``is_solid``, ``is_static``, and ``is_incompressible``, ``temperature_k``, ``use_thermal_eos``, the six
+            ``is_solid``, ``is_static``, and ``is_incompressible``, ``temperature_k``, ``use_thermal_eos``,
+            ``use_heating``, the six
             Love number components, and a sub-table for each attached rheology (``shear_rheology``,
             ``bulk_rheology``).
         """
@@ -502,6 +517,7 @@ cdef class PhysicsLayer(BaseLayer):
         d["is_incompressible"] = bool(self._physics_ptr.get_is_incompressible())
         d["temperature_k"]     = self._physics_ptr.get_temperature()
         d["use_thermal_eos"]   = bool(self._physics_ptr.get_use_thermal_eos())
+        d["use_heating"]       = bool(self._physics_ptr.get_use_heating())
         cdef c_LoveNumbers ln = self._physics_ptr.get_love_numbers()
         d["love_number_k_re"] = ln.k.real()
         d["love_number_k_im"] = ln.k.imag()

@@ -10,7 +10,7 @@
  *   payload:
  *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
  *     [all c_PhysicsLayer additions: love_numbers k/h/l re+im (6×8), the three classification flags,
- *      temperature, use_thermal_eos]
+ *      temperature, use_thermal_eos, use_heating]
  *     mean_molecular_weight  (double, 8)
  *     adiabatic_index               (double, 8)
  *     reference_temperature       (double, 8)
@@ -98,7 +98,7 @@ public:
             sizeof(uint8_t)  +               // tidal_scale_method
             sizeof(double)   * 6 +           // love_numbers k/h/l re+im
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
-            material_law_bytes() +           // temperature, use_thermal_eos
+            material_law_bytes() +           // temperature, use_thermal_eos, use_heating
             sizeof(double)   * 4 +           // GasLayer fields
             optional_binary_flag_bytes() +         // material EOS model presence flag
             this->physics_models_presence_bytes(); // shear and bulk rheology presence flags

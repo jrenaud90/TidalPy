@@ -297,6 +297,7 @@ def test_tables_that_moved_into_the_material_say_so(table):
 @pytest.mark.parametrize("key,value", [
     ("temperature_k", 1600.0),
     ("use_thermal_eos", True),
+    ("use_heating", True),
 ])
 def test_layer_state_keys_are_schema_keys(key, value):
     for layer_class in ("physics", "solidliquid", "gas"):

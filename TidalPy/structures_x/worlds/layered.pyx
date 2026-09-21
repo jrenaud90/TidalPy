@@ -423,7 +423,8 @@ cdef class LayeredWorld(BaseWorld):
             solve_temperature       = None,
             surface_temperature     = None,
             reset_layer_masses      = False,
-            cpp_bool verbose        = False) -> dict:
+            cpp_bool verbose        = False,
+            time                    = None) -> dict:
         """Solve the whole-planet equation of state.
 
         Integrates gravity, pressure, enclosed mass, and moment of inertia from the planet center to its
@@ -466,14 +467,19 @@ cdef class LayeredWorld(BaseWorld):
             models). Default 0.0.
         verbose : bool, optional
             Print solver status messages. Default False.
+        time : float, optional
+            Time [s] the heat sources of the layers with ``use_heating`` are evaluated at, on the clock their
+            radiogenics models share. ``None`` takes each model's own reference time.
 
         Returns
         -------
         dict
             ``success``, ``message``, ``iterations``, ``max_iters_hit``, ``pressure_error`` [Pa], the radial
-            profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``), and the
-            scalar results (``surface_gravity``, ``surface_pressure``, ``central_pressure``, ``planet_mass``,
-            ``planet_moi``).
+            profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``,
+            ``temperature``, ``heat_flow``), the scalar results (``surface_gravity``, ``surface_pressure``,
+            ``central_pressure``, ``planet_mass``, ``planet_moi``), and the per-layer thermal results
+            (``layer_temperature`` [K], ``layer_heat_flow_in`` and ``layer_heat_flow_out`` [W],
+            ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1]).
 
         Raises
         ------
@@ -498,6 +504,8 @@ cdef class LayeredWorld(BaseWorld):
             cfg.solve_temperature = <cpp_bool>bool(solve_temperature)
         if surface_temperature is not None:
             cfg.surface_temperature = <double>surface_temperature
+        if time is not None:
+            cfg.time = <double>time
         cfg.reset_layer_masses = <cpp_bool>bool(reset_layer_masses)
         if slices_per_layer is not None:
             cfg.slices_per_layer = <size_t>int(slices_per_layer)
@@ -544,6 +552,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef list layer_temperature      = []
         cdef list layer_heat_flow_in     = []
         cdef list layer_heat_flow_out    = []
+        cdef list layer_heating          = []
         cdef list layer_temperature_rate = []
         cdef list layer_radius_outer     = []
         if sol != NULL and self._layered_ptr.get_eos_solved():
@@ -551,6 +560,7 @@ cdef class LayeredWorld(BaseWorld):
                 layer_temperature.append(self._layered_ptr.get_layer_thermal()[j].temperature)
                 layer_heat_flow_in.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_in)
                 layer_heat_flow_out.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_out)
+                layer_heating.append(self._layered_ptr.get_layer_thermal()[j].heating)
                 layer_temperature_rate.append(self._layered_ptr.calc_layer_temperature_rate(j))
                 layer_radius_outer.append(self._layered_ptr.get_layer(j).get_radius_outer())
             for j in range(n):
@@ -589,6 +599,7 @@ cdef class LayeredWorld(BaseWorld):
             'layer_temperature':      layer_temperature,
             'layer_heat_flow_in':     layer_heat_flow_in,
             'layer_heat_flow_out':    layer_heat_flow_out,
+            'layer_heating':          layer_heating,
             'layer_temperature_rate': layer_temperature_rate,
         }
 

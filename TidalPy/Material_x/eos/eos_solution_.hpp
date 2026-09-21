@@ -260,7 +260,6 @@ public:
         {
             input.update_bulk  = true;
             input.update_shear = true;
-            input.final_solve  = true;
         }
     }
 

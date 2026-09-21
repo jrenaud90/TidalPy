@@ -49,9 +49,20 @@ struct c_EOSSegment
     c_TemperatureKind temperature_kind  = c_TemperatureKind::Isothermal;
     double            start_temperature = TidalPyConstants::d_NAN;        // [K]; NaN continues from below
     double            start_heat_flow   = 0.0;                            // [W] entering the segment's base
-    double            heating_rate      = 0.0;                            // [W m-3], uniform in the segment
     double            conduction_coeff  = 0.0;                            // 1 / (4 pi k length_scale)
     double            adiabat_coeff     = 0.0;                            // alpha g_scale length_scale / c_p
+};
+
+/// Heat generated inside the planet, as the thermal structure ODE reads it. The world implements this from its
+/// heat sources; it is abstract here so this header stays free of the layer and world classes.
+class c_EOSHeatingBase
+{
+public:
+    virtual ~c_EOSHeatingBase() = default;
+
+    /// dL/dr = 4 pi r^2 h at a radius of one layer, where the local density is `density`. The radius, the
+    /// density, and the length in the returned Watts per length are all in the units the solve runs in.
+    virtual double calc_heat_flow_gradient(size_t layer_index, double radius, double density) const noexcept = 0;
 };
 
 /// Input parameters for the EOS ODE solver. The temperature fields are set per segment by the solver.
@@ -60,18 +71,20 @@ struct c_EOS_ODEInput
     double G_to_use       = 0.0;
     double planet_radius  = 0.0;
     char*  eos_input_ptr  = nullptr;
-    bool   final_solve    = false;
     bool   update_bulk    = false;
     bool   update_shear   = false;
     c_TemperatureKind temperature_kind = c_TemperatureKind::Isothermal;
-    double heating_rate     = 0.0;
     double conduction_coeff = 0.0;
     double adiabat_coeff    = 0.0;
+    // Heat sources of a thermal solve (non-owning; null for none) and the layer this input belongs to.
+    const c_EOSHeatingBase* heating_ptr = nullptr;
+    size_t layer_index = 0;
 };
 
 
-/// Hydrostatic structure ODE (CyRK DiffeqFuncType signature) for a self-gravitating spherically symmetric body.
-inline void c_eos_diffeq(
+/// The four structure derivatives of a self-gravitating spherically symmetric body in hydrostatic equilibrium.
+/// Returns the local density, which the thermal ODE needs for its heat sources.
+inline double c_eos_structure_derivatives(
         double* dy_ptr,
         double radius,
         double* y_ptr,
@@ -108,17 +121,19 @@ inline void c_eos_diffeq(
         dy_ptr[2] = C_FOUR_PI * rho * r2;
         dy_ptr[3] = (2.0 / 3.0) * dy_ptr[2] * r2;
     }
+    return rho;
+}
 
-    // The extras are stored on the final solve only and are not integrated. They follow the evaluation layout of
-    // eos_layout_.hpp, so only the unrelaxed real part of each modulus is carried.
-    if (eos_input_ptr->final_solve)
-    {
-        dy_ptr[4] = eos_output.density;
-        dy_ptr[5] = eos_output.shear_modulus.real();
-        dy_ptr[6] = eos_output.bulk_modulus.real();
-        dy_ptr[7] = eos_output.shear_viscosity;
-        dy_ptr[8] = eos_output.bulk_viscosity;
-    }
+
+/// Hydrostatic structure ODE (CyRK DiffeqFuncType signature).
+inline void c_eos_diffeq(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* input_args,
+        PreEvalFunc eos_function) noexcept
+{
+    c_eos_structure_derivatives(dy_ptr, radius, y_ptr, input_args, eos_function);
 }
 
 
@@ -127,7 +142,7 @@ inline void c_eos_diffeq(
 /// The four structure derivatives are those of c_eos_diffeq, with the density evaluated at the local
 /// temperature when the layer's EOS is thermal. The two extra states are
 ///   dT/dr = 0, -conduction_coeff L / r^2, or -adiabat_coeff g T, by the segment's temperature kind, and
-///   dL/dr = 4 pi r^2 h, the heat generated below this radius.
+///   dL/dr = 4 pi r^2 h, the heat generated at this radius by the world's heat sources (zero without any).
 /// The temperature is in Kelvin whatever units the rest of the solve runs in; the coefficients carry the
 /// conversion. The heat flow is in Watts.
 inline void c_eos_diffeq_thermal(
@@ -139,7 +154,7 @@ inline void c_eos_diffeq_thermal(
 {
     c_EOS_ODEInput* eos_input_ptr = reinterpret_cast<c_EOS_ODEInput*>(input_args);
 
-    c_eos_diffeq(dy_ptr, radius, y_ptr, input_args, eos_function);
+    const double rho = c_eos_structure_derivatives(dy_ptr, radius, y_ptr, input_args, eos_function);
 
     if ((radius < TidalPyConstants::d_EPS_10) || (radius > eos_input_ptr->planet_radius))
     {
@@ -160,5 +175,6 @@ inline void c_eos_diffeq_thermal(
             dy_ptr[4] = 0.0;
             break;
     }
-    dy_ptr[5] = C_FOUR_PI * radius * radius * eos_input_ptr->heating_rate;
+    dy_ptr[5] = (eos_input_ptr->heating_ptr != nullptr)
+        ? eos_input_ptr->heating_ptr->calc_heat_flow_gradient(eos_input_ptr->layer_index, radius, rho) : 0.0;
 }

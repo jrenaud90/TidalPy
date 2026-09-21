@@ -24,6 +24,10 @@
 /// non-dimensional). The central pressure is found by a secant iteration on the surface-pressure mismatch: the
 /// first update assumes a unit slope (exact for an incompressible planet), later ones use the measured slope.
 ///
+/// Only the pass that converges needs its dense output, and capturing it roughly doubles the cost of a pass, so
+/// it is switched on for the first pass of a warm start (which usually converges there) and for any pass the
+/// secant's own error model expects to converge. A pass that converges without it is repeated with it on.
+///
 /// Parameters
 /// ----------
 /// eos_solution_ptr : c_EOSSolution*
@@ -53,6 +57,9 @@
 /// integrate_temperature : bool
 ///     Carry temperature and heat flow as two extra state variables, with each segment's gradient form taken
 ///     from the layout. Requires a segment layout.
+/// central_pressure_guess : double
+///     First central pressure to try, in solve units: the last converged value when the caller has one. NaN (the
+///     default) or a non-positive value starts from a uniform sphere at the bulk density.
 ///
 /// Assumptions
 /// -----------
@@ -73,7 +80,8 @@ inline void c_solve_eos(
         size_t max_iters,
         bool verbose,
         const std::vector<c_EOSSegment>* segment_vec_ptr = nullptr,
-        bool integrate_temperature = false
+        bool integrate_temperature = false,
+        double central_pressure_guess = TidalPyConstants::d_NAN
         ) noexcept
 {
     eos_solution_ptr->message = std::string("Equation of state solver finished without issue.");
@@ -119,9 +127,12 @@ inline void c_solve_eos(
 
     DiffeqFuncType diffeq = integrate_temperature ? c_eos_diffeq_thermal : c_eos_diffeq;
 
-    // The initial central pressure is that of a uniform sphere at the bulk density. A thermal solve starts at
-    // the innermost segment's temperature with whatever heat flow it carries (zero at a regular center).
-    double y0[C_EOS_THERMAL_Y_VALUES] = {r0_gravity, r0_pressure_guess, r0_mass, r0_moi, 0.0, 0.0};
+    // The initial central pressure is the caller's, or that of a uniform sphere at the bulk density. A thermal
+    // solve starts at the innermost segment's temperature with whatever heat flow it carries (zero at a regular
+    // center).
+    const bool warm_start    = std::isfinite(central_pressure_guess) && (central_pressure_guess > 0.0);
+    const double r0_pressure = warm_start ? central_pressure_guess : r0_pressure_guess;
+    double y0[C_EOS_THERMAL_Y_VALUES] = {r0_gravity, r0_pressure, r0_mass, r0_moi, 0.0, 0.0};
     if (integrate_temperature && (num_segments > 0))
     {
         y0[4] = segment_vec[0].start_temperature;
@@ -131,8 +142,10 @@ inline void c_solve_eos(
     // Secant iteration state on f(P_c) = P_surface(P_c) - surface_pressure. The convergence test is relative to
     // the central-pressure scale, which is the size of the integrator's own noise on the surface pressure.
     const double pressure_scale   = (r0_pressure_guess > 0.0) ? r0_pressure_guess : 1.0;
+    const double pressure_tol_abs = pressure_tol * pressure_scale;
     double previous_central       = TidalPyConstants::d_NAN;
     double previous_diff          = TidalPyConstants::d_NAN;
+    double oldest_diff            = TidalPyConstants::d_NAN;
 
     // Only the four structure variables are integrated; density, moduli, and viscosities are evaluated afterwards
     // from the retained dense output, so the dense interpolant stays a plain polynomial evaluation.
@@ -165,7 +178,12 @@ inline void c_solve_eos(
     int iterations                  = 0;
     bool failed                     = false;
     bool max_iters_hit              = false;
-    bool final_run                  = false;
+    // Whether this pass keeps its dense output, and whether it is kept whatever it finds (the repeat of a
+    // converged pass, or the pass after the iteration cap). Capturing dense output roughly doubles the cost of a
+    // pass, so the first pass does it only from a warm start, which usually converges there.
+    bool capture_dense              = warm_start;
+    bool final_pass                 = false;
+    std::vector<std::unique_ptr<CySolverResult>> pass_results_vec;
     std::string integrator_failure_message;
 
     size_t last_solution_size = 0;
@@ -176,8 +194,9 @@ inline void c_solve_eos(
     while (true)
     {
         calculated_surf_pressure = TidalPyConstants::d_INF;
+        pass_results_vec.clear();
 
-        if (!final_run)
+        if (!final_pass)
         {
             iterations++;
         }
@@ -211,16 +230,13 @@ inline void c_solve_eos(
 
             eos_input_layer_ptr = &eos_input_bylayer_vec[segment.layer_index];
             eos_input_layer_ptr->temperature_kind = segment.temperature_kind;
-            eos_input_layer_ptr->heating_rate     = segment.heating_rate;
             eos_input_layer_ptr->conduction_coeff = segment.conduction_coeff;
             eos_input_layer_ptr->adiabat_coeff    = segment.adiabat_coeff;
 
-            // The integration needs only the density and captures no extra outputs, so the diffeq must not write
-            // past the structure variables. Only the final run keeps its dense output.
+            // The integration needs only the density, so the material skips its moduli, viscosity, and melt models.
             eos_input_layer_ptr->update_bulk  = false;
             eos_input_layer_ptr->update_shear = false;
-            eos_input_layer_ptr->final_solve  = false;
-            use_dense_output = final_run;
+            use_dense_output = capture_dense;
 
             std::memcpy(args_vec_eos_ptr, eos_input_layer_ptr, sizeof(c_EOS_ODEInput));
 
@@ -264,35 +280,27 @@ inline void c_solve_eos(
                 integrator_failure_message = integration_result_ptr->message;
             }
 
-            if (final_run && !failed)
+            if (!failed)
             {
-                // The whole result is kept for later dense calls; repoint after the move.
-                eos_solution_ptr->save_cyresult(std::move(integration_result_uptr));
-                integration_result_ptr = eos_solution_ptr->cysolver_results_uptr_vec.back().get();
-            }
-            else if ((segment_i == num_segments - 1) && !failed)
-            {
-                // Pressure of the last step: (total slices) - (num_y - pressure index) - 1.
-                size_t surface_pressure_index = (last_solution_size * num_y) - (num_y - 2) - 1;
-                calculated_surf_pressure      = integration_result_ptr->solution[surface_pressure_index];
-            }
-
-            if ((num_segments > 1) && !failed)
-            {
-                radius_start = segment.upper_radius;
                 top_of_last_segment_index = (num_extra + num_y) * (last_solution_size - 1);
-
-                // The next segment starts from the top of this one.
-                if (integration_result_ptr)
+                if (segment_i == num_segments - 1)
                 {
+                    // Pressure is the second state variable of the last step.
+                    calculated_surf_pressure = integration_result_ptr->solution[top_of_last_segment_index + 1];
+                }
+                else
+                {
+                    // The next segment starts from the top of this one.
+                    radius_start = segment.upper_radius;
                     std::memcpy(
                         y0_bysegment_vec.data(),
                         &integration_result_ptr->solution[top_of_last_segment_index],
                         sizeof(double) * num_y);
                 }
-                else
+                if (capture_dense)
                 {
-                    failed = true;
+                    // Held until the pass is judged: a converged pass hands these to the solution.
+                    pass_results_vec.push_back(std::move(integration_result_uptr));
                 }
             }
 
@@ -309,19 +317,27 @@ inline void c_solve_eos(
             break;
         }
 
-        if (final_run)
+        pressure_diff     = calculated_surf_pressure - surface_pressure;
+        pressure_diff_abs = std::fabs(pressure_diff);
+        const bool converged = (pressure_diff_abs <= pressure_tol_abs);
+
+        if (final_pass || (converged && capture_dense))
         {
+            // The whole result of every segment is kept for later dense calls.
+            for (std::unique_ptr<CySolverResult>& result_uptr : pass_results_vec)
+            {
+                eos_solution_ptr->save_cyresult(std::move(result_uptr));
+            }
+            pass_results_vec.clear();
             break;
         }
         else
         {
-            pressure_diff     = calculated_surf_pressure - surface_pressure;
-            pressure_diff_abs = std::fabs(pressure_diff);
-
-            if (pressure_diff_abs <= pressure_tol * pressure_scale)
+            if (converged)
             {
-                // Converged: the next pass keeps the dense output.
-                final_run = true;
+                // Converged without its dense output: the same central pressure again, this time keeping it.
+                final_pass    = true;
+                capture_dense = true;
             }
             else
             {
@@ -335,6 +351,16 @@ inline void c_solve_eos(
                         step = -pressure_diff / slope;
                     }
                 }
+                // The secant error model e[k+1] = M e[k] e[k-1], with M measured from the residuals in hand,
+                // says whether the next pass should converge and so whether it should capture its dense output.
+                // With one residual there is no model yet, and a wrong guess costs more than a repeated pass
+                // saves, so that pass runs without it.
+                const double reference_diff = std::isfinite(oldest_diff) ? oldest_diff : previous_diff;
+                const double predicted_diff = std::isfinite(reference_diff)
+                    ? pressure_diff * pressure_diff / std::fabs(reference_diff) : TidalPyConstants::d_INF;
+                capture_dense = (predicted_diff <= pressure_tol_abs);
+
+                oldest_diff      = previous_diff;
                 previous_central = y0[1];
                 previous_diff    = pressure_diff;
 
@@ -349,12 +375,13 @@ inline void c_solve_eos(
             }
         }
 
-        if (iterations >= static_cast<int>(max_iters))
+        if (!final_pass && (iterations >= static_cast<int>(max_iters)))
         {
             max_iters_hit = true;
             eos_solution_ptr->max_iters_hit = true;
-            // Still produce output.
-            final_run = true;
+            // Still produce output: one more pass, kept whatever it finds.
+            final_pass    = true;
+            capture_dense = true;
         }
     }
 

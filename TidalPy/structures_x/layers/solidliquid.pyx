@@ -79,6 +79,9 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         rigid limit of the viscosity laws.
     use_thermal_eos : bool, optional
         Pass the temperature to the EOS model, so the density and bulk modulus depend on it. Default ``False``.
+    use_heating : bool, optional
+        Let the world's heat sources (this layer's radiogenics model among them) act inside the layer during a
+        thermal EOS solve. Default ``False``.
 
     Assumptions
     -----------
@@ -107,7 +110,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             cpp_bool   is_static            = True,
             cpp_bool   is_incompressible    = False,
             double temperature           = 0.0,
-            cpp_bool use_thermal_eos     = False):
+            cpp_bool use_thermal_eos     = False,
+            cpp_bool use_heating         = False):
         cdef c_SolidLiquidConfig config
         config.name                 = name.encode("utf-8")
         config.layer_index          = layer_index
@@ -128,6 +132,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         config.is_incompressible    = is_incompressible
         config.temperature       = temperature
         config.use_thermal_eos   = use_thermal_eos
+        config.use_heating       = use_heating
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_SolidLiquidLayer] built = make_unique[c_SolidLiquidLayer](config)

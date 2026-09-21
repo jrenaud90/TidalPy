@@ -33,6 +33,7 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
         double boundary_thickness
         double rayleigh_number
         double nusselt_number
+        double heating
 
 
 cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
@@ -59,6 +60,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double    temperature
         cpp_bool  solve_temperature
         double    surface_temperature
+        double    time
         size_t    max_thermal_passes
         double    thermal_tol
         double    radius_tol

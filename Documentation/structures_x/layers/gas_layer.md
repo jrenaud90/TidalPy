@@ -1,6 +1,6 @@
 # GasLayer
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-20_
 
 `TidalPy.structures_x.layers.GasLayer` (`c_GasLayer` in C++) is the ideal-gas fluid layer class. It inherits `PhysicsLayer` and adds thermodynamic calculations for gas and fluid envelopes such as planetary atmospheres or gaseous mantles. No phase-change, cooling, or radiogenics sub-models are available; use `SolidLiquidLayer` for those.
 
@@ -41,7 +41,7 @@ layer = GasLayer(
 
 ### Parameters
 
-All parameters from `PhysicsLayer` are accepted, including the material-state parameters (`temperature`, the shear law, `use_thermal_eos`), except that `is_solid` defaults to `False` (a gas carries no shear stress, so the radial solver treats it as a static liquid), plus:
+All parameters from `PhysicsLayer` are accepted, including the material-state parameters (`temperature`, the shear law, `use_thermal_eos`, `use_heating`), except that `is_solid` defaults to `False` (a gas carries no shear stress, so the radial solver treats it as a static liquid), plus:
 
 | Parameter | Unit | Default | Description |
 |---|---|---|---|

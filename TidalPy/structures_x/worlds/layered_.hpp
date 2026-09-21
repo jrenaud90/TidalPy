@@ -96,6 +96,9 @@ struct c_WorldEOSSolveConfig {
     bool      solve_temperature   = true;
     // Temperature [K] the outermost layer radiates to. NaN leaves no flow through the surface.
     double    surface_temperature = TidalPyConstants::d_NAN;
+    // Time [s] the heat sources are evaluated at, on the clock the radiogenics models share. NaN takes each
+    // model's own reference time.
+    double    time                = TidalPyConstants::d_NAN;
     // Cap on the passes that relax the boundary layers and interface flows against the structure, and the
     // relative change in the interface temperatures and flows that ends them.
     size_t    max_thermal_passes  = 12;
@@ -263,6 +266,9 @@ public:
     bool   get_geometry_converged() const noexcept { return this->p_geometry_converged; }
     bool   get_thermal_converged() const noexcept { return this->p_thermal_converged; }
 
+    // The world's heat sources, as the last thermal solve prepared them.
+    const c_Heating& get_heating() const noexcept { return this->p_heating; }
+
     // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
     //   M c_p dT/dt = L_in - L_out + H.
     // NaN for a layer with no heat capacity (one that is not a solid-liquid layer).
@@ -274,7 +280,7 @@ public:
         if (!(mass > TidalPyConstants::d_EPS) || !(heat_capacity > TidalPyConstants::d_EPS)) {
             return TidalPyConstants::d_NAN;
         }
-        return (thermal.heat_flow_in - thermal.heat_flow_out) / (mass * heat_capacity);
+        return (thermal.heat_flow_in - thermal.heat_flow_out + thermal.heating) / (mass * heat_capacity);
     }
 
     // Viscoelastic profile queries (post-melt, with pre-melt variants). Each delegates to the layer containing
@@ -436,7 +442,6 @@ public:
         c_EOS_ODEInput ode_input;
         ode_input.G_to_use      = G_solve;
         ode_input.planet_radius = upper_radii.back();
-        ode_input.final_solve   = false;
         ode_input.update_bulk   = false;
         ode_input.update_shear  = false;
         for (std::size_t i = 0; i < n_layers; ++i) {
@@ -455,8 +460,25 @@ public:
         if (std::isfinite(cfg.temperature)) {
             for (c_LayerThermal& thermal : this->p_layer_thermal) { thermal.temperature = cfg.temperature; }
         }
-        const bool thermal_contrast =
-            cfg.solve_temperature && c_thermal_contrast_present(this->p_layer_thermal, cfg.surface_temperature);
+        // Heat sources, prepared once: none of them depends on the solved state. They need the heat flow of a
+        // thermal solve to act through, so a solve with temperature switched off leaves them out.
+        c_WorldState world_state;
+        world_state.time       = cfg.time;
+        world_state.layers_ptr = &this->p_layers;
+        this->p_heating.update_sources(world_state, length_scale, density_scale);
+        const bool heating_active = this->p_heating.get_is_active();
+        if (heating_active && !cfg.solve_temperature) {
+            TIDALPY_LOG_WARN(
+                "TidalPy: world '{}' has layers with use_heating set, but solve_temperature is off, so this EOS "
+                "solve carries no heat flow and the heating is ignored.", this->get_name());
+        }
+        // A temperature contrast or a heated layer gives the solve a profile to integrate.
+        const bool thermal_contrast = cfg.solve_temperature
+            && (c_thermal_contrast_present(this->p_layer_thermal, cfg.surface_temperature) || heating_active);
+        for (std::size_t i = 0; i < n_layers; ++i) {
+            eos_input_vec[i].heating_ptr = thermal_contrast ? &this->p_heating : nullptr;
+            eos_input_vec[i].layer_index = i;
+        }
         const double gravity_scale = length_scale / second2_scale;
 
         // Pass 0 is isothermal at each layer's own temperature, which is the whole solve for a world with no
@@ -470,6 +492,11 @@ public:
         }
         std::vector<c_EOSSegment> segment_vec;
         std::shared_ptr<c_EOSSolution> solution;
+        // The central pressure the secant iteration starts from, in solve units: the world's last converged solve,
+        // then the pass before. A re-solve after a small change then converges in a pass or two. NaN, on a world
+        // that has never been solved, starts from a uniform sphere.
+        double central_pressure_guess = this->p_eos_solved
+            ? (this->p_central_pressure / pascal_scale) : TidalPyConstants::d_NAN;
         const std::size_t last_pass =
             (thermal_contrast || geometry_floats) ? cfg.max_thermal_passes : 0;
         this->p_thermal_passes    = 0;
@@ -523,7 +550,8 @@ public:
                 cfg.max_iters,
                 cfg.verbose,
                 &segment_vec,
-                integrate_temperature
+                integrate_temperature,
+                central_pressure_guess
             );
 
             // Return the solution to SI: the arrays, layer radii, and pressure error are scaled in place, and
@@ -533,11 +561,12 @@ public:
             }
             if (!solution->success) { break; }
             this->p_thermal_passes = pass;
+            central_pressure_guess = solution->central_pressure / pascal_scale;
 
             if (thermal_contrast) {
                 const double thermal_change = c_update_layer_thermal(
                     *solution, this->p_layers, cfg.surface_temperature, integrate_temperature,
-                    this->p_layer_thermal);
+                    this->p_layer_thermal, &this->p_heating);
                 this->p_thermal_converged = integrate_temperature && (thermal_change < cfg.thermal_tol);
             }
             if (geometry_floats) {
@@ -1592,6 +1621,8 @@ protected:
     std::vector<c_MaterialEOSInput> p_eos_material_inputs;
     // Thermal description of every layer from the last solve, and how the thermal passes ended.
     std::vector<c_LayerThermal> p_layer_thermal;
+    // The world's heat sources. The structure ODE of a thermal solve reads them through a pointer to this member.
+    c_Heating p_heating;
     // The mass each floating layer holds on to [kg]; NaN for a layer that holds its volume instead.
     std::vector<double> p_reference_mass;
     bool p_geometry_converged  = true;

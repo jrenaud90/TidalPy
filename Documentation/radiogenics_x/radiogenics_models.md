@@ -1,6 +1,6 @@
 # Radiogenic Models (`radiogenics_x`)
 
-_Updated: 2026-09-15_
+_Updated: 2026-09-20_
 
 A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] is returned by `calc_heating(time, mass)`.
 
@@ -142,7 +142,7 @@ layer.calc_radiogenic_heating(time, mass)     # [W] for the mass supplied
 world.calc_internal_heating(time)             # [W] summed over all layers
 ```
 
-`set_radiogenics` moves ownership of the C++ model into the layer, leaving the Python wrapper an empty shell, so build a fresh model if the same parameters are needed elsewhere. Only `SolidLiquidLayer` accepts one. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one.
+`set_radiogenics` moves ownership of the C++ model into the layer, leaving the Python wrapper an empty shell, so build a fresh model if the same parameters are needed elsewhere. Only `SolidLiquidLayer` accepts one. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one. A layer with `use_heating` set also feeds its model to the world's thermal EOS solve, which heats the layer at the model's specific rate times the local density and reports the total as `layer_heating` (see [Worlds](../structures_x/worlds/worlds.md)).
 
 The mass is an argument so the caller can choose which mass is radiogenic: usually the layer's own mass, but possibly one differentiated component of it. The world-level sum uses each layer's `mass` attribute, which the equation-of-state solve sets, so solve the world's structure first: a layer built without a mass reports zero until then.
 

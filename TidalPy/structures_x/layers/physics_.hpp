@@ -19,6 +19,7 @@
  *     is_solid, is_static, is_incompressible (uint8_t x3, 3)
  *     temperature                   (double, 8)
  *     use_thermal_eos               (uint8_t, 1)
+ *     use_heating                   (uint8_t, 1)
  *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
@@ -51,6 +52,7 @@ struct c_PhysicsConfig : public c_BaseLayerConfig {
     // The layer temperature is 0 K until set: the cold, rigid limit of the viscosity laws.
     double        temperature = 0.0;   // [K]
     bool          use_thermal_eos = false;    // the EOS density and bulk modulus see the temperature
+    bool          use_heating     = false;    // the world's heat sources act inside this layer
 };
 
 class c_PhysicsLayer : public c_BaseLayer {
@@ -65,7 +67,8 @@ public:
           p_is_static(cfg.is_static),
           p_is_incompressible(cfg.is_incompressible),
           p_temperature(cfg.temperature),
-          p_use_thermal_eos(cfg.use_thermal_eos)
+          p_use_thermal_eos(cfg.use_thermal_eos),
+          p_use_heating(cfg.use_heating)
     {}
 
     ~c_PhysicsLayer() override = default;
@@ -81,6 +84,7 @@ public:
             this->p_is_incompressible = other.p_is_incompressible;
             this->p_temperature       = other.p_temperature;
             this->p_use_thermal_eos   = other.p_use_thermal_eos;
+            this->p_use_heating       = other.p_use_heating;
             // Owned model pointers cannot be copied; source temporaries always have null ptrs.
             this->p_shear_rheology.reset();
             this->p_bulk_rheology.reset();
@@ -128,6 +132,11 @@ public:
     bool   get_use_thermal_eos() const noexcept { return this->p_use_thermal_eos; }
     void set_temperature(double value)   noexcept { this->p_temperature = value; }
     void set_use_thermal_eos(bool value) noexcept { this->p_use_thermal_eos = value; }
+
+    // Whether the world's heat sources (its radiogenics model among them) act inside this layer during a
+    // thermal EOS solve. Off, the layer generates no heat whatever models it carries.
+    bool get_use_heating() const noexcept { return this->p_use_heating; }
+    void set_use_heating(bool value) noexcept { this->p_use_heating = value; }
 
     // Complex shear modulus [Pa] at a forcing frequency from the material's static constants: the rheology
     // applied to them, or the static modulus as a purely real number without one. The static viscosity is NaN
@@ -241,7 +250,7 @@ public:
             sizeof(uint8_t)  +               // tidal_scale_method
             sizeof(double)   * 6 +           // love_number k, h, l (each: re + im)
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
-            material_law_bytes() +           // temperature, use_thermal_eos
+            material_law_bytes() +           // temperature, use_thermal_eos, use_heating
             optional_binary_flag_bytes() +         // material EOS model presence flag
             this->physics_models_presence_bytes(); // shear and bulk rheology presence flags
 
@@ -391,14 +400,16 @@ protected:
         if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
     }
 
-    // The layer-state scalars (temperature, use_thermal_eos), shared with the subclasses so the three layer
-    // records keep one byte layout for them.
-    static constexpr uint64_t material_law_bytes() { return sizeof(double) + sizeof(uint8_t); }
+    // The layer-state scalars (temperature, use_thermal_eos, use_heating), shared with the subclasses so the
+    // three layer records keep one byte layout for them.
+    static constexpr uint64_t material_law_bytes() { return sizeof(double) + 2 * sizeof(uint8_t); }
 
     void write_material_law_binary(std::ostream& out) const {
         out.write(reinterpret_cast<const char*>(&this->p_temperature), sizeof(double));
         const uint8_t use_thermal_eos_byte = static_cast<uint8_t>(this->p_use_thermal_eos);
         out.write(reinterpret_cast<const char*>(&use_thermal_eos_byte), sizeof(uint8_t));
+        const uint8_t use_heating_byte = static_cast<uint8_t>(this->p_use_heating);
+        out.write(reinterpret_cast<const char*>(&use_heating_byte), sizeof(uint8_t));
     }
 
     void read_material_law_binary(std::istream& in) {
@@ -406,6 +417,9 @@ protected:
         uint8_t use_thermal_eos_byte = 0;
         in.read(reinterpret_cast<char*>(&use_thermal_eos_byte), sizeof(uint8_t));
         this->p_use_thermal_eos = static_cast<bool>(use_thermal_eos_byte);
+        uint8_t use_heating_byte = 0;
+        in.read(reinterpret_cast<char*>(&use_heating_byte), sizeof(uint8_t));
+        this->p_use_heating = static_cast<bool>(use_heating_byte);
     }
 
     // Payload bytes contributed by the two rheology presence flags (the nested records follow the payload).
@@ -423,6 +437,7 @@ protected:
     // Layer state (see c_PhysicsConfig).
     double p_temperature     = 0.0;
     bool   p_use_thermal_eos = false;
+    bool   p_use_heating     = false;
 
     // Optional rheology objects (serialized recursively via write_physics_models_binary).
     // The rheology classes are shared not unique: a radial-solver solution exported to Python keeps a

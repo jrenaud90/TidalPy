@@ -34,6 +34,7 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         cpp_bool            is_incompressible
         double              temperature
         cpp_bool            use_thermal_eos
+        cpp_bool            use_heating
         # GasLayer additions:
         double              mean_molecular_weight
         double              adiabatic_index

@@ -42,6 +42,7 @@ SolidLiquidLayer(
     is_incompressible:        bool    = False,
     temperature:                          float = 0.0,
     use_thermal_eos:                      bool  = False,
+    use_heating:                          bool  = False,
 )
 ```
 
@@ -60,7 +61,7 @@ SolidLiquidLayer(
 | `love_number_k`, `love_number_h`, `love_number_l` | — | Per-layer complex Love numbers, if you want to carry them on the layer. Default `0+0j`. |
 | `tidal_scale_method` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
 | `is_solid`, `is_static`, `is_incompressible` | - | Radial-solver assumptions; see [PhysicsLayer](physics_layer.md). Defaults `True`, `True`, `False`. |
-| `temperature`, `use_thermal_eos` | | Layer-state parameters; see [PhysicsLayer](physics_layer.md). |
+| `temperature`, `use_thermal_eos`, `use_heating` | | Layer-state parameters; see [PhysicsLayer](physics_layer.md). |
 
 ## Properties
 
@@ -147,7 +148,7 @@ Returns all configuration values as a Python dictionary (MKS): all `BaseLayer` +
 `save_binary` / `load_binary` serialize fields in this order:
 
 1. All `BaseLayer` fields (name, geometry, mass).
-2. All `PhysicsLayer` fields (Love numbers re+im, the three layer-assumption flags, `temperature`, `use_thermal_eos`).
+2. All `PhysicsLayer` fields (Love numbers re+im, the three layer-assumption flags, `temperature`, `use_thermal_eos`, `use_heating`).
 3. An optional sub-model section: presence flags + recursive binary records for the material EOS model, shear rheology, bulk rheology, cooling, and radiogenics models (in that order). The EOS record carries the whole material with it: the static and thermal constants, the shear law, and its viscosity and partial-melt models.
 
 On load, every attached sub-model is reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with all of its physics intact (verify with `eos_set`, `shear_rheology_set`, `cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and `calc_radiogenic_heating`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.

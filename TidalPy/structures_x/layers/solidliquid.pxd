@@ -38,6 +38,7 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         cpp_bool            is_incompressible
         double              temperature
         cpp_bool            use_thermal_eos
+        cpp_bool            use_heating
 
     cdef cppclass c_SolidLiquidLayer(c_PhysicsLayer):
         c_SolidLiquidLayer() except +

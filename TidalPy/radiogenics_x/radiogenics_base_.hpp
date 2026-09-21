@@ -35,6 +35,10 @@ public:
     // -----------------------------------------------------------------------
     virtual double calc_heating(double time, double mass) const = 0;
 
+    // Reference time [s] of the model's decay law: the time its quoted abundances or rate apply at. Zero for a
+    // model with no decay.
+    virtual double get_ref_time() const noexcept { return 0.0; }
+
     // -----------------------------------------------------------------------
     // Vectorized heating: vary time at constant mass. out_heating is resized to
     // the time vector length.

@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-20_
 
 Schema version `0.2.0`.
 
@@ -103,6 +103,7 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `is_incompressible` | optional | physics, solidliquid, gas | Incompressible approximation in the radial solve. Default `false`. |
 | `temperature_k` | optional | physics, solidliquid, gas | Layer temperature \[K\] at which the material's viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
 | `use_thermal_eos` | optional | physics, solidliquid, gas | Let the density law of the layer's material see the temperature, so its density and bulk modulus depend on it (set `thermal_expansion_1_k` in the `material` table). Default `false`. |
+| `use_heating` | optional | physics, solidliquid, gas | Let the world's heat sources act inside the layer during a thermal EOS solve: its `radiogenics` model then heats it, as a specific rate times the local density. Default `false`. |
 | gas params | optional | gas | See below. |
 
 The static moduli, the shear law, the thermal constants, and the viscosity and melting parameters are not layer keys. They are

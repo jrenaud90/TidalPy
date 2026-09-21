@@ -39,6 +39,7 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            is_incompressible
         double              temperature
         cpp_bool            use_thermal_eos
+        cpp_bool            use_heating
 
     cdef cppclass c_PhysicsLayer(c_BaseLayer):
         c_PhysicsLayer() except +
@@ -80,6 +81,8 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            get_use_thermal_eos()                      const
         void                set_temperature(double)
         void                set_use_thermal_eos(cpp_bool)
+        cpp_bool            get_use_heating()                          const
+        void                set_use_heating(cpp_bool)
 
 
 # =====================================================================================================================

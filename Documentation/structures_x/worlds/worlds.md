@@ -115,13 +115,13 @@ g      = world.get_gravity(world.radius)        # surface gravity [m/s²]
 p0     = world.get_pressure(0.0)                # central pressure [Pa]
 ```
 
-The solver carries pressure as a radial state variable, so analytic density-from-pressure models (Birch-Murnaghan, Vinet) are evaluated inline; the constant and interpolated models ignore pressure. The central pressure is found by a secant iteration on the surface-pressure mismatch: the first step assumes a unit slope (exact for an incompressible planet) and later steps use the slope measured between iterations, so a compressible planet converges in a few steps. The integration runs in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units) so the tolerances mean the same thing for every planet; every result is returned in SI.
+The solver carries pressure as a radial state variable, so analytic density-from-pressure models (Birch-Murnaghan, Vinet) are evaluated inline; the constant and interpolated models ignore pressure. The central pressure is found by a secant iteration on the surface-pressure mismatch: the first step assumes a unit slope (exact for an incompressible planet) and later steps use the slope measured between iterations, so a compressible planet converges in a few steps. A world that has been solved before starts the iteration from its last central pressure instead of from a uniform sphere, so a re-solve after a small change (a new layer temperature, a later time) usually converges on its first pass. The integration runs in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units) so the tolerances mean the same thing for every planet; every result is returned in SI.
 
-**`solve_eos(surface_pressure=0.0, slices_per_layer=None, G_to_use=-1.0, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=None, solve_temperature=None, surface_temperature=None, verbose=False) -> dict`**
+**`solve_eos(surface_pressure=0.0, slices_per_layer=None, G_to_use=-1.0, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=None, solve_temperature=None, surface_temperature=None, reset_layer_masses=False, verbose=False, time=None) -> dict`**
 
 Every solver setting left as `None` takes the `[eos_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` uses. `pressure_tol` is relative to the central-pressure scale $(2/3) \pi G \rho^2 R^2$ and must stay above `rtol`, the integrator's own noise on the surface pressure. Hitting `max_iters` logs a warning, sets `max_iters_hit` in the result, and keeps the last iteration's profile.
 
-Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `max_iters_hit`, `pressure_error` \[Pa\], the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`, `temperature`, `heat_flow`), the per-layer lists (`layer_temperature`, `layer_heat_flow_in`, `layer_heat_flow_out`, `layer_temperature_rate`), the thermal-iteration report (`thermal_passes`, `thermal_converged`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
+Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `max_iters_hit`, `pressure_error` \[Pa\], the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`, `temperature`, `heat_flow`), the per-layer lists (`layer_temperature`, `layer_heat_flow_in`, `layer_heat_flow_out`, `layer_heating`, `layer_temperature_rate`), the thermal-iteration report (`thermal_passes`, `thermal_converged`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
 
 #### Layer Size
 
@@ -156,7 +156,17 @@ $$R = \frac{1}{4 \pi k} \left( \frac{1}{r_a} - \frac{1}{r_b} \right)$$
 
 and the heat flow through an interface is $L = \Delta T / R$ across the two resistances facing it. Both layer temperatures are inputs, so that flow is generally not the same entering a layer as leaving it. The difference is the heat the layer stores or releases, which is what `layer_temperature_rate` reports:
 
-$$M c_p \frac{dT}{dt} = L_\mathrm{in} - L_\mathrm{out}$$
+$$M c_p \frac{dT}{dt} = L_\mathrm{in} - L_\mathrm{out} + H$$
+
+with $H$ \[W\] the heat generated inside the layer (`layer_heating`), zero unless the layer is heated.
+
+**Internal heating**
+
+A layer with `use_heating` set is heated by the world's heat sources. The radiogenic source takes the layer's [radiogenics model](../../radiogenics_x/radiogenics_models.md) as a specific rate $\epsilon$ \[W kg$^{-1}$\] at the solve's `time` \[s\] and heats the layer at $h = \epsilon \rho$ \[W m$^{-3}$\] with the local density, so it is exact for a layer whose mass is an output of the solve. `time=None` takes each model's own reference time. The structure solve integrates
+
+$$\frac{dL}{dr} = 4 \pi r^2 h$$
+
+so the heat flow grows through a heated layer and its conducting stretches bend: a uniformly heated conducting shell follows $T = B + A/r - h r^2 / 6k$. The resistance chain accounts for the same heating. With $H(r)$ the heat generated between the base of a conducting stretch and $r$, the flow leaving its top is the flow entering plus $H$, and the temperature drop across it is $L_\mathrm{base} R + \int H / (4 \pi r^2 k) \, dr$. Both follow from the heating and the solved density, so the solved profile still passes through every layer temperature and arrives at `surface_temperature`. A heated world is a thermal solve even when its layers share one temperature. With `solve_temperature=False` there is no heat flow to act through, so the heating is ignored and a warning is logged.
 
 A world whose layers are all at one temperature has no profile to integrate. The solve then keeps its four structure variables and returns exactly what it returns with `solve_temperature=False`, at the same cost; the profile queries still report each layer's own temperature. Otherwise the solve adds temperature and heat flow as two more state variables and repeats: the first pass is isothermal, and each later pass integrates the profile and then relaxes the boundary layers, interface temperatures, and heat flows against the structure it produced. `thermal_passes` counts them and `thermal_converged` says whether they settled.
 
@@ -171,6 +181,12 @@ result = world.solve_eos(
 world.get_temperature(0.9 * world.radius)    # [K] on the solved profile
 world.get_heat_flow(world.radius)            # [W] leaving the world
 result["layer_temperature_rate"]             # [K/s] per layer, from its heat imbalance
+
+world.mantle.use_heating = True              # The mantle's radiogenics model now heats it
+result = world.solve_eos(
+    surface_temperature=250.0,
+    time=1.0e17)                             # [s] when the radiogenics models are evaluated
+result["layer_heating"]                      # [W] generated inside each layer
 ```
 
 **Profile queries (after a successful solve)**

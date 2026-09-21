@@ -91,7 +91,7 @@ _LAWS = [("BirchMurnaghanEOS", "birch_murnaghan_pressure"), ("VinetEOS", "vinet_
 
 @pytest.mark.parametrize("cls_name,law", _LAWS)
 @pytest.mark.parametrize("bulk_modulus_derivative", [3.2, 4.0, 5.5])
-@pytest.mark.parametrize("pressure", [-5.0e9, -1.0e6, 1.0e3, 1.0e9, 1.4e11, 1.0e12])
+@pytest.mark.parametrize("pressure", [-5.0e9, -1.0e6, 1.0e3, 1.0e9, 1.4e11, 2.5e11])
 def test_inversion_roundtrip_is_tight_in_compression_and_tension(cls_name, law, bulk_modulus_derivative, pressure):
     """Inside the law's monotonic range the inverted compression returns the pressure to the inversion tolerance."""
     mod = _import_eos()

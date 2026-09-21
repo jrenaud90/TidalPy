@@ -133,9 +133,11 @@ _PHYSICS_LAYER_KEYS = (
     "is_solid",
     "is_static",
     "is_incompressible",
-    # Layer state: its temperature, and whether the density law of its material sees it.
+    # Layer state: its temperature, whether the density law of its material sees it, and whether the world's heat
+    # sources act inside it during a thermal EOS solve.
     "temperature_k",
-    "use_thermal_eos"
+    "use_thermal_eos",
+    "use_heating"
 )
 
 # Scalar keys that used to sit on the layer and now belong inside its ``material`` table.
