@@ -314,6 +314,7 @@ cdef class BaseLayer(StructureBase):
             raise ValueError(
                 "This EOS model holds no C++ object (already attached or moved).")
         self._layer_ptr.get().set_eos(move(eos._eos_ptr))
+        eos._ptr = NULL
 
     def update_eos_data(
             self,

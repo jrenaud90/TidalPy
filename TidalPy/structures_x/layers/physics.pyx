@@ -282,6 +282,7 @@ cdef class PhysicsLayer(BaseLayer):
             raise ValueError(
                 "This rheology model holds no C++ object (already attached or moved).")
         self._physics_ptr.set_shear_rheology(move(rheology._rheology_ptr))
+        rheology._ptr = NULL
 
     def set_bulk_rheology(self, RheologyBase rheology not None):
         """Attach a rheology model used to compute the complex bulk modulus.
@@ -302,6 +303,7 @@ cdef class PhysicsLayer(BaseLayer):
             raise ValueError(
                 "This rheology model holds no C++ object (already attached or moved).")
         self._physics_ptr.set_bulk_rheology(move(rheology._rheology_ptr))
+        rheology._ptr = NULL
 
     # ------------------------------------------------------------------------------------------------------------------
     # Viscosity + partial-melt attachment
@@ -340,6 +342,7 @@ cdef class PhysicsLayer(BaseLayer):
             raise ValueError(
                 f"Attach an EOS model to layer '{self.name}' before giving it a viscosity model: the material owns it.")
         self._physics_ptr.set_shear_viscosity(move(viscosity._visc_ptr))
+        viscosity._ptr = NULL
 
     def set_bulk_viscosity(self, ViscosityBase viscosity not None):
         """Give the layer's material a viscosity model for its bulk viscosity (before partial melt).
@@ -360,6 +363,7 @@ cdef class PhysicsLayer(BaseLayer):
             raise ValueError(
                 f"Attach an EOS model to layer '{self.name}' before giving it a viscosity model: the material owns it.")
         self._physics_ptr.set_bulk_viscosity(move(viscosity._visc_ptr))
+        viscosity._ptr = NULL
 
     def set_partial_melt(self, PartialMeltBase partial_melt not None):
         """Give the layer's material a partial-melt model that weakens its static moduli and viscosities.
@@ -381,6 +385,7 @@ cdef class PhysicsLayer(BaseLayer):
                 f"Attach an EOS model to layer '{self.name}' before giving it a partial-melt model: "
                 "the material owns it.")
         self._physics_ptr.set_partial_melt(move(partial_melt._melt_ptr))
+        partial_melt._ptr = NULL
 
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations

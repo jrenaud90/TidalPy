@@ -198,6 +198,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             raise ValueError(
                 "This cooling model holds no C++ object (already attached or moved).")
         self._solidliquid_ptr.set_cooling(move(cooling._cooling_ptr))
+        cooling._ptr = NULL
 
     def set_radiogenics(self, RadiogenicsBase radiogenics not None):
         """Attach a radiogenic-heating sub-model.
@@ -219,6 +220,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             raise ValueError(
                 "This radiogenics model holds no C++ object (already attached or moved).")
         self._solidliquid_ptr.set_radiogenics(move(radiogenics._radiogenics_ptr))
+        radiogenics._ptr = NULL
 
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations

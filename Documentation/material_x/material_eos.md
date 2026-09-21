@@ -133,9 +133,9 @@ print(state["shear_modulus"], state["shear_viscosity"], state["melt_fraction"])
 
 ### Pressure Inversion
 
-The analytic laws give pressure as a function of compression, but the solve needs the inverse. Both compressible models invert their own law with a safeguarded Newton iteration that falls back to bisection, and they share one implementation.
+The analytic laws give pressure as a function of compression, but the solve needs the inverse. Both compressible models invert their own law with Newton's method and share one implementation. The slope is exact, because the bulk modulus of each law is already $K = \eta \, dP/d\eta$, and one evaluation returns the pressure and $K$ together. The first guess is the Murnaghan law, $\eta = (1 + K_0' P / K_0)^{1/K_0'}$, which inverts in closed form and follows both laws closely over planetary compressions, so convergence to `invert_rtol` usually takes four or five evaluations. Every evaluation tightens a bracket around the root, and a step that leaves the bracket is replaced by its midpoint.
 
-The laws are monotonic in $\eta$ only over a finite range. The third-order Birch-Murnaghan correction term changes sign at large compression when $K_0' \ne 4$, so $P(\eta)$ turns over and can even go negative beyond that point. The inverter therefore brackets the root by expanding outward from $\eta = 1$, where the pressure is zero by construction, and stops at the turning point rather than assuming monotonicity across a fixed wide interval.
+The laws are monotonic in $\eta$ only over a finite range. Every law turns over in tension, and the third-order Birch-Murnaghan correction term changes sign at large compression when $K_0' < 4$, so $P(\eta)$ turns over there too. This range depends only on $K_0$ and $K_0'$, so each model finds it once, when it is built or loaded, by stepping outward from $\eta = 1$ until $K$ stops being positive and bisecting that sign change. A pressure outside the range has no compression to find and returns the compression at that end of the range. The density is therefore continuous in pressure everywhere, which the structure solve relies on: while its central pressure is still a guess, its outer radii can sit far into tension.
 
 Two numerical knobs control the iteration, both carried in the config so they can be set per material:
 
@@ -289,7 +289,9 @@ All models derive from `c_MaterialEOSBase : c_PhysicsBase` and override `calc_de
 | `eos_bm_pressure(eta, K0, K0_prime)` | Third-order Birch-Murnaghan pressure [Pa] at compression $\eta$. |
 | `eos_vinet_pressure(eta, K0, K0_prime)` | Vinet pressure [Pa] at $\eta$. |
 | `eos_bm_bulk_modulus(eta, K0, K0_prime)`, `eos_vinet_bulk_modulus(eta, K0, K0_prime)` | Isothermal bulk modulus $\eta \, dP/d\eta$ [Pa] of each law at $\eta$. |
-| `eos_invert_eta(pressure_target, K0, K0_prime, pressure_fn, rtol, max_iters)` | Inverts a monotonic pressure law for $\eta$. Shared by both compressible models; pass one of the two pressure functions. |
+| `eos_bm_pressure_and_bulk_modulus(eta, K0, K0_prime, pressure, bulk_modulus)`, `eos_vinet_pressure_and_bulk_modulus(...)` | Both values of a law from one evaluation. The four functions above call these. |
+| `eos_find_monotonic_range(K0, K0_prime, law_fn, rtol)` | Returns a `c_PressureLawRange`: the compressions between which the law rises, and the pressures there. An end the search does not reach stays unbounded. |
+| `eos_invert_eta(pressure_target, K0, K0_prime, law_fn, range, rtol, max_iters)` | Inverts a pressure law for $\eta$. Shared by both compressible models; pass one of the two combined law functions and the model's range. |
 | `c_material_eos_model_from_name(name)` | Name or alias to enum, throwing `std::invalid_argument` on an unknown name. |
 | `c_find_material_eos(model, config)` | Heap-allocates the model as a `unique_ptr`. A name-string overload is also provided. |
 | `c_material_eos_from_binary(stream, force)` | Peeks the binary class id and reconstructs the matching model, used when a layer with an attached EOS is loaded. |
@@ -299,7 +301,7 @@ All models derive from `c_MaterialEOSBase : c_PhysicsBase` and override `calc_de
 **C++ (`TidalPy/Material_x/eos/material_eos_.hpp`)**
 
 1. Add any new parameters to `c_MaterialEOSConfig` with sensible defaults.
-2. If the law is analytic, add a free pressure function monotonic in $\eta$ so the shared `eos_invert_eta` inverter can be reused. Otherwise compute the density directly.
+2. If the law is analytic, add a free function that fills the pressure and the bulk modulus $\eta \, dP/d\eta$ at a compression, so the shared `eos_find_monotonic_range` and `eos_invert_eta` can be reused, and give the model an `update_law_range` called from its constructors and from `read_binary`. Otherwise compute the density directly.
 3. Add the model class deriving from `c_MaterialEOSBase`: constructors (pass the config to the base so the thermal parameters are stored), `get_*` accessors, the `calc_density` override, a `calc_density_and_bulk_modulus` override if the law defines a bulk modulus, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers, including the two thermal parameters.
 4. Add the enum value, the name and alias branch in `c_material_eos_model_from_name`, and the cases in `c_find_material_eos` and `c_material_eos_from_binary`.
 

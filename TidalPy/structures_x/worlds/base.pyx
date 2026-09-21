@@ -219,6 +219,7 @@ cdef class BaseWorld(StructureBase):
         if tide._tide_ptr.get() == NULL:
             raise ValueError("This tide model holds no C++ object (already attached or moved).")
         self._world_ptr.get().set_tide_model(move(tide._tide_ptr))
+        tide._ptr = NULL
 
     @property
     def tide_model_set(self) -> bool:

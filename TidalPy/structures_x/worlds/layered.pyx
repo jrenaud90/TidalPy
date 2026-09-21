@@ -273,8 +273,8 @@ cdef class LayeredWorld(BaseWorld):
     def add_layer(self, BaseLayer layer not None):
         """Add a layer to the world (inner to outer).
 
-        Ownership of the C++ layer and its attached physics models moves out of ``layer``, which is left an
-        empty shell and must not be reused.
+        Ownership of the C++ layer and its attached physics models moves to the world. ``layer`` stays usable: it
+        becomes a non-owning view of the layer the world now holds, the same kind ``world.<layer name>`` returns.
 
         Parameters
         ----------
@@ -304,7 +304,9 @@ cdef class LayeredWorld(BaseWorld):
                 "Layer geometry is not continuous: the inner radius does not match "
                 "the current outermost radius (add layers inner-to-outer, innermost "
                 "starting at radius 0).")
+        cdef c_BaseLayer* added_layer_ptr = layer._layer_ptr.get()
         self._layered_ptr.add_layer(move(layer._layer_ptr))
+        layer._init_view(added_layer_ptr, self)
         # The layer set changed; drop the cached views so they rebuild on next access.
         self._layer_views = None
         self._layer_view_by_name = None

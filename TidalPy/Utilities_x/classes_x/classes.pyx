@@ -40,8 +40,8 @@ cdef class TidalPyBaseClass:
     cdef void _check_ptr(self) except *:
         if self._ptr is NULL:
             raise RuntimeError(
-                f"{type(self).__name__} is not properly initialized."
-            )
+                f"This {type(self).__name__} holds no C++ object: it was never initialized, or it was attached to "
+                f"a layer or world, which took ownership of it.")
 
     def get_schema_version_str(self) -> str:
         """Return the schema version string (e.g. '0.2.0')."""

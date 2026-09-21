@@ -176,6 +176,7 @@ cdef class FixedLuminosity(LuminosityBase):
     @property
     def luminosity(self) -> float:
         """The stored luminosity [W]."""
+        self._check_ptr()
         return self._fixed_ptr.get_luminosity()
 
 
@@ -230,11 +231,13 @@ cdef class PowerLawLuminosity(LuminosityBase):
     @property
     def coeff(self) -> float:
         """Dimensionless prefactor."""
+        self._check_ptr()
         return self._power_law_ptr.get_coeff()
 
     @property
     def exponent(self) -> float:
         """Dimensionless exponent."""
+        self._check_ptr()
         return self._power_law_ptr.get_exponent()
 
 

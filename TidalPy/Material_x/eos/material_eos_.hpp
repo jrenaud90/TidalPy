@@ -102,104 +102,160 @@ struct c_MaterialEOSConfig {
 // near eta = 1 (the finite-strain corrections turn them over at extreme eta), so the inversion brackets its root
 // within the monotonic range.
 
-// 3rd-order Birch-Murnaghan pressure [Pa] at compression eta = rho/rho0.
-inline double eos_bm_pressure(double eta, double K0, double K0_prime) noexcept {
-    const double eta_23 = c_safe_pow(eta, 2.0 / 3.0);
-    const double eta_53 = c_safe_pow(eta, 5.0 / 3.0);
-    const double eta_73 = c_safe_pow(eta, 7.0 / 3.0);
-    return 1.5 * K0 * (eta_73 - eta_53) * (1.0 + 0.75 * (K0_prime - 4.0) * (eta_23 - 1.0));
-}
-
-// Vinet pressure [Pa] at compression eta = rho/rho0 (inv_cbrt_eta = (V/V0)^{1/3} = eta^{-1/3}).
-inline double eos_vinet_pressure(double eta, double K0, double K0_prime) noexcept {
-    const double inv_cbrt_eta = c_safe_pow(eta, -1.0 / 3.0);
-    return 3.0 * K0 * (1.0 - inv_cbrt_eta) / (inv_cbrt_eta * inv_cbrt_eta)
-        * c_safe_exp(1.5 * (K0_prime - 1.0) * (1.0 - inv_cbrt_eta));
-}
-
-// Isothermal bulk modulus K = eta dP/deta [Pa] of the 3rd-order Birch-Murnaghan law at compression eta.
-inline double eos_bm_bulk_modulus(double eta, double K0, double K0_prime) noexcept {
-    const double eta_23 = c_safe_pow(eta, 2.0 / 3.0);
-    const double eta_53 = c_safe_pow(eta, 5.0 / 3.0);
-    const double eta_73 = c_safe_pow(eta, 7.0 / 3.0);
+// 3rd-order Birch-Murnaghan pressure [Pa] and isothermal bulk modulus K = eta dP/deta [Pa] at compression
+// eta = rho/rho0. One cube root serves every fractional power, and the inversion wants both values at once.
+inline void eos_bm_pressure_and_bulk_modulus(
+        double eta,
+        double K0,
+        double K0_prime,
+        double& pressure,
+        double& bulk_modulus) noexcept {
+    const double cbrt_eta     = std::cbrt(eta);
+    const double eta_23       = cbrt_eta * cbrt_eta;
+    const double eta_53       = eta * eta_23;
+    const double eta_73       = eta_53 * eta_23;
     const double strain_coeff = 0.75 * (K0_prime - 4.0);
-    return 1.5 * K0 * (
-        ((7.0 / 3.0) * eta_73 - (5.0 / 3.0) * eta_53) * (1.0 + strain_coeff * (eta_23 - 1.0))
+    const double strain_term  = 1.0 + strain_coeff * (eta_23 - 1.0);
+    pressure     = 1.5 * K0 * (eta_73 - eta_53) * strain_term;
+    bulk_modulus = 1.5 * K0 * (
+        ((7.0 / 3.0) * eta_73 - (5.0 / 3.0) * eta_53) * strain_term
         + (eta_73 - eta_53) * strain_coeff * (2.0 / 3.0) * eta_23);
 }
 
-// Isothermal bulk modulus K = eta dP/deta [Pa] of the Vinet law at compression eta.
-inline double eos_vinet_bulk_modulus(double eta, double K0, double K0_prime) noexcept {
-    const double inv_cbrt_eta = c_safe_pow(eta, -1.0 / 3.0);
+// Vinet pressure [Pa] and isothermal bulk modulus K = eta dP/deta [Pa] at compression eta = rho/rho0
+// (inv_cbrt_eta = (V/V0)^{1/3} = eta^{-1/3}).
+inline void eos_vinet_pressure_and_bulk_modulus(
+        double eta,
+        double K0,
+        double K0_prime,
+        double& pressure,
+        double& bulk_modulus) noexcept {
+    const double inv_cbrt_eta   = 1.0 / std::cbrt(eta);
     const double exponent_coeff = 1.5 * (K0_prime - 1.0);
-    return K0 * c_safe_exp(exponent_coeff * (1.0 - inv_cbrt_eta))
-        * (2.0 - inv_cbrt_eta + exponent_coeff * inv_cbrt_eta * (1.0 - inv_cbrt_eta))
-        / (inv_cbrt_eta * inv_cbrt_eta);
+    const double exponential    = c_safe_exp(exponent_coeff * (1.0 - inv_cbrt_eta));
+    const double inv_square     = 1.0 / (inv_cbrt_eta * inv_cbrt_eta);
+    pressure     = 3.0 * K0 * (1.0 - inv_cbrt_eta) * inv_square * exponential;
+    bulk_modulus = K0 * exponential
+        * (2.0 - inv_cbrt_eta + exponent_coeff * inv_cbrt_eta * (1.0 - inv_cbrt_eta)) * inv_square;
 }
 
-// Invert a pressure law for the compression eta = rho/rho0 at a target pressure by safeguarded Newton iteration
-// with bisection fallback; PressureFn = double(eta, K0, K0'). The 3rd-order Birch-Murnaghan factor
-// 1 + (3/4)(K0'-4)(eta^(2/3)-1) changes sign at large eta when K0' != 4, so P(eta) turns over there; the root is
-// bracketed by expanding outward from eta = 1 (P = 0) and stopping at the turning point.
-template <typename PressureFn>
+inline double eos_bm_pressure(double eta, double K0, double K0_prime) noexcept {
+    double pressure;
+    double bulk_modulus;
+    eos_bm_pressure_and_bulk_modulus(eta, K0, K0_prime, pressure, bulk_modulus);
+    return pressure;
+}
+
+inline double eos_vinet_pressure(double eta, double K0, double K0_prime) noexcept {
+    double pressure;
+    double bulk_modulus;
+    eos_vinet_pressure_and_bulk_modulus(eta, K0, K0_prime, pressure, bulk_modulus);
+    return pressure;
+}
+
+inline double eos_bm_bulk_modulus(double eta, double K0, double K0_prime) noexcept {
+    double pressure;
+    double bulk_modulus;
+    eos_bm_pressure_and_bulk_modulus(eta, K0, K0_prime, pressure, bulk_modulus);
+    return bulk_modulus;
+}
+
+inline double eos_vinet_bulk_modulus(double eta, double K0, double K0_prime) noexcept {
+    double pressure;
+    double bulk_modulus;
+    eos_vinet_pressure_and_bulk_modulus(eta, K0, K0_prime, pressure, bulk_modulus);
+    return bulk_modulus;
+}
+
+// The compressions over which a pressure law rises with compression, and the pressures at the two ends. Every law
+// turns over in tension, and the 3rd-order Birch-Murnaghan factor 1 + (3/4)(K0'-4)(eta^(2/3)-1) changes sign at
+// large eta when K0' < 4, so it turns over in compression too. An end the search never reaches stays unbounded.
+// The range depends on the law's constants alone, so a model finds it once rather than at every inversion.
+struct c_PressureLawRange {
+    double compression_min = 0.0;
+    double compression_max = TidalPyConstants::d_INF;
+    double pressure_min    = -TidalPyConstants::d_INF;
+    double pressure_max    = TidalPyConstants::d_INF;
+};
+
+// Find a law's monotonic range: step outward from eta = 1 until the bulk modulus K = eta dP/deta stops being
+// positive, then bisect that sign change to rtol. LawFn fills the pressure and K at a compression.
+template <typename LawFn>
+inline c_PressureLawRange eos_find_monotonic_range(double K0, double K0_prime, LawFn law_fn, double rtol) noexcept {
+    c_PressureLawRange range;
+    double pressure = 0.0;
+    double bulk     = 0.0;
+    const auto rising = [&](double eta) {
+        law_fn(eta, K0, K0_prime, pressure, bulk);
+        return (bulk > 0.0) && std::isfinite(pressure);
+    };
+    for (int side = 0; side < 2; ++side) {
+        const double growth = (side == 0) ? 0.8 : 1.25;
+        double inside  = 1.0;
+        double outside = 1.0;
+        bool   bounded = false;
+        for (int k = 0; k < 200; ++k) {
+            const double candidate = inside * growth;
+            if (!rising(candidate)) { outside = candidate; bounded = true; break; }
+            inside = candidate;
+        }
+        if (!bounded) { continue; }
+        for (int k = 0; (k < 200) && (std::abs(outside - inside) > rtol * inside); ++k) {
+            const double middle = 0.5 * (inside + outside);
+            if (rising(middle)) { inside = middle; } else { outside = middle; }
+        }
+        law_fn(inside, K0, K0_prime, pressure, bulk);
+        if (side == 0) {
+            range.compression_min = inside;
+            range.pressure_min    = pressure;
+        } else {
+            range.compression_max = inside;
+            range.pressure_max    = pressure;
+        }
+    }
+    return range;
+}
+
+// Invert a pressure law for the compression eta = rho/rho0 at a target pressure. A target past either end of the
+// monotonic range has no compression to find and takes that end, so the answer is continuous in the pressure; the
+// structure solve depends on that while its central pressure is still a guess and its outer radii sit in tension.
+// Inside the range this is Newton's method on the exact slope K/eta, started from the Murnaghan law (which
+// inverts in closed form and tracks both laws closely over planetary compressions) and kept inside a bracket
+// that every evaluation tightens; a step that leaves the bracket is replaced by its midpoint.
+template <typename LawFn>
 inline double eos_invert_eta(
         double pressure_target,
         double K0,
         double K0_prime,
-        PressureFn pressure_fn,
+        LawFn law_fn,
+        const c_PressureLawRange& range,
         double rtol,
         int max_iters) noexcept {
     if (std::abs(pressure_target) <= TidalPyConstants::d_EPS) { return 1.0; }
+    if (pressure_target <= range.pressure_min) { return range.compression_min; }
+    if (pressure_target >= range.pressure_max) { return range.compression_max; }
 
-    double lo;
-    double hi;
-    if (pressure_target > 0.0) {
-        // Compression: the solution has eta > 1. Grow hi while P keeps increasing.
-        lo         = 1.0;
-        hi         = 1.0;
-        double p_hi = 0.0;  // P(eta = 1) = 0
-        for (int k = 0; k < 200; ++k) {
-            const double cand   = hi * 1.25;
-            const double p_cand = pressure_fn(cand, K0, K0_prime);
-            if (!(p_cand > p_hi)) { break; }  // reached the monotonic turning point
-            hi   = cand;
-            p_hi = p_cand;
-            if (p_hi >= pressure_target) { break; }  // target now bracketed
-        }
-        if (pressure_target >= p_hi) { return hi; }  // beyond the model's valid range
-    } else {
-        // Tension: the solution has eta < 1. Shrink lo while P keeps decreasing.
-        hi         = 1.0;
-        lo         = 1.0;
-        double p_lo = 0.0;
-        for (int k = 0; k < 200; ++k) {
-            const double cand   = lo * 0.8;
-            const double p_cand = pressure_fn(cand, K0, K0_prime);
-            if (!(p_cand < p_lo)) { break; }
-            lo   = cand;
-            p_lo = p_cand;
-            if (p_lo <= pressure_target) { break; }
-        }
-        if (pressure_target <= p_lo) { return lo; }
-    }
+    double lo = range.compression_min;
+    double hi = range.compression_max;
 
-    double eta = 0.5 * (lo + hi);
+    // Murnaghan: P = (K0 / K0') (eta^K0' - 1).
+    const double murnaghan_base = 1.0 + K0_prime * pressure_target / K0;
+    double eta = (murnaghan_base > 0.0 && K0_prime > 0.0) ? c_safe_pow(murnaghan_base, 1.0 / K0_prime) : 1.0;
+    if (!(eta > lo && eta < hi)) { eta = 1.0; }
+
+    double pressure = 0.0;
+    double bulk     = 0.0;
     for (int i = 0; i < max_iters; ++i) {
-        const double pressure = pressure_fn(eta, K0, K0_prime);
+        law_fn(eta, K0, K0_prime, pressure, bulk);
         if (pressure < pressure_target) { lo = eta; } else { hi = eta; }
 
-        // Numerical derivative for the Newton step.
-        const double fd_step        = 1.0e-6 * eta;
-        const double pressure_slope = (pressure_fn(eta + fd_step, K0, K0_prime) - pressure) / fd_step;
-        double next = (pressure_slope > TidalPyConstants::d_EPS)
-            ? eta + (pressure_target - pressure) / pressure_slope
-            : 0.5 * (lo + hi);
-        if (!(next > lo && next < hi)) { next = 0.5 * (lo + hi); }  // safeguard
+        // A step smaller than the spacing of doubles lands on the bracket's edge, which is convergence and not
+        // an escape, so the bounds are inclusive.
+        double next = eta + (pressure_target - pressure) * eta / bulk;
+        if (!(next >= lo && next <= hi)) { next = 0.5 * (lo + hi); }
 
         // Converged once the compression stops changing to relative tolerance.
-        if (std::abs(next - eta) <= rtol * eta) { 
-            return next;
-        }
+        if (std::abs(next - eta) <= rtol * eta) { return next; }
         eta = next;
     }
     return eta;  // cap reached without full convergence; return the best estimate.
@@ -549,14 +605,14 @@ protected:
 // 3rd-order Birch-Murnaghan, density from pressure.
 class c_BirchMurnaghanEOS : public c_MaterialEOSBase {
 public:
-    c_BirchMurnaghanEOS() : c_MaterialEOSBase("birch_murnaghan") {}
+    c_BirchMurnaghanEOS() : c_MaterialEOSBase("birch_murnaghan") { this->update_law_range(); }
     explicit c_BirchMurnaghanEOS(const c_MaterialEOSConfig& cfg)
         : c_MaterialEOSBase("birch_murnaghan", cfg),
           p_reference_density(cfg.reference_density),
           p_reference_bulk_modulus(cfg.reference_bulk_modulus),
           p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
           p_invert_rtol(cfg.invert_rtol),
-          p_invert_max_iters(cfg.invert_max_iters) {}
+          p_invert_max_iters(cfg.invert_max_iters) { this->update_law_range(); }
     ~c_BirchMurnaghanEOS() override = default;
 
     double get_reference_density()       const noexcept { return this->p_reference_density; }
@@ -612,6 +668,7 @@ public:
         this->p_thermal_expansion        = params[5];
         this->p_reference_temperature    = params[6];
         this->read_material_binary(in, force);
+        this->update_law_range();
     }
 
 protected:
@@ -624,11 +681,22 @@ protected:
             pressure - thermal_pressure,
             this->p_reference_bulk_modulus,
             this->p_bulk_modulus_derivative,
-            eos_bm_pressure,
+            eos_bm_pressure_and_bulk_modulus,
+            this->p_law_range,
             this->p_invert_rtol,
             this->p_invert_max_iters);
     }
 
+    // The law's monotonic range follows from K0 and K0' alone; found again whenever they change.
+    void update_law_range() noexcept {
+        this->p_law_range = eos_find_monotonic_range(
+            this->p_reference_bulk_modulus,
+            this->p_bulk_modulus_derivative,
+            eos_bm_pressure_and_bulk_modulus,
+            this->p_invert_rtol);
+    }
+
+    c_PressureLawRange p_law_range;
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;
@@ -639,14 +707,14 @@ protected:
 // Vinet (universal) EOS, density from pressure.
 class c_VinetEOS : public c_MaterialEOSBase {
 public:
-    c_VinetEOS() : c_MaterialEOSBase("vinet") {}
+    c_VinetEOS() : c_MaterialEOSBase("vinet") { this->update_law_range(); }
     explicit c_VinetEOS(const c_MaterialEOSConfig& cfg)
         : c_MaterialEOSBase("vinet", cfg),
           p_reference_density(cfg.reference_density),
           p_reference_bulk_modulus(cfg.reference_bulk_modulus),
           p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
           p_invert_rtol(cfg.invert_rtol),
-          p_invert_max_iters(cfg.invert_max_iters) {}
+          p_invert_max_iters(cfg.invert_max_iters) { this->update_law_range(); }
     ~c_VinetEOS() override = default;
 
     double get_reference_density()       const noexcept { return this->p_reference_density; }
@@ -702,6 +770,7 @@ public:
         this->p_thermal_expansion        = params[5];
         this->p_reference_temperature    = params[6];
         this->read_material_binary(in, force);
+        this->update_law_range();
     }
 
 protected:
@@ -714,11 +783,22 @@ protected:
             pressure - thermal_pressure,
             this->p_reference_bulk_modulus,
             this->p_bulk_modulus_derivative,
-            eos_vinet_pressure,
+            eos_vinet_pressure_and_bulk_modulus,
+            this->p_law_range,
             this->p_invert_rtol,
             this->p_invert_max_iters);
     }
 
+    // The law's monotonic range follows from K0 and K0' alone; found again whenever they change.
+    void update_law_range() noexcept {
+        this->p_law_range = eos_find_monotonic_range(
+            this->p_reference_bulk_modulus,
+            this->p_bulk_modulus_derivative,
+            eos_vinet_pressure_and_bulk_modulus,
+            this->p_invert_rtol);
+    }
+
+    c_PressureLawRange p_law_range;
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;

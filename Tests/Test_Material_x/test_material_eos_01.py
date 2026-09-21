@@ -86,6 +86,75 @@ def test_density_monotonic_in_pressure():
         assert all(b > a for a, b in zip(rhos, rhos[1:]))
 
 
+_LAWS = [("BirchMurnaghanEOS", "birch_murnaghan_pressure"), ("VinetEOS", "vinet_pressure")]
+
+
+@pytest.mark.parametrize("cls_name,law", _LAWS)
+@pytest.mark.parametrize("bulk_modulus_derivative", [3.2, 4.0, 5.5])
+@pytest.mark.parametrize("pressure", [-5.0e9, -1.0e6, 1.0e3, 1.0e9, 1.4e11, 1.0e12])
+def test_inversion_roundtrip_is_tight_in_compression_and_tension(cls_name, law, bulk_modulus_derivative, pressure):
+    """Inside the law's monotonic range the inverted compression returns the pressure to the inversion tolerance."""
+    mod = _import_eos()
+    eos = getattr(mod, cls_name)(_RHO0, _K0, bulk_modulus_derivative)
+    eta = eos.calc_density(pressure) / _RHO0
+    assert (eta > 1.0) == (pressure > 0.0)
+    recovered = getattr(mod, law)(eta, _K0, bulk_modulus_derivative)
+    # The bulk modulus is the slope, so a compression good to 1e-13 gives a pressure good to about K 1e-13.
+    assert recovered == pytest.approx(pressure, rel=1.0e-10, abs=_K0 * 1.0e-11)
+
+
+@pytest.mark.parametrize("cls_name,law", _LAWS)
+@pytest.mark.parametrize("bulk_modulus_derivative", [3.2, 4.0, 5.5])
+def test_density_is_continuous_where_the_law_turns_over_in_tension(cls_name, law, bulk_modulus_derivative):
+    """Past the law's minimum pressure there is no compression to find; the answer holds the turning point.
+
+    The structure solve evaluates the density far into tension while its central pressure is still a guess, and a
+    jump there costs the adaptive stepper a run of rejected steps.
+    """
+    mod = _import_eos()
+    eos = getattr(mod, cls_name)(_RHO0, _K0, bulk_modulus_derivative)
+    floor_density = eos.calc_density(-10.0 * _K0)
+    assert eos.calc_density(-100.0 * _K0) == floor_density
+    floor_eta = floor_density / _RHO0
+    assert 0.0 < floor_eta < 1.0
+    floor_pressure = getattr(mod, law)(floor_eta, _K0, bulk_modulus_derivative)
+    # The law has stopped falling there: a lower compression gives a higher pressure.
+    assert getattr(mod, law)(0.99 * floor_eta, _K0, bulk_modulus_derivative) > floor_pressure
+    # Approaching the turning point from inside the range, the density closes on the held value. The law is flat
+    # there, so a pressure within 1e-9 K0 of the minimum sits within about the square root of that in compression.
+    just_inside = eos.calc_density(floor_pressure + 1.0e-9 * _K0)
+    assert just_inside == pytest.approx(floor_density, rel=1.0e-3)
+    assert just_inside >= floor_density
+
+
+def test_birch_murnaghan_holds_its_maximum_pressure_when_it_turns_over_in_compression():
+    """With K0' < 4 the third-order term turns the law over at large compression; past that the density holds."""
+    mod = _import_eos()
+    eos = mod.BirchMurnaghanEOS(_RHO0, _K0, 3.2)
+    ceiling_density = eos.calc_density(1.0e15)
+    assert eos.calc_density(1.0e16) == ceiling_density
+    ceiling_eta = ceiling_density / _RHO0
+    ceiling_pressure = mod.birch_murnaghan_pressure(ceiling_eta, _K0, 3.2)
+    assert mod.birch_murnaghan_pressure(1.01 * ceiling_eta, _K0, 3.2) < ceiling_pressure
+    # With K0' >= 4 the law rises without limit and so does the density.
+    unbounded = mod.BirchMurnaghanEOS(_RHO0, _K0, 4.5)
+    assert unbounded.calc_density(1.0e16) > unbounded.calc_density(1.0e15)
+
+
+@pytest.mark.parametrize("cls_name", ["BirchMurnaghanEOS", "VinetEOS"])
+def test_a_reloaded_model_inverts_like_the_one_that_was_saved(cls_name):
+    """The monotonic range is derived from K0 and K0', so a binary load has to find it again."""
+    mod = _import_eos()
+    eos = getattr(mod, cls_name)(_RHO0, 2.2e11, 3.4)
+    with tempfile.TemporaryDirectory() as directory:
+        file_path = os.path.join(directory, "eos.tpyb")
+        eos.save_binary(file_path)
+        reloaded = getattr(mod, cls_name)(_RHO0, _K0, _K0P)
+        reloaded.load_binary(file_path)
+    for pressure in (-1.0e13, -1.0e9, 5.0e10, 1.0e15):
+        assert reloaded.calc_density(pressure) == eos.calc_density(pressure)
+
+
 def test_bm_and_vinet_agree_at_small_compression():
     """BM and Vinet should give similar densities at modest pressure."""
     mod = _import_eos()

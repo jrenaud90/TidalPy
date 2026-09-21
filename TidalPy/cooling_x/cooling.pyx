@@ -428,16 +428,19 @@ cdef class ConvectiveCooling(CoolingBase):
     @property
     def convection_alpha(self) -> float:
         """Nusselt scaling prefactor [dimensionless]."""
+        self._check_ptr()
         return self._convective_ptr.get_convection_alpha()
 
     @property
     def convection_beta(self) -> float:
         """Convection exponent [dimensionless]."""
+        self._check_ptr()
         return self._convective_ptr.get_convection_beta()
 
     @property
     def critical_rayleigh(self) -> float:
         """Critical Rayleigh number [dimensionless]."""
+        self._check_ptr()
         return self._convective_ptr.get_critical_rayleigh()
 
 
