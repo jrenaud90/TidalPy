@@ -44,7 +44,9 @@ def test_bundled_system_binary_roundtrip(tmp_path):
     assert [w.name for w in loaded] == [w.name for w in system]
     # The concrete world types are recovered from the stream.
     assert [type(w).__name__ for w in loaded] == ["StarWorld", "LayeredWorld", "GasGiantWorld"]
-    assert loaded.host.name == "sun"
+    assert loaded.get_tidal_host("earth").name == "sun"
+    assert loaded.get_tidal_host("jupiter").name == "sun"
+    assert loaded.get_tidal_host("sun") is None
     assert loaded.star.name == "sun"
     assert math.isclose(loaded.get_semi_major_axis("earth"), system.get_semi_major_axis("earth"))
     assert math.isclose(loaded.get_eccentricity("earth"), system.get_eccentricity("earth"))
@@ -92,9 +94,9 @@ def test_system_is_tidalpy_base_class():
 def test_direct_system_binary_roundtrip(tmp_path):
     """A system assembled directly in Python round-trips through binary."""
     system = System("manual")
-    system.add_world(StarWorld("star", 7.0e8, 1.9e30), is_host=True, is_star=True)
+    system.add_world(StarWorld("star", 7.0e8, 1.9e30), is_star=True)
     system.add_world(LayeredWorld("planet", 6.4e6, 6.0e24),
-                     semi_major_axis=AU, eccentricity=0.05)
+                     tidal_host="star", semi_major_axis=AU, eccentricity=0.05)
     system.set_stellar_semi_major_axis("planet", AU)
     system.set_stellar_eccentricity("planet", 0.05)
     path = str(tmp_path / "manual.tpyb")
@@ -104,7 +106,8 @@ def test_direct_system_binary_roundtrip(tmp_path):
     loaded.load_binary(path)
     assert loaded.name == "manual"
     assert [w.name for w in loaded] == ["star", "planet"]
-    assert loaded.host_index == 0 and loaded.star_index == 0
+    assert loaded.get_tidal_host_index("planet") == 0 and loaded.star_index == 0
+    assert loaded.has_tidal_host("star") is False
     assert math.isclose(loaded.get_semi_major_axis("planet"), AU)
     assert math.isclose(loaded.get_stellar_eccentricity("planet"), 0.05)
     assert isinstance(loaded["star"], StarWorld)
@@ -160,8 +163,8 @@ def test_loaded_system_orbital_evolution_matches(tmp_path):
     evolution needs.
     """
     system = System("evo")
-    system.add_world(StarWorld("host", 7.0e8, _EVO_HOST_MASS), is_host=True)
-    system.add_world(_dissipating_moon(), semi_major_axis=_EVO_SMA, eccentricity=_EVO_ECC)
+    system.add_world(StarWorld("host", 7.0e8, _EVO_HOST_MASS))
+    system.add_world(_dissipating_moon(), tidal_host=0, semi_major_axis=_EVO_SMA, eccentricity=_EVO_ECC)
     reference = system.calc_world_evolution("moon")
     assert reference["evolved"] is True
     assert reference["tidal_heating"] > 0.0

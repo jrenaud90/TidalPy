@@ -147,7 +147,7 @@ def _rheology_complex_modulus():
 # =====================================================================================================================
 _star_host = build_world("jupiter_simple")
 _evo_system = System("evo")
-_evo_system.add_world(_star_host, is_host=True)
+_evo_system.add_world(_star_host)
 _evo_io = build_world({
     "schema_version": "0.2.0", "name": "EvoIo", "type": "terrestrial",
     "radius_m": 1.8216e6, "mass_kg": 8.9319e22, "spin_frequency_rad_s": _N_IO,
@@ -156,7 +156,7 @@ _evo_io = build_world({
 })
 _evo_io.set_tide_model(make_tide("fixed_q", {"fixed_k": [0.3], "fixed_q": [100.0]}))
 _evo_io.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
-_evo_system.add_world(_evo_io, semi_major_axis=_A_IO, eccentricity=0.01)
+_evo_system.add_world(_evo_io, tidal_host=_star_host, semi_major_axis=_A_IO, eccentricity=0.01)
 _evo_io.set_spin_frequency(_N_IO)
 
 

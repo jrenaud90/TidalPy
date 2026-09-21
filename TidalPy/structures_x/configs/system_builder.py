@@ -6,10 +6,11 @@ reaches C++.
 
 A system configuration (schema ``0.2.0``) is an optional top-level ``name`` plus one
 ``[worlds.<key>]`` table per member world. Each table carries ``world`` (a bundled world name, a
-path to a world TOML, or an inline world table), the optional roles ``is_host`` and ``is_star``,
-the orbit about the tidal host (``semi_major_axis_m``, ``eccentricity``), and the orbit about the
-star used for insolation (``stellar_semi_major_axis_m``, ``stellar_eccentricity``). The star need
-not be the tidal host; for an exoplanet the two orbits coincide.
+path to a world TOML, or an inline world table), ``tidal_host`` (the key of the world that raises
+this one's tides; left out for a world with none), the optional role ``is_star``, the orbit about
+the tidal host (``semi_major_axis_m``, ``eccentricity``), and the orbit about the star used for
+insolation (``stellar_semi_major_axis_m``, ``stellar_eccentricity``). The star need not be a
+world's tidal host; for an exoplanet the two orbits coincide.
 """
 
 import os
@@ -27,7 +28,8 @@ from TidalPy.structures_x.configs.toml_loader import validate_system_config
 def construct_system(config: dict, force: bool = False):
     """Construct a ``System`` from a validated system configuration dict.
 
-    Member worlds are built with :func:`build_world` and added in declaration order.
+    Member worlds are built with :func:`build_world` and added in declaration order; their tidal hosts are
+    named once every world is in, so a host may be declared after the worlds it hosts.
 
     Parameters
     ----------
@@ -39,7 +41,7 @@ def construct_system(config: dict, force: bool = False):
     Returns
     -------
     System
-        The constructed system, its worlds built and their host/star roles and orbital elements set.
+        The constructed system, its worlds built and their tidal hosts, star role, and orbital elements set.
 
     Raises
     ------
@@ -57,7 +59,6 @@ def construct_system(config: dict, force: bool = False):
         world_obj.name = world_key
         index = system.add_world(
             world_obj,
-            is_host=bool(world_cfg.get("is_host", False)),
             is_star=bool(world_cfg.get("is_star", False)),
             semi_major_axis=world_cfg.get("semi_major_axis_m", None),
             eccentricity=float(world_cfg.get("eccentricity", 0.0)))
@@ -65,6 +66,10 @@ def construct_system(config: dict, force: bool = False):
             system.set_stellar_semi_major_axis(index, float(world_cfg["stellar_semi_major_axis_m"]))
         if "stellar_eccentricity" in world_cfg:
             system.set_stellar_eccentricity(index, float(world_cfg["stellar_eccentricity"]))
+
+    for world_key, world_cfg in config["worlds"].items():
+        if "tidal_host" in world_cfg:
+            system.set_tidal_host(world_key, world_cfg["tidal_host"])
 
     # Retain the normalized config on the system for a faithful save_to_toml round-trip.
     system.source_config = config

@@ -46,6 +46,21 @@ struct c_TideSolveConfig {
     double host_mass         = 0.0;   // mass of the tidal host         [kg]
 };
 
+// c_TideStateProvider: where a world that belongs to a system finds the orbital state its tides are raised in.
+// Orbital state never lives on a world, so the system implements this and hands each world it holds an observer
+// pointer and that world's index; a world outside a system has none.
+class c_TideStateProvider {
+public:
+    virtual ~c_TideStateProvider() = default;
+
+    // Fill the tidal state of the world at `world_index`: its orbit about its tidal host, that host's mass,
+    // and the world's own spin and obliquity. False when the world has no tidal host or no usable orbit.
+    virtual bool get_tide_state(std::size_t world_index, c_TideSolveConfig& state_out) const = 0;
+
+    // Equilibrium temperature [K] of the world under the system's star; NaN without one.
+    virtual double get_equilibrium_temperature(std::size_t world_index) const = 0;
+};
+
 // c_GlobalTideResult: the collapsed global tidal solution.
 struct c_GlobalTideResult {
     double tidal_heating = 0.0;  // total global tidal heating                         [W]

@@ -2,8 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrappers for TidalPy's system class.
 
-A ``System`` links two or more worlds (a host plus orbiting worlds). Each orbiting world has a
-two-body orbit about the host described by a semi-major axis [m] and an eccentricity. The system
+A ``System`` links two or more worlds. Each world names its own tidal host (or none) and has a
+two-body orbit about it described by a semi-major axis [m] and an eccentricity. The system
 owns its worlds through shared pointers, co-owned with the Python world wrappers, so the added
 world objects stay usable and are handed straight back by iteration (``for world in system``),
 indexing (``system[i]``), and attribute access (``system.<world_name>``).
@@ -106,7 +106,7 @@ cdef dict _pair_to_dict(c_PairEvolution pair):
 # System
 # =====================================================================================================================
 cdef class System:
-    """A gravitationally bound set of worlds (a host plus orbiting worlds).
+    """A gravitationally bound set of worlds, each with its own tidal host.
 
     Parameters
     ----------
@@ -115,9 +115,11 @@ cdef class System:
 
     Notes
     -----
-    Add worlds with :meth:`add_world` (one of them flagged ``is_host``). Orbiting worlds carry a
-    two-body orbit about the host (``semi_major_axis`` [m], ``eccentricity``); the mean motion is
-    derived from Kepler's third law. Worlds interact only with the host, not with one another.
+    Add worlds with :meth:`add_world`, naming each one's ``tidal_host`` there or afterwards with
+    :meth:`set_tidal_host`. A world carries a two-body orbit about its host (``semi_major_axis`` [m],
+    ``eccentricity``); the mean motion is derived from Kepler's third law. Two worlds that host each other
+    (the Earth and the Moon) share one orbit, so its elements need to be given on only one of them. A world
+    interacts only with its tidal host and the star.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -177,7 +179,7 @@ cdef class System:
     def add_world(
             self,
             BaseWorld world not None,
-            cpp_bool is_host=False,
+            tidal_host=None,
             cpp_bool is_star=False,
             semi_major_axis=None,
             double eccentricity=0.0):
@@ -188,14 +190,17 @@ cdef class System:
         world : BaseWorld
             An initialized world (``LayeredWorld`` / ``GasGiantWorld`` / ``StarWorld``). The system
             co-owns it; the wrapper stays fully usable.
-        is_host : bool, optional
-            If ``True`` the world becomes the system tidal host (the last world added as host wins).
+        tidal_host : int or str or BaseWorld, optional
+            The world that raises this world's tides, already a member of the system and identified by
+            index, name, or the world object. ``None`` leaves the world without a tidal host; name one
+            later with :meth:`set_tidal_host`, which is how a host added after the worlds it hosts (or the
+            second member of a mutual pair) is named.
         is_star : bool, optional
             If ``True`` the world becomes the system star, the insolation source (the last world added
-            as star wins). ``is_host`` and ``is_star`` are independent: a world can be both.
+            as star wins). A star can also be a tidal host.
         semi_major_axis : float, optional
-            Two-body semi-major axis about the tidal host [m] (orbiting worlds only). ``None`` leaves it
-            unset. The orbit about the star is set separately via :meth:`set_stellar_semi_major_axis`.
+            Two-body semi-major axis about the tidal host [m]. ``None`` leaves it unset. The orbit about
+            the star is set separately via :meth:`set_stellar_semi_major_axis`.
         eccentricity : float, optional
             Orbital eccentricity about the tidal host. Default ``0.0``.
 
@@ -205,13 +210,16 @@ cdef class System:
             The world's index within the system.
         """
         cdef double a = NAN if semi_major_axis is None else <double>semi_major_axis
+        # Resolved before the world is added, so a bad host leaves the system as it was.
+        cdef Py_ssize_t host_index = -1 if tidal_host is None else self._resolve_index(tidal_host)
         cdef size_t index = self._system.get().add_world(
             world._world_ptr,
-            is_host,
             is_star,
             a,
             eccentricity)
         self._world_wrappers.append(world)
+        if host_index >= 0:
+            self._system.get().set_tidal_host(index, <size_t>host_index)
         return <int>index
 
     @property
@@ -234,28 +242,47 @@ cdef class System:
         return list(self._world_wrappers)
 
     # ------------------------------------------------------------------------------------------------------------------
-    # Host
+    # Tidal hosts (one per world, or none; identify a world by index, name, or object)
     # ------------------------------------------------------------------------------------------------------------------
-    def set_host(self, world):
-        """Designate an already-added world as the host (by index, name, or the world object)."""
-        self._system.get().set_host(<size_t>self._resolve_index(world))
+    def set_tidal_host(self, world, tidal_host):
+        """Name the world that raises ``world``'s tides. Both must already be members of the system.
 
-    @property
-    def has_host(self) -> bool:
-        """Whether a host world has been designated."""
-        return True if self._system.get().has_host() else False
+        ``tidal_host=None`` leaves the world without a tidal host. Two worlds may host each other; they then
+        share one orbit (see :meth:`is_mutual_pair`).
 
-    @property
-    def host_index(self) -> int:
-        """Index of the host world, or ``-1`` if none has been set."""
-        return self._system.get().get_host_index()
+        Raises
+        ------
+        ValueError
+            If a world is named as its own tidal host.
+        """
+        cdef size_t index = <size_t>self._resolve_index(world)
+        if tidal_host is None:
+            self._system.get().clear_tidal_host(index)
+        else:
+            self._system.get().set_tidal_host(index, <size_t>self._resolve_index(tidal_host))
 
-    @property
-    def host(self):
-        """The host world wrapper, or ``None`` if no host has been set."""
-        if not self._system.get().has_host():
+    def has_tidal_host(self, world) -> bool:
+        """Whether ``world`` has a tidal host."""
+        return True if self._system.get().has_tidal_host(<size_t>self._resolve_index(world)) else False
+
+    def get_tidal_host_index(self, world) -> int:
+        """Index of ``world``'s tidal host, or ``-1`` if it has none."""
+        return self._system.get().get_tidal_host_index(<size_t>self._resolve_index(world))
+
+    def get_tidal_host(self, world):
+        """The world that raises ``world``'s tides, or ``None`` if it has none."""
+        cdef int host_index = self._system.get().get_tidal_host_index(<size_t>self._resolve_index(world))
+        if host_index < 0:
             return None
-        return self._world_wrappers[self._system.get().get_host_index()]
+        return self._world_wrappers[host_index]
+
+    def is_mutual_pair(self, world) -> bool:
+        """Whether ``world`` and its tidal host host each other.
+
+        The two then share one orbit: one of them may leave its semi-major axis unset and take its
+        partner's elements, and when both carry them they must agree.
+        """
+        return True if self._system.get().is_mutual_pair(<size_t>self._resolve_index(world)) else False
 
     # ------------------------------------------------------------------------------------------------------------------
     # Star (the insolation source; may or may not be the tidal host)
@@ -292,32 +319,33 @@ cdef class System:
     # Orbital elements about the tidal host (per orbiting world; identify a world by index, name, or object)
     # ------------------------------------------------------------------------------------------------------------------
     def set_semi_major_axis(self, world, double semi_major_axis):
-        """Set an orbiting world's semi-major axis about the host [m]."""
+        """Set a world's semi-major axis about its tidal host [m]."""
         self._system.get().set_semi_major_axis(<size_t>self._resolve_index(world), semi_major_axis)
 
     def set_eccentricity(self, world, double eccentricity):
-        """Set an orbiting world's orbital eccentricity about the host."""
+        """Set a world's orbital eccentricity about its tidal host."""
         self._system.get().set_eccentricity(<size_t>self._resolve_index(world), eccentricity)
 
     def get_semi_major_axis(self, world) -> float:
-        """An orbiting world's semi-major axis about the host [m]."""
+        """A world's semi-major axis about its tidal host [m]; its partner's, for the member of a mutual pair
+        that carries none. Raises ``ValueError`` when the two members of a mutual pair disagree."""
         return self._system.get().get_semi_major_axis(<size_t>self._resolve_index(world))
 
     def get_eccentricity(self, world) -> float:
-        """An orbiting world's orbital eccentricity about the host."""
+        """A world's orbital eccentricity about its tidal host (see :meth:`get_semi_major_axis`)."""
         return self._system.get().get_eccentricity(<size_t>self._resolve_index(world))
 
     def calc_gravitational_parameter(self, world) -> float:
         """Standard gravitational parameter ``mu = G (M_host + M_world)`` [m^3 s-2].
 
-        Raises ``RuntimeError`` if no host is set; returns NaN for the host's own entry.
+        NaN for a world with no tidal host.
         """
         return self._system.get().calc_gravitational_parameter(<size_t>self._resolve_index(world))
 
     def calc_orbital_frequency(self, world) -> float:
-        """Mean motion ``n = sqrt(mu / a^3)`` [rad s-1] for a world's two-body orbit about the host.
+        """Mean motion ``n = sqrt(mu / a^3)`` [rad s-1] for a world's two-body orbit about its tidal host.
 
-        Returns NaN for a non-positive semi-major axis or the host's own entry.
+        Returns NaN for a non-positive semi-major axis or a world with no tidal host.
         """
         return self._system.get().calc_orbital_frequency(<size_t>self._resolve_index(world))
 
@@ -387,9 +415,9 @@ cdef class System:
         """Evolve one orbiting world for a single tidal solve, returning its rates as a dict.
 
         Solves the world's global tides in the current system state (mean motion from Kepler's third law,
-        spin + obliquity from the world, eccentricity + semi-major axis from its orbit about the host,
-        host mass from the host world), then turns the tidal-potential derivatives into the orbital rates
-        and the world's spin rate. Only this world raises tides; the host is treated as a point mass.
+        spin + obliquity from the world, eccentricity + semi-major axis from its orbit about its tidal host,
+        host mass from that host), then turns the tidal-potential derivatives into the orbital rates
+        and the world's spin rate. Only this world raises tides; its host is treated as a point mass.
 
         Parameters
         ----------
@@ -402,7 +430,7 @@ cdef class System:
             The orbital and spin state used, the raw tidal outputs (``tidal_heating``, ``dU_dM``,
             ``dU_dw``, ``dU_dO``), the rates (``da_dt``, ``de_dt``, ``dn_dt``, ``dspin_dt``), and the
             energy-balance terms (``dE_orbit_dt``, ``dE_spin_dt``, ``energy_residual``), all MKS.
-            ``evolved`` is ``False`` for the host or a world with no usable orbit.
+            ``evolved`` is ``False`` for a world with no tidal host or no usable orbit about it.
         """
         cdef c_WorldEvolution evolution = self._system.get().calc_world_evolution(
             <size_t>self._resolve_index(world))
@@ -416,8 +444,9 @@ cdef class System:
         Returns
         -------
         list of dict
-            One :meth:`calc_world_evolution` dict per world, in index order. The host's own entry and any
-            world without a usable orbit come back with ``evolved`` set to ``False``.
+            One :meth:`calc_world_evolution` dict per world, in index order. A world with no tidal host or
+            no usable orbit comes back with ``evolved`` set to ``False``. The two members of a mutual pair
+            each get an entry, and their contributions to the orbit they share add.
         """
         cdef vector[c_WorldEvolution] results = self._system.get().calc_system_evolution()
         cdef list out = []
@@ -427,9 +456,9 @@ cdef class System:
         return out
 
     def calc_pair_evolution(self, world) -> dict:
-        """Evolve an orbiting world together with its host under dual-body tidal dissipation.
+        """Evolve a world together with its tidal host under dual-body tidal dissipation.
 
-        Both the orbiting world and the tidal host raise a tide on their shared orbit. Each body's tides
+        Both the world and its tidal host raise a tide on their shared orbit. Each body's tides
         are solved with the other body as the tide raiser; their orbital-rate contributions add and each
         body evolves its own spin. A body with no tide model is rigid and contributes nothing (with a
         rigid host this reduces to :meth:`calc_world_evolution`).
@@ -446,8 +475,8 @@ cdef class System:
             ``dE_orbit_dt``, ``dE_spin_dt_total``, ``energy_residual``, plus ``orbital_frequency`` /
             ``semi_major_axis`` / ``eccentricity`` / ``world_index`` / ``host_index`` / ``evolved``), and
             each body's full single-body contribution under keys ``world`` and ``host`` (each a
-            :meth:`calc_world_evolution`-style dict). ``evolved`` is ``False`` for the host's own entry, a
-            hostless system, or a world with no usable orbit.
+            :meth:`calc_world_evolution`-style dict). ``evolved`` is ``False`` for a world with no tidal
+            host or no usable orbit about it.
         """
         cdef c_PairEvolution pair = self._system.get().calc_pair_evolution(<size_t>self._resolve_index(world))
         return _pair_to_dict(pair)
@@ -464,7 +493,7 @@ cdef class System:
         """Return the system's live state as a configuration dict (the ``build_system`` schema).
 
         Each member world is inlined with its own configuration under its system name, together with
-        its host and star roles and its orbital elements. Used by :meth:`save_to_toml` when no
+        its tidal host, its star role, and its orbital elements. Used by :meth:`save_to_toml` when no
         ``source_config`` was retained.
 
         Returns
@@ -473,7 +502,7 @@ cdef class System:
             A system configuration dict with ``name`` and a ``worlds`` table.
         """
         cdef c_System* system_ptr = self._system.get()
-        cdef int host_index = system_ptr.get_host_index()
+        cdef int host_index
         cdef int star_index = system_ptr.get_star_index()
         cdef int i
         cdef double a, stellar_a
@@ -483,8 +512,9 @@ cdef class System:
             world_cfg = dict(world.config) if world.config is not None else world.get_config_dict()
             world_cfg["name"] = world.name
             entry = {"world": world_cfg}
-            if i == host_index:
-                entry["is_host"] = True
+            host_index = system_ptr.get_tidal_host_index(<size_t>i)
+            if host_index >= 0:
+                entry["tidal_host"] = self._world_wrappers[host_index].name
             if i == star_index:
                 entry["is_star"] = True
             a = system_ptr.get_semi_major_axis(<size_t>i)

@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 Schema version `0.2.0`.
 
@@ -344,14 +344,14 @@ A system groups several worlds and the orbits that connect them into one TOML, b
 | Key | Required | Description |
 |-----|----------|-------------|
 | `world` | **yes** | The member world: a bundled world name, a path to a world TOML, or an inline `[worlds.<key>.world]` table. |
-| `is_host` | optional | Marks the gravitational host the others orbit (at most one per system). |
-| `is_star` | optional | Marks the star that provides insolation to the system (at most one; does not have to be the tidal host). |
-| `semi_major_axis_m` | optional | Orbital semi-major axis about the host [m]. |
-| `eccentricity` | optional | Orbital eccentricity about the host. |
+| `tidal_host` | optional | The table key of the world that raises this world's tides. It must be another world of the system, and may be declared later in the file. Left out, the world is not tidally forced. Two worlds may name each other; they then share one orbit, which only one of them needs to state. |
+| `is_star` | optional | Marks the star that provides insolation to the system (at most one; does not have to be anyone's tidal host). |
+| `semi_major_axis_m` | optional | Orbital semi-major axis about the tidal host [m]. Requires `tidal_host`. |
+| `eccentricity` | optional | Orbital eccentricity about the tidal host. Requires `tidal_host`. |
 | `stellar_semi_major_axis_m` | optional | Distance from the star [m], tracked separately from the host distance so a moon can orbit a non-star host. |
 | `stellar_eccentricity` | optional | Orbital eccentricity about the star. |
 
-A system needs at least one world, at most one host, and at most one star.
+A system needs at least one world and at most one star. There is no system-wide host: each tidally forced world names its own.
 
 ```toml
 schema_version = "0.2.0"
@@ -359,11 +359,11 @@ name = "Sol System"
 
 [worlds.sun]
 world = "sol"          # a bundled world name (also accepts a path or an inline table)
-is_host = true
 is_star = true
 
 [worlds.earth]
 world = "earth_simple"
+tidal_host = "sun"     # the world that raises this one's tides
 semi_major_axis_m = 1.495978707e11
 eccentricity = 0.0167
 stellar_semi_major_axis_m = 1.495978707e11

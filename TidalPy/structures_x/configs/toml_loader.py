@@ -511,7 +511,7 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
 # mirror the ``System.add_world`` / ``set_stellar_*`` arguments.
 SYSTEM_WORLD_KEYS = (
     "world",                      # required: bundled name / path / inline world config
-    "is_host",                    # role: the tidal host
+    "tidal_host",                 # key of the world that raises this world's tides (none when left out)
     "is_star",                    # role: the insolation source
     "semi_major_axis_m",          # orbit about the tidal host [m]
     "eccentricity",               # orbit about the tidal host
@@ -527,8 +527,9 @@ def validate_system_config(config: dict) -> None:
     """Validate a system configuration dictionary.
 
     Checks that the ``worlds`` table is present and well formed, that each member names a ``world``
-    source, that no unknown keys appear at either the system or per-world level, and that at most one
-    world is flagged as the host and at most one as the star.
+    source, that no unknown keys appear at either the system or per-world level, that every
+    ``tidal_host`` names another world of the system, that a world stating an orbit about its tidal host
+    names that host, and that at most one world is flagged as the star.
 
     Parameters
     ----------
@@ -540,7 +541,8 @@ def validate_system_config(config: dict) -> None:
     ------
     ValueError
         If the ``worlds`` table is missing/empty, a member is missing its ``world`` source, an
-        unexpected key appears, or more than one host / star is declared.
+        unexpected key appears, a ``tidal_host`` is not another world of the system, orbital elements are
+        given with no ``tidal_host`` to refer them to, or more than one star is declared.
     """
     worlds = config.get("worlds", None)
     if not worlds:
@@ -560,7 +562,6 @@ def validate_system_config(config: dict) -> None:
             raise ValueError(
                 f"Unexpected system-level key '{key}'. Allowed: {sorted(_SYSTEM_STRUCTURAL_KEYS)}.")
 
-    host_count = 0
     star_count = 0
     for world_key, world_cfg in worlds.items():
         if not isinstance(world_cfg, dict):
@@ -569,19 +570,32 @@ def validate_system_config(config: dict) -> None:
             raise ValueError(
                 f"System world '{world_key}' is missing the required 'world' key (a bundled world "
                 "name, a path to a world TOML, or an inline world config table).")
+        if "is_host" in world_cfg:
+            raise ValueError(
+                f"System world '{world_key}' uses 'is_host', which a per-world 'tidal_host' has replaced: "
+                "give every world that is tidally forced the key of the world that raises its tides, "
+                "for example tidal_host = \"<that world's key>\".")
         for key in world_cfg:
             if key not in SYSTEM_WORLD_KEYS:
                 raise ValueError(
                     f"Unexpected key '{key}' on system world '{world_key}'. "
                     f"Allowed keys: {sorted(SYSTEM_WORLD_KEYS)}.")
-        if world_cfg.get("is_host", False):
-            host_count += 1
+        tidal_host = world_cfg.get("tidal_host", None)
+        if tidal_host is not None:
+            if not isinstance(tidal_host, str) or tidal_host not in worlds:
+                raise ValueError(
+                    f"System world '{world_key}' names tidal_host = {tidal_host!r}, which is not a world of "
+                    f"this system. Worlds: {sorted(worlds)}.")
+            if tidal_host == world_key:
+                raise ValueError(f"System world '{world_key}' cannot be its own tidal host.")
+        elif "semi_major_axis_m" in world_cfg or "eccentricity" in world_cfg:
+            raise ValueError(
+                f"System world '{world_key}' states an orbit ('semi_major_axis_m' / 'eccentricity') but no "
+                "'tidal_host' for it to be about. Name the world it orbits, or use the 'stellar_' keys for "
+                "its orbit about the star.")
         if world_cfg.get("is_star", False):
             star_count += 1
 
-    if host_count > 1:
-        raise ValueError(
-            f"System declares {host_count} host worlds (is_host = true); at most one is allowed.")
     if star_count > 1:
         raise ValueError(
             f"System declares {star_count} star worlds (is_star = true); at most one is allowed.")

@@ -424,9 +424,10 @@ const NODES = [
   // ---- System and dynamics ----
   { id: 'System', lane: 'system', kind: 'cycdef', shape: 'class',
     label: 'System', file: 'structures_x/system/system.pyx',
-    purpose: 'Worlds with their orbital elements about the tidal host and about the star; iteration and name access ' +
-      'hand back the original world wrappers.',
-    inputs: 'worlds, is_host, is_star, semi-major axes, eccentricities', outputs: 'a system that co-owns its worlds' },
+    purpose: 'Worlds, each with its own tidal host and its orbital elements about that host and about the star; ' +
+      'iteration and name access hand back the original world wrappers.',
+    inputs: 'worlds, tidal_host per world, is_star, semi-major axes, eccentricities',
+    outputs: 'a system that co-owns its worlds' },
   { id: 'calc_world_evolution', lane: 'system', kind: 'cydef', shape: 'func', star: true,
     label: 'System.calc_world_evolution(i)', sub: 'calc_pair_evolution, calc_system_evolution',
     file: 'structures_x/system/system.pyx',
@@ -435,9 +436,10 @@ const NODES = [
     inputs: 'world index', outputs: 'da/dt, de/dt, dn/dt, dspin/dt, heating, energy terms and residual' },
   { id: 'c_System', lane: 'system', kind: 'cpp', shape: 'class',
     label: 'c_System', sub: 'system_.hpp', file: 'structures_x/system/system_.hpp',
-    purpose: 'shared_ptr worlds, parallel orbital elements, host and star indices, and a stateless c_OrbitSolver; ' +
-      'Kepler helpers, insolation flux (orbit averaged), equilibrium temperature.',
-    inputs: 'worlds and orbits', outputs: 'orbital frequencies, insolation, evolution results' },
+    purpose: 'shared_ptr worlds, parallel orbital elements, a tidal host index per world, the star index, and a ' +
+      'stateless c_OrbitSolver; Kepler helpers, insolation flux (orbit averaged), equilibrium temperature. It is ' +
+      'the tide-state provider of its worlds: a world can ask it for the orbital state its tides are raised in.',
+    inputs: 'worlds, their hosts, and orbits', outputs: 'orbital frequencies, insolation, evolution results, tide states' },
   { id: 'c_calc_world_evolution', lane: 'system', kind: 'cpp', shape: 'func',
     label: 'c_System::calc_world_evolution', file: 'structures_x/system/system_.hpp',
     purpose: 'Builds the tidal state from the orbit and the world spin, runs the world tidal solve, converts the ' +
@@ -507,7 +509,8 @@ const EDGES = [
     purpose: 'Build each [worlds.<key>] member (bundled name, path, or inline table); the key becomes its name.',
     inputs: 'world source', outputs: 'world wrapper' },
   { from: 'build_system', to: 'System', flow: 'build', type: 'make',
-    purpose: 'add_world with is_host or is_star and the orbital elements about the host and the star.',
+    purpose: 'add_world with is_star and the orbital elements about the tidal host and the star, then ' +
+      'set_tidal_host for every world that names one.',
     inputs: 'worlds, semi-major axes, eccentricities', outputs: 'System' },
   { from: 'System', to: 'c_System', flow: 'build', type: 'make',
     purpose: 'The wrapper and the C++ system co-own each world through a shared_ptr.',
