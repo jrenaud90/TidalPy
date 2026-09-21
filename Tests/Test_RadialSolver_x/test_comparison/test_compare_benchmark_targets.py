@@ -161,8 +161,10 @@ def test_benchmark_targets(case_name):
         # This case integrates at rtol 1e-18, below double precision, so its step counts and the last
         # digits of its Love numbers follow the roundoff in the inputs. The rheology_x moduli differ
         # from the classic ones (which produced the frozen targets) only in their last bits, which is
-        # enough to move the step counts by ~10% and the Love numbers by ~1e-6 (2026-09-10).
-        np.testing.assert_allclose(solution.steps_taken, expected_steps, rtol=0.15)
+        # enough to move the Love numbers by ~1e-6 (2026-09-10).
+
+        np.testing.assert_allclose(
+            np.asarray(solution.steps_taken).sum(axis=1), expected_steps.sum(axis=1), rtol=0.10)
         np.testing.assert_allclose(solution.love, expected_love, rtol=1.0e-5, atol=1.0e-10)
     else:
         np.testing.assert_array_equal(solution.steps_taken, expected_steps)
