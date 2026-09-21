@@ -56,7 +56,6 @@ def test_compare_radial_solver_1layer_solid(
         eos_rtol=1.0e-10, eos_atol=1.0e-14,
         raise_on_fail=True,
     )
-    # Dynamic incompressible degree 3 solves started 0.1 m from the center are not converged at
     try:
         old_out = radial_solver_old(
             radius_array, density_array, bulk_modulus_array, complex_shear_modulus_array,

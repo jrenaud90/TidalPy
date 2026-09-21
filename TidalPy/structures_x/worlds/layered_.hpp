@@ -728,7 +728,7 @@ public:
             bulk_rho,
             cfg.degree_l,
             cfg.nondimensionalize,
-            std::const_pointer_cast<const c_EOSSolution>(this->p_eos_solution),
+            this->p_eos_solution.get(),
             num_ytypes
         );
     }
@@ -810,57 +810,13 @@ public:
         // solver is integrating: an interface radius belongs to two layers, and a lookup by radius alone would give
         // both copies the lower layer's material. The provider captures this solve's frequency.
         //
-        // The captured `this` is safe: the provider lives on the solver's storage, which this world owns, and it is
-        // cleared once the solve returns.
-        const double frequency = cfg.frequency;
-        this->p_export_material_eval = this->make_material_eval(frequency);
-        solver->set_material_eval(this->p_export_material_eval);
+        // The provider stays on the storage after the solve, so the solution keeps answering at any radius: the
+        // y3 of a dynamic liquid layer is rebuilt from the density and gravity it reads, and an exported solution
+        // reports the complex moduli this solve used.
+        solver->set_material_eval(this->make_material_eval(cfg.frequency));
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         solver->solve(rt);
-        // The provider closes over this world and this solve's frequency, so it does not outlive the solve.
-        solver->set_material_eval(nullptr);
-        // What the provider did, kept in a form that outlives this world: the rheologies are shared rather than
-        // borrowed, and calc_complex_modulus reads only the arguments handed to it, so the exported solution can
-        // rebuild any complex modulus this solve used, at any radius.
-        if (::c_RadialSolutionStorage* storage = solver->get_storage()) {
-            const std::size_t n_layers = this->p_layers.size();
-            std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
-            std::vector<std::shared_ptr<const c_RheologyBase>> bulk_bylayer(n_layers);
-            for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-                const auto* physics_layer =
-                    dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
-                if (physics_layer == nullptr) { continue; }
-                shear_bylayer[layer_i] = physics_layer->share_shear_rheology();
-                bulk_bylayer[layer_i]  = physics_layer->share_bulk_rheology();
-            }
-            // Captured by value: the vectors hold shared ownership, so this outlives the layers.
-            storage->p_complex_moduli_eval =
-                [shear_bylayer, bulk_bylayer, frequency](
-                    std::size_t layer_index,
-                    double static_shear, double shear_viscosity,
-                    double static_bulk,  double bulk_viscosity,
-                    std::complex<double>& shear_out, std::complex<double>& bulk_out)
-                {
-                    if (layer_index < shear_bylayer.size() && shear_bylayer[layer_index])
-                    {
-                        shear_out = shear_bylayer[layer_index]->calc_complex_modulus(
-                            static_shear, shear_viscosity, frequency);
-                    } else
-                    {
-                        shear_out = std::complex<double>(static_shear, 0.0);
-                    }
-                    if (layer_index < bulk_bylayer.size() && bulk_bylayer[layer_index])
-                    {
-                        bulk_out = bulk_bylayer[layer_index]->calc_complex_modulus(
-                            static_bulk, bulk_viscosity, frequency);
-                    } else
-                    {
-                        bulk_out = std::complex<double>(static_bulk, 0.0);
-                    }
-                };
-            storage->p_love_frequency_si = frequency;
-        }
         this->p_love_solved = solver->get_solved();
     }
 
@@ -909,34 +865,41 @@ public:
         std::vector<double>               radius_copy(radius_in, radius_in + n_in);
         std::vector<std::complex<double>> shear_copy(shear_in, shear_in + n_in);
         std::vector<std::complex<double>> bulk_copy(bulk_in, bulk_in + n_in);
-        this->p_export_material_eval =
-            [this, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer](
-                    std::size_t layer_index, double radius_si, double* out) {
-                if (layer_index >= this->p_layers.size()) { return; }
+        std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
+        solver->set_material_eval(
+            [eos_solution, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer](
+                    std::size_t layer_index,
+                    double radius_si,
+                    double* state_out,
+                    std::complex<double>& shear_out,
+                    std::complex<double>& bulk_out) {
+                // One dense read gives the structure and the density; the supplied profile gives the moduli.
+                eos_solution->call_si(layer_index, radius_si, state_out);
                 const std::size_t in_first = in_first_by_layer[layer_index];
                 const std::size_t in_count = in_count_by_layer[layer_index];
-                const std::complex<double> shear = c_interp_complex(
-                    radius_si, radius_copy.data() + in_first, shear_copy.data() + in_first, in_count, 0);
-                const std::complex<double> bulk = c_interp_complex(
-                    radius_si, radius_copy.data() + in_first, bulk_copy.data() + in_first, in_count, 0);
-                out[0] = this->p_layers[layer_index]->get_density(radius_si);
-                // Supplied moduli carry no separate unrelaxed value, so the real part stands in for it.
-                out[1] = shear.real();
-                out[2] = bulk.real();
-                out[3] = shear.real();
-                out[4] = shear.imag();
-                out[5] = bulk.real();
-                out[6] = bulk.imag();
-                // The profile said nothing about viscosity; it gave the response directly.
-                out[7] = TidalPyConstants::d_NAN;
-                out[8] = TidalPyConstants::d_NAN;
-            };
-        solver->set_material_eval(this->p_export_material_eval);
+                // The supplied grid is usually uniform within a layer, so the fractional position seeds the search.
+                const double* layer_radius_ptr = radius_copy.data() + in_first;
+                const double layer_span        =
+                    (in_count > 1) ? layer_radius_ptr[in_count - 1] - layer_radius_ptr[0] : 0.0;
+                const std::size_t guess = (layer_span > 0.0 && radius_si > layer_radius_ptr[0])
+                    ? static_cast<std::size_t>(
+                        static_cast<double>(in_count - 1) * (radius_si - layer_radius_ptr[0]) / layer_span)
+                    : 0;
+                shear_out = c_interp_complex(
+                    radius_si, layer_radius_ptr, shear_copy.data() + in_first, in_count, guess);
+                bulk_out = c_interp_complex(
+                    radius_si, layer_radius_ptr, bulk_copy.data() + in_first, in_count, guess);
+                // Supplied moduli carry no separate unrelaxed value, so the real part stands in for it, and the
+                // profile said nothing about viscosity: it gave the response directly.
+                state_out[C_EOS_SHEAR_MODULUS_INDEX]   = shear_out.real();
+                state_out[C_EOS_BULK_MODULUS_INDEX]    = bulk_out.real();
+                state_out[C_EOS_SHEAR_VISCOSITY_INDEX] = TidalPyConstants::d_NAN;
+                state_out[C_EOS_BULK_VISCOSITY_INDEX]  = TidalPyConstants::d_NAN;
+            });
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         rt.redim_eos_arrays = true;
         solver->solve(rt);
-        solver->set_material_eval(nullptr);
 
         // Report SI EOS scalars on the released storage (the world own EOS solution is dimensional).
         if (solver->get_storage() != nullptr) {
@@ -954,43 +917,50 @@ public:
 
     // The per-layer material-state provider the radial solver reads at each integration radius: one dense EOS call
     // for the frequency-independent state, then the layer's rheology, which is the only part that knows the
-    // frequency. Fills the material-provider layout of eos_layout_.hpp.
+    // frequency. Fills the evaluation layout of eos_layout_.hpp (SI) and the two complex moduli [Pa].
     //
-    // The returned callable captures this world by pointer, so it must not outlive it.
+    // The callable co-owns the solved EOS and the rheologies, and the layers are resolved here, once, rather than at
+    // every radius. The solved EOS still reaches each layer's material model through this world, so the world has
+    // to outlive the callable; a solution exported to Python holds its world for that reason.
     c_EOSSolution::MaterialEval make_material_eval(double frequency) const {
-        return [this, frequency](std::size_t layer_index, double radius_si, double* out) {
-            if (layer_index >= this->p_layers.size()) { return; }
-            const auto* physics_layer =
-                dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_index].get());
-            if (physics_layer == nullptr) { return; }
-            double state[C_EOS_DY_VALUES];
-            physics_layer->get_eos_state(radius_si, state);
-            const double static_shear = state[C_EOS_SHEAR_MODULUS_INDEX];
-            const double static_bulk  = state[C_EOS_BULK_MODULUS_INDEX];
-            const std::complex<double> shear = physics_layer->apply_shear_rheology(
-                static_shear, state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
-            const std::complex<double> bulk = physics_layer->apply_bulk_rheology(
-                static_bulk, state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
-            out[0] = state[C_EOS_DENSITY_INDEX];
-            out[1] = static_shear;
-            out[2] = static_bulk;
-            out[3] = shear.real();
-            out[4] = shear.imag();
-            out[5] = bulk.real();
-            out[6] = bulk.imag();
-            out[7] = state[C_EOS_SHEAR_VISCOSITY_INDEX];
-            out[8] = state[C_EOS_BULK_VISCOSITY_INDEX];
+        const std::size_t n_layers = this->p_layers.size();
+        std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
+        std::vector<std::shared_ptr<const c_RheologyBase>> bulk_bylayer(n_layers);
+        std::vector<char> is_physics_bylayer(n_layers, 0);
+        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
+            if (physics_layer == nullptr) { continue; }
+            is_physics_bylayer[layer_i] = 1;
+            shear_bylayer[layer_i]      = physics_layer->share_shear_rheology();
+            bulk_bylayer[layer_i]       = physics_layer->share_bulk_rheology();
+        }
+        std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
+        return [eos_solution, shear_bylayer, bulk_bylayer, is_physics_bylayer, frequency](
+                std::size_t layer_index,
+                double radius_si,
+                double* state_out,
+                std::complex<double>& shear_out,
+                std::complex<double>& bulk_out) {
+            eos_solution->call_si(layer_index, radius_si, state_out);
+            // A layer with no material models has no modulus to report.
+            if (layer_index >= is_physics_bylayer.size() || !is_physics_bylayer[layer_index]) { return; }
+            const double static_shear = state_out[C_EOS_SHEAR_MODULUS_INDEX];
+            const double static_bulk  = state_out[C_EOS_BULK_MODULUS_INDEX];
+            // Purely real (no dissipation) where no rheology is attached.
+            shear_out = shear_bylayer[layer_index]
+                ? shear_bylayer[layer_index]->calc_complex_modulus(
+                    static_shear, state_out[C_EOS_SHEAR_VISCOSITY_INDEX], frequency)
+                : std::complex<double>(static_shear, 0.0);
+            bulk_out = bulk_bylayer[layer_index]
+                ? bulk_bylayer[layer_index]->calc_complex_modulus(
+                    static_bulk, state_out[C_EOS_BULK_VISCOSITY_INDEX], frequency)
+                : std::complex<double>(static_bulk, 0.0);
         };
     }
 
     // Move the radial-solution storage out of the helper (one-shot export to a RadialSolverSolution).
     std::unique_ptr<::c_RadialSolutionStorage> release_radial_storage() {
         if (!this->p_radial_solver) { return nullptr; }
-        if (::c_RadialSolutionStorage* storage = this->p_radial_solver->get_storage()) {
-            // Whichever provider the last radial solve used, so a supplied-moduli solve exports the profile it
-            // was given rather than a rheology it never had.
-            this->p_radial_solver->set_material_eval(this->p_export_material_eval);
-        }
         return this->p_radial_solver->release_storage();
     }
 
@@ -1641,11 +1611,6 @@ protected:
     std::complex<double> p_love_analytic_shear = {TidalPyConstants::d_NAN, 0.0};   // volume-averaged shear [Pa]
     double        p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;          // averaged volume [m3]
     std::unique_ptr<::c_WorldRadialSolver> p_radial_solver;
-
-    // The material provider the last radial solve used, kept so an exported solution can be given it back. The
-    // solve-time copy is cleared when the solve returns; this one is what makes the export answer correctly,
-    // and which of the two kinds it is (rheology or supplied profile) depends on which solve ran.
-    c_EOSSolution::MaterialEval p_export_material_eval;
 
     // Global (1D) tidal dissipation: the model/config/result state lives on c_BaseWorld;
     // c_LayeredWorld adds only the per-layer heating distribution (results not serialized).

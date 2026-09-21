@@ -16,6 +16,7 @@
 #include "ode_.hpp" // C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
 #include "../../utilities/arrays/interp_.hpp"  // c_binary_search_with_guess, c_interp, c_interp_complex
 #include "../../Utilities_x/math_x/numerics_.hpp"  // c_isclose
+#include "../../Utilities_x/arrays/layer_partition_.hpp"  // c_partition_radius_by_layer
 
 
 /// C++ class storing the equation of state integration results for a layered planet.
@@ -40,25 +41,23 @@ public:
     bool radius_array_set      = false;
     bool other_vecs_set        = false;
 
-    // Optional non-owning dense structure source (the world Love solve): gravity, pressure, mass, and moi are
-    // read from it at dense accuracy.
-    // The source is SI: source_radius = this_radius * p_structure_length_scale, this_value = source_value / scale.
-    const c_EOSSolution* p_structure_dense_source = nullptr;
-    // Co-ownership of that source, so a solution exported to Python keeps answering after the world it came from
-    // is gone. Null when the source is not owned this way (the raw pointer above is then the only handle).
-    std::shared_ptr<const c_EOSSolution> p_structure_dense_owner;
+    // Scales between this solution's units and the provider's SI: provider_radius = this_radius * length scale,
+    // this_value = provider_value / scale. All one in a solve that ran dimensional.
     double p_structure_length_scale  = 1.0;
     double p_structure_gravity_scale = 1.0;
     double p_structure_pascal_scale  = 1.0;
-    double p_structure_mass_scale    = 1.0;
-    double p_structure_moi_scale     = 1.0;
     double p_structure_density_scale = 1.0;
 
-    // Optional material-state provider (the world Love solve). Fills C_EOS_MATERIAL_EVAL_VALUES SI doubles at an
-    // SI radius for one layer, in the material-provider layout of eos_layout_.hpp: density, the two unrelaxed
-    // moduli, then the complex shear and bulk moduli as real/imaginary pairs, from that layer's attached models at
-    // the solved pressure and temperature.
-    using MaterialEval = std::function<void(size_t layer_index, double radius_si, double* out)>;
+    // Optional state provider (the world Love solve). One call at an SI radius for one layer fills the whole
+    // evaluation layout of eos_layout_.hpp (C_EOS_DY_VALUES SI doubles, from the world's solved EOS at dense
+    // accuracy) and the complex shear and bulk moduli [Pa] at the solve's forcing frequency. It stays installed
+    // after the solve, which is what lets the solution answer at any radius afterwards.
+    using MaterialEval = std::function<void(
+        size_t layer_index,
+        double radius_si,
+        double* state_out,
+        std::complex<double>& shear_out,
+        std::complex<double>& bulk_out)>;
     MaterialEval p_material_eval;
 
     std::string message         = "No Message Set.";
@@ -271,39 +270,19 @@ public:
     /// but carry their own layer's density and moduli, so every array lookup must stay inside one layer's slices.
     void update_slice_partition() noexcept
     {
-        const size_t n = this->radius_array_vec.size();
-        this->first_slice_bylayer_vec.assign(this->num_layers, 0);
-        this->num_slices_bylayer_vec.assign(this->num_layers, 0);
-        if (n == 0 || this->upper_radius_bylayer_vec.size() < this->num_layers)
+        if (this->upper_radius_bylayer_vec.size() < this->num_layers)
         {
+            this->first_slice_bylayer_vec.assign(this->num_layers, 0);
+            this->num_slices_bylayer_vec.assign(this->num_layers, 0);
             return;
         }
-        size_t next_first = 0;
-        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
-        {
-            const double layer_upper = this->upper_radius_bylayer_vec[layer_i];
-            size_t count          = 0;
-            size_t interface_hits = 0;
-            for (size_t slice_i = next_first; slice_i < n; ++slice_i)
-            {
-                const double radius_check = this->radius_array_vec[slice_i];
-                if (c_isclose(radius_check, layer_upper, 1.0e-9, 0.0))
-                {
-                    if (++interface_hits > 1)
-                    {
-                        break;
-                    }
-                }
-                else if (radius_check > layer_upper)
-                {
-                    break;
-                }
-                ++count;
-            }
-            this->first_slice_bylayer_vec[layer_i] = next_first;
-            this->num_slices_bylayer_vec[layer_i]  = count;
-            next_first += count;
-        }
+        tidalpy::c_partition_radius_by_layer(
+            this->radius_array_vec.data(),
+            this->radius_array_vec.size(),
+            this->upper_radius_bylayer_vec.data(),
+            this->num_layers,
+            this->first_slice_bylayer_vec,
+            this->num_slices_bylayer_vec);
     }
 
 
@@ -318,26 +297,6 @@ public:
 
 
 protected:
-    /// Index guess for a binary search from the query's fractional position in the array.
-    static size_t p_seed_index(const double radius_val, const double* radius_data_ptr, const size_t n) noexcept
-    {
-        const double r_left  = radius_data_ptr[0];
-        const double r_right = radius_data_ptr[n - 1];
-        size_t j = 0;
-        if (r_right > r_left)
-        {
-            const double frac    = (radius_val - r_left) / (r_right - r_left);
-            const double clamped = frac < 0.0 ? 0.0 : (frac > 1.0 ? 1.0 : frac);
-            j = static_cast<size_t>(static_cast<double>(n) * clamped);
-            if (j >= n)
-            {
-                j = n - 1;
-            }
-        }
-        return j;
-    }
-
-
     /// Evaluate one layer's retained integrator at a radius in solve units, with no rescaling: the four structure
     /// variables from the dense output, then the density, moduli, and viscosities from the layer's EOS function at
     /// that state. Writes C_EOS_DY_VALUES doubles; the extra outputs are NaN when no EOS function was saved.
@@ -439,18 +398,6 @@ protected:
         }
     }
 
-    /// Run the installed material provider for one layer at a radius in solve units, writing
-    /// C_EOS_MATERIAL_EVAL_VALUES SI doubles. Slots the provider declines to fill stay NaN.
-    void p_call_material_eval(const size_t layer_index, const double radius_val, double* mat_out) const
-    {
-        for (size_t value_i = 0; value_i < C_EOS_MATERIAL_EVAL_VALUES; ++value_i)
-        {
-            mat_out[value_i] = TidalPyConstants::d_NAN;
-        }
-        this->p_material_eval(layer_index, radius_val * this->p_structure_length_scale, mat_out);
-    }
-
-
 public:
 
 
@@ -466,38 +413,15 @@ public:
         const double radius_val,
         double* y_interp_ptr) const
     {
-        // Provider mode, installed by the world's Love solve: this solution stores no grid at all. The structure
-        // comes from the world's solved EOS at dense accuracy and the material from the layer's own models and
-        // rheology, both at the exact radius asked for. Anything neither supplies stays NaN, which is the honest
-        // answer: this solution never held it.
-        if (this->p_structure_dense_source || this->p_material_eval) [[unlikely]]
+        // Provider mode, installed by the world's Love solve: this solution stores no grid at all, and the provider
+        // answers in SI at the exact radius asked for. Only the frequency-independent values belong in this
+        // layout; the provider's complex moduli reach the solver through call_material.
+        if (this->p_material_eval)
         {
-            for (size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i)
-            {
-                y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
-            }
-            if (this->p_structure_dense_source)
-            {
-                double src_out[C_EOS_Y_VALUES];
-                const double src_radius = radius_val * this->p_structure_length_scale;
-                this->p_structure_dense_source->call_y_si(layer_index, src_radius, src_out);
-                y_interp_ptr[0] = src_out[0];   // gravity
-                y_interp_ptr[1] = src_out[1];   // pressure
-                y_interp_ptr[2] = src_out[2];   // mass
-                y_interp_ptr[3] = src_out[3];   // moment of inertia
-            }
-            if (this->p_material_eval)
-            {
-                double mat_out[C_EOS_MATERIAL_EVAL_VALUES];
-                this->p_call_material_eval(layer_index, radius_val, mat_out);
-                // Only the frequency-independent values belong in this layout; the provider's complex moduli
-                // reach the solver through call_material.
-                y_interp_ptr[C_EOS_DENSITY_INDEX]         = mat_out[0];
-                y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX]   = mat_out[1];
-                y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]    = mat_out[2];
-                y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX] = mat_out[7];
-                y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]  = mat_out[8];
-            }
+            std::complex<double> shear_unused;
+            std::complex<double> bulk_unused;
+            this->p_material_eval(
+                layer_index, radius_val * this->p_structure_length_scale, y_interp_ptr, shear_unused, bulk_unused);
             return;
         }
 
@@ -519,26 +443,17 @@ public:
     {
         out = c_EOSMaterialState();
 
-        // Provider mode: the world Love solve. Structure from the world's solved EOS, material from the layer's
-        // own models and rheology, both at the exact radius asked for.
-        if (this->p_structure_dense_source || this->p_material_eval) [[unlikely]]
+        // Provider mode: the world Love solve. One provider call reads the world's solved EOS once and applies
+        // the rheology, at the exact radius asked for; its SI answers are scaled into this solution's units.
+        if (this->p_material_eval)
         {
-            if (this->p_structure_dense_source)
-            {
-                double src_out[C_EOS_Y_VALUES];
-                const double src_radius = radius_val * this->p_structure_length_scale;
-                this->p_structure_dense_source->call_y_si(layer_index, src_radius, src_out);
-                out.gravity = src_out[0] / this->p_structure_gravity_scale;
-            }
-            if (this->p_material_eval)
-            {
-                double mat_out[C_EOS_MATERIAL_EVAL_VALUES];
-                this->p_call_material_eval(layer_index, radius_val, mat_out);
-                const double pascal_scale = this->p_structure_pascal_scale;
-                out.density       = mat_out[0] / this->p_structure_density_scale;
-                out.shear_modulus = std::complex<double>(mat_out[3], mat_out[4]) / pascal_scale;
-                out.bulk_modulus  = std::complex<double>(mat_out[5], mat_out[6]) / pascal_scale;
-            }
+            double state[C_EOS_DY_VALUES];
+            this->p_material_eval(
+                layer_index, radius_val * this->p_structure_length_scale, state, out.shear_modulus, out.bulk_modulus);
+            out.gravity        = state[0] / this->p_structure_gravity_scale;
+            out.density        = state[C_EOS_DENSITY_INDEX] / this->p_structure_density_scale;
+            out.shear_modulus /= this->p_structure_pascal_scale;
+            out.bulk_modulus  /= this->p_structure_pascal_scale;
             return;
         }
 

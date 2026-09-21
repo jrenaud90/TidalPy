@@ -352,17 +352,24 @@ def _interpolated_layer_config(
     -------
     dict
     """
+    import numpy as np
+
+    # tolist() rather than a float() comprehension: the conversion then happens once in C instead of once per
+    # element in Python, and the material factory wants a sequence of plain floats either way.
+    def as_floats(values):
+        return np.ascontiguousarray(values, dtype=np.float64).tolist()
+
     material_cfg = {
         "model":            "interpolate",
-        "radius_m":         [float(value) for value in radius],
-        "density_kg_m3":    [float(value) for value in density],
-        "shear_modulus_pa": [float(value) for value in shear_modulus],
-        "bulk_modulus_pa":  [float(value) for value in bulk_modulus],
+        "radius_m":         as_floats(radius),
+        "density_kg_m3":    as_floats(density),
+        "shear_modulus_pa": as_floats(shear_modulus),
+        "bulk_modulus_pa":  as_floats(bulk_modulus),
     }
     if shear_viscosity is not None:
-        material_cfg["shear_viscosity_pas"] = [float(value) for value in shear_viscosity]
+        material_cfg["shear_viscosity_pas"] = as_floats(shear_viscosity)
     if bulk_viscosity is not None:
-        material_cfg["bulk_viscosity_pas"] = [float(value) for value in bulk_viscosity]
+        material_cfg["bulk_viscosity_pas"] = as_floats(bulk_viscosity)
 
     layer_cfg = {
         "class":          "solidliquid",
@@ -371,7 +378,7 @@ def _interpolated_layer_config(
         # table naming a `type` gets that block back.
         "type":           NO_MATERIAL_TYPE,
         "layer_index":    index,
-        "radius_outer_m": float(radius[-1]),
+        "radius_outer_m": float(material_cfg["radius_m"][-1]),
         "is_tidal":       bool(is_solid),
         "is_solid":       bool(is_solid),
         "is_static":      bool(is_static),
@@ -430,26 +437,26 @@ def build_world_from_layered_profile(
     """
     import numpy as np
 
-    radius_arr = np.asarray(radius, dtype=np.float64)
-    num_layers = len(upper_radius_bylayer)
+    from TidalPy.Utilities_x.arrays.interp import partition_radius_by_layer
+
+    radius_arr  = np.ascontiguousarray(radius, dtype=np.float64)
+    upper_arr   = np.ascontiguousarray(upper_radius_bylayer, dtype=np.float64)
+    density_arr = np.ascontiguousarray(density, dtype=np.float64)
+    shear_arr   = np.ascontiguousarray(shear_modulus, dtype=np.float64)
+    bulk_arr    = np.ascontiguousarray(bulk_modulus, dtype=np.float64)
+    num_layers = upper_arr.size
     planet_radius = float(radius_arr[-1])
 
+    # The partition is the same C++ routine the equation-of-state solution and the world radial solver use,
+    # so the three cannot disagree about which copy of an interface radius belongs to which layer, and the
+    # per-slice work stays out of Python.
+    first_by_layer, count_by_layer = partition_radius_by_layer(radius_arr, upper_arr)
+
     layers_cfg = {}
-    first_index = 0
     for layer_i in range(num_layers):
-        layer_top = float(upper_radius_bylayer[layer_i])
-        # A layer runs to the first copy of its upper radius; the second copy starts the layer above.
-        stop = first_index
-        seen_top = 0
-        while stop < radius_arr.size:
-            radius_here = float(radius_arr[stop])
-            if np.isclose(radius_here, layer_top, rtol=1.0e-9, atol=0.0):
-                seen_top += 1
-                if seen_top > 1:
-                    break
-            elif radius_here > layer_top:
-                break
-            stop += 1
+        layer_top = float(upper_arr[layer_i])
+        first_index = int(first_by_layer[layer_i])
+        stop = first_index + int(count_by_layer[layer_i])
         if stop - first_index < 2:
             raise ValueError(
                 f"Layer {layer_i} of the supplied profile holds fewer than two points; a layer needs at "
@@ -458,14 +465,13 @@ def build_world_from_layered_profile(
         layers_cfg[f"layer_{layer_i}"] = _interpolated_layer_config(
             index             = layer_i,
             radius            = radius_arr[layer_slice],
-            density           = np.asarray(density, dtype=np.float64)[layer_slice],
-            shear_modulus     = np.asarray(shear_modulus, dtype=np.float64)[layer_slice],
-            bulk_modulus      = np.asarray(bulk_modulus, dtype=np.float64)[layer_slice],
+            density           = density_arr[layer_slice],
+            shear_modulus     = shear_arr[layer_slice],
+            bulk_modulus      = bulk_arr[layer_slice],
             is_solid          = bool(layer_is_solid[layer_i]),
             is_static         = bool(layer_is_static[layer_i]),
             is_incompressible = bool(layer_is_incompressible[layer_i]),
         )
-        first_index = stop
 
     planet_mass = planet_bulk_density * (4.0 / 3.0) * np.pi * planet_radius ** 3
     return construct_world({

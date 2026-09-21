@@ -15,6 +15,7 @@
 
 #include "constants_.hpp"                                   // TidalPyConstants
 #include "../Utilities_x/math_x/numerics_.hpp"                  // c_isclose
+#include "../Utilities_x/arrays/layer_partition_.hpp"           // c_partition_radius_by_layer
 #include "../Utilities_x/dimensions/nondimensional_.hpp"    // c_NonDimensionalScales
 #include "rs_constants_.hpp"
 #include "rs_solution_.hpp"
@@ -207,9 +208,9 @@ public:
         return std::move(this->p_storage);
     }
 
-    // Install (or clear, by passing nullptr) the per-layer material-state provider that both methods read density
-    // and the complex moduli from, at the exact radius asked for. Set per Love solve, because the callable carries
-    // that solve's forcing frequency, and cleared when it returns. See c_EOSSolution::MaterialEval.
+    // Install the per-layer state provider that both methods read gravity, density, and the complex moduli from, at
+    // the exact radius asked for. Set per Love solve, because the callable carries that solve's forcing frequency,
+    // and left in place afterwards so the solution can still be read. See c_EOSSolution::MaterialEval.
     void set_material_eval(c_EOSSolution::MaterialEval eval) {
         if (this->p_storage) {
             this->p_storage->get_eos_solution_ptr()->p_material_eval = std::move(eval);
@@ -235,7 +236,7 @@ public:
         double bulk_density,
         int degree_l,
         bool nondimensionalize,
-        std::shared_ptr<const c_EOSSolution> structure_dense_source = nullptr,
+        const c_EOSSolution* world_eos_ptr = nullptr,
         size_t num_ytypes = 1)
     {
         const size_t total_slices = radius_si.size();
@@ -290,32 +291,23 @@ public:
             degree_l);
 
         // Per-layer slice partitioning over the non-dim grid (interface radii appear in two layers).
-        std::vector<size_t> first_slice_idx(n_layers, 0);
-        std::vector<size_t> num_slices(n_layers, 0);
+        std::vector<size_t> first_slice_idx;
+        std::vector<size_t> num_slices;
+        tidalpy::c_partition_radius_by_layer(
+            this->p_radius_nd.data(),
+            total_slices,
+            this->p_upper_radii_nd.data(),
+            n_layers,
+            first_slice_idx,
+            num_slices);
         for (size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-            first_slice_idx[layer_i] = (layer_i == 0)
-                ? 0
-                : first_slice_idx[layer_i - 1] + num_slices[layer_i - 1];
-
-            const double layer_r = this->p_upper_radii_nd[layer_i];
-            size_t count = 0, iface = 0;
-            for (size_t slice_i = first_slice_idx[layer_i]; slice_i < total_slices; ++slice_i) {
-                const double radius_check = this->p_radius_nd[slice_i];
-                if (c_isclose(radius_check, layer_r, 1.0e-9, 0.0)) {
-                    if (++iface > 1) break;
-                } else if (radius_check > layer_r) {
-                    break;
-                }
-                ++count;
-            }
-            if (count < 5) {
+            if (num_slices[layer_i] < 5) {
                 this->p_storage->error_code = -5;
                 this->p_storage->message    = "TidalPy: at least 5 slices per layer required";
                 this->p_storage->success    = false;
                 this->p_cache_valid         = false;
                 return false;
             }
-            num_slices[layer_i] = count;
         }
 
         // Populate the shooting-method inputs (structural fields; per-call knobs set in solve()).
@@ -365,26 +357,20 @@ public:
 
         // This storage's EOS stands in for the world's, so it also reports the world's solve diagnostics. Without
         // this they stay at their "never solved" defaults, which an exported solution would report as its own.
-        if (structure_dense_source) {
-            storage_eos->iterations        = structure_dense_source->iterations;
-            storage_eos->pressure_error    = structure_dense_source->pressure_error;
-            storage_eos->max_iters_hit     = structure_dense_source->max_iters_hit;
-            storage_eos->message           = structure_dense_source->message;
-            storage_eos->steps_taken_vec   = structure_dense_source->steps_taken_vec;
-            storage_eos->num_cyolver_calls = structure_dense_source->num_cyolver_calls;
+        if (world_eos_ptr) {
+            storage_eos->iterations        = world_eos_ptr->iterations;
+            storage_eos->pressure_error    = world_eos_ptr->pressure_error;
+            storage_eos->max_iters_hit     = world_eos_ptr->max_iters_hit;
+            storage_eos->message           = world_eos_ptr->message;
+            storage_eos->steps_taken_vec   = world_eos_ptr->steps_taken_vec;
+            storage_eos->num_cyolver_calls = world_eos_ptr->num_cyolver_calls;
         }
 
-        // Gravity, pressure, mass, and moi are read from the world's dense SI EOS during shooting; the scales convert
-        // the non-dim shooting radius up and the SI outputs back down.
-        storage_eos->p_structure_dense_source = structure_dense_source.get();
-        storage_eos->p_structure_dense_owner  = std::move(structure_dense_source);
-        // The scales convert the non-dim shooting radius up to SI and the SI values back down. They are needed by
-        // the dense structure source and by the material-state provider, so they are set either way.
+        // The state provider answers in SI at an SI radius; the scales convert the non-dim shooting radius up and
+        // its answers back down.
         storage_eos->p_structure_length_scale  = nondimensionalize ? length_conv  : 1.0;
         storage_eos->p_structure_gravity_scale = nondimensionalize ? gravity_conv : 1.0;
         storage_eos->p_structure_pascal_scale  = nondimensionalize ? pascal_conv  : 1.0;
-        storage_eos->p_structure_mass_scale    = nondimensionalize ? mass_conv    : 1.0;
-        storage_eos->p_structure_moi_scale     = nondimensionalize ? moi_conv     : 1.0;
         storage_eos->p_structure_density_scale = nondimensionalize ? density_conv : 1.0;
 
         this->p_cache_valid = true;
@@ -397,6 +383,7 @@ public:
         storage->success    = false;
         storage->error_code = 0;
         storage->p_bc_models = rt.bc_models;
+        storage->p_love_frequency_si = rt.frequency;
         this->p_solved      = false;
 
         // Propagation matrix is only valid for a single solid, static, incompressible layer.

@@ -475,9 +475,9 @@ cdef class RadialSolverSolution:
     def get_complex_shear_modulus(self, radius):
         """Complex shear modulus [Pa] at radius [m], as the solve used it.
 
-        The layer's rheology applied to the static modulus and viscosity the solved EOS reports there, at the
-        frequency this solution was solved at. NaN when the solve carried no rheology (the supplied-moduli path),
-        in which case the moduli were the caller's to begin with.
+        A world solve reports the layer's rheology applied to the static modulus and viscosity the solved EOS
+        reports there, at the frequency this solution was solved at. A solve that was handed its moduli (the
+        array ``radial_solver``) reports that profile, interpolated within the layer.
         """
         if np.ndim(radius) == 0:
             return self._complex_moduli_at(<double>radius)[0]
@@ -495,7 +495,7 @@ cdef class RadialSolverSolution:
 
     @property
     def love_frequency(self):
-        """The forcing frequency [rad/s] this solution was solved at; NaN if it carries none."""
+        """The forcing frequency [rad/s] this solution was solved at; NaN before a solve."""
         return self.solution_storage_ptr.p_love_frequency_si
 
     def get_shear_viscosity(self, radius):

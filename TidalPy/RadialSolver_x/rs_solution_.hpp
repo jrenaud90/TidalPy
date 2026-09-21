@@ -79,23 +79,12 @@ public:
     // because full_solution_vec is interpolated against it. Empty after a shooting solve, which grids nothing.
     std::vector<double> p_matrix_radius_solve = std::vector<double>();
 
-    // Rebuilds the complex moduli this solve used, from a layer's static modulus and viscosity. The world
-    // installs it holding shared ownership of the layers' rheologies and the solved frequency, so it keeps
-    // working after those layers are gone; the rheology models are pure in their three arguments, which is what
-    // makes that safe. Type-erased because the rheology classes live above this header, the same reason
-    // c_EOSSolution::MaterialEval is. Empty when the solve was handed its moduli rather than deriving them (the
-    // supplied-moduli path), and then the complex getters report NaN while the static ones still answer.
-    using ComplexModuliEval = std::function<void(
-        size_t layer_index,
-        double static_shear, double shear_viscosity,
-        double static_bulk,  double bulk_viscosity,
-        std::complex<double>& shear_out, std::complex<double>& bulk_out)>;
-    ComplexModuliEval p_complex_moduli_eval;
+    // Forcing frequency [rad s-1] of the last solve; NaN before one.
     double p_love_frequency_si = TidalPyConstants::d_NAN;
 
-    /// The complex shear and bulk moduli [Pa] at an SI radius, rebuilt the way the solve built them: the layer's
-    /// rheology applied to the static modulus and viscosity the solved EOS reports there, at the solved
-    /// frequency. Both NaN when this solution carries no rheology.
+    /// The complex shear and bulk moduli [Pa] at an SI radius, as the solve read them: the same provider call the
+    /// integrator made, so a rheology solve reports its rheology at the solved frequency and a supplied-moduli
+    /// solve reports the profile it was given.
     void get_complex_moduli_si(
         const double radius_si,
         std::complex<double>& shear_out,
@@ -109,21 +98,6 @@ public:
         double solve_r = 0.0;
         if (!this->p_locate_eos(radius_si, layer_i, solve_r)) { return; }
 
-        if (this->p_complex_moduli_eval)
-        {
-            double state[C_EOS_DY_VALUES];
-            this->eos_solution_uptr->call(layer_i, solve_r, &state[0]);
-            this->p_complex_moduli_eval(
-                layer_i,
-                state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX],
-                state[C_EOS_BULK_MODULUS_INDEX],  state[C_EOS_BULK_VISCOSITY_INDEX],
-                shear_out, bulk_out);
-            return;
-        }
-
-        // No rheology to apply, because this solve was provided arrays of moduli. So instead we will use
-        // linear interpolation on those input arrays to return the moduli if requested.
-        //
         // call_material answers in the units the solve ran in, because that is what the integrator wants. This
         // is a readout, so the pascal scale converts back to SI; it is one in a solve that ran dimensional.
         c_EOSMaterialState material_state;

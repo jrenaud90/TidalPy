@@ -4,7 +4,9 @@
 
 import numpy as np
 
-from TidalPy.Utilities_x.arrays.interp cimport c_interp
+from libcpp.vector cimport vector
+
+from TidalPy.Utilities_x.arrays.interp cimport c_interp, c_partition_radius_by_layer
 
 
 def interp(x, xp, fp):
@@ -56,3 +58,42 @@ def interp(x, xp, fp):
     for i in range(m):
         out_v[i] = c_interp(x_v[i], &xp_v[0], &fp_v[0], n, 0)
     return out.reshape(np.shape(x))
+
+
+def partition_radius_by_layer(double[::1] radius not None, double[::1] upper_radius_bylayer not None):
+    """Split an ascending radius array into one run of slices per layer.
+
+    A layered profile repeats each interface radius, once for the layer below and once for the layer above.
+    This applies the rule that decides which copy belongs to which layer, and it is the same C++ routine the
+    equation-of-state solution and the world radial solver partition with, so the three cannot disagree.
+
+    Parameters
+    ----------
+    radius : np.ndarray[dtype=np.float64]
+        Slice radii [m], ascending, with interface radii appearing twice.
+    upper_radius_bylayer : np.ndarray[dtype=np.float64]
+        Upper radius of each layer [m], inner to outer.
+
+    Returns
+    -------
+    first_slice : np.ndarray[dtype=np.uint64]
+        Index of each layer's first slice.
+    num_slices : np.ndarray[dtype=np.uint64]
+        Number of slices in each layer; zero when a layer caught none.
+    """
+    cdef size_t num_slices_in = radius.shape[0]
+    cdef size_t num_layers    = upper_radius_bylayer.shape[0]
+    cdef vector[size_t] first_out
+    cdef vector[size_t] count_out
+    if num_slices_in == 0 or num_layers == 0:
+        return np.zeros(num_layers, dtype=np.uint64), np.zeros(num_layers, dtype=np.uint64)
+    with nogil:
+        c_partition_radius_by_layer(
+            &radius[0], num_slices_in, &upper_radius_bylayer[0], num_layers, first_out, count_out)
+    cdef size_t layer_i
+    first_arr = np.empty(num_layers, dtype=np.uint64)
+    count_arr = np.empty(num_layers, dtype=np.uint64)
+    for layer_i in range(num_layers):
+        first_arr[layer_i] = first_out[layer_i]
+        count_arr[layer_i] = count_out[layer_i]
+    return first_arr, count_arr

@@ -1058,8 +1058,8 @@ cdef class LayeredWorld(BaseWorld):
 
         The solution owns the storage afterwards, so this world's radial cache is emptied and the next
         ``solve_love_numbers`` call rebuilds it. The solution holds a reference back to this world, which is
-        what lets its interior getters keep answering: they read the material provider installed on the way
-        out, and that provider evaluates this world's layers.
+        what lets its interior getters keep answering: they read the state provider the solve installed, and
+        that provider reads this world's solved EOS.
 
         Returns
         -------
