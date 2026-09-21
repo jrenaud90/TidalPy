@@ -18,7 +18,7 @@ Partial-Melt Models <partial_melt_models.md>
 
 ## Where Partial Melt is Used
 
-A partial-melt model is attached to a layer with `set_partial_melt` and applied during the whole-planet equation-of-state solve. At each radial slice the [viscosity model](../viscosity_x/index.md) supplies the pre-melt viscosity and the equation of state supplies the pre-melt moduli; the melt model then rewrites both, once for the shear pair and once for the bulk pair. The post-melt values are what [`rheology_x`](../rheology_x/index.md) turns into a complex modulus, and a layer keeps both sets so you can compare them (`get_premelt_shear_viscosity` against `get_shear_viscosity`).
+A partial-melt model is attached to a layer's material (its EOS model) with `set_partial_melt`, on the EOS model or through the layer's helper of the same name, and applied during the whole-planet equation-of-state solve. At each radial slice the [viscosity model](../viscosity_x/index.md) supplies the pre-melt viscosity and the equation of state supplies the pre-melt moduli; the melt model then rewrites both, once for the shear pair and once for the bulk pair. The post-melt values are what [`rheology_x`](../rheology_x/index.md) turns into a complex modulus, and a layer keeps both sets so you can compare them (`get_premelt_shear_viscosity` against `get_shear_viscosity`).
 
 Like viscosity, melt weakening is frequency-independent and therefore resolved once per equation-of-state solve rather than once per tidal mode.
 

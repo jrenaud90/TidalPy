@@ -28,18 +28,18 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         double              mass
         string              material_name
         cpp_bool            is_tidal
+        cpp_bool            is_volume_fixed
         double              tidal_scale
         c_TidalScaleMethod  tidal_scale_method
         # PhysicsLayer additions:
-        double              shear_modulus_static
-        double              bulk_modulus_static
-        double              shear_viscosity_static
-        double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
         # Radial-solver layer classification flags:
         cpp_bool            is_solid
         cpp_bool            is_static
         cpp_bool            is_incompressible
+        double              temperature
+        cpp_bool            use_thermal_eos
+        cpp_bool            use_heating
 
     cdef cppclass c_PhysicsLayer(c_BaseLayer):
         c_PhysicsLayer() except +
@@ -65,9 +65,9 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            get_bulk_rheology_set()                  const
         void                set_shear_rheology(unique_ptr[c_RheologyBase] shear)
         void                set_bulk_rheology(unique_ptr[c_RheologyBase] bulk)
-        void                set_shear_viscosity(unique_ptr[c_ViscosityBase] viscosity)
-        void                set_bulk_viscosity(unique_ptr[c_ViscosityBase] viscosity)
-        void                set_partial_melt(unique_ptr[c_PartialMeltBase] partial_melt)
+        void                set_shear_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
+        void                set_bulk_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
+        void                set_partial_melt(unique_ptr[c_PartialMeltBase] partial_melt) except +
         cpp_bool            get_shear_viscosity_set()                const
         cpp_bool            get_bulk_viscosity_set()                 const
         cpp_bool            get_partial_melt_set()                   const
@@ -77,6 +77,12 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         void                set_is_solid(cpp_bool)
         void                set_is_static(cpp_bool)
         void                set_is_incompressible(cpp_bool)
+        double              get_temperature()                          const
+        cpp_bool            get_use_thermal_eos()                      const
+        void                set_temperature(double)
+        void                set_use_thermal_eos(cpp_bool)
+        cpp_bool            get_use_heating()                          const
+        void                set_use_heating(cpp_bool)
 
 
 # =====================================================================================================================

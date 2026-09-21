@@ -32,9 +32,8 @@ FREQ = 1.0e-5
 
 def _layer(name, index, r_inner, r_outer, mass, shear=SHEAR, is_tidal=True, rheology=None, viscosity=VISCOSITY,
            incompressible=True, bulk=BULK):
-    layer = PhysicsLayer(name, index, r_inner, r_outer, mass, is_tidal=is_tidal,
-                         shear_modulus_static=shear, bulk_modulus_static=bulk)
-    layer.set_eos(ConstantDensityEOS(reference_density=DENSITY))
+    layer = PhysicsLayer(name, index, r_inner, r_outer, mass, is_tidal=is_tidal)
+    layer.set_eos(ConstantDensityEOS(reference_density=DENSITY, shear_modulus_static=shear, bulk_modulus_static=bulk))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": viscosity}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_shear_rheology(rheology if rheology is not None else Maxwell())

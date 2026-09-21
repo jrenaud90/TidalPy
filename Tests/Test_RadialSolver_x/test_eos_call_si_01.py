@@ -7,8 +7,10 @@ re-dimensionalized the input arrays, so the dense extra-output re-invoke produce
 (density off by the bulk-density factor, shear off by the pascal factor). The inputs are now persisted in
 the solution storage in non-dim solve units, so ``call`` redimensionalizes them back to SI exactly.
 
-Dense output layout (SI): [0] gravity [1] pressure [2] mass [3] moi [4] density [5,6] shear re/im
-[7,8] bulk re/im.
+Dense output layout (SI): [0] gravity [1] pressure [2] mass [3] moi [4] density [5] shear modulus
+[6] bulk modulus [7,8] shear and bulk viscosity. The layout is frequency-independent, so its moduli are the
+unrelaxed ones; the viscoelastic response comes from ``get_complex_shear_modulus`` and its bulk counterpart,
+which on this path report the supplied complex arrays.
 """
 import numpy as np
 import pytest
@@ -49,21 +51,18 @@ def _build_homogeneous(nondimensionalize=True):
 def test_eos_call_si_matches_supplied_moduli_at_grid_radii(nondimensionalize):
     """At each grid radius the dense getter reproduces the gridded SI moduli (and the supplied constants)."""
     solution, fed_shear, fed_bulk, fed_density, _ = _build_homogeneous(nondimensionalize)
-    radius_array = np.asarray(solution.radius_array)
-    shear_grid = np.asarray(solution.shear_modulus_array)
-    bulk_grid = np.asarray(solution.bulk_modulus_array)
+    radius_array = solution.sample_radii()
 
     # Skip the exact center (r = 0): the structure ODE zeros its derivatives there.
     for index in range(1, radius_array.size):
-        eos = solution.eos_call_si(float(radius_array[index]))
-        dense_shear = complex(eos[5], eos[6])
-        dense_bulk = complex(eos[7], eos[8])
-        # Dense readout reproduces the gridded modulus arrays (which are the redimensionalized solve output).
-        assert dense_shear == pytest.approx(shear_grid[index], rel=1e-6)
-        assert dense_bulk == pytest.approx(bulk_grid[index], rel=1e-6)
+        radius = float(radius_array[index])
+        eos = solution.eos_call_si(radius)
+        # The radius getters report the same static moduli the dense readout carries.
+        assert eos[5] == pytest.approx(solution.get_shear_modulus(radius), rel=1e-6)
+        assert eos[6] == pytest.approx(solution.get_bulk_modulus(radius), rel=1e-6)
         # The body is homogeneous, so both equal the supplied constants - NOT the bug's *bulk-density garbage.
-        assert dense_shear == pytest.approx(fed_shear, rel=1e-6)
-        assert dense_bulk == pytest.approx(fed_bulk, rel=1e-6)
+        assert solution.get_complex_shear_modulus(radius) == pytest.approx(fed_shear, rel=1e-6)
+        assert solution.get_complex_bulk_modulus(radius) == pytest.approx(fed_bulk, rel=1e-6)
         assert eos[4] == pytest.approx(fed_density, rel=1e-6)   # density, was ~rho^2 before the fix
 
 
@@ -77,8 +76,8 @@ def test_eos_call_si_structure_is_physical():
     assert eos[0] == pytest.approx(analytic_gravity, rel=1e-4)
     assert eos[4] == pytest.approx(density, rel=1e-6)
     # Off-grid moduli stay at the homogeneous constants (finite, correctly scaled).
-    assert np.isfinite(eos[5]) and np.isfinite(eos[7])
-    assert complex(eos[5], eos[6]).real == pytest.approx(5.0e10, rel=1e-3)
+    assert np.isfinite(eos[5]) and np.isfinite(eos[6])
+    assert eos[5] == pytest.approx(5.0e10, rel=1e-3)
 
 
 def test_eos_call_si_is_independent_of_query_order():
@@ -138,7 +137,7 @@ def test_eos_call_si_two_layers_distinct_moduli():
 
     deep = solution.eos_call_si(0.25e6)     # well inside the lower layer
     shallow = solution.eos_call_si(0.75e6)  # well inside the upper layer
-    assert complex(deep[5], deep[6]).real == pytest.approx(8.0e10, rel=1e-3)
-    assert complex(shallow[5], shallow[6]).real == pytest.approx(3.0e10, rel=1e-3)
+    assert deep[5] == pytest.approx(8.0e10, rel=1e-3)
+    assert shallow[5] == pytest.approx(3.0e10, rel=1e-3)
     assert deep[4] == pytest.approx(6000.0, rel=1e-3)
     assert shallow[4] == pytest.approx(4000.0, rel=1e-3)

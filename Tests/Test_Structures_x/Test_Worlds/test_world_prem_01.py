@@ -1,12 +1,16 @@
 """
-Tests for building a PREM Earth from a PREM-like data file via the world builder
+Tests for building a PREM Earth from a radial data file via the world builder
 (``build_world("earth_prem")``, which carries ``data_file = "PREM.csv"``).
 
-Confirms that the bundled PREM profile is loaded, the layers are auto-detected with the
-liquid outer core flagged for the radial solver, an interpolated EOS is built per layer,
-the whole-planet EOS solve converges and reproduces Earth's central pressure / surface
-gravity / mass, the interpolated density and static shear/bulk moduli are returned vs
-radius (zero shear in the liquid outer core), and the degree-2 Love number is Earth's.
+Confirms that the bundled PREM profile is loaded, its layers are detected with the liquid outer core
+flagged for the radial solver, each layer's slice of the profile becomes its material (an
+interpolated EOS), the whole-planet EOS solve converges and reproduces Earth's central pressure /
+surface gravity / mass, the interpolated density and static moduli are returned vs radius (zero
+shear in the liquid outer core), and the degree-2 Love number is Earth's.
+
+Also covers what a profile does not describe: it names no rheology, cooling model or radiogenics, so
+those still come from layer tables, and a table refines one detected layer without the others
+needing tables of their own.
 """
 
 import cmath
@@ -17,11 +21,11 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.structures_x import build_world
-from TidalPy.structures_x.configs import prem, worldpack
+from TidalPy.structures_x.configs import data_file, worldpack
 
 
 def _prem_arrays():
-    return prem.load_prem_arrays(worldpack.resolve_data_file("PREM.csv"))
+    return data_file.load_radial_data(worldpack.resolve_data_file("PREM.csv"))
 
 
 # A radius well inside the (solid) lower mantle and one inside the (liquid) outer core.
@@ -98,47 +102,135 @@ def test_earth_prem_bulk_modulus_interpolated():
     assert math.isclose(world.get_bulk_modulus(_MANTLE_RADIUS_M), expected_bulk, rel_tol=0.10)
 
 
-def test_earth_prem_toml_override_of_modulus(tmp_path):
-    """A user layer table overriding a constant modulus replaces the PREM array."""
-    # earth_prem has 3 layers; override layer_2 (the solid mantle) bulk modulus to a
-    # constant. Provide one table per detected layer (inner to outer).
-    prem_path = worldpack.resolve_data_file("PREM.csv")
+def _prem_config(**extra):
     config = {
         "schema_version": "0.2.0",
-        "name": "Earth-PREM-Override",
+        "name": "Earth-PREM-Test",
         "type": "terrestrial",
         "radius_m": 6371000.0,
         "mass_kg": 5.972e24,
-        "data_file": prem_path,
-        "layers": {
-            "layer_0": {"class": "solidliquid", "layer_index": 0},
-            "layer_1": {"class": "physics", "layer_index": 1, "is_incompressible": True},
-            "layer_2": {"class": "solidliquid", "layer_index": 2,
-                        "bulk_modulus_static_pa": 1.0e11},
-        },
+        "data_file": worldpack.resolve_data_file("PREM.csv"),
     }
-    world = build_world(config)
+    config.update(extra)
+    return config
+
+
+def test_earth_prem_toml_override_of_modulus():
+    """A layer table overriding a constant modulus replaces that layer's array from the profile."""
+    world = build_world(_prem_config(layers={
+        "layer_0": {"class": "solidliquid", "layer_index": 0},
+        "layer_1": {"class": "physics", "layer_index": 1, "is_incompressible": True},
+        "layer_2": {"class": "solidliquid", "layer_index": 2, "material": {"bulk_modulus_static_pa": 1.0e11}},
+    }))
     world.solve_eos(G_to_use=G, verbose=False)
     # The mantle bulk modulus is now the constant override (not the PREM value).
     assert math.isclose(world.get_bulk_modulus(_MANTLE_RADIUS_M), 1.0e11, rel_tol=1e-6)
-    # The user tables keep the detected liquid flag of the outer core and can add the other flags.
+    # The tables keep the detected liquid flag of the outer core and can add the other flags.
     assert [layer.is_solid for layer in world] == [True, False, True]
     assert [layer.is_incompressible for layer in world] == [False, True, False]
 
 
-def test_earth_prem_layer_count_mismatch_raises():
-    prem_path = worldpack.resolve_data_file("PREM.csv")
-    config = {
+def test_one_layer_table_refines_one_layer():
+    """A profile holds no rheology, so it is named in a layer table; the other layers need no table."""
+    world = build_world(_prem_config(layers={
+        "mantle": {
+            "layer_index": 2,
+            "shear_rheology": {"model": "maxwell"},
+            "material": {"shear_viscosity_static_pas": 1.0e21},
+        },
+    }))
+    assert world.num_layers == 3
+    # The refined layer takes the name of its table; the others keep the detected ones.
+    assert [layer.name for layer in world] == ["layer_0", "layer_1", "mantle"]
+    assert [layer.shear_rheology_set for layer in world] == [False, False, True]
+    # The detected material and flags survive the refinement.
+    assert [layer.is_solid for layer in world] == [True, False, True]
+    world.solve_eos(G_to_use=G, verbose=False)
+    arrays = _prem_arrays()
+    expected = np.interp(_MANTLE_RADIUS_M, arrays["radius_m"], arrays["density_kg_m3"])
+    assert math.isclose(world.get_density(_MANTLE_RADIUS_M), expected, rel_tol=0.05)
+    # With a viscosity and a Maxwell rheology the mantle now dissipates.
+    result = world.solve_love_numbers(frequency=2.0 * math.pi / 86400.0, degree_l=2)
+    assert result["success"] is True, result["message"]
+    assert abs(world.love_number_k.imag) > 0.0
+
+
+def test_a_layer_table_must_say_which_layer_it_refines():
+    with pytest.raises(ValueError, match="layer_index"):
+        build_world(_prem_config(layers={"mantle": {"shear_rheology": {"model": "maxwell"}}}))
+
+
+def test_a_layer_table_out_of_range_raises():
+    with pytest.raises(ValueError, match="layer_index 7"):
+        build_world(_prem_config(layers={"layer_7": {"class": "solidliquid"}}))
+
+
+def test_two_layer_tables_may_not_refine_the_same_layer():
+    with pytest.raises(ValueError, match="both"):
+        build_world(_prem_config(layers={
+            "core":  {"layer_index": 0},
+            "inner": {"layer_index": 0},
+        }))
+
+
+def test_a_layer_table_may_not_be_named_after_another_layer():
+    """Naming a table 'layer_0' while refining layer 2 would otherwise displace the real layer_0."""
+    with pytest.raises(ValueError, match="more than one"):
+        build_world(_prem_config(layers={"layer_0": {"layer_index": 2}}))
+
+
+def test_a_world_takes_its_profile_from_one_source():
+    with pytest.raises(ValueError, match="one or the other"):
+        build_world(_prem_config(data={"radius_km": [0.0, 1.0], "density": [1.0e3, 1.0e3],
+                                       "vp": [1.0e4, 1.0e4], "vs": [0.0, 0.0]}))
+
+
+def test_a_profile_needs_the_world_radius():
+    config = _prem_config()
+    del config["radius_m"]
+    with pytest.raises(ValueError, match="radius_m"):
+        build_world(config)
+
+
+def test_a_world_can_be_built_from_arrays_in_memory():
+    """The build_world equivalent of a data file: the profile handed over as arrays."""
+    arrays = _prem_arrays()
+    world = build_world({
         "schema_version": "0.2.0",
-        "name": "Earth-PREM-Bad",
+        "name": "Earth-PREM-Arrays",
         "type": "terrestrial",
         "radius_m": 6371000.0,
         "mass_kg": 5.972e24,
-        "data_file": prem_path,
-        "layers": {  # only 2 tables but 3 layers detected
-            "layer_0": {"class": "solidliquid", "layer_index": 0},
-            "layer_1": {"class": "physics", "layer_index": 1},
+        "data": {
+            "radius_m":      arrays["radius_m"],
+            "density_kg_m3": arrays["density_kg_m3"],
+            "vp_m_s":        arrays["vp_m_s"],
+            "vs_m_s":        arrays["vs_m_s"],
         },
-    }
-    with pytest.raises(ValueError, match="layer"):
-        build_world(config)
+    })
+    assert world.num_layers == 3
+    assert [layer.is_solid for layer in world] == [True, False, True]
+    world.solve_eos(G_to_use=G, verbose=False)
+    assert math.isclose(world.planet_mass_eos, _PREM_MASS, rel_tol=1.0e-3)
+    # The arrays are the layers' materials now, so the config does not carry them a second time.
+    assert "data" not in world.source_config
+    result = world.solve_love_numbers(frequency=2.0 * math.pi / 86400.0, degree_l=2)
+    assert result["success"] is True, result["message"]
+    assert cmath.isclose(world.love_number_k, _EARTH_K2, rel_tol=0.01)
+
+
+def test_a_profile_without_viscosities_is_elastic():
+    """No viscosity column means an elastic body: no rheology, no viscosity, no melting."""
+    world = build_world("earth_prem")
+    for layer in world:
+        assert layer.shear_rheology_set is False
+        assert layer.bulk_rheology_set is False
+    world.solve_eos(G_to_use=G, verbose=False)
+    # Nothing supplies a viscosity: no column in the profile, no model built for it, no constant.
+    assert math.isnan(world.get_shear_viscosity(_MANTLE_RADIUS_M))
+    assert math.isnan(world.get_bulk_viscosity(_MANTLE_RADIUS_M))
+    # No partial-melt model, so nothing is molten and the static moduli stand unreduced.
+    assert world.get_melt_fraction(_MANTLE_RADIUS_M) == 0.0
+    result = world.solve_love_numbers(frequency=2.0 * math.pi / 86400.0, degree_l=2)
+    assert result["success"] is True, result["message"]
+    assert abs(world.love_number_k.imag) < 1.0e-6   # elastic: no dissipation

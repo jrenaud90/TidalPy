@@ -2,15 +2,15 @@
 /*
  * gas_.hpp: c_GasLayer, an ideal-gas layer built on c_PhysicsLayer.
  *
- * Adds ideal-gas thermodynamics (adiabatic lapse rate, scale height, pressure, sound speed). No phase changes,
- * no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
+ * Adds the ideal-gas parameters an attached EOS model reads (mean molecular weight, adiabatic index, and the
+ * reference state). No phase changes, no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::GasLayer (103)
  *   payload:
  *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
- *     [all c_PhysicsLayer additions: shear modulus, bulk modulus,
- *      shear viscosity, bulk viscosity, love_numbers k/h/l re+im (10×8)]
+ *     [all c_PhysicsLayer additions: love_numbers k/h/l re+im (6×8), the three classification flags,
+ *      temperature, use_thermal_eos, use_heating]
  *     mean_molecular_weight  (double, 8)
  *     adiabatic_index               (double, 8)
  *     reference_temperature       (double, 8)
@@ -18,10 +18,7 @@
  *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
- *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
- *     bulk_viscosity  presence flag (uint8_t, 1) + (if present) its binary record
- *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS model and the inherited physics models are serialized recursively: the six
+ *   The attached material EOS model and the two rheology models are serialized recursively: the three
  *   presence flags belong to this payload and each nested model follows as its own record. The EOS profile data
  *   is not serialized; re-run the world EOS solve after loading.
  */
@@ -86,50 +83,6 @@ public:
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
     double get_reference_density()     const noexcept { return this->p_reference_density; }
 
-    // Dry adiabatic lapse rate [K/m] for an ideal gas: Γ = g (γ - 1) M / (γ R), with M the mean molecular weight
-    // [kg/mol] and R the universal gas constant [J/(mol·K)]. Returns 0.0 on invalid input or an unwired config.
-    double calc_adiabatic_lapse_rate(double gravity) const noexcept {
-        if (gravity <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
-        const double R = tidalpy_config_ptr->d_R;
-        if (R <= 0.0 || this->p_adiabatic_index <= 1.0) { return 0.0; }
-        return gravity * (this->p_adiabatic_index - 1.0) * this->p_mean_molecular_weight
-               / (this->p_adiabatic_index * R);
-    }
-
-    // Barometric (pressure) scale height [m]: H = R T / (g M). Returns 0.0 on non-positive input or no config.
-    double calc_scale_height(double temperature, double gravity) const noexcept {
-        if (temperature <= 0.0 || gravity <= 0.0
-                || this->p_mean_molecular_weight <= 0.0
-                || tidalpy_config_ptr == nullptr) {
-            return 0.0;
-        }
-        const double R = tidalpy_config_ptr->d_R;
-        return R * temperature / (gravity * this->p_mean_molecular_weight);
-    }
-
-    // Ideal gas law [Pa]: P = ρ R T / M. Returns 0.0 on non-positive input or an unwired config.
-    double calc_pressure_ideal_gas(double temperature,
-                                   double density) const noexcept {
-        if (temperature <= 0.0 || density <= 0.0
-                || this->p_mean_molecular_weight <= 0.0
-                || tidalpy_config_ptr == nullptr) {
-            return 0.0;
-        }
-        const double R = tidalpy_config_ptr->d_R;
-        return density * R * temperature / this->p_mean_molecular_weight;
-    }
-
-    // Adiabatic sound speed [m/s]: c_s = sqrt(γ R T / M). Returns 0.0 on invalid input or an unwired config.
-    double calc_sound_speed(double temperature) const noexcept {
-        if (temperature <= 0.0 || this->p_mean_molecular_weight <= 0.0
-                || tidalpy_config_ptr == nullptr) {
-            return 0.0;
-        }
-        const double R = tidalpy_config_ptr->d_R;
-        return std::sqrt(this->p_adiabatic_index * R * temperature
-                         / this->p_mean_molecular_weight);
-    }
-
     // Binary I/O
     void write_binary(std::ostream& out) const override {
         const auto     name_len = static_cast<uint32_t>(this->p_name.size());
@@ -140,14 +93,15 @@ public:
             sizeof(int32_t)  +               // layer_index
             sizeof(double)   +               // radius_inner
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
-            sizeof(uint8_t)  +               // is_tidal
+            sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
             sizeof(double)   +               // tidal_scale
             sizeof(uint8_t)  +               // tidal_scale_method
-            sizeof(double)   * 10 +          // shear/bulk modulus, shear/bulk viscosity, love_numbers k/h/l re+im
+            sizeof(double)   * 6 +           // love_numbers k/h/l re+im
             sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
+            material_law_bytes() +           // temperature, use_thermal_eos, use_heating
             sizeof(double)   * 4 +           // GasLayer fields
             optional_binary_flag_bytes() +         // material EOS model presence flag
-            this->physics_models_presence_bytes(); // rheology + viscosity + partial-melt presence flags
+            this->physics_models_presence_bytes(); // shear and bulk rheology presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::GasLayer), payload);
 
@@ -162,16 +116,14 @@ public:
         out.write(reinterpret_cast<const char*>(&mat_len),              sizeof(uint32_t));
         if (mat_len > 0) { out.write(this->p_material_name.data(), mat_len); }
         const uint8_t is_tidal_byte = static_cast<uint8_t>(this->p_is_tidal);
+        const uint8_t is_volume_fixed_byte = static_cast<uint8_t>(this->p_is_volume_fixed);
         out.write(reinterpret_cast<const char*>(&is_tidal_byte),        sizeof(uint8_t));
+        out.write(reinterpret_cast<const char*>(&is_volume_fixed_byte), sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
         const uint8_t scale_method_byte = static_cast<uint8_t>(this->p_tidal_scale_method);
         out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
 
         // c_PhysicsLayer fields
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static),    sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static),     sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static),  sizeof(double));
         auto write_complex = [&](const std::complex<double>& c) {
             const double re = c.real(), im = c.imag();
             out.write(reinterpret_cast<const char*>(&re), sizeof(double));
@@ -188,6 +140,7 @@ public:
         out.write(reinterpret_cast<const char*>(&is_solid_byte),          sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&is_static_byte),         sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&is_incompressible_byte), sizeof(uint8_t));
+        this->write_material_law_binary(out);
 
         // c_GasLayer fields
         out.write(reinterpret_cast<const char*>(&this->p_mean_molecular_weight), sizeof(double));
@@ -229,6 +182,9 @@ public:
         uint8_t is_tidal_byte = 0;
         in.read(reinterpret_cast<char*>(&is_tidal_byte), sizeof(uint8_t));
         this->p_is_tidal = static_cast<bool>(is_tidal_byte);
+        uint8_t is_volume_fixed_byte = 0;
+        in.read(reinterpret_cast<char*>(&is_volume_fixed_byte), sizeof(uint8_t));
+        this->p_is_volume_fixed = static_cast<bool>(is_volume_fixed_byte);
 
         in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
 
@@ -237,10 +193,6 @@ public:
         this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
 
         // c_PhysicsLayer fields
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static),    sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static),     sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static),  sizeof(double));
         auto read_complex = [&](std::complex<double>& c) {
             double re = 0.0, im = 0.0;
             in.read(reinterpret_cast<char*>(&re), sizeof(double));
@@ -261,6 +213,7 @@ public:
         this->p_is_solid          = static_cast<bool>(is_solid_byte);
         this->p_is_static         = static_cast<bool>(is_static_byte);
         this->p_is_incompressible = static_cast<bool>(is_incompressible_byte);
+        this->read_material_law_binary(in);
 
         // c_GasLayer fields
         in.read(reinterpret_cast<char*>(&this->p_mean_molecular_weight), sizeof(double));

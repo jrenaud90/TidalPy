@@ -64,47 +64,40 @@ MATERIAL_TYPES = (
     "iron"
 )
 
-# Names of the nested physics-model tables a layer may carry.
+# Names of the nested physics-model tables a layer may carry. ``material`` is the layer's EOS model: it holds the
+# density law, the static moduli and viscosities, the shear law, and its own nested ``shear_viscosity``,
+# ``bulk_viscosity`` and ``partial_melt`` tables, so everything frequency-independent sits in one place.
 LAYER_MODEL_SECTIONS = (
-    "eos",
+    "material",
     "shear_rheology",
     "bulk_rheology",
-    "shear_viscosity",
-    "bulk_viscosity",
-    "partial_melt",
     "cooling",
     "radiogenics",
 )
+
+# Tables that used to sit on the layer and now belong inside ``material``; named so the error can say where.
+MOVED_TO_MATERIAL = ("eos", "shear_viscosity", "bulk_viscosity", "partial_melt")
 
 # Which model sections each layer type is allowed to carry. Attaching a model the
 # layer class cannot hold is a configuration error caught up front.
 ALLOWED_MODEL_SECTIONS = {
     "base": (
-        "eos",
+        "material",
     ),
     "physics": (
-        "eos",
+        "material",
         "shear_rheology",
-        "bulk_rheology",
-        "shear_viscosity",
-        "bulk_viscosity",
-        "partial_melt"
+        "bulk_rheology"
     ),
     "gas": (
-        "eos",
+        "material",
         "shear_rheology",
-        "bulk_rheology",
-        "shear_viscosity",
-        "bulk_viscosity",
-        "partial_melt"
+        "bulk_rheology"
     ),
     "solidliquid": (
-        "eos",
+        "material",
         "shear_rheology",
         "bulk_rheology",
-        "shear_viscosity",
-        "bulk_viscosity",
-        "partial_melt",
         "cooling",
         "radiogenics"
     ),
@@ -131,31 +124,42 @@ _GEOMETRY_LAYER_KEYS = (
     "material_name",
     "is_tidal",
     "tidal_scale",
-    "tidal_scale_method"
+    "tidal_scale_method",
+    # False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
+    "is_volume_fixed"
 )
 _PHYSICS_LAYER_KEYS = (
+    # Radial-solver flags: a liquid layer sets is_solid = false and stays static unless is_static = false.
+    "is_solid",
+    "is_static",
+    "is_incompressible",
+    # Layer state: its temperature, whether the density law of its material sees it, and whether the world's heat
+    # sources act inside it during a thermal EOS solve.
+    "temperature_k",
+    "use_thermal_eos",
+    "use_heating"
+)
+
+# Scalar keys that used to sit on the layer and now belong inside its ``material`` table.
+MATERIAL_SCALAR_KEYS = (
     "shear_modulus_static_pa",
     "bulk_modulus_static_pa",
     "shear_viscosity_static_pas",
     "bulk_viscosity_static_pas",
-    # Radial-solver flags: a liquid layer sets is_solid = false and stays static unless is_static = false.
-    "is_solid",
-    "is_static",
-    "is_incompressible"
+    "shear_modulus_pressure_derivative",
+    "shear_modulus_temperature_derivative_pa_k",
+    "shear_modulus_reference_temperature_k",
 )
-_SOLIDLIQUID_LAYER_KEYS = (
-    "thermal_conductivity_ref_w_mk",
-    "thermal_expansion_ref_1_k",
-    "heat_capacity_ref_j_kgk",
-    "activation_energy_j_mol",
-    "activation_volume_m3_mol",
-    "solidus_temperature_k",
-    "liquidus_temperature_k",
-    "melt_fraction_exponent",
-    "reference_density_kg_m3",
-    "reference_temperature_k",
-    "melt_viscosity_reduction"
-)
+# A solid-liquid layer adds no scalar keys of its own: its thermal constants are the material's.
+_SOLIDLIQUID_LAYER_KEYS = ()
+
+# Thermal keys that used to sit on a solid-liquid layer, and the material key each became. The layer's reference
+# density and reference temperature have no successor: the density law has its own, and nothing read the other.
+MOVED_THERMAL_KEYS = {
+    "thermal_conductivity_ref_w_mk": "thermal_conductivity_w_mk",
+    "thermal_expansion_ref_1_k":     "thermal_expansion_1_k",
+    "heat_capacity_ref_j_kgk":       "heat_capacity_j_kgk",
+}
 _GAS_LAYER_KEYS = (
     "mean_molecular_weight_kg_mol",
     "adiabatic_index",
@@ -359,7 +363,9 @@ def validate_world_config(config: dict) -> None:
     # Flag unknown world-level scalar keys (typo protection). Reserved structural
     # keys and the optional '[tides]' table (validated separately below) are tolerated.
     allowed = ALLOWED_WORLD_SCALAR_KEYS[world_type]
-    structural = {"name", "type", "schema_version", "layers", "tides", "data_file"}
+    # 'data_file' (a path) and 'data' (a mapping of arrays) are the two ways to give a radial
+    # profile in place of layer tables; the builder expands either into 'layers' before validation.
+    structural = {"name", "type", "schema_version", "layers", "tides", "data_file", "data"}
     for key, value in config.items():
         if key == "tides":
             if not isinstance(value, dict):
@@ -463,6 +469,11 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
         if key in ("class", "type", "layer_index") or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
         if isinstance(value, dict):
+            if key in MOVED_TO_MATERIAL:
+                inside = "material" if key == "eos" else f"material.{key}"
+                raise ValueError(
+                    f"Layer '{layer_name}' has a '[{key}]' table. The material owns that now: move it to "
+                    f"'[layers.{layer_name}.{inside}]'.")
             if key not in LAYER_MODEL_SECTIONS:
                 raise ValueError(
                     f"Layer '{layer_name}' has unknown model table '[{key}]'. "
@@ -471,10 +482,21 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
                 raise ValueError(
                     f"Layer '{layer_name}' of class '{layer_class}' cannot hold a "
                     f"'{key}' model. Allowed for this class: {allowed_models}.")
-            if "model" not in value:
+            # The material table is mostly scalars, and overriding one of them (a fitted shear modulus, say)
+            # should not mean restating the model the layer's material type already names. The builder checks
+            # that a model is there once the defaults are merged in.
+            if "model" not in value and key != "material":
                 raise ValueError(
                     f"Model table '[{key}]' on layer '{layer_name}' is missing the "
                     "required 'model' key.")
+        elif key in MOVED_THERMAL_KEYS:
+            raise ValueError(
+                f"Layer '{layer_name}' sets '{key}' on the layer. It is a property of the material: set "
+                f"'{MOVED_THERMAL_KEYS[key]}' in '[layers.{layer_name}.material]'.")
+        elif key in MATERIAL_SCALAR_KEYS:
+            raise ValueError(
+                f"Layer '{layer_name}' sets '{key}' on the layer. It is a property of the material: move it "
+                f"into '[layers.{layer_name}.material]'.")
         elif key not in allowed_scalars:
             raise ValueError(
                 f"Unexpected key '{key}' on layer '{layer_name}' of class "
@@ -489,7 +511,7 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
 # mirror the ``System.add_world`` / ``set_stellar_*`` arguments.
 SYSTEM_WORLD_KEYS = (
     "world",                      # required: bundled name / path / inline world config
-    "is_host",                    # role: the tidal host
+    "tidal_host",                 # key of the world that raises this world's tides (none when left out)
     "is_star",                    # role: the insolation source
     "semi_major_axis_m",          # orbit about the tidal host [m]
     "eccentricity",               # orbit about the tidal host
@@ -505,8 +527,9 @@ def validate_system_config(config: dict) -> None:
     """Validate a system configuration dictionary.
 
     Checks that the ``worlds`` table is present and well formed, that each member names a ``world``
-    source, that no unknown keys appear at either the system or per-world level, and that at most one
-    world is flagged as the host and at most one as the star.
+    source, that no unknown keys appear at either the system or per-world level, that every
+    ``tidal_host`` names another world of the system, that a world stating an orbit about its tidal host
+    names that host, and that at most one world is flagged as the star.
 
     Parameters
     ----------
@@ -518,7 +541,8 @@ def validate_system_config(config: dict) -> None:
     ------
     ValueError
         If the ``worlds`` table is missing/empty, a member is missing its ``world`` source, an
-        unexpected key appears, or more than one host / star is declared.
+        unexpected key appears, a ``tidal_host`` is not another world of the system, orbital elements are
+        given with no ``tidal_host`` to refer them to, or more than one star is declared.
     """
     worlds = config.get("worlds", None)
     if not worlds:
@@ -538,7 +562,6 @@ def validate_system_config(config: dict) -> None:
             raise ValueError(
                 f"Unexpected system-level key '{key}'. Allowed: {sorted(_SYSTEM_STRUCTURAL_KEYS)}.")
 
-    host_count = 0
     star_count = 0
     for world_key, world_cfg in worlds.items():
         if not isinstance(world_cfg, dict):
@@ -547,19 +570,32 @@ def validate_system_config(config: dict) -> None:
             raise ValueError(
                 f"System world '{world_key}' is missing the required 'world' key (a bundled world "
                 "name, a path to a world TOML, or an inline world config table).")
+        if "is_host" in world_cfg:
+            raise ValueError(
+                f"System world '{world_key}' uses 'is_host', which a per-world 'tidal_host' has replaced: "
+                "give every world that is tidally forced the key of the world that raises its tides, "
+                "for example tidal_host = \"<that world's key>\".")
         for key in world_cfg:
             if key not in SYSTEM_WORLD_KEYS:
                 raise ValueError(
                     f"Unexpected key '{key}' on system world '{world_key}'. "
                     f"Allowed keys: {sorted(SYSTEM_WORLD_KEYS)}.")
-        if world_cfg.get("is_host", False):
-            host_count += 1
+        tidal_host = world_cfg.get("tidal_host", None)
+        if tidal_host is not None:
+            if not isinstance(tidal_host, str) or tidal_host not in worlds:
+                raise ValueError(
+                    f"System world '{world_key}' names tidal_host = {tidal_host!r}, which is not a world of "
+                    f"this system. Worlds: {sorted(worlds)}.")
+            if tidal_host == world_key:
+                raise ValueError(f"System world '{world_key}' cannot be its own tidal host.")
+        elif "semi_major_axis_m" in world_cfg or "eccentricity" in world_cfg:
+            raise ValueError(
+                f"System world '{world_key}' states an orbit ('semi_major_axis_m' / 'eccentricity') but no "
+                "'tidal_host' for it to be about. Name the world it orbits, or use the 'stellar_' keys for "
+                "its orbit about the star.")
         if world_cfg.get("is_star", False):
             star_count += 1
 
-    if host_count > 1:
-        raise ValueError(
-            f"System declares {host_count} host worlds (is_host = true); at most one is allowed.")
     if star_count > 1:
         raise ValueError(
             f"System declares {star_count} star worlds (is_star = true); at most one is allowed.")

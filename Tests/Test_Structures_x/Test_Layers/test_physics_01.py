@@ -40,9 +40,17 @@ _BULK_MOD_PA      = 3.57e11      # [Pa]
 _VISCOSITY_PAS    = 1.0e21       # [Pa·s]
 
 
+def _material(shear=_SHEAR_MOD_PA, bulk=_BULK_MOD_PA, shear_visc=_VISCOSITY_PAS, bulk_visc=_VISCOSITY_PAS):
+    """The layer's material: an EOS model carrying the static constants."""
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
+    return ConstantDensityEOS(
+        reference_density=4500.0, shear_modulus_static=shear, bulk_modulus_static=bulk,
+        shear_viscosity_static=shear_visc, bulk_viscosity_static=bulk_visc)
+
+
 def _make_mantle(shear=_SHEAR_MOD_PA, bulk=_BULK_MOD_PA, shear_visc=_VISCOSITY_PAS, bulk_visc=_VISCOSITY_PAS):
     mod = _import_physics()
-    return mod.PhysicsLayer(
+    layer = mod.PhysicsLayer(
         name          = "mantle",
         layer_index   = 1,
         radius_inner  = _MANTLE_R_INNER_M,
@@ -51,25 +59,22 @@ def _make_mantle(shear=_SHEAR_MOD_PA, bulk=_BULK_MOD_PA, shear_visc=_VISCOSITY_P
         material_name = "perovskite",
         is_tidal      = True,
         tidal_scale   = 1.0,
-        shear_modulus_static = shear,
-        bulk_modulus_static  = bulk,
-        shear_viscosity_static = shear_visc,
-        bulk_viscosity_static = bulk_visc,
         love_number_k = 0.0 + 0.0j,
         love_number_h = 0.0 + 0.0j,
         love_number_l = 0.0 + 0.0j,
     )
+    layer.set_eos(_material(shear, bulk, shear_visc, bulk_visc))
+    return layer
 
 
 # =====================================================================================================================
 # Construction
 # =====================================================================================================================
 def test_physics_layer_construction_basic():
-    """PhysicsLayer stores all config values at construction."""
+    """PhysicsLayer stores its config values; the static constants are read from its material."""
     mod = _import_physics()
-    pl = mod.PhysicsLayer("core", 0, 0.0, 3.485e6, 1.932e24,
-                          shear_modulus_static=5e10, bulk_modulus_static=2e11,
-                          shear_viscosity_static=1e20, bulk_viscosity_static=1e22)
+    pl = mod.PhysicsLayer("core", 0, 0.0, 3.485e6, 1.932e24)
+    pl.set_eos(_material(5e10, 2e11, 1e20, 1e22))
     assert pl.name                   == "core"
     assert pl.layer_index            == 0
     assert pl.radius_inner           == pytest.approx(0.0)
@@ -85,9 +90,12 @@ def test_physics_layer_construction_basic():
 
 
 def test_physics_layer_defaults():
-    """PhysicsLayer moduli default to 0.0 and the static viscosities to NaN (unset)."""
+    """Without a material the static constants are NaN; a material's moduli default to 0.0, viscosities to NaN."""
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     mod = _import_physics()
     pl = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20)
+    assert math.isnan(pl.shear_modulus_static)
+    pl.set_eos(ConstantDensityEOS())
     assert pl.shear_modulus_static   == pytest.approx(0.0)
     assert pl.bulk_modulus_static    == pytest.approx(0.0)
     assert math.isnan(pl.shear_viscosity_static)
@@ -98,8 +106,10 @@ def test_physics_layer_defaults():
 def test_unset_static_viscosity_fails_loudly():
     """Without a static viscosity, a viscous rheology's layer-constant modulus is NaN; elastic is unaffected."""
     from TidalPy.rheology_x.rheology import Elastic, Maxwell
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     mod = _import_physics()
-    pl = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20, shear_modulus_static=_SHEAR_MOD_PA)
+    pl = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20)
+    pl.set_eos(ConstantDensityEOS(shear_modulus_static=_SHEAR_MOD_PA))
     pl.set_shear_rheology(Elastic())
     assert pl.calc_complex_shear_modulus(1e-5) == pytest.approx(_SHEAR_MOD_PA + 0.0j)
     pl.set_shear_rheology(Maxwell())
@@ -186,9 +196,10 @@ def test_complex_shear_frequency_independent_without_rheology(freq):
 
 def test_complex_modulus_zero_modulus():
     """With zero static modulus and no rheology, complex modulus is zero."""
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     mod = _import_physics()
-    pl  = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20,
-                           shear_modulus_static=0.0, bulk_modulus_static=0.0)
+    pl  = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20)
+    pl.set_eos(ConstantDensityEOS(shear_modulus_static=0.0, bulk_modulus_static=0.0))
     mu = pl.calc_complex_shear_modulus(1e-5)
     K  = pl.calc_complex_bulk_modulus(1e-5)
     assert mu.real == pytest.approx(0.0)
@@ -216,8 +227,6 @@ def test_get_config_dict_has_all_keys():
     cfg = pl.get_config_dict()
     for key in ("name", "layer_index", "radius_inner_m", "radius_outer_m",
                 "mass_kg", "material_name", "is_tidal", "tidal_scale",
-                "shear_modulus_static_pa", "bulk_modulus_static_pa",
-                "shear_viscosity_static_pas", "bulk_viscosity_static_pas",
                 "is_solid", "is_static", "is_incompressible",
                 "love_number_k_re", "love_number_k_im",
                 "love_number_h_re", "love_number_h_im",
@@ -234,10 +243,10 @@ def test_get_config_dict_values():
     assert cfg["radius_inner_m"]  == pytest.approx(_MANTLE_R_INNER_M)
     assert cfg["radius_outer_m"]  == pytest.approx(_MANTLE_R_OUTER_M)
     assert cfg["mass_kg"]         == pytest.approx(_MANTLE_MASS_KG)
-    assert cfg["shear_modulus_static_pa"]    == pytest.approx(_SHEAR_MOD_PA)
-    assert cfg["bulk_modulus_static_pa"]     == pytest.approx(_BULK_MOD_PA)
-    assert cfg["shear_viscosity_static_pas"] == pytest.approx(_VISCOSITY_PAS)
-    assert cfg["bulk_viscosity_static_pas"]  == pytest.approx(_VISCOSITY_PAS)
+    assert cfg["material"]["shear_modulus_static_pa"]    == pytest.approx(_SHEAR_MOD_PA)
+    assert cfg["material"]["bulk_modulus_static_pa"]     == pytest.approx(_BULK_MOD_PA)
+    assert cfg["material"]["shear_viscosity_static_pas"] == pytest.approx(_VISCOSITY_PAS)
+    assert cfg["material"]["bulk_viscosity_static_pas"]  == pytest.approx(_VISCOSITY_PAS)
     assert cfg["love_number_k_re"]            == pytest.approx(0.0)
     assert cfg["love_number_k_im"]            == pytest.approx(0.0)
     assert cfg["love_number_h_re"]            == pytest.approx(0.0)
@@ -280,10 +289,10 @@ def test_save_config_physics_layer():
         with open(path, "rb") as f:
             data = tomllib.load(f)
         assert data["name"]                       == "mantle"
-        assert data["shear_modulus_static_pa"]    == pytest.approx(_SHEAR_MOD_PA)
-        assert data["bulk_modulus_static_pa"]     == pytest.approx(_BULK_MOD_PA)
-        assert data["shear_viscosity_static_pas"] == pytest.approx(_VISCOSITY_PAS)
-        assert data["bulk_viscosity_static_pas"]  == pytest.approx(_VISCOSITY_PAS)
+        assert data["material"]["shear_modulus_static_pa"]    == pytest.approx(_SHEAR_MOD_PA)
+        assert data["material"]["bulk_modulus_static_pa"]     == pytest.approx(_BULK_MOD_PA)
+        assert data["material"]["shear_viscosity_static_pas"] == pytest.approx(_VISCOSITY_PAS)
+        assert data["material"]["bulk_viscosity_static_pas"]  == pytest.approx(_VISCOSITY_PAS)
         assert data["love_number_k_re"]            == pytest.approx(0.0)
         assert data["love_number_k_im"]            == pytest.approx(0.0)
         assert data["love_number_h_re"]            == pytest.approx(0.0)
@@ -511,8 +520,10 @@ def test_get_config_dict_class_and_model_tables():
     pl = _make_mantle()
     cfg = pl.get_config_dict()
     assert cfg["class"] == "physics"
-    for key in ("shear_rheology", "bulk_rheology", "shear_viscosity", "bulk_viscosity", "partial_melt"):
+    for key in ("shear_rheology", "bulk_rheology"):
         assert key not in cfg
+    for key in ("shear_viscosity", "bulk_viscosity", "partial_melt"):
+        assert key not in cfg["material"]
     elastic_name = rheo.Elastic().model_name
     pl.set_shear_rheology(rheo.Andrade(0.4, 1.5))
     pl.set_bulk_rheology(rheo.Elastic())
@@ -522,6 +533,8 @@ def test_get_config_dict_class_and_model_tables():
     assert cfg["shear_rheology"]["model"] == "andrade"
     assert cfg["shear_rheology"]["alpha"] == pytest.approx(0.4)
     assert cfg["bulk_rheology"] == {"model": elastic_name}
-    assert cfg["shear_viscosity"]["reference_viscosity_pas"] == pytest.approx(1.0e20)
-    assert "bulk_viscosity" not in cfg
-    assert cfg["partial_melt"]["model"] == "henning"
+    # The viscosity and partial-melt models belong to the material, so they are tables of its table.
+    assert cfg["material"]["shear_viscosity"]["reference_viscosity_pas"] == pytest.approx(1.0e20)
+    assert "bulk_viscosity" not in cfg["material"]
+    assert cfg["material"]["partial_melt"]["model"] == "henning"
+    assert "shear_viscosity" not in cfg

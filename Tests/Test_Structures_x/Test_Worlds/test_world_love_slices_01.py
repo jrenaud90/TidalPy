@@ -1,10 +1,10 @@
 """
 Love numbers of a compressible world against the EOS slice count.
 
-Between EOS slices the world Love solve reads gravity, pressure, mass, and moment of inertia from the dense EOS
-solution and interpolates the density with a cubic Hermite polynomial whose slopes come from the layer's EOS model.
-A compressible (Birch-Murnaghan) layer's density then has no kinks at the slices, so the Love numbers converge with
-the integration tolerance and do not depend on how many slices the EOS solve stored.
+The world Love solve reads nothing off the slice grid: the structure comes from the dense EOS solution and the
+density and complex moduli from each layer's material state at the exact radius the integrator asks for. The
+Love numbers therefore do not depend on slices_per_layer at all, rather than depending on it weakly, and they
+converge with the integration tolerance alone.
 
 Requires the Cython extensions to be compiled first::
 
@@ -27,17 +27,17 @@ def _compressible_world():
         "schema_version": "0.2.0", "name": "bm", "type": "terrestrial", "radius_m": 6.371e6, "mass_kg": 6.0e24,
         "layers": {
             "core": {"class": "physics", "type": "iron", "layer_index": 0, "radius_fraction": 0.55,
-                     "shear_modulus_static_pa": 1.0e11, "bulk_modulus_static_pa": 5.0e11,
-                     "eos": {"model": "birch_murnaghan", "reference_density_kg_m3": 8300.0,
-                             "reference_bulk_modulus_pa": 1.6e11, "bulk_modulus_derivative": 5.0},
-                     "shear_rheology": {"model": "maxwell"},
-                     "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e24}},
+                     "material": {"model": "birch_murnaghan", "reference_density_kg_m3": 8300.0,
+                                  "reference_bulk_modulus_pa": 1.6e11, "bulk_modulus_derivative": 5.0,
+                                  "shear_modulus_static_pa": 1.0e11, "bulk_modulus_static_pa": 5.0e11,
+                                  "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e24}},
+                     "shear_rheology": {"model": "maxwell"}},
             "mantle": {"class": "physics", "type": "mantle_rock", "layer_index": 1, "radius_fraction": 1.0,
-                       "shear_modulus_static_pa": 7.0e10, "bulk_modulus_static_pa": 2.0e11,
-                       "eos": {"model": "birch_murnaghan", "reference_density_kg_m3": 3300.0,
-                               "reference_bulk_modulus_pa": 1.3e11, "bulk_modulus_derivative": 4.0},
-                       "shear_rheology": {"model": "maxwell"},
-                       "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}}}})
+                       "material": {"model": "birch_murnaghan", "reference_density_kg_m3": 3300.0,
+                                    "reference_bulk_modulus_pa": 1.3e11, "bulk_modulus_derivative": 4.0,
+                                    "shear_modulus_static_pa": 7.0e10, "bulk_modulus_static_pa": 2.0e11,
+                                    "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}},
+                       "shear_rheology": {"model": "maxwell"}}}})
 
 
 def _k2(world, slices_per_layer, rtol):
@@ -50,11 +50,23 @@ def _k2(world, slices_per_layer, rtol):
 
 @pytest.mark.parametrize("slices_per_layer, rel_tol", [(25, 1.0e-7), (50, 1.0e-8), (400, 1.0e-8)])
 def test_love_number_of_a_compressible_world_does_not_depend_on_the_slice_count(slices_per_layer, rel_tol):
-    """The cubic interpolation error falls as the fourth power of the slice spacing: 5e-8 at 25 slices per layer."""
+    """Held from when the density was interpolated between slices; now the agreement is exact."""
     world = _compressible_world()
     reference = _k2(world, 200, 1.0e-11)
     coarse = _k2(world, slices_per_layer, 1.0e-11)
     assert cmath.isclose(coarse, reference, rel_tol=rel_tol), (coarse, reference)
+
+
+@pytest.mark.parametrize("slices_per_layer", [25, 50, 400])
+def test_love_number_of_a_compressible_world_is_bit_identical_across_slice_counts(slices_per_layer):
+    """No quantity the radial solve reads is sampled onto the slice grid, so the slice count cannot move k2.
+
+    This is the guarantee the grid-free consumers buy, and it is stronger than the convergence test above:
+    not "the interpolation error is small" but "there is no interpolation".
+    """
+    world = _compressible_world()
+    reference = _k2(world, 200, 1.0e-11)
+    assert _k2(world, slices_per_layer, 1.0e-11) == reference
 
 
 def test_love_number_of_a_compressible_world_converges_with_the_tolerance():

@@ -219,6 +219,7 @@ cdef class BaseWorld(StructureBase):
         if tide._tide_ptr.get() == NULL:
             raise ValueError("This tide model holds no C++ object (already attached or moved).")
         self._world_ptr.get().set_tide_model(move(tide._tide_ptr))
+        tide._ptr = NULL
 
     @property
     def tide_model_set(self) -> bool:
@@ -305,6 +306,31 @@ cdef class BaseWorld(StructureBase):
         state.semi_major_axis   = semi_major_axis
         state.host_mass         = host_mass
         self._world_ptr.get().calc_tides(state)
+
+    def get_tide_state(self):
+        """The orbital state this world's tides are raised in, as the system it belongs to sees it.
+
+        Orbital state never lives on a world: the system a world was added to supplies it, from the world's
+        orbit about its tidal host, that host's mass, and the world's own spin and obliquity.
+
+        Returns
+        -------
+        dict or None
+            ``orbital_frequency`` [rad s-1], ``spin_frequency`` [rad s-1], ``eccentricity``, ``obliquity``
+            [rad], ``semi_major_axis`` [m], and ``host_mass`` [kg], the arguments of :meth:`calc_tides` in
+            its order. ``None`` for a world outside a system, with no tidal host, or with no usable orbit.
+        """
+        cdef c_TideSolveConfig state
+        if not self._world_ptr.get().get_tide_state(state):
+            return None
+        return {
+            "orbital_frequency": state.orbital_frequency,
+            "spin_frequency":    state.spin_frequency,
+            "eccentricity":      state.eccentricity,
+            "obliquity":         state.obliquity,
+            "semi_major_axis":   state.semi_major_axis,
+            "host_mass":         state.host_mass,
+        }
 
     @property
     def tides_solved(self) -> bool:

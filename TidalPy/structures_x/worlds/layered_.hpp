@@ -32,6 +32,7 @@
 #include "../../dynamics_x/spin_.hpp"   // c_Spin (spin-dynamics model attached to the world)
 #include "solver_.hpp"      // c_solve_eos, c_EOS_ODEInput, c_EOSSolution, ODEMethod, PreEvalFunc
 #include "material_.hpp"    // c_MaterialEOSInput, c_preeval_material_eos
+#include "thermal_layout_.hpp"  // c_LayerThermal and the segment layout of a thermal solve
 
 // RadialSolver sub-modules (shooting solver, storage, love numbers) are compiled into this translation unit so
 // the shooting CyRK integration runs in the extension that owns the CySolverResult objects; no cross-extension
@@ -88,7 +89,24 @@ struct c_WorldEOSSolveConfig {
     double    pressure_tol        = 1.0e-8;              // relative to the central-pressure scale
     size_t    max_iters           = 100;
     bool      nondimensionalize   = true;                // integrate in non-dimensional units
-    double    temperature         = 0.0;                 // [K]; passed to calc_density (unused yet)
+    // Temperature [K] for every layer, overriding the temperature each carries. NaN uses each layer's own.
+    double    temperature         = TidalPyConstants::d_NAN;
+    // Carry temperature and heat flow through the solve. Without a temperature contrast there is no profile
+    // to integrate, so the solve keeps its four structure variables whatever this says.
+    bool      solve_temperature   = true;
+    // Temperature [K] the outermost layer radiates to. NaN leaves no flow through the surface.
+    double    surface_temperature = TidalPyConstants::d_NAN;
+    // Time [s] the heat sources are evaluated at, on the clock the radiogenics models share. NaN takes each
+    // model's own reference time.
+    double    time                = TidalPyConstants::d_NAN;
+    // Cap on the passes that relax the boundary layers and interface flows against the structure, and the
+    // relative change in the interface temperatures and flows that ends them.
+    size_t    max_thermal_passes  = 12;
+    double    thermal_tol         = 1.0e-8;
+    // Relative change in a floating layer's radius that ends the passes, and whether this solve redefines
+    // the mass every floating layer holds (otherwise the first solve of the world's life sets it).
+    double    radius_tol          = 1.0e-8;
+    bool      reset_layer_masses  = false;
     bool      verbose             = false;
 
     c_WorldEOSSolveConfig() {
@@ -101,6 +119,7 @@ struct c_WorldEOSSolveConfig {
         this->pressure_tol       = config.d_EOS_SOLVER_PRESSURE_TOL;
         this->max_iters          = static_cast<size_t>(config.d_EOS_SOLVER_MAX_ITERS);
         this->nondimensionalize  = config.d_EOS_SOLVER_NONDIMENSIONALIZE;
+        this->solve_temperature  = config.d_EOS_SOLVER_SOLVE_TEMPERATURE;
     }
 };
 
@@ -108,7 +127,8 @@ struct c_WorldEOSSolveConfig {
 struct c_LoveSolveConfig {
     double    frequency = 1.0e-5;            // [rad/s]; tidal forcing frequency
     int       degree_l  = 2;                  // harmonic degree
-    int       bc_model  = 1;                  // surface boundary condition: 1 = tidal, 2 = loading, 0 = free
+    // Surface boundary conditions to solve for, in order: 1 = tidal, 2 = loading, 0 = free.
+    std::vector<int> bc_models = {1};
     int       love_method = 0;                  // c_LoveMethod as int: 0 radial_solver, 1 propagation_matrix,
                                                        // 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous
     double    fixed_q            = TidalPyConstants::d_NAN;   // cpl quality factor (NaN: from the tide model)
@@ -116,7 +136,7 @@ struct c_LoveSolveConfig {
     int       core_model         = 0;                  // propagation-matrix core starting condition (0-4)
     bool      use_kamata         = false;
     bool      nondimensionalize  = true;
-    double    starting_radius    = 0.0;                // [m]; 0 → auto
+    double    starting_radius    = 0.0;                // [m]; 0 -> auto
     double    start_radius_tol   = 1.0e-5;
     ODEMethod integration_method = ODEMethod::DOP853;
     double    rtol               = 1.0e-6;
@@ -142,6 +162,12 @@ struct c_LoveSolveConfig {
         this->max_num_steps      = static_cast<size_t>(config.d_RADIAL_SOLVER_MAX_NUM_STEPS);
         this->expected_size      = static_cast<size_t>(config.d_RADIAL_SOLVER_EXPECTED_SIZE);
         this->max_ram_MB         = static_cast<size_t>(config.d_RADIAL_SOLVER_MAX_RAM_MB);
+    }
+
+    // Set the boundary conditions from a plain array, for the Cython wrappers.
+    void set_bc_models(const int* models_ptr, size_t num_models) {
+        if (models_ptr == nullptr || num_models == 0) { return; }
+        this->bc_models.assign(models_ptr, models_ptr + num_models);
     }
 };
 
@@ -222,6 +248,41 @@ public:
                                    : std::numeric_limits<double>::quiet_NaN();
     }
 
+    // Temperature [K] at a radius [m] from the solved profile, and the heat flowing outward through the
+    // sphere of that radius [W]. A solve with no temperature contrast reports each layer's own temperature
+    // and no flow. NaN before the EOS is solved or outside the world.
+    double get_temperature(double radius) const noexcept {
+        return this->p_read_eos_state(radius, C_EOS_TEMPERATURE_INDEX);
+    }
+
+    double get_heat_flow(double radius) const noexcept {
+        return this->p_read_eos_state(radius, C_EOS_HEAT_FLOW_INDEX);
+    }
+
+    // Per-layer thermal results of the last solve: temperatures, heat flows, boundary layers, and the
+    // Rayleigh and Nusselt numbers of a convecting layer.
+    const std::vector<c_LayerThermal>& get_layer_thermal() const noexcept { return this->p_layer_thermal; }
+    size_t get_thermal_passes()    const noexcept { return this->p_thermal_passes; }
+    bool   get_geometry_converged() const noexcept { return this->p_geometry_converged; }
+    bool   get_thermal_converged() const noexcept { return this->p_thermal_converged; }
+
+    // The world's heat sources, as the last thermal solve prepared them.
+    const c_Heating& get_heating() const noexcept { return this->p_heating; }
+
+    // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
+    //   M c_p dT/dt = L_in - L_out + H.
+    // NaN for a layer with no heat capacity (one that is not a solid-liquid layer).
+    double calc_layer_temperature_rate(std::size_t layer_index) const noexcept {
+        if (layer_index >= this->p_layer_thermal.size()) { return TidalPyConstants::d_NAN; }
+        const c_LayerThermal& thermal = this->p_layer_thermal[layer_index];
+        const double mass = this->p_layers[layer_index]->get_mass();
+        const double heat_capacity = thermal.heat_capacity;
+        if (!(mass > TidalPyConstants::d_EPS) || !(heat_capacity > TidalPyConstants::d_EPS)) {
+            return TidalPyConstants::d_NAN;
+        }
+        return (thermal.heat_flow_in - thermal.heat_flow_out + thermal.heating) / (mass * heat_capacity);
+    }
+
     // Viscoelastic profile queries (post-melt, with pre-melt variants). Each delegates to the layer containing
     // radius. NaN when no layer contains r, the layer is geometry-only, or the EOS has not been solved.
     double get_shear_modulus(double radius) const noexcept {
@@ -240,21 +301,9 @@ public:
         const c_BaseLayer* layer = this->find_layer_for_radius(radius);
         return (layer != nullptr) ? layer->get_bulk_viscosity(radius) : TidalPyConstants::d_NAN;
     }
-    double get_premelt_shear_modulus(double radius) const noexcept {
+    double get_melt_fraction(double radius) const noexcept {
         const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_premelt_shear_modulus(radius) : TidalPyConstants::d_NAN;
-    }
-    double get_premelt_bulk_modulus(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_premelt_bulk_modulus(radius) : TidalPyConstants::d_NAN;
-    }
-    double get_premelt_shear_viscosity(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_premelt_shear_viscosity(radius) : TidalPyConstants::d_NAN;
-    }
-    double get_premelt_bulk_viscosity(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_premelt_bulk_viscosity(radius) : TidalPyConstants::d_NAN;
+        return (layer != nullptr) ? layer->get_melt_fraction(radius) : TidalPyConstants::d_NAN;
     }
 
     // Radius-resolved complex moduli [Pa] at a frequency, the only per-frequency step: find the layer and apply
@@ -326,17 +375,26 @@ public:
         std::vector<double> upper_radii(n_layers);
         double total_volume  = 0.0;
         double mass_estimate = 0.0;
+        // What a floating layer holds on to: its mass, from its configuration or from the first solve.
+        if (cfg.reset_layer_masses) { this->p_reference_mass.clear(); }
+        this->p_reference_mass.resize(n_layers, TidalPyConstants::d_NAN);
         for (std::size_t i = 0; i < n_layers; ++i) {
             c_BaseLayer* layer   = this->p_layers[i].get();
             const double r_inner = layer->get_radius_inner();
             const double r_outer = layer->get_radius_outer();
             upper_radii[i]       = r_outer;
+            if (!layer->get_is_volume_fixed() && !cfg.reset_layer_masses
+                && !std::isfinite(this->p_reference_mass[i])
+                && (layer->get_mass() > TidalPyConstants::d_EPS)) {
+                this->p_reference_mass[i] = layer->get_mass();
+            }
             for (std::size_t s = 0; s < slices; ++s) {
                 const double frac = static_cast<double>(s) / static_cast<double>(slices - 1);
                 full_radius[i * slices + s] = r_inner + frac * (r_outer - r_inner);
             }
             const double r_mid     = 0.5 * (r_inner + r_outer);
-            const double rho_mid   = layer->get_eos()->calc_density(cfg.surface_pressure, cfg.temperature, r_mid);
+            const double rho_mid   = layer->get_eos()->calc_density(
+                cfg.surface_pressure, TidalPyConstants::d_NAN, r_mid);
             const double shell_vol = (4.0 / 3.0) * TidalPyConstants::d_PI
                                    * (r_outer * r_outer * r_outer - r_inner * r_inner * r_inner);
             total_volume  += shell_vol;
@@ -369,10 +427,7 @@ public:
         const double surface_pressure_solve = cfg.surface_pressure / pascal_scale;
         const double bulk_density_solve     = planet_bulk_density / density_scale;
 
-        // Build the EOS solution object and the per-layer pre-eval functions/inputs.
-        auto solution = std::make_shared<c_EOSSolution>(
-            upper_radii.data(), n_layers, full_radius.data(), total_slices);
-
+        // Per-layer pre-eval functions and inputs. The solution object is rebuilt once per thermal pass.
         std::vector<PreEvalFunc>    eos_function_vec;
         std::vector<c_EOS_ODEInput> eos_input_vec;
         eos_function_vec.reserve(n_layers);
@@ -387,12 +442,10 @@ public:
         c_EOS_ODEInput ode_input;
         ode_input.G_to_use      = G_solve;
         ode_input.planet_radius = upper_radii.back();
-        ode_input.final_solve   = false;
         ode_input.update_bulk   = false;
         ode_input.update_shear  = false;
         for (std::size_t i = 0; i < n_layers; ++i) {
             this->p_eos_material_inputs[i].eos_model_ptr = this->p_layers[i]->get_eos();
-            this->p_eos_material_inputs[i].temperature   = cfg.temperature;
             this->p_eos_material_inputs[i].length_scale  = length_scale;
             this->p_eos_material_inputs[i].pascal_scale  = pascal_scale;
             this->p_eos_material_inputs[i].density_scale = density_scale;
@@ -401,27 +454,127 @@ public:
             eos_input_vec.push_back(ode_input);
         }
 
-        // Solve (CyRK ODE integration with the surface-pressure loop) in the solve units.
-        c_solve_eos(
-            solution.get(),
-            eos_function_vec,
-            eos_input_vec,
-            bulk_density_solve,
-            surface_pressure_solve,
-            G_solve,
-            cfg.integration_method,
-            cfg.rtol,
-            cfg.atol,
-            cfg.pressure_tol,
-            cfg.max_iters,
-            cfg.verbose
-        );
-
-        // Return the solution to SI: the arrays, layer radii, and pressure error are scaled in place, and every
-        // later evaluation of the retained integrators (call_si) converts on the way in and out.
-        if (cfg.nondimensionalize) {
-            solution->dimensionalize_data(scales_uptr.get(), true);
+        // Thermal layout. Each layer carries its own temperature and its cooling model says how heat moves
+        // inside it; a uniform override replaces every layer's value.
+        c_init_layer_thermal(this->p_layers, this->p_layer_thermal);
+        if (std::isfinite(cfg.temperature)) {
+            for (c_LayerThermal& thermal : this->p_layer_thermal) { thermal.temperature = cfg.temperature; }
         }
+        // Heat sources, prepared once: none of them depends on the solved state. They need the heat flow of a
+        // thermal solve to act through, so a solve with temperature switched off leaves them out.
+        c_WorldState world_state;
+        world_state.time       = cfg.time;
+        world_state.layers_ptr = &this->p_layers;
+        this->p_heating.update_sources(world_state, length_scale, density_scale);
+        const bool heating_active = this->p_heating.get_is_active();
+        if (heating_active && !cfg.solve_temperature) {
+            TIDALPY_LOG_WARN(
+                "TidalPy: world '{}' has layers with use_heating set, but solve_temperature is off, so this EOS "
+                "solve carries no heat flow and the heating is ignored.", this->get_name());
+        }
+        // A temperature contrast or a heated layer gives the solve a profile to integrate.
+        const bool thermal_contrast = cfg.solve_temperature
+            && (c_thermal_contrast_present(this->p_layer_thermal, cfg.surface_temperature) || heating_active);
+        for (std::size_t i = 0; i < n_layers; ++i) {
+            eos_input_vec[i].heating_ptr = thermal_contrast ? &this->p_heating : nullptr;
+            eos_input_vec[i].layer_index = i;
+        }
+        const double gravity_scale = length_scale / second2_scale;
+
+        // Pass 0 is isothermal at each layer's own temperature, which is the whole solve for a world with no
+        // temperature contrast. Each later pass integrates the profile, then relaxes the boundary layers,
+        // interface temperatures, and heat flows against the structure it produced.
+        // A layer holding its mass lets its radii float, which moves every layer above it, so the same
+        // passes relax the geometry.
+        bool geometry_floats = false;
+        for (const auto& layer_uptr : this->p_layers) {
+            if (!layer_uptr->get_is_volume_fixed()) { geometry_floats = true; }
+        }
+        std::vector<c_EOSSegment> segment_vec;
+        std::shared_ptr<c_EOSSolution> solution;
+        // The central pressure the secant iteration starts from, in solve units: the world's last converged solve,
+        // then the pass before. A re-solve after a small change then converges in a pass or two. NaN, on a world
+        // that has never been solved, starts from a uniform sphere.
+        double central_pressure_guess = this->p_eos_solved
+            ? (this->p_central_pressure / pascal_scale) : TidalPyConstants::d_NAN;
+        const std::size_t last_pass =
+            (thermal_contrast || geometry_floats) ? cfg.max_thermal_passes : 0;
+        this->p_thermal_passes    = 0;
+        this->p_thermal_converged = !thermal_contrast;
+        bool geometry_converged   = !geometry_floats;
+        for (std::size_t pass = 0; pass <= last_pass; ++pass) {
+            const bool integrate_temperature = thermal_contrast && (pass > 0);
+            if (pass > 0) {
+                // The layers may have moved, so the grid and the segment bounds follow them.
+                for (std::size_t i = 0; i < n_layers; ++i) {
+                    const c_BaseLayer* layer = this->p_layers[i].get();
+                    const double r_inner = layer->get_radius_inner() / length_scale;
+                    const double r_outer = layer->get_radius_outer() / length_scale;
+                    upper_radii[i] = r_outer;
+                    for (std::size_t s = 0; s < slices; ++s) {
+                        const double frac = static_cast<double>(s) / static_cast<double>(slices - 1);
+                        full_radius[i * slices + s] = r_inner + frac * (r_outer - r_inner);
+                    }
+                }
+                // The structure derivatives vanish above the planet radius, so a world that grew has to say so.
+                for (std::size_t i = 0; i < n_layers; ++i) {
+                    eos_input_vec[i].planet_radius = upper_radii.back();
+                }
+            }
+            c_build_thermal_segments(
+                this->p_layer_thermal, this->p_layers, integrate_temperature,
+                length_scale, gravity_scale, segment_vec);
+            for (std::size_t i = 0; i < n_layers; ++i) {
+                // The viscosity and melt models of the material always see the temperature; its density law
+                // sees it only when the layer asked for a thermal EOS.
+                const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[i].get());
+                const bool thermal_eos = (physics_layer != nullptr) && physics_layer->get_use_thermal_eos();
+                this->p_eos_material_inputs[i].temperature           = this->p_layer_thermal[i].temperature;
+                this->p_eos_material_inputs[i].use_state_temperature = integrate_temperature;
+                this->p_eos_material_inputs[i].thermal_density       = thermal_eos;
+            }
+
+            solution = std::make_shared<c_EOSSolution>(
+                upper_radii.data(), n_layers, full_radius.data(), total_slices);
+            c_solve_eos(
+                solution.get(),
+                eos_function_vec,
+                eos_input_vec,
+                bulk_density_solve,
+                surface_pressure_solve,
+                G_solve,
+                cfg.integration_method,
+                cfg.rtol,
+                cfg.atol,
+                cfg.pressure_tol,
+                cfg.max_iters,
+                cfg.verbose,
+                &segment_vec,
+                integrate_temperature,
+                central_pressure_guess
+            );
+
+            // Return the solution to SI: the arrays, layer radii, and pressure error are scaled in place, and
+            // every later evaluation of the retained integrators (call_si) converts on the way in and out.
+            if (cfg.nondimensionalize) {
+                solution->dimensionalize_data(scales_uptr.get(), true);
+            }
+            if (!solution->success) { break; }
+            this->p_thermal_passes = pass;
+            central_pressure_guess = solution->central_pressure / pascal_scale;
+
+            if (thermal_contrast) {
+                const double thermal_change = c_update_layer_thermal(
+                    *solution, this->p_layers, cfg.surface_temperature, integrate_temperature,
+                    this->p_layer_thermal, &this->p_heating);
+                this->p_thermal_converged = integrate_temperature && (thermal_change < cfg.thermal_tol);
+            }
+            if (geometry_floats) {
+                geometry_converged = (this->update_floating_radii(*solution) < cfg.radius_tol);
+            }
+            if (this->p_thermal_converged && geometry_converged) { break; }
+        }
+        this->p_geometry_converged = geometry_converged;
 
         // Store scalar results.
         this->p_eos_success          = solution->success;
@@ -465,8 +618,8 @@ public:
                 // this->p_eos_material_inputs, which also outlives the solve. The lambda is compiled in this
                 // (CyRK-owning) extension, so the CySolverResult is only ever called by the CyRK copy that built
                 // it. The slice arrays populated above are the fallback for a manual update_eos_data.
-                if (layer_index < solution->cysolver_results_uptr_bylayer_vec.size()
-                    && solution->cysolver_results_uptr_bylayer_vec[layer_index]) {
+                if (layer_index < solution->num_layers
+                    && !solution->cysolver_results_uptr_vec.empty()) {
                     std::shared_ptr<c_EOSSolution> solution_owner = solution;
                     eos_data.set_dense_eval(
                         [solution_owner, layer_index](double radius, double* y_out) {
@@ -474,14 +627,6 @@ public:
                         });
                 }
                 layer->update_eos_data(eos_data);
-
-                // Frequency-independent viscoelastic post-pass (PhysicsLayers only).
-                this->populate_layer_viscoelastic(
-                    layer,
-                    *solution,
-                    slice_start,
-                    slices,
-                    cfg.temperature);
             }
         }
 
@@ -586,7 +731,8 @@ public:
             upper_radii[i] = this->p_layers[i]->get_radius_outer();
         }
 
-        if (solver->cache_matches(n_layers, total_slices, cfg.degree_l, cfg.nondimensionalize)
+        const std::size_t num_ytypes = cfg.bc_models.empty() ? 1 : cfg.bc_models.size();
+        if (solver->cache_matches(n_layers, total_slices, cfg.degree_l, cfg.nondimensionalize, num_ytypes)
             && solver->layer_flags_match(layer_types.get(), is_static_arr.get(), is_incomp_arr.get(), n_layers))
             return true;
 
@@ -594,45 +740,6 @@ public:
         const double r_planet = world_eos->radius;
         const double vol      = (4.0 / 3.0) * TidalPyConstants::d_PI * r_planet * r_planet * r_planet;
         const double bulk_rho = (vol > TidalPyConstants::d_EPS) ? this->p_planet_mass_eos / vol : 3500.0;
-
-        // Radial density slope at every slice [kg m-4], from each layer's EOS model along the solved structure
-        // (central differences inside a layer, second-order one-sided at its ends). The radial solver interpolates
-        // the density between slices with these slopes (cubic Hermite), so a compressible layer's density has no
-        // kinks at the slices and the Love solve converges as the tolerance tightens instead of stalling.
-        std::vector<double> density_slope_si(total_slices, 0.0);
-        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-            c_BaseLayer* layer = this->p_layers[layer_i].get();
-            const c_MaterialEOSBase* eos_model = layer->get_eos();
-            if (eos_model == nullptr || layer_i >= world_eos->num_slices_bylayer_vec.size()) { continue; }
-            const double temperature = (layer_i < this->p_eos_material_inputs.size())
-                ? this->p_eos_material_inputs[layer_i].temperature : 0.0;
-            const double r_inner = layer->get_radius_inner();
-            const double r_outer = layer->get_radius_outer();
-            const double delta   = 1.0e-4 * (r_outer - r_inner);
-            if (!(delta > 0.0)) { continue; }
-            auto density_at = [&](double radius) {
-                double structure[C_EOS_Y_VALUES];
-                world_eos->call_y_si(layer_i, radius, structure);
-                return eos_model->calc_density(structure[1], temperature, radius);
-            };
-            const std::size_t first = world_eos->first_slice_bylayer_vec[layer_i];
-            const std::size_t last  = first + world_eos->num_slices_bylayer_vec[layer_i];
-            for (std::size_t slice_i = first; slice_i < last && slice_i < total_slices; ++slice_i) {
-                const double radius = world_eos->radius_array_vec[slice_i];
-                if (radius - delta >= r_inner && radius + delta <= r_outer) {
-                    density_slope_si[slice_i] =
-                        (density_at(radius + delta) - density_at(radius - delta)) / (2.0 * delta);
-                } else if (radius + 2.0 * delta <= r_outer) {
-                    density_slope_si[slice_i] =
-                        (-3.0 * density_at(radius) + 4.0 * density_at(radius + delta)
-                         - density_at(radius + 2.0 * delta)) / (2.0 * delta);
-                } else {
-                    density_slope_si[slice_i] =
-                        (3.0 * density_at(radius) - 4.0 * density_at(radius - delta)
-                         + density_at(radius - 2.0 * delta)) / (2.0 * delta);
-                }
-            }
-        }
 
         return solver->build_cache(
             world_eos->radius_array_vec,
@@ -650,22 +757,21 @@ public:
             bulk_rho,
             cfg.degree_l,
             cfg.nondimensionalize,
-            // Read the solved structure variables (gravity, ...) from the world's dense EOS, not array interpolation.
-            world_eos,
-            &density_slope_si
+            this->p_eos_solution.get(),
+            num_ytypes
         );
     }
 
     // Build the per-call runtime config from the user-facing solve config.
     c_LoveSolveRuntimeConfig make_runtime_config(const c_LoveSolveConfig& cfg) const {
         c_LoveSolveRuntimeConfig rt;
-        rt.frequency       = cfg.frequency;
-        rt.bc_model        = cfg.bc_model;
-        rt.use_prop_matrix = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
-        rt.core_model      = cfg.core_model;
-        rt.use_kamata      = cfg.use_kamata;
-        rt.starting_radius = cfg.starting_radius;
-        rt.start_radius_tol = cfg.start_radius_tol;
+        rt.frequency          = cfg.frequency;
+        rt.bc_models          = cfg.bc_models;
+        rt.use_prop_matrix    = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
+        rt.core_model         = cfg.core_model;
+        rt.use_kamata         = cfg.use_kamata;
+        rt.starting_radius    = cfg.starting_radius;
+        rt.start_radius_tol   = cfg.start_radius_tol;
         rt.integration_method = cfg.integration_method;
         rt.rtol               = cfg.rtol;
         rt.atol               = cfg.atol;
@@ -727,26 +833,16 @@ public:
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        // Frequency-dependent step: fill the complex moduli from the layer rheology, then solve. The fill walks each
-        // layer's own slice range instead of looking the layer up by radius. An interface radius appears twice in the
-        // grid (top of the lower layer, base of the upper), and a radius lookup gives both copies the lower layer's
-        // modulus, so the upper layer's first slice interval would ramp from the wrong modulus to its own.
-        const std::vector<double>& radius_si = solver->radius_si();
-        std::complex<double>* shear_out = solver->shear_scratch_data();
-        std::complex<double>* bulk_out  = solver->bulk_scratch_data();
-        const std::complex<double> nan_modulus(TidalPyConstants::d_NAN, 0.0);
-        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
-            const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
-            const std::size_t first_slice = solver->first_slice_index_by_layer()[layer_i];
-            const std::size_t end_slice   = first_slice + solver->num_slices_by_layer()[layer_i];
-            for (std::size_t i = first_slice; i < end_slice; ++i) {
-                const double r = radius_si[i];
-                shear_out[i] = (physics_layer != nullptr)
-                    ? physics_layer->calc_complex_shear_modulus(r, cfg.frequency) : nan_modulus;
-                bulk_out[i]  = (physics_layer != nullptr)
-                    ? physics_layer->calc_complex_bulk_modulus(r, cfg.frequency) : nan_modulus;
-            }
-        }
+        // Frequency-dependent step: hand the solver a provider that evaluates each layer's material state at the
+        // radius the integrator asks for, then solve. Nothing is sampled onto the slice grid, so the Love numbers
+        // no longer carry the first-order slice error, and the layer the provider is asked about is the one the
+        // solver is integrating: an interface radius belongs to two layers, and a lookup by radius alone would give
+        // both copies the lower layer's material. The provider captures this solve's frequency.
+        //
+        // The provider stays on the storage after the solve, so the solution keeps answering at any radius: the
+        // y3 of a dynamic liquid layer is rebuilt from the density and gravity it reads, and an exported solution
+        // reports the complex moduli this solve used.
+        solver->set_material_eval(this->make_material_eval(cfg.frequency));
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         solver->solve(rt);
@@ -754,9 +850,6 @@ public:
     }
 
     // Solve using externally-supplied complex moduli (the standalone array API path) instead of the layer rheology.
-    // shear_in / bulk_in are defined at the radii radius_in (length n_in) and are linearly interpolated onto the
-    // world EOS radius grid. Runs in export mode: the storage EOS arrays are redimensionalized and its scalar
-    // results are copied from the world own EOS so the released solution reports SI values.
     void solve_love_numbers_supplied(
             const c_LoveSolveConfig& cfg,
             const std::complex<double>* shear_in,
@@ -773,17 +866,15 @@ public:
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        const std::vector<double>& radius_si = solver->radius_si();
-        std::complex<double>* shear_out = solver->shear_scratch_data();
-        std::complex<double>* bulk_out  = solver->bulk_scratch_data();
-        // Interpolate the supplied complex moduli (defined at radius_in) onto the world's EOS grid one layer at a
-        // time, using only the supplied points that bound the layer: the last point at its base through the first
-        // point at its top. A repeated interface radius then gives the upper copy to the layer above and the lower
-        // copy to the layer below; interpolating across all layers at once would give a lower layer's top slice the
-        // upper layer's value. The bounds match within the relative tolerance build_cache uses for interfaces, so
-        // copies that differ by rounding still count as the interface. Both grids ascend, so seeding each search
-        // from the aligned fractional position keeps the lookup near O(1).
+        // Find, once per layer, the run of supplied points that bounds it. The last point at its base through the
+        // first point at its top. The provider below then interpolates inside that run, so a repeated interface
+        // radius gives the upper copy to the layer above and the lower copy to the layer below; interpolating
+        // across all layers at once would give a lower layer's top the upper layer's value. The bounds match
+        // within the relative tolerance the cache uses for interfaces, so copies that differ by rounding still
+        // count as the interface.
         const double* radius_in_end = radius_in + n_in;
+        std::vector<std::size_t> in_first_by_layer(this->p_layers.size(), 0);
+        std::vector<std::size_t> in_count_by_layer(this->p_layers.size(), 0);
         for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
             const double r_inner   = this->p_layers[layer_i]->get_radius_inner();
             const double r_outer   = this->p_layers[layer_i]->get_radius_outer();
@@ -794,17 +885,46 @@ public:
                 std::lower_bound(radius_in, radius_in_end, r_outer - tolerance) - radius_in);
             const std::size_t in_first = (past_base > 0) ? past_base - 1 : 0;
             const std::size_t in_last  = (at_top < n_in) ? at_top : n_in - 1;
-            const std::size_t in_count = in_last - in_first + 1;
-            const std::size_t first_slice = solver->first_slice_index_by_layer()[layer_i];
-            const std::size_t num_slices  = solver->num_slices_by_layer()[layer_i];
-            for (std::size_t slice_i = 0; slice_i < num_slices; ++slice_i) {
-                const std::size_t i    = first_slice + slice_i;
-                const double r         = radius_si[i];
-                const std::size_t seed = (slice_i * in_count) / num_slices;
-                shear_out[i] = c_interp_complex(r, radius_in + in_first, shear_in + in_first, in_count, seed);
-                bulk_out[i]  = c_interp_complex(r, radius_in + in_first, bulk_in + in_first, in_count, seed);
-            }
+            in_first_by_layer[layer_i] = in_first;
+            in_count_by_layer[layer_i] = in_last - in_first + 1;
         }
+        // The provider owns copies of the supplied profile rather than borrowing the caller's arrays, because it
+        // is also what an exported solution reads: it has to outlive this call. The layer runs are captured the
+        // same way for the same reason.
+        std::vector<double>               radius_copy(radius_in, radius_in + n_in);
+        std::vector<std::complex<double>> shear_copy(shear_in, shear_in + n_in);
+        std::vector<std::complex<double>> bulk_copy(bulk_in, bulk_in + n_in);
+        std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
+        solver->set_material_eval(
+            [eos_solution, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer](
+                    std::size_t layer_index,
+                    double radius_si,
+                    double* state_out,
+                    std::complex<double>& shear_out,
+                    std::complex<double>& bulk_out) {
+                // One dense read gives the structure and the density; the supplied profile gives the moduli.
+                eos_solution->call_si(layer_index, radius_si, state_out);
+                const std::size_t in_first = in_first_by_layer[layer_index];
+                const std::size_t in_count = in_count_by_layer[layer_index];
+                // The supplied grid is usually uniform within a layer, so the fractional position seeds the search.
+                const double* layer_radius_ptr = radius_copy.data() + in_first;
+                const double layer_span        =
+                    (in_count > 1) ? layer_radius_ptr[in_count - 1] - layer_radius_ptr[0] : 0.0;
+                const std::size_t guess = (layer_span > 0.0 && radius_si > layer_radius_ptr[0])
+                    ? static_cast<std::size_t>(
+                        static_cast<double>(in_count - 1) * (radius_si - layer_radius_ptr[0]) / layer_span)
+                    : 0;
+                shear_out = c_interp_complex(
+                    radius_si, layer_radius_ptr, shear_copy.data() + in_first, in_count, guess);
+                bulk_out = c_interp_complex(
+                    radius_si, layer_radius_ptr, bulk_copy.data() + in_first, in_count, guess);
+                // Supplied moduli carry no separate unrelaxed value, so the real part stands in for it, and the
+                // profile said nothing about viscosity: it gave the response directly.
+                state_out[C_EOS_SHEAR_MODULUS_INDEX]   = shear_out.real();
+                state_out[C_EOS_BULK_MODULUS_INDEX]    = bulk_out.real();
+                state_out[C_EOS_SHEAR_VISCOSITY_INDEX] = TidalPyConstants::d_NAN;
+                state_out[C_EOS_BULK_VISCOSITY_INDEX]  = TidalPyConstants::d_NAN;
+            });
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         rt.redim_eos_arrays = true;
@@ -824,9 +944,53 @@ public:
         this->p_love_solved = solver->get_solved();
     }
 
+    // The per-layer material-state provider the radial solver reads at each integration radius: one dense EOS call
+    // for the frequency-independent state, then the layer's rheology, which is the only part that knows the
+    // frequency. Fills the evaluation layout of eos_layout_.hpp (SI) and the two complex moduli [Pa].
+    //
+    // The callable co-owns the solved EOS and the rheologies, and the layers are resolved here, once, rather than at
+    // every radius. The solved EOS still reaches each layer's material model through this world, so the world has
+    // to outlive the callable; a solution exported to Python holds its world for that reason.
+    c_EOSSolution::MaterialEval make_material_eval(double frequency) const {
+        const std::size_t n_layers = this->p_layers.size();
+        std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
+        std::vector<std::shared_ptr<const c_RheologyBase>> bulk_bylayer(n_layers);
+        std::vector<char> is_physics_bylayer(n_layers, 0);
+        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
+            if (physics_layer == nullptr) { continue; }
+            is_physics_bylayer[layer_i] = 1;
+            shear_bylayer[layer_i]      = physics_layer->share_shear_rheology();
+            bulk_bylayer[layer_i]       = physics_layer->share_bulk_rheology();
+        }
+        std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
+        return [eos_solution, shear_bylayer, bulk_bylayer, is_physics_bylayer, frequency](
+                std::size_t layer_index,
+                double radius_si,
+                double* state_out,
+                std::complex<double>& shear_out,
+                std::complex<double>& bulk_out) {
+            eos_solution->call_si(layer_index, radius_si, state_out);
+            // A layer with no material models has no modulus to report.
+            if (layer_index >= is_physics_bylayer.size() || !is_physics_bylayer[layer_index]) { return; }
+            const double static_shear = state_out[C_EOS_SHEAR_MODULUS_INDEX];
+            const double static_bulk  = state_out[C_EOS_BULK_MODULUS_INDEX];
+            // Purely real (no dissipation) where no rheology is attached.
+            shear_out = shear_bylayer[layer_index]
+                ? shear_bylayer[layer_index]->calc_complex_modulus(
+                    static_shear, state_out[C_EOS_SHEAR_VISCOSITY_INDEX], frequency)
+                : std::complex<double>(static_shear, 0.0);
+            bulk_out = bulk_bylayer[layer_index]
+                ? bulk_bylayer[layer_index]->calc_complex_modulus(
+                    static_bulk, state_out[C_EOS_BULK_VISCOSITY_INDEX], frequency)
+                : std::complex<double>(static_bulk, 0.0);
+        };
+    }
+
     // Move the radial-solution storage out of the helper (one-shot export to a RadialSolverSolution).
     std::unique_ptr<::c_RadialSolutionStorage> release_radial_storage() {
-        return this->p_radial_solver ? this->p_radial_solver->release_storage() : nullptr;
+        if (!this->p_radial_solver) { return nullptr; }
+        return this->p_radial_solver->release_storage();
     }
 
     // Love-number solve result accessors, valid after solve_love_numbers succeeds and NaN or empty otherwise.
@@ -1343,108 +1507,83 @@ protected:
     // models, NaN if unset), then the post-melt versions (the partial-melt model applied to the shear pair and
     // then the bulk pair; post equals pre without a melt model). No-op for a geometry-only BaseLayer.
     // temperature is the placeholder profile temperature.
-    void populate_layer_viscoelastic(
-            c_BaseLayer* layer,
-            const c_EOSSolution& solution,
-            std::size_t slice_start,
-            std::size_t slice_count,
-            double temperature) const {
-        auto* physics_layer = dynamic_cast<c_PhysicsLayer*>(layer);
-        if (physics_layer == nullptr) { return; }
+    // Step every floating layer toward the mass it holds, and carry the layers above it. Returns the largest
+    // relative radius change, which is what the solve watches to stop.
+    //
+    // A layer that holds its mass moves its top by the mass it is short of over the slope of the enclosed
+    // mass there, dm/dr = 4 pi r^2 rho. Its base has already moved with the layer below, which changes the
+    // mass between its faces by that base shell, so both ends enter the step. A layer that holds its volume
+    // keeps it, so its outer radius follows from its new base.
+    double update_floating_radii(const c_EOSSolution& solution) {
+        const std::size_t n_layers = this->p_layers.size();
+        double largest_change   = 0.0;
+        double radius_inner_new = 0.0;
+        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            c_BaseLayer* layer = this->p_layers[layer_i].get();
+            const double radius_inner = layer->get_radius_inner();
+            const double radius_outer = layer->get_radius_outer();
+            double radius_outer_new   = radius_outer;
 
-        const double const_shear = physics_layer->get_shear_modulus_static();
-        const double const_bulk  = physics_layer->get_bulk_modulus_static();
-        c_ViscosityBase*   shear_viscosity_model = physics_layer->get_shear_viscosity_model();
-        c_ViscosityBase*   bulk_viscosity_model  = physics_layer->get_bulk_viscosity_model();
-        c_PartialMeltBase* partial_melt_model    = physics_layer->get_partial_melt_model();
-
-        // The static moduli and viscosities ride along as extra outputs of the EOS ODE, filled by each layer's
-        // EOS model during the CyRK solve and stored on the solution. A layer whose EOS supplies them (the
-        // interpolated or PREM model) uses those radius-varying values; a NaN means not provided, so the
-        // layer's constant modulus, or its viscosity model, is used instead.
-        const bool have_eos_extras =
-            solution.other_vecs_set
-            && solution.complex_shear_array_vec.size() == solution.radius_array_size
-            && solution.shear_viscosity_array_vec.size() == solution.radius_array_size;
-
-        std::vector<double> premelt_shear(slice_count);
-        std::vector<double> premelt_bulk(slice_count);
-        std::vector<double> premelt_shear_visc(slice_count);
-        std::vector<double> premelt_bulk_visc(slice_count);
-        std::vector<double> postmelt_shear(slice_count);
-        std::vector<double> postmelt_bulk(slice_count);
-        std::vector<double> postmelt_shear_visc(slice_count);
-        std::vector<double> postmelt_bulk_visc(slice_count);
-
-        for (std::size_t slice_offset = 0; slice_offset < slice_count; ++slice_offset) {
-            const std::size_t global_slice = slice_start + slice_offset;
-            const double pressure = solution.pressure_array_vec[global_slice];
-
-            // Static moduli: prefer the EOS extra output, else the layer constant.
-            double static_shear = const_shear;
-            double static_bulk  = const_bulk;
-            if (have_eos_extras) {
-                const double eos_shear = solution.complex_shear_array_vec[global_slice].real();
-                if (std::isfinite(eos_shear)) { static_shear = eos_shear; }
-                const double eos_bulk = solution.complex_bulk_array_vec[global_slice].real();
-                if (std::isfinite(eos_bulk)) { static_bulk = eos_bulk; }
-            }
-            premelt_shear[slice_offset] = static_shear;
-            premelt_bulk[slice_offset]  = static_bulk;
-
-            // Pre-melt viscosities: the viscosity-model value, overridden by an EOS extra output when present.
-            double slice_shear_visc = (shear_viscosity_model != nullptr)
-                ? shear_viscosity_model->calc_viscosity(temperature, pressure)
-                : TidalPyConstants::d_NAN;
-            double slice_bulk_visc = (bulk_viscosity_model != nullptr)
-                ? bulk_viscosity_model->calc_viscosity(temperature, pressure)
-                : TidalPyConstants::d_NAN;
-            if (have_eos_extras) {
-                const double eos_shear_visc = solution.shear_viscosity_array_vec[global_slice];
-                if (std::isfinite(eos_shear_visc)) { slice_shear_visc = eos_shear_visc; }
-                const double eos_bulk_visc = solution.bulk_viscosity_array_vec[global_slice];
-                if (std::isfinite(eos_bulk_visc)) { slice_bulk_visc = eos_bulk_visc; }
-            }
-            premelt_shear_visc[slice_offset] = slice_shear_visc;
-            premelt_bulk_visc[slice_offset]  = slice_bulk_visc;
-
-            if (partial_melt_model != nullptr) {
-                // Apply the melt model to the shear pair, then the bulk pair. The liquid viscosity is a
-                // placeholder (the pre-melt viscosity) until a dedicated liquid-viscosity model exists.
-                c_PartialMeltInputs shear_inputs;
-                shear_inputs.temperature     = temperature;
-                shear_inputs.premelt_viscosity = slice_shear_visc;
-                shear_inputs.premelt_shear    = static_shear;
-                shear_inputs.liquid_viscosity = slice_shear_visc;
-                const c_PartialMeltResult shear_result = partial_melt_model->calc_partial_melt(shear_inputs);
-                postmelt_shear[slice_offset]       = shear_result.postmelt_shear_modulus;
-                postmelt_shear_visc[slice_offset] = shear_result.postmelt_viscosity;
-
-                c_PartialMeltInputs bulk_inputs;
-                bulk_inputs.temperature     = temperature;
-                bulk_inputs.premelt_viscosity = slice_bulk_visc;
-                bulk_inputs.premelt_shear    = static_bulk;
-                bulk_inputs.liquid_viscosity = slice_bulk_visc;
-                const c_PartialMeltResult bulk_result = partial_melt_model->calc_partial_melt(bulk_inputs);
-                postmelt_bulk[slice_offset]       = bulk_result.postmelt_shear_modulus;
-                postmelt_bulk_visc[slice_offset] = bulk_result.postmelt_viscosity;
+            if (layer->get_is_volume_fixed()) {
+                const double volume_term = radius_outer * radius_outer * radius_outer
+                    - radius_inner * radius_inner * radius_inner;
+                radius_outer_new = std::cbrt(
+                    radius_inner_new * radius_inner_new * radius_inner_new + volume_term);
             } else {
-                postmelt_shear[slice_offset] = static_shear;
-                postmelt_bulk[slice_offset]  = static_bulk;
-                postmelt_shear_visc[slice_offset] = slice_shear_visc;
-                postmelt_bulk_visc[slice_offset]  = slice_bulk_visc;
+                // Step in enclosed volume, not radius: the mass the layer is short of occupies
+                // mass_missing / rho of it, and the shell keeps the rest. At constant density that lands the
+                // radius in one pass however far away it starts, where a step in radius would crawl in
+                // proportion to the cube root.
+                double state[C_EOS_DY_VALUES];
+                solution.call_si(layer_i, radius_outer, state);
+                const double mass_outer    = state[2];
+                const double density_outer = state[4];
+                solution.call_si(layer_i, radius_inner, state);
+                const double mass_inner = state[2];
+                // A layer whose reference mass is still unset adopts what it holds inside the boundaries it was
+                // given, so it stays where it is until something else moves.
+                if (!std::isfinite(this->p_reference_mass[layer_i])) {
+                    this->p_reference_mass[layer_i] = mass_outer - mass_inner;
+                }
+                const double target_mass = this->p_reference_mass[layer_i];
+                const double volume_term = radius_outer * radius_outer * radius_outer
+                    - radius_inner * radius_inner * radius_inner;
+                double radius_cubed = radius_inner_new * radius_inner_new * radius_inner_new + volume_term;
+                if (std::isfinite(target_mass) && (density_outer > TidalPyConstants::d_EPS)) {
+                    const double mass_missing = target_mass - (mass_outer - mass_inner);
+                    radius_cubed += 3.0 * mass_missing / (4.0 * TidalPyConstants::d_PI * density_outer);
+                }
+                if (!(radius_cubed > 0.0)) {
+                    throw std::runtime_error(
+                        "TidalPy: a layer holding its mass shrank past its own base during the EOS solve. "
+                        "Check the mass it holds against the density its material EOS model gives.");
+                }
+                radius_outer_new = std::cbrt(radius_cubed);
+            }
+
+            const double scale  = (radius_outer > TidalPyConstants::d_EPS) ? radius_outer : 1.0;
+            const double change = std::fabs(radius_outer_new - radius_outer) / scale;
+            if (change > largest_change) { largest_change = change; }
+            layer->set_radii(radius_inner_new, radius_outer_new);
+            radius_inner_new = radius_outer_new;
+        }
+        // The outermost layer's top is the world radius.
+        this->p_radius = radius_inner_new;
+        return largest_change;
+    }
+
+    // One value of the evaluation layout at a radius [m], through the layer that holds it.
+    double p_read_eos_state(double radius, std::size_t value_index) const noexcept {
+        if (!this->p_eos_solved || !this->p_eos_solution) { return TidalPyConstants::d_NAN; }
+        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
+            const c_BaseLayer* layer = this->p_layers[layer_i].get();
+            if (radius >= layer->get_radius_inner() && radius <= layer->get_radius_outer()) {
+                double state[C_EOS_DY_VALUES];
+                this->p_eos_solution->call_si(layer_i, radius, state);
+                return state[value_index];
             }
         }
-
-        layer->update_viscoelastic_data(
-            premelt_shear,
-            premelt_bulk,
-            premelt_shear_visc,
-            premelt_bulk_visc,
-            postmelt_shear,
-            postmelt_bulk,
-            postmelt_shear_visc,
-            postmelt_bulk_visc);
+        return TidalPyConstants::d_NAN;
     }
 
     // Non-owning observer pointer to the layer whose radial span contains radius [m]. Radii beyond the surface
@@ -1480,6 +1619,15 @@ protected:
     // Per-layer material-EOS inputs referenced by the solver's stored diffeq args;
     // must outlive solve_eos so the dense output's diffeq re-calls stay valid.
     std::vector<c_MaterialEOSInput> p_eos_material_inputs;
+    // Thermal description of every layer from the last solve, and how the thermal passes ended.
+    std::vector<c_LayerThermal> p_layer_thermal;
+    // The world's heat sources. The structure ODE of a thermal solve reads them through a pointer to this member.
+    c_Heating p_heating;
+    // The mass each floating layer holds on to [kg]; NaN for a layer that holds its volume instead.
+    std::vector<double> p_reference_mass;
+    bool p_geometry_converged  = true;
+    size_t p_thermal_passes    = 0;
+    bool   p_thermal_converged = true;
 
     // Love-number solve: a cached, reusable radial solver (not serialized) holding the frequency-independent
     // setup and the reused solution storage; rebuilt only when the EOS grid or the layer assumptions change.

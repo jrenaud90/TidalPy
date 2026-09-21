@@ -25,6 +25,7 @@ from TidalPy.structures_x.configs.system_builder import (
     construct_system,
     available_systems,
 )
+from TidalPy.structures_x.configs.data_file import load_radial_data, detect_layer_boundaries
 from TidalPy.structures_x.configs.config_writer import save_world_to_toml, save_system_to_toml
 from TidalPy.structures_x.configs.worldpack import (
     install_worldpack_x,
@@ -48,6 +49,8 @@ __all__ = [
     "build_system",
     "construct_system",
     "available_systems",
+    "load_radial_data",
+    "detect_layer_boundaries",
     "save_world_to_toml",
     "save_system_to_toml",
     "install_worldpack_x",

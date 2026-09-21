@@ -1,13 +1,13 @@
 # System (`structures_x.system`)
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-21_
 
 A `System` links two or more worlds (a star, planets, moons) into a gravitationally bound group. It tracks two roles independently:
 
-* the tidal host: the body that raises a tide on a target world (_e.g._, the Moon raising a tide on Earth or vice versa).
+* a tidal host per world: the body that raises a tide on that world. Every world names its own host, or none.
 * the star: the body that provides insolation to each world in the system.
 
-The star need not be the tidal host. For the Earth-Moon system the tidal host can be either the Earth or the Moon, depending on which world is the focus of the study. For an exoplanet orbiting its star, the star is also the tidal host, and the orbits about the host and about the star coincide. Each world therefore carries two two-body orbits: one about the tidal host and one about the star. Worlds interact only with the host and the star, not with one another. The `System` is the container on which orbital evolution and insolation are computed.
+The star need not be a world's tidal host. In the Earth-Moon-Sun system the Moon's tidal host is the Earth, the Earth's can be the Moon, and the star is the Sun. For an exoplanet orbiting its star, the star is also its tidal host, and the orbits about the host and about the star coincide. Each world therefore carries two two-body orbits: one about its tidal host and one about the star. A world interacts only with its tidal host and the star. The `System` is the container on which orbital evolution and insolation are computed.
 
 TidalPy has no N-body dynamics: its dynamics are semi-analytic two-body rates. A problem with three or more mutually interacting bodies can be built from TidalPy worlds but needs external scripting to account for the additional forcing.
 
@@ -23,26 +23,43 @@ system = System("sol")
 star = StarWorld("sun", 6.957e8, 1.988e30)
 earth = LayeredWorld("earth", 6.371e6, 5.972e24)
 
-system.add_world(star, is_host=True, is_star=True)   # exoplanet: the star is also the tidal host
-system.add_world(earth, semi_major_axis=au, eccentricity=0.0167)
+system.add_world(
+    star,
+    is_star=True)                 # The star is tidally forced by nothing here, so it names no host
+system.add_world(
+    earth,
+    tidal_host=star,              # Exoplanet case: the star is also the world's tidal host
+    semi_major_axis=au,
+    eccentricity=0.0167)
 ```
 
-`add_world(world, is_host=False, is_star=False, semi_major_axis=None, eccentricity=0.0)` returns the world's index. `is_host` and `is_star` are independent roles; a world can be both, and the last world flagged with each wins. `semi_major_axis` and `eccentricity` describe the orbit about the tidal host; the orbit about the star is set separately (see below). The system co-owns each world with its Python wrapper, so the wrapper you passed stays usable and is the same object the system hands back.
+`add_world(world, tidal_host=None, is_star=False, semi_major_axis=None, eccentricity=0.0)` returns the world's index. `tidal_host` is a world already in the system, given by index, name, or object; `set_tidal_host(world, tidal_host)` names or changes it afterwards, which is how a host added after the worlds it hosts is named. There is no system-wide host: a world with no tidal host is not tidally forced and is skipped by the evolution methods. `is_star` marks the insolation source, and the last world flagged wins. `semi_major_axis` and `eccentricity` describe the orbit about the tidal host; the orbit about the star is set separately (see below). The system co-owns each world with its Python wrapper, so the wrapper you passed stays usable and is the same object the system hands back.
 
-For a system where the star is a separate body from the tidal host (_e.g._, Earth-Moon-Sun):
+For a system where the star is a separate body from a world's tidal host (_e.g._, Earth-Moon-Sun):
 
 ```python
 system = System()
-system.add_world(sun, is_star=True)                                   # star, not the tidal host
-system.add_world(earth, is_host=True)                                 # tidal host, not the star
-system.add_world(moon, semi_major_axis=3.844e8, eccentricity=0.0549)  # moon about Earth (tidal)
-system.set_stellar_semi_major_axis("moon", au)                        # moon about the Sun (insolation)
+system.add_world(
+    sun,
+    is_star=True)                                # The star, and nobody's tidal host
+system.add_world(earth)                          # The Moon's tidal host, named below
+system.add_world(
+    moon,
+    tidal_host=earth,                            # The Earth raises the Moon's tides
+    semi_major_axis=3.844e8,                     # Moon about the Earth (tidal)
+    eccentricity=0.0549)
+system.set_tidal_host(earth, moon)               # The Moon raises the Earth's tides in turn
+system.set_stellar_semi_major_axis("moon", au)   # Moon about the Sun (insolation)
 system.set_stellar_eccentricity("moon", 0.0167)
 ```
 
+### Mutual Pairs
+
+Two worlds that host each other share one orbit, so its elements need to be given on only one of them: the member that carries no semi-major axis of its own takes its partner's elements. When both carry elements they must agree, and a disagreement raises `ValueError` from any method that reads the orbit. `is_mutual_pair(world)` reports the relation. `calc_system_evolution` gives each member its own entry, and their contributions to the shared orbit add, which is what `calc_pair_evolution` returns for either member.
+
 ## Building a `System` from TOML (`build_system`)
 
-A whole system can be described in TOML and built in one call, mirroring `build_world`. Each `[worlds.<name>]` table names a `world` (a bundled world name, a path to a world TOML, or an inline world config) plus its host and star roles and its orbital elements. The table key becomes the world's name within the system, so a bundled world template can be reused under different names.
+A whole system can be described in TOML and built in one call, mirroring `build_world`. Each `[worlds.<name>]` table names a `world` (a bundled world name, a path to a world TOML, or an inline world config) plus its `tidal_host` (the table key of the world that raises its tides), its star role, and its orbital elements. A host may be declared after the worlds it hosts. A world that states `semi_major_axis_m` or `eccentricity` must name a `tidal_host` for them to be about. The table key becomes the world's name within the system, so a bundled world template can be reused under different names.
 
 ```toml
 schema_version = "0.2.0"
@@ -50,11 +67,11 @@ name = "Sol System"
 
 [worlds.sun]
 world = "sol"  # a bundled world name (also accepts a path or an inline [worlds.sun.world] table)
-is_host = true
 is_star = true
 
 [worlds.earth]
 world = "earth_simple"
+tidal_host = "sun"                  # the world that raises this one's tides
 semi_major_axis_m = 1.495978707e11  # orbit about the tidal host
 eccentricity      = 0.0167
 stellar_semi_major_axis_m = 1.495978707e11  # orbit about the star (for insolation)
@@ -85,9 +102,10 @@ system.get_config_dict()
 Most methods accept a world by index (int, negatives allowed), by name (str), or as the world object itself:
 
 ```python
-system.host                       # the host world wrapper (or None)
-system.host_index                 # index of the host, or -1
-system.set_host("sun")            # designate the host by index / name / object
+system.get_tidal_host("earth")        # the world that raises Earth's tides (or None)
+system.get_tidal_host_index("earth")  # its index, or -1
+system.has_tidal_host("sun")          # False: nothing forces the star here
+system.set_tidal_host("earth", "sun") # name a host by index / name / object (None removes it)
 system.num_worlds                 # 2
 system.worlds                     # [star, earth]
 ```
@@ -116,7 +134,7 @@ n  = system.calc_orbital_frequency("earth")                  # sqrt(mu / a^3) [r
 a  = system.calc_semi_major_axis_from_frequency("earth", n)  # inverse [m]
 ```
 
-The mean motion follows Kepler's third law using the combined host and world mass. `calc_gravitational_parameter` raises `RuntimeError` if no host is set and returns NaN for the host's own entry (the host has no orbit within the system); `calc_orbital_frequency` returns NaN for an unset or non-positive semi-major axis.
+The mean motion follows Kepler's third law using the combined host and world mass. `calc_gravitational_parameter` returns NaN for a world with no tidal host (it has no orbit within the system); `calc_orbital_frequency` also returns NaN for an unset or non-positive semi-major axis.
 
 ## Star and Insolation
 
@@ -149,7 +167,9 @@ with the world's albedo $A$, its emissivity $\varepsilon$, and the Stefan-Boltzm
 
 ## Orbital and Spin Evolution
 
-`calc_world_evolution(world)` evolves a single orbiting world. It solves the world's global tides in the current system state (mean motion from Kepler's third law, spin and obliquity from the world, eccentricity and semi-major axis from the orbit about the host, host mass from the host world), then turns the tidal-potential derivatives into the orbital rates and the world's spin rate. Only the orbiting world raises tides; the host is treated as a point mass.
+`calc_world_evolution(world)` evolves a single world. It solves the world's global tides in the current system state (mean motion from Kepler's third law, spin and obliquity from the world, eccentricity and semi-major axis from the orbit about its tidal host, host mass from that host), then turns the tidal-potential derivatives into the orbital rates and the world's spin rate. Only this world raises tides; its host is treated as a point mass. A world with no tidal host, or no usable orbit about it, comes back with `evolved = False`.
+
+A world that belongs to a system can be asked for the same state directly: `world.get_tide_state()` returns it as a dict in the argument order of `calc_tides`, or `None` for a world outside a system, with no tidal host, or with no usable orbit. Orbital state is never stored on a world; the system supplies it on request and stops doing so when it is deleted.
 
 ```python
 ev = system.calc_world_evolution("moon")
@@ -169,11 +189,11 @@ with $de/dt = 0$ at $e = 0$. The spin rate comes from the world's attached spin 
 
 $$\dot{E} = -\left(\frac{dE_\mathrm{orbit}}{dt} + \frac{dE_\mathrm{spin}}{dt}\right), \qquad E_\mathrm{orbit} = -\frac{G M_{h} M_{w}}{2a}, \qquad E_\mathrm{spin} = \frac{1}{2}\,C\,\dot{\theta}^{2}.$$
 
-Each orbiting world evolves on its own two-body orbit about the host and dissipates independently.
+Each world evolves on its own two-body orbit about its tidal host and dissipates independently.
 
 ### Dual-Body Dissipation
 
-`calc_pair_evolution(world)` evolves an orbiting world together with its host, with both bodies raising a tide on their shared orbit. Each body's tides are solved with the other body as the tide raiser (masses swapped), so their orbital-rate contributions add and each body evolves its own spin:
+`calc_pair_evolution(world)` evolves a world together with its own tidal host, with both bodies raising a tide on their shared orbit. Each body's tides are solved with the other body as the tide raiser (masses swapped), so their orbital-rate contributions add and each body evolves its own spin:
 
 ```python
 pair = system.calc_pair_evolution("moon")
@@ -198,15 +218,16 @@ loaded.load_binary("system.tpyb")
 loaded["earth"]        # comes back as a LayeredWorld (with its layers), the Sun as a StarWorld, ...
 ```
 
-`System` inherits the binary machinery (`save_binary`, `load_binary`, `get_schema_version_str`, `save_config`) from the shared `TidalPyBaseClass`. As for a directly loaded world, the sub-models a world does not serialize (the layer EOS profile data and the tide, spin, and luminosity models) are not carried in the binary and are reattached after load; the container state (name, host and star roles, and each world's orbital elements about both the host and the star) and each world's own fields (including, for a star, its effective temperature, so insolation survives) are.
+`System` inherits the binary machinery (`save_binary`, `load_binary`, `get_schema_version_str`, `save_config`) from the shared `TidalPyBaseClass`. As for a directly loaded world, the sub-models a world does not serialize (the layer EOS profile data and the tide, spin, and luminosity models) are not carried in the binary and are reattached after load; the container state (name, the star role, and each world's tidal host and orbital elements about both that host and the star) and each world's own fields (including, for a star, its effective temperature, so insolation survives) are.
 
 ## C++ API
 
-`c_System : c_TidalPyBaseClass` (`structures_x/system/system_.hpp`):
+`c_System : c_TidalPyBaseClass, c_TideStateProvider` (`structures_x/system/system_.hpp`):
 
-* `add_world(shared_ptr<c_BaseWorld>, is_host, is_star, a, e)`: owns worlds through `shared_ptr` so the C++ system and the Python wrappers co-own the same world.
+* `add_world(shared_ptr<c_BaseWorld>, is_star, a, e)`: owns worlds through `shared_ptr` so the C++ system and the Python wrappers co-own the same world, and registers itself as the world's tide-state provider.
 * `get_num_worlds`, `get_world(i)`, `find_world_index(name)`.
-* `set_host(i)`, `has_host`, `get_host_index`, `get_host`, `get_host_mass`.
+* `set_tidal_host(i, host_i)`, `clear_tidal_host(i)`, `has_tidal_host(i)`, `get_tidal_host_index(i)`, `get_tidal_host(i)`, `get_tidal_host_mass(i)`, `is_mutual_pair(i)`, and `get_host_orbit(i)` (the elements about the host, a mutual partner's when the world carries none).
+* `get_tide_state(i, state_out)` and `get_equilibrium_temperature(i)`: the `c_TideStateProvider` interface (`Tides_x/classes/tide_result_.hpp`). A world reaches it through `c_BaseWorld::get_tide_state(state_out)`; the system clears the world's pointer in its destructor.
 * `set_star(i)`, `has_star`, `get_star_index`, `get_star`, `get_star_mass`, `get_star_luminosity`.
 * `set/get_semi_major_axis(i)`, `set/get_eccentricity(i)` (orbit about the tidal host).
 * `set/get_stellar_semi_major_axis(i)`, `set/get_stellar_eccentricity(i)` (orbit about the star).

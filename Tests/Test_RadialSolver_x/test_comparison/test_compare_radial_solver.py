@@ -24,13 +24,15 @@ shear_array = 5.0e10 * np.ones_like(radius_array)
 complex_shear_modulus_array = Maxwell().calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
 upper_radius_by_layer = np.asarray((radius_array[-1],))
 
+MANUAL_STARTING_RADIUS = 0.1 * radius_array[-1]
+
 
 @pytest.mark.parametrize('is_static', (True, False))
 @pytest.mark.parametrize('is_incompressible', (True, False))
 @pytest.mark.parametrize('degree_l', (2, 3))
 @pytest.mark.parametrize('use_kamata', (True, False))
 @pytest.mark.parametrize('solve_for', (('tidal',), ('loading',), ('tidal', 'loading')))
-@pytest.mark.parametrize('starting_radius', (0.0, 0.1))
+@pytest.mark.parametrize('starting_radius', (0.0, MANUAL_STARTING_RADIUS))
 @pytest.mark.parametrize('integration_method', ('RK45', 'DOP853'))
 @pytest.mark.parametrize('nondimensionalize', (False, True))
 def test_compare_radial_solver_1layer_solid(
@@ -54,17 +56,6 @@ def test_compare_radial_solver_1layer_solid(
         eos_rtol=1.0e-10, eos_atol=1.0e-14,
         raise_on_fail=True,
     )
-    # Dynamic incompressible degree 3 solves started 0.1 m from the center are not converged at
-    # rtol 1e-7 with RK45: the shooting basis is nearly degenerate by the surface, so the boundary
-    # condition solve amplifies integration error into the leading digits of the Love numbers
-    # (k = 0.045 at rtol 1e-7 versus the converged 0.1374, and a 0.001% rtol perturbation moves k
-    # by 50%). Tighten the tolerance in that regime so both solvers are converged before their
-    # outputs are compared.
-    if degree_l == 3 and starting_radius == 0.1 and integration_method == 'RK45' \
-            and not is_static and is_incompressible:
-        common_kwargs['integration_rtol'] = 1.0e-9
-        common_kwargs['integration_atol'] = 1.0e-12
-
     try:
         old_out = radial_solver_old(
             radius_array, density_array, bulk_modulus_array, complex_shear_modulus_array,

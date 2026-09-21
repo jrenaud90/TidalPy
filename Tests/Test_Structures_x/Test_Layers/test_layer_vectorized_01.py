@@ -27,18 +27,16 @@ _FREQ = 1.0e-5
 
 _REAL_GETTERS = (
     "get_density", "get_gravity", "get_pressure",
-    "get_shear_modulus", "get_bulk_modulus", "get_shear_viscosity", "get_bulk_viscosity",
-    "get_premelt_shear_modulus", "get_premelt_bulk_modulus",
-    "get_premelt_shear_viscosity", "get_premelt_bulk_viscosity",
+    "get_shear_modulus", "get_bulk_modulus", "get_shear_viscosity", "get_bulk_viscosity", "get_melt_fraction",
 )
 
 
 def _solved_world():
     """A homogeneous Maxwell world with its EOS solved (populates the layer profiles)."""
     world = LayeredWorld("world", _RADIUS, _MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _RADIUS, _MASS,
-                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, _RADIUS, _MASS)
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_shear_rheology(Maxwell())
@@ -50,8 +48,7 @@ def _solved_world():
 
 def _standalone_layer():
     """A directly-populated layer (no world) for the base EOS-profile getters."""
-    layer = PhysicsLayer("mantle", 0, 0.0, _RADIUS, _MASS,
-                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
+    layer = PhysicsLayer("mantle", 0, 0.0, _RADIUS, _MASS)
     radius = np.linspace(0.0, _RADIUS, 11)
     density = np.full(11, _DENSITY)
     gravity = np.linspace(0.0, 9.0, 11)
@@ -136,7 +133,7 @@ def test_get_state_bundle():
     layer = world.mantle
     state = layer.get_state(0.5 * _RADIUS)
     expected_keys = {"density", "gravity", "pressure", "shear_modulus", "shear_viscosity",
-                     "bulk_modulus", "bulk_viscosity"}
+                     "bulk_modulus", "bulk_viscosity", "melt_fraction"}
     assert set(state.keys()) == expected_keys
     assert math.isclose(state["density"], _DENSITY, rel_tol=1e-9)
     radii = np.linspace(0.2 * _RADIUS, 0.8 * _RADIUS, 3)

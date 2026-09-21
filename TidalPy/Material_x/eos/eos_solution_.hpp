@@ -16,12 +16,15 @@
 #include "ode_.hpp" // C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
 #include "../../utilities/arrays/interp_.hpp"  // c_binary_search_with_guess, c_interp, c_interp_complex
 #include "../../Utilities_x/math_x/numerics_.hpp"  // c_isclose
+#include "../../Utilities_x/arrays/layer_partition_.hpp"  // c_partition_radius_by_layer
 
 
 /// C++ class storing the equation of state integration results for a layered planet.
 ///
-/// Stores CyRK integration results for each layer, and provides methods for interpolating
-/// the full planet's gravity, pressure, mass, moment of inertia, density, and complex moduli.
+/// Stores CyRK integration results for each layer, and provides methods for interpolating the full planet's
+/// gravity, pressure, mass, moment of inertia, density, and unrelaxed moduli at any radius. The viscoelastic
+/// response at a forcing frequency belongs to a rheology rather than to the equation of state and is reached
+/// through call_material.
 class c_EOSSolution
 {
 
@@ -33,21 +36,29 @@ public:
     int error_code             = -100;
     int nondim_status          = 0;
     int solution_nondim_status = 0;
-    bool success          = false;
-    bool max_iters_hit    = false;
-    bool radius_array_set  = false;
-    bool other_vecs_set    = false;
-    bool p_use_array_interp = false;  // set by inject_from_world_eos; call() uses array interpolation
+    bool success               = false;
+    bool max_iters_hit         = false;
+    bool radius_array_set      = false;
+    bool other_vecs_set        = false;
 
-    // Optional non-owning dense structure source (the world Love solve). With p_use_array_interp, gravity, pressure,
-    // mass, and moi are read from it at dense accuracy while density and the complex moduli stay array-interpolated.
-    // The source is SI: source_radius = this_radius * p_structure_length_scale, this_value = source_value / scale.
-    const c_EOSSolution* p_structure_dense_source = nullptr;
+    // Scales between this solution's units and the provider's SI: provider_radius = this_radius * length scale,
+    // this_value = provider_value / scale. All one in a solve that ran dimensional.
     double p_structure_length_scale  = 1.0;
     double p_structure_gravity_scale = 1.0;
     double p_structure_pascal_scale  = 1.0;
-    double p_structure_mass_scale    = 1.0;
-    double p_structure_moi_scale     = 1.0;
+    double p_structure_density_scale = 1.0;
+
+    // Optional state provider (the world Love solve). One call at an SI radius for one layer fills the whole
+    // evaluation layout of eos_layout_.hpp (C_EOS_DY_VALUES SI doubles, from the world's solved EOS at dense
+    // accuracy) and the complex shear and bulk moduli [Pa] at the solve's forcing frequency. It stays installed
+    // after the solve, which is what lets the solution answer at any radius afterwards.
+    using MaterialEval = std::function<void(
+        size_t layer_index,
+        double radius_si,
+        double* state_out,
+        std::complex<double>& shear_out,
+        std::complex<double>& bulk_out)>;
+    MaterialEval p_material_eval;
 
     std::string message         = "No Message Set.";
     size_t current_layers_saved = 0;
@@ -73,7 +84,18 @@ public:
     // Store results from CyRK's cysolve_ivp.
     std::vector<double> upper_radius_bylayer_vec  = std::vector<double>();
     std::vector<size_t> steps_taken_vec           = std::vector<size_t>();
-    std::vector<std::unique_ptr<CySolverResult>> cysolver_results_uptr_bylayer_vec = std::vector<std::unique_ptr<CySolverResult>>();
+    // One retained integrator per radial segment, in ascending radius. A layer is one segment unless its
+    // temperature profile has a kink (see c_EOSSegment), so the mapping below finds a layer's segments.
+    std::vector<std::unique_ptr<CySolverResult>> cysolver_results_uptr_vec =
+        std::vector<std::unique_ptr<CySolverResult>>();
+    std::vector<double> segment_upper_radius_vec   = std::vector<double>();
+    std::vector<size_t> first_segment_bylayer_vec  = std::vector<size_t>();
+    std::vector<size_t> num_segments_bylayer_vec   = std::vector<size_t>();
+    // Uniform temperature [K] of each segment, used when the solve did not carry temperature.
+    std::vector<double> segment_temperature_vec    = std::vector<double>();
+    // State variables the retained integrators carry: C_EOS_Y_VALUES, or C_EOS_THERMAL_Y_VALUES when the
+    // solve integrated temperature and heat flow.
+    size_t num_y_solved = C_EOS_Y_VALUES;
 
     // Copy of user-provided radius array
     std::vector<double> radius_array_vec = std::vector<double>();
@@ -89,11 +111,9 @@ public:
     // Static (real) shear/bulk viscosity [Pa s] vs radius (EOS-model extra outputs).
     std::vector<double> shear_viscosity_array_vec = std::vector<double>();
     std::vector<double> bulk_viscosity_array_vec  = std::vector<double>();
-
-    // Radial density derivative per slice (array units per unit radius). When present the density lookup is cubic
-    // Hermite (slope continuous across slices, so the radial integrator sees no kinks). Filled by
-    // inject_from_world_eos; empty otherwise.
-    std::vector<double> density_slope_array_vec = std::vector<double>();
+    // Temperature [K] and heat flow [W] vs radius.
+    std::vector<double> temperature_array_vec     = std::vector<double>();
+    std::vector<double> heat_flow_array_vec       = std::vector<double>();
 
     // Per-layer EOS functions and arguments saved by c_solve_eos. The retained integrators carry only the four
     // structure variables; density, moduli, and viscosities are evaluated on demand from the interpolated state.
@@ -112,12 +132,7 @@ public:
 
     virtual ~c_EOSSolution()
     {
-        for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
-        {
-            this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
-            this->cysolver_results_uptr_bylayer_vec[i].reset();
-        }
-        this->cysolver_results_uptr_bylayer_vec.clear();
+        this->clear_segments();
         this->upper_radius_bylayer_vec.clear();
         this->radius_array_vec.clear();
         this->gravity_array_vec.clear();
@@ -145,18 +160,83 @@ public:
             current_layers_saved(0),
             num_layers(num_layers_)
     {
-        this->cysolver_results_uptr_bylayer_vec.reserve(num_layers_);
+        this->cysolver_results_uptr_vec.reserve(num_layers_);
         this->upper_radius_bylayer_vec.resize(num_layers_);
         std::memcpy(this->upper_radius_bylayer_vec.data(), upper_radius_bylayer_ptr, this->num_layers * sizeof(double));
+        this->set_segments_from_layers();
         this->change_radius_array(radius_array_ptr, radius_array_size_);
     }
 
 
-    /// Save a CyRK solver result for one layer.
+    /// Save a CyRK solver result for one segment, in ascending radius.
     void save_cyresult(std::unique_ptr<CySolverResult> new_cysolver_result_uptr)
     {
-        this->cysolver_results_uptr_bylayer_vec.push_back(std::move(new_cysolver_result_uptr));
+        this->cysolver_results_uptr_vec.push_back(std::move(new_cysolver_result_uptr));
         this->current_layers_saved++;
+    }
+
+    /// Release the retained integrators and their dense output.
+    void clear_segments() noexcept
+    {
+        for (size_t i = 0; i < this->cysolver_results_uptr_vec.size(); i++)
+        {
+            if (this->cysolver_results_uptr_vec[i])
+            {
+                this->cysolver_results_uptr_vec[i]->dense_vec.clear();
+                this->cysolver_results_uptr_vec[i].reset();
+            }
+        }
+        this->cysolver_results_uptr_vec.clear();
+    }
+
+    /// One segment per layer: the layout of a solve that does not carry temperature.
+    void set_segments_from_layers()
+    {
+        this->segment_upper_radius_vec  = this->upper_radius_bylayer_vec;
+        this->first_segment_bylayer_vec.resize(this->num_layers);
+        this->num_segments_bylayer_vec.assign(this->num_layers, 1);
+        this->segment_temperature_vec.assign(this->num_layers, TidalPyConstants::d_NAN);
+        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
+        {
+            this->first_segment_bylayer_vec[layer_i] = layer_i;
+        }
+    }
+
+    /// Record a segment layout (ascending radius) before a solve.
+    void set_segments(const std::vector<c_EOSSegment>& segment_vec)
+    {
+        const size_t num_segments = segment_vec.size();
+        this->segment_upper_radius_vec.resize(num_segments);
+        this->segment_temperature_vec.resize(num_segments);
+        this->first_segment_bylayer_vec.assign(this->num_layers, 0);
+        this->num_segments_bylayer_vec.assign(this->num_layers, 0);
+        for (size_t segment_i = 0; segment_i < num_segments; ++segment_i)
+        {
+            const c_EOSSegment& segment = segment_vec[segment_i];
+            this->segment_upper_radius_vec[segment_i] = segment.upper_radius;
+            this->segment_temperature_vec[segment_i]  = segment.start_temperature;
+            const size_t layer_i = segment.layer_index;
+            if (layer_i >= this->num_layers) { continue; }
+            if (this->num_segments_bylayer_vec[layer_i] == 0)
+            {
+                this->first_segment_bylayer_vec[layer_i] = segment_i;
+            }
+            this->num_segments_bylayer_vec[layer_i]++;
+        }
+    }
+
+    /// The segment of a layer that holds a radius (the last one at or above it; its first as a fallback).
+    size_t segment_index(const size_t layer_index, const double radius_val) const noexcept
+    {
+        if (layer_index >= this->num_segments_bylayer_vec.size()) { return layer_index; }
+        const size_t first = this->first_segment_bylayer_vec[layer_index];
+        const size_t count = this->num_segments_bylayer_vec[layer_index];
+        if (count == 0) { return first; }
+        for (size_t offset = 0; offset < count - 1; ++offset)
+        {
+            if (radius_val <= this->segment_upper_radius_vec[first + offset]) { return first + offset; }
+        }
+        return first + count - 1;
     }
 
 
@@ -180,7 +260,6 @@ public:
         {
             input.update_bulk  = true;
             input.update_shear = true;
-            input.final_solve  = true;
         }
     }
 
@@ -190,73 +269,22 @@ public:
     /// but carry their own layer's density and moduli, so every array lookup must stay inside one layer's slices.
     void update_slice_partition() noexcept
     {
-        const size_t n = this->radius_array_vec.size();
-        this->first_slice_bylayer_vec.assign(this->num_layers, 0);
-        this->num_slices_bylayer_vec.assign(this->num_layers, 0);
-        if (n == 0 || this->upper_radius_bylayer_vec.size() < this->num_layers)
+        if (this->upper_radius_bylayer_vec.size() < this->num_layers)
         {
+            this->first_slice_bylayer_vec.assign(this->num_layers, 0);
+            this->num_slices_bylayer_vec.assign(this->num_layers, 0);
             return;
         }
-        size_t next_first = 0;
-        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
-        {
-            const double layer_upper = this->upper_radius_bylayer_vec[layer_i];
-            size_t count          = 0;
-            size_t interface_hits = 0;
-            for (size_t slice_i = next_first; slice_i < n; ++slice_i)
-            {
-                const double radius_check = this->radius_array_vec[slice_i];
-                if (c_isclose(radius_check, layer_upper, 1.0e-9, 0.0))
-                {
-                    if (++interface_hits > 1)
-                    {
-                        break;
-                    }
-                }
-                else if (radius_check > layer_upper)
-                {
-                    break;
-                }
-                ++count;
-            }
-            this->first_slice_bylayer_vec[layer_i] = next_first;
-            this->num_slices_bylayer_vec[layer_i]  = count;
-            next_first += count;
-        }
+        tidalpy::c_partition_radius_by_layer(
+            this->radius_array_vec.data(),
+            this->radius_array_vec.size(),
+            this->upper_radius_bylayer_vec.data(),
+            this->num_layers,
+            this->first_slice_bylayer_vec,
+            this->num_slices_bylayer_vec);
     }
 
 
-    /// Linear interpolation of gravity and density inside one layer's slices, in array units. Used where the dense
-    /// output is unavailable (the dynamic-liquid y3 reconstruction).
-    void interp_structure_in_layer(
-        const size_t layer_index,
-        const double radius_val,
-        double* gravity_ptr,
-        double* density_ptr) const noexcept
-    {
-        size_t first = 0;
-        size_t n     = this->radius_array_vec.size();
-        if (layer_index < this->num_slices_bylayer_vec.size() && this->num_slices_bylayer_vec[layer_index] > 1)
-        {
-            first = this->first_slice_bylayer_vec[layer_index];
-            n     = this->num_slices_bylayer_vec[layer_index];
-        }
-        if (n == 0)
-        {
-            *gravity_ptr = TidalPyConstants::d_NAN;
-            *density_ptr = TidalPyConstants::d_NAN;
-            return;
-        }
-        double* radius_data_ptr = const_cast<double*>(this->radius_array_vec.data()) + first;
-        double  radius_query    = radius_val;
-        size_t  j               = this->p_seed_index(radius_val, radius_data_ptr, n);
-        int     b_code          = 0;
-        j = c_binary_search_with_guess(radius_val, radius_data_ptr, n, j, &b_code);
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->gravity_array_vec.data()) + first, n, &j,
-                 gravity_ptr);
-        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->density_array_vec.data()) + first, n, &j,
-                 density_ptr);
-    }
 
 
     /// Radius in solve units for an SI radius: the retained integrators live in the units the solve ran in, so a
@@ -268,32 +296,41 @@ public:
 
 
 protected:
-    /// Index guess for a binary search from the query's fractional position in the array.
-    static size_t p_seed_index(const double radius_val, const double* radius_data_ptr, const size_t n) noexcept
-    {
-        const double r_left  = radius_data_ptr[0];
-        const double r_right = radius_data_ptr[n - 1];
-        size_t j = 0;
-        if (r_right > r_left)
-        {
-            const double frac    = (radius_val - r_left) / (r_right - r_left);
-            const double clamped = frac < 0.0 ? 0.0 : (frac > 1.0 ? 1.0 : frac);
-            j = static_cast<size_t>(static_cast<double>(n) * clamped);
-            if (j >= n)
-            {
-                j = n - 1;
-            }
-        }
-        return j;
-    }
-
-
     /// Evaluate one layer's retained integrator at a radius in solve units, with no rescaling: the four structure
     /// variables from the dense output, then the density, moduli, and viscosities from the layer's EOS function at
     /// that state. Writes C_EOS_DY_VALUES doubles; the extra outputs are NaN when no EOS function was saved.
-    void p_evaluate_solver(const size_t layer_index, const double radius_val, double* y_interp_ptr) const
+    void p_evaluate_solver(
+        const size_t layer_index,
+        const double radius_val,
+        double* y_interp_ptr,
+        c_EOSMaterialState* material_out = nullptr) const
     {
-        this->cysolver_results_uptr_bylayer_vec[layer_index]->call(radius_val, y_interp_ptr);
+        // The retained integrator writes num_y_solved values, so it fills a buffer of its own and the
+        // structure variables are copied out; the evaluation layout uses slots 4 and 5 for the density and
+        // the shear modulus.
+        const size_t segment_i = this->segment_index(layer_index, radius_val);
+        double state_arr[C_EOS_THERMAL_Y_VALUES];
+        this->cysolver_results_uptr_vec[segment_i]->call(radius_val, &state_arr[0]);
+        for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
+        {
+            y_interp_ptr[value_i] = state_arr[value_i];
+        }
+        if (material_out)
+        {
+            material_out->gravity = y_interp_ptr[0];
+        }
+        if (this->num_y_solved >= C_EOS_THERMAL_Y_VALUES)
+        {
+            y_interp_ptr[C_EOS_TEMPERATURE_INDEX] = state_arr[4];
+            y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]   = state_arr[5];
+        }
+        else
+        {
+            // A solve without temperature reports each segment's uniform value and no heat flow.
+            y_interp_ptr[C_EOS_TEMPERATURE_INDEX] = (segment_i < this->segment_temperature_vec.size())
+                ? this->segment_temperature_vec[segment_i] : TidalPyConstants::d_NAN;
+            y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]   = 0.0;
+        }
         if (layer_index < this->eos_function_bylayer_vec.size()
             && this->eos_function_bylayer_vec[layer_index] != nullptr)
         {
@@ -301,39 +338,49 @@ protected:
             // The EOS functions take their arguments through non-const pointers but leave this solution unchanged.
             char* input_ptr = const_cast<char*>(
                 reinterpret_cast<const char*>(&this->eos_input_bylayer_vec[layer_index]));
+            // The EOS function reads the state layout, where a thermal solve keeps its temperature at index 4;
+            // in the evaluation layout that slot is the density this call is about to fill.
             this->eos_function_bylayer_vec[layer_index](
-                reinterpret_cast<char*>(&eos_output), radius_val, y_interp_ptr, input_ptr);
-            y_interp_ptr[4]  = eos_output.density;
-            y_interp_ptr[5]  = eos_output.shear_modulus.real();
-            y_interp_ptr[6]  = eos_output.shear_modulus.imag();
-            y_interp_ptr[7]  = eos_output.bulk_modulus.real();
-            y_interp_ptr[8]  = eos_output.bulk_modulus.imag();
-            y_interp_ptr[9]  = eos_output.shear_viscosity;
-            y_interp_ptr[10] = eos_output.bulk_viscosity;
+                reinterpret_cast<char*>(&eos_output), radius_val, &state_arr[0], input_ptr);
+            y_interp_ptr[C_EOS_DENSITY_INDEX]         = eos_output.density;
+            y_interp_ptr[C_EOS_SHEAR_MODULUS_INDEX]   = eos_output.shear_modulus.real();
+            y_interp_ptr[C_EOS_BULK_MODULUS_INDEX]    = eos_output.bulk_modulus.real();
+            y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX] = eos_output.shear_viscosity;
+            y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]  = eos_output.bulk_viscosity;
+            y_interp_ptr[C_EOS_MELT_FRACTION_INDEX]   = eos_output.melt_fraction;
+            if (material_out)
+            {
+                material_out->density       = eos_output.density;
+                material_out->shear_modulus = eos_output.shear_modulus;
+                material_out->bulk_modulus  = eos_output.bulk_modulus;
+            }
         }
         else
         {
-            for (size_t value_i = C_EOS_Y_VALUES; value_i < C_EOS_DY_VALUES; ++value_i)
+            // The temperature and heat flow set above stand; only the material outputs are unknown.
+            for (size_t value_i = C_EOS_Y_VALUES; value_i < C_EOS_TEMPERATURE_INDEX; ++value_i)
             {
                 y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
             }
+            y_interp_ptr[C_EOS_MELT_FRACTION_INDEX] = TidalPyConstants::d_NAN;
         }
     }
 
 
     /// Apply the solution's dimensional state to the first `count` outputs of an evaluation (structure variables,
-    /// density, and moduli). The viscosities (indices 9 and 10) are always SI and are left alone.
+    /// density, and the two static moduli). The viscosities and everything past them are always SI and are left
+    /// alone.
     void p_rescale_outputs(double* y_interp_ptr, const size_t count) const noexcept
     {
         if (this->nondim_status == 0)
         {
             return;
         }
-        double scales[9] = {
+        const size_t scaled_values = C_EOS_SHEAR_VISCOSITY_INDEX;  // slots 0 through the last modulus
+        double scales[C_EOS_SHEAR_VISCOSITY_INDEX] = {
             this->redim_gravity_scale, this->redim_pascal_scale, this->redim_mass_scale, this->redim_moi_scale,
-            this->redim_density_scale, this->redim_pascal_scale, this->redim_pascal_scale, this->redim_pascal_scale,
-            this->redim_pascal_scale};
-        const size_t limit = (count < 9) ? count : 9;
+            this->redim_density_scale, this->redim_pascal_scale, this->redim_pascal_scale};
+        const size_t limit = (count < scaled_values) ? count : scaled_values;
         if (this->nondim_status == 1)
         {
             for (size_t value_i = 0; value_i < limit; ++value_i)
@@ -353,174 +400,27 @@ protected:
 public:
 
 
-    /// Interpolate every EOS output from the stored arrays, searching only the calling layer's slices (see
-    /// update_slice_partition). Used when p_use_array_interp is true (set by inject_from_world_eos). The arrays
-    /// stay in the units they were injected in; no scaling is applied.
-    void _call_interp_arrays(const size_t layer_index, const double radius_val, double* y_interp_ptr) const noexcept
-    {
-        size_t first = 0;
-        size_t n     = this->radius_array_size;
-        if (layer_index < this->num_slices_bylayer_vec.size() && this->num_slices_bylayer_vec[layer_index] > 1)
-        {
-            first = this->first_slice_bylayer_vec[layer_index];
-            n     = this->num_slices_bylayer_vec[layer_index];
-        }
-        if (n == 0)
-        {
-            // NaN rather than reading uninitialized memory.
-            for (size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i)
-            {
-                y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
-            }
-            return;
-        }
-        // c_interp/c_binary_search_with_guess take non-const double* but only read the data.
-        double* radius_data_ptr = const_cast<double*>(this->radius_array_vec.data()) + first;
-        double  radius_query = radius_val;   // mutable copy for c_interp's desired_x_ptr arg
-
-        size_t j      = this->p_seed_index(radius_val, radius_data_ptr, n);
-        int    b_code = 0;
-        j = c_binary_search_with_guess(radius_val, radius_data_ptr, n, j, &b_code);
-
-        // Density: cubic Hermite between the bracketing slices when the slopes are stored, else linear below.
-        const bool hermite_density = (this->density_slope_array_vec.size() == this->radius_array_size) && (n >= 2);
-        if (hermite_density)
-        {
-            size_t left = (b_code == -1) ? 0 : j;
-            if (left >= n - 1)
-            {
-                left = n - 2;
-            }
-            const double* density_ptr = this->density_array_vec.data() + first;
-            const double* slope_ptr   = this->density_slope_array_vec.data() + first;
-            const double  r_left      = radius_data_ptr[left];
-            const double  span        = radius_data_ptr[left + 1] - r_left;
-            double t = (span > 0.0) ? (radius_val - r_left) / span : 0.0;
-            t = (t < 0.0) ? 0.0 : ((t > 1.0) ? 1.0 : t);
-            const double t2 = t * t;
-            const double t3 = t2 * t;
-            y_interp_ptr[4] =
-                (2.0 * t3 - 3.0 * t2 + 1.0) * density_ptr[left]
-                + (t3 - 2.0 * t2 + t) * span * slope_ptr[left]
-                + (-2.0 * t3 + 3.0 * t2) * density_ptr[left + 1]
-                + (t3 - t2) * span * slope_ptr[left + 1];
-        }
-
-        // Output layout matches the CySolverResult: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
-        // [5] shear_real, [6] shear_imag, [7] bulk_real, [8] bulk_imag, [9] shear viscosity, [10] bulk viscosity.
-        c_interp(
-            &radius_query,
-            radius_data_ptr,
-            const_cast<double*>(this->gravity_array_vec.data()) + first,
-            n,
-            &j,
-            &y_interp_ptr[0]);
-        c_interp(
-            &radius_query,
-            radius_data_ptr,
-            const_cast<double*>(this->pressure_array_vec.data()) + first,
-            n,
-            &j,
-            &y_interp_ptr[1]);
-        c_interp(
-            &radius_query,
-            radius_data_ptr,
-            const_cast<double*>(this->mass_array_vec.data()) + first,
-            n,
-            &j,
-            &y_interp_ptr[2]);
-        c_interp(
-            &radius_query,
-            radius_data_ptr,
-            const_cast<double*>(this->moi_array_vec.data()) + first,
-            n,
-            &j,
-            &y_interp_ptr[3]);
-        if (!hermite_density)
-        {
-            c_interp(
-                &radius_query,
-                radius_data_ptr,
-                const_cast<double*>(this->density_array_vec.data()) + first,
-                n,
-                &j,
-                &y_interp_ptr[4]);
-        }
-
-        double shear_result[2] = {0.0, 0.0};
-        c_interp_complex(
-            radius_val,
-            radius_data_ptr,
-            const_cast<double*>(reinterpret_cast<const double*>(this->complex_shear_array_vec.data() + first)),
-            n,
-            &j,
-            shear_result);
-        y_interp_ptr[5] = shear_result[0];
-        y_interp_ptr[6] = shear_result[1];
-
-        double bulk_result[2] = {0.0, 0.0};
-        c_interp_complex(
-            radius_val,
-            radius_data_ptr,
-            const_cast<double*>(reinterpret_cast<const double*>(this->complex_bulk_array_vec.data() + first)),
-            n,
-            &j,
-            bulk_result);
-        y_interp_ptr[7] = bulk_result[0];
-        y_interp_ptr[8] = bulk_result[1];
-
-        // Viscosities are NaN when not stored.
-        if (this->shear_viscosity_array_vec.size() == this->radius_array_size
-            && this->bulk_viscosity_array_vec.size() == this->radius_array_size)
-        {
-            c_interp(
-                &radius_query,
-                radius_data_ptr,
-                const_cast<double*>(this->shear_viscosity_array_vec.data()) + first,
-                n,
-                &j,
-                &y_interp_ptr[9]);
-            c_interp(
-                &radius_query,
-                radius_data_ptr,
-                const_cast<double*>(this->bulk_viscosity_array_vec.data()) + first,
-                n,
-                &j,
-                &y_interp_ptr[10]);
-        }
-        else
-        {
-            y_interp_ptr[9]  = TidalPyConstants::d_NAN;
-            y_interp_ptr[10] = TidalPyConstants::d_NAN;
-        }
-    }
 
 
     /// Evaluate every EOS output at a single radius in solve units for a specific layer, writing C_EOS_DY_VALUES
-    /// doubles: gravity, pressure, mass, moment of inertia, density, shear modulus (real, imaginary), bulk modulus
-    /// (real, imaginary), shear viscosity, bulk viscosity. A re-dimensionalized solution returns SI values for all
-    /// but the viscosities, which are SI in every state.
+    /// doubles in the evaluation layout of eos_layout_.hpp: gravity, pressure, mass, moment of inertia, density,
+    /// the unrelaxed shear and bulk moduli, the shear and bulk viscosities, temperature, heat flow, and melt
+    /// fraction. A re-dimensionalized solution returns SI values for all but the viscosities, which are SI in
+    /// every state. Frequency-independent throughout: a viscoelastic response comes from call_material.
     void call(
         const size_t layer_index,
         const double radius_val,
         double* y_interp_ptr) const
     {
-        if (this->p_use_array_interp) [[unlikely]]
+        // Provider mode, installed by the world's Love solve: this solution stores no grid at all, and the provider
+        // answers in SI at the exact radius asked for. Only the frequency-independent values belong in this
+        // layout; the provider's complex moduli reach the solver through call_material.
+        if (this->p_material_eval)
         {
-            this->_call_interp_arrays(layer_index, radius_val, y_interp_ptr);
-
-            // The structure variables come from the dense source at its accuracy; density and moduli stay
-            // array-interpolated.
-            if (this->p_structure_dense_source) [[unlikely]]
-            {
-                double src_out[C_EOS_Y_VALUES];
-                const double src_radius = radius_val * this->p_structure_length_scale;
-                this->p_structure_dense_source->call_y_si(layer_index, src_radius, src_out);
-                y_interp_ptr[0] = src_out[0] / this->p_structure_gravity_scale;   // gravity
-                y_interp_ptr[1] = src_out[1] / this->p_structure_pascal_scale;    // pressure
-                y_interp_ptr[2] = src_out[2] / this->p_structure_mass_scale;      // mass
-                y_interp_ptr[3] = src_out[3] / this->p_structure_moi_scale;       // moment of inertia
-            }
+            std::complex<double> shear_unused;
+            std::complex<double> bulk_unused;
+            this->p_material_eval(
+                layer_index, radius_val * this->p_structure_length_scale, y_interp_ptr, shear_unused, bulk_unused);
             return;
         }
 
@@ -533,6 +433,61 @@ public:
     }
 
 
+    /// The radial solver's read at an integration radius in solve units: gravity, density, and the complex shear
+    /// and bulk moduli, in the solution's current units.
+    void call_material(
+        const size_t layer_index,
+        const double radius_val,
+        c_EOSMaterialState& out) const
+    {
+        out = c_EOSMaterialState();
+
+        // Provider mode: the world Love solve. One provider call reads the world's solved EOS once and applies
+        // the rheology, at the exact radius asked for; its SI answers are scaled into this solution's units.
+        if (this->p_material_eval)
+        {
+            double state[C_EOS_DY_VALUES];
+            this->p_material_eval(
+                layer_index, radius_val * this->p_structure_length_scale, state, out.shear_modulus, out.bulk_modulus);
+            out.gravity        = state[0] / this->p_structure_gravity_scale;
+            out.density        = state[C_EOS_DENSITY_INDEX] / this->p_structure_density_scale;
+            out.shear_modulus /= this->p_structure_pascal_scale;
+            out.bulk_modulus  /= this->p_structure_pascal_scale;
+            return;
+        }
+
+        // Integrator mode: this solution's own retained integrators plus the layer's EOS model.
+        if (layer_index >= this->current_layers_saved) [[unlikely]]
+        {
+            throw std::out_of_range("Layer index out of range.");
+        }
+        double scratch[C_EOS_DY_VALUES];
+        this->p_evaluate_solver(layer_index, radius_val, scratch, &out);
+        // The same rescale the evaluation layout applies, on the four values this carries.
+        if (this->nondim_status == 1)
+        {
+            out.gravity       *= this->redim_gravity_scale;
+            out.density       *= this->redim_density_scale;
+            out.shear_modulus *= this->redim_pascal_scale;
+            out.bulk_modulus  *= this->redim_pascal_scale;
+        }
+        else if (this->nondim_status != 0)
+        {
+            out.gravity       /= this->redim_gravity_scale;
+            out.density       /= this->redim_density_scale;
+            out.shear_modulus /= this->redim_pascal_scale;
+            out.bulk_modulus  /= this->redim_pascal_scale;
+        }
+    }
+
+
+    /// `call_material` for an SI radius [m]: the radius is converted into solve units first.
+    void call_material_si(const size_t layer_index, const double radius_si, c_EOSMaterialState& out) const
+    {
+        this->call_material(layer_index, this->convert_radius_si_to_solve(radius_si), out);
+    }
+
+
     /// The four structure variables (gravity, pressure, mass, moment of inertia) at a radius in solve units,
     /// without evaluating the layer's EOS function. Writes C_EOS_Y_VALUES doubles.
     void call_y(
@@ -540,21 +495,17 @@ public:
         const double radius_val,
         double* y_interp_ptr) const
     {
-        if (this->p_use_array_interp) [[unlikely]]
-        {
-            double full_out[C_EOS_DY_VALUES];
-            this->call(layer_index, radius_val, full_out);
-            for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
-            {
-                y_interp_ptr[value_i] = full_out[value_i];
-            }
-            return;
-        }
         if (layer_index >= this->current_layers_saved) [[unlikely]]
         {
             throw std::out_of_range("Layer index out of range.");
         }
-        this->cysolver_results_uptr_bylayer_vec[layer_index]->call(radius_val, y_interp_ptr);
+        double state_arr[C_EOS_THERMAL_Y_VALUES];
+        this->cysolver_results_uptr_vec[this->segment_index(layer_index, radius_val)]->call(
+            radius_val, &state_arr[0]);
+        for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
+        {
+            y_interp_ptr[value_i] = state_arr[value_i];
+        }
         this->p_rescale_outputs(y_interp_ptr, C_EOS_Y_VALUES);
     }
 
@@ -571,6 +522,24 @@ public:
     {
         this->call_y(layer_index, this->convert_radius_si_to_solve(radius_si), y_interp_ptr);
     }
+
+
+    /// The layer holding an SI radius [m]: the innermost whose upper radius reaches it. An interface radius
+    /// belongs to the lower layer, matching the convention the rest of this solution uses.
+    size_t layer_at_radius_si(const double radius_si) const noexcept
+    {
+        const double radius_solve = this->convert_radius_si_to_solve(radius_si);
+        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
+        {
+            if (radius_solve <= this->upper_radius_bylayer_vec[layer_i])
+            {
+                return layer_i;
+            }
+        }
+        return (this->num_layers > 0) ? (this->num_layers - 1) : 0;
+    }
+
+
 
 
     /// Prepare storage vectors for a new or changed radius array.
@@ -591,12 +560,9 @@ public:
             this->complex_bulk_array_vec.clear();
             this->shear_viscosity_array_vec.clear();
             this->bulk_viscosity_array_vec.clear();
-            for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
-            {
-                this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
-                this->cysolver_results_uptr_bylayer_vec[i].reset();
-            }
-            this->cysolver_results_uptr_bylayer_vec.clear();
+            this->temperature_array_vec.clear();
+            this->heat_flow_array_vec.clear();
+            this->clear_segments();
             this->current_layers_saved = 0;
             this->other_vecs_set = false;
         }
@@ -672,20 +638,23 @@ public:
                 }
             }
 
-            this->p_evaluate_solver(current_layer_index, radius_val, y_interp_ptr);
+            // The evaluation layout carries only the unrelaxed moduli, so the complex ones come back alongside it.
+            c_EOSMaterialState material_state;
+            this->p_evaluate_solver(current_layer_index, radius_val, y_interp_ptr, &material_state);
 
             this->gravity_array_vec.push_back(y_interp_ptr[0]);
             this->pressure_array_vec.push_back(y_interp_ptr[1]);
             this->mass_array_vec.push_back(y_interp_ptr[2]);
             this->moi_array_vec.push_back(y_interp_ptr[3]);
-            this->density_array_vec.push_back(y_interp_ptr[4]);
+            this->density_array_vec.push_back(y_interp_ptr[C_EOS_DENSITY_INDEX]);
 
-            // CyRK carries the moduli as real and imaginary double pairs.
-            this->complex_shear_array_vec.push_back(std::complex<double>(y_interp_ptr[5], y_interp_ptr[6]));
-            this->complex_bulk_array_vec.push_back(std::complex<double>(y_interp_ptr[7], y_interp_ptr[8]));
+            this->complex_shear_array_vec.push_back(material_state.shear_modulus);
+            this->complex_bulk_array_vec.push_back(material_state.bulk_modulus);
 
-            this->shear_viscosity_array_vec.push_back(y_interp_ptr[9]);
-            this->bulk_viscosity_array_vec.push_back(y_interp_ptr[10]);
+            this->shear_viscosity_array_vec.push_back(y_interp_ptr[C_EOS_SHEAR_VISCOSITY_INDEX]);
+            this->bulk_viscosity_array_vec.push_back(y_interp_ptr[C_EOS_BULK_VISCOSITY_INDEX]);
+            this->temperature_array_vec.push_back(y_interp_ptr[C_EOS_TEMPERATURE_INDEX]);
+            this->heat_flow_array_vec.push_back(y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]);
 
             if (current_layer_index == 0 && radius_i == 0)
             {
@@ -702,61 +671,6 @@ public:
         this->other_vecs_set = true;
     }
 
-    /// Populate the structure arrays from a world's solved EOS without re-integrating, in whatever units the
-    /// arrays are given in. A density_slope_ptr (radial density derivative per slice) switches the density lookup
-    /// to cubic Hermite; null keeps it linear.
-    void inject_from_world_eos(
-        const double* radius_ptr,
-        const double* gravity_ptr,
-        const double* pressure_ptr,
-        const double* mass_ptr,
-        const double* moi_ptr,
-        const double* density_ptr,
-        const std::complex<double>* complex_shear_ptr,
-        const std::complex<double>* complex_bulk_ptr,
-        size_t n,
-        const double* density_slope_ptr = nullptr)
-    {
-        if (n == 0)
-        {
-            throw std::invalid_argument("inject_from_world_eos: array length n must be > 0.");
-        }
-
-        this->radius_array_size = n;
-
-        this->radius_array_vec.assign(radius_ptr,        radius_ptr        + n);
-        this->gravity_array_vec.assign(gravity_ptr,      gravity_ptr       + n);
-        this->pressure_array_vec.assign(pressure_ptr,    pressure_ptr      + n);
-        this->mass_array_vec.assign(mass_ptr,            mass_ptr          + n);
-        this->moi_array_vec.assign(moi_ptr,              moi_ptr           + n);
-        this->density_array_vec.assign(density_ptr,      density_ptr       + n);
-        this->complex_shear_array_vec.assign(complex_shear_ptr, complex_shear_ptr + n);
-        this->complex_bulk_array_vec.assign(complex_bulk_ptr,   complex_bulk_ptr  + n);
-        if (density_slope_ptr != nullptr)
-        {
-            this->density_slope_array_vec.assign(density_slope_ptr, density_slope_ptr + n);
-        }
-        else
-        {
-            this->density_slope_array_vec.clear();
-        }
-
-        this->radius           = radius_ptr[n - 1];
-        this->surface_gravity  = gravity_ptr[n - 1];
-        this->surface_pressure = pressure_ptr[n - 1];
-        this->mass             = mass_ptr[n - 1];
-        this->moi              = moi_ptr[n - 1];
-        this->central_pressure = pressure_ptr[0];
-
-        this->nondim_status          = 0;
-        this->solution_nondim_status = 0;
-        this->success                = true;
-        this->error_code             = 0;
-        this->radius_array_set       = true;
-        this->other_vecs_set         = true;
-        this->p_use_array_interp     = true;
-        this->update_slice_partition();
-    }
 
 
     /// Scale the structure variables, density, and moduli into or out of non-dimensional units. The viscosity

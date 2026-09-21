@@ -35,8 +35,10 @@ cdef extern from "rs_solution_.hpp" nogil:
         unique_ptr[c_EOSSolution] eos_solution_uptr
         vector[double] full_solution_vec
         vector[c_LoveNumbers] complex_love_vec
+        vector[int] p_bc_models
         vector[size_t] shooting_method_steps_taken_vec
         double surface_amplification
+        double p_love_frequency_si
 
         c_EOSSolution* get_eos_solution_ptr()
         void change_radius_array(
@@ -54,6 +56,7 @@ cdef extern from "rs_solution_.hpp" nogil:
             cpp_complex[double]* out)
         cpp_bool get_surface_y(size_t ytype_i, cpp_complex[double]* out6)
         cpp_bool get_eos_si(double radius_si, double* out)
+        void get_complex_moduli_si(double radius_si, cpp_complex[double]& shear_out, cpp_complex[double]& bulk_out)
         void find_love()
         void dimensionalize_data(
             c_NonDimensionalScales* nondim_scales,
@@ -73,24 +76,25 @@ cdef class RadialSolverSolution:
     cdef unique_ptr[c_RadialSolutionStorage] solution_storage_uptr
     cdef c_RadialSolutionStorage* solution_storage_ptr
 
+    # The world this solution was released from, if any.
+    cdef object p_source_world
+
     # Result pointers and data
     cdef cnp.ndarray full_solution_arr
 
     # EOS solution arrays
-    cdef cnp.ndarray radius_array_cnp
-    cdef cnp.ndarray gravity_array_cnp
-    cdef cnp.ndarray pressure_array_cnp
-    cdef cnp.ndarray mass_array_cnp
-    cdef cnp.ndarray moi_array_cnp
-    cdef cnp.ndarray density_array_cnp
-    cdef cnp.ndarray shear_modulus_array_cnp
-    cdef cnp.ndarray bulk_modulus_array_cnp
 
     # Shooting method diagnostics
     cdef cnp.ndarray shooting_method_steps_taken_array
     cdef cnp.ndarray eos_steps_taken_array
 
     cdef void finalize_python_storage(self) noexcept
+
+    # Adopt a storage released by a world, instead of building one (see the .pyx).
+    @staticmethod
+    cdef RadialSolverSolution _adopt(
+        unique_ptr[c_RadialSolutionStorage] storage_uptr,
+        object source_world)
 
     cdef void set_model_names(
         self,

@@ -18,24 +18,24 @@ namespace tidalpy {
 // c_CoolingInputs: the physical state passed to a cooling model (all MKS).
 // -------------------------------------------------------------------------------
 struct c_CoolingInputs {
-    double delta_temp = 0.0;   // temperature drop across the layer [K]
-    double thickness = 0.0;   // layer (or sub-layer) thickness [m]
-    double gravity   = 0.0;   // gravitational acceleration [m/s^2]
-    double density   = 0.0;   // bulk density [kg/m^3]
-    double viscosity = 0.0;   // dynamic viscosity [Pa·s]
-    double thermal_conductivity = 0.0;   // thermal conductivity [W/m/K]
-    double thermal_diffusivity = 0.0;   // thermal diffusivity [m^2/s]
-    double thermal_expansion   = 0.0;   // thermal expansivity [1/K]
+    double delta_temp           = 0.0;  // temperature drop across the layer [K]
+    double thickness            = 0.0;  // layer (or sub-layer) thickness [m]
+    double gravity              = 0.0;  // gravitational acceleration [m/s^2]
+    double density              = 0.0;  // bulk density [kg/m^3]
+    double viscosity            = 0.0;  // dynamic viscosity [Pa·s]
+    double thermal_conductivity = 0.0;  // thermal conductivity [W/m/K]
+    double thermal_diffusivity  = 0.0;  // thermal diffusivity [m^2/s]
+    double thermal_expansion    = 0.0;  // thermal expansivity [1/K]
 };
 
 // -------------------------------------------------------------------------------
 // c_CoolingResult: the quantities every cooling model reports.
 // -------------------------------------------------------------------------------
 struct c_CoolingResult {
-    double cooling_flux = 0.0;   // heat flux leaving the layer [W/m^2]
-    double blt             = 0.0;   // boundary-layer thickness [m]
-    double rayleigh_number = 0.0;   // Rayleigh number [dimensionless]
-    double nusselt_number  = 1.0;   // Nusselt number [dimensionless]
+    double cooling_flux    = 0.0;  // heat flux leaving the layer [W/m^2]
+    double blt             = 0.0;  // boundary-layer thickness [m]
+    double rayleigh_number = 0.0;  // Rayleigh number [dimensionless]
+    double nusselt_number  = 1.0;  // Nusselt number [dimensionless]
 };
 
 // -------------------------------------------------------------------------------
@@ -56,13 +56,16 @@ public:
     void calc_cooling_vectorize_temperature(
             const std::vector<double>& delta_temp,
             const c_CoolingInputs& base_inputs,
-            std::vector<c_CoolingResult>& out_results) const {
+            std::vector<c_CoolingResult>& out_results) const
+    {
         const std::size_t n = delta_temp.size();
         out_results.resize(n);
         c_CoolingInputs inputs = base_inputs;
-        for (std::size_t i = 0; i < n; ++i) {
+        
+        for (std::size_t i = 0; i < n; ++i)
+        {
             inputs.delta_temp = delta_temp[i];
-            out_results[i] = this->calc_cooling(inputs);
+            out_results[i]    = this->calc_cooling(inputs);
         }
     }
 
@@ -70,13 +73,16 @@ public:
     void calc_cooling_vectorize_viscosity(
             const std::vector<double>& viscosity,
             const c_CoolingInputs& base_inputs,
-            std::vector<c_CoolingResult>& out_results) const {
+            std::vector<c_CoolingResult>& out_results) const
+    {
         const std::size_t n = viscosity.size();
         out_results.resize(n);
         c_CoolingInputs inputs = base_inputs;
-        for (std::size_t i = 0; i < n; ++i) {
+        
+        for (std::size_t i = 0; i < n; ++i)
+        {
             inputs.viscosity = viscosity[i];
-            out_results[i] = this->calc_cooling(inputs);
+            out_results[i]   = this->calc_cooling(inputs);
         }
     }
 
@@ -85,8 +91,10 @@ public:
             const std::vector<double>& delta_temp,
             const std::vector<double>& viscosity,
             const c_CoolingInputs& base_inputs,
-            std::vector<c_CoolingResult>& out_results) const {
-        if (delta_temp.size() != viscosity.size()) {
+            std::vector<c_CoolingResult>& out_results) const
+    {
+        if (delta_temp.size() != viscosity.size())
+        {
             throw std::invalid_argument(
                 "TidalPy: calc_cooling_vectorize_all — delta_temp and viscosity "
                 "vectors must have the same length");
@@ -94,10 +102,12 @@ public:
         const std::size_t n = delta_temp.size();
         out_results.resize(n);
         c_CoolingInputs inputs = base_inputs;
-        for (std::size_t i = 0; i < n; ++i) {
-            inputs.delta_temp  = delta_temp[i];
-            inputs.viscosity = viscosity[i];
-            out_results[i] = this->calc_cooling(inputs);
+        
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            inputs.delta_temp = delta_temp[i];
+            inputs.viscosity  = viscosity[i];
+            out_results[i]    = this->calc_cooling(inputs);
         }
     }
 };

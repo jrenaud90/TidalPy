@@ -82,6 +82,7 @@ cdef class TideBase(PhysicsBase):
         returns the supplied ``solver_love`` (a ``LoveNumbers``) unchanged. ``solver_love``
         is ignored by the analytic models and defaults to zeros when omitted.
         """
+        self._check_ptr()
         cdef c_LoveNumbers solver_c
         if solver_love is not None:
             solver_c = solver_love._love
@@ -92,6 +93,7 @@ cdef class TideBase(PhysicsBase):
 
     def calc_neg_imk(self, int degree_l, double frequency, LoveNumbers solver_love=None) -> float:
         """-Im[k_l] at the tidal frequency [rad s-1] (the mode-collapse dissipation multiplier)."""
+        self._check_ptr()
         cdef c_LoveNumbers solver_c
         if solver_love is not None:
             solver_c = solver_love._love
@@ -100,6 +102,7 @@ cdef class TideBase(PhysicsBase):
     @property
     def needs_radial_solve(self) -> bool:
         """Whether this model requires the radial solver to supply k_l (rheology)."""
+        self._check_ptr()
         return bool(self._tide_ptr.get().needs_radial_solve())
 
 
@@ -143,10 +146,12 @@ cdef class FixedQTide(TideBase):
 
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
+        self._check_ptr()
         return self._fixedq_ptr.get_fixed_k(degree_l)
 
     def get_fixed_q(self, int degree_l) -> float:
         """Tidal quality factor Q_l at the given degree."""
+        self._check_ptr()
         return self._fixedq_ptr.get_fixed_q(degree_l)
 
 
@@ -170,10 +175,12 @@ cdef class FixedLagTide(TideBase):
 
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
+        self._check_ptr()
         return self._fixedlag_ptr.get_fixed_k(degree_l)
 
     def get_fixed_dt(self, int degree_l) -> float:
         """Tidal time lag dt_l [s] at the given degree."""
+        self._check_ptr()
         return self._fixedlag_ptr.get_fixed_dt(degree_l)
 
 
@@ -198,14 +205,17 @@ cdef class CTLQTide(TideBase):
 
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
+        self._check_ptr()
         return self._ctlq_ptr.get_fixed_k(degree_l)
 
     def get_fixed_dt(self, int degree_l) -> float:
         """Tidal time lag dt_l [s] at the given degree."""
+        self._check_ptr()
         return self._ctlq_ptr.get_fixed_dt(degree_l)
 
     def get_fixed_q(self, int degree_l) -> float:
         """Tidal quality factor Q_l at the given degree."""
+        self._check_ptr()
         return self._ctlq_ptr.get_fixed_q(degree_l)
 
 

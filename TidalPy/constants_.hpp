@@ -96,6 +96,7 @@ struct TidalPyConfig
     int    d_EOS_SOLVER_MAX_ITERS;
     int    d_EOS_SOLVER_SLICES_PER_LAYER;
     bool   d_EOS_SOLVER_NONDIMENSIONALIZE;
+    bool   d_EOS_SOLVER_SOLVE_TEMPERATURE;// Updated from config_x['eos_solver']['solve_temperature']
 
     // Radial (Love number) solve defaults, from TidalPy.config_x['radial_solver']. Read by the world Love
     // solves, the tide paths that build their own, and the standalone radial_solver.
@@ -138,6 +139,7 @@ struct TidalPyConfig
         d_EOS_SOLVER_MAX_ITERS = -1;
         d_EOS_SOLVER_SLICES_PER_LAYER = -1;
         d_EOS_SOLVER_NONDIMENSIONALIZE = true;
+        d_EOS_SOLVER_SOLVE_TEMPERATURE = true;
         d_RADIAL_SOLVER_METHOD = -1;
         d_RADIAL_SOLVER_RTOL = nan;
         d_RADIAL_SOLVER_ATOL = nan;

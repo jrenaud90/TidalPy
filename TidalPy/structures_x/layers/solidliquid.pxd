@@ -28,57 +28,34 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         double              mass
         string              material_name
         cpp_bool            is_tidal
+        cpp_bool            is_volume_fixed
         double              tidal_scale
         c_TidalScaleMethod  tidal_scale_method
         # From c_PhysicsConfig:
-        double              shear_modulus_static
-        double              bulk_modulus_static
-        double              shear_viscosity_static
-        double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
         cpp_bool            is_solid
         cpp_bool            is_static
         cpp_bool            is_incompressible
-        # SolidLiquidLayer additions:
-        double              thermal_conductivity_ref
-        double              thermal_expansion_ref
-        double              heat_capacity_ref
-        double              activation_energy
-        double              activation_volume
-        double              solidus_temperature
-        double              liquidus_temperature
-        double              melt_fraction_exponent
-        double              reference_density
-        double              reference_temperature
-        double              melt_viscosity_reduction
+        double              temperature
+        cpp_bool            use_thermal_eos
+        cpp_bool            use_heating
 
     cdef cppclass c_SolidLiquidLayer(c_PhysicsLayer):
         c_SolidLiquidLayer() except +
         c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg) except +
-        # Thermal property getters
-        double get_thermal_conductivity_ref()   const
-        double get_thermal_expansion_ref()      const
-        double get_heat_capacity_ref()          const
-        double get_activation_energy()          const
-        double get_activation_volume()          const
-        double get_solidus_temperature()        const
-        double get_liquidus_temperature()       const
-        double get_melt_fraction_exponent()     const
-        double get_reference_density()          const
-        double get_reference_temperature()      const
-        double get_melt_viscosity_reduction()   const
+        # Thermal constants of the material (read from the layer's EOS model)
+        double get_thermal_conductivity() const
+        double get_thermal_expansion()    const
+        double get_heat_capacity()        const
         # Calculations
-        double calc_melt_fraction(double temperature, double pressure)     const
-        double calc_viscosity(double temperature, double pressure)         const
-        double calc_shear_modulus(double temperature, double pressure)     const
-        double calc_thermal_conductivity(double temperature)                  const
-        double calc_thermal_diffusivity(double temperature)                   const
+        double calc_thermal_conductivity(double temperature) const
+        double calc_thermal_diffusivity(double temperature)  const
         double calc_adiabatic_temperature_gradient(double temperature, double pressure) const
         double calc_heat_flux_conductive(double temperature_base, double temperature_top) const
-        double calc_radiogenic_heating(double time, double mass)           const
+        double calc_radiogenic_heating(double time, double mass) const
         # Sub-model flags
-        cpp_bool get_cooling_set()      const
-        cpp_bool get_radiogenics_set()  const
+        cpp_bool get_cooling_set()     const
+        cpp_bool get_radiogenics_set() const
         c_CoolingBase*     get_cooling_model()     const
         c_RadiogenicsBase* get_radiogenics_model() const
         # Sub-model setters (transfer ownership)

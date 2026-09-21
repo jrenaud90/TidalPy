@@ -290,61 +290,67 @@ def radial_solver(
             eos_integration_method_out
         )
 
-        solution = RadialSolverSolution(
-            num_bc_models_out,
-            upper_radius_bylayer_array,
-            radius_array,
-            degree_l
-        )
+        # Deferred to break a real import cycle: the world builder imports the world classes, and those import
+        # this module's package. The same pattern worlds/base.pyx uses for configs.toml_loader.
+        from TidalPy.structures_x.configs.world_builder import build_world_from_layered_profile
 
-        solution.set_model_names(&bc_models_out[0])
-
-        rs_error_code = c_radial_solver(
-            solution.solution_storage_uptr.get(),
-            total_slices,
-            &radius_array[0],
-            &density_array[0],
-            <cpp_complex[double]*>&complex_bulk_modulus_array[0],
-            <cpp_complex[double]*>&complex_shear_modulus_array[0],
-            frequency,
-            planet_bulk_density,
-            num_layers,
-            layer_types_out.data(),
-            c_is_static,
-            c_is_incomp,
-            surface_pressure,
-            degree_l,
-            num_bc_models_out,
-            &bc_models_out[0],
-            core_model,
-            c_use_kamata,
-            starting_radius,
-            c_start_radius_tolerance,
-            integration_method_out,
-            c_integration_rtol,
-            c_integration_atol,
-            c_scale_rtols,
-            c_max_num_steps,
-            c_expected_size,
-            c_max_ram_MB,
-            max_step,
-            c_nondimensionalize,
-            use_prop_matrix,
-            eos_integration_method_int_bylayer_out.data(),
-            eos_integration_method_out,
-            c_eos_rtol,
-            c_eos_atol,
-            c_eos_pressure_tol,
-            c_eos_max_iters,
-            verbose,
-            warnings
-        )
-        
+        # The supplied arrays describe a planet, so build that planet and solve it the way a built world is
+        # solved. One code path serves both APIs: the interior comes from an interpolated material per layer,
+        # and the complex moduli are handed to the solve rather than derived from a rheology.
+        solid_bylayer   = tuple(layer_types_out[i] == 0 for i in range(num_layers))
+        static_bylayer  = tuple(bool(is_static_bylayer[i]) for i in range(num_layers))
+        incomp_bylayer  = tuple(bool(is_incompressible_bylayer[i]) for i in range(num_layers))
+        temporary_world = build_world_from_layered_profile(
+            np.asarray(radius_array),
+            np.asarray(density_array),
+            np.asarray(complex_shear_modulus_array).real.copy(),
+            np.asarray(complex_bulk_modulus_array).real.copy(),
+            np.asarray(upper_radius_bylayer_array),
+            solid_bylayer,
+            static_bylayer,
+            incomp_bylayer,
+            planet_bulk_density)
     finally:
         free(c_is_static)
         free(c_is_incomp)
 
-    solution.finalize_python_storage()
+    temporary_world.solve_eos(
+        surface_pressure   = surface_pressure,
+        slices_per_layer   = max(<int>(total_slices // num_layers), 5),
+        integration_method = c_eos_integration_method,
+        rtol               = c_eos_rtol,
+        atol               = c_eos_atol,
+        pressure_tol       = c_eos_pressure_tol,
+        max_iters          = c_eos_max_iters,
+        nondimensionalize  = c_nondimensionalize)
+
+    temporary_world.solve_love_numbers_supplied(
+        np.asarray(complex_shear_modulus_array),
+        np.asarray(complex_bulk_modulus_array),
+        np.asarray(radius_array),
+        frequency          = frequency,
+        degree_l           = degree_l,
+        solve_for          = tuple(solve_for) if solve_for is not None else ('tidal',),
+        core_model         = core_model,
+        love_method        = love_method,
+        use_kamata         = c_use_kamata,
+        nondimensionalize  = c_nondimensionalize,
+        starting_radius    = starting_radius,
+        start_radius_tol   = c_start_radius_tolerance,
+        integration_method = c_integration_method,
+        rtol               = c_integration_rtol,
+        atol               = c_integration_atol,
+        scale_rtols        = c_scale_rtols,
+        max_num_steps      = c_max_num_steps,
+        expected_size      = c_expected_size,
+        max_ram_MB         = c_max_ram_MB,
+        max_step           = max_step,
+        verbose            = verbose,
+        warnings           = False)
+
+    # The solution takes the world with it, so its interior getters keep answering.
+    solution = temporary_world.release_radial_solution()
+    rs_error_code = solution.error_code
 
     if log_info:
         solution.print_diagnostics(print_diagnostics=False, log_diagnostics=True)

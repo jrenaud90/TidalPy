@@ -142,10 +142,6 @@ int c_shooting_solver(
     const double degree_l_dbl = static_cast<double>(degree_l);
 
     double* radius_array_ptr  = eos_solution_storage_ptr->radius_array_vec.data();
-    double* gravity_array_ptr = eos_solution_storage_ptr->gravity_array_vec.data();
-    double* density_array_ptr = eos_solution_storage_ptr->density_array_vec.data();
-    std::complex<double>* complex_shear_array_ptr = eos_solution_storage_ptr->complex_shear_array_vec.data();
-    std::complex<double>* complex_bulk_array_ptr  = eos_solution_storage_ptr->complex_bulk_array_vec.data();
 
     const size_t num_layers   = eos_solution_storage_ptr->num_layers;
     const size_t total_slices = eos_solution_storage_ptr->radius_array_size;
@@ -238,7 +234,8 @@ int c_shooting_solver(
     solution_storage_ptr->p_constants_by_ytype_layer.assign(
         num_ytypes,
         std::vector<std::array<std::complex<double>, 3>>(
-            num_layers, std::array<std::complex<double>, 3>{c_constant_NAN, c_constant_NAN, c_constant_NAN}));
+            num_layers, std::array<std::complex<double>, 3>{c_constant_NAN, c_constant_NAN, c_constant_NAN})
+        );
 
     // Stack buffers sized for the largest case: 6 ys x 3 solutions = 18 complex, 36 real.
     std::complex<double> uppermost_y_per_solution[18];
@@ -248,8 +245,6 @@ int c_shooting_solver(
     {
         uppermost_y_per_solution_ptr[i] = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
     }
-
-    std::vector<double> layer_radius_vec(eos_solution_storage_ptr->radius_array_vec.size());
 
     std::complex<double> initial_y[18];
     std::complex<double>* initial_y_ptr = &initial_y[0];
@@ -261,9 +256,8 @@ int c_shooting_solver(
 
     std::complex<double>* solution_ptr = reinterpret_cast<std::complex<double>*>(solution_storage_ptr->full_solution_vec.data());
 
-    // The EOS dense call writes C_EOS_DY_VALUES doubles.
-    double eos_interp_array[C_EOS_DY_VALUES];
-    double* eos_interp_array_ptr = &eos_interp_array[0];
+    // Scratch for the per-radius EOS reads below: gravity, density, and the complex moduli at this frequency.
+    c_EOSMaterialState eos_material_state;
     std::unique_ptr<CySolverResult> integration_solution_uptr = std::make_unique<CySolverResult>(integration_method);
     CySolverResult* integration_solution_ptr = nullptr;
 
@@ -310,8 +304,7 @@ int c_shooting_solver(
     if (starting_radius == 0.0)
     {
         starting_radius = planet_radius * std::pow(start_radius_tolerance, 1.0 / degree_l_dbl);
-        starting_radius = std::fmin(
-            starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
+        starting_radius = std::fmin(starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
     }
 
     // Find the layer holding the starting radius; lower layers are skipped.
@@ -422,15 +415,7 @@ int c_shooting_solver(
         const size_t num_sols   = num_solutions_by_layer_ptr[current_layer_i];
         const size_t num_ys     = 2 * num_sols;
         const size_t num_ys_dbl = 2 * num_ys;
-
-        double* layer_radius_ptr    = &radius_array_ptr[first_slice_index];
-        double* layer_density_ptr   = &density_array_ptr[first_slice_index];
-        double* layer_gravity_ptr   = &gravity_array_ptr[first_slice_index];
-        std::complex<double>* layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index];
-        std::complex<double>* layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index];
-
-        layer_radius_vec.resize(layer_slices);
-        std::memcpy(layer_radius_vec.data(), layer_radius_ptr, sizeof(double) * layer_slices);
+        double* layer_radius_ptr = &radius_array_ptr[first_slice_index];
 
         double radius_lower{starting_radius};
         double gravity_lower{TidalPyConstants::d_NAN};
@@ -440,18 +425,18 @@ int c_shooting_solver(
         if (current_layer_i == start_layer_i)
         {
             // The starting radius is generally not on a stored slice, so evaluate the EOS there.
-            eos_solution_storage_ptr->call(current_layer_i, starting_radius, eos_interp_array_ptr);
+            eos_solution_storage_ptr->call_material(current_layer_i, starting_radius, eos_material_state);
 
-            starting_gravity = eos_interp_array_ptr[0];
+            starting_gravity = eos_material_state.gravity;
             // TODO: At very small r the interpolated g can come back negative (likely an EOS artifact);
             // clamp it to a small positive floor so the shooting start is well defined.
             if (starting_gravity < TidalPyConstants::d_EPS)
             {
                 starting_gravity = TidalPyConstants::d_EPS;
             }
-            starting_density = eos_interp_array_ptr[4];
-            starting_shear   = std::complex<double>(eos_interp_array_ptr[5], eos_interp_array_ptr[6]);
-            starting_bulk    = std::complex<double>(eos_interp_array_ptr[7], eos_interp_array_ptr[8]);
+            starting_density = eos_material_state.density;
+            starting_shear   = eos_material_state.shear_modulus;
+            starting_bulk    = eos_material_state.bulk_modulus;
 
             radius_lower  = starting_radius;
             gravity_lower = starting_gravity;
@@ -461,18 +446,23 @@ int c_shooting_solver(
         }
         else
         {
-            radius_lower  = layer_radius_ptr[0];
-            gravity_lower = layer_gravity_ptr[0];
-            density_lower = layer_density_ptr[0];
-            shear_lower   = layer_shear_mod_ptr[0];
-            bulk_lower    = layer_bulk_mod_ptr[0];
+            // Ask the solution for this layer's base rather than reading the slice arrays. The two agree at a
+            // slice radius, but going through call_material means the material-state provider is honoured, so a
+            // world solve takes its interface values from the same models the integration uses.
+            radius_lower = layer_radius_ptr[0];
+            eos_solution_storage_ptr->call_material(current_layer_i, radius_lower, eos_material_state);
+            gravity_lower = eos_material_state.gravity;
+            density_lower = eos_material_state.density;
+            shear_lower   = eos_material_state.shear_modulus;
+            bulk_lower    = eos_material_state.bulk_modulus;
         }
 
-        const double radius_upper  = layer_radius_ptr[layer_slices - 1];
-        const double gravity_upper = layer_gravity_ptr[layer_slices - 1];
-        const double density_upper = layer_density_ptr[layer_slices - 1];
-        const std::complex<double> shear_upper   = layer_shear_mod_ptr[layer_slices - 1];
-        const std::complex<double> bulk_upper    = layer_bulk_mod_ptr[layer_slices - 1];
+        const double radius_upper = layer_radius_ptr[layer_slices - 1];
+        eos_solution_storage_ptr->call_material(current_layer_i, radius_upper, eos_material_state);
+        const double gravity_upper = eos_material_state.gravity;
+        const double density_upper = eos_material_state.density;
+        const std::complex<double> shear_upper = eos_material_state.shear_modulus;
+        const std::complex<double> bulk_upper  = eos_material_state.bulk_modulus;
 
         if (max_step_from_arrays)
         {
@@ -794,11 +784,7 @@ int c_shooting_solver(
                 const size_t num_sols = num_solutions_by_layer_ptr[layer_i_reversed];
                 const size_t num_ys   = 2 * num_sols;
 
-                double* layer_radius_ptr    = &radius_array_ptr[first_slice_index];
-                double* layer_density_ptr   = &density_array_ptr[first_slice_index];
-                double* layer_gravity_ptr   = &gravity_array_ptr[first_slice_index];
-                std::complex<double>* layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index];
-                std::complex<double>* layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index];
+                double* layer_radius_ptr = &radius_array_ptr[first_slice_index];
 
                 double radius_lower{TidalPyConstants::d_NAN};
                 double gravity_lower{TidalPyConstants::d_NAN};
@@ -816,16 +802,20 @@ int c_shooting_solver(
                 }
                 else
                 {
-                    radius_lower  = layer_radius_ptr[0];
-                    density_lower = layer_density_ptr[0];
-                    gravity_lower = layer_gravity_ptr[0];
-                    bulk_lower    = layer_bulk_mod_ptr[0];
-                    shear_lower   = layer_shear_mod_ptr[0];
+                    // Through call_material(), as above, so the provider supplies the interface values.
+                    radius_lower = layer_radius_ptr[0];
+                    eos_solution_storage_ptr->call_material(
+                        layer_i_reversed, radius_lower, eos_material_state);
+                    gravity_lower = eos_material_state.gravity;
+                    density_lower = eos_material_state.density;
+                    shear_lower   = eos_material_state.shear_modulus;
+                    bulk_lower    = eos_material_state.bulk_modulus;
                 }
 
-                const double radius_upper  = layer_radius_ptr[layer_slices - 1];
-                const double density_upper = layer_density_ptr[layer_slices - 1];
-                const double gravity_upper = layer_gravity_ptr[layer_slices - 1];
+                const double radius_upper = layer_radius_ptr[layer_slices - 1];
+                eos_solution_storage_ptr->call_material(layer_i_reversed, radius_upper, eos_material_state);
+                const double density_upper = eos_material_state.density;
+                const double gravity_upper = eos_material_state.gravity;
 
                 const int layer_type      = layer_types_ptr[layer_i_reversed];
                 const bool layer_is_static = is_static_by_layer_ptr[layer_i_reversed];

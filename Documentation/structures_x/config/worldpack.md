@@ -21,7 +21,7 @@ The example worlds live in the package directory `TidalPy/WorldPack_x/`. They ar
 
 The data directory is given by `TidalPy.paths.get_worlds_x_dir()`. It is scoped to the package's major.minor version (with a literal `X` patch placeholder, e.g. `0.8.X`), so every patch release of a given major.minor shares the same directory (configs and downloaded data are not duplicated on each bugfix release).
 
-World TOMLs and their companion data files (PREM-like profiles: `.csv`, `.txt`, `.dat`) are both installed. A world's `data_file` reference is resolved by `resolve_data_file` in this order: the world TOML's own directory, the data directory, the packaged `WorldPack_x`, then the working directory.
+World TOMLs and their companion data files (radial profiles: `.csv`, `.txt`, `.dat`) are both installed. A world's `data_file` reference is resolved by `resolve_data_file` in this order: the world TOML's own directory, the data directory, the packaged `WorldPack_x`, then the working directory. What such a file may contain is described in [`toml_schema.md`](toml_schema.md#building-a-world-from-a-radial-profile).
 
 ### Install
 

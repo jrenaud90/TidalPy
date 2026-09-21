@@ -104,6 +104,22 @@ public:
 
     // Mutators
     void set_name(const std::string& name)      { this->p_name = name; }
+
+    // The system this world belongs to, as a source of the orbital state its tides are raised in (non-owning;
+    // null outside a system), and this world's index there. The system sets both when the world is added and
+    // clears them when it goes away.
+    void set_tide_state_provider(const c_TideStateProvider* provider_ptr, std::size_t world_index) noexcept {
+        this->p_tide_state_provider_ptr = provider_ptr;
+        this->p_tide_state_index        = world_index;
+    }
+    const c_TideStateProvider* get_tide_state_provider() const noexcept { return this->p_tide_state_provider_ptr; }
+    std::size_t get_tide_state_index() const noexcept { return this->p_tide_state_index; }
+
+    // The tidal state the world's system gives it; false outside a system, or with no tidal host or usable orbit.
+    bool get_tide_state(c_TideSolveConfig& state_out) const {
+        if (this->p_tide_state_provider_ptr == nullptr) { return false; }
+        return this->p_tide_state_provider_ptr->get_tide_state(this->p_tide_state_index, state_out);
+    }
     void set_spin_frequency(double freq) noexcept { this->p_spin_frequency = freq; }
     void set_obliquity(double obliq)        noexcept { this->p_obliquity = obliq; }
 
@@ -221,6 +237,8 @@ protected:
     }
 
     std::string p_name;
+    const c_TideStateProvider* p_tide_state_provider_ptr = nullptr;
+    std::size_t p_tide_state_index = 0;
     std::string p_world_type = "world";
     double      p_albedo     = 0.3;   // [dimensionless]
     double      p_emissivity = 1.0;   // [dimensionless]

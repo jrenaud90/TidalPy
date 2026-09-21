@@ -5,14 +5,17 @@
  * A system links two or more worlds (stars, planets, moons) so that tides, orbital evolution, and
  * stellar insolation can be computed between them. Two roles are tracked independently:
  *
- *   - the tidal host: the body a world raises tides on / orbits tidally (e.g. the Moon orbits the
- *     Earth). Each world carries a two-body orbit about the host (semi-major axis + eccentricity).
+ *   - a tidal host per world: the body that raises that world's tides. Each world names its own host (or none)
+ *     and carries a two-body orbit about it (semi-major axis + eccentricity). The Moon's host is the Earth, and
+ *     the Earth's can be the Moon: two worlds that host each other share one orbit, so one of them may leave its
+ *     elements unset and take its partner's, and when both carry them they have to agree.
  *   - the star: the body that supplies insolation. Each world also carries a separate two-body orbit
- *     about the star, because the star need not be the tidal host. For the Earth-Moon system the tidal
+ *     about the star, because the star need not be its tidal host. For the Earth-Moon system the Moon's tidal
  *     host is the Earth but the star is the Sun; for an exoplanet orbiting its star the star is also the
  *     tidal host and the two orbits coincide.
  *
- * Worlds do not interact with one another, only with the host / the star.
+ * A world interacts only with its tidal host and the star. The system is also the tide-state provider of its
+ * worlds (c_TideStateProvider): a world it holds can ask it for the orbital state its tides are raised in.
  *
  * The system owns its worlds through shared_ptr so the Python world wrappers and the system can co-own
  * the same underlying C++ world. It also holds the orbital rate engine (c_OrbitSolver) that turns each
@@ -32,9 +35,14 @@
 #include "../worlds/layered_.hpp"             // c_LayeredWorld (rheology tidal solve + spin model)
 #include "../worlds/factory_.hpp"             // c_world_from_binary (world binary-dispatch factory)
 #include "../../dynamics_x/orbit_solver_.hpp" // c_OrbitSolver / c_OrbitState (orbital rate engine)
+#include "../../Utilities_x/math_x/numerics_.hpp"  // c_isclose
 #include "constants_.hpp"                     // TidalPyConstants::d_EPS / d_NAN / d_PI, tidalpy_config_ptr->d_G
 
 namespace tidalpy {
+
+// Relative tolerance within which the two members of a mutual pair must state the same orbital elements. They
+// describe one orbit, so anything past rounding is a contradiction in the input.
+inline constexpr double d_SHARED_ORBIT_RTOL = 1.0e-12;
 
 // -------------------------------------------------------------------------------
 // c_OrbitElements - the two-body orbital elements (semi-major axis + eccentricity) of one world about
@@ -49,8 +57,8 @@ struct c_OrbitElements {
 // -------------------------------------------------------------------------------
 // c_WorldEvolution - the tidal + orbital + spin rates of one orbiting world for a single tidal solve,
 // together with the orbital/spin state used and the raw tidal outputs so the energy balance can be
-// checked. Produced by c_System::calc_world_evolution. evolved is false when the world does not orbit
-// the host (the host's own entry, or a world with no usable orbit); the numeric fields are then unset.
+// checked. Produced by c_System::calc_world_evolution. evolved is false when the world has no tidal host or
+// no usable orbit about it; the numeric fields are then unset.
 // -------------------------------------------------------------------------------
 struct c_WorldEvolution {
     std::size_t world_index = 0;
@@ -90,11 +98,12 @@ struct c_WorldEvolution {
 // c_PairEvolution - the dual-body tidal evolution of an orbiting world and its tidal host, from
 // c_System::calc_pair_evolution. Both bodies raise a tide on the shared orbit, so the combined
 // orbital rates and energy balance (the top-level fields) are the sum of each body's single-body
-// contribution (held in `world` and `host`). evolved is false with no host or no usable orbit.
+// contribution (held in `world` and `host`). evolved is false for a world with no tidal host or no usable
+// orbit about it.
 // -------------------------------------------------------------------------------
 struct c_PairEvolution {
-    std::size_t world_index = 0;   // the orbiting world (its p_orbits entry holds the shared orbit)
-    std::size_t host_index  = 0;   // the tidal host
+    std::size_t world_index = 0;   // the orbiting world
+    std::size_t host_index  = 0;   // its tidal host
     bool        evolved     = false;
 
     // Shared two-body orbit state.
@@ -121,11 +130,17 @@ struct c_PairEvolution {
 // -------------------------------------------------------------------------------
 // c_System
 // -------------------------------------------------------------------------------
-class c_System : public c_TidalPyBaseClass {
+class c_System : public c_TidalPyBaseClass, public c_TideStateProvider {
 public:
     c_System() = default;
     explicit c_System(const std::string& name) : p_name(name) {}
-    ~c_System() override = default;
+
+    // The worlds can outlive the system (the Python wrappers co-own them), so they stop pointing at it.
+    ~c_System() override { this->p_release_worlds(); }
+
+    // Worlds hold a pointer to the system they belong to, so it is not copied.
+    c_System(const c_System&) = delete;
+    c_System& operator=(const c_System&) = delete;
 
     // -----------------------------------------------------------------------
     // Identity
@@ -136,14 +151,13 @@ public:
     // -----------------------------------------------------------------------
     // World membership
     //
-    // Add a world to the system. is_host / is_star are independent roles (a world can be both, e.g. an
-    // exoplanet's star that is also the tidal host); the last world added with each flag wins. The
-    // semi_major_axis / eccentricity here describe the world's orbit about the tidal host; its orbit
-    // about the star is set separately (set_stellar_semi_major_axis / set_stellar_eccentricity).
+    // Add a world to the system. The semi_major_axis / eccentricity here describe the world's orbit about its
+    // tidal host, which is named afterwards with set_tidal_host (a host may be added after the worlds it hosts);
+    // its orbit about the star is set separately (set_stellar_semi_major_axis / set_stellar_eccentricity). The
+    // last world added with is_star is the star.
     // -----------------------------------------------------------------------
     std::size_t add_world(
             std::shared_ptr<c_BaseWorld> world,
-            bool is_host = false,
             bool is_star = false,
             double semi_major_axis = TidalPyConstants::d_NAN,
             double eccentricity = 0.0) {
@@ -151,12 +165,11 @@ public:
             throw std::invalid_argument("TidalPy: c_System::add_world - world is null");
         }
         const std::size_t index = this->p_worlds.size();
+        world->set_tide_state_provider(this, index);
         this->p_worlds.push_back(std::move(world));
         this->p_orbits.push_back(c_OrbitElements{semi_major_axis, eccentricity});
         this->p_stellar_orbits.push_back(c_OrbitElements{});
-        if (is_host) {
-            this->p_host_index = static_cast<int>(index);
-        }
+        this->p_host_index_byworld.push_back(-1);
         if (is_star) {
             this->p_star_index = static_cast<int>(index);
         }
@@ -181,27 +194,52 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Host
+    // Tidal hosts (one per world, or none)
     // -----------------------------------------------------------------------
-    bool has_host() const noexcept {
-        return this->p_host_index >= 0 && static_cast<std::size_t>(this->p_host_index) < this->p_worlds.size();
-    }
-    int get_host_index() const noexcept { return this->p_host_index; }
-
-    void set_host(std::size_t index) {
+    bool has_tidal_host(std::size_t index) const {
         this->check_index(index);
-        this->p_host_index = static_cast<int>(index);
+        return this->p_host_index_byworld[index] >= 0;
     }
 
-    const std::shared_ptr<c_BaseWorld>& get_host() const {
-        if (!this->has_host()) {
-            throw std::runtime_error("TidalPy: c_System has no host world (call set_host / add_world with is_host=true)");
+    // Index of the world's tidal host, or -1 for a world with none.
+    int get_tidal_host_index(std::size_t index) const {
+        this->check_index(index);
+        return this->p_host_index_byworld[index];
+    }
+
+    void set_tidal_host(std::size_t index, std::size_t host_index) {
+        this->check_index(index);
+        this->check_index(host_index);
+        if (index == host_index) {
+            throw std::invalid_argument("TidalPy: c_System::set_tidal_host - a world cannot be its own tidal host");
         }
-        return this->p_worlds[static_cast<std::size_t>(this->p_host_index)];
+        this->p_host_index_byworld[index] = static_cast<int>(host_index);
     }
 
-    double get_host_mass() const {
-        return this->get_host()->get_mass();
+    void clear_tidal_host(std::size_t index) {
+        this->check_index(index);
+        this->p_host_index_byworld[index] = -1;
+    }
+
+    const std::shared_ptr<c_BaseWorld>& get_tidal_host(std::size_t index) const {
+        if (!this->has_tidal_host(index)) {
+            throw std::runtime_error(
+                "TidalPy: c_System - world '" + this->p_worlds[index]->get_name()
+                + "' has no tidal host (call set_tidal_host)");
+        }
+        return this->p_worlds[static_cast<std::size_t>(this->p_host_index_byworld[index])];
+    }
+
+    double get_tidal_host_mass(std::size_t index) const {
+        return this->get_tidal_host(index)->get_mass();
+    }
+
+    // True when the world and its tidal host host each other, so the two share one orbit.
+    bool is_mutual_pair(std::size_t index) const {
+        this->check_index(index);
+        const int host_index = this->p_host_index_byworld[index];
+        return (host_index >= 0)
+            && (this->p_host_index_byworld[static_cast<std::size_t>(host_index)] == static_cast<int>(index));
     }
 
     // -----------------------------------------------------------------------
@@ -238,7 +276,7 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Orbital elements about the tidal host (per orbiting world, by index)
+    // Orbital elements about the tidal host (per world, by index)
     // -----------------------------------------------------------------------
     void set_semi_major_axis(std::size_t index, double semi_major_axis) {
         this->check_index(index);
@@ -248,37 +286,51 @@ public:
         this->check_index(index);
         this->p_orbits[index].eccentricity = eccentricity;
     }
-    double get_semi_major_axis(std::size_t index) const {
-        this->check_index(index);
-        return this->p_orbits[index].semi_major_axis;
-    }
-    double get_eccentricity(std::size_t index) const {
-        this->check_index(index);
-        return this->p_orbits[index].eccentricity;
-    }
 
-    // Standard gravitational parameter mu = G (M_host + M_world) [m^3 s-2] for the world's orbit about
-    // the host. Throws if no host is set; returns NaN for the host's own index.
+    // The elements of the world's orbit about its tidal host. A member of a mutual pair that carries no
+    // semi-major axis of its own takes its partner's elements; when both carry one they describe the same
+    // orbit, so a disagreement throws std::invalid_argument.
+    c_OrbitElements get_host_orbit(std::size_t index) const {
+        this->check_index(index);
+        const c_OrbitElements& own = this->p_orbits[index];
+        if (!this->is_mutual_pair(index)) {
+            return own;
+        }
+        const c_OrbitElements& partner =
+            this->p_orbits[static_cast<std::size_t>(this->p_host_index_byworld[index])];
+        if (!std::isfinite(own.semi_major_axis)) {
+            return partner;
+        }
+        if (std::isfinite(partner.semi_major_axis)
+                && (!c_isclose(own.semi_major_axis, partner.semi_major_axis, d_SHARED_ORBIT_RTOL, 0.0)
+                    || !c_isclose(own.eccentricity, partner.eccentricity, d_SHARED_ORBIT_RTOL, d_SHARED_ORBIT_RTOL))) {
+            throw std::invalid_argument(
+                "TidalPy: c_System - worlds '" + this->p_worlds[index]->get_name() + "' and '"
+                + this->get_tidal_host(index)->get_name()
+                + "' host each other, so they share one orbit, but state different orbital elements for it. "
+                  "Set the semi-major axis and eccentricity on one of them, or the same values on both.");
+        }
+        return own;
+    }
+    double get_semi_major_axis(std::size_t index) const { return this->get_host_orbit(index).semi_major_axis; }
+    double get_eccentricity(std::size_t index) const { return this->get_host_orbit(index).eccentricity; }
+
+    // Standard gravitational parameter mu = G (M_host + M_world) [m^3 s-2] for the world's orbit about its
+    // tidal host. NaN for a world with no tidal host.
     double calc_gravitational_parameter(std::size_t index) const {
         this->check_index(index);
-        if (!this->has_host()) {
-            throw std::runtime_error("TidalPy: c_System::calc_gravitational_parameter - no tidal host world set");
-        }
-        if (static_cast<int>(index) == this->p_host_index) {
+        if (!this->has_tidal_host(index) || tidalpy_config_ptr == nullptr) {
             return TidalPyConstants::d_NAN;
         }
-        if (tidalpy_config_ptr == nullptr) {
-            return TidalPyConstants::d_NAN;
-        }
-        const double total_mass = this->get_host_mass() + this->p_worlds[index]->get_mass();
+        const double total_mass = this->get_tidal_host_mass(index) + this->p_worlds[index]->get_mass();
         return tidalpy_config_ptr->d_G * total_mass;
     }
 
-    // Mean motion n = sqrt(mu / a^3) [rad s-1] for the world's two-body orbit about the host.
-    // Returns NaN for a non-positive/degenerate semi-major axis or the host's own index.
+    // Mean motion n = sqrt(mu / a^3) [rad s-1] for the world's two-body orbit about its tidal host.
+    // Returns NaN for a non-positive/degenerate semi-major axis or a world with no tidal host.
     double calc_orbital_frequency(std::size_t index) const {
         const double mu = this->calc_gravitational_parameter(index);
-        const double semi_major_axis = this->p_orbits[index].semi_major_axis;
+        const double semi_major_axis = this->get_host_orbit(index).semi_major_axis;
         if (!std::isfinite(mu) || !std::isfinite(semi_major_axis) || semi_major_axis <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_NAN;
         }
@@ -286,7 +338,7 @@ public:
     }
 
     // Semi-major axis a = (mu / n^2)^(1/3) [m] from a mean motion (the inverse of calc_orbital_frequency).
-    // Returns NaN for a non-positive frequency or the host's own index.
+    // Returns NaN for a non-positive frequency or a world with no tidal host.
     double calc_semi_major_axis_from_frequency(std::size_t index, double orbital_frequency) const {
         const double mu = this->calc_gravitational_parameter(index);
         if (!std::isfinite(mu) || orbital_frequency <= TidalPyConstants::d_EPS) {
@@ -392,37 +444,67 @@ public:
     }
 
     // -----------------------------------------------------------------------
+    // Tide-state provider (c_TideStateProvider): what a world of this system is told about its own tides
+    // -----------------------------------------------------------------------
+    bool get_tide_state(std::size_t world_index, c_TideSolveConfig& state_out) const override {
+        if (world_index >= this->p_worlds.size() || !this->has_tidal_host(world_index)) {
+            return false;
+        }
+        const double orbital_frequency = this->calc_orbital_frequency(world_index);
+        if (!std::isfinite(orbital_frequency)) {
+            return false;
+        }
+        const c_OrbitElements orbit = this->get_host_orbit(world_index);
+        const c_BaseWorld* world_ptr = this->p_worlds[world_index].get();
+        state_out.orbital_frequency = orbital_frequency;
+        state_out.spin_frequency    = world_ptr->get_spin_frequency();
+        state_out.eccentricity      = orbit.eccentricity;
+        state_out.obliquity         = world_ptr->get_obliquity();
+        state_out.semi_major_axis   = orbit.semi_major_axis;
+        state_out.host_mass         = this->get_tidal_host_mass(world_index);
+        return true;
+    }
+
+    double get_equilibrium_temperature(std::size_t world_index) const override {
+        if (world_index >= this->p_worlds.size() || !this->has_star()) {
+            return TidalPyConstants::d_NAN;
+        }
+        return this->calc_equilibrium_temperature(world_index);
+    }
+
+    // -----------------------------------------------------------------------
     // Orbital + spin evolution (single-body tidal dissipation)
     //
-    // Runs one orbiting world's global tidal solve in the current system state, then turns the
-    // tidal-potential derivatives into the orbital rates and the spin rate. Only this world raises
-    // tides; the host is a point mass (its own tide is added by calc_pair_evolution). The returned
-    // struct carries the state and raw tidal outputs so the energy balance can be checked.
+    // Runs one world's global tidal solve in the current system state, then turns the tidal-potential
+    // derivatives into the orbital rates and the spin rate. Only this world raises tides; its host is a
+    // point mass (the host's own tide is added by calc_pair_evolution). The returned struct carries the
+    // state and raw tidal outputs so the energy balance can be checked.
     // -----------------------------------------------------------------------
     c_WorldEvolution calc_world_evolution(std::size_t index) {
         this->check_index(index);
         c_WorldEvolution out;
         out.world_index = index;
 
-        // The host does not orbit itself; a world without a usable orbit about the host cannot evolve.
-        if (!this->has_host() || static_cast<int>(index) == this->p_host_index) {
+        // A world with no tidal host, or no usable orbit about it, has no tide to evolve under.
+        if (!this->has_tidal_host(index)) {
             return out;
         }
         const double orbital_frequency = this->calc_orbital_frequency(index);
         if (!std::isfinite(orbital_frequency)) {
             return out;
         }
+        const c_OrbitElements orbit = this->get_host_orbit(index);
         return this->calc_dissipation(
             index,
-            this->get_host_mass(),
+            this->get_tidal_host_mass(index),
             orbital_frequency,
-            this->p_orbits[index].semi_major_axis,
-            this->p_orbits[index].eccentricity);
+            orbit.semi_major_axis,
+            orbit.eccentricity);
     }
 
     // Evolve every world in the system (single-body dissipation), returning one c_WorldEvolution per
-    // world in index order. The host's own entry and any world without a usable orbit come back with
-    // evolved = false.
+    // world in index order. A world with no tidal host or no usable orbit comes back with evolved = false.
+    // The two members of a mutual pair each get a row: their contributions to the orbit they share add.
     std::vector<c_WorldEvolution> calc_system_evolution() {
         std::vector<c_WorldEvolution> results;
         results.reserve(this->p_worlds.size());
@@ -439,25 +521,26 @@ public:
     // raiser (masses swapped), so the shared-orbit rates are the sum of the two contributions and
     // each body evolves its own spin. The energy balance is the sum of the two single-body balances:
     //   heating_world + heating_host = -(dE_orbit/dt + dE_spin_world/dt + dE_spin_host/dt).
-    // A body with no tide model is rigid and contributes nothing. Returns evolved = false for the
-    // host's own entry, a hostless system, or a world with no usable orbit.
+    // A body with no tide model is rigid and contributes nothing. The pair is the world and its own tidal
+    // host. Returns evolved = false for a world with no tidal host or no usable orbit.
     // -----------------------------------------------------------------------
     c_PairEvolution calc_pair_evolution(std::size_t index) {
         this->check_index(index);
         c_PairEvolution out;
         out.world_index = index;
-        if (!this->has_host() || static_cast<int>(index) == this->p_host_index) {
+        if (!this->has_tidal_host(index)) {
             return out;
         }
-        out.host_index = static_cast<std::size_t>(this->p_host_index);
+        out.host_index = static_cast<std::size_t>(this->p_host_index_byworld[index]);
         const double orbital_frequency = this->calc_orbital_frequency(index);
         if (!std::isfinite(orbital_frequency)) {
             return out;
         }
-        const double a = this->p_orbits[index].semi_major_axis;
-        const double e = this->p_orbits[index].eccentricity;
+        const c_OrbitElements orbit = this->get_host_orbit(index);
+        const double a = orbit.semi_major_axis;
+        const double e = orbit.eccentricity;
         const double world_mass = this->p_worlds[index]->get_mass();
-        const double host_mass  = this->get_host_mass();
+        const double host_mass  = this->get_tidal_host_mass(index);
 
         out.orbital_frequency = orbital_frequency;
         out.semi_major_axis   = a;
@@ -600,8 +683,8 @@ public:
     // -----------------------------------------------------------------------
     // Binary I/O
     //
-    // The container state (name, host/star indices, and each world's orbital elements about the host
-    // and about the star) followed by every world's complete binary record; read_binary rebuilds the
+    // The container state (name, star index, and each world's tidal host index and orbital elements about
+    // that host and about the star) followed by every world's complete binary record; read_binary rebuilds the
     // heterogeneous world list through c_world_from_binary. Physics sub-models a world does not
     // serialize (the star's luminosity model, layer EOS model and profile data, the spin and tide
     // models) are reattached after load. c_OrbitSolver is stateless, so it needs no serialized state.
@@ -610,16 +693,18 @@ public:
         const auto num_worlds = static_cast<uint64_t>(this->p_worlds.size());
         uint64_t payload =
             binary_string_bytes(this->p_name)
-            + sizeof(int32_t) * 2                   // host index, star index
+            + sizeof(int32_t)                       // star index
             + sizeof(uint64_t)                      // world count
-            + num_worlds * (4 * sizeof(double));    // per-world host-orbit + star-orbit elements
+            + num_worlds * (sizeof(int32_t) + 4 * sizeof(double));  // per-world host index + two orbits
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::System), payload);
         write_binary_string(out, this->p_name);
-        const int32_t host_index = this->p_host_index;
         const int32_t star_index = this->p_star_index;
-        out.write(reinterpret_cast<const char*>(&host_index), sizeof(int32_t));
         out.write(reinterpret_cast<const char*>(&star_index), sizeof(int32_t));
         out.write(reinterpret_cast<const char*>(&num_worlds), sizeof(uint64_t));
+        for (const int host_index_value : this->p_host_index_byworld) {
+            const int32_t host_index = host_index_value;
+            out.write(reinterpret_cast<const char*>(&host_index), sizeof(int32_t));
+        }
         for (const c_OrbitElements& orbit : this->p_orbits) {
             out.write(reinterpret_cast<const char*>(&orbit.semi_major_axis), sizeof(double));
             out.write(reinterpret_cast<const char*>(&orbit.eccentricity),    sizeof(double));
@@ -640,9 +725,7 @@ public:
         c_TidalPyBaseClass::read_binary(in, force);
         this->p_name = read_binary_string(in);
 
-        int32_t host_index = -1;
         int32_t star_index = -1;
-        in.read(reinterpret_cast<char*>(&host_index), sizeof(int32_t));
         in.read(reinterpret_cast<char*>(&star_index), sizeof(int32_t));
         uint64_t num_worlds = 0;
         in.read(reinterpret_cast<char*>(&num_worlds), sizeof(uint64_t));
@@ -650,7 +733,14 @@ public:
             throw std::runtime_error("TidalPy: failed to read System binary data");
         }
 
-        // Per-world orbital elements about the host, then about the star (same order write_binary used).
+        // Per-world tidal host, then the orbital elements about it and about the star (write_binary's order).
+        std::vector<int> host_index_byworld(num_worlds, -1);
+        for (uint64_t i = 0; i < num_worlds; ++i) {
+            int32_t host_index = -1;
+            in.read(reinterpret_cast<char*>(&host_index), sizeof(int32_t));
+            host_index_byworld[i] = (host_index >= 0 && static_cast<uint64_t>(host_index) < num_worlds
+                                     && static_cast<uint64_t>(host_index) != i) ? host_index : -1;
+        }
         this->p_orbits.assign(num_worlds, c_OrbitElements{});
         for (uint64_t i = 0; i < num_worlds; ++i) {
             in.read(reinterpret_cast<char*>(&this->p_orbits[i].semi_major_axis), sizeof(double));
@@ -663,13 +753,15 @@ public:
         }
 
         // Rebuild the heterogeneous world list; each world's concrete type is recovered from its record.
+        this->p_release_worlds();
         this->p_worlds.clear();
         this->p_worlds.reserve(num_worlds);
         for (uint64_t i = 0; i < num_worlds; ++i) {
             this->p_worlds.push_back(c_world_from_binary(in, force));
+            this->p_worlds.back()->set_tide_state_provider(this, static_cast<std::size_t>(i));
         }
 
-        this->p_host_index = host_index;
+        this->p_host_index_byworld = std::move(host_index_byworld);
         this->p_star_index = star_index;
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read System binary data");
@@ -684,11 +776,21 @@ protected:
         }
     }
 
+    // The worlds stop asking this system for their tide state (those still pointing at it, that is: a world
+    // added to a second system points at that one).
+    void p_release_worlds() noexcept {
+        for (const std::shared_ptr<c_BaseWorld>& world : this->p_worlds) {
+            if (world && (world->get_tide_state_provider() == static_cast<const c_TideStateProvider*>(this))) {
+                world->set_tide_state_provider(nullptr, 0);
+            }
+        }
+    }
+
     std::string p_name;
     std::vector<std::shared_ptr<c_BaseWorld>> p_worlds;         // owned worlds (shared with the Python wrappers)
-    std::vector<c_OrbitElements>              p_orbits;         // orbit about the tidal host; host entry unused
+    std::vector<c_OrbitElements>              p_orbits;         // orbit about each world's tidal host
     std::vector<c_OrbitElements>              p_stellar_orbits; // orbit about the star; star entry unused
-    int p_host_index = -1;                                      // index into p_worlds, or -1 if unset
+    std::vector<int> p_host_index_byworld;                      // each world's tidal host in p_worlds, or -1
     int p_star_index = -1;                                      // index into p_worlds, or -1 if unset
     c_OrbitSolver p_orbit_solver;                              // stateless engine turning dU/dX into orbital rates
 };

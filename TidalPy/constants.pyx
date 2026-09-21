@@ -215,6 +215,7 @@ def update_constants_x():
     tidalpy_config_ptr.d_EOS_SOLVER_MAX_ITERS = int(eos_solver['max_iters'])
     tidalpy_config_ptr.d_EOS_SOLVER_SLICES_PER_LAYER = int(eos_solver['slices_per_layer'])
     tidalpy_config_ptr.d_EOS_SOLVER_NONDIMENSIONALIZE = bool(eos_solver['nondimensionalize'])
+    tidalpy_config_ptr.d_EOS_SOLVER_SOLVE_TEMPERATURE = bool(eos_solver['solve_temperature'])
 
     radial_solver = TidalPy.config_x['radial_solver']
     tidalpy_config_ptr.d_RADIAL_SOLVER_METHOD = ode_method_from_name(radial_solver['integration_method'])

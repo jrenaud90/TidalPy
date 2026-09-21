@@ -294,7 +294,7 @@ public:
     ~c_IsotopeRadiogenics() override = default;
 
     const std::vector<c_Isotope>& get_isotopes() const noexcept { return this->p_isotopes; }
-    double get_ref_time()          const noexcept { return this->p_ref_time; }
+    double get_ref_time()          const noexcept override { return this->p_ref_time; }
     std::size_t get_num_isotopes() const noexcept { return this->p_isotopes.size(); }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
@@ -387,7 +387,7 @@ public:
 
     double get_fixed_heat_production() const noexcept { return this->p_fixed_heat_production; }
     double get_average_half_life()     const noexcept { return this->p_average_half_life; }
-    double get_ref_time()              const noexcept { return this->p_ref_time; }
+    double get_ref_time()              const noexcept override { return this->p_ref_time; }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_RadiogenicsBase::append_config_entries(out);

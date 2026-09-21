@@ -103,6 +103,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         void                 set_tide_config(const c_TideConfig& cfg)
         const c_TideConfig&  get_tide_config() const
         void                 calc_tides(const c_TideSolveConfig& state) except +
+        cpp_bool             get_tide_state(c_TideSolveConfig& state_out) except +
         cpp_bool             get_tides_solved() const
         double               get_tidal_heating() const
         double               get_tidal_dU_dM() const

@@ -17,6 +17,7 @@
  *     material_name_len  (uint32_t, 4)
  *     material_name      (material_name_len bytes, UTF-8)
  *     is_tidal           (uint8_t, 1)
+ *     is_volume_fixed    (uint8_t, 1)
  *     tidal_scale        (double, 8)
  *     tidal_scale_method (uint8_t, 1)
  *     eos_model          presence flag (uint8_t, 1) + (if present) the model's own binary record
@@ -100,6 +101,8 @@ struct c_BaseLayerConfig {
     double             mass         = 0.0;   // [kg]
     std::string        material_name = "Unknown";
     bool               is_tidal    = true;
+    // False lets the layer grow or shrink to hold its mass while the solve redistributes the interior.
+    bool               is_volume_fixed = true;
     double             tidal_scale = 1.0;   // dimensionless
     c_TidalScaleMethod tidal_scale_method = c_TidalScaleMethod::user_provided;
 };
@@ -116,6 +119,7 @@ public:
           p_radius_inner(cfg.radius_inner),
           p_material_name(cfg.material_name),
           p_is_tidal(cfg.is_tidal),
+          p_is_volume_fixed(cfg.is_volume_fixed),
           p_tidal_scale(cfg.tidal_scale),
           p_tidal_scale_method(cfg.tidal_scale_method)
     {
@@ -139,6 +143,7 @@ public:
             this->p_surface_area_outer = other.p_surface_area_outer;
             this->p_material_name      = other.p_material_name;
             this->p_is_tidal           = other.p_is_tidal;
+            this->p_is_volume_fixed    = other.p_is_volume_fixed;
             this->p_tidal_scale        = other.p_tidal_scale;
             this->p_tidal_scale_method = other.p_tidal_scale_method;
             this->p_tidal_heating      = other.p_tidal_heating;
@@ -160,6 +165,16 @@ public:
     double             get_surface_area_outer()  const noexcept { return this->p_surface_area_outer; }
     const std::string& get_material_name()       const noexcept { return this->p_material_name; }
     bool               get_is_tidal()            const noexcept { return this->p_is_tidal; }
+    bool               get_is_volume_fixed()     const noexcept { return this->p_is_volume_fixed; }
+    void               set_is_volume_fixed(bool value) noexcept { this->p_is_volume_fixed = value; }
+
+    // Move the layer's boundaries, keeping every derived geometric quantity in step. The EOS solve calls it
+    // when a layer below has grown or shrunk, or when this layer is holding its mass rather than its volume.
+    void set_radii(double radius_inner, double radius_outer) noexcept {
+        this->p_radius_inner = radius_inner;
+        this->p_radius       = radius_outer;
+        this->update_physicals();
+    }
     double             get_tidal_scale()         const noexcept { return this->p_tidal_scale; }
     c_TidalScaleMethod get_tidal_scale_method()  const noexcept { return this->p_tidal_scale_method; }
 
@@ -192,46 +207,33 @@ public:
     double get_pressure(double radius)        const noexcept { return this->p_eos_data.get_pressure(radius); }
     void   update_eos_data(const c_LayerEOSData& data) { this->p_eos_data = data; }
 
-    // Viscoelastic state (post-melt by default, pre-melt through the premelt getters). Populated by the world EOS
-    // solve's post-pass on PhysicsLayer and its subclasses; NaN on a geometry-only BaseLayer or before the solve.
-    bool   get_viscoelastic_populated()         const noexcept { return this->p_eos_data.is_viscoelastic_populated(); }
-    double get_shear_modulus(double radius)   const noexcept { return this->p_eos_data.get_shear_modulus(radius); }
-    double get_bulk_modulus(double radius)    const noexcept { return this->p_eos_data.get_bulk_modulus(radius); }
-    double get_shear_viscosity(double radius) const noexcept { return this->p_eos_data.get_shear_viscosity(radius); }
-    double get_bulk_viscosity(double radius)  const noexcept { return this->p_eos_data.get_bulk_viscosity(radius); }
-    double get_premelt_shear_modulus(double radius)   const noexcept {
-        return this->p_eos_data.get_premelt_shear_modulus(radius);
+    // Static material state at a radius, read from the solved EOS: the material evaluated these as the structure
+    // was integrated, so nothing is calculated here and every value is the one the solve used. They are the
+    // frequency-independent moduli [Pa], viscosities [Pa s], and melt fraction after the partial-melt model. NaN
+    // before a solve, and for a profile supplied by hand, which carries density, gravity, and pressure alone.
+    bool   get_viscoelastic_populated()         const noexcept { return this->p_eos_data.has_dense_eval(); }
+    double get_shear_modulus(double radius)   const noexcept {
+        return this->p_eos_value(radius, C_EOS_SHEAR_MODULUS_INDEX);
     }
-    double get_premelt_bulk_modulus(double radius)    const noexcept {
-        return this->p_eos_data.get_premelt_bulk_modulus(radius);
+    double get_bulk_modulus(double radius)    const noexcept {
+        return this->p_eos_value(radius, C_EOS_BULK_MODULUS_INDEX);
     }
-    double get_premelt_shear_viscosity(double radius) const noexcept {
-        return this->p_eos_data.get_premelt_shear_viscosity(radius);
+    double get_shear_viscosity(double radius) const noexcept {
+        return this->p_eos_value(radius, C_EOS_SHEAR_VISCOSITY_INDEX);
     }
-    double get_premelt_bulk_viscosity(double radius)  const noexcept {
-        return this->p_eos_data.get_premelt_bulk_viscosity(radius);
+    double get_bulk_viscosity(double radius)  const noexcept {
+        return this->p_eos_value(radius, C_EOS_BULK_VISCOSITY_INDEX);
+    }
+    double get_melt_fraction(double radius)   const noexcept {
+        return this->p_eos_value(radius, C_EOS_MELT_FRACTION_INDEX);
+    }
+    double get_temperature_at(double radius)  const noexcept {
+        return this->p_eos_value(radius, C_EOS_TEMPERATURE_INDEX);
     }
 
-    // Store the pre/post-melt viscoelastic profiles (called by the world solve).
-    void update_viscoelastic_data(
-            const std::vector<double>& premelt_shear,
-            const std::vector<double>& premelt_bulk,
-            const std::vector<double>& premelt_shear_visc,
-            const std::vector<double>& premelt_bulk_visc,
-            const std::vector<double>& postmelt_shear,
-            const std::vector<double>& postmelt_bulk,
-            const std::vector<double>& postmelt_shear_visc,
-            const std::vector<double>& postmelt_bulk_visc) {
-        this->p_eos_data.populate_viscoelastic(
-            premelt_shear,
-            premelt_bulk,
-            premelt_shear_visc,
-            premelt_bulk_visc,
-            postmelt_shear,
-            postmelt_bulk,
-            postmelt_shear_visc,
-            postmelt_bulk_visc);
-    }
+    // Every solved quantity at a radius in one dense evaluation, for a caller that wants more than one of them:
+    // C_EOS_DY_VALUES doubles in the evaluation layout of eos_layout_.hpp.
+    void get_eos_state(double radius, double* y_out) const noexcept { this->p_eos_data.evaluate(radius, y_out); }
 
     // Material EOS model: the per-layer density source used by the world-level EOS solve. Ownership transfers in.
     void set_eos(std::unique_ptr<c_MaterialEOSBase> eos) {
@@ -261,7 +263,7 @@ public:
             sizeof(int32_t)  +               // layer_index
             sizeof(double)   +               // radius_inner
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
-            sizeof(uint8_t)  +               // is_tidal
+            sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
             sizeof(double)   +               // tidal_scale
             sizeof(uint8_t)  +               // tidal_scale_method
             optional_binary_flag_bytes();    // material EOS model presence flag
@@ -281,6 +283,8 @@ public:
 
         const uint8_t is_tidal = static_cast<uint8_t>(this->p_is_tidal);
         out.write(reinterpret_cast<const char*>(&is_tidal),         sizeof(uint8_t));
+        const uint8_t is_volume_fixed = static_cast<uint8_t>(this->p_is_volume_fixed);
+        out.write(reinterpret_cast<const char*>(&is_volume_fixed),  sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
         const uint8_t scale_method_byte = static_cast<uint8_t>(this->p_tidal_scale_method);
         out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
@@ -318,6 +322,9 @@ public:
         uint8_t is_tidal = 0;
         in.read(reinterpret_cast<char*>(&is_tidal), sizeof(uint8_t));
         this->p_is_tidal = static_cast<bool>(is_tidal);
+        uint8_t is_volume_fixed = 0;
+        in.read(reinterpret_cast<char*>(&is_volume_fixed), sizeof(uint8_t));
+        this->p_is_volume_fixed = static_cast<bool>(is_volume_fixed);
 
         in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
 
@@ -335,6 +342,13 @@ public:
     }
 
 protected:
+    // One entry of the evaluation layout at a radius.
+    double p_eos_value(double radius, std::size_t index) const noexcept {
+        double state[C_EOS_DY_VALUES];
+        this->p_eos_data.evaluate(radius, state);
+        return state[index];
+    }
+
     // Recursive (de)serialization of the optional material EOS model, shared by every layer class so the section
     // has one byte layout: a presence flag followed, when set, by the model's own binary record. On read the
     // concrete model is rebuilt through the material EOS binary-dispatch factory and re-registered as this
@@ -359,6 +373,7 @@ protected:
     double      p_surface_area_outer = 0.0;   // [m^2]
     std::string p_material_name;
     bool               p_is_tidal           = true;
+    bool               p_is_volume_fixed    = true;
     double             p_tidal_scale        = 1.0;   // dimensionless
     c_TidalScaleMethod p_tidal_scale_method = c_TidalScaleMethod::user_provided;
     double             p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve

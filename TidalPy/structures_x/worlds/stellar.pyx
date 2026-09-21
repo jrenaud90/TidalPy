@@ -142,6 +142,7 @@ cdef class StarWorld(BaseWorld):
         if model._luminosity_ptr.get() == NULL:
             raise ValueError("This luminosity model holds no C++ object (already attached or moved).")
         self._star_ptr.set_luminosity_model(move(model._luminosity_ptr))
+        model._ptr = NULL
 
     @property
     def luminosity_model_set(self) -> bool:

@@ -46,6 +46,7 @@ cdef class ViscosityBase(PhysicsBase):
 
     def calc_viscosity(self, double temperature, double pressure=0.0) -> float:
         """Dynamic viscosity [Pa s] at the given temperature [K] and pressure [Pa]."""
+        self._check_ptr()
         return self._visc_ptr.get().calc_viscosity(temperature, pressure)
 
 
@@ -72,6 +73,7 @@ cdef class ConstantViscosity(ViscosityBase):
     @property
     def reference_viscosity(self) -> float:
         """Reference (constant) viscosity [Pa s]."""
+        self._check_ptr()
         return self._constant_ptr.get_reference_viscosity()
 
 
@@ -103,21 +105,25 @@ cdef class ReferenceViscosity(ViscosityBase):
     @property
     def reference_viscosity(self) -> float:
         """Reference viscosity [Pa s]."""
+        self._check_ptr()
         return self._ref_ptr.get_reference_viscosity()
 
     @property
     def reference_temperature(self) -> float:
         """Reference temperature [K]."""
+        self._check_ptr()
         return self._ref_ptr.get_reference_temperature()
 
     @property
     def molar_activation_energy(self) -> float:
         """Molar activation energy E_a [J/mol]."""
+        self._check_ptr()
         return self._ref_ptr.get_molar_activation_energy()
 
     @property
     def molar_activation_volume(self) -> float:
         """Molar activation volume V_a [m^3/mol]."""
+        self._check_ptr()
         return self._ref_ptr.get_molar_activation_volume()
 
 
@@ -157,41 +163,49 @@ cdef class ArrheniusViscosity(ViscosityBase):
     @property
     def arrhenius_coeff(self) -> float:
         """Pre-exponential coefficient A."""
+        self._check_ptr()
         return self._arr_ptr.get_arrhenius_coeff()
 
     @property
     def stress(self) -> float:
         """Applied shear stress sigma [Pa]; the stress term drops out when ``stress_expo`` is 1."""
+        self._check_ptr()
         return self._arr_ptr.get_stress()
 
     @property
     def stress_expo(self) -> float:
         """Stress exponent n: 1 for diffusion creep, above 1 for dislocation creep."""
+        self._check_ptr()
         return self._arr_ptr.get_stress_expo()
 
     @property
     def grain_size(self) -> float:
         """Grain size d [m]."""
+        self._check_ptr()
         return self._arr_ptr.get_grain_size()
 
     @property
     def grain_size_expo(self) -> float:
         """Grain-size exponent m; 0 removes the grain-size dependence."""
+        self._check_ptr()
         return self._arr_ptr.get_grain_size_expo()
 
     @property
     def molar_activation_energy(self) -> float:
         """Molar activation energy E_a [J/mol]."""
+        self._check_ptr()
         return self._arr_ptr.get_molar_activation_energy()
 
     @property
     def molar_activation_volume(self) -> float:
         """Molar activation volume V_a [m^3/mol]."""
+        self._check_ptr()
         return self._arr_ptr.get_molar_activation_volume()
 
     @property
     def additional_temp_dependence(self) -> bool:
         """Whether the law is multiplied by an additional factor of T."""
+        self._check_ptr()
         return self._arr_ptr.get_additional_temp_dependence()
 
 

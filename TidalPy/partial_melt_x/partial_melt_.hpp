@@ -42,9 +42,9 @@ namespace tidalpy {
 // -------------------------------------------------------------------------------
 struct c_PartialMeltConfig {
     // Shared melt envelope.
-    double solidus  = 1600.0;   // [K]
-    double liquidus = 2000.0;   // [K]
-    double liquid_shear = 1.0e-5;   // [Pa]
+    double solidus      = 1600.0;  // [K]
+    double liquidus     = 2000.0;  // [K]
+    double liquid_shear = 1.0e-5;  // [Pa]
 
     // Spohn (Fischer & Spohn 1990) parameters.
     double fs_visc_power_slope  = 27000.0;  // [K]
@@ -163,11 +163,11 @@ public:
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 7);
-        this->p_solidus             = params[0];
-        this->p_liquidus            = params[1];
-        this->p_liquid_shear        = params[2];
-        this->p_fs_visc_power_slope = params[3];
-        this->p_fs_visc_power_phase = params[4];
+        this->p_solidus              = params[0];
+        this->p_liquidus             = params[1];
+        this->p_liquid_shear         = params[2];
+        this->p_fs_visc_power_slope  = params[3];
+        this->p_fs_visc_power_phase  = params[4];
         this->p_fs_shear_power_slope = params[5];
         this->p_fs_shear_power_phase = params[6];
     }
@@ -273,15 +273,15 @@ public:
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 10);
-        this->p_solidus              = params[0];
-        this->p_liquidus             = params[1];
-        this->p_liquid_shear         = params[2];
-        this->p_crit_melt_frac       = params[3];
-        this->p_crit_melt_frac_width = params[4];
-        this->p_hn_visc_slope_1      = params[5];
-        this->p_hn_visc_falloff_slope = params[6];
-        this->p_hn_shear_param_1 = params[7];
-        this->p_hn_shear_param_2 = params[8];
+        this->p_solidus                = params[0];
+        this->p_liquidus               = params[1];
+        this->p_liquid_shear           = params[2];
+        this->p_crit_melt_frac         = params[3];
+        this->p_crit_melt_frac_width   = params[4];
+        this->p_hn_visc_slope_1        = params[5];
+        this->p_hn_visc_falloff_slope  = params[6];
+        this->p_hn_shear_param_1       = params[7];
+        this->p_hn_shear_param_2       = params[8];
         this->p_hn_shear_falloff_slope = params[9];
     }
 

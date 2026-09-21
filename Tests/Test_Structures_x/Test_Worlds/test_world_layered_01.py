@@ -80,6 +80,56 @@ def test_add_layer_consumes_wrapper():
         world.add_layer(layer)
 
 
+def test_added_layer_wrapper_stays_usable():
+    """The wrapper handed to add_layer becomes a view of the layer the world now owns, so it keeps answering."""
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
+
+    mod = _import_layered()
+    _, _, solidliquid, _ = _import_layers()
+    world = mod.LayeredWorld("W", _R_CMB, _M_CORE)
+    layer = solidliquid.SolidLiquidLayer("core", 0, 0.0, _R_CMB, _M_CORE)
+    layer.set_eos(ConstantDensityEOS(reference_density=9000.0))
+    world.add_layer(layer)
+
+    assert layer.name == "core"
+    assert layer.radius_outer == _R_CMB
+    # A change made through the wrapper reaches the world's layer, and the solved profile reads back through it.
+    layer.is_static = False
+    assert world.core.is_static is False
+    assert world.solve_eos()["success"]
+    assert layer.get_density(0.5 * _R_CMB) == pytest.approx(9000.0)
+    assert layer.get_density(0.5 * _R_CMB) == world.core.get_density(0.5 * _R_CMB)
+
+
+def test_attached_model_wrappers_raise_instead_of_reading_a_moved_object():
+    """A model's C++ object moves into the layer; the wrapper left behind has nothing to read and says so."""
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
+    from TidalPy.rheology_x import Maxwell
+    from TidalPy.viscosity_x import make_viscosity
+    from TidalPy.partial_melt_x import make_partial_melt
+
+    _, _, solidliquid, _ = _import_layers()
+    layer = solidliquid.SolidLiquidLayer("mantle", 0, 0.0, _R_SURF, _M_TOT)
+    layer.set_eos(ConstantDensityEOS(reference_density=5000.0))
+
+    rheology = Maxwell()
+    layer.set_shear_rheology(rheology)
+    with pytest.raises(RuntimeError, match="took ownership"):
+        rheology.calc_complex_modulus(5.0e10, 1.0e20, 1.0e-5)
+    with pytest.raises(RuntimeError, match="took ownership"):
+        rheology.model_name
+
+    viscosity = make_viscosity("constant", {"reference_viscosity_pas": 1.0e20})
+    layer.set_shear_viscosity(viscosity)
+    with pytest.raises(RuntimeError, match="took ownership"):
+        viscosity.calc_viscosity(1500.0, 1.0e9)
+
+    partial_melt = make_partial_melt("henning")
+    layer.set_partial_melt(partial_melt)
+    with pytest.raises(RuntimeError, match="took ownership"):
+        partial_melt.calc_melt_fraction(1700.0)
+
+
 def test_add_layer_discontinuity_raises():
     mod = _import_layered()
     _, _, solidliquid, _ = _import_layers()

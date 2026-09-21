@@ -274,27 +274,44 @@ const NODES = [
   // ---- Equation of state ----
   { id: 'solve_eos', lane: 'eos', kind: 'cydef', shape: 'func', star: true,
     label: 'LayeredWorld.solve_eos(...)', file: 'structures_x/worlds/layered.pyx',
-    purpose: 'Solves the whole-planet structure. Every solver setting left as None takes the [eos_solver] value ' +
-      'of the configuration.',
-    inputs: 'surface pressure, slices per layer, method, rtol, atol, pressure_tol, temperature',
-    outputs: 'dict: success, iterations, max_iters_hit, profiles, mass, moment of inertia, central pressure' },
+    purpose: 'Solves the whole-planet structure, and with it the temperature and heat flow when the layers differ ' +
+      'in temperature or are heated. Every solver setting left as None takes the [eos_solver] value of the ' +
+      'configuration.',
+    inputs: 'surface pressure, slices per layer, method, rtol, atol, pressure_tol, temperatures, time',
+    outputs: 'dict: success, iterations, profiles, mass, moment of inertia, central pressure, per-layer heat ' +
+      'flows, heating, and temperature rates' },
   { id: 'c_solve_eos_world', lane: 'eos', kind: 'cpp', shape: 'func',
     label: 'c_LayeredWorld::solve_eos', file: 'structures_x/worlds/layered_.hpp',
-    purpose: 'Builds the per-layer slice grid and a bulk-density guess, converts to non-dimensional units, runs ' +
-      'the solver, returns the solution to SI, and populates every layer.',
+    purpose: 'Converts to non-dimensional units, prepares the heat sources, lays out the thermal segments ' +
+      '(thermal_layout_.hpp), and runs the solver once per thermal pass, relaxing the boundary layers, interface ' +
+      'temperatures, heat flows, and floating layer radii between passes. Starts each solve from the last ' +
+      'converged central pressure.',
     inputs: 'c_WorldEOSSolveConfig', outputs: 'retained c_EOSSolution; layers populated; radial cache invalidated' },
   { id: 'c_solve_eos', lane: 'eos', kind: 'cpp', shape: 'func',
     label: 'c_solve_eos', sub: 'Material_x/eos/solver_.hpp', file: 'Material_x/eos/solver_.hpp',
-    purpose: 'Integrates gravity, pressure, enclosed mass, and moment of inertia from the center, layer by layer, ' +
-      'inside a secant iteration on the central pressure until the surface pressure matches the target.',
-    inputs: 'per-layer EOS functions and inputs, bulk density, surface pressure, method, tolerances',
-    outputs: 'c_EOSSolution with dense output per layer, iterations, pressure error' },
+    purpose: 'Integrates gravity, pressure, enclosed mass, and moment of inertia (plus temperature and heat flow ' +
+      'in a thermal solve) from the center, segment by segment, inside a secant iteration on the central ' +
+      'pressure. Dense output is captured on a warm start and on the pass the secant error model expects to ' +
+      'converge, so the converged pass is usually kept instead of repeated.',
+    inputs: 'per-layer EOS functions and inputs, segments, bulk density, surface pressure, tolerances, a central ' +
+      'pressure guess',
+    outputs: 'c_EOSSolution with dense output per segment, iterations, pressure error' },
+  { id: 'c_Heating', lane: 'eos', kind: 'cpp', shape: 'class',
+    label: 'c_Heating', sub: 'heating_.hpp', file: 'structures_x/worlds/heating_.hpp',
+    purpose: 'The world heat sources, summed into a volumetric heating h(r) for the layers with use_heating. The ' +
+      'radiogenic source is each layer radiogenics model as a specific rate times the local density. The ' +
+      'thermal ODE integrates dL/dr = 4 pi r^2 h from it, and the thermal layout uses it for the heating inside ' +
+      'each conducting stretch.',
+    inputs: 'c_WorldState (time, layers); layer index, radius, density', outputs: 'heating [W m-3]' },
   { id: 'c_EOSSolution', lane: 'eos', kind: 'cpp', shape: 'class',
     label: 'c_EOSSolution', sub: 'eos_solution_.hpp', file: 'Material_x/eos/eos_solution_.hpp',
-    purpose: 'The structure solution: the retained CyRK integrators per layer, the layer EOS functions for the ' +
-      'density and moduli, and the slice arrays. call and call_si evaluate everything at any radius; the array ' +
-      'lookup stays inside the calling layer and interpolates density with a cubic Hermite polynomial.',
-    inputs: 'layer index, radius', outputs: 'gravity, pressure, mass, moment of inertia, density, complex moduli' },
+    purpose: 'The structure solution: the retained CyRK integrators per segment and the layer EOS functions. ' +
+      'call and call_si evaluate the twelve frequency-independent outputs at any radius from the dense output; ' +
+      'call_material is the radial solver read (gravity, density, complex moduli). The solution a Love solve ' +
+      'holds stores no structure of its own and answers through a state provider the world installs.',
+    inputs: 'layer index, radius',
+    outputs: 'gravity, pressure, mass, moment of inertia, density, static moduli, viscosities, temperature, ' +
+      'heat flow, melt fraction' },
   { id: 'cyrk', lane: 'eos', kind: 'cpp', shape: 'func',
     label: 'CyRK baseline_cysolve_ivp', sub: 'external: CyRK cysolve.hpp', file: 'CyRK (dependency), cysolve.hpp',
     purpose: 'The ODE integrator (DOP853 by default; RK23, RK45, BDF, LSODA, Radau available) compiled into each ' +
@@ -305,7 +322,9 @@ const NODES = [
   { id: 'radial_solver', lane: 'radial', kind: 'cydef', shape: 'func', star: true,
     label: 'radial_solver(...)', sub: 'standalone array API', file: 'RadialSolver_x/solver.pyx',
     purpose: 'Standalone entry point: arrays of radius, density, and complex moduli plus per-layer flags to Love ' +
-      'numbers and radial functions, without building a world. Defaults from [radial_solver] and [eos_solver].',
+      'numbers and radial functions. It builds a temporary world from the arrays (an interpolated material per ' +
+      'layer) and solves it the way a built world is solved, handing the complex moduli to the solve. Defaults ' +
+      'from [radial_solver] and [eos_solver].',
     inputs: 'radius, density, complex bulk and shear arrays, frequency, layer types and flags, degree, solve_for',
     outputs: 'RadialSolverSolution' },
   { id: 'solve_love_numbers', lane: 'radial', kind: 'cydef', shape: 'func', star: true,
@@ -316,24 +335,21 @@ const NODES = [
     inputs: 'frequency, degree, solve_for, love_method, solver settings', outputs: 'k, h, l; success, message' },
   { id: 'RadialSolverSolution', lane: 'radial', kind: 'cycdef', shape: 'class',
     label: 'RadialSolverSolution', file: 'RadialSolver_x/rs_solution.pyx',
-    purpose: 'The standalone result: k, h, l with quality factors and lags, the surface-conditioning diagnostic, ' +
-      'dense get_radial_solution(r), eos_call_si(r), and the plotting helpers.',
+    purpose: 'The exported result of a radial solve: k, h, l with quality factors and lags, the ' +
+      'surface-conditioning diagnostic, dense get_radial_solution(r), the interior getters, and the plotting ' +
+      'helpers. It holds the world it came from, which its interior getters read.',
     inputs: 'the solution storage', outputs: 'Love numbers, radial functions at any radius, diagnostics' },
-  { id: 'c_radial_solver', lane: 'radial', kind: 'cpp', shape: 'func',
-    label: 'c_radial_solver', sub: 'RadialSolver_x/solver_.hpp', file: 'RadialSolver_x/solver_.hpp',
-    purpose: 'Partitions the slices by layer, non-dimensionalizes the arrays, solves the structure from them ' +
-      '(c_preeval_interpolate), then shoots, finds the Love numbers, and samples the SI grid for the array API.',
-    inputs: 'the arrays, flags, degree, boundary conditions, solver settings', outputs: 'filled storage, error code' },
   { id: 'c_solve_love_world', lane: 'radial', kind: 'cpp', shape: 'func',
     label: 'c_LayeredWorld::solve_love_numbers', file: 'structures_x/worlds/layered_.hpp',
-    purpose: 'Ensures the radial cache matches the EOS and layer flags, fills the complex moduli at the frequency ' +
-      'over each layer own slice range, and solves; the analytic methods take the volume-averaged modulus instead.',
+    purpose: 'Ensures the radial cache matches the EOS and layer flags, installs a state provider (one dense EOS ' +
+      'read plus each layer rheology at the frequency, or the supplied moduli profile), and solves; the analytic ' +
+      'methods take the volume-averaged modulus instead.',
     inputs: 'c_LoveSolveConfig', outputs: 'Love numbers and the dense radial solution on the storage' },
   { id: 'c_WorldRadialSolver', lane: 'radial', kind: 'cpp', shape: 'class',
     label: 'c_WorldRadialSolver', sub: 'world_radial_solver_.hpp', file: 'RadialSolver_x/world_radial_solver_.hpp',
-    purpose: 'The world cache: non-dimensional scales, structure arrays, density slopes, layer partition, and a ' +
-      'reusable storage built once per EOS solve. Each solve only overwrites the complex moduli and shoots.',
-    inputs: 'SI structure arrays, layer flags, degree, the dense EOS source', outputs: 'per-solve Love numbers' },
+    purpose: 'The world cache: non-dimensional scales, the layer partition and flags, and a reusable storage built ' +
+      'once per EOS solve. It stores no structure arrays: every integration radius is read through the provider.',
+    inputs: 'layer radii and flags, degree, boundary conditions', outputs: 'per-solve Love numbers' },
   { id: 'c_shooting_solver', lane: 'radial', kind: 'cpp', shape: 'func',
     label: 'c_shooting_solver', sub: 'shooting_.hpp', file: 'RadialSolver_x/shooting_.hpp',
     purpose: 'Layer by layer: starting conditions (Kamata or Takeuchi and Saito), independent solutions ' +
@@ -408,9 +424,10 @@ const NODES = [
   // ---- System and dynamics ----
   { id: 'System', lane: 'system', kind: 'cycdef', shape: 'class',
     label: 'System', file: 'structures_x/system/system.pyx',
-    purpose: 'Worlds with their orbital elements about the tidal host and about the star; iteration and name access ' +
-      'hand back the original world wrappers.',
-    inputs: 'worlds, is_host, is_star, semi-major axes, eccentricities', outputs: 'a system that co-owns its worlds' },
+    purpose: 'Worlds, each with its own tidal host and its orbital elements about that host and about the star; ' +
+      'iteration and name access hand back the original world wrappers.',
+    inputs: 'worlds, tidal_host per world, is_star, semi-major axes, eccentricities',
+    outputs: 'a system that co-owns its worlds' },
   { id: 'calc_world_evolution', lane: 'system', kind: 'cydef', shape: 'func', star: true,
     label: 'System.calc_world_evolution(i)', sub: 'calc_pair_evolution, calc_system_evolution',
     file: 'structures_x/system/system.pyx',
@@ -419,9 +436,10 @@ const NODES = [
     inputs: 'world index', outputs: 'da/dt, de/dt, dn/dt, dspin/dt, heating, energy terms and residual' },
   { id: 'c_System', lane: 'system', kind: 'cpp', shape: 'class',
     label: 'c_System', sub: 'system_.hpp', file: 'structures_x/system/system_.hpp',
-    purpose: 'shared_ptr worlds, parallel orbital elements, host and star indices, and a stateless c_OrbitSolver; ' +
-      'Kepler helpers, insolation flux (orbit averaged), equilibrium temperature.',
-    inputs: 'worlds and orbits', outputs: 'orbital frequencies, insolation, evolution results' },
+    purpose: 'shared_ptr worlds, parallel orbital elements, a tidal host index per world, the star index, and a ' +
+      'stateless c_OrbitSolver; Kepler helpers, insolation flux (orbit averaged), equilibrium temperature. It is ' +
+      'the tide-state provider of its worlds: a world can ask it for the orbital state its tides are raised in.',
+    inputs: 'worlds, their hosts, and orbits', outputs: 'orbital frequencies, insolation, evolution results, tide states' },
   { id: 'c_calc_world_evolution', lane: 'system', kind: 'cpp', shape: 'func',
     label: 'c_System::calc_world_evolution', file: 'structures_x/system/system_.hpp',
     purpose: 'Builds the tidal state from the orbit and the world spin, runs the world tidal solve, converts the ' +
@@ -491,7 +509,8 @@ const EDGES = [
     purpose: 'Build each [worlds.<key>] member (bundled name, path, or inline table); the key becomes its name.',
     inputs: 'world source', outputs: 'world wrapper' },
   { from: 'build_system', to: 'System', flow: 'build', type: 'make',
-    purpose: 'add_world with is_host or is_star and the orbital elements about the host and the star.',
+    purpose: 'add_world with is_star and the orbital elements about the tidal host and the star, then ' +
+      'set_tidal_host for every world that names one.',
     inputs: 'worlds, semi-major axes, eccentricities', outputs: 'System' },
   { from: 'System', to: 'c_System', flow: 'build', type: 'make',
     purpose: 'The wrapper and the C++ system co-own each world through a shared_ptr.',
@@ -501,28 +520,37 @@ const EDGES = [
   { from: 'solve_eos', to: 'c_solve_eos_world', flow: 'eos', type: 'call',
     purpose: 'Fill c_WorldEOSSolveConfig from [eos_solver] and the arguments given, release the GIL, then build ' +
       'the result dict from the retained solution.',
-    inputs: 'surface pressure, slices, method, rtol, atol, pressure_tol, max_iters, temperature',
-    outputs: 'profiles, scalars, success, max_iters_hit' },
+    inputs: 'surface pressure, slices, method, tolerances, temperature, surface temperature, time',
+    outputs: 'profiles, scalars, per-layer thermal results, success, max_iters_hit' },
+  { from: 'c_solve_eos_world', to: 'c_Heating', flow: 'eos', type: 'call',
+    purpose: 'Prepare every heat source for this solve (the radiogenic specific rates at the solve time) and ' +
+      'integrate the heating over each conducting stretch for the thermal resistance chain.',
+    inputs: 'c_WorldState, the unit scales of the solve', outputs: 'heating [W m-3]; heat and temperature drop per stretch' },
   { from: 'c_solve_eos_world', to: 'c_solve_eos', flow: 'eos', type: 'call',
     purpose: 'Integrate the structure in non-dimensional units (radius, bulk density, 1/sqrt(pi G rho)) with each ' +
-      'layer EOS model as the density source.',
-    inputs: 'per-layer pre-eval functions and inputs, bulk density guess, surface pressure, tolerances',
+      'layer EOS model as the density source, once per thermal pass, from the last central pressure.',
+    inputs: 'per-layer pre-eval functions and inputs, segments, bulk density guess, surface pressure, tolerances',
     outputs: 'c_EOSSolution in solve units, later returned to SI' },
   { from: 'c_solve_eos', to: 'cyrk', flow: 'eos', type: 'call',
-    purpose: 'One integration per layer per central-pressure iteration; only the final pass keeps dense output.',
-    inputs: 'c_eos_diffeq, y0 = (g, P_center, M, I), rtol, atol, max step', outputs: 'CySolverResult' },
+    purpose: 'One integration per segment per central-pressure iteration; dense output only on the pass expected ' +
+      'to converge.',
+    inputs: 'c_eos_diffeq or c_eos_diffeq_thermal, y0 = (g, P_center, M, I[, T, L]), rtol, atol, max step',
+    outputs: 'CySolverResult' },
   { from: 'c_solve_eos', to: 'models', flow: 'eos', type: 'call',
     purpose: 'c_preeval_material_eos asks the layer c_MaterialEOSBase for the density at (P, T, r) on every ' +
-      'right-hand side, and for the static moduli and viscosities when the profile is sampled.',
-    inputs: 'pressure, temperature, radius (SI)', outputs: 'density; static moduli and viscosities' },
+      'right-hand side, and for the whole material state when the finished solution is read.',
+    inputs: 'pressure, temperature, radius (SI)', outputs: 'density; static moduli, viscosities, melt fraction' },
+  { from: 'c_solve_eos', to: 'c_Heating', flow: 'eos', type: 'call',
+    purpose: 'The thermal right-hand side reads dL/dr = 4 pi r^2 h at the local density through c_EOSHeatingBase.',
+    inputs: 'layer index, radius, density (solve units)', outputs: 'dL/dr' },
   { from: 'c_solve_eos', to: 'c_EOSSolution', flow: 'eos', type: 'make',
     purpose: 'Keep the retained integrators and the layer EOS functions, then sample the whole planet onto the ' +
-      'slice grid.',
-    inputs: 'CySolverResult per layer, EOS functions', outputs: 'slice arrays and scalars (mass, MOI, gravity)' },
+      'output slices.',
+    inputs: 'CySolverResult per segment, EOS functions', outputs: 'slice arrays and scalars (mass, MOI, gravity)' },
   { from: 'c_solve_eos_world', to: 'c_PhysicsLayer', flow: 'eos', type: 'make',
-    purpose: 'Populate each layer: its mass, c_LayerEOSData (dense evaluator plus slice arrays), and the pre- and ' +
-      'post-melt viscoelastic arrays from the viscosity and partial-melt models.',
-    inputs: 'the layer slice of the solution, temperature', outputs: 'get_density(r), get_shear_modulus(r), ...' },
+    purpose: 'Populate each layer: its mass, its radii when it holds its mass, and c_LayerEOSData with a dense ' +
+      'evaluator onto the solution.',
+    inputs: 'the layer slice of the solution', outputs: 'get_density(r), get_shear_modulus(r), get_temperature(r), ...' },
 
   // Love numbers.
   { from: 'solve_love_numbers', to: 'c_solve_love_world', flow: 'love', type: 'call',
@@ -530,28 +558,28 @@ const EDGES = [
       'override with the arguments given, release the GIL.',
     inputs: 'frequency, degree, solve_for, method, tolerances', outputs: 'k, h, l; success; error code' },
   { from: 'c_solve_love_world', to: 'c_PhysicsLayer', flow: 'love', type: 'call',
-    purpose: 'calc_complex_shear_modulus(r, w) and calc_complex_bulk_modulus at every slice of the layer own ' +
-      'slice range (an interface radius belongs to both neighbors).',
-    inputs: 'radius, frequency', outputs: 'complex moduli [Pa]' },
+    purpose: 'The state provider shares each layer rheology and applies it to the static modulus and viscosity ' +
+      'the solved EOS reports at the radius asked for.',
+    inputs: 'static modulus, viscosity, frequency', outputs: 'complex moduli [Pa]' },
   { from: 'c_solve_love_world', to: 'c_WorldRadialSolver', flow: 'love', type: 'call',
-    purpose: 'ensure_radial_cache builds the frequency-independent setup once per EOS solve (including the ' +
-      'density slopes for the Hermite lookup); each solve hands over the moduli and calls solve.',
-    inputs: 'SI structure arrays, layer flags, degree, the dense EOS source', outputs: 'Love numbers, dense y(r)' },
+    purpose: 'ensure_radial_cache builds the frequency-independent setup once per EOS solve; each solve installs ' +
+      'its provider and calls solve.',
+    inputs: 'layer radii and flags, degree, boundary conditions, the provider', outputs: 'Love numbers, dense y(r)' },
   { from: 'c_WorldRadialSolver', to: 'c_shooting_solver', flow: 'love', type: 'call',
     purpose: 'Shoot on the cached non-dimensional inputs (c_matrix_propagate instead for one solid, static, ' +
       'incompressible layer).',
     inputs: 'c_ShootingInputs, frequency, tolerances', outputs: 'interpolants, constants, error code' },
   { from: 'c_WorldRadialSolver', to: 'c_RadialSolutionStorage', flow: 'love', type: 'make',
-    purpose: 'Owns the reusable storage: injects the non-dimensional arrays once and only the complex moduli per ' +
-      'solve; find_love afterwards.',
-    inputs: 'arrays, density slopes', outputs: 'storage ready for the solve' },
+    purpose: 'Owns the reusable storage and records the solved frequency and boundary conditions; find_love ' +
+      'afterwards.',
+    inputs: 'the solve', outputs: 'storage ready for the solve' },
   { from: 'c_shooting_solver', to: 'cyrk', flow: 'love', type: 'call',
     purpose: 'Integrate each independent solution of each layer from the starting radius to the layer top with ' +
       'dense output (3 solutions for a solid layer, 2 for a dynamic liquid, 1 for a static liquid).',
     inputs: 'the layer ODE from odes_.hpp, initial y, rtol, atol', outputs: 'CySolverResult per solution' },
   { from: 'c_shooting_solver', to: 'c_EOSSolution', flow: 'love', type: 'call',
     purpose: 'Every right-hand side reads gravity, density, and the complex moduli at the integration radius ' +
-      '(c_read_eos in odes_.hpp): dense structure, Hermite density, linear moduli, inside the calling layer.',
+      'through call_material: one provider call, one dense read of the world EOS, inside the calling layer.',
     inputs: 'layer index, radius', outputs: 'gravity, density, complex shear and bulk moduli' },
   { from: 'c_shooting_solver', to: 'c_RadialSolutionStorage', flow: 'love', type: 'make',
     purpose: 'Keep the dense interpolants and the per-layer collapse constants from the surface boundary condition; ' +
@@ -561,27 +589,25 @@ const EDGES = [
     purpose: 'find_love evaluates the collapsed surface solution and forms the Love numbers per boundary condition.',
     inputs: 'surface y1..y6, surface gravity', outputs: 'c_LoveNumbers (k, h, l)' },
   { from: 'c_RadialSolutionStorage', to: 'c_EOSSolution', flow: 'love', type: 'make',
-    purpose: 'Owns the EOS solution used by the solve (array-injected with a dense source for a world, ' +
-      'array-interpolated for the standalone path).',
+    purpose: 'Owns the EOS solution the solve reads through: it holds the world scalars and the state provider, ' +
+      'which stays installed so y3 of a dynamic liquid and the interior getters answer after the solve.',
     inputs: 'radius', outputs: 'structure and moduli at the radius' },
-  { from: 'radial_solver', to: 'c_radial_solver', flow: 'love', type: 'call',
-    purpose: 'Validate the arrays and flags, map names to enums, resolve every None argument from [radial_solver] ' +
-      'and [eos_solver], then run the whole pipeline without the GIL.',
-    inputs: 'radius, density, complex moduli, layer types and flags, degree, solve_for, settings',
-    outputs: 'filled solution storage' },
-  { from: 'c_radial_solver', to: 'c_solve_eos', flow: 'love', type: 'call',
-    purpose: 'Solve the structure from the given arrays (c_preeval_interpolate) in non-dimensional units.',
-    inputs: 'arrays, bulk density, surface pressure, EOS settings', outputs: 'c_EOSSolution' },
-  { from: 'c_radial_solver', to: 'c_shooting_solver', flow: 'love', type: 'call',
-    purpose: 'The same shooting solver as the world path, on the array-based EOS.',
-    inputs: 'layer flags, slice partition, degree, boundary conditions, settings', outputs: 'interpolants, constants' },
-  { from: 'c_radial_solver', to: 'c_RadialSolutionStorage', flow: 'love', type: 'make',
-    purpose: 'Owns the storage: find_love while the arrays are still non-dimensional, then sample the SI grid so ' +
-      'the array-returning API keeps working.',
-    inputs: 'the solve', outputs: 'Love numbers, gridded y, dense evaluation' },
+  { from: 'radial_solver', to: 'construct_world', flow: 'love', type: 'call',
+    purpose: 'Validate the arrays and flags, resolve every None argument from [radial_solver] and [eos_solver], ' +
+      'then build a temporary world from the profile (build_world_from_layered_profile): an interpolated ' +
+      'material per layer.',
+    inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary LayeredWorld' },
+  { from: 'radial_solver', to: 'solve_eos', flow: 'love', type: 'call',
+    purpose: 'Solve the temporary world structure with the EOS settings given.',
+    inputs: 'surface pressure, EOS settings', outputs: 'a solved world' },
+  { from: 'radial_solver', to: 'c_solve_love_world', flow: 'love', type: 'call',
+    purpose: 'solve_love_numbers_supplied: the world path, with the supplied complex moduli interpolated inside ' +
+      'each layer in place of a rheology.',
+    inputs: 'complex moduli and their radii, frequency, degree, solve_for, settings', outputs: 'a solved storage' },
   { from: 'radial_solver', to: 'RadialSolverSolution', flow: 'love', type: 'make',
-    purpose: 'Wrap the storage for Python: k, h, l with Q and lag, get_radial_solution(r), eos_call_si(r), plots, ' +
-      'diagnostics; warn when the surface solve is poorly conditioned.',
+    purpose: 'release_radial_solution moves the storage out of the world and wraps it for Python: k, h, l with Q ' +
+      'and lag, get_radial_solution(r), the interior getters, plots, diagnostics; warn when the surface solve is ' +
+      'poorly conditioned.',
     inputs: 'solution storage', outputs: 'RadialSolverSolution' },
 
   // Tides 1D.

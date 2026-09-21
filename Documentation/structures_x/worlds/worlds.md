@@ -1,6 +1,6 @@
 # Worlds (`structures_x.worlds`)
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-20_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry; a layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
 
@@ -68,7 +68,7 @@ world.add_layer(SolidLiquidLayer("mantle", 1, 3.485e6, 6.371e6, 4.040e24))
 
 | Member | Description |
 |--------|-------------|
-| `add_layer(layer)` | Add a layer inner-to-outer. Ownership of the layer (and its attached physics models) transfers into the world; the passed wrapper becomes an empty shell. Raises `ValueError` if the layer was already added or if its inner radius is not continuous with the current outermost radius (innermost must start at 0). A rejected layer is not consumed. |
+| `add_layer(layer)` | Add a layer inner-to-outer. Ownership of the layer (and its attached physics models) transfers into the world; the passed wrapper stays usable as a non-owning view of that layer, like the one `world.<layer name>` returns. Raises `ValueError` if the layer was already added or if its inner radius is not continuous with the current outermost radius (innermost must start at 0). A rejected layer is not consumed. |
 | `num_layers` | Number of layers (property). |
 | `calc_total_mass()` | Sum of the layer masses [kg]; equals `planet_mass_eos` after a successful EOS solve. |
 | `calc_internal_heating(time)` | Sum of the layer radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. Uses each layer's `mass`, so solve the EOS first when the layers were built without one. |
@@ -115,13 +115,79 @@ g      = world.get_gravity(world.radius)        # surface gravity [m/s²]
 p0     = world.get_pressure(0.0)                # central pressure [Pa]
 ```
 
-The solver carries pressure as a radial state variable, so analytic density-from-pressure models (Birch-Murnaghan, Vinet) are evaluated inline; the constant and interpolated models ignore pressure. The central pressure is found by a secant iteration on the surface-pressure mismatch: the first step assumes a unit slope (exact for an incompressible planet) and later steps use the slope measured between iterations, so a compressible planet converges in a few steps. The integration runs in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units) so the tolerances mean the same thing for every planet; every result is returned in SI.
+The solver carries pressure as a radial state variable, so analytic density-from-pressure models (Birch-Murnaghan, Vinet) are evaluated inline; the constant and interpolated models ignore pressure. The central pressure is found by a secant iteration on the surface-pressure mismatch: the first step assumes a unit slope (exact for an incompressible planet) and later steps use the slope measured between iterations, so a compressible planet converges in a few steps. A world that has been solved before starts the iteration from its last central pressure instead of from a uniform sphere, so a re-solve after a small change (a new layer temperature, a later time) usually converges on its first pass. The integration runs in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units) so the tolerances mean the same thing for every planet; every result is returned in SI.
 
-**`solve_eos(surface_pressure=0.0, slices_per_layer=None, G_to_use=-1.0, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=0.0, verbose=False) -> dict`**
+**`solve_eos(surface_pressure=0.0, slices_per_layer=None, G_to_use=-1.0, integration_method=None, rtol=None, atol=None, pressure_tol=None, max_iters=None, nondimensionalize=None, temperature=None, solve_temperature=None, surface_temperature=None, reset_layer_masses=False, verbose=False, time=None) -> dict`**
 
 Every solver setting left as `None` takes the `[eos_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` uses. `pressure_tol` is relative to the central-pressure scale $(2/3) \pi G \rho^2 R^2$ and must stay above `rtol`, the integrator's own noise on the surface pressure. Hitting `max_iters` logs a warning, sets `max_iters_hit` in the result, and keeps the last iteration's profile.
 
-Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `max_iters_hit`, `pressure_error` \[Pa\], the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
+Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `slices_per_layer < 2`, or the integration method is unknown. The returned dict contains `success`, `message`, `iterations`, `max_iters_hit`, `pressure_error` \[Pa\], the profile arrays (`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`, `temperature`, `heat_flow`), the per-layer lists (`layer_temperature`, `layer_heat_flow_in`, `layer_heat_flow_out`, `layer_heating`, `layer_temperature_rate`), the thermal-iteration report (`thermal_passes`, `thermal_converged`), and the scalar results (`surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`).
+
+#### Layer Size
+
+A layer holds its volume by default, so the boundaries a world was built with are the boundaries it solves with. Setting `is_volume_fixed = false` on a layer makes it hold its mass instead: the solve moves its outer radius using its EOS-derived density and constant mass. Every layer above it moves with it, each keeping its own volume (unless they too are not volume fixed). The world radius follows the outermost layer.
+
+The mass a floating layer holds is its `mass_kg`, or, when its configuration gives none, the mass its first solve finds inside the boundaries it was built with. `solve_eos(reset_layer_masses=True)` takes the current geometry as the new reference.
+
+Each pass measures how far the layer is from that mass and steps its outer radius by the mass it is short of over the slope of the enclosed mass, $dm/dr = 4 \pi r^2 \rho$, which is exact to first order, so a few passes settle it. `geometry_converged` says whether they did, and `layer_radius_outer` reports where the boundaries ended up. A layer whose mass cannot fit inside its own base raises `RuntimeError`.
+
+```python
+world.core.is_volume_fixed = False     # the core holds its mass, not its size
+result = world.solve_eos()
+result["layer_radius_outer"]           # [m] where the boundaries settled
+world.radius                           # follows the outermost layer
+```
+
+#### Temperature and Heat Flow
+
+Each layer carries its own temperature (`temperature_k`, see [PhysicsLayer](../layers/physics_layer.md)) and its [cooling model](../../cooling_x/cooling_models.md) says how heat moves inside it. The solve turns those into a temperature profile, the heat flowing through every radius, and the rate each layer's temperature changes at. `temperature` overrides every layer's value with one number, and `surface_temperature` \[K\] is what the outermost layer radiates to; left out, no heat leaves the world.
+
+What each cooling model makes of its layer:
+
+| Model | Profile inside the layer | Where its temperature applies |
+|---|---|---|
+| `off` | Isothermal: one temperature throughout, and no modeled gradient, so the layer conducts perfectly. | Everywhere |
+| `conduction` | Two conducting halves, $T = T_0 - (L / 4 \pi k)(1/r_0 - 1/r)$. | The mid-radius |
+| `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. | The base of the interior |
+
+The layers form a chain of thermal resistances. A conducting spherical shell between $r_a$ and $r_b$ has
+
+$$R = \frac{1}{4 \pi k} \left( \frac{1}{r_a} - \frac{1}{r_b} \right)$$
+
+and the heat flow through an interface is $L = \Delta T / R$ across the two resistances facing it. Both layer temperatures are inputs, so that flow is generally not the same entering a layer as leaving it. The difference is the heat the layer stores or releases, which is what `layer_temperature_rate` reports:
+
+$$M c_p \frac{dT}{dt} = L_\mathrm{in} - L_\mathrm{out} + H$$
+
+with $H$ \[W\] the heat generated inside the layer (`layer_heating`), zero unless the layer is heated.
+
+**Internal heating**
+
+A layer with `use_heating` set is heated by the world's heat sources. The radiogenic source takes the layer's [radiogenics model](../../radiogenics_x/radiogenics_models.md) as a specific rate $\epsilon$ \[W kg$^{-1}$\] at the solve's `time` \[s\] and heats the layer at $h = \epsilon \rho$ \[W m$^{-3}$\] with the local density, so it is exact for a layer whose mass is an output of the solve. `time=None` takes each model's own reference time. The structure solve integrates
+
+$$\frac{dL}{dr} = 4 \pi r^2 h$$
+
+so the heat flow grows through a heated layer and its conducting stretches bend: a uniformly heated conducting shell follows $T = B + A/r - h r^2 / 6k$. The resistance chain accounts for the same heating. With $H(r)$ the heat generated between the base of a conducting stretch and $r$, the flow leaving its top is the flow entering plus $H$, and the temperature drop across it is $L_\mathrm{base} R + \int H / (4 \pi r^2 k) \, dr$. Both follow from the heating and the solved density, so the solved profile still passes through every layer temperature and arrives at `surface_temperature`. A heated world is a thermal solve even when its layers share one temperature. With `solve_temperature=False` there is no heat flow to act through, so the heating is ignored and a warning is logged.
+
+A world whose layers are all at one temperature has no profile to integrate. The solve then keeps its four structure variables and returns exactly what it returns with `solve_temperature=False`, at the same cost; the profile queries still report each layer's own temperature. Otherwise the solve adds temperature and heat flow as two more state variables and repeats: the first pass is isothermal, and each later pass integrates the profile and then relaxes the boundary layers, interface temperatures, and heat flows against the structure it produced. `thermal_passes` counts them and `thermal_converged` says whether they settled.
+
+The viscosity and partial-melt models of every layer are evaluated at the solved temperature of each slice, so an Arrhenius layer is stiff where the profile is cold. A layer whose `use_thermal_eos` is set also passes that temperature to its EOS model, so its density follows the profile.
+
+```python
+world.mantle.temperature = 1600.0            # [K] the layer's own temperature
+world.mantle.set_cooling(make_cooling("convection"))
+result = world.solve_eos(
+    surface_temperature=250.0)               # [K] what the outermost layer radiates to
+
+world.get_temperature(0.9 * world.radius)    # [K] on the solved profile
+world.get_heat_flow(world.radius)            # [W] leaving the world
+result["layer_temperature_rate"]             # [K/s] per layer, from its heat imbalance
+
+world.mantle.use_heating = True              # The mantle's radiogenics model now heats it
+result = world.solve_eos(
+    surface_temperature=250.0,
+    time=1.0e17)                             # [s] when the radiogenics models are evaluated
+result["layer_heating"]                      # [W] generated inside each layer
+```
 
 **Profile queries (after a successful solve)**
 
@@ -130,6 +196,8 @@ Raises `ValueError` if the world has no layers, any layer lacks an EOS model, `s
 | `get_density(r)` | float [kg/m³] | Density at radius `r` [m] (NaN if unsolved). |
 | `get_gravity(r)` | float [m/s²] | Gravitational acceleration at `r`. |
 | `get_pressure(r)` | float [Pa] | Pressure at `r`. |
+| `get_temperature(r)` | float [K] | Temperature at `r` on the solved profile. |
+| `get_heat_flow(r)` | float [W] | Heat flowing outward through the sphere of radius `r`. |
 | `eos_solved` | bool | `True` once profiles are populated. |
 | `all_eos_set` | bool | `True` once every layer has an EOS model. |
 | `surface_gravity_eos`, `central_pressure`, `planet_mass_eos`, `planet_moi_eos` | float | Scalar results of the last solve (NaN if unsolved). |
@@ -193,9 +261,9 @@ from TidalPy.rheology_x import make_rheology
 from TidalPy.viscosity_x import make_viscosity
 
 world = LayeredWorld("planet", 6.0e6, 4.2e24)
-layer = SolidLiquidLayer("mantle", 0, 0.0, 6.0e6, 4.2e24,
-                         shear_modulus_static=6.0e10, bulk_modulus_static=1.3e11)
-layer.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 4000.0}))
+layer = SolidLiquidLayer("mantle", 0, 0.0, 6.0e6, 4.2e24)
+layer.set_eos(make_material_eos(
+    "constant", {"reference_density_kg_m3": 4000.0, "shear_modulus_static_pa": 6.0e10, "bulk_modulus_static_pa": 1.3e11}))
 layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
 layer.set_shear_rheology(make_rheology("maxwell"))
 world.add_layer(layer)
@@ -213,7 +281,9 @@ The moduli and the viscosity are properties of the layer, not of the rheology mo
 
 Every solver setting left as `None` takes the `[radial_solver]` value of the TidalPy configuration (see [Configurations](../../Overview/2_TidalPy_Configurations.md)), the same defaults the standalone `radial_solver` and the world's own tidal solves use; `love_method`, `fixed_q`, and `fixed_dt` left as `None` take the world's `[tides]` settings. Raises `ValueError` if the EOS has not yet been solved. Returns a dict (`success`, `error_code`, `message`, `love_method`, `love_number_k/h/l`); the results are also stored internally and accessed through the properties below.
 
-Between the EOS slices the solver reads gravity, pressure, mass, and moment of inertia from the world's dense EOS solution, interpolates the density with a cubic Hermite polynomial whose slopes come from each layer's EOS model (so a compressible layer's density has no kinks at the slices), and interpolates the complex moduli linearly. With constant moduli in each layer the Love numbers therefore converge with the integration tolerance and depend little on `slices_per_layer`; a modulus or viscosity that varies with depth keeps a first-order dependence on the slice count.
+The solver interpolates nothing between EOS slices. Gravity, pressure, mass, and moment of inertia come from the world's dense EOS solution, the density and the static moduli and viscosities from the same solution (the layer's material evaluated them as the structure was integrated), and the complex moduli from the layer's rheology applied to those static values at that solve's frequency, all at the exact radius the integrator asks for. The Love numbers therefore converge with the integration tolerance alone and are independent of `slices_per_layer` exactly, not just to within an interpolation error, whether or not the moduli and viscosities vary with depth.
+
+`slices_per_layer` still sizes the profile arrays the solve returns and the `[layers.*]` array properties, and the propagation-matrix method still propagates across those slices, so it remains a real knob for those. It no longer affects a shooting-method Love number.
 
 `solve_for` selects the surface boundary condition, with the same names as the standalone `radial_solver`: `'tidal'` (default) yields the tidal Love numbers k, h, l; `'loading'` yields the load Love numbers k', h', l' (surface mass load response; k'.real is negative); `'free'` the free-surface response. `solve_love_numbers_supplied` takes the same argument.
 
@@ -262,7 +332,7 @@ The non-dimensionalization is itself frequency-independent (the `c_NonDimensiona
 
 1. Validates `eos_solved` and `tidalpy_config_ptr`.
 2. If the cache does not match the current EOS grid/assumptions, `build_cache` captures (once): the non-dim radius/density/gravity/pressure/mass/moi arrays, per-layer metadata (solid/liquid, static, incompressible) and slice partitioning, the non-dim scalars (`G`, bulk density, surface pressure), and a reused `c_RadialSolutionStorage` whose internal `c_EOSSolution` arrays serve as the scratch buffers. The cache is invalidated automatically whenever `solve_eos` re-runs.
-3. Per call: `calc_complex_shear/bulk_modulus` fills the dimensional moduli scratch at the requested frequency; the helper non-dimensionalizes them in place, re-applies the cached non-dim structure arrays via `inject_from_world_eos` (which sets `p_use_array_interp` so the EOS interpolates from the arrays, with no CyRK dense output needed), and runs the selected solver.
+3. Per call: the world installs a material-state provider (`c_EOSSolution::MaterialEval`, a type-erased callable carrying that solve's frequency) that the shooting solve calls for density and the complex moduli at each integration radius, and also fills the dimensional moduli scratch at the slice radii for the propagation-matrix method and the array outputs. The helper non-dimensionalizes the scratch in place, re-applies the cached non-dim structure arrays via `inject_from_world_eos`, and runs the selected solver.
 4. Re-dimensionalizes the y-solution, restores the SI surface gravity, and calls `c_RadialSolutionStorage::find_love()`.
 
 `get_love_number_k/h/l`, `get_love_surface_y`, and the status accessors read through `p_radial_solver->get_storage()`.
@@ -344,7 +414,7 @@ The remaining public surface, grouped by what it is for.
 | `calc_shear_modulus`, `calc_bulk_modulus` | Complex moduli [Pa] at a forcing frequency. |
 | `calc_shear_viscosity`, `calc_bulk_viscosity` | Viscosities [Pa s], after any melt weakening. |
 | `calc_static_viscoelastics`, `get_static_viscoelastics` | The static (unrelaxed) moduli and viscosities together. |
-| `get_premelt_shear_modulus`, `get_premelt_bulk_modulus`, `get_premelt_shear_viscosity`, `get_premelt_bulk_viscosity` | The same quantities before melt weakening is applied. |
+| `get_melt_fraction` | Melt fraction from the material's partial-melt model; `0.0` where it has none. |
 
 **Geometry.** `calc_surface_area(radius)`, `calc_volume_sphere(radius)`, and `calc_volume_shell(outer, inner)` are the shared spherical helpers every structure inherits.
 

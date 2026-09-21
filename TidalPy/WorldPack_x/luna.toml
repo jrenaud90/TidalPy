@@ -16,7 +16,7 @@
 # Tides
 # The outer core is a static liquid. With it and the 6.0e10 Pa default mantle rigidity this interior gives
 # k2 = 0.02526 at the monthly period, 4 percent above the measured 0.02422 +/- 0.00022 (Williams et al. 2014),
-# so the mantle shear modulus is the third fitted number: 6.27e10 Pa gives 0.02421. The core is 4 percent of
+# so the mantle shear modulus is the third fitted number: 6.28e10 Pa gives 0.02422. The core is 4 percent of
 # the volume, yet a solid outer core would move k2 to 0.02315, five times the measurement uncertainty.
 #
 # The dissipation is not calibrated. The mantle and crust are elastic at the temperature of the
@@ -42,7 +42,7 @@ layer_index = 0
 radius_outer_m = 160000.0
 is_tidal = false
 
-[layers.inner_core.eos]
+[layers.inner_core.material]
 model = "constant"
 reference_density_kg_m3 = 8000.0     # solid inner core, Weber et al. (2011)
 
@@ -54,7 +54,7 @@ radius_outer_m = 350000.0
 is_tidal = false
 is_solid = false                     # fluid outer core, solved as a static liquid
 
-[layers.outer_core.eos]
+[layers.outer_core.material]
 model = "constant"
 reference_density_kg_m3 = 5100.0     # fluid outer core, Weber et al. (2011)
 
@@ -64,10 +64,10 @@ type = "mantle_rock"
 layer_index = 2
 radius_outer_m = 1703400.0
 is_tidal = true
-shear_modulus_static_pa = 6.27e10     # fitted to the measured k2 with the liquid outer core
 
-[layers.mantle.eos]
+[layers.mantle.material]
 model = "bm"
+shear_modulus_static_pa = 6.28e10     # fitted to the measured k2 with the liquid outer core
 reference_density_kg_m3 = 3324.9726   # fitted to the published mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
@@ -78,9 +78,9 @@ type = "mantle_rock"
 layer_index = 3
 radius_fraction = 1.0
 is_tidal = false
+
+[layers.crust.material]
+model = "constant"
 shear_modulus_static_pa = 4.0e10      # anorthositic crust, softer than the mantle's 6.0e10 Pa
 bulk_modulus_static_pa = 7.5e10
-
-[layers.crust.eos]
-model = "constant"
 reference_density_kg_m3 = 2550.0      # GRAIL crustal grain density

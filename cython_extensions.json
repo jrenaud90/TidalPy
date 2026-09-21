@@ -3544,25 +3544,6 @@
     "link_args": [],
     "is_cpp": true
   },
-  "structures_x.configs.prem": {
-    "name": "TidalPy.structures_x.configs.prem",
-    "sources": [
-      [
-        "TidalPy",
-        "structures_x",
-        "configs",
-        "prem.pyx"
-      ]
-    ],
-    "include_dirs": [
-      [
-        "TidalPy"
-      ]
-    ],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
   "Tides_x.multilayer.stress_strain": {
     "name": "TidalPy.Tides_x.multilayer.stress_strain",
     "sources": [

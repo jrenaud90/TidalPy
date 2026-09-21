@@ -32,9 +32,9 @@ def _solved_world():
 
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("rocky", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     layer.set_shear_rheology(Maxwell())
     world.add_layer(layer)
@@ -44,9 +44,7 @@ def _solved_world():
 
 _REAL_GETTERS = [
     "get_density", "get_gravity", "get_pressure",
-    "get_shear_modulus", "get_bulk_modulus", "get_shear_viscosity", "get_bulk_viscosity",
-    "get_premelt_shear_modulus", "get_premelt_bulk_modulus",
-    "get_premelt_shear_viscosity", "get_premelt_bulk_viscosity",
+    "get_shear_modulus", "get_bulk_modulus", "get_shear_viscosity", "get_bulk_viscosity", "get_melt_fraction",
 ]
 
 

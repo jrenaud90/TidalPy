@@ -72,16 +72,17 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         const shared_ptr[c_BaseWorld]& get_world(size_t index) except +
         size_t add_world(
             shared_ptr[c_BaseWorld] world,
-            cpp_bool is_host,
             cpp_bool is_star,
             double semi_major_axis,
             double eccentricity) except +
         size_t   get_num_worlds() const
         int      find_world_index(const string& name)
-        cpp_bool has_host() const
-        int      get_host_index() const
-        void     set_host(size_t index) except +
-        double   get_host_mass() except +
+        cpp_bool has_tidal_host(size_t index) except +
+        int      get_tidal_host_index(size_t index) except +
+        void     set_tidal_host(size_t index, size_t host_index) except +
+        void     clear_tidal_host(size_t index) except +
+        double   get_tidal_host_mass(size_t index) except +
+        cpp_bool is_mutual_pair(size_t index) except +
         cpp_bool has_star() const
         int      get_star_index() const
         void     set_star(size_t index) except +

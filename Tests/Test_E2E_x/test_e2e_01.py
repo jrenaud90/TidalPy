@@ -90,7 +90,7 @@ def test_star_planet_system_e2e():
     system = build_system(str(FIXTURES / "system.toml"))
     assert isinstance(system, System)
     assert system.num_worlds == 2
-    assert system.host.name == "sun" and system.star.name == "sun"
+    assert system.get_tidal_host("planet").name == "sun" and system.star.name == "sun"
 
     planet = system["planet"]
     _configure_tide(planet, "fixed_q", {"fixed_k": [0.3], "fixed_q": [100.0]})

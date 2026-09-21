@@ -10,6 +10,7 @@ These tests check the evolved/skipped bookkeeping, agreement with the standalone
 system-level energy balance ``heating = -(dE_orbit/dt + dE_spin/dt)``, the circular-orbit limit, the
 no-spin (layerless) path, and the whole-system sweep.
 """
+import gc
 import math
 
 import numpy as np
@@ -48,10 +49,10 @@ def _host():
 def _moon(spin_factor=1.5, eccentricity=_ECC):
     """A homogeneous Maxwell moon that dissipates tidally and carries a spin model."""
     moon = LayeredWorld("moon", _R, _MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS,
-                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
+    layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_shear_rheology(Maxwell())
@@ -68,8 +69,9 @@ def _moon(spin_factor=1.5, eccentricity=_ECC):
 
 def _system(spin_factor=1.5, eccentricity=_ECC):
     system = System("test")
-    system.add_world(_host(), is_host=True)
-    system.add_world(_moon(spin_factor, eccentricity), semi_major_axis=_SMA, eccentricity=eccentricity)
+    system.add_world(_host())
+    system.add_world(
+        _moon(spin_factor, eccentricity), tidal_host=0, semi_major_axis=_SMA, eccentricity=eccentricity)
     return system
 
 
@@ -158,17 +160,18 @@ def test_host_entry_not_evolved():
 
 
 def test_world_without_orbit_not_evolved():
-    """A world whose semi-major axis about the host is unset cannot be evolved."""
+    """A world whose semi-major axis about its tidal host is unset cannot be evolved."""
     system = System("no_orbit")
-    system.add_world(_host(), is_host=True)
-    system.add_world(_moon(), semi_major_axis=None)   # orbit left unset
+    system.add_world(_host())
+    system.add_world(_moon(), tidal_host="host", semi_major_axis=None)   # orbit left unset
     ev = system.calc_world_evolution("moon")
     assert ev["evolved"] is False
 
 
-def test_no_host_system_not_evolved():
-    """With no host designated, a world cannot be evolved (no tidal companion)."""
+def test_world_without_tidal_host_not_evolved():
+    """With no tidal host named, a world cannot be evolved (no tidal companion)."""
     system = System("hostless")
+    system.add_world(_host())
     system.add_world(_moon(), semi_major_axis=_SMA, eccentricity=_ECC)
     ev = system.calc_world_evolution("moon")
     assert ev["evolved"] is False
@@ -199,13 +202,13 @@ def test_layerless_world_evolves_without_spin():
     orbital_frequency = math.sqrt(G * (_HOST + companion_mass) / sma ** 3)
 
     system = System("layerless")
-    system.add_world(_host(), is_host=True)
+    system.add_world(_host())
     companion = StarWorld("companion", 5.0e8, companion_mass)
     companion.set_tide_model(make_tide("cpl", {"fixed_k": [0.03], "fixed_q": [1.0e6]}))
     companion.set_tide_config(min_degree_l=2, max_degree_l=2,
                               eccentricity_truncation=2, obliquity_truncation=0)
     companion.set_spin_frequency(orbital_frequency)
-    system.add_world(companion, semi_major_axis=sma, eccentricity=_ECC)
+    system.add_world(companion, tidal_host=0, semi_major_axis=sma, eccentricity=_ECC)
 
     ev = system.calc_world_evolution("companion")
     assert ev["evolved"] is True
@@ -230,10 +233,10 @@ def _layered(name, radius, spin_frequency):
     """A homogeneous Maxwell body that dissipates tidally and carries a spin model."""
     mass = _mass(radius)
     world = LayeredWorld(name, radius, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, radius, mass,
-                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
+    layer = PhysicsLayer("mantle", 0, 0.0, radius, mass)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_shear_rheology(Maxwell())
@@ -260,8 +263,8 @@ def _dual_system(sma=60.0 * _R, host_radius=2.0 * _R, world_radius=_R,
     host = _layered("host", host_radius, host_spin * n)
     orbiter = _layered("orbiter", world_radius, world_spin * n)
     system = System("dual")
-    system.add_world(host, is_host=True)
-    system.add_world(orbiter, semi_major_axis=sma, eccentricity=eccentricity)
+    system.add_world(host)
+    system.add_world(orbiter, tidal_host=0, semi_major_axis=sma, eccentricity=eccentricity)
     return system
 
 
@@ -327,3 +330,59 @@ def test_pair_no_host_not_evolved():
     system.add_world(_moon(), semi_major_axis=_SMA, eccentricity=_ECC)
     pair = system.calc_pair_evolution("moon")
     assert pair["evolved"] is False
+
+
+# =====================================================================================================================
+# Mutual pairs, and the tide state a world is given
+# =====================================================================================================================
+def test_mutual_pair_rows_sum_to_the_pair_evolution():
+    """When two worlds host each other the sweep gives each a row, and the rows add up to the pair's rates."""
+    system = _dual_system()
+    system.set_tidal_host("host", "orbiter")
+    rows = system.calc_system_evolution()
+    assert rows[0]["evolved"] is True and rows[1]["evolved"] is True
+    pair = system.calc_pair_evolution("orbiter")
+    assert math.isclose(rows[0]["da_dt"] + rows[1]["da_dt"], pair["da_dt"], rel_tol=1e-12)
+    assert math.isclose(
+        rows[0]["tidal_heating"] + rows[1]["tidal_heating"], pair["tidal_heating_total"], rel_tol=1e-12)
+    # Seen from either member it is the same pair, with the roles swapped.
+    mirrored = system.calc_pair_evolution("host")
+    assert mirrored["evolved"] is True
+    assert mirrored["host_index"] == 1
+    assert math.isclose(mirrored["da_dt"], pair["da_dt"], rel_tol=1e-12)
+    assert math.isclose(mirrored["world"]["tidal_heating"], pair["host"]["tidal_heating"], rel_tol=1e-12)
+
+
+def test_world_gets_its_tide_state_from_its_system():
+    moon = _moon()
+    assert moon.get_tide_state() is None          # outside a system
+    system = System("test")
+    system.add_world(_host())
+    system.add_world(moon)
+    assert moon.get_tide_state() is None          # no tidal host yet
+    system.set_tidal_host(moon, "host")
+    assert moon.get_tide_state() is None          # no orbit about it yet
+    system.set_semi_major_axis(moon, _SMA)
+    system.set_eccentricity(moon, _ECC)
+
+    state = moon.get_tide_state()
+    assert state["orbital_frequency"] == system.calc_orbital_frequency(moon)
+    assert state["semi_major_axis"] == _SMA and state["eccentricity"] == _ECC
+    assert state["host_mass"] == _HOST
+    assert state["spin_frequency"] == moon.spin_frequency
+    assert state["obliquity"] == moon.obliquity
+    # It is the state the system itself evolves the world in, in the order calc_tides takes it.
+    evolution = system.calc_world_evolution(moon)
+    moon.calc_tides(**state)
+    assert moon.get_tidal_heating() == evolution["tidal_heating"]
+
+
+def test_world_stops_asking_a_system_that_is_gone():
+    moon = _moon()
+    system = System("short_lived")
+    system.add_world(_host())
+    system.add_world(moon, tidal_host=0, semi_major_axis=_SMA, eccentricity=_ECC)
+    assert moon.get_tide_state() is not None
+    del system
+    gc.collect()
+    assert moon.get_tide_state() is None

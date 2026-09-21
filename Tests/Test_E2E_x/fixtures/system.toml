@@ -4,11 +4,11 @@ name = "E2E-System"
 
 [worlds.sun]
 world = "sol"
-is_host = true
 is_star = true
 
 [worlds.planet]
 world = "earth_simple"
+tidal_host = "sun"
 semi_major_axis_m = 1.0e11
 eccentricity = 0.05
 stellar_semi_major_axis_m = 1.0e11

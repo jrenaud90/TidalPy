@@ -22,7 +22,7 @@ An EOS model is attached to a layer with `BaseLayer.set_eos`. Once every layer h
 
 The integration runs over radius with pressure as a state variable, so a pressure-dependent density law is evaluated at each step with the current pressure. The only iteration is the solver's outer loop, which adjusts the central pressure until the integrated surface pressure matches the requested boundary value.
 
-A world built from a TOML file gets its EOS models from the `[layers.<name>.eos]` table, with material defaults filling in anything the user omits. See the [TOML schema](../structures_x/config/toml_schema.md).
+A world built from a TOML file gets its EOS models from the `[layers.<name>.material]` table, with material defaults filling in anything the user omits. See the [TOML schema](../structures_x/config/toml_schema.md).
 
 ## Scope
 

@@ -66,12 +66,15 @@ def test_config_x_has_numerical_section():
 def test_config_x_has_each_material_block(material_type):
     layers = TidalPy.config_x["layers"]
     assert material_type in layers
-    # Every material block carries an EOS default.
-    assert "eos" in layers[material_type]
+    # Every material block carries a material (EOS model) default.
+    assert "model" in layers[material_type]["material"]
 
 
 def test_default_material_block_is_a_copy_of_mantle_rock():
-    layers = TidalPy.config_x["layers"]
+    # Read the packaged defaults, not TidalPy.config_x: the latter has the user's file merged over it, and a file
+    # written by an older TidalPy keeps keys this version has dropped, which would fail an invariant of the
+    # defaults for a reason that has nothing to do with them.
+    layers = get_packaged_config_x()["layers"]
     assert layers["default"] == layers["mantle_rock"]
 
 

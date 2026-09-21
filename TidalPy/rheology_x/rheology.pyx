@@ -341,11 +341,13 @@ cdef class Voigt(RheologyBase):
     @property
     def voigt_modulus_frac(self) -> float:
         """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
+        self._check_ptr()
         return self._voigt_ptr.get_voigt_modulus_frac()
 
     @property
     def voigt_viscosity_frac(self) -> float:
         """Voigt viscosity fraction [dimensionless]."""
+        self._check_ptr()
         return self._voigt_ptr.get_voigt_viscosity_frac()
 
 
@@ -384,11 +386,13 @@ cdef class Burgers(RheologyBase):
     @property
     def voigt_modulus_frac(self) -> float:
         """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
+        self._check_ptr()
         return self._burgers_ptr.get_voigt_modulus_frac()
 
     @property
     def voigt_viscosity_frac(self) -> float:
         """Voigt viscosity fraction [dimensionless]."""
+        self._check_ptr()
         return self._burgers_ptr.get_voigt_viscosity_frac()
 
 
@@ -424,11 +428,13 @@ cdef class Andrade(RheologyBase):
     @property
     def alpha(self) -> float:
         """Andrade exponent [dimensionless]."""
+        self._check_ptr()
         return self._andrade_ptr.get_alpha()
 
     @property
     def zeta(self) -> float:
         """Andrade timescale ratio [dimensionless]."""
+        self._check_ptr()
         return self._andrade_ptr.get_zeta()
 
 
@@ -474,21 +480,25 @@ cdef class Sundberg(RheologyBase):
     @property
     def alpha(self) -> float:
         """Andrade exponent [dimensionless]."""
+        self._check_ptr()
         return self._sundberg_ptr.get_alpha()
 
     @property
     def zeta(self) -> float:
         """Andrade timescale ratio [dimensionless]."""
+        self._check_ptr()
         return self._sundberg_ptr.get_zeta()
 
     @property
     def voigt_modulus_frac(self) -> float:
         """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
+        self._check_ptr()
         return self._sundberg_ptr.get_voigt_modulus_frac()
 
     @property
     def voigt_viscosity_frac(self) -> float:
         """Voigt viscosity fraction [dimensionless]."""
+        self._check_ptr()
         return self._sundberg_ptr.get_voigt_viscosity_frac()
 
 

@@ -1,6 +1,6 @@
 # The Solution Class
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-20_
 
 Every radial solve returns a `RadialSolverSolution`, the Cython class in `TidalPy.RadialSolver_x.rs_solution`. It holds the solve status, the equation-of-state result, and the radial functions and Love numbers. The same object comes back from `radial_solver`, from `homogeneous_love_numbers`, and from a world's released radial storage.
 
@@ -32,8 +32,12 @@ The solver runs an equation of state before the deformation problem, and keeps t
 |---|---|
 | `eos_success`, `eos_error_code`, `eos_message` | Outcome of the equation-of-state solve. |
 | `eos_pressure_error`, `eos_iterations`, `eos_steps_taken` | Convergence of the interior pressure iteration. |
-| `radius_array`, `gravity_array`, `pressure_array`, `mass_array`, `moi_array`, `density_array` | Real-valued profiles through the planet. |
-| `shear_modulus_array`, `bulk_modulus_array` | Complex moduli through the planet. |
+| `get_gravity(r)`, `get_pressure(r)`, `get_mass(r)`, `get_moi(r)`, `get_density(r)` | The interior at radius `r` [m], a float or an array of radii. The solution keeps the solved EOS it came from and evaluates it, so nothing is tabulated and any radius may be asked for. |
+| `get_shear_modulus(r)`, `get_bulk_modulus(r)` | The material's **static** (unrelaxed) moduli [Pa] at `r`. These are frequency-independent, which is why they are what the dense equation-of-state readout carries. |
+| `get_complex_shear_modulus(r)`, `get_complex_bulk_modulus(r)` | The **complex** moduli [Pa] at `r`, as this solve used them. |
+| `love_frequency` | The forcing frequency [rad s-1] the complex moduli above are evaluated at; NaN when the solve carried no rheology. |
+| `get_shear_viscosity(r)`, `get_bulk_viscosity(r)` | Viscosities [Pa s] at `r`; NaN when the material names none. |
+| `sample_radii(num_points=0)` | A radius grid [m] spanning the body, for a caller that wants one (plotting, tabulating). Nothing in the solve uses it and the solution keeps no copy; it defaults to the slice count the solve was configured with. |
 | `layer_upper_radius_array` | Upper radius of each layer [m]. |
 | `radius`, `volume`, `mass`, `moi`, `density_bulk` | Whole-planet scalars. |
 | `moi_factor` | The moment of inertia factor `moi / (M R^2)`: 0.4 for a uniform sphere, 0.3307 for Earth, and smaller the more mass sits near the center. |

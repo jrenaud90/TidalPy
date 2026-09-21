@@ -24,17 +24,17 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         double              mass
         string              material_name
         cpp_bool            is_tidal
+        cpp_bool            is_volume_fixed
         double              tidal_scale
         c_TidalScaleMethod  tidal_scale_method
         # From c_PhysicsConfig:
-        double              shear_modulus_static
-        double              bulk_modulus_static
-        double              shear_viscosity_static
-        double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
         cpp_bool            is_solid
         cpp_bool            is_static
         cpp_bool            is_incompressible
+        double              temperature
+        cpp_bool            use_thermal_eos
+        cpp_bool            use_heating
         # GasLayer additions:
         double              mean_molecular_weight
         double              adiabatic_index
@@ -49,11 +49,6 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         double get_adiabatic_index()        const
         double get_reference_temperature()  const
         double get_reference_density()      const
-        # Calculations
-        double calc_adiabatic_lapse_rate(double gravity)                      const
-        double calc_scale_height(double temperature, double gravity)        const
-        double calc_pressure_ideal_gas(double temperature, double density) const
-        double calc_sound_speed(double temperature)                               const
 
 
 # =====================================================================================================================

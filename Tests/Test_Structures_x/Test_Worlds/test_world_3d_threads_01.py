@@ -64,10 +64,9 @@ def _world():
     layers = (("core", 0.0, 0.45 * _RADIUS, 1.0e11, 1.0e22), ("mantle", 0.45 * _RADIUS, _RADIUS, 6.0e10, 1.0e15))
     for index, (name, r_inner, r_outer, shear, viscosity) in enumerate(layers):
         mass = (4.0 / 3.0) * math.pi * (r_outer ** 3 - r_inner ** 3) * density
-        layer = PhysicsLayer(name, index, r_inner, r_outer, mass,
-                             shear_modulus_static=shear,
-                             bulk_modulus_static=2.0e11)
-        layer.set_eos(ConstantDensityEOS(reference_density=density))
+        layer = PhysicsLayer(name, index, r_inner, r_outer, mass)
+        layer.set_eos(ConstantDensityEOS(
+            reference_density=density, shear_modulus_static=shear, bulk_modulus_static=2.0e11))
         layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": viscosity}))
         layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
         layer.set_shear_rheology(Maxwell())

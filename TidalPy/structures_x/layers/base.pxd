@@ -51,6 +51,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double             mass
         string             material_name
         cpp_bool           is_tidal
+        cpp_bool           is_volume_fixed
         double             tidal_scale
         c_TidalScaleMethod tidal_scale_method
 
@@ -68,6 +69,9 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_surface_area_outer()      const
         const string& get_material_name()      const
         cpp_bool get_is_tidal()                const
+        cpp_bool get_is_volume_fixed()         const
+        void     set_is_volume_fixed(cpp_bool)
+        void     set_radii(double radius_inner, double radius_outer)
         double   get_tidal_scale()             const
         c_TidalScaleMethod get_tidal_scale_method() const
         void     set_tidal_scale_method(c_TidalScaleMethod method)
@@ -86,10 +90,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_bulk_modulus(double radius) const
         double   get_shear_viscosity(double radius) const
         double   get_bulk_viscosity(double radius) const
-        double   get_premelt_shear_modulus(double radius) const
-        double   get_premelt_bulk_modulus(double radius) const
-        double   get_premelt_shear_viscosity(double radius) const
-        double   get_premelt_bulk_viscosity(double radius) const
+        double   get_melt_fraction(double radius) const
 
 
 # =====================================================================================================================

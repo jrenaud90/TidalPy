@@ -48,20 +48,24 @@ cdef class PartialMeltBase(PhysicsBase):
     @property
     def solidus(self) -> float:
         """Solidus temperature [K]."""
+        self._check_ptr()
         return self._melt_ptr.get().get_solidus()
 
     @property
     def liquidus(self) -> float:
         """Liquidus temperature [K]."""
+        self._check_ptr()
         return self._melt_ptr.get().get_liquidus()
 
     @property
     def liquid_shear(self) -> float:
         """Shear modulus of the fully-molten material [Pa]."""
+        self._check_ptr()
         return self._melt_ptr.get().get_liquid_shear()
 
     def calc_melt_fraction(self, double temperature) -> float:
         """Volumetric melt fraction phi in [0, 1] from temperature [K]."""
+        self._check_ptr()
         return self._melt_ptr.get().calc_melt_fraction(temperature)
 
     def calc_partial_melt(
@@ -76,6 +80,7 @@ cdef class PartialMeltBase(PhysicsBase):
         -------
         (melt_fraction, postmelt_viscosity, postmelt_shear_modulus) : tuple of float
         """
+        self._check_ptr()
         cdef c_PartialMeltInputs inputs
         inputs.temperature     = temperature
         inputs.premelt_viscosity = premelt_viscosity
@@ -144,21 +149,25 @@ cdef class SpohnPartialMelt(PartialMeltBase):
     @property
     def fs_visc_power_slope(self) -> float:
         """Viscosity-law temperature slope s [K] in the weakening factor exp(s / T - p)."""
+        self._check_ptr()
         return self._spohn_ptr.get_visc_power_slope()
 
     @property
     def fs_visc_power_phase(self) -> float:
         """Viscosity-law phase p (dimensionless) in the weakening factor exp(s / T - p)."""
+        self._check_ptr()
         return self._spohn_ptr.get_visc_power_phase()
 
     @property
     def fs_shear_power_slope(self) -> float:
         """Shear-law temperature slope s [K] in the weakening factor exp(s / T - p)."""
+        self._check_ptr()
         return self._spohn_ptr.get_shear_power_slope()
 
     @property
     def fs_shear_power_phase(self) -> float:
         """Shear-law phase p (dimensionless) in the weakening factor exp(s / T - p)."""
+        self._check_ptr()
         return self._spohn_ptr.get_shear_power_phase()
 
 
@@ -202,36 +211,43 @@ cdef class HenningPartialMelt(PartialMeltBase):
     @property
     def crit_melt_frac(self) -> float:
         """Critical melt fraction phi_c at which the solid framework breaks down."""
+        self._check_ptr()
         return self._henning_ptr.get_crit_melt_frac()
 
     @property
     def crit_melt_frac_width(self) -> float:
         """Width w of the transition band from phi_c to phi_c + w."""
+        self._check_ptr()
         return self._henning_ptr.get_crit_melt_frac_width()
 
     @property
     def hn_visc_slope_1(self) -> float:
         """Viscosity weakening slope below phi_c: eta = eta_premelt * exp(-hn_visc_slope_1 * phi)."""
+        self._check_ptr()
         return self._henning_ptr.get_visc_slope_1()
 
     @property
     def hn_visc_falloff_slope(self) -> float:
         """Viscosity falloff slope applied to (phi - phi_c) across the transition band."""
+        self._check_ptr()
         return self._henning_ptr.get_visc_falloff_slope()
 
     @property
     def hn_shear_param_1(self) -> float:
         """Shear-law temperature parameter b_1 [K] in exp(b_1 / T - b_2)."""
+        self._check_ptr()
         return self._henning_ptr.get_shear_param_1()
 
     @property
     def hn_shear_param_2(self) -> float:
         """Shear-law offset b_2 (dimensionless) in exp(b_1 / T - b_2)."""
+        self._check_ptr()
         return self._henning_ptr.get_shear_param_2()
 
     @property
     def hn_shear_falloff_slope(self) -> float:
         """Shear falloff slope applied to (phi - phi_c) across the transition band."""
+        self._check_ptr()
         return self._henning_ptr.get_shear_falloff_slope()
 
 

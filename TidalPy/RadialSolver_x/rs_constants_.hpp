@@ -11,3 +11,6 @@ constexpr size_t C_MAX_NUM_Y_REAL = 2 * C_MAX_NUM_Y;
 
 /// Maximum number of independent solutions per layer (solid layers have 3).
 constexpr size_t C_MAX_NUM_SOL = 3;
+
+/// Maximum number of surface boundary conditions ("ytypes") one solve may produce
+constexpr size_t C_MAX_NUM_YTYPES = 5;

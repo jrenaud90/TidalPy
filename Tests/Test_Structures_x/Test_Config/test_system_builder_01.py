@@ -31,7 +31,9 @@ def test_build_bundled_sol_system():
     assert system.num_worlds == 3
     # Worlds are identified by their [worlds.<name>] table keys.
     assert [w.name for w in system] == ["sun", "earth", "jupiter"]
-    assert system.host.name == "sun"
+    assert system.get_tidal_host("earth").name == "sun"
+    assert system.get_tidal_host("jupiter").name == "sun"
+    assert system.get_tidal_host("sun") is None
     assert system.star.name == "sun"
     assert math.isclose(system.get_semi_major_axis("earth"), AU, rel_tol=1e-9)
     assert math.isclose(system.get_eccentricity("earth"), 0.0167, rel_tol=1e-9)
@@ -52,14 +54,17 @@ def test_bundled_sol_system_insolation():
 # Building from a dict
 # =====================================================================================================================
 def _earth_moon_sun_config():
-    """Earth-Moon-Sun: the tidal host is the Earth but the star is the Sun (distinct orbits)."""
+    """Earth-Moon-Sun: the Earth and the Moon host each other, and the star is the Sun (distinct orbits)."""
     return {
         "name": "earth_moon_sun",
         "worlds": {
             "sun":   {"world": "sol", "is_star": True},
-            "earth": {"world": "earth_simple", "is_host": True,
+            # The Moon is declared after the Earth, which names it all the same; the pair shares the one orbit
+            # the Moon states.
+            "earth": {"world": "earth_simple", "tidal_host": "moon",
                       "stellar_semi_major_axis_m": AU, "stellar_eccentricity": 0.0167},
             "moon":  {"world": "earth_simple",   # a stand-in body for the demo
+                      "tidal_host": "earth",
                       "semi_major_axis_m": 3.844e8, "eccentricity": 0.0549,
                       "stellar_semi_major_axis_m": AU, "stellar_eccentricity": 0.0167},
         },
@@ -69,10 +74,16 @@ def _earth_moon_sun_config():
 def test_construct_from_dict_host_not_star():
     system = construct_system(_earth_moon_sun_config())
     assert system.num_worlds == 3
-    assert system.host.name == "earth"
+    assert system.get_tidal_host("moon").name == "earth"
+    assert system.get_tidal_host("earth").name == "moon"
+    assert system.get_tidal_host_index("moon") == 1
+    assert system.is_mutual_pair("earth") and system.is_mutual_pair("moon")
+    assert not system.has_tidal_host("sun")
     assert system.star.name == "sun"
-    assert system.host_index == 1
     assert system.star_index == 0
+    # The Earth states no orbit of its own, so it takes the one it shares with the Moon.
+    assert math.isclose(system.get_semi_major_axis("earth"), 3.844e8, rel_tol=1e-9)
+    assert math.isclose(system.get_eccentricity("earth"), 0.0549, rel_tol=1e-9)
     # The moon's tidal orbit (about Earth) and stellar orbit (about the Sun) differ.
     assert math.isclose(system.get_semi_major_axis("moon"), 3.844e8, rel_tol=1e-9)
     assert math.isclose(system.get_stellar_semi_major_axis("moon"), AU, rel_tol=1e-9)
@@ -86,10 +97,10 @@ def test_build_from_toml_path(tmp_path):
         'name = "two_body"\n\n'
         '[worlds.star]\n'
         'world = "sol"\n'
-        'is_host = true\n'
         'is_star = true\n\n'
         '[worlds.planet]\n'
         'world = "earth_simple"\n'
+        'tidal_host = "star"\n'
         'semi_major_axis_m = 1.2e11\n'
         'eccentricity = 0.02\n')
     path = tmp_path / "two_body.toml"
@@ -105,9 +116,9 @@ def test_template_reuse_under_different_names():
     config = {
         "name": "twins",
         "worlds": {
-            "sun":     {"world": "sol", "is_host": True, "is_star": True},
-            "planet_a": {"world": "earth_simple", "semi_major_axis_m": 1.0e11},
-            "planet_b": {"world": "earth_simple", "semi_major_axis_m": 2.0e11},
+            "sun":     {"world": "sol", "is_star": True},
+            "planet_a": {"world": "earth_simple", "tidal_host": "sun", "semi_major_axis_m": 1.0e11},
+            "planet_b": {"world": "earth_simple", "tidal_host": "sun", "semi_major_axis_m": 2.0e11},
         },
     }
     system = construct_system(config)
@@ -135,7 +146,7 @@ def test_save_to_toml_roundtrip(tmp_path):
     system.save_to_toml(str(path))
     rebuilt = build_system(str(path))
     assert [w.name for w in rebuilt] == [w.name for w in system]
-    assert rebuilt.host.name == "sun" and rebuilt.star.name == "sun"
+    assert rebuilt.get_tidal_host("earth").name == "sun" and rebuilt.star.name == "sun"
     assert math.isclose(rebuilt.get_semi_major_axis("earth"), system.get_semi_major_axis("earth"))
     assert math.isclose(rebuilt.get_stellar_eccentricity("jupiter"),
                         system.get_stellar_eccentricity("jupiter"))
@@ -149,7 +160,8 @@ def test_get_config_dict_expanded():
     # Each member is inlined as a full world config under the world's system name.
     assert config["worlds"]["earth"]["world"]["name"] == "earth"
     assert config["worlds"]["earth"]["semi_major_axis_m"] > 0.0
-    assert config["worlds"]["sun"]["is_host"] is True
+    assert config["worlds"]["earth"]["tidal_host"] == "sun"
+    assert "tidal_host" not in config["worlds"]["sun"]
     assert config["worlds"]["sun"]["is_star"] is True
 
 
@@ -196,7 +208,7 @@ def test_validate_unknown_system_key():
 
 def test_validate_missing_world_source():
     with pytest.raises(ValueError, match="missing the required 'world'"):
-        validate_system_config({"worlds": {"a": {"is_host": True}}})
+        validate_system_config({"worlds": {"a": {"is_star": True}}})
 
 
 def test_validate_unknown_world_key():
@@ -204,13 +216,38 @@ def test_validate_unknown_world_key():
         validate_system_config({"worlds": {"a": {"world": "sol", "sma": 1.0}}})
 
 
-def test_validate_multiple_hosts():
+def test_validate_is_host_points_at_its_replacement():
     config = {"worlds": {
         "a": {"world": "sol", "is_host": True},
-        "b": {"world": "earth_simple", "is_host": True},
+        "b": {"world": "earth_simple", "semi_major_axis_m": 1.0e11},
     }}
-    with pytest.raises(ValueError, match="host worlds"):
+    with pytest.raises(ValueError, match="tidal_host"):
         validate_system_config(config)
+
+
+@pytest.mark.parametrize("tidal_host", ["nobody", "b", 3])
+def test_validate_tidal_host_must_be_another_world_of_the_system(tidal_host):
+    config = {"worlds": {
+        "a": {"world": "sol"},
+        "b": {"world": "earth_simple", "tidal_host": tidal_host, "semi_major_axis_m": 1.0e11},
+    }}
+    with pytest.raises(ValueError, match="tidal host|tidal_host"):
+        validate_system_config(config)
+
+
+def test_validate_an_orbit_needs_a_tidal_host():
+    """Orbital elements are about the world's tidal host, so they mean nothing without one."""
+    config = {"worlds": {
+        "a": {"world": "sol"},
+        "b": {"world": "earth_simple", "semi_major_axis_m": 1.0e11},
+    }}
+    with pytest.raises(ValueError, match="no 'tidal_host'"):
+        validate_system_config(config)
+    # The orbit about the star is a separate matter and needs no tidal host.
+    validate_system_config({"worlds": {
+        "a": {"world": "sol", "is_star": True},
+        "b": {"world": "earth_simple", "stellar_semi_major_axis_m": 1.0e11},
+    }})
 
 
 def test_validate_multiple_stars():

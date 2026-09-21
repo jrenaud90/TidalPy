@@ -33,44 +33,15 @@
 #include "angular_gram_.hpp"
 #include "legendre_driver_.hpp"   // tidalpy::c_legendre (P_lm and its theta derivatives)
 #include "constants_.hpp"         // TidalPyConstants::d_PI
+#include "../../Utilities_x/math_x/quadrature_.hpp"   // c_gauss_legendre_nodes
 
 
 namespace tidalpy {
 namespace tides {
 
-// Gauss-Legendre nodes/weights on [-1, 1] (Newton-Raphson on the Legendre polynomial). Used for the colatitude
+// Gauss-Legendre nodes and weights on [-1, 1] (Utilities_x/math_x/quadrature_.hpp). Used for the colatitude
 // integral via the substitution x = cos(theta): int_0^pi f(theta) sin(theta) dtheta = sum_i w[i] f(acos(x[i])).
-inline void c_gauss_legendre_nodes(
-        int num_nodes,
-        std::vector<double>& nodes,
-        std::vector<double>& weights) {
-    nodes.resize(num_nodes);
-    weights.resize(num_nodes);
-    const double pi = TidalPyConstants::d_PI;
-    const int half = (num_nodes + 1) / 2;
-    for (int i = 0; i < half; ++i) {
-        double x = std::cos(pi * (static_cast<double>(i) + 0.75) / (static_cast<double>(num_nodes) + 0.5));
-        double dp = 1.0;
-        for (int iter = 0; iter < 100; ++iter) {
-            double p0 = 1.0;   // P_0
-            double p1 = x;     // P_1
-            for (int k = 2; k <= num_nodes; ++k) {
-                const double p2 = ((2.0 * k - 1.0) * x * p1 - (k - 1.0) * p0) / static_cast<double>(k);
-                p0 = p1;
-                p1 = p2;
-            }
-            dp = static_cast<double>(num_nodes) * (x * p1 - p0) / (x * x - 1.0);
-            const double dx = -p1 / dp;
-            x += dx;
-            if (std::abs(dx) <= 1.0e-15) { break; }
-        }
-        nodes[i]                = -x;
-        nodes[num_nodes - 1 - i] = x;
-        const double w = 2.0 / ((1.0 - x * x) * dp * dp);
-        weights[i]                = w;
-        weights[num_nodes - 1 - i] = w;
-    }
-}
+using tidalpy::c_gauss_legendre_nodes;
 
 // The six angular basis functions of one (l, m) at a colatitude. For m = 0 the f4 and f6 functions are
 // unbounded at the poles but enter the strain only through the factor i*m = 0, so they are returned as zero

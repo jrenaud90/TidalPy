@@ -380,7 +380,7 @@ def test_binary_roundtrip_preserves_eos_model():
     from TidalPy.Material_x.eos import BirchMurnaghanEOS
     bl1 = _make_mantle()
     bl1.set_eos(BirchMurnaghanEOS(3300.0, 1.2e11, 4.2))
-    expected = bl1.get_config_dict()["eos"]
+    expected = bl1.get_config_dict()["material"]
     with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
         path = f.name
     try:
@@ -389,7 +389,7 @@ def test_binary_roundtrip_preserves_eos_model():
         assert bl2.eos_set is False
         bl2.load_binary(path)
         assert bl2.eos_set is True
-        assert bl2.get_config_dict()["eos"] == expected
+        assert bl2.get_config_dict()["material"] == expected
     finally:
         os.unlink(path)
 
@@ -423,10 +423,10 @@ def test_get_config_dict_class_and_eos_table():
     from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     bl = _make_mantle()
     assert bl.get_config_dict()["class"] == "base"
-    assert "eos" not in bl.get_config_dict()
+    assert "material" not in bl.get_config_dict()
     eos = ConstantDensityEOS(reference_density=4400.0)
     expected_model = eos.model_name
     bl.set_eos(eos)
-    eos_cfg = bl.get_config_dict()["eos"]
+    eos_cfg = bl.get_config_dict()["material"]
     assert eos_cfg["model"] == expected_model
     assert eos_cfg["reference_density_kg_m3"] == pytest.approx(4400.0)

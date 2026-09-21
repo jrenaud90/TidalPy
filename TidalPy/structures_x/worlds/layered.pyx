@@ -31,6 +31,8 @@ from TidalPy.structures_x.layers.base import LAYER_STANDALONE_CONFIG_KEYS
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
 from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
+from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_YTYPES
+from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_name_int
 from TidalPy.Utilities_x.logging_x.logger import log_warning
@@ -148,6 +150,28 @@ cdef int _resolve_solve_for(str solve_for) except? -999:
     raise ValueError(
         f"Unsupported solve_for: {solve_for}. Supported: 'tidal', 'loading', 'free'.")
 
+
+cdef void _set_solve_for(c_LoveSolveConfig* cfg, solve_for) except *:
+    # Accept one boundary-condition name or a sequence of them, and write them onto the config in order. A
+    # sequence produces one block of radial functions each, from a single integration.
+    cdef list names
+    cdef vector[int] models
+    if isinstance(solve_for, str):
+        names = [solve_for]
+    else:
+        names = list(solve_for)
+    if len(names) == 0:
+        raise ValueError("solve_for must name at least one surface boundary condition.")
+    if len(names) > C_MAX_NUM_YTYPES:
+        raise ValueError(
+            f"solve_for accepts at most {C_MAX_NUM_YTYPES} boundary conditions; {len(names)} were given.")
+    if len(set(name.lower() for name in names)) != len(names):
+        raise ValueError(f"solve_for entries must be distinct; got {tuple(names)}.")
+    for name in names:
+        models.push_back(_resolve_solve_for(name))
+    cfg.set_bc_models(models.data(), models.size())
+
+
 cdef int _resolve_love_method(str love_method) except? -999:
     # Map a Love-number method name (or alias) to its c_LoveMethod index.
     cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
@@ -166,10 +190,9 @@ cdef enum:
     _KIND_BULK_MOD       = 4
     _KIND_SHEAR_VISC     = 5
     _KIND_BULK_VISC      = 6
-    _KIND_PRE_SHEAR_MOD  = 7
-    _KIND_PRE_BULK_MOD   = 8
-    _KIND_PRE_SHEAR_VISC = 9
-    _KIND_PRE_BULK_VISC  = 10
+    _KIND_MELT_FRACTION  = 7
+    _KIND_TEMPERATURE    = 11
+    _KIND_HEAT_FLOW      = 12
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -250,8 +273,8 @@ cdef class LayeredWorld(BaseWorld):
     def add_layer(self, BaseLayer layer not None):
         """Add a layer to the world (inner to outer).
 
-        Ownership of the C++ layer and its attached physics models moves out of ``layer``, which is left an
-        empty shell and must not be reused.
+        Ownership of the C++ layer and its attached physics models moves to the world. ``layer`` stays usable: it
+        becomes a non-owning view of the layer the world now holds, the same kind ``world.<layer name>`` returns.
 
         Parameters
         ----------
@@ -281,7 +304,9 @@ cdef class LayeredWorld(BaseWorld):
                 "Layer geometry is not continuous: the inner radius does not match "
                 "the current outermost radius (add layers inner-to-outer, innermost "
                 "starting at radius 0).")
+        cdef c_BaseLayer* added_layer_ptr = layer._layer_ptr.get()
         self._layered_ptr.add_layer(move(layer._layer_ptr))
+        layer._init_view(added_layer_ptr, self)
         # The layer set changed; drop the cached views so they rebuild on next access.
         self._layer_views = None
         self._layer_view_by_name = None
@@ -394,8 +419,12 @@ cdef class LayeredWorld(BaseWorld):
             pressure_tol            = None,
             max_iters               = None,
             nondimensionalize       = None,
-            double temperature      = 0.0,
-            cpp_bool verbose        = False) -> dict:
+            temperature             = None,
+            solve_temperature       = None,
+            surface_temperature     = None,
+            reset_layer_masses      = False,
+            cpp_bool verbose        = False,
+            time                    = None) -> dict:
         """Solve the whole-planet equation of state.
 
         Integrates gravity, pressure, enclosed mass, and moment of inertia from the planet center to its
@@ -438,14 +467,19 @@ cdef class LayeredWorld(BaseWorld):
             models). Default 0.0.
         verbose : bool, optional
             Print solver status messages. Default False.
+        time : float, optional
+            Time [s] the heat sources of the layers with ``use_heating`` are evaluated at, on the clock their
+            radiogenics models share. ``None`` takes each model's own reference time.
 
         Returns
         -------
         dict
             ``success``, ``message``, ``iterations``, ``max_iters_hit``, ``pressure_error`` [Pa], the radial
-            profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``), and the
-            scalar results (``surface_gravity``, ``surface_pressure``, ``central_pressure``, ``planet_mass``,
-            ``planet_moi``).
+            profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``,
+            ``temperature``, ``heat_flow``), the scalar results (``surface_gravity``, ``surface_pressure``,
+            ``central_pressure``, ``planet_mass``, ``planet_moi``), and the per-layer thermal results
+            (``layer_temperature`` [K], ``layer_heat_flow_in`` and ``layer_heat_flow_out`` [W],
+            ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1]).
 
         Raises
         ------
@@ -463,8 +497,16 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_WorldEOSSolveConfig cfg
         cfg.surface_pressure = surface_pressure
         cfg.G_to_use         = G_to_use
-        cfg.temperature      = temperature
         cfg.verbose          = <cpp_bool>verbose
+        if temperature is not None:
+            cfg.temperature = <double>temperature
+        if solve_temperature is not None:
+            cfg.solve_temperature = <cpp_bool>bool(solve_temperature)
+        if surface_temperature is not None:
+            cfg.surface_temperature = <double>surface_temperature
+        if time is not None:
+            cfg.time = <double>time
+        cfg.reset_layer_masses = <cpp_bool>bool(reset_layer_masses)
         if slices_per_layer is not None:
             cfg.slices_per_layer = <size_t>int(slices_per_layer)
         if integration_method is not None:
@@ -503,9 +545,27 @@ cdef class LayeredWorld(BaseWorld):
         cdef cnp.ndarray mass_out     = np.empty(n, dtype=np.float64)
         cdef cnp.ndarray moi_out      = np.empty(n, dtype=np.float64)
         cdef cnp.ndarray density_out  = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray temperature_out = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray heat_flow_out   = np.empty(n, dtype=np.float64)
         cdef size_t j
+        cdef size_t num_layers = self._layered_ptr.get_num_layers()
+        cdef list layer_temperature      = []
+        cdef list layer_heat_flow_in     = []
+        cdef list layer_heat_flow_out    = []
+        cdef list layer_heating          = []
+        cdef list layer_temperature_rate = []
+        cdef list layer_radius_outer     = []
         if sol != NULL and self._layered_ptr.get_eos_solved():
+            for j in range(num_layers):
+                layer_temperature.append(self._layered_ptr.get_layer_thermal()[j].temperature)
+                layer_heat_flow_in.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_in)
+                layer_heat_flow_out.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_out)
+                layer_heating.append(self._layered_ptr.get_layer_thermal()[j].heating)
+                layer_temperature_rate.append(self._layered_ptr.calc_layer_temperature_rate(j))
+                layer_radius_outer.append(self._layered_ptr.get_layer(j).get_radius_outer())
             for j in range(n):
+                temperature_out[j] = sol.temperature_array_vec[j]
+                heat_flow_out[j]   = sol.heat_flow_array_vec[j]
                 radius_out[j]   = sol.radius_array_vec[j]
                 gravity_out[j]  = sol.gravity_array_vec[j]
                 pressure_out[j] = sol.pressure_array_vec[j]
@@ -530,6 +590,17 @@ cdef class LayeredWorld(BaseWorld):
             'central_pressure': self._layered_ptr.get_central_pressure(),
             'planet_mass':      self._layered_ptr.get_planet_mass_eos(),
             'planet_moi':       self._layered_ptr.get_planet_moi_eos(),
+            'temperature':      temperature_out,
+            'heat_flow':        heat_flow_out,
+            'thermal_passes':   self._layered_ptr.get_thermal_passes(),
+            'thermal_converged':      bool(self._layered_ptr.get_thermal_converged()),
+            'geometry_converged':     bool(self._layered_ptr.get_geometry_converged()),
+            'layer_radius_outer':     layer_radius_outer,
+            'layer_temperature':      layer_temperature,
+            'layer_heat_flow_in':     layer_heat_flow_in,
+            'layer_heat_flow_out':    layer_heat_flow_out,
+            'layer_heating':          layer_heating,
+            'layer_temperature_rate': layer_temperature_rate,
         }
 
     @property
@@ -557,10 +628,9 @@ cdef class LayeredWorld(BaseWorld):
         elif kind == _KIND_BULK_MOD:       return self._layered_ptr.get_bulk_modulus(radius)
         elif kind == _KIND_SHEAR_VISC:     return self._layered_ptr.get_shear_viscosity(radius)
         elif kind == _KIND_BULK_VISC:      return self._layered_ptr.get_bulk_viscosity(radius)
-        elif kind == _KIND_PRE_SHEAR_MOD:  return self._layered_ptr.get_premelt_shear_modulus(radius)
-        elif kind == _KIND_PRE_BULK_MOD:   return self._layered_ptr.get_premelt_bulk_modulus(radius)
-        elif kind == _KIND_PRE_SHEAR_VISC: return self._layered_ptr.get_premelt_shear_viscosity(radius)
-        elif kind == _KIND_PRE_BULK_VISC:  return self._layered_ptr.get_premelt_bulk_viscosity(radius)
+        elif kind == _KIND_MELT_FRACTION:  return self._layered_ptr.get_melt_fraction(radius)
+        elif kind == _KIND_TEMPERATURE:    return self._layered_ptr.get_temperature(radius)
+        elif kind == _KIND_HEAT_FLOW:      return self._layered_ptr.get_heat_flow(radius)
         return 0.0
 
     def _apply_real(self, radius, int kind):
@@ -621,6 +691,21 @@ cdef class LayeredWorld(BaseWorld):
         """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if unsolved."""
         return self._apply_real(radius, _KIND_PRESSURE)
 
+    def get_temperature(self, radius):
+        """Temperature [K] at radius [m] (float or np.ndarray) from the solved profile.
+
+        A solve with no temperature contrast reports each layer's own temperature. NaN if unsolved.
+        """
+        return self._apply_real(radius, _KIND_TEMPERATURE)
+
+    def get_heat_flow(self, radius):
+        """Heat flowing outward through the sphere of radius [m] (float or np.ndarray) \[W\].
+
+        Zero everywhere when the solve carried no temperature. The flow steps across the interior of a
+        convecting layer: that difference is the heat the layer stores or releases.
+        """
+        return self._apply_real(radius, _KIND_HEAT_FLOW)
+
     def get_shear_modulus(self, radius):
         """Post-melt static shear modulus [Pa] at radius [m] (float or np.ndarray)."""
         return self._apply_real(radius, _KIND_SHEAR_MOD)
@@ -637,21 +722,9 @@ cdef class LayeredWorld(BaseWorld):
         """Post-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray)."""
         return self._apply_real(radius, _KIND_BULK_VISC)
 
-    def get_premelt_shear_modulus(self, radius):
-        """Pre-melt static shear modulus [Pa] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_PRE_SHEAR_MOD)
-
-    def get_premelt_bulk_modulus(self, radius):
-        """Pre-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_PRE_BULK_MOD)
-
-    def get_premelt_shear_viscosity(self, radius):
-        """Pre-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_PRE_SHEAR_VISC)
-
-    def get_premelt_bulk_viscosity(self, radius):
-        """Pre-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_PRE_BULK_VISC)
+    def get_melt_fraction(self, radius):
+        """Melt fraction at radius [m] (float or np.ndarray); 0.0 where the material has no partial-melt model."""
+        return self._apply_real(radius, _KIND_MELT_FRACTION)
 
     def calc_complex_shear_modulus(self, radius, double frequency, cpp_bool recalc_eos=False):
         """Complex shear modulus [Pa] at radius [m] (float or np.ndarray) and frequency [rad/s].
@@ -795,10 +868,10 @@ cdef class LayeredWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     def solve_love_numbers(
             self,
-            double frequency = 1.0e-5,
-            int degree_l     = 2,
-            str solve_for    = 'tidal',
-            int core_model   = 0,
+            double frequency  = 1.0e-5,
+            int degree_l      = 2,
+            solve_for         = 'tidal',
+            int core_model    = 0,
             use_kamata        = None,
             nondimensionalize = None,
             double starting_radius = 0.0,
@@ -832,10 +905,12 @@ cdef class LayeredWorld(BaseWorld):
             Tidal forcing frequency [rad/s]. Default 1e-5.
         degree_l : int, optional
             Harmonic degree. Default 2.
-        solve_for : str, optional
+        solve_for : str or sequence of str, optional
             Surface boundary condition: ``'tidal'`` (default; tidal Love numbers k, h, l), ``'loading'``
             (load Love numbers k', h', l'), or ``'free'`` (free-surface response). Same names as the
-            standalone ``radial_solver``.
+            standalone ``radial_solver``. A sequence solves for several in one pass, which costs one
+            integration rather than one each because the independent solutions do not depend on the
+            boundary condition; the Love-number properties then report the first entry.
         core_model : int, optional
             Propagation-matrix core starting condition (0-4). Ignored by the shooting method. Default 0.
         use_kamata : bool, optional
@@ -901,7 +976,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_LoveSolveConfig cfg = self._layered_ptr.make_love_solve_config()
         cfg.frequency = frequency
         cfg.degree_l  = degree_l
-        cfg.bc_model  = _resolve_solve_for(solve_for)
+        _set_solve_for(&cfg, solve_for)
         if love_method is not None:
             cfg.love_method = _resolve_love_method(love_method)
         if fixed_q is not None:
@@ -931,7 +1006,7 @@ cdef class LayeredWorld(BaseWorld):
             double[::1] radius_array not None,
             double frequency  = 1.0e-5,
             int    degree_l   = 2,
-            str    solve_for  = 'tidal',
+            solve_for         = 'tidal',
             int    core_model = 0,
             use_kamata        = None,
             nondimensionalize = None,
@@ -965,7 +1040,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_LoveSolveConfig cfg
         cfg.frequency   = frequency
         cfg.degree_l    = degree_l
-        cfg.bc_model    = _resolve_solve_for(solve_for)
+        _set_solve_for(&cfg, solve_for)
         cfg.love_method = _resolve_love_method(love_method)
         cfg.core_model  = core_model
         cfg.starting_radius = starting_radius
@@ -990,6 +1065,31 @@ cdef class LayeredWorld(BaseWorld):
         if warnings:
             check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
         return self._build_love_result()
+
+    def release_radial_solution(self):
+        """Move the last radial Love solve's storage out of this world into a ``RadialSolverSolution``.
+
+        The solution owns the storage afterwards, so this world's radial cache is emptied and the next
+        ``solve_love_numbers`` call rebuilds it. The solution holds a reference back to this world, which is
+        what lets its interior getters keep answering: they read the state provider the solve installed, and
+        that provider reads this world's solved EOS.
+
+        Returns
+        -------
+        RadialSolverSolution
+            The solved radial functions, Love numbers, and interior of the last radial solve.
+
+        Raises
+        ------
+        RuntimeError
+            If no radial Love solve has been run, or the last one did not use a radial method.
+        """
+        cdef unique_ptr[c_RadialSolutionStorage] storage_uptr = self._layered_ptr.release_radial_storage()
+        if not storage_uptr:
+            raise RuntimeError(
+                "No radial solution to release: run solve_love_numbers with the 'radial_solver' or "
+                "'propagation_matrix' method first.")
+        return RadialSolverSolution._adopt(move(storage_uptr), self)
 
     def _build_love_result(self):
         """Assemble the Python result dict from the retained C++ Love-number solution."""

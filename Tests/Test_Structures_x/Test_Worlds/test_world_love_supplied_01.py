@@ -36,10 +36,9 @@ def _maxwell_world():
 
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("supplied_planet", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static=_STATIC_SHEAR,
-                         bulk_modulus_static=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_shear_rheology(Maxwell())

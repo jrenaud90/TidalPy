@@ -1,12 +1,20 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libcpp.memory cimport make_unique
+from libcpp.memory cimport make_unique, unique_ptr
 from libcpp.string cimport string as cpp_string
 from libcpp.complex cimport complex as cpp_complex
+from libcpp.utility cimport move
 
 from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_Y
-from TidalPy.Material_x.eos.ode cimport C_EOS_DY_VALUES
+from TidalPy.Material_x.eos.ode cimport (
+    C_EOS_DY_VALUES,
+    C_EOS_DENSITY_INDEX,
+    C_EOS_SHEAR_MODULUS_INDEX,
+    C_EOS_BULK_MODULUS_INDEX,
+    C_EOS_SHEAR_VISCOSITY_INDEX,
+    C_EOS_BULK_VISCOSITY_INDEX,
+)
 from TidalPy.constants cimport d_PI
 
 cimport numpy as cnp
@@ -83,6 +91,37 @@ cdef class RadialSolverSolution:
 
         self.change_radius_array(radius_array_ptr, radius_array_size, array_changed=False)
 
+    @staticmethod
+    cdef RadialSolverSolution _adopt(
+            unique_ptr[c_RadialSolutionStorage] storage_uptr,
+            object source_world):
+        """Take ownership of a storage a world released, without building a new one.
+
+        The storage already carries its solved state, its EOS solution, the boundary conditions it solved for,
+        and (for a world solve) the shared rheologies that reproduce the complex moduli, so nothing is copied
+        and nothing is re-solved. ``__init__`` is bypassed deliberately: it exists to *create* a storage.
+
+        ``source_world`` is kept alive by this reference: the material provider the world installed on its way
+        out points back at it, and that provider is what answers every interior getter.
+        """
+        cdef RadialSolverSolution solution = RadialSolverSolution.__new__(RadialSolverSolution)
+        solution.p_source_world        = source_world
+        solution.solution_storage_uptr = move(storage_uptr)
+        solution.solution_storage_ptr  = solution.solution_storage_uptr.get()
+        if not solution.solution_storage_ptr:
+            raise RuntimeError("Released radial-solution storage was empty.")
+
+        solution.num_ytypes      = solution.solution_storage_ptr.num_ytypes
+        solution.num_layers      = solution.solution_storage_ptr.num_layers
+        solution.ytype_names_set = False
+        if solution.solution_storage_ptr.p_bc_models.size() == solution.num_ytypes:
+            solution.set_model_names(solution.solution_storage_ptr.p_bc_models.data())
+        
+        # Wrap the storage's vectors for Python without touching the storage itself.
+        solution.change_radius_array(NULL, solution.solution_storage_ptr.num_slices, array_changed=False)
+        solution.finalize_python_storage()
+        return solution
+
     def __dealloc__(self):
         self.solution_storage_uptr.reset()
         self.solution_storage_ptr = NULL
@@ -141,38 +180,6 @@ cdef class RadialSolverSolution:
 
             if not eos_solution_ptr:
                 raise RuntimeError("RadialSolverSolution:: c_EOSSolution is not initialized.")
-            else:
-                self.radius_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim, eos_float_shape_ptr, cnp.NPY_FLOAT64,
-                    eos_solution_ptr.radius_array_vec.data())
-
-                self.gravity_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim, eos_float_shape_ptr, cnp.NPY_FLOAT64,
-                    eos_solution_ptr.gravity_array_vec.data())
-
-                self.pressure_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim, eos_float_shape_ptr, cnp.NPY_FLOAT64,
-                    eos_solution_ptr.pressure_array_vec.data())
-
-                self.mass_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim, eos_float_shape_ptr, cnp.NPY_FLOAT64,
-                    eos_solution_ptr.mass_array_vec.data())
-
-                self.moi_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim, eos_float_shape_ptr, cnp.NPY_FLOAT64,
-                    eos_solution_ptr.moi_array_vec.data())
-
-                self.density_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim, eos_float_shape_ptr, cnp.NPY_FLOAT64,
-                    eos_solution_ptr.density_array_vec.data())
-
-                self.shear_modulus_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim, eos_complex_shape_ptr, cnp.NPY_COMPLEX128,
-                    <double complex*>eos_solution_ptr.complex_shear_array_vec.data())
-
-                self.bulk_modulus_array_cnp = cnp.PyArray_SimpleNewFromData(
-                    eos_ndim, eos_complex_shape_ptr, cnp.NPY_COMPLEX128,
-                    <double complex*>eos_solution_ptr.complex_bulk_array_vec.data())
 
     cdef void finalize_python_storage(self) noexcept:
 
@@ -228,8 +235,10 @@ cdef class RadialSolverSolution:
     def eos_call_si(self, double radius):
         """Dense EOS outputs (SI) at an SI radius [m]; ``eos_call`` takes a non-dimensional radius instead.
 
-        Layout: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density, [5, 6] shear re/im, [7, 8] bulk re/im,
-        [9, 10] shear and bulk viscosity. NaN when the solve failed.
+        Layout: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density, [5] shear modulus, [6] bulk modulus,
+        [7, 8] shear and bulk viscosity, [9] temperature, [10] heat flow, [11] melt fraction. Every value is
+        frequency-independent, so the moduli are the unrelaxed ones; for the viscoelastic response at the solved
+        frequency use ``get_complex_shear_modulus`` and ``get_complex_bulk_modulus``. NaN when the solve failed.
         """
         cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
         cdef double[::1] eos_interp_view = eos_interp
@@ -278,8 +287,9 @@ cdef class RadialSolverSolution:
         if self.num_ytypes == 1:
             if self.result is None:
                 raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
-            return plot_ys(self.result, self.radius_array, show_plot=show_plot, **plot_kwargs)
+            return plot_ys(self.result, self.sample_radii(), show_plot=show_plot, **plot_kwargs)
 
+        radius_grid = self.sample_radii()
         result_list = list()
         radius_list = list()
         labels      = list()
@@ -287,7 +297,7 @@ cdef class RadialSolverSolution:
             ytype_name = str(self.ytypes[ytype_i], 'UTF-8')
             if self.get_result_by_ytype_name(ytype_name) is not None:
                 result_list.append(self.get_result_by_ytype_name(ytype_name))
-                radius_list.append(self.radius_array)
+                radius_list.append(radius_grid)
                 labels.append(ytype_name.title())
         if len(result_list) == 0:
             raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
@@ -304,13 +314,15 @@ cdef class RadialSolverSolution:
             raise AttributeError("`RadialSolverSolution` can not plot the interior because the EOS solve was not successful.")
         from TidalPy.Utilities_x.graphics_x import plot_interior
 
+        # Plotting is the one place a grid is still wanted, so it is made here, for the plot, and discarded.
+        radius_grid = self.sample_radii()
         return plot_interior(
-            self.radius_array,
-            self.gravity_array,
-            self.pressure_array,
-            self.density_array,
-            shear_modulus=self.shear_modulus_array,
-            bulk_modulus=self.bulk_modulus_array,
+            radius_grid,
+            self.get_gravity(radius_grid),
+            self.get_pressure(radius_grid),
+            self.get_density(radius_grid),
+            shear_modulus=self.get_shear_modulus(radius_grid),
+            bulk_modulus=self.get_bulk_modulus(radius_grid),
             planet_radius=self.radius,
             bulk_density=self.density_bulk,
             show_plot=show_plot,
@@ -391,37 +403,108 @@ cdef class RadialSolverSolution:
     def eos_steps_taken(self):
         return np.copy(self.eos_steps_taken_array)
 
-    @property
-    def radius_array(self):
-        return np.copy(self.radius_array_cnp)
+    def _eos_at(self, radius, size_t index):
+        """One entry of the dense EOS state at radius [m]; NaN outside the body or when the solve failed."""
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] state = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
+        cdef double[::1] state_view = state
+        cdef double[::1] radii_view
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] out
+        cdef Py_ssize_t i
+
+        if np.ndim(radius) == 0:
+            if not self.solution_storage_ptr.get_eos_si(<double>radius, &state_view[0]):
+                return np.nan
+            return state[index]
+
+        radii = np.ascontiguousarray(radius, dtype=np.float64)
+        radii_view = radii.ravel()
+        out = np.empty(radii_view.shape[0], dtype=np.float64, order='C')
+        for i in range(radii_view.shape[0]):
+            if self.solution_storage_ptr.get_eos_si(radii_view[i], &state_view[0]):
+                out[i] = state[index]
+            else:
+                out[i] = np.nan
+        return out.reshape(np.shape(radius))
+
+    def sample_radii(self, size_t num_points = 0):
+        """A radius grid [m] spanning the body, for callers that want one (plotting, tabulating).
+
+        Nothing in the solve uses it: it is made here, for the caller, and the solution keeps no copy. Defaults
+        to the slice count the solve was configured with.
+        """
+        cdef size_t solved_slices = self.solution_storage_ptr.num_slices
+        if num_points == 0:
+            num_points = solved_slices if solved_slices > 1 else 100
+        return np.linspace(0.0, <double>self.radius, num_points)
+
+    def get_gravity(self, radius):
+        """Gravitational acceleration [m/s^2] at radius [m]."""
+        return self._eos_at(radius, 0)
+
+    def get_pressure(self, radius):
+        """Pressure [Pa] at radius [m]."""
+        return self._eos_at(radius, 1)
+
+    def get_mass(self, radius):
+        """Mass [kg] enclosed by the sphere of this radius [m]."""
+        return self._eos_at(radius, 2)
+
+    def get_moi(self, radius):
+        """Moment of inertia [kg m^2] enclosed by the sphere of this radius [m]."""
+        return self._eos_at(radius, 3)
+
+    def get_density(self, radius):
+        """Density [kg/m^3] at radius [m]."""
+        return self._eos_at(radius, C_EOS_DENSITY_INDEX)
+
+    def get_shear_modulus(self, radius):
+        """Static shear modulus [Pa] at radius [m]."""
+        return self._eos_at(radius, C_EOS_SHEAR_MODULUS_INDEX)
+
+    def get_bulk_modulus(self, radius):
+        """Static bulk modulus [Pa] at radius [m]. See :meth:`get_shear_modulus` on the complex counterpart."""
+        return self._eos_at(radius, C_EOS_BULK_MODULUS_INDEX)
+
+    def _complex_moduli_at(self, double radius):
+        """The complex shear and bulk moduli [Pa] at one radius [m]."""
+        cdef cpp_complex[double] shear
+        cdef cpp_complex[double] bulk
+        self.solution_storage_ptr.get_complex_moduli_si(radius, shear, bulk)
+        return (complex(shear.real(), shear.imag()), complex(bulk.real(), bulk.imag()))
+
+    def get_complex_shear_modulus(self, radius):
+        """Complex shear modulus [Pa] at radius [m], as the solve used it.
+
+        A world solve reports the layer's rheology applied to the static modulus and viscosity the solved EOS
+        reports there, at the frequency this solution was solved at. A solve that was handed its moduli (the
+        array ``radial_solver``) reports that profile, interpolated within the layer.
+        """
+        if np.ndim(radius) == 0:
+            return self._complex_moduli_at(<double>radius)[0]
+        radii = np.ascontiguousarray(radius, dtype=np.float64)
+        out = np.array([self._complex_moduli_at(<double>r)[0] for r in radii.ravel()], dtype=np.complex128)
+        return out.reshape(np.shape(radius))
+
+    def get_complex_bulk_modulus(self, radius):
+        """Complex bulk modulus [Pa] at radius [m]. See :meth:`get_complex_shear_modulus`."""
+        if np.ndim(radius) == 0:
+            return self._complex_moduli_at(<double>radius)[1]
+        radii = np.ascontiguousarray(radius, dtype=np.float64)
+        out = np.array([self._complex_moduli_at(<double>r)[1] for r in radii.ravel()], dtype=np.complex128)
+        return out.reshape(np.shape(radius))
 
     @property
-    def gravity_array(self):
-        return np.copy(self.gravity_array_cnp)
+    def love_frequency(self):
+        """The forcing frequency [rad/s] this solution was solved at; NaN before a solve."""
+        return self.solution_storage_ptr.p_love_frequency_si
 
-    @property
-    def pressure_array(self):
-        return np.copy(self.pressure_array_cnp)
+    def get_shear_viscosity(self, radius):
+        """Shear viscosity [Pa s] at radius [m]; NaN when the material names none."""
+        return self._eos_at(radius, C_EOS_SHEAR_VISCOSITY_INDEX)
 
-    @property
-    def mass_array(self):
-        return np.copy(self.mass_array_cnp)
-
-    @property
-    def moi_array(self):
-        return np.copy(self.moi_array_cnp)
-
-    @property
-    def density_array(self):
-        return np.copy(self.density_array_cnp)
-
-    @property
-    def shear_modulus_array(self):
-        return np.copy(self.shear_modulus_array_cnp)
-
-    @property
-    def bulk_modulus_array(self):
-        return np.copy(self.bulk_modulus_array_cnp)
+    def get_bulk_viscosity(self, radius):
+        """Bulk viscosity [Pa s] at radius [m]; NaN when the material names none."""
+        return self._eos_at(radius, C_EOS_BULK_VISCOSITY_INDEX)
 
     @property
     def radius(self):
@@ -718,7 +801,13 @@ cdef class RadialSolverSolution:
             if not found:
                 raise ValueError('Unknown solution type requested.')
 
-            return np.copy(self.result[C_MAX_NUM_Y * (requested_sol_num): C_MAX_NUM_Y * (requested_sol_num + 1)])
+            gridded = self.result
+            if gridded is None or gridded.ndim != 2:
+                raise RuntimeError(
+                    "This solution holds no sampled y-grid, so it cannot be indexed by boundary-condition name. "
+                    "A world-attached solve evaluates its dense interpolants instead of gridding them; use "
+                    "get_radial_solution(radius) or get_radial_solution_array(radii).")
+            return np.copy(gridded[C_MAX_NUM_Y * (requested_sol_num): C_MAX_NUM_Y * (requested_sol_num + 1)])
         else:
             return None
 

@@ -29,7 +29,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport (
     c_PhysicsBase,
     cy_physics_model_config,
 )
-from TidalPy.Material_x.eos.material_eos cimport MaterialEOSBase
+from TidalPy.Material_x.eos.material_eos cimport MaterialEOSBase, cy_material_config
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -59,10 +59,7 @@ cdef enum:
     _KIND_BULK_MOD       = 4
     _KIND_SHEAR_VISC     = 5
     _KIND_BULK_VISC      = 6
-    _KIND_PRE_SHEAR_MOD  = 7
-    _KIND_PRE_BULK_MOD   = 8
-    _KIND_PRE_SHEAR_VISC = 9
-    _KIND_PRE_BULK_VISC  = 10
+    _KIND_MELT_FRACTION  = 11
 
 
 # =====================================================================================================================
@@ -89,6 +86,9 @@ cdef class BaseLayer(StructureBase):
         Total layer mass [kg].
     material_name : str, optional
         Material identifier (e.g. ``"perovskite"``). Default ``""``.
+    is_volume_fixed : bool, optional
+        False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
+        Default ``True``.
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
@@ -114,6 +114,7 @@ cdef class BaseLayer(StructureBase):
             double mass,
             str    material_name      = "",
             cpp_bool   is_tidal           = True,
+            cpp_bool   is_volume_fixed    = True,
             double tidal_scale        = 1.0,
             str    tidal_scale_method = "user_provided"):
         cdef c_BaseLayerConfig config
@@ -124,6 +125,7 @@ cdef class BaseLayer(StructureBase):
         config.mass         = mass
         config.material_name = material_name.encode("utf-8")
         config.is_tidal    = is_tidal
+        config.is_volume_fixed = is_volume_fixed
         config.tidal_scale = tidal_scale
         config.tidal_scale_method = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         # The owning member is this same type, so make_unique's result moves straight in.
@@ -230,6 +232,15 @@ cdef class BaseLayer(StructureBase):
         return self._layer_ptr.get().get_material_name().decode("utf-8")
 
     @property
+    def is_volume_fixed(self) -> bool:
+        """False if the layer grows or shrinks to hold its mass during an EOS solve."""
+        return self._layer_ptr.get().get_is_volume_fixed()
+
+    @is_volume_fixed.setter
+    def is_volume_fixed(self, value: bool):
+        self._layer_ptr.get().set_is_volume_fixed(<cpp_bool>bool(value))
+
+    @property
     def is_tidal(self) -> bool:
         """Whether this layer contributes to tidal dissipation."""
         return self._layer_ptr.get().get_is_tidal()
@@ -275,6 +286,15 @@ cdef class BaseLayer(StructureBase):
         """True after a material EOS model has been attached via :meth:`set_eos`."""
         return self._layer_ptr.get().get_eos_set()
 
+    def set_radii(self, double radius_inner, double radius_outer):
+        """Move the layer's boundaries [m], keeping every derived geometric quantity in step.
+
+        The world EOS solve calls this itself when a layer holding its mass grows or shrinks. Setting the
+        radii by hand leaves the world's own radius and its other layers untouched, so keep the stack
+        continuous.
+        """
+        self._layer_ptr.get().set_radii(radius_inner, radius_outer)
+
     def set_eos(self, MaterialEOSBase eos not None):
         """Attach a material EOS model, the layer's density source for the world-level ``solve_eos``.
 
@@ -294,6 +314,7 @@ cdef class BaseLayer(StructureBase):
             raise ValueError(
                 "This EOS model holds no C++ object (already attached or moved).")
         self._layer_ptr.get().set_eos(move(eos._eos_ptr))
+        eos._ptr = NULL
 
     def update_eos_data(
             self,
@@ -335,10 +356,7 @@ cdef class BaseLayer(StructureBase):
         elif kind == _KIND_BULK_MOD:       return layer.get_bulk_modulus(radius)
         elif kind == _KIND_SHEAR_VISC:     return layer.get_shear_viscosity(radius)
         elif kind == _KIND_BULK_VISC:      return layer.get_bulk_viscosity(radius)
-        elif kind == _KIND_PRE_SHEAR_MOD:  return layer.get_premelt_shear_modulus(radius)
-        elif kind == _KIND_PRE_BULK_MOD:   return layer.get_premelt_bulk_modulus(radius)
-        elif kind == _KIND_PRE_SHEAR_VISC: return layer.get_premelt_shear_viscosity(radius)
-        elif kind == _KIND_PRE_BULK_VISC:  return layer.get_premelt_bulk_viscosity(radius)
+        elif kind == _KIND_MELT_FRACTION:  return layer.get_melt_fraction(radius)
         return 0.0
 
     def _apply_real(self, radius, int kind):
@@ -396,21 +414,12 @@ cdef class BaseLayer(StructureBase):
         """Post-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
         return self._apply_real(radius, _KIND_BULK_VISC)
 
-    def get_premelt_shear_modulus(self, radius):
-        """Pre-melt static shear modulus [Pa] at radius [m] (float or np.ndarray); NaN if unpopulated."""
-        return self._apply_real(radius, _KIND_PRE_SHEAR_MOD)
+    def get_melt_fraction(self, radius):
+        """Melt fraction at radius [m] (float or np.ndarray) from the attached partial-melt model.
 
-    def get_premelt_bulk_modulus(self, radius):
-        """Pre-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray); NaN if unpopulated."""
-        return self._apply_real(radius, _KIND_PRE_BULK_MOD)
-
-    def get_premelt_shear_viscosity(self, radius):
-        """Pre-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
-        return self._apply_real(radius, _KIND_PRE_SHEAR_VISC)
-
-    def get_premelt_bulk_viscosity(self, radius):
-        """Pre-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
-        return self._apply_real(radius, _KIND_PRE_BULK_VISC)
+        0.0 where no partial-melt model is attached; NaN if unpopulated.
+        """
+        return self._apply_real(radius, _KIND_MELT_FRACTION)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Shorthand bundles (one call returns several profiles at once; mirrors the world-level surface)
@@ -432,6 +441,7 @@ cdef class BaseLayer(StructureBase):
             "shear_viscosity": self.get_shear_viscosity(radius),
             "bulk_modulus":    self.get_bulk_modulus(radius),
             "bulk_viscosity":  self.get_bulk_viscosity(radius),
+            "melt_fraction":   self.get_melt_fraction(radius),
         }
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -449,7 +459,8 @@ cdef class BaseLayer(StructureBase):
         -------
         dict
             Keys: ``class``, ``type``, ``name``, ``layer_index``, ``radius_inner``, ``radius_outer``, ``mass``,
-            ``material_name``, ``is_tidal``, ``tidal_scale``, ``tidal_scale_method``, and ``eos`` when set.
+            ``material_name``, ``is_tidal``, ``is_volume_fixed``, ``tidal_scale``, ``tidal_scale_method``,
+            and ``eos`` when set.
         """
         # Deferred: the configs package imports the layer modules.
         from TidalPy.structures_x.configs.toml_loader import NO_MATERIAL_TYPE
@@ -467,9 +478,10 @@ cdef class BaseLayer(StructureBase):
             "mass_kg":            p.get_mass(),
             "material_name":      p.get_material_name().decode("utf-8"),
             "is_tidal":           bool(p.get_is_tidal()),
+            "is_volume_fixed":    bool(p.get_is_volume_fixed()),
             "tidal_scale":        p.get_tidal_scale(),
             "tidal_scale_method": method_bytes.decode("utf-8"),
         }
         if p.get_eos_set():
-            config["eos"] = cy_physics_model_config(<const c_PhysicsBase*>p.get_eos())
+            config["material"] = cy_material_config(p.get_eos())
         return config

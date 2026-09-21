@@ -368,36 +368,43 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
     @property
     def num_isotopes(self) -> int:
         """Number of isotopes in the model."""
+        self._check_ptr()
         return <int>self._isotope_ptr.get_num_isotopes()
 
     @property
     def ref_time(self) -> float:
         """Reference time [s]."""
+        self._check_ptr()
         return self._isotope_ptr.get_ref_time()
 
     @property
     def isotope_names(self):
         """Per-isotope labels (list of str)."""
+        self._check_ptr()
         return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[4]
 
     @property
     def heat_production(self):
         """Per-isotope specific heat production rate [W/kg]."""
+        self._check_ptr()
         return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[0]
 
     @property
     def half_lives(self):
         """Per-isotope half life [s]."""
+        self._check_ptr()
         return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[1]
 
     @property
     def mass_fracs(self):
         """Per-isotope isotopic mass fraction [kg/kg]."""
+        self._check_ptr()
         return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[2]
 
     @property
     def concentrations(self):
         """Per-isotope element concentration [kg/kg]."""
+        self._check_ptr()
         return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[3]
 
 
@@ -438,16 +445,19 @@ cdef class FixedRadiogenics(RadiogenicsBase):
     @property
     def fixed_heat_production(self) -> float:
         """Lumped specific heat production rate [W/kg]."""
+        self._check_ptr()
         return self._fixed_ptr.get_fixed_heat_production()
 
     @property
     def average_half_life(self) -> float:
         """Half life for the lumped rate's decay [s]."""
+        self._check_ptr()
         return self._fixed_ptr.get_average_half_life()
 
     @property
     def ref_time(self) -> float:
         """Reference time [s]."""
+        self._check_ptr()
         return self._fixed_ptr.get_ref_time()
 
 

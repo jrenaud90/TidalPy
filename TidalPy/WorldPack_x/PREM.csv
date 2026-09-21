@@ -1,6 +1,8 @@
-# Earth PREM (Dziewonski and Anderson 1981): radius [km], density [kg/m3], Vp [m/s], Vs [m/s].
+# Earth PREM (Dziewonski and Anderson 1981).
 # The 3 km surface ocean of PREM (rows 6371 to 6368 km at 1020, 1450, 0) is replaced by the upper crust so
 # the body is solid to the surface; a static liquid surface layer has no defined radial displacement.
+# The last comment line names the columns. Order does not matter and a column may state its unit.
+# radius_km,density_kg_m3,vp_m_s,vs_m_s
 6371,2600,5800,3200
 6370,2600,5800,3200
 6369,2600,5800,3200

@@ -22,8 +22,11 @@ def _imports():
 
 
 def _layer(PhysicsLayer):
-    return PhysicsLayer("mantle", 0, 0.0, 6.371e6, 4.0e24,
-                        shear_modulus_static=6.0e10, bulk_modulus_static=1.3e11)
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
+    layer = PhysicsLayer("mantle", 0, 0.0, 6.371e6, 4.0e24)
+    # The viscosity and partial-melt models belong to the material, so the layer needs one to hand them to.
+    layer.set_eos(ConstantDensityEOS(shear_modulus_static=6.0e10, bulk_modulus_static=1.3e11))
+    return layer
 
 
 def test_flags_start_false():

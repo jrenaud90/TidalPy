@@ -115,16 +115,17 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 ### Attaching a Melt Model to a `Layer`
 
 ```python
+from TidalPy.Material_x.eos import ConstantDensityEOS
 from TidalPy.partial_melt_x import make_partial_melt
 from TidalPy.structures_x.layers.physics import PhysicsLayer
 
-mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19,
-                      shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9)
+mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
+mantle.set_eos(ConstantDensityEOS(shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9))
 
 mantle.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1500.0}))
 ```
 
-Ownership of the C++ model transfers into the layer. During the world's equation-of-state solve the model is applied at every radial slice, first to the shear pair and then to the bulk pair. The declarative form is a `[layers.<name>.partial_melt]` table in the world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).
+A partial-melt model belongs to the layer's material, which is its EOS model: the layer's `set_partial_melt` is a helper that hands the model to the attached EOS (so attach the EOS first), and the same method is on the EOS model itself. The world's equation-of-state solve applies the model as it integrates, first to the shear pair and then to the bulk pair, and `get_melt_fraction(radius)` reads the result back. The declarative form is a `[layers.<name>.material.partial_melt]` table in the world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).
 
 ## C++ API
 

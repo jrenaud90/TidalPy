@@ -1,6 +1,6 @@
 # GasLayer
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-20_
 
 `TidalPy.structures_x.layers.GasLayer` (`c_GasLayer` in C++) is the ideal-gas fluid layer class. It inherits `PhysicsLayer` and adds thermodynamic calculations for gas and fluid envelopes such as planetary atmospheres or gaseous mantles. No phase-change, cooling, or radiogenics sub-models are available; use `SolidLiquidLayer` for those.
 
@@ -29,10 +29,6 @@ layer = GasLayer(
     material_name          = "hydrogen",
     is_tidal               = False,
     tidal_scale            = 1.0,
-    shear_modulus_static   = 0.0,
-    bulk_modulus_static    = 0.0,
-    shear_viscosity_static = nan,
-    bulk_viscosity_static  = nan,
     love_number_k          = 0+0j,
     love_number_h          = 0+0j,
     love_number_l          = 0+0j,
@@ -45,7 +41,7 @@ layer = GasLayer(
 
 ### Parameters
 
-All parameters from `PhysicsLayer` are accepted, except that `is_solid` defaults to `False` (a gas carries no shear stress, so the radial solver treats it as a static liquid), plus:
+All parameters from `PhysicsLayer` are accepted, including the material-state parameters (`temperature`, the shear law, `use_thermal_eos`, `use_heating`), except that `is_solid` defaults to `False` (a gas carries no shear stress, so the radial solver treats it as a static liquid), plus:
 
 | Parameter | Unit | Default | Description |
 |---|---|---|---|
@@ -65,41 +61,6 @@ Inherits all `BaseLayer` and `PhysicsLayer` properties, plus:
 | `reference_temperature` | K | Reference temperature |
 | `reference_density` | kg/m³ | Reference density |
 
-## Methods
-
-### `calc_adiabatic_lapse_rate(gravity)`
-
-Dry adiabatic lapse rate for an ideal gas [K/m]:
-
-$$\Gamma = \frac{g \, (\gamma - 1) \, M}{\gamma \, R}$$
-
-where $g$ is gravitational acceleration, $\gamma$ is the adiabatic index, $M$ is the mean molar mass, and $R$ is the universal gas constant.
-
-**Returns** `float` [K/m].
-
-### `calc_scale_height(temperature, gravity)`
-
-Barometric (pressure) scale height [m]:
-
-$$H = \frac{R \, T}{g \, M}$$
-
-**Returns** `float` [m].
-
-### `calc_pressure_ideal_gas(temperature, density)`
-
-Ideal gas pressure [Pa]:
-
-$$P = \frac{\rho \, R \, T}{M}$$
-
-**Returns** `float` [Pa].
-
-### `calc_sound_speed(temperature)`
-
-Adiabatic sound speed for an ideal gas [m/s]:
-
-$$c_s = \sqrt{\frac{\gamma \, R \, T}{M}}$$
-
-**Returns** `float` [m/s].
 
 ## Binary Serialization
 

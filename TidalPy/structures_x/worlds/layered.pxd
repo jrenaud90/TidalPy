@@ -5,6 +5,7 @@ from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr, shared_ptr
 from libcpp.complex cimport complex as cpp_complex
+from libcpp.vector cimport vector
 
 from CyRK cimport ODEMethod
 
@@ -21,6 +22,20 @@ from TidalPy.dynamics_x.spin cimport Spin, c_Spin
 # =====================================================================================================================
 # C++ class declarations
 # =====================================================================================================================
+cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
+
+    cdef cppclass c_LayerThermal:
+        double temperature
+        double top_temperature
+        double node_temperature
+        double heat_flow_in
+        double heat_flow_out
+        double boundary_thickness
+        double rayleigh_number
+        double nusselt_number
+        double heating
+
+
 cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_Grid3DAxes:
         const double* radii
@@ -43,12 +58,20 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         size_t    max_iters
         cpp_bool  nondimensionalize
         double    temperature
+        cpp_bool  solve_temperature
+        double    surface_temperature
+        double    time
+        size_t    max_thermal_passes
+        double    thermal_tol
+        double    radius_tol
+        cpp_bool  reset_layer_masses
         cpp_bool  verbose
 
     cdef cppclass c_LoveSolveConfig:
         double    frequency
         int       degree_l
-        int       bc_model
+        vector[int] bc_models
+        void      set_bc_models(const int* models_ptr, size_t num_models) except +
         int       love_method
         double    fixed_q
         double    fixed_dt
@@ -79,6 +102,13 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       calc_internal_heating(double time) const
         cpp_bool     validate_layers() const
         void         solve_eos(const c_WorldEOSSolveConfig& cfg) except +
+        double       get_temperature(double radius)
+        double       get_heat_flow(double radius)
+        size_t       get_thermal_passes()
+        cpp_bool     get_thermal_converged()
+        cpp_bool     get_geometry_converged()
+        double       calc_layer_temperature_rate(size_t layer_index)
+        const vector[c_LayerThermal]& get_layer_thermal()
         double       get_density(double radius) const
         double       get_gravity(double radius) const
         double       get_pressure(double radius) const
@@ -86,10 +116,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_bulk_modulus(double radius) const
         double       get_shear_viscosity(double radius) const
         double       get_bulk_viscosity(double radius) const
-        double       get_premelt_shear_modulus(double radius) const
-        double       get_premelt_bulk_modulus(double radius) const
-        double       get_premelt_shear_viscosity(double radius) const
-        double       get_premelt_bulk_viscosity(double radius) const
+        double       get_melt_fraction(double radius) const
         cpp_complex[double] calc_complex_shear_modulus(double radius, double frequency) const
         cpp_complex[double] calc_complex_bulk_modulus(double radius, double frequency) const
         cpp_bool     get_eos_solved() const

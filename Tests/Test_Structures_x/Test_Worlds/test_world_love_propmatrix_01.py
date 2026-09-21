@@ -47,10 +47,9 @@ def _incompressible_solid_world():
     LayeredWorld, PhysicsLayer, ConstantDensityEOS, make_viscosity, Maxwell = _imports()
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("incompressible_planet", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static=_STATIC_SHEAR,
-                         bulk_modulus_static=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
@@ -112,10 +111,9 @@ def test_prop_matrix_rejects_two_layers():
     world = LayeredWorld("two_layer", _PLANET_RADIUS, mass)
     for name, idx, ri, ro, rho in (("core", 0, 0.0, r_core, 8000.0),
                                    ("mantle", 1, r_core, _PLANET_RADIUS, 3300.0)):
-        layer = PhysicsLayer(name, idx, ri, ro, 0.0,
-                             shear_modulus_static=_STATIC_SHEAR,
-                             bulk_modulus_static=_STATIC_BULK)
-        layer.set_eos(ConstantDensityEOS(reference_density=rho))
+        layer = PhysicsLayer(name, idx, ri, ro, 0.0)
+        layer.set_eos(ConstantDensityEOS(
+            reference_density=rho, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
         layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
         layer.set_shear_rheology(Maxwell())
         layer.is_incompressible = True
@@ -131,10 +129,9 @@ def test_prop_matrix_rejects_compressible_layer():
     LayeredWorld, PhysicsLayer, ConstantDensityEOS, make_viscosity, Maxwell = _imports()
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("compressible_planet", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static=_STATIC_SHEAR,
-                         bulk_modulus_static=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
     layer.set_shear_rheology(Maxwell())
     # Leave is_incompressible at its default (False) => prop matrix must reject.

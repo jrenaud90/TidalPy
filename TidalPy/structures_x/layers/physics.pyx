@@ -58,18 +58,12 @@ cdef class PhysicsLayer(BaseLayer):
         Total layer mass [kg].
     material_name : str, optional
         Material identifier (e.g. ``"perovskite"``). Default ``""``.
+    is_volume_fixed : bool, optional
+        False lets the layer grow or shrink to hold its mass during an EOS solve. Default ``True``.
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
         Dimensionless tidal heating scale. Default ``1.0``.
-    shear_modulus_static : float, optional
-        Unrelaxed shear modulus [Pa]. Default ``0.0``.
-    bulk_modulus_static : float, optional
-        Unrelaxed bulk modulus [Pa]. Default ``0.0``.
-    shear_viscosity_static : float, optional
-        Reference dynamic shear viscosity [Pa·s]. Default NaN (unset).
-    bulk_viscosity_static : float, optional
-        Reference dynamic bulk viscosity [Pa·s]. Default NaN (unset).
     love_number_k : complex, optional
         Potential Love number (placeholder). Default ``0+0j``.
     love_number_h : complex, optional
@@ -85,6 +79,14 @@ cdef class PhysicsLayer(BaseLayer):
         is a static liquid unless this is set False.
     is_incompressible : bool, optional
         Use the incompressible approximation in the radial solver. Default ``False``.
+    temperature : float, optional
+        Layer temperature [K] at which its viscosity and melt models are evaluated. Default ``0.0``, the cold
+        rigid limit of the viscosity laws.
+    use_thermal_eos : bool, optional
+        Pass the temperature to the EOS model, so the density and bulk modulus depend on it. Default ``False``.
+    use_heating : bool, optional
+        Let the world's heat sources (this layer's radiogenics model among them) act inside the layer during a
+        thermal EOS solve. Default ``False``.
 
     Assumptions
     -----------
@@ -102,20 +104,20 @@ cdef class PhysicsLayer(BaseLayer):
             double radius_inner,
             double radius_outer,
             double mass,
-            str    material_name        = "",
-            cpp_bool is_tidal           = True,
-            double tidal_scale          = 1.0,
-            double shear_modulus_static = 0.0,
-            double bulk_modulus_static  = 0.0,
-            double shear_viscosity_static = d_NAN,
-            double bulk_viscosity_static = d_NAN,
-            complex love_number_k        = 0+0j,
-            complex love_number_h        = 0+0j,
-            complex love_number_l        = 0+0j,
-            str    tidal_scale_method    = "user_provided",
-            cpp_bool is_solid            = True,
-            cpp_bool is_static           = True,
-            cpp_bool is_incompressible   = False):
+            str    material_name          = "",
+            cpp_bool is_tidal             = True,
+            cpp_bool is_volume_fixed      = True,
+            double tidal_scale            = 1.0,
+            complex love_number_k         = 0+0j,
+            complex love_number_h         = 0+0j,
+            complex love_number_l         = 0+0j,
+            str    tidal_scale_method     = "user_provided",
+            cpp_bool is_solid             = True,
+            cpp_bool is_static            = True,
+            cpp_bool is_incompressible    = False,
+            double temperature            = 0.0,
+            cpp_bool use_thermal_eos = False,
+            cpp_bool use_heating     = False):
         cdef c_PhysicsConfig config
         config.name               = name.encode("utf-8")
         config.layer_index        = layer_index
@@ -124,12 +126,9 @@ cdef class PhysicsLayer(BaseLayer):
         config.mass               = mass
         config.material_name      = material_name.encode("utf-8")
         config.is_tidal           = is_tidal
+        config.is_volume_fixed    = is_volume_fixed
         config.tidal_scale        = tidal_scale
         config.tidal_scale_method = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
-        config.shear_modulus_static = shear_modulus_static
-        config.bulk_modulus_static  = bulk_modulus_static
-        config.shear_viscosity_static = shear_viscosity_static
-        config.bulk_viscosity_static  = bulk_viscosity_static
         config.love_numbers = c_LoveNumbers(
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
@@ -137,6 +136,9 @@ cdef class PhysicsLayer(BaseLayer):
         config.is_solid          = is_solid
         config.is_static         = is_static
         config.is_incompressible = is_incompressible
+        config.temperature       = temperature
+        config.use_thermal_eos   = use_thermal_eos
+        config.use_heating       = use_heating
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_PhysicsLayer] built = make_unique[c_PhysicsLayer](config)
@@ -243,6 +245,36 @@ cdef class PhysicsLayer(BaseLayer):
         self._physics_ptr.set_is_incompressible(<cpp_bool>bool(value))
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Material state
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def temperature(self) -> float:
+        """Layer temperature [K] at which the viscosity and melt models are evaluated."""
+        return self._physics_ptr.get_temperature()
+
+    @temperature.setter
+    def temperature(self, double value):
+        self._physics_ptr.set_temperature(value)
+
+    @property
+    def use_thermal_eos(self) -> bool:
+        """True if the EOS model receives the temperature (thermal density and bulk modulus)."""
+        return bool(self._physics_ptr.get_use_thermal_eos())
+
+    @use_thermal_eos.setter
+    def use_thermal_eos(self, value: bool):
+        self._physics_ptr.set_use_thermal_eos(<cpp_bool>bool(value))
+
+    @property
+    def use_heating(self) -> bool:
+        """True if the world's heat sources act inside this layer during a thermal EOS solve."""
+        return bool(self._physics_ptr.get_use_heating())
+
+    @use_heating.setter
+    def use_heating(self, value: bool):
+        self._physics_ptr.set_use_heating(<cpp_bool>bool(value))
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Rheology attachment
     # ------------------------------------------------------------------------------------------------------------------
     def set_shear_rheology(self, RheologyBase rheology not None):
@@ -264,6 +296,7 @@ cdef class PhysicsLayer(BaseLayer):
             raise ValueError(
                 "This rheology model holds no C++ object (already attached or moved).")
         self._physics_ptr.set_shear_rheology(move(rheology._rheology_ptr))
+        rheology._ptr = NULL
 
     def set_bulk_rheology(self, RheologyBase rheology not None):
         """Attach a rheology model used to compute the complex bulk modulus.
@@ -284,6 +317,7 @@ cdef class PhysicsLayer(BaseLayer):
             raise ValueError(
                 "This rheology model holds no C++ object (already attached or moved).")
         self._physics_ptr.set_bulk_rheology(move(rheology._rheology_ptr))
+        rheology._ptr = NULL
 
     # ------------------------------------------------------------------------------------------------------------------
     # Viscosity + partial-melt attachment
@@ -304,50 +338,68 @@ cdef class PhysicsLayer(BaseLayer):
         return self._physics_ptr.get_partial_melt_set()
 
     def set_shear_viscosity(self, ViscosityBase viscosity not None):
-        """Attach a viscosity model supplying the pre-melt shear viscosity.
+        """Give the layer's material a viscosity model for its shear viscosity (before partial melt).
 
-        Ownership of the C++ model moves out of ``viscosity``, which is left an empty shell and must not be reused.
+        A helper: the material owns this model, so it is handed to the layer's EOS model, which must already be
+        attached (``set_eos`` first). Ownership of the C++ model moves out of the argument, which is left an empty
+        shell and must not be reused.
 
         Raises
         ------
         ValueError
-            If ``viscosity`` has already been attached or otherwise moved.
+            If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
         """
         if viscosity._visc_ptr.get() == NULL:
             raise ValueError(
                 "This viscosity model holds no C++ object (already attached or moved).")
+        if not self._layer_ptr.get().get_eos_set():
+            raise ValueError(
+                f"Attach an EOS model to layer '{self.name}' before giving it a viscosity model: the material owns it.")
         self._physics_ptr.set_shear_viscosity(move(viscosity._visc_ptr))
+        viscosity._ptr = NULL
 
     def set_bulk_viscosity(self, ViscosityBase viscosity not None):
-        """Attach a viscosity model supplying the pre-melt bulk viscosity.
+        """Give the layer's material a viscosity model for its bulk viscosity (before partial melt).
 
-        Ownership of the C++ model moves out of ``viscosity``, which is left an empty shell and must not be reused.
+        A helper: the material owns this model, so it is handed to the layer's EOS model, which must already be
+        attached (``set_eos`` first). Ownership of the C++ model moves out of the argument, which is left an empty
+        shell and must not be reused.
 
         Raises
         ------
         ValueError
-            If ``viscosity`` has already been attached or otherwise moved.
+            If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
         """
         if viscosity._visc_ptr.get() == NULL:
             raise ValueError(
                 "This viscosity model holds no C++ object (already attached or moved).")
+        if not self._layer_ptr.get().get_eos_set():
+            raise ValueError(
+                f"Attach an EOS model to layer '{self.name}' before giving it a viscosity model: the material owns it.")
         self._physics_ptr.set_bulk_viscosity(move(viscosity._visc_ptr))
+        viscosity._ptr = NULL
 
     def set_partial_melt(self, PartialMeltBase partial_melt not None):
-        """Attach a partial-melt model that weakens the static moduli and viscosities.
+        """Give the layer's material a partial-melt model that weakens its static moduli and viscosities.
 
-        Ownership of the C++ model moves out of ``partial_melt``, which is left an empty shell and must not be
-        reused.
+        A helper: the material owns this model, so it is handed to the layer's EOS model, which must already be
+        attached (``set_eos`` first). Ownership of the C++ model moves out of the argument, which is left an empty
+        shell and must not be reused.
 
         Raises
         ------
         ValueError
-            If ``partial_melt`` has already been attached or otherwise moved.
+            If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
         """
         if partial_melt._melt_ptr.get() == NULL:
             raise ValueError(
                 "This partial-melt model holds no C++ object (already attached or moved).")
+        if not self._layer_ptr.get().get_eos_set():
+            raise ValueError(
+                f"Attach an EOS model to layer '{self.name}' before giving it a partial-melt model: "
+                "the material owns it.")
         self._physics_ptr.set_partial_melt(move(partial_melt._melt_ptr))
+        partial_melt._ptr = NULL
 
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
@@ -452,20 +504,20 @@ cdef class PhysicsLayer(BaseLayer):
         Returns
         -------
         dict
-            The BaseLayer keys plus ``shear_modulus_static``, ``bulk_modulus_static``,
-            ``shear_viscosity_static``, ``bulk_viscosity_static``, the radial-solver flags ``is_solid``,
-            ``is_static``, and ``is_incompressible``, the six Love number components, and one sub-table per
-            attached model (``shear_rheology``, ``bulk_rheology``, ``shear_viscosity``, ``bulk_viscosity``,
-            ``partial_melt``).
+            The BaseLayer keys (with the ``material`` table of the attached EOS model, which carries the static
+            constants, the shear law, and its viscosity and partial-melt models) plus the radial-solver flags
+            ``is_solid``, ``is_static``, and ``is_incompressible``, ``temperature_k``, ``use_thermal_eos``,
+            ``use_heating``, the six
+            Love number components, and a sub-table for each attached rheology (``shear_rheology``,
+            ``bulk_rheology``).
         """
         d = BaseLayer.get_config_dict(self)
-        d["shear_modulus_static_pa"]      = self._physics_ptr.get_shear_modulus_static()
-        d["bulk_modulus_static_pa"]       = self._physics_ptr.get_bulk_modulus_static()
-        d["shear_viscosity_static_pas"]   = self._physics_ptr.get_shear_viscosity_static()
-        d["bulk_viscosity_static_pas"]    = self._physics_ptr.get_bulk_viscosity_static()
         d["is_solid"]          = bool(self._physics_ptr.get_is_solid())
         d["is_static"]         = bool(self._physics_ptr.get_is_static())
         d["is_incompressible"] = bool(self._physics_ptr.get_is_incompressible())
+        d["temperature_k"]     = self._physics_ptr.get_temperature()
+        d["use_thermal_eos"]   = bool(self._physics_ptr.get_use_thermal_eos())
+        d["use_heating"]       = bool(self._physics_ptr.get_use_heating())
         cdef c_LoveNumbers ln = self._physics_ptr.get_love_numbers()
         d["love_number_k_re"] = ln.k.real()
         d["love_number_k_im"] = ln.k.imag()
@@ -481,13 +533,4 @@ cdef class PhysicsLayer(BaseLayer):
         model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_bulk_rheology_model()
         if model_ptr != NULL:
             d["bulk_rheology"] = cy_physics_model_config(model_ptr)
-        model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_shear_viscosity_model()
-        if model_ptr != NULL:
-            d["shear_viscosity"] = cy_physics_model_config(model_ptr)
-        model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_bulk_viscosity_model()
-        if model_ptr != NULL:
-            d["bulk_viscosity"] = cy_physics_model_config(model_ptr)
-        model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_partial_melt_model()
-        if model_ptr != NULL:
-            d["partial_melt"] = cy_physics_model_config(model_ptr)
         return d

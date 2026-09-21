@@ -8,4 +8,5 @@ def get_constants():
         'MAX_NUM_Y':      C_MAX_NUM_Y,
         'MAX_NUM_Y_REAL': C_MAX_NUM_Y_REAL,
         'MAX_NUM_SOL':    C_MAX_NUM_SOL,
+        'MAX_NUM_YTYPES': C_MAX_NUM_YTYPES,
     }

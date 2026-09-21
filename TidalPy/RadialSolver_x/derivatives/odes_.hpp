@@ -27,8 +27,8 @@ struct c_RadialSolverArgs
 //  Helpers: EOS lookup and y-vector packing
 // ============================================================================
 
-/// Gravity, density, and the complex moduli from the EOS dense output at a radius (layout: [0] gravity,
-/// [1] pressure, [2] mass, [3] moi, [4] density, [5, 6] shear re/im, [7, 8] bulk re/im).
+/// Gravity, density, and the complex moduli at a radius, in one EOS evaluation. The moduli are complex because
+/// they are the material's response at this solve's forcing frequency; see c_EOSSolution::call_material.
 static inline void c_read_eos(
         c_RadialSolverArgs* rs_args_ptr,
         double radius,
@@ -38,14 +38,13 @@ static inline void c_read_eos(
         std::complex<double>& bulk_modulus
         ) noexcept
 {
-    // The dense call writes C_EOS_DY_VALUES doubles; a smaller buffer corrupts the stack.
-    double eos_array[C_EOS_DY_VALUES];
-    rs_args_ptr->eos_solution_ptr->call(rs_args_ptr->layer_index, radius, &eos_array[0]);
+    c_EOSMaterialState material_state;
+    rs_args_ptr->eos_solution_ptr->call_material(rs_args_ptr->layer_index, radius, material_state);
 
-    gravity       = eos_array[0];
-    density       = eos_array[4];
-    shear_modulus = std::complex<double>(eos_array[5], eos_array[6]);
-    bulk_modulus  = std::complex<double>(eos_array[7], eos_array[8]);
+    gravity       = material_state.gravity;
+    density       = material_state.density;
+    shear_modulus = material_state.shear_modulus;
+    bulk_modulus  = material_state.bulk_modulus;
 }
 
 
@@ -247,10 +246,10 @@ inline void c_solid_dynamic_incompressible(
     std::complex<double> y1, y2, y3, y4, y5, y6;
     c_read_y6(y_ptr, y1, y2, y3, y4, y5, y6);
 
-    const double r_inverse               = 1.0 / radius;
-    const double density_gravity         = density * gravity;
-    const double dynamic_term            = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
-    const double grav_term               = rs_args_ptr->grav_coeff * density;
+    const double r_inverse       = 1.0 / radius;
+    const double density_gravity = density * gravity;
+    const double dynamic_term    = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
+    const double grav_term       = rs_args_ptr->grav_coeff * density;
     const std::complex<double> two_shear_r_inv = 2.0 * shear_modulus * r_inverse;
     const std::complex<double> y1_y3_term      = 2.0 * y1 - rs_args_ptr->llp1 * y3;
 

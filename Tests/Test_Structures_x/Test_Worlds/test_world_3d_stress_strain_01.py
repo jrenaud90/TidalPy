@@ -48,11 +48,10 @@ def _build_world(max_degree_l=2, obliquity_truncation=0, tide_model="rheology", 
         0,
         0.0,
         _R,
-        _MASS,
-        shear_modulus_static=_SHEAR,
-        bulk_modulus_static=_BULK)
+        _MASS)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
     layer.set_shear_rheology(Maxwell())
