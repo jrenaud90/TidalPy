@@ -32,11 +32,6 @@
 
 namespace tidalpy {
 
-// Smallest Nusselt number the convection model reports. Nu = 1 is pure conduction across the whole
-// layer; flooring at 2 keeps a barely-convecting layer losing heat through a boundary layer half the
-// layer thickness rather than the whole of it.
-inline constexpr double d_MIN_NUSSELT = 2.0;
-
 // Guard a denominator that may approach zero: a magnitude below the shared numerical floor
 // (config_x [numerical].numerical_floor) becomes a signed floor value.
 inline double cool_guard(double value) noexcept {
@@ -81,16 +76,20 @@ inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
 // Parameterized convection via the Rayleigh number.
 //
 //   Ra = expansion * density * gravity * delta_temp * thickness^3 / (viscosity * diffusivity)
-//   Nu = max(alpha * (Ra / Ra_crit)^beta, 2)
+//   Nu = max(alpha * (Ra / Ra_crit)^beta, Nu_min)
 //   boundary layer = thickness / Nu
 //   flux = k * delta_temp / boundary_layer
 //
-// Degenerate inputs (delta_temp <= 0, or a thickness below tidalpy_config_ptr->d_MIN_THICKNESS)
-// collapse to Ra = 0 and Nu = 2.
+// Nu_min is config_x [numerical] minimum_nusselt (2 by default: Nu = 1 is conduction across the whole layer,
+// and the floor keeps a barely convecting layer losing heat through a boundary layer half the layer thick).
+// Degenerate inputs (delta_temp <= 0, or a thickness at or below tidalpy_config_ptr->d_MIN_THICKNESS)
+// collapse to Ra = 0 and Nu = Nu_min. Each test is made once, with a NaN contrast or thickness counting as
+// degenerate, which keeps the Rayleigh number, the Nusselt number, and the boundary layer in agreement.
 inline c_CoolingResult cool_convection(
         const c_CoolingInputs& in, const c_CoolingConfig& cfg) noexcept {
     const double eps = TidalPyConstants::d_EPS;
     const double min_thickness = tidalpy_config_ptr->d_MIN_THICKNESS;
+    const double min_nusselt   = tidalpy_config_ptr->d_MIN_NUSSELT;
     c_CoolingResult result;
 
     const double rate_heat_loss   = in.thermal_diffusivity / cool_guard(in.thickness);
@@ -98,19 +97,20 @@ inline c_CoolingResult cool_convection(
                                   * in.delta_temp * in.thickness * in.thickness
                                   / cool_guard(in.viscosity);
 
+    const bool no_contrast = !(in.delta_temp > eps);
+    const bool too_thin    = !(in.thickness > min_thickness);
+
     double rayleigh = parcel_rise_rate / cool_guard(rate_heat_loss);
-    if (!(in.delta_temp > eps))            { rayleigh = 0.0; }
-    if (!(in.thickness  >= min_thickness)) { rayleigh = 0.0; }
+    if (no_contrast || too_thin) { rayleigh = 0.0; }
 
     double nusselt = cfg.convection_alpha
                    * std::pow(rayleigh / cool_guard(cfg.critical_rayleigh), cfg.convection_beta);
-    if (in.delta_temp <= eps)             { nusselt = d_MIN_NUSSELT; }
-    if (in.thickness  <= min_thickness)   { nusselt = d_MIN_NUSSELT; }
-    if (nusselt <= d_MIN_NUSSELT)         { nusselt = d_MIN_NUSSELT; }
+    // A NaN from another input (the viscosity, say) stays NaN so that it reaches the caller.
+    if (no_contrast || too_thin || (nusselt <= min_nusselt)) { nusselt = min_nusselt; }
 
     double blt = in.thickness / cool_guard(nusselt);
-    if (in.delta_temp <= eps)            { blt = 1.0; }
-    if (in.thickness  <= min_thickness)  { blt = in.thickness; }
+    if (no_contrast) { blt = 1.0; }
+    if (too_thin)    { blt = in.thickness; }
 
     result.cooling_flux    = in.thermal_conductivity * in.delta_temp / cool_guard(blt);
     result.blt             = blt;

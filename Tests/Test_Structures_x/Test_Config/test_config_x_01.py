@@ -58,8 +58,14 @@ def test_config_x_has_numerical_section():
     numerical = TidalPy.config_x["numerical"]
     for key in ("minimum_frequency", "maximum_frequency", "min_spin_orbit_diff",
                 "minimum_viscosity", "minimum_modulus", "minimum_layer_thickness",
-                "test_constant"):
+                "numerical_floor", "layer_continuity_rtol", "max_start_radius_fraction",
+                "frequency_match_rtol", "minimum_nusselt", "test_constant"):
         assert key in numerical
+
+
+def test_config_x_has_warnings_section():
+    for key in ("stale_worldpack_copy", "schema_version", "truncation_promotion"):
+        assert TidalPy.config_x["warnings"][key] is True
 
 
 @pytest.mark.parametrize("material_type", [name for name in MATERIAL_TYPES if name != NO_MATERIAL_TYPE])
@@ -108,6 +114,8 @@ def test_update_constants_x_populated_singleton():
     assert math.isclose(constants.min_viscosity, numerical["minimum_viscosity"])
     assert math.isclose(constants.min_modulus, numerical["minimum_modulus"])
     assert math.isclose(constants.min_thickness, numerical["minimum_layer_thickness"])
+    assert math.isclose(constants.frequency_match_rtol, numerical["frequency_match_rtol"])
+    assert math.isclose(constants.minimum_nusselt, numerical["minimum_nusselt"])
     assert math.isclose(constants.test_constant, numerical["test_constant"])
 
 

@@ -105,6 +105,13 @@ schema_version = "{SCHEMA_VERSION_X}"
     # automatic choice is capped here, and a starting radius supplied above it is rejected: too close
     # to the surface leaves too little of the interior to integrate through.
     max_start_radius_fraction = 0.90
+    # Relative tolerance within which two tidal-mode frequencies count as one (their modes then share a
+    # radial solve), and within which a frequency counts as zero.
+    frequency_match_rtol = 1.0e-9
+    # Smallest Nusselt number the convection cooling model reports. Nu = 1 is conduction across the whole
+    # layer; the floor of 2 keeps a barely convecting layer losing heat through a boundary layer half the
+    # layer thick rather than the whole of it.
+    minimum_nusselt = 2.0
     # Debug helper.
     test_constant = 42.0
 
@@ -202,6 +209,25 @@ schema_version = "{SCHEMA_VERSION_X}"
         gasgiant = "fixed_dt"
         terrestrial = "rheology"
         layered = "rheology"
+
+
+# =====================================================================================================================
+# Warnings
+#
+# Each key switches one Python warning the configuration and world-building code can give. All are on by
+# default; a warning is given at most once per cause per session.
+# =====================================================================================================================
+[warnings]
+    # The bundled worlds, systems, and data files are copied into the data directory when absent and read from
+    # there afterwards, so an edit survives an update, and so does an outdated copy. Warn when the copy of a
+    # bundled file being used differs from the one packaged with this install. The copy is never overwritten:
+    # delete it, or call install_worldpack_x(force=True), to take the packaged file.
+    stale_worldpack_copy = true
+    # A world or system file whose schema_version is missing, or differs from this build's in its minor
+    # version. A major difference is refused outright and is not a warning.
+    schema_version = true
+    # A [tides] truncation level that is not tabulated and is promoted to the next tabulated one.
+    truncation_promotion = true
 
 
 # =====================================================================================================================

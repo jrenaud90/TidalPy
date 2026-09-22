@@ -1,4 +1,7 @@
 # TidalPy Configurations
+
+_Updated: 2026-09-21_
+
 TidalPy's settings and parameters are read when the package is first imported. They live in a configuration file in the user's documents directory, whose location varies by operating system.
 
 **Windows**
@@ -67,9 +70,19 @@ Both solves run in non-dimensional units (the planet radius, its bulk density, a
 
 Tightening the EOS tolerance costs almost nothing, so it is set where the mass, moment of inertia, and surface gravity are converged to about 1e-8. The Love tolerance is the loosest pair at which the degree-2 and degree-3 Love numbers of every well-conditioned case stay within about 3e-8 (real part) and 1e-6 (imaginary part) of a reference solved a million times tighter. Each step tighter in `rtol` gains roughly a factor of ten for about a quarter more time, and a Love solve takes a fraction of a millisecond on a cached world. A dynamic liquid layer at a long forcing period is ill-conditioned at any tolerance (use a static liquid there), and an interpolated PREM-style profile is limited by its own tabulation, whose Love numbers move in the fifth digit with the slice count, rather than by the integrator.
 
+### Numerical Settings
+
+`[numerical]` holds the floors and tolerances the C++ code reads through its shared configuration singleton: the frequency extremes (`minimum_frequency`, `maximum_frequency`, `min_spin_orbit_diff`), the material floors (`minimum_viscosity`, `minimum_modulus`), the geometry floor `minimum_layer_thickness`, the guarded-denominator `numerical_floor`, `layer_continuity_rtol`, `max_start_radius_fraction`, `frequency_match_rtol` (how close two tidal-mode frequencies must be to share one radial solve, and how small a frequency counts as zero), and `minimum_nusselt` (the floor of the convection cooling model). `TidalPy.constants.update_constants_x()` pushes an edited value into the C++ side without a restart.
+
 ### Layer Material Defaults
 
 Every section of `[layers]` is keyed by a material `type`. A layer that names no `type` takes the `[layers.default]` block, a copy of `[layers.mantle_rock]`, and the same block is the fallback for factories that do not know a layer type. A layer written by `get_config_dict` or `save_to_toml` carries `type = "none"`, which applies no material defaults: the saved layer already lists every model it holds.
+
+The `[layers.default]` model tables are also what a physics-model factory (`make_rheology`, `make_viscosity`, `make_partial_melt`, `make_cooling`, `make_radiogenics`, `make_material_eos`, and `make_tide` from `[tides]`) takes when it is called with no config at all, so a model built by hand and the same model attached by the world builder read one file. Pass an empty dict to get the model's own defaults instead. The table names one model, and only that model takes its parameters: with a `[layers.default.material.shear_viscosity]` table that names the `reference` law, `make_viscosity("reference")` reads it and `make_viscosity("constant")` is built from its own defaults, so a parameter of one model never carries over to another that reads the same key with a different meaning.
+
+### Warnings
+
+`[warnings]` switches the Python warnings the configuration and world-building code can give, each on by default and given at most once per cause per session: `stale_worldpack_copy`, for a data-directory copy of a bundled world or data file that differs from the packaged one (see the [world pack page](../structures_x/config/worldpack.md)); `schema_version`, for a world or system file whose `schema_version` is missing or differs from this build's in its minor version (a major difference is refused, not warned about); and `truncation_promotion`, for a `[tides]` truncation level that is not tabulated and is promoted to the next tabulated one.
 
 ### Reproducing a Run
 

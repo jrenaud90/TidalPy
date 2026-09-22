@@ -79,6 +79,8 @@ min_thickness = d_NAN
 numerical_floor = d_NAN
 layer_continuity_rtol = d_NAN
 max_start_radius_fraction = d_NAN
+frequency_match_rtol = d_NAN
+minimum_nusselt = d_NAN
 
 test_constant = d_NAN
 
@@ -192,7 +194,7 @@ def update_constants_x():
     configs carry; the SciPy-sourced physical constants are left untouched.
     """
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
-    global numerical_floor, layer_continuity_rtol, max_start_radius_fraction
+    global numerical_floor, layer_continuity_rtol, max_start_radius_fraction, frequency_match_rtol, minimum_nusselt
 
     numerical = TidalPy.config_x['numerical']
 
@@ -205,6 +207,8 @@ def update_constants_x():
     tidalpy_config_ptr.d_NUMERICAL_FLOOR = numerical['numerical_floor']
     tidalpy_config_ptr.d_LAYER_CONTINUITY_RTOL = numerical['layer_continuity_rtol']
     tidalpy_config_ptr.d_MAX_START_RADIUS_FRAC = numerical['max_start_radius_fraction']
+    tidalpy_config_ptr.d_FREQUENCY_MATCH_RTOL = numerical['frequency_match_rtol']
+    tidalpy_config_ptr.d_MIN_NUSSELT = numerical['minimum_nusselt']
 
     # Solver defaults shared by the world-attached solves, the tide paths, and the standalone radial_solver.
     eos_solver = TidalPy.config_x['eos_solver']
@@ -242,3 +246,5 @@ def update_constants_x():
     numerical_floor = tidalpy_config_ptr.d_NUMERICAL_FLOOR
     layer_continuity_rtol = tidalpy_config_ptr.d_LAYER_CONTINUITY_RTOL
     max_start_radius_fraction = tidalpy_config_ptr.d_MAX_START_RADIUS_FRAC
+    frequency_match_rtol = tidalpy_config_ptr.d_FREQUENCY_MATCH_RTOL
+    minimum_nusselt = tidalpy_config_ptr.d_MIN_NUSSELT

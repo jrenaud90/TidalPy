@@ -132,6 +132,24 @@ def test_convection_matches_legacy_low_rayleigh():
     assert res.cooling_flux == pytest.approx(flux, rel=1e-12)
 
 
+def test_convection_guards_agree_at_the_minimum_thickness():
+    """A layer exactly at the minimum thickness is too thin for every output, not for some of them."""
+    import TidalPy.constants as tidalpy_constants
+    mod = _import_cooling()
+    thick = tidalpy_constants.min_thickness
+    assert thick > 0.0
+    # A viscosity low enough that the layer would convect hard if its thickness were accepted.
+    res = mod.ConvectiveCooling().calc_cooling(_DT, thick, _G, _RHO, 1.0e-6, _K, _DIFF, _EXP)
+    assert res.rayleigh == 0.0
+    assert res.nusselt == 2.0
+    assert res.boundary_layer_thickness == thick
+    # Just above it the layer convects, and the three outputs again tell one story.
+    res = mod.ConvectiveCooling().calc_cooling(_DT, 2.0 * thick, _G, _RHO, 1.0e-6, _K, _DIFF, _EXP)
+    assert res.rayleigh > 0.0
+    assert res.nusselt > 2.0
+    assert res.boundary_layer_thickness == pytest.approx(2.0 * thick / res.nusselt)
+
+
 def test_convection_parameters_affect_result():
     """A larger critical Rayleigh number reduces the Nusselt number."""
     mod = _import_cooling()

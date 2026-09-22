@@ -86,6 +86,12 @@ struct TidalPyConfig
     // solver's own automatic choice and rejects a caller's starting radius above it.
     double d_MAX_START_RADIUS_FRAC; // Updated from TidalPy.config_x['numerical']['max_start_radius_fraction']
 
+    // Relative tolerance within which two tidal-mode frequencies are the same one, and a frequency is zero.
+    double d_FREQUENCY_MATCH_RTOL; // Updated from TidalPy.config_x['numerical']['frequency_match_rtol']
+
+    // Smallest Nusselt number the convection cooling model reports.
+    double d_MIN_NUSSELT; // Updated from TidalPy.config_x['numerical']['minimum_nusselt']
+
     // Whole-planet EOS solve defaults, from TidalPy.config_x['eos_solver']. Read by every EOS solve that is
     // not handed an explicit value. The method is CyRK's ODEMethod enum as an int (-1 until the config is
     // loaded).
@@ -132,6 +138,8 @@ struct TidalPyConfig
         d_NUMERICAL_FLOOR = nan;
         d_LAYER_CONTINUITY_RTOL = nan;
         d_MAX_START_RADIUS_FRAC = nan;
+        d_FREQUENCY_MATCH_RTOL = nan;
+        d_MIN_NUSSELT = nan;
         d_EOS_SOLVER_METHOD = -1;
         d_EOS_SOLVER_RTOL = nan;
         d_EOS_SOLVER_ATOL = nan;

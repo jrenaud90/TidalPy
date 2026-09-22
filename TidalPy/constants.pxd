@@ -49,6 +49,8 @@ cdef extern from "constants_.hpp" nogil:
         double   d_NUMERICAL_FLOOR
         double   d_LAYER_CONTINUITY_RTOL
         double   d_MAX_START_RADIUS_FRAC
+        double   d_FREQUENCY_MATCH_RTOL
+        double   d_MIN_NUSSELT
         int      d_EOS_SOLVER_METHOD
         double   d_EOS_SOLVER_RTOL
         double   d_EOS_SOLVER_ATOL
