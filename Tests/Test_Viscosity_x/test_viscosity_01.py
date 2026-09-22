@@ -82,6 +82,22 @@ def test_arrhenius_formula(T, P):
     assert m.calc_viscosity(T, P) == pytest.approx(expected, rel=1e-9)
 
 
+@pytest.mark.parametrize("T,P", [(1400.0, 1.0e9), (1600.0, 2.5e10), (2500.0, 1.3e11)])
+def test_arrhenius_activation_volume(T, P):
+    """With a nonzero activation volume the pressure enters the exponent, and the viscosity rises with depth."""
+    A, sigma, n, d, mexp, Ea, Va = 2.6e9, 1.0, 1.0, 1.0e-3, 0.0, 3.0e5, 6.0e-6
+    m = _import().ArrheniusViscosity(
+        arrhenius_coeff=A, stress=sigma, stress_expo=n, grain_size=d,
+        grain_size_expo=mexp, molar_activation_energy=Ea, molar_activation_volume=Va,
+        additional_temp_dependence=False)
+    expected = _arrhenius_expected(T, P, A, sigma, n, d, mexp, Ea, Va, False)
+    assert m.calc_viscosity(T, P) == pytest.approx(expected, rel=1e-9)
+    # The pressure term is exp(P Va / R T), which is not a small correction at these pressures.
+    assert m.calc_viscosity(T, P) == pytest.approx(
+        m.calc_viscosity(T, 0.0) * math.exp(P * Va / (_R * T)), rel=1e-9)
+    assert m.calc_viscosity(T, P) > 1.5 * m.calc_viscosity(T, 0.0)
+
+
 def test_arrhenius_no_extra_temp():
     A, Ea = 2.0, 3.0e5
     m = _import().ArrheniusViscosity(arrhenius_coeff=A, molar_activation_energy=Ea,

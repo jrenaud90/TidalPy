@@ -8,7 +8,10 @@ multi-world system with ``TidalPy.structures_x.build_system("sol_system")``.
 
 from TidalPy.structures_x.configs import (
     build_world,
+    build_world_from_dict,
+    build_layer_from_dict,
     build_system,
+    build_system_from_dict,
     construct_world,
     construct_layer,
     available_worlds,
@@ -20,7 +23,10 @@ from TidalPy.structures_x.configs import (
 
 __all__ = [
     "build_world",
+    "build_world_from_dict",
+    "build_layer_from_dict",
     "build_system",
+    "build_system_from_dict",
     "construct_world",
     "construct_layer",
     "available_worlds",

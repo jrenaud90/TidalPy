@@ -20,13 +20,14 @@ from libcpp.vector cimport vector
 
 import numpy as np
 
+import TidalPy
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_SECONDS_PER_MYR
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -542,7 +543,6 @@ def _resolve_isotope_config(dict config):
 
     # Resolve a named dataset against the global TidalPy config.
     if isinstance(isotopes, str):
-        import TidalPy
         known = TidalPy.config['physics']['radiogenics']['known_isotope_data']
         if isotopes not in known:
             raise ValueError(f"TidalPy: unknown isotope dataset '{isotopes}'.")
@@ -607,6 +607,9 @@ def make_radiogenics(str model_name, dict config=None):
         If the model name is not recognized, or if ``config`` holds a key that no radiogenics model
         reads.
     """
+    if config is None:
+        # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
+        config = factory_defaults("radiogenics", RADIOGENICS_CONFIG_KEYS, model_name)
     check_config_keys(config, RADIOGENICS_CONFIG_KEYS, "radiogenics")
     if config is None:
         config = {}

@@ -25,7 +25,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport (
     PhysicsBase, c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config)
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
 from TidalPy.viscosity_x.viscosity cimport ViscosityBase
 from TidalPy.partial_melt_x.partial_melt cimport PartialMeltBase
 
@@ -581,6 +581,9 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
     ValueError
         Unknown model name, or a ``config`` key that no material EOS model reads.
     """
+    if config is None:
+        # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
+        config = factory_defaults("material", MATERIAL_EOS_CONFIG_KEYS, model_name)
     check_config_keys(config, MATERIAL_EOS_CONFIG_KEYS, "material EOS")
     if config is None:
         config = {}

@@ -16,12 +16,15 @@ from TidalPy.structures_x.configs.toml_loader import (
 )
 from TidalPy.structures_x.configs.world_builder import (
     build_world,
+    build_world_from_dict,
+    build_layer_from_dict,
     construct_world,
     construct_layer,
     available_worlds,
 )
 from TidalPy.structures_x.configs.system_builder import (
     build_system,
+    build_system_from_dict,
     construct_system,
     available_systems,
 )
@@ -43,10 +46,13 @@ __all__ = [
     "validate_layer_config",
     "validate_system_config",
     "build_world",
+    "build_world_from_dict",
+    "build_layer_from_dict",
     "construct_world",
     "construct_layer",
     "available_worlds",
     "build_system",
+    "build_system_from_dict",
     "construct_system",
     "available_systems",
     "load_radial_data",

@@ -209,3 +209,50 @@ def test_start_radius_fraction_is_configurable(numerical_setter):
     assert _homogeneous_solve(0.91 * _PLANET_RADIUS).success
     with pytest.raises(ValueError, match=r"above 95% of the planet radius"):
         _homogeneous_solve(0.96 * _PLANET_RADIUS)
+
+
+# =====================================================================================================================
+# frequency_match_rtol: which tidal modes share one frequency
+# =====================================================================================================================
+def test_default_frequency_match_rtol_is_wired_through():
+    from TidalPy.constants import frequency_match_rtol
+    assert TidalPy.config_x["numerical"]["frequency_match_rtol"] == 1.0e-9
+    assert frequency_match_rtol == 1.0e-9
+
+
+def test_frequency_match_rtol_decides_which_modes_share_a_frequency(numerical_setter):
+    """Two modes whose frequencies differ by a part in 1e-6 are distinct at the default and one at a looser value."""
+    from TidalPy.Tides_x.potential import global_potential
+    n = 2.0e-5
+    # Spin at n (1 + 1e-6): modes such as (2, 2, 0, 1) at 3n - 2 spin and (2, 0, 1, 1) at n differ by a part in
+    # 1e-6, which the default tolerance keeps apart and a looser one merges.
+    args = (1.0e6, n, n * (1.0 + 1.0e-6), 0.05, 0.0, 4.0e8, 1.0e27, 6.674e-11, 2, 2, 2, "off")
+
+    numerical_setter("frequency_match_rtol", 1.0e-9)
+    unique_at_default = len(global_potential(*args)[2])
+    numerical_setter("frequency_match_rtol", 1.0e-4)
+    unique_when_loose = len(global_potential(*args)[2])
+    assert unique_when_loose < unique_at_default
+
+
+# =====================================================================================================================
+# minimum_nusselt: the floor of the convection model
+# =====================================================================================================================
+def test_default_minimum_nusselt_is_wired_through():
+    from TidalPy.constants import minimum_nusselt
+    assert TidalPy.config_x["numerical"]["minimum_nusselt"] == 2.0
+    assert minimum_nusselt == 2.0
+
+
+def test_minimum_nusselt_floors_the_convection_model(numerical_setter):
+    from TidalPy.cooling_x.cooling import ConvectiveCooling
+    # A stiff, thin layer: sub-critical, so the Nusselt number sits on the floor.
+    inputs = (100.0, 1.0e4, 9.8, 3300.0, 1.0e24, 4.0, 1.0e-6, 3.0e-5)
+    numerical_setter("minimum_nusselt", 2.0)
+    at_default = ConvectiveCooling().calc_cooling(*inputs)
+    assert at_default.nusselt == 2.0
+    numerical_setter("minimum_nusselt", 3.0)
+    at_three = ConvectiveCooling().calc_cooling(*inputs)
+    assert at_three.nusselt == 3.0
+    assert at_three.boundary_layer_thickness == pytest.approx(1.0e4 / 3.0)
+    assert at_three.cooling_flux == pytest.approx(1.5 * at_default.cooling_flux)

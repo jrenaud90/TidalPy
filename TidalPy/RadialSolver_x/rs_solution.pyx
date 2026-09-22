@@ -183,7 +183,8 @@ cdef class RadialSolverSolution:
 
     cdef void finalize_python_storage(self) noexcept:
 
-        cdef cnp.npy_intp[2] eos_steps_taken_shape   = [self.solution_storage_ptr.get_eos_solution_ptr().num_cyolver_calls / self.num_layers, self.num_layers]
+        cdef cnp.npy_intp[2] eos_steps_taken_shape   = [
+            self.solution_storage_ptr.get_eos_solution_ptr().num_cysolver_calls / self.num_layers, self.num_layers]
         cdef cnp.npy_intp* eos_steps_taken_shape_ptr = &eos_steps_taken_shape[0]
         cdef cnp.npy_intp eos_steps_taken_ndim       = 2
         self.eos_steps_taken_array = cnp.PyArray_SimpleNewFromData(

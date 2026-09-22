@@ -13,6 +13,7 @@ insolation (``stellar_semi_major_axis_m``, ``stellar_eccentricity``). The star n
 world's tidal host; for an exoplanet the two orbits coincide.
 """
 
+import copy
 import os
 from typing import Union
 
@@ -133,6 +134,39 @@ def build_system(source: Union[str, dict], force: bool = False):
         The constructed system.
     """
     return System.build(source, force=force)
+
+
+def build_system_from_dict(config: dict, force: bool = False):
+    """Rebuild a ``System`` from the dictionary its ``get_config_dict`` returns.
+
+    The rebuilt system holds the same worlds (each rebuilt from its own inlined configuration), with the same
+    tidal hosts, star, and orbital elements.
+
+    Parameters
+    ----------
+    config : dict
+        A system configuration, as returned by ``system.get_config_dict()`` or written by hand to the same
+        schema. It is not modified, and the new system does not share it.
+    force : bool, optional
+        If True, bypass the schema-version compatibility warning. Default False.
+
+    Returns
+    -------
+    System
+        The rebuilt system.
+
+    Raises
+    ------
+    TypeError
+        If ``config`` is not a dict (use :func:`build_system` for a bundled name or a file path).
+    ValueError
+        If the configuration fails validation.
+    """
+    if not isinstance(config, dict):
+        raise TypeError(
+            f"build_system_from_dict needs a configuration dict, not {type(config)}. "
+            "Use build_system for a bundled system name or a file path.")
+    return System.build(copy.deepcopy(config), force=force)
 
 
 def available_systems() -> list:

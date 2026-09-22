@@ -18,7 +18,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -243,6 +243,9 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     ValueError
         If the model name is unknown, or if ``config`` holds a key that no viscosity model reads.
     """
+    if config is None:
+        # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
+        config = factory_defaults("material.shear_viscosity", VISCOSITY_CONFIG_KEYS, model_name)
     check_config_keys(config, VISCOSITY_CONFIG_KEYS, "viscosity")
     if config is None:
         config = {}

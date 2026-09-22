@@ -32,7 +32,6 @@ inline void c_top_to_bottom_interface_bc(
 {
     const double nan_val = std::numeric_limits<double>::quiet_NaN();
     const std::complex<double> cmplx_NAN(nan_val, nan_val);
-    const double g_const = 4.0 * TidalPyConstants::d_PI;  // Note: G_to_use is folded into gravity values
 
     // Interfaces are defined at the bottom of a layer, but this function works downward and handles the
     // transition at the top of each layer, so the interface values are those of the layer above.
@@ -144,15 +143,12 @@ inline void c_top_to_bottom_interface_bc(
         }
     } else {
         if (layer_is_static) {
-            if (!layer_above_is_solid) {
-                if (layer_above_is_static) {
-                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
-                } else {
-                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
-                }
-            } else {
-                constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
-            }
+            // A static liquid has one constant, and whatever lies above it that constant is the first one of the
+            // layer above. A static liquid above shares it, and for a solid above S74 gives it as the constant of
+            // that layer's solution 1. A dynamic liquid above follows the approach of S74, Eq. 20: this layer is
+            // treated as normal and the layer above like the solid of that equation, without y_3 and the third
+            // solution that goes with it.
+            constant_vector_ptr[0] = layer_above_constant_vector_ptr[0];
         } else {
             if (!layer_above_is_solid) {
                 if (layer_above_is_static) {
