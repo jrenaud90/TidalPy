@@ -519,6 +519,35 @@ def test_gas_giant_interior_reproduces_its_mass_and_moment_of_inertia(name):
         moi_factor, rel=1e-4)
 
 
+# Love number from solving the fitted interior, against the k2 each file states from the literature. Nothing is
+# fitted to this: the densities come from the mass and C/MR2, and the Love number falls out of them.
+_GAS_GIANT_SOLVED_LOVE_K = {"jupiter": 0.53438, "neptune": 0.42667}
+
+
+@pytest.mark.parametrize("name", sorted(_GAS_GIANTS))
+def test_gas_giant_layers_are_all_fluid(name):
+    """A gas giant is a fluid body. A rigid rock core is wrong physically at these temperatures and fails
+    numerically as well: a rock shear modulus is negligible against rho g R, so the core integrates as a
+    near-fluid solid and the shooting solve dies on its step size."""
+    world = build_world(name)
+    assert [layer.name for layer in world if layer.is_solid] == []
+    assert all(layer.is_static for layer in world)
+
+
+@pytest.mark.parametrize("name", sorted(_GAS_GIANTS))
+def test_gas_giant_solved_love_number_is_near_its_published_value(name):
+    """The interior is fitted to the mass and C/MR2 only, so its Love number is an independent result. Both
+    land near the published value, where a single uniform layer gives the fluid-sphere 1.5."""
+    _, _, _, _, _, published_k, _ = _GAS_GIANTS[name]
+    world = build_world(name)
+    world.solve_eos()
+    result = world.solve_love_numbers()
+    assert result["success"], result["message"]
+    assert world.love_number_k.real == pytest.approx(_GAS_GIANT_SOLVED_LOVE_K[name], rel=1e-3)
+    # Within 15 percent of the published Love number, with nothing tuned to it.
+    assert abs(world.love_number_k.real - published_k) / published_k < 0.15
+
+
 @pytest.mark.parametrize("name", sorted(_GAS_GIANTS))
 def test_gas_giant_layer_masses_match_its_file(name):
     """The layer masses are a result of the fit, not an input, and they are what ties it to published
@@ -558,14 +587,16 @@ def test_gas_giant_dissipation_matches_the_constant_phase_lag_closed_form(
     assert world.get_tidal_heating() == pytest.approx(closed_form, rel=1e-3)
 
 
-def test_jupiter_simple_reproduces_its_mass_but_not_its_moment_of_inertia():
+def test_jupiter_simple_reproduces_its_mass_but_not_its_moment_of_inertia_or_love_number():
     """One uniform layer can match the mass and nothing else: C/MR2 is the uniform-sphere 0.4 against
-    Jupiter's 0.264, which is what the three-layer jupiter.toml exists to fix."""
+    Jupiter's 0.264 and k2 is the fluid-sphere 1.5 against 0.590, which is what jupiter.toml exists to fix."""
     world = build_world("jupiter_simple")
     result = world.solve_eos()
     assert result["success"], result["message"]
     assert world.planet_mass_eos == pytest.approx(world.mass, rel=1e-6)
     assert world.planet_moi_eos / (world.planet_mass_eos * world.radius ** 2) == pytest.approx(0.4, rel=1e-6)
+    assert world.solve_love_numbers()["success"]
+    assert world.love_number_k.real == pytest.approx(1.5, rel=1e-3)
 
 
 # =====================================================================================================================

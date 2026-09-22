@@ -5,8 +5,8 @@
 # The layer density is stated here rather than left to those defaults, because the packaged default is a
 # round 1000 kg/m3 that has nothing to do with Jupiter: at the mean density below the solved equation of
 # state reproduces the stated mass, as every other bundled world does. One uniform layer still gives
-# C/MR2 = 0.4, the uniform-sphere value, against Jupiter's 0.264. See jupiter.toml for the three-layer
-# version that reproduces both.
+# C/MR2 = 0.4, the uniform-sphere value, against Jupiter's 0.264, and a Love number of 1.5, the fluid-sphere
+# limit, against the measured 0.590. See jupiter.toml for the three-layer version that reproduces both.
 schema_version = "0.2.0"
 name = "Jupiter-Simple"
 type = "gasgiant"

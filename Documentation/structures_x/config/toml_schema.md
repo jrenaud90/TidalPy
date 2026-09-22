@@ -16,7 +16,7 @@ A config's `schema_version` is checked with a graded policy: a patch difference 
 from TidalPy.structures_x import build_world, available_worlds
 
 # Build one of the bundled example worlds by name.
-print(available_worlds())            # 20 names, from 'charon' to 'triton' (see the WorldPack page)
+print(available_worlds())            # 21 names, from 'charon' to 'triton' (see the WorldPack page)
 earth = build_world("earth_simple")  # returns the Cython world (a BaseWorld subclass)
 
 # build_world returns the world object directly, so its methods are immediate.

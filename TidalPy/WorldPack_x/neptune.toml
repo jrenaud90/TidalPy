@@ -19,6 +19,17 @@
 # ices, and 2.53 of hydrogen and helium, so 14.6 of the 17.15 total is heavy elements, inside the range
 # published interior models give.
 #
+# Every layer is a fluid, which is what an ice giant is: the hydrogen and helium envelope plainly, the hot
+# dense ices too, and the rock core because at 6000 K and several hundred GPa it is not a viscoelastic solid
+# either. The two inner layers are therefore static liquids and only the envelope is flagged tidal. A rigid
+# rock core also fails numerically, not only physically: a rock shear modulus of 6e10 Pa is negligible
+# against rho g R of about 5e11 Pa here, so the core integrates as a near-fluid solid and the shooting
+# solve fails on its step size.
+#
+# The Love number is then a check nothing was fitted to. Solving this interior for its Love number gives k2 = 0.427
+# against the 0.41 the tide model below states from the literature, a 4 percent difference, so the fitted
+# mass distribution and the published Love number agree without either having been used to find the other.
+#
 # Each layer has a single density, which is what makes the fit above tractable, and it is also this model's
 # main limitation: a real ice giant compresses continuously, so the density profile here is a step
 # approximation to a smooth one. The bulk properties it is fitted to come out right and the central pressure
@@ -58,6 +69,7 @@ type = "mantle_rock"
 layer_index = 0
 radius_outer_m = 4924400.0            # 0.20 of the radius
 is_tidal = false
+is_solid = false                      # rock core, solved as a static liquid
 temperature_k = 6000.0
 
 [layers.core.material]
@@ -70,6 +82,7 @@ type = "hp_ice"
 layer_index = 1
 radius_outer_m = 17235400.0           # 0.70 of the radius
 is_tidal = false
+is_solid = false                      # hot dense fluid ices
 temperature_k = 4000.0
 
 [layers.mantle.material]

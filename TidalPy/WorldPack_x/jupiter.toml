@@ -20,6 +20,17 @@
 # in the range Juno-era models allow, although those models favor a dilute core spread over a large
 # fraction of the radius rather than the sharp one here.
 #
+# Every layer is a fluid, which is what a gas giant is: the metallic and molecular hydrogen plainly, and the
+# core because at 20000 K and several thousand GPa it is not a viscoelastic solid either (Juno-era models
+# favor a dilute core rather than a rigid one). The two inner layers are therefore static liquids and only
+# the envelope is flagged tidal. A rigid rock core also fails numerically, not only physically: a rock shear
+# modulus of 6e10 Pa is negligible against rho g R of about 4e13 Pa here, so the core integrates as a
+# near-fluid solid and the shooting solve fails on its step size.
+#
+# The Love number is then a check nothing was fitted to. Solving this interior for its Love number gives k2 = 0.534
+# against the measured 0.590 below, a 10 percent miss, where the single-layer jupiter_simple gives 1.5, the
+# fluid-sphere limit. The layered mass distribution is what carries that.
+#
 # Each layer has a single density, which is what makes the fit above tractable, and it is also this model's
 # main limitation: a real gas giant compresses continuously over four orders of magnitude in density, so the
 # profile here is a step approximation to a smooth one. The mass and C/MR2 it is fitted to come out right,
@@ -55,6 +66,7 @@ type = "mantle_rock"
 layer_index = 0
 radius_outer_m = 10486650.0           # 0.15 of the radius
 is_tidal = false
+is_solid = false                      # dilute heavy-element core, solved as a static liquid
 temperature_k = 20000.0
 
 [layers.core.material]
@@ -67,6 +79,7 @@ type = "hp_ice"
 layer_index = 1
 radius_outer_m = 54530580.0           # 0.78 of the radius, near the 1 Mbar metallic transition
 is_tidal = false
+is_solid = false                      # metallic hydrogen, a fluid
 temperature_k = 10000.0
 
 [layers.mantle.material]
