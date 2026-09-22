@@ -75,13 +75,34 @@ A copy that an older install left behind cannot be told apart from a copy the us
 
 in `TidalPy_Configs_x.toml`. `warn_if_stale_copy(path)` runs the same comparison on request and returns whether the file differs.
 
+## Bundled Worlds
+
+| Name | Type | Contents |
+|---|---|---|
+| `sol` | star | The Sun, from its effective temperature. |
+| `trappist1` | star | The M8V host of the seven-planet system, with the measured luminosity stated rather than derived. |
+| `jupiter_simple` | gas giant | One gas layer taking the `[layers.gas]` defaults. |
+| `neptune` | gas giant | One gas layer at Neptune's mean density, with constant-phase-lag tides (k2 = 0.41, Q = 9000) instead of an interior. |
+| `earth_simple` | terrestrial | Three-layer Earth with a static liquid outer core, reproducing the mass, C/MR2, and k2. |
+| `earth_prem` | terrestrial | The PREM seismic profile, read from the companion `PREM.csv`. |
+| `io` | terrestrial | The Segatz et al. (1988) asthenosphere end-member, with its viscosity fitted to Io's measured heat output. |
+| `europa` | terrestrial | Iron core, silicate mantle, and a solid ice shell. There is no ocean. |
+| `luna` | terrestrial | Five-layer Moon reproducing C/MR2, k2, and Q at the month and the year. |
+| `mercury` | terrestrial | Fluid outer core, with the mantle rigidity fitted to the measured k2. |
+| `pluto`, `charon` | terrestrial | Rock core under an ice I shell; the two halves of a mutually synchronous binary. |
+| `triton` | terrestrial | The same recipe, on a retrograde synchronous orbit about Neptune. |
+| `trappist1b` to `trappist1h` | terrestrial | Two-layer rocky planets built from the Agol et al. (2021) masses and radii. |
+| `sol_system` | system | The Sun with Earth and Jupiter. |
+
 ## Adding a Bundled World
 
 1. Write a schema-`0.2.0` world TOML and drop it in `TidalPy/WorldPack_x/<name>.toml`. `MANIFEST.in` already globs `TidalPy/WorldPack_x/*.toml`, so it is packaged on the next `uv pip install`.
 2. It installs to `Worlds_x/` and becomes available as `build_world("<name>")` and in `available_worlds()` on the next run. A system file follows the same two steps and appears in `available_systems()` instead.
 3. A world of wide interest can be added to the WorldPack through a pull request on TidalPy's GitHub.
 
-The bundled worlds favor the per-material defaults: keep them small by specifying `class`, `type`, and geometry and letting `TidalPy_Configs_x.toml` supply the EOS and physics models. Override anything inline as shown in the [TOML schema](toml_schema.md). Every bundled solar-system body (`io`, `europa`, `luna`, `mercury`, `earth_simple`) states a temperature for each layer and a reference-law viscosity for each solid layer at that temperature, so every solid layer dissipates; the per-layer `tidal_scale` values come from the 3D heating integral; the fluid outer cores of Luna, Mercury, and Earth-Simple are static liquids; and each file's comments say which numbers were fitted to which observable (Io's heat output, the k2 of the three liquid-core bodies, Luna's Q at the month and the year). Their temperatures are prescribed rather than solved, which each file records by pinning `solve_temperature = false` in its own `[eos_solver]` table; `Tests/Test_Structures_x/Test_Config/test_bundled_bodies_01.py` checks every claim their comments make.
+The bundled worlds favor the per-material defaults: keep them small by specifying `class`, `type`, and geometry and letting `TidalPy_Configs_x.toml` supply the EOS and physics models. Override anything inline as shown in the [TOML schema](toml_schema.md). Every bundled layered body states a temperature for each layer and a reference-law viscosity for each solid layer at that temperature, so every solid layer dissipates; the per-layer `tidal_scale` values come from the 3D heating integral; the fluid outer cores of Luna, Mercury, and Earth-Simple are static liquids; and each file's comments say which numbers were fitted to which observable (Io's heat output, the k2 of the three liquid-core bodies, Luna's Q at the month and the year). Their temperatures are prescribed rather than solved, which each file records by pinning `solve_temperature = false` in its own `[eos_solver]` table; `Tests/Test_Structures_x/Test_Config/test_bundled_bodies_01.py` checks every claim their comments make.
+
+Each body's interior is fitted to the mass it states, so building it and calling `solve_eos()` returns the published mass. What is free differs with what is measured: a solar-system body fixes the densities that are better known and fits the remaining layer's, while a TRAPPIST-1 planet, which has no independent handle on its layer boundaries, fixes both densities and fits the core radius instead. Where a measured moment of inertia exists it is an independent check on the result, since nothing is fitted to it; Pluto, Charon, Triton, and the TRAPPIST-1 planets have none, so their C/MR2 is a model output that the file's comment records. Neptune carries no fitted interior at all, only a mean-density envelope and an analytic tidal response, which its comment says plainly.
 
 ## API Summary (`TidalPy.structures_x.configs.worldpack`)
 

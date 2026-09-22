@@ -1,0 +1,87 @@
+# Jupiter: a dense core under a metallic hydrogen mantle under a molecular hydrogen envelope.
+#
+# Radius is the IAU nominal mean, 69911 km, and the mass 1.898125e27 kg, both the values in TidalPy's
+# constants_.hpp, giving a mean density of 1326 kg/m3 and a solved surface gravity of 25.920 m/s2.
+# jupiter_simple is the single-layer version of the same planet, kept as the minimal gas-giant example.
+#
+# Structure
+# Three layers, the standard picture of a gas giant: a dense core of heavy elements, a metallic hydrogen
+# mantle, and a molecular hydrogen envelope. The metallic transition sits at 0.78 of the radius, near the
+# 1 Mbar pressure where hydrogen becomes conducting, and the core at 0.15. The core is fixed at
+# 20000 kg/m3 and the two outer densities are fitted to two observables at once: the published mass, which
+# they reproduce exactly, and the moment-of-inertia factor. That gives a metallic layer of 2377.224 kg/m3
+# and a molecular envelope of 263.7333 kg/m3.
+#
+# C/MR2 comes out at 0.2640 by construction, within the 0.2629 to 0.2645 that the Helled et al. (2011)
+# interior models give. It is not a measured quantity: Juno was expected to constrain it through the
+# Lense-Thirring acceleration and the pole precession, and until it does, published values come from
+# interior models fitted to J2 and J4. The layer masses that follow are a result rather than an input:
+# 16.2 Earth masses of core, 268.4 of metallic hydrogen, and 33.2 of molecular hydrogen. The core mass is
+# in the range Juno-era models allow, although those models favor a dilute core spread over a large
+# fraction of the radius rather than the sharp one here.
+#
+# Each layer has a single density, which is what makes the fit above tractable, and it is also this model's
+# main limitation: a real gas giant compresses continuously over four orders of magnitude in density, so the
+# profile here is a step approximation to a smooth one. The mass and C/MR2 it is fitted to come out right,
+# but the central pressure of 9580 GPa is more than twice the roughly 4000 GPa published models give, so a
+# calculation that needs a resolved pressure or density profile needs a better interior than this file has.
+#
+# Tides
+# The response is the constant-phase-lag model rather than a rheology, since neither hydrogen layer is a
+# viscoelastic solid. k2 = 0.590, the hydrostatic value, with Q = 53500, which is what Lainey et al. (2009)
+# measured as k2/Q = (1.102 +/- 0.203)e-5 from the astrometry of the Galilean moons. That dissipation is
+# what pushes Io outward and is the other half of Io's own heat budget (see io.toml). The per-degree lists
+# carry k_l falling roughly as k_2 / (l - 1) above degree 2, which is the default shape and is not measured.
+# Because the model supplies the response directly, none of it depends on the interior above.
+#
+# Orbital state is not a world property in this schema; add Jupiter to a System to give it an orbit. The
+# spin frequency is the 9.925 hour System III rotation period.
+schema_version = "0.2.0"
+name = "Jupiter"
+type = "gasgiant"
+radius_m = 69911000.0
+mass_kg = 1.898125e27
+spin_frequency_rad_s = 1.7585181e-04
+albedo = 0.503
+
+[tides]
+global_tidal_model = "fixed_q"
+fixed_k = [0.59, 0.295, 0.1967, 0.1475, 0.118, 0.0983, 0.0843, 0.0738, 0.0656]
+fixed_q = [53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0]
+
+[layers.core]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 0
+radius_outer_m = 10486650.0           # 0.15 of the radius
+is_tidal = false
+temperature_k = 20000.0
+
+[layers.core.material]
+model = "constant"
+reference_density_kg_m3 = 20000.0     # heavy-element core, held fixed
+
+[layers.mantle]
+class = "solidliquid"
+type = "hp_ice"
+layer_index = 1
+radius_outer_m = 54530580.0           # 0.78 of the radius, near the 1 Mbar metallic transition
+is_tidal = false
+temperature_k = 10000.0
+
+[layers.mantle.material]
+model = "constant"
+reference_density_kg_m3 = 2377.224    # fitted, with the envelope, to the mass and C/MR2
+
+[layers.envelope]
+class = "gas"
+type = "gas"
+layer_index = 2
+radius_fraction = 1.0
+is_tidal = true
+tidal_scale = 1.0
+temperature_k = 2000.0
+
+[layers.envelope.material]
+model = "constant"
+reference_density_kg_m3 = 263.7333    # fitted, with the mantle, to the mass and C/MR2

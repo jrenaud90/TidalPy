@@ -1,0 +1,89 @@
+# TRAPPIST-1h: a two-layer rocky planet of the seven-planet M-dwarf system, built from its measured mass and radius.
+#
+# The classic WorldPack trappist1h.toml carries no interior, so this one is built from scratch. Mass and radius are
+# Agol et al. (2021): 0.326 Earth masses and 0.755 Earth radii, a mean density of 4176 kg/m3. The orbital period is
+# 18.772866 days and the semi-major axis 0.06189 AU.
+#
+# Structure
+# The recipe is the same for all seven planets, so their interiors can be compared: an incompressible iron core at
+# Earth's mean core density of 10900 kg/m3 under a Birch-Murnaghan silicate mantle at the 3516.322 kg/m3 reference
+# density of earth_simple. Both densities are held, so the core radius is the one number fitted to the published
+# mass, 1478.7 km, or 0.3074 of the planet radius.
+#
+# The core mass fraction that follows, 0.0758, is a result rather than an input, and it is 0.21 times the 0.354
+# that Earth gives through this identical recipe. Every one of the seven comes out below Earth, which is how this
+# file set independently reproduces the conclusion Agol et al. (2021) draw from the densities: the TRAPPIST-1
+# planets are depleted in iron relative to Earth. Take the absolute core fraction with caution, since a uniform
+# incompressible core is a crude stand-in for a real one, and the recipe puts Earth's own core mass fraction at
+# 0.354 against the accepted 0.325.
+#
+# Surface gravity is 5.6163 m/s2 and the central pressure 99 GPa. C/MR2 comes out at 0.37140; no TRAPPIST-1 planet
+# has a measured moment of inertia, so that is a model output and not a check on the interior.
+#
+# Temperatures and viscosities
+# Every layer carries a temperature and a reference-law viscosity at it (see io.toml): the core at 4000 K and 1e20
+# Pa s, the mantle at 1600 K and 1e21 Pa s with the 300 kJ/mol silicate activation energy and the Andrade rheology
+# of the silicate defaults. Nothing constrains either for a planet outside the solar system, so both are nominal
+# Earth-like values and the tidal response follows them: change the mantle viscosity before reading any dissipation
+# number off this file.
+#
+# Tides
+# The planet is assumed tidally locked, so the spin frequency is the synchronous rate of its orbital period. The
+# tidal_scale values are the fractions of the total each layer takes in the 3D heating integral at that period with
+# e = 0.001835 (Grimm et al. 2018), which puts 99.9 percent in the mantle; they do not move in the fourth digit
+# between that eccentricity and 0.01.
+#
+# Orbital state is not a world property in this schema; add the planet and its star to a System to give it an orbit.
+schema_version = "0.2.0"
+name = "TRAPPIST-1h"
+type = "terrestrial"
+radius_m = 4810111.0
+mass_kg = 1.9469367e+24
+spin_frequency_rad_s = 3.8737853e-06
+
+# The layer temperatures below are prescribed, not solved: the fit holds at exactly these values, so the
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
+[layers.core]
+class = "solidliquid"
+type = "iron"
+layer_index = 0
+radius_outer_m = 1478672.5           # fitted to the published mass
+is_tidal = true
+tidal_scale = 0.000972
+temperature_k = 4000.0
+
+[layers.core.material]
+model = "constant"
+reference_density_kg_m3 = 10900.0     # Earth's mean core density
+
+[layers.core.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e20
+reference_temperature_k = 4000.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 1
+radius_fraction = 1.0
+is_tidal = true
+tidal_scale = 0.999028
+temperature_k = 1600.0
+
+[layers.mantle.material]
+model = "bm"
+reference_density_kg_m3 = 3516.322    # the reference density of earth_simple
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+
+[layers.mantle.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
