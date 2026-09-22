@@ -334,6 +334,53 @@ cdef class PhysicsBase(TidalPyBaseClass):
 # =====================================================================================================================
 # Physics-model config key checking
 # =====================================================================================================================
+def factory_defaults(str section, accepted_keys, model_name=None) -> dict:
+    """The parameters a ``make_*`` factory takes when it is called with no config: the world builder's defaults.
+
+    A model attached by the world builder resolves its parameters through the layer's own table and then the
+    matching model table of ``[layers.default]`` in ``TidalPy_Configs_x.toml`` (``[tides]`` for a tide model).
+    A model built directly through its factory shares that second tier, so the same configuration file
+    describes both. The table names one model of the family, and its parameters are taken only for that model
+    (compared case-insensitively with ``model_name``): a parameter of one model must not carry over to another
+    that reads the same key with a different meaning, as an isotope dataset's reference time would into a
+    fixed radiogenic rate. The ``model`` key itself and anything the family does not read are left out.
+
+    Parameters
+    ----------
+    section : str
+        The table below ``[layers.default]``, with dots for nesting (``"shear_rheology"``,
+        ``"material.shear_viscosity"``), or ``"tides"`` for the top-level tide table.
+    accepted_keys : collection of str
+        The keys the family reads (the factory's ``*_CONFIG_KEYS``).
+    model_name : str, optional
+        The model being built. Given, the table is taken only when its ``model`` names it (a table with no
+        ``model`` key, such as ``[tides]``, is taken as is); left out, the table is taken whatever it names.
+
+    Returns
+    -------
+    dict
+        The parameters found, or an empty dict when the configuration is not loaded, has no such table, or the
+        table names another model.
+    """
+    # Deferred: this module is imported while TidalPy initializes, before config_x exists.
+    import TidalPy
+    config_x = getattr(TidalPy, "config_x", None) or {}
+    if section == "tides":
+        table = config_x.get("tides", {}) or {}
+    else:
+        table = (config_x.get("layers", {}) or {}).get("default", {}) or {}
+        for part in section.split("."):
+            table = table.get(part, {}) or {}
+            if not isinstance(table, dict):
+                return {}
+    named = table.get("model", None)
+    if model_name is not None and named is not None and str(named).lower() != model_name.lower():
+        return {}
+    accepted = set(accepted_keys)
+    accepted.discard("model")
+    return {key: value for key, value in table.items() if key in accepted}
+
+
 def check_config_keys(dict config, accepted_keys, str family):
     """Raise ``ValueError`` if a physics-model config holds a key that no model in its family reads.
 

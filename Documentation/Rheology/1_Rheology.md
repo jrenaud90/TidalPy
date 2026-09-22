@@ -10,7 +10,7 @@ The rheology functionality is provided by compiled Cython classes, importable fr
 Example:
 
 ```python
-from TidalPy.models import Andrade
+from TidalPy.rheology import Andrade
 
 # Create an instance of the class
 rheology_instance = Andrade()
@@ -46,12 +46,12 @@ print(complex_shear)
 ```
 
 ### Working with Arrays
-Helper methods sweep over arrays, using multithreading where possible.
+Helper methods sweep over arrays, using multithreading where possible. Each one writes into a complex output array that you allocate and pass as the last argument, and returns nothing.
 
 All arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays). If an array may not be, use the numpy function `arr = np.ascontiguousarray(arr)` before passing it to a rheology method.
 
 ```python
-from TidalPy.models import Andrade
+from TidalPy.rheology import Andrade
 
 # Create an instance of the class
 rheology_instance = Andrade()
@@ -63,25 +63,27 @@ shear_mod = 50.0e9
 viscosity = 1.0e18
 freq_arr  = np.logspace(-6, -4, 10)
 
-# Solve
-complex_shear_arr = rheology_instance.vectorize_frequency(freq_arr, shear_mod, viscosity)
+# Solve. The result is written into the output array.
+complex_shear_arr = np.empty(freq_arr.size, dtype=np.complex128)
+rheology_instance.vectorize_frequency(freq_arr, shear_mod, viscosity, complex_shear_arr)
 
 # Radius Arrays. These are when _both_ shear modulus and viscosity are vectorized (e.g, 1D slice of a planet), while
 # frequency remains a scalar. Note you must provide both shear and viscosity as an array of equal size, even if one
 # remains constant while the other varies.
 frequency = 1.0e-5
 shear_arr = np.linspace(40.0e9, 80.0e9, 10)
-visco_arr = np.logspace(1.0e18, 1.0e22, 10) 1.0e18  # Viscosity and Shear must have the same shape
+visco_arr = np.logspace(18, 22, 10)  # 1e18 to 1e22 Pa s. Viscosity and shear must have the same shape
 
 # Solve
-complex_shear_arr = rheology_instance.vectorize_modulus_viscosity(frequency, shear_arr, visco_arr)
+complex_shear_arr = np.empty(shear_arr.size, dtype=np.complex128)
+rheology_instance.vectorize_modulus_viscosity(frequency, shear_arr, visco_arr, complex_shear_arr)
 ```
 
 ### Changing Other Rheological Parameters
 Some rheologies have additional parameters, such as Andrade's $\zeta$ and $\alpha$. These were not specified above, so TidalPy used its default values. You can provide your own:
 
 ```python
-from TidalPy.models import Andrade
+from TidalPy.rheology import Andrade
 
 # Andrade accepts additional args \alpha and \zeta. They must be provided in this order as a tuple.
 rheology_instance = Andrade((0.2, 10.))  # Alpha = 0.2; Zeta = 10.

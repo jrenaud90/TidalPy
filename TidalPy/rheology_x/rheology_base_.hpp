@@ -39,9 +39,10 @@ public:
     // Complex (shear or bulk) modulus [Pa] from the unrelaxed modulus [Pa], the
     // reference dynamic viscosity [Pa·s], and the forcing frequency [rad s-1].
     // The real part is the storage (in-phase) modulus and the imaginary part the
-    // loss (out-of-phase) modulus, positive for energy loss. The base
-    // implementation is elastic; every model overrides it. c_PhysicsLayer calls
-    // this for the frequency-dependent complex shear and bulk moduli.
+    // loss (out-of-phase) modulus, positive for energy loss. Pure virtual, so a
+    // model that leaves it out does not compile (a default body here would make
+    // such a model silently elastic). c_PhysicsLayer calls this for the
+    // frequency-dependent complex shear and bulk moduli.
     //
     // Assumes a linear viscoelastic regime at a single forcing frequency, with
     // reference (background) inputs at the layer mid-point.
@@ -49,10 +50,7 @@ public:
     virtual c_ComplexModulus calc_complex_modulus(
             double modulus,
             double viscosity,
-            double frequency) const {
-        return c_ComplexModulus(modulus, 0.0);
-
-    };
+            double frequency) const = 0;
 
     // -----------------------------------------------------------------------
     // Vectorized: vary (modulus, viscosity) element-wise at one frequency. Both

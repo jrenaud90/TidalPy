@@ -28,7 +28,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -521,6 +521,9 @@ def make_rheology(str model_name, dict config=None):
     config : dict, optional
         Model parameters, keyed ``alpha``, ``zeta``, ``voigt_modulus_frac``, ``voigt_viscosity_frac``.
         Keys another rheology model uses are ignored and missing keys fall back to the model defaults.
+        Left out entirely (``None``), the parameters are those of ``[layers.default.shear_rheology]`` in
+        ``TidalPy_Configs_x.toml`` when that table names this model, as they would be for a model the world
+        builder attaches; an empty dict asks for the model's own defaults.
 
     Returns
     -------
@@ -532,6 +535,9 @@ def make_rheology(str model_name, dict config=None):
     ValueError
         If the model name is not recognized, or if ``config`` holds a key that no rheology model reads.
     """
+    if config is None:
+        # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
+        config = factory_defaults("shear_rheology", RHEOLOGY_CONFIG_KEYS, model_name)
     check_config_keys(config, RHEOLOGY_CONFIG_KEYS, "rheology")
     if config is None:
         config = {}
