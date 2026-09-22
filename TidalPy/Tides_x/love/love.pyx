@@ -108,7 +108,7 @@ cdef class LoveNumbers:
 # Love-number methods and the homogeneous-sphere formulas
 # =====================================================================================================================
 
-cdef LoveNumbers _wrap_love(c_LoveNumbers love):
+cdef LoveNumbers cy_wrap_love(c_LoveNumbers love):
     """Wrap a C++ Love-number struct in the Python container."""
     cdef LoveNumbers out = LoveNumbers()
     out._love = love
@@ -215,7 +215,7 @@ def calc_homogeneous_love_numbers(
     -----------
     - Homogeneous incompressible sphere; the fluid limit (mu -> 0) gives k_2 = 3/2, h_2 = 5/2, l_2 = 3/4.
     """
-    return _wrap_love(c_calc_homogeneous_love_numbers(
+    return cy_wrap_love(c_calc_homogeneous_love_numbers(
         cpp_complex[double](complex_shear_modulus.real, complex_shear_modulus.imag),
         density,
         gravity,
@@ -237,7 +237,7 @@ def apply_fixed_q(LoveNumbers love_numbers not None, double fixed_q) -> LoveNumb
     -------
     LoveNumbers
     """
-    return _wrap_love(c_apply_fixed_q(love_numbers._love, fixed_q))
+    return cy_wrap_love(c_apply_fixed_q(love_numbers._love, fixed_q))
 
 
 def apply_fixed_dt(LoveNumbers love_numbers not None, double frequency, double fixed_dt) -> LoveNumbers:
@@ -256,4 +256,4 @@ def apply_fixed_dt(LoveNumbers love_numbers not None, double frequency, double f
     -------
     LoveNumbers
     """
-    return _wrap_love(c_apply_fixed_dt(love_numbers._love, frequency, fixed_dt))
+    return cy_wrap_love(c_apply_fixed_dt(love_numbers._love, frequency, fixed_dt))

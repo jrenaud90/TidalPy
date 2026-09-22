@@ -63,7 +63,7 @@ cdef class NonDimensionalScalesClass:
         return self.nondim_scales.pascal_conversion
 
 
-cdef void cf_build_nondimensional_scales(
+cdef void cy_build_nondimensional_scales(
         c_NonDimensionalScales* non_dim_scales_ptr,
         double mean_radius,
         double bulk_density
@@ -105,7 +105,7 @@ def build_nondimensional_scales(
 
     cdef NonDimensionalScalesClass non_dim_scales = NonDimensionalScalesClass()
 
-    cf_build_nondimensional_scales(
+    cy_build_nondimensional_scales(
         &non_dim_scales.nondim_scales,
         mean_radius,
         bulk_density

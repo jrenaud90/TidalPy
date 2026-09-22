@@ -2,5 +2,5 @@
 
 from TidalPy.Utilities_x.dimensions.nondimensional cimport (
     c_NonDimensionalScales,
-    cf_build_nondimensional_scales,
+    cy_build_nondimensional_scales,
 )

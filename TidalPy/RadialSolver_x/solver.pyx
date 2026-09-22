@@ -25,7 +25,7 @@ from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 from TidalPy.Tides_x.love.love cimport c_parse_love_method_int
 
 
-cdef cpp_bool _resolve_prop_matrix(str love_method) except *:
+cdef cpp_bool cy_resolve_prop_matrix(str love_method) except *:
     # Map a Love-number method name (or alias) onto the two radial techniques this array API offers.
     cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
     if method == 0:
@@ -235,7 +235,7 @@ def radial_solver(
         for em in eos_method_bylayer:
             c_eos_method_bylayer.push_back(em.encode('utf-8'))
 
-    cdef cpp_bool use_prop_matrix = _resolve_prop_matrix(love_method)
+    cdef cpp_bool use_prop_matrix = cy_resolve_prop_matrix(love_method)
     cdef vector[int] layer_types_out = vector[int](num_layers)
     # malloc because std::vector<bool> is bit-packed.
     cdef cpp_bool* c_is_static = <cpp_bool*>malloc(num_layers * sizeof(cpp_bool))

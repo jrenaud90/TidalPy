@@ -15,31 +15,31 @@ from TidalPy.constants cimport (
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef inline double cf_m2Au(double meters) noexcept nogil:
+cdef inline double cy_m2Au(double meters) noexcept nogil:
 
     return meters / tidalpy_config_ptr.d_AU
 
-cdef inline double cf_Au2m(double astronomical_units) noexcept nogil:
+cdef inline double cy_Au2m(double astronomical_units) noexcept nogil:
 
     return astronomical_units * tidalpy_config_ptr.d_AU
 
-cdef inline double cf_rads2days(double radians_per_second) noexcept nogil:
+cdef inline double cy_rads2days(double radians_per_second) noexcept nogil:
 
     return (2. * d_PI / radians_per_second) / 86400.
 
-cdef inline double cf_days2rads(double days) noexcept nogil:
+cdef inline double cy_days2rads(double days) noexcept nogil:
 
     return 2. * d_PI / (days * 86400.)
 
-cdef inline double cf_sec2myr(double seconds) noexcept nogil:
+cdef inline double cy_sec2myr(double seconds) noexcept nogil:
 
     return seconds / d_SECONDS_PER_MYR
 
-cdef inline double cf_myr2sec(double myrs) noexcept nogil:
+cdef inline double cy_myr2sec(double myrs) noexcept nogil:
 
     return myrs * d_SECONDS_PER_MYR
 
-cdef inline double cf_orbital_motion2semi_a(
+cdef inline double cy_orbital_motion2semi_a(
         double orbital_motion,
         double host_mass,
         double target_mass = 0.0,
@@ -47,7 +47,7 @@ cdef inline double cf_orbital_motion2semi_a(
 
     return cbrt(G_to_use * (host_mass + target_mass) / (orbital_motion * orbital_motion))
 
-cdef inline double cf_semi_a2orbital_motion(
+cdef inline double cy_semi_a2orbital_motion(
         double semi_major_axis,
         double host_mass,
         double target_mass = 0.0,
@@ -70,7 +70,7 @@ def m2Au(double meters):
         Distance in [Au]
     """
 
-    return cf_m2Au(meters)
+    return cy_m2Au(meters)
 
 def Au2m(double astronomical_units):
     """ Convert Astronomical Units to Meters
@@ -86,7 +86,7 @@ def Au2m(double astronomical_units):
         Distance in [m]
     """
 
-    return cf_Au2m(astronomical_units)
+    return cy_Au2m(astronomical_units)
 
 def rads2days(double radians_per_second):
     """ Convert from frequency [rads s-1] to period [days]
@@ -102,7 +102,7 @@ def rads2days(double radians_per_second):
         Period in [days]
     """
 
-    return cf_rads2days(radians_per_second)
+    return cy_rads2days(radians_per_second)
 
 def days2rads(double days):
     """ Convert from period [days] to frequency [rads s-1]
@@ -118,7 +118,7 @@ def days2rads(double days):
         Frequency in [rads s-1]
     """
 
-    return cf_days2rads(days)
+    return cy_days2rads(days)
 
 def sec2myr(double seconds):
     """ Convert time from seconds to millions of Julian years (365.25 days each)
@@ -134,7 +134,7 @@ def sec2myr(double seconds):
         Time in [Myr]
     """
 
-    return cf_sec2myr(seconds)
+    return cy_sec2myr(seconds)
 
 def myr2sec(double myrs):
     """ Convert time from millions of Julian years (365.25 days each) to seconds
@@ -150,7 +150,7 @@ def myr2sec(double myrs):
         Time in [sec]
     """
 
-    return cf_myr2sec(myrs)
+    return cy_myr2sec(myrs)
 
 def orbital_motion2semi_a(
         double orbital_motion,
@@ -186,7 +186,7 @@ def orbital_motion2semi_a(
     if target_mass < 0.:
         raise ValueError('Target mass must be greater than or equal to zero.')
 
-    return cf_orbital_motion2semi_a(orbital_motion, host_mass, target_mass, G_to_use)
+    return cy_orbital_motion2semi_a(orbital_motion, host_mass, target_mass, G_to_use)
 
 def semi_a2orbital_motion(
         double semi_major_axis,
@@ -222,4 +222,4 @@ def semi_a2orbital_motion(
     if target_mass < 0.:
         raise ValueError('Target mass must be greater than or equal to zero.')
 
-    return cf_semi_a2orbital_motion(semi_major_axis, host_mass, target_mass, G_to_use)
+    return cy_semi_a2orbital_motion(semi_major_axis, host_mass, target_mass, G_to_use)

@@ -37,7 +37,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # =====================================================================================================================
 # Internal helpers for vectorized solving
 # =====================================================================================================================
-cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
+cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept:
     """Copy a contiguous 1-D float64 memoryview into a std::vector[double]."""
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
@@ -46,7 +46,7 @@ cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
         dst[i] = src[i]
 
 
-cdef object _double_vector_to_ndarray(vector[double]& src, tuple shape):
+cdef object cy_double_vector_to_ndarray(vector[double]& src, tuple shape):
     """Build a float64 ndarray (of the given shape) from a std::vector."""
     cdef Py_ssize_t n = <Py_ssize_t>src.size()
     cdef Py_ssize_t i
@@ -57,7 +57,7 @@ cdef object _double_vector_to_ndarray(vector[double]& src, tuple shape):
     return out.reshape(shape)
 
 
-cdef object _solve_luminosity(c_LuminosityBase* model, object mass):
+cdef object cy_solve_luminosity(c_LuminosityBase* model, object mass):
     """Solve luminosity for float and/or np.ndarray mass inputs.
 
     Returns a Python ``float`` for scalar mass, else a float64 ``np.ndarray`` (same shape).
@@ -71,9 +71,9 @@ cdef object _solve_luminosity(c_LuminosityBase* model, object mass):
 
     mass_arr = np.ascontiguousarray(mass, dtype=np.float64)
     mv = mass_arr.ravel()
-    _fill_vector(mv, vmass)
+    cy_fill_vector(mv, vmass)
     model.calc_luminosity_vectorize_mass(vmass, vout)
-    return _double_vector_to_ndarray(vout, mass_arr.shape)
+    return cy_double_vector_to_ndarray(vout, mass_arr.shape)
 
 
 # =====================================================================================================================
@@ -122,7 +122,7 @@ cdef class LuminosityBase(PhysicsBase):
         - Main-sequence mass-luminosity scaling (model specific).
         """
         self._check_ptr()
-        return _solve_luminosity(self._luminosity_ptr.get(), mass)
+        return cy_solve_luminosity(self._luminosity_ptr.get(), mass)
 
     def calc_luminosity_from_temperature(self, double temperature, double radius) -> float:
         """Stefan-Boltzmann luminosity [W] = 4*pi*R^2*sigma*T^4.
@@ -323,14 +323,14 @@ def fixed(mass, double luminosity=0.0):
     cdef c_LuminosityConfig cfg
     cfg.luminosity = luminosity
     cdef c_FixedLuminosity model = c_FixedLuminosity(cfg)
-    return _solve_luminosity(<c_LuminosityBase*>&model, mass)
+    return cy_solve_luminosity(<c_LuminosityBase*>&model, mass)
 
 
 def mass_to_luminosity(mass):
     """Luminosity for the MassToLuminosity model [W] (piecewise main-sequence relation)."""
     cdef c_LuminosityConfig cfg
     cdef c_MassToLuminosity model = c_MassToLuminosity(cfg)
-    return _solve_luminosity(<c_LuminosityBase*>&model, mass)
+    return cy_solve_luminosity(<c_LuminosityBase*>&model, mass)
 
 
 def power_law(mass, double coeff=1.0, double exponent=3.5):
@@ -339,4 +339,4 @@ def power_law(mass, double coeff=1.0, double exponent=3.5):
     cfg.power_law_coeff    = coeff
     cfg.power_law_exponent = exponent
     cdef c_PowerLawLuminosity model = c_PowerLawLuminosity(cfg)
-    return _solve_luminosity(<c_LuminosityBase*>&model, mass)
+    return cy_solve_luminosity(<c_LuminosityBase*>&model, mass)

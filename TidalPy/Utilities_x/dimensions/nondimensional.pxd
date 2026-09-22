@@ -17,7 +17,7 @@ cdef extern from "nondimensional_.hpp" nogil:
         )
 
 
-cdef void cf_build_nondimensional_scales(
+cdef void cy_build_nondimensional_scales(
     c_NonDimensionalScales* non_dim_scales_ptr,
     double mean_radius,
     double bulk_density

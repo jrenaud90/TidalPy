@@ -4,7 +4,7 @@
 from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 set_tidalpy_config_ptr(get_shared_config_address())
 
-cdef tuple c_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
+cdef tuple cy_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
     """Converts C++ struct `c_ModeStorage` to Python type."""
 
     cdef double mode = mode_storage_inst.mode
@@ -14,7 +14,7 @@ cdef tuple c_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
     cdef tuple result = (mode, mode_strength, n_coeff, o_coeff)
     return result
 
-cdef c_ModeStorage c_convert_to_mode_storage(tuple mode_storage_tuple):
+cdef c_ModeStorage cy_convert_to_mode_storage(tuple mode_storage_tuple):
     """Converts Python tuple to C++ struct `c_ModeStorage`."""
 
     if len(mode_storage_tuple) != 4:
@@ -73,7 +73,7 @@ cdef class ModeMap:
         cdef int16_t q = key[3]
         cdef c_Key4 c_key = c_Key4(l, m, p, q)
 
-        cdef c_ModeStorage mode_storage = c_convert_to_mode_storage(mode_storage_tuple)
+        cdef c_ModeStorage mode_storage = cy_convert_to_mode_storage(mode_storage_tuple)
 
         self.c_set(c_key, mode_storage)
     
@@ -92,7 +92,7 @@ cdef class ModeMap:
         if not found:
             raise KeyError(f"Can not find entry for key: ({key}).")
         
-        return c_convert_from_mode_storage(result_cinst)
+        return cy_convert_from_mode_storage(result_cinst)
 
     def __setitem__(self, tuple key, tuple value):
         self.set(key, value)
@@ -114,7 +114,7 @@ cdef class ModeMap:
             key = self._cinst.data[i].first
             value = self._cinst.data[i].second
 
-            yield ((key.a, key.b, key.c, key.d), c_convert_from_mode_storage(value))
+            yield ((key.a, key.b, key.c, key.d), cy_convert_from_mode_storage(value))
 
 
 cdef class UniqueFrequencyMap:

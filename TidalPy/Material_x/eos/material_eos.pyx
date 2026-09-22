@@ -293,7 +293,7 @@ _MATERIAL_KWARGS = (
     "shear_modulus_reference_temperature", "thermal_conductivity", "heat_capacity")
 
 
-cdef int _fill_material_config(c_MaterialEOSConfig& config, dict material) except -1:
+cdef int cy_fill_material_config(c_MaterialEOSConfig& config, dict material) except -1:
     for key in material:
         if key not in _MATERIAL_KWARGS:
             raise TypeError(f"unexpected material keyword argument {key!r}; expected one of {_MATERIAL_KWARGS}")
@@ -332,7 +332,7 @@ cdef class ConstantDensityEOS(MaterialEOSBase):
         # None keeps the C++ default reference temperature. The material keywords are those of
         # _MATERIAL_KWARGS (static moduli and viscosities, and the shear law).
         cdef c_MaterialEOSConfig config
-        _fill_material_config(config, material)
+        cy_fill_material_config(config, material)
         config.reference_density = reference_density
         config.thermal_expansion = thermal_expansion
         if reference_temperature is not None:
@@ -370,7 +370,7 @@ cdef class BirchMurnaghanEOS(MaterialEOSBase):
             **material):
         # None keeps the C++ default inversion settings and reference temperature.
         cdef c_MaterialEOSConfig config
-        _fill_material_config(config, material)
+        cy_fill_material_config(config, material)
         config.reference_density   = reference_density
         config.reference_bulk_modulus = reference_bulk_modulus
         config.bulk_modulus_derivative   = bulk_modulus_derivative
@@ -434,7 +434,7 @@ cdef class VinetEOS(MaterialEOSBase):
             **material):
         # None keeps the C++ default inversion settings and reference temperature.
         cdef c_MaterialEOSConfig config
-        _fill_material_config(config, material)
+        cy_fill_material_config(config, material)
         config.reference_density   = reference_density
         config.reference_bulk_modulus = reference_bulk_modulus
         config.bulk_modulus_derivative   = bulk_modulus_derivative
@@ -498,7 +498,7 @@ cdef class InterpolatedEOS(MaterialEOSBase):
             reference_temperature=None,
             **material):
         cdef c_MaterialEOSConfig config
-        _fill_material_config(config, material)
+        cy_fill_material_config(config, material)
         config.thermal_expansion = thermal_expansion
         if reference_temperature is not None:
             config.reference_temperature = <double>reference_temperature
@@ -552,6 +552,11 @@ MATERIAL_EOS_CONFIG_KEYS = frozenset({
     "shear_viscosity", "bulk_viscosity", "partial_melt"})
 
 
+def _same_model(str table_name, str model_name) -> bool:
+    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    return c_material_eos_model_from_name(table_name.lower().encode("utf-8")) == c_material_eos_model_from_name(model_name.lower().encode("utf-8"))
+
+
 def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
     """Build a material EOS model by name, returning the matching rich subclass.
 
@@ -583,7 +588,7 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
     """
     if config is None:
         # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
-        config = factory_defaults("material", MATERIAL_EOS_CONFIG_KEYS, model_name)
+        config = factory_defaults("material", MATERIAL_EOS_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, MATERIAL_EOS_CONFIG_KEYS, "material EOS")
     if config is None:
         config = {}

@@ -38,7 +38,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # =====================================================================================================================
 # Internal helpers for vectorized solving
 # =====================================================================================================================
-cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
+cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept:
     """Copy a contiguous 1-D float64 memoryview into a std::vector[double]."""
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
@@ -47,7 +47,7 @@ cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
         dst[i] = src[i]
 
 
-cdef object _complex_vector_to_ndarray(vector[cpp_complex[double]]& src, tuple shape):
+cdef object cy_complex_vector_to_ndarray(vector[cpp_complex[double]]& src, tuple shape):
     """Build a complex128 ndarray (of the given shape) from a std::vector."""
     cdef Py_ssize_t n = <Py_ssize_t>src.size()
     cdef Py_ssize_t i
@@ -58,7 +58,7 @@ cdef object _complex_vector_to_ndarray(vector[cpp_complex[double]]& src, tuple s
     return out.reshape(shape)
 
 
-cdef object _solve_complex_modulus(
+cdef object cy_solve_complex_modulus(
         c_RheologyBase* model, object modulus, object viscosity, object frequency):
     """Solve the complex modulus for float and/or ndarray inputs.
 
@@ -84,10 +84,10 @@ cdef object _solve_complex_modulus(
     if f_arr and not m_arr and not v_arr:
         freq_arr = np.ascontiguousarray(frequency, dtype=np.float64)
         mv = freq_arr.ravel()
-        _fill_vector(mv, vfreq)
+        cy_fill_vector(mv, vfreq)
         model.calc_complex_modulus_vectorize_frequency(
             <double>modulus, <double>viscosity, vfreq, vout)
-        return _complex_vector_to_ndarray(vout, freq_arr.shape)
+        return cy_complex_vector_to_ndarray(vout, freq_arr.shape)
 
     # Modulus and/or viscosity vary; frequency constant.
     if (m_arr or v_arr) and not f_arr:
@@ -96,11 +96,11 @@ cdef object _solve_complex_modulus(
             np.asarray(viscosity, dtype=np.float64))
         mod_c  = np.ascontiguousarray(mod_b)
         visc_c = np.ascontiguousarray(visc_b)
-        mv = mod_c.ravel();  _fill_vector(mv, vmod)
-        mv = visc_c.ravel(); _fill_vector(mv, vvisc)
+        mv = mod_c.ravel();  cy_fill_vector(mv, vmod)
+        mv = visc_c.ravel(); cy_fill_vector(mv, vvisc)
         model.calc_complex_modulus_vectorize_modulus(
             vmod, vvisc, <double>frequency, vout)
-        return _complex_vector_to_ndarray(vout, mod_c.shape)
+        return cy_complex_vector_to_ndarray(vout, mod_c.shape)
 
     # General case: broadcast all three and vary everything.
     f_b, m_b, v_b = np.broadcast_arrays(
@@ -110,11 +110,11 @@ cdef object _solve_complex_modulus(
     f_c = np.ascontiguousarray(f_b)
     m_c = np.ascontiguousarray(m_b)
     v_c = np.ascontiguousarray(v_b)
-    mv = f_c.ravel(); _fill_vector(mv, vfreq)
-    mv = m_c.ravel(); _fill_vector(mv, vmod)
-    mv = v_c.ravel(); _fill_vector(mv, vvisc)
+    mv = f_c.ravel(); cy_fill_vector(mv, vfreq)
+    mv = m_c.ravel(); cy_fill_vector(mv, vmod)
+    mv = v_c.ravel(); cy_fill_vector(mv, vvisc)
     model.calc_complex_modulus_vectorize_all(vmod, vvisc, vfreq, vout)
-    return _complex_vector_to_ndarray(vout, f_c.shape)
+    return cy_complex_vector_to_ndarray(vout, f_c.shape)
 
 
 # =====================================================================================================================
@@ -194,11 +194,11 @@ cdef class RheologyBase(PhysicsBase):
         cdef double[::1] mv
         mod_c  = np.ascontiguousarray(modulus,    dtype=np.float64).ravel()
         visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        mv = mod_c;  _fill_vector(mv, vmod)
-        mv = visc_c; _fill_vector(mv, vvisc)
+        mv = mod_c;  cy_fill_vector(mv, vmod)
+        mv = visc_c; cy_fill_vector(mv, vvisc)
         self._rheology_ptr.get().calc_complex_modulus_vectorize_modulus(
             vmod, vvisc, frequency, vout)
-        return _complex_vector_to_ndarray(vout, mod_c.shape)
+        return cy_complex_vector_to_ndarray(vout, mod_c.shape)
 
     def calc_complex_modulus_vectorize_frequency(self, double modulus,
                                                  double viscosity, frequency):
@@ -223,10 +223,10 @@ cdef class RheologyBase(PhysicsBase):
         cdef vector[cpp_complex[double]] vout
         cdef double[::1] mv
         freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
-        mv = freq_c; _fill_vector(mv, vfreq)
+        mv = freq_c; cy_fill_vector(mv, vfreq)
         self._rheology_ptr.get().calc_complex_modulus_vectorize_frequency(
             modulus, viscosity, vfreq, vout)
-        return _complex_vector_to_ndarray(vout, freq_c.shape)
+        return cy_complex_vector_to_ndarray(vout, freq_c.shape)
 
     def calc_complex_modulus_vectorize_all(self, modulus, viscosity,
                                            frequency):
@@ -249,12 +249,12 @@ cdef class RheologyBase(PhysicsBase):
         mod_c  = np.ascontiguousarray(modulus,      dtype=np.float64).ravel()
         visc_c = np.ascontiguousarray(viscosity,   dtype=np.float64).ravel()
         freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
-        mv = mod_c;  _fill_vector(mv, vmod)
-        mv = visc_c; _fill_vector(mv, vvisc)
-        mv = freq_c; _fill_vector(mv, vfreq)
+        mv = mod_c;  cy_fill_vector(mv, vmod)
+        mv = visc_c; cy_fill_vector(mv, vvisc)
+        mv = freq_c; cy_fill_vector(mv, vfreq)
         self._rheology_ptr.get().calc_complex_modulus_vectorize_all(
             vmod, vvisc, vfreq, vout)
-        return _complex_vector_to_ndarray(vout, mod_c.shape)
+        return cy_complex_vector_to_ndarray(vout, mod_c.shape)
 
 
 # =====================================================================================================================
@@ -510,6 +510,11 @@ cdef class Sundberg(RheologyBase):
 RHEOLOGY_CONFIG_KEYS = frozenset({"alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac"})
 
 
+def _same_model(str table_name, str model_name) -> bool:
+    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    return c_rheology_model_from_name(table_name.lower().encode("utf-8")) == c_rheology_model_from_name(model_name.lower().encode("utf-8"))
+
+
 def make_rheology(str model_name, dict config=None):
     """Build a rheology model from a (case-insensitive) name and config dict.
 
@@ -537,7 +542,7 @@ def make_rheology(str model_name, dict config=None):
     """
     if config is None:
         # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
-        config = factory_defaults("shear_rheology", RHEOLOGY_CONFIG_KEYS, model_name)
+        config = factory_defaults("shear_rheology", RHEOLOGY_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, RHEOLOGY_CONFIG_KEYS, "rheology")
     if config is None:
         config = {}
@@ -620,21 +625,21 @@ def elastic(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Elastic model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Elastic model = c_Elastic(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
 def viscous(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Viscous (Newton) model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Viscous model = c_Viscous(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
 def maxwell(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Maxwell model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Maxwell model = c_Maxwell(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
 def voigt(
@@ -648,7 +653,7 @@ def voigt(
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Voigt model = c_Voigt(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
 def burgers(
@@ -662,7 +667,7 @@ def burgers(
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Burgers model = c_Burgers(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
 def andrade(
@@ -676,7 +681,7 @@ def andrade(
     cfg.alpha = alpha
     cfg.zeta  = zeta
     cdef c_Andrade model = c_Andrade(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
 def sundberg(
@@ -694,4 +699,4 @@ def sundberg(
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Sundberg model = c_Sundberg(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)

@@ -54,7 +54,7 @@ _LEVEL_MAP: dict = {
 }
 
 
-cdef int _resolve_level(object level) except -1:
+cdef int cy_resolve_level(object level) except -1:
     """Convert a level name (case-insensitive) or an integer 0 to 6 into the spdlog level integer."""
     if isinstance(level, str):
         key = level.lower()
@@ -102,8 +102,8 @@ def init_logger(dict config = None):
     if config is None:
         config = {}
 
-    c_config.console_level = _resolve_level(config.get("console_level", "info"))
-    c_config.file_level    = _resolve_level(config.get("file_level", "info"))
+    c_config.console_level = cy_resolve_level(config.get("console_level", "info"))
+    c_config.file_level    = cy_resolve_level(config.get("file_level", "info"))
     c_config.log_to_file   = True if config.get("log_to_file", False) else False
 
     log_path = config.get("log_file_path", "")
@@ -122,7 +122,7 @@ def set_log_level(level):
         Level name (``"trace"``, ``"debug"``, ``"info"``, ``"warning"``/``"warn"``, ``"error"``,
         ``"critical"``, ``"off"``; case-insensitive) or the equivalent integer 0 to 6.
     """
-    cdef int int_level = _resolve_level(level)
+    cdef int int_level = cy_resolve_level(level)
     cy_set_log_level(int_level)
 
 
@@ -144,7 +144,7 @@ def log_message(level, str message):
     message : str
         Text to log.
     """
-    cdef int c_level = _resolve_level(level)
+    cdef int c_level = cy_resolve_level(level)
     cy_log_message(c_level, message.encode("utf-8"))
 
 

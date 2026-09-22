@@ -1,37 +1,37 @@
 # distutils: language = c++
 
-cdef double cf_m2Au(
+cdef double cy_m2Au(
     double meters
     ) noexcept nogil
 
-cdef double cf_Au2m(
+cdef double cy_Au2m(
     double astronomical_units
     ) noexcept nogil
 
-cdef double cf_rads2days(
+cdef double cy_rads2days(
     double radians_per_second
     ) noexcept nogil
 
-cdef double cf_days2rads(
+cdef double cy_days2rads(
     double days
     ) noexcept nogil
 
-cdef double cf_sec2myr(
+cdef double cy_sec2myr(
     double seconds
     ) noexcept nogil
 
-cdef double cf_myr2sec(
+cdef double cy_myr2sec(
     double myrs
     ) noexcept nogil
 
-cdef double cf_orbital_motion2semi_a(
+cdef double cy_orbital_motion2semi_a(
     double orbital_motion,
     double host_mass,
     double target_mass = *,
     double G_to_use = *
     ) noexcept nogil
 
-cdef double cf_semi_a2orbital_motion(
+cdef double cy_semi_a2orbital_motion(
     double semi_major_axis,
     double host_mass,
     double target_mass = *,

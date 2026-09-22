@@ -72,7 +72,7 @@ cdef extern from "tide_collapse_.hpp" nogil:
 # =====================================================================================================================
 # Helpers
 # =====================================================================================================================
-cdef int _resolve_obliquity_truncation(object obliquity_truncation) except? -999:
+cdef int cy_resolve_obliquity_truncation(object obliquity_truncation) except? -999:
     """Normalize the obliquity truncation (string 'gen'/'off' or int) to the C++ integer."""
     cdef int value = 0
     if isinstance(obliquity_truncation, str):
@@ -95,7 +95,7 @@ cdef int _resolve_obliquity_truncation(object obliquity_truncation) except? -999
     return value
 
 
-cdef c_TideModelConfig _build_tide_config(dict config) except *:
+cdef c_TideModelConfig cy_build_tide_config(dict config) except *:
     """Build a c_TideModelConfig from optional per-degree list keys (indexed from l=2)."""
     cdef c_TideModelConfig cfg
     if config is None:
@@ -106,8 +106,8 @@ cdef c_TideModelConfig _build_tide_config(dict config) except *:
     if "fixed_q" in config:
         for value in config["fixed_q"]:
             cfg.fixed_q.push_back(<double>value)
-    if "fixed_dt" in config:
-        for value in config["fixed_dt"]:
+    if "fixed_dt_s" in config:
+        for value in config["fixed_dt_s"]:
             cfg.fixed_dt.push_back(<double>value)
     return cfg
 
@@ -161,7 +161,7 @@ def collapse_global_tides(
             - ``"ctl_q"``/``"fixed_dt_q"``
         The ``"rheology"`` model is not supported here (use the world's ``calc_tides``).
     tide_config : dict, optional
-        Per-degree model parameters (``fixed_k``, ``fixed_q``, ``fixed_dt`` lists indexed
+        Per-degree model parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s] lists indexed
         from degree l = 2).
     min_degree_l, max_degree_l : int
         Tidal harmonic degree range (2..10).
@@ -182,14 +182,14 @@ def collapse_global_tides(
     NotImplementedError
         If the rheology model is requested, or a truncation/degree is unsupported.
     """
-    cdef int i_obliquity_truncation = _resolve_obliquity_truncation(obliquity_truncation)
+    cdef int i_obliquity_truncation = cy_resolve_obliquity_truncation(obliquity_truncation)
 
     if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
         raise NotImplementedError(
             f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
             'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
 
-    cdef c_TideModelConfig cfg = _build_tide_config(tide_config)
+    cdef c_TideModelConfig cfg = cy_build_tide_config(tide_config)
     cdef c_TideModel model_enum = c_tide_model_from_name(tide_model.encode("utf-8"))
     if model_enum == c_TideModel.Rheology:
         raise NotImplementedError(

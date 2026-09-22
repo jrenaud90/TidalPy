@@ -3,8 +3,9 @@
 """Cython and Python wrappers for TidalPy's global (1D) tidal dissipation models.
 
 A tide model converts a per-mode Love number into the dissipation multiplier -Im[k_l] used by the
-global mode collapse. Per-degree fixed parameters (fixed_k, fixed_q, fixed_dt) are supplied as lists
-indexed from degree l = 2; supported degrees are l = 2..10.
+global mode collapse. Per-degree fixed parameters (fixed_k, fixed_q, fixed_dt_s) are supplied as lists
+indexed from degree l = 2; supported degrees are l = 2..10. The config key carries the unit suffix; the
+constructor keyword and the C++ field stay ``fixed_dt``.
 """
 
 from libcpp.string cimport string
@@ -33,7 +34,7 @@ cdef int C_TIDE_MAX_DEGREE = 10
 # =====================================================================================================================
 # Config helpers
 # =====================================================================================================================
-cdef vector[double] _to_double_vector(object values) except *:
+cdef vector[double] cy_to_double_vector(object values) except *:
     """Convert a Python iterable of floats (indexed from l=2) into a std::vector[double]."""
     cdef vector[double] out
     if values is None:
@@ -43,17 +44,17 @@ cdef vector[double] _to_double_vector(object values) except *:
     return out
 
 
-cdef c_TideModelConfig _build_tide_config(dict config) except *:
+cdef c_TideModelConfig cy_build_tide_config(dict config) except *:
     """Build a c_TideModelConfig from a config dict with optional per-degree list keys."""
     cdef c_TideModelConfig cfg
     if config is None:
         return cfg
     if "fixed_k" in config:
-        cfg.fixed_k = _to_double_vector(config["fixed_k"])
+        cfg.fixed_k = cy_to_double_vector(config["fixed_k"])
     if "fixed_q" in config:
-        cfg.fixed_q = _to_double_vector(config["fixed_q"])
-    if "fixed_dt" in config:
-        cfg.fixed_dt = _to_double_vector(config["fixed_dt"])
+        cfg.fixed_q = cy_to_double_vector(config["fixed_q"])
+    if "fixed_dt_s" in config:
+        cfg.fixed_dt = cy_to_double_vector(config["fixed_dt_s"])
     return cfg
 
 
@@ -134,8 +135,8 @@ cdef class FixedQTide(TideBase):
 
     def __init__(self, object fixed_k=None, object fixed_q=None):
         cdef c_TideModelConfig config
-        config.fixed_k = _to_double_vector(fixed_k)
-        config.fixed_q = _to_double_vector(fixed_q)
+        config.fixed_k = cy_to_double_vector(fixed_k)
+        config.fixed_q = cy_to_double_vector(fixed_q)
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.FixedQ, config)
         self._fixedq_ptr = <c_FixedQTide*>ptr.get()
         self._tide_ptr   = move(ptr)
@@ -163,8 +164,8 @@ cdef class FixedLagTide(TideBase):
 
     def __init__(self, object fixed_k=None, object fixed_dt=None):
         cdef c_TideModelConfig config
-        config.fixed_k  = _to_double_vector(fixed_k)
-        config.fixed_dt = _to_double_vector(fixed_dt)
+        config.fixed_k  = cy_to_double_vector(fixed_k)
+        config.fixed_dt = cy_to_double_vector(fixed_dt)
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.FixedLag, config)
         self._fixedlag_ptr = <c_FixedLagTide*>ptr.get()
         self._tide_ptr     = move(ptr)
@@ -192,9 +193,9 @@ cdef class CTLQTide(TideBase):
 
     def __init__(self, object fixed_k=None, object fixed_dt=None, object fixed_q=None):
         cdef c_TideModelConfig config
-        config.fixed_k  = _to_double_vector(fixed_k)
-        config.fixed_dt = _to_double_vector(fixed_dt)
-        config.fixed_q  = _to_double_vector(fixed_q)
+        config.fixed_k  = cy_to_double_vector(fixed_k)
+        config.fixed_dt = cy_to_double_vector(fixed_dt)
+        config.fixed_q  = cy_to_double_vector(fixed_q)
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.CTLQ, config)
         self._ctlq_ptr = <c_CTLQTide*>ptr.get()
         self._tide_ptr = move(ptr)
@@ -223,7 +224,12 @@ cdef class CTLQTide(TideBase):
 # Factory
 # =====================================================================================================================
 # Every config key some tide model reads; make_tide rejects anything else.
-TIDE_CONFIG_KEYS = frozenset({"fixed_k", "fixed_q", "fixed_dt"})
+TIDE_CONFIG_KEYS = frozenset({"fixed_k", "fixed_q", "fixed_dt_s"})
+
+
+def _same_model(str table_name, str model_name) -> bool:
+    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    return c_tide_model_from_name(table_name.lower().encode("utf-8")) == c_tide_model_from_name(model_name.lower().encode("utf-8"))
 
 
 def make_tide(str model_name, dict config=None) -> TideBase:
@@ -238,7 +244,7 @@ def make_tide(str model_name, dict config=None) -> TideBase:
           - ``"ctl"`` / ``"fixed_dt"``
           - ``"ctl_q"`` / ``"fixed_dt_q"``
     config : dict, optional
-        Per-degree model parameters (``fixed_k``, ``fixed_q``, ``fixed_dt`` lists indexed
+        Per-degree model parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s] lists indexed
         from degree l = 2); absent keys default to zero / the C++ defaults.
 
     Returns
@@ -250,13 +256,13 @@ def make_tide(str model_name, dict config=None) -> TideBase:
     ------
     ValueError
         If the model name is unknown, or if ``config`` holds a key other than ``fixed_k``, ``fixed_q``,
-        and ``fixed_dt``.
+        and ``fixed_dt_s``.
     """
     if config is None:
         # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
-        config = factory_defaults("tides", TIDE_CONFIG_KEYS, model_name)
+        config = factory_defaults("tides", TIDE_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, TIDE_CONFIG_KEYS, "tide")
-    cdef c_TideModelConfig cfg = _build_tide_config(config)
+    cdef c_TideModelConfig cfg = cy_build_tide_config(config)
     cdef c_TideModel model = c_tide_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_TideBase] ptr = c_find_tide(model, cfg)
 

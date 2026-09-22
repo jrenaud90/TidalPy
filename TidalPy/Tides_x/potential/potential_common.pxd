@@ -41,8 +41,8 @@ cdef class ModeMap:
     cdef cpp_bool c_get(self, c_ModeStorage& result, c_Key4& key) noexcept nogil
 
 
-cdef tuple c_convert_from_mode_storage(c_ModeStorage mode_storage_inst)
-cdef c_ModeStorage c_convert_to_mode_storage(tuple mode_storage_tuple)
+cdef tuple cy_convert_from_mode_storage(c_ModeStorage mode_storage_inst)
+cdef c_ModeStorage cy_convert_to_mode_storage(tuple mode_storage_tuple)
 
 
 cdef class UniqueFrequencyMap:

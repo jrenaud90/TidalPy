@@ -37,7 +37,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # =====================================================================================================================
 # Internal helpers for vectorized solving
 # =====================================================================================================================
-cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
+cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept:
     """Copy a contiguous 1-D float64 memoryview into a std::vector[double]."""
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
@@ -46,7 +46,7 @@ cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
         dst[i] = src[i]
 
 
-cdef object _double_vector_to_ndarray(vector[double]& src, tuple shape):
+cdef object cy_double_vector_to_ndarray(vector[double]& src, tuple shape):
     """Build a float64 ndarray (of the given shape) from a std::vector."""
     cdef Py_ssize_t n = <Py_ssize_t>src.size()
     cdef Py_ssize_t i
@@ -57,7 +57,7 @@ cdef object _double_vector_to_ndarray(vector[double]& src, tuple shape):
     return out.reshape(shape)
 
 
-cdef void _build_isotopes(
+cdef void cy_build_isotopes(
         object heat_production,
         object half_lives,
         object mass_fracs,
@@ -91,7 +91,7 @@ cdef void _build_isotopes(
         dst.push_back(c_Isotope(nm, a_hpr[i], a_half[i], a_frac[i], a_conc[i]))
 
 
-cdef object _isotopes_to_arrays(const vector[c_Isotope]& isotopes):
+cdef object cy_isotopes_to_arrays(const vector[c_Isotope]& isotopes):
     """Extract (heat_production, half_lives, mass_fracs, concentrations, names).
 
     The four numeric outputs are float64 ndarrays; ``names`` is a list of str.
@@ -116,7 +116,7 @@ cdef object _isotopes_to_arrays(const vector[c_Isotope]& isotopes):
     return hpr, half, frac, conc, names
 
 
-cdef object _solve_heating(c_RadiogenicsBase* model, object time, object mass):
+cdef object cy_solve_heating(c_RadiogenicsBase* model, object time, object mass):
     """Solve radiogenic heating for float and/or ndarray inputs.
 
     Picks the most specific C++ vectorized routine for the input pattern. Returns a Python ``float`` for
@@ -137,17 +137,17 @@ cdef object _solve_heating(c_RadiogenicsBase* model, object time, object mass):
     if t_arr and not m_arr:
         time_arr = np.ascontiguousarray(time, dtype=np.float64)
         mv = time_arr.ravel()
-        _fill_vector(mv, vtime)
+        cy_fill_vector(mv, vtime)
         model.calc_heating_vectorize_time(vtime, <double>mass, vout)
-        return _double_vector_to_ndarray(vout, time_arr.shape)
+        return cy_double_vector_to_ndarray(vout, time_arr.shape)
 
     # Mass varies; time constant.
     if m_arr and not t_arr:
         mass_arr = np.ascontiguousarray(mass, dtype=np.float64)
         mv = mass_arr.ravel()
-        _fill_vector(mv, vmass)
+        cy_fill_vector(mv, vmass)
         model.calc_heating_vectorize_mass(<double>time, vmass, vout)
-        return _double_vector_to_ndarray(vout, mass_arr.shape)
+        return cy_double_vector_to_ndarray(vout, mass_arr.shape)
 
     # General case: broadcast both and vary everything.
     t_b, m_b = np.broadcast_arrays(
@@ -155,10 +155,10 @@ cdef object _solve_heating(c_RadiogenicsBase* model, object time, object mass):
         np.asarray(mass, dtype=np.float64))
     t_c = np.ascontiguousarray(t_b)
     m_c = np.ascontiguousarray(m_b)
-    mv = t_c.ravel(); _fill_vector(mv, vtime)
-    mv = m_c.ravel(); _fill_vector(mv, vmass)
+    mv = t_c.ravel(); cy_fill_vector(mv, vtime)
+    mv = m_c.ravel(); cy_fill_vector(mv, vmass)
     model.calc_heating_vectorize_all(vtime, vmass, vout)
-    return _double_vector_to_ndarray(vout, t_c.shape)
+    return cy_double_vector_to_ndarray(vout, t_c.shape)
 
 
 # =====================================================================================================================
@@ -228,9 +228,9 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef vector[double] vout
         cdef double[::1] mv
         time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
-        mv = time_c; _fill_vector(mv, vtime)
+        mv = time_c; cy_fill_vector(mv, vtime)
         self._radiogenics_ptr.get().calc_heating_vectorize_time(vtime, mass, vout)
-        return _double_vector_to_ndarray(vout, time_c.shape)
+        return cy_double_vector_to_ndarray(vout, time_c.shape)
 
     def calc_heating_vectorize_mass(self, double time, mass):
         """Radiogenic heating over a mass sweep at constant time.
@@ -252,9 +252,9 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef vector[double] vout
         cdef double[::1] mv
         mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
-        mv = mass_c; _fill_vector(mv, vmass)
+        mv = mass_c; cy_fill_vector(mv, vmass)
         self._radiogenics_ptr.get().calc_heating_vectorize_mass(time, vmass, vout)
-        return _double_vector_to_ndarray(vout, mass_c.shape)
+        return cy_double_vector_to_ndarray(vout, mass_c.shape)
 
     def calc_heating_vectorize_all(self, time, mass):
         """Radiogenic heating over element-wise (time, mass) pairs.
@@ -275,10 +275,10 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef double[::1] mv
         time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
         mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
-        mv = time_c; _fill_vector(mv, vtime)
-        mv = mass_c; _fill_vector(mv, vmass)
+        mv = time_c; cy_fill_vector(mv, vtime)
+        mv = mass_c; cy_fill_vector(mv, vmass)
         self._radiogenics_ptr.get().calc_heating_vectorize_all(vtime, vmass, vout)
-        return _double_vector_to_ndarray(vout, time_c.shape)
+        return cy_double_vector_to_ndarray(vout, time_c.shape)
 
 
 # =====================================================================================================================
@@ -334,7 +334,7 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
             double ref_time=0.0,
             names=None):
         cdef c_RadiogenicsConfig config
-        _build_isotopes(
+        cy_build_isotopes(
             heat_production,
             half_lives,
             mass_fracs,
@@ -382,31 +382,31 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
     def isotope_names(self):
         """Per-isotope labels (list of str)."""
         self._check_ptr()
-        return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[4]
+        return cy_isotopes_to_arrays(self._isotope_ptr.get_isotopes())[4]
 
     @property
     def heat_production(self):
         """Per-isotope specific heat production rate [W/kg]."""
         self._check_ptr()
-        return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[0]
+        return cy_isotopes_to_arrays(self._isotope_ptr.get_isotopes())[0]
 
     @property
     def half_lives(self):
         """Per-isotope half life [s]."""
         self._check_ptr()
-        return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[1]
+        return cy_isotopes_to_arrays(self._isotope_ptr.get_isotopes())[1]
 
     @property
     def mass_fracs(self):
         """Per-isotope isotopic mass fraction [kg/kg]."""
         self._check_ptr()
-        return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[2]
+        return cy_isotopes_to_arrays(self._isotope_ptr.get_isotopes())[2]
 
     @property
     def concentrations(self):
         """Per-isotope element concentration [kg/kg]."""
         self._check_ptr()
-        return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[3]
+        return cy_isotopes_to_arrays(self._isotope_ptr.get_isotopes())[3]
 
 
 # =====================================================================================================================
@@ -497,7 +497,7 @@ def isotope_dataset(str name):
         If the dataset name is not a built-in (from the C++ catalog).
     """
     cdef c_IsotopeDataset ds = c_get_isotope_dataset(name.encode("utf-8"))
-    hpr, half, frac, conc, names = _isotopes_to_arrays(ds.isotopes)
+    hpr, half, frac, conc, names = cy_isotopes_to_arrays(ds.isotopes)
     return {
         "heat_production_w_kg": list(hpr),
         "half_lives_s":         list(half),
@@ -582,6 +582,11 @@ RADIOGENICS_CONFIG_KEYS = frozenset({
     "heat_production_w_kg", "half_lives_s", "mass_fracs", "concentrations", "isotope_names"})
 
 
+def _same_model(str table_name, str model_name) -> bool:
+    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    return c_radiogenics_model_from_name(table_name.lower().encode("utf-8")) == c_radiogenics_model_from_name(model_name.lower().encode("utf-8"))
+
+
 def make_radiogenics(str model_name, dict config=None):
     """Build a radiogenics model from a (case-insensitive) name and config dict.
 
@@ -594,7 +599,9 @@ def make_radiogenics(str model_name, dict config=None):
         either explicit MKS arrays (``heat_production_w_kg``, ``half_lives_s``, ``mass_fracs``,
         ``concentrations``, with optional ``isotope_names`` and ``ref_time_s``) or a named or inline
         dataset under ``isotopes``, whose half lives and reference times are in Myr and are converted to
-        seconds. For ``fixed``: ``fixed_heat_production_w_kg``, ``average_half_life_s``, ``ref_time_s``.
+        seconds. For ``fixed``: ``fixed_heat_production_w_kg``, ``average_half_life_s``, ``ref_time_s``. A
+        model ignores the other model's keys, so a table merged family-wide (a world's layer table over its
+        material defaults) builds the model it names from that model's keys alone.
 
     Returns
     -------
@@ -609,13 +616,16 @@ def make_radiogenics(str model_name, dict config=None):
     """
     if config is None:
         # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
-        config = factory_defaults("radiogenics", RADIOGENICS_CONFIG_KEYS, model_name)
+        config = factory_defaults("radiogenics", RADIOGENICS_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, RADIOGENICS_CONFIG_KEYS, "radiogenics")
     if config is None:
         config = {}
 
     cdef c_RadiogenicsConfig cfg
     cdef c_IsotopeDataset ds
+
+    # An unknown name raises ValueError through except +.
+    cdef c_RadiogenicsModel model = c_radiogenics_model_from_name(model_name.encode("utf-8"))
 
     # Fixed-model scalars. The default-constructed config carries the C++ defaults; only override what
     # the caller supplies.
@@ -626,27 +636,29 @@ def make_radiogenics(str model_name, dict config=None):
     if "ref_time_s" in config:
         cfg.ref_time = config["ref_time_s"]
 
-    # Isotope-model data. A built-in dataset name resolves straight from the C++ catalog (already MKS);
-    # everything else goes through the Python resolver, which converts Myr to seconds where needed.
+    # Isotope-model data, read only for the isotope model: a config merged family-wide (the world builder's
+    # material defaults under a layer's own table) can carry a dataset next to a fixed model, and a dataset's
+    # reference time must not become the fixed rate's. A built-in dataset name resolves straight from the C++
+    # catalog (already MKS); everything else goes through the Python resolver, which converts Myr to seconds
+    # where needed.
     isotopes = config.get("isotopes", None)
     cdef cpp_bool built_in = (
         isinstance(isotopes, str)
         and isotopes.lower() in {name.decode("utf-8") for name in c_isotope_dataset_names()}
     )
-    if built_in:
-        ds = c_get_isotope_dataset(isotopes.encode("utf-8"))
-        cfg.isotopes   = ds.isotopes
-        cfg.ref_time = ds.ref_time
-    else:
-        hpr, half_lives, mass_fracs, concentrations, names, iso_ref = \
-            _resolve_isotope_config(config)
-        if hpr is not None:
-            _build_isotopes(hpr, half_lives, mass_fracs, concentrations, names, cfg.isotopes)
-            if iso_ref is not None:
-                cfg.ref_time = iso_ref
+    if model == c_RadiogenicsModel.Isotope:
+        if built_in:
+            ds = c_get_isotope_dataset(isotopes.encode("utf-8"))
+            cfg.isotopes = ds.isotopes
+            cfg.ref_time = ds.ref_time
+        else:
+            hpr, half_lives, mass_fracs, concentrations, names, iso_ref = \
+                _resolve_isotope_config(config)
+            if hpr is not None:
+                cy_build_isotopes(hpr, half_lives, mass_fracs, concentrations, names, cfg.isotopes)
+                if iso_ref is not None:
+                    cfg.ref_time = iso_ref
 
-    # An unknown name raises ValueError through except +.
-    cdef c_RadiogenicsModel model = c_radiogenics_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_RadiogenicsBase] ptr = c_find_radiogenics(model, cfg)
 
     # Adopt the owning unique_ptr into the matching rich Python wrapper.
@@ -685,7 +697,7 @@ def off(time, mass):
     """Radiogenic heating for the Off model [W]; always zero."""
     cdef c_RadiogenicsConfig cfg
     cdef c_OffRadiogenics model = c_OffRadiogenics(cfg)
-    return _solve_heating(<c_RadiogenicsBase*>&model, time, mass)
+    return cy_solve_heating(<c_RadiogenicsBase*>&model, time, mass)
 
 
 def isotope(
@@ -703,7 +715,7 @@ def isotope(
     constant parameters (all the same length). ``names`` is optional.
     """
     cdef c_RadiogenicsConfig cfg
-    _build_isotopes(
+    cy_build_isotopes(
         heat_production,
         half_lives,
         mass_fracs,
@@ -712,7 +724,7 @@ def isotope(
         cfg.isotopes)
     cfg.ref_time = ref_time
     cdef c_IsotopeRadiogenics model = c_IsotopeRadiogenics(cfg)
-    return _solve_heating(<c_RadiogenicsBase*>&model, time, mass)
+    return cy_solve_heating(<c_RadiogenicsBase*>&model, time, mass)
 
 
 def fixed(
@@ -727,4 +739,4 @@ def fixed(
     cfg.average_half_life = average_half_life
     cfg.ref_time          = ref_time
     cdef c_FixedRadiogenics model = c_FixedRadiogenics(cfg)
-    return _solve_heating(<c_RadiogenicsBase*>&model, time, mass)
+    return cy_solve_heating(<c_RadiogenicsBase*>&model, time, mass)

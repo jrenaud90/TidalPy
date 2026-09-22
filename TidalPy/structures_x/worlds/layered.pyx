@@ -41,7 +41,7 @@ from TidalPy.Utilities_x.logging_x.logger import log_warning
 
 # Build the matching layer wrapper as a non-owning view onto a layer the world owns, dispatched by the C++
 # layer's concrete class id. The view keeps the world alive (see BaseLayer._view).
-cdef BaseLayer _wrap_layer_view(c_BaseLayer* ptr, object world):
+cdef BaseLayer cy_wrap_layer_view(c_BaseLayer* ptr, object world):
     cdef bytes class_name = c_layer_class_name(ptr.get_layer_class_id())
     if class_name == b"physics":
         return PhysicsLayer._view(<c_PhysicsLayer*>ptr, world)
@@ -61,7 +61,7 @@ STRESS_STRAIN_COMPONENTS = ("rr", "theta_theta", "phi_phi", "r_theta", "r_phi", 
 
 
 # Copy a C++ vector[double] into a new 1D float64 ndarray.
-cdef cnp.ndarray _vec_to_ndarray(const vector[double]& v):
+cdef cnp.ndarray cy_vec_to_ndarray(const vector[double]& v):
     cdef Py_ssize_t n = <Py_ssize_t>v.size()
     cdef cnp.ndarray out = np.empty(n, dtype=np.float64)
     cdef double[::1] mv
@@ -72,7 +72,7 @@ cdef cnp.ndarray _vec_to_ndarray(const vector[double]& v):
             mv[i] = v[i]
     return out
 
-cdef int _check_num_threads(int num_threads) except -1:
+cdef int cy_check_num_threads(int num_threads) except -1:
     """Raise ValueError unless ``num_threads`` is at least 1."""
     if num_threads < 1:
         raise ValueError(f"num_threads must be at least 1; got {num_threads}")
@@ -80,7 +80,7 @@ cdef int _check_num_threads(int num_threads) except -1:
 
 # Translate an integration-method name to the CyRK enum (string handling stays at the Cython boundary).
 # Case-insensitive; covers the explicit Runge-Kutta methods and the implicit, stiff ones.
-cdef ODEMethod _resolve_integration_method(str integration_method) except *:
+cdef ODEMethod cy_resolve_integration_method(str integration_method) except *:
     cdef str method_upper = integration_method.upper()
     if method_upper == 'DOP853':
         return ODEMethod.DOP853
@@ -99,7 +99,7 @@ cdef ODEMethod _resolve_integration_method(str integration_method) except *:
         "Supported: RK23, RK45, DOP853, BDF, LSODA, Radau.")
 
 
-cdef void _apply_love_solve_overrides(
+cdef void cy_apply_love_solve_overrides(
         c_LoveSolveConfig* cfg,
         object use_kamata,
         object nondimensionalize,
@@ -123,7 +123,7 @@ cdef void _apply_love_solve_overrides(
     if start_radius_tol is not None:
         cfg.start_radius_tol = <double>start_radius_tol
     if integration_method is not None:
-        cfg.integration_method = _resolve_integration_method(integration_method)
+        cfg.integration_method = cy_resolve_integration_method(integration_method)
     if rtol is not None:
         cfg.rtol = <double>rtol
     if atol is not None:
@@ -138,7 +138,7 @@ cdef void _apply_love_solve_overrides(
         cfg.max_ram_MB = <size_t>int(max_ram_MB)
 
 
-cdef int _resolve_solve_for(str solve_for) except? -999:
+cdef int cy_resolve_solve_for(str solve_for) except? -999:
     # Map a surface-boundary-condition name to the radial solver's bc_model integer
     # (same names as the standalone radial_solver's solve_for entries).
     cdef str name_lower = solve_for.lower()
@@ -152,7 +152,7 @@ cdef int _resolve_solve_for(str solve_for) except? -999:
         f"Unsupported solve_for: {solve_for}. Supported: 'tidal', 'loading', 'free'.")
 
 
-cdef void _set_solve_for(c_LoveSolveConfig* cfg, solve_for) except *:
+cdef void cy_set_solve_for(c_LoveSolveConfig* cfg, solve_for) except *:
     # Accept one boundary-condition name or a sequence of them, and write them onto the config in order. A
     # sequence produces one block of radial functions each, from a single integration.
     cdef list names
@@ -169,11 +169,11 @@ cdef void _set_solve_for(c_LoveSolveConfig* cfg, solve_for) except *:
     if len(set(name.lower() for name in names)) != len(names):
         raise ValueError(f"solve_for entries must be distinct; got {tuple(names)}.")
     for name in names:
-        models.push_back(_resolve_solve_for(name))
+        models.push_back(cy_resolve_solve_for(name))
     cfg.set_bc_models(models.data(), models.size())
 
 
-cdef int _resolve_love_method(str love_method) except? -999:
+cdef int cy_resolve_love_method(str love_method) except? -999:
     # Map a Love-number method name (or alias) to its c_LoveMethod index.
     cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
     if method == 5:
@@ -329,7 +329,7 @@ cdef class LayeredWorld(BaseWorld):
             self._layer_views = []
             self._layer_view_by_name = {}
             for i in range(n):
-                view = _wrap_layer_view(self._layered_ptr.get_layer(i), self)
+                view = cy_wrap_layer_view(self._layered_ptr.get_layer(i), self)
                 self._layer_views.append(view)
                 self._layer_view_by_name[view.name] = view
         return self._layer_views
@@ -511,7 +511,7 @@ cdef class LayeredWorld(BaseWorld):
         if slices_per_layer is not None:
             cfg.slices_per_layer = <size_t>int(slices_per_layer)
         if integration_method is not None:
-            cfg.integration_method = _resolve_integration_method(integration_method)
+            cfg.integration_method = cy_resolve_integration_method(integration_method)
         if rtol is not None:
             cfg.rtol = <double>rtol
         if atol is not None:
@@ -954,7 +954,8 @@ cdef class LayeredWorld(BaseWorld):
             ``NotImplementedError``.
         fixed_q, fixed_dt : float, optional
             Quality factor for ``'cpl'`` and time lag [s] for ``'ctl'``. Left unset, the ``[tides]`` config
-            values (``set_tide_config(love_fixed_q=..., love_fixed_dt=...)``) are used, then the attached tide
+            values (``set_tide_config(love_fixed_q=..., love_fixed_dt=...)``, the ``love_fixed_q`` and
+            ``love_fixed_dt_s`` keys of a world file) are used, then the attached tide
             model's fixed Q or time lag for this degree (``ValueError`` when none is available).
 
         Returns
@@ -977,9 +978,9 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_LoveSolveConfig cfg = self._layered_ptr.make_love_solve_config()
         cfg.frequency = frequency
         cfg.degree_l  = degree_l
-        _set_solve_for(&cfg, solve_for)
+        cy_set_solve_for(&cfg, solve_for)
         if love_method is not None:
-            cfg.love_method = _resolve_love_method(love_method)
+            cfg.love_method = cy_resolve_love_method(love_method)
         if fixed_q is not None:
             cfg.fixed_q = <double>fixed_q
         if fixed_dt is not None:
@@ -989,7 +990,7 @@ cdef class LayeredWorld(BaseWorld):
         cfg.max_step        = max_step
         cfg.verbose         = <cpp_bool>verbose
         cfg.warnings        = <cpp_bool>warnings
-        _apply_love_solve_overrides(
+        cy_apply_love_solve_overrides(
             &cfg, use_kamata, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
             max_num_steps, expected_size, max_ram_MB)
 
@@ -1042,14 +1043,14 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_LoveSolveConfig cfg
         cfg.frequency   = frequency
         cfg.degree_l    = degree_l
-        _set_solve_for(&cfg, solve_for)
-        cfg.love_method = _resolve_love_method(love_method)
+        cy_set_solve_for(&cfg, solve_for)
+        cfg.love_method = cy_resolve_love_method(love_method)
         cfg.core_model  = core_model
         cfg.starting_radius = starting_radius
         cfg.max_step        = max_step
         cfg.verbose         = <cpp_bool>verbose
         cfg.warnings        = <cpp_bool>warnings
-        _apply_love_solve_overrides(
+        cy_apply_love_solve_overrides(
             &cfg, use_kamata, nondimensionalize, start_radius_tol, integration_method, rtol, atol, scale_rtols,
             max_num_steps, expected_size, max_ram_MB)
 
@@ -1341,7 +1342,7 @@ cdef class LayeredWorld(BaseWorld):
         calling thread, over that many threads; the result is identical for any thread count. Keep the
         default inside a process pool.
         """
-        _check_num_threads(num_threads)
+        cy_check_num_threads(num_threads)
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
         cdef cnp.ndarray colat_arr = np.ascontiguousarray(colatitudes, dtype=np.float64)
         if radii_arr.shape[0] != colat_arr.shape[0]:
@@ -1419,7 +1420,7 @@ cdef class LayeredWorld(BaseWorld):
         - Linear superposition of the tidal modes; displacements follow the radial functions y1 (radial)
           and y3 (tangential) of each mode's radial solution.
         """
-        _check_num_threads(num_threads)
+        cy_check_num_threads(num_threads)
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(np.atleast_1d(radii), dtype=np.float64).ravel()
         cdef cnp.ndarray colat_arr = np.ascontiguousarray(np.atleast_1d(colatitudes), dtype=np.float64).ravel()
         cdef cnp.ndarray lon_arr   = np.ascontiguousarray(np.atleast_1d(longitudes), dtype=np.float64).ravel()
@@ -1531,7 +1532,7 @@ cdef class LayeredWorld(BaseWorld):
         """
         if not (return_stress or return_strain):
             raise ValueError("At least one of return_stress and return_strain must be True.")
-        _check_num_threads(num_threads)
+        cy_check_num_threads(num_threads)
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(np.atleast_1d(radii), dtype=np.float64).ravel()
         cdef cnp.ndarray colat_arr = np.ascontiguousarray(np.atleast_1d(colatitudes), dtype=np.float64).ravel()
         cdef cnp.ndarray lon_arr   = np.ascontiguousarray(np.atleast_1d(longitudes), dtype=np.float64).ravel()
@@ -1658,7 +1659,7 @@ cdef class LayeredWorld(BaseWorld):
         colatitude collapse has no per-point grid and always runs on one thread. Keep the default inside a
         process pool.
         """
-        _check_num_threads(num_threads)
+        cy_check_num_threads(num_threads)
         if not (0.0 <= colatitude_min < colatitude_max <= np.pi + 1.0e-12):
             raise ValueError("colatitude band must satisfy 0 <= colatitude_min < colatitude_max <= pi")
         cdef cpp_bool instantaneous = not orbit_averaged
@@ -1790,11 +1791,11 @@ cdef class LayeredWorld(BaseWorld):
                 values_ptr,
                 layer_totals_ptr)
 
-        cdef dict out = {'radii': _vec_to_ndarray(layout.radii),
-                         'colatitudes': _vec_to_ndarray(layout.colatitudes),
-                         'longitudes': _vec_to_ndarray(layout.longitudes)}
+        cdef dict out = {'radii': cy_vec_to_ndarray(layout.radii),
+                         'colatitudes': cy_vec_to_ndarray(layout.colatitudes),
+                         'longitudes': cy_vec_to_ndarray(layout.longitudes)}
         if instantaneous:
-            out['times'] = _vec_to_ndarray(layout.times)
+            out['times'] = cy_vec_to_ndarray(layout.times)
 
         if layout.all_spatial_summed:
             per_layer = layer_totals_arr.reshape(nlayers, ntimes)
