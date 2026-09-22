@@ -1,54 +1,182 @@
-# Lints TidalPy and runs the full test suite across every supported CPython on Ubuntu, macOS, and Windows.
+# Lints TidalPy and runs the test suite. Two suite sizes share one matrix:
+#
+#   reduced   the latest two CPythons on all three operating systems (6 legs)
+#   full      every supported CPython on all three operating systems (18 legs)
 #
 # TRIGGERS
-#   push                a commit whose message contains "run tests"   -> requires admin approval
-#   pull_request        any pull request, from anyone                 -> requires admin approval
-#   schedule            weekly dependency-drift check                 -> runs immediately
-#   workflow_dispatch   manual (already needs write access to click)  -> runs immediately
+#   pull_request                                    reduced   requires admin approval
+#   push, commit message says "run tests"           reduced   requires admin approval
+#   push, commit message says "run full suite"      full      requires admin approval
+#   PR comment saying "run tests"                   reduced   requires admin approval
+#   PR comment saying "run full suite"              full      requires admin approval
+#   schedule, weekly                                reduced   runs immediately
+#   workflow_dispatch                               your pick runs immediately
 #
-# The approval gate is the `approve-ci` job below. It is the only job bound to the `ci-approval` environment,
-# and every other job waits on it.
+# A push whose message says neither phrase starts nothing at all. Phrase matching is case insensitive, and
+# "run full suite" is checked first so a message carrying both phrases gets the full suite.
+
+
 name: Tests
 
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Which suite to run'
+        type: choice
+        options:
+          - reduced
+          - full
+        default: reduced
   pull_request:
   push:
+  issue_comment:
+    types: [created]
   schedule:
     - cron: '17 6 * * 1'
 
-# Supersede an earlier run of the same branch or pull request; a scheduled run has its own group and is never
-# cancelled by a later push.
+# Queue a superseding run behind the current one instead of cancelling it. GitHub keeps at most one run
+# pending per group, so a rapid series of commits collapses to the one running plus the newest one waiting.
 concurrency:
   group: tests-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 env:
   TIDALPY_TEST_MODE: 1
-  # The Python versions that install the optional burnman extra. Comparing the matrix value numerically does not
-  # work: "3.9" parses as 3.9, which is greater than 3.13, so a numeric test silently drops 3.9.
+  # The Python versions that install the optional burnman extra. Comparing the matrix value numerically does
+  # not work: "3.9" parses as 3.9, which is greater than 3.13, so a numeric test silently drops 3.9. Note that
+  # the reduced suite runs no version on this list, so burnman is exercised only by the full suite.
   BURNMAN_PYTHONS: '["3.9", "3.10", "3.11", "3.12"]'
+  FULL_PYTHONS: '["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]'
+  REDUCED_PYTHONS: '["3.13", "3.14"]'
 
 jobs:
-  # Holds the run until a required reviewer approves it. Skipped outright for schedule and workflow_dispatch,
-  # and for a push that did not ask for CI -- the jobs below tell those two cases apart by `result`.
-  approve-ci:
+  # Works out which suite was asked for and which commit to test, so nothing below has to re-derive it. The
+  # `if` keeps a runner from starting for the many events that are not a request to run tests.
+  decide:
     if: |
       github.event_name == 'pull_request' ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, 'run tests'))
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       (contains(github.event.head_commit.message, 'run tests') ||
+        contains(github.event.head_commit.message, 'run full suite'))) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       (contains(github.event.comment.body, 'run tests') ||
+        contains(github.event.comment.body, 'run full suite')))
 
-    name: Approve CI run
+    name: Decide suite
+    runs-on: ubuntu-latest
+    outputs:
+      suite: ${{ steps.pick.outputs.suite }}
+      pythons: ${{ steps.pick.outputs.pythons }}
+      checkout-ref: ${{ steps.pick.outputs.checkout-ref }}
+    steps:
+      # Commit messages and comment bodies are attacker-controlled text, so they reach the script through the
+      # environment rather than through `${{ }}` interpolation, which would splice them into the shell source.
+      - name: Pick the suite and the commit to test
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          DISPATCH_SUITE: ${{ inputs.suite }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          FULL_PYTHONS: ${{ env.FULL_PYTHONS }}
+          REDUCED_PYTHONS: ${{ env.REDUCED_PYTHONS }}
+        run: |
+          set -euo pipefail
+
+          # `contains` in the job `if` above is case insensitive, so the matching here is too. Lowercasing
+          # and matching with bash builtins keeps the attacker-controlled text out of any subprocess.
+          asks_for_full() {
+              [[ "${1,,}" == *'run full suite'* ]]
+          }
+
+          case "$EVENT" in
+              workflow_dispatch)
+                  suite="${DISPATCH_SUITE:-reduced}"
+                  ;;
+              push)
+                  if asks_for_full "$COMMIT_MESSAGE"; then suite=full; else suite=reduced; fi
+                  ;;
+              issue_comment)
+                  if asks_for_full "$COMMENT_BODY"; then suite=full; else suite=reduced; fi
+                  ;;
+              *)
+                  # pull_request and schedule.
+                  suite=reduced
+                  ;;
+          esac
+
+          if [ "$suite" = 'full' ]; then pythons="$FULL_PYTHONS"; else pythons="$REDUCED_PYTHONS"; fi
+
+          # An issue_comment run checks out the default branch by default, so the merge commit of the pull
+          # request has to be named explicitly. Every other event already points at what it should test.
+          if [ "$EVENT" = 'issue_comment' ]; then
+              checkout_ref="refs/pull/${PR_NUMBER}/merge"
+          else
+              checkout_ref="$GITHUB_SHA"
+          fi
+
+          echo "::notice::Running the ${suite} suite on ${checkout_ref} (Python ${pythons})."
+          {
+              echo "suite=${suite}"
+              echo "pythons=${pythons}"
+              echo "checkout-ref=${checkout_ref}"
+          } >> "$GITHUB_OUTPUT"
+
+  # A run started from a comment is not attached to the pull request in the GitHub interface, so without this
+  # whoever asked for it has no way to find it short of hunting through the Actions tab.
+  acknowledge-comment:
+    needs: decide
+    if: github.event_name == 'issue_comment'
+
+    name: Acknowledge comment
+    runs-on: ubuntu-latest
+    # A job-level block replaces the workflow-level permissions outright rather than adding to them.
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: React to the comment and link the run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          SUITE: ${{ needs.decide.outputs.suite }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # The reaction is a nicety; losing it should not fail the job or hold up the run.
+          gh api --silent -X POST "repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" \
+              -f content=rocket || echo "::warning::Could not add a reaction to the comment."
+
+          gh api --silent -X POST "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+              -f body="Queued the **${SUITE}** test suite, pending admin approval: ${RUN_URL}"
+
+  # Holds the run until a required reviewer approves it. Skipped for schedule and workflow_dispatch, which the
+  # jobs below tell apart from a rejection by inspecting `result`.
+  approve-ci:
+    needs: decide
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+
+    name: Approve ${{ needs.decide.outputs.suite }} suite
     runs-on: ubuntu-latest
     environment: ci-approval
     steps:
       - name: Approved
-        run: echo "Approved by ${{ github.actor }}; running the test suite."
+        run: echo "Approved; running the ${{ needs.decide.outputs.suite }} suite."
 
   lint-with-ruff:
-    needs: approve-ci
+    needs: [decide, approve-ci]
     # `!cancelled()` is what lets this job evaluate at all when `approve-ci` was skipped; without a status
     # function here, a skipped dependency skips the dependent unconditionally.
     if: |
@@ -64,6 +192,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
+          ref: ${{ needs.decide.outputs.checkout-ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -80,7 +209,7 @@ jobs:
         run: ruff check TidalPy/ --ignore F401,E402,E501 --select E,F
 
   test:
-    needs: approve-ci
+    needs: [decide, approve-ci]
     if: |
       !cancelled() && (
         needs.approve-ci.result == 'success' ||
@@ -90,25 +219,26 @@ jobs:
 
     name: Test on ${{ matrix.os-name }} (Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    # Building the extensions from source is slow, but a leg still going at two hours is stuck, not slow, and
+    # should not hold a runner for the six-hour default.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        # macos-latest is arm64, matching the toolchain cibuildwheel uses for the macOS wheels.
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        python-version: ${{ fromJSON(needs.decide.outputs.pythons) }}
         include:
           - {os: ubuntu-latest,  os-name: Ubuntu}
           - {os: macos-latest,   os-name: MacOS}
           - {os: windows-latest, os-name: Windows}
-        python-version:
-          - "3.9"
-          - "3.10"
-          - "3.11"
-          - "3.12"
-          - "3.13"
-          - "3.14"
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
+          ref: ${{ needs.decide.outputs.checkout-ref }}
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -129,7 +259,7 @@ jobs:
         if: ${{ !contains(fromJSON(env.BURNMAN_PYTHONS), matrix.python-version) }}
         run: python -m pip install -v .
 
-      # --capture=sys leaves file-descriptor output alone, so the C++ backend's spdlog messages still reach the
-      # log; pytest's default capture would swallow them.
+      # --capture=sys leaves file-descriptor output alone, so the spdlog messages from the C++ backend still
+      # reach the log; the default pytest capture would swallow them.
       - name: Run pytest
         run: pytest -n auto --capture=sys -v Tests/
