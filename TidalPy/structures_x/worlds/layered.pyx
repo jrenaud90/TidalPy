@@ -60,6 +60,20 @@ cdef extern from "world_tides_.hpp" nogil:
 STRESS_STRAIN_COMPONENTS = ("rr", "theta_theta", "phi_phi", "r_theta", "r_phi", "theta_phi")
 
 
+# Copy the first `n` values of a C++ vector[double] into a typed view, NaN-filling any tail. A solution's
+# profile vectors are filled point by point by interpolate_full_planet and can stop short of the radius array,
+# so the copy is bounded by both lengths.
+cdef void cy_fill_from_vec(double[::1] out, const vector[double]& source, Py_ssize_t n) noexcept nogil:
+    cdef Py_ssize_t i
+    cdef Py_ssize_t m = <Py_ssize_t>source.size()
+    if m > n:
+        m = n
+    for i in range(m):
+        out[i] = source[i]
+    for i in range(m, n):
+        out[i] = d_NAN
+
+
 # Copy a C++ vector[double] into a new 1D float64 ndarray.
 cdef cnp.ndarray cy_vec_to_ndarray(const vector[double]& v):
     cdef Py_ssize_t n = <Py_ssize_t>v.size()
@@ -567,6 +581,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef cnp.ndarray temperature_out = np.empty(n, dtype=np.float64)
         cdef cnp.ndarray heat_flow_out   = np.empty(n, dtype=np.float64)
         cdef size_t j
+        cdef Py_ssize_t num_points = <Py_ssize_t>n
         cdef size_t num_layers = self._layered_ptr.get_num_layers()
         cdef list layer_temperature      = []
         cdef list layer_heat_flow_in     = []
@@ -574,6 +589,16 @@ cdef class LayeredWorld(BaseWorld):
         cdef list layer_heating          = []
         cdef list layer_temperature_rate = []
         cdef list layer_radius_outer     = []
+        # Typed views, so the profiles are copied as doubles. Indexing the arrays as Python objects boxes every
+        # value and costs more than the whole structure integration at the default grid size.
+        cdef double[::1] radius_view
+        cdef double[::1] gravity_view
+        cdef double[::1] pressure_view
+        cdef double[::1] mass_view
+        cdef double[::1] moi_view
+        cdef double[::1] density_view
+        cdef double[::1] temperature_view
+        cdef double[::1] heat_flow_view
         if sol != NULL and self._layered_ptr.get_eos_solved():
             for j in range(num_layers):
                 layer_temperature.append(self._layered_ptr.get_layer_thermal()[j].temperature)
@@ -582,15 +607,35 @@ cdef class LayeredWorld(BaseWorld):
                 layer_heating.append(self._layered_ptr.get_layer_thermal()[j].heating)
                 layer_temperature_rate.append(self._layered_ptr.calc_layer_temperature_rate(j))
                 layer_radius_outer.append(self._layered_ptr.get_layer(j).get_radius_outer())
-            for j in range(n):
-                temperature_out[j] = sol.temperature_array_vec[j]
-                heat_flow_out[j]   = sol.heat_flow_array_vec[j]
-                radius_out[j]   = sol.radius_array_vec[j]
-                gravity_out[j]  = sol.gravity_array_vec[j]
-                pressure_out[j] = sol.pressure_array_vec[j]
-                mass_out[j]     = sol.mass_array_vec[j]
-                moi_out[j]      = sol.moi_array_vec[j]
-                density_out[j]  = sol.density_array_vec[j]
+            if num_points > 0:
+                radius_view      = radius_out
+                gravity_view     = gravity_out
+                pressure_view    = pressure_out
+                mass_view        = mass_out
+                moi_view         = moi_out
+                density_view     = density_out
+                temperature_view = temperature_out
+                heat_flow_view   = heat_flow_out
+                with nogil:
+                    cy_fill_from_vec(radius_view,      sol.radius_array_vec,      num_points)
+                    cy_fill_from_vec(gravity_view,     sol.gravity_array_vec,     num_points)
+                    cy_fill_from_vec(pressure_view,    sol.pressure_array_vec,    num_points)
+                    cy_fill_from_vec(mass_view,        sol.mass_array_vec,        num_points)
+                    cy_fill_from_vec(moi_view,         sol.moi_array_vec,         num_points)
+                    cy_fill_from_vec(density_view,     sol.density_array_vec,     num_points)
+                    cy_fill_from_vec(temperature_view, sol.temperature_array_vec, num_points)
+                    cy_fill_from_vec(heat_flow_view,   sol.heat_flow_array_vec,   num_points)
+        elif num_points > 0:
+            # No solution to report: the arrays come from np.empty, so say so rather than hand back whatever
+            # the allocator held.
+            radius_out[:]      = d_NAN
+            gravity_out[:]     = d_NAN
+            pressure_out[:]    = d_NAN
+            mass_out[:]        = d_NAN
+            moi_out[:]         = d_NAN
+            density_out[:]     = d_NAN
+            temperature_out[:] = d_NAN
+            heat_flow_out[:]   = d_NAN
 
         return {
             'success':          self._layered_ptr.get_eos_success(),
