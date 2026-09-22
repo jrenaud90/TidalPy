@@ -17,7 +17,7 @@ spin_frequency_rad_s = 1.76e-4
 
 [tides]
 global_tidal_model = "ctl_q"        # constant time lag with a quality factor: k_l (1 - i omega dt_l / Q_l)
-fixed_k = [0.5, 0.25]               # per-degree static Love numbers k_l, indexed from l = 2 (up to nine entries, l = 2..10)
+fixed_k = [0.5, 0.25]               # per-degree static Love numbers k_l from l = 2 (up to nine entries, l = 2..10)
 fixed_q = [1.0e5, 1.0e5]            # per-degree quality factors Q_l (cpl and ctl_q)
 fixed_dt_s = [1.0e-2, 1.0e-2]       # per-degree time lags [s] (ctl and ctl_q)
 min_degree_l = 2
@@ -27,7 +27,7 @@ obliquity_truncation = "gen"        # the long spelling of obliquity_trunc_lvl; 
 tidal_timescale_width_decades = 1.0
 love_method = "ctl"                 # the Love numbers of solve_love_numbers: static k times (1 - i omega dt)
 love_fixed_q = 1.0e5                # what the cpl method would use
-love_fixed_dt_s = 1.0e-2            # what the ctl method uses; NaN-free here, so it never falls back to the tide model's list
+love_fixed_dt_s = 1.0e-2            # what the ctl method uses; set, so it never falls back to the tide model's list
 
 [layers.envelope]
 class = "gas"
@@ -36,7 +36,7 @@ layer_index = 0
 radius_fraction = 1.0               # one layer spanning the whole world
 is_tidal = true
 tidal_scale = 1.0
-is_solid = true                     # to the radial solver a gas layer is a very soft solid unless flagged otherwise
+is_solid = false                    # a gas layer is a liquid to the radial solver (its class default)
 is_static = true
 temperature_k = 165.0
 mean_molecular_weight_kg_mol = 2.22e-3  # the gas-layer scalars: an ideal-gas description of the envelope

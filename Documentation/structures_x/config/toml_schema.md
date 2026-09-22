@@ -35,7 +35,7 @@ earth.save_to_toml("earth_copy.toml")
 
 ## Bundled Worlds (`WorldPack_x`)
 
-A set of example worlds ships in the package directory `TidalPy/WorldPack_x/`. The install/resolution mechanism is documented in [`worldpack.md`](worldpack.md); in brief, these are copied into a version-scoped, user-editable data directory on first use:
+Five commented files that between them use every key of this schema are on the [Schema Examples](schema_examples.md) page. A set of example worlds ships in the package directory `TidalPy/WorldPack_x/`. The install/resolution mechanism is documented in [`worldpack.md`](worldpack.md); in brief, these are copied into a version-scoped, user-editable data directory on first use:
 
 ```
 <user documents>/TidalPy/<TidalPy version>/Worlds_x/

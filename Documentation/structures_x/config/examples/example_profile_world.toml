@@ -1,0 +1,56 @@
+# Example-Profile: a world built from a radial data file rather than layer tables, showing `data_file`, the two
+# ways a table refines a detected layer, and a world file overriding the RK45 default such worlds pin.
+#
+# The profile (radius, density, Vp, Vs, and optionally viscosities; columns found by name) is split into layers at
+# every solid-liquid transition, and each layer's slice of it becomes that layer's interpolated material. A profile
+# holds no rheology, cooling model, or radiogenics, so a [layers.<name>] table names the detected layer it refines
+# (by `layer_index`, or by being called layer_N) and adds them; only the layers being refined need a table, and a
+# provided outer radius has to match the detected boundary. The bundled PREM.csv gives three layers: a solid inner
+# core, a liquid outer core, and the mantle plus crust. From Python the same world takes a `data` mapping of
+# arrays in place of `data_file`.
+#
+# The reference is resolved relative to this file's directory, then the worlds data directory, then the packaged
+# WorldPack_x, so "PREM.csv" finds the bundled profile from anywhere. A saved copy of a built world keeps this
+# reference (portable_config), not the expanded profile.
+
+schema_version = "0.2.0"
+name = "Example-Profile"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+data_file = "PREM.csv"
+
+# A data-file world pins RK45 for its equation-of-state solve unless its file says otherwise; this one says so.
+[eos_solver]
+integration_method = "DOP853"
+rtol = 1.0e-9
+
+[tides]
+global_tidal_model = "rheology"
+love_method = "radial_solver"
+
+# Refines the outermost detected layer by index and gives it a name, a rheology, a viscosity, and a temperature;
+# the profile's own density and moduli stay.
+[layers.mantle]
+layer_index = 2
+is_tidal = true
+tidal_scale = 0.999                 # two tidal layers: their scales partition the world total (each defaults to 1.0)
+temperature_k = 1600.0
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
+[layers.mantle.material]
+shear_viscosity_static_pas = 1.0e21     # the profile named no viscosity, so give one here
+
+# Refines the innermost detected layer by its detected name, layer_0, and only to switch its dissipation on.
+[layers.layer_0]
+is_tidal = true
+tidal_scale = 0.001
+temperature_k = 5500.0
+
+[layers.layer_0.material]
+shear_viscosity_static_pas = 1.0e20

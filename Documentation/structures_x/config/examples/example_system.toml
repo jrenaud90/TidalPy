@@ -1,0 +1,65 @@
+# Example-System: every key a system file can carry, in one buildable file.
+#
+# A system names its member worlds, says which of them is the star (the insolation source), which world raises
+# each member's tides (`tidal_host`), and the orbit of each member about its host and about the star. A world
+# with no `tidal_host` is not tidally forced. Each member's `world` is one of three things: the name of a bundled
+# world, a path to a world file, or an inline world table; a path is passed to build_world as written, so a
+# relative one resolves against the working directory. The table key ([worlds.<key>]) is the world's name inside
+# the system, whatever its file calls it, so one file can serve as several members.
+
+schema_version = "0.2.0"
+name = "Example System"
+
+# The star, from a bundled world name.
+[worlds.star]
+world = "sol"
+is_star = true                      # at most one member; the insolation source and, here, the tidal host of the others
+
+# A planet from a world file, tidally forced by the star.
+[worlds.planet]
+world = "example_world.toml"        # a path: relative to the working directory, or absolute
+tidal_host = "star"                 # the key of the member that raises this world's tides
+semi_major_axis_m = 1.5e11          # orbit about the tidal host
+eccentricity = 0.02
+stellar_semi_major_axis_m = 1.5e11  # orbit about the star (the same orbit when the star is the host)
+stellar_eccentricity = 0.02
+
+# A moon of the planet, given inline. Its tides are raised by the planet, and its orbit about the star is the
+# planet's, for insolation.
+[worlds.moon]
+tidal_host = "planet"
+semi_major_axis_m = 4.0e8
+eccentricity = 0.005
+stellar_semi_major_axis_m = 1.5e11
+stellar_eccentricity = 0.02
+
+[worlds.moon.world]
+name = "Example-Moon"
+type = "terrestrial"
+radius_m = 1.6e6
+mass_kg = 5.0e22
+spin_frequency_rad_s = 1.8e-5
+
+[worlds.moon.world.layers.core]
+class = "solidliquid"
+type = "iron"
+radius_fraction = 0.4
+is_tidal = false
+temperature_k = 1600.0
+
+[worlds.moon.world.layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+radius_fraction = 1.0
+is_tidal = true
+temperature_k = 1500.0
+
+[worlds.moon.world.layers.mantle.material.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e20
+
+[worlds.moon.world.layers.mantle.radiogenics]
+model = "fixed"                     # one lumped rate decaying with one half life, in place of an isotope table
+fixed_heat_production_w_kg = 5.0e-12
+average_half_life_s = 6.0e16
+ref_time_s = 0.0                    # the time the rate holds at
