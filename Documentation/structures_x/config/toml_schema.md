@@ -64,6 +64,8 @@ print(available_worlds())      # data-dir worlds unioned with packaged worlds
 | `spin_frequency_rad_s` | optional | all | Rotation rate \[rad/s\]. |
 | `effective_temperature_k` | optional | `star` | Effective temperature \[K\]. |
 | `luminosity_w` | optional | `star` | Luminosity \[W\]. |
+| `[luminosity]` | optional | `star` | The star's mass-to-luminosity model: `model` (`fixed`, `mass_to_luminosity`, or `power_law`) plus that model's parameters, as `stellar_x.make_luminosity` takes them. Attaching it does not change the stored `luminosity_w`. |
+| `moment_of_inertia_factor` | optional | layered families | $C/(MR^2)$ of the world's spin model, within $(0, 2/3]$ (0.4, a uniform sphere, when left out). It gives the moment of inertia until the EOS is solved. |
 | `[layers.<name>]` | **yes** (non-star) | layered families | One table per layer (see below). |
 | `[tides]` | optional | all | Tidal dissipation settings (see below). Omitted entirely, the world still gets a dissipation model from the `_x` config defaults. |
 
@@ -121,6 +123,17 @@ An unrecognized scalar key (or a model table not allowed for the layer's class) 
 ### Geometry
 
 Layers are always built inner-to-outer, so a layer's inner radius is never written by the user: it is the previous layer's outer radius (0 for the innermost). Supplying `radius_inner_m`, for example, raises an error. Each layer must specify its outer radius with exactly one of `radius_outer_m`, `radius_fraction`, or `volume_fraction` (supplying more than one, or none, is an error). For `volume_fraction`, the layer's spherical-shell volume equals that fraction of the whole-world volume, so with $f_V$ the volume fraction and $R$ the world radius, $r_\mathrm{out} = \left(r_\mathrm{in}^3 + f_V R^3\right)^{1/3}$.
+
+### Physical Values
+
+After the keys are checked, so are their values (`validate_physical_values`, run by `validate_world_config` and therefore by every build). A configuration is refused with a `ValueError` that names the world or layer, the key, the value found, and the range allowed when:
+
+* the world's `radius_m` or `mass_kg` is not a positive finite number, `albedo` lies outside $[0, 1]$, `emissivity` outside $(0, 1]$, or the obliquity, spin rate, stellar temperature, or luminosity is not finite (the last two may be zero, which asks for the value to be derived);
+* a `radius_fraction` or `volume_fraction` lies outside $(0, 1]$, or a `radius_outer_m` is not positive;
+* a layer ends at or below the top of the layer under it, or above the world's radius;
+* the outermost layer stops short of the world's radius, since the layers have to fill the world (to a relative $10^{-6}$, which absorbs the roundoff of stacked fractions);
+* a layer's `mass_kg`, `tidal_scale`, or `temperature_k` is negative or not finite;
+* a `layer_index` is not a non-negative integer, or two layers resolve to the same index (a layer with none takes its position in the file).
 
 ### Attached Physics Models
 
@@ -388,6 +401,7 @@ All entry points are re-exported from `TidalPy.structures_x` and from `TidalPy.s
 * The returned world exposes its methods directly: `world.solve_eos(...)`, `world.solve_love_numbers(...)`, `world.get_density(r)`, etc.
 * `world.save_to_toml(path, overwrite=True)`: write the retained build configuration (stamped with the current `schema_version`); falls back to `get_config_dict()` if the world was constructed directly rather than via `build_world`. The fallback is validated against this schema first, so it writes a buildable file or raises `ValueError`.
 * `world.get_config_dict()`: the live world as a builder-valid table (`type`, name-keyed `layers` with `class` and attached-model sub-tables, `tides`, `schema_version`).
+* `build_world_from_dict(config, force=False) -> BaseWorld`, `build_layer_from_dict(config) -> BaseLayer`, and `build_system_from_dict(config, force=False) -> System`: rebuild an object from the dictionary its `get_config_dict()` returns (see [Round Trip](#round-trip)). Each takes only a `dict`, leaves it unmodified, and raises `TypeError` for anything else.
 * `world.config` (alias of `world.source_config`): the normalized configuration dict the world was built from (`None` if constructed directly).
 * `available_worlds() -> list[str]`: names of the bundled example worlds (data dir unioned with packaged `WorldPack_x`). Bundled system files share that directory and are listed by `available_systems()` instead; `build_world` on a system config raises a `ValueError` naming `build_system`, and the reverse holds too.
 * `install_worldpack_x(force=False) -> str`: copy the packaged `WorldPack_x` worlds into the user data directory (copy-if-absent unless `force`); returns that directory.
@@ -395,7 +409,7 @@ All entry points are re-exported from `TidalPy.structures_x` and from `TidalPy.s
 ### Low Level
 
 * `construct_world(config) -> LayeredWorld | GasGiantWorld | StarWorld`: validate a dict and build the underlying Cython world (and its layers).
-* `construct_layer(name, layer_cfg, layer_index) -> BaseLayer`: build a single layer and attach its physics models.
+* `construct_layer(name, layer_cfg, layer_index, radius_inner, radius_outer) -> BaseLayer`: build a single layer and attach its physics models.
 * `save_world_to_toml(config, path, overwrite=True)`: serialize a config dict.
 
 ### Loader / Validation
@@ -405,7 +419,7 @@ From `TidalPy.structures_x.configs.toml_loader`:
 * `SCHEMA_VERSION`: the current schema version string (`"0.2.0"`).
 * `load_toml(source)`: parse a file path or pass through a dict.
 * `validate_schema_version(config, force=False)`: graded schema check (patch = silent, minor = warn, major = raise `ValueError`); `force=True` bypasses it.
-* `validate_world_config(config)` / `validate_layer_config(name, cfg)`: structural validation.
+* `validate_world_config(config)` / `validate_layer_config(name, cfg)`: structural validation. `validate_world_config` ends with `validate_physical_values(config)`, the value checks of [Physical Values](#physical-values).
 * `merge_with_defaults(config)`: apply structural (non-physical) defaults.
 
 ## Round Trip
@@ -418,11 +432,20 @@ world.save_to_toml("earth_copy.toml")
 reloaded = build_world("earth_copy.toml")   # identical structure
 ```
 
-A world assembled directly in Python round-trips the same way through its live configuration:
+The retained configuration is the world as its file described it. `get_config_dict()` is the world as it stands now, with every change made since the build, and `build_*_from_dict` rebuilds the same class with the same parameters and attached models from it. This holds for a layer, a world, and a system:
 
 ```python
-cfg = world.get_config_dict()          # builder-valid: type, layers by name, tides, schema_version
-twin = build_world(cfg)                # or world.save_to_toml(path) then build_world(path)
+from TidalPy.structures_x import build_world_from_dict, build_layer_from_dict, build_system_from_dict
+
+world.set_spin_frequency(2.0e-5)                 # A change made after the build
+config = world.get_config_dict()                 # Builder-valid: type, layers by name, tides, schema_version
+twin = build_world_from_dict(config)             # Same class, same parameters, same models
+assert twin.get_config_dict() == config
+
+mantle = world.mantle                            # The layer named "mantle"
+mantle_twin = build_layer_from_dict(mantle.get_config_dict())    # A standalone layer, owned by no world
+
+system_twin = build_system_from_dict(system.get_config_dict())   # Worlds, tidal hosts, star, and orbits
 ```
 
-The live dict carries every scalar and every attached model explicitly, so no material defaults are needed and each layer is written with `type = "none"`, which keeps a rebuild from adding the `[layers.default]` models a typeless layer would otherwise take; the file is a frozen snapshot of the world as configured.
+The live dict carries every scalar and every attached model explicitly, so no material defaults are needed and each layer is written with `type = "none"`, which keeps a rebuild from adding the `[layers.default]` models a typeless layer would otherwise take; the dict is a frozen snapshot of the object as configured. A standalone layer's dict adds the keys a world would supply from the layer's place in its `layers` table (`name` and `radius_inner_m`) and, for a physics layer, its six Love number components (`love_number_k_re` through `love_number_l_im`, since TOML has no complex type); a world drops those keys when it nests the layer. A system's dict inlines each member world's own live dict under `world`. Solved state (the EOS, Love numbers, tides) is not configuration, so run the solves again on a rebuilt object.

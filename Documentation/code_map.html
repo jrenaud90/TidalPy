@@ -203,17 +203,22 @@ const NODES = [
   { id: 'build_world', lane: 'config', kind: 'py', shape: 'func', star: true,
     label: 'build_world(source)', file: 'structures_x/configs/world_builder.py',
     purpose: 'Entry point for worlds: a bundled name, a .toml path, or a dict becomes a LayeredWorld, ' +
-      'GasGiantWorld, or StarWorld with every layer and physics model attached.',
+      'GasGiantWorld, or StarWorld with every layer and physics model attached. build_world_from_dict and ' +
+      'build_layer_from_dict rebuild an object from the dict its get_config_dict returns. A bundled name that ' +
+      'resolves to a data-directory copy differing from the packaged file is reported once (worldpack.py).',
     inputs: 'bundled world name, TOML path, or config dict', outputs: 'world object with source_config retained' },
   { id: 'build_system', lane: 'config', kind: 'py', shape: 'func', star: true,
     label: 'build_system(source)', file: 'structures_x/configs/system_builder.py',
-    purpose: 'Entry point for systems: a system TOML names its worlds (bundled, path, or inline) and their orbits ' +
-      'about a host and a star.',
+    purpose: 'Entry point for systems: a system TOML names its worlds (bundled, path, or inline), the tidal host ' +
+      'of each, and their orbits about that host and the star. build_system_from_dict rebuilds a system from ' +
+      'the dict its get_config_dict returns, worlds included.',
     inputs: 'system name, TOML path, or dict', outputs: 'System holding the built worlds' },
   { id: 'toml_loader', lane: 'config', kind: 'py', shape: 'func',
     label: 'validate_world_config', sub: 'toml_loader.py', file: 'structures_x/configs/toml_loader.py',
     purpose: 'The schema gate: loads TOML, grades the schema version, rejects unknown keys, models on the wrong ' +
-      'layer class, and untabulated truncations. Also validate_system_config and validate_layer_config.',
+      'layer class, and untabulated truncations, then validate_physical_values checks the numbers (positive ' +
+      'radius and mass, fractions in range, layers that stack and fill the world, unique indices). Also ' +
+      'validate_system_config and validate_layer_config.',
     inputs: 'raw config dict', outputs: 'validated config (raises ValueError otherwise)' },
   { id: 'construct_world', lane: 'config', kind: 'py', shape: 'func',
     label: 'construct_world and construct_layer', file: 'structures_x/configs/world_builder.py',
@@ -254,7 +259,9 @@ const NODES = [
   { id: 'c_LayeredWorld', lane: 'structures', kind: 'cpp', shape: 'class',
     label: 'c_LayeredWorld', sub: 'layered_.hpp', file: 'structures_x/worlds/layered_.hpp',
     purpose: 'Owns its layers (unique_ptr, inner to outer), the retained EOS solution, the cached radial solver, ' +
-      'the tide model, and the spin model; runs the whole-planet solves; serializes the layer stack.',
+      'the tide model, and the spin model; runs the whole-planet solves; serializes the layer stack. solve_eos ' +
+      'calls mark_structure_dirty first, so the Love numbers, the tidal result, and the heating of every layer that ' +
+      'were solved on the old structure read as unsolved until their next solve.',
     inputs: 'c_WorldConfig, layers moved in by add_layer', outputs: 'profile getters, Love numbers, tidal results' },
   { id: 'c_PhysicsLayer', lane: 'structures', kind: 'cpp', shape: 'class',
     label: 'c_PhysicsLayer', sub: 'c_SolidLiquidLayer, c_GasLayer', file: 'structures_x/layers/physics_.hpp',
