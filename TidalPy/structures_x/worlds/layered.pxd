@@ -251,6 +251,26 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
                                  double* out_layer_totals) except +
 
 
+cdef extern from "profile_world_.hpp" namespace "tidalpy" nogil:
+    # Build a layered world whose layers interpolate their own slice of a radial profile. The one
+    # implementation of that rule; `build_layered_world_from_profile` below and the standalone
+    # `RadialSolver_x.radial_solver` both reach it, so neither can drift from the other.
+    shared_ptr[c_LayeredWorld] c_build_world_from_layered_profile(
+        const double* radius_ptr,
+        const double* density_ptr,
+        const double* shear_modulus_ptr,
+        const double* bulk_modulus_ptr,
+        size_t num_slices,
+        const double* upper_radius_bylayer_ptr,
+        const int* layer_type_ptr,
+        const cpp_bool* is_static_ptr,
+        const cpp_bool* is_incompressible_ptr,
+        size_t num_layers,
+        double planet_bulk_density,
+        const string& name
+    ) except +
+
+
 # =====================================================================================================================
 # Cython wrapper class declaration
 # =====================================================================================================================

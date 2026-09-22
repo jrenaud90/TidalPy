@@ -53,6 +53,11 @@
 // only the one extension that includes it.
 #include "../../Tides_x/classes/tide_base_.hpp"     // tidalpy::c_TideBase
 #include "../../Tides_x/classes/tide_result_.hpp"   // c_TideConfig, c_TideSolveConfig, c_GlobalTideResult
+// c_Grid3DAxes, which the 3D grid declarations below take by reference. Only the declarations need it, so an
+// extension that includes this header without world_tides_.hpp (which defines those methods, and which
+// includes this header rather than the other way round) still compiles. tide_.hpp adds no includes this
+// header does not already have, and forward-declares c_LayeredWorld, so the dependency stays one-directional.
+#include "../../Tides_x/classes/tide_.hpp"          // c_Grid3DAxes
 #include "../../Tides_x/love/love_method_.hpp"    // c_LoveMethod, homogeneous-sphere Love numbers
 // Relative paths (not bare names) so every extension that includes layered_.hpp resolves
 // these without needing Utilities_x/lookups on its include path. Light headers, no tables.

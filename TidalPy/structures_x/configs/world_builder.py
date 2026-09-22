@@ -397,10 +397,10 @@ def _interpolated_layer_config(
         bulk_viscosity=None) -> dict:
     """One layer config whose material is the slice of a radial profile that falls inside it.
 
-    Shared by the two ways a profile becomes layers: boundaries detected from the shear profile
-    (:func:`_layers_from_radial_data`) and boundaries stated by the caller
-    (:func:`build_world_from_layered_profile`). Only where the slice and the flags come from differs; the
-    layer it produces is the same kind either way.
+    Used by :func:`_layers_from_radial_data`, which detects the boundaries from the shear profile and then
+    expresses each layer as a configuration table the ordinary world builder can consume. The other way a
+    profile becomes layers, :func:`build_world_from_layered_profile`, is told its boundaries and builds the
+    layers in C++ instead, so it does not pass through here; the layer each produces is the same kind.
 
     Parameters
     ----------
@@ -469,15 +469,26 @@ def build_world_from_layered_profile(
         name: str = "radial_solver_profile"):
     """Build a world from a radial profile whose layers are already known.
 
-    The sibling of :func:`_layers_from_radial_data`: both turn a profile into interpolated-material layers
-    through :func:`_interpolated_layer_config`, and they differ only in where the boundaries come from. That
-    path detects them from the shear profile, which merges any solid/solid interface and can only produce
-    static layers. This one is told them, so it keeps every interface the caller declared and carries all
-    three radial-solver assumptions per layer. It is what lets the standalone ``radial_solver`` reach the
-    world-attached solver without its arrays acquiring physics they did not ask for.
+    A thin wrapper over
+    :func:`~TidalPy.structures_x.worlds.layered.build_layered_world_from_profile`, which builds the layers
+    and their interpolated material EOS models in C++. The standalone ``RadialSolver_x.radial_solver`` calls
+    that same C++ routine directly, so the world it solves and the world returned here are built by one
+    implementation and cannot drift apart.
+
+    The sibling of :func:`_layers_from_radial_data`: both turn a profile into interpolated-material layers,
+    and they differ only in where the boundaries come from. That path detects them from the shear profile,
+    which merges any solid/solid interface and can only produce static layers. This one is told them, so it
+    keeps every interface the caller declared and carries all three radial-solver assumptions per layer. It
+    is what lets the standalone ``radial_solver`` reach the world-attached solver without its arrays
+    acquiring physics they did not ask for.
 
     Interface radii appear twice in the profile, once as the top of the lower layer and once as the base of
     the upper one, and each copy belongs to its own layer.
+
+    Unlike :func:`build_world`, the world returned carries its layers and their EOS models and nothing else:
+    a profile is not a configuration file, so no tide model, no ``[worlds]`` defaults, and no retained source
+    configuration are attached. ``save_to_toml`` still works, rebuilding the configuration from the live
+    world rather than replaying a stored one.
 
     Parameters
     ----------
@@ -504,51 +515,21 @@ def build_world_from_layered_profile(
     """
     import numpy as np
 
-    from TidalPy.Utilities_x.arrays.interp import partition_radius_by_layer
+    from TidalPy.structures_x.worlds.layered import build_layered_world_from_profile
 
-    radius_arr  = np.ascontiguousarray(radius, dtype=np.float64)
-    upper_arr   = np.ascontiguousarray(upper_radius_bylayer, dtype=np.float64)
-    density_arr = np.ascontiguousarray(density, dtype=np.float64)
-    shear_arr   = np.ascontiguousarray(shear_modulus, dtype=np.float64)
-    bulk_arr    = np.ascontiguousarray(bulk_modulus, dtype=np.float64)
-    num_layers = upper_arr.size
-    planet_radius = float(radius_arr[-1])
-
-    # The partition is the same C++ routine the equation-of-state solution and the world radial solver use,
-    # so the three cannot disagree about which copy of an interface radius belongs to which layer, and the
-    # per-slice work stays out of Python.
-    first_by_layer, count_by_layer = partition_radius_by_layer(radius_arr, upper_arr)
-
-    layers_cfg = {}
-    for layer_i in range(num_layers):
-        layer_top = float(upper_arr[layer_i])
-        first_index = int(first_by_layer[layer_i])
-        stop = first_index + int(count_by_layer[layer_i])
-        if stop - first_index < 2:
-            raise ValueError(
-                f"Layer {layer_i} of the supplied profile holds fewer than two points; a layer needs at "
-                f"least two to interpolate across.")
-        layer_slice = slice(first_index, stop)
-        layers_cfg[f"layer_{layer_i}"] = _interpolated_layer_config(
-            index             = layer_i,
-            radius            = radius_arr[layer_slice],
-            density           = density_arr[layer_slice],
-            shear_modulus     = shear_arr[layer_slice],
-            bulk_modulus      = bulk_arr[layer_slice],
-            is_solid          = bool(layer_is_solid[layer_i]),
-            is_static         = bool(layer_is_static[layer_i]),
-            is_incompressible = bool(layer_is_incompressible[layer_i]),
-        )
-
-    planet_mass = planet_bulk_density * (4.0 / 3.0) * np.pi * planet_radius ** 3
-    return construct_world({
-        "schema_version": SCHEMA_VERSION,
-        "name":           name,
-        "type":           "layered",
-        "radius_m":       planet_radius,
-        "mass_kg":        float(planet_mass),
-        "layers":         layers_cfg,
-    })
+    # Everything below the arrays happens in C++: the slice partition, the per-layer geometry, and the
+    # interpolated material EOS each layer carries. Only the array normalization belongs here.
+    return build_layered_world_from_profile(
+        np.ascontiguousarray(radius, dtype=np.float64),
+        np.ascontiguousarray(density, dtype=np.float64),
+        np.ascontiguousarray(shear_modulus, dtype=np.float64),
+        np.ascontiguousarray(bulk_modulus, dtype=np.float64),
+        np.ascontiguousarray(upper_radius_bylayer, dtype=np.float64),
+        tuple(bool(flag) for flag in layer_is_solid),
+        tuple(bool(flag) for flag in layer_is_static),
+        tuple(bool(flag) for flag in layer_is_incompressible),
+        float(planet_bulk_density),
+        name)
 
 
 def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer_name: str) -> dict:

@@ -605,11 +605,11 @@ const EDGES = [
     purpose: 'Owns the EOS solution the solve reads through: it holds the world scalars and the state provider, ' +
       'which stays installed so y3 of a dynamic liquid and the interior getters answer after the solve.',
     inputs: 'radius', outputs: 'structure and moduli at the radius' },
-  { from: 'radial_solver', to: 'construct_world', flow: 'love', type: 'call',
+  { from: 'radial_solver', to: 'c_build_world_from_layered_profile', flow: 'love', type: 'call',
     purpose: 'Validate the arrays and flags, resolve every None argument from [radial_solver] and [eos_solver], ' +
-      'then build a temporary world from the profile (build_world_from_layered_profile): an interpolated ' +
-      'material per layer.',
-    inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary LayeredWorld' },
+      'then build a temporary world from the profile in C++: an interpolated material per layer. The same ' +
+      'routine backs build_world_from_layered_profile, so neither can drift from the other.',
+    inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary c_LayeredWorld' },
   { from: 'radial_solver', to: 'solve_eos', flow: 'love', type: 'call',
     purpose: 'Solve the temporary world structure with the EOS settings given.',
     inputs: 'surface pressure, EOS settings', outputs: 'a solved world' },

@@ -13,9 +13,10 @@ cnp.import_array()
 import numpy as np
 
 from libc.stdint cimport uint32_t
+from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
-from libcpp.memory cimport make_unique
+from libcpp.memory cimport make_unique, static_pointer_cast
 from libcpp.vector cimport vector
 from cython.operator cimport dereference as deref
 
@@ -85,6 +86,106 @@ cdef cnp.ndarray cy_vec_to_ndarray(const vector[double]& v):
         for i in range(n):
             mv[i] = v[i]
     return out
+
+def build_layered_world_from_profile(
+        double[::1] radius not None,
+        double[::1] density not None,
+        double[::1] shear_modulus not None,
+        double[::1] bulk_modulus not None,
+        double[::1] upper_radius_bylayer not None,
+        layer_is_solid,
+        layer_is_static,
+        layer_is_incompressible,
+        double planet_bulk_density,
+        str name = 'radial_solver_profile'):
+    """Build a :class:`LayeredWorld` whose layers interpolate their own slice of a radial profile.
+
+    The layers are built in C++ (``c_build_world_from_layered_profile``), which is also what the standalone
+    ``RadialSolver_x.radial_solver`` calls, so a world built here and the temporary one that API solves are
+    the same world. Interface radii appear twice in the profile, once as the top of the lower layer and once
+    as the base of the upper one, and each copy belongs to its own layer.
+
+    The world carries its layers and their material EOS models and nothing else: no tide model, no
+    ``[worlds]`` defaults, and no retained source configuration. It is the world a supplied profile
+    describes, not one a configuration file asked for; :func:`build_world` is the route that adds those.
+    ``save_to_toml`` still works, rebuilding the configuration from the live world.
+
+    Parameters
+    ----------
+    radius, density, shear_modulus, bulk_modulus : np.ndarray[float64]
+        The profile [m, kg m-3, Pa, Pa], ascending in radius. The moduli are the static (unrelaxed) ones; a
+        viscoelastic response is supplied separately to the Love solve.
+    upper_radius_bylayer : np.ndarray[float64]
+        Upper radius of each layer [m], inner to outer.
+    layer_is_solid, layer_is_static, layer_is_incompressible : sequence of bool
+        Per-layer radial-solver assumptions.
+    planet_bulk_density : float
+        Bulk density [kg m-3], which fixes the world's mass and so its non-dimensional scales.
+    name : str, optional
+        Name for the constructed world.
+
+    Returns
+    -------
+    LayeredWorld
+
+    Raises
+    ------
+    ValueError
+        If the arrays disagree in length, or a layer would hold fewer than two profile points.
+    """
+    cdef size_t num_slices = <size_t>radius.shape[0]
+    cdef size_t num_layers = <size_t>upper_radius_bylayer.shape[0]
+    if num_slices == 0:
+        raise ValueError("radius must not be empty.")
+    if num_layers == 0:
+        raise ValueError("upper_radius_bylayer must name at least one layer.")
+    if (<size_t>density.shape[0] != num_slices or <size_t>shear_modulus.shape[0] != num_slices
+            or <size_t>bulk_modulus.shape[0] != num_slices):
+        raise ValueError(
+            f"density, shear_modulus, and bulk_modulus must all match the radius length ({num_slices}); "
+            f"got {density.shape[0]}, {shear_modulus.shape[0]}, {bulk_modulus.shape[0]}.")
+    if (len(layer_is_solid) != num_layers or len(layer_is_static) != num_layers
+            or len(layer_is_incompressible) != num_layers):
+        raise ValueError(
+            f"layer_is_solid, layer_is_static, and layer_is_incompressible must each have one entry per "
+            f"layer ({num_layers}).")
+
+    # The C++ builder takes the layer-type encoding the radial-solver input check produces (0 for solid), and
+    # malloc'd flags because std::vector<bool> is bit-packed and so has no bool* to hand it.
+    cdef vector[int] layer_type_vec = vector[int](num_layers)
+    cdef cpp_bool* is_static_ptr = <cpp_bool*>malloc(num_layers * sizeof(cpp_bool))
+    cdef cpp_bool* is_incomp_ptr = <cpp_bool*>malloc(num_layers * sizeof(cpp_bool))
+    if not is_static_ptr or not is_incomp_ptr:
+        free(is_static_ptr)
+        free(is_incomp_ptr)
+        raise MemoryError("Failed to allocate the per-layer assumption arrays.")
+
+    cdef shared_ptr[c_LayeredWorld] world_sptr
+    cdef size_t layer_i
+    try:
+        for layer_i in range(num_layers):
+            layer_type_vec[layer_i] = 0 if layer_is_solid[layer_i] else 1
+            is_static_ptr[layer_i]  = <cpp_bool>bool(layer_is_static[layer_i])
+            is_incomp_ptr[layer_i]  = <cpp_bool>bool(layer_is_incompressible[layer_i])
+        world_sptr = c_build_world_from_layered_profile(
+            &radius[0],
+            &density[0],
+            &shear_modulus[0],
+            &bulk_modulus[0],
+            num_slices,
+            &upper_radius_bylayer[0],
+            layer_type_vec.data(),
+            is_static_ptr,
+            is_incomp_ptr,
+            num_layers,
+            planet_bulk_density,
+            name.encode('utf-8'))
+    finally:
+        free(is_static_ptr)
+        free(is_incomp_ptr)
+
+    return LayeredWorld._wrap(static_pointer_cast[c_BaseWorld, c_LayeredWorld](world_sptr))
+
 
 cdef int cy_check_num_threads(int num_threads) except -1:
     """Raise ValueError unless ``num_threads`` is at least 1."""

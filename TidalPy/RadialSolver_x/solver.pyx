@@ -5,7 +5,10 @@
 
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cpp_bool
+from libcpp.complex cimport complex as cpp_complex
+from libcpp.memory cimport shared_ptr, unique_ptr
 from libcpp.string cimport string as cpp_string
+from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
 import numpy as np
@@ -20,9 +23,27 @@ from TidalPy.constants import ODE_METHOD_NAMES
 set_tidalpy_config_ptr(get_shared_config_address())
 
 from TidalPy.exceptions import SolutionFailedError
-from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
+from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution, c_RadialSolutionStorage
 from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 from TidalPy.Tides_x.love.love cimport c_parse_love_method_int
+# The world types and the C++ profile builder come from this module's own .pxd, which redeclares them rather
+# than cimporting structures_x.worlds.layered; see the note there for why that import cannot be used.
+
+
+# Name the world built from a supplied profile carries. It reaches nothing a caller can see; it is here so a
+# C++ message about that world says where it came from.
+DEF PROFILE_WORLD_NAME = b"radial_solver_profile"
+
+
+cdef class _ProfileWorldAnchor:
+    """Owns the C++ world a supplied profile was built into, for as long as its solution is alive.
+
+    The standalone API hands `radial_solver` arrays rather than a world, so the world it builds is an
+    implementation detail: nothing reads it back and it never reaches Python. What it must do is outlive the
+    solution, because the material provider the Love solve installed on the solution reads this world's solved
+    EOS. `RadialSolverSolution._adopt` keeps whatever object it is handed alive, so this is that object.
+    """
+    cdef shared_ptr[c_LayeredWorld] world_sptr
 
 
 cdef cpp_bool cy_resolve_prop_matrix(str love_method) except *:
@@ -262,6 +283,20 @@ def radial_solver(
     
     cdef int rs_error_code = 0
     cdef RadialSolverSolution solution
+
+    # The world the supplied profile is built into, and the two solve configs. All C++: the profile never
+    # becomes a Python object on its way to the solver.
+    cdef vector[double] shear_static
+    cdef vector[double] bulk_static
+    cdef shared_ptr[c_LayeredWorld] world_sptr
+    cdef c_LayeredWorld* world_ptr = NULL
+    cdef c_WorldEOSSolveConfig eos_cfg
+    cdef c_LoveSolveConfig love_cfg
+    cdef unique_ptr[c_RadialSolutionStorage] storage_uptr
+    cdef _ProfileWorldAnchor world_anchor
+    cdef cpp_complex[double]* shear_ptr = NULL
+    cdef cpp_complex[double]* bulk_ptr  = NULL
+    cdef size_t slice_i
     
     try:
         # Raises ValueError on a failed check.
@@ -290,66 +325,99 @@ def radial_solver(
             eos_integration_method_out
         )
 
-        # Deferred to break a real import cycle: the world builder imports the world classes, and those import
-        # this module's package. The same pattern worlds/base.pyx uses for configs.toml_loader.
-        from TidalPy.structures_x.configs.world_builder import build_world_from_layered_profile
-
         # The supplied arrays describe a planet, so build that planet and solve it the way a built world is
         # solved. One code path serves both APIs: the interior comes from an interpolated material per layer,
         # and the complex moduli are handed to the solve rather than derived from a rheology.
-        solid_bylayer   = tuple(layer_types_out[i] == 0 for i in range(num_layers))
-        static_bylayer  = tuple(bool(is_static_bylayer[i]) for i in range(num_layers))
-        incomp_bylayer  = tuple(bool(is_incompressible_bylayer[i]) for i in range(num_layers))
-        temporary_world = build_world_from_layered_profile(
-            np.asarray(radius_array),
-            np.asarray(density_array),
-            np.asarray(complex_shear_modulus_array).real.copy(),
-            np.asarray(complex_bulk_modulus_array).real.copy(),
-            np.asarray(upper_radius_bylayer_array),
-            solid_bylayer,
-            static_bylayer,
-            incomp_bylayer,
-            planet_bulk_density)
+        #
+        # The EOS interpolates the static (unrelaxed) moduli, which are the real parts of the supplied complex
+        # ones. They are copied into C++ vectors rather than NumPy views so that no part of the profile becomes
+        # a Python object on its way to the solver.
+        shear_static.resize(total_slices)
+        bulk_static.resize(total_slices)
+        for slice_i in range(total_slices):
+            shear_static[slice_i] = complex_shear_modulus_array[slice_i].real
+            bulk_static[slice_i]  = complex_bulk_modulus_array[slice_i].real
+        world_sptr = c_build_world_from_layered_profile(
+            &radius_array[0],
+            &density_array[0],
+            shear_static.data(),
+            bulk_static.data(),
+            total_slices,
+            &upper_radius_bylayer_array[0],
+            layer_types_out.data(),
+            c_is_static,
+            c_is_incomp,
+            num_layers,
+            planet_bulk_density,
+            PROFILE_WORLD_NAME)
     finally:
         free(c_is_static)
         free(c_is_incomp)
 
-    temporary_world.solve_eos(
-        surface_pressure   = surface_pressure,
-        slices_per_layer   = max(<int>(total_slices // num_layers), 5),
-        integration_method = c_eos_integration_method,
-        rtol               = c_eos_rtol,
-        atol               = c_eos_atol,
-        pressure_tol       = c_eos_pressure_tol,
-        max_iters          = c_eos_max_iters,
-        nondimensionalize  = c_nondimensionalize)
+    world_ptr = world_sptr.get()
 
-    temporary_world.solve_love_numbers_supplied(
-        np.asarray(complex_shear_modulus_array),
-        np.asarray(complex_bulk_modulus_array),
-        np.asarray(radius_array),
-        frequency          = frequency,
-        degree_l           = degree_l,
-        solve_for          = tuple(solve_for) if solve_for is not None else ('tidal',),
-        core_model         = core_model,
-        love_method        = love_method,
-        use_kamata         = c_use_kamata,
-        nondimensionalize  = c_nondimensionalize,
-        starting_radius    = starting_radius,
-        start_radius_tol   = c_start_radius_tolerance,
-        integration_method = c_integration_method,
-        rtol               = c_integration_rtol,
-        atol               = c_integration_atol,
-        scale_rtols        = c_scale_rtols,
-        max_num_steps      = c_max_num_steps,
-        expected_size      = c_expected_size,
-        max_ram_MB         = c_max_ram_MB,
-        max_step           = max_step,
-        verbose            = verbose,
-        warnings           = False)
+    # Whole-planet EOS solve. The config starts from the [eos_solver] section of the TidalPy configuration,
+    # exactly as the world-attached path does, with this call's already-resolved settings written over it.
+    eos_cfg = world_ptr.make_eos_solve_config()
+    eos_cfg.surface_pressure   = surface_pressure
+    eos_cfg.slices_per_layer   = <size_t>max(<int>(total_slices // num_layers), 5)
+    eos_cfg.integration_method = eos_integration_method_out
+    eos_cfg.rtol               = c_eos_rtol
+    eos_cfg.atol               = c_eos_atol
+    eos_cfg.pressure_tol       = c_eos_pressure_tol
+    eos_cfg.max_iters          = <size_t>c_eos_max_iters
+    eos_cfg.nondimensionalize  = c_nondimensionalize
+    with nogil:
+        world_ptr.solve_eos(eos_cfg)
+    if world_ptr.get_eos_max_iters_hit():
+        log_warning(
+            f"The supplied profile's EOS solve stopped at max_iters = {c_eos_max_iters} with a surface-pressure "
+            f"mismatch above eos_pressure_tol = {c_eos_pressure_tol:0.1e}; the profile is from the last "
+            f"iteration. Raise eos_pressure_tol above the integration eos_rtol ({c_eos_rtol:0.1e}) or tighten "
+            f"eos_rtol.")
 
+    # Love solve from the supplied complex moduli rather than a layer rheology. The boundary-condition models
+    # and both integration methods were resolved by the input check above, so nothing is re-parsed here.
+    love_cfg.frequency          = frequency
+    love_cfg.degree_l           = degree_l
+    love_cfg.set_bc_models(&bc_models_out[0], num_bc_models_out)
+    love_cfg.love_method        = <int>use_prop_matrix
+    love_cfg.core_model         = core_model
+    love_cfg.use_kamata         = c_use_kamata
+    love_cfg.nondimensionalize  = c_nondimensionalize
+    love_cfg.starting_radius    = starting_radius
+    love_cfg.start_radius_tol   = c_start_radius_tolerance
+    love_cfg.integration_method = integration_method_out
+    love_cfg.rtol               = c_integration_rtol
+    love_cfg.atol               = c_integration_atol
+    love_cfg.scale_rtols        = c_scale_rtols
+    love_cfg.max_num_steps      = c_max_num_steps
+    love_cfg.expected_size      = c_expected_size
+    love_cfg.max_ram_MB         = c_max_ram_MB
+    love_cfg.max_step           = max_step
+    love_cfg.verbose            = verbose
+    # This function runs its own conditioning check on the finished solution below.
+    love_cfg.warnings           = False
+
+    shear_ptr = <cpp_complex[double]*><void*>&complex_shear_modulus_array[0]
+    bulk_ptr  = <cpp_complex[double]*><void*>&complex_bulk_modulus_array[0]
+    with nogil:
+        world_ptr.solve_love_numbers_supplied(
+            love_cfg,
+            shear_ptr,
+            bulk_ptr,
+            &radius_array[0],
+            total_slices)
+
+    storage_uptr = world_ptr.release_radial_storage()
+    if not storage_uptr:
+        raise SolutionFailedError(
+            "The radial solve produced no solution to return. This is an internal error: the Love-number "
+            "method was checked to be a radial one before the solve ran.")
     # The solution takes the world with it, so its interior getters keep answering.
-    solution = temporary_world.release_radial_solution()
+    world_anchor = _ProfileWorldAnchor()
+    world_anchor.world_sptr = world_sptr
+    solution = RadialSolverSolution._adopt(move(storage_uptr), world_anchor)
     rs_error_code = solution.error_code
 
     if log_info:
