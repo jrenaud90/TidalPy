@@ -112,6 +112,13 @@ inline bool c_love_method_uses_radial_solver(c_LoveMethod method) noexcept
     return method == c_LoveMethod::RadialSolver || method == c_LoveMethod::PropagationMatrix;
 }
 
+// The same test on the integer the config structs store; false for an index that names no method.
+inline bool c_love_method_uses_radial_solver_int(int value) noexcept
+{
+    return value == static_cast<int>(c_LoveMethod::RadialSolver)
+        || value == static_cast<int>(c_LoveMethod::PropagationMatrix);
+}
+
 // True for the analytic homogeneous-sphere methods (homogeneous, cpl, ctl).
 inline bool c_love_method_is_homogeneous(c_LoveMethod method) noexcept
 {
