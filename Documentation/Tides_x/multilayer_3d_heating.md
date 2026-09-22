@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides_x.multilayer`)
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 This module computes the depth- and direction-resolved tidal response (the complex strain and stress tensors and the volumetric heating) of a layered world. The response is evaluated at a single point on demand, so a map is built only when the caller evaluates a set of points.
 
@@ -229,7 +229,7 @@ The fully collapsed `total` equals the 1D global `get_tidal_heating`; per-layer 
 
 #### Displacements: `calc_3d_displacements`
 
-The same machinery gives the instantaneous tidal displacements. For each coherent wave the traction functions y1 (radial) and y3 (tangential) of the wave's radial solution set the complex displacement amplitude at a point, `u = (y1 U, y3 dU/dtheta, y3 dU/dphi / sin theta)` (TB05 Eq. 9), which is evolved in time as `Re[u e^{i |omega| t}]` and summed over the waves (the phasor convention of the instantaneous heating). The world method returns the three components on the full `(radius, colatitude, longitude, time)` grid in metres:
+The same machinery gives the instantaneous tidal displacements. For each coherent wave the radial functions $y_1$ (radial displacement) and $y_3$ (tangential displacement) of the wave's radial solution set the complex displacement amplitude at a point, $\mathbf{u} = \left(y_1 U,\; y_3\, \partial U / \partial\theta,\; y_3\, (\partial U / \partial\phi) / \sin\theta\right)$ (TB05 Eq. 9), which is evolved in time as $\mathrm{Re}\left[\mathbf{u}\, e^{i|\omega| t}\right]$ and summed over the waves (the phasor convention of the instantaneous heating). The world method returns the three components on the full `(radius, colatitude, longitude, time)` grid in metres:
 
 ```python
 out = world.calc_3d_displacements(
@@ -239,11 +239,11 @@ out = world.calc_3d_displacements(
 out["radial"].shape        # (2, 30, 60, 12)   u_r [m]; also out["polar"], out["azimuthal"]
 ```
 
-At the surface `y1 = h / g` and `y3 = l / g`, so the surface radial displacement is `h U / g` for a single mode. It requires the rheology tide model, a solved EOS, and a radial-solver Love-number method (the analytic `homogeneous`/`cpl`/`ctl` methods have no radial functions). A radius without a depth-resolved solution (the center, below the solver start) is NaN. The radial functions themselves are available at any radius through `world.get_love_radial_y(radius, ytype_idx, y_idx)` after a radial-solver Love solve.
+At the surface $y_1 = h / g$ and $y_3 = l / g$, so the surface radial displacement is $h U / g$ for a single mode. It requires the rheology tide model, a solved EOS, and a radial-solver Love-number method (the analytic `homogeneous`/`cpl`/`ctl` methods have no radial functions). A radius without a depth-resolved solution (the center, below the solver start) is NaN. The radial functions themselves are available at any radius through `world.get_love_radial_y(radius, ytype_idx, y_idx)` after a radial-solver Love solve.
 
 #### Stress and Strain: `calc_3d_stress_strain`
 
-The same waves give the instantaneous stress and strain tensors. At each point every wave's complex stress and strain amplitude is added into the total of its frequency, and each component at time `t` is the sum over frequencies of `Re[amplitude e^{i |omega| t}]`, the convention of the displacements and the instantaneous heating. The world method returns both tensors on the full `(radius, colatitude, longitude, time)` grid with the six components on the last axis, ordered `rr`, `theta_theta`, `phi_phi`, `r_theta`, `r_phi`, `theta_phi` (also returned as `components`). The strain is the symmetric gradient of the displacement field of `calc_3d_displacements`.
+The same waves give the instantaneous stress and strain tensors. At each point every wave's complex stress and strain amplitude is added into the total of its frequency, and each component at time $t$ is the sum over frequencies of $\mathrm{Re}\left[A\, e^{i|\omega| t}\right]$ for the complex amplitude $A$, the convention of the displacements and the instantaneous heating. The world method returns both tensors on the full `(radius, colatitude, longitude, time)` grid with the six components on the last axis, ordered `rr`, `theta_theta`, `phi_phi`, `r_theta`, `r_phi`, `theta_phi` (also returned as `components`). The strain is the symmetric gradient of the displacement field of `calc_3d_displacements`.
 
 ```python
 tensors = world.calc_3d_stress_strain(
@@ -305,14 +305,14 @@ degrees, freqs, pots = tidal_potential_3d_modes(
 The compiled kernel the world methods use is also callable point by point from `Tides_x.multilayer.stress_strain`:
 
 - `strain_stress_heating_point` returns the six complex strain and six complex stress amplitudes at a point for one mode.
-- `displacement_point` returns the complex displacement amplitudes `u_r = y1 U`, `u_theta = y3 dU/dtheta`, and `u_phi = y3 dU/dphi / sin(theta)` [m].
+- `displacement_point` returns the complex displacement amplitudes $u_r = y_1 U$, $u_\theta = y_3\, \partial U / \partial\theta$, and $u_\phi = y_3\, (\partial U / \partial\phi) / \sin\theta$ [m].
 - `volumetric_heating(stress, strain)` returns `|sum_k w_k Im(sigma_k conj(eps_k))|` [Pa], with `w_k = 2` on the three off-diagonal components.
 
 The first two take one row from `tidal_potential_3d_modes` together with the radial functions and complex moduli at the point, which the world provides after a radial-solver Love solve. A real row is also accepted and is treated as a phasor with zero phase. Assembling several modes follows the rules the world methods use:
 
 - Solve the radial problem and evaluate the moduli at each mode's degree and `|omega|`, and conjugate the row of a mode with `omega < 0` so that its amplitudes sit at `+|omega|`.
 - Sum the strain and stress amplitudes of every mode that shares one `|omega|` before forming the heating. `|omega| / 2` times `volumetric_heating` of those sums is the secular heating at that frequency [W m-3], and the frequencies add.
-- A field at time `t` is `Re[amplitude e^{i |omega| t}]` summed over the modes.
+- A field at time $t$ is $\mathrm{Re}\left[A\, e^{i|\omega| t}\right]$, with $A$ the complex amplitude, summed over the modes.
 
 The pointwise secular density of `calc_3d_tides` can be rebuilt this way:
 

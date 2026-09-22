@@ -1,6 +1,6 @@
 # Rheology Models (`rheology_x`)
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-21_
 
 A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss modulus, the part in quadrature, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$.
 
@@ -61,9 +61,9 @@ Simple models (Elastic, Viscous, Maxwell, Voigt) are evaluated in closed form. T
 
 | Model | Complex modulus $\mu^*$ [Pa] | Parameters | Character |
 |---|---|---|---|
-| `Elastic` (`off`) | $\mu$ | — | No dissipation at any frequency. |
-| `Viscous` (`newton`) | $i \eta \omega$ | — | No stored energy; pure loss. |
-| `Maxwell` | $1 / J_\mathrm{maxwell}$ | — | One relaxation peak at $\omega\tau = 1$; loss falls as $\omega^{-1}$ above it. |
+| `Elastic` (`off`) | $\mu$ | - | No dissipation at any frequency. |
+| `Viscous` (`newton`) | $i \eta \omega$ | - | No stored energy; pure loss. |
+| `Maxwell` | $1 / J_\mathrm{maxwell}$ | - | One relaxation peak at $\omega\tau = 1$; loss falls as $\omega^{-1}$ above it. |
 | `Voigt` (`voigt-kelvin`) | $1 / J_\mathrm{voigt} = \mu f_J + i \omega \eta_v$ | `voigt_modulus_frac`, `voigt_viscosity_frac` | Stiffens without limit at high frequency; rarely used alone. |
 | `Burgers` | $1 / (J_\mathrm{maxwell} + J_\mathrm{voigt})$ | `voigt_modulus_frac`, `voigt_viscosity_frac` | Maxwell plus a secondary peak from the Voigt arm. |
 | `Andrade` | $1 / J_\mathrm{andrade}$ | `alpha`, `zeta` | Maxwell plus a transient term; loss falls only as $\omega^{-\alpha}$. |

@@ -1,6 +1,6 @@
 # PhysicsLayer
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 `TidalPy.structures_x.layers.PhysicsLayer` extends `BaseLayer` with what a tidal calculation needs from the layer itself: the radial-solver assumptions, the layer temperature, the Love numbers, and the shear and bulk rheology.
 
@@ -47,18 +47,18 @@ PhysicsLayer(
 
 | Parameter | Type | Units | Description |
 |-----------|------|-------|-------------|
-| `name` | `str` | — | Human-readable layer name. |
-| `layer_index` | `int` | — | Zero-based index; innermost layer = 0. |
+| `name` | `str` | - | Human-readable layer name. |
+| `layer_index` | `int` | - | Zero-based index; innermost layer = 0. |
 | `radius_inner` | `float` | m | Inner boundary radius. |
 | `radius_outer` | `float` | m | Outer boundary radius. |
 | `mass` | `float` | kg | Total layer mass. Overwritten by each successful world EOS solve. |
-| `material_name` | `str` | — | Material identifier. Optional. |
-| `is_tidal` | `bool` | — | Tidal dissipation flag. Default `True`. |
-| `is_volume_fixed` | `bool` | — | `False` lets the layer grow or shrink to hold its mass during an EOS solve. Default `True`. |
-| `tidal_scale` | `float` | — | Dimensionless tidal heating scale. Default `1.0`. |
-| `love_number_k` | `complex` | — | Potential Love number k (placeholder). Default `0+0j`. |
-| `love_number_h` | `complex` | — | Radial displacement Love number h (placeholder). Default `0+0j`. |
-| `love_number_l` | `complex` | — | Tangential displacement Love number l (placeholder). Default `0+0j`. |
+| `material_name` | `str` | - | Material identifier. Optional. |
+| `is_tidal` | `bool` | - | Tidal dissipation flag. Default `True`. |
+| `is_volume_fixed` | `bool` | - | `False` lets the layer grow or shrink to hold its mass during an EOS solve. Default `True`. |
+| `tidal_scale` | `float` | - | Dimensionless tidal heating scale. Default `1.0`. |
+| `love_number_k` | `complex` | - | Potential Love number k (placeholder). Default `0+0j`. |
+| `love_number_h` | `complex` | - | Radial displacement Love number h (placeholder). Default `0+0j`. |
+| `love_number_l` | `complex` | - | Tangential displacement Love number l (placeholder). Default `0+0j`. |
 | `tidal_scale_method` | `str` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
 | `is_solid`, `is_static`, `is_incompressible` | `bool` | - | Radial-solver assumptions; see Layer Assumptions below. Defaults `True`, `True`, `False`. |
 | `temperature` | `float` | K | Layer temperature at which the material's viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
@@ -93,13 +93,13 @@ _Read-only properties._
 | `bulk_modulus_static` | Pa | The material's unrelaxed bulk modulus, as above. |
 | `shear_viscosity_static` | Pa·s | The material's static shear viscosity, as above. |
 | `bulk_viscosity_static` | Pa·s | The material's static bulk viscosity, as above. |
-| `love_numbers` | — | All three Love numbers as a `LoveNumbers` object. |
-| `love_number_k` | — | Potential Love number k. Returns `complex`. |
-| `love_number_h` | — | Radial displacement Love number h. Returns `complex`. |
-| `love_number_l` | — | Tangential displacement Love number l. Returns `complex`. |
-| `shear_rheology_set`, `bulk_rheology_set` | — | `True` after the corresponding rheology model is attached. |
-| `shear_viscosity_set`, `bulk_viscosity_set` | — | `True` when the material holds the corresponding viscosity model. |
-| `partial_melt_set` | — | `True` when the material holds a partial-melt model. |
+| `love_numbers` | - | All three Love numbers as a `LoveNumbers` object. |
+| `love_number_k` | - | Potential Love number k. Returns `complex`. |
+| `love_number_h` | - | Radial displacement Love number h. Returns `complex`. |
+| `love_number_l` | - | Tangential displacement Love number l. Returns `complex`. |
+| `shear_rheology_set`, `bulk_rheology_set` | - | `True` after the corresponding rheology model is attached. |
+| `shear_viscosity_set`, `bulk_viscosity_set` | - | `True` when the material holds the corresponding viscosity model. |
+| `partial_melt_set` | - | `True` when the material holds a partial-melt model. |
 
 ### Layer State
 
@@ -155,7 +155,7 @@ A viscosity model from [`viscosity_x`](../../viscosity_x/viscosity_models.md) tu
 
 Complex shear modulus \[Pa\] at the given tidal forcing frequency, from the material's static constants.
 
-When a shear rheology model is attached the result is the complex modulus μ*(ω) returned by that model (evaluated from the static shear modulus, static shear viscosity, and frequency). Without a rheology model the return value is `shear_modulus_static + 0j`.
+When a shear rheology model is attached the result is the complex modulus $\mu^*(\omega)$ returned by that model (evaluated from the static shear modulus, static shear viscosity, and frequency). Without a rheology model the return value is `shear_modulus_static + 0j`.
 
 ```python
 mu = mantle.calc_complex_shear_modulus(2.0 * math.pi / 86400.0)

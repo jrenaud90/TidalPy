@@ -1,6 +1,6 @@
 # Worlds (`structures_x.worlds`)
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry; a layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
 
@@ -44,8 +44,8 @@ welcome_to_earth = BaseWorld(
 | `calc_escape_velocity()` | float [m/s] | $\sqrt{2GM/R}$. |
 | `calc_mean_density()` | float [kg/m³] | $M / (\tfrac{4}{3}\pi R^{3})$. |
 | `calc_equilibrium_temperature(F)` | float [K] | $\left[(1-A)\,F/(4\varepsilon\sigma)\right]^{1/4}$ (fast rotator, $F$ = insolation flux [W/m²]). |
-| `set_spin_frequency(ω)` | — | Set rotation rate [rad/s]. |
-| `set_obliquity(θ)` | — | Set axial obliquity [rad]. |
+| `set_spin_frequency(ω)` | - | Set rotation rate [rad/s]. A `System` reads it when it builds the world's tidal state; `calc_tides` takes its spin rate as an argument, so a tidal result already solved is left alone. |
+| `set_obliquity(θ)` | - | Set axial obliquity [rad]. The same holds as for the spin rate. |
 
 `get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`, `type` (the builder's world type, from `get_builder_world_type()`), `radius`, `mass`, `albedo`, `emissivity`, `obliquity`, `spin_frequency`, and a `tides` table when a tide model is attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`). `save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`; `save_to_toml` validates the dict against the schema before writing when no build configuration is retained.
 
@@ -291,8 +291,8 @@ The solver interpolates nothing between EOS slices. Gravity, pressure, mass, and
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `love_solved` | bool | `True` if a solve has been attempted. |
-| `love_success` | bool | `True` if the last solve converged. |
+| `love_solved` | bool | `True` while a successful solve is held. A later `solve_eos` clears it: Love numbers describe the structure they were solved with, so every Love number and radial-function getter returns NaN until the next solve. |
+| `love_success` | bool | `True` if the last solve converged and still describes the structure. |
 | `love_error_code` | int | Solver error code (0 = success; < 0 = failure). |
 | `love_message` | str | Human-readable solver message. |
 | `love_num_ytypes` | int | Number of independent solution types (boundary-condition models requested). |
@@ -388,12 +388,12 @@ world.get_tidal_love_k(2, 2, 0, 0)    # complex k₂ for the (l,m,p,q) = (2,2,0,
 
 | Member | Returns | Description |
 |--------|---------|-------------|
-| `set_tide_model(tide)` | — | Attach a tide model (transfers ownership). |
+| `set_tide_model(tide)` | - | Attach a tide model (transfers ownership). |
 | `tide_model_set` | bool | Whether a model is attached. |
-| `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=10, tidal_timescale_width_decades=1.0, love_method='radial_solver', love_fixed_q=None, love_fixed_dt=None)` | — | Set the stored `[tides]` truncation/degree and the world's default Love-number method (see the RadialSolver section). |
+| `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=10, tidal_timescale_width_decades=1.0, love_method='radial_solver', love_fixed_q=None, love_fixed_dt=None)` | - | Set the stored `[tides]` truncation/degree and the world's default Love-number method (see the RadialSolver section). |
 | `get_tide_config()` | dict | The stored settings under the builder's `[tides]` key names (`*_trunc_lvl`). |
-| `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | — | Run the global tidal solve. |
-| `tides_solved` | bool | Whether a solve has succeeded. |
+| `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | - | Run the global tidal solve. |
+| `tides_solved` | bool | Whether a successful solve is held. A new tide model or tide configuration clears it, and so does a layered world's `solve_eos`, after which the heating and potential-derivative getters return NaN and each layer's `get_tidal_heating()` does too, until the next `calc_tides`. |
 | `get_tidal_heating()` | float [W] | Total global tidal heating (NaN if unsolved). |
 | `get_tidal_potential_derivatives()` | tuple | `(dUdM, dUdw, dUdO)` [J kg⁻¹ rad⁻¹]. |
 | `get_num_tidal_modes()` | int | Active modes summed. |

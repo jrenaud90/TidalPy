@@ -7,7 +7,7 @@ These functions are not optimized for speed, so once you are comfortable with th
 
 [^1]: If a crash does occur, please report it on TidalPy's GitHub issues page and include the exact inputs used.
 
-## Planet with homogeneous layers: `build_planet_constant_layers`
+## Planet with homogeneous layers: `build_rs_input_homogeneous_layers`
 
 Import with `from TidalPy.RadialSolver import build_rs_input_homogeneous_layers`
 

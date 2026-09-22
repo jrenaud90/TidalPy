@@ -1,6 +1,6 @@
 # Dense Radial Solutions
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 `TidalPy.RadialSolver_x` computes the viscoelastic-gravitational radial functions `y1..y6` with either a shooting method or a propagation matrix, and from them the one-dimensional tidal or loading Love numbers. This page describes how the shooting method retains its solution and evaluates it at any radius.
 
@@ -72,7 +72,7 @@ At the C++ level the same is available on `c_RadialSolutionStorage` (`get_radial
 
 ## Dynamic Liquid Layers at Long Forcing Periods
 
-A dynamic liquid layer carries inertial (`1/omega^2`) terms that are only significant at short forcing periods. When a dynamic liquid layer is sandwiched between solid layers and forced at a long period (low frequency), those terms make the layer's independent solutions grow exponentially through the liquid, so by the surface they are nearly linearly dependent and the surface boundary-condition matrix becomes near-singular. The solve is then unstable: small numerical differences (integration tolerance, grid-vs-dense sampling, the linear-solver implementation) change the result, and at sufficiently long periods the solve fails outright. This is inherent to the dynamic-liquid assumption.
+A dynamic liquid layer carries inertial ($1/\omega^2$) terms that are only significant at short forcing periods. When a dynamic liquid layer is sandwiched between solid layers and forced at a long period (low frequency), those terms make the layer's independent solutions grow exponentially through the liquid, so by the surface they are nearly linearly dependent and the surface boundary-condition matrix becomes near-singular. The solve is then unstable: small numerical differences (integration tolerance, grid-vs-dense sampling, the linear-solver implementation) change the result, and at sufficiently long periods the solve fails outright. This is inherent to the dynamic-liquid assumption.
 
 Guidance:
 

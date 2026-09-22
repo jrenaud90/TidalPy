@@ -8,10 +8,14 @@ from pathlib import Path
 
 FILE_PATH = os.path.dirname(__file__)
 
+# Every path below is taken from this file's own directory, so the build gives the same result from any working
+# directory (Read the Docs, a local `sphinx-build` from the repository root, or one from inside Documentation/).
+REPO_PATH = os.path.abspath(os.path.join(FILE_PATH, os.pardir))
+
 # Auto generate API documentation
 def generate_api_docs():
-    src_path = os.path.join(FILE_PATH, os.pardir, "TidalPy")
-    out_path = os.path.join('API', 'generated')
+    src_path = os.path.join(REPO_PATH, "TidalPy")
+    out_path = os.path.join(FILE_PATH, 'API', 'generated')
     Path(out_path).mkdir(parents=True, exist_ok=True)
 
     subprocess.call([
@@ -26,13 +30,13 @@ def generate_api_docs():
 generate_api_docs()
 
 # Basic configurations
-sys.path.insert(0, os.path.abspath('../TidalPy'))
+sys.path.insert(0, os.path.join(REPO_PATH, 'TidalPy'))
 html_static_path = ["_static"]
 # Self-contained pages served next to the generated ones (linked from index.md and future_structure.md).
 html_extra_path = ["code_map.html"]
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_logo = "_static/images/2025-11-28_Logo_2-4.svg"
-pyproject_path = os.path.abspath(os.path.join(FILE_PATH, '..', 'pyproject.toml'))
+pyproject_path = os.path.join(REPO_PATH, 'pyproject.toml')
 with open(pyproject_path, 'r') as f:
     pyproject = toml.load(f)
 
@@ -42,11 +46,11 @@ author = 'Joe P. Renaud'
 
 
 # Make a copy of the current change log and move it into docs so it can be included in the documentation.
-src = os.path.abspath(os.path.join("..", "CHANGES.md"))
+src = os.path.join(REPO_PATH, "CHANGES.md")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Changes.md"))
 shutil.copyfile(src, dst)
 
-src = os.path.abspath(os.path.join("..", "README.md"))
+src = os.path.join(REPO_PATH, "README.md")
 readme_file = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Readme.md"))
 shutil.copyfile(src, readme_file)
 readme_file_nochanges = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Readme_raw.md"))
@@ -75,19 +79,19 @@ content = re.sub(r'^(#{2,})( .*)$', reduce_header_level, content, flags=re.MULTI
 with open(readme_file, 'w', encoding='utf-8') as f:
     f.write(content)
 
-src = os.path.abspath(os.path.join("..", "LICENSE.md"))
+src = os.path.join(REPO_PATH, "LICENSE.md")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "License.md"))
 shutil.copyfile(src, dst)
 
-src = os.path.abspath(os.path.join("..", "CONTRIBUTING.md"))
+src = os.path.join(REPO_PATH, "CONTRIBUTING.md")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Contributing.md"))
 shutil.copyfile(src, dst)
 
-src = os.path.abspath(os.path.join("..", "CODE_OF_CONDUCT.md"))
+src = os.path.join(REPO_PATH, "CODE_OF_CONDUCT.md")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "CoC.md"))
 shutil.copyfile(src, dst)
 
-src = os.path.abspath(os.path.join("..", "NOTICE"))
+src = os.path.join(REPO_PATH, "NOTICE")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Notice.md"))
 shutil.copyfile(src, dst)
 
@@ -129,6 +133,9 @@ myst_enable_extensions = [
     "linkify",          # auto-detect URLs
     "smartquotes",      # nicer quotes
 ]
+# Make anchors for headings down to the third level, so a link such as `worlds.md#equation-of-state` resolves at
+# build time and does not raise a "local id not found" warning.
+myst_heading_anchors = 3
 
 # Autodoc settings
 extensions.append('sphinx.ext.autodoc')
@@ -154,7 +161,9 @@ breathe_default_project = "TidalPy"
 extensions.append('nbsphinx')
 extensions.append('sphinx.ext.napoleon')
 nbsphinx_allow_errors = True  # set True if you want docs to build even if notebooks fail
-nbsphinx_execute = "auto"  # or "always"
+# The notebooks are committed with their outputs, and several take minutes or need optional packages, so the
+# documentation build shows the stored outputs and never runs a notebook.
+nbsphinx_execute = "never"
 
 # Copy code QOL button
 extensions.append('sphinx_copybutton')

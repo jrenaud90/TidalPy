@@ -1,6 +1,6 @@
 # Love Numbers (`Tides_x.love`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-21_
 
 `TidalPy.Tides_x.love` contains the Love-number storage type, the names of the Love-number solution methods, and the closed-form homogeneous-sphere Love numbers. Solved Love numbers come from the radial solver (`RadialSolver_x.radial_solver` for the standalone array API, or `LayeredWorld.solve_love_numbers` on a built world), which populates the storage type after integration; `LayeredWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
 
@@ -97,7 +97,7 @@ h_l = (2 l + 1) / (2 (l - 1)) / (1 + mu_eff_l)
 l_l = 3 / (2 l (l - 1))    / (1 + mu_eff_l)
 ```
 
-In the fluid limit (`mu -> 0`) these give `k_2 = 3/2`, `h_2 = 5/2`, `l_2 = 3/4`. With a complex, frequency dependent shear modulus from a rheology model the Love numbers are complex; with the real static modulus they are the static (elastic) Love numbers.
+In the fluid limit ($\mu \to 0$) these give $k_2 = 3/2$, $h_2 = 5/2$, and $l_2 = 3/4$. With a complex, frequency dependent shear modulus from a rheology model the Love numbers are complex; with the real static modulus they are the static (elastic) Love numbers.
 
 ```python
 from TidalPy.rheology_x import Maxwell

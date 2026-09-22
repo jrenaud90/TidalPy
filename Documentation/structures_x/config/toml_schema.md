@@ -120,7 +120,7 @@ An unrecognized scalar key (or a model table not allowed for the layer's class) 
 
 ### Geometry
 
-Layers are always built inner-to-outer, so a layer's inner radius is never written by the user: it is the previous layer's outer radius (0 for the innermost). Supplying `radius_inner_m`, for example, raises an error. Each layer must specify its outer radius with exactly one of `radius_outer_m`, `radius_fraction`, or `volume_fraction` (supplying more than one, or none, is an error). For `volume_fraction`, the layer's spherical-shell volume equals that fraction of the whole-world volume, i.e. `r_out = (r_in^3 + volume_fraction * R_world^3)^(1/3)`.
+Layers are always built inner-to-outer, so a layer's inner radius is never written by the user: it is the previous layer's outer radius (0 for the innermost). Supplying `radius_inner_m`, for example, raises an error. Each layer must specify its outer radius with exactly one of `radius_outer_m`, `radius_fraction`, or `volume_fraction` (supplying more than one, or none, is an error). For `volume_fraction`, the layer's spherical-shell volume equals that fraction of the whole-world volume, so with $f_V$ the volume fraction and $R$ the world radius, $r_\mathrm{out} = \left(r_\mathrm{in}^3 + f_V R^3\right)^{1/3}$.
 
 ### Attached Physics Models
 
@@ -312,7 +312,7 @@ A delimited table (comma, semicolon, tab, or whitespace; `#` comment lines ignor
 
 Names are matched ignoring case and punctuation, so `Vp`, `V_P` and `vp` are one name, and a name may state its unit: `radius_km`, `Vp [km/s]`, `rho_kg_m3`. A unit this reader does not convert is taken to be MKS already. Columns are found by name, so their **order does not matter**; the names come from a header row or from the last `#` comment line before the data (which must name every column, so prose about the data is not mistaken for a header). A file with no header at all is read positionally as radius, density, `Vp`, `Vs`, shear viscosity, bulk viscosity.
 
-A radius or depth with no stated unit is read as kilometers below 100 km and as meters above it, ranges that cannot overlap for a real body. The file may be ordered surface-first or center-first (it is sorted internally). Where the velocities are given, the static moduli are derived per row: shear `μ = ρ·Vs²`, bulk `K = ρ·(Vp² − 4/3·Vs²)`.
+A radius or depth with no stated unit is read as kilometers below 100 km and as meters above it, ranges that cannot overlap for a real body. The file may be ordered surface-first or center-first (it is sorted internally). Where the velocities are given, the static moduli are derived per row: shear $\mu = \rho V_s^2$, bulk $K = \rho \left(V_p^2 - \tfrac{4}{3} V_s^2\right)$.
 
 ### Layer Detection
 

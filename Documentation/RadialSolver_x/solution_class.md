@@ -1,6 +1,6 @@
 # The Solution Class
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 Every radial solve returns a `RadialSolverSolution`, the Cython class in `TidalPy.RadialSolver_x.rs_solution`. It holds the solve status, the equation-of-state result, and the radial functions and Love numbers. The same object comes back from `radial_solver`, from `homogeneous_love_numbers`, and from a world's released radial storage.
 
@@ -40,8 +40,8 @@ The solver runs an equation of state before the deformation problem, and keeps t
 | `sample_radii(num_points=0)` | A radius grid [m] spanning the body, for a caller that wants one (plotting, tabulating). Nothing in the solve uses it and the solution keeps no copy; it defaults to the slice count the solve was configured with. |
 | `layer_upper_radius_array` | Upper radius of each layer [m]. |
 | `radius`, `volume`, `mass`, `moi`, `density_bulk` | Whole-planet scalars. |
-| `moi_factor` | The moment of inertia factor `moi / (M R^2)`: 0.4 for a uniform sphere, 0.3307 for Earth, and smaller the more mass sits near the center. |
-| `moi_sphere_ratio` | The same moment of inertia measured against a uniform sphere of equal mass and radius, `moi / (0.4 M R^2)`: exactly 1 when uniform, below 1 when centrally condensed. It is 2.5 times `moi_factor`. |
+| `moi_factor` | The moment of inertia factor $C/(MR^2)$, with $C$ the moment of inertia `moi`: 0.4 for a uniform sphere, 0.3307 for Earth, and smaller the more mass sits near the center. |
+| `moi_sphere_ratio` | The same moment of inertia measured against a uniform sphere of equal mass and radius, $C/(0.4\, MR^2)$: exactly 1 when uniform, below 1 when centrally condensed. It is 2.5 times `moi_factor`. |
 | `central_pressure`, `surface_pressure`, `surface_gravity` | Boundary values. |
 | `eos_call(radius)` | Dense equation-of-state outputs at any radius, evaluated from the solver's own interpolant rather than re-interpolating the gridded arrays. |
 | `eos_call_si(radius)` | The same, in SI units. |

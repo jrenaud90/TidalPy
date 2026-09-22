@@ -1,6 +1,6 @@
 # SolidLiquidLayer
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 `TidalPy.structures_x.layers.SolidLiquidLayer` extends `PhysicsLayer` with optional sub-models for radiogenic heating and convective or conductive cooling, and with the thermal-transport calculations that need the layer's geometry or solved profile. It adds no parameters of its own.
 
@@ -50,15 +50,15 @@ SolidLiquidLayer(
 
 | Parameter | Units | Description |
 |-----------|-------|-------------|
-| `name` | — | Human-readable layer name. |
-| `layer_index` | — | Zero-based index; innermost layer = 0. |
+| `name` | - | Human-readable layer name. |
+| `layer_index` | - | Zero-based index; innermost layer = 0. |
 | `radius_inner` | m | Inner boundary radius. |
 | `radius_outer` | m | Outer boundary radius. |
 | `mass` | kg | Total layer mass. Overwritten by each successful world EOS solve. |
-| `material_name` | — | Material identifier. Default `""`. |
-| `is_tidal` | — | Tidal dissipation flag. Default `True`. |
-| `tidal_scale` | — | Dimensionless tidal heating scale. Default `1.0`. |
-| `love_number_k`, `love_number_h`, `love_number_l` | — | Per-layer complex Love numbers, if you want to carry them on the layer. Default `0+0j`. |
+| `material_name` | - | Material identifier. Default `""`. |
+| `is_tidal` | - | Tidal dissipation flag. Default `True`. |
+| `tidal_scale` | - | Dimensionless tidal heating scale. Default `1.0`. |
+| `love_number_k`, `love_number_h`, `love_number_l` | - | Per-layer complex Love numbers, if you want to carry them on the layer. Default `0+0j`. |
 | `tidal_scale_method` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
 | `is_solid`, `is_static`, `is_incompressible` | - | Radial-solver assumptions; see [PhysicsLayer](physics_layer.md). Defaults `True`, `True`, `False`. |
 | `temperature`, `use_thermal_eos`, `use_heating` | | Layer-state parameters; see [PhysicsLayer](physics_layer.md). |
@@ -82,8 +82,8 @@ _Read-only properties._
 | `thermal_conductivity` | W/(m·K) | Thermal conductivity k of the layer's material (its EOS model). NaN when none is attached. |
 | `thermal_expansion` | 1/K | Thermal expansivity α of the material, the same α its density law uses. |
 | `heat_capacity` | J/(kg·K) | Specific heat capacity c_p of the material. |
-| `cooling_set` | — | `True` after a cooling sub-model is attached. |
-| `radiogenics_set` | — | `True` after a radiogenics sub-model is attached. |
+| `cooling_set` | - | `True` after a cooling sub-model is attached. |
+| `radiogenics_set` | - | `True` after a radiogenics sub-model is attached. |
 
 ## Methods
 
@@ -186,8 +186,8 @@ mantle.set_eos(ConstantDensityEOS(
     thermal_expansion      = 2.0e-5,
 ))
 
-T = 3200.0    # K — hot lower mantle
-P = 1e11      # Pa — ~100 GPa
+T = 3200.0    # K (hot lower mantle)
+P = 1e11      # Pa (about 100 GPa)
 
 # Before attaching it, ask the material about a pressure and temperature directly. Once the layer sits in a solved
 # world, read mantle.get_shear_modulus(radius) and friends instead: they report what the solve used.

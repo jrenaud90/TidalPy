@@ -41,6 +41,8 @@ Demos/5 - Rheology Exploration <Demos/5_-_Rheology_Exploration.ipynb>
 Demos/6 - Multilayer Heating <Demos/6_-_Multilayer_Heating.ipynb>
 Demos/7 - Comparison of Tidal Modes <Demos/7_-_Comparison_of_Tidal_Modes.ipynb>
 Demos/8 - Love Number Sensitivity <Demos/8_-_Love_Number_Sensitivity.ipynb>
+Demos/Graphics - Grid Plots <Demos/Graphics--GridPlots.ipynb>
+Demos/Graphics - Map Projections <Demos/Graphics--MapProjections.ipynb>
 ```
 
 ```{toctree}

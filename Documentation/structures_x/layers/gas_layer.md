@@ -1,6 +1,6 @@
 # GasLayer
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 `TidalPy.structures_x.layers.GasLayer` (`c_GasLayer` in C++) is the ideal-gas fluid layer class. It inherits `PhysicsLayer` and adds thermodynamic calculations for gas and fluid envelopes such as planetary atmospheres or gaseous mantles. No phase-change, cooling, or radiogenics sub-models are available; use `SolidLiquidLayer` for those.
 
@@ -46,7 +46,7 @@ All parameters from `PhysicsLayer` are accepted, including the material-state pa
 | Parameter | Unit | Default | Description |
 |---|---|---|---|
 | `mean_molecular_weight` | kg/mol | `2e-3` | Mean molar mass of the gas |
-| `adiabatic_index` | — | `1.4` | γ = c_p/c_v (ratio of specific heats) |
+| `adiabatic_index` | - | `1.4` | γ = c_p/c_v (ratio of specific heats) |
 | `reference_temperature` | K | `300.0` | Reference temperature |
 | `reference_density` | kg/m³ | `1.0` | Reference number density |
 
@@ -57,7 +57,7 @@ Inherits all `BaseLayer` and `PhysicsLayer` properties, plus:
 | Property | Unit | Description |
 |---|---|---|
 | `mean_molecular_weight` | kg/mol | Molar mass of the gas |
-| `adiabatic_index` | — | γ (ratio of specific heats) |
+| `adiabatic_index` | - | γ (ratio of specific heats) |
 | `reference_temperature` | K | Reference temperature |
 | `reference_density` | kg/m³ | Reference density |
 

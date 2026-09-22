@@ -1,6 +1,6 @@
 # Material EOS Models (`Material_x.eos`)
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four are evaluated through the same call, `calc_density(pressure, temperature=None, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
 
@@ -233,6 +233,7 @@ Every model supports the standard interfaces inherited from the base class.
 
 - `get_config_dict()` returns the model name under the key `model` plus its parameters, with the interpolated tables as lists, the material keys (`shear_modulus_static_pa`, `bulk_modulus_static_pa`, the two `*_viscosity_static_pas` when set, and the three shear-law keys), and a sub-table for each attached model (`shear_viscosity`, `bulk_viscosity`, `partial_melt`). The dict is accepted by `make_material_eos`, which builds and attaches the nested models, so a material round-trips through it. This is the `[layers.<name>.material]` table of a world TOML.
 - `save_config(path)` writes the same content as TOML.
+- A model attached to a layer is saved and restored with that layer: the layer's binary record and its `get_config_dict()` (under `material`) both carry it, so a world or a layer round trip needs no separate handling of its materials.
 - `save_binary(path)` and `load_binary(path, force=False)` use the TidalPy binary format, through the shared `c_PhysicsBase` helpers. Each model's record is followed by the material section: nine doubles (the four static constants, the three shear-law parameters, the conductivity, and the heat capacity), then a presence flag and nested record for each of the three optional models.
 
 Binary class ids: 601 constant, 602 Birch-Murnaghan, 603 Vinet, 604 interpolated.

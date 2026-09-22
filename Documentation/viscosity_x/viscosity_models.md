@@ -1,6 +1,6 @@
 # Viscosity Models (`viscosity_x`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-21_
 
 A viscosity model returns a material's dynamic viscosity $\eta$ \[Pa s\] as a function of temperature \[K\] and pressure \[Pa\]. This is the pre-melt, or "solid", viscosity: the value a material would show with no melt present, which the [partial-melt](../partial_melt_x/partial_melt_models.md) step then weakens. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
@@ -24,10 +24,10 @@ Each parameter carries two names: the constructor keyword, which is also the rea
 | `molar_activation_volume` | `molar_activation_volume_m3_mol` | $V_a$ | 0.0 | m$^3$ mol$^{-1}$ | Arrhenius, Reference |
 | `arrhenius_coeff` | `arrhenius_coeff` | $A$ | 1.0 | model-dependent | Arrhenius |
 | `stress` | `stress_pa` | $\sigma$ | 1.0 | Pa | Arrhenius |
-| `stress_expo` | `stress_expo` | $n$ | 1.0 | — | Arrhenius |
+| `stress_expo` | `stress_expo` | $n$ | 1.0 | - | Arrhenius |
 | `grain_size` | `grain_size_m` | $d$ | 1.0e-3 | m | Arrhenius |
-| `grain_size_expo` | `grain_size_expo` | $m$ | 0.0 | — | Arrhenius |
-| `additional_temp_dependence` | `additional_temp_dependence` | — | `False` | — | Arrhenius |
+| `grain_size_expo` | `grain_size_expo` | $m$ | 0.0 | - | Arrhenius |
+| `additional_temp_dependence` | `additional_temp_dependence` | - | `False` | - | Arrhenius |
 
 The stress exponent $n$ distinguishes creep regimes: $n = 1$ is diffusion creep, where the flow law is linear and the stress term drops out, and $n > 1$ is dislocation creep, where the material shears more readily the harder it is pushed. The grain-size exponent plays the same role for grain-boundary processes. Setting `additional_temp_dependence` adds the explicit factor of $T$ that some published diffusion-creep flow laws carry in front of the exponential.
 
@@ -76,8 +76,8 @@ Constructors take every parameter their model uses as a keyword with the default
 | `calc_viscosity(temperature, pressure=0.0)` | `float` [Pa s] | Dynamic viscosity at those conditions. |
 | `model_name` | `str` | The resolved model name (`arrhenius`, `reference`, `constant`). |
 | `get_config_dict()` | `dict` | `model` plus every parameter the model carries. |
-| `save_config(path)` | — | That dict written as TOML. |
-| `save_binary(path)` / `load_binary(path, force=False)` | — | TidalPy binary format; see [Binary serialization](../utilities_x/binary_x.md). |
+| `save_config(path)` | - | That dict written as TOML. |
+| `save_binary(path)` / `load_binary(path, force=False)` | - | TidalPy binary format; see [Binary serialization](../utilities_x/binary_x.md). |
 
 Parameters are read-only properties under their code names: `reference_viscosity` on the constant model; `reference_viscosity`, `reference_temperature`, `molar_activation_energy`, and `molar_activation_volume` on the reference model; and every constructor keyword on the Arrhenius model: `arrhenius_coeff`, `stress`, `stress_expo`, `grain_size`, `grain_size_expo`, `molar_activation_energy`, `molar_activation_volume`, and `additional_temp_dependence`. `get_config_dict()` emits the config keys, so a dictionary read back from a model or a TOML file feeds straight into `make_viscosity`.
 

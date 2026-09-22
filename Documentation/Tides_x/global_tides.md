@@ -1,6 +1,6 @@
 # Global (1D) Tidal Dissipation (`Tides_x.classes`)
 
-_Updated: 2026-09-19_
+_Updated: 2026-09-21_
 
 The global (or "1D potential") approach computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal modes `(l, m, p, q)`. Each mode carries a forcing frequency $\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta}$ and a precomputed potential weight; a tide model supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}(\omega)]$ that the collapse multiplies in and sums. Harmonic degrees `l = 2..10` are supported.
 
@@ -103,8 +103,8 @@ where each `fixed_*` is a list indexed from `l = 2`.
 | `get_fixed_q(degree_l)`, `get_fixed_dt(degree_l)` | float | Quality factor and time lag [s] for that degree. Defined on every model: a model that does not carry the parameter returns NaN, which is how a world's `cpl` or `ctl` Love method decides whether it can fall back to the attached tide model. See [Love numbers](love/love_numbers.md). |
 | `model_name` | str | The model's registered name, for example `cpl`. |
 | `get_config_dict()` | dict | Model name plus per-degree parameters. |
-| `save_config(path)`, `get_schema_version_str()` | — | Configuration output and schema version, shared by every physics model; see [Base Classes](../utilities_x/classes_x.md). |
-| `save_binary(path)` / `load_binary(path)` | — | Inherited from `TidalPyBaseClass`. |
+| `save_config(path)`, `get_schema_version_str()` | - | Configuration output and schema version, shared by every physics model; see [Base Classes](../utilities_x/classes_x.md). |
+| `save_binary(path)` / `load_binary(path)` | - | Inherited from `TidalPyBaseClass`. |
 
 `make_tide(name, config=None)` returns the concrete subclass; unknown names, and config keys other than `fixed_k`, `fixed_q`, and `fixed_dt`, raise `ValueError`. `collapse_global_tides(...)` supports the analytic models only: the `rheology` model raises `NotImplementedError` (use the world's `calc_tides`).
 
