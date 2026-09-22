@@ -492,9 +492,10 @@ cdef class System:
     cpdef dict get_config_dict(self):
         """Return the system's live state as a configuration dict (the ``build_system`` schema).
 
-        Each member world is inlined with its own configuration under its system name, together with
-        its tidal host, its star role, and its orbital elements. Used by :meth:`save_to_toml` when no
-        ``source_config`` was retained.
+        Each member world is inlined with its own live configuration (its ``get_config_dict``) under its
+        system name, together with its tidal host, its star role, and its orbital elements, so
+        ``build_system_from_dict`` rebuilds the system as it stands now and not as it was first described.
+        Used by :meth:`save_to_toml` when no ``source_config`` was retained.
 
         Returns
         -------
@@ -509,8 +510,7 @@ cdef class System:
         worlds_table = {}
         for i in range(<int>system_ptr.get_num_worlds()):
             world = self._world_wrappers[i]
-            world_cfg = dict(world.config) if world.config is not None else world.get_config_dict()
-            world_cfg["name"] = world.name
+            world_cfg = world.get_config_dict()
             entry = {"world": world_cfg}
             host_index = system_ptr.get_tidal_host_index(<size_t>i)
             if host_index >= 0:

@@ -15,7 +15,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
 from TidalPy.stellar_x.luminosity cimport LuminosityBase
 
@@ -170,8 +170,18 @@ cdef class StarWorld(BaseWorld):
         return "star"
 
     cpdef dict get_config_dict(self):
-        """Return the BaseWorld config dict plus ``effective_temperature`` and ``luminosity``."""
+        """Return the BaseWorld config dict plus the stellar values and the attached luminosity model.
+
+        Returns
+        -------
+        dict
+            The :class:`BaseWorld` keys, ``effective_temperature_k``, ``luminosity_w``, and a ``luminosity`` table
+            (``model`` plus the model's parameters) when a luminosity model is attached.
+        """
         d = BaseWorld.get_config_dict(self)
         d["effective_temperature_k"] = self._star_ptr.get_effective_temperature()
         d["luminosity_w"]            = self._star_ptr.get_luminosity()
+        cdef const c_PhysicsBase* model_ptr = <const c_PhysicsBase*>self._star_ptr.get_luminosity_model()
+        if model_ptr != NULL:
+            d["luminosity"] = cy_physics_model_config(model_ptr)
         return d

@@ -1,6 +1,6 @@
 # WorldPack_x and World TOML Files (`structures_x.configs.worldpack`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-21_
 
 A world file is a TOML description of a single world (a star, gas giant, or terrestrial/layered body) for the `structures_x` class system. WorldPack_x ships a small set of example world files with TidalPy, installs them into a user-editable data directory, and resolves them by name when you call `build_world("<name>")`.
 
@@ -64,6 +64,17 @@ system = build_system("sol_system")   # the same resolution, for a multi-world c
 
 Because installs are copy-if-absent and the data directory is version-scoped, a within-version schema change to a bundled world does not propagate to a user who already has the old copy in `Worlds_x/`. Across versions the new version's `Worlds_x` folder starts empty, so fresh copies install. During development, delete `Worlds_x/*.toml` (or call `install_worldpack_x(force=True)`) to pick up edits.
 
+### Stale-Copy Warning
+
+A copy that an older install left behind cannot be told apart from a copy the user edited, so TidalPy never replaces either. It does say so: when a bundled world, system, or data file is resolved to a data-directory copy whose contents differ from the packaged file of the same name (line endings aside), a warning names both files and the two ways to take the packaged one (delete the copy, or `install_worldpack_x(force=True)`, which replaces every copy and discards every edit). The warning is given once per file per session. To turn it off, set
+
+```toml
+[warnings]
+    stale_worldpack_copy = false
+```
+
+in `TidalPy_Configs_x.toml`. `warn_if_stale_copy(path)` runs the same comparison on request and returns whether the file differs.
+
 ## Adding a Bundled World
 
 1. Write a schema-`0.2.0` world TOML and drop it in `TidalPy/WorldPack_x/<name>.toml`. `MANIFEST.in` already globs `TidalPy/WorldPack_x/*.toml`, so it is packaged on the next `uv pip install`.
@@ -82,6 +93,7 @@ The bundled worlds favor the per-material defaults: keep them small by specifyin
 | `available_worlds() -> list[str]` | Sorted union of data-dir and packaged world names, systems excluded. |
 | `available_systems() -> list[str]` | The same for the bundled system names. |
 | `config_kind(source) -> str` | `"system"` if the config has a `worlds` table, else `"world"`. Takes a path or a dict. |
+| `warn_if_stale_copy(data_path) -> bool` | Whether a data-directory file differs from its packaged counterpart; warns once per file per session unless `[warnings] stale_worldpack_copy` is false. |
 | `get_worlds_x_dir() -> str` | The user data directory for `_x` worlds (`.../TidalPy/<major>.<minor>.X/Worlds_x`). |
 | `PACKAGED_WORLDPACK_DIR` | Path to the packaged `WorldPack_x` directory. |
 

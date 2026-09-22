@@ -4,7 +4,9 @@ The example configurations in the package directory ``TidalPy/WorldPack_x/`` are
 version-scoped, user-editable data directory (``.../TidalPy/<version>/Worlds_x``, see
 :func:`TidalPy.paths.get_worlds_x_dir`) on first use, and the data-directory copy is preferred when a
 world is requested by name. Installation is copy-if-absent per file, so user edits and renames are
-never clobbered while newly packaged worlds appear on the next import.
+never clobbered while newly packaged worlds appear on the next import. The price is that a copy made by
+an older install outlives an update to the packaged file, so a copy that differs from its packaged
+counterpart is reported (once per file per session, and never overwritten).
 
 World configurations and system configurations share this directory and are told apart by content:
 a system names its members in a ``[worlds.<name>]`` table, a world never does. :func:`config_kind`
@@ -13,6 +15,7 @@ is that test, and :func:`available_worlds` / :func:`available_systems` list the 
 
 import os
 import shutil
+import warnings
 
 import toml
 
@@ -32,6 +35,9 @@ _INSTALLED_EXTENSIONS = (".toml", ".csv", ".txt", ".dat")
 # The two kinds of configuration the world pack directory holds.
 WORLD_CONFIG = "world"
 SYSTEM_CONFIG = "system"
+
+# Data-directory copies already reported as differing from their packaged file (once per file per session).
+_WARNED_STALE_COPIES: set = set()
 
 
 def get_worlds_x_dir() -> str:
@@ -74,6 +80,61 @@ def install_worldpack_x(force: bool = False) -> str:
     return data_dir
 
 
+def _read_normalized(file_path: str) -> bytes:
+    """File contents with line endings normalized, so an editor's or git's newline choice is not a difference."""
+    with open(file_path, "rb") as file:
+        return file.read().replace(b"\r\n", b"\n")
+
+
+def warn_if_stale_copy(data_path: str) -> bool:
+    """Warn when a data-directory file differs from the packaged file of the same name.
+
+    The data directory is filled copy-if-absent, so a bundled world or data file that changed in a newer
+    TidalPy does not reach a machine that already holds a copy, and the copy keeps being used. Whether the
+    difference is a deliberate edit or an outdated file cannot be told apart, so the copy is never touched:
+    the warning names both files and how to replace the copy. It is given once per file per session, and
+    ``[warnings] stale_worldpack_copy = false`` in ``TidalPy_Configs_x.toml`` turns it off.
+
+    Parameters
+    ----------
+    data_path : str
+        A file in the data directory that is about to be used.
+
+    Returns
+    -------
+    bool
+        True when the file differs from its packaged counterpart (whether or not a warning was given).
+    """
+    packaged_path = os.path.join(PACKAGED_WORLDPACK_DIR, os.path.basename(data_path))
+    if not (os.path.isfile(data_path) and os.path.isfile(packaged_path)):
+        return False
+    if os.path.abspath(data_path) == os.path.abspath(packaged_path):
+        return False
+    try:
+        differs = _read_normalized(data_path) != _read_normalized(packaged_path)
+    except OSError:
+        return False
+    if not differs:
+        return False
+
+    config_x = getattr(TidalPy, "config_x", None) or {}
+    enabled = (config_x.get("warnings", {}) or {}).get("stale_worldpack_copy", True)
+    key = os.path.normcase(os.path.abspath(data_path))
+    if enabled and key not in _WARNED_STALE_COPIES:
+        _WARNED_STALE_COPIES.add(key)
+        warnings.warn(
+            f"The copy of '{os.path.basename(data_path)}' in the TidalPy data directory differs from the one "
+            f"packaged with this install, and the copy is the one being used.\n"
+            f"    data directory copy: {data_path}\n"
+            f"    packaged file:       {packaged_path}\n"
+            "If the difference is your own edit, nothing needs doing. If the copy was left by an older "
+            "install, delete it or call TidalPy.structures_x.install_worldpack_x(force=True), which replaces "
+            "every copy (and discards every edit). Set stale_worldpack_copy = false under [warnings] in "
+            "TidalPy_Configs_x.toml to silence this.",
+            stacklevel=2)
+    return True
+
+
 def resolve_data_file(data_file: str, base_dir: str = None) -> str:
     """Resolve a world's companion data-file reference to an absolute path.
 
@@ -110,6 +171,7 @@ def resolve_data_file(data_file: str, base_dir: str = None) -> str:
     candidates.append(data_file)
     for candidate in candidates:
         if os.path.isfile(candidate):
+            warn_if_stale_copy(candidate)
             return os.path.abspath(candidate)
     raise FileNotFoundError(
         f"Could not resolve world data file '{data_file}'. Looked in: "
@@ -142,6 +204,7 @@ def resolve_world_path(name: str) -> str:
 
     data_path = os.path.join(get_worlds_x_dir(), file_name)
     if os.path.isfile(data_path):
+        warn_if_stale_copy(data_path)
         return data_path
 
     packaged_path = os.path.join(PACKAGED_WORLDPACK_DIR, file_name)

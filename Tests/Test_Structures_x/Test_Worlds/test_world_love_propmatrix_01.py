@@ -94,10 +94,16 @@ def test_prop_matrix_close_to_shooting_for_same_world():
     world = _incompressible_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
     world.solve_love_numbers(frequency=_FREQ, love_method='propagation_matrix', verbose=False)
+    assert world.love_solved
     k2_matrix = world.love_number_k
-    world.solve_love_numbers(frequency=_FREQ, love_method='radial_solver', verbose=False)
+    # The shooting method has no starting conditions for a static incompressible solid, so its solve takes the
+    # dynamic form of the same layer (the two agree at this low frequency) with the Kamata starting conditions.
+    # A failed solve reads back as NaN, not as the matrix result left by the solve before it.
+    world.mantle.is_static = False
+    world.solve_love_numbers(frequency=_FREQ, love_method='radial_solver', use_kamata=True, verbose=False)
+    assert world.love_solved
     k2_shoot = world.love_number_k
-    assert k2_matrix.real == pytest.approx(k2_shoot.real, rel=0.10)
+    assert k2_matrix.real == pytest.approx(k2_shoot.real, rel=1.0e-3)
 
 
 # =====================================================================================================================

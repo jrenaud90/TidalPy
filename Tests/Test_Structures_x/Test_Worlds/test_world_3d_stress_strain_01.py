@@ -4,7 +4,7 @@ The grids are checked two independent ways. Every value equals the point-wise ke
 ``Tides_x.multilayer.stress_strain`` assembled mode by mode, and the strain equals the symmetric gradient of the
 world's own displacement grid by central differences, which checks dy1/dr and the corrected angular strain forms
 against the displacement field. Also covered: the output layout, skipping one tensor, NaN at a radius without a
-depth-resolved solution, and input validation.
+depth-resolved solution and inside a liquid layer, and input validation.
 """
 import math
 
@@ -238,3 +238,63 @@ def test_strain_is_symmetric_gradient_of_displacement(spin_ratio, obliquity, obl
         times=[time],
         return_stress=False)["strain"][0, 0, 0, 0]
     np.testing.assert_allclose(strain, expected, rtol=1.0e-4, atol=1.0e-6 * np.max(np.abs(expected)))
+
+
+
+# =====================================================================================================================
+# A liquid layer
+# =====================================================================================================================
+_R_CORE = 0.4 * _R
+_CORE_DENSITY = 8000.0
+
+
+def _liquid_core_world(core_is_static):
+    """A hand-built two-layer world: a liquid core under the Maxwell mantle of ``_build_world``."""
+    mass = (4.0 / 3.0) * math.pi * (_R_CORE ** 3 * _CORE_DENSITY + (_R ** 3 - _R_CORE ** 3) * _DENSITY)
+    world = LayeredWorld("w", _R, mass)
+    core = PhysicsLayer("core", 0, 0.0, _R_CORE, 0.0, is_solid=False, is_static=core_is_static)
+    core.set_eos(ConstantDensityEOS(
+        reference_density=_CORE_DENSITY, shear_modulus_static=0.0, bulk_modulus_static=2.0 * _BULK))
+    core.set_shear_rheology(Elastic())
+    core.set_bulk_rheology(Elastic())
+    mantle = PhysicsLayer("mantle", 1, _R_CORE, _R, 0.0)
+    mantle.set_eos(ConstantDensityEOS(
+        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
+    mantle.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
+    mantle.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
+    mantle.set_shear_rheology(Maxwell())
+    mantle.set_bulk_rheology(Elastic())
+    world.add_layer(core)
+    world.add_layer(mantle)
+    world.set_tide_model(make_tide("rheology"))
+    world.set_tide_config(
+        min_degree_l=2, max_degree_l=2, eccentricity_truncation=_ECC_TRUNCATION, obliquity_truncation=0)
+    world.solve_eos(G_to_use=G)
+    return world
+
+
+@pytest.mark.parametrize("core_is_static", [True, False])
+def test_liquid_layer_has_no_stress_or_strain(core_is_static):
+    """The kernel is a solid-layer computation: a point inside a liquid layer is NaN, and the solid above is not."""
+    world = _liquid_core_world(core_is_static)
+    # The world Love solve itself has to get through the liquid core (this world once failed it).
+    assert world.solve_love_numbers(frequency=_N)["success"]
+
+    semi_major_axis = orbital_motion2semi_a(_N, _HOST, world.mass)
+    state = (_N, _N, _ECC, 0.0, semi_major_axis, _HOST)
+    radii = np.array([0.5 * _R_CORE, 0.99 * _R_CORE, 0.7 * _R, _R])
+    result = world.calc_3d_stress_strain(
+        *state, radii=radii, colatitudes=[0.5, 1.4], longitudes=[0.3, 2.0], times=[0.0, 2.0e4])
+    for name in ("stress", "strain"):
+        assert np.all(np.isnan(result[name][:2])), f"{name} inside the liquid core"
+        assert np.all(np.isfinite(result[name][2:])), f"{name} in the solid mantle"
+        assert np.any(result[name][2:] != 0.0)
+
+    # The secular heating density follows the same rule point by point, and a radial sum takes the liquid as
+    # contributing nothing, so the summed heating is finite and is the 1D total.
+    density = world.get_3d_tidal_heating_array(*state, np.array([0.5 * _R_CORE, 0.7 * _R]), np.array([0.5, 0.5]))
+    assert np.isnan(density[0]) and density[1] > 0.0
+    world.calc_tides(*state)
+    summed = world.calc_3d_tides(*state, radial_summed=True, latitude_summed=True, longitude_summed=True)
+    assert summed["total"] == pytest.approx(world.get_tidal_heating(), rel=2.0e-2)
+    assert summed["per_layer"][0] == 0.0

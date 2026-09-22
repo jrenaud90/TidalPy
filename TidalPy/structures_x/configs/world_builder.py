@@ -7,13 +7,15 @@ physics models (EOS, rheology, viscosity, partial-melt, cooling, radiogenics).
 
 :func:`build_world` resolves a source (bundled name, file path, or ``dict``), validates it, and
 returns the built world; :func:`construct_world` and :func:`construct_layer` take an already-parsed
-``dict``.
+``dict``. :func:`build_world_from_dict` and :func:`build_layer_from_dict` rebuild an object from the
+dictionary its ``get_config_dict`` returns.
 
 A value the user omits is taken from the ``[layers.<type>]`` block of ``TidalPy_Configs_x.toml``,
 keyed by the layer's material ``type``, and only if that is also absent does the C++ or Cython
 constructor or physics-model-factory default apply.
 """
 
+import copy
 import os
 import re
 import warnings
@@ -35,13 +37,17 @@ from TidalPy.cooling_x.cooling import make_cooling
 from TidalPy.radiogenics_x.radiogenics import make_radiogenics
 from TidalPy.Material_x.eos.material_eos import make_material_eos
 from TidalPy.Tides_x.classes.tide import make_tide
+from TidalPy.stellar_x.luminosity import make_luminosity
+from TidalPy.dynamics_x.spin import Spin
 
 from TidalPy.structures_x.configs.toml_loader import (
     ALLOWED_LAYER_SCALAR_KEYS,
     ALLOWED_MODEL_SECTIONS,
     LAYER_GEOMETRY_SPEC_KEYS,
     SCHEMA_VERSION,
+    validate_layer_config,
     validate_world_config,
+    warning_enabled,
 )
 from TidalPy.structures_x.configs.toml_loader import DEFAULT_MATERIAL_TYPE, NO_MATERIAL_TYPE
 from TidalPy.structures_x.configs import worldpack
@@ -158,7 +164,6 @@ def _material_type_defaults(material_type: str | None, layer_class_name: str) ->
     if material_type == NO_MATERIAL_TYPE:
         return {}
 
-
     config_x = getattr(TidalPy, "config_x", None) or {}
     type_block = config_x.get("layers", {}).get(material_type, {})
     if not type_block:
@@ -184,7 +189,8 @@ def construct_layer(
         layer_cfg: dict,
         layer_index: int,
         radius_inner: float,
-        radius_outer: float):
+        radius_outer: float,
+        extra_kwargs: Optional[dict] = None):
     """Construct a single layer (and its attached physics models) from config.
 
     The geometry is supplied by the caller. Every other parameter and physics-model table resolves
@@ -205,6 +211,9 @@ def construct_layer(
         Inner radius [m] (the previous layer's outer radius; 0 for the innermost).
     radius_outer : float
         Outer radius [m] (already resolved from the layer's outer-radius specifier).
+    extra_kwargs : dict, optional
+        Constructor arguments that are not layer schema keys (a standalone layer's Love numbers; see
+        :func:`build_layer_from_dict`).
 
     Returns
     -------
@@ -247,6 +256,8 @@ def construct_layer(
     # The mass has no constructor default. Every successful EOS solve overwrites it with the
     # solved layer mass, so 0.0 stands in when neither the user nor the material block supplies it.
     ctor_kwargs.setdefault("mass", 0.0)
+    if extra_kwargs:
+        ctor_kwargs.update(extra_kwargs)
 
     layer = layer_class(name=layer_name, layer_index=layer_index, **ctor_kwargs)
 
@@ -263,6 +274,62 @@ def construct_layer(
         getattr(layer, setter_name)(model)
 
     return layer
+
+
+def build_layer_from_dict(config: dict):
+    """Rebuild a standalone layer from the dictionary its ``get_config_dict`` returns.
+
+    The dictionary is the world builder's layer table plus the keys only a standalone layer needs: ``name``,
+    ``radius_inner_m`` (inside a world both come from the layer's place in the ``layers`` table), and the six
+    Love number components of a physics layer. The rebuilt layer is of the same class, with the same
+    parameters and the same attached models.
+
+    Parameters
+    ----------
+    config : dict
+        A layer configuration as returned by ``layer.get_config_dict()``. It is not modified.
+
+    Returns
+    -------
+    BaseLayer
+        The rebuilt layer (``BaseLayer``, ``PhysicsLayer``, ``SolidLiquidLayer``, or ``GasLayer``).
+
+    Raises
+    ------
+    TypeError
+        If ``config`` is not a dict.
+    ValueError
+        If ``name``, ``radius_inner_m``, or ``radius_outer_m`` is missing, or the rest fails layer validation.
+    """
+    if not isinstance(config, dict):
+        raise TypeError(f"build_layer_from_dict needs a configuration dict, not {type(config)}.")
+    layer_cfg = copy.deepcopy(config)
+    for required in ("name", "radius_inner_m", "radius_outer_m"):
+        if required not in layer_cfg:
+            raise ValueError(
+                f"A standalone layer configuration needs '{required}': there is no world to take it from.")
+    layer_name = layer_cfg.pop("name")
+    radius_inner = float(layer_cfg.pop("radius_inner_m"))
+
+    # TOML has no complex type, so the Love numbers travel as real and imaginary parts.
+    extra_kwargs = {}
+    for letter in ("k", "h", "l"):
+        real_key = f"love_number_{letter}_re"
+        imag_key = f"love_number_{letter}_im"
+        if real_key in layer_cfg or imag_key in layer_cfg:
+            extra_kwargs[f"love_number_{letter}"] = complex(
+                layer_cfg.pop(real_key, 0.0), layer_cfg.pop(imag_key, 0.0))
+
+    validate_layer_config(layer_name, layer_cfg)
+    if extra_kwargs and layer_cfg["class"] == "base":
+        raise ValueError(f"Layer '{layer_name}' of class 'base' holds no Love numbers.")
+    return construct_layer(
+        layer_name,
+        layer_cfg,
+        int(layer_cfg.get("layer_index", 0)),
+        radius_inner,
+        float(layer_cfg["radius_outer_m"]),
+        extra_kwargs=extra_kwargs)
 
 
 # =====================================================================================================================
@@ -695,16 +762,22 @@ def construct_world(config: dict):
             if key in resolved:
                 world_kwargs[_CONFIG_KEY_TO_ARGUMENT[key]] = resolved[key]
         world = StarWorld(**world_kwargs)
+        if "luminosity" in config:
+            try:
+                world.set_luminosity_model(_build_model(make_luminosity, config["luminosity"]))
+            except ValueError as error:
+                raise ValueError(f"[luminosity] {error}") from error
         # A star has no layers, but the analytic tide pipeline (cpl/ctl/ctl_q) is common to
         # all world types, so wire its [tides] table too (default model: fixed_q).
         _attach_tides(world, config)
-    elif world_type == "gasgiant":
-        world = GasGiantWorld(world_type=world_type, **world_kwargs)
-        _add_layers(world, config["layers"], world_radius)
-        _attach_tides(world, config)
     else:
-        # "terrestrial" and "layered" both map to LayeredWorld.
-        world = LayeredWorld(world_type=world_type, **world_kwargs)
+        if world_type == "gasgiant":
+            world = GasGiantWorld(world_type=world_type, **world_kwargs)
+        else:
+            # "terrestrial" and "layered" both map to LayeredWorld.
+            world = LayeredWorld(world_type=world_type, **world_kwargs)
+        if "moment_of_inertia_factor" in resolved:
+            world.set_spin_model(Spin(moment_of_inertia_factor=resolved["moment_of_inertia_factor"]))
         _add_layers(world, config["layers"], world_radius)
         _attach_tides(world, config)
 
@@ -723,6 +796,18 @@ _DEFAULT_TIDE_MODEL_FALLBACK = {
     "terrestrial": "rheology",
     "layered":     "rheology",
 }
+
+SUPPORTED_ECCENTRICITY_TRUNCATIONS = (1, 2, 3, 4, 5, 10, 15, 20)
+SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 1, 2, 10)
+
+# Untabulated obliquity levels already warned about (same once-per-session rule as the
+# eccentricity promotion below).
+_WARNED_OBLIQUITY_TRUNCATIONS: set = set()
+
+# Untabulated truncation levels already warned about, so a stale configuration file (which
+# would otherwise trigger the promotion warning on every single world build) warns once per
+# session per level.
+_WARNED_ECCENTRICITY_TRUNCATIONS: set = set()
 
 
 def _resolve_obliquity_truncation(value) -> int:
@@ -755,7 +840,7 @@ def _resolve_obliquity_truncation(value) -> int:
             break
     else:
         promoted = 10
-    if level not in _WARNED_OBLIQUITY_TRUNCATIONS:
+    if level not in _WARNED_OBLIQUITY_TRUNCATIONS and warning_enabled("truncation_promotion"):
         _WARNED_OBLIQUITY_TRUNCATIONS.add(level)
         warnings.warn(
             f"Obliquity truncation {level} is not tabulated; using {promoted} instead. "
@@ -767,19 +852,6 @@ def _tides_config_x() -> dict:
     """Return the ``[tides]`` defaults block from the ``_x`` config (empty if absent)."""
     config_x = getattr(TidalPy, "config_x", None) or {}
     return config_x.get("tides", {}) or {}
-
-
-SUPPORTED_ECCENTRICITY_TRUNCATIONS = (1, 2, 3, 4, 5, 10, 15, 20)
-SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 1, 2, 10)
-
-# Untabulated obliquity levels already warned about (same once-per-session rule as the
-# eccentricity promotion below).
-_WARNED_OBLIQUITY_TRUNCATIONS: set = set()
-
-# Untabulated truncation levels already warned about, so a stale configuration file (which
-# would otherwise trigger the promotion warning on every single world build) warns once per
-# session per level.
-_WARNED_ECCENTRICITY_TRUNCATIONS: set = set()
 
 
 def _resolve_eccentricity_truncation(value) -> int:
@@ -795,7 +867,7 @@ def _resolve_eccentricity_truncation(value) -> int:
         return level
     for supported in SUPPORTED_ECCENTRICITY_TRUNCATIONS:
         if supported > level:
-            if level not in _WARNED_ECCENTRICITY_TRUNCATIONS:
+            if level not in _WARNED_ECCENTRICITY_TRUNCATIONS and warning_enabled("truncation_promotion"):
                 _WARNED_ECCENTRICITY_TRUNCATIONS.add(level)
                 warnings.warn(
                     f"Eccentricity truncation {level} is not tabulated; using {supported} instead. "
@@ -1037,6 +1109,40 @@ def build_world(source: Union[str, dict], force: bool = False):
         The constructed world (a ``BaseWorld`` subclass).
     """
     return BaseWorld.build(source, force=force)
+
+
+def build_world_from_dict(config: dict, force: bool = False):
+    """Rebuild a world from the dictionary its ``get_config_dict`` returns.
+
+    The rebuilt world is of the same class, with the same parameters, layers, attached models, and tide
+    settings. Solved state (the EOS, Love numbers, tides) is not part of a configuration, so run the solves
+    again on the new world.
+
+    Parameters
+    ----------
+    config : dict
+        A world configuration, as returned by ``world.get_config_dict()`` or written by hand to the same
+        schema. It is not modified, and the new world does not share it.
+    force : bool, optional
+        If True, bypass the schema-version compatibility warning. Default False.
+
+    Returns
+    -------
+    BaseWorld
+        The rebuilt world (a ``BaseWorld`` subclass).
+
+    Raises
+    ------
+    TypeError
+        If ``config`` is not a dict (use :func:`build_world` for a bundled name or a file path).
+    ValueError
+        If the configuration fails validation.
+    """
+    if not isinstance(config, dict):
+        raise TypeError(
+            f"build_world_from_dict needs a configuration dict, not {type(config)}. "
+            "Use build_world for a bundled world name or a file path.")
+    return BaseWorld.build(copy.deepcopy(config), force=force)
 
 
 def available_worlds() -> list:

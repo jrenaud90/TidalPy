@@ -26,7 +26,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_PI, d_NAN
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_layer_class_name
 from TidalPy.structures_x.layers.base import LAYER_STANDALONE_CONFIG_KEYS
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
@@ -34,19 +34,20 @@ from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
 from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_YTYPES
 from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
-from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_name_int
+from TidalPy.Tides_x.love.love cimport (
+    c_parse_love_method_int, c_love_method_name_int, c_love_method_uses_radial_solver_int)
 from TidalPy.Utilities_x.logging_x.logger import log_warning
 
 
 # Build the matching layer wrapper as a non-owning view onto a layer the world owns, dispatched by the C++
 # layer's concrete class id. The view keeps the world alive (see BaseLayer._view).
 cdef BaseLayer _wrap_layer_view(c_BaseLayer* ptr, object world):
-    cdef uint32_t class_id = ptr.get_layer_class_id()
-    if class_id == 101:
+    cdef bytes class_name = c_layer_class_name(ptr.get_layer_class_id())
+    if class_name == b"physics":
         return PhysicsLayer._view(<c_PhysicsLayer*>ptr, world)
-    elif class_id == 102:
+    elif class_name == b"solidliquid":
         return SolidLiquidLayer._view(<c_SolidLiquidLayer*>ptr, world)
-    elif class_id == 103:
+    elif class_name == b"gas":
         return GasLayer._view(<c_GasLayer*>ptr, world)
     return BaseLayer._view(ptr, world)
 
@@ -995,7 +996,8 @@ cdef class LayeredWorld(BaseWorld):
         with nogil:
             self._layered_ptr.solve_love_numbers(cfg)
 
-        if warnings and cfg.love_method <= 1:   # the conditioning diagnostic belongs to the radial solvers
+        # The conditioning diagnostic belongs to the radial solvers.
+        if warnings and c_love_method_uses_radial_solver_int(cfg.love_method):
             check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
         return self._build_love_result()
 
@@ -1113,7 +1115,11 @@ cdef class LayeredWorld(BaseWorld):
 
     @property
     def love_solved(self) -> bool:
-        """True once solve_love_numbers has completed successfully."""
+        """True while a successful ``solve_love_numbers`` result is held.
+
+        ``solve_eos`` clears it, because Love numbers describe the structure they were solved with; the Love
+        number getters return NaN until the next solve.
+        """
         return bool(self._layered_ptr.get_love_solved())
 
     @property
@@ -1811,12 +1817,12 @@ cdef class LayeredWorld(BaseWorld):
         Each entry is the layer's own ``get_config_dict`` (``class``, scalars, attached-model sub-tables)
         minus the standalone-only keys the builder derives itself (``name``, ``radius_inner``, the
         Love-number components), so the result validates against the world schema and rebuilds the same
-        structure through ``build_world``.
+        structure through ``build_world_from_dict``.
 
         Returns
         -------
         dict
-            All :class:`BaseWorld` keys plus ``layers``.
+            All :class:`BaseWorld` keys, ``moment_of_inertia_factor`` (the attached spin model's), and ``layers``.
 
         Raises
         ------
@@ -1824,6 +1830,7 @@ cdef class LayeredWorld(BaseWorld):
             If two layers share a name (the table needs unique keys).
         """
         cdef dict config = BaseWorld.get_config_dict(self)
+        config["moment_of_inertia_factor"] = self._layered_ptr.get_spin_model().get_config().moment_of_inertia_factor
         cdef dict layers = {}
         cdef dict layer_config
         for view in self._ensure_layer_views():

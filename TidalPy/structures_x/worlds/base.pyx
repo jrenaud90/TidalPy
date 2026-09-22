@@ -198,11 +198,20 @@ cdef class BaseWorld(StructureBase):
     # Mutators
     # ------------------------------------------------------------------------------------------------------------------
     def set_spin_frequency(self, double freq):
-        """Set the rotation rate [rad/s]."""
+        """Set the rotation rate [rad/s].
+
+        The stored rate is what a ``System`` reads when it builds the world's tidal state. ``calc_tides`` takes
+        its spin rate as an argument, so a tidal result already solved keeps describing the state it was given.
+        """
         self._world_ptr.get().set_spin_frequency(freq)
 
     def set_obliquity(self, double obliq):
-        """Set the axial obliquity [rad]."""
+        """Set the axial obliquity [rad].
+
+        The stored obliquity is what a ``System`` reads when it builds the world's tidal state. ``calc_tides``
+        takes its obliquity as an argument, so a tidal result already solved keeps describing the state it was
+        given.
+        """
         self._world_ptr.get().set_obliquity(obliq)
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -334,7 +343,11 @@ cdef class BaseWorld(StructureBase):
 
     @property
     def tides_solved(self) -> bool:
-        """Whether a successful :meth:`calc_tides` has been run."""
+        """Whether a successful :meth:`calc_tides` result is held.
+
+        A new tide model or tide config clears it, and so does a layered world's ``solve_eos``: the result
+        describes the structure it was solved with.
+        """
         return self._world_ptr.get().get_tides_solved()
 
     def get_tidal_heating(self) -> float:

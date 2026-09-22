@@ -255,27 +255,34 @@ def _layer_outer_radii(world):
     return [layer["radius_outer_m"] for layer in world.get_config_dict()["layers"].values()]
 
 
+def _two_layer_world(name, inner_spec):
+    """A 6000 km world whose inner layer takes ``inner_spec``; the outer layer fills the rest, as it has to."""
+    inner = {"class": "solidliquid", "layer_index": 0}
+    inner.update(inner_spec)
+    return {
+        "name": name, "type": "terrestrial", "radius_m": 6.0e6, "mass_kg": 5.0e24,
+        "layers": {
+            "inner": inner,
+            "outer": {"class": "solidliquid", "layer_index": 1, "radius_fraction": 1.0},
+        }}
+
+
 def test_radius_outer_m_spec():
-    world = construct_world(_single_layer_world({"radius_outer_m": 4.0e6}))
+    world = construct_world(_two_layer_world("O", {"radius_outer_m": 4.0e6}))
     assert math.isclose(_layer_outer_radii(world)[0], 4.0e6, rel_tol=1e-12)
+    assert math.isclose(_layer_outer_radii(world)[1], 6.0e6, rel_tol=1e-12)
 
 
 def test_radius_fraction_spec():
     # outer = radius_fraction * world radius (6e6) = 3e6.
-    layer = {"class": "solidliquid", "layer_index": 0, "radius_fraction": 0.5}
-    world = construct_world({
-        "name": "F", "type": "terrestrial", "radius_m": 6.0e6, "mass_kg": 5.0e24,
-        "layers": {"only": layer}})
+    world = construct_world(_two_layer_world("F", {"radius_fraction": 0.5}))
     assert math.isclose(_layer_outer_radii(world)[0], 3.0e6, rel_tol=1e-12)
 
 
 def test_volume_fraction_spec():
     # Innermost layer (inner=0): outer = (volume_fraction * R^3)^(1/3) = R * f^(1/3).
     # f = 0.125 -> outer = 0.5 * 6e6 = 3e6.
-    layer = {"class": "solidliquid", "layer_index": 0, "volume_fraction": 0.125}
-    world = construct_world({
-        "name": "V", "type": "terrestrial", "radius_m": 6.0e6, "mass_kg": 5.0e24,
-        "layers": {"only": layer}})
+    world = construct_world(_two_layer_world("V", {"volume_fraction": 0.125}))
     assert math.isclose(_layer_outer_radii(world)[0], 3.0e6, rel_tol=1e-9)
 
 
@@ -290,14 +297,17 @@ def test_inner_radius_derived_from_previous_layer():
                     "material": {"model": "constant", "reference_density_kg_m3": 5000.0}},
             "shell": {"class": "physics", "layer_index": 2, "volume_fraction": 0.125,
                       "material": {"model": "constant", "reference_density_kg_m3": 3000.0}},
+            "crust": {"class": "physics", "layer_index": 3, "radius_fraction": 1.0,
+                      "material": {"model": "constant", "reference_density_kg_m3": 2800.0}},
         }}
     world = construct_world(config)
     outers = _layer_outer_radii(world)
-    # core: 2e6; mid: 0.75*6e6 = 4.5e6; shell: (4.5e6^3 + 0.125*6e6^3)^(1/3).
+    # core: 2e6; mid: 0.75*6e6 = 4.5e6; shell: (4.5e6^3 + 0.125*6e6^3)^(1/3); crust: the surface.
     expected_shell = (4.5e6 ** 3 + 0.125 * 6.0e6 ** 3) ** (1.0 / 3.0)
     assert math.isclose(outers[0], 2.0e6, rel_tol=1e-12)
     assert math.isclose(outers[1], 4.5e6, rel_tol=1e-12)
     assert math.isclose(outers[2], expected_shell, rel_tol=1e-9)
+    assert math.isclose(outers[3], 6.0e6, rel_tol=1e-12)
     # Geometry is continuous, so the structure solve succeeds.
     assert world.solve_eos(G_to_use=G, verbose=False)["success"]
 

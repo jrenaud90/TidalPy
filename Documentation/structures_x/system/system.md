@@ -59,7 +59,7 @@ Two worlds that host each other share one orbit, so its elements need to be give
 
 ## Building a `System` from TOML (`build_system`)
 
-A whole system can be described in TOML and built in one call, mirroring `build_world`. Each `[worlds.<name>]` table names a `world` (a bundled world name, a path to a world TOML, or an inline world config) plus its `tidal_host` (the table key of the world that raises its tides), its star role, and its orbital elements. A host may be declared after the worlds it hosts. A world that states `semi_major_axis_m` or `eccentricity` must name a `tidal_host` for them to be about. The table key becomes the world's name within the system, so a bundled world template can be reused under different names.
+A whole system can be described in TOML and built in one call, mirroring `build_world`. Each `[worlds.<name>]` table names a `world` (a bundled world name, a path to a world TOML, or an inline world config) plus its `tidal_host` (the table key of the world that raises its tides), its star role, and its orbital elements. `system.get_config_dict()` returns the same schema for the system as it stands now (each world inlined with its own live `get_config_dict()`), and `build_system_from_dict(config)` rebuilds the system from it. A host may be declared after the worlds it hosts. A world that states `semi_major_axis_m` or `eccentricity` must name a `tidal_host` for them to be about. The table key becomes the world's name within the system, so a bundled world template can be reused under different names.
 
 ```toml
 schema_version = "0.2.0"
@@ -166,6 +166,8 @@ $$T = \left(\frac{(1-A)\,F}{4\,\varepsilon\,\sigma}\right)^{1/4},$$
 with the world's albedo $A$, its emissivity $\varepsilon$, and the Stefan-Boltzmann constant $\sigma$. Both raise `RuntimeError` if no star is set and return NaN for the star's own entry, an unset stellar semi-major axis, or a star with no luminosity.
 
 ## Orbital and Spin Evolution
+
+A layered world whose tide model is `rheology` (the default for a terrestrial world) takes its Love numbers from its interior, so run `world.solve_eos()` on every such member before any of the evolution methods below; they raise `RuntimeError` otherwise. A later `solve_eos` retires the world's tidal result, and the next evolution call solves it again.
 
 `calc_world_evolution(world)` evolves a single world. It solves the world's global tides in the current system state (mean motion from Kepler's third law, spin and obliquity from the world, eccentricity and semi-major axis from the orbit about its tidal host, host mass from that host), then turns the tidal-potential derivatives into the orbital rates and the world's spin rate. Only this world raises tides; its host is treated as a point mass. A world with no tidal host, or no usable orbit about it, comes back with `evolved = False`.
 

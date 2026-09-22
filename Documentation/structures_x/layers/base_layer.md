@@ -1,6 +1,6 @@
 # BaseLayer
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-21_
 
 `TidalPy.structures_x.layers.BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii \[m\], total mass \[kg\], and an optional material identifier for one spherically symmetric shell inside a planetary body. Derived geometry (thickness, volume, surface areas) is computed at construction and accessible through read-only properties.
 
@@ -36,14 +36,14 @@ BaseLayer(
 
 | Parameter | Type | Units | Description |
 |-----------|------|-------|-------------|
-| `name` | `str` | — | Human-readable identifier (e.g. `"mantle"`). |
-| `layer_index` | `int` | — | Zero-based index; innermost layer = 0. |
+| `name` | `str` | - | Human-readable identifier (e.g. `"mantle"`). |
+| `layer_index` | `int` | - | Zero-based index; innermost layer = 0. |
 | `radius_inner` | `float` | m | Inner boundary radius. |
 | `radius_outer` | `float` | m | Outer boundary radius. |
 | `mass` | `float` | kg | Total layer mass. Overwritten by each successful world EOS solve. |
-| `material_name` | `str` | — | Material identifier (e.g. `"perovskite"`). Optional. |
-| `is_tidal` | `bool` | — | Whether this layer dissipates tidal energy. Default `True`. |
-| `tidal_scale` | `float` | — | Dimensionless scale on tidal heating. Default `1.0`. |
+| `material_name` | `str` | - | Material identifier (e.g. `"perovskite"`). Optional. |
+| `is_tidal` | `bool` | - | Whether this layer dissipates tidal energy. Default `True`. |
+| `tidal_scale` | `float` | - | Dimensionless scale on tidal heating. Default `1.0`. |
 
 ## Properties
 
@@ -53,8 +53,8 @@ Read-only properties.
 
 | Property | Units | Description |
 |----------|-------|-------------|
-| `name` | — | Layer name. |
-| `layer_index` | — | Zero-based index. |
+| `name` | - | Layer name. |
+| `layer_index` | - | Zero-based index. |
 | `radius` / `radius_outer` | m | Outer boundary radius. |
 | `radius_inner` | m | Inner boundary radius. |
 | `thickness` | m | `radius_outer - radius_inner`. |
@@ -63,9 +63,9 @@ Read-only properties.
 | `density_bulk` | kg/m³ | Bulk density, `mass / volume`; follows the EOS-set mass. |
 | `surface_area_outer` | m² | Outer surface area. |
 | `surface_area_inner` | m² | Inner surface area. |
-| `material_name` | — | Material identifier. |
-| `is_tidal` | — | Tidal dissipation flag. |
-| `tidal_scale` | — | Tidal heating scale factor. |
+| `material_name` | - | Material identifier. |
+| `is_tidal` | - | Tidal dissipation flag. |
+| `tidal_scale` | - | Tidal heating scale factor. |
 
 ### EOS Profile
 

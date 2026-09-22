@@ -18,11 +18,14 @@ A parameter the user omits is resolved in three tiers: the user configuration, t
 then the C++, Cython, or factory default. That merge lives in the world builder.
 """
 
+import math
 import os
 import warnings
 from typing import Union
 
 import toml
+
+import TidalPy
 
 
 # Schema version for the structures_x TOML/world format. Compatibility uses the
@@ -188,12 +191,21 @@ _STAR_WORLD_KEYS = (
     "effective_temperature_k",
     "luminosity_w"
 )
+_LAYERED_WORLD_KEYS = (
+    # C / (M R^2) of the world's spin model: its moment of inertia until the EOS is solved.
+    "moment_of_inertia_factor",
+)
 
 ALLOWED_WORLD_SCALAR_KEYS = {
-    "layered":     frozenset(_COMMON_WORLD_KEYS),
-    "terrestrial": frozenset(_COMMON_WORLD_KEYS),
-    "gasgiant":    frozenset(_COMMON_WORLD_KEYS),
+    "layered":     frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
+    "terrestrial": frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
+    "gasgiant":    frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
     "star":        frozenset(_COMMON_WORLD_KEYS + _STAR_WORLD_KEYS),
+}
+
+# World-level model tables, and the world types that may carry each.
+WORLD_MODEL_SECTIONS = {
+    "luminosity": ("star",),   # a star's mass-to-luminosity model (stellar_x.make_luminosity)
 }
 
 # Keys accepted inside a world's optional '[tides]' table (consumed by the world builder's
@@ -226,6 +238,12 @@ _REQUIRED_WORLD_KEYS = (
 # =====================================================================================================================
 # TOML / source loading
 # =====================================================================================================================
+def warning_enabled(name: str) -> bool:
+    """Whether the ``[warnings]`` switch ``name`` of ``TidalPy_Configs_x.toml`` is on (on when the config is absent)."""
+    config_x = getattr(TidalPy, "config_x", None) or {}
+    return bool((config_x.get("warnings", {}) or {}).get(name, True))
+
+
 def load_toml(source: Union[str, dict]) -> dict:
     """Load a world configuration from a TOML file path or an existing ``dict``.
 
@@ -293,9 +311,10 @@ def validate_schema_version(config: dict, force: bool = False) -> bool:
 
     found = config.get("schema_version", None)
     if found is None:
-        warnings.warn(
-            "World configuration has no 'schema_version'; assuming it targets the "
-            f"current schema {SCHEMA_VERSION}. Behavior may be unexpected.")
+        if warning_enabled("schema_version"):
+            warnings.warn(
+                "World configuration has no 'schema_version'; assuming it targets the "
+                f"current schema {SCHEMA_VERSION}. Behavior may be unexpected.")
         return True
 
     expected_parts = SCHEMA_VERSION.split(".")
@@ -312,9 +331,10 @@ def validate_schema_version(config: dict, force: bool = False) -> bool:
 
     # Minor-version mismatch: allow but warn.
     if found_minor != expected_parts[1]:
-        warnings.warn(
-            f"World configuration schema version {found} differs from the current "
-            f"schema {SCHEMA_VERSION} by a minor version; some functionality may break.")
+        if warning_enabled("schema_version"):
+            warnings.warn(
+                f"World configuration schema version {found} differs from the current "
+                f"schema {SCHEMA_VERSION} by a minor version; some functionality may break.")
         return True
 
     # Identical or patch-only difference: allowed silently.
@@ -330,7 +350,8 @@ def validate_world_config(config: dict) -> None:
     Checks that the required world keys are present, the ``type`` is recognized,
     no unknown world-level scalar keys appear, and (for layered worlds) the
     ``layers`` table is well formed. Each layer is validated via
-    :func:`validate_layer_config`.
+    :func:`validate_layer_config`, and the values themselves are then checked by
+    :func:`validate_physical_values`.
 
     Parameters
     ----------
@@ -378,6 +399,14 @@ def validate_world_config(config: dict) -> None:
             continue
         if key in structural:
             continue
+        if key in WORLD_MODEL_SECTIONS:
+            if world_type not in WORLD_MODEL_SECTIONS[key]:
+                raise ValueError(
+                    f"A world of type '{world_type}' cannot hold a '[{key}]' model. "
+                    f"Allowed for: {WORLD_MODEL_SECTIONS[key]}.")
+            if not isinstance(value, dict) or "model" not in value:
+                raise ValueError(f"The world-level '[{key}]' entry must be a table with a 'model' key.")
+            continue
         if isinstance(value, dict):
             # Unexpected nested table at the world level.
             raise ValueError(
@@ -391,6 +420,7 @@ def validate_world_config(config: dict) -> None:
     if world_type == "star":
         if "layers" in config and config["layers"]:
             raise ValueError("A star world must not declare any layers.")
+        validate_physical_values(config)
         return
 
     layers = config.get("layers", None)
@@ -401,6 +431,115 @@ def validate_world_config(config: dict) -> None:
         raise ValueError("The 'layers' entry must be a table of named layers.")
     for layer_name, layer_cfg in layers.items():
         validate_layer_config(layer_name, layer_cfg)
+    validate_physical_values(config)
+
+
+# Relative tolerance on the geometry checks: a stack of layers given by fractions reaches the world radius only
+# to roundoff, and a radius copied from a paper may carry a few digits.
+_GEOMETRY_RTOL = 1.0e-6
+
+
+def _require_number(where: str, key: str, value, minimum=None, maximum=None,
+                    minimum_open: bool = False, maximum_open: bool = False) -> float:
+    """Check that ``value`` is a finite real number inside an interval; return it as a float."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{where}: '{key}' must be a number, not {value!r}.")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{where}: '{key}' must be finite, not {number}.")
+    if minimum is not None and (number <= minimum if minimum_open else number < minimum):
+        bound = "greater than" if minimum_open else "at least"
+        raise ValueError(f"{where}: '{key}' must be {bound} {minimum}, not {number}.")
+    if maximum is not None and (number >= maximum if maximum_open else number > maximum):
+        bound = "less than" if maximum_open else "at most"
+        raise ValueError(f"{where}: '{key}' must be {bound} {maximum}, not {number}.")
+    return number
+
+
+def validate_physical_values(config: dict) -> None:
+    """Check that the numbers of a structurally valid world configuration describe a possible world.
+
+    The structural checks settle which keys may appear; this pass reads their values. Without it a negative or
+    NaN radius, a zero mass, a layer that ends below where it starts, a stack that stops short of the surface,
+    a fraction above one, or two layers claiming one index all build a world without complaint, and fail (or do
+    not fail) somewhere far from the file that caused it.
+
+    Parameters
+    ----------
+    config : dict
+        A world configuration that has passed the structural part of :func:`validate_world_config`.
+
+    Raises
+    ------
+    ValueError
+        Naming the world or layer, the key, the value found, and the range allowed.
+    """
+    where = f"World '{config.get('name', '')}'"
+    world_radius = _require_number(where, "radius_m", config["radius_m"], minimum=0.0, minimum_open=True)
+    _require_number(where, "mass_kg", config["mass_kg"], minimum=0.0, minimum_open=True)
+    if "albedo" in config:
+        _require_number(where, "albedo", config["albedo"], minimum=0.0, maximum=1.0)
+    if "emissivity" in config:
+        _require_number(where, "emissivity", config["emissivity"], minimum=0.0, maximum=1.0, minimum_open=True)
+    for key in ("obliquity_rad", "spin_frequency_rad_s"):
+        if key in config:
+            _require_number(where, key, config[key])
+    # Zero is a value for both: a luminosity of zero is derived from the temperature, and the reverse.
+    for key in ("effective_temperature_k", "luminosity_w"):
+        if key in config:
+            _require_number(where, key, config[key], minimum=0.0)
+
+    layers = config.get("layers", None)
+    if not layers:
+        return
+
+    # The builder stacks the layers by index (declaration order where none is given), each one starting where the
+    # one below it ends, so the geometry is checked in that same order.
+    ordered = []
+    seen_indices = {}
+    for order_index, (layer_name, layer_cfg) in enumerate(layers.items()):
+        index = layer_cfg.get("layer_index", order_index)
+        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+            raise ValueError(f"Layer '{layer_name}': 'layer_index' must be a non-negative integer, not {index!r}.")
+        if index in seen_indices:
+            raise ValueError(
+                f"Layers '{seen_indices[index]}' and '{layer_name}' both resolve to layer_index {index} "
+                "(a layer with no 'layer_index' takes its position in the file). Give each layer its own.")
+        seen_indices[index] = layer_name
+        ordered.append((index, layer_name, layer_cfg))
+    ordered.sort(key=lambda item: item[0])
+
+    radius_inner = 0.0
+    for _, layer_name, layer_cfg in ordered:
+        layer_where = f"Layer '{layer_name}'"
+        if "radius_outer_m" in layer_cfg:
+            radius_outer = _require_number(
+                layer_where, "radius_outer_m", layer_cfg["radius_outer_m"], minimum=0.0, minimum_open=True)
+        elif "radius_fraction" in layer_cfg:
+            radius_outer = world_radius * _require_number(
+                layer_where, "radius_fraction", layer_cfg["radius_fraction"],
+                minimum=0.0, maximum=1.0 + _GEOMETRY_RTOL, minimum_open=True)
+        else:
+            volume_fraction = _require_number(
+                layer_where, "volume_fraction", layer_cfg["volume_fraction"],
+                minimum=0.0, maximum=1.0 + _GEOMETRY_RTOL, minimum_open=True)
+            radius_outer = (radius_inner ** 3 + volume_fraction * world_radius ** 3) ** (1.0 / 3.0)
+        if radius_outer <= radius_inner:
+            raise ValueError(
+                f"{layer_where} ends at {radius_outer} m, which is not above where it starts ({radius_inner} m, the "
+                "top of the layer below it). Layers are stacked from the center outward.")
+        if radius_outer > world_radius * (1.0 + _GEOMETRY_RTOL):
+            raise ValueError(
+                f"{layer_where} ends at {radius_outer} m, above the world's radius of {world_radius} m.")
+        for key in ("mass_kg", "tidal_scale", "temperature_k"):
+            if key in layer_cfg:
+                _require_number(layer_where, key, layer_cfg[key], minimum=0.0)
+        radius_inner = radius_outer
+
+    if radius_inner < world_radius * (1.0 - _GEOMETRY_RTOL):
+        raise ValueError(
+            f"{where}: its outermost layer ('{ordered[-1][1]}') ends at {radius_inner} m, short of the world's "
+            f"radius of {world_radius} m. The layers have to fill the world.")
 
 
 def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:

@@ -38,6 +38,7 @@ cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
         void   set_effective_temperature(double temperature)
         void   set_luminosity(double luminosity)
         void   set_luminosity_model(unique_ptr[c_LuminosityBase] model)
+        const c_LuminosityBase* get_luminosity_model() const
         cpp_bool has_luminosity_model() const
         double calc_luminosity_from_mass() except +
         double calc_effective_temperature_from_mass() except +

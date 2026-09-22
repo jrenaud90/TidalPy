@@ -437,6 +437,8 @@ public:
         // each c_EOS_ODEInput, and that copy holds a pointer (eos_input_ptr) into this vector through which
         // every later evaluation of the density and moduli reaches the layer's EOS model, so it must outlive
         // solve_eos. The vector lives as long as the world and is re-set on every solve.
+        // From here on the solve replaces the structure, so nothing solved on top of the old one may be read.
+        this->mark_structure_dirty();
         this->p_eos_material_inputs.assign(n_layers, c_MaterialEOSInput());
 
         c_EOS_ODEInput ode_input;
@@ -632,10 +634,22 @@ public:
 
         // Retain the full solution so callers can read the radial profile arrays.
         this->p_eos_solution = std::move(solution);
+    }
 
-        // A re-solve changes the structure/moduli arrays even if the grid size is
-        // unchanged, so invalidate the cached radial-solver setup.
-        if (this->p_radial_solver) this->p_radial_solver->invalidate();
+    // Everything solved on top of the structure describes the structure it was solved with: the Love numbers,
+    // the global tides, the heating handed to each layer, and the cached radial-solver setup (a re-solve changes
+    // the structure and moduli even when the grid size does not). solve_eos calls this before it replaces the
+    // structure, so none of them can be read against the new one; each comes back with its own next solve.
+    void mark_structure_dirty() noexcept {
+        this->p_love_solved           = false;
+        this->p_love_analytic_success = false;
+        this->p_tides_solved          = false;
+        this->p_tide_solver_love.clear();
+        this->p_layer_tidal_heating.clear();
+        for (const auto& layer_uptr : this->p_layers) {
+            layer_uptr->set_tidal_heating(TidalPyConstants::d_NAN);
+        }
+        if (this->p_radial_solver) { this->p_radial_solver->invalidate(); }
     }
 
     // EOS solve result accessors (valid after solve_eos; NaN/empty otherwise).
@@ -1230,7 +1244,7 @@ public:
     bool get_love_success() const noexcept {
         if (this->love_is_analytic()) return this->p_love_analytic_success;
         const auto* s = this->get_love_storage();
-        return s ? s->success : false;
+        return (s && this->p_love_solved) ? s->success : false;
     }
     int get_love_error_code() const noexcept {
         if (this->love_is_analytic()) return this->p_love_analytic_error_code;
@@ -1257,14 +1271,15 @@ public:
         return s ? s->surface_amplification : 0.0;
     }
     // Primary Love numbers (k, h, l) for the given boundary-condition ytype index (the analytic methods hold a
-    // single tidal set at index 0).
+    // single tidal set at index 0). NaN when no solve describes the current structure: never solved, failed, or
+    // followed by a solve_eos.
     std::complex<double> get_love_number_k(std::size_t ytype_idx = 0) const noexcept {
         if (this->love_is_analytic()) {
             return (this->p_love_analytic_success && ytype_idx == 0)
                 ? this->p_love_analytic.k : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         }
         const auto* s = this->get_love_storage();
-        if (!s || ytype_idx >= s->complex_love_vec.size())
+        if (!s || !this->p_love_solved || ytype_idx >= s->complex_love_vec.size())
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return s->complex_love_vec[ytype_idx].k;
     }
@@ -1274,7 +1289,7 @@ public:
                 ? this->p_love_analytic.h : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         }
         const auto* s = this->get_love_storage();
-        if (!s || ytype_idx >= s->complex_love_vec.size())
+        if (!s || !this->p_love_solved || ytype_idx >= s->complex_love_vec.size())
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return s->complex_love_vec[ytype_idx].h;
     }
@@ -1284,7 +1299,7 @@ public:
                 ? this->p_love_analytic.l : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         }
         const auto* s = this->get_love_storage();
-        if (!s || ytype_idx >= s->complex_love_vec.size())
+        if (!s || !this->p_love_solved || ytype_idx >= s->complex_love_vec.size())
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return s->complex_love_vec[ytype_idx].l;
     }
@@ -1295,7 +1310,7 @@ public:
             std::size_t ytype_idx, std::size_t y_idx) const noexcept {
         if (this->love_is_analytic()) return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         const auto* s = this->get_love_storage();
-        if (!s || !s->success || y_idx >= C_MAX_NUM_Y)
+        if (!s || !this->p_love_solved || !s->success || y_idx >= C_MAX_NUM_Y)
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         std::complex<double> surface_y[C_MAX_NUM_Y];
         if (!s->get_surface_y(ytype_idx, surface_y))
@@ -1312,7 +1327,7 @@ public:
             std::size_t y_idx) const noexcept {
         if (this->love_is_analytic()) return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         const auto* s = this->get_love_storage();
-        if (!s || !s->success || y_idx >= C_MAX_NUM_Y)
+        if (!s || !this->p_love_solved || !s->success || y_idx >= C_MAX_NUM_Y)
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         std::complex<double> y_at_r[C_MAX_NUM_Y];
         if (!s->get_radial_solution(radius, ytype_idx, y_at_r))
