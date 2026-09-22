@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -59,26 +60,36 @@ typedef c_IntMap<c_Key4, size_t> c_UniqueFreqIndexMap;
 typedef std::vector<c_FrequencyStorage> c_UniqueFreqMap;
 
 
-// Relative tolerance for deciding that two tidal-mode frequencies are the same one, and that a
-// frequency is zero. Modes are collapsed onto a shared frequency when they agree to this much.
-inline constexpr double d_FREQUENCY_MATCH_RTOL = 1.0e-9;
+// Relative tolerance for deciding that two tidal-mode frequencies are the same one, and that a frequency is
+// zero: config_x [numerical] frequency_match_rtol, with a fallback for a call made before the config is loaded.
+// Modes are collapsed onto a shared frequency when they agree to this much.
+inline constexpr double d_FREQUENCY_MATCH_RTOL_FALLBACK = 1.0e-9;
 
-bool record_unique_frequencies(
+inline double c_frequency_match_rtol() noexcept
+{
+    if (tidalpy_config_ptr != nullptr && std::isfinite(tidalpy_config_ptr->d_FREQUENCY_MATCH_RTOL))
+    {
+        return tidalpy_config_ptr->d_FREQUENCY_MATCH_RTOL;
+    }
+    return d_FREQUENCY_MATCH_RTOL_FALLBACK;
+}
+
+inline bool record_unique_frequencies(
         c_Key4& lmpq_key,
         double frequency,
         c_UniqueFreqIndexMap& frequency_index_map,
         c_UniqueFreqMap& frequency_map)
 {
+    const double match_rtol = c_frequency_match_rtol();
     bool nonzero_freq;
     if (tidalpy_config_ptr != nullptr)
     {
-        nonzero_freq = not c_isclose(
-            frequency, 0.0, d_FREQUENCY_MATCH_RTOL, tidalpy_config_ptr->d_MIN_FREQUENCY);
+        nonzero_freq = not c_isclose(frequency, 0.0, match_rtol, tidalpy_config_ptr->d_MIN_FREQUENCY);
     }
     else
     {
         // TidalPy config is not initialized. Just default to zero.
-        nonzero_freq = not c_isclose(frequency, 0.0, d_FREQUENCY_MATCH_RTOL, 0.0);
+        nonzero_freq = not c_isclose(frequency, 0.0, match_rtol, 0.0);
     }
     
     // TODO: Do we want to keep zero frequencies? I don't think so...
@@ -89,7 +100,7 @@ bool record_unique_frequencies(
         for (size_t i = 0; i < frequency_map.size(); i++)
         {
             frequency_storage_ptr = &frequency_map[i];
-            if (c_isclose(frequency, frequency_storage_ptr->frequency, d_FREQUENCY_MATCH_RTOL, 0.0))
+            if (c_isclose(frequency, frequency_storage_ptr->frequency, match_rtol, 0.0))
             {   
                 frequency_storage_ptr->num_instances += 1;
                 frequency_index_map.set(lmpq_key, i);
@@ -109,10 +120,10 @@ bool record_unique_frequencies(
 }
 
 inline c_IntMap<c_Key2, double>& c_get_lm_coeff_map() {
-    static c_IntMap<c_Key2, double> lm_coeff_map;
-    static bool initialized = false;
-
-    if (!initialized) {
+    // The table is filled inside the initializer of a function-local static, which runs once even when several
+    // threads arrive together.
+    static c_IntMap<c_Key2, double> filled_map = []() {
+        c_IntMap<c_Key2, double> lm_coeff_map;
         lm_coeff_map.reserve(512);
         lm_coeff_map.set(c_Key2(1, 0), 1.000000000000000e+0);
         lm_coeff_map.set(c_Key2(1, 1), 1.000000000000000e+0);
@@ -578,7 +589,8 @@ inline c_IntMap<c_Key2, double>& c_get_lm_coeff_map() {
         lm_coeff_map.set(c_Key2(29, 27), 5.625890217798600e-75);
         lm_coeff_map.set(c_Key2(29, 28), 4.934991419121579e-77);
         lm_coeff_map.set(c_Key2(29, 29), 8.508605895037205e-79);
-    }
-    
-    return lm_coeff_map;
-};
+        return lm_coeff_map;
+    }();
+
+    return filled_map;
+}

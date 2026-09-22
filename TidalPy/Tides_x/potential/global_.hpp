@@ -47,7 +47,7 @@ struct c_GlobalPotentialResult
     int error_code = 0;
 };
 
-c_GlobalPotentialStorage c_global_potential(
+inline c_GlobalPotentialStorage c_global_potential(
         double planet_radius,
         double semi_major_axis,
         double orbital_frequency,

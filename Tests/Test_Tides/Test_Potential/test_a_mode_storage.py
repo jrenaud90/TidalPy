@@ -3,7 +3,9 @@ import math
 
 def test_mode_map():
     """Tests `ModeMap` a Cython wrapper of `c_ModeMap`."""
-    from TidalPy.Tides_x.potential import ModeMap, test_mode_map
+    from TidalPy.Tides_x.potential import ModeMap
+    # A debug helper of the extension module, deliberately not part of the package's exports.
+    from TidalPy.Tides_x.potential.potential_common import test_mode_map
 
     mode_map, total_size = test_mode_map()
     assert isinstance(mode_map, ModeMap)

@@ -32,9 +32,9 @@ my_map.clear()
 print(my_map.size())
 my_map.reserve(10)  # Reserves memory so that memory allocation can happen on your terms.
 
-# The set method takes each integer separately, not in a tuple.
-test_map.set((1, 1, 2), 45.4)
-print(test_map.get())
+# The set and get methods take the key as a tuple too.
+my_map.set((1, 1, 2), 45.4)
+print(my_map.get((1, 1, 2)))
 
 my_complex_map = IntMap3Complex()
 my_complex_map[(1, 2, 3)] = 90 - 3.5j

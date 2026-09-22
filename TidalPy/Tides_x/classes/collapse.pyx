@@ -61,6 +61,9 @@ cdef extern from "tide_collapse_.hpp" nogil:
         int num_modes
         int error_code
 
+    # The C++ function takes a third, defaulted pointer to per-mode radial-solver Love numbers. Only a world's
+    # rheology path passes it, and that call is made in C++, so it is left out of this declaration and the
+    # analytic collapse below always takes the default (null).
     c_GlobalTideResult c_collapse_global_tides(
         const c_GlobalPotentialStorage& potential,
         const c_TideBase& tide_model) except +
