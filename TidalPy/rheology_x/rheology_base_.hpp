@@ -65,7 +65,7 @@ public:
             std::vector<c_ComplexModulus>& out_complex_modulus) const {
         if (viscosity.size() != modulus.size()) {
             throw std::invalid_argument(
-                "TidalPy: calc_complex_modulus_vectorize_modulus — viscosity and "
+                "TidalPy::calc_complex_modulus_vectorize_modulus: Viscosity and "
                 "modulus vectors must have the same length");
         }
         const std::size_t n = modulus.size();
@@ -105,7 +105,7 @@ public:
         if (viscosity.size() != modulus.size() ||
             viscosity.size() != frequency.size()) {
             throw std::invalid_argument(
-                "TidalPy: calc_complex_modulus_vectorize_all — viscosity, modulus, "
+                "TidalPy::calc_complex_modulus_vectorize_all: viscosity, modulus, "
                 "and frequency vectors must all have the same length");
         }
         const std::size_t n = modulus.size();

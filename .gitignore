@@ -89,6 +89,20 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+# Written by Documentation/conf.py on every build: the build output, the generated API pages, and the copies of the
+# repository's top-level documents, demos, and benchmarks that the pages include.
+Documentation/_build/
+Documentation/API/generated/
+Documentation/Changes.md
+Documentation/Overview/Readme.md
+Documentation/Overview/Readme_raw.md
+Documentation/Overview/License.md
+Documentation/Overview/Contributing.md
+Documentation/Overview/CoC.md
+Documentation/Overview/Notice.md
+Documentation/Demos/
+Documentation/Demos_x/
+Documentation/Benchmarks_x/
 
 # PyBuilder
 target/

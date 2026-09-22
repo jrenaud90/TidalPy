@@ -23,7 +23,7 @@ namespace tidalpy {
 inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     if (!this->p_tide) {
         throw std::runtime_error(
-            "TidalPy: no tide model attached to the world — call set_tide_model() first");
+            "TidalPy: no tide model attached to the world: call set_tide_model() first");
     }
 
     // The rheology model needs the world radial solver, which only a layered world has.

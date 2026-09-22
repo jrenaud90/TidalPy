@@ -51,14 +51,14 @@ def obliquity_func(
         raise NotImplementedError(
             f"Degree l = {degree_l} is not currently supported for obliquity function calculations. "
             "Supported degrees: l = 2 through 10.")
-    
+
     cdef int error_code = 0
     cdef ObliquityFuncOutput result_pair = c_obliquity_func(
         &error_code,
         obliquity,
         degree_l,
         truncation)
-    
+
     if error_code != 0:
         if error_code == -1:
             raise NotImplementedError(

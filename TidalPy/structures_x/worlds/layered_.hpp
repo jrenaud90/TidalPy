@@ -201,7 +201,7 @@ public:
         const double tol        = layer_continuity_tol(prev_outer);
         if (std::abs(inner - prev_outer) > tol) {
             throw std::invalid_argument(
-                "TidalPy: layer geometry is not continuous — inner radius does not "
+                "TidalPy: layer geometry is not continuous. Inner radius does not "
                 "match the previous layer's outer radius (add layers inner-to-outer)");
         }
         this->p_layers.push_back(std::move(layer));

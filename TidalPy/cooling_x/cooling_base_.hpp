@@ -96,7 +96,7 @@ public:
         if (delta_temp.size() != viscosity.size())
         {
             throw std::invalid_argument(
-                "TidalPy: calc_cooling_vectorize_all — delta_temp and viscosity "
+                "TidalPy::calc_cooling_vectorize_all: delta_temp and viscosity "
                 "vectors must have the same length");
         }
         const std::size_t n = delta_temp.size();

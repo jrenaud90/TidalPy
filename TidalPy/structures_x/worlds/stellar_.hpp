@@ -94,7 +94,7 @@ public:
     double calc_luminosity_from_mass() const {
         if (this->p_luminosity_model == nullptr) {
             throw std::runtime_error(
-                "TidalPy: c_StarWorld::calc_luminosity_from_mass — no luminosity model attached "
+                "TidalPy: c_StarWorld::calc_luminosity_from_mass: no luminosity model attached "
                 "(call set_luminosity_model first).");
         }
         return this->p_luminosity_model->calc_luminosity(this->get_mass());
@@ -105,7 +105,7 @@ public:
     double calc_effective_temperature_from_mass() const {
         if (this->p_luminosity_model == nullptr) {
             throw std::runtime_error(
-                "TidalPy: c_StarWorld::calc_effective_temperature_from_mass — no luminosity model "
+                "TidalPy: c_StarWorld::calc_effective_temperature_from_mass: no luminosity model "
                 "attached (call set_luminosity_model first).");
         }
         return this->p_luminosity_model->calc_effective_temperature(this->get_mass(), this->get_radius());

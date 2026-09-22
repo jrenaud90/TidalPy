@@ -39,22 +39,22 @@ def eccentricity_func(
     else:
         raise TypeError("Unexpected type found for `truncation`.")
     if truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
-            raise NotImplementedError(
-                "Unsupported truncation provided for eccentricity function. "
-                "Tabulated levels: 1, 2, 3, 4, 5, 10, 15, 20.")
+        raise NotImplementedError(
+            "Unsupported truncation provided for eccentricity function. "
+            "Tabulated levels: 1, 2, 3, 4, 5, 10, 15, 20.")
 
     if degree_l not in (2, 3, 4, 5, 6, 7, 8, 9, 10):
         raise NotImplementedError(
             f"Degree l = {degree_l} is not currently supported for eccentricity function calculations. "
             "Supported degrees: l = 2 through 10.")
-    
+
     cdef int error_code = 0
     cdef EccentricityFuncOutput result_pair = c_eccentricity_func(
         &error_code,
         eccentricity,
         degree_l,
         truncation)
-    
+
     if error_code != 0:
         if error_code == -1:
             raise NotImplementedError("Eccentricity function error code -1: Unsupported / Not implemented truncation provided.")

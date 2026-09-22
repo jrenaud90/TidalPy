@@ -41,7 +41,7 @@ public:
         const std::size_t n = temperature.size();
         if (pressure.size() != n) {
             throw std::invalid_argument(
-                "TidalPy: calc_viscosity_vectorize — temperature and pressure "
+                "TidalPy: calc_viscosity_vectorize: temperature and pressure "
                 "vectors must have the same length");
         }
         out_viscosity.resize(n);

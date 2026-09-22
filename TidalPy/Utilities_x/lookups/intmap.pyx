@@ -31,7 +31,7 @@ cdef class IntMap4:
     
     def set(self, tuple key, double value):
         if len(key) != 4:
-            raise ValueError("Key must be a tuple of 3 integers (l, m, p, q)")
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
 
         cdef int16_t a = key[0]
         cdef int16_t b = key[1]
@@ -42,7 +42,7 @@ cdef class IntMap4:
     
     def get(self, tuple key):
         if len(key) != 4:
-            raise ValueError("Key must be a tuple of 3 integers (l, m, p, q)")
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
 
         cdef int16_t a = key[0]
         cdef int16_t b = key[1]
@@ -265,7 +265,7 @@ cdef class IntMap1:
     
     def set(self, tuple key, double value):
         if len(key) != 1:
-            raise ValueError("Key must be a tuple of 1 integers (l,)")
+            raise ValueError("Key must be a tuple of 1 integer (l,)")
 
         cdef int16_t a = key[0]
         cdef c_Key1 c_key = c_Key1(a)
@@ -273,7 +273,7 @@ cdef class IntMap1:
     
     def get(self, tuple key):
         if len(key) != 1:
-            raise ValueError("Key must be a tuple of 1 integers (l)")
+            raise ValueError("Key must be a tuple of 1 integer (l,)")
 
         cdef int16_t a = key[0]
         cdef c_Key1 c_key = c_Key1(a)
@@ -339,7 +339,7 @@ cdef class IntMap4Complex:
     
     def set(self, tuple key, double complex value):
         if len(key) != 4:
-            raise ValueError("Key must be a tuple of 3 integers (l, m, p, q)")
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
 
         cdef int16_t a = key[0]
         cdef int16_t b = key[1]
@@ -350,7 +350,7 @@ cdef class IntMap4Complex:
     
     def get(self, tuple key):
         if len(key) != 4:
-            raise ValueError("Key must be a tuple of 3 integers (l, m, p, q)")
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
 
         cdef int16_t a = key[0]
         cdef int16_t b = key[1]
@@ -573,7 +573,7 @@ cdef class IntMap1Complex:
     
     def set(self, tuple key, double complex value):
         if len(key) != 1:
-            raise ValueError("Key must be a tuple of 1 integers (l,)")
+            raise ValueError("Key must be a tuple of 1 integer (l,)")
 
         cdef int16_t a = key[0]
         cdef c_Key1 c_key = c_Key1(a)
@@ -581,7 +581,7 @@ cdef class IntMap1Complex:
     
     def get(self, tuple key):
         if len(key) != 1:
-            raise ValueError("Key must be a tuple of 1 integers (l)")
+            raise ValueError("Key must be a tuple of 1 integer (l,)")
 
         cdef int16_t a = key[0]
         cdef c_Key1 c_key = c_Key1(a)

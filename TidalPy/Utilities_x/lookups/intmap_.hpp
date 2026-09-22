@@ -47,22 +47,22 @@ public:
         // The 64-bit packed signature of this key.
         RefKeyType key_ref = key.reference;
 
-        if (data.empty() || key_ref > data.back().first.reference)
+        if (this->data.empty() || key_ref > this->data.back().first.reference)
         {
-            data.emplace_back(key, value);
+            this->data.emplace_back(key, value);
             return;
         }
 
-        auto it = std::lower_bound(data.begin(), data.end(), key_ref,
+        auto it = std::lower_bound(this->data.begin(), this->data.end(), key_ref,
             [](const auto& entry, RefKeyType k) { return entry.first.reference < k; });
 
 
-        if (it != data.end() && it->first.reference == key_ref)
+        if (it != this->data.end() && it->first.reference == key_ref)
         {
             it->second = value;
         } else
         {
-            data.insert(it, {key, value});
+            this->data.insert(it, {key, value});
         }
     }
 
@@ -72,10 +72,10 @@ public:
 
         RefKeyType key_ref = key.reference;
         
-        auto it = std::lower_bound(data.begin(), data.end(), key_ref, 
+        auto it = std::lower_bound(this->data.begin(), this->data.end(), key_ref, 
             [](const auto& entry, RefKeyType k) { return entry.first.reference < k; });
             
-        if (it != data.end() && it->first.reference == key_ref)
+        if (it != this->data.end() && it->first.reference == key_ref)
         {
             return it->second;
         }
@@ -90,10 +90,10 @@ public:
 
         RefKeyType key_ref = key.reference;
         
-        auto it = std::lower_bound(data.begin(), data.end(), key_ref, 
+        auto it = std::lower_bound(this->data.begin(), this->data.end(), key_ref, 
             [](const auto& entry, RefKeyType k) { return entry.first.reference < k; });
             
-        if (it != data.end() && it->first.reference == key_ref)
+        if (it != this->data.end() && it->first.reference == key_ref)
         {
             return &(it->second);  // Points into the vector; a later set() can invalidate it.
         }
@@ -101,9 +101,9 @@ public:
         return nullptr;
     }
 
-    auto begin() { return data.begin(); }
-    auto end() { return data.end(); }
+    auto begin() { return this->data.begin(); }
+    auto end() { return this->data.end(); }
 
-    auto begin() const { return data.begin(); }
-    auto end() const { return data.end(); }
+    auto begin() const { return this->data.begin(); }
+    auto end() const { return this->data.end(); }
 };

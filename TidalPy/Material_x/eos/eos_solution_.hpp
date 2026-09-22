@@ -64,7 +64,7 @@ public:
     size_t current_layers_saved = 0;
     size_t num_layers           = 0;
     size_t radius_array_size    = 0;
-    size_t num_cyolver_calls    = 0;
+    size_t num_cysolver_calls    = 0;
 
     double pressure_error   = TidalPyConstants::d_NAN;
     double surface_gravity  = TidalPyConstants::d_NAN;
@@ -244,7 +244,7 @@ public:
     void save_steps_taken(size_t steps_taken)
     {
         this->steps_taken_vec.push_back(steps_taken);
-        this->num_cyolver_calls++;
+        this->num_cysolver_calls++;
     }
 
 

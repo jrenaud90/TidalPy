@@ -46,7 +46,7 @@ inline void c_check_layer_vector_size(
 {
     if (values.size() != num_layers) {
         throw std::invalid_argument(
-            std::string("TidalPy: build_rs_input — `") + name +
+            std::string("TidalPy::build_rs_input: `") + name +
             "` must have one entry per layer (" + std::to_string(num_layers) + "), found " +
             std::to_string(values.size()) + ".");
     }
@@ -59,14 +59,14 @@ inline void c_check_rheology_vector(
 {
     if (models.size() != num_layers) {
         throw std::invalid_argument(
-            std::string("TidalPy: build_rs_input — `") + name +
+            std::string("TidalPy::build_rs_input: `") + name +
             "` must have one rheology model per layer (" + std::to_string(num_layers) + "), found " +
             std::to_string(models.size()) + ".");
     }
     for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
         if (models[layer_i] == nullptr) {
             throw std::invalid_argument(
-                std::string("TidalPy: build_rs_input — `") + name + "` entry " +
+                std::string("TidalPy::build_rs_input: `") + name + "` entry " +
                 std::to_string(layer_i) + " is a null rheology model.");
         }
     }
@@ -102,7 +102,7 @@ inline void c_thickness_from_radius_fractions(
         const double fraction = radius_fraction_bylayer[layer_i];
         if (fraction <= last_fraction) {
             throw std::invalid_argument(
-                "TidalPy: build_rs_input — `radius_fraction_tuple` entries must increase from the "
+                "TidalPy::build_rs_input: `radius_fraction_tuple` entries must increase from the "
                 "planet center to the surface with no repeated values.");
         }
         out_thickness_fraction_bylayer[layer_i] = fraction - last_fraction;
@@ -110,7 +110,7 @@ inline void c_thickness_from_radius_fractions(
     }
     if (!c_isclose(last_fraction, 1.0, 1.0e-9, 0.0)) {
         throw std::invalid_argument(
-            "TidalPy: build_rs_input — the last entry of `radius_fraction_tuple` must equal 1 (the "
+            "TidalPy::build_rs_input: the last entry of `radius_fraction_tuple` must equal 1 (the "
             "planet surface); found " + std::to_string(last_fraction) + ".");
     }
 }
@@ -129,7 +129,7 @@ inline void c_thickness_from_volume_fractions(
         const double volume_fraction = volume_fraction_bylayer[layer_i];
         if (volume_fraction <= 0.0) {
             throw std::invalid_argument(
-                "TidalPy: build_rs_input — `volume_fraction_tuple` entries must be positive.");
+                "TidalPy::build_rs_input: `volume_fraction_tuple` entries must be positive.");
         }
         const double layer_radius = std::cbrt(volume_fraction * planet_radius3 +
                                               radius_below * radius_below * radius_below);
@@ -156,10 +156,10 @@ inline void c_build_rs_input_homogeneous_layers(
 {
     const std::size_t num_layers = density_bylayer.size();
     if (num_layers == 0) {
-        throw std::invalid_argument("TidalPy: build_rs_input — at least one layer is required.");
+        throw std::invalid_argument("TidalPy::build_rs_input: at least one layer is required.");
     }
     if (!(planet_radius > 0.0) || !std::isfinite(planet_radius)) {
-        throw std::invalid_argument("TidalPy: build_rs_input — `planet_radius` must be positive and finite.");
+        throw std::invalid_argument("TidalPy::build_rs_input: `planet_radius` must be positive and finite.");
     }
     detail::c_check_layer_vector_size(static_bulk_modulus_bylayer, num_layers, "static_bulk_modulus_tuple");
     detail::c_check_layer_vector_size(static_shear_modulus_bylayer, num_layers, "static_shear_modulus_tuple");
@@ -170,7 +170,7 @@ inline void c_build_rs_input_homogeneous_layers(
     detail::c_check_rheology_vector(bulk_rheology_bylayer, num_layers, "bulk_rheology_model_tuple");
     if (slices_bylayer.size() != num_layers) {
         throw std::invalid_argument(
-            "TidalPy: build_rs_input — `slices_tuple` must have one entry per layer (" +
+            "TidalPy::build_rs_input: `slices_tuple` must have one entry per layer (" +
             std::to_string(num_layers) + "), found " + std::to_string(slices_bylayer.size()) + ".");
     }
 
@@ -180,14 +180,14 @@ inline void c_build_rs_input_homogeneous_layers(
         const double thickness_fraction = thickness_fraction_bylayer[layer_i];
         if (!(thickness_fraction > 0.0)) {
             throw std::invalid_argument(
-                "TidalPy: build_rs_input — layer " + std::to_string(layer_i) +
+                "TidalPy::build_rs_input: layer " + std::to_string(layer_i) +
                 " has a negative or zero thickness fraction.");
         }
         total_thickness_fraction += thickness_fraction;
         const std::size_t layer_slices = slices_bylayer[layer_i];
         if (layer_slices < C_RS_MIN_SLICES_PER_LAYER) {
             throw std::invalid_argument(
-                "TidalPy: build_rs_input — layer " + std::to_string(layer_i) + " has " +
+                "TidalPy::build_rs_input: layer " + std::to_string(layer_i) + " has " +
                 std::to_string(layer_slices) + " slices when at least " +
                 std::to_string(C_RS_MIN_SLICES_PER_LAYER) + " are required.");
         }
@@ -195,7 +195,7 @@ inline void c_build_rs_input_homogeneous_layers(
     }
     if (!c_isclose(total_thickness_fraction, 1.0, 1.0e-9, 0.0)) {
         throw std::invalid_argument(
-            "TidalPy: build_rs_input — layer thickness fractions must sum to 1 (found " +
+            "TidalPy::build_rs_input: layer thickness fractions must sum to 1 (found " +
             std::to_string(total_thickness_fraction) + ").");
     }
 
@@ -291,20 +291,20 @@ inline void c_build_rs_input_from_data(
     const std::size_t num_slices_input = radius.size();
     const std::size_t num_layers = layer_upper_radius_bylayer.size();
     if (num_slices_input == 0) {
-        throw std::invalid_argument("TidalPy: build_rs_input — `radius_array` is empty.");
+        throw std::invalid_argument("TidalPy::build_rs_input: `radius_array` is empty.");
     }
     if (num_layers == 0) {
-        throw std::invalid_argument("TidalPy: build_rs_input — at least one layer is required.");
+        throw std::invalid_argument("TidalPy::build_rs_input: at least one layer is required.");
     }
     const double planet_radius = radius[num_slices_input - 1];
     if (!(planet_radius > 0.0) || !std::isfinite(planet_radius)) {
         throw std::invalid_argument(
-            "TidalPy: build_rs_input — the last entry of `radius_array` (the planet radius) must be "
+            "TidalPy::build_rs_input: the last entry of `radius_array` (the planet radius) must be "
             "positive and finite.");
     }
     if (!c_isclose(layer_upper_radius_bylayer[num_layers - 1], planet_radius, 1.0e-9, 0.0)) {
         throw std::invalid_argument(
-            "TidalPy: build_rs_input — the upper radius of the last layer must equal the planet radius "
+            "TidalPy::build_rs_input: the upper radius of the last layer must equal the planet radius "
             "(the last entry of `radius_array`). Expected " + std::to_string(planet_radius) +
             ", found " + std::to_string(layer_upper_radius_bylayer[num_layers - 1]) + ".");
     }
@@ -314,7 +314,7 @@ inline void c_build_rs_input_from_data(
     auto check_slice_vector = [num_slices_input](const std::vector<double>& values, const char* name) {
         if (values.size() != num_slices_input) {
             throw std::invalid_argument(
-                std::string("TidalPy: build_rs_input — `") + name +
+                std::string("TidalPy::build_rs_input: `") + name +
                 "` must have the same length as `radius_array` (" + std::to_string(num_slices_input) +
                 "), found " + std::to_string(values.size()) + ".");
         }
@@ -326,13 +326,13 @@ inline void c_build_rs_input_from_data(
     check_slice_vector(shear_viscosity, "shear_viscosity_array");
     for (std::size_t slice_i = 1; slice_i < num_slices_input; ++slice_i) {
         if (radius[slice_i - 1] > radius[slice_i]) {
-            throw std::invalid_argument("TidalPy: build_rs_input — `radius_array` must be in ascending order.");
+            throw std::invalid_argument("TidalPy::build_rs_input: `radius_array` must be in ascending order.");
         }
     }
     for (std::size_t layer_i = 1; layer_i < num_layers; ++layer_i) {
         if (layer_upper_radius_bylayer[layer_i] <= layer_upper_radius_bylayer[layer_i - 1]) {
             throw std::invalid_argument(
-                "TidalPy: build_rs_input — `layer_upper_radius_tuple` must increase from the planet "
+                "TidalPy::build_rs_input: `layer_upper_radius_tuple` must increase from the planet "
                 "center to the surface.");
         }
     }
@@ -372,7 +372,7 @@ inline void c_build_rs_input_from_data(
         const std::size_t first_output_slice = radius_use.size();
         if (slice_i_input >= num_slices_input) {
             throw std::invalid_argument(
-                "TidalPy: build_rs_input — `radius_array` ran out of slices before layer " +
+                "TidalPy::build_rs_input: `radius_array` ran out of slices before layer " +
                 std::to_string(layer_i) + " (check `layer_upper_radius_tuple`).");
         }
 
@@ -423,7 +423,7 @@ inline void c_build_rs_input_from_data(
         const std::size_t layer_slices = radius_use.size() - first_output_slice;
         if (layer_slices < C_RS_MIN_SLICES_PER_LAYER) {
             throw std::invalid_argument(
-                "TidalPy: build_rs_input — layer " + std::to_string(layer_i) + " has " +
+                "TidalPy::build_rs_input: layer " + std::to_string(layer_i) + " has " +
                 std::to_string(layer_slices) + " slices when at least " +
                 std::to_string(C_RS_MIN_SLICES_PER_LAYER) + " are required.");
         }

@@ -39,7 +39,7 @@ public:
             return true;
         }
         TIDALPY_LOG_WARN(
-            "TidalPy: schema version mismatch — object {}.{}.{}, checked against {}.{}.",
+            "TidalPy: schema version mismatch: object {}.{}.{}, checked against {}.{}.",
             static_cast<int>(p_schema_version_major),
             static_cast<int>(p_schema_version_minor),
             static_cast<int>(p_schema_version_patch),
@@ -62,7 +62,7 @@ public:
         c_BinaryHeader header = read_binary_header(in);
         if (!check_binary_schema_version(header, force)) {
             throw std::runtime_error(
-                "TidalPy: cannot load binary — incompatible schema version "
+                "TidalPy: cannot load binary: incompatible schema version "
                 "(pass force=true to attempt loading anyway)");
         }
     }

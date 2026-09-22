@@ -31,7 +31,7 @@ cdef extern from "eos_solution_.hpp" nogil:
         size_t current_layers_saved
         size_t num_layers
         size_t radius_array_size
-        size_t num_cyolver_calls
+        size_t num_cysolver_calls
 
         double pressure_error
         double surface_gravity

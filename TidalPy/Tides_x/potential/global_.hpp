@@ -67,7 +67,7 @@ c_GlobalPotentialStorage c_global_potential(
 
     // Upper bound on the number of modes; an overestimate, since some modes are skipped.
     int target_size = 0;
-    for (size_t degree_l = min_degree_l; degree_l < (max_degree_l + 1); degree_l++)
+    for (int degree_l = min_degree_l; degree_l <= max_degree_l; degree_l++)
     {
         target_size += (degree_l + 1) * (degree_l + 1);
     }

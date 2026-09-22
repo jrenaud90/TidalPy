@@ -79,7 +79,7 @@ public:
             std::vector<double>& out_heating) const {
         if (time.size() != mass.size()) {
             throw std::invalid_argument(
-                "TidalPy: calc_heating_vectorize_all — time and mass vectors must "
+                "TidalPy::calc_heating_vectorize_all: time and mass vectors must "
                 "have the same length");
         }
         const std::size_t n = time.size();

@@ -213,7 +213,7 @@ inline bool check_binary_schema_version(
         return true;
     }
     TIDALPY_LOG_WARN(
-        "TidalPy binary: schema version mismatch — file {}.{}.{}, current {}.{}.{}.",
+        "TidalPy binary: schema version mismatch: file {}.{}.{}, current {}.{}.{}.",
         header.schema_major, header.schema_minor, header.schema_patch,
         TIDALPY_SCHEMA_MAJOR, TIDALPY_SCHEMA_MINOR, TIDALPY_SCHEMA_PATCH);
     if (force) {

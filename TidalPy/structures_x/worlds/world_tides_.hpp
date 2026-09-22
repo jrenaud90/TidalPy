@@ -39,7 +39,7 @@ namespace tidalpy {
 inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     if (!this->p_tide) {
         throw std::runtime_error(
-            "TidalPy: no tide model attached to the world — call set_tide_model() first");
+            "TidalPy: no tide model attached to the world: call set_tide_model() first");
     }
 
     const double planet_radius = this->get_radius();
@@ -77,7 +77,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         if (!this->p_eos_solved || !this->p_eos_solution) {
             this->p_tides_solved = false;
             throw std::runtime_error(
-                "TidalPy: the rheology tide model needs the EOS solved first — call "
+                "TidalPy: the rheology tide model needs the EOS solved first. Call "
                 "solve_eos() before calc_tides()");
         }
 
@@ -341,8 +341,9 @@ inline const ::c_RadialSolutionStorage* c_solve_radial_group_3d(
 }
 
 // Strain radial coefficients of one radial group at one radius from the world's current radial solution.
-// Returns false when the radius has no depth-resolved solution (center / below the solver start); a liquid
-// layer returns true with out.valid == false (no shear kernel there: contributes nothing).
+// Returns false when the radius has no depth-resolved strain solution: the center, below the solver start, and
+// inside a liquid layer, where y3 and y4 are undefined. A point-wise quantity is NaN there and a radial sum takes
+// it as contributing nothing. The is_solid flag below still guards a layer whose flags changed after the solve.
 inline bool c_strain_coeffs_at_radius_3d(
         c_LayeredWorld& world,
         const ::c_RadialSolutionStorage* storage,
@@ -873,7 +874,7 @@ inline double c_LayeredWorld::get_3d_tidal_heating(
         double colatitude) {
     if (!this->p_tide) {
         throw std::runtime_error(
-            "TidalPy: no tide model attached to the world — call set_tide_model() first");
+            "TidalPy: no tide model attached to the world. Call set_tide_model() first");
     }
     auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
     if (rheology == nullptr) {
@@ -883,7 +884,7 @@ inline double c_LayeredWorld::get_3d_tidal_heating(
     }
     if (!this->p_eos_solved || !this->p_eos_solution) {
         throw std::runtime_error(
-            "TidalPy: 3D tidal heating needs the EOS solved first — call solve_eos()");
+            "TidalPy: 3D tidal heating needs the EOS solved first. Call solve_eos()");
     }
     return rheology->calc_3d_tidal_heating(*this, state, radius, colatitude);
 }
@@ -898,7 +899,7 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
         int num_threads) {
     if (!this->p_tide) {
         throw std::runtime_error(
-            "TidalPy: no tide model attached to the world — call set_tide_model() first");
+            "TidalPy: no tide model attached to the world. Call set_tide_model() first");
     }
     auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
     if (rheology == nullptr) {
@@ -908,7 +909,7 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
     }
     if (!this->p_eos_solved || !this->p_eos_solution) {
         throw std::runtime_error(
-            "TidalPy: 3D tidal heating needs the EOS solved first — call solve_eos()");
+            "TidalPy: 3D tidal heating needs the EOS solved first. Call solve_eos()");
     }
     rheology->calc_3d_tidal_heating_batch(
         *this,
@@ -928,7 +929,7 @@ inline void c_LayeredWorld::get_3d_displacements_grid(
         int num_threads) {
     if (!this->p_tide) {
         throw std::runtime_error(
-            "TidalPy: no tide model attached to the world — call set_tide_model() first");
+            "TidalPy: no tide model attached to the world. Call set_tide_model() first");
     }
     auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
     if (rheology == nullptr) {
@@ -938,7 +939,7 @@ inline void c_LayeredWorld::get_3d_displacements_grid(
     }
     if (!this->p_eos_solved || !this->p_eos_solution) {
         throw std::runtime_error(
-            "TidalPy: 3D tidal displacements need the EOS solved first — call solve_eos()");
+            "TidalPy: 3D tidal displacements need the EOS solved first. Call solve_eos()");
     }
     rheology->calc_3d_displacements_grid(
         *this,
@@ -1506,7 +1507,7 @@ inline void c_LayeredWorld::calc_3d_tides_into(
         double* out_layer_totals) {
     if (!this->p_tide) {
         throw std::runtime_error(
-            "TidalPy: no tide model attached to the world — call set_tide_model() first");
+            "TidalPy: no tide model attached to the world. Call set_tide_model() first");
     }
     auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
     if (rheology == nullptr) {
@@ -1516,7 +1517,7 @@ inline void c_LayeredWorld::calc_3d_tides_into(
     }
     if (!this->p_eos_solved || !this->p_eos_solution) {
         throw std::runtime_error(
-            "TidalPy: 3D tidal heating needs the EOS solved first — call solve_eos()");
+            "TidalPy: 3D tidal heating needs the EOS solved first. Call solve_eos()");
     }
     rheology->calc_3d_tidal_heating_collapsed(
         *this,

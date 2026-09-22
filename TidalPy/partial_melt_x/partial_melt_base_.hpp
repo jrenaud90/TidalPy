@@ -120,7 +120,7 @@ public:
         const std::size_t n = temperature.size();
         if (premelt_viscosity.size() != n || premelt_shear.size() != n) {
             throw std::invalid_argument(
-                "TidalPy: calc_partial_melt_vectorize — temperature, premelt_viscosity, "
+                "TidalPy::calc_partial_melt_vectorize: temperature, premelt_viscosity, "
                 "and premelt_shear vectors must have the same length");
         }
         out_results.resize(n);

@@ -358,12 +358,12 @@ public:
         // This storage's EOS stands in for the world's, so it also reports the world's solve diagnostics. Without
         // this they stay at their "never solved" defaults, which an exported solution would report as its own.
         if (world_eos_ptr) {
-            storage_eos->iterations        = world_eos_ptr->iterations;
-            storage_eos->pressure_error    = world_eos_ptr->pressure_error;
-            storage_eos->max_iters_hit     = world_eos_ptr->max_iters_hit;
-            storage_eos->message           = world_eos_ptr->message;
-            storage_eos->steps_taken_vec   = world_eos_ptr->steps_taken_vec;
-            storage_eos->num_cyolver_calls = world_eos_ptr->num_cyolver_calls;
+            storage_eos->iterations         = world_eos_ptr->iterations;
+            storage_eos->pressure_error     = world_eos_ptr->pressure_error;
+            storage_eos->max_iters_hit      = world_eos_ptr->max_iters_hit;
+            storage_eos->message            = world_eos_ptr->message;
+            storage_eos->steps_taken_vec    = world_eos_ptr->steps_taken_vec;
+            storage_eos->num_cysolver_calls = world_eos_ptr->num_cysolver_calls;
         }
 
         // The state provider answers in SI at an SI radius; the scales convert the non-dim shooting radius up and
