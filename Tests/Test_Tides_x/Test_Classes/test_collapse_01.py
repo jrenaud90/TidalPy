@@ -81,8 +81,8 @@ def test_rheology_model_rejected():
 
 
 @pytest.mark.parametrize("model,config", [
-    ("ctl", {"fixed_k": [0.3], "fixed_dt": [100.0]}),
-    ("ctl_q", {"fixed_k": [0.3], "fixed_dt": [100.0], "fixed_q": [20.0]}),
+    ("ctl", {"fixed_k": [0.3], "fixed_dt_s": [100.0]}),
+    ("ctl_q", {"fixed_k": [0.3], "fixed_dt_s": [100.0], "fixed_q": [20.0]}),
 ])
 def test_ctl_models_positive_heating(model, config):
     result = _collapse(tide_model=model, tide_config=config)

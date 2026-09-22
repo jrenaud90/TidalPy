@@ -70,7 +70,7 @@ def test_star_potential_derivatives_present():
 
 
 def test_star_ctl_positive_heating():
-    star = _star("ctl", {"fixed_k": [0.03], "fixed_dt": [10.0]})
+    star = _star("ctl", {"fixed_k": [0.03], "fixed_dt_s": [10.0]})
     _solve(star)
     assert star.get_tidal_heating() > 0.0
 

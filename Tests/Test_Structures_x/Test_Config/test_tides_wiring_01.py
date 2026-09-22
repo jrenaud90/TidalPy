@@ -55,21 +55,67 @@ def test_named_model_overrides_the_family_default(world_type):
 
 
 def test_per_degree_time_lags_reach_the_model():
-    tides = {"global_tidal_model": "fixed_dt", "fixed_k": [0.4], "fixed_dt": [250.0]}
+    tides = {"global_tidal_model": "fixed_dt", "fixed_k": [0.4], "fixed_dt_s": [250.0]}
     wired = _tides_of(build_world(_config("gasgiant", tides)))
     assert wired["global_tidal_model"] == "fixed_dt"
     _assert_per_degree(wired["fixed_k"], [0.4])
-    _assert_per_degree(wired["fixed_dt"], [250.0])
+    _assert_per_degree(wired["fixed_dt_s"], [250.0])
 
 
 # =====================================================================================================================
 # The degree, truncation, and Love-method settings
 # =====================================================================================================================
+# =====================================================================================================================
+# A per-degree list that stops short of max_degree_l
+# =====================================================================================================================
+def _short_list_warnings(record):
+    return [entry for entry in record if "stop short of max_degree_l" in str(entry.message)]
+
+
+def test_a_short_list_the_model_reads_warns():
+    import warnings
+    tides = {"global_tidal_model": "fixed_q", "fixed_k": [0.3, 0.2], "fixed_q": [50.0], "max_degree_l": 3}
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        world = build_world(_config("terrestrial", tides))
+    found = _short_list_warnings(record)
+    assert len(found) == 1
+    message = str(found[0].message)
+    assert "fixed_q (1)" in message and "fixed_k" not in message and "needs 2 entries" in message
+    # The world still builds, with the missing degree zero-filled.
+    _assert_per_degree(_tides_of(world)["fixed_q"], [50.0])
+
+
+def test_a_short_list_the_model_does_not_read_is_silent():
+    import warnings
+    # A ctl model never reads fixed_q, and the rheology model reads no list at all.
+    for tides in ({"global_tidal_model": "ctl", "fixed_k": [0.3, 0.2], "fixed_dt_s": [100.0, 90.0],
+                   "fixed_q": [50.0], "max_degree_l": 3},
+                  {"global_tidal_model": "rheology", "fixed_k": [0.3], "max_degree_l": 3}):
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            build_world(_config("terrestrial", tides))
+        assert not _short_list_warnings(record)
+
+
+def test_the_short_list_switch_silences_it(monkeypatch):
+    import warnings
+    config_x = dict(TidalPy.config_x)
+    config_x["warnings"] = {"short_degree_list": False}
+    monkeypatch.setattr(TidalPy, "config_x", config_x)
+    tides = {"global_tidal_model": "fixed_q", "fixed_k": [0.3], "fixed_q": [50.0], "max_degree_l": 3}
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        build_world(_config("terrestrial", tides))
+    assert not _short_list_warnings(record)
+    assert TidalPy.config_x["warnings"].get("short_degree_list") is False
+
+
 def test_every_setting_reaches_the_world():
     tides = {
         "min_degree_l": 2, "max_degree_l": 4, "eccentricity_trunc_lvl": 5, "obliquity_trunc_lvl": 2,
         "tidal_timescale_width_decades": 2.5, "love_method": "homogeneous", "love_fixed_q": 120.0,
-        "love_fixed_dt": 45.0}
+        "love_fixed_dt_s": 45.0}
     world = build_world(_config("terrestrial", tides))
     found = world.get_tide_config()
     for key, value in tides.items():
@@ -88,7 +134,7 @@ def test_a_key_left_out_takes_the_package_configuration():
     assert found["eccentricity_trunc_lvl"] == defaults["eccentricity_trunc_lvl"]
     assert found["love_method"] == defaults.get("love_method", "radial_solver")
     # Unset lags stay unset: they are written only when the file gives them.
-    assert "love_fixed_q" not in found and "love_fixed_dt" not in found
+    assert "love_fixed_q" not in found and "love_fixed_dt_s" not in found
 
 
 def test_no_tides_table_at_all_still_wires_the_world():

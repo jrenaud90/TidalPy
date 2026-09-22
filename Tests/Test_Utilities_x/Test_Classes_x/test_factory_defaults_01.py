@@ -40,6 +40,14 @@ def test_factory_defaults_reads_the_default_layer_tables():
     assert factory_defaults("shear_rheology", ("alpha",), "Andrade") == {"alpha": 0.3}
     assert factory_defaults("shear_rheology", ("alpha",), "maxwell") == {}
     assert factory_defaults("tides", ("fixed_q",), "fixed_q") == factory_defaults("tides", ("fixed_q",))
+    # A family's own resolver makes an alias match, and an unknown table name a mismatch.
+    from TidalPy.radiogenics_x import radiogenics as radiogenics_module
+    same = radiogenics_module._same_model
+    assert factory_defaults("radiogenics", ("isotopes",), "isotopes") == {}
+    assert factory_defaults("radiogenics", ("isotopes",), "isotopes", same) == {"isotopes": "modern_day_chondritic"}
+    assert factory_defaults("radiogenics", ("isotopes",), "constant", same) == {}
+    with pytest.raises(ValueError):
+        same("no_such_model", "isotope")
 
 
 def test_a_factory_without_config_follows_an_edited_configuration(config_x):
@@ -81,6 +89,31 @@ def test_a_model_the_table_does_not_name_keeps_its_own_defaults(config_x):
     assert fixed["ref_time_s"] == 0.0
 
 
-def test_the_default_radiogenics_are_the_chondritic_isotopes():
-    model = make_radiogenics("isotope")
+def test_a_model_ignores_the_other_model_keys_of_a_merged_table():
+    """A table merged family-wide can carry both models' keys; each model is built from its own."""
+    merged = {"isotopes": "modern_day_chondritic", "fixed_heat_production_w_kg": 2.0e-12}
+    fixed = make_radiogenics("constant", dict(merged)).get_config_dict()
+    assert fixed["ref_time_s"] == 0.0 and fixed["fixed_heat_production_w_kg"] == 2.0e-12
+    assert "isotope_names" not in fixed
+    isotope = make_radiogenics("isotopes", dict(merged)).get_config_dict()
+    assert isotope["isotope_names"] == ["U238", "U235", "Th232", "K40"] and isotope["ref_time_s"] > 1.0e17
+
+
+def test_the_world_builder_gives_a_fixed_layer_the_fixed_keys_only():
+    """A rock layer that names a fixed model over the material's isotope defaults gets no dataset reference time."""
+    from TidalPy.structures_x import build_world
+    config = {
+        "name": "fixed_rock", "type": "terrestrial", "radius_m": 2.0e6, "mass_kg": 1.0e23,
+        "layers": {"mantle": {
+            "class": "solidliquid", "type": "mantle_rock", "radius_fraction": 1.0,
+            "radiogenics": {"model": "fixed", "fixed_heat_production_w_kg": 3.0e-12}}}}
+    layer_config = build_world(config).get_config_dict()["layers"]["mantle"]["radiogenics"]
+    assert layer_config["model"] == "fixed"
+    assert layer_config["ref_time_s"] == 0.0 and layer_config["fixed_heat_production_w_kg"] == 3.0e-12
+
+
+@pytest.mark.parametrize("name", ["isotope", "isotopes", "Isotope"])
+def test_the_default_radiogenics_are_the_chondritic_isotopes(name):
+    """The default table is found under the model's canonical name, an alias, or another case."""
+    model = make_radiogenics(name)
     assert model.get_config_dict()["isotope_names"] == ["U238", "U235", "Th232", "K40"]

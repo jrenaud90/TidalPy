@@ -211,7 +211,7 @@ def test_cpl_ctl_parameters_from_tide_model():
     assert from_model["love_number_k"] == explicit["love_number_k"]
     with pytest.raises(ValueError, match="degree 3"):
         world.solve_love_numbers(frequency=FREQ, degree_l=3, love_method="cpl")   # no Q_3 on the model
-    world.set_tide_model(make_tide("ctl", {"fixed_k": [0.3], "fixed_dt": [300.0]}))
+    world.set_tide_model(make_tide("ctl", {"fixed_k": [0.3], "fixed_dt_s": [300.0]}))
     from_model = world.solve_love_numbers(frequency=FREQ, love_method="ctl")
     assert from_model["love_number_k"] == world.solve_love_numbers(
         frequency=FREQ, love_method="ctl", fixed_dt=300.0)["love_number_k"]
@@ -227,7 +227,7 @@ def test_tide_config_love_method():
     assert "love_fixed_q" not in world.get_tide_config()
     world.set_tide_config(love_method="cpl", love_fixed_q=30.0)
     cfg = world.get_tide_config()
-    assert cfg["love_method"] == "cpl" and cfg["love_fixed_q"] == 30.0 and "love_fixed_dt" not in cfg
+    assert cfg["love_method"] == "cpl" and cfg["love_fixed_q"] == 30.0 and "love_fixed_dt_s" not in cfg
     with pytest.raises(ValueError, match="unknown Love-number method"):
         world.set_tide_config(love_method="nope")
 

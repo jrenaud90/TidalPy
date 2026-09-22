@@ -31,8 +31,8 @@ _FAMILIES = [
      [("fixed", None), ("mass_to_luminosity", None), ("power_law", None)]),
     ("TidalPy.Tides_x.classes.tide", "make_tide", "tide",
      [("rheology", None), ("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}),
-      ("ctl", {"fixed_k": [0.3], "fixed_dt": [600.0]}),
-      ("ctl_q", {"fixed_k": [0.3], "fixed_q": [50.0], "fixed_dt": [600.0]})]),
+      ("ctl", {"fixed_k": [0.3], "fixed_dt_s": [600.0]}),
+      ("ctl_q", {"fixed_k": [0.3], "fixed_q": [50.0], "fixed_dt_s": [600.0]})]),
 ]
 
 

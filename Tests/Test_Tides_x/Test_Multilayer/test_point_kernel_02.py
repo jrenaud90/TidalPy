@@ -52,6 +52,7 @@ def _kernel(row):
         complex(_BULK, 0.0),
         0.8 * _R,
         2.0,
+        _N,
         True,
         False,
         row,
@@ -118,6 +119,7 @@ def _mode_amplitudes(world, spin, radius, colatitude, longitude, max_degree_l):
             complex(world.calc_complex_bulk_modulus(radius, magnitude)),
             radius,
             float(degree),
+            magnitude,
             True,
             False,
             row,
@@ -170,9 +172,9 @@ def test_potential_row_must_hold_six_values(bad_row):
 
 def test_volumetric_heating_requires_six_components():
     with pytest.raises(ValueError):
-        volumetric_heating(np.ones(5, dtype=np.complex128), np.ones(6, dtype=np.complex128))
+        volumetric_heating(np.ones(5, dtype=np.complex128), np.ones(6, dtype=np.complex128), _N)
     with pytest.raises(ValueError):
-        volumetric_heating(np.ones(6, dtype=np.complex128), np.ones(7, dtype=np.complex128))
+        volumetric_heating(np.ones(6, dtype=np.complex128), np.ones(7, dtype=np.complex128), _N)
 
 
 # =====================================================================================================================
@@ -180,7 +182,7 @@ def test_volumetric_heating_requires_six_components():
 # =====================================================================================================================
 @pytest.mark.parametrize("spin_ratio, max_degree_l", _WORLD_CASES)
 def test_helpers_reproduce_world_secular_heating(spin_ratio, max_degree_l):
-    """Summing each frequency's amplitudes and applying |frequency| / 2 times the heating form reproduces the world's
+    """Summing each frequency's amplitudes and forming their heating at that frequency reproduces the world's
     pointwise secular density, including the longitude dependence of the synchronous case."""
     world = _build_world(max_degree_l)
     spin = spin_ratio * _N
@@ -196,7 +198,7 @@ def test_helpers_reproduce_world_secular_heating(spin_ratio, max_degree_l):
         else:
             frequency_groups.append([magnitude, strain.copy(), stress.copy()])
     from_helpers = sum(
-        0.5 * magnitude * volumetric_heating(stress, strain) for magnitude, strain, stress in frequency_groups)
+        volumetric_heating(stress, strain, magnitude) for magnitude, strain, stress in frequency_groups)
 
     expected = world.calc_3d_tides(
         _N,

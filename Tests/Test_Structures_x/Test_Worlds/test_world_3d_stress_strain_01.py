@@ -105,6 +105,7 @@ def _helper_tensors(world, spin_ratio, obliquity, max_degree_l, obliquity_trunca
             complex(world.calc_complex_bulk_modulus(radius, magnitude)),
             radius,
             float(degrees[index]),
+            magnitude,
             True,
             False,
             rows[index] if frequency > 0.0 else np.conj(rows[index]),

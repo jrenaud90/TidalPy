@@ -75,7 +75,7 @@ def test_gasgiant_fixedlag_e2e():
     assert isinstance(world, GasGiantWorld)
     assert world.world_type == "gasgiant"
 
-    _configure_tide(world, "fixed_dt", {"fixed_k": [0.5], "fixed_dt": [0.5]})
+    _configure_tide(world, "fixed_dt", {"fixed_k": [0.5], "fixed_dt_s": [0.5]})
     n = 1.2e-5
     world.set_spin_frequency(n)
     world.calc_tides(n, n, 0.05, 0.0, 7.0e9, 1.0e30)

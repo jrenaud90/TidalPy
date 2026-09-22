@@ -42,10 +42,13 @@ def test_strain_stress_heating_matches_legacy():
         radius = rng.uniform(1e5, 6e6)
         pot6 = tuple(rng.standard_normal(6) * 10.0)
         theta = rng.uniform(0.15, np.pi - 0.15)
+        frequency = rng.uniform(-1.0e-4, 1.0e-4)
 
+        # The legacy form is the bilinear form alone [Pa]; the helper returns |frequency| / 2 times it [W m-3].
         e_ref, s_ref, h_ref = _legacy_strain_stress_heat(y, shear, bulk, radius, 2.0, pot6, theta)
+        h_ref *= 0.5 * abs(frequency)
         e_c, s_c, h_c = strain_stress_heating_point(
-            np.ascontiguousarray(y, dtype=np.complex128), shear, bulk, radius, 2.0, True, False,
+            np.ascontiguousarray(y, dtype=np.complex128), shear, bulk, radius, 2.0, frequency, True, False,
             pot6, theta)
         worst_e = max(worst_e, float(np.max(np.abs(e_c - e_ref) / (np.abs(e_ref) + 1e-30))))
         worst_s = max(worst_s, float(np.max(np.abs(s_c - s_ref) / (np.abs(s_ref) + 1e-30))))
@@ -58,6 +61,6 @@ def test_strain_stress_heating_matches_legacy():
 def test_liquid_returns_nan():
     """The shear kernel is solid-only; a liquid (shear=0) point returns NaN strains."""
     y = np.ones(6, dtype=np.complex128)
-    e, s, h = strain_stress_heating_point(y, 0.0 + 0j, 1.3e11 + 0j, 1e6, 2.0, False, False,
+    e, s, h = strain_stress_heating_point(y, 0.0 + 0j, 1.3e11 + 0j, 1e6, 2.0, 1.0e-5, False, False,
                                           (1.0, 1.0, 1.0, 1.0, 1.0, 1.0), 1.0)
     assert np.all(np.isnan(e)) and np.isnan(h)

@@ -91,7 +91,7 @@ def test_fixed_q_zero_q_is_elastic():
 # =====================================================================================================================
 @pytest.mark.parametrize("frequency", [1.0e-6, 1.0e-4, 3.0e-3])
 def test_fixed_lag_love(frequency):
-    model = _import().make_tide("ctl", {"fixed_k": [0.3], "fixed_dt": [100.0]})
+    model = _import().make_tide("ctl", {"fixed_k": [0.3], "fixed_dt_s": [100.0]})
     assert isclose(model.calc_neg_imk(2, frequency), 0.3 * frequency * 100.0, rel_tol=1e-12)
 
 
@@ -100,7 +100,7 @@ def test_fixed_lag_love(frequency):
 # =====================================================================================================================
 @pytest.mark.parametrize("frequency", [1.0e-6, 1.0e-4])
 def test_ctlq_love(frequency):
-    model = _import().make_tide("ctl_q", {"fixed_k": [0.3], "fixed_dt": [100.0], "fixed_q": [20.0]})
+    model = _import().make_tide("ctl_q", {"fixed_k": [0.3], "fixed_dt_s": [100.0], "fixed_q": [20.0]})
     expected = 0.3 * frequency * 100.0 / 20.0
     assert isclose(model.calc_neg_imk(2, frequency), expected, rel_tol=1e-12)
 
@@ -152,8 +152,8 @@ def test_config_dict_fixed_q():
 @pytest.mark.parametrize("name,config", [
     ("rheology", None),
     ("cpl", {"fixed_k": [0.3, 0.1], "fixed_q": [50.0, 80.0]}),
-    ("ctl", {"fixed_k": [0.3], "fixed_dt": [120.0]}),
-    ("ctl_q", {"fixed_k": [0.3, 0.05], "fixed_dt": [120.0, 90.0], "fixed_q": [40.0, 60.0]}),
+    ("ctl", {"fixed_k": [0.3], "fixed_dt_s": [120.0]}),
+    ("ctl_q", {"fixed_k": [0.3, 0.05], "fixed_dt_s": [120.0, 90.0], "fixed_q": [40.0, 60.0]}),
 ])
 def test_binary_round_trip(name, config):
     mod = _import()

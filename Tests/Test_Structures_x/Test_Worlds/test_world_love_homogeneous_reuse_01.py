@@ -35,7 +35,7 @@ def _io(love_method, eccentricity_truncation=10, max_degree_l=4):
         "eccentricity_trunc_lvl": eccentricity_truncation,
         "max_degree_l": max_degree_l,
         "love_fixed_q": 50.0,
-        "love_fixed_dt": 300.0,
+        "love_fixed_dt_s": 300.0,
     })
     world = build_world(config)
     world.solve_eos()

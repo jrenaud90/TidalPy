@@ -99,7 +99,7 @@ def test_ctl_world_positive_heating():
     cfg = _terrestrial_config({
         "global_tidal_model": "ctl", "max_degree_l": 2,
         "eccentricity_trunc_lvl": 2, "obliquity_trunc_lvl": "off",
-        "fixed_k": [0.3], "fixed_dt": [100.0],
+        "fixed_k": [0.3], "fixed_dt_s": [100.0],
     })
     world = build_world(cfg)
     _solve(world)

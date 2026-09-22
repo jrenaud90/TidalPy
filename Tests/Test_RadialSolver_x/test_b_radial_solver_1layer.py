@@ -152,9 +152,10 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
             # out.plot_interior()
             out.print_diagnostics(print_diagnostics = False, log_diagnostics = False)
 
-            # Attempt to call the EOS solver
-            eos_result_array = out.eos_call(radius=1.5e6)
-            assert type(eos_result_array) is np.ndarray
+            # The dense EOS readout at an SI radius answers with named fields.
+            eos_result = out.eos_call(radius=1.5e6)
+            assert type(eos_result) is dict
+            assert np.isfinite(eos_result["density"])
             
         except NotImplementedError as e:
             pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
