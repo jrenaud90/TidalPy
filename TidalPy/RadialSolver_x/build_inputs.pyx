@@ -50,7 +50,7 @@ PlanetBuildData.__doc__ = (
 # Internal conversion helpers
 # =====================================================================================================================
 
-cdef tuple _as_layer_tuple(object values, size_t num_layers, str name):
+cdef tuple cy_as_layer_tuple(object values, size_t num_layers, str name):
     """Return `values` as a tuple with one entry per layer (ValueError otherwise)."""
     if values is None:
         raise ValueError(f"`{name}` must be provided with one entry per layer.")
@@ -61,7 +61,7 @@ cdef tuple _as_layer_tuple(object values, size_t num_layers, str name):
     return out
 
 
-cdef void _fill_double_vector(object values, str name, vector[double]& out) except *:
+cdef void cy_fill_double_vector(object values, str name, vector[double]& out) except *:
     """Copy a sequence of real numbers into a C++ vector."""
     cdef size_t i
     cdef size_t n = <size_t>len(values)
@@ -74,7 +74,7 @@ cdef void _fill_double_vector(object values, str name, vector[double]& out) exce
         raise ValueError(f"`{name}` must contain real numbers; entry {i} is {values[i]!r}.") from exc
 
 
-cdef void _fill_size_vector(object values, str name, vector[size_t]& out) except *:
+cdef void cy_fill_size_vector(object values, str name, vector[size_t]& out) except *:
     """Copy a sequence of non-negative integers into a C++ vector."""
     cdef size_t i
     cdef size_t n = <size_t>len(values)
@@ -88,7 +88,7 @@ cdef void _fill_size_vector(object values, str name, vector[size_t]& out) except
         out.push_back(<size_t>value)
 
 
-cdef object _as_f64_1d(object values, str name):
+cdef object cy_as_f64_1d(object values, str name):
     """Return `values` as a C-contiguous 1-D float64 array."""
     arr = np.ascontiguousarray(values, dtype=np.float64)
     if arr.ndim != 1:
@@ -96,16 +96,16 @@ cdef object _as_f64_1d(object values, str name):
     return arr
 
 
-cdef void _fill_vector_from_array(object values, str name, vector[double]& out) except *:
+cdef void cy_fill_vector_from_array(object values, str name, vector[double]& out) except *:
     """Copy a 1-D float64 array into a C++ vector."""
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] arr = _as_f64_1d(values, name)
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] arr = cy_as_f64_1d(values, name)
     cdef size_t n = <size_t>arr.shape[0]
     out.resize(n)
     if n > 0:
         memcpy(out.data(), cnp.PyArray_DATA(arr), n * sizeof(double))
 
 
-cdef cnp.ndarray _vector_to_f64_array(const vector[double]& vec):
+cdef cnp.ndarray cy_vector_to_f64_array(const vector[double]& vec):
     """Copy a C++ double vector into a new float64 numpy array."""
     cdef cnp.npy_intp n = <cnp.npy_intp>vec.size()
     cdef cnp.ndarray[cnp.float64_t, ndim=1] arr = np.empty(n, dtype=np.float64, order="C")
@@ -114,7 +114,7 @@ cdef cnp.ndarray _vector_to_f64_array(const vector[double]& vec):
     return arr
 
 
-cdef cnp.ndarray _vector_to_c128_array(const vector[cpp_complex[double]]& vec):
+cdef cnp.ndarray cy_vector_to_c128_array(const vector[cpp_complex[double]]& vec):
     """Copy a C++ complex vector into a new complex128 numpy array."""
     cdef cnp.npy_intp n = <cnp.npy_intp>vec.size()
     cdef cnp.ndarray[cnp.complex128_t, ndim=1] arr = np.empty(n, dtype=np.complex128, order="C")
@@ -123,7 +123,7 @@ cdef cnp.ndarray _vector_to_c128_array(const vector[cpp_complex[double]]& vec):
     return arr
 
 
-cdef object _coerce_rheology(object model, str argument_name, object position):
+cdef object cy_coerce_rheology(object model, str argument_name, object position):
     """Return a `rheology_x` model instance for `model` (an instance or a model name)."""
     if isinstance(model, RheologyBase):
         return model
@@ -154,7 +154,7 @@ cdef list cy_resolve_rheology_bylayer(
     out_ptrs.clear()
     out_ptrs.reserve(num_layers)
     if isinstance(models, (RheologyBase, str)):
-        wrapper = <RheologyBase>_coerce_rheology(models, argument_name, None)
+        wrapper = <RheologyBase>cy_coerce_rheology(models, argument_name, None)
         keep_alive.append(wrapper)
         model_ptr = wrapper._rheology_ptr.get()
         if model_ptr == NULL:
@@ -170,13 +170,13 @@ cdef list cy_resolve_rheology_bylayer(
     try:
         models_seq = tuple(models)
     except TypeError:
-        _coerce_rheology(models, argument_name, None)  # Raises the informative TypeError.
+        cy_coerce_rheology(models, argument_name, None)  # Raises the informative TypeError.
     if <size_t>len(models_seq) != num_layers:
         raise ValueError(
             f"`{argument_name}` must have one rheology model per layer ({num_layers}), "
             f"found {len(models_seq)}. Pass a single model to apply it to every layer.")
     for layer_i in range(num_layers):
-        wrapper = <RheologyBase>_coerce_rheology(models_seq[layer_i], argument_name, layer_i)
+        wrapper = <RheologyBase>cy_coerce_rheology(models_seq[layer_i], argument_name, layer_i)
         keep_alive.append(wrapper)
         model_ptr = wrapper._rheology_ptr.get()
         if model_ptr == NULL:
@@ -185,21 +185,21 @@ cdef list cy_resolve_rheology_bylayer(
     return keep_alive
 
 
-cdef object _build_outputs(
+cdef object cy_build_outputs(
         const c_RadialSolverInputs& inputs, tuple layer_types, tuple is_static_bylayer,
         tuple is_incompressible_bylayer):
     """Convert the C++ result into a `PlanetBuildData` namedtuple of numpy arrays."""
     return PlanetBuildData(
-        _vector_to_f64_array(inputs.radius),
-        _vector_to_f64_array(inputs.density),
-        _vector_to_c128_array(inputs.complex_bulk_modulus),
-        _vector_to_c128_array(inputs.complex_shear_modulus),
+        cy_vector_to_f64_array(inputs.radius),
+        cy_vector_to_f64_array(inputs.density),
+        cy_vector_to_c128_array(inputs.complex_bulk_modulus),
+        cy_vector_to_c128_array(inputs.complex_shear_modulus),
         inputs.forcing_frequency,
         inputs.planet_bulk_density,
         layer_types,
         is_static_bylayer,
         is_incompressible_bylayer,
-        _vector_to_f64_array(inputs.upper_radius_bylayer),
+        cy_vector_to_f64_array(inputs.upper_radius_bylayer),
     )
 
 
@@ -265,20 +265,20 @@ def build_rs_input_homogeneous_layers(
         raise ValueError("At least one layer is required.")
 
     cdef vector[double] density_vec, bulk_vec, shear_vec, bulk_visc_vec, shear_visc_vec
-    _fill_double_vector(_as_layer_tuple(density_tuple, num_layers, "density_tuple"),
+    cy_fill_double_vector(cy_as_layer_tuple(density_tuple, num_layers, "density_tuple"),
                         "density_tuple", density_vec)
-    _fill_double_vector(_as_layer_tuple(static_bulk_modulus_tuple, num_layers, "static_bulk_modulus_tuple"),
+    cy_fill_double_vector(cy_as_layer_tuple(static_bulk_modulus_tuple, num_layers, "static_bulk_modulus_tuple"),
                         "static_bulk_modulus_tuple", bulk_vec)
-    _fill_double_vector(_as_layer_tuple(static_shear_modulus_tuple, num_layers, "static_shear_modulus_tuple"),
+    cy_fill_double_vector(cy_as_layer_tuple(static_shear_modulus_tuple, num_layers, "static_shear_modulus_tuple"),
                         "static_shear_modulus_tuple", shear_vec)
-    _fill_double_vector(_as_layer_tuple(bulk_viscosity_tuple, num_layers, "bulk_viscosity_tuple"),
+    cy_fill_double_vector(cy_as_layer_tuple(bulk_viscosity_tuple, num_layers, "bulk_viscosity_tuple"),
                         "bulk_viscosity_tuple", bulk_visc_vec)
-    _fill_double_vector(_as_layer_tuple(shear_viscosity_tuple, num_layers, "shear_viscosity_tuple"),
+    cy_fill_double_vector(cy_as_layer_tuple(shear_viscosity_tuple, num_layers, "shear_viscosity_tuple"),
                         "shear_viscosity_tuple", shear_visc_vec)
 
-    cdef tuple layer_types = _as_layer_tuple(layer_type_tuple, num_layers, "layer_type_tuple")
-    cdef tuple is_static = _as_layer_tuple(layer_is_static_tuple, num_layers, "layer_is_static_tuple")
-    cdef tuple is_incompressible = _as_layer_tuple(
+    cdef tuple layer_types = cy_as_layer_tuple(layer_type_tuple, num_layers, "layer_type_tuple")
+    cdef tuple is_static = cy_as_layer_tuple(layer_is_static_tuple, num_layers, "layer_is_static_tuple")
+    cdef tuple is_incompressible = cy_as_layer_tuple(
         layer_is_incompressible_tuple, num_layers, "layer_is_incompressible_tuple")
 
     cdef int num_fraction_inputs = (
@@ -290,20 +290,20 @@ def build_rs_input_homogeneous_layers(
             "`volume_fraction_tuple`.")
     cdef vector[double] fraction_vec, thickness_vec
     if thickness_fraction_tuple is not None:
-        _fill_double_vector(_as_layer_tuple(thickness_fraction_tuple, num_layers, "thickness_fraction_tuple"),
+        cy_fill_double_vector(cy_as_layer_tuple(thickness_fraction_tuple, num_layers, "thickness_fraction_tuple"),
                             "thickness_fraction_tuple", thickness_vec)
     elif radius_fraction_tuple is not None:
-        _fill_double_vector(_as_layer_tuple(radius_fraction_tuple, num_layers, "radius_fraction_tuple"),
+        cy_fill_double_vector(cy_as_layer_tuple(radius_fraction_tuple, num_layers, "radius_fraction_tuple"),
                             "radius_fraction_tuple", fraction_vec)
         c_thickness_from_radius_fractions(fraction_vec, thickness_vec)
     else:
-        _fill_double_vector(_as_layer_tuple(volume_fraction_tuple, num_layers, "volume_fraction_tuple"),
+        cy_fill_double_vector(cy_as_layer_tuple(volume_fraction_tuple, num_layers, "volume_fraction_tuple"),
                             "volume_fraction_tuple", fraction_vec)
         c_thickness_from_volume_fractions(planet_radius, fraction_vec, thickness_vec)
 
     cdef vector[size_t] slices_vec
     if slices_tuple is not None:
-        _fill_size_vector(_as_layer_tuple(slices_tuple, num_layers, "slices_tuple"), "slices_tuple", slices_vec)
+        cy_fill_size_vector(cy_as_layer_tuple(slices_tuple, num_layers, "slices_tuple"), "slices_tuple", slices_vec)
     else:
         slices_vec.resize(num_layers, slice_per_layer)
 
@@ -328,7 +328,7 @@ def build_rs_input_homogeneous_layers(
         bulk_rheo_ptrs,
         inputs)
 
-    return _build_outputs(inputs, layer_types, is_static, is_incompressible)
+    return cy_build_outputs(inputs, layer_types, is_static, is_incompressible)
 
 
 def build_rs_input_from_data(
@@ -385,20 +385,20 @@ def build_rs_input_from_data(
         raise ValueError("At least one layer is required.")
 
     cdef vector[double] radius_vec, density_vec, bulk_vec, shear_vec, bulk_visc_vec, shear_visc_vec
-    _fill_vector_from_array(radius_array, "radius_array", radius_vec)
-    _fill_vector_from_array(density_array, "density_array", density_vec)
-    _fill_vector_from_array(static_bulk_modulus_array, "static_bulk_modulus_array", bulk_vec)
-    _fill_vector_from_array(static_shear_modulus_array, "static_shear_modulus_array", shear_vec)
-    _fill_vector_from_array(bulk_viscosity_array, "bulk_viscosity_array", bulk_visc_vec)
-    _fill_vector_from_array(shear_viscosity_array, "shear_viscosity_array", shear_visc_vec)
+    cy_fill_vector_from_array(radius_array, "radius_array", radius_vec)
+    cy_fill_vector_from_array(density_array, "density_array", density_vec)
+    cy_fill_vector_from_array(static_bulk_modulus_array, "static_bulk_modulus_array", bulk_vec)
+    cy_fill_vector_from_array(static_shear_modulus_array, "static_shear_modulus_array", shear_vec)
+    cy_fill_vector_from_array(bulk_viscosity_array, "bulk_viscosity_array", bulk_visc_vec)
+    cy_fill_vector_from_array(shear_viscosity_array, "shear_viscosity_array", shear_visc_vec)
 
     cdef vector[double] upper_radius_vec
-    _fill_double_vector(_as_layer_tuple(layer_upper_radius_tuple, num_layers, "layer_upper_radius_tuple"),
+    cy_fill_double_vector(cy_as_layer_tuple(layer_upper_radius_tuple, num_layers, "layer_upper_radius_tuple"),
                         "layer_upper_radius_tuple", upper_radius_vec)
 
-    cdef tuple layer_types = _as_layer_tuple(layer_type_tuple, num_layers, "layer_type_tuple")
-    cdef tuple is_static = _as_layer_tuple(layer_is_static_tuple, num_layers, "layer_is_static_tuple")
-    cdef tuple is_incompressible = _as_layer_tuple(
+    cdef tuple layer_types = cy_as_layer_tuple(layer_type_tuple, num_layers, "layer_type_tuple")
+    cdef tuple is_static = cy_as_layer_tuple(layer_is_static_tuple, num_layers, "layer_is_static_tuple")
+    cdef tuple is_incompressible = cy_as_layer_tuple(
         layer_is_incompressible_tuple, num_layers, "layer_is_incompressible_tuple")
 
     cdef vector[const c_RheologyBase*] shear_rheo_ptrs, bulk_rheo_ptrs
@@ -422,4 +422,4 @@ def build_rs_input_from_data(
         warnings,
         inputs)
 
-    return _build_outputs(inputs, layer_types, is_static, is_incompressible)
+    return cy_build_outputs(inputs, layer_types, is_static, is_incompressible)

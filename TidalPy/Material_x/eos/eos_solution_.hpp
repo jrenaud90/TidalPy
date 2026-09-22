@@ -402,12 +402,13 @@ public:
 
 
 
-    /// Evaluate every EOS output at a single radius in solve units for a specific layer, writing C_EOS_DY_VALUES
-    /// doubles in the evaluation layout of eos_layout_.hpp: gravity, pressure, mass, moment of inertia, density,
-    /// the unrelaxed shear and bulk moduli, the shear and bulk viscosities, temperature, heat flow, and melt
-    /// fraction. A re-dimensionalized solution returns SI values for all but the viscosities, which are SI in
-    /// every state. Frequency-independent throughout: a viscoelastic response comes from call_material.
-    void call(
+    /// Evaluate every EOS output at a single radius in solve units (non-dimensional when the solve was) for a
+    /// specific layer, writing C_EOS_DY_VALUES doubles in the evaluation layout of eos_layout_.hpp: gravity,
+    /// pressure, mass, moment of inertia, density, the unrelaxed shear and bulk moduli, the shear and bulk
+    /// viscosities, temperature, heat flow, and melt fraction. A re-dimensionalized solution returns SI values for
+    /// all but the viscosities, which are SI in every state. Frequency-independent throughout: a viscoelastic
+    /// response comes from call_material. call_si takes the radius in metres.
+    void call_nondim(
         const size_t layer_index,
         const double radius_val,
         double* y_interp_ptr) const
@@ -510,10 +511,10 @@ public:
     }
 
 
-    /// `call` for an SI radius [m]: the radius is converted into solve units first.
+    /// `call_nondim` for an SI radius [m]: the radius is converted into solve units first.
     void call_si(const size_t layer_index, const double radius_si, double* y_interp_ptr) const
     {
-        this->call(layer_index, this->convert_radius_si_to_solve(radius_si), y_interp_ptr);
+        this->call_nondim(layer_index, this->convert_radius_si_to_solve(radius_si), y_interp_ptr);
     }
 
 

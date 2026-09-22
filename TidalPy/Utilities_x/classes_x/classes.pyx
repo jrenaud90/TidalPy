@@ -334,7 +334,7 @@ cdef class PhysicsBase(TidalPyBaseClass):
 # =====================================================================================================================
 # Physics-model config key checking
 # =====================================================================================================================
-def factory_defaults(str section, accepted_keys, model_name=None) -> dict:
+def factory_defaults(str section, accepted_keys, model_name=None, same_model=None) -> dict:
     """The parameters a ``make_*`` factory takes when it is called with no config: the world builder's defaults.
 
     A model attached by the world builder resolves its parameters through the layer's own table and then the
@@ -355,6 +355,10 @@ def factory_defaults(str section, accepted_keys, model_name=None) -> dict:
     model_name : str, optional
         The model being built. Given, the table is taken only when its ``model`` names it (a table with no
         ``model`` key, such as ``[tides]``, is taken as is); left out, the table is taken whatever it names.
+    same_model : callable, optional
+        ``same_model(table_name, model_name) -> bool``, the family's own test of whether two names (aliases
+        included) are one model; it may raise ``ValueError`` for a name the family does not know, which counts
+        as a different model. Without it the names are compared as lower-case strings, so an alias does not match.
 
     Returns
     -------
@@ -374,8 +378,16 @@ def factory_defaults(str section, accepted_keys, model_name=None) -> dict:
             if not isinstance(table, dict):
                 return {}
     named = table.get("model", None)
-    if model_name is not None and named is not None and str(named).lower() != model_name.lower():
-        return {}
+    if model_name is not None and named is not None:
+        if same_model is None:
+            matches = str(named).lower() == model_name.lower()
+        else:
+            try:
+                matches = bool(same_model(str(named), model_name))
+            except ValueError:
+                matches = False
+        if not matches:
+            return {}
     accepted = set(accepted_keys)
     accepted.discard("model")
     return {key: value for key, value in table.items() if key in accepted}

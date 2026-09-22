@@ -214,7 +214,7 @@ ALLOWED_TIDES_KEYS = frozenset((
     "global_tidal_model",
     "fixed_k",
     "fixed_q",
-    "fixed_dt",
+    "fixed_dt_s",
     "min_degree_l",
     "max_degree_l",
     "eccentricity_trunc_lvl",
@@ -224,7 +224,7 @@ ALLOWED_TIDES_KEYS = frozenset((
     "tidal_timescale_width_decades",
     "love_method",
     "love_fixed_q",
-    "love_fixed_dt",
+    "love_fixed_dt_s",
 ))
 
 # Some parameters are required for world construction

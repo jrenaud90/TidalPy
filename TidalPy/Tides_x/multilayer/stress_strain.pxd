@@ -9,6 +9,7 @@ cdef extern from "multilayer_bind_.hpp" namespace "tidalpy::tides" nogil:
         double bulk_im,
         double radius,
         double degree_l,
+        double frequency,
         int is_solid,
         int is_incomp,
         const double* potential12,
@@ -19,7 +20,8 @@ cdef extern from "multilayer_bind_.hpp" namespace "tidalpy::tides" nogil:
 
     double c_volumetric_heating_flat(
         const double* stress12,
-        const double* strain12)
+        const double* strain12,
+        double frequency)
 
     int c_angular_gram_flat(
         int degree_l,

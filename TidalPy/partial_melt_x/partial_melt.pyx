@@ -262,6 +262,11 @@ PARTIAL_MELT_CONFIG_KEYS = frozenset({
     "hn_shear_param_1_k", "hn_shear_param_2", "hn_shear_falloff_slope"})
 
 
+def _same_model(str table_name, str model_name) -> bool:
+    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    return c_partial_melt_model_from_name(table_name.lower().encode("utf-8")) == c_partial_melt_model_from_name(model_name.lower().encode("utf-8"))
+
+
 def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     """Build a partial-melt model by name, returning the matching rich subclass.
 
@@ -287,7 +292,7 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     """
     if config is None:
         # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
-        config = factory_defaults("material.partial_melt", PARTIAL_MELT_CONFIG_KEYS, model_name)
+        config = factory_defaults("material.partial_melt", PARTIAL_MELT_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, PARTIAL_MELT_CONFIG_KEYS, "partial-melt")
     if config is None:
         config = {}

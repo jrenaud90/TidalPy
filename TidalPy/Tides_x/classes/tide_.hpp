@@ -280,7 +280,7 @@ public:
         out.push_back(c_config_doubles(
             "fixed_k", std::vector<double>(this->p_fixed_k.begin(), this->p_fixed_k.end())));
         out.push_back(c_config_doubles(
-            "fixed_dt", std::vector<double>(this->p_fixed_dt.begin(), this->p_fixed_dt.end())));
+            "fixed_dt_s", std::vector<double>(this->p_fixed_dt.begin(), this->p_fixed_dt.end())));
     }
 
     c_LoveNumbers calc_love_numbers(
@@ -341,7 +341,7 @@ public:
         out.push_back(c_config_doubles(
             "fixed_k", std::vector<double>(this->p_fixed_k.begin(), this->p_fixed_k.end())));
         out.push_back(c_config_doubles(
-            "fixed_dt", std::vector<double>(this->p_fixed_dt.begin(), this->p_fixed_dt.end())));
+            "fixed_dt_s", std::vector<double>(this->p_fixed_dt.begin(), this->p_fixed_dt.end())));
         out.push_back(c_config_doubles(
             "fixed_q", std::vector<double>(this->p_fixed_q.begin(), this->p_fixed_q.end())));
     }

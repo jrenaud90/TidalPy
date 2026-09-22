@@ -18,7 +18,7 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef c_OrbitState _make_state(
+cdef c_OrbitState cy_make_state(
         double orbital_frequency,
         double semi_major_axis,
         double eccentricity,
@@ -53,7 +53,7 @@ cdef class OrbitSolver:
             double host_mass,
             double dU_dM) -> float:
         """Semi-major-axis rate [m s-1]: ``da/dt = (2 / (n a)) dR/dM``."""
-        cdef c_OrbitState state = _make_state(
+        cdef c_OrbitState state = cy_make_state(
             orbital_frequency,
             semi_major_axis,
             eccentricity,
@@ -74,7 +74,7 @@ cdef class OrbitSolver:
 
         Returns ``0.0`` for a circular (or degenerate) orbit, where the ``1/e`` term is indeterminate.
         """
-        cdef c_OrbitState state = _make_state(
+        cdef c_OrbitState state = cy_make_state(
             orbital_frequency,
             semi_major_axis,
             eccentricity,
@@ -100,7 +100,7 @@ cdef class OrbitSolver:
             double dU_dM,
             double dU_dw) -> dict:
         """All three rates as a dict with keys ``da_dt``, ``de_dt``, ``dn_dt``."""
-        cdef c_OrbitState state = _make_state(
+        cdef c_OrbitState state = cy_make_state(
             orbital_frequency,
             semi_major_axis,
             eccentricity,

@@ -238,7 +238,7 @@ public:
                 this->p_upper_radii_solve.empty() ? 0.0 : this->p_upper_radii_solve.back();
             for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ++ytype_i)
             {
-                this->eval_solveunits(surface_r_solve, ytype_i, surface_solutions);
+                this->get_radial_solution_nondim(surface_r_solve, ytype_i, surface_solutions);
                 this->complex_love_vec[ytype_i] =
                     c_find_love(surface_solutions, this->eos_solution_uptr->surface_gravity);
                 this->cache_surface_y(ytype_i, surface_solutions);
@@ -369,8 +369,8 @@ public:
     }
 
     // Collapsed y1..y6 (solve units) at a solve-unit radius, shooting path only. Returns false and NaN-fills out6
-    // if unsolved, below the starting radius, or out of range.
-    bool eval_solveunits(double radius_solve, size_t ytype_i, std::complex<double>* out6) const
+    // if unsolved, below the starting radius, or out of range. get_radial_solution is the SI form.
+    bool get_radial_solution_nondim(double radius_solve, size_t ytype_i, std::complex<double>* out6) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
         for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
@@ -473,7 +473,7 @@ public:
         if (this->p_uses_interpolants)
         {
             const double radius_solve = radius_si / this->p_length_conv;
-            if (!this->eval_solveunits(radius_solve, ytype_i, out6))
+            if (!this->get_radial_solution_nondim(radius_solve, ytype_i, out6))
             {
                 for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
                 return false;
@@ -558,7 +558,7 @@ public:
     }
 
     // Dense EOS evaluation at an SI radius: the radius is converted into the interpolant's solve-unit domain, the
-    // layer located there, and eos->call re-dimensionalizes the outputs. out holds C_EOS_DY_VALUES doubles in the
+    // layer located there, and call_nondim re-dimensionalizes the outputs. out holds C_EOS_DY_VALUES doubles in the
     // evaluation layout of eos_layout_.hpp, which is frequency-independent: [0] gravity [1] pressure [2] mass
     // [3] moi [4] density [5] shear modulus [6] bulk modulus [7,8] viscosities [9] temperature [10] heat flow
     // [11] melt fraction.
@@ -567,7 +567,7 @@ public:
         size_t target_layer_i = 0;
         double solve_r        = 0.0;
         if (!this->p_locate_eos(radius_si, target_layer_i, solve_r)) return false;
-        this->eos_solution_uptr->call(target_layer_i, solve_r, out);
+        this->eos_solution_uptr->call_nondim(target_layer_i, solve_r, out);
         return true;
     }
 

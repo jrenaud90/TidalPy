@@ -179,7 +179,7 @@ schema_version = "{SCHEMA_VERSION_X}"
 #
 # Used by the world builder when a world's `[tides]` table omits a value. The default
 # dissipation model is chosen per world family; the truncation/degree settings apply to
-# the global tidal-mode solve. The per-degree analytic parameters (fixed_k/fixed_q/fixed_dt,
+# the global tidal-mode solve. The per-degree analytic parameters (fixed_k/fixed_q/fixed_dt_s,
 # lists indexed from degree l = 2) are only consumed by the analytic models (cpl/ctl/ctl_q)
 # and are easily overridden per world.
 # =====================================================================================================================
@@ -201,7 +201,7 @@ schema_version = "{SCHEMA_VERSION_X}"
     fixed_q = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
     # Per-degree tidal time lags dt_l [s] (a single constant time lag across degrees;
     # ~600 s is an Earth-like value).
-    fixed_dt = [600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0]
+    fixed_dt_s = [600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0]
 
     # Default global dissipation model per world family.
     [tides.default_model]
@@ -228,6 +228,9 @@ schema_version = "{SCHEMA_VERSION_X}"
     schema_version = true
     # A [tides] truncation level that is not tabulated and is promoted to the next tabulated one.
     truncation_promotion = true
+    # A [tides] per-degree list (fixed_k, fixed_q, fixed_dt_s) the tide model reads that stops short of
+    # max_degree_l; the degrees it leaves out are zero, which is no dissipation there.
+    short_degree_list = true
 
 
 # =====================================================================================================================

@@ -14,6 +14,9 @@ from TidalPy.Material_x.eos.ode cimport (
     C_EOS_BULK_MODULUS_INDEX,
     C_EOS_SHEAR_VISCOSITY_INDEX,
     C_EOS_BULK_VISCOSITY_INDEX,
+    C_EOS_TEMPERATURE_INDEX,
+    C_EOS_HEAT_FLOW_INDEX,
+    C_EOS_MELT_FRACTION_INDEX,
 )
 from TidalPy.constants cimport d_PI
 
@@ -22,6 +25,26 @@ import numpy as np
 cnp.import_array()
 
 from TidalPy.Utilities_x.logging_x.logger import log_info, log_warning
+
+
+cdef tuple cy_eos_field_names():
+    """The name of each slot of the dense EOS layout (eos_layout_.hpp), in slot order."""
+    names = [None] * C_EOS_DY_VALUES
+    names[0], names[1], names[2], names[3] = "gravity", "pressure", "mass", "moi"
+    names[C_EOS_DENSITY_INDEX]         = "density"
+    names[C_EOS_SHEAR_MODULUS_INDEX]   = "shear_modulus"
+    names[C_EOS_BULK_MODULUS_INDEX]    = "bulk_modulus"
+    names[C_EOS_SHEAR_VISCOSITY_INDEX] = "shear_viscosity"
+    names[C_EOS_BULK_VISCOSITY_INDEX]  = "bulk_viscosity"
+    names[C_EOS_TEMPERATURE_INDEX]     = "temperature"
+    names[C_EOS_HEAT_FLOW_INDEX]       = "heat_flow"
+    names[C_EOS_MELT_FRACTION_INDEX]   = "melt_fraction"
+    if None in names:
+        raise RuntimeError("TidalPy: the dense EOS layout has a slot with no field name.")
+    return tuple(names)
+
+# Field names of `RadialSolverSolution.eos_call`, in layout order.
+EOS_CALL_FIELDS = cy_eos_field_names()
 
 # Surface boundary condition conditioning thresholds (see RadialSolverSolution.surface_solve_amplification).
 # The severe threshold sits well above the ~1e6 amplification of a healthy automatic-starting-radius solve.
@@ -202,7 +225,13 @@ cdef class RadialSolverSolution:
             cnp.NPY_UINT64,
             self.solution_storage_ptr.shooting_method_steps_taken_vec.data())
 
-    def eos_call(self, double radius):
+    def eos_call_nondim(self, double radius):
+        """The raw dense EOS row at a radius in the solve's own units (non-dimensional when the solve was).
+
+        An internal readout: ``eos_call`` is the SI form with named fields. The row holds ``C_EOS_DY_VALUES``
+        doubles in the layout of ``eos_layout_.hpp`` (the order of ``EOS_CALL_FIELDS``), every value already
+        re-dimensionalized to SI.
+        """
         cdef c_EOSSolution* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
 
         cdef int layer_index = -1
@@ -230,22 +259,63 @@ cdef class RadialSolverSolution:
         cdef double[::1] eos_interp_view = eos_interp
         cdef double* eos_interp_ptr      = &eos_interp_view[0]
 
-        eos_solution_ptr.call(<size_t>layer_index, radius, eos_interp_ptr)
+        eos_solution_ptr.call_nondim(<size_t>layer_index, radius, eos_interp_ptr)
         return eos_interp
 
-    def eos_call_si(self, double radius):
-        """Dense EOS outputs (SI) at an SI radius [m]; ``eos_call`` takes a non-dimensional radius instead.
+    def eos_call(self, radius) -> dict:
+        """The dense equation-of-state and material state at an SI radius [m], as named fields.
 
-        Layout: [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density, [5] shear modulus, [6] bulk modulus,
-        [7, 8] shear and bulk viscosity, [9] temperature, [10] heat flow, [11] melt fraction. Every value is
-        frequency-independent, so the moduli are the unrelaxed ones; for the viscoelastic response at the solved
-        frequency use ``get_complex_shear_modulus`` and ``get_complex_bulk_modulus``. NaN when the solve failed.
+        Evaluates the solution's own dense EOS interpolant at the exact radius asked for, so an off-grid query
+        is as accurate as the solve itself. A float radius gives a dict of scalars; an array of radii gives a
+        dict of arrays of the same shape. Every field is NaN outside the body or when the solve failed.
+
+        Parameters
+        ----------
+        radius : float or array_like
+            Radius [m], from the center to the surface.
+
+        Returns
+        -------
+        dict
+            ``gravity`` [m s-2], ``pressure`` [Pa], ``mass`` [kg] and ``moi`` [kg m2] enclosed by the radius,
+            ``density`` [kg m-3], the unrelaxed ``shear_modulus`` and ``bulk_modulus`` [Pa], ``shear_viscosity``
+            and ``bulk_viscosity`` [Pa s] (NaN when the material names none), ``temperature`` [K],
+            ``heat_flow`` [W], ``melt_fraction``, and the ``complex_shear_modulus`` and ``complex_bulk_modulus``
+            [Pa] the solve used at ``love_frequency`` (the same values ``get_complex_shear_modulus`` and its bulk
+            counterpart return). ``EOS_CALL_FIELDS`` lists the real fields in layout order.
         """
-        cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
-        cdef double[::1] eos_interp_view = eos_interp
-        if not self.solution_storage_ptr.get_eos_si(radius, &eos_interp_view[0]):
-            eos_interp[:] = np.nan
-        return eos_interp
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] radii = np.ascontiguousarray(radius, dtype=np.float64).ravel()
+        cdef Py_ssize_t num_radii = radii.shape[0]
+        cdef cnp.ndarray[cnp.float64_t, ndim=2] state = np.empty((num_radii, C_EOS_DY_VALUES), dtype=np.float64)
+        cdef cnp.ndarray[cnp.complex128_t, ndim=1] shear = np.empty(num_radii, dtype=np.complex128)
+        cdef cnp.ndarray[cnp.complex128_t, ndim=1] bulk = np.empty(num_radii, dtype=np.complex128)
+        cdef cpp_complex[double] shear_c
+        cdef cpp_complex[double] bulk_c
+        cdef Py_ssize_t i
+        cdef size_t field_i
+
+        for i in range(num_radii):
+            if not self.solution_storage_ptr.get_eos_si(radii[i], &state[i, 0]):
+                for field_i in range(C_EOS_DY_VALUES):
+                    state[i, field_i] = np.nan
+            # NaN out of range, so it needs no separate check.
+            self.solution_storage_ptr.get_complex_moduli_si(radii[i], shear_c, bulk_c)
+            shear[i] = complex(shear_c.real(), shear_c.imag())
+            bulk[i]  = complex(bulk_c.real(), bulk_c.imag())
+
+        cdef dict out = {}
+        if np.ndim(radius) == 0:
+            for field_i in range(C_EOS_DY_VALUES):
+                out[EOS_CALL_FIELDS[field_i]] = float(state[0, field_i])
+            out["complex_shear_modulus"] = complex(shear[0])
+            out["complex_bulk_modulus"]  = complex(bulk[0])
+            return out
+        shape = np.shape(radius)
+        for field_i in range(C_EOS_DY_VALUES):
+            out[EOS_CALL_FIELDS[field_i]] = np.ascontiguousarray(state[:, field_i]).reshape(shape)
+        out["complex_shear_modulus"] = shear.reshape(shape)
+        out["complex_bulk_modulus"]  = bulk.reshape(shape)
+        return out
 
     def get_radial_solution(self, double radius, size_t ytype_index = 0):
         """Complex y1..y6 (SI) at one radius [m] for a boundary-condition ytype.

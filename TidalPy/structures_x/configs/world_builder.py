@@ -920,6 +920,29 @@ def _normalize_truncation_aliases(tides_cfg: dict, source: str) -> dict:
     return normalized
 
 
+def _warn_short_degree_lists(world_name: str, tide_model, model_config: dict, max_degree_l: int) -> None:
+    """Warn once per world about a per-degree list the tide model reads that stops short of ``max_degree_l``.
+
+    The lists are indexed from degree 2, so ``max_degree_l`` needs ``max_degree_l - 1`` entries; the model
+    zero-fills the rest, and a zero Love number or lag is no dissipation at that degree, which the mode sum
+    would otherwise take silently. Only the lists the model holds are checked (a ``ctl`` model never reads
+    ``fixed_q``); the rheology model holds none.
+    """
+    if not model_config or not warning_enabled("short_degree_list"):
+        return
+    needed = max_degree_l - 1
+    held = tide_model.get_config_dict()
+    short = [key for key in ("fixed_k", "fixed_q", "fixed_dt_s")
+             if key in model_config and key in held and len(model_config[key]) < needed]
+    if not short:
+        return
+    lengths = ", ".join(f"{key} ({len(model_config[key])})" for key in short)
+    warnings.warn(
+        f"World '{world_name}': the [tides] lists {lengths} stop short of max_degree_l = {max_degree_l}, "
+        f"which needs {needed} entries (degrees 2 to {max_degree_l}). The missing degrees are zero, which is no "
+        f"dissipation there. Extend the lists or lower max_degree_l; [warnings] short_degree_list turns this off.")
+
+
 def _attach_tides(world, config: dict) -> None:
     """Wire the optional ``[tides]`` table onto any world (layered, gas giant, or star).
 
@@ -927,7 +950,7 @@ def _attach_tides(world, config: dict) -> None:
     configuration (``set_tide_config``). Values resolve through the world's ``[tides]`` table, then
     the ``[tides]`` defaults of ``TidalPy_Configs_x.toml``, then a built-in fallback. The default
     dissipation model is per world family (``[tides.default_model][<world_type>]``); the per-degree
-    analytic parameters (``fixed_k``/``fixed_q``/``fixed_dt``) are forwarded to the model.
+    analytic parameters (``fixed_k``/``fixed_q``/``fixed_dt_s``) are forwarded to the model.
 
     Parameters
     ----------
@@ -954,17 +977,20 @@ def _attach_tides(world, config: dict) -> None:
         default_model_map.get(world_type, _DEFAULT_TIDE_MODEL_FALLBACK.get(world_type, "rheology")))
 
     model_config = {}
-    for key in ("fixed_k", "fixed_q", "fixed_dt"):
+    for key in ("fixed_k", "fixed_q", "fixed_dt_s"):
         if key in merged:
             model_config[key] = list(merged[key])
 
-    world.set_tide_model(make_tide(model_name, model_config if model_config else None))
+    tide_model = make_tide(model_name, model_config if model_config else None)
+    world.set_tide_model(tide_model)
+    max_degree_l = int(merged.get("max_degree_l", 2))
+    _warn_short_degree_lists(config.get("name", "?"), tide_model, model_config, max_degree_l)
 
     # The truncation levels below also drive the on-demand 3D stress/strain/heating path (the tidal
     # potential is built dynamically from them by the rheology model; no potential-model object).
     world.set_tide_config(
         min_degree_l=int(merged.get("min_degree_l", 2)),
-        max_degree_l=int(merged.get("max_degree_l", 2)),
+        max_degree_l=max_degree_l,
         # Both spellings were normalized to the canonical key above.
         eccentricity_truncation=_resolve_eccentricity_truncation(
             merged.get("eccentricity_trunc_lvl", 3)),
@@ -973,7 +999,7 @@ def _attach_tides(world, config: dict) -> None:
         tidal_timescale_width_decades=float(merged.get("tidal_timescale_width_decades", 1.0)),
         love_method=str(merged.get("love_method", "radial_solver")),
         love_fixed_q=merged.get("love_fixed_q"),
-        love_fixed_dt=merged.get("love_fixed_dt"),
+        love_fixed_dt=merged.get("love_fixed_dt_s"),
     )
 
 

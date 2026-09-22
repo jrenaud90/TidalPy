@@ -219,6 +219,14 @@ VISCOSITY_CONFIG_KEYS = frozenset({
     "grain_size_expo", "additional_temp_dependence"})
 
 
+def _same_model(str table_name, str model_name) -> bool:
+    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    return (
+        c_viscosity_model_from_name(table_name.lower().encode("utf-8")) == 
+        c_viscosity_model_from_name(model_name.lower().encode("utf-8"))
+    )
+
+
 def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     """Build a viscosity model by name, returning the matching rich subclass.
 
@@ -245,7 +253,7 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     """
     if config is None:
         # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
-        config = factory_defaults("material.shear_viscosity", VISCOSITY_CONFIG_KEYS, model_name)
+        config = factory_defaults("material.shear_viscosity", VISCOSITY_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, VISCOSITY_CONFIG_KEYS, "viscosity")
     if config is None:
         config = {}

@@ -903,7 +903,7 @@ int c_shooting_solver(
                 }
 
                 // The collapsed y is evaluated on demand from the interpolants and these constants
-                // (c_RadialSolutionStorage::eval_solveunits); unused entries stay NaN.
+                // (c_RadialSolutionStorage::get_radial_solution_nondim); unused entries stay NaN.
                 std::array<std::complex<double>, 3>& dest_constants =
                     solution_storage_ptr->p_constants_by_ytype_layer[ytype_i][layer_i_reversed];
                 for (size_t s = 0; s < num_sols; ++s)

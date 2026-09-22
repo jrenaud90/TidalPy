@@ -74,7 +74,7 @@ cdef extern from "eos_solution_.hpp" nogil:
         void save_cyresult(unique_ptr[CySolverResult] new_cysolver_result_uptr)
         void save_steps_taken(size_t steps_taken)
 
-        void call(
+        void call_nondim(
             const size_t layer_index,
             const double radius,
             double* y_interp_ptr) except +

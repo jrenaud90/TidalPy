@@ -38,7 +38,7 @@ cdef extern from "world_tides_.hpp" nogil:
     pass
 
 
-cdef BaseWorld _wrap_world(shared_ptr[c_BaseWorld] ptr):
+cdef BaseWorld cy_wrap_world(shared_ptr[c_BaseWorld] ptr):
     """Wrap a C++ world (e.g. one loaded by c_System::read_binary) as the matching Python wrapper.
 
     Dispatches on the world's concrete type so a layered / gas-giant / star world comes back as its own
@@ -54,7 +54,7 @@ cdef BaseWorld _wrap_world(shared_ptr[c_BaseWorld] ptr):
     return BaseWorld._wrap(ptr)
 
 
-cdef dict _evolution_to_dict(c_WorldEvolution evolution):
+cdef dict cy_evolution_to_dict(c_WorldEvolution evolution):
     """Convert a c_WorldEvolution result into a plain Python dict (all values MKS)."""
     return {
         'world_index':       <int>evolution.world_index,
@@ -81,7 +81,7 @@ cdef dict _evolution_to_dict(c_WorldEvolution evolution):
     }
 
 
-cdef dict _pair_to_dict(c_PairEvolution pair):
+cdef dict cy_pair_to_dict(c_PairEvolution pair):
     """Convert a c_PairEvolution (dual-body) result into a plain Python dict (all values MKS)."""
     return {
         'world_index':         <int>pair.world_index,
@@ -97,8 +97,8 @@ cdef dict _pair_to_dict(c_PairEvolution pair):
         'dE_orbit_dt':         pair.dE_orbit_dt,
         'dE_spin_dt_total':    pair.dE_spin_dt_total,
         'energy_residual':     pair.energy_residual,
-        'world':               _evolution_to_dict(pair.world),
-        'host':                _evolution_to_dict(pair.host),
+        'world':               cy_evolution_to_dict(pair.world),
+        'host':                cy_evolution_to_dict(pair.host),
     }
 
 
@@ -434,7 +434,7 @@ cdef class System:
         """
         cdef c_WorldEvolution evolution = self._system.get().calc_world_evolution(
             <size_t>self._resolve_index(world))
-        return _evolution_to_dict(evolution)
+        return cy_evolution_to_dict(evolution)
 
     def calc_system_evolution(self) -> list:
         """Evolve every world in the system (single-body dissipation).
@@ -452,7 +452,7 @@ cdef class System:
         cdef list out = []
         cdef size_t i
         for i in range(results.size()):
-            out.append(_evolution_to_dict(results[i]))
+            out.append(cy_evolution_to_dict(results[i]))
         return out
 
     def calc_pair_evolution(self, world) -> dict:
@@ -479,7 +479,7 @@ cdef class System:
             host or no usable orbit about it.
         """
         cdef c_PairEvolution pair = self._system.get().calc_pair_evolution(<size_t>self._resolve_index(world))
-        return _pair_to_dict(pair)
+        return cy_pair_to_dict(pair)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config / serialization
@@ -557,7 +557,7 @@ cdef class System:
         cdef size_t i
         self._world_wrappers = []
         for i in range(num):
-            self._world_wrappers.append(_wrap_world(system_ptr.get_world(i)))
+            self._world_wrappers.append(cy_wrap_world(system_ptr.get_world(i)))
 
     def load_binary(self, str path, cpp_bool force=False):
         """Load this system's state from a TidalPy binary file (overriding the base to rewrap worlds).

@@ -12,10 +12,9 @@ Potential rows are complex phasor amplitudes ``(U, dU/dtheta, dU/dphi, d2U/dthet
 with ``U(t) = Re[U_c e^{i omega t}]``; a real row is a phasor with zero phase. The strains, stresses, and
 displacements returned are complex amplitudes in the same convention. To assemble several modes: evaluate the
 moduli and radial functions at ``|frequency|`` and conjugate the row of any mode whose frequency is negative, sum
-the strain and stress amplitudes of all modes sharing ``|frequency|``, and pass the sums to
-:func:`volumetric_heating`, whose result times ``|frequency| / 2`` is that frequency's cycle-averaged heating
-[W m-3]; the heating of different frequencies adds. A field at time ``t`` is ``Re[amplitude e^{i |frequency| t}]``
-summed over the modes.
+the strain and stress amplitudes of all modes sharing ``|frequency|``, and pass the sums and the frequency to
+:func:`volumetric_heating`, which returns that frequency's cycle-averaged heating [W m-3]; the heating of different
+frequencies adds. A field at time ``t`` is ``Re[amplitude e^{i |frequency| t}]`` summed over the modes.
 """
 import numpy as np
 from libcpp cimport bool as cpp_bool
@@ -44,8 +43,8 @@ cdef int cy_potential_row_to_flat(object potential6, double* potential12) except
     return 0
 
 
-def volumetric_heating(double complex[::1] stress not None, double complex[::1] strain not None):
-    """Magnitude of the weighted bilinear form of 6 complex stress and 6 complex strain components.
+def volumetric_heating(double complex[::1] stress not None, double complex[::1] strain not None, double frequency):
+    """Cycle-averaged volumetric heating [W m-3] of 6 complex stress and 6 complex strain amplitudes at one frequency.
 
     Parameters
     ----------
@@ -53,13 +52,15 @@ def volumetric_heating(double complex[::1] stress not None, double complex[::1] 
         Stress amplitudes [Pa] ordered rr, theta-theta, phi-phi, r-theta, r-phi, theta-phi.
     strain : numpy.ndarray of complex128, shape (6,)
         Strain amplitudes in the same order.
+    frequency : float
+        Forcing frequency [rad s-1] the amplitudes are at; only its magnitude is used.
 
     Returns
     -------
     float
-        ``|sum_k w_k Im(stress_k conj(strain_k))|`` [Pa] with ``w_k = 2`` on the three off-diagonal components (Europa
-        book Eq. 42). For the summed amplitudes of every mode at one forcing frequency, ``|frequency| / 2`` times this
-        is that frequency's cycle-averaged volumetric heating [W m-3].
+        ``(|frequency| / 2) |sum_k w_k Im(stress_k conj(strain_k))|`` [W m-3] with ``w_k = 2`` on the three
+        off-diagonal components (Europa book Eq. 42), the same factor the world path applies. Pass the summed
+        amplitudes of every mode at one forcing frequency; the heating of different frequencies adds.
 
     Raises
     ------
@@ -77,7 +78,7 @@ def volumetric_heating(double complex[::1] stress not None, double complex[::1] 
         stress12[2 * k + 1] = stress[k].imag
         strain12[2 * k] = strain[k].real
         strain12[2 * k + 1] = strain[k].imag
-    return c_volumetric_heating_flat(&stress12[0], &strain12[0])
+    return c_volumetric_heating_flat(&stress12[0], &strain12[0], frequency)
 
 
 def angular_gram(int degree_l, int order_m):
@@ -106,11 +107,12 @@ def strain_stress_heating_point(
         double complex bulk,
         double radius,
         double degree_l,
+        double frequency,
         cpp_bool is_solid,
         cpp_bool is_incompressible,
         potential6,
         double colatitude):
-    """Complex strain and stress amplitudes, and their heating form, at one point for one tidal mode.
+    """Complex strain and stress amplitudes, and their heating, at one point for one tidal mode.
 
     Parameters
     ----------
@@ -123,6 +125,8 @@ def strain_stress_heating_point(
         Radius [m].
     degree_l : float
         Harmonic degree of the mode.
+    frequency : float
+        Forcing frequency of the mode [rad s-1]; only its magnitude is used, for the heating.
     is_solid, is_incompressible : bool
         Assumptions of the layer containing ``radius``; they select dy1/dr. A liquid point returns NaN.
     potential6 : array-like of complex or float
@@ -139,9 +143,9 @@ def strain_stress_heating_point(
     stress : numpy.ndarray of complex128, shape (6,)
         Stress amplitudes [Pa] in the same order.
     heating : float
-        ``|sum_k w_k Im(stress_k conj(strain_k))|`` [Pa], as :func:`volumetric_heating`. ``|frequency| / 2`` times
-        this is the cycle-averaged volumetric heating [W m-3] of this mode alone; modes sharing a frequency must be
-        summed first.
+        The cycle-averaged volumetric heating [W m-3] of this mode alone, as :func:`volumetric_heating` of its
+        amplitudes at ``frequency``. Modes sharing a frequency interfere, so sum their amplitudes and call
+        :func:`volumetric_heating` on the sums instead of adding this value across them.
 
     Raises
     ------
@@ -176,6 +180,7 @@ def strain_stress_heating_point(
         bulk.imag,
         radius,
         degree_l,
+        frequency,
         1 if is_solid else 0,
         1 if is_incompressible else 0,
         &potential12[0],

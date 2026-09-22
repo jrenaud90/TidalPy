@@ -1187,8 +1187,8 @@ public:
             if (!(fixed_dt >= 0.0) || !std::isfinite(fixed_dt)) {
                 throw std::invalid_argument(
                     "TidalPy: the ctl Love-number method needs a non-negative fixed_dt for degree "
-                    + std::to_string(cfg.degree_l) + " (pass fixed_dt, set it in the tides config, or attach a tide "
-                    "model that carries a fixed time lag).");
+                    + std::to_string(cfg.degree_l) + " (pass fixed_dt, set love_fixed_dt_s in the tides config, or "
+                    "attach a tide model that carries a fixed time lag).");
             }
             love = c_apply_fixed_dt(love, cfg.frequency, fixed_dt);
         }

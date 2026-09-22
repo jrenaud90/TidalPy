@@ -35,7 +35,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # =====================================================================================================================
 # Internal helpers
 # =====================================================================================================================
-cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
+cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept:
     """Copy a contiguous 1-D float64 memoryview into a std::vector[double]."""
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
@@ -44,7 +44,7 @@ cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
         dst[i] = src[i]
 
 
-cdef c_CoolingInputs _build_inputs(
+cdef c_CoolingInputs cy_build_inputs(
         double delta_temp,
         double thickness,
         double gravity,
@@ -66,12 +66,12 @@ cdef c_CoolingInputs _build_inputs(
     return inp
 
 
-cdef CoolingResult _result_to_py(c_CoolingResult res):
+cdef CoolingResult cy_result_to_py(c_CoolingResult res):
     """Wrap a scalar c_CoolingResult in a Python CoolingResult."""
     return CoolingResult(res.cooling_flux, res.blt, res.rayleigh_number, res.nusselt_number)
 
 
-cdef CoolingResult _results_to_py(vector[c_CoolingResult]& src, tuple shape):
+cdef CoolingResult cy_results_to_py(vector[c_CoolingResult]& src, tuple shape):
     """Build a CoolingResult of float64 ndarrays from a std::vector of results."""
     cdef Py_ssize_t n = <Py_ssize_t>src.size()
     cdef Py_ssize_t i
@@ -91,7 +91,7 @@ cdef CoolingResult _results_to_py(vector[c_CoolingResult]& src, tuple shape):
     return CoolingResult(flux.reshape(shape), blt.reshape(shape), ray.reshape(shape), nu.reshape(shape))
 
 
-cdef object _solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
+cdef object cy_solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
                            object delta_temp, object viscosity):
     """Solve cooling for float or ndarray ``delta_temp`` and ``viscosity``.
 
@@ -109,31 +109,31 @@ cdef object _solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
     if not (d_arr or v_arr):
         base.delta_temp  = <double>delta_temp
         base.viscosity = <double>viscosity
-        return _result_to_py(model.calc_cooling(base))
+        return cy_result_to_py(model.calc_cooling(base))
 
     if d_arr and not v_arr:
         base.viscosity = <double>viscosity
         temp_arr = np.ascontiguousarray(delta_temp, dtype=np.float64)
-        mv = temp_arr.ravel(); _fill_vector(mv, vtemp)
+        mv = temp_arr.ravel(); cy_fill_vector(mv, vtemp)
         model.calc_cooling_vectorize_temperature(vtemp, base, vout)
-        return _results_to_py(vout, temp_arr.shape)
+        return cy_results_to_py(vout, temp_arr.shape)
 
     if v_arr and not d_arr:
         base.delta_temp = <double>delta_temp
         visc_arr = np.ascontiguousarray(viscosity, dtype=np.float64)
-        mv = visc_arr.ravel(); _fill_vector(mv, vvisc)
+        mv = visc_arr.ravel(); cy_fill_vector(mv, vvisc)
         model.calc_cooling_vectorize_viscosity(vvisc, base, vout)
-        return _results_to_py(vout, visc_arr.shape)
+        return cy_results_to_py(vout, visc_arr.shape)
 
     d_b, v_b = np.broadcast_arrays(
         np.asarray(delta_temp, dtype=np.float64),
         np.asarray(viscosity, dtype=np.float64))
     d_c = np.ascontiguousarray(d_b)
     v_c = np.ascontiguousarray(v_b)
-    mv = d_c.ravel(); _fill_vector(mv, vtemp)
-    mv = v_c.ravel(); _fill_vector(mv, vvisc)
+    mv = d_c.ravel(); cy_fill_vector(mv, vtemp)
+    mv = v_c.ravel(); cy_fill_vector(mv, vvisc)
     model.calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
-    return _results_to_py(vout, d_c.shape)
+    return cy_results_to_py(vout, d_c.shape)
 
 
 # =====================================================================================================================
@@ -246,7 +246,7 @@ cdef class CoolingBase(PhysicsBase):
         CoolingResult
         """
         self._check_ptr()
-        cdef c_CoolingInputs inp = _build_inputs(
+        cdef c_CoolingInputs inp = cy_build_inputs(
             delta_temp,
             thickness,
             gravity,
@@ -255,7 +255,7 @@ cdef class CoolingBase(PhysicsBase):
             thermal_conductivity,
             thermal_diffusivity,
             thermal_expansion)
-        return _result_to_py(self._cooling_ptr.get().calc_cooling(inp))
+        return cy_result_to_py(self._cooling_ptr.get().calc_cooling(inp))
 
     def calc_cooling_vectorize_temperature(
             self,
@@ -273,7 +273,7 @@ cdef class CoolingBase(PhysicsBase):
         Returns a ``CoolingResult`` of float64 ndarrays.
         """
         self._check_ptr()
-        cdef c_CoolingInputs base = _build_inputs(
+        cdef c_CoolingInputs base = cy_build_inputs(
             0.0,
             thickness,
             gravity,
@@ -286,9 +286,9 @@ cdef class CoolingBase(PhysicsBase):
         cdef vector[c_CoolingResult] vout
         cdef double[::1] mv
         temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
-        mv = temp_c; _fill_vector(mv, vtemp)
+        mv = temp_c; cy_fill_vector(mv, vtemp)
         self._cooling_ptr.get().calc_cooling_vectorize_temperature(vtemp, base, vout)
-        return _results_to_py(vout, temp_c.shape)
+        return cy_results_to_py(vout, temp_c.shape)
 
     def calc_cooling_vectorize_viscosity(
             self,
@@ -306,7 +306,7 @@ cdef class CoolingBase(PhysicsBase):
         Returns a ``CoolingResult`` of float64 ndarrays.
         """
         self._check_ptr()
-        cdef c_CoolingInputs base = _build_inputs(
+        cdef c_CoolingInputs base = cy_build_inputs(
             delta_temp,
             thickness,
             gravity,
@@ -319,9 +319,9 @@ cdef class CoolingBase(PhysicsBase):
         cdef vector[c_CoolingResult] vout
         cdef double[::1] mv
         visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        mv = visc_c; _fill_vector(mv, vvisc)
+        mv = visc_c; cy_fill_vector(mv, vvisc)
         self._cooling_ptr.get().calc_cooling_vectorize_viscosity(vvisc, base, vout)
-        return _results_to_py(vout, visc_c.shape)
+        return cy_results_to_py(vout, visc_c.shape)
 
     def calc_cooling_vectorize_all(
             self,
@@ -340,7 +340,7 @@ cdef class CoolingBase(PhysicsBase):
         float64 ndarrays.
         """
         self._check_ptr()
-        cdef c_CoolingInputs base = _build_inputs(
+        cdef c_CoolingInputs base = cy_build_inputs(
             0.0,
             thickness,
             gravity,
@@ -354,10 +354,10 @@ cdef class CoolingBase(PhysicsBase):
         cdef double[::1] mv
         temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
         visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        mv = temp_c; _fill_vector(mv, vtemp)
-        mv = visc_c; _fill_vector(mv, vvisc)
+        mv = temp_c; cy_fill_vector(mv, vtemp)
+        mv = visc_c; cy_fill_vector(mv, vvisc)
         self._cooling_ptr.get().calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
-        return _results_to_py(vout, temp_c.shape)
+        return cy_results_to_py(vout, temp_c.shape)
 
 
 
@@ -451,6 +451,11 @@ cdef class ConvectiveCooling(CoolingBase):
 COOLING_CONFIG_KEYS = frozenset({"convection_alpha", "convection_beta", "critical_rayleigh"})
 
 
+def _same_model(str table_name, str model_name) -> bool:
+    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    return c_cooling_model_from_name(table_name.lower().encode("utf-8")) == c_cooling_model_from_name(model_name.lower().encode("utf-8"))
+
+
 def make_cooling(str model_name, dict config=None):
     """Build a cooling model from a (case-insensitive) name and config dict.
 
@@ -475,7 +480,7 @@ def make_cooling(str model_name, dict config=None):
     """
     if config is None:
         # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
-        config = factory_defaults("cooling", COOLING_CONFIG_KEYS, model_name)
+        config = factory_defaults("cooling", COOLING_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, COOLING_CONFIG_KEYS, "cooling")
     if config is None:
         config = {}
@@ -528,8 +533,8 @@ def cooling_off(delta_temp, double thickness):
     """Cooling result for the Off model (zero flux). See module notes."""
     cdef c_CoolingConfig cfg
     cdef c_OffCooling model = c_OffCooling(cfg)
-    cdef c_CoolingInputs base = _build_inputs(0.0, thickness, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0)
+    cdef c_CoolingInputs base = cy_build_inputs(0.0, thickness, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0)
 
 
 def conductive(
@@ -539,7 +544,7 @@ def conductive(
     """Cooling result for the Conduction model: flux = conductivity * delta_temp / thickness."""
     cdef c_CoolingConfig cfg
     cdef c_ConductiveCooling model = c_ConductiveCooling(cfg)
-    cdef c_CoolingInputs base = _build_inputs(
+    cdef c_CoolingInputs base = cy_build_inputs(
         0.0,
         thickness,
         0.0,
@@ -548,7 +553,7 @@ def conductive(
         thermal_conductivity,
         0.0,
         0.0)
-    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0)
+    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0)
 
 
 def convective(
@@ -574,7 +579,7 @@ def convective(
     cfg.convection_beta   = convection_beta
     cfg.critical_rayleigh = critical_rayleigh
     cdef c_ConvectiveCooling model = c_ConvectiveCooling(cfg)
-    cdef c_CoolingInputs base = _build_inputs(
+    cdef c_CoolingInputs base = cy_build_inputs(
         0.0,
         thickness,
         gravity,
@@ -583,4 +588,4 @@ def convective(
         thermal_conductivity,
         thermal_diffusivity,
         thermal_expansion)
-    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp, viscosity)
+    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, viscosity)

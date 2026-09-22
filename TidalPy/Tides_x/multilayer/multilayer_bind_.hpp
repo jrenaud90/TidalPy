@@ -28,10 +28,10 @@ inline int c_angular_gram_flat(int degree_l, int order_m, double* gram36) noexce
     return 1;
 }
 
-// Magnitude of the weighted Im(stress conj strain) [Pa] from the 6 complex stress and 6 complex strain components,
-// each passed as 12 doubles (re, im per component). For the summed amplitudes of every mode at one forcing frequency,
-// (|omega|/2) times this is that frequency's cycle-averaged volumetric heating [W m-3].
-inline double c_volumetric_heating_flat(const double* stress12, const double* strain12) noexcept
+// Cycle-averaged volumetric heating [W m-3] at a forcing frequency [rad s-1] from the 6 complex stress and 6 complex
+// strain amplitudes at that frequency, each passed as 12 doubles (re, im per component): (|omega|/2) times the
+// magnitude of the weighted Im(stress conj strain), the same factor the world path applies to its summed amplitudes.
+inline double c_volumetric_heating_flat(const double* stress12, const double* strain12, double frequency) noexcept
 {
     c_Tensor6 stress, strain;
     for (std::size_t k = 0; k < 6; ++k)
@@ -39,7 +39,7 @@ inline double c_volumetric_heating_flat(const double* stress12, const double* st
         stress.c[k] = std::complex<double>(stress12[2 * k], stress12[2 * k + 1]);
         strain.c[k] = std::complex<double>(strain12[2 * k], strain12[2 * k + 1]);
     }
-    return c_volumetric_heating(stress, strain);
+    return 0.5 * std::abs(frequency) * c_volumetric_heating(stress, strain);
 }
 
 // Complex potential point from 12 doubles: (real, imaginary) of U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, and
@@ -57,8 +57,8 @@ inline c_PotentialPointC c_potential_point_from_flat(const double* potential12) 
 
 // Strain/stress/heating at one point. y_ri = 12 doubles (y1re,y1im,...,y6re,y6im; only y1..y4 used).
 // potential12 = one mode's complex potential row as 12 doubles (see c_potential_point_from_flat).
-// strain12/stress12 = 12 doubles each (6 complex amplitudes). heating1 = 1 double, the magnitude of the weighted
-// Im(stress conj strain) [Pa] (see c_volumetric_heating_flat).
+// strain12/stress12 = 12 doubles each (6 complex amplitudes). heating1 = 1 double, this mode's cycle-averaged
+// volumetric heating [W m-3] at the forcing frequency [rad s-1] (see c_volumetric_heating_flat).
 inline void c_strain_stress_heating(
         const double* y_ri,
         double shear_re,
@@ -67,6 +67,7 @@ inline void c_strain_stress_heating(
         double bulk_im,
         double radius,
         double degree_l,
+        double frequency,
         int is_solid,
         int is_incomp,
         const double* potential12,
@@ -103,7 +104,7 @@ inline void c_strain_stress_heating(
         strain12[2 * k] = strain.c[k].real(); strain12[2 * k + 1] = strain.c[k].imag();
         stress12[2 * k] = stress.c[k].real(); stress12[2 * k + 1] = stress.c[k].imag();
     }
-    *heating1 = c_volumetric_heating(stress, strain);
+    *heating1 = 0.5 * std::abs(frequency) * c_volumetric_heating(stress, strain);
 }
 
 // Displacements at one point. y_ri = 12 doubles (y1re, y1im, ..., y6re, y6im; only y1 and y3 used), potential12 =

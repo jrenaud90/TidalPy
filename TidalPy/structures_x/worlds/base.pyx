@@ -452,7 +452,7 @@ cdef class BaseWorld(StructureBase):
         -------
         dict
             ``min_degree_l``, ``max_degree_l``, ``eccentricity_trunc_lvl``, ``obliquity_trunc_lvl``,
-            ``tidal_timescale_width_decades``, ``love_method``, and ``love_fixed_q`` / ``love_fixed_dt``
+            ``tidal_timescale_width_decades``, ``love_method``, and ``love_fixed_q`` / ``love_fixed_dt_s``
             when set.
         """
         cdef c_TideConfig cfg = self._world_ptr.get().get_tide_config()
@@ -467,7 +467,7 @@ cdef class BaseWorld(StructureBase):
         if cfg.love_fixed_q == cfg.love_fixed_q:      # not NaN
             out["love_fixed_q"] = cfg.love_fixed_q
         if cfg.love_fixed_dt == cfg.love_fixed_dt:
-            out["love_fixed_dt"] = cfg.love_fixed_dt
+            out["love_fixed_dt_s"] = cfg.love_fixed_dt
         return out
 
     def save_to_toml(self, str file_path, overwrite=True):
