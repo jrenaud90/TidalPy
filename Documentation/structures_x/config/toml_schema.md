@@ -183,9 +183,9 @@ An optional world-level `[tides]` table sets how the world dissipates tidal ener
 | Key | Applies to | Description |
 |-----|------------|-------------|
 | `global_tidal_model` | all | Dissipation model: `rheology`, `cpl` (`fixed_q`), `ctl` (`fixed_dt`), or `ctl_q` (`fixed_dt_q`). Defaults per world family from `[tides.default_model]` in the `_x` config: `rheology` for terrestrial and layered worlds, `fixed_dt` for gas giants, `fixed_q` for stars. |
-| `fixed_k` | all | Per-degree static potential Love numbers $k_l$, a list indexed from $l = 2$ (nine slots, $l = 2 \ldots 10$). Read only by the analytic models. A list shorter than nine zero-fills the remaining degrees, and a zero $k_l$ is no dissipation at that degree, so the list has to reach `max_degree_l`. |
+| `fixed_k` | all | Per-degree static potential Love numbers $k_l$, a list indexed from $l = 2$ (nine slots, $l = 2 \ldots 10$). Read only by the analytic models. A list shorter than nine zero-fills the remaining degrees, and a zero $k_l$ is no dissipation at that degree, so the list has to reach `max_degree_l`; the builder warns when a list the model reads stops short (the `short_degree_list` switch of `[warnings]`). |
 | `fixed_q` | all | Per-degree tidal quality factors $Q_l$, same indexing. Read by `cpl` and `ctl_q`. |
-| `fixed_dt` | all | Per-degree tidal time lags $\Delta t_l$ \[s\], same indexing. Read by `ctl` and `ctl_q`. |
+| `fixed_dt_s` | all | Per-degree tidal time lags $\Delta t_l$ \[s\], same indexing. Read by `ctl` and `ctl_q`. The key carries the unit; the model alias stays `fixed_dt`. |
 | `min_degree_l` | all | Lowest harmonic degree in the mode sum. Default `2`. |
 | `max_degree_l` | all | Highest harmonic degree in the mode sum. Default `2`. |
 | `eccentricity_trunc_lvl` | all | Eccentricity truncation order $e^n$. Tabulated at 1, 2, 3, 4, 5, 10, 15, and 20; default `3`. An untabulated level is promoted to the next tabulated one with a once-per-session warning, so accuracy never drops silently. `eccentricity_truncation` is accepted as an alias. |
@@ -193,7 +193,7 @@ An optional world-level `[tides]` table sets how the world dissipates tidal ener
 | `tidal_timescale_width_decades` | layered families | Width \[decades\] of the log-Gaussian bell a layer's `tidal_timescale` scale method uses. The bell peaks where the layer's Maxwell time equals the forcing period. Default `1.0`. |
 | `love_method` | layered families | How the Love numbers are obtained: `radial_solver` (aliases `shooting`, `rs`; the default), `propagation_matrix` (`prop_matrix`, `pm`, `prop`), `homogeneous` (`homogen`), `cpl`, `ctl`, or `laterally_inhomogeneous` (`3d`, `lat_inhom`, reserved for the 3D solver). The three homogeneous methods use the analytic homogeneous-sphere formulas instead of a radial solve, so they have no depth-resolved solution and the 3D stress, strain, and heating path raises `RuntimeError` while one of them is configured. |
 | `love_fixed_q` | layered families | Scalar $Q$ the `cpl` Love method applies to the static Love numbers. Unset by default, in which case the tide model's own `fixed_q` is used. |
-| `love_fixed_dt` | layered families | Scalar time lag \[s\] the `ctl` Love method applies. Unset by default, falling back to the tide model's `fixed_dt`. |
+| `love_fixed_dt_s` | layered families | Scalar time lag \[s\] the `ctl` Love method applies. Unset by default, falling back to the tide model's `fixed_dt_s`. |
 
 `global_tidal_model` selects the model that turns Love numbers into dissipation; `love_method` selects how the Love numbers themselves are computed. They are independent: a world can solve its Love numbers with the radial solver and still collapse them with an analytic tide model.
 

@@ -251,7 +251,7 @@ The `love_method` argument selects how the Love numbers are obtained (names are 
 
 The analytic methods report the volume-averaged modulus and volume they used through `love_effective_shear_modulus` and `love_tidal_volume`, return `love_surface_amplification = 0`, and give NaN for the radial-function getters (`get_radial_solution_y`, ...). They have no depth-resolved solution, so the 3D stress/strain/heating path (`calc_3d_tides`, `get_3d_tidal_heating`) raises `RuntimeError` while an analytic method is the world's configured method. Free-function versions of the formulas live in `TidalPy.Tides_x.love` (`calc_homogeneous_love_numbers`, `calc_effective_rigidity`, `apply_fixed_q`, `apply_fixed_dt`; see [Love numbers](../../Tides_x/love/love_numbers.md)).
 
-The world's default method, used whenever its tide model asks for Love numbers inside `calc_tides`, is set with `set_tide_config(love_method=..., love_fixed_q=..., love_fixed_dt=...)` or the matching `[tides]` keys `love_method`, `love_fixed_q`, `love_fixed_dt` in a world TOML file; `solve_love_numbers` takes the method per call.
+The world's default method, used whenever its tide model asks for Love numbers inside `calc_tides`, is set with `set_tide_config(love_method=..., love_fixed_q=..., love_fixed_dt=...)` or the matching `[tides]` keys `love_method`, `love_fixed_q`, `love_fixed_dt_s` in a world TOML file; `solve_love_numbers` takes the method per call.
 
 ```python
 from TidalPy.structures_x.worlds import LayeredWorld

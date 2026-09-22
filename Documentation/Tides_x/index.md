@@ -1,6 +1,6 @@
 # Tides (`Tides_x`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-21_
 
 `TidalPy.Tides_x` contains functionality to calculate tidal dissipation from an orbital state: the eccentricity and obliquity functions that drive the tidal potential, the global one-dimensional dissipation models that collapse the potential into heating and orbital derivatives, the depth-resolved three-dimensional stress, strain, and heating kernel, and the Love-number container shared with the radial solver.
 
@@ -21,6 +21,21 @@ Love Numbers <love/love_numbers.md>
 Eccentricity Functions <eccentricity.md>
 Obliquity Functions <obliquity.md>
 ```
+
+## Imports
+
+The package re-exports its public entry points, so the pieces a script needs are one import away:
+
+```python
+from TidalPy.Tides_x import (
+    make_tide, collapse_global_tides,                   # global tide models and the mode collapse
+    LoveNumbers, calc_homogeneous_love_numbers,         # Love-number container and closed forms
+    global_potential, tidal_potential_3d_modes,         # tidal potentials
+    strain_stress_heating_point, volumetric_heating,    # point-wise 3D kernels
+    eccentricity_func, obliquity_func)                  # the functions behind the potential
+```
+
+Everything in `TidalPy.Tides_x.__all__` has a home in one of the subpackages (`classes`, `love`, `potential`, `multilayer`, `eccentricity`, `obliquity`), and the pages below import from there.
 
 ## Structure
 

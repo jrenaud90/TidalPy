@@ -69,4 +69,4 @@ Callers rarely build these by hand. The radial solver and the world equation-of-
 
 ## C++ API
 
-The conversion functions have `cf_` prefixed `nogil` Cython counterparts (`cf_orbital_motion2semi_a` and the rest) for use from `cdef` code without Python overhead. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, populated by `cf_build_nondimensional_scales`, and are passed by reference into the solvers that need them.
+The conversion functions have `cf_` prefixed `nogil` Cython counterparts (`cy_orbital_motion2semi_a` and the rest) for use from `cdef` code without Python overhead. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, populated by `cy_build_nondimensional_scales`, and are passed by reference into the solvers that need them.

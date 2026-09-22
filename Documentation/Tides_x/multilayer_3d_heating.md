@@ -304,14 +304,14 @@ degrees, freqs, pots = tidal_potential_3d_modes(
 
 The compiled kernel the world methods use is also callable point by point from `Tides_x.multilayer.stress_strain`:
 
-- `strain_stress_heating_point` returns the six complex strain and six complex stress amplitudes at a point for one mode.
+- `strain_stress_heating_point` returns the six complex strain and six complex stress amplitudes at a point for one mode, and that mode's own heating [W m-3] at the frequency given.
 - `displacement_point` returns the complex displacement amplitudes $u_r = y_1 U$, $u_\theta = y_3\, \partial U / \partial\theta$, and $u_\phi = y_3\, (\partial U / \partial\phi) / \sin\theta$ [m].
-- `volumetric_heating(stress, strain)` returns `|sum_k w_k Im(sigma_k conj(eps_k))|` [Pa], with `w_k = 2` on the three off-diagonal components.
+- `volumetric_heating(stress, strain, frequency)` returns the cycle-averaged heating `(|omega| / 2) |sum_k w_k Im(sigma_k conj(eps_k))|` [W m-3] of amplitudes at the frequency `omega`, with `w_k = 2` on the three off-diagonal components, the same factor the world path applies.
 
 The first two take one row from `tidal_potential_3d_modes` together with the radial functions and complex moduli at the point, which the world provides after a radial-solver Love solve. A real row is also accepted and is treated as a phasor with zero phase. Assembling several modes follows the rules the world methods use:
 
 - Solve the radial problem and evaluate the moduli at each mode's degree and `|omega|`, and conjugate the row of a mode with `omega < 0` so that its amplitudes sit at `+|omega|`.
-- Sum the strain and stress amplitudes of every mode that shares one `|omega|` before forming the heating. `|omega| / 2` times `volumetric_heating` of those sums is the secular heating at that frequency [W m-3], and the frequencies add.
+- Sum the strain and stress amplitudes of every mode that shares one `|omega|` before forming the heating. `volumetric_heating` of those sums at `|omega|` is the secular heating at that frequency [W m-3], and the frequencies add.
 - A field at time $t$ is $\mathrm{Re}\left[A\, e^{i|\omega| t}\right]$, with $A$ the complex amplitude, summed over the modes.
 
 The pointwise secular density of `calc_3d_tides` can be rebuilt this way:
@@ -338,6 +338,7 @@ for degree_l, frequency, row in zip(degrees, freqs, pots):
         world.calc_complex_bulk_modulus(radius, magnitude),
         radius,
         float(degree_l),
+        magnitude,
         True,    # The layer is solid
         False,   # The layer is compressible
         row if frequency > 0.0 else np.conj(row),   # Amplitudes at +|omega|
@@ -349,7 +350,7 @@ for degree_l, frequency, row in zip(degrees, freqs, pots):
     totals[2] = totals[2] + stress
 
 heating_from_kernel = sum(
-    0.5 * magnitude * volumetric_heating(stress_sum, strain_sum)
+    volumetric_heating(stress_sum, strain_sum, magnitude)
     for magnitude, strain_sum, stress_sum in frequency_totals.values())   # [W m-3]
 
 # The same density from the world method

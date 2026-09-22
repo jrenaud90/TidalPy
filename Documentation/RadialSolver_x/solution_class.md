@@ -43,8 +43,8 @@ The solver runs an equation of state before the deformation problem, and keeps t
 | `moi_factor` | The moment of inertia factor $C/(MR^2)$, with $C$ the moment of inertia `moi`: 0.4 for a uniform sphere, 0.3307 for Earth, and smaller the more mass sits near the center. |
 | `moi_sphere_ratio` | The same moment of inertia measured against a uniform sphere of equal mass and radius, $C/(0.4\, MR^2)$: exactly 1 when uniform, below 1 when centrally condensed. It is 2.5 times `moi_factor`. |
 | `central_pressure`, `surface_pressure`, `surface_gravity` | Boundary values. |
-| `eos_call(radius)` | Dense equation-of-state outputs at any radius, evaluated from the solver's own interpolant rather than re-interpolating the gridded arrays. |
-| `eos_call_si(radius)` | The same, in SI units. |
+| `eos_call(radius)` | The dense equation-of-state and material state at an SI radius [m] (a float, or an array for arrays out) as a dict of named fields: `gravity`, `pressure`, `mass`, `moi`, `density`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity`, `temperature`, `heat_flow`, `melt_fraction`, and the `complex_shear_modulus` and `complex_bulk_modulus` the solve used at `love_frequency`. Evaluated from the solver's own interpolant; NaN outside the body. |
+| `eos_call_nondim(radius)` | The raw dense row at a radius in the solve's own units (internal; `EOS_CALL_FIELDS` gives the slot order). |
 
 ## Radial Functions
 

@@ -45,7 +45,7 @@ Using TidalPy with an eccentricity truncation of 1 reproduces this classic formu
 | `FixedLagTide` | `ctl`, `fixed_dt` | $k_{l}\,(1 - i\,\omega\,\Delta t_{l})$ | $k_{l}\,\omega\,\Delta t_{l}$ |
 | `CTLQTide` | `ctl_q`, `fixed_dt_q` | $k_{l}\,(1 - i\,\omega\,\Delta t_{l}/Q_{l})$ | $k_{l}\,\omega\,\Delta t_{l}/Q_{l}$ |
 
-Fixed per-degree parameters $k_{l}$ (static Love number, `fixed_k`), $Q_{l}$ (quality factor, `fixed_q`), and $\Delta t_{l}$ (time lag \[s\], `fixed_dt`) are supplied as lists indexed from degree `l = 2` (index 0 is `l = 2`). The `rheology` model needs the radial solver and is driven by the world's `calc_tides` method, not the standalone collapse below.
+Fixed per-degree parameters $k_{l}$ (static Love number, `fixed_k`), $Q_{l}$ (quality factor, `fixed_q`), and $\Delta t_{l}$ (time lag \[s\], `fixed_dt_s`) are supplied as lists indexed from degree `l = 2` (index 0 is `l = 2`). The constructor keywords are unsuffixed (`FixedLagTide(fixed_k=..., fixed_dt=...)`); the config keys carry the unit. The `rheology` model needs the radial solver and is driven by the world's `calc_tides` method, not the standalone collapse below.
 
 A zero or absent $Q_{l}$ is treated as purely elastic (no dissipation) rather than a divide by zero.
 
@@ -106,7 +106,7 @@ where each `fixed_*` is a list indexed from `l = 2`.
 | `save_config(path)`, `get_schema_version_str()` | - | Configuration output and schema version, shared by every physics model; see [Base Classes](../utilities_x/classes_x.md). |
 | `save_binary(path)` / `load_binary(path)` | - | Inherited from `TidalPyBaseClass`. |
 
-`make_tide(name, config=None)` returns the concrete subclass; unknown names, and config keys other than `fixed_k`, `fixed_q`, and `fixed_dt`, raise `ValueError`. `collapse_global_tides(...)` supports the analytic models only: the `rheology` model raises `NotImplementedError` (use the world's `calc_tides`).
+`make_tide(name, config=None)` returns the concrete subclass; unknown names, and config keys other than `fixed_k`, `fixed_q`, and `fixed_dt_s`, raise `ValueError`. `collapse_global_tides(...)` supports the analytic models only: the `rheology` model raises `NotImplementedError` (use the world's `calc_tides`).
 
 ## C++ API
 

@@ -47,24 +47,21 @@ y  = rs.get_radial_solution(300.0)           # length-6 complex128 array at r = 
 ys = rs.get_radial_solution_array(r_array)   # (N, 6) complex128, evaluated in vectorized C++
 
 # Arbitrary-radius EOS / material state (SI), via the same dense interpolant:
-eos = rs.eos_call_si(300.0)  # length-12 float64 array at r = 300 m
-#   [0] gravity [1] pressure [2] mass [3] moment of inertia [4] density
-#   [5] shear modulus [6] bulk modulus [7,8] shear/bulk viscosity
-#   [9] temperature [10] heat flow [11] melt fraction
-
-# The viscoelastic response at the solved frequency (complex), which the layout above does not carry:
-shear = rs.get_complex_shear_modulus(300.0)
+eos = rs.eos_call(300.0)             # dict of scalars at r = 300 m
+eos["density"], eos["pressure"]      # gravity, pressure, mass, moi, density, shear_modulus, bulk_modulus,
+eos["complex_shear_modulus"]         # shear_viscosity, bulk_viscosity, temperature, heat_flow, melt_fraction,
+profile = rs.eos_call(r_array)       # complex_shear_modulus, complex_bulk_modulus; arrays in, arrays out
 
 # Gridded array API (the standalone solver samples the dense interpolants back onto the EOS grid):
 rs.result    # gridded y-solution
 rs.love      # k, h, l
 ```
 
-`eos_call_si(radius)` is the dense analogue of `get_radial_solution` for the structural and material state: it maps the SI radius into the solver's non-dimensional domain and evaluates the solution's own dense EOS interpolant, so an on-radius query uses the same dense evaluation the solver uses internally rather than a separate re-interpolation of the gridded modulus arrays. The `eos_call(radius)` accepts only a raw non-dimensional radius and is kept for internal use. The per-layer EOS interpolation inputs are persisted in the solution storage in non-dimensional solve units, so the dense evaluation stays valid after the standalone solve returns, and `c_EOSSolution::call` re-dimensionalizes the result to SI.
+`eos_call(radius)` is the dense analogue of `get_radial_solution` for the structural and material state: it maps the SI radius into the solver's non-dimensional domain and evaluates the solution's own dense EOS interpolant, so an on-radius query uses the same dense evaluation the solver uses internally rather than a separate re-interpolation of the gridded modulus arrays. It answers with a dict of named fields, scalars for a float radius and arrays of the input's shape for an array of radii, NaN outside the body. `eos_call_nondim(radius)` takes a raw radius in the solve's own units and returns the bare row (its slot order is `EOS_CALL_FIELDS`); it is kept for internal use. The per-layer EOS interpolation inputs are persisted in the solution storage in non-dimensional solve units, so the dense evaluation stays valid after the standalone solve returns, and `c_EOSSolution::call_nondim` re-dimensionalizes the result to SI.
 
-Everything in that layout is frequency-independent, so its moduli are the unrelaxed ones. A viscoelastic response is a property of a rheology at a forcing frequency rather than of the equation of state, which is why the complex moduli are not in it. `get_complex_shear_modulus(radius)` and `get_complex_bulk_modulus(radius)` reproduce the moduli the solve actually used by calling a world-attached rheology (shared with the solution, so it can outlive the world if applicable) at the frequency it recorded in `love_frequency`, and a solve handed its moduli as arrays interpolates those arrays. At the C++ level the solver reads the same values in one call through `c_EOSSolution::call_material`, which returns a `c_EOSMaterialState` (gravity, density, and both complex moduli) whatever the solution was built from.
+Everything in that layout is frequency-independent, so its `shear_modulus` and `bulk_modulus` are the unrelaxed ones. A viscoelastic response is a property of a rheology at a forcing frequency rather than of the equation of state, so the `complex_shear_modulus` and `complex_bulk_modulus` fields come from a second read: `get_complex_shear_modulus(radius)` and `get_complex_bulk_modulus(radius)` reproduce the moduli the solve actually used by calling a world-attached rheology (shared with the solution, so it can outlive the world if applicable) at the frequency it recorded in `love_frequency`, and a solve handed its moduli as arrays interpolates those arrays. At the C++ level the solver reads the same values in one call through `c_EOSSolution::call_material`, which returns a `c_EOSMaterialState` (gravity, density, and both complex moduli) whatever the solution was built from.
 
-At the C++ level the same is available on `c_RadialSolutionStorage` (`get_radial_solution`, `get_radial_solution_array`, `get_surface_y`, `get_eos_si`) and, for a built world, on `c_LayeredWorld` (`get_radial_solution_y`, `get_love_surface_y`).
+At the C++ level the same is available on `c_RadialSolutionStorage` (`get_radial_solution`, `get_radial_solution_array`, `get_surface_y`, `get_eos_si`, with `get_radial_solution_nondim` for a radius in solve units) and, for a built world, on `c_LayeredWorld` (`get_radial_solution_y`, `get_love_surface_y`).
 
 ## Validation
 
