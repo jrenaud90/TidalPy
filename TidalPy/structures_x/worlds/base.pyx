@@ -417,17 +417,27 @@ cdef class BaseWorld(StructureBase):
         validate_schema_version(config, force=force)
         # Resolve a companion data file (e.g. a PREM profile) relative to the world
         # file's directory so construct_world can open it directly.
+        given_data_file = None
         if "data_file" in config:
+            given_data_file = config["data_file"]
             base_dir = os.path.dirname(resolved) if isinstance(resolved, str) else None
             config["data_file"] = resolve_data_file(config["data_file"], base_dir)
-        return construct_world(config)
+        world = construct_world(config)
+        if given_data_file is not None and world.portable_config is not None:
+            # A saved copy names the file as this one did, not the path it resolved to on this machine.
+            world.portable_config["data_file"] = given_data_file
+        return world
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     @property
     def config(self):
-        """The normalized configuration dict the world was built from (None if built directly)."""
+        """The normalized configuration dict the world was built from (None if built directly).
+
+        For a world built from a ``data_file`` this is the expanded form, with the profile's layers; the file
+        reference as given is kept on :attr:`portable_config`, which :meth:`save_to_toml` writes instead.
+        """
         return self.source_config
 
     def family_world_type(self) -> str:
@@ -473,9 +483,12 @@ cdef class BaseWorld(StructureBase):
     def save_to_toml(self, str file_path, overwrite=True):
         """Write this world's configuration to a TOML file.
 
-        Prefers the retained build configuration (:attr:`source_config`) for a faithful round trip, otherwise
-        falls back to :meth:`get_config_dict`, which is validated against the world schema first so a directly
-        constructed world either writes a buildable file or raises ``ValueError``.
+        Prefers the retained build configuration for a faithful round trip: :attr:`portable_config` for a world
+        built from a ``data_file`` (the file reference as given and the tables that refined its layers, so the
+        saved file builds anywhere the data file resolves), otherwise :attr:`source_config`. Falls back to
+        :meth:`get_config_dict`, which is validated against the world schema first so a directly constructed world
+        either writes a buildable file or raises ``ValueError``. The file starts with a comment header naming
+        the TidalPy, SciPy, and CyRK versions that wrote it.
 
         Parameters
         ----------
@@ -485,7 +498,9 @@ cdef class BaseWorld(StructureBase):
             Overwrite an existing file. Default True.
         """
         from TidalPy.structures_x.configs.config_writer import save_world_to_toml
-        if self.source_config is not None:
+        if self.portable_config is not None:
+            config = self.portable_config
+        elif self.source_config is not None:
             config = self.source_config
         else:
             from TidalPy.structures_x.configs.toml_loader import validate_world_config

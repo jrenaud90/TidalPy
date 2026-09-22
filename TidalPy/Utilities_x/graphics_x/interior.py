@@ -13,12 +13,15 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
+import TidalPy
+
 # =====================================================================================================================
 # Style
 # =====================================================================================================================
 
-# Colors, line styles, markers, and sizes used by `plot_interior`; edit in place to restyle every plot.
-INTERIOR_PLOT_STYLE: Dict[str, object] = {
+# The built-in colors, line styles, markers, and sizes of `plot_interior`, and the keys the [graphics.interior]
+# section of TidalPy_Configs_x.toml may override.
+_BUILTIN_INTERIOR_PLOT_STYLE: Dict[str, object] = {
     "gravity_color": "g",
     "density_color": "k",
     "pressure_color": "b",
@@ -34,6 +37,25 @@ INTERIOR_PLOT_STYLE: Dict[str, object] = {
     "label_fontsize": 12,
     "title_fontsize": 14,
 }
+
+
+def load_interior_plot_style() -> Dict[str, object]:
+    """The built-in style with the ``[graphics.interior]`` table of ``TidalPy_Configs_x.toml`` laid over it.
+
+    Only the built-in keys are read from the table; anything else it holds is ignored. Returns the built-in
+    style alone when the configuration is not loaded.
+    """
+    style = dict(_BUILTIN_INTERIOR_PLOT_STYLE)
+    config_x = getattr(TidalPy, "config_x", None) or {}
+    table = (config_x.get("graphics", {}) or {}).get("interior", {}) or {}
+    style.update({key: value for key, value in table.items() if key in _BUILTIN_INTERIOR_PLOT_STYLE})
+    return style
+
+
+# The style `plot_interior` uses: the configuration's [graphics.interior] table over the built-in values, read
+# when this module is imported. Edit in place to restyle every later plot, or call `load_interior_plot_style` again
+# after `TidalPy.reinit` to take a changed configuration.
+INTERIOR_PLOT_STYLE: Dict[str, object] = load_interior_plot_style()
 
 
 # =====================================================================================================================

@@ -542,7 +542,9 @@ public:
     {
         if (!this->eos_solution_uptr || !this->success) return false;
         solve_radius_out = radius_si / this->p_length_conv;
-        layer_out = (this->num_layers == 0) ? 0 : this->num_layers - 1;
+        if (!(solve_radius_out >= 0.0)) return false;   // also rejects NaN
+        // Upper radii ascend; the first layer whose top is at or above the query holds it. A query above the
+        // surface (past the last top, with a rounding step of slack) is outside the body: no layer, no answer.
         for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
         {
             const double upper = (layer_i < this->p_upper_radii_solve.size())
@@ -551,10 +553,10 @@ public:
             if (solve_radius_out <= upper * (1.0 + 1.0e-12) + 1.0e-300)
             {
                 layer_out = layer_i;
-                break;
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     // Dense EOS evaluation at an SI radius: the radius is converted into the interpolant's solve-unit domain, the

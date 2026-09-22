@@ -1,0 +1,57 @@
+# Example-GasGiant: a gas-giant world with a `gas` layer and an analytic tide model, showing the keys a layered
+# world file (example_world.toml) does not: the gas-layer scalars, the per-degree lists of the analytic tide models,
+# the long spellings of the truncation keys, and the ctl Love method with its stored time lag.
+#
+# A gas giant is a LayeredWorld whose layers are gas; the classes and keys are otherwise those of example_world.toml,
+# and this file leaves to the [layers.gas] defaults everything it does not state.
+
+schema_version = "0.2.0"
+name = "Example-GasGiant"
+type = "gasgiant"
+radius_m = 7.0e7
+mass_kg = 1.9e27
+albedo = 0.5
+emissivity = 1.0
+obliquity_rad = 0.05
+spin_frequency_rad_s = 1.76e-4
+
+[tides]
+global_tidal_model = "ctl_q"        # constant time lag with a quality factor: k_l (1 - i omega dt_l / Q_l)
+fixed_k = [0.5, 0.25]               # per-degree static Love numbers k_l, indexed from l = 2 (up to nine entries, l = 2..10)
+fixed_q = [1.0e5, 1.0e5]            # per-degree quality factors Q_l (cpl and ctl_q)
+fixed_dt_s = [1.0e-2, 1.0e-2]       # per-degree time lags [s] (ctl and ctl_q)
+min_degree_l = 2
+max_degree_l = 3                    # the lists above have to reach this degree, or the builder warns
+eccentricity_truncation = 10        # the long spelling of eccentricity_trunc_lvl
+obliquity_truncation = "gen"        # the long spelling of obliquity_trunc_lvl; "gen" is the general form (10)
+tidal_timescale_width_decades = 1.0
+love_method = "ctl"                 # the Love numbers of solve_love_numbers: static k times (1 - i omega dt)
+love_fixed_q = 1.0e5                # what the cpl method would use
+love_fixed_dt_s = 1.0e-2            # what the ctl method uses; NaN-free here, so it never falls back to the tide model's list
+
+[layers.envelope]
+class = "gas"
+type = "gas"
+layer_index = 0
+radius_fraction = 1.0               # one layer spanning the whole world
+is_tidal = true
+tidal_scale = 1.0
+is_solid = true                     # to the radial solver a gas layer is a very soft solid unless flagged otherwise
+is_static = true
+temperature_k = 165.0
+mean_molecular_weight_kg_mol = 2.22e-3  # the gas-layer scalars: an ideal-gas description of the envelope
+adiabatic_index = 1.4
+reference_temperature_k = 165.0
+reference_density_kg_m3 = 1000.0
+
+[layers.envelope.material]
+model = "constant"
+reference_density_kg_m3 = 1326.0    # the mean density: the constant law gives the stated mass at this radius
+shear_modulus_static_pa = 0.0
+bulk_modulus_static_pa = 1.0e5
+
+[layers.envelope.shear_rheology]
+model = "elastic"
+
+[layers.envelope.bulk_rheology]
+model = "elastic"

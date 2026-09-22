@@ -317,6 +317,10 @@ def test_loaded_world_solves_eos_without_reattaching(tmp_path):
     loaded = LayeredWorld("placeholder", 1.0, 1.0)
     loaded.load_binary(path)
     assert loaded.all_eos_set
+    # The binary record is the structure alone: like the tide configuration, the solver settings a data-file world
+    # pins on itself (RK45 for its EOS solve) are not in it, so they are restored here to compare like with like.
+    assert loaded.get_solver_defaults() == {}
+    loaded.set_solver_defaults(**world.get_solver_defaults())
     result = loaded.solve_eos(verbose=False)
     assert result["success"]
     assert math.isclose(result["planet_mass"], reference["planet_mass"], rel_tol=1e-12)

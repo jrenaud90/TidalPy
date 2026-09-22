@@ -217,19 +217,25 @@ const NODES = [
     label: 'validate_world_config', sub: 'toml_loader.py', file: 'structures_x/configs/toml_loader.py',
     purpose: 'The schema gate: loads TOML, grades the schema version, rejects unknown keys, models on the wrong ' +
       'layer class, and untabulated truncations, then validate_physical_values checks the numbers (positive ' +
-      'radius and mass, fractions in range, layers that stack and fill the world, unique indices). Also ' +
-      'validate_system_config and validate_layer_config.',
+      'radius and mass, fractions in range, layers that stack and fill the world, unique indices) and ' +
+      'validate_solver_table the [eos_solver] and [radial_solver] tables of a world file. Also ' +
+      'validate_system_config and validate_layer_config. The key sets live in TidalPy/schema_x.py, a module ' +
+      'with no TidalPy imports, and are re-exported here.',
     inputs: 'raw config dict', outputs: 'validated config (raises ValueError otherwise)' },
   { id: 'construct_world', lane: 'config', kind: 'py', shape: 'func',
     label: 'construct_world and construct_layer', file: 'structures_x/configs/world_builder.py',
     purpose: 'Builds the world type named by `type` and its layers inner to outer. Every omitted value comes ' +
-      'from the configuration defaults, then the constructor default; PREM data files are expanded into layers.',
-    inputs: 'validated config', outputs: 'world with layers, models, and the [tides] table wired' },
+      'from the configuration defaults, then the constructor default; PREM data files are expanded into layers ' +
+      '(the given form is kept on portable_config for saving, and such a world pins RK45 for its EOS solve). A ' +
+      'solver tables of a world file are pinned on the world (set_solver_defaults), and a per-degree tide list ' +
+      'that stops short of max_degree_l is warned about.',
+    inputs: 'validated config', outputs: 'world with layers, models, the [tides] table, and the solver tables wired' },
   { id: 'config_x', lane: 'config', kind: 'py', shape: 'func',
     label: 'TidalPy.config_x', sub: 'defaultc_x.py, configurations.py', file: 'TidalPy/defaultc_x.py',
-    purpose: 'The new-backend configuration: [numerical] floors, [eos_solver] and [radial_solver] defaults, ' +
-      '[tides] and [worlds] defaults, and the per-material [layers.<type>] blocks. The user file is merged over ' +
-      'the packaged defaults; reinit(provided_config_x=...) and save_config_x reproduce a run.',
+    purpose: 'The new-backend configuration: [numerical] floors and the 3D quadrature defaults, [eos_solver] and ' +
+      '[radial_solver] defaults, [tides] and [worlds] defaults, [warnings] switches, [graphics.interior], and ' +
+      'the per-material [layers.<type>] blocks. The user file is merged over the packaged defaults and any key ' +
+      'nothing reads is reported by its path; reinit(provided_config_x=...) and save_config_x reproduce a run.',
     inputs: 'TidalPy_Configs_x.toml and any provided overrides', outputs: 'config_x dict' },
   { id: 'factories', lane: 'config', kind: 'cydef', shape: 'func', star: true,
     label: 'make_<model>(name, config)', sub: 'rheology, viscosity, melt, cooling, ...',

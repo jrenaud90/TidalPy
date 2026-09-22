@@ -97,7 +97,8 @@ struct c_Heating3DCollapseConfig {
     bool latitude_summed  = false;  // integrate over colatitude (Gauss-Legendre, sin theta weight)
     bool longitude_summed = false;  // integrate over longitude (2*pi analytic when averaged; else trapezoid)
     bool radial_summed    = false;  // integrate over radius (Gauss-Legendre inside each layer, r^2 weight)
-    // Integration resolutions. Both integrals use Gauss-Legendre nodes and the radial nodes stay inside
+    // Integration resolutions, from the [numerical] section of the TidalPy configuration when it is loaded
+    // (the constructor below). Both integrals use Gauss-Legendre nodes and the radial nodes stay inside
     // each layer, so the collapsed total converges quickly to the 1D global heating. Raise them if a
     // refined call still moves the total.
     int  latitude_nodes   = 16;     // Gauss-Legendre order for the colatitude integral
@@ -111,6 +112,14 @@ struct c_Heating3DCollapseConfig {
     // band narrower than [0, pi] always falls back on the Gauss-Legendre quadrature.
     double colatitude_min = 0.0;
     double colatitude_max = TidalPyConstants::d_PI;
+
+    c_Heating3DCollapseConfig() {
+        if (tidalpy_config_ptr == nullptr) { return; }
+        const TidalPyConfig& config = *tidalpy_config_ptr;
+        if (config.d_TIDES_3D_LATITUDE_NODES > 1)  { this->latitude_nodes  = config.d_TIDES_3D_LATITUDE_NODES; }
+        if (config.d_TIDES_3D_LONGITUDE_NODES > 1) { this->longitude_nodes = config.d_TIDES_3D_LONGITUDE_NODES; }
+        if (config.d_TIDES_3D_RADIAL_SLICES > 0)   { this->radial_slices   = config.d_TIDES_3D_RADIAL_SLICES; }
+    }
 };
 
 struct c_Heating3DCollapsed {

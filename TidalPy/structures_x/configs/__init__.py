@@ -30,6 +30,7 @@ from TidalPy.structures_x.configs.system_builder import (
 )
 from TidalPy.structures_x.configs.data_file import load_radial_data, detect_layer_boundaries
 from TidalPy.structures_x.configs.config_writer import save_world_to_toml, save_system_to_toml
+from TidalPy.structures_x.configs.toml_loader import EOS_SOLVER_KEYS, RADIAL_SOLVER_KEYS, validate_solver_table
 from TidalPy.structures_x.configs.worldpack import (
     install_worldpack_x,
     resolve_world_path,
@@ -59,6 +60,9 @@ __all__ = [
     "detect_layer_boundaries",
     "save_world_to_toml",
     "save_system_to_toml",
+    "EOS_SOLVER_KEYS",
+    "RADIAL_SOLVER_KEYS",
+    "validate_solver_table",
     "install_worldpack_x",
     "resolve_world_path",
     "get_worlds_x_dir",

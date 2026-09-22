@@ -424,7 +424,9 @@ The remaining public surface, grouped by what it is for.
 
 **Three-dimensional tides.** `get_3d_tidal_heating_array(...)` is the vectorized form of `get_3d_tidal_heating` and the efficient way to build a heating map; `calc_3d_displacements(...)` and `calc_3d_stress_strain(...)` return the instantaneous displacement grid and the stress and strain grids. All three, like `calc_3d_tides`, take `num_threads` (default 1) to spread their per-point work over threads, and all are described on the [3D heating page](../../Tides_x/multilayer_3d_heating.md).
 
-**Configuration and identity.** `source_config` is the normalized configuration the world was built from, when it was built from one; `family_world_type()` gives the builder's world type for this class; `get_schema_version_str()` reports the schema version the class writes. See the [TOML schema](../config/toml_schema.md).
+**Configuration and identity.** `source_config` is the normalized configuration the world was built from, when it was built from one, and `portable_config` the configuration as given for a world built from a `data_file` (what `save_to_toml` writes); `family_world_type()` gives the builder's world type for this class; `get_schema_version_str()` reports the schema version the class writes. See the [TOML schema](../config/toml_schema.md).
+
+**Pinned solver settings.** `set_solver_defaults(eos_solver=None, radial_solver=None)` pins keys of the `[eos_solver]` and `[radial_solver]` sections of the TidalPy configuration on this world (a world file's tables of the same names arrive here), and `get_solver_defaults()` returns them. A pinned key wins over the configuration for every solve the world runs, a call's own argument wins over the pinned key, and an unpinned key keeps following the configuration; `get_config_dict()` carries the tables.
 
 ## `GasGiantWorld`
 
@@ -458,7 +460,7 @@ Binary class id 203 (`BinaryClassID::StarWorld`).
 
 ## Binary Serialization
 
-A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then each layer's own complete binary record in index order. Because each layer recursively serializes its attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models (see [Binary serialization](../../utilities_x/binary_x.md)), a single `save_binary` / `load_binary` round-trips the entire world graph: no Python reconstruction step is needed. On load, each layer is rebuilt as the correct concrete subclass via the layer binary-dispatch factory (`c_layer_from_binary`).
+A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then each layer's own complete binary record in index order. Because each layer recursively serializes its attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models (see [Binary serialization](../../utilities_x/binary_x.md)), a single `save_binary` / `load_binary` round-trips the entire world graph: no Python reconstruction step is needed. On load, each layer is rebuilt as the correct concrete subclass via the layer binary-dispatch factory (`c_layer_from_binary`). The record is the structure alone: the tide model and its configuration, the pinned solver settings (`get_solver_defaults`), and every solved result are not in it and are set or recomputed after a load.
 
 ```python
 world.save_binary("earth.tpyb")

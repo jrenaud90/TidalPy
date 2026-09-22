@@ -64,7 +64,8 @@ def test_config_x_has_numerical_section():
 
 
 def test_config_x_has_warnings_section():
-    for key in ("stale_worldpack_copy", "schema_version", "truncation_promotion", "short_degree_list"):
+    for key in ("stale_worldpack_copy", "schema_version", "truncation_promotion", "short_degree_list",
+                "unknown_config_key"):
         assert TidalPy.config_x["warnings"][key] is True
 
 

@@ -119,6 +119,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
 cdef class BaseWorld(StructureBase):
     cdef shared_ptr[c_BaseWorld] _world_ptr   # owns the most-derived C++ world object (shared so a System can co-own it)
     cdef public dict source_config            # normalized config the world was built from (or None)
+    cdef public dict portable_config          # a data-file world's config as given, for save_to_toml (or None)
     cpdef dict get_config_dict(self)
     # Wrap an already-constructed C++ world without building a new one; each subclass returns its own type.
     @staticmethod

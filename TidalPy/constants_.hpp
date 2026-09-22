@@ -92,6 +92,13 @@ struct TidalPyConfig
     // Smallest Nusselt number the convection cooling model reports.
     double d_MIN_NUSSELT; // Updated from TidalPy.config_x['numerical']['minimum_nusselt']
 
+    // Quadrature resolutions of the 3D tidal heating integrals (calc_3d_tides), -1 until the config is loaded:
+    // the Gauss-Legendre order of the colatitude integral, the trapezoid nodes of the instantaneous longitude
+    // integral, and the Gauss-Legendre nodes per layer of the radial integral.
+    int d_TIDES_3D_LATITUDE_NODES;  // Updated from TidalPy.config_x['numerical']['tides_3d_latitude_nodes']
+    int d_TIDES_3D_LONGITUDE_NODES; // Updated from TidalPy.config_x['numerical']['tides_3d_longitude_nodes']
+    int d_TIDES_3D_RADIAL_SLICES;   // Updated from TidalPy.config_x['numerical']['tides_3d_radial_slices']
+
     // Whole-planet EOS solve defaults, from TidalPy.config_x['eos_solver']. Read by every EOS solve that is
     // not handed an explicit value. The method is CyRK's ODEMethod enum as an int (-1 until the config is
     // loaded).
@@ -140,6 +147,9 @@ struct TidalPyConfig
         d_MAX_START_RADIUS_FRAC = nan;
         d_FREQUENCY_MATCH_RTOL = nan;
         d_MIN_NUSSELT = nan;
+        d_TIDES_3D_LATITUDE_NODES = -1;
+        d_TIDES_3D_LONGITUDE_NODES = -1;
+        d_TIDES_3D_RADIAL_SLICES = -1;
         d_EOS_SOLVER_METHOD = -1;
         d_EOS_SOLVER_RTOL = nan;
         d_EOS_SOLVER_ATOL = nan;

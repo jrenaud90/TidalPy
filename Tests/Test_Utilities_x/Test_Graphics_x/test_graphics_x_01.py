@@ -138,6 +138,22 @@ def _interior_arrays():
     return dict(radius=RADIUS, gravity=gravity, pressure=pressure, density=density)
 
 
+def test_interior_plot_style_comes_from_the_configuration(monkeypatch):
+    import TidalPy
+    from TidalPy.Utilities_x.graphics_x import INTERIOR_PLOT_STYLE, load_interior_plot_style
+    from TidalPy.Utilities_x.graphics_x.interior import _BUILTIN_INTERIOR_PLOT_STYLE
+    table = TidalPy.config_x["graphics"]["interior"]
+    assert set(table) == set(_BUILTIN_INTERIOR_PLOT_STYLE)
+    assert INTERIOR_PLOT_STYLE == {**_BUILTIN_INTERIOR_PLOT_STYLE, **table}
+    # An edited table reaches the style on the next read; a key the style does not have is ignored.
+    config_x = dict(TidalPy.config_x)
+    config_x["graphics"] = {"interior": {"gravity_color": "tab:green", "marker_size": 12, "no_such_key": 1}}
+    monkeypatch.setattr(TidalPy, "config_x", config_x)
+    style = load_interior_plot_style()
+    assert style["gravity_color"] == "tab:green" and style["marker_size"] == 12
+    assert "no_such_key" not in style and style["density_color"] == "k"
+
+
 def test_plot_interior_two_panels():
     figure, axes = plot_interior(**_interior_arrays(), bulk_density=3300.0)
     assert len(axes) == 2

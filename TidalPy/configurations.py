@@ -66,6 +66,97 @@ def merge_configs(base: dict, overrides: dict) -> dict:
             merged[key] = copy.deepcopy(value)
     return merged
 
+def find_unknown_config_x_keys(overrides: dict, packaged: dict) -> list:
+    """The keys of a ``TidalPy_Configs_x.toml`` (or an override dict) that nothing in TidalPy reads.
+
+    A key is known when the packaged defaults hold it at the same place, with these exceptions: a ``[layers.<type>]``
+    block may be a material type of the user's own, and is checked against the layer schema instead (its scalar
+    keys and model-table names; what a model table holds is the model factory's business, which rejects an unknown
+    key when the layer is built); the per-type ``[worlds.<type>]`` tables are checked against the world schema; and
+    ``[tides.default_model]`` names world types.
+
+    Parameters
+    ----------
+    overrides : dict
+        The user's file or override dict.
+    packaged : dict
+        The packaged defaults (:func:`get_packaged_config_x`).
+
+    Returns
+    -------
+    list of str
+        The unknown keys as dotted paths (``numerical.min_viscosty``), in file order; empty when every key is known.
+    """
+    from TidalPy.schema_x import (
+        ALLOWED_LAYER_SCALAR_KEYS, ALLOWED_WORLD_SCALAR_KEYS, LAYER_MODEL_SECTIONS, WORLD_TYPES)
+
+    layer_keys = set(LAYER_MODEL_SECTIONS)
+    for keys in ALLOWED_LAYER_SCALAR_KEYS.values():
+        layer_keys |= set(keys)
+    unknown = []
+
+    def walk(table, reference, path):
+        for key, value in table.items():
+            here = f"{path}.{key}" if path else key
+            if key not in reference:
+                unknown.append(here)
+            elif isinstance(value, dict) and isinstance(reference[key], dict):
+                walk(value, reference[key], here)
+
+    for section, table in overrides.items():
+        if section not in packaged:
+            unknown.append(section)
+            continue
+        if not isinstance(table, dict) or not isinstance(packaged[section], dict):
+            continue
+        if section == "layers":
+            for material_type, block in table.items():
+                if not isinstance(block, dict):
+                    unknown.append(f"layers.{material_type}")
+                    continue
+                for key in block:
+                    if key not in layer_keys:
+                        unknown.append(f"layers.{material_type}.{key}")
+        elif section == "worlds":
+            for key, value in table.items():
+                if isinstance(value, dict):
+                    if key not in WORLD_TYPES:
+                        unknown.append(f"worlds.{key}")
+                        continue
+                    for world_key in value:
+                        if world_key not in ALLOWED_WORLD_SCALAR_KEYS[key]:
+                            unknown.append(f"worlds.{key}.{world_key}")
+                elif key not in packaged["worlds"]:
+                    unknown.append(f"worlds.{key}")
+        elif section == "tides":
+            for key, value in table.items():
+                if key == "default_model" and isinstance(value, dict):
+                    unknown.extend(f"tides.default_model.{name}" for name in value if name not in WORLD_TYPES)
+                elif key not in packaged["tides"]:
+                    unknown.append(f"tides.{key}")
+        else:
+            walk(table, packaged[section], section)
+    return unknown
+
+
+def warn_unknown_config_x_keys(overrides: dict, packaged: dict, source: str) -> list:
+    """Warn once, naming every key of ``overrides`` that nothing reads (see :func:`find_unknown_config_x_keys`).
+
+    The ``[warnings] unknown_config_key`` switch of the merged configuration turns the warning off; the keys are
+    returned either way.
+    """
+    unknown = find_unknown_config_x_keys(overrides, packaged)
+    if unknown:
+        switch = (overrides.get("warnings", {}) or {}).get(
+            "unknown_config_key", (packaged.get("warnings", {}) or {}).get("unknown_config_key", True))
+        if switch:
+            warnings.warn(
+                f"{source} sets {len(unknown)} key(s) TidalPy does not read: {', '.join(unknown)}. A misspelled or "
+                "outdated key has no effect; the packaged defaults (TidalPy.defaultc_x) list every key that does. "
+                "[warnings] unknown_config_key turns this warning off.")
+    return unknown
+
+
 def config_version_header(title: str) -> str:
     """Return the comment header written at the top of a saved configuration.
 
@@ -255,7 +346,10 @@ def get_default_config_x() -> dict:
         # Reuse the legacy version check (it scans the header for a 'version:' line).
         check_config_version(config_x_path)
 
-    config_x_dict = merge_configs(get_packaged_config_x(), toml.load(config_x_path))
+    packaged = get_packaged_config_x()
+    user_config = toml.load(config_x_path)
+    warn_unknown_config_x_keys(user_config, packaged, f"The configuration file {config_x_path}")
+    config_x_dict = merge_configs(packaged, user_config)
 
     # Update path and store on the package.
     TidalPy._config_x_path = config_x_path
@@ -305,6 +399,9 @@ def set_config_x(new_config: Union[str, dict]) -> dict:
 
     if TidalPy.config_x is None:
         get_default_config_x()
+    warn_unknown_config_x_keys(
+        overrides, get_packaged_config_x(),
+        f"The configuration file {new_config}" if isinstance(new_config, str) else "The configuration override")
     TidalPy.config_x = merge_configs(TidalPy.config_x, overrides)
     update_constants_x()
     return TidalPy.config_x

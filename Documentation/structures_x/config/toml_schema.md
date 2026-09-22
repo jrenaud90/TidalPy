@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-22_
 
 Schema version `0.2.0`.
 
@@ -218,6 +218,21 @@ fixed_q = [1.0e5, 1.0e5, 1.0e5]
 
 `world.get_tide_config()` returns the degree and truncation settings under these same key names, and `get_config_dict()` puts them in a `[tides]` table together with the tide model's own parameters (the model's name is emitted as `global_tidal_model`), so a world's tidal configuration survives a save and rebuild. Note that the round trip writes the resolved integer for `obliquity_trunc_lvl`, so a world written with `"off"` reads back as `0`.
 
+## Solver Settings (`[eos_solver]`, `[radial_solver]`)
+
+A layered world's file may pin the solver settings its results depend on, so that the file and a TidalPy configuration file reproduce a run on another machine. The two tables take the keys of the same-named sections of `TidalPy_Configs_x.toml` (see [Configurations](../../Overview/2_TidalPy_Configurations.md)): `[eos_solver]` takes `integration_method`, `rtol`, `atol`, `pressure_tol`, `max_iters`, `slices_per_layer`, `nondimensionalize`, and `solve_temperature`; `[radial_solver]` takes `integration_method`, `rtol`, `atol`, `use_kamata`, `start_radius_tolerance`, `scale_rtols`, `max_num_steps`, `expected_size`, `max_ram_mb`, and `nondimensionalize`. A pinned key wins over the configuration for every solve the world runs (`solve_eos`, `solve_love_numbers`, `calc_tides`, and the 3D paths); a call's own argument still wins over it; a key left out keeps following the configuration. A star runs neither solve and rejects both tables.
+
+```toml
+[eos_solver]
+integration_method = "RK45"
+rtol = 1.0e-8
+
+[radial_solver]
+use_kamata = true
+```
+
+`world.set_solver_defaults(eos_solver=..., radial_solver=...)` pins the same keys on a built world, `world.get_solver_defaults()` returns the pinned tables, and `get_config_dict()` carries them, so they survive a save and a rebuild. Nothing in the tables is a physical parameter: they change how a result is computed, not what is computed, which is why they are optional and absent from every bundled world.
+
 ## Default Configuration Resolution
 
 Any layer parameter or physics-model table is resolved through three tiers, in order:
@@ -232,11 +247,11 @@ World-level properties resolve the same way through the `[worlds]` block instead
 
 `TidalPy_Configs_x.toml` is the main configuration file for TidalPy's new `_x` system. It is generated from `TidalPy.defaultc_x` into the user's TidalPy `Config` directory (next to the legacy `TidalPy_Configs.toml`) on first use and is then user-editable. Any new default configuration for the `_x` system belongs in `TidalPy_Configs_x.toml` (through `defaultc_x.py`), not the legacy config. Its `[numerical]` section also feeds the shared C++ config singleton used by all `_x` modules (frequency / viscosity / modulus / thickness floors, plus `numerical_floor`, the magnitude a guarded denominator is raised to, and `layer_continuity_rtol`, how closely a layer's inner radius must match the previous layer's outer radius; see [Constants](../../utilities_x/constants.md)).
 
-Because the per-material defaults supply the EOS and physics models, a world can be specified very compactly by naming only `class`, `type`, and geometry (this is how the bundled `earth_simple` world is written).
+Because the per-material defaults supply the EOS and physics models, a world can be specified very compactly by naming only `class`, `type`, and geometry.
 
-## Example: Two-Layer Terrestrial World
+## Example: Three-Layer Terrestrial World
 
-This world relies on per-material defaults: each layer names only its `class`, material `type`, and geometry, and the EOS / rheology / viscosity / melt / cooling / radiogenics come from the matching `[layers.<type>]` blocks of `TidalPy_Configs_x.toml`.
+This world relies on per-material defaults: each layer names only its `class`, material `type`, geometry, and temperature, and the EOS / rheology / viscosity / melt / cooling / radiogenics come from the matching `[layers.<type>]` blocks of `TidalPy_Configs_x.toml`. It is the skeleton of the bundled `earth_simple`, which adds the fitted densities, viscosity laws, and mantle rigidity its file comments explain.
 
 ```toml
 schema_version = "0.2.0"
@@ -246,19 +261,29 @@ radius_m = 6371000.0
 mass_kg = 5.972e24
 spin_frequency_rad_s = 7.292e-5
 
-[layers.core]
-class = "physics"
+[layers.inner_core]
+class = "solidliquid"
 type = "iron"
 layer_index = 0
-radius_outer_m = 3480000.0   # inner radius is derived (0 for the innermost)
+radius_outer_m = 1221500.0   # inner radius is derived (0 for the innermost)
+temperature_k = 5500.0
+
+[layers.outer_core]
+class = "solidliquid"
+type = "iron"
+layer_index = 1
+radius_outer_m = 3480000.0
+is_solid = false             # a fluid layer, solved as a static liquid; it cannot be tidal
 is_tidal = false
+temperature_k = 4500.0
 
 [layers.mantle]
 class = "solidliquid"
 type = "mantle_rock"
-layer_index = 1
-radius_fraction = 1.0        # outer radius = full world radius; inner = core's outer
+layer_index = 2
+radius_fraction = 1.0        # outer radius = full world radius; inner = the outer core's outer
 is_tidal = true
+temperature_k = 1600.0
 ```
 
 Any default can be overridden by adding the key or sub-table. For example, to give the mantle a specific shear viscosity and override its EOS density:
@@ -348,7 +373,7 @@ model = "maxwell"
 shear_viscosity_static_pas = 1.0e21   # the profile named no viscosity, so give one here
 ```
 
-The `data_file` path is resolved relative to the world TOML's directory, then the worlds data directory, then the packaged `WorldPack_x` (see [`worldpack.md`](worldpack.md)).
+The `data_file` path is resolved relative to the world TOML's directory, then the worlds data directory, then the packaged `WorldPack_x` (see [`worldpack.md`](worldpack.md)). A world built this way pins `integration_method = "RK45"` in its `[eos_solver]` table unless the file sets that key itself (on an interpolated profile RK45 is about 2.8 times faster than DOP853 at equal accuracy, because the profile's kinks defeat the higher order), so `get_solver_defaults()` reports it. It keeps the configuration as given on `portable_config` (the `data_file` reference as written and the refining tables), and that is what `save_to_toml` writes, so the saved file builds anywhere the data file resolves instead of carrying the expanded profile and the path it resolved to on one machine; `source_config` holds the expanded form.
 
 ## System Schema
 
@@ -399,10 +424,11 @@ All entry points are re-exported from `TidalPy.structures_x` and from `TidalPy.s
 * `build_world(source, force=False) -> BaseWorld`: resolve `source` (bundled name / file path / dict), validate, and return the built Cython world directly. `force=True` bypasses the schema-version warning. Thin wrapper over `BaseWorld.build(source, force=False)`, which holds the build logic and returns the type-appropriate subclass.
 * `load_radial_data(source, surface_radius=None) -> dict`: read a radial profile (a data-file path or a mapping of arrays) into MKS arrays ascending in radius, the same reader `data_file` and `data` worlds use. `detect_layer_boundaries(radius, shear_modulus)` returns the `(start, end, is_solid)` runs it splits into.
 * The returned world exposes its methods directly: `world.solve_eos(...)`, `world.solve_love_numbers(...)`, `world.get_density(r)`, etc.
-* `world.save_to_toml(path, overwrite=True)`: write the retained build configuration (stamped with the current `schema_version`); falls back to `get_config_dict()` if the world was constructed directly rather than via `build_world`. The fallback is validated against this schema first, so it writes a buildable file or raises `ValueError`.
+* `world.save_to_toml(path, overwrite=True)`: write the retained build configuration (stamped with the current `schema_version`, under a comment header naming the TidalPy, SciPy, and CyRK versions that wrote it); a world built from a `data_file` writes its `portable_config`; falls back to `get_config_dict()` if the world was constructed directly rather than via `build_world`. The fallback is validated against this schema first, so it writes a buildable file or raises `ValueError`.
 * `world.get_config_dict()`: the live world as a builder-valid table (`type`, name-keyed `layers` with `class` and attached-model sub-tables, `tides`, `schema_version`).
 * `build_world_from_dict(config, force=False) -> BaseWorld`, `build_layer_from_dict(config) -> BaseLayer`, and `build_system_from_dict(config, force=False) -> System`: rebuild an object from the dictionary its `get_config_dict()` returns (see [Round Trip](#round-trip)). Each takes only a `dict`, leaves it unmodified, and raises `TypeError` for anything else.
-* `world.config` (alias of `world.source_config`): the normalized configuration dict the world was built from (`None` if constructed directly).
+* `world.config` (alias of `world.source_config`): the normalized configuration dict the world was built from (`None` if constructed directly). `world.portable_config`: for a world built from a `data_file`, the configuration as given (`None` otherwise).
+* `EOS_SOLVER_KEYS`, `RADIAL_SOLVER_KEYS`, and `validate_solver_table(section, table, where)`: the keys a world's `[eos_solver]` and `[radial_solver]` tables may pin, and the check the loader and `set_solver_defaults` apply to them.
 * `available_worlds() -> list[str]`: names of the bundled example worlds (data dir unioned with packaged `WorldPack_x`). Bundled system files share that directory and are listed by `available_systems()` instead; `build_world` on a system config raises a `ValueError` naming `build_system`, and the reverse holds too.
 * `install_worldpack_x(force=False) -> str`: copy the packaged `WorldPack_x` worlds into the user data directory (copy-if-absent unless `force`); returns that directory.
 
@@ -413,6 +439,8 @@ All entry points are re-exported from `TidalPy.structures_x` and from `TidalPy.s
 * `save_world_to_toml(config, path, overwrite=True)`: serialize a config dict.
 
 ### Loader / Validation
+
+The key sets of the schema (`WORLD_TYPES`, `ALLOWED_LAYER_SCALAR_KEYS`, `LAYER_MODEL_SECTIONS`, `ALLOWED_TIDES_KEYS`, `EOS_SOLVER_KEYS`, and the rest) are defined in `TidalPy.schema_x`, a module with no TidalPy imports so the configuration loader can check `TidalPy_Configs_x.toml` against them while `import TidalPy` runs; the loader below re-exports them.
 
 From `TidalPy.structures_x.configs.toml_loader`:
 

@@ -858,7 +858,8 @@ public:
             radius,
             this->p_radius.data(),
             this->p_density.data(),
-            this->p_radius.size());
+            this->p_radius.size(),
+            this->p_search_seed(radius));
     }
 
     // Each returns NaN when its table is empty.
@@ -964,7 +965,18 @@ protected:
         if (values.empty()) {
             return std::numeric_limits<double>::quiet_NaN();
         }
-        return c_interp(radius, this->p_radius.data(), values.data(), values.size());
+        return c_interp(radius, this->p_radius.data(), values.data(), values.size(), this->p_search_seed(radius));
+    }
+
+    // Where a radius would sit if the table were uniform, which a profile usually is: the seed makes the guessed
+    // binary search a few comparisons instead of a full search, on every read of every table.
+    std::size_t p_search_seed(double radius) const noexcept {
+        const std::size_t n = this->p_radius.size();
+        if (n < 3) { return 0; }
+        const double span = this->p_radius[n - 1] - this->p_radius[0];
+        if (!(span > 0.0) || !(radius > this->p_radius[0])) { return 0; }
+        const double fraction = (radius - this->p_radius[0]) / span;
+        return (fraction >= 1.0) ? n - 2 : static_cast<std::size_t>(fraction * static_cast<double>(n - 1));
     }
     void p_write_optional_array(std::ostream& out, const std::vector<double>& values) const {
         const uint8_t present = values.empty() ? 0u : 1u;

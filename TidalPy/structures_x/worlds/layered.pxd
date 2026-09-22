@@ -6,6 +6,7 @@ from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr, shared_ptr
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.vector cimport vector
+from libcpp.optional cimport optional
 
 from CyRK cimport ODEMethod
 
@@ -91,6 +92,28 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_bool  verbose
         cpp_bool  warnings
 
+    cdef cppclass c_EOSSolverOverrides:
+        optional[ODEMethod] integration_method
+        optional[double]    rtol
+        optional[double]    atol
+        optional[double]    pressure_tol
+        optional[size_t]    max_iters
+        optional[size_t]    slices_per_layer
+        optional[cpp_bool]  nondimensionalize
+        optional[cpp_bool]  solve_temperature
+
+    cdef cppclass c_RadialSolverOverrides:
+        optional[ODEMethod] integration_method
+        optional[double]    rtol
+        optional[double]    atol
+        optional[cpp_bool]  use_kamata
+        optional[double]    start_radius_tol
+        optional[cpp_bool]  scale_rtols
+        optional[size_t]    max_num_steps
+        optional[size_t]    expected_size
+        optional[size_t]    max_ram_MB
+        optional[cpp_bool]  nondimensionalize
+
     cdef cppclass c_LayeredWorld(c_BaseWorld):
         c_LayeredWorld()
         c_LayeredWorld(const c_WorldConfig& cfg) except +
@@ -137,6 +160,11 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       calc_spin_derivative(double host_mass) except +
         double       calc_synchronous_spin(double orbital_frequency) const
         const c_EOSSolution* get_eos_solution() const
+        void                 set_eos_solver_overrides(const c_EOSSolverOverrides& overrides)
+        void                 set_radial_solver_overrides(const c_RadialSolverOverrides& overrides)
+        c_EOSSolverOverrides    get_eos_solver_overrides() const
+        c_RadialSolverOverrides get_radial_solver_overrides() const
+        c_WorldEOSSolveConfig make_eos_solve_config() const
         c_LoveSolveConfig    make_love_solve_config() const
         void                 solve_love_numbers(const c_LoveSolveConfig& cfg) except +
         void                 solve_love_numbers_supplied(

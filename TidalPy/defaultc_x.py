@@ -112,6 +112,13 @@ schema_version = "{SCHEMA_VERSION_X}"
     # layer; the floor of 2 keeps a barely convecting layer losing heat through a boundary layer half the
     # layer thick rather than the whole of it.
     minimum_nusselt = 2.0
+    # Quadrature resolutions of the 3D tidal heating integrals (`calc_3d_tides`): the Gauss-Legendre order of the
+    # colatitude integral, the trapezoid nodes of the instantaneous longitude integral, and the Gauss-Legendre
+    # nodes per layer of the radial integral. The nodes stay inside each layer, so the collapsed total converges
+    # quickly to the 1D global heating; raise them if a refined call still moves the total.
+    tides_3d_latitude_nodes = 16
+    tides_3d_longitude_nodes = 64
+    tides_3d_radial_slices = 16
     # Debug helper.
     test_constant = 42.0
 
@@ -120,7 +127,8 @@ schema_version = "{SCHEMA_VERSION_X}"
 # Whole-planet equation-of-state solve defaults
 #
 # The starting point of every EOS solve: `LayeredWorld.solve_eos`, the `eos_*` arguments of the standalone
-# `radial_solver`, and the solves the tide paths run. A call overrides only the arguments it passes.
+# `radial_solver`, and the solves the tide paths run. A call overrides only the arguments it passes. A world file
+# may pin any of these keys in its own [eos_solver] table, which then wins over this section for that world.
 # =====================================================================================================================
 [eos_solver]
     # CyRK integration method: "DOP853", "RK45", "RK23", or the implicit "BDF", "LSODA", "Radau". DOP853 at these
@@ -150,7 +158,8 @@ schema_version = "{SCHEMA_VERSION_X}"
 #
 # The starting point of every shooting-method solve: `LayeredWorld.solve_love_numbers`, the standalone
 # `radial_solver`, and the Love solves behind `calc_tides` and the 3D tidal maps. A call overrides only the
-# arguments it passes.
+# arguments it passes. A world file may pin any of these keys in its own [radial_solver] table, which then wins
+# over this section for that world.
 # =====================================================================================================================
 [radial_solver]
     # CyRK integration method: "DOP853", "RK45", "RK23", or the implicit "BDF", "LSODA", "Radau". DOP853 at these
@@ -231,6 +240,9 @@ schema_version = "{SCHEMA_VERSION_X}"
     # A [tides] per-degree list (fixed_k, fixed_q, fixed_dt_s) the tide model reads that stops short of
     # max_degree_l; the degrees it leaves out are zero, which is no dissipation there.
     short_degree_list = true
+    # A key in this file, or in a configuration passed to TidalPy.reinit, that nothing in TidalPy reads (a
+    # misspelling or a key of an older version). The packaged defaults list every key that is read.
+    unknown_config_key = true
 
 
 # =====================================================================================================================
@@ -257,6 +269,30 @@ schema_version = "{SCHEMA_VERSION_X}"
         effective_temperature_k = 5772.0
         # Luminosity [W]. Zero means derive it from the effective temperature by Stefan-Boltzmann.
         luminosity_w = 0.0
+
+
+# =====================================================================================================================
+# Graphics
+#
+# Styling of the plotting helpers in TidalPy.Utilities_x.graphics_x. [graphics.interior] restyles `plot_interior`:
+# matplotlib colors, line styles, and markers, and the sizes in points and inches.
+# =====================================================================================================================
+[graphics]
+    [graphics.interior]
+        gravity_color = "g"
+        density_color = "k"
+        pressure_color = "b"
+        temperature_color = "orange"
+        shear_color = "m"
+        bulk_color = "r"
+        line_style = "-"
+        imaginary_line_style = ":"
+        marker = "."
+        imaginary_marker = "x"
+        marker_size = 35
+        panel_size_inches = 4.0
+        label_fontsize = 12
+        title_fontsize = 14
 
 
 # =====================================================================================================================

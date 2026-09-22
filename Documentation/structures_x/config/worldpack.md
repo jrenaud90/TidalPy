@@ -1,6 +1,6 @@
 # WorldPack_x and World TOML Files (`structures_x.configs.worldpack`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-22_
 
 A world file is a TOML description of a single world (a star, gas giant, or terrestrial/layered body) for the `structures_x` class system. WorldPack_x ships a small set of example world files with TidalPy, installs them into a user-editable data directory, and resolves them by name when you call `build_world("<name>")`.
 
@@ -81,7 +81,7 @@ in `TidalPy_Configs_x.toml`. `warn_if_stale_copy(path)` runs the same comparison
 2. It installs to `Worlds_x/` and becomes available as `build_world("<name>")` and in `available_worlds()` on the next run. A system file follows the same two steps and appears in `available_systems()` instead.
 3. A world of wide interest can be added to the WorldPack through a pull request on TidalPy's GitHub.
 
-The bundled worlds favor the per-material defaults: keep them small by specifying `class`, `type`, and geometry and letting `TidalPy_Configs_x.toml` supply the EOS and physics models. Override anything inline as shown in the [TOML schema](toml_schema.md).
+The bundled worlds favor the per-material defaults: keep them small by specifying `class`, `type`, and geometry and letting `TidalPy_Configs_x.toml` supply the EOS and physics models. Override anything inline as shown in the [TOML schema](toml_schema.md). Every bundled solar-system body (`io`, `europa`, `luna`, `mercury`, `earth_simple`) states a temperature for each layer and a reference-law viscosity for each solid layer at that temperature, so every solid layer dissipates; the per-layer `tidal_scale` values come from the 3D heating integral; the fluid outer cores of Luna, Mercury, and Earth-Simple are static liquids; and each file's comments say which numbers were fitted to which observable (Io's heat output, the k2 of the three liquid-core bodies, Luna's Q at the month and the year). Their temperatures are prescribed rather than solved, which each file records by pinning `solve_temperature = false` in its own `[eos_solver]` table; `Tests/Test_Structures_x/Test_Config/test_bundled_bodies_01.py` checks every claim their comments make.
 
 ## API Summary (`TidalPy.structures_x.configs.worldpack`)
 

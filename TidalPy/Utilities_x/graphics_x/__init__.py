@@ -16,6 +16,7 @@ from TidalPy.Utilities_x.graphics_x.radial_functions import (
 )
 from TidalPy.Utilities_x.graphics_x.interior import (
     INTERIOR_PLOT_STYLE,
+    load_interior_plot_style,
     plot_interior,
 )
 from TidalPy.Utilities_x.graphics_x.maps import (
@@ -28,6 +29,7 @@ from TidalPy.Utilities_x.graphics_x.maps import (
 __all__ = [
     "BENCHMARK_YS",
     "INTERIOR_PLOT_STYLE",
+    "load_interior_plot_style",
     "MAP_PLOT_STYLE",
     "MAP_PROJECTIONS",
     "TOBIE2005_X_LIMITS",

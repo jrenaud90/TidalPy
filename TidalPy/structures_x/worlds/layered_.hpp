@@ -20,6 +20,7 @@
 #include <istream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <stdexcept>
 #include <string>
@@ -168,6 +169,58 @@ struct c_LoveSolveConfig {
     void set_bc_models(const int* models_ptr, size_t num_models) {
         if (models_ptr == nullptr || num_models == 0) { return; }
         this->bc_models.assign(models_ptr, models_ptr + num_models);
+    }
+};
+
+// The [eos_solver] keys a world file may pin, so that the file reproduces its run on its own. Each is optional: a key
+// left unset falls through to the TidalPy configuration at every solve, so a configuration changed after the world was
+// built still reaches it, and a call's own arguments win over both.
+struct c_EOSSolverOverrides {
+    std::optional<ODEMethod> integration_method;
+    std::optional<double>    rtol;
+    std::optional<double>    atol;
+    std::optional<double>    pressure_tol;
+    std::optional<size_t>    max_iters;
+    std::optional<size_t>    slices_per_layer;
+    std::optional<bool>      nondimensionalize;
+    std::optional<bool>      solve_temperature;
+
+    void apply(c_WorldEOSSolveConfig& cfg) const noexcept {
+        if (this->integration_method) { cfg.integration_method = *this->integration_method; }
+        if (this->rtol)               { cfg.rtol               = *this->rtol; }
+        if (this->atol)               { cfg.atol               = *this->atol; }
+        if (this->pressure_tol)       { cfg.pressure_tol       = *this->pressure_tol; }
+        if (this->max_iters)          { cfg.max_iters          = *this->max_iters; }
+        if (this->slices_per_layer)   { cfg.slices_per_layer   = *this->slices_per_layer; }
+        if (this->nondimensionalize)  { cfg.nondimensionalize  = *this->nondimensionalize; }
+        if (this->solve_temperature)  { cfg.solve_temperature  = *this->solve_temperature; }
+    }
+};
+
+// The [radial_solver] keys a world file may pin; the same rules as c_EOSSolverOverrides.
+struct c_RadialSolverOverrides {
+    std::optional<ODEMethod> integration_method;
+    std::optional<double>    rtol;
+    std::optional<double>    atol;
+    std::optional<bool>      use_kamata;
+    std::optional<double>    start_radius_tol;
+    std::optional<bool>      scale_rtols;
+    std::optional<size_t>    max_num_steps;
+    std::optional<size_t>    expected_size;
+    std::optional<size_t>    max_ram_MB;
+    std::optional<bool>      nondimensionalize;
+
+    void apply(c_LoveSolveConfig& cfg) const noexcept {
+        if (this->integration_method) { cfg.integration_method = *this->integration_method; }
+        if (this->rtol)               { cfg.rtol               = *this->rtol; }
+        if (this->atol)               { cfg.atol               = *this->atol; }
+        if (this->use_kamata)         { cfg.use_kamata         = *this->use_kamata; }
+        if (this->start_radius_tol)   { cfg.start_radius_tol   = *this->start_radius_tol; }
+        if (this->scale_rtols)        { cfg.scale_rtols        = *this->scale_rtols; }
+        if (this->max_num_steps)      { cfg.max_num_steps      = *this->max_num_steps; }
+        if (this->expected_size)      { cfg.expected_size      = *this->expected_size; }
+        if (this->max_ram_MB)         { cfg.max_ram_MB         = *this->max_ram_MB; }
+        if (this->nondimensionalize)  { cfg.nondimensionalize  = *this->nondimensionalize; }
     }
 };
 
@@ -1202,10 +1255,37 @@ public:
         this->p_love_solved = true;
     }
 
+    // The [eos_solver] and [radial_solver] settings this world's file pinned. Every solve the world runs starts
+    // from the TidalPy configuration with these applied on top (make_eos_solve_config, make_love_solve_config).
+    c_EOSSolverOverrides    p_eos_solver_overrides;
+    c_RadialSolverOverrides p_radial_solver_overrides;
+
+    void set_eos_solver_overrides(const c_EOSSolverOverrides& overrides) noexcept {
+        this->p_eos_solver_overrides = overrides;
+    }
+    void set_radial_solver_overrides(const c_RadialSolverOverrides& overrides) noexcept {
+        this->p_radial_solver_overrides = overrides;
+    }
+    const c_EOSSolverOverrides& get_eos_solver_overrides() const noexcept {
+        return this->p_eos_solver_overrides;
+    }
+    const c_RadialSolverOverrides& get_radial_solver_overrides() const noexcept {
+        return this->p_radial_solver_overrides;
+    }
+
+    // EOS-solve config: the [eos_solver] section of the TidalPy configuration with the world's pinned keys on top.
+    c_WorldEOSSolveConfig make_eos_solve_config() const {
+        c_WorldEOSSolveConfig cfg;
+        this->p_eos_solver_overrides.apply(cfg);
+        return cfg;
+    }
+
     // Love-solve config carrying the world's configured method and its cpl / ctl parameters (from the [tides]
-    // config); the tide paths start from this so the configured method drives every Love-number solve.
+    // config) and its pinned [radial_solver] keys; the tide paths start from this so the configured method and
+    // settings drive every Love-number solve.
     c_LoveSolveConfig make_love_solve_config() const {
         c_LoveSolveConfig cfg;
+        this->p_radial_solver_overrides.apply(cfg);
         const c_TideConfig& tide_cfg = this->get_tide_config();
         cfg.love_method = tide_cfg.love_method;
         cfg.fixed_q     = tide_cfg.love_fixed_q;

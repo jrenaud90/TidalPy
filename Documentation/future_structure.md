@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
 
 Performance tests were run with the classic and the new backend. Both are timed after warm up as the best of seven batches, and each figure is the lowest of three independent runs in fresh processes, with console logging limited to errors so terminal output is not timed. The machine is an 8-core AMD desktop running Windows 11, Python 3.13, numpy 2.4, numba 0.67, scipy 1.18, and BurnMan 2.1. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
 
-The new backend is much faster where the classic path called out to BurnMan or paid a numba compile, 4 to 11 times faster on 3D heating maps, two to three times faster on array work, 1.6 to 2.4 times faster on global tidal heating, about even on the radial solver, and slower on a few paths, which are listed too.
+The new backend is much faster where the classic path called out to BurnMan or paid a numba compile, 4 to 11 times faster on 3D heating maps, two to three times faster on array work, 1.6 to 2.4 times faster on global tidal heating, and slower on the standalone radial solver, which now runs through the world path, and on two scalar calls; all are listed with their causes.
 
 ### Where It Is Faster
 
@@ -49,24 +49,26 @@ The global tidal heating rows use the homogeneous Love method, which solves the 
 
 ### Where It Is About Even
 
-The standalone radial solver was already Cython calling CyRK, so there was little left to win. The rewrite gained 10 to 20 percent on realistic problems and lost about 15 percent on a tiny one where call overhead dominates. The new solver's default equation-of-state tolerances (rtol 1e-10 and atol 1e-14, from the `[eos_solver]` config section) are tighter than the classic ones (1e-3 and 1e-5): at the classic tolerances the propagation matrix row is 1.40x faster, and the shooting rows change by less than 3 percent.
-
 | Task | Classic | New | Change |
 |---|---|---|---|
-| `radial_solver`, 1 layer, 10 slices | 0.31 ms | 0.36 ms | 0.85x, slower |
-| `radial_solver`, 1 layer, 200 slices | 0.46 ms | 0.40 ms | 1.15x faster |
-| `radial_solver`, 3 layers (static liquid core), 300 slices | 0.45 ms | 0.40 ms | 1.13x faster |
-| `radial_solver`, propagation matrix, 200 slices | 0.112 ms | 0.093 ms | 1.20x faster |
 | Convective cooling, one evaluation | 0.16 us | 0.16 us | 1.0x, even |
 
 ### Where It Is Slower
 
 | Task | Classic | New | Change |
 |---|---|---|---|
+| `radial_solver`, 1 layer, 10 slices | 0.30 ms | 0.51 ms | 0.59x, 1.7x slower |
+| `radial_solver`, 1 layer, 200 slices | 0.45 ms | 0.59 ms | 0.77x, 1.3x slower |
+| `radial_solver`, 3 layers (static liquid core), 300 slices | 0.44 ms | 0.65 ms | 0.68x, 1.5x slower |
+| `radial_solver`, propagation matrix, 200 slices | 0.11 ms | 0.19 ms | 0.56x, 1.8x slower |
 | Convective cooling, 10k evaluations | 0.160 ms | 0.208 ms | 0.77x, 1.3x slower |
 | Rheology, one complex modulus | 0.057 us | 0.077 us | 0.75x, 1.3x slower |
 
-One of these has a known cause. A single scalar rheology call is dominated by the Python-to-C++ boundary rather than by the arithmetic, and the numba path crosses a cheaper boundary. Use the vectorized calls, where the new backend is about 3x faster, whenever there is more than a handful of values. The vectorized convective cooling gap has not been investigated.
+The standalone radial solver was about even with the classic one until it became a wrapper over the world path (one code path for both entry points). It now builds a temporary world from the supplied arrays, solves that world's equation of state, and integrates the Love-number equations against the same dense structure the world path uses. The two solvers take identical integration steps on these problems (71, 68, and 90 for the three independent solutions of the one-layer body), so the whole gap is the cost of each right-hand-side read: the new path evaluates the equation-of-state interpolant for gravity, the interpolated material for density and both static moduli, and the two supplied complex-modulus arrays, where the classic path did four linear interpolations of its input arrays. The equation-of-state solve itself is a tenth of the time, the temporary world a twentieth, and the Python-side handling about the same as the world build. What the dense read buys is accuracy: against the closed-form homogeneous sphere the new solver's degree-2 k2 is 2.6 times closer (6.8e-5 against 1.8e-4), and the two solvers agree to 1e-15 on the one-layer rows and 6e-10 on the three-layer one at the tolerances timed here (`integration_rtol` 1e-8, `integration_atol` 1e-12, both solvers).
+
+The knobs that move it, in order. `integration_rtol` and `integration_atol` set the step count and so the read count: at the `[radial_solver]` defaults (1e-6 and 1e-10, looser than the rows above) the new solver takes 0.31, 0.39, and 0.49 ms on the three shooting rows, even with or faster than the classic solver at its tighter setting, with k2 moving by 4e-9. The equation-of-state settings (`eos_rtol`, `eos_atol`, `eos_integration_method`) change the total by under 10 percent, and the slice count matters little once the searches are seeded. `RK45` for the Love integration is slower than `DOP853`, which reaches the tolerance in fewer steps. For repeated solves of one body, build a `LayeredWorld` instead: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes, which is where the new backend's time went.
+
+The two scalar rows have a known cause. A single scalar rheology call is dominated by the Python-to-C++ boundary rather than by the arithmetic, and the numba path crosses a cheaper boundary. Use the vectorized calls, where the new backend is about 3x faster, whenever there is more than a handful of values. The vectorized convective cooling gap has not been investigated.
 
 ### First Call
 

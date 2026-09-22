@@ -72,7 +72,11 @@ Tightening the EOS tolerance costs almost nothing, so it is set where the mass, 
 
 ### Numerical Settings
 
-`[numerical]` holds the floors and tolerances the C++ code reads through its shared configuration singleton: the frequency extremes (`minimum_frequency`, `maximum_frequency`, `min_spin_orbit_diff`), the material floors (`minimum_viscosity`, `minimum_modulus`), the geometry floor `minimum_layer_thickness`, the guarded-denominator `numerical_floor`, `layer_continuity_rtol`, `max_start_radius_fraction`, `frequency_match_rtol` (how close two tidal-mode frequencies must be to share one radial solve, and how small a frequency counts as zero), and `minimum_nusselt` (the floor of the convection cooling model). `TidalPy.constants.update_constants_x()` pushes an edited value into the C++ side without a restart.
+`[numerical]` holds the floors and tolerances the C++ code reads through its shared configuration singleton: the frequency extremes (`minimum_frequency`, `maximum_frequency`, `min_spin_orbit_diff`), the material floors (`minimum_viscosity`, `minimum_modulus`), the geometry floor `minimum_layer_thickness`, the guarded-denominator `numerical_floor`, `layer_continuity_rtol`, `max_start_radius_fraction`, `frequency_match_rtol` (how close two tidal-mode frequencies must be to share one radial solve, and how small a frequency counts as zero), `minimum_nusselt` (the floor of the convection cooling model), and the quadrature resolutions of the 3D tidal heating integrals (`tides_3d_latitude_nodes`, `tides_3d_longitude_nodes`, `tides_3d_radial_slices`, the defaults of the matching `calc_3d_tides` arguments). `TidalPy.constants.update_constants_x()` pushes an edited value into the C++ side without a restart.
+
+### Graphics
+
+`[graphics.interior]` restyles `plot_interior` (see [graphics](../utilities_x/graphics_x.md)): the matplotlib colors of each profile, the line styles and markers of real and imaginary parts, the marker size, the panel size in inches, and the label and title font sizes. The table is read when `TidalPy.Utilities_x.graphics_x` is imported.
 
 ### Layer Material Defaults
 
@@ -82,11 +86,11 @@ The `[layers.default]` model tables are also what a physics-model factory (`make
 
 ### Warnings
 
-`[warnings]` switches the Python warnings the configuration and world-building code can give, each on by default and given at most once per cause per session: `stale_worldpack_copy`, for a data-directory copy of a bundled world or data file that differs from the packaged one (see the [world pack page](../structures_x/config/worldpack.md)); `schema_version`, for a world or system file whose `schema_version` is missing or differs from this build's in its minor version (a major difference is refused, not warned about); `truncation_promotion`, for a `[tides]` truncation level that is not tabulated and is promoted to the next tabulated one; and `short_degree_list`, for a `[tides]` per-degree list (`fixed_k`, `fixed_q`, `fixed_dt_s`) the tide model reads that stops short of `max_degree_l`, whose missing degrees are zero and so dissipate nothing.
+`[warnings]` switches the Python warnings the configuration and world-building code can give, each on by default and given at most once per cause per session: `stale_worldpack_copy`, for a data-directory copy of a bundled world or data file that differs from the packaged one (see the [world pack page](../structures_x/config/worldpack.md)); `schema_version`, for a world or system file whose `schema_version` is missing or differs from this build's in its minor version (a major difference is refused, not warned about); `truncation_promotion`, for a `[tides]` truncation level that is not tabulated and is promoted to the next tabulated one; `short_degree_list`, for a `[tides]` per-degree list (`fixed_k`, `fixed_q`, `fixed_dt_s`) the tide model reads that stops short of `max_degree_l`, whose missing degrees are zero and so dissipate nothing; and `unknown_config_key`, for a key of `TidalPy_Configs_x.toml` (or of a configuration passed to `TidalPy.reinit`) that nothing reads, which is how a misspelled or outdated key shows itself. A `[layers.<type>]` block of your own is allowed; its keys are checked against the layer schema, and what its model tables hold is checked when a layer is built from it.
 
 ### Reproducing a Run
 
-A configuration file together with a world or system TOML reproduces a result on another computer running the same TidalPy version. Save the configuration in effect with `TidalPy.save_config_x`, and load it with `TidalPy.reinit`:
+A configuration file together with a world or system TOML reproduces a result on another computer running the same TidalPy version. A world file may also pin the `[eos_solver]` and `[radial_solver]` keys its results depend on (see the [TOML schema](../structures_x/config/toml_schema.md)), in which case the file alone fixes the solver settings and the configuration supplies the rest. Every saved world, system, and configuration file starts with a comment header naming the TidalPy, SciPy, and CyRK versions that wrote it. Save the configuration in effect with `TidalPy.save_config_x`, and load it with `TidalPy.reinit`:
 
 ```python
 import TidalPy

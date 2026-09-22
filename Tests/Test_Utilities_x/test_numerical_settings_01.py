@@ -236,6 +236,41 @@ def test_frequency_match_rtol_decides_which_modes_share_a_frequency(numerical_se
 
 
 # =====================================================================================================================
+# tides_3d_*: the quadrature resolutions of calc_3d_tides
+# =====================================================================================================================
+def test_default_3d_quadrature_is_wired_through():
+    from TidalPy.constants import tides_3d_latitude_nodes, tides_3d_longitude_nodes, tides_3d_radial_slices
+    numerical = TidalPy.config_x["numerical"]
+    assert (numerical["tides_3d_latitude_nodes"], numerical["tides_3d_longitude_nodes"],
+            numerical["tides_3d_radial_slices"]) == (16, 64, 16)
+    assert (tides_3d_latitude_nodes, tides_3d_longitude_nodes, tides_3d_radial_slices) == (16, 64, 16)
+
+
+def test_3d_quadrature_setting_reaches_the_heating_integral(numerical_setter):
+    """A coarse radial quadrature moves the collapsed total; the same value passed as an argument moves it the same."""
+    import math
+    from TidalPy.constants import G
+    from TidalPy.structures_x import build_world
+    world = build_world("io")
+    world.solve_eos(G_to_use=G)
+    orbit = dict(orbital_frequency=4.11e-5, spin_frequency=4.11e-5, eccentricity=0.0041, obliquity=0.0,
+                 semi_major_axis=4.217e8, host_mass=1.898e27)
+
+    def total(**kwargs):
+        return float(world.calc_3d_tides(
+            radial_summed=True, latitude_summed=True, longitude_summed=True, **orbit, **kwargs)["total"])
+
+    fine = total()
+    numerical_setter("tides_3d_radial_slices", 2)
+    coarse_by_config = total()
+    numerical_setter("tides_3d_radial_slices", 16)
+    coarse_by_argument = total(radial_slices=2)
+    assert math.isclose(coarse_by_config, coarse_by_argument, rel_tol=1.0e-12)
+    assert not math.isclose(coarse_by_config, fine, rel_tol=1.0e-6)
+    assert math.isclose(total(), fine, rel_tol=1.0e-12)
+
+
+# =====================================================================================================================
 # minimum_nusselt: the floor of the convection model
 # =====================================================================================================================
 def test_default_minimum_nusselt_is_wired_through():

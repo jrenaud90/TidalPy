@@ -1,14 +1,24 @@
 """Writing structures_x world and system configurations back out to TOML.
 
 The inverse of :mod:`TidalPy.structures_x.configs.toml_loader`: a configuration ``dict`` is stamped
-with the current ``schema_version`` and serialized with the ``toml`` package.
+with the current ``schema_version`` and serialized with the ``toml`` package, under a comment header naming the
+TidalPy, SciPy, and CyRK versions that wrote it (:func:`TidalPy.configurations.config_version_header`; a note for
+the reader, checked by nothing).
 """
 
 import os
 
 import toml
 
+from TidalPy.configurations import config_version_header
 from TidalPy.structures_x.configs.toml_loader import SCHEMA_VERSION
+
+
+def _write_toml(out_config: dict, file_path: str, title: str) -> None:
+    """Write the header and the table with LF newlines."""
+    with open(file_path, "w", encoding="utf-8", newline="\n") as toml_file:
+        toml_file.write(config_version_header(title))
+        toml.dump(out_config, toml_file)
 
 
 def save_world_to_toml(config: dict, file_path: str, overwrite: bool = True) -> str:
@@ -47,9 +57,7 @@ def save_world_to_toml(config: dict, file_path: str, overwrite: bool = True) -> 
 
     out_config = dict(config)
     out_config["schema_version"] = SCHEMA_VERSION
-
-    with open(file_path, "w") as toml_file:
-        toml.dump(out_config, toml_file)
+    _write_toml(out_config, file_path, f"TidalPy world configuration: {out_config.get('name', 'unnamed')}")
     return file_path
 
 
@@ -89,7 +97,5 @@ def save_system_to_toml(config: dict, file_path: str, overwrite: bool = True) ->
 
     out_config = dict(config)
     out_config["schema_version"] = SCHEMA_VERSION
-
-    with open(file_path, "w") as toml_file:
-        toml.dump(out_config, toml_file)
+    _write_toml(out_config, file_path, f"TidalPy system configuration: {out_config.get('name', 'unnamed')}")
     return file_path

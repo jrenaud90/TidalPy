@@ -9,8 +9,8 @@ A world configuration (schema ``0.2.0``) carries the required ``name``, ``type``
 optional ``[tides]`` table, and, for a non-star world, one or more ``[layers.<name>]`` tables. A
 layer names a ``class`` (which Cython layer class to build), an optional material ``type`` (which
 per-material default block to draw from), exactly one outer-radius specifier, scalar parameters, and
-nested physics-model tables each carrying a ``model`` key. The module constants below are the
-authoritative list of what is accepted where; ``Documentation/structures_x/config/toml_schema.md``
+nested physics-model tables each carrying a ``model`` key. The key sets of :mod:`TidalPy.schema_x`, re-exported
+here, are the authoritative list of what is accepted where; ``Documentation/structures_x/config/toml_schema.md``
 has the worked schema.
 
 A parameter the user omits is resolved in three tiers: the user configuration, then the
@@ -27,213 +27,86 @@ import toml
 
 import TidalPy
 
+# The schema's key sets, re-exported: this loader is where callers look for them.
+from TidalPy.schema_x import (
+    WORLD_TYPES,
+    LAYER_CLASSES,
+    DEFAULT_MATERIAL_TYPE,
+    NO_MATERIAL_TYPE,
+    MATERIAL_TYPES,
+    LAYER_MODEL_SECTIONS,
+    MOVED_TO_MATERIAL,
+    ALLOWED_MODEL_SECTIONS,
+    LAYER_GEOMETRY_SPEC_KEYS,
+    MATERIAL_SCALAR_KEYS,
+    MOVED_THERMAL_KEYS,
+    ALLOWED_LAYER_SCALAR_KEYS,
+    ALLOWED_WORLD_SCALAR_KEYS,
+    WORLD_MODEL_SECTIONS,
+    ALLOWED_TIDES_KEYS,
+    EOS_SOLVER_KEYS,
+    RADIAL_SOLVER_KEYS,
+    SOLVER_TABLES,
+    _GEOMETRY_LAYER_KEYS,
+    _PHYSICS_LAYER_KEYS,
+    _SOLIDLIQUID_LAYER_KEYS,
+    _GAS_LAYER_KEYS,
+    _COMMON_WORLD_KEYS,
+    _STAR_WORLD_KEYS,
+    _LAYERED_WORLD_KEYS,
+    _SOLVER_KEY_RULES,
+    _REQUIRED_WORLD_KEYS,
+)
 
 # Schema version for the structures_x TOML/world format. Compatibility uses the
 # major.minor pair (patch differences are allowed), mirroring the binary/base-class
 # schema check.
 SCHEMA_VERSION = "0.2.0"
 
-# World ``type`` values recognized by the builder and the world class each maps to.
-WORLD_TYPES = (
-    "star",
-    "gasgiant",
-    "terrestrial",
-    "layered"
-)
 
-# Layer ``class`` values recognized by the builder (selects the Cython layer class).
-LAYER_CLASSES = (
-    "base",
-    "physics",
-    "solidliquid",
-    "gas"
-)
+def validate_solver_table(section: str, table, where: str) -> None:
+    """Check a world's ``[eos_solver]`` or ``[radial_solver]`` table: known keys, right types, sensible ranges.
 
-# Layer material ``type`` values recognized by the builder. A layer's material type
-# selects the ``[layers.<type>]`` section of the ``_x`` config (TidalPy_Configs_x.toml)
-# used to supply per-material parameter defaults. The material type is optional: a layer
-# that names none takes the ``[layers.default]`` section. ``"none"`` opts out of every
-# material default; ``get_config_dict`` writes it because a saved layer lists all of its
-# models explicitly, so a rebuild must not add any.
-DEFAULT_MATERIAL_TYPE = "default"
-NO_MATERIAL_TYPE = "none"
-MATERIAL_TYPES = (
-    DEFAULT_MATERIAL_TYPE,
-    NO_MATERIAL_TYPE,
-    "gas",
-    "mantle_rock",
-    "ice",
-    "hp_ice",
-    "iron"
-)
+    Parameters
+    ----------
+    section : str
+        ``"eos_solver"`` or ``"radial_solver"``.
+    table : dict
+        The table to check.
+    where : str
+        Named in the error message (the world, or the method that received the table).
 
-# Names of the nested physics-model tables a layer may carry. ``material`` is the layer's EOS model: it holds the
-# density law, the static moduli and viscosities, the shear law, and its own nested ``shear_viscosity``,
-# ``bulk_viscosity`` and ``partial_melt`` tables, so everything frequency-independent sits in one place.
-LAYER_MODEL_SECTIONS = (
-    "material",
-    "shear_rheology",
-    "bulk_rheology",
-    "cooling",
-    "radiogenics",
-)
+    Raises
+    ------
+    ValueError
+        For a table that is not a dict, a key the section does not have, a value of the wrong type, or a value
+        at or below its lower bound.
+    """
+    rules = _SOLVER_KEY_RULES[section]
+    if not isinstance(table, dict):
+        raise ValueError(f"{where}: '[{section}]' must be a table.")
+    for key, value in table.items():
+        if key not in rules:
+            raise ValueError(
+                f"{where}: unexpected '[{section}]' key '{key}'. Allowed keys: {sorted(rules)}.")
+        kind, floor = rules[key]
+        if kind is bool:
+            if not isinstance(value, bool):
+                raise ValueError(f"{where}: '[{section}] {key}' must be true or false, not {value!r}.")
+        elif kind is str:
+            if not isinstance(value, str):
+                raise ValueError(f"{where}: '[{section}] {key}' must be a string, not {value!r}.")
+        elif kind is int:
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{where}: '[{section}] {key}' must be an integer, not {value!r}.")
+            if value <= floor:
+                raise ValueError(f"{where}: '[{section}] {key}' must be greater than {floor}, not {value}.")
+        else:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{where}: '[{section}] {key}' must be a number, not {value!r}.")
+            if not math.isfinite(value) or value <= floor:
+                raise ValueError(f"{where}: '[{section}] {key}' must be greater than {floor}, not {value}.")
 
-# Tables that used to sit on the layer and now belong inside ``material``; named so the error can say where.
-MOVED_TO_MATERIAL = ("eos", "shear_viscosity", "bulk_viscosity", "partial_melt")
-
-# Which model sections each layer type is allowed to carry. Attaching a model the
-# layer class cannot hold is a configuration error caught up front.
-ALLOWED_MODEL_SECTIONS = {
-    "base": (
-        "material",
-    ),
-    "physics": (
-        "material",
-        "shear_rheology",
-        "bulk_rheology"
-    ),
-    "gas": (
-        "material",
-        "shear_rheology",
-        "bulk_rheology"
-    ),
-    "solidliquid": (
-        "material",
-        "shear_rheology",
-        "bulk_rheology",
-        "cooling",
-        "radiogenics"
-    ),
-}
-
-# Mutually-exclusive outer-radius specifiers, builder-only: consumed to compute the layer's outer
-# radius and not forwarded to the layer constructor. A layer must carry exactly one. The inner radius
-# is never user-supplied; it is the previous layer's outer radius (0 for the innermost), since layers
-# are always built inner-to-outer.
-LAYER_GEOMETRY_SPEC_KEYS = (
-    "radius_outer_m",   # absolute outer radius [m]
-    "radius_fraction",  # outer radius = radius_fraction * world radius
-    "volume_fraction",  # layer volume = volume_fraction * world volume (-> outer radius)
-)
-
-# Allowed scalar (non-table) layer keys per class, on top of the geometry keys shared
-# by every layer. These mirror the layer-class constructor argument names exactly so
-# the builder can forward only the keys the user supplied. ``layer_index``, ``class``,
-# the material ``type``, and the outer-radius specifiers are handled separately and are
-# not listed here. (``radius_inner_m`` / ``radius_outer_m`` are injected by the builder,
-# not taken from the config.)
-_GEOMETRY_LAYER_KEYS = (
-    "mass_kg",
-    "material_name",
-    "is_tidal",
-    "tidal_scale",
-    "tidal_scale_method",
-    # False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
-    "is_volume_fixed"
-)
-_PHYSICS_LAYER_KEYS = (
-    # Radial-solver flags: a liquid layer sets is_solid = false and stays static unless is_static = false.
-    "is_solid",
-    "is_static",
-    "is_incompressible",
-    # Layer state: its temperature, whether the density law of its material sees it, and whether the world's heat
-    # sources act inside it during a thermal EOS solve.
-    "temperature_k",
-    "use_thermal_eos",
-    "use_heating"
-)
-
-# Scalar keys that used to sit on the layer and now belong inside its ``material`` table.
-MATERIAL_SCALAR_KEYS = (
-    "shear_modulus_static_pa",
-    "bulk_modulus_static_pa",
-    "shear_viscosity_static_pas",
-    "bulk_viscosity_static_pas",
-    "shear_modulus_pressure_derivative",
-    "shear_modulus_temperature_derivative_pa_k",
-    "shear_modulus_reference_temperature_k",
-)
-# A solid-liquid layer adds no scalar keys of its own: its thermal constants are the material's.
-_SOLIDLIQUID_LAYER_KEYS = ()
-
-# Thermal keys that used to sit on a solid-liquid layer, and the material key each became. The layer's reference
-# density and reference temperature have no successor: the density law has its own, and nothing read the other.
-MOVED_THERMAL_KEYS = {
-    "thermal_conductivity_ref_w_mk": "thermal_conductivity_w_mk",
-    "thermal_expansion_ref_1_k":     "thermal_expansion_1_k",
-    "heat_capacity_ref_j_kgk":       "heat_capacity_j_kgk",
-}
-_GAS_LAYER_KEYS = (
-    "mean_molecular_weight_kg_mol",
-    "adiabatic_index",
-    "reference_temperature_k",
-    "reference_density_kg_m3"
-)
-
-ALLOWED_LAYER_SCALAR_KEYS = {
-    "base":        frozenset(_GEOMETRY_LAYER_KEYS),
-    "physics":     frozenset(_GEOMETRY_LAYER_KEYS + _PHYSICS_LAYER_KEYS),
-    "gas":         frozenset(_GEOMETRY_LAYER_KEYS + _PHYSICS_LAYER_KEYS + _GAS_LAYER_KEYS),
-    "solidliquid": frozenset(_GEOMETRY_LAYER_KEYS + _PHYSICS_LAYER_KEYS + _SOLIDLIQUID_LAYER_KEYS),
-}
-
-# Allowed scalar world keys per family (layered worlds vs stars). ``name``, ``type``,
-# ``schema_version`` and the ``layers`` table are handled separately.
-_COMMON_WORLD_KEYS = (
-    "radius_m",
-    "mass_kg",
-    "albedo",
-    "emissivity",
-    "obliquity_rad",
-    "spin_frequency_rad_s",
-)
-_STAR_WORLD_KEYS = (
-    "effective_temperature_k",
-    "luminosity_w"
-)
-_LAYERED_WORLD_KEYS = (
-    # C / (M R^2) of the world's spin model: its moment of inertia until the EOS is solved.
-    "moment_of_inertia_factor",
-)
-
-ALLOWED_WORLD_SCALAR_KEYS = {
-    "layered":     frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
-    "terrestrial": frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
-    "gasgiant":    frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
-    "star":        frozenset(_COMMON_WORLD_KEYS + _STAR_WORLD_KEYS),
-}
-
-# World-level model tables, and the world types that may carry each.
-WORLD_MODEL_SECTIONS = {
-    "luminosity": ("star",),   # a star's mass-to-luminosity model (stellar_x.make_luminosity)
-}
-
-# Keys accepted inside a world's optional '[tides]' table (consumed by the world builder's
-# tide wiring). The `_lvl` spellings are canonical; the long forms are accepted aliases.
-ALLOWED_TIDES_KEYS = frozenset((
-    "global_tidal_model",
-    "fixed_k",
-    "fixed_q",
-    "fixed_dt_s",
-    "min_degree_l",
-    "max_degree_l",
-    "eccentricity_trunc_lvl",
-    "eccentricity_truncation",
-    "obliquity_trunc_lvl",
-    "obliquity_truncation",
-    "tidal_timescale_width_decades",
-    "love_method",
-    "love_fixed_q",
-    "love_fixed_dt_s",
-))
-
-# Some parameters are required for world construction
-_REQUIRED_WORLD_KEYS = (
-    'name',
-    'type',
-    'radius_m',
-    'mass_kg'
-)
 
 # =====================================================================================================================
 # TOML / source loading
@@ -388,6 +261,12 @@ def validate_world_config(config: dict) -> None:
     # profile in place of layer tables; the builder expands either into 'layers' before validation.
     structural = {"name", "type", "schema_version", "layers", "tides", "data_file", "data"}
     for key, value in config.items():
+        if key in SOLVER_TABLES:
+            # A star runs no EOS or radial solve, so it has nothing for the tables to pin.
+            if world_type == "star":
+                raise ValueError(f"A star world cannot hold a '[{key}]' table: it runs no {key.split('_')[0]} solve.")
+            validate_solver_table(key, value, f"World '{config.get('name', '?')}'")
+            continue
         if key == "tides":
             if not isinstance(value, dict):
                 raise ValueError("The '[tides]' entry must be a table.")

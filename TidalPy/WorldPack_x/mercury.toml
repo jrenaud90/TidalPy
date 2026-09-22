@@ -1,35 +1,32 @@
-# Mercury: an iron core filling 80 percent of the radius, under a thin silicate mantle.
+# Mercury: a large iron core, solid inside and fluid outside, under a thin silicate mantle.
 #
-# Rebuilt from the classic BurnMan-based WorldPack mercury.toml, which supplied the radius and both core
-# boundaries from the central interior model of Goossens et al. (2021): a solid inner core to 1277.25 km
-# and the rest of the core to 1965 km. Mass comes from GM = 22031.86855 km3/s2 with G = 6.67430e-11,
-# giving 3.30103e23 kg.
+# Structure
+# Radius and both core boundaries come from the classic BurnMan-based file (Goossens et al. 2021 resolve
+# the inner-core boundary), and the mass, 3.30103e23 kg, from GM = 22031.86855 km3/s2. Mercury inverts
+# the usual recipe: its core holds 78 percent of the mass, so the core is what the mass constrains. The
+# mantle is fixed at a Birch-Murnaghan 3300 kg/m3 and the core is fitted, to 7305.6948 kg/m3, a single
+# incompressible value shared by both core layers because the classic file gives them one composition.
+# The inner/outer split is kept so that the boundary is in the file and the fluid flag has somewhere to
+# land. Mass exact, surface gravity 3.7006 m/s2, C/MR2 = 0.3465 against the measured 0.346, central
+# pressure 34.9 GPa.
 #
-# Structure. Mercury inverts the usual recipe. Elsewhere the core density is a side assumption and the mantle
-# is fitted; here the core holds 78 percent of the mass, so it is the core the mass constrains.
-# The mantle is fixed at a silicate Birch-Murnaghan reference density of 3300 kg/m3 and the core density is
-# fitted to 7305.69 kg/m3. That is a mean density rather than a zero-pressure one: a core this large does
-# compress, and a single incompressible value is the honest statement of what one mass constraint supports.
-# Both core layers carry it, because the classic file gives them the same composition; they stay split so
-# that the boundary Goossens et al. (2021) resolve is in the file.
+# Temperatures and viscosities
+# Every layer carries a temperature and every solid layer a reference-law viscosity whose reference
+# temperature is the layer's own (see io.toml; E = 300 kJ/mol): the inner core solid iron at 1800 K and
+# 1e20 Pa s, the mantle at 1600 K and 1e21 Pa s with the Andrade rheology of the silicate defaults.
+# Neither viscosity is calibrated: Mercury's Q is not measured.
 #
-# The independent check is the moment-of-inertia factor, which the fit does not target: C/MR2 comes out at
-# 0.3465 against the measured 0.346 +/- 0.014 (Margot et al. 2012, Genova et al. 2019). Surface gravity is
-# 3.7006 m/s2 against the observed 3.70, and the central pressure 34.9 GPa.
-#
-# Tides. The outer core is a static liquid (is_solid = false), and Mercury's large k2 is itself the evidence
-# for it: with that layer solid this interior gives k2 = 0.116 at the 88 day period, a factor of five below
-# the measured 0.569 +/- 0.025 (Genova et al. 2019). The liquid core with the 6.0e10 Pa default mantle
-# rigidity gives 0.478, so the mantle shear modulus is the second fitted number: 4.17e10 Pa gives 0.5691.
-# It is an effective value. The mantle is elastic at the temperature of the equation-of-state solve (its
-# default viscosity is infinite there), so the rigidity also stands in for whatever anelastic softening the
-# real mantle has at the tidal period. The dissipation is not calibrated: the only layer with a finite
-# viscosity is the solid inner core, so Im(k2) is about -4e-8 and tidal heating from this file is far too
-# low. Override the mantle viscosity and rheology to model a dissipating mantle.
+# Tides
+# The outer core is a static liquid, which is worth a factor of five in k2. With it, the mantle shear
+# modulus is the one number fitted to a tidal observable: 4.347e10 Pa gives k2 = 0.569 at the 87.9691 day
+# orbital period (Genova et al. 2019: 0.569 +/- 0.025); the 6e10 Pa default gave 0.478, and a solid outer
+# core with the fitted mantle gives about 0.12. The mantle's Q at that period is 120. The mantle
+# dissipates all but 7e-6 of the tidal heat (the inner core the rest), which the tidal_scale values
+# record; with the Sun's mass and Mercury's orbit (a = 5.7909e10 m, e = 0.2056) and its 3:2 spin the
+# total is 1.9e9 W.
 #
 # Orbital state is not a world property in this schema; add Mercury to a System to give it an orbit. The
-# spin frequency is the 3:2 resonant rate from the classic file's 58.6462 day spin period, not synchronous.
-# The albedo is Mercury's Bond albedo rather than its geometric albedo of 0.142.
+# spin frequency is the 58.6462 day sidereal rotation, the 3:2 resonant rate rather than synchronous.
 schema_version = "0.2.0"
 name = "Mercury"
 type = "terrestrial"
@@ -38,24 +35,39 @@ mass_kg = 3.30103e23
 spin_frequency_rad_s = 1.240013e-06
 albedo = 0.068
 
+# The layer temperatures below are prescribed, not solved: the fits hold at exactly these values, so the
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
 [layers.inner_core]
-class = "physics"
+class = "solidliquid"
 type = "iron"
 layer_index = 0
 radius_outer_m = 1277250.0
-is_tidal = false
+is_tidal = true
+tidal_scale = 0.0000074
+temperature_k = 1800.0
 
 [layers.inner_core.material]
 model = "constant"
 reference_density_kg_m3 = 7305.6948   # fitted to the published mass; mean core density
 
+[layers.inner_core.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e20
+reference_temperature_k = 1800.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
 [layers.outer_core]
-class = "physics"
+class = "solidliquid"
 type = "iron"
 layer_index = 1
 radius_outer_m = 1965000.0
 is_tidal = false
 is_solid = false                      # fluid outer core, solved as a static liquid
+temperature_k = 1800.0
 
 [layers.outer_core.material]
 model = "constant"
@@ -67,10 +79,19 @@ type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0
 is_tidal = true
+tidal_scale = 0.9999926
+temperature_k = 1600.0
 
 [layers.mantle.material]
 model = "bm"
-shear_modulus_static_pa = 4.17e10     # fitted to the measured k2 with the liquid outer core
+shear_modulus_static_pa = 4.347e10    # fitted to the measured k2 with the liquid outer core
 reference_density_kg_m3 = 3300.0      # fixed silicate mantle; the core is the fitted layer here
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
+
+[layers.mantle.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0

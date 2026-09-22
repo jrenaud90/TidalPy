@@ -80,6 +80,23 @@ cdef int cy_check_num_threads(int num_threads) except -1:
 
 # Translate an integration-method name to the CyRK enum (string handling stays at the Cython boundary).
 # Case-insensitive; covers the explicit Runge-Kutta methods and the implicit, stiff ones.
+cdef str cy_integration_method_name(ODEMethod method):
+    """The configuration spelling of a CyRK integration method."""
+    if method == ODEMethod.DOP853:
+        return "DOP853"
+    elif method == ODEMethod.RK45:
+        return "RK45"
+    elif method == ODEMethod.RK23:
+        return "RK23"
+    elif method == ODEMethod.BDF:
+        return "BDF"
+    elif method == ODEMethod.LSODA:
+        return "LSODA"
+    elif method == ODEMethod.RADAU:
+        return "Radau"
+    raise ValueError(f"Unsupported integration method code: {<int>method}.")
+
+
 cdef ODEMethod cy_resolve_integration_method(str integration_method) except *:
     cdef str method_upper = integration_method.upper()
     if method_upper == 'DOP853':
@@ -436,7 +453,8 @@ cdef class LayeredWorld(BaseWorld):
         its density_bulk) is set to the mass the solved density profile places between its radii.
 
         Every solver setting left as ``None`` takes the ``[eos_solver]`` value of the TidalPy configuration
-        (``TidalPy.config_x``), the same defaults the standalone ``radial_solver`` uses.
+        (``TidalPy.config_x``), the same defaults the standalone ``radial_solver`` uses, unless this world's file
+        pinned the key (see :meth:`set_solver_defaults`).
 
         Parameters
         ----------
@@ -493,9 +511,9 @@ cdef class LayeredWorld(BaseWorld):
         - Spherical symmetry; all quantities MKS.
         - Each layer's density comes from its attached material EOS model.
         """
-        # The config struct starts from the [eos_solver] section of the TidalPy configuration; only the
-        # arguments given here override it.
-        cdef c_WorldEOSSolveConfig cfg
+        # The config struct starts from the [eos_solver] section of the TidalPy configuration with the keys this
+        # world's file pinned on top (set_solver_defaults); only the arguments given here override it.
+        cdef c_WorldEOSSolveConfig cfg = self._layered_ptr.make_eos_solve_config()
         cfg.surface_pressure = surface_pressure
         cfg.G_to_use         = G_to_use
         cfg.verbose          = <cpp_bool>verbose
@@ -974,7 +992,8 @@ cdef class LayeredWorld(BaseWorld):
         - Spherical symmetry; all quantities MKS.
         """
         # The config starts from the world's [tides] Love settings (method, fixed Q, fixed time lag) and the
-        # [radial_solver] section of the TidalPy configuration; only the arguments given here override it.
+        # [radial_solver] section of the TidalPy configuration with the keys this world's file pinned on top
+        # (set_solver_defaults); only the arguments given here override it.
         cdef c_LoveSolveConfig cfg = self._layered_ptr.make_love_solve_config()
         cfg.frequency = frequency
         cfg.degree_l  = degree_l
@@ -1617,9 +1636,9 @@ cdef class LayeredWorld(BaseWorld):
             latitude_summed=False,
             longitude_summed=False,
             radial_summed=False,
-            int latitude_nodes=16,
-            int longitude_nodes=64,
-            int radial_slices=16,
+            latitude_nodes=None,
+            longitude_nodes=None,
+            radial_slices=None,
             latitude_analytic=True,
             double colatitude_min=0.0,
             double colatitude_max=np.pi,
@@ -1639,7 +1658,9 @@ cdef class LayeredWorld(BaseWorld):
         the output is the raw density. The colatitude integral uses an internal Gauss-Legendre grid
         (``latitude_nodes``), the radial integral ``radial_slices`` Gauss-Legendre nodes inside each layer
         (none on a layer boundary), and the longitude integral the analytic ``2*pi`` times the longitude mean
-        when averaged or a ``longitude_nodes`` trapezoid when instantaneous.
+        when averaged or a ``longitude_nodes`` trapezoid when instantaneous. Each of the three left as ``None``
+        takes the ``tides_3d_*`` value of the ``[numerical]`` section of the TidalPy configuration (16, 64, and
+        16 by default).
 
         Non-summed spatial axes require the matching ``radii``, ``colatitudes``, or ``longitudes`` array, and
         ``times`` is required when ``orbit_averaged=False``. The returned dict carries the surviving axes plus
@@ -1668,9 +1689,12 @@ cdef class LayeredWorld(BaseWorld):
         cfg.latitude_summed  = <cpp_bool>latitude_summed
         cfg.longitude_summed = <cpp_bool>longitude_summed
         cfg.radial_summed    = <cpp_bool>radial_summed
-        cfg.latitude_nodes   = latitude_nodes
-        cfg.longitude_nodes  = longitude_nodes
-        cfg.radial_slices    = radial_slices
+        if latitude_nodes is not None:
+            cfg.latitude_nodes = <int>int(latitude_nodes)
+        if longitude_nodes is not None:
+            cfg.longitude_nodes = <int>int(longitude_nodes)
+        if radial_slices is not None:
+            cfg.radial_slices = <int>int(radial_slices)
         cfg.num_threads      = num_threads
         cfg.latitude_analytic = <cpp_bool>latitude_analytic
         cfg.colatitude_min   = colatitude_min
@@ -1812,6 +1836,156 @@ cdef class LayeredWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
+    # Pinned solver settings
+    # ------------------------------------------------------------------------------------------------------------------
+    def set_solver_defaults(self, eos_solver=None, radial_solver=None):
+        """Pin ``[eos_solver]`` and ``[radial_solver]`` settings on this world.
+
+        A world file may carry the two tables so that, with the TidalPy configuration, it reproduces its run on
+        another machine. A pinned key replaces the configuration's value for every solve this world runs
+        (:meth:`solve_eos`, :meth:`solve_love_numbers`, :meth:`calc_tides`, and the 3D paths); a call's own
+        argument still wins over it, and a key left out keeps following the configuration, so a configuration
+        changed after the world was built still reaches it. The tables come back from :meth:`get_solver_defaults`
+        and :meth:`get_config_dict`.
+
+        Parameters
+        ----------
+        eos_solver, radial_solver : dict, optional
+            Keys of the matching section of ``TidalPy_Configs_x.toml`` (``EOS_SOLVER_KEYS`` and
+            ``RADIAL_SOLVER_KEYS`` of ``TidalPy.structures_x.configs``) with their values. A table given replaces
+            the one stored, so an empty dict clears it; a table left as ``None`` is untouched.
+
+        Raises
+        ------
+        ValueError
+            For a key the section does not have, a value of the wrong type or out of range, or an unknown
+            integration method.
+        """
+        from TidalPy.structures_x.configs.toml_loader import validate_solver_table
+        cdef c_EOSSolverOverrides eos
+        cdef c_RadialSolverOverrides radial
+        cdef ODEMethod method
+        cdef double number
+        cdef size_t count
+        cdef cpp_bool flag
+        if eos_solver is not None:
+            validate_solver_table("eos_solver", eos_solver, "set_solver_defaults")
+            if "integration_method" in eos_solver:
+                method = cy_resolve_integration_method(str(eos_solver["integration_method"]))
+                eos.integration_method = optional[ODEMethod](method)
+            if "rtol" in eos_solver:
+                number = <double>eos_solver["rtol"]
+                eos.rtol = optional[double](number)
+            if "atol" in eos_solver:
+                number = <double>eos_solver["atol"]
+                eos.atol = optional[double](number)
+            if "pressure_tol" in eos_solver:
+                number = <double>eos_solver["pressure_tol"]
+                eos.pressure_tol = optional[double](number)
+            if "max_iters" in eos_solver:
+                count = <size_t>int(eos_solver["max_iters"])
+                eos.max_iters = optional[size_t](count)
+            if "slices_per_layer" in eos_solver:
+                count = <size_t>int(eos_solver["slices_per_layer"])
+                eos.slices_per_layer = optional[size_t](count)
+            if "nondimensionalize" in eos_solver:
+                flag = <cpp_bool>bool(eos_solver["nondimensionalize"])
+                eos.nondimensionalize = optional[cpp_bool](flag)
+            if "solve_temperature" in eos_solver:
+                flag = <cpp_bool>bool(eos_solver["solve_temperature"])
+                eos.solve_temperature = optional[cpp_bool](flag)
+            self._layered_ptr.set_eos_solver_overrides(eos)
+        if radial_solver is not None:
+            validate_solver_table("radial_solver", radial_solver, "set_solver_defaults")
+            if "integration_method" in radial_solver:
+                method = cy_resolve_integration_method(str(radial_solver["integration_method"]))
+                radial.integration_method = optional[ODEMethod](method)
+            if "rtol" in radial_solver:
+                number = <double>radial_solver["rtol"]
+                radial.rtol = optional[double](number)
+            if "atol" in radial_solver:
+                number = <double>radial_solver["atol"]
+                radial.atol = optional[double](number)
+            if "use_kamata" in radial_solver:
+                flag = <cpp_bool>bool(radial_solver["use_kamata"])
+                radial.use_kamata = optional[cpp_bool](flag)
+            if "start_radius_tolerance" in radial_solver:
+                number = <double>radial_solver["start_radius_tolerance"]
+                radial.start_radius_tol = optional[double](number)
+            if "scale_rtols" in radial_solver:
+                flag = <cpp_bool>bool(radial_solver["scale_rtols"])
+                radial.scale_rtols = optional[cpp_bool](flag)
+            if "max_num_steps" in radial_solver:
+                count = <size_t>int(radial_solver["max_num_steps"])
+                radial.max_num_steps = optional[size_t](count)
+            if "expected_size" in radial_solver:
+                count = <size_t>int(radial_solver["expected_size"])
+                radial.expected_size = optional[size_t](count)
+            if "max_ram_mb" in radial_solver:
+                count = <size_t>int(radial_solver["max_ram_mb"])
+                radial.max_ram_MB = optional[size_t](count)
+            if "nondimensionalize" in radial_solver:
+                flag = <cpp_bool>bool(radial_solver["nondimensionalize"])
+                radial.nondimensionalize = optional[cpp_bool](flag)
+            self._layered_ptr.set_radial_solver_overrides(radial)
+
+    def get_solver_defaults(self) -> dict:
+        """The ``[eos_solver]`` and ``[radial_solver]`` keys pinned on this world, under the configuration's names.
+
+        Returns
+        -------
+        dict
+            ``eos_solver`` and ``radial_solver`` tables, each present only when it pins a key. Empty when the
+            world follows the TidalPy configuration throughout.
+        """
+        cdef c_EOSSolverOverrides eos = self._layered_ptr.get_eos_solver_overrides()
+        cdef c_RadialSolverOverrides radial = self._layered_ptr.get_radial_solver_overrides()
+        cdef dict out = {}
+        cdef dict table = {}
+        if eos.integration_method.has_value():
+            table["integration_method"] = cy_integration_method_name(eos.integration_method.value())
+        if eos.rtol.has_value():
+            table["rtol"] = eos.rtol.value()
+        if eos.atol.has_value():
+            table["atol"] = eos.atol.value()
+        if eos.pressure_tol.has_value():
+            table["pressure_tol"] = eos.pressure_tol.value()
+        if eos.max_iters.has_value():
+            table["max_iters"] = <int>eos.max_iters.value()
+        if eos.slices_per_layer.has_value():
+            table["slices_per_layer"] = <int>eos.slices_per_layer.value()
+        if eos.nondimensionalize.has_value():
+            table["nondimensionalize"] = bool(eos.nondimensionalize.value())
+        if eos.solve_temperature.has_value():
+            table["solve_temperature"] = bool(eos.solve_temperature.value())
+        if table:
+            out["eos_solver"] = table
+        table = {}
+        if radial.integration_method.has_value():
+            table["integration_method"] = cy_integration_method_name(radial.integration_method.value())
+        if radial.rtol.has_value():
+            table["rtol"] = radial.rtol.value()
+        if radial.atol.has_value():
+            table["atol"] = radial.atol.value()
+        if radial.use_kamata.has_value():
+            table["use_kamata"] = bool(radial.use_kamata.value())
+        if radial.start_radius_tol.has_value():
+            table["start_radius_tolerance"] = radial.start_radius_tol.value()
+        if radial.scale_rtols.has_value():
+            table["scale_rtols"] = bool(radial.scale_rtols.value())
+        if radial.max_num_steps.has_value():
+            table["max_num_steps"] = <int>radial.max_num_steps.value()
+        if radial.expected_size.has_value():
+            table["expected_size"] = <int>radial.expected_size.value()
+        if radial.max_ram_MB.has_value():
+            table["max_ram_mb"] = <int>radial.max_ram_MB.value()
+        if radial.nondimensionalize.has_value():
+            table["nondimensionalize"] = bool(radial.nondimensionalize.value())
+        if table:
+            out["radial_solver"] = table
+        return out
+
     cpdef dict get_config_dict(self):
         """Return the world config with a ``layers`` table keyed by layer name.
 
@@ -1823,7 +1997,9 @@ cdef class LayeredWorld(BaseWorld):
         Returns
         -------
         dict
-            All :class:`BaseWorld` keys, ``moment_of_inertia_factor`` (the attached spin model's), and ``layers``.
+            All :class:`BaseWorld` keys, ``moment_of_inertia_factor`` (the attached spin model's), ``layers``, and
+            the ``eos_solver`` and ``radial_solver`` tables when the world pins any solver key
+            (:meth:`set_solver_defaults`).
 
         Raises
         ------
@@ -1832,6 +2008,7 @@ cdef class LayeredWorld(BaseWorld):
         """
         cdef dict config = BaseWorld.get_config_dict(self)
         config["moment_of_inertia_factor"] = self._layered_ptr.get_spin_model().get_config().moment_of_inertia_factor
+        config.update(self.get_solver_defaults())
         cdef dict layers = {}
         cdef dict layer_config
         for view in self._ensure_layer_views():

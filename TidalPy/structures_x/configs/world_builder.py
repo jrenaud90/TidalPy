@@ -713,6 +713,10 @@ def _world_type_defaults(world_type: str) -> dict:
     return defaults
 
 
+# The EOS integration method a world built from a radial profile pins on itself (see construct_world).
+DATA_FILE_EOS_INTEGRATION_METHOD = "RK45"
+
+
 def construct_world(config: dict):
     """Construct a world (and all its layers) from a validated configuration dict.
 
@@ -738,6 +742,7 @@ def construct_world(config: dict):
     ValueError
         If the configuration fails structural validation.
     """
+    given = config
     config = _expand_radial_data(config)
     validate_world_config(config)
     world_type = config["type"]
@@ -780,9 +785,21 @@ def construct_world(config: dict):
             world.set_spin_model(Spin(moment_of_inertia_factor=resolved["moment_of_inertia_factor"]))
         _add_layers(world, config["layers"], world_radius)
         _attach_tides(world, config)
+        # The world's own solver settings, if its file pins any (validated above). A world built from a radial
+        # profile takes RK45 for its EOS solve unless its file says otherwise: on an interpolated profile RK45 is
+        # about 2.8 times faster than DOP853 at equal accuracy, since the profile's kinks defeat the high order.
+        eos_solver = config.get("eos_solver")
+        if "data_file" in given or "data" in given:
+            eos_solver = dict(eos_solver or {})
+            eos_solver.setdefault("integration_method", DATA_FILE_EOS_INTEGRATION_METHOD)
+        if eos_solver or "radial_solver" in config:
+            world.set_solver_defaults(eos_solver=eos_solver, radial_solver=config.get("radial_solver"))
 
-    # Retain the normalized config on the world for a faithful save_to_toml.
+    # Retain the normalized config on the world for a faithful save_to_toml. A world built from a data file also
+    # keeps the configuration as given, the file reference and the tables that refined it, which is what a saved
+    # copy should carry instead of the expanded profile and the path the file resolved to here.
     world.source_config = config
+    world.portable_config = dict(given) if "data_file" in given else None
     return world
 
 
@@ -982,9 +999,10 @@ def _attach_tides(world, config: dict) -> None:
             model_config[key] = list(merged[key])
 
     tide_model = make_tide(model_name, model_config if model_config else None)
-    world.set_tide_model(tide_model)
     max_degree_l = int(merged.get("max_degree_l", 2))
+    # Before the world takes ownership of the model, which empties the wrapper.
     _warn_short_degree_lists(config.get("name", "?"), tide_model, model_config, max_degree_l)
+    world.set_tide_model(tide_model)
 
     # The truncation levels below also drive the on-demand 3D stress/strain/heating path (the tidal
     # potential is built dynamically from them by the rheology model; no potential-model object).
