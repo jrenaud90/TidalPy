@@ -1,36 +1,26 @@
-# Lints TidalPy and runs the test suite on Ubuntu across every supported CPython.
+# Lints TidalPy and runs the full test suite across every supported CPython on Ubuntu, macOS, and Windows.
 #
-# Runs on pull requests, on a weekly schedule, on demand, and on a push whose commit message says "run tests".
-# The weekly run is the one that catches dependency drift: numpy, scipy, numba, and cyrk are all range-pinned,
-# so a new release inside a pinned range can break the build without anything in this repository changing.
-
-name: Ubuntu Tests
+# TRIGGERS
+#   push                a commit whose message contains "run tests"   -> requires admin approval
+#   pull_request        any pull request, from anyone                 -> requires admin approval
+#   schedule            weekly dependency-drift check                 -> runs immediately
+#   workflow_dispatch   manual (already needs write access to click)  -> runs immediately
+#
+# The approval gate is the `approve-ci` job below. It is the only job bound to the `ci-approval` environment,
+# and every other job waits on it.
+name: Tests
 
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - TidalPy/**
-      - Tests/**
-      - setup.py
-      - pyproject.toml
-      - cython_extensions.json
-      - .github/workflows/push_tests_ubun.yml
+  push:
   schedule:
     - cron: '17 6 * * 1'
-  push:
-    paths:
-      - TidalPy/**
-      - Tests/**
-      - setup.py
-      - pyproject.toml
-      - cython_extensions.json
-      - .github/workflows/push_tests_ubun.yml
 
 # Supersede an earlier run of the same branch or pull request; a scheduled run has its own group and is never
 # cancelled by a later push.
 concurrency:
-  group: ubuntu-tests-${{ github.event_name }}-${{ github.ref }}
+  group: tests-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 permissions:
@@ -43,12 +33,30 @@ env:
   BURNMAN_PYTHONS: '["3.9", "3.10", "3.11", "3.12"]'
 
 jobs:
-  lint-with-ruff:
+  # Holds the run until a required reviewer approves it. Skipped outright for schedule and workflow_dispatch,
+  # and for a push that did not ask for CI -- the jobs below tell those two cases apart by `result`.
+  approve-ci:
     if: |
       github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule' ||
-      contains(github.event.head_commit.message, 'run tests')
+      (github.event_name == 'push' && contains(github.event.head_commit.message, 'run tests'))
+
+    name: Approve CI run
+    runs-on: ubuntu-latest
+    environment: ci-approval
+    steps:
+      - name: Approved
+        run: echo "Approved by ${{ github.actor }}; running the test suite."
+
+  lint-with-ruff:
+    needs: approve-ci
+    # `!cancelled()` is what lets this job evaluate at all when `approve-ci` was skipped; without a status
+    # function here, a skipped dependency skips the dependent unconditionally.
+    if: |
+      !cancelled() && (
+        needs.approve-ci.result == 'success' ||
+        ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+         needs.approve-ci.result == 'skipped')
+      )
 
     name: Lint TidalPy with ruff
     runs-on: ubuntu-latest
@@ -71,18 +79,25 @@ jobs:
       - name: Run ruff linting
         run: ruff check TidalPy/ --ignore F401,E402,E501 --select E,F
 
-  test-ubuntu:
+  test:
+    needs: approve-ci
     if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule' ||
-      contains(github.event.head_commit.message, 'run tests')
+      !cancelled() && (
+        needs.approve-ci.result == 'success' ||
+        ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+         needs.approve-ci.result == 'skipped')
+      )
 
-    name: Test TidalPy on Ubuntu
-    runs-on: ubuntu-latest
+    name: Test on ${{ matrix.os-name }} (Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # macos-latest is arm64, matching the toolchain cibuildwheel uses for the macOS wheels.
+        include:
+          - {os: ubuntu-latest,  os-name: Ubuntu}
+          - {os: macos-latest,   os-name: MacOS}
+          - {os: windows-latest, os-name: Windows}
         python-version:
           - "3.9"
           - "3.10"
