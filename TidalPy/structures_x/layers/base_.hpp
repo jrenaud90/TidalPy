@@ -18,8 +18,7 @@
  *     material_name      (material_name_len bytes, UTF-8)
  *     is_tidal           (uint8_t, 1)
  *     is_volume_fixed    (uint8_t, 1)
- *     tidal_scale        (double, 8)
- *     tidal_scale_method (uint8_t, 1)
+ *     tidal_scale        (double, 8; NaN when the world uses the layer's volume fraction)
  *     eos_model          presence flag (uint8_t, 1) + (if present) the model's own binary record
  *   Derived fields (thickness, volume, surface areas) are recomputed on load. The attached material EOS model is
  *   serialized; the EOS profile it produces is not and is repopulated by re-running the world EOS solve.
@@ -39,47 +38,6 @@
 #include "material_eos_.hpp"   // c_MaterialEOSBase (per-layer density source)
 
 namespace tidalpy {
-
-// How a layer's share of the world's global tidal heating is set:
-//   user_provided   : the layer's tidal_scale field.
-//   volume_fraction : layer volume / planet volume.
-//   tidal_timescale : Maxwell-time bell curve against the tidal forcing period (volume-weighted log mean of
-//                     the solved eta/mu; the static constants before an EOS solve).
-enum class c_TidalScaleMethod : uint8_t {
-    user_provided   = 0,
-    volume_fraction = 1,
-    tidal_timescale = 2
-};
-
-// Case-insensitive and alias-aware.
-inline c_TidalScaleMethod c_tidal_scale_method_from_name(const std::string& name) {
-    std::string key;
-    key.reserve(name.size());
-    for (char ch : name) {
-        key.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-    }
-    if (key == "user_provided" || key == "user_provided_scale" || key == "user") {
-        return c_TidalScaleMethod::user_provided;
-    }
-    if (key == "volume_fraction" || key == "volume_fraction_scale" || key == "volume") {
-        return c_TidalScaleMethod::volume_fraction;
-    }
-    if (key == "tidal_timescale" || key == "tidal_timescale_scale"
-            || key == "timescale" || key == "maxwell") {
-        return c_TidalScaleMethod::tidal_timescale;
-    }
-    throw std::invalid_argument("TidalPy: unknown tidal_scale_method '" + name + "'");
-}
-
-// Round-trips through the factory above.
-inline const char* c_tidal_scale_method_name(c_TidalScaleMethod method) noexcept {
-    switch (method) {
-        case c_TidalScaleMethod::volume_fraction: return "volume_fraction_scale";
-        case c_TidalScaleMethod::tidal_timescale: return "tidal_timescale_scale";
-        case c_TidalScaleMethod::user_provided:
-        default:                                  return "user_provided_scale";
-    }
-}
 
 // The "class" key of a layer config table.
 inline const char* c_layer_class_name(uint32_t class_id) noexcept {
@@ -103,8 +61,9 @@ struct c_BaseLayerConfig {
     bool               is_tidal    = true;
     // False lets the layer grow or shrink to hold its mass while the solve redistributes the interior.
     bool               is_volume_fixed = true;
-    double             tidal_scale = 1.0;   // dimensionless
-    c_TidalScaleMethod tidal_scale_method = c_TidalScaleMethod::user_provided;
+    // The layer's share of the planet's volume in the quasi-homogeneous Love methods; NaN takes the layer's volume
+    // fraction when the world uses it (c_BaseLayer::calc_tidal_scale).
+    double             tidal_scale = TidalPyConstants::d_NAN;   // dimensionless
 };
 
 class c_BaseLayer : public c_StructureBase {
@@ -119,8 +78,7 @@ public:
           p_material_name(cfg.material_name),
           p_is_tidal(cfg.is_tidal),
           p_is_volume_fixed(cfg.is_volume_fixed),
-          p_tidal_scale(cfg.tidal_scale),
-          p_tidal_scale_method(cfg.tidal_scale_method)
+          p_tidal_scale(cfg.tidal_scale)
     {
         this->update_physicals();
     }
@@ -144,7 +102,6 @@ public:
             this->p_is_tidal           = other.p_is_tidal;
             this->p_is_volume_fixed    = other.p_is_volume_fixed;
             this->p_tidal_scale        = other.p_tidal_scale;
-            this->p_tidal_scale_method = other.p_tidal_scale_method;
             this->p_tidal_heating      = other.p_tidal_heating;
             this->p_eos_data           = other.p_eos_data;
             this->p_eos.reset();
@@ -173,17 +130,26 @@ public:
         this->p_radius       = radius_outer;
         this->update_physicals();
     }
-    double             get_tidal_scale()         const noexcept { return this->p_tidal_scale; }
-    c_TidalScaleMethod get_tidal_scale_method()  const noexcept { return this->p_tidal_scale_method; }
+    // The configured tidal scale; NaN when the layer takes its volume fraction.
+    double get_tidal_scale() const noexcept { return this->p_tidal_scale; }
+    void   set_tidal_scale(double tidal_scale) noexcept { this->p_tidal_scale = tidal_scale; }
+
+    // The share this layer carries in the quasi-homogeneous Love methods (homogeneous, cpl, ctl), which treat each
+    // tidal layer as a homogeneous planet of its own averaged material and scale that planet's Im(k) by this
+    // factor: the configured tidal_scale, or the layer's volume over the planet's [m3] when none is set. Zero for
+    // a layer that is not tidal.
+    double calc_tidal_scale(double planet_volume) const noexcept {
+        if (!this->p_is_tidal) { return 0.0; }
+        if (std::isfinite(this->p_tidal_scale)) { return this->p_tidal_scale; }
+        return (planet_volume > TidalPyConstants::d_EPS) ? this->get_volume() / planet_volume : 0.0;
+    }
 
     // Matches the binary class id, so a caller holding a c_BaseLayer* can build the matching wrapper.
     virtual uint32_t get_layer_class_id() const noexcept {
         return static_cast<uint32_t>(BinaryClassID::BaseLayer);
     }
-    void   set_tidal_scale_method(c_TidalScaleMethod method) noexcept { this->p_tidal_scale_method = method; }
-
-    // A transient result, not serialized: the world's global tidal solve sets it to the world total scaled
-    // by this layer's contribution, and it is NaN until then.
+    // A transient result, not serialized: the heating [W] the world's last calc_tides put in this layer, and NaN
+    // until then (see c_LayeredWorld::calc_tides for how each Love method distributes it).
     double get_tidal_heating()                   const noexcept { return this->p_tidal_heating; }
     void set_tidal_heating(double heating)   noexcept { this->p_tidal_heating = heating; }
 
@@ -202,6 +168,8 @@ public:
     double get_gravity(double radius)         const noexcept { return this->p_eos_data.get_gravity(radius); }
     double get_pressure(double radius)        const noexcept { return this->p_eos_data.get_pressure(radius); }
     void   update_eos_data(const c_LayerEOSData& data) { this->p_eos_data = data; }
+    // Forget the solved profile, so nothing reads a structure that no longer describes this layer.
+    void   clear_eos_data() { this->p_eos_data = c_LayerEOSData(); }
 
     // Read from the solved EOS: the material evaluated these as the structure was integrated, so nothing is
     // calculated here and every value is the one the solve used. They are the frequency-independent moduli,
@@ -357,8 +325,7 @@ protected:
     std::string p_material_name;
     bool               p_is_tidal           = true;
     bool               p_is_volume_fixed    = true;
-    double             p_tidal_scale        = 1.0;   // dimensionless
-    c_TidalScaleMethod p_tidal_scale_method = c_TidalScaleMethod::user_provided;
+    double             p_tidal_scale        = TidalPyConstants::d_NAN;   // dimensionless; NaN: volume fraction
     double             p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve
 
     // Populated by the world-level EOS solve; not serialized.

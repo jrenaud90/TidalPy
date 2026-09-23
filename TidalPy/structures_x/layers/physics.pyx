@@ -23,7 +23,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 from TidalPy.rheology_x.rheology cimport RheologyBase
 from TidalPy.viscosity_x.viscosity cimport ViscosityBase
@@ -59,15 +59,14 @@ cdef class PhysicsLayer(BaseLayer):
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
-        Dimensionless tidal heating scale. Default ``1.0``.
+        The layer's share of the planet in the quasi-homogeneous Love methods; ``None`` (default) takes
+        its volume fraction. See ``BaseLayer``.
     love_number_k : complex, optional
         Potential Love number (placeholder). Default ``0+0j``.
     love_number_h : complex, optional
         Radial displacement Love number (placeholder). Default ``0+0j``.
     love_number_l : complex, optional
         Tangential displacement Love number (placeholder). Default ``0+0j``.
-    tidal_scale_method : str, optional
-        How the layer's share of the world's tidal heating is set. Default ``"user_provided"``.
     is_solid : bool, optional
         False marks the layer liquid for the radial Love-number solver. Default ``True``.
     is_static : bool, optional
@@ -103,11 +102,10 @@ cdef class PhysicsLayer(BaseLayer):
             str    material_name          = "",
             cpp_bool is_tidal             = True,
             cpp_bool is_volume_fixed      = True,
-            double tidal_scale            = 1.0,
+            tidal_scale                   = None,
             complex love_number_k         = 0+0j,
             complex love_number_h         = 0+0j,
             complex love_number_l         = 0+0j,
-            str    tidal_scale_method     = "user_provided",
             cpp_bool is_solid             = True,
             cpp_bool is_static            = True,
             cpp_bool is_incompressible    = False,
@@ -123,8 +121,7 @@ cdef class PhysicsLayer(BaseLayer):
         config.material_name      = material_name.encode("utf-8")
         config.is_tidal           = is_tidal
         config.is_volume_fixed    = is_volume_fixed
-        config.tidal_scale        = tidal_scale
-        config.tidal_scale_method = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
+        config.tidal_scale        = d_NAN if tidal_scale is None else <double>tidal_scale
         config.love_numbers = c_LoveNumbers(
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),

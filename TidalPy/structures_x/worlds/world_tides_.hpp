@@ -181,107 +181,50 @@ inline void c_LayeredWorld::calc_layer_tidal_scales(
     }
 }
 
-// Tidal scale of one layer on its own; 0 for a non-tidal layer.
-//   user_provided   : the layer's tidal_scale field.
-//   volume_fraction : layer volume / planet volume.
-//   tidal_timescale : the bell weight, a log-Gaussian in the layer's Maxwell time tau = eta/mu
-//                     (layer_maxwell_time) about the tidal forcing period, with the width [decades] from the tide
-//                     config. 0 for a geometry-only layer or when mu, eta, or the forcing are unusable. The weight
-//                     is not a share: calc_layer_tidal_scales normalizes it across the layers using the method.
-inline double c_LayeredWorld::effective_tidal_scale(
-        const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const {
-    if (!layer->get_is_tidal()) {
-        return 0.0;
+// Each layer's orbit-averaged heating [W] from the radial solution: the secular heating density integrated over
+// the layer's volume, with the analytic colatitude integral, the 2 pi longitude integral, and Gauss-Legendre nodes
+// inside each layer (the same integral as calc_3d_tides with every axis summed). The layers are scaled so they sum
+// to `total_heating`, the 1D global result, which removes the small radial-quadrature residual between the two. A
+// liquid layer carries no shear dissipation and takes 0; with no usable integral every layer is NaN.
+inline void c_LayeredWorld::calc_layer_tidal_heating_radial(
+        const c_TideSolveConfig& state,
+        double total_heating,
+        std::vector<double>& out) {
+    const std::size_t n_layers = this->p_layers.size();
+    out.assign(n_layers, TidalPyConstants::d_NAN);
+    c_Heating3DCollapseConfig cfg;
+    cfg.orbit_averaged   = true;
+    cfg.latitude_summed  = true;
+    cfg.longitude_summed = true;
+    cfg.radial_summed    = true;
+    const c_Heating3DCollapsed integrated = this->calc_3d_tides(
+        state,
+        nullptr,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        0,
+        cfg);
+    if (integrated.layer_totals.size() < n_layers) { return; }
+    double integral_sum = 0.0;
+    for (std::size_t i = 0; i < n_layers; ++i) {
+        const double layer_total = integrated.layer_totals[i];
+        if (std::isfinite(layer_total)) { integral_sum += layer_total; }
     }
-    switch (layer->get_tidal_scale_method()) {
-        case c_TidalScaleMethod::user_provided:
-            return layer->get_tidal_scale();
-        case c_TidalScaleMethod::volume_fraction:
-            return (planet_volume > TidalPyConstants::d_EPS)
-                 ? layer->get_volume() / planet_volume : 0.0;
-        case c_TidalScaleMethod::tidal_timescale: {
-            const auto* phys = dynamic_cast<const c_PhysicsLayer*>(layer);
-            if (phys == nullptr) {
-                return 0.0;   // geometry-only layer has no Maxwell time
-            }
-            const double maxwell_time = this->layer_maxwell_time(phys);            // [s]
-            const double orbital_freq = std::abs(state.orbital_frequency);
-            if (!std::isfinite(maxwell_time) || maxwell_time <= 0.0 || orbital_freq <= TidalPyConstants::d_EPS) {
-                return 0.0;
-            }
-            const double forcing_period = 2.0 * TidalPyConstants::d_PI / orbital_freq;  // [s]
-            double width = this->p_tide_config.tidal_timescale_width_decades;
-            if (width <= TidalPyConstants::d_EPS) {
-                width = 1.0;
-            }
-            const double z = std::log10(maxwell_time / forcing_period) / width;
-            return std::exp(-0.5 * z * z);
-        }
-        default:
-            return 0.0;
+    if (!std::isfinite(total_heating)) { return; }
+    if (!(std::abs(integral_sum) > 0.0)) {
+        // Nothing dissipates (a body with no viscosity, say): every layer takes the zero total.
+        if (total_heating == 0.0) { std::fill(out.begin(), out.end(), 0.0); }
+        return;
+    }
+    for (std::size_t i = 0; i < n_layers; ++i) {
+        const double layer_total = integrated.layer_totals[i];
+        out[i] = std::isfinite(layer_total) ? total_heating * layer_total / integral_sum : 0.0;
     }
 }
-
-// Maxwell time [s] of a layer for the tidal_timescale scale. After an EOS solve it is the volume-weighted mean of
-// log10(eta/mu) over the layer's post-melt profile, so a viscosity spanning many decades across the layer (a cold
-// lid over a warm interior) is averaged in the log space the bell is defined in, and a viscosity set by a model
-// rather than a constant is seen. Before a solve it is the layer's static eta/mu. NaN when neither is usable.
-inline double c_LayeredWorld::layer_maxwell_time(const c_PhysicsLayer* phys) const {
-    const double eps = TidalPyConstants::d_EPS;
-    const double r_inner = phys->get_radius_inner();
-    const double r_outer = phys->get_radius_outer();
-    if (this->p_eos_solved && this->p_eos_solution && (r_outer > r_inner)) {
-        // Trapezoid in volume (weight r^2) on the node count of the homogeneous Love average.
-        const std::size_t n_intervals = homogeneous_quadrature_intervals;
-        const double dr = (r_outer - r_inner) / static_cast<double>(n_intervals);
-        double weight_sum = 0.0;
-        double log_sum    = 0.0;
-        for (std::size_t i = 0; i <= n_intervals; ++i) {
-            const double radius    = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * dr;
-            const double modulus   = phys->get_shear_modulus(radius);     // post-melt
-            const double viscosity = phys->get_shear_viscosity(radius);   // post-melt
-            if (!std::isfinite(modulus) || !(modulus > eps) || !std::isfinite(viscosity) || !(viscosity > eps)) {
-                continue;
-            }
-            const double end_weight = (i == 0 || i == n_intervals) ? 0.5 : 1.0;
-            const double weight     = end_weight * radius * radius;
-            weight_sum += weight;
-            log_sum    += weight * std::log10(viscosity / modulus);
-        }
-        if (weight_sum > 0.0) {
-            return std::pow(10.0, log_sum / weight_sum);
-        }
-        return TidalPyConstants::d_NAN;
-    }
-    const double modulus   = phys->get_shear_modulus_static();
-    const double viscosity = phys->get_shear_viscosity_static();
-    if (!std::isfinite(modulus) || !(modulus > eps) || !std::isfinite(viscosity) || !(viscosity > eps)) {
-        return TidalPyConstants::d_NAN;
-    }
-    return viscosity / modulus;
-}
-
-
-// On-demand 3D tidal heating.
-//
-// Every 3D path works from the coherent wave list: each active (l, m, p, q) mode is mapped onto its
-// non-negative frequency and merged with the modes sharing its real spatial function. The radial solve
-// depends on (l, |omega|) alone, so it runs once per unique pair and its strain radial coefficients are
-// reused across waves, points, longitudes, and times.
-//
-// The secular heating density is
-//     h_bar(r, theta, phi) = sum over |omega| of (|omega|/2) Im( sigma_c : conj(eps_c) )
-// with sigma_c, eps_c the total complex amplitudes at that frequency, every wave there summed before the
-// bilinear form. Cross terms between different frequencies average to zero over the orbit and are dropped;
-// those between waves at one frequency survive and are kept. They are what the m = 0 pairs contribute, each
-// pair being one real sinusoid, and what makes the heating of a synchronously rotating body depend on
-// longitude. The scalar and batch paths take no longitude and return the longitudinal mean: cross terms
-// between waves of different e^{i mu phi} integrate to zero over phi, so the mean is the sum over
-// (|omega|, mu) groups evaluated at phi = 0. The volume integral of h_bar is the 1D global heating.
-//
-// At nonzero obliquity the 3D value is for zero argument of periapse and node, the engine carrying no
-// precession, so same-frequency modes of one (l, m) combine coherently. The precession-averaged 1D formula
-// carries no such cross term, and the two agree only to the size of those terms.
 
 namespace tides3d {
 

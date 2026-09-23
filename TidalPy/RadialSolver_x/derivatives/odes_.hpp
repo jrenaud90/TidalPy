@@ -586,7 +586,7 @@ inline void c_liquid_dynamic_incompressible(
 // ============================================================================
 
 /// Radial derivative equations for a liquid, static, incompressible layer.
-/// Only y5 and y7 are defined. y7 = y6 + (4*pi*G*rho/g)*y5.
+/// Only y5 and y7 are defined. y7 = y6 + (4*pi*G/g)*y2.
 /// Active y-values: y5, y7 (stored as 2 values, 4 doubles).
 ///
 /// References: S74 Eq. 18

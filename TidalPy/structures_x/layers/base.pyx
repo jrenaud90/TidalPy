@@ -22,7 +22,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport (
     StructureBase,
     c_TidalPyBaseClass,
@@ -88,7 +88,9 @@ cdef class BaseLayer(StructureBase):
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
-        Dimensionless scale factor applied to this layer's tidal heating. Default ``1.0``.
+        The layer's share of the planet in the quasi-homogeneous Love methods (``homogeneous``, ``cpl``, ``ctl``),
+        which scale the Im(k) of a homogeneous planet made of the layer's averaged material by it. ``None``
+        (default) takes the layer's volume over the planet's.
 
     Assumptions
     -----------
@@ -111,8 +113,7 @@ cdef class BaseLayer(StructureBase):
             str    material_name      = "",
             cpp_bool   is_tidal           = True,
             cpp_bool   is_volume_fixed    = True,
-            double tidal_scale        = 1.0,
-            str    tidal_scale_method = "user_provided"):
+            tidal_scale               = None):
         cdef c_BaseLayerConfig config
         config.name         = name.encode("utf-8")
         config.layer_index  = layer_index
@@ -122,8 +123,7 @@ cdef class BaseLayer(StructureBase):
         config.material_name = material_name.encode("utf-8")
         config.is_tidal    = is_tidal
         config.is_volume_fixed = is_volume_fixed
-        config.tidal_scale = tidal_scale
-        config.tidal_scale_method = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
+        config.tidal_scale = d_NAN if tidal_scale is None else <double>tidal_scale
         # The owning member is this same type, so make_unique's result moves straight in.
         self._layer_ptr = make_unique[c_BaseLayer](config)
         self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
@@ -152,6 +152,25 @@ cdef class BaseLayer(StructureBase):
         cdef BaseLayer v = BaseLayer.__new__(BaseLayer)
         v._init_view(ptr, world)
         return v
+
+    def load_binary(self, str path, cpp_bool force=False):
+        """Load this layer's state from a TidalPy binary file.
+
+        Only a standalone layer can be loaded: a layer view belongs to its world, whose structure a load would
+        change behind its back, so load the world instead.
+
+        Parameters
+        ----------
+        path : str
+            Source file path.
+        force : bool, optional
+            Attempt the load even on a schema version mismatch.
+        """
+        if self._is_view:
+            raise ValueError(
+                f"Layer '{self.name}' belongs to a world and cannot be loaded in place: load the world's binary "
+                f"file, or load into a standalone layer.")
+        StructureBase.load_binary(self, path, force)
 
     # _layer_ptr always points at the most-derived C++ layer, so these are safe for subclasses.
     @property
@@ -233,30 +252,25 @@ cdef class BaseLayer(StructureBase):
         return self._layer_ptr.get().get_is_tidal()
 
     @property
-    def tidal_scale(self) -> float:
-        """Dimensionless tidal heating scale factor (used when ``tidal_scale_method`` is ``user_provided``)."""
-        return self._layer_ptr.get().get_tidal_scale()
+    def tidal_scale(self):
+        """The layer's configured tidal scale [dimensionless], or ``None`` when it takes its volume fraction.
 
-    @property
-    def tidal_scale_method(self) -> str:
-        """How this layer's share of the world tidal heating is determined.
-
-        One of ``"user_provided_scale"`` (use ``tidal_scale``), ``"volume_fraction_scale"`` (layer volume /
-        planet volume), or ``"tidal_timescale_scale"`` (Maxwell-time bell curve). Settable from any alias.
+        Used only by the quasi-homogeneous Love methods (``homogeneous``, ``cpl``, ``ctl``) and to share out the
+        heating of an analytic tide model; the radial solver resolves the layers directly. Settable; ``None``
+        returns to the volume fraction. The value in use is ``LayeredWorld.get_layer_tidal_scale``.
         """
-        cdef bytes name_bytes = c_tidal_scale_method_name(
-            self._layer_ptr.get().get_tidal_scale_method())
-        return name_bytes.decode("utf-8")
+        cdef double value = self._layer_ptr.get().get_tidal_scale()
+        return None if value != value else value
 
-    @tidal_scale_method.setter
-    def tidal_scale_method(self, str method):
-        self._layer_ptr.get().set_tidal_scale_method(
-            c_tidal_scale_method_from_name(method.encode("utf-8")))
+    @tidal_scale.setter
+    def tidal_scale(self, value):
+        self._layer_ptr.get().set_tidal_scale(d_NAN if value is None else <double>value)
 
     def get_tidal_heating(self) -> float:
         """Tidal heating [W] deposited in this layer by the world's last tidal solve. NaN before one runs.
 
-        Set by :meth:`LayeredWorld.calc_tides` as the world total scaled by this layer's share.
+        Set by :meth:`LayeredWorld.calc_tides`; how the heating is resolved per layer depends on the world's Love
+        method (see the worlds documentation, Tidal Heating of Each Layer).
         """
         return self._layer_ptr.get().get_tidal_heating()
 
@@ -436,15 +450,15 @@ cdef class BaseLayer(StructureBase):
         -------
         dict
             Keys: ``class``, ``type``, ``name``, ``layer_index``, ``radius_inner``, ``radius_outer``, ``mass``,
-            ``material_name``, ``is_tidal``, ``is_volume_fixed``, ``tidal_scale``, ``tidal_scale_method``,
-            and ``eos`` when set.
+            ``material_name``, ``is_tidal``, ``is_volume_fixed``, ``tidal_scale`` when one is set, and
+            ``material`` when set.
         """
         # Deferred: the configs package imports the layer modules.
         from TidalPy.structures_x.configs.toml_loader import NO_MATERIAL_TYPE
 
         cdef c_BaseLayer* p = self._layer_ptr.get()
-        cdef bytes method_bytes = c_tidal_scale_method_name(p.get_tidal_scale_method())
         cdef bytes class_bytes = c_layer_class_name(p.get_layer_class_id())
+        cdef double tidal_scale = p.get_tidal_scale()
         cdef dict config = {
             "class":              class_bytes.decode("utf-8"),
             "type":               NO_MATERIAL_TYPE,
@@ -456,9 +470,9 @@ cdef class BaseLayer(StructureBase):
             "material_name":      p.get_material_name().decode("utf-8"),
             "is_tidal":           bool(p.get_is_tidal()),
             "is_volume_fixed":    bool(p.get_is_volume_fixed()),
-            "tidal_scale":        p.get_tidal_scale(),
-            "tidal_scale_method": method_bytes.decode("utf-8"),
         }
+        if tidal_scale == tidal_scale:
+            config["tidal_scale"] = tidal_scale
         if p.get_eos_set():
             config["material"] = cy_material_config(p.get_eos())
         return config

@@ -24,9 +24,11 @@ struct c_TideConfig {
     int max_degree_l            = 2;    // highest tidal harmonic degree (<= 10)
     int eccentricity_truncation = 3;    // eccentricity-function truncation level n (G through e^n)
     int obliquity_truncation    = 10;   // obliquity-function truncation (0=off, 1, 2 (F through I^n), 10=general)
-    // Width [decades] of the log-Gaussian bell used by the tidal_timescale layer scale method
-    // (scale = exp(-0.5*(log10(maxwell_time/forcing_period)/width)^2)).
-    double tidal_timescale_width_decades = 1.0;
+    // Whether calc_tides also resolves the heating of each layer. With a radial-solver Love method that is the
+    // volume integral of the radial solution's heating density over each layer, which costs about as much as the
+    // global solve again; switching it off leaves every layer's heating NaN on that path. The quasi-homogeneous
+    // methods and the analytic tide models distribute the heating whatever this says, at no extra cost.
+    bool layer_tidal_heating = true;
     // How the world obtains its Love numbers when the tide model asks for them (c_LoveMethod as an int:
     // 0 radial_solver, 1 propagation_matrix, 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous).
     int love_method = 0;

@@ -27,17 +27,10 @@ cdef extern from "eos_data_.hpp" namespace "tidalpy" nogil:
             const vector[double]& radius,
             const vector[double]& density_kgm3,
             const vector[double]& gravity_ms2,
-            const vector[double]& pressure)
+            const vector[double]& pressure) except +
 
 
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
-    cdef enum class c_TidalScaleMethod:
-        user_provided
-        volume_fraction
-        tidal_timescale
-
-    c_TidalScaleMethod c_tidal_scale_method_from_name(const string& name) except +
-    const char* c_tidal_scale_method_name(c_TidalScaleMethod method)
     const char* c_layer_class_name(uint32_t class_id)
 
     cdef cppclass c_BaseLayerConfig:
@@ -50,7 +43,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         cpp_bool           is_tidal
         cpp_bool           is_volume_fixed
         double             tidal_scale
-        c_TidalScaleMethod tidal_scale_method
 
     cdef cppclass c_BaseLayer(c_StructureBase):
         c_BaseLayer()
@@ -70,8 +62,8 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         void     set_is_volume_fixed(cpp_bool)
         void     set_radii(double radius_inner, double radius_outer)
         double   get_tidal_scale()             const
-        c_TidalScaleMethod get_tidal_scale_method() const
-        void     set_tidal_scale_method(c_TidalScaleMethod method)
+        void     set_tidal_scale(double tidal_scale)
+        double   calc_tidal_scale(double planet_volume) const
         uint32_t get_layer_class_id()          const
         double   get_tidal_heating()           const
         cpp_bool get_eos_data_populated()      const

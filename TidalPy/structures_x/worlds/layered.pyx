@@ -1465,11 +1465,26 @@ cdef class LayeredWorld(BaseWorld):
         state.obliquity         = obliquity
         state.semi_major_axis   = semi_major_axis
         state.host_mass         = host_mass
-        self._layered_ptr.calc_tides(state)
+        with nogil:
+            self._layered_ptr.calc_tides(state)
 
     def get_layer_tidal_heating(self, index: int) -> float:
-        """Tidal heating [W] deposited in layer ``index`` (= world heating × its effective scale)."""
+        """Tidal heating [W] the last ``calc_tides`` put in layer ``index``; NaN before one.
+
+        With a radial-solver Love method it is the volume integral of the radial solution's heating density over the
+        layer (NaN when the tides config's ``layer_tidal_heating`` is off); with the ``homogeneous``, ``cpl``, or
+        ``ctl`` method, the heating of the layer's own scaled Love numbers; with an analytic tide model, the total
+        times the layer's tidal scale.
+        """
         return self._layered_ptr.get_layer_tidal_heating(<size_t>index)
+
+    def get_layer_tidal_scale(self, index: int) -> float:
+        """The tidal scale layer ``index`` carries in the quasi-homogeneous Love methods [dimensionless].
+
+        The layer's configured ``tidal_scale``, or its volume over the planet's when none is set; 0 for a layer that
+        is not tidal.
+        """
+        return self._layered_ptr.get_layer_tidal_scale(<size_t>index)
 
     def get_3d_tidal_heating(
             self,

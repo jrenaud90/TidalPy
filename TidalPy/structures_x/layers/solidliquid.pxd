@@ -8,7 +8,6 @@ from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer, c_BaseLayer
-from TidalPy.structures_x.layers.base cimport c_TidalScaleMethod
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 from TidalPy.cooling_x.cooling cimport c_CoolingBase
 from TidalPy.radiogenics_x.radiogenics cimport c_RadiogenicsBase
@@ -27,7 +26,6 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         cpp_bool            is_tidal
         cpp_bool            is_volume_fixed
         double              tidal_scale
-        c_TidalScaleMethod  tidal_scale_method
         # From c_PhysicsConfig:
         c_LoveNumbers       love_numbers
         cpp_bool            is_solid

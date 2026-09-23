@@ -16,7 +16,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 
@@ -49,7 +49,8 @@ cdef class GasLayer(PhysicsLayer):
     is_tidal : bool, optional
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
-        Dimensionless tidal heating scale. Default ``1.0``.
+        The layer's share of the planet in the quasi-homogeneous Love methods; ``None`` (default) takes
+        its volume fraction. See ``BaseLayer``.
     love_number_k : complex, optional
         Potential Love number k (placeholder). Default ``0+0j``.
     love_number_h : complex, optional
@@ -64,8 +65,6 @@ cdef class GasLayer(PhysicsLayer):
         Reference temperature [K]. Default ``300.0``.
     reference_density : float, optional
         Reference density [kg/m³]. Default ``1.0``.
-    tidal_scale_method : str, optional
-        How the layer's share of the world's tidal heating is set. Default ``"user_provided"``.
     is_solid : bool, optional
         True marks the layer solid for the radial Love-number solver. Default ``False``: a gas carries no
         shear stress, so it is solved as a liquid.
@@ -102,7 +101,7 @@ cdef class GasLayer(PhysicsLayer):
             str    material_name          = "",
             cpp_bool is_tidal             = True,
             cpp_bool is_volume_fixed      = True,
-            double tidal_scale            = 1.0,
+            tidal_scale                   = None,
             complex love_number_k         = 0+0j,
             complex love_number_h         = 0+0j,
             complex love_number_l         = 0+0j,
@@ -110,7 +109,6 @@ cdef class GasLayer(PhysicsLayer):
             double adiabatic_index        = 1.4,
             double reference_temperature  = 300.0,
             double reference_density      = 1.0,
-            str    tidal_scale_method     = "user_provided",
             cpp_bool is_solid             = False,
             cpp_bool is_static            = True,
             cpp_bool is_incompressible    = False,
@@ -126,8 +124,7 @@ cdef class GasLayer(PhysicsLayer):
         config.material_name        = material_name.encode("utf-8")
         config.is_tidal             = is_tidal
         config.is_volume_fixed      = is_volume_fixed
-        config.tidal_scale          = tidal_scale
-        config.tidal_scale_method   = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
+        config.tidal_scale          = d_NAN if tidal_scale is None else <double>tidal_scale
         config.love_numbers = c_LoveNumbers(
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),

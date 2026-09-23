@@ -223,7 +223,7 @@ cdef class BaseWorld(StructureBase):
             max_degree_l=None,
             eccentricity_truncation=None,
             obliquity_truncation=None,
-            tidal_timescale_width_decades=None,
+            layer_tidal_heating=None,
             love_method=None,
             love_fixed_q=None,
             love_fixed_dt=None):
@@ -240,9 +240,10 @@ cdef class BaseWorld(StructureBase):
             Eccentricity-function truncation level n (every term through e^n). Tabulated levels: 1..5, 10, 15, 20.
         obliquity_truncation : int, optional
             Obliquity-function truncation: 0 (off), 1 or 2 (every term through I^1 or I^2), 10 (general).
-        tidal_timescale_width_decades : float, optional
-            Width [decades] of the log-Gaussian bell used by the ``tidal_timescale`` layer
-            scale method.
+        layer_tidal_heating : bool, optional
+            Whether ``calc_tides`` also resolves each layer's heating when the Love numbers come from the radial
+            solver (a volume integral of the radial solution that costs about as much as the global solve again);
+            the other paths share out the heating at no extra cost. Default ``True``.
         love_method : str, optional
             How the world obtains Love numbers when its tide model asks for them (and the default for
             ``solve_love_numbers``): ``'radial_solver'`` (``'shooting'``, ``'rs'``), ``'propagation_matrix'``
@@ -270,8 +271,8 @@ cdef class BaseWorld(StructureBase):
             cfg.eccentricity_truncation = <int>eccentricity_truncation
         if obliquity_truncation is not None:
             cfg.obliquity_truncation = <int>obliquity_truncation
-        if tidal_timescale_width_decades is not None:
-            cfg.tidal_timescale_width_decades = <double>tidal_timescale_width_decades
+        if layer_tidal_heating is not None:
+            cfg.layer_tidal_heating = <cpp_bool>bool(layer_tidal_heating)
         if love_method is not None:
             cfg.love_method = c_parse_love_method_int(str(love_method).encode('utf-8'))
         if love_fixed_q is not None:
@@ -453,7 +454,7 @@ cdef class BaseWorld(StructureBase):
         -------
         dict
             ``min_degree_l``, ``max_degree_l``, ``eccentricity_trunc_lvl``, ``obliquity_trunc_lvl``,
-            ``tidal_timescale_width_decades``, ``love_method``, and ``love_fixed_q`` / ``love_fixed_dt_s``
+            ``layer_tidal_heating``, ``love_method``, and ``love_fixed_q`` / ``love_fixed_dt_s``
             when set.
         """
         cdef c_TideConfig cfg = self._world_ptr.get().get_tide_config()
@@ -462,7 +463,7 @@ cdef class BaseWorld(StructureBase):
             "max_degree_l":                  cfg.max_degree_l,
             "eccentricity_trunc_lvl":        cfg.eccentricity_truncation,
             "obliquity_trunc_lvl":           cfg.obliquity_truncation,
-            "tidal_timescale_width_decades": cfg.tidal_timescale_width_decades,
+            "layer_tidal_heating":           bool(cfg.layer_tidal_heating),
             "love_method":                   c_love_method_name_int(cfg.love_method).decode('utf-8'),
         }
         if cfg.love_fixed_q == cfg.love_fixed_q:      # not NaN
