@@ -81,6 +81,9 @@ Demos_x/Physics/10_thermal_eos.ipynb
 Demos_x/Systems/11_multi_world.ipynb
 Demos_x/Systems/12_thermal_orbital_evolution.ipynb
 Demos_x/Physics/13_tidal_maps_3d.ipynb
+Demos_x/Physics/14_bundled_worlds.ipynb
+Demos_x/Physics/15_thermal_interior.ipynb
+Demos_x/Systems/16_earth_moon_sun.ipynb
 ```
 
 ```{toctree}
@@ -90,6 +93,7 @@ Demos_x/Physics/13_tidal_maps_3d.ipynb
 Benchmarks_x/RadialSolver/Earth_Love_Numbers.ipynb
 Benchmarks_x/RadialSolver/Enceladus_Tobie_Roberts.ipynb
 Benchmarks_x/EOS/EOS_vs_BurnMan.ipynb
+Benchmarks_x/Tides/Renaud2021_Dual_Body_Eccentric.ipynb
 Benchmarks_x/Performance/Perf_Trends.ipynb
 ```
 

@@ -1,6 +1,6 @@
 # Viscosity Models (`viscosity_x`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 A viscosity model returns a material's dynamic viscosity $\eta$ \[Pa s\] as a function of temperature \[K\] and pressure \[Pa\]. This is the pre-melt, or "solid", viscosity: the value a material would show with no melt present, which the [partial-melt](../partial_melt_x/partial_melt_models.md) step then weakens. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
@@ -95,7 +95,7 @@ mantle.set_shear_viscosity(make_viscosity("reference", {"reference_viscosity_pas
 mantle.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e20}))
 ```
 
-A viscosity model belongs to the layer's material, which is its EOS model: the layer's `set_shear_viscosity` and `set_bulk_viscosity` are helpers that hand the model to the attached EOS (so attach the EOS first), and the same two methods are on the EOS model itself. Ownership of the C++ model transfers, as it does for a rheology. The world's equation-of-state solve evaluates the model at the local temperature and pressure as it integrates, a table the EOS model carries overrides the result, and the partial-melt model then weakens what remains. Read the outcome back with `get_shear_viscosity(radius)` on the layer or the world. The declarative form is a `[layers.<name>.material.shear_viscosity]` table in a world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).
+A viscosity model belongs to the layer's material, which is defined via its EOS model. The layer's `set_shear_viscosity` and `set_bulk_viscosity` are helpers that hand the model to the attached EOS (so attach the EOS first), and the same two methods are on the EOS model itself. Ownership of the C++ model transfers, as it does for a rheology. The world's equation-of-state solve evaluates the model at the local temperature and pressure as it integrates, a table the EOS model carries overrides the result, and the partial-melt model then weakens what remains. Read the outcome back with `get_shear_viscosity(radius)` on the layer or the world. The declarative form is a `[layers.<name>.material.shear_viscosity]` table in a world's TOML; see the [TOML schema](../structures_x/config/toml_schema.md).
 
 ## C++ API
 

@@ -18,9 +18,13 @@ pytest.importorskip("ipykernel")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NOTEBOOKS = sorted(
-    list((REPO_ROOT / "Demos_x").rglob("*.ipynb")) +
-    list((REPO_ROOT / "Benchmarks_x" / "RadialSolver").glob("*.ipynb")) +
-    list((REPO_ROOT / "Benchmarks_x" / "EOS").glob("*.ipynb")))
+    path for path in (
+        list((REPO_ROOT / "Demos_x").rglob("*.ipynb")) +
+        list((REPO_ROOT / "Benchmarks_x" / "RadialSolver").glob("*.ipynb")) +
+        list((REPO_ROOT / "Benchmarks_x" / "EOS").glob("*.ipynb")) +
+        list((REPO_ROOT / "Benchmarks_x" / "Tides").glob("*.ipynb")))
+    # Jupyter's autosave copies are not part of the repository.
+    if ".ipynb_checkpoints" not in path.parts)
 
 # Packages a notebook imports that TidalPy does not require; a notebook that needs a missing one is skipped.
 OPTIONAL_PACKAGES = {"EOS_vs_BurnMan.ipynb": ("burnman",)}

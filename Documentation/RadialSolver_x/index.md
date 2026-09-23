@@ -1,8 +1,8 @@
 # Love Numbers and Radial Functions (`RadialSolver_x`)
 
-_Updated: 2026-09-18_
+_Updated: 2026-09-23_
 
-`TidalPy.RadialSolver_x` solves the viscoelastic-gravitational problem for a layered, spherically symmetric planet. It returns the radial functions y1 through y6 throughout the interior and the Love numbers k, h, and l at the surface. Those numbers set the magnitude of tidal dissipation, the speed of orbital and rotational evolution, and the predicted gravity and displacement signals of a body.
+`TidalPy.RadialSolver_x` solves the viscoelastic-gravitational problem for a layered, spherically symmetric planet. It returns the radial functions $y_1$ through $y_6$ throughout the interior and the Love numbers $k$, $h$, and $l$ at the surface. Those numbers set the magnitude of tidal dissipation, the speed of orbital and rotational evolution, and the predicted gravity and displacement signals of a body.
 
 There are three ways to call its functionality:
 

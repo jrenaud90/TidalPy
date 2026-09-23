@@ -1,6 +1,6 @@
 # Cooling Models (`cooling_x`)
 
-_Updated: 2026-09-18_
+_Updated: 2026-09-23_
 
 A cooling model maps a layer's physical state onto a **cooling result**: the surface heat flux $q$ [W m$^{-2}$], the thermal boundary-layer thickness [m], and the Rayleigh and Nusselt numbers. The heat flux is what drives a layer's thermal evolution, and the boundary-layer thickness is what makes convective transport so much more effective than conduction: the same temperature drop is squeezed across a thin layer at the top instead of the whole interior.
 
@@ -62,7 +62,7 @@ with $\alpha_\mathrm{th}$ the thermal expansivity, $\kappa$ the thermal diffusiv
 
 The Rayleigh number is the ratio of the buoyancy driving a hot parcel upward to the diffusion bleeding its heat away; above the critical value convection sets in. The Nusselt number is how many times more heat that convection carries than conduction would, and the boundary layer is thinned by exactly that factor. The exponent of 1/3 is the classical boundary-layer result, which has the useful consequence that the convective flux is independent of the layer thickness.
 
-The Nusselt number minimum is 2, which is the stagnant-lid limit: even a barely convecting layer moves about twice the conductive flux. Degenerate inputs take a defined path rather than producing a division by zero. A non-positive temperature drop, or a thickness below the shared `minimum_layer_thickness` configuration floor, sets the Rayleigh number to zero and the Nusselt number to 2.
+The Nusselt number minimum is 2, which is the stagnant-lid limit: even a barely convecting layer moves about twice the conductive flux. Degenerate inputs take a defined path rather than producing a division by zero. A non-positive temperature drop, or a thickness below the shared `minimum_layer_thickness` configuration floor, sets the Rayleigh number to zero and the Nusselt number to 2, so the boundary layer is half the layer thick (the whole layer below the minimum thickness). The flux is then zero for a zero temperature drop, but the boundary layer still sets the resistance a whole-planet temperature solve places between the layer and its neighbors.
 
 ## Example Usage
 

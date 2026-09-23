@@ -1,8 +1,8 @@
 # The Future TidalPy Structure
 
-TidalPy's internals are being rewritten in C++. The new implementation lives in modules that carry a `_x` suffix (`structures_x`, `Tides_x`, `RadialSolver_x`, `rheology_x`, and so on) and ships side by side with the classic modules today. In a future major release the `_x` modules become the only TidalPy: the classic modules are removed and the new ones drop their suffix. Nothing about the classic API changes until then, but all new development happens in the `_x` modules, and the classic modules receive bug fixes only. New projects should start with the `_x` modules, and existing ones should plan to switch.
+_Updated: 2026-09-23_
 
-The 0.8.X series is the last to include the classic modules. It will continue to receive bug fixes, but no new features, until the end of 2026, and support for 0.8.X after 2026 is not guaranteed. Plan to finish porting before then.
+TidalPy's internals were rewritten in C++ for v0.8.0. The new implementation lives in modules that carry a `_x` suffix (`structures_x`, `Tides_x`, `RadialSolver_x`, `rheology_x`, and so on) and lives side by side with the classic modules today. In a future major release the `_x` modules become the only TidalPy: the classic modules are removed and the new ones drop their suffix. Nothing about the classic API changes until then, but all new development to TidalPy will happen to `_x` modules, and the classic modules will only receive bug fixes. New projects should start with the `_x` modules, and existing ones should plan to switch. Support for the old modules will end no later than 2026-12-31.
 
 This page explains what is different, maps the classic modules to their replacements, and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> draws the new backend's main classes and functions, the calls between them, and the purpose, inputs, and outputs of each call.
 
@@ -18,11 +18,11 @@ warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
 
 * **Performance.** All core physics runs in C++ (with the Eigen linear algebra library and CyRK integrators), wrapped by thin Cython layers. There is no numba JIT warmup, and hot paths avoid Python entirely.
 * **Predictability.** The classic system stored planet state on Python objects and propagated changes through cascading updates. The new classes store configuration and return results from `calc_*` methods without mutating state.
-* **Consistency.** Every physics module (rheology, cooling, radiogenics, viscosity, partial melting, equations of state, tides) follows one pattern: a C++ class hierarchy, a name-based factory (`make_<module>`), direct callable functions, vectorized variants, TOML configuration, and binary files that can be saved and loaded from disk for fast and accurate reproducibility.
+* **Consistency.** Every physics module (rheology, cooling, radiogenics, viscosity, partial melting, equations of state, tides) follows a similar C++ class hierarchy, a name-based factory (`make_<module>`), direct callable functions, vectorized variants, TOML configuration, and binary files that can be saved and loaded from disk for fast and accurate reproducibility.
 
 ## Performance
 
-Performance tests were run with the classic and the new backend. Both are timed after warm up as the best of seven batches, and each figure is the lowest of three independent runs in fresh processes, with console logging limited to errors so terminal output is not timed. The machine is an 8-core AMD desktop running Windows 11, Python 3.13, numpy 2.4, numba 0.67, scipy 1.18, and BurnMan 2.1. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
+Performance tests were run with the classic and the new backend. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
 
 The new backend is much faster where the classic path called out to BurnMan or paid a numba compile, 4 to 11 times faster on 3D heating maps, two to three times faster on array work, 1.6 to 2.4 times faster on global tidal heating, and slower on the standalone radial solver, which now runs through the world path, and on two scalar calls; all are listed with their causes.
 
@@ -43,7 +43,7 @@ The new backend is much faster where the classic path called out to BurnMan or p
 | Global tidal heating, e^4 truncation | 0.021 ms | 0.010 ms | **2.0x faster** |
 | Global tidal heating, e^10 truncation | 0.025 ms | 0.016 ms | **1.6x faster** |
 
-The planet-building row is the largest change. The classic path handed the interior to BurnMan, which does mineral-physics lookups and its own root finding: the new path integrates the equation of state in C++. A fresh Io went from 1.4 seconds to about 3 milliseconds.
+The planet-building row is the largest change. The classic path handed the interior to BurnMan, which does mineral-physics lookups and its own root finding: the new path integrates the equation of state in C++.
 
 The global tidal heating rows use the homogeneous Love method, which solves the same problem as the classic `quick_tidal_dissipation`, at eccentricity truncations both backends tabulate. At level n both keep the eccentricity terms through $e^n$: the classic tables hold the squared $G^2$, the new ones every term of the unsquared $G$, so the new side sums more modes at the same level. The new backend accepts e^1 through e^5, e^10, e^15, and e^20 and promotes any other requested level to the next tabulated one, so a request for e^6 or e^8 runs at e^10. Its cost follows the number of distinct forcing frequencies rather than the number of modes: Love numbers are solved once per frequency and degree, and the layer-averaged shear modulus the homogeneous methods need is formed once per frequency and shared by every degree, so adding degrees adds little. With the `radial_solver` Love method each frequency and degree is a full radial solve instead, and that solve dominates.
 

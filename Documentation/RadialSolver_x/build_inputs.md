@@ -1,6 +1,6 @@
 # Helper Functions
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-23_
 
 `TidalPy.RadialSolver_x.radial_solver` takes array-based inputs: a radius grid, the density and complex moduli on that grid, the planet bulk density, and a few per-layer descriptors. Two native builders assemble those inputs from a layer description so you do not have to hand-build the arrays:
 
@@ -15,7 +15,7 @@ The builders live in C++ (`RadialSolver_x/build_inputs_.hpp`) behind a thin Cyth
 
 
 > [!TIP]
-> These helper functions have been built to be very efficient, however they will still cost some performance overhead when used. If calculation speed is critical, and you are rebuilding a planet many times (_e.g._, in a MCMC) it may be more performant to manually construct RadialSolver's inputs and only change what is needed rather than calling these helpers every time.
+> These helper functions have been built to be very efficient, however they will still cost some performance overhead when used. If calculation speed is critical, and you are rebuilding a planet many times (_e.g._, in a MCMC) it may be more performant to manually construct RadialSolver's inputs and only change what is needed rather than calling these helpers every time. Even better would be to use the world-attached radial solver so that memory allocations are greatly reduced.
 
 ## Rheology Arguments
 

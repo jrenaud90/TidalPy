@@ -327,25 +327,28 @@ def test_isotope_dataset_contents(name, n_isotopes, ref_time):
 
 
 def test_llri_heating_finite_at_formation():
-    """The LLRI+SLRI dataset gives finite, decaying heating from formation onward.
+    """The LLRI+SLRI dataset gives the formation-epoch heating its table implies, dominated by Al26.
 
-    The short-lived isotopes (Al26 with a 0.72 Myr half life, Fe60, Mn53) contribute
-    roughly half the formation-epoch heating and are gone within a few tens of Myr;
-    the long-lived isotopes persist, so the total decays substantially (the SLRI
-    share dies off) but not by orders of magnitude.
+    Castillo-Rogez et al. (2007) quote each isotope's own concentration, so the specific heating at formation is
+    the sum of heat production times concentration: Al26 alone gives 0.146 W/kg * 0.6 ppm = 8.8e-8 W/kg, about
+    two thousand times the long-lived isotopes together. The short-lived isotopes are gone within a few tens of Myr.
     """
     import math
     mod = _import_radiogenics()
     model = mod.IsotopeRadiogenics.from_dataset("llri_and_slri")
+    dataset = mod.isotope_dataset("llri_and_slri")
     heating_formation = model.calc_heating(0.0, _MASS)
     heating_10myr = model.calc_heating(10.0 * _MYR_S, _MASS)
     heating_100myr = model.calc_heating(100.0 * _MYR_S, _MASS)
     assert math.isfinite(heating_formation)
-    assert heating_formation > 0.0
-    # Monotonic decay, with the SLRI share (about half the formation total) gone by 100 Myr.
+    expected = sum(h * f * c for h, f, c in zip(
+        dataset["heat_production_w_kg"], dataset["mass_fracs"], dataset["concentrations"]))
+    assert heating_formation == pytest.approx(expected * _MASS, rel=1e-12)
+    assert heating_formation / _MASS == pytest.approx(0.146 * 0.6e-6, rel=0.01)
+    # Monotonic decay; once Al26 and Fe60 are gone, only a small fraction of the formation heating remains.
     assert heating_10myr < heating_formation
     assert heating_100myr < heating_10myr
-    assert heating_100myr < 0.6 * heating_formation
+    assert heating_100myr < 1.0e-3 * heating_formation
 
 
 def test_isotope_dataset_unknown_raises():
