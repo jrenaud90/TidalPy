@@ -150,6 +150,8 @@ What each cooling model makes of its layer:
 | `conduction` | Two conducting halves, $T = T_0 - (L / 4 \pi k)(1/r_0 - 1/r)$. | The mid-radius |
 | `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. | The base of the interior |
 
+A convecting layer's Rayleigh number takes the temperature drop across both of its boundary layers: from the top of the layer below (the end of its adiabat, when that layer convects) to the layer's own temperature, plus from that temperature to the layer above or to `surface_temperature`. The innermost layer has only the upper drop. Both boundary layers take the one thickness the resulting Nusselt number gives, at most 40 percent of the layer each, so a mantle at the temperature of the layer above it still convects when the core below it is hotter.
+
 The layers form a chain of thermal resistances. A conducting spherical shell between $r_a$ and $r_b$ has
 
 $$R = \frac{1}{4 \pi k} \left( \frac{1}{r_a} - \frac{1}{r_b} \right)$$
@@ -347,7 +349,7 @@ The non-dimensionalization is itself frequency-independent (the `c_NonDimensiona
 |----------------------|------------------------------|
 | `user_provided` (`user_provided_scale`) | the layer's `tidal_scale` field |
 | `volume_fraction` (`volume_fraction_scale`) | layer volume / planet volume |
-| `tidal_timescale` (`tidal_timescale_scale`) | a log-Gaussian bell in the layer's Maxwell time $\tau = \eta/\mu$ peaking where $\tau$ equals the orbital forcing period $2\pi/n$; width [decades] from `set_tide_config(tidal_timescale_width_decades=...)`. After `solve_eos`, $\tau$ is the volume-weighted geometric mean of the solved post-melt $\eta/\mu$ over the layer (so viscosity models and temperature profiles are seen); before it, the static constants. The bell is a weight per layer, so the layer shares need not sum to the world total. 0 for a geometry-only layer or when $\mu$, $\eta$, or $n$ is unusable. |
+| `tidal_timescale` (`tidal_timescale_scale`) | $(V_g / V_\mathrm{planet}) \, w V / \sum_g w V$: the tidal layers using this method share what `volume_fraction` would give them together ($V_g$ is their combined volume), split in proportion to volume times a weight $w$. The weight is a log-Gaussian bell in the layer's Maxwell time $\tau = \eta/\mu$ peaking at 1 where $\tau$ equals the orbital forcing period $2\pi/n$; width [decades] from `set_tide_config(tidal_timescale_width_decades=...)`. After `solve_eos`, $\tau$ is the volume-weighted geometric mean of the solved post-melt $\eta/\mu$ over the layer (so viscosity models and temperature profiles are seen); before it, the static constants. Layers with equal Maxwell times get their volume fractions. The weight is 0 for a geometry-only layer or when $\mu$, $\eta$, or $n$ is unusable, and the group gets nothing when every member's weight is 0. |
 
 A non-tidal layer (`is_tidal = false`) always gets 0. Methods may differ per layer.
 

@@ -413,6 +413,30 @@ def test_llri_heating_today_is_chondritic():
     assert 4.0e-12 < heating_today < 6.0e-12
 
 
+@pytest.mark.parametrize("time_myr", [0.0, 3.0, 4568.0])
+def test_legacy_config_llri_and_slri_matches(time_myr):
+    """The legacy config's LLRI_and_SLRI dataset, run through the legacy formula, heats as the built-in set does.
+
+    The legacy dataset keeps half lives and its reference time in Myr, so it is evaluated at the time in Myr.
+    """
+    import toml
+    from TidalPy import defaultc
+    from TidalPy.radiogenics import radiogenic_models as legacy
+    mod = _import_radiogenics()
+    dataset = toml.loads(defaultc.default_config_str)[
+        "physics"]["radiogenics"]["known_isotope_data"]["LLRI_and_SLRI"]
+    isotopes = [value for value in dataset.values() if isinstance(value, dict)]
+    legacy_heating = legacy.isotope(
+        time_myr, _MASS,
+        tuple(isotope["iso_mass_fraction"] for isotope in isotopes),
+        tuple(isotope["element_concentration"] for isotope in isotopes),
+        tuple(isotope["half_life"] for isotope in isotopes),
+        tuple(isotope["hpr"] for isotope in isotopes),
+        dataset["ref_time"])
+    heating = mod.IsotopeRadiogenics.from_dataset("llri_and_slri").calc_heating(time_myr * _MYR_S, _MASS)
+    assert legacy_heating == pytest.approx(heating, rel=1e-12)
+
+
 def test_isotope_dataset_unknown_raises():
     """An unknown built-in dataset name raises ValueError."""
     mod = _import_radiogenics()

@@ -131,28 +131,63 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     }
     this->p_tides_solved = true;
 
-    // Distribute the heating by each layer's effective tidal scale and store it there, so
-    // layer.get_tidal_heating() reports it.
+    // Distribute the heating by each layer's tidal scale and store it there, so layer.get_tidal_heating()
+    // reports it.
     const double planet_volume =
         (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
     const std::size_t n_layers = this->p_layers.size();
+    std::vector<double> scales;
+    this->calc_layer_tidal_scales(planet_volume, state, scales);
     this->p_layer_tidal_heating.assign(n_layers, 0.0);
     for (std::size_t i = 0; i < n_layers; ++i) {
-        c_BaseLayer* layer = this->p_layers[i].get();
-        const double scale = this->effective_tidal_scale(layer, planet_volume, state);
-        const double heat  = this->p_tide_result.tidal_heating * scale;
+        const double heat = this->p_tide_result.tidal_heating * scales[i];
         this->p_layer_tidal_heating[i] = heat;
-        layer->set_tidal_heating(heat);
+        this->p_layers[i]->set_tidal_heating(heat);
     }
 }
 
-// Effective per-layer tidal-heating scale for the layer's tidal_scale_method; 0 for a non-tidal layer.
+// Per-layer share of the world's tidal heating, one entry per layer; 0 for a non-tidal layer.
 //   user_provided   : the layer's tidal_scale field.
 //   volume_fraction : layer volume / planet volume.
-//   tidal_timescale : a log-Gaussian bell in the layer's Maxwell time tau = eta/mu (layer_maxwell_time) about
-//                     the tidal forcing period, with the width [decades] from the tide config. 0 for a
-//                     geometry-only layer or when mu, eta, or the forcing are unusable. The bell is a weight
-//                     per layer, not a partition: the layer shares need not sum to one.
+//   tidal_timescale : the tidal layers using this method share what volume_fraction would give them together,
+//                     split in proportion to volume times the layer's bell weight (effective_tidal_scale). Equal
+//                     Maxwell times give the volume fractions; the group gets nothing when no member has a
+//                     usable Maxwell time.
+inline void c_LayeredWorld::calc_layer_tidal_scales(
+        double planet_volume, const c_TideSolveConfig& state, std::vector<double>& out) const {
+    const std::size_t n_layers = this->p_layers.size();
+    out.assign(n_layers, 0.0);
+    double group_volume = 0.0;            // [m3] tidal layers using tidal_timescale
+    double group_weighted_volume = 0.0;   // [m3] their volumes times their bell weights
+    for (std::size_t i = 0; i < n_layers; ++i) {
+        const c_BaseLayer* layer = this->p_layers[i].get();
+        out[i] = this->effective_tidal_scale(layer, planet_volume, state);
+        if (layer->get_is_tidal() && (layer->get_tidal_scale_method() == c_TidalScaleMethod::tidal_timescale)) {
+            group_volume          += layer->get_volume();
+            group_weighted_volume += out[i] * layer->get_volume();
+        }
+    }
+    if (group_volume <= 0.0) { return; }
+
+    const bool usable = (group_weighted_volume > 0.0) && (planet_volume > TidalPyConstants::d_EPS);
+    for (std::size_t i = 0; i < n_layers; ++i) {
+        const c_BaseLayer* layer = this->p_layers[i].get();
+        if (!layer->get_is_tidal() || (layer->get_tidal_scale_method() != c_TidalScaleMethod::tidal_timescale)) {
+            continue;
+        }
+        out[i] = usable
+            ? (group_volume / planet_volume) * out[i] * layer->get_volume() / group_weighted_volume
+            : 0.0;
+    }
+}
+
+// Tidal scale of one layer on its own; 0 for a non-tidal layer.
+//   user_provided   : the layer's tidal_scale field.
+//   volume_fraction : layer volume / planet volume.
+//   tidal_timescale : the bell weight, a log-Gaussian in the layer's Maxwell time tau = eta/mu
+//                     (layer_maxwell_time) about the tidal forcing period, with the width [decades] from the tide
+//                     config. 0 for a geometry-only layer or when mu, eta, or the forcing are unusable. The weight
+//                     is not a share: calc_layer_tidal_scales normalizes it across the layers using the method.
 inline double c_LayeredWorld::effective_tidal_scale(
         const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const {
     if (!layer->get_is_tidal()) {

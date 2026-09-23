@@ -238,8 +238,11 @@ inline double c_update_layer_thermal(
             continue;
         }
 
-        // Convecting layer: the cooling model sizes the boundary layers from the temperature drop across the
-        // layer, the local state, and the viscosity at the layer's own temperature.
+        // Convecting layer: the cooling model sizes both boundary layers from the temperature drop across the
+        // layer, the local state, and the viscosity at the layer's own temperature. The drop is the sum of the two
+        // boundary layers' drops: from the top of the layer below (the end of its adiabat, when it convects) to this
+        // layer's temperature, and from that temperature to the layer above or the surface. The center carries no
+        // flow, so the innermost layer has only the upper drop.
         double structure[C_EOS_Y_VALUES];
         solution.call_y_si(layer_i, radius_mid, structure);
         const double gravity  = structure[0];
@@ -255,12 +258,16 @@ inline double c_update_layer_thermal(
                 pressure, thermal.temperature, solidliquid_layer->get_use_thermal_eos(), radius_mid, material);
         }
 
+        const double inner_temperature = (layer_i > 0)
+            ? thermal_vec[layer_i - 1].top_temperature
+            : thermal.temperature;
         const double outer_temperature = (layer_i + 1 < n_layers)
             ? thermal_vec[layer_i + 1].temperature
             : (std::isfinite(surface_temperature) ? surface_temperature : thermal.temperature);
 
         c_CoolingInputs cooling_inputs;
-        cooling_inputs.delta_temp = std::fabs(thermal.temperature - outer_temperature);
+        cooling_inputs.delta_temp = std::fabs(inner_temperature - thermal.temperature)
+                                  + std::fabs(thermal.temperature - outer_temperature);
         cooling_inputs.thickness  = thickness;
         cooling_inputs.gravity    = gravity;
         cooling_inputs.density    = std::isfinite(material.density) ? material.density : layer->get_density_bulk();

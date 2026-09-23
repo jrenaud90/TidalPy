@@ -4,7 +4,8 @@ distributed to the layers in ``LayeredWorld.calc_tides``).
 Methods:
   * ``user_provided``   : use the layer's ``tidal_scale`` field directly (default).
   * ``volume_fraction`` : layer volume / planet volume.
-  * ``tidal_timescale`` : Maxwell-time bell curve (not yet wired; must raise loudly).
+  * ``tidal_timescale`` : the layers using it share their combined volume fraction, split by volume times a
+    Maxwell-time bell about the forcing period.
 
 These use an analytic ``cpl`` tide model so no EOS solve is needed (the scale distribution
 depends only on layer geometry and the model-supplied global heating).
@@ -107,14 +108,18 @@ def test_methods_can_differ_per_layer():
 # =====================================================================================================================
 # tidal_timescale (Maxwell-time bell curve about the orbital forcing period)
 # =====================================================================================================================
-def _cpl_timescale_world(shear_modulus, shear_viscosity, width=1.0):
+def _cpl_timescale_world(layers, width=1.0):
+    """A cpl world of concentric layers, each ``(outer radius fraction, shear modulus, shear viscosity, method)``."""
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0
     world = LayeredWorld("ts", _R, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _R, 0.0,
-                         tidal_scale_method="tidal_timescale")
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=4000.0, shear_modulus_static=shear_modulus, shear_viscosity_static=shear_viscosity))
-    world.add_layer(layer)
+    radius_inner = 0.0
+    for index, (radius_fraction, shear_modulus, shear_viscosity, method) in enumerate(layers):
+        layer = PhysicsLayer(f"layer_{index}", index, radius_inner, radius_fraction * _R, 0.0,
+                             tidal_scale_method=method)
+        layer.set_eos(ConstantDensityEOS(
+            reference_density=4000.0, shear_modulus_static=shear_modulus, shear_viscosity_static=shear_viscosity))
+        world.add_layer(layer)
+        radius_inner = radius_fraction * _R
     world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))
     world.set_tide_config(min_degree_l=2, max_degree_l=2,
                           eccentricity_truncation=2, obliquity_truncation=0,
@@ -122,56 +127,97 @@ def _cpl_timescale_world(shear_modulus, shear_viscosity, width=1.0):
     return world
 
 
-def test_tidal_timescale_peaks_at_orbital_period():
-    """When the layer's Maxwell time equals the orbital forcing period the scale is 1."""
-    forcing_period = 2.0 * math.pi / _N
-    shear_modulus = 6.0e10
-    shear_viscosity = forcing_period * shear_modulus   # tau = eta/mu = forcing_period
-    world = _cpl_timescale_world(shear_modulus, shear_viscosity)
-    _solve(world)
-    total = world.get_tidal_heating()
-    assert math.isclose(world.get_layer_tidal_heating(0), total, rel_tol=1.0e-6)
+_FORCING_PERIOD = 2.0 * math.pi / _N
+_MU = 6.0e10
+_ETA_AT_PEAK = _FORCING_PERIOD * _MU   # tau = eta / mu = the forcing period
 
 
-def test_tidal_timescale_falls_off_one_decade():
-    """One decade away from the forcing period the bell drops to exp(-0.5) (width = 1 decade)."""
-    forcing_period = 2.0 * math.pi / _N
-    shear_modulus = 6.0e10
-    shear_viscosity = 10.0 * forcing_period * shear_modulus   # tau = 10 * forcing_period
-    world = _cpl_timescale_world(shear_modulus, shear_viscosity, width=1.0)
+def test_tidal_timescale_single_layer_takes_its_volume_fraction():
+    """A lone layer using the method gets the whole world's heating wherever its Maxwell time sits."""
+    for viscosity in (_ETA_AT_PEAK, 10.0 * _ETA_AT_PEAK, 1.0e-3 * _ETA_AT_PEAK):
+        world = _cpl_timescale_world([(1.0, _MU, viscosity, "tidal_timescale")])
+        _solve(world)
+        assert math.isclose(world.get_layer_tidal_heating(0), world.get_tidal_heating(), rel_tol=1.0e-12)
+
+
+@pytest.mark.parametrize("width,decades", [(1.0, 1.0), (1.0, 2.0), (2.0, 1.0)])
+def test_tidal_timescale_splits_by_volume_times_the_bell(width, decades):
+    """Per unit volume, a layer ``decades`` off the forcing period gets exp(-(decades / width)^2 / 2) of one at it."""
+    world = _cpl_timescale_world([
+        (0.5, _MU, _ETA_AT_PEAK, "tidal_timescale"),
+        (1.0, _MU, 10.0 ** decades * _ETA_AT_PEAK, "tidal_timescale")], width=width)
     _solve(world)
     total = world.get_tidal_heating()
-    expected = math.exp(-0.5)
-    assert math.isclose(world.get_layer_tidal_heating(0) / total, expected, rel_tol=1.0e-6)
+    inner_volume, outer_volume = 0.125, 0.875   # fractions of the planet
+    inner, outer = world.get_layer_tidal_heating(0) / total, world.get_layer_tidal_heating(1) / total
+    weight = math.exp(-0.5 * (decades / width) ** 2)
+    assert math.isclose((outer / outer_volume) / (inner / inner_volume), weight, rel_tol=1.0e-9)
+    # Every layer uses the method, so the shares sum to the whole-body heating.
+    assert math.isclose(inner + outer, 1.0, rel_tol=1.0e-12)
+
+
+def test_tidal_timescale_equal_maxwell_times_give_volume_fractions():
+    """With one Maxwell time throughout, the method reduces to volume_fraction."""
+    world = _cpl_timescale_world([
+        (0.5, _MU, 3.0 * _ETA_AT_PEAK, "tidal_timescale"),
+        (1.0, _MU, 3.0 * _ETA_AT_PEAK, "tidal_timescale")])
+    _solve(world)
+    total = world.get_tidal_heating()
+    assert math.isclose(world.get_layer_tidal_heating(0), 0.125 * total, rel_tol=1.0e-12)
+    assert math.isclose(world.get_layer_tidal_heating(1), 0.875 * total, rel_tol=1.0e-12)
+
+
+def test_tidal_timescale_group_shares_its_volume_fraction_beside_other_methods():
+    """Beside a volume_fraction core, the method's layers together get their own volume fraction."""
+    world = _cpl_timescale_world([
+        (0.5, _MU, _ETA_AT_PEAK, "volume_fraction"),
+        (0.8, _MU, _ETA_AT_PEAK, "tidal_timescale"),
+        (1.0, _MU, 100.0 * _ETA_AT_PEAK, "tidal_timescale")])
+    _solve(world)
+    total = world.get_tidal_heating()
+    assert math.isclose(world.get_layer_tidal_heating(0), 0.125 * total, rel_tol=1.0e-12)
+    group_share = (world.get_layer_tidal_heating(1) + world.get_layer_tidal_heating(2)) / total
+    assert math.isclose(group_share, 1.0 - 0.125, rel_tol=1.0e-12)
+    assert world.get_layer_tidal_heating(1) > world.get_layer_tidal_heating(2)
 
 
 def test_tidal_timescale_zero_without_moduli():
-    """A layer with no shear modulus/viscosity has no Maxwell time, so the scale is 0."""
-    world = _cpl_timescale_world(0.0, 0.0)
+    """A layer with no shear modulus/viscosity has no Maxwell time, so its weight is 0."""
+    world = _cpl_timescale_world([(1.0, 0.0, 0.0, "tidal_timescale")])
     _solve(world)
     assert world.get_layer_tidal_heating(0) == 0.0
+    # Beside a usable layer, it gets nothing and the usable layer takes the group's whole share.
+    world = _cpl_timescale_world([
+        (0.5, 0.0, 0.0, "tidal_timescale"),
+        (1.0, _MU, 10.0 * _ETA_AT_PEAK, "tidal_timescale")])
+    _solve(world)
+    assert world.get_layer_tidal_heating(0) == 0.0
+    assert math.isclose(world.get_layer_tidal_heating(1), world.get_tidal_heating(), rel_tol=1.0e-12)
 
 
 def test_tidal_timescale_uses_the_solved_viscosity_model():
     """A viscosity set by a model (no static constant) reaches the Maxwell time once the EOS is solved."""
     from TidalPy.structures_x.configs import build_world
-    forcing_period = 2.0 * math.pi / _N
-    shear_modulus = 6.0e10
+
+    def solidliquid_layer(index, radius_fraction, maxwell_periods):
+        return {
+            "class": "solidliquid", "layer_index": index, "radius_fraction": radius_fraction, "is_tidal": True,
+            "tidal_scale_method": "tidal_timescale",
+            "material": {"model": "constant", "reference_density_kg_m3": 4000.0,
+                         "shear_modulus_static_pa": _MU,
+                         "shear_viscosity": {"model": "constant",
+                                             "reference_viscosity_pas": maxwell_periods * _ETA_AT_PEAK},
+                         "partial_melt": {"model": "off"}}}
+
     world = build_world({
         "schema_version": "0.2.0", "name": "ts-model", "type": "terrestrial", "radius_m": _R,
         "mass_kg": (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0,
         "tides": {"global_tidal_model": "cpl", "fixed_k": [0.3], "fixed_q": [50.0],
                   "eccentricity_trunc_lvl": 2, "obliquity_trunc_lvl": 0},
-        "layers": {"mantle": {
-            "class": "solidliquid", "layer_index": 0, "radius_fraction": 1.0, "is_tidal": True,
-            "tidal_scale_method": "tidal_timescale",
-            "material": {"model": "constant", "reference_density_kg_m3": 4000.0,
-                         "shear_modulus_static_pa": shear_modulus,
-                         # tau = eta / mu = 10 forcing periods, one decade off the peak
-                         "shear_viscosity": {"model": "constant",
-                                             "reference_viscosity_pas": 10.0 * forcing_period * shear_modulus},
-                         "partial_melt": {"model": "off"}}}}})
+        # tau = the forcing period in the inner layer, ten forcing periods (one decade off the peak) in the outer
+        "layers": {"inner": solidliquid_layer(0, 0.5, 1.0), "outer": solidliquid_layer(1, 1.0, 10.0)}})
     world.solve_eos()
     _solve(world)
     total = world.get_tidal_heating()
-    assert math.isclose(world.get_layer_tidal_heating(0) / total, math.exp(-0.5), rel_tol=1.0e-6)
+    inner, outer = world.get_layer_tidal_heating(0) / total, world.get_layer_tidal_heating(1) / total
+    assert math.isclose((outer / 0.875) / (inner / 0.125), math.exp(-0.5), rel_tol=1.0e-6)

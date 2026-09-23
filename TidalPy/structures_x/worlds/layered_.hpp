@@ -1472,15 +1472,20 @@ public:
             double* out_values,
             double* out_layer_totals);
 
-    // Effective per-layer tidal-heating scale for the layer's tidal_scale_method; calc_tides uses it to
-    // distribute the global heating to the layers.
+    // Per-layer shares of the global heating, one per layer; calc_tides uses them to distribute the heating to the
+    // layers (defined in world_tides_.hpp).
+    void calc_layer_tidal_scales(
+            double planet_volume, const c_TideSolveConfig& state, std::vector<double>& out) const;
+
+    // Tidal scale of one layer on its own; for the tidal_timescale method this is the bell weight that
+    // calc_layer_tidal_scales normalizes across the layers using it.
     double effective_tidal_scale(
             const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const;
 
     // Maxwell time [s] the tidal_timescale scale compares with the forcing period (defined in world_tides_.hpp).
     double layer_maxwell_time(const c_PhysicsLayer* phys) const;
 
-    // World heating times the layer's effective tidal scale; 0 for a non-tidal layer.
+    // World heating times the layer's share (calc_layer_tidal_scales); 0 for a non-tidal layer.
     double get_layer_tidal_heating(std::size_t index) const noexcept {
         if (!this->p_tides_solved || index >= this->p_layer_tidal_heating.size()) {
             return TidalPyConstants::d_NAN;
