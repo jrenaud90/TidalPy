@@ -42,8 +42,13 @@ def global_potential(
                 i_obliquity_truncation = int(obliquity_truncation)
             except ValueError:
                 raise ValueError("Unexpected obliquity truncation encountered.")
-    elif isinstance(obliquity_truncation, int):
-        i_obliquity_truncation = obliquity_truncation
+    elif isinstance(obliquity_truncation, bool):
+        raise ValueError("An obliquity truncation is 'off', 'gen', or an integer level, not a bool.")
+    elif isinstance(obliquity_truncation, (int, float)) and float(obliquity_truncation).is_integer():
+        # A whole-valued float (2.0) is the level it names, rather than falling through to 'off'.
+        i_obliquity_truncation = int(obliquity_truncation)
+    else:
+        raise ValueError(f"Unexpected obliquity truncation {obliquity_truncation!r}.")
     if i_obliquity_truncation not in (0, 1, 2, 10):
         raise NotImplementedError(
             f"Obliquity truncation {i_obliquity_truncation} is not tabulated. "

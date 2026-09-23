@@ -14,15 +14,20 @@ struct c_GlobalPotentialResultAtMode
     double dU_dw;
     double dU_dO;
     double E_dot;
+    // dU_dM - dU_dw of this mode, which is q times the common coefficient. Summed on its own it carries none of the
+    // cancellation of the two separate sums, whose q = 0 modes agree and dominate at small eccentricity.
+    double dU_dM_minus_dw;
     c_GlobalPotentialResultAtMode(
             double dU_dM_,
             double dU_dw_,
             double dU_dO_,
-            double E_dot_) :
+            double E_dot_,
+            double dU_dM_minus_dw_) :
         dU_dM(dU_dM_),
         dU_dw(dU_dw_),
         dU_dO(dU_dO_),
-        E_dot(E_dot_)
+        E_dot(E_dot_),
+        dU_dM_minus_dw(dU_dM_minus_dw_)
     {
     }
 };
@@ -245,8 +250,10 @@ inline c_GlobalPotentialStorage c_global_potential(
                                 (d_n_coeff - static_cast<double>(lmpq_key.d)) * mode_sign * common_coeff,
                                 // dU_dSig (node)
                                 -d_o_coeff * mode_sign * common_coeff,
-                                // Heating 
-                                std::abs(mode_storage.mode) * host_mass * common_coeff
+                                // Heating
+                                std::abs(mode_storage.mode) * host_mass * common_coeff,
+                                // dU_dM - dU_dw, exactly: the (l - 2p) parts cancel before any rounding
+                                static_cast<double>(lmpq_key.d) * mode_sign * common_coeff
                             )
                         );
                     }

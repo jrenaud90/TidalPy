@@ -42,11 +42,12 @@ def tidal_potential_3d_modes(
         int min_degree_l=2,
         int max_degree_l=2,
         int eccentricity_truncation=3,
-        int obliquity_truncation=0):
+        int obliquity_truncation=10):
     """Active tidal modes with complex potential angular-factor amplitudes at one point.
 
     The body radius comes first, then the orbital state in the same order as the world's ``calc_tides``,
-    then Newton's constant, the point's colatitude and longitude, and the degree range and truncations.
+    then Newton's constant, the point's colatitude and longitude, and the degree range and truncations. The
+    obliquity truncation defaults to the general form (10), as the world's does; 0 ignores the obliquity.
 
     Returns
     -------

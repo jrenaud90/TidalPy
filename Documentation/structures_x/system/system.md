@@ -86,7 +86,9 @@ system = build_system("sol_system")      # a bundled system name, a .toml path, 
 system.calc_insolation_flux("earth")     # ~1361 W/m^2 (the solar constant)
 ```
 
-`build_system(source, force=False)`, a thin wrapper over `System.build` that mirrors `build_world` and `BaseWorld.build`, resolves the source, validates it (schema version and structure), and builds each member world with `build_world`. `construct_system(config)` does the same from an already-parsed `dict`. To make the star and the tidal host different bodies, give a world a `tidal_host` other than the world marked `is_star` (_e.g._, a moon whose tidal host is its planet but whose insolation comes from the system star), and give each world both a tidal-host orbit (`semi_major_axis_m` and `eccentricity`) and a stellar orbit (`stellar_semi_major_axis_m` and `stellar_eccentricity`).
+`build_system(source, force=False)`, a thin wrapper over `System.build` that mirrors `build_world` and `BaseWorld.build`, resolves the source, validates it (schema version and structure), and builds each member world with `build_world`. `construct_system(config)` does the same from an already-parsed `dict`. To make the star and the tidal host different bodies, give a world a `tidal_host` other than the world marked `is_star` (_e.g._, a moon whose tidal host is its planet but whose insolation comes from the system star), and give each world both a tidal-host orbit (`semi_major_axis_m` and `eccentricity`) and a stellar orbit (`stellar_semi_major_axis_m` and `stellar_eccentricity`). A member's `world` may be a bundled name or a path to a world file; a relative path is relative to the system file, as a world's `data_file` is relative to the world file.
+
+A system refuses what would give it no bound orbit or an ambiguous member, raising `ValueError`: a semi-major axis that is not positive, an eccentricity outside $[0, 1)$ (from `add_world`, the orbit setters, or a file), a second world with a name already in the system, and the same world object added twice. A world is named by its index (any integer type, numpy's included), its name, or the object itself; a `bool` is refused rather than read as index 0 or 1.
 
 A built system retains its normalized configuration on `source_config` and can be written back out:
 
@@ -138,7 +140,7 @@ The mean motion follows Kepler's third law using the combined host and world mas
 
 ## Star and Insolation
 
-The star is designated with `is_star` (or `set_star`) and drives insolation. Each world carries its own orbit about the star, independent of the tidal-host orbit:
+The star is designated with `is_star` (or `set_star`) and drives insolation. Each world carries its own orbit about the star, independent of the tidal-host orbit, except for a world whose tidal host is the star: there the two are one orbit, so the stellar elements read the tidal ones, setting either sets both, and an evolution loop that moves the orbit moves the insolation with it.
 
 ```python
 system.star                              # the star world (or None)
@@ -176,22 +178,25 @@ A world that belongs to a system can be asked for the same state directly: `worl
 ```python
 ev = system.calc_world_evolution("moon")
 ev["da_dt"], ev["de_dt"], ev["dn_dt"]     # orbital rates [m/s], [1/s], [rad/s^2]
-ev["dspin_dt"]                            # spin rate [rad/s^2] (0 without a spin model)
+ev["dspin_dt"]                            # spin rate [rad/s^2] (NaN for a dissipating world with no spin model)
 ev["tidal_heating"]                       # [W]
 ev["energy_residual"]                     # heating + dE_orbit/dt + dE_spin/dt (~0 under conservation)
 ```
 
-The returned dict also carries the state used (`orbital_frequency`, `semi_major_axis`, `eccentricity`, `spin_frequency`, `host_mass`, `target_mass`), the raw tidal outputs (`dU_dM`, `dU_dw`, `dU_dO`), the `moment_of_inertia` and `has_spin` flag, and the energy terms (`dE_orbit_dt`, `dE_spin_dt`). `evolved` is `False` for the host's own entry or a world with no usable orbit about the host; its rates are then zero. `calc_system_evolution()` returns one such dict per world, in index order.
+The returned dict also carries the state used (`orbital_frequency`, `semi_major_axis`, `eccentricity`, `spin_frequency`, `host_mass`, `target_mass`), the raw tidal outputs (`dU_dM`, `dU_dw`, `dU_dO`), the `moment_of_inertia` and `has_spin` flag, and the energy terms (`dE_orbit_dt`, `dE_spin_dt`). A dissipating world with no spin model (a star or a gas giant with a fixed-Q tide, say) is torqued like any other, but nothing knows its moment of inertia, so its `dspin_dt`, `dE_spin_dt`, and `energy_residual` are NaN rather than a zero the balance would contradict; a rigid world (no tide model) raises no tide and reports zeros. `evolved` is `False` for the host's own entry or a world with no usable orbit about the host; its rates are then zero. `calc_system_evolution()` returns one such dict per world, in index order.
 
 The rates follow the orbital rate engine (`dynamics_x`). With the tidal-potential derivatives $\partial U/\partial X$ of the [global tides](../../Tides_x/global_tides.md) converted to disturbing-function derivatives $\partial\mathcal{R}/\partial X = -\frac{M_{w} + M_{h}}{M_{w}}\,\partial U/\partial X$, for the world mass $M_{w}$ and the host mass $M_{h}$,
 
 $$\frac{da}{dt} = \frac{2}{na}\,\frac{\partial\mathcal{R}}{\partial\mathcal{M}}, \qquad \frac{de}{dt} = \frac{\sqrt{1-e^{2}}}{na^{2}e}\left(\sqrt{1-e^{2}}\,\frac{\partial\mathcal{R}}{\partial\mathcal{M}} - \frac{\partial\mathcal{R}}{\partial\varpi}\right), \qquad \frac{dn}{dt} = -\frac{3}{2}\,\frac{n}{a}\,\frac{da}{dt},$$
 
-with $de/dt = 0$ at $e = 0$. The spin rate comes from the world's attached spin model, $\ddot{\theta} = (M_{h}/C)\,\partial U/\partial\Omega$, with $C$ the polar moment of inertia. The heating and the orbit and spin energy loss balance,
+with $de/dt = 0$ at $e = 0$. At small eccentricity the bracket is of order $e^{2}$ while each of its terms is of order one (for a spin that is not synchronous), so it is evaluated as $-\frac{e^{2}}{1 + \sqrt{1-e^{2}}}\,\partial\mathcal{R}/\partial\mathcal{M} + \partial\mathcal{R}/\partial(\mathcal{M} - \varpi)$, the last term summed mode by mode in the tidal collapse, where it holds no cancellation: $de/dt / e$ then stays exact however small $e$ gets. The spin rate comes from the world's attached spin model, $\ddot{\theta} = (M_{h}/C)\,\partial U/\partial\Omega$, with $C$ the polar moment of inertia. The heating and the orbit and spin energy loss balance,
 
 $$\dot{E} = -\left(\frac{dE_\mathrm{orbit}}{dt} + \frac{dE_\mathrm{spin}}{dt}\right), \qquad E_\mathrm{orbit} = -\frac{G M_{h} M_{w}}{2a}, \qquad E_\mathrm{spin} = \frac{1}{2}\,C\,\dot{\theta}^{2}.$$
 
 Each world evolves on its own two-body orbit about its tidal host and dissipates independently.
+
+> [!NOTE]
+> A world's spin is its own `spin_frequency`, which a system does not change. A bundled world's spin is the synchronous rate of a rounded rotation period, which differs slightly from the mean motion the system computes by Kepler's third law (by about 2e-4 for Io and Europa). For a strongly dissipative world that small difference adds a slow tide at 2(n - spin) that can dominate the heating, so set the spin from the system first to keep the world synchronous: `world.set_spin_frequency(system.calc_orbital_frequency(world))`.
 
 ### Dual-Body Dissipation
 

@@ -16,9 +16,10 @@ cdef extern from "orbit_solver_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_OrbitSolver:
         c_OrbitSolver()
         double calc_da_dt(const c_OrbitState& state, double dU_dM)
-        double calc_de_dt(const c_OrbitState& state, double dU_dM, double dU_dw)
+        double calc_de_dt(const c_OrbitState& state, double dU_dM, double dU_dw, double dU_dM_minus_dw)
         double calc_dn_dt(double orbital_frequency, double semi_major_axis, double da_dt)
-        c_OrbitDerivatives calc_derivatives(const c_OrbitState& state, double dU_dM, double dU_dw)
+        c_OrbitDerivatives calc_derivatives(
+            const c_OrbitState& state, double dU_dM, double dU_dw, double dU_dM_minus_dw)
 
 
 cdef class OrbitSolver:

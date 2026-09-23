@@ -56,16 +56,17 @@ inline std::complex<double> c_z_calc(
         const double l2_7   = l2 + 7.0;
         const double l2_9   = l2 + 9.0;
         const double l2_11  = l2 + 11.0;
-        const std::complex<double> x_sq2 = x_squared * x_squared;
-        const std::complex<double> x_sq4 = x_sq2 * x_sq2;
-        const std::complex<double> x_sq6 = x_sq4 * x_sq2;
-        const std::complex<double> x_sq8 = x_sq6 * x_sq2;
+        // Powers of u = x^2: the series runs u, u^2, u^3, u^4, u^5.
+        const std::complex<double> u_2 = x_squared * x_squared;
+        const std::complex<double> u_3 = u_2 * x_squared;
+        const std::complex<double> u_4 = u_2 * u_2;
+        const std::complex<double> u_5 = u_4 * x_squared;
 
-        z = (x_squared                     / l2_3) +
-            (x_sq2                         / (l2_3sq * l2_5)) +
-            (x_sq4 * 2.0                   / (l2_3cb * l2_5 * l2_7)) +
-            (x_sq6 * (27.0 + 10.0 * l_dbl) / (l2_3cb * l2_3 * l2_5sq * l2_7 * l2_9)) +
-            (x_sq8 * (90.0 + 28.0 * l_dbl) / (l2_3cb * l2_3sq * l2_5sq * l2_7 * l2_9 * l2_11));
+        z = (x_squared                   / l2_3) +
+            (u_2                         / (l2_3sq * l2_5)) +
+            (u_3 * 2.0                   / (l2_3cb * l2_5 * l2_7)) +
+            (u_4 * (27.0 + 10.0 * l_dbl) / (l2_3cb * l2_3 * l2_5sq * l2_7 * l2_9)) +
+            (u_5 * (90.0 + 28.0 * l_dbl) / (l2_3cb * l2_3sq * l2_5sq * l2_7 * l2_9 * l2_11));
     }
 
     return z;

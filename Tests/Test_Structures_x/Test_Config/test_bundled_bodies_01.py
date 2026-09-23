@@ -15,8 +15,8 @@ inertia, so for them the expected C/MR2 is the value the file's comment records:
 the comment from rotting, but it is not a check on the interior. ``Body.moi_measured`` says which is which.
 
 Every layer states its temperature and every solid layer carries a reference-law viscosity at it, so every
-solid layer dissipates, and each world's per-layer tidal_scale values come from integrating the depth-resolved
-3D heating (author decisions 2026-09-19 and 2026-09-21). Four bodies pin a tidal observable as well. Io has
+solid layer dissipates, and calc_tides resolves each layer's share of the heating from the radial solution. Four
+bodies pin a tidal observable as well. Io has
 its asthenosphere viscosity fitted so that the total dissipation matches the astrometric value of Lainey et
 al. (2009). Mercury, Luna, and Earth-Simple declare their fluid outer cores as static liquids and have their
 mantle rigidity fitted to the measured k2; for each the fluid core is worth a large factor in k2, so the
@@ -221,12 +221,29 @@ def test_bundled_body_declares_its_liquid_layers(body):
     assert not any(layer.is_incompressible for layer in world)
 
 
+def _synchronous_tides(world, period_days, host_mass, eccentricity):
+    """calc_tides on a synchronous orbit of the given period about a host of the given mass [kg]."""
+    world.solve_eos()
+    mean_motion = 2.0 * math.pi / (period_days * 86400.0)
+    semi_major_axis = (_G * host_mass / mean_motion ** 2) ** (1.0 / 3.0)
+    world.set_spin_frequency(mean_motion)
+    world.calc_tides(mean_motion, mean_motion, eccentricity, 0.0, semi_major_axis, host_mass)
+    total = world.get_tidal_heating()
+    return {layer.name: world.get_layer_tidal_heating(index) / total for index, layer in enumerate(world)}
+
+
 @pytest.mark.parametrize("body", _cases())
-def test_bundled_body_tidal_scales_sum_to_one(body):
-    """Per-layer scales must partition the world's heating, not repeat it."""
+def test_bundled_body_layer_heating_partitions_the_total(body):
+    """calc_tides splits the heating between the layers by the radial solution: the shares sum to one and a liquid
+    layer takes none. The bundled worlds leave every tidal scale unset, which only the quasi-homogeneous Love
+    methods read."""
     world = build_world(body.name)
-    scales = [layer.tidal_scale for layer in world if layer.is_tidal]
-    assert sum(scales) == pytest.approx(1.0, abs=1e-4), scales
+    assert all(layer.tidal_scale is None for layer in world)
+    shares = _synchronous_tides(world, body.spin_period_days, _MASS_JUPITER, 0.01)
+    assert sum(shares.values()) == pytest.approx(1.0, rel=1e-10), shares
+    for name in body.liquid_layers:
+        assert shares[name] == 0.0, name
+    assert all(share >= 0.0 for share in shares.values()), shares
 
 
 @pytest.mark.parametrize("body", _cases())
@@ -383,12 +400,11 @@ def test_luna_relaxation_peak_sits_between_the_month_and_the_year():
 
 
 def test_luna_deep_zone_does_most_of_the_dissipating():
-    """The 3D split the tidal_scale values record: about 85 percent in the zone, 15 in the mantle above it."""
-    world = build_world("luna")
-    scales = {layer.name: layer.tidal_scale for layer in world}
-    assert scales["lower_mantle"] == pytest.approx(0.852, abs=0.005)
-    assert scales["mantle"] == pytest.approx(0.148, abs=0.005)
-    assert scales["crust"] < 1.0e-3 and scales["inner_core"] < 1.0e-6
+    """The split the file's comment records: about 85 percent in the zone, 15 in the mantle above it."""
+    shares = _synchronous_tides(build_world("luna"), 27.321661, 5.972e24, 0.0549)
+    assert shares["lower_mantle"] == pytest.approx(0.852, abs=0.005)
+    assert shares["mantle"] == pytest.approx(0.148, abs=0.005)
+    assert shares["crust"] < 1.0e-3 and shares["inner_core"] < 1.0e-6
 
 
 # =====================================================================================================================
@@ -642,11 +658,12 @@ def test_pluto_ocean_is_worth_a_factor_of_thirty_in_its_love_number():
 
 
 def test_pluto_ocean_takes_none_of_the_tidal_heating():
-    """A liquid layer contributes no shear dissipation, so the ocean carries no tidal_scale and the solid
-    layers' scales still partition the whole."""
+    """A liquid layer contributes no shear dissipation, so the ocean takes none of the heat and the solid layers
+    take the whole."""
     world = build_world("pluto")
     assert not world.ocean.is_tidal
-    scales = [layer.tidal_scale for layer in world if layer.is_tidal]
-    assert sum(scales) == pytest.approx(1.0, abs=1e-4)
+    # Charon's mass on the mutual orbit.
+    shares = _synchronous_tides(world, 6.3872, 1.586e21, 0.005)
+    assert shares["ocean"] == 0.0
     # The decoupled shell takes nearly all of it; without the ocean the core would take 4 percent.
-    assert world.ice_shell.tidal_scale > 0.99
+    assert shares["ice_shell"] > 0.99

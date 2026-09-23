@@ -6,6 +6,8 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
+from libc.math cimport NAN
+
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
@@ -60,10 +62,13 @@ cdef class OrbitSolver:
             double target_mass,
             double host_mass,
             double dU_dM,
-            double dU_dw) -> float:
+            double dU_dw,
+            dU_dM_minus_dw=None) -> float:
         """Eccentricity rate [s-1]: ``de/dt = (sqrt(1-e^2)/(n a^2 e))(sqrt(1-e^2) dR/dM - dR/dw)``.
 
-        Zero for a circular orbit, where the ``1/e`` term is indeterminate.
+        Zero for a circular orbit, where the ``1/e`` term is indeterminate. ``dU_dM_minus_dw``, the collapse's
+        per-mode sum of ``dU_dM - dU_dw`` (``tide_result["dUdM_minus_dw"]``), keeps the rate exact at small
+        eccentricity, where the two separate sums nearly cancel; without it the difference is formed from them.
         """
         cdef c_OrbitState state = cy_make_state(
             orbital_frequency,
@@ -71,7 +76,7 @@ cdef class OrbitSolver:
             eccentricity,
             target_mass,
             host_mass)
-        return self._solver.calc_de_dt(state, dU_dM, dU_dw)
+        return self._solver.calc_de_dt(state, dU_dM, dU_dw, NAN if dU_dM_minus_dw is None else dU_dM_minus_dw)
 
     def calc_dn_dt(
             self,
@@ -89,13 +94,16 @@ cdef class OrbitSolver:
             double target_mass,
             double host_mass,
             double dU_dM,
-            double dU_dw) -> dict:
-        """All three rates as a dict with keys ``da_dt``, ``de_dt``, ``dn_dt``."""
+            double dU_dw,
+            dU_dM_minus_dw=None) -> dict:
+        """All three rates as a dict with keys ``da_dt``, ``de_dt``, ``dn_dt``; see ``calc_de_dt`` for
+        ``dU_dM_minus_dw``."""
         cdef c_OrbitState state = cy_make_state(
             orbital_frequency,
             semi_major_axis,
             eccentricity,
             target_mass,
             host_mass)
-        cdef c_OrbitDerivatives out = self._solver.calc_derivatives(state, dU_dM, dU_dw)
+        cdef c_OrbitDerivatives out = self._solver.calc_derivatives(
+            state, dU_dM, dU_dw, NAN if dU_dM_minus_dw is None else dU_dM_minus_dw)
         return {'da_dt': out.da_dt, 'de_dt': out.de_dt, 'dn_dt': out.dn_dt}

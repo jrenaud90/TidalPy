@@ -44,7 +44,12 @@ where $dy_{1}/dr$ comes from the radial equations of the layer's type. The stres
 
 $$\sigma_{ij} = 2\mu^{*}\varepsilon_{ij} + \lambda^{*}\varepsilon_{kk}\,\delta_{ij}, \qquad \lambda^{*} = K^{*} - \tfrac{2}{3}\mu^{*},$$
 
-with both moduli taken at $r$ and at the mode's frequency. The kernel is a solid-layer computation: a liquid (a liquid layer, or a molten stretch of a solid layer that the radial solver treats as a static liquid) contributes no shear dissipation, so its heating is 0 while its stress and strain are NaN. The poles themselves ($\sin\theta$ within machine epsilon of 0, at both $0$ and $\pi$) are singular points of the angular terms, so point-wise values there are NaN; use colatitudes inside $(0, \pi)$, as the Gauss-Legendre nodes of the summed paths do.
+with both moduli taken at $r$ and at the mode's frequency.
+
+> [!NOTE]
+> In a layer the radial solver treats as incompressible, the strain has no trace, so this law drops the pressure: the normal stresses ($\sigma_{rr}$, $\sigma_{\theta\theta}$, $\sigma_{\phi\phi}$) miss their isotropic part, and $\sigma_{rr}$ came out about 13 percent below that of a nearly incompressible compressible twin in a test. The deviatoric stress, the strain, and so the heating are unaffected (the 1D and 3D heating of such a layer agree to about 1e-4). Solve the layer as compressible when its normal stresses matter; carrying the pressure from $y_{2}$ is planned.
+
+The kernel is a solid-layer computation: a liquid (a liquid layer, or a molten stretch of a solid layer that the radial solver treats as a static liquid) contributes no shear dissipation, so its heating is 0 while its stress and strain are NaN. The poles themselves ($\sin\theta$ within machine epsilon of 0, at both $0$ and $\pi$) are singular points of the angular terms, so point-wise values there are NaN; use colatitudes inside $(0, \pi)$, as the Gauss-Legendre nodes of the summed paths do.
 
 ### Coherent Waves
 

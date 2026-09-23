@@ -10,6 +10,11 @@
  *   da/dt = (2 / (n a)) dR/dM
  *   de/dt = (sqrt(1-e^2) / (n a^2 e)) ( sqrt(1-e^2) dR/dM - dR/dw )
  *   dn/dt = -(3/2)(n / a) da/dt               // Kepler's third law differentiated
+ *
+ * At small e the bracket of de/dt is O(e^2) while each term is O(1) (with a non-synchronous spin), so it is
+ * evaluated as
+ *   sqrt(1-e^2) dR/dM - dR/dw = -(e^2 / (1 + sqrt(1-e^2))) dR/dM + d(R)/d(M - w),
+ * with d(R)/d(M - w) from the per-mode sum dU_dM_minus_dw of the collapse, which holds no cancellation.
  */
 
 #include <cmath>
@@ -48,17 +53,26 @@ public:
     }
 
     // de/dt = (sqrt(1-e^2) / (n a^2 e)) ( sqrt(1-e^2) dR/dM - dR/dw ). Zero for a circular orbit, where
-    // the 1/e term is indeterminate.
-    double calc_de_dt(const c_OrbitState& state, double dU_dM, double dU_dw) const noexcept {
+    // the 1/e term is indeterminate. dU_dM_minus_dw is the per-mode sum of dU_dM - dU_dw (see the header); NaN
+    // forms it from the two sums instead, which loses precision as e^2 approaches the rounding of either.
+    double calc_de_dt(
+            const c_OrbitState& state,
+            double dU_dM,
+            double dU_dw,
+            double dU_dM_minus_dw = TidalPyConstants::d_NAN) const noexcept {
         const double denom = state.orbital_frequency * state.semi_major_axis
                            * state.semi_major_axis * state.eccentricity;
         if (std::abs(denom) <= TidalPyConstants::d_EPS) {
             return 0.0;
         }
-        const double dR_dM = this->calc_dR(state, dU_dM);
-        const double dR_dw = this->calc_dR(state, dU_dw);
-        const double ecc_term = std::sqrt(1.0 - state.eccentricity * state.eccentricity);
-        return (ecc_term / denom) * (ecc_term * dR_dM - dR_dw);
+        const double e2       = state.eccentricity * state.eccentricity;
+        const double ecc_term = std::sqrt(1.0 - e2);
+        const double dR_dM    = this->calc_dR(state, dU_dM);
+        const double dR_dMw   = std::isfinite(dU_dM_minus_dw)
+            ? this->calc_dR(state, dU_dM_minus_dw)
+            : (dR_dM - this->calc_dR(state, dU_dw));
+        // sqrt(1-e^2) - 1 = -e^2 / (1 + sqrt(1-e^2)), with no cancellation.
+        return (ecc_term / denom) * (-(e2 / (1.0 + ecc_term)) * dR_dM + dR_dMw);
     }
 
     // dn/dt = -(3/2)(n / a) da/dt, from Kepler's third law.
@@ -75,10 +89,11 @@ public:
     c_OrbitDerivatives calc_derivatives(
             const c_OrbitState& state,
             double dU_dM,
-            double dU_dw) const noexcept {
+            double dU_dw,
+            double dU_dM_minus_dw = TidalPyConstants::d_NAN) const noexcept {
         c_OrbitDerivatives out;
         out.da_dt = this->calc_da_dt(state, dU_dM);
-        out.de_dt = this->calc_de_dt(state, dU_dM, dU_dw);
+        out.de_dt = this->calc_de_dt(state, dU_dM, dU_dw, dU_dM_minus_dw);
         out.dn_dt = this->calc_dn_dt(state.orbital_frequency, state.semi_major_axis, out.da_dt);
         return out;
     }

@@ -1,6 +1,6 @@
 # Luminosity Models (`stellar_x`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-23_
 
 A luminosity model maps a star's mass onto its luminosity $L$ \[W\]. That sets the effective temperature through the Stefan-Boltzmann law, and, once the star is placed in a `System`, the flux and equilibrium temperature of every world orbiting it.
 
@@ -47,7 +47,16 @@ A piecewise function of the star's mass, with one power law per mass range. Belo
 | $2 \le x < 55$ | $L = 1.4\, L_\odot\, x^{3.5}$ |
 | $x \ge 55$ | $L = 3.2 \times 10^{4}\, L_\odot\, x$ |
 
-The mass-ratio exponent in the second branch helps the fit across the whole M-dwarf range. The last two branches meet at $x = 55$, where both give about $1.75 \times 10^{6}\, L_\odot$, so the relation is continuous there.
+The mass-ratio exponent in the second branch helps the fit across the whole M-dwarf range. The branches are the published fits as they stand, and not every joint is continuous:
+
+| Joint | Below | Above | Step |
+|---|---|---|---|
+| $x = 0.2$ | $5.68 \times 10^{-3}\, L_\odot$ | $4.62 \times 10^{-3}\, L_\odot$ | $-18.7$ percent |
+| $x = 0.85$ | | | continuous |
+| $x = 2$ | $16.0\, L_\odot$ | $15.8\, L_\odot$ | $-1.0$ percent |
+| $x = 55$ | $1.73 \times 10^{6}\, L_\odot$ | $1.76 \times 10^{6}\, L_\odot$ | $+1.9$ percent |
+
+At $x = 0.2$ the luminosity falls as the mass rises across the joint, so a star evolved through it (or a sweep across it) sees a step. Keep a model's masses on one side of a joint, or blend the branches, when that matters.
 
 ### Power Law
 

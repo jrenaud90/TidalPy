@@ -114,7 +114,7 @@ def test_the_short_list_switch_silences_it(monkeypatch):
 def test_every_setting_reaches_the_world():
     tides = {
         "min_degree_l": 2, "max_degree_l": 4, "eccentricity_trunc_lvl": 5, "obliquity_trunc_lvl": 2,
-        "tidal_timescale_width_decades": 2.5, "love_method": "homogeneous", "love_fixed_q": 120.0,
+        "layer_tidal_heating": False, "love_method": "homogeneous", "love_fixed_q": 120.0,
         "love_fixed_dt_s": 45.0}
     world = build_world(_config("terrestrial", tides))
     found = world.get_tide_config()
@@ -165,12 +165,12 @@ def test_set_tide_config_changes_only_the_given_settings():
     from TidalPy.structures_x.configs import build_world
     world = build_world("io")
     world.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=5, obliquity_truncation=0,
-                          tidal_timescale_width_decades=2.0, love_method="homogeneous", love_fixed_q=80.0)
+                          layer_tidal_heating=False, love_method="homogeneous", love_fixed_q=80.0)
     before = world.get_tide_config()
     world.set_tide_config(eccentricity_truncation=10)
     after = world.get_tide_config()
     assert after["eccentricity_trunc_lvl"] == 10
-    for key in ("min_degree_l", "max_degree_l", "obliquity_trunc_lvl", "tidal_timescale_width_decades",
+    for key in ("min_degree_l", "max_degree_l", "obliquity_trunc_lvl", "layer_tidal_heating",
                 "love_method", "love_fixed_q"):
         assert after[key] == before[key]
     world.set_tide_config(love_fixed_q=float("nan"))   # NaN clears it

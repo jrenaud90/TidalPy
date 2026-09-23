@@ -258,9 +258,11 @@ struct c_TidalWave3D {
     std::complex<double> amplitude {0.0, 0.0};   // coherent complex amplitude (parity phase, conjugation, merge applied)
 };
 
-// Integer combinations of n and the spin rate that agree mathematically can still differ at the last bit.
+// Integer combinations of n and the spin rate that agree mathematically can still differ at the last bit; the
+// tolerance is the 1D path's (c_frequency_match_rtol, [numerical] frequency_match_rtol).
 inline bool c_tidal_wave_same_frequency(double frequency_a, double frequency_b) {
-    return std::abs(frequency_a - frequency_b) <= 1.0e-9 * std::max(std::abs(frequency_a), std::abs(frequency_b));
+    return std::abs(frequency_a - frequency_b)
+        <= c_frequency_match_rtol() * std::max(std::abs(frequency_a), std::abs(frequency_b));
 }
 
 // Drops modes at or below min_frequency, which dissipate nothing, and waves whose merged amplitude cancels.
