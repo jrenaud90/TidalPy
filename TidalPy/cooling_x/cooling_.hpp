@@ -97,9 +97,10 @@ inline c_CoolingResult cool_convection(
     // A NaN from another input (the viscosity, say) falls through so it reaches the caller.
     if (no_contrast || too_thin || (nusselt <= min_nusselt)) { nusselt = min_nusselt; }
 
+    // With no contrast the boundary layer still follows the floored Nusselt number: the thermal network uses it
+    // as the resistance between this layer and its neighbors, whose temperatures can differ from this one's.
     double blt = in.thickness / cool_guard(nusselt);
-    if (no_contrast) { blt = 1.0; }
-    if (too_thin)    { blt = in.thickness; }
+    if (too_thin) { blt = in.thickness; }
 
     result.cooling_flux    = in.thermal_conductivity * in.delta_temp / cool_guard(blt);
     result.blt             = blt;
