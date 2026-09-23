@@ -21,9 +21,9 @@
 # modulus is the one number fitted to a tidal observable: 4.347e10 Pa gives k2 = 0.569 at the 87.9691 day
 # orbital period (Genova et al. 2019: 0.569 +/- 0.025); the 6e10 Pa default gave 0.478, and a solid outer
 # core with the fitted mantle gives about 0.12. The mantle's Q at that period is 120. The mantle
-# dissipates all but 7e-6 of the tidal heat (the inner core the rest), which the tidal_scale values
-# record; with the Sun's mass and Mercury's orbit (a = 5.7909e10 m, e = 0.2056) and its 3:2 spin the
-# total is 1.9e9 W.
+# dissipates all but 7e-6 of the tidal heat (the inner core the rest), as calc_tides reports per layer;
+# with the Sun's mass and Mercury's orbit (a = 5.7909e10 m, e = 0.2056) and its 3:2 spin the total is
+# 1.9e9 W.
 #
 # Orbital state is not a world property in this schema; add Mercury to a System to give it an orbit. The
 # spin frequency is the 58.6462 day sidereal rotation, the 3:2 resonant rate rather than synchronous.
@@ -46,7 +46,6 @@ type = "iron"
 layer_index = 0
 radius_outer_m = 1277250.0
 is_tidal = true
-tidal_scale = 0.0000074
 temperature_k = 1800.0
 
 [layers.inner_core.material]
@@ -79,7 +78,6 @@ type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0
 is_tidal = true
-tidal_scale = 0.9999926
 temperature_k = 1600.0
 
 [layers.mantle.material]

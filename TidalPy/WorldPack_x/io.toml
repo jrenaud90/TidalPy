@@ -26,13 +26,14 @@
 # The asthenosphere viscosity is the one fitted number: 3.5362e12 Pa s gives a total tidal heating of
 # 9.330e13 W with Jupiter's mass and Io's orbit (a = 4.217e8 m, e = 0.0041, synchronous rotation),
 # the astrometric value of Lainey et al. (2009), (9.33 +/- 1.83)e13 W, or about 2.2 W/m2 at the
-# surface. The per-layer `tidal_scale` values are the fractions of that total each layer dissipates
-# according to the depth-resolved 3D heating integral (calc_3d_tides), which agrees with the 1D total
-# to better than one part in a billion: core 6.4e-6, mantle 0.0408747, asthenosphere 0.9591189. Set this
-# way, the layer heating values partition the world total instead of each repeating it.
+# surface. calc_tides splits that total between the layers by the depth-resolved heating of the radial
+# solution: core 6.4e-6, mantle 0.0408747, asthenosphere 0.9591189.
 #
 # Orbital state is not a world property in this schema; add Io to a System to give it an orbit. The
-# spin frequency is the synchronous rate from the classic file's 1.769 day spin period.
+# spin frequency is the synchronous rate from the classic file's 1.769 day spin period, which differs
+# from a System's Kepler mean motion by about 2e-4; the slow 2(n - spin) tide at that difference then
+# dominates the heating. In a System, keep Io synchronous with
+# world.set_spin_frequency(system.calc_orbital_frequency(world)).
 schema_version = "0.2.0"
 name = "Io"
 type = "terrestrial"
@@ -52,7 +53,6 @@ type = "iron"
 layer_index = 0
 radius_outer_m = 810000.0
 is_tidal = true
-tidal_scale = 0.0000064
 temperature_k = 1900.0
 
 [layers.core.material]
@@ -72,7 +72,6 @@ type = "mantle_rock"
 layer_index = 1
 radius_outer_m = 1721490.0
 is_tidal = true
-tidal_scale = 0.0408747
 temperature_k = 1600.0
 
 [layers.mantle.material]
@@ -95,7 +94,6 @@ type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0
 is_tidal = true
-tidal_scale = 0.9591189
 temperature_k = 1600.0                  # at the solidus of the default partial-melt model
 
 [layers.asthenosphere.material]

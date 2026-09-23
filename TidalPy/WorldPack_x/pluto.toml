@@ -28,11 +28,10 @@
 # ocean frozen into the shell. Nothing is fitted to that, since Pluto has no measured k2, but it is the
 # largest single consequence of the ocean and a test pins both numbers.
 #
-# Pluto and Charon are mutually synchronous on a nearly circular orbit, so the present tide is small. The
-# tidal_scale values are the fractions of the total each solid layer takes in the 3D heating integral at the
-# mutual period, which the ocean pushes almost entirely into the shell; they are unchanged to four digits
-# between eccentricities of 0.001 and 0.01. A liquid layer contributes no shear dissipation, so the ocean
-# takes none of the heat and carries no scale.
+# Pluto and Charon are mutually synchronous on a nearly circular orbit, so the present tide is small. At the
+# mutual period the ocean pushes almost all of the heating into the shell (each layer's share of the radial
+# solution's heating, as calc_tides reports it), unchanged to four digits between eccentricities of 0.001 and
+# 0.01. A liquid layer contributes no shear dissipation, so the ocean takes none of the heat.
 #
 # Temperatures and viscosities
 # Every layer carries a temperature and every solid layer a reference-law viscosity at it (see io.toml): the
@@ -61,7 +60,6 @@ type = "mantle_rock"
 layer_index = 0
 radius_outer_m = 910903.0             # classic WorldPack pluto.toml
 is_tidal = true
-tidal_scale = 0.000165
 temperature_k = 300.0
 
 [layers.core.material]
@@ -96,7 +94,6 @@ type = "ice"
 layer_index = 2
 radius_fraction = 1.0
 is_tidal = true
-tidal_scale = 0.999835
 temperature_k = 200.0
 
 [layers.ice_shell.material]

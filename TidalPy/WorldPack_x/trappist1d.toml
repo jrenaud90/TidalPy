@@ -28,10 +28,9 @@
 # number off this file.
 #
 # Tides
-# The planet is assumed tidally locked, so the spin frequency is the synchronous rate of its orbital period. The
-# tidal_scale values are the fractions of the total each layer takes in the 3D heating integral at that period with
-# e = 0.003815 (Grimm et al. 2018), which puts 99.9 percent in the mantle; they do not move in the fourth digit
-# between that eccentricity and 0.01.
+# The planet is assumed tidally locked, so the spin frequency is the synchronous rate of its orbital period. At
+# that period with e = 0.003815 (Grimm et al. 2018) calc_tides puts 99.9 percent of the heating in the mantle (each layer's share of
+# the radial solution's heating), unmoved in the fourth digit between that eccentricity and 0.01.
 #
 # Orbital state is not a world property in this schema; add the planet and its star to a System to give it an orbit.
 schema_version = "0.2.0"
@@ -52,7 +51,6 @@ type = "iron"
 layer_index = 0
 radius_outer_m = 1852821.5           # fitted to the published mass
 is_tidal = true
-tidal_scale = 0.000584
 temperature_k = 4000.0
 
 [layers.core.material]
@@ -72,7 +70,6 @@ type = "mantle_rock"
 layer_index = 1
 radius_fraction = 1.0
 is_tidal = true
-tidal_scale = 0.999416
 temperature_k = 1600.0
 
 [layers.mantle.material]

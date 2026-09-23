@@ -25,10 +25,9 @@
 # calibrated to an observation.
 #
 # Tides
-# Pluto and Charon are mutually synchronous on a circular orbit, so the present tide is negligible. The
-# tidal_scale values are the fractions of the total each layer takes in the 3D heating integral at the
-# 6.3872 day mutual period, which puts 97.9 percent in the ice shell; they are unchanged to four digits
-# between eccentricities of 0.001 and 0.01.
+# Pluto and Charon are mutually synchronous on a circular orbit, so the present tide is negligible. At the
+# 6.3872 day mutual period calc_tides puts 97.9 percent of the heating in the ice shell (each layer's share of
+# the radial solution's heating), unchanged to four digits between eccentricities of 0.001 and 0.01.
 #
 # Orbital state is not a world property in this schema; add Charon to a System to give it an orbit. The
 # spin frequency is the synchronous rate of the classic file's 6.3872304 day period.
@@ -51,7 +50,6 @@ type = "mantle_rock"
 layer_index = 0
 radius_outer_m = 437374.8067          # classic WorldPack charon.toml
 is_tidal = true
-tidal_scale = 0.020928
 temperature_k = 300.0
 
 [layers.core.material]
@@ -73,7 +71,6 @@ type = "ice"
 layer_index = 1
 radius_fraction = 1.0
 is_tidal = true
-tidal_scale = 0.979072
 temperature_k = 40.0
 
 [layers.ice_shell.material]

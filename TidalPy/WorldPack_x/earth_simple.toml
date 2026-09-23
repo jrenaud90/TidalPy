@@ -30,8 +30,8 @@
 # 2.211e11 Pa gives k2 = 0.300 at the 12.4206 hour semidiurnal (M2) period, the solid-Earth value
 # (Wahr 1981; a uniform elastic mantle over a liquid core needs a higher rigidity than the real Earth's
 # average to be this stiff). The mantle's Q at that period is 246, near the 280 of the solid Earth, which
-# was not fitted. The mantle dissipates all but 6e-9 of the tidal heat (the inner core the rest), which
-# the tidal_scale values record; with the Moon's mass and the lunar orbit (a = 3.844e8 m, e = 0.0549) and
+# was not fitted. The mantle dissipates all but 6e-9 of the tidal heat (the inner core the rest), as
+# calc_tides reports per layer; with the Moon's mass and the lunar orbit (a = 3.844e8 m, e = 0.0549) and
 # Earth's rotation the total is 1.5e11 W.
 #
 # Orbital state is not a world property in this schema; add Earth to a System to give it an orbit.
@@ -53,7 +53,6 @@ type = "iron"
 layer_index = 0
 radius_outer_m = 1221500.0            # PREM inner-core boundary
 is_tidal = true
-tidal_scale = 0.0
 temperature_k = 5500.0
 
 [layers.inner_core.material]
@@ -86,7 +85,6 @@ type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0                 # outer radius = full world radius
 is_tidal = true
-tidal_scale = 1.0
 temperature_k = 1600.0
 
 [layers.mantle.material]

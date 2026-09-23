@@ -38,8 +38,8 @@
 # mantle rigidity 6.45e10 Pa), but its relaxation peak then sits at a few days instead of near 100.
 #
 # The zone dissipates 85.2 percent of the total tidal heat and the mantle 14.8 percent, with the crust and
-# inner core taking 2.4e-4 and 4e-10 (the 3D heating integral, which the tidal_scale values below
-# record); the total with the Earth's mass and the lunar orbit (a = 3.844e8 m, e = 0.0549) is 6.3e8 W.
+# inner core taking 2.4e-4 and 4e-10 (each layer's share of the radial solution's heating, as calc_tides
+# reports it); the total with the Earth's mass and the lunar orbit (a = 3.844e8 m, e = 0.0549) is 6.3e8 W.
 #
 # Orbital state is not a world property in this schema; add Luna to a System to give it an orbit. The spin
 # frequency is the synchronous rate from the classic file's 27.322 day spin period.
@@ -62,7 +62,6 @@ type = "iron"
 layer_index = 0
 radius_outer_m = 160000.0
 is_tidal = true
-tidal_scale = 0.0
 temperature_k = 1700.0
 
 [layers.inner_core.material]
@@ -95,7 +94,6 @@ type = "mantle_rock"
 layer_index = 2
 radius_outer_m = 475000.0             # fitted, with the zone viscosity, to Q at the month and the year
 is_tidal = true
-tidal_scale = 0.851944
 temperature_k = 1600.0                # at the solidus of the default partial-melt model
 
 [layers.lower_mantle.material]
@@ -121,7 +119,6 @@ type = "mantle_rock"
 layer_index = 3
 radius_outer_m = 1703400.0
 is_tidal = true
-tidal_scale = 0.147815
 temperature_k = 1300.0
 
 [layers.mantle.material]
@@ -144,7 +141,6 @@ type = "mantle_rock"
 layer_index = 4
 radius_fraction = 1.0
 is_tidal = true
-tidal_scale = 0.000241
 temperature_k = 250.0
 
 [layers.crust.material]

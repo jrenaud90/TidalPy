@@ -24,10 +24,9 @@
 #
 # Tides
 # Triton's orbit is retrograde and very nearly circular (e = 1.6e-5), so the present tide is small, and the
-# retrograde motion is why Triton is decaying toward Neptune rather than receding. The tidal_scale values
-# are the fractions of the total each layer takes in the 3D heating integral at the 5.8769 day orbital
-# period, which puts 93.9 percent in the ice shell; they are unchanged to four digits between
-# eccentricities of 0.001 and 0.01.
+# retrograde motion is why Triton is decaying toward Neptune rather than receding. At the 5.8769 day orbital
+# period calc_tides puts 93.9 percent of the heating in the ice shell (each layer's share of the radial
+# solution's heating), unchanged to four digits between eccentricities of 0.001 and 0.01.
 #
 # Orbital state is not a world property in this schema; add Triton to a System to give it an orbit. The
 # spin frequency is the synchronous rate of the classic file's 5.876854 day period.
@@ -50,7 +49,6 @@ type = "mantle_rock"
 layer_index = 0
 radius_outer_m = 1064000.0            # classic WorldPack triton.toml
 is_tidal = true
-tidal_scale = 0.061354
 temperature_k = 273.15
 
 [layers.core.material]
@@ -72,7 +70,6 @@ type = "ice"
 layer_index = 1
 radius_fraction = 1.0
 is_tidal = true
-tidal_scale = 0.938646
 temperature_k = 35.0
 
 [layers.ice_shell.material]

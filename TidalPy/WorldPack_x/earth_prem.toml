@@ -15,7 +15,15 @@
 # A profile holds no complex moduli, so a rheology is still named in a layer table, as
 # are a cooling model and radiogenics. Add a [layers.<name>] table with a `layer_index`
 # saying which detected layer it refines (or call it layer_N); only the layers you are
-# refining need one, and a provided outer radius must match the detected boundary.
+# refining need one, and a provided outer radius must match the detected boundary. A
+# viscoelastic rheology also needs a viscosity, which this profile does not carry, for
+# example:
+#   [layers.mantle]
+#   layer_index = 2
+#   [layers.mantle.shear_rheology]
+#   model = "maxwell"
+#   [layers.mantle.material]
+#   shear_viscosity_static_pas = 1.0e21
 # See Documentation/structures_x/config/toml_schema.md.
 schema_version = "0.2.0"
 name = "Earth-PREM"
