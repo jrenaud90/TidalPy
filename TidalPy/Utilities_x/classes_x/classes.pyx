@@ -430,7 +430,7 @@ def check_config_keys(dict config, accepted_keys, str family):
     rejected = sorted(str(key) for key in config if key not in accepted)
     if not rejected:
         return
-    descriptions = []
+    cdef list descriptions = []
     for key in rejected:
         close_matches = difflib.get_close_matches(key, accepted, n=1)
         if close_matches:

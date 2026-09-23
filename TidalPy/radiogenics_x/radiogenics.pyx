@@ -587,11 +587,11 @@ def _resolve_isotope_config(dict config):
     ref_time_myr = iso_data.get("ref_time", iso_data.get("reference_time", None))
     ref_time = None if ref_time_myr is None else ref_time_myr * d_SECONDS_PER_MYR
 
-    names = []
-    hpr = []
-    half_lives = []
-    mass_fracs = []
-    concentrations = []
+    cdef list names = []
+    cdef list hpr = []
+    cdef list half_lives = []
+    cdef list mass_fracs = []
+    cdef list concentrations = []
     for name, entry in iso_data.items():
         if name in ("ref_time", "reference_time"):
             continue

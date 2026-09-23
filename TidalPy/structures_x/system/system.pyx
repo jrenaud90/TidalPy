@@ -507,7 +507,7 @@ cdef class System:
         cdef int star_index = system_ptr.get_star_index()
         cdef int i
         cdef double a, stellar_a
-        worlds_table = {}
+        cdef dict worlds_table = {}
         for i in range(<int>system_ptr.get_num_worlds()):
             world = self._world_wrappers[i]
             world_cfg = world.get_config_dict()
