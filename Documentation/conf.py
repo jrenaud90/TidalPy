@@ -151,6 +151,65 @@ html_theme_options = {
 
 
 
-# Add custom CSS
+# GitHub-style alerts. The guides mark advice with GitHub's alert syntax (`> [!NOTE]`, `> [!TIP]`, ...), which GitHub
+# renders as a colored box but myst-parser reads as a plain blockquote. Before a Markdown page is parsed, each alert
+# is rewritten as the matching MyST admonition, so the source still renders on GitHub and becomes a box here.
+GITHUB_ALERT_DIRECTIVES = {
+    "NOTE": "note",
+    "TIP": "tip",
+    "IMPORTANT": "important",
+    "WARNING": "warning",
+    "CAUTION": "caution",
+}
+GITHUB_ALERT_START = re.compile(r"^(\s*)>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$")
+CODE_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+
+
+def convert_github_alerts(text):
+    """Rewrite the GitHub alert blockquotes of a Markdown page as MyST colon-fence admonitions.
+
+    An alert is the `> [!KIND]` line and every following line that continues its blockquote at the same indent.
+    Lines inside fenced code blocks are left alone, so a code example may show the alert syntax itself.
+    """
+    lines = text.split("\n")
+    converted = []
+    open_fence = None
+    line_index = 0
+    while line_index < len(lines):
+        line = lines[line_index]
+        line_index += 1
+        fence = CODE_FENCE.match(line)
+        if open_fence is not None:
+            # A fence closes on the same character repeated at least as many times as it opened with.
+            if fence and fence.group(1)[0] == open_fence[0] and len(fence.group(1)) >= len(open_fence) \
+                    and not line.strip().strip(open_fence[0]):
+                open_fence = None
+            converted.append(line)
+            continue
+        if fence:
+            open_fence = fence.group(1)
+            converted.append(line)
+            continue
+        alert = GITHUB_ALERT_START.match(line)
+        if alert is None:
+            converted.append(line)
+            continue
+        indent, kind = alert.groups()
+        quote_prefix = re.compile(rf"^{re.escape(indent)}>\s?")
+        converted.append(f"{indent}:::{{{GITHUB_ALERT_DIRECTIVES[kind]}}}")
+        while line_index < len(lines) and quote_prefix.match(lines[line_index]):
+            converted.append(indent + quote_prefix.sub("", lines[line_index], count=1))
+            line_index += 1
+        converted.append(f"{indent}:::")
+    return "\n".join(converted)
+
+
+def convert_github_alerts_on_read(app, docname, source):
+    """Sphinx `source-read` hook: convert the alerts of Markdown pages; notebooks are rendered by nbsphinx."""
+    if str(app.env.doc2path(docname)).endswith(".md"):
+        source[0] = convert_github_alerts(source[0])
+
+
 def setup(app):
     app.add_css_file("custom.css")
+    app.connect("source-read", convert_github_alerts_on_read)
