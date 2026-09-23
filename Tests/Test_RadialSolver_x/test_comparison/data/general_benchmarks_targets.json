@@ -1,6 +1,6 @@
 {
   "source_notebook": "Benchmarks/RadialSolver/RadialSolver - General Benchmarks and Performance.ipynb",
-  "description": "Targets copied from saved notebook stdout output: final love numbers and steps required.",
+  "description": "Targets copied from saved notebook stdout output: final love numbers and steps required. Every love entry is still the notebook's, and is what each case is checked against. One exception, noted on the case itself: 4layer's steps_required was re-recorded after that case's integration tolerance was raised to a reachable one, because a step count only means anything at the tolerance that produced it.",
   "targets": [
     {
       "case": "1layer",
@@ -25,7 +25,8 @@
     },
     {
       "case": "4layer",
-      "steps_required": [[472, 324, 340], [6324, 6762, 6430], [57, 58, 0], [78, 87, 822]],
+      "steps_note": "Re-recorded 2026-09-22 at integration_rtol 1e-12 / atol 1e-15. The notebook ran this case at rtol 1e-18, below double precision, where the integrator cannot meet its tolerance and the step controller chases roundoff: the counts there were [[472, 324, 340], [6324, 6762, 6430], [57, 58, 0], [78, 87, 822]], a one-ulp change in a single input density moved them by up to 25 percent, and platforms disagreed by 18 percent. At 1e-12 the same nudge moves them by at most 3 percent and the love numbers below are still matched to 6e-7 relative, so nothing about the physics comparison is lost.",
+      "steps_required": [[255, 161, 167], [35, 32, 33], [34, 35, 0], [24, 26, 15]],
       "love": [
         [[0.54100729, -0.01835852], [1.51465373, -0.04112376], [0.59686856, -0.29632698]]
       ]

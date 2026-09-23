@@ -136,8 +136,13 @@ def _build_case(case_name):
             perform_checks=False,
         )
 
-        kwargs["integration_rtol"] = 1.0e-18
-        kwargs["integration_atol"] = 1.0e-21
+        # The source notebook ran this case at rtol 1e-18 / atol 1e-21, below double precision. Raised to a
+        # tolerance the integrator can actually meet: the love numbers land on the same 7e-7 floor either way
+        # (that floor is the moduli difference described in the test below, not the integration), while the
+        # case drops from 21837 steps and 57 ms to 817 steps and 3 ms. The frozen step counts were re-recorded
+        # to match; see steps_note in the targets file (2026-09-22).
+        kwargs["integration_rtol"] = 1.0e-12
+        kwargs["integration_atol"] = 1.0e-15
         kwargs["starting_radius"] = 0.0
     else:
         raise ValueError(f"Unknown benchmark case: {case_name}")
@@ -158,14 +163,21 @@ def test_benchmark_targets(case_name):
     expected_love = _complex_array(targets["love"])
 
     if case_name == "4layer":
-        # This case integrates at rtol 1e-18, below double precision, so its step counts and the last
-        # digits of its Love numbers follow the roundoff in the inputs. The rheology_x moduli differ
-        # from the classic ones (which produced the frozen targets) only in their last bits, which is
-        # enough to move the Love numbers by ~1e-6 (2026-09-10).
+        # The rheology_x moduli differ from the classic ones (which produced the frozen love targets) in
+        # their last bits, which is enough to move the Love numbers by ~1e-6, so this case compares them at
+        # 1e-5 rather than the 1e-7 the other three use (2026-09-10).
+        #
+        # Step counts are compared per layer, not per solution, and with room. They are deterministic for a
+        # given binary but not portable: the controller's accept and reject decisions are a discontinuous
+        # function of a continuous error estimate, so any last-bit arithmetic difference between platforms
+        # (libm transcendentals are not correctly rounded, and -O3 contraction and vectorization differ) can
+        # cascade. Measured on this case at this tolerance, a one-ulp change in a single input density moves
+        # the per-layer totals by at most 3%; atol covers the thin layers, where that is one or two steps,
+        # and rtol leaves margin on the thick one while still catching a real regression (2026-09-22).
 
-        np.testing.assert_allclose(
-            np.asarray(solution.steps_taken).sum(axis=1), expected_steps.sum(axis=1), rtol=0.10)
         np.testing.assert_allclose(solution.love, expected_love, rtol=1.0e-5, atol=1.0e-10)
+        np.testing.assert_allclose(
+            np.asarray(solution.steps_taken).sum(axis=1), expected_steps.sum(axis=1), rtol=0.20, atol=3)
     else:
         np.testing.assert_array_equal(solution.steps_taken, expected_steps)
         np.testing.assert_allclose(solution.love, expected_love, rtol=1.0e-7, atol=1.0e-10)

@@ -157,7 +157,8 @@ init = "TidalPy.numba_scipy:_init_extension"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -v"
+# --durations names the slowest tests in every run, so a CI log says where its time went without a rerun.
+addopts = "-ra -v --durations=25"
 testpaths = [
     "Tests"
 ]

@@ -207,7 +207,7 @@ public:
     ~c_FixedQTide() override = default;
 
     double get_fixed_k(int degree_l) const { return tide_degree_value(this->p_fixed_k, degree_l); }
-    double get_fixed_q(int degree_l) const { return tide_degree_value(this->p_fixed_q, degree_l); }
+    double get_fixed_q(int degree_l) const override { return tide_degree_value(this->p_fixed_q, degree_l); }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_TideBase::append_config_entries(out);
@@ -272,7 +272,7 @@ public:
     ~c_FixedLagTide() override = default;
 
     double get_fixed_k(int degree_l) const  { return tide_degree_value(this->p_fixed_k, degree_l); }
-    double get_fixed_dt(int degree_l) const { return tide_degree_value(this->p_fixed_dt, degree_l); }
+    double get_fixed_dt(int degree_l) const override { return tide_degree_value(this->p_fixed_dt, degree_l); }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_TideBase::append_config_entries(out);
@@ -332,8 +332,8 @@ public:
     ~c_CTLQTide() override = default;
 
     double get_fixed_k(int degree_l) const  { return tide_degree_value(this->p_fixed_k, degree_l); }
-    double get_fixed_dt(int degree_l) const { return tide_degree_value(this->p_fixed_dt, degree_l); }
-    double get_fixed_q(int degree_l) const  { return tide_degree_value(this->p_fixed_q, degree_l); }
+    double get_fixed_dt(int degree_l) const override { return tide_degree_value(this->p_fixed_dt, degree_l); }
+    double get_fixed_q(int degree_l) const override { return tide_degree_value(this->p_fixed_q, degree_l); }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_TideBase::append_config_entries(out);

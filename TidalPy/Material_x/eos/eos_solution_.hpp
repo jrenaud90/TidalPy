@@ -596,10 +596,17 @@ public:
             throw std::runtime_error("No layers have been saved. Can not perform interpolation.");
         }
 
+        if (this->radius_array_size == 0)
+        {
+            throw std::runtime_error("No radius slices have been set. Can not perform interpolation.");
+        }
+
         size_t current_layer_index        = 0;
         double current_layer_upper_radius = this->upper_radius_bylayer_vec[0];
 
-        double y_interp_arr[C_EOS_DY_VALUES];
+        // Zero initialized because the surface values are read from this array after the loop: a loop that
+        // breaks on its first pass would otherwise leave the planet's mass and moi holding stack garbage.
+        double y_interp_arr[C_EOS_DY_VALUES] = {0.0};
         double* y_interp_ptr = &y_interp_arr[0];
 
         bool ready_for_next_layer = false;

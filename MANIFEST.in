@@ -16,8 +16,6 @@ include TidalPy/WorldPack/*.zip
 # companion data files (e.g. PREM-like radial profiles).
 include TidalPy/WorldPack_x/*.toml
 include TidalPy/WorldPack_x/*.csv
-include TidalPy/WorldPack_x/*.txt
-include TidalPy/WorldPack_x/*.dat
 
 # Include Cython pyx and pxd files
 global-include *.pxd
