@@ -102,7 +102,7 @@ cdef class TidalPyBaseClass:
             Destination file path (should end in .toml).
         """
         import toml
-        config = self.get_config_dict()
+        cdef dict config = self.get_config_dict()
         with open(path, 'w', encoding='utf-8') as f:
             toml.dump(config, f)
 
@@ -371,7 +371,14 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
     """
     # Deferred: this module is imported while TidalPy initializes, before config_x exists.
     import TidalPy
-    config_x = getattr(TidalPy, "config_x", None) or {}
+    cdef dict config_x = getattr(TidalPy, "config_x", None) or {}
+    # `table` stays `object`: walking a dotted section can land on a scalar, and the isinstance check below is
+    # what turns that into an empty table. A `cdef dict` would raise on the assignment before the check ran.
+    cdef object table
+    cdef object named
+    cdef bint matches
+    cdef set accepted
+    cdef str part
     if section == "tides":
         table = config_x.get("tides", {}) or {}
     else:
@@ -423,11 +430,15 @@ def check_config_keys(dict config, accepted_keys, str family):
     The check is per family, not per model: a key read by a different model of the same family passes, because
     the world builder merges material defaults beneath a user's table.
     """
+    cdef set accepted
+    cdef list rejected
+    cdef list close_matches
+    cdef str key
     if not config:
         return
     accepted = set(accepted_keys)
     accepted.add("model")
-    rejected = sorted(str(key) for key in config if key not in accepted)
+    rejected = sorted(str(given) for given in config if given not in accepted)
     if not rejected:
         return
     cdef list descriptions = []

@@ -75,6 +75,7 @@ cdef extern from "tide_collapse_.hpp" nogil:
 cdef int cy_resolve_obliquity_truncation(object obliquity_truncation) except? -999:
     """Normalize the obliquity truncation (string 'gen'/'off' or int) to the C++ integer."""
     cdef int value = 0
+    cdef str text
     if isinstance(obliquity_truncation, str):
         text = obliquity_truncation.lower()
         if text in ("gen", "general"):

@@ -678,6 +678,14 @@ def _attach_material_models(MaterialEOSBase eos, dict config) -> MaterialEOSBase
     from TidalPy.viscosity_x.viscosity import make_viscosity
     from TidalPy.partial_melt_x.partial_melt import make_partial_melt
 
+    cdef str key
+    cdef object setter
+    cdef object maker
+    cdef dict section
+    cdef str model_name
+    # `model` is whichever model class the maker returns (a viscosity or a partial-melt model), so it stays
+    # `object`; the two makers do not share a base class.
+    cdef object model
     for key, setter, maker in (
             ("shear_viscosity", eos.set_shear_viscosity, make_viscosity),
             ("bulk_viscosity", eos.set_bulk_viscosity, make_viscosity),

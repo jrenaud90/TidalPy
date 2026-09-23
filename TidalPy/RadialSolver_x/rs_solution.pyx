@@ -30,7 +30,7 @@ from TidalPy.Utilities_x.logging_x.logger import log_info, log_warning
 
 cdef tuple cy_eos_field_names():
     """The name of each slot of the dense EOS layout (eos_layout_.hpp), in slot order."""
-    names = [None] * C_EOS_DY_VALUES
+    cdef list names = [None] * C_EOS_DY_VALUES
     names[0], names[1], names[2], names[3] = "gravity", "pressure", "mass", "moi"
     names[C_EOS_DENSITY_INDEX]         = "density"
     names[C_EOS_SHEAR_MODULUS_INDEX]   = "shear_modulus"
@@ -382,7 +382,7 @@ cdef class RadialSolverSolution:
                 raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
             return plot_ys(self.result, self.sample_radii(), show_plot=show_plot, **plot_kwargs)
 
-        radius_grid = self.sample_radii()
+        cdef cnp.ndarray radius_grid = self.sample_radii()
         result_list = list()
         radius_list = list()
         labels      = list()
@@ -408,7 +408,7 @@ cdef class RadialSolverSolution:
         from TidalPy.Utilities_x.graphics_x import plot_interior
 
         # Plotting is the one place a grid is still wanted, so it is made here, for the plot, and discarded.
-        radius_grid = self.sample_radii()
+        cdef cnp.ndarray radius_grid = self.sample_radii()
         return plot_interior(
             radius_grid,
             self.get_gravity(radius_grid),
@@ -502,7 +502,10 @@ cdef class RadialSolverSolution:
         cdef double[::1] state_view = state
         cdef double[::1] radii_view
         cdef cnp.ndarray[cnp.float64_t, ndim=1] out
+        cdef double[::1] out_view
+        cdef cnp.ndarray radii
         cdef Py_ssize_t i
+        cdef Py_ssize_t n
 
         if np.ndim(radius) == 0:
             if not self.solution_storage_ptr.get_eos_si(<double>radius, &state_view[0]):
@@ -511,12 +514,17 @@ cdef class RadialSolverSolution:
 
         radii = np.ascontiguousarray(radius, dtype=np.float64)
         radii_view = radii.ravel()
-        out = np.empty(radii_view.shape[0], dtype=np.float64, order='C')
-        for i in range(radii_view.shape[0]):
-            if self.solution_storage_ptr.get_eos_si(radii_view[i], &state_view[0]):
-                out[i] = state[index]
-            else:
-                out[i] = np.nan
+        n = radii_view.shape[0]
+        out = np.empty(n, dtype=np.float64, order='C')
+        out_view = out
+        # The whole sweep is C: the storage accessor is nogil and both sides are memoryviews, so nothing in
+        # the loop touches a Python object.
+        with nogil:
+            for i in range(n):
+                if self.solution_storage_ptr.get_eos_si(radii_view[i], &state_view[0]):
+                    out_view[i] = state_view[index]
+                else:
+                    out_view[i] = NAN
         return out.reshape(np.shape(radius))
 
     def sample_radii(self, size_t num_points = 0):
@@ -565,6 +573,31 @@ cdef class RadialSolverSolution:
         self.solution_storage_ptr.get_complex_moduli_si(radius, shear, bulk)
         return (complex(shear.real(), shear.imag()), complex(bulk.real(), bulk.imag()))
 
+    cdef object _complex_moduli_sweep(self, object radius, size_t which):
+        """Complex shear (``which`` 0) or bulk (1) modulus [Pa] over an array of radii [m].
+
+        The per-radius accessor is nogil, so the whole sweep runs in C and writes straight into the output
+        buffer. Going through :meth:`_complex_moduli_at` instead would build a Python tuple of two boxed
+        complex numbers per radius and throw both away.
+        """
+        cdef cnp.ndarray radii = np.ascontiguousarray(radius, dtype=np.float64)
+        cdef double[::1] radii_view = radii.ravel()
+        cdef Py_ssize_t n = radii_view.shape[0]
+        cdef cnp.ndarray out = np.empty(n, dtype=np.complex128, order='C')
+        cdef double complex[::1] out_view = out
+        cdef cpp_complex[double] shear
+        cdef cpp_complex[double] bulk
+        cdef Py_ssize_t i
+
+        with nogil:
+            for i in range(n):
+                self.solution_storage_ptr.get_complex_moduli_si(radii_view[i], shear, bulk)
+                if which == 0:
+                    out_view[i] = shear.real() + 1.0j * shear.imag()
+                else:
+                    out_view[i] = bulk.real() + 1.0j * bulk.imag()
+        return out.reshape(np.shape(radius))
+
     def get_complex_shear_modulus(self, radius):
         """Complex shear modulus [Pa] at radius [m], as the solve used it.
 
@@ -574,17 +607,13 @@ cdef class RadialSolverSolution:
         """
         if np.ndim(radius) == 0:
             return self._complex_moduli_at(<double>radius)[0]
-        radii = np.ascontiguousarray(radius, dtype=np.float64)
-        out = np.array([self._complex_moduli_at(<double>r)[0] for r in radii.ravel()], dtype=np.complex128)
-        return out.reshape(np.shape(radius))
+        return self._complex_moduli_sweep(radius, 0)
 
     def get_complex_bulk_modulus(self, radius):
         """Complex bulk modulus [Pa] at radius [m]. See :meth:`get_complex_shear_modulus`."""
         if np.ndim(radius) == 0:
             return self._complex_moduli_at(<double>radius)[1]
-        radii = np.ascontiguousarray(radius, dtype=np.float64)
-        out = np.array([self._complex_moduli_at(<double>r)[1] for r in radii.ravel()], dtype=np.complex128)
-        return out.reshape(np.shape(radius))
+        return self._complex_moduli_sweep(radius, 1)
 
     @property
     def love_frequency(self):
@@ -884,6 +913,7 @@ cdef class RadialSolverSolution:
         cdef size_t requested_sol_num = 0
         cdef cpp_bool found = False
         cdef str sol_test_name
+        cdef cnp.ndarray gridded
         if self.ytype_names_set and self.success and (self.error_code == 0):
             for ytype_i in range(self.num_ytypes):
                 sol_test_name = str(self.ytypes[ytype_i], 'UTF-8')

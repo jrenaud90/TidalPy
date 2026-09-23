@@ -178,7 +178,7 @@ cdef class StarWorld(BaseWorld):
             The :class:`BaseWorld` keys, ``effective_temperature_k``, ``luminosity_w``, and a ``luminosity`` table
             (``model`` plus the model's parameters) when a luminosity model is attached.
         """
-        d = BaseWorld.get_config_dict(self)
+        cdef dict d = BaseWorld.get_config_dict(self)
         d["effective_temperature_k"] = self._star_ptr.get_effective_temperature()
         d["luminosity_w"]            = self._star_ptr.get_luminosity()
         cdef const c_PhysicsBase* model_ptr = <const c_PhysicsBase*>self._star_ptr.get_luminosity_model()

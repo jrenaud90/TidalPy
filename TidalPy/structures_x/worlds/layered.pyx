@@ -516,7 +516,7 @@ cdef class LayeredWorld(BaseWorld):
         if name.startswith("_") or self._layered_ptr == NULL:
             raise AttributeError(name)
         self._ensure_layer_views()
-        view = self._layer_view_by_name.get(name)
+        cdef object view = self._layer_view_by_name.get(name)
         if view is not None:
             return view
         raise AttributeError(
@@ -1967,6 +1967,7 @@ cdef class LayeredWorld(BaseWorld):
         if instantaneous:
             out['times'] = cy_vec_to_ndarray(layout.times)
 
+        cdef cnp.ndarray per_layer
         if layout.all_spatial_summed:
             per_layer = layer_totals_arr.reshape(nlayers, ntimes)
             if instantaneous:
@@ -2157,6 +2158,8 @@ cdef class LayeredWorld(BaseWorld):
         config.update(self.get_solver_defaults())
         cdef dict layers = {}
         cdef dict layer_config
+        cdef str layer_name
+        cdef object view
         for view in self._ensure_layer_views():
             layer_config = view.get_config_dict()
             layer_name = layer_config.pop("name")

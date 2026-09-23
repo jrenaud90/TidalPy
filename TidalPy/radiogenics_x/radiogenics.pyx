@@ -568,7 +568,18 @@ def _resolve_isotope_config(dict config):
             config.get("ref_time_s", None),
         )
 
-    isotopes = config.get("isotopes", None)
+    # `isotopes` is a dataset name or an inline table, so it stays `object` until the isinstance checks below
+    # have said which. The reference time is a float or absent, hence `object` rather than `double`.
+    cdef object isotopes = config.get("isotopes", None)
+    cdef dict known
+    cdef dict iso_data
+    cdef object ref_time_myr
+    cdef object ref_time
+    cdef str name
+    # `object`, not `dict`: the dataset table also carries a scalar `ref_time`/`reference_time`, and the loop
+    # below unpacks every item before the `continue` that skips those keys. A `cdef dict` would raise on the
+    # unpacking, before the filter ran.
+    cdef object entry
     if isotopes is None:
         return (None, None, None, None, None, None)
 
@@ -672,7 +683,7 @@ def make_radiogenics(str model_name, dict config=None):
     # reference time must not become the fixed rate's. A built-in dataset name resolves straight from the C++
     # catalog (already MKS); everything else goes through the Python resolver, which converts Myr to seconds
     # where needed.
-    isotopes = config.get("isotopes", None)
+    cdef object isotopes = config.get("isotopes", None)
     cdef cpp_bool built_in = (
         isinstance(isotopes, str)
         and isotopes.lower() in {name.decode("utf-8") for name in c_isotope_dataset_names()}

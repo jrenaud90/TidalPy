@@ -4,6 +4,7 @@
 
 import numpy as np
 
+from libc.stdint cimport uint64_t
 from libcpp.vector cimport vector
 
 from TidalPy.Utilities_x.arrays.interp cimport c_interp, c_partition_radius_by_layer
@@ -49,14 +50,17 @@ def interp(x, xp, fp):
                 n,
                 0)
 
-    x_in = np.ascontiguousarray(x, dtype=np.float64)
+    # `object` rather than `cnp.ndarray`: this module does not cimport numpy, and the sweep below runs off the
+    # memoryviews, so the array objects are only here to be reshaped and returned.
+    cdef object x_in = np.ascontiguousarray(x, dtype=np.float64)
     cdef double[::1] x_v = x_in.ravel()
     cdef size_t m = x_v.shape[0]
-    out = np.empty(m, dtype=np.float64)
+    cdef object out = np.empty(m, dtype=np.float64)
     cdef double[::1] out_v = out
     cdef size_t i
-    for i in range(m):
-        out_v[i] = c_interp(x_v[i], &xp_v[0], &fp_v[0], n, 0)
+    with nogil:
+        for i in range(m):
+            out_v[i] = c_interp(x_v[i], &xp_v[0], &fp_v[0], n, 0)
     return out.reshape(np.shape(x))
 
 
@@ -91,9 +95,12 @@ def partition_radius_by_layer(double[::1] radius not None, double[::1] upper_rad
         c_partition_radius_by_layer(
             &radius[0], num_slices_in, &upper_radius_bylayer[0], num_layers, first_out, count_out)
     cdef size_t layer_i
-    first_arr = np.empty(num_layers, dtype=np.uint64)
-    count_arr = np.empty(num_layers, dtype=np.uint64)
-    for layer_i in range(num_layers):
-        first_arr[layer_i] = first_out[layer_i]
-        count_arr[layer_i] = count_out[layer_i]
+    cdef object first_arr = np.empty(num_layers, dtype=np.uint64)
+    cdef object count_arr = np.empty(num_layers, dtype=np.uint64)
+    cdef uint64_t[::1] first_v = first_arr
+    cdef uint64_t[::1] count_v = count_arr
+    with nogil:
+        for layer_i in range(num_layers):
+            first_v[layer_i] = first_out[layer_i]
+            count_v[layer_i] = count_out[layer_i]
     return first_arr, count_arr

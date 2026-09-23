@@ -56,6 +56,7 @@ _LEVEL_MAP: dict = {
 
 cdef int cy_resolve_level(object level) except -1:
     """Convert a level name (case-insensitive) or an integer 0 to 6 into the spdlog level integer."""
+    cdef str key
     if isinstance(level, str):
         key = level.lower()
         if key not in _LEVEL_MAP:
@@ -106,7 +107,9 @@ def init_logger(dict config = None):
     c_config.file_level    = cy_resolve_level(config.get("file_level", "info"))
     c_config.log_to_file   = True if config.get("log_to_file", False) else False
 
-    log_path = config.get("log_file_path", "")
+    # `object`, not `str`: a config can hold a non-string here and the isinstance check below is what falls
+    # back to an empty path. A `cdef str` would raise on the assignment instead.
+    cdef object log_path = config.get("log_file_path", "")
     c_config.log_file_path = (log_path.encode("utf-8") if isinstance(log_path, str)
                               else b"")
 

@@ -167,8 +167,9 @@ cdef class System:
             merge_with_defaults,
             validate_schema_version)
 
-        resolved = _resolve_source(source)
-        config = load_toml(resolved)
+        # `_resolve_source` accepts a path string, a Path, or an already-parsed mapping, so `object` it is.
+        cdef object resolved = _resolve_source(source)
+        cdef dict config = load_toml(resolved)
         config = merge_with_defaults(config)
         validate_schema_version(config, force=force)
         return construct_system(config, force=force)
@@ -508,6 +509,11 @@ cdef class System:
         cdef int i
         cdef double a, stellar_a
         cdef dict worlds_table = {}
+        # `object`, not `BaseWorld`: `name` and `get_config_dict` are Python-level members defined in
+        # base.pyx, so they are not visible through base.pxd and a typed handle could not reach them.
+        cdef object world
+        cdef dict world_cfg
+        cdef dict entry
         for i in range(<int>system_ptr.get_num_worlds()):
             world = self._world_wrappers[i]
             world_cfg = world.get_config_dict()
@@ -543,7 +549,7 @@ cdef class System:
             Overwrite an existing file. Default True.
         """
         from TidalPy.structures_x.configs.config_writer import save_system_to_toml
-        config = self.source_config if self.source_config is not None else self.get_config_dict()
+        cdef dict config = self.source_config if self.source_config is not None else self.get_config_dict()
         return save_system_to_toml(config, file_path, overwrite=overwrite)
 
     cdef void _rebuild_world_wrappers(self):

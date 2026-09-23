@@ -82,6 +82,13 @@ cdef object cy_solve_complex_modulus(
     cdef vector[cpp_complex[double]] vout
     cdef double[::1] mv
 
+    # These stay `object`, deliberately, not `cnp.ndarray`: their `.shape` is handed to
+    # `cy_complex_vector_to_ndarray`, which needs a Python tuple. Typing them as `cnp.ndarray` would turn
+    # `.shape` into a C `npy_intp*` and the reshape would silently take an address instead of a shape.
+    cdef object freq_arr
+    cdef object mod_b, visc_b, mod_c, visc_c
+    cdef object f_b, m_b, v_b, f_c, m_c, v_c
+
     # All scalar -> scalar result.
     if not (f_arr or m_arr or v_arr):
         scalar_result = model.calc_complex_modulus(

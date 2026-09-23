@@ -514,7 +514,7 @@ cdef class PhysicsLayer(BaseLayer):
             Love number components, and a sub-table for each attached rheology (``shear_rheology``,
             ``bulk_rheology``).
         """
-        d = BaseLayer.get_config_dict(self)
+        cdef dict d = BaseLayer.get_config_dict(self)
         d["is_solid"]          = bool(self._physics_ptr.get_is_solid())
         d["is_static"]         = bool(self._physics_ptr.get_is_static())
         d["is_incompressible"] = bool(self._physics_ptr.get_is_incompressible())

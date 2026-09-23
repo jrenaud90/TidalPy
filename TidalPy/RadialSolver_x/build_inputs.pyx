@@ -90,7 +90,7 @@ cdef void cy_fill_size_vector(object values, str name, vector[size_t]& out) exce
 
 cdef object cy_as_f64_1d(object values, str name):
     """Return `values` as a C-contiguous 1-D float64 array."""
-    arr = np.ascontiguousarray(values, dtype=np.float64)
+    cdef cnp.ndarray arr = np.ascontiguousarray(values, dtype=np.float64)
     if arr.ndim != 1:
         raise ValueError(f"`{name}` must be one dimensional, found {arr.ndim} dimensions.")
     return arr
@@ -129,8 +129,8 @@ cdef object cy_coerce_rheology(object model, str argument_name, object position)
         return model
     if isinstance(model, str):
         return make_rheology(model)
-    where = f"`{argument_name}`" if position is None else f"`{argument_name}` entry {position}"
-    hint = ""
+    cdef str where = f"`{argument_name}`" if position is None else f"`{argument_name}` entry {position}"
+    cdef str hint = ""
     if type(model).__module__.startswith("TidalPy.rheology."):
         hint = (" Classic `TidalPy.rheology` models are not accepted by the `_x` builders; use the "
                 "matching model from `TidalPy.rheology_x`.")
@@ -150,6 +150,7 @@ cdef list cy_resolve_rheology_bylayer(
     cdef size_t layer_i
     cdef RheologyBase wrapper
     cdef const c_RheologyBase* model_ptr
+    cdef tuple models_seq
 
     out_ptrs.clear()
     out_ptrs.reserve(num_layers)

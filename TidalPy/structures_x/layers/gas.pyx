@@ -193,7 +193,7 @@ cdef class GasLayer(PhysicsLayer):
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
         """Return all configuration values as a Python dict (MKS): the PhysicsLayer keys plus the gas parameters."""
-        d = PhysicsLayer.get_config_dict(self)
+        cdef dict d = PhysicsLayer.get_config_dict(self)
         d["mean_molecular_weight_kg_mol"] = self._gas_ptr.get_mean_molecular_weight()
         d["adiabatic_index"]              = self._gas_ptr.get_adiabatic_index()
         d["reference_temperature_k"]      = self._gas_ptr.get_reference_temperature()

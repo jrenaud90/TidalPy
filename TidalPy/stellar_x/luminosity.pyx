@@ -69,7 +69,9 @@ cdef object cy_solve_luminosity(c_LuminosityBase* model, object mass):
     if not isinstance(mass, np.ndarray):
         return float(model.calc_luminosity(<double>mass))
 
-    mass_arr = np.ascontiguousarray(mass, dtype=np.float64)
+    # `object`, not `cnp.ndarray`: `.shape` is handed to `cy_double_vector_to_ndarray` as a Python tuple, and
+    # a typed ndarray would make it a C `npy_intp*`.
+    cdef object mass_arr = np.ascontiguousarray(mass, dtype=np.float64)
     mv = mass_arr.ravel()
     cy_fill_vector(mv, vmass)
     model.calc_luminosity_vectorize_mass(vmass, vout)

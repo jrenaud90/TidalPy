@@ -411,13 +411,17 @@ cdef class BaseWorld(StructureBase):
             validate_schema_version)
         from TidalPy.structures_x.configs.worldpack import resolve_data_file
 
-        resolved = _resolve_source(source)
-        config = load_toml(resolved)
+        # `_resolve_source` hands back whatever the caller gave (a path string, a Path, or an already-parsed
+        # mapping), so this one stays `object`; the rest have a single concrete type.
+        cdef object resolved = _resolve_source(source)
+        cdef dict config = load_toml(resolved)
+        cdef object given_data_file = None
+        cdef str base_dir
+        cdef BaseWorld world
         config = merge_with_defaults(config)
         validate_schema_version(config, force=force)
         # Resolve a companion data file (e.g. a PREM profile) relative to the world
         # file's directory so construct_world can open it directly.
-        given_data_file = None
         if "data_file" in config:
             given_data_file = config["data_file"]
             base_dir = os.path.dirname(resolved) if isinstance(resolved, str) else None
@@ -450,7 +454,7 @@ cdef class BaseWorld(StructureBase):
         The stored ``world_type`` label is used when it is one of ``BUILDER_WORLD_TYPES``; otherwise the
         class family's default applies (``layered``, ``gasgiant``, or ``star``).
         """
-        stored = self.world_type
+        cdef str stored = self.world_type
         if stored in BUILDER_WORLD_TYPES:
             return stored
         return self.family_world_type()
@@ -466,7 +470,7 @@ cdef class BaseWorld(StructureBase):
             when set.
         """
         cdef c_TideConfig cfg = self._world_ptr.get().get_tide_config()
-        out = {
+        cdef dict out = {
             "min_degree_l":                  cfg.min_degree_l,
             "max_degree_l":                  cfg.max_degree_l,
             "eccentricity_trunc_lvl":        cfg.eccentricity_truncation,
@@ -498,6 +502,7 @@ cdef class BaseWorld(StructureBase):
             Overwrite an existing file. Default True.
         """
         from TidalPy.structures_x.configs.config_writer import save_world_to_toml
+        cdef dict config
         if self.portable_config is not None:
             config = self.portable_config
         elif self.source_config is not None:

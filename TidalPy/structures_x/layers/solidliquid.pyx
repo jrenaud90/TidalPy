@@ -329,7 +329,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             The PhysicsLayer keys plus the ``cooling`` and ``radiogenics`` sub-tables when those models are
             attached. The thermal constants are the material's, so they sit in the ``material`` table.
         """
-        d = PhysicsLayer.get_config_dict(self)
+        cdef dict d = PhysicsLayer.get_config_dict(self)
         cdef const c_PhysicsBase* model_ptr
         model_ptr = <const c_PhysicsBase*>self._solidliquid_ptr.get_cooling_model()
         if model_ptr != NULL:

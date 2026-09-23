@@ -31,10 +31,12 @@ cdef int cy_potential_row_to_flat(object potential6, double* potential12) except
     ValueError
         If the row does not hold exactly 6 values.
     """
-    row = np.asarray(potential6, dtype=np.complex128)
+    cdef cnp.ndarray row = np.asarray(potential6, dtype=np.complex128)
     if row.ndim != 1 or row.shape[0] != 6:
+        # `np.shape(row)`, not `row.shape`: on a typed ndarray the latter is a C `npy_intp*`, which would
+        # format as a pointer in this message.
         raise ValueError(
-            f"potential6 must hold 6 values (U and its five angular derivatives); got shape {row.shape}.")
+            f"potential6 must hold 6 values (U and its five angular derivatives); got shape {np.shape(row)}.")
     cdef double complex[::1] row_view = np.ascontiguousarray(row)
     cdef Py_ssize_t k
     for k in range(6):

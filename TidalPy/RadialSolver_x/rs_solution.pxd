@@ -90,6 +90,9 @@ cdef class RadialSolverSolution:
 
     cdef void finalize_python_storage(self) noexcept
 
+    # Complex shear (which = 0) or bulk (1) modulus over an array of radii, swept in C.
+    cdef object _complex_moduli_sweep(self, object radius, size_t which)
+
     # Adopt a storage released by a world, instead of building one (see the .pyx).
     @staticmethod
     cdef RadialSolverSolution _adopt(
