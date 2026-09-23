@@ -1,6 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
+# The headers this module compiles read the shared TidalPy configuration, so its pointer is wired here as well.
+from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
+
 from libc.math cimport NAN
 from libcpp.memory cimport make_unique, unique_ptr
 from libcpp.string cimport string as cpp_string
@@ -507,9 +511,12 @@ cdef class RadialSolverSolution:
     def sample_radii(self, size_t num_points = 0):
         """A radius grid [m] spanning the body, for plotting or tabulating.
 
-        Nothing in the solve uses it and the solution keeps no copy. Defaults to the slice count the solve
-        was configured with.
+        With no ``num_points``, the radii ``result`` was sampled on (the caller's radius array for the standalone
+        solver), so the two pair up; otherwise ``num_points`` evenly spaced radii.
         """
+        cdef const vector[double]* sampled = &self.solution_storage_ptr.get_sample_radii_si()
+        if num_points == 0 and sampled.size() == self.solution_storage_ptr.num_slices and sampled.size() > 0:
+            return np.array([sampled[0][i] for i in range(sampled.size())], dtype=np.float64)
         cdef size_t solved_slices = self.solution_storage_ptr.num_slices
         if num_points == 0:
             num_points = solved_slices if solved_slices > 1 else 100

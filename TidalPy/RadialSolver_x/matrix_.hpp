@@ -470,10 +470,12 @@ inline int c_matrix_propagate(
             B_vec(i) = std::complex<double>(bc_pointer[ytype_i * 3 + i], 0.0);
         }
 
-        // Solve U = S^-1 B.
-        Eigen::FullPivLU<Eigen::Matrix3cd> lu(surface_matrix);
+        // Solve U = S^-1 B. FullPivLU::isInvertible's relative threshold called a badly scaled SI matrix singular,
+        // so a solve is judged by whether its answer is finite, as the shooting method's surface solve does.
+        Eigen::PartialPivLU<Eigen::Matrix3cd> lu(surface_matrix);
+        Eigen::Vector3cd X = lu.solve(B_vec);
 
-        if (!lu.isInvertible())
+        if (!X.allFinite())
         {
             solution_storage_ptr->message =
                 "RadialSolver.PropMatrixMethod:: Error encountered while applying surface boundary condition.\n"
@@ -486,7 +488,6 @@ inline int c_matrix_propagate(
             return solution_storage_ptr->error_code;
         }
 
-        Eigen::Vector3cd X = lu.solve(B_vec);
         for (size_t i = 0; i < 3; ++i)
         {
             bc_copy[i] = X(i);

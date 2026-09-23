@@ -51,12 +51,24 @@ def test_melt_fraction_degenerate_envelope():
     assert m.calc_melt_fraction(1900.0) == 0.0
 
 
+@pytest.mark.parametrize("cls_name", ["OffPartialMelt", "SpohnPartialMelt", "HenningPartialMelt"])
+def test_non_finite_temperature_gives_nan(cls_name):
+    """A non-finite temperature has no melt state: NaN out (Off keeps its unweakened strengths)."""
+    m = getattr(_import(), cls_name)(solidus=_SOLIDUS, liquidus=_LIQUIDUS)
+    phi, visc, shear = m.calc_partial_melt(math.nan, _PREMELT_VISC, _PREMELT_SHEAR)
+    assert math.isnan(phi)
+    if cls_name == "OffPartialMelt":
+        assert (visc, shear) == (_PREMELT_VISC, _PREMELT_SHEAR)
+    else:
+        assert math.isnan(visc) and math.isnan(shear)
+
+
 # =====================================================================================================================
 # Off model
 # =====================================================================================================================
 def test_off_returns_premelt():
     m = _import().OffPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
-    phi, visc, shear = m.calc_partial_melt(1800.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
+    phi, visc, shear = m.calc_partial_melt(1800.0, _PREMELT_VISC, _PREMELT_SHEAR)
     assert phi == pytest.approx(_melt_fraction(1800.0))
     assert visc == pytest.approx(_PREMELT_VISC)
     assert shear == pytest.approx(_PREMELT_SHEAR)
@@ -68,11 +80,20 @@ def test_off_returns_premelt():
 @pytest.mark.parametrize("T", [1700.0, 1900.0, 2100.0])
 def test_spohn_formula(T):
     m = _import().SpohnPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
-    phi, visc, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
+    phi, visc, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR)
     exp_visc  = max(_LIQ_VISC,  10.0 ** ((27000.0 / T) - 1.0))
     exp_shear = max(_LIQ_SHEAR, 10.0 ** ((82000.0 / T) - 40.6))
     assert visc == pytest.approx(exp_visc, rel=1e-9)
     assert shear == pytest.approx(exp_shear, rel=1e-9)
+
+
+@pytest.mark.parametrize("T", [200.0, 1000.0, _SOLIDUS])
+def test_spohn_below_solidus_returns_premelt(T):
+    """The Fischer-Spohn law applies only above the solidus; below it (where the law would overflow) nothing melts."""
+    m = _import().SpohnPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
+    phi, visc, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR)
+    assert phi == 0.0
+    assert (visc, shear) == (_PREMELT_VISC, _PREMELT_SHEAR)
 
 
 # =====================================================================================================================
@@ -101,7 +122,7 @@ def _henning_expected(T):
 @pytest.mark.parametrize("T", [1500.0, 1700.0, 1810.0, 1900.0])
 def test_henning_regimes(T):
     m = _import().HenningPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
-    phi, visc, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
+    phi, visc, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR)
     exp_visc, exp_shear = _henning_expected(T)
     assert visc == pytest.approx(exp_visc, rel=1e-9)
     assert shear == pytest.approx(exp_shear, rel=1e-9)
@@ -109,15 +130,73 @@ def test_henning_regimes(T):
 
 def test_henning_liquid_regime_floors():
     m = _import().HenningPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
-    _, visc, shear = m.calc_partial_melt(1950.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
+    _, visc, shear = m.calc_partial_melt(1950.0, _PREMELT_VISC, _PREMELT_SHEAR)
     assert visc == pytest.approx(_LIQ_VISC)
     assert shear == pytest.approx(_LIQ_SHEAR)
 
 
+def test_liquid_viscosity_is_a_model_parameter():
+    """The liquid viscosity is the model's own, reported and applied past breakdown and as the floor."""
+    m = _import().HenningPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_viscosity=3.0)
+    assert m.liquid_viscosity == 3.0
+    assert m.get_config_dict()["liquid_viscosity_pas"] == 3.0
+    _, visc, _ = m.calc_partial_melt(1950.0, _PREMELT_VISC, _PREMELT_SHEAR)
+    assert visc == 3.0
+    # Sub-critical weakening lowers the viscosity below the pre-melt value.
+    _, visc_partial, _ = m.calc_partial_melt(1700.0, _PREMELT_VISC, _PREMELT_SHEAR)
+    assert visc_partial == pytest.approx(_PREMELT_VISC * math.exp(-13.5 * 0.25), rel=1e-12)
+
+
+# =====================================================================================================================
+# Bulk-modulus weakening
+# =====================================================================================================================
+_PREMELT_BULK = 1.3e11
+_LIQ_BULK     = 2.0e10
+
+
+def _hashin_shtrikman(phi, framework_shear):
+    return _PREMELT_BULK + phi / (1.0 / (_LIQ_BULK - _PREMELT_BULK)
+                                  + (1.0 - phi) / (_PREMELT_BULK + (4.0 / 3.0) * framework_shear))
+
+
+def test_bulk_weakening_is_off_by_default():
+    m = _import().make_partial_melt("henning")
+    assert m.bulk_melt_weakening is False
+    assert m.calc_bulk_modulus_melt(1900.0, _PREMELT_BULK, 0.0) == _PREMELT_BULK
+
+
+@pytest.mark.parametrize("T", [1500.0, 1640.0, 1800.0, 2000.0, 2100.0])
+def test_bulk_weakening_follows_hashin_shtrikman(T):
+    m = _import().HenningPartialMelt(
+        solidus=_SOLIDUS, liquidus=_LIQUIDUS, bulk_melt_weakening=True, liquid_bulk_modulus=_LIQ_BULK)
+    phi, _, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR)
+    bulk = m.calc_bulk_modulus_melt(T, _PREMELT_BULK, shear)
+    if phi == 0.0:
+        assert bulk == _PREMELT_BULK
+    else:
+        assert bulk == pytest.approx(_hashin_shtrikman(phi, shear), rel=1e-12)
+    assert _LIQ_BULK <= bulk <= _PREMELT_BULK
+
+
+def test_bulk_weakening_limits():
+    """Weak while the framework holds, the Reuss average once it has collapsed, the melt's own value at phi = 1."""
+    m = _import().OffPartialMelt(
+        solidus=_SOLIDUS, liquidus=_LIQUIDUS, bulk_melt_weakening=True, liquid_bulk_modulus=_LIQ_BULK)
+    phi = 0.1
+    temperature = _SOLIDUS + phi * (_LIQUIDUS - _SOLIDUS)
+    framework = m.calc_bulk_modulus_melt(temperature, _PREMELT_BULK, _PREMELT_SHEAR)
+    reuss = 1.0 / ((1.0 - phi) / _PREMELT_BULK + phi / _LIQ_BULK)
+    assert m.calc_bulk_modulus_melt(temperature, _PREMELT_BULK, 0.0) == pytest.approx(reuss, rel=1e-12)
+    assert reuss < framework < _PREMELT_BULK
+    # Melt affects the bulk modulus far less than Henning affects the shear modulus.
+    assert framework / _PREMELT_BULK > 0.8
+    assert m.calc_bulk_modulus_melt(_LIQUIDUS, _PREMELT_BULK, 0.0) == pytest.approx(_LIQ_BULK, rel=1e-12)
+
+
 def test_henning_weakens_with_temperature():
     m = _import().HenningPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
-    _, v1, s1 = m.calc_partial_melt(1650.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
-    _, v2, s2 = m.calc_partial_melt(1750.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
+    _, v1, s1 = m.calc_partial_melt(1650.0, _PREMELT_VISC, _PREMELT_SHEAR)
+    _, v2, s2 = m.calc_partial_melt(1750.0, _PREMELT_VISC, _PREMELT_SHEAR)
     assert v2 < v1
     assert s2 < s1
 
@@ -157,7 +236,8 @@ def test_factory_config_override():
 def test_config_dict_keys():
     m = _import().HenningPartialMelt()
     d = m.get_config_dict()
-    for key in ("model", "solidus_k", "liquidus_k", "liquid_shear_pa",
+    for key in ("model", "solidus_k", "liquidus_k", "liquid_shear_pa", "liquid_viscosity_pas",
+                "bulk_melt_weakening", "liquid_bulk_modulus_pa",
                 "crit_melt_frac", "hn_visc_slope_1", "hn_shear_param_1_k"):
         assert key in d
     assert d["model"] == "henning"
@@ -193,16 +273,19 @@ def test_model_parameter_properties(cls_name, params):
 @pytest.mark.parametrize("name", ["off", "spohn", "henning"])
 def test_binary_round_trip(name):
     mod = _import()
-    m = mod.make_partial_melt(name, {"solidus_k": 1550.0, "liquidus_k": 1950.0})
+    m = mod.make_partial_melt(name, {"solidus_k": 1550.0, "liquidus_k": 1950.0, "liquid_viscosity_pas": 0.7,
+                                     "bulk_melt_weakening": True, "liquid_bulk_modulus_pa": 1.5e10})
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, f"{name}.tpyb")
         m.save_binary(path)
         reloaded = mod.make_partial_melt(name)
         reloaded.load_binary(path)
     assert reloaded.get_config_dict() == m.get_config_dict()
+    assert reloaded.bulk_melt_weakening is True
+    assert reloaded.calc_bulk_modulus_melt(1700.0, 1.3e11, 1.0e9) == m.calc_bulk_modulus_melt(1700.0, 1.3e11, 1.0e9)
     # A representative evaluation survives the round-trip.
-    assert reloaded.calc_partial_melt(1700.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC) == \
-        m.calc_partial_melt(1700.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
+    assert reloaded.calc_partial_melt(1700.0, _PREMELT_VISC, _PREMELT_SHEAR) == \
+        m.calc_partial_melt(1700.0, _PREMELT_VISC, _PREMELT_SHEAR)
 
 
 # =====================================================================================================================

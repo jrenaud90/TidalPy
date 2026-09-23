@@ -125,6 +125,7 @@ public:
     c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
         return cool_off(inputs);
     }
+    c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Off; }
 
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::OffCooling));
@@ -143,6 +144,7 @@ public:
     c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
         return cool_conduction(inputs);
     }
+    c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Conduction; }
 
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::ConductiveCooling));
@@ -181,6 +183,7 @@ public:
         cfg.critical_rayleigh = this->p_critical_rayleigh;
         return cool_convection(inputs, cfg);
     }
+    c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Convection; }
 
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
@@ -198,12 +201,6 @@ protected:
     double p_convection_alpha  = 1.0;
     double p_convection_beta   = 0.3333333333333333;
     double p_critical_rayleigh = 1100.0;
-};
-
-enum class c_CoolingModel : uint8_t {
-    Off        = 0,
-    Convection = 1,
-    Conduction = 2,
 };
 
 // Model names are matched case-insensitively.

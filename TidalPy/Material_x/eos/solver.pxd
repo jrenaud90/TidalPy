@@ -23,4 +23,4 @@ cdef extern from "solver_.hpp" nogil:
         double pressure_tol,
         size_t max_iters,
         cpp_bool verbose
-        ) noexcept
+        ) except +

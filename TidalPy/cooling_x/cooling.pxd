@@ -9,6 +9,11 @@ from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 
 cdef extern from "cooling_base_.hpp" namespace "tidalpy" nogil:
 
+    cdef enum class c_CoolingModel:
+        Off
+        Convection
+        Conduction
+
     cdef cppclass c_CoolingInputs:
         c_CoolingInputs() except +
         double delta_temp
@@ -66,10 +71,6 @@ cdef extern from "cooling_.hpp" namespace "tidalpy" nogil:
         double get_convection_beta()   const
         double get_critical_rayleigh() const
 
-    cdef enum class c_CoolingModel:
-        Off
-        Convection
-        Conduction
 
     # Raises ValueError on an unknown name.
     c_CoolingModel c_cooling_model_from_name(const string& model_name) except +

@@ -14,7 +14,6 @@ cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
         double temperature
         double premelt_viscosity
         double premelt_shear
-        double liquid_viscosity
 
     cdef cppclass c_PartialMeltResult:
         double melt_fraction
@@ -25,8 +24,12 @@ cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
         double get_solidus() const
         double get_liquidus() const
         double get_liquid_shear() const
+        double get_liquid_viscosity() const
+        cpp_bool get_bulk_melt_weakening() const
+        double get_liquid_bulk_modulus() const
         double calc_melt_fraction(double temperature) const
         c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& inputs) const
+        double calc_bulk_modulus_melt(double temperature, double premelt_bulk, double framework_shear) const
 
 
 cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
@@ -35,6 +38,9 @@ cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
         double solidus
         double liquidus
         double liquid_shear
+        double liquid_viscosity
+        cpp_bool bulk_melt_weakening
+        double liquid_bulk_modulus
         double fs_visc_power_slope
         double fs_visc_power_phase
         double fs_shear_power_slope

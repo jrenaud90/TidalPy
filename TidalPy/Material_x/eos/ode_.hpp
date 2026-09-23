@@ -103,10 +103,20 @@ inline double c_eos_structure_derivatives(
 
     const double rho = eos_output.density;
 
-    // The gravity equation has a 1/r singularity; all derivatives vanish at the origin and past the surface.
-    if ((radius < TidalPyConstants::d_EPS_10) || (radius > eos_input_ptr->planet_radius))
+    // The gravity equation has a removable 1/r singularity at the origin. There g = (4/3) pi G rho r, so its
+    // derivative is the limit (4/3) pi G rho (a zero there collapses the integrator's first step and costs it tens
+    // of steps to recover), while pressure, mass, and moment of inertia start flat. Everything is still past the
+    // surface.
+    if (radius > eos_input_ptr->planet_radius)
     {
         dy_ptr[0] = 0.0;
+        dy_ptr[1] = 0.0;
+        dy_ptr[2] = 0.0;
+        dy_ptr[3] = 0.0;
+    }
+    else if (radius < TidalPyConstants::d_EPS_10)
+    {
+        dy_ptr[0] = grav_coeff * rho / 3.0;
         dy_ptr[1] = 0.0;
         dy_ptr[2] = 0.0;
         dy_ptr[3] = 0.0;

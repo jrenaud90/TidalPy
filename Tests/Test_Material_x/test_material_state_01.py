@@ -157,11 +157,55 @@ def test_partial_melt_weakens_the_shear_pair_and_reports_the_melt_fraction():
     assert solid["shear_modulus"] == pytest.approx(_SHEAR)
 
     molten = material.calc_material_state(_PRESSURE, 1900.0)
-    reference = make_partial_melt("henning", melt_config).calc_partial_melt(1900.0, 1.0e20, _SHEAR, 1.0e20)
+    reference = make_partial_melt("henning", melt_config).calc_partial_melt(1900.0, 1.0e20, _SHEAR)
     assert molten["melt_fraction"] == pytest.approx(0.75)
     assert molten["shear_viscosity"] == pytest.approx(reference[1], rel=1e-13)
     assert molten["shear_modulus"] == pytest.approx(reference[2], rel=1e-13)
     assert molten["shear_modulus"] < _SHEAR
+    # Past breakdown the viscosity is the model's liquid viscosity, not the solid's.
+    assert molten["shear_viscosity"] == pytest.approx(0.2)
+
+    # Sub-critical melt weakens the viscosity too.
+    partial = material.calc_material_state(_PRESSURE, 1700.0)
+    assert partial["shear_viscosity"] == pytest.approx(1.0e20 * math.exp(-13.5 * 0.25), rel=1e-12)
+
+
+def test_partial_melt_leaves_the_bulk_modulus_unless_switched_on():
+    melt_config = {"solidus_k": 1600.0, "liquidus_k": 2000.0}
+    material = _make_material()
+    material.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e20}))
+    material.set_partial_melt(make_partial_melt("henning", melt_config))
+    bulk_premelt = material.calc_material_state(_PRESSURE, 1500.0)["bulk_modulus"]
+    assert material.calc_material_state(_PRESSURE, 1900.0)["bulk_modulus"] == bulk_premelt
+
+    weakening_config = dict(melt_config, bulk_melt_weakening=True, liquid_bulk_modulus_pa=2.0e10)
+    material.set_partial_melt(make_partial_melt("henning", weakening_config))
+    state = material.calc_material_state(_PRESSURE, 1700.0)
+    reference = make_partial_melt("henning", weakening_config)
+    expected = reference.calc_bulk_modulus_melt(1700.0, bulk_premelt, state["shear_modulus"])
+    assert state["bulk_modulus"] == pytest.approx(expected, rel=1e-13)
+    assert 2.0e10 < state["bulk_modulus"] < bulk_premelt
+
+
+def test_an_attached_model_wrapper_is_an_empty_shell():
+    """Attaching moves the model into the material; the wrapper then raises instead of reading freed memory."""
+    material = _make_material()
+    melt = make_partial_melt("henning")
+    viscosity = make_viscosity("constant", {"reference_viscosity_pas": 1.0e20})
+    material.set_partial_melt(melt)
+    material.set_shear_viscosity(viscosity)
+    with pytest.raises(RuntimeError):
+        melt.calc_bulk_modulus_melt(1700.0, 1.0e11, 1.0e10)
+    with pytest.raises(RuntimeError):
+        viscosity.calc_viscosity(1000.0, 0.0)
+
+
+def test_non_finite_temperature_skips_the_melt_model():
+    material = _make_material()
+    material.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1600.0, "liquidus_k": 2000.0}))
+    state = material.calc_material_state(_PRESSURE, math.nan)
+    assert math.isnan(state["melt_fraction"])
+    assert state["shear_modulus"] == pytest.approx(_SHEAR)
 
 
 def test_pressure_law_bulk_modulus_takes_precedence_over_the_constant():

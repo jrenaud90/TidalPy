@@ -80,7 +80,7 @@ inline void c_solve_eos(
         const std::vector<c_EOSSegment>* segment_vec_ptr = nullptr,
         bool integrate_temperature = false,
         double central_pressure_guess = TidalPyConstants::d_NAN
-        ) noexcept
+        )
 {
     eos_solution_ptr->message = std::string("Equation of state solver finished without issue.");
 
@@ -359,6 +359,8 @@ inline void c_solve_eos(
                 previous_central = y0[1];
                 previous_diff    = pressure_diff;
 
+                // A non-finite step has nowhere to go: stop at the pass cap rather than halving forever.
+                if (!std::isfinite(step)) { break; }
                 // Keep the central pressure positive by halving an overshooting step.
                 double next_central = y0[1] + step;
                 while ((next_central <= 0.0) && (std::fabs(step) > TidalPyConstants::d_EPS * pressure_scale))

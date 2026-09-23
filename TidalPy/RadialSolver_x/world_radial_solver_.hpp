@@ -6,6 +6,7 @@
 // header free of structures_x includes.
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <memory>
@@ -148,6 +149,10 @@ struct c_LoveSolveRuntimeConfig {
     bool      verbose            = false;
     bool      warnings           = true;              // enables the surface conditioning diagnostic
     bool      redim_eos_arrays   = false;             // export mode: also redimensionalize the EOS arrays
+    // Export mode: the radii [m] the returned solution's result grid is sampled on, the caller's own; null samples
+    // the EOS grid.
+    const double* sample_radius_si = nullptr;
+    size_t        num_sample_radii = 0;
 };
 
 
@@ -380,6 +385,9 @@ public:
         c_RadialSolutionStorage* storage = this->p_storage.get();
         storage->success    = false;
         storage->error_code = 0;
+        // Diagnostics describe this solve only: a failed integration must not leave the previous solve's.
+        storage->surface_amplification = 0.0;
+        std::fill(storage->shooting_method_steps_taken_vec.begin(), storage->shooting_method_steps_taken_vec.end(), 0);
         storage->p_bc_models = rt.bc_models;
         storage->p_love_frequency_si = rt.frequency;
         this->p_solved      = false;
@@ -406,6 +414,10 @@ public:
         const double start_r = this->p_nondim
             ? rt.starting_radius / this->p_non_dim_uptr->length_conversion
             : rt.starting_radius;
+        // A step limit [m], in the units the integration runs in.
+        const double max_step_solve = this->p_nondim
+            ? rt.max_step / this->p_non_dim_uptr->length_conversion
+            : rt.max_step;
 
         if (rt.use_prop_matrix) {
             c_MatrixInputs& mat = this->p_matrix_inputs;
@@ -427,7 +439,7 @@ public:
             shoot.max_num_steps      = rt.max_num_steps;
             shoot.expected_size      = rt.expected_size;
             shoot.max_ram_MB         = rt.max_ram_MB;
-            shoot.max_step           = rt.max_step;
+            shoot.max_step           = max_step_solve;
             shoot.warnings           = rt.warnings;
             c_shooting_solve(storage, shoot, freq_nd, rt.verbose);
         }
@@ -469,8 +481,12 @@ public:
             storage->find_love();
 
         // Export mode fills the SI grid for the array-returning standalone API while the EOS is still non-dim.
-        if (rt.redim_eos_arrays && storage->success && storage->p_uses_interpolants)
-            storage->sample_onto_grid();
+        if (rt.redim_eos_arrays && storage->success && storage->p_uses_interpolants) {
+            if ((rt.sample_radius_si != nullptr) && (rt.num_sample_radii > 0))
+                storage->sample_onto_radii(rt.sample_radius_si, rt.num_sample_radii);
+            else
+                storage->sample_onto_grid();
+        }
 
         // The fast path keeps the EOS arrays non-dim so the cache survives for the next frequency.
         if (this->p_nondim && storage->success) {

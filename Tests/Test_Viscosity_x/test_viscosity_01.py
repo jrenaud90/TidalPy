@@ -38,7 +38,17 @@ def test_constant(T, P):
 # Reference
 # =====================================================================================================================
 def _reference_expected(T, P, eta_ref, T_ref, Ea, Va):
-    return eta_ref * math.exp(((Ea + P * Va) / _R) * ((1.0 / T) - (1.0 / T_ref)))
+    return eta_ref * math.exp((Ea / _R) * ((1.0 / T) - (1.0 / T_ref)) + (P * Va) / (_R * T))
+
+
+@pytest.mark.parametrize("T", [800.0, 1000.0, 1500.0])
+def test_reference_pressure_always_raises_viscosity(T):
+    """A positive activation volume raises the viscosity at every temperature, including at and above T_ref."""
+    m = _import().ReferenceViscosity(reference_viscosity=1.0e22, reference_temperature=1000.0,
+                                     molar_activation_energy=3.0e5, molar_activation_volume=5.0e-6)
+    ratio = m.calc_viscosity(T, 1.0e10) / m.calc_viscosity(T, 0.0)
+    assert ratio == pytest.approx(math.exp(5.0e4 / (_R * T)), rel=1e-12)
+    assert ratio > 1.0
 
 
 @pytest.mark.parametrize("T,P", [(1000.0, 0.0), (1500.0, 2.0e10), (1800.0, 1.0e11)])

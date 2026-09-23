@@ -1,6 +1,6 @@
 # The Solution Class
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 Every radial solve returns a `RadialSolverSolution`, the Cython class in `TidalPy.RadialSolver_x.rs_solution`. It holds the solve status, the equation-of-state result, and the radial functions and Love numbers. The same object comes back from `radial_solver`, from `homogeneous_love_numbers`, and from a world's released radial storage.
 
@@ -37,7 +37,7 @@ The solver runs an equation of state before the deformation problem, and keeps t
 | `get_complex_shear_modulus(r)`, `get_complex_bulk_modulus(r)` | The **complex** moduli [Pa] at `r`, as this solve used them. |
 | `love_frequency` | The forcing frequency [rad s-1] the complex moduli above are evaluated at; NaN when the solve carried no rheology. |
 | `get_shear_viscosity(r)`, `get_bulk_viscosity(r)` | Viscosities [Pa s] at `r`; NaN when the material names none. |
-| `sample_radii(num_points=0)` | A radius grid [m] spanning the body, for a caller that wants one (plotting, tabulating). Nothing in the solve uses it and the solution keeps no copy; it defaults to the slice count the solve was configured with. |
+| `sample_radii(num_points=0)` | The radii [m] `result` was sampled on, so the two plot together: the radius array passed to `radial_solver`, or the world's solve grid for a released solution. With `num_points`, that many evenly spaced radii across the body instead. |
 | `layer_upper_radius_array` | Upper radius of each layer [m]. |
 | `radius`, `volume`, `mass`, `moi`, `density_bulk` | Whole-planet scalars. |
 | `moi_factor` | The moment of inertia factor $C/(MR^2)$, with $C$ the moment of inertia `moi`: 0.4 for a uniform sphere, 0.3307 for Earth, and smaller the more mass sits near the center. |
@@ -50,7 +50,7 @@ The solver runs an equation of state before the deformation problem, and keeps t
 
 `result` is the raw block of radial functions, shaped `(num_ytypes * 6, num_slices)`: the six functions of the first boundary condition, then the six of the next, and so on. Index it by name instead when you have more than one. TidalPy follows the Takeuchi and Saito (1972) convention, so in a solid layer these are the familiar y1 through y6.
 
-Liquid layers do not define all six. A dynamic liquid layer has no y4, and a static liquid layer has no y2, y3, y4, y5, or y6; the Saito (1974) variable "y7" takes the y6 slot there. Undefined entries are NaN, which keeps the array shape uniform and makes an accidental use obvious.
+Liquid layers do not define all six. A dynamic liquid layer has no y4 (its y3 is rebuilt from y1, y2, and y5). A static liquid layer defines only y5; its y1, y2, y3, y4, and y6 are all NaN, and the Saito (1974) variable $y_7 = y_6 + (4 \pi G / g)\, y_2$ it integrates is not stored. Undefined entries are NaN, which keeps the array shape uniform and makes an accidental use obvious.
 
 ```python
 solution.result                            # (num_ytypes * 6, num_slices)
@@ -70,7 +70,7 @@ The two dense getters evaluate the shooting method's per-layer interpolants, so 
 |---|---|
 | `love` | The full block, `(num_solve_for, 3)`. |
 | `k`, `h`, `l` | Potential, radial displacement, and tangential displacement Love numbers. |
-| `Q_k`, `Q_h`, `Q_l`, `Q` | Effective dissipation quality factor, defined as the magnitude of the real part over the negative imaginary part. `Q == Q_k`. |
+| `Q_k`, `Q_h`, `Q_l`, `Q` | Effective dissipation quality factor, defined as the magnitude of the Love number over the negative of its imaginary part, $\lvert k \rvert / (-\mathrm{Im}\, k)$; infinite when the imaginary part is zero. `Q == Q_k`. |
 | `lag_k`, `lag_h`, `lag_l`, `lag` | Phase lag \[rad\], defined as the arctangent of the negative imaginary part over the real part. `lag` follows k. |
 | `degree_l` | The harmonic degree that was solved. |
 

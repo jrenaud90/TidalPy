@@ -30,6 +30,7 @@
 #include <limits>
 #include <memory>
 #include <ostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -255,6 +256,7 @@ inline double eos_invert_eta(
         const c_PressureLawRange& range,
         double rtol,
         int max_iters) noexcept {
+    if (!std::isfinite(pressure_target)) { return TidalPyConstants::d_NAN; }
     if (std::abs(pressure_target) <= TidalPyConstants::d_EPS) { return 1.0; }
     if (pressure_target <= range.pressure_min) { return range.compression_min; }
     if (pressure_target >= range.pressure_max) { return range.compression_max; }
@@ -413,6 +415,10 @@ public:
 
     // Radius-varying static moduli [Pa] and viscosities [Pa s] from a model that tabulates them; only
     // c_InterpolatedEOS does. NaN means no such table, so the material's law or constant applies.
+    // The largest pressure [Pa] the model's pressure law represents; above it the density is held at the law's
+    // largest compression. Infinite for a model with no such limit.
+    virtual double get_max_pressure() const noexcept { return TidalPyConstants::d_INF; }
+
     virtual double get_tabulated_shear_modulus(double /*radius*/) const {
         return std::numeric_limits<double>::quiet_NaN();
     }
@@ -474,24 +480,25 @@ public:
         }
         
         /* Partial Melting */
+        // The melt model weakens the shear pair toward its liquid limits and, only when its bulk_melt_weakening
+        // switch is on, the bulk modulus by its own (much weaker) law; the bulk viscosity is not changed by melt.
+        // Without a finite temperature there is no melt state to evaluate, so the pre-melt values stand and the
+        // melt fraction is NaN.
         out.melt_fraction = 0.0;
         if (this->p_partial_melt_model) {
-            // The liquid viscosity stands in as the pre-melt one until a liquid-viscosity model exists.
-            c_PartialMeltInputs inputs;
-            inputs.temperature       = temperature;
-            inputs.premelt_viscosity = shear_viscosity;
-            inputs.premelt_shear     = shear;
-            inputs.liquid_viscosity  = shear_viscosity;
-            const c_PartialMeltResult shear_result = this->p_partial_melt_model->calc_partial_melt(inputs);
-            inputs.premelt_viscosity = bulk_viscosity;
-            inputs.premelt_shear     = bulk;
-            inputs.liquid_viscosity  = bulk_viscosity;
-            const c_PartialMeltResult bulk_result = this->p_partial_melt_model->calc_partial_melt(inputs);
-            out.melt_fraction = shear_result.melt_fraction;
-            shear             = shear_result.postmelt_shear_modulus;
-            shear_viscosity   = shear_result.postmelt_viscosity;
-            bulk              = bulk_result.postmelt_shear_modulus;
-            bulk_viscosity    = bulk_result.postmelt_viscosity;
+            if (std::isfinite(temperature)) {
+                c_PartialMeltInputs inputs;
+                inputs.temperature       = temperature;
+                inputs.premelt_viscosity = shear_viscosity;
+                inputs.premelt_shear     = shear;
+                const c_PartialMeltResult shear_result = this->p_partial_melt_model->calc_partial_melt(inputs);
+                out.melt_fraction = shear_result.melt_fraction;
+                shear             = shear_result.postmelt_shear_modulus;
+                shear_viscosity   = shear_result.postmelt_viscosity;
+                bulk              = this->p_partial_melt_model->calc_bulk_modulus_melt(temperature, bulk, shear);
+            } else {
+                out.melt_fraction = TidalPyConstants::d_NAN;
+            }
         }
         out.shear_modulus   = shear;
         out.bulk_modulus    = bulk;
@@ -707,6 +714,11 @@ protected:
     }
 
     c_PressureLawRange p_law_range;
+
+public:
+    double get_max_pressure() const noexcept override { return this->p_law_range.pressure_max; }
+
+protected:
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;
@@ -809,6 +821,11 @@ protected:
     }
 
     c_PressureLawRange p_law_range;
+
+public:
+    double get_max_pressure() const noexcept override { return this->p_law_range.pressure_max; }
+
+protected:
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;
@@ -921,6 +938,8 @@ public:
         this->p_model_name = read_binary_string(in);
         uint64_t n = 0;
         in.read(reinterpret_cast<char*>(&n), sizeof(uint64_t));
+        if (!in) { throw std::runtime_error("TidalPy: failed to read interpolated EOS binary data"); }
+        check_binary_count(in, n, 2 * sizeof(double), "interpolated EOS table");
         this->p_radius.resize(n);
         this->p_density.resize(n);
         for (uint64_t i = 0; i < n; ++i) {
@@ -950,6 +969,13 @@ protected:
 
     void p_validate_tables() const {
         const std::size_t num_points = this->p_radius.size();
+        for (std::size_t point_i = 0; point_i < num_points; ++point_i) {
+            if (!std::isfinite(this->p_radius[point_i])
+                    || ((point_i > 0) && (this->p_radius[point_i] < this->p_radius[point_i - 1]))) {
+                throw std::invalid_argument(
+                    "TidalPy: an interpolated EOS radius table must be finite and ascending (inner to outer).");
+            }
+        }
         if (this->p_density.size() != num_points) {
             throw std::invalid_argument(
                 "TidalPy: interpolated EOS density table length does not match its radius table.");

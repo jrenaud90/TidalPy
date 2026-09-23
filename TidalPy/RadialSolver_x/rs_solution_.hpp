@@ -1,6 +1,7 @@
 // rs_solution_.hpp: radial solver solution storage.
 #pragma once
 
+#include <algorithm>
 #include <cstring>
 #include <cmath>
 #include <array>
@@ -114,6 +115,7 @@ public:
     std::vector<char>   p_layer_is_incomp    = std::vector<char>();
     std::vector<size_t> p_num_sols_by_layer  = std::vector<size_t>();
     std::vector<double> p_upper_radii_solve  = std::vector<double>();   // layer upper radii (solve units)
+    std::vector<double> p_sample_radius_si   = std::vector<double>();   // radii the result grid is sampled on [m]
     size_t p_start_layer_i          = 0;
     double p_starting_radius_solve  = 0.0;   // radii below this return NaN
     double p_frequency_solve        = 0.0;   // forcing frequency (solve units) for y3 reconstruction
@@ -360,7 +362,15 @@ public:
 
     // Collapsed y1..y6 in solve units, shooting path only. False and NaN-filled when unsolved, below the
     // starting radius, or out of range. get_radial_solution is the SI form.
-    bool get_radial_solution_nondim(double radius_solve, size_t ytype_i, std::complex<double>* out6) const
+    //
+    // A radius on a layer interface belongs to the lower layer, unless `upper_at_interface`, which takes the layer
+    // above: the second copy of an interface radius in a layered radius array. A radius above the surface has no
+    // solution.
+    bool get_radial_solution_nondim(
+            double radius_solve,
+            size_t ytype_i,
+            std::complex<double>* out6,
+            bool upper_at_interface = false) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
         for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
@@ -370,14 +380,25 @@ public:
         if (!(radius_solve >= this->p_starting_radius_solve)) return false;   // also rejects NaN
 
         // Upper radii ascend and an interface radius belongs to the lower layer, so the first layer whose
-        // upper radius reaches the query wins. A little slack absorbs the exact-surface case.
+        // upper radius reaches the query wins (the first whose upper radius is above it, for an upper copy). A
+        // little slack absorbs the exact-surface case.
+        const double interface_rtol = 1.0e-12;
         size_t target_layer_i = this->num_layers;
         for (size_t layer_i = this->p_start_layer_i; layer_i < this->num_layers; ++layer_i)
         {
             const double upper = this->p_upper_radii_solve[layer_i];
-            if (radius_solve <= upper * (1.0 + 1.0e-12) + 1.0e-300) { target_layer_i = layer_i; break; }
+            const bool in_layer = upper_at_interface
+                ? (radius_solve < upper * (1.0 - interface_rtol))
+                : (radius_solve <= upper * (1.0 + interface_rtol) + 1.0e-300);
+            if (in_layer) { target_layer_i = layer_i; break; }
         }
-        if (target_layer_i >= this->num_layers) target_layer_i = this->num_layers - 1;   // clamp slight surface overshoot
+        if (target_layer_i >= this->num_layers)
+        {
+            // The surface's own upper copy has no layer above it: it is the top layer's. Anything higher is outside.
+            const double surface = this->p_upper_radii_solve.empty() ? 0.0 : this->p_upper_radii_solve.back();
+            if (!upper_at_interface || !(radius_solve <= surface * (1.0 + interface_rtol) + 1.0e-300)) return false;
+            target_layer_i = this->num_layers - 1;
+        }
 
         const size_t num_sols = this->p_num_sols_by_layer[target_layer_i];
         const int  layer_type = this->p_layer_types[target_layer_i];
@@ -387,7 +408,7 @@ public:
         // CyRK writes two reals per complex y.
         const size_t num_ys = 2 * num_sols;
         std::complex<double> ysol[3][C_MAX_NUM_Y];
-        double real_out[2 * C_MAX_NUM_Y];
+        double real_out[2 * C_MAX_NUM_Y] = {};
         for (size_t sol_i = 0; sol_i < num_sols; ++sol_i)
         {
             // CySolverResult::call is non-const, so get() is used to escape this method's constness.
@@ -415,7 +436,7 @@ public:
             {
                 if (y_i == 4)
                 {
-                    y_rhs_i = 0;        // static liquid: only y5 (stored at index 0)   
+                    y_rhs_i = 0;        // static liquid: only y5 (stored at index 0)
                 }
                 else continue;
             }
@@ -455,14 +476,18 @@ public:
 
     // Collapsed y1..y6 (SI) for one ytype: the shooting path evaluates the dense interpolants, the matrix
     // path linearly interpolates its grid. False and NaN-filled on failure or out of range.
-    bool get_radial_solution(double radius_si, size_t ytype_i, std::complex<double>* out6) const
+    bool get_radial_solution(
+            double radius_si,
+            size_t ytype_i,
+            std::complex<double>* out6,
+            bool upper_at_interface = false) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
 
         if (this->p_uses_interpolants)
         {
             const double radius_solve = radius_si / this->p_length_conv;
-            if (!this->get_radial_solution_nondim(radius_solve, ytype_i, out6))
+            if (!this->get_radial_solution_nondim(radius_solve, ytype_i, out6, upper_at_interface))
             {
                 for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
                 return false;
@@ -477,7 +502,8 @@ public:
 
         // The matrix method's grid
         const std::vector<double>& rad = this->p_matrix_radius_solve;
-        const double eos_r = this->p_eos_is_nondim ? (radius_si / this->p_length_conv) : radius_si;
+        // The grid stays in solve units, even after an export makes the EOS arrays SI.
+        const double eos_r = radius_si / this->p_length_conv;
         const size_t n = this->num_slices;
         if (n == 0 || rad.size() < n) return false;
         if (eos_r < rad[0] || eos_r > rad[n - 1]) return false;
@@ -570,22 +596,25 @@ public:
         return true;
     }
 
-    // Fill the SI grid over the EOS radius grid, for the array-returning standalone API.
-    void sample_onto_grid()
+    // Fill the SI grid the array-returning API reports (`result`) at the given radii [m], ascending, and keep the
+    // radii so a plot can pair the two. A radius listed twice (an interface, as a layered radius array gives it)
+    // takes the lower layer at its first copy and the upper layer at its second. Shooting path only: the matrix
+    // path's grid is its solution.
+    void sample_onto_radii(const double* radius_si, size_t n)
     {
-        if (!this->success) return;
-        const c_EOSSolution* eos = this->eos_solution_uptr.get();
-        const std::vector<double>& rad = eos->radius_array_vec;
-        const size_t n = this->num_slices;
-        const double length_conv = this->p_eos_is_nondim ? this->p_length_conv : 1.0;  // EOS-units radius -> SI
+        if (!this->success || !this->p_uses_interpolants) return;
+        this->num_slices = n;
+        this->total_size = static_cast<size_t>(C_MAX_NUM_Y_REAL) * n * this->num_ytypes;
+        this->full_solution_vec.assign(this->total_size, TidalPyConstants::d_NAN);
+        this->p_sample_radius_si.assign(radius_si, radius_si + n);
         const size_t num_output_ys = C_MAX_NUM_Y_REAL * this->num_ytypes;
         std::complex<double> out6[C_MAX_NUM_Y];
         for (size_t slice_i = 0; slice_i < n; ++slice_i)
         {
-            const double radius_si = rad[slice_i] * length_conv;
+            const bool upper_copy = (slice_i > 0) && (radius_si[slice_i] == radius_si[slice_i - 1]);
             for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ++ytype_i)
             {
-                this->get_radial_solution(radius_si, ytype_i, out6);
+                this->get_radial_solution(radius_si[slice_i], ytype_i, out6, upper_copy);
                 for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i)
                 {
                     const size_t base = slice_i * num_output_ys + ytype_i * C_MAX_NUM_Y_REAL + y_i * 2;
@@ -595,4 +624,21 @@ public:
             }
         }
     }
+
+    // The same over the solution's own EOS radius grid, for a solution with no caller-supplied radii (a world's
+    // released solution).
+    void sample_onto_grid()
+    {
+        if (!this->success || !this->p_uses_interpolants) return;
+        const c_EOSSolution* eos = this->eos_solution_uptr.get();
+        const std::vector<double>& rad = eos->radius_array_vec;
+        const size_t n = std::min(this->num_slices, rad.size());
+        const double length_conv = this->p_eos_is_nondim ? this->p_length_conv : 1.0;  // EOS-units radius -> SI
+        std::vector<double> radius_si(n);
+        for (size_t slice_i = 0; slice_i < n; ++slice_i) { radius_si[slice_i] = rad[slice_i] * length_conv; }
+        this->sample_onto_radii(radius_si.data(), n);
+    }
+
+    // The radii [m] the `result` grid was sampled on; empty when it holds the matrix path's own grid.
+    const std::vector<double>& get_sample_radii_si() const noexcept { return this->p_sample_radius_si; }
 };

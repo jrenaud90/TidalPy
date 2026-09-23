@@ -178,7 +178,7 @@ def test_plot_interior_full_options():
     assert axes[0].get_ylabel() == "Depth [km]"
     assert figure.axes[-1].get_xscale() == "log"       # positive imaginary parts use a log axis
     assert axes[2].get_legend() is not None
-    assert figure._suptitle.get_text() == "Test World"
+    assert figure._suptitle.get_text() == "test world"     # the name as given, not title-cased
     assert all(len(axis.texts) == 0 for axis in figure.axes)
     assert len(axes[0].collections) == 1 and len(axes[0].get_lines()) == 0
 

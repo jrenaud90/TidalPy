@@ -57,6 +57,7 @@ cdef extern from "rs_solution_.hpp" nogil:
             size_t ytype_i,
             cpp_complex[double]* out)
         cpp_bool get_surface_y(size_t ytype_i, cpp_complex[double]* out6)
+        const vector[double]& get_sample_radii_si()
         cpp_bool get_eos_si(double radius_si, double* out)
         void get_complex_moduli_si(double radius_si, cpp_complex[double]& shear_out, cpp_complex[double]& bulk_out)
         void find_love()

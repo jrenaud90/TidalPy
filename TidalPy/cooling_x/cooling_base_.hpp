@@ -1,6 +1,7 @@
 #pragma once
 /* Abstract base for TidalPy cooling models. Concrete models live in cooling_.hpp. All quantities MKS. */
 
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -28,6 +29,12 @@ struct c_CoolingResult {
     double nusselt_number  = 1.0;  // Nusselt number [dimensionless]
 };
 
+enum class c_CoolingModel : uint8_t {
+    Off        = 0,
+    Convection = 1,
+    Conduction = 2,
+};
+
 class c_CoolingBase : public c_PhysicsBase {
 public:
     c_CoolingBase() = default;
@@ -38,6 +45,10 @@ public:
 
     // Assumes steady-state boundary-layer theory.
     virtual c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const = 0;
+
+    // Which heat transport the model describes. The thermal network builds a layer's profile from this, so a
+    // model is never told apart by its name.
+    virtual c_CoolingModel get_model_type() const noexcept = 0;
 
     // Vectorized over the temperature drop at otherwise fixed state; out_results is resized.
     void calc_cooling_vectorize_temperature(

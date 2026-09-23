@@ -183,6 +183,7 @@ cdef class MaterialEOSBase(PhysicsBase):
         if viscosity._visc_ptr.get() == NULL:
             raise ValueError("This viscosity model holds no C++ object (already attached or moved).")
         self._model().set_shear_viscosity(move(viscosity._visc_ptr))
+        viscosity._ptr = NULL
 
     def set_bulk_viscosity(self, ViscosityBase viscosity not None):
         """Attach a viscosity model supplying the bulk viscosity before the partial-melt model.
@@ -192,6 +193,7 @@ cdef class MaterialEOSBase(PhysicsBase):
         if viscosity._visc_ptr.get() == NULL:
             raise ValueError("This viscosity model holds no C++ object (already attached or moved).")
         self._model().set_bulk_viscosity(move(viscosity._visc_ptr))
+        viscosity._ptr = NULL
 
     def set_partial_melt(self, PartialMeltBase partial_melt not None):
         """Attach a partial-melt model that weakens the static moduli and viscosities with melt fraction.
@@ -201,6 +203,7 @@ cdef class MaterialEOSBase(PhysicsBase):
         if partial_melt._melt_ptr.get() == NULL:
             raise ValueError("This partial-melt model holds no C++ object (already attached or moved).")
         self._model().set_partial_melt(move(partial_melt._melt_ptr))
+        partial_melt._ptr = NULL
 
     @property
     def shear_viscosity_set(self) -> bool:
