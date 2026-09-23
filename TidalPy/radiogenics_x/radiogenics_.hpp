@@ -44,13 +44,14 @@ inline double rad_guard(double value) noexcept {
 //
 //   q(t) = mass_frac * concentration * heat_production * exp(gamma * (t - t_ref))
 //
-// with gamma = ln(0.5) / half_life the (negative) decay constant.
+// with gamma = ln(0.5) / half_life the (negative) decay constant. Both abundances are values at t_ref. A source
+// that quotes the isotope's own concentration rather than its element's is entered with mass_frac = 1.
 struct c_Isotope {
     std::string name;                       // isotope label (e.g. "U238")
     double heat_production = 0.0;      // specific heat production of the pure isotope [W/kg]
     double half_life = 0.0;      // half life [s]
-    double mass_frac = 0.0;      // isotopic mass fraction within its element [kg/kg]
-    double concentration = 0.0;      // element concentration in the layer material [kg/kg]
+    double mass_frac = 0.0;      // isotopic mass fraction within its element at t_ref [kg/kg]
+    double concentration = 0.0;      // element concentration in the layer material at t_ref [kg/kg]
 
     c_Isotope() = default;
     c_Isotope(std::string isotope_name,
@@ -98,7 +99,7 @@ struct c_IsotopeDataset {
 };
 
 inline std::vector<std::string> c_isotope_dataset_names() {
-    return {"modern_day_chondritic", "llri_and_slri", "bulk_silicate_earth"};
+    return {"modern_day_chondritic", "llri", "slri", "llri_and_slri", "bulk_silicate_earth"};
 }
 
 // Named built-in isotope datasets (case-insensitive):
@@ -108,10 +109,16 @@ inline std::vector<std::string> c_isotope_dataset_names() {
 //       K40), for rocky or icy bodies of broadly chondritic composition near the present epoch.
 //       Hussmann and Spohn (2004); Turcotte and Schubert (2001).
 //
+//   "llri"
+//       The long-lived isotopes (U238, U235, Th232, K40) of ordinary chondritic rock at CAI formation, for a body
+//       that formed too late for the short-lived isotopes to matter. Castillo-Rogez et al. (2007).
+//
+//   "slri"
+//       The short-lived isotopes (Al26, Fe60, Mn53) of the same rock at CAI formation. Castillo-Rogez et al. (2007).
+//
 //   "llri_and_slri"
-//       Long-lived (U238, U235, Th232, K40) plus short-lived (Mn53, Fe60, Al26) isotopes, for
-//       early-solar-system thermal evolution where the short-lived isotopes dominate the heat budget.
-//       Castillo-Rogez et al. (2007).
+//       Both of the above, for early-solar-system thermal evolution where the short-lived isotopes dominate the
+//       heat budget.
 //
 //   "bulk_silicate_earth"
 //       Present-day bulk silicate Earth: the four long-lived heat producers at BSE concentrations
@@ -120,9 +127,39 @@ inline std::vector<std::string> c_isotope_dataset_names() {
 //       production rates and half lives.
 //
 // The chondritic and BSE sets quote present-epoch concentrations (ref_time = 4600 Myr after
-// solar-system formation); "llri_and_slri" quotes formation (CAI) abundances (ref_time = 0), so time is
-// measured from formation and the short-lived isotopes decay away over the first 10 Myr or so.
+// solar-system formation); the three Castillo-Rogez sets quote formation (CAI) abundances (ref_time = 0), so
+// time is measured from formation and the short-lived isotopes decay away over the first 10 Myr or so.
 inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name);
+
+// Castillo-Rogez et al. (2007) long-lived isotopes at CAI formation: heat production and half lives from their
+// Table 4, concentrations from their Table 3. Table 3 quotes each isotope's own concentration, already decayed back
+// to formation, while the isotopic abundances of Table 4 are present-day values that do not hold at formation, so
+// each isotope is entered with its own concentration and a mass fraction of 1. The Th232 half life is the middle
+// of the quoted 14010 to 14050 Myr.
+inline std::vector<c_Isotope> c_castillo_rogez_2007_llri() {
+    const double myr = TidalPyConstants::d_SECONDS_PER_MYR;
+    return {
+        c_Isotope("U238",  9.465e-5, 4468.0  * myr, 1.0, 26.2e-9),
+        c_Isotope("U235",  5.687e-4, 703.81  * myr, 1.0, 8.2e-9),
+        c_Isotope("Th232", 2.638e-5, 14030.0 * myr, 1.0, 53.8e-9),
+        c_Isotope("K40",   2.917e-5, 1277.0  * myr, 1.0, 1104.0e-9),
+    };
+}
+
+// Castillo-Rogez et al. (2007) short-lived isotopes at CAI formation: heat production, half lives, and initial
+// isotopic ratios from their Table 5. Each element concentration is the Table 3 isotope concentration divided by
+// that ratio, as the paper builds Table 3 (26Al: 5e-5 of 1.2 wt% aluminum is 600 ppb), so the product reproduces
+// Table 3 exactly. The ratio to the stable isotope stands in for the mass fraction within the element, as it does
+// in the paper. Where Table 5 quotes a range, the Fe60 ratio is the 1e-6 of the paper's short-lived-isotope models
+// and the Al26 half life and Fe60 heat production are the middle of the range.
+inline std::vector<c_Isotope> c_castillo_rogez_2007_slri() {
+    const double myr = TidalPyConstants::d_SECONDS_PER_MYR;
+    return {
+        c_Isotope("Al26", 0.146, 0.723 * myr, 5.0e-5, 1.2e-2),
+        c_Isotope("Fe60", 0.071, 1.5   * myr, 1.0e-6, 0.225),
+        c_Isotope("Mn53", 0.027, 3.7   * myr, 1.0e-5, 2.57e-3),
+    };
+}
 
 // Radiogenics disabled.
 inline double rad_heating_off(double /*time*/, double /*mass*/) noexcept {
@@ -179,19 +216,16 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
         };
         return dataset;
     }
-    if (key == "llri_and_slri") {
-        // Castillo-Rogez et al. (2007). Formation (CAI) abundances, including the canonical
-        // 26Al/27Al = 5e-5 and undecayed long-lived concentrations, so ref_time is formation.
+    if ((key == "llri") || (key == "slri") || (key == "llri_and_slri")) {
+        // Castillo-Rogez et al. (2007) quotes formation (CAI) abundances, so ref_time is formation.
         dataset.ref_time = 0.0;
-        dataset.isotopes = {
-            c_Isotope("U238",  9.465e-5, 4468.0   * myr, 0.9928,   0.026e-6),
-            c_Isotope("U235",  5.687e-4, 703.81   * myr, 0.0071,   0.0082e-6),
-            c_Isotope("Th232", 2.638e-5, 14025.0  * myr, 1.0,      0.0538e-6),
-            c_Isotope("K40",   2.917e-5, 1277.0   * myr, 1.176e-4, 1.104e-6),
-            c_Isotope("Mn53",  0.027,    3.7      * myr, 2.0e-5,   0.0257e-6),
-            c_Isotope("Fe60",  0.07,     1.5      * myr, 1.0e-6,   0.1e-6),
-            c_Isotope("Al26",  0.146,    0.72     * myr, 5.0e-5,   0.6e-6),
-        };
+        if (key != "slri") {
+            dataset.isotopes = c_castillo_rogez_2007_llri();
+        }
+        if (key != "llri") {
+            const std::vector<c_Isotope> short_lived = c_castillo_rogez_2007_slri();
+            dataset.isotopes.insert(dataset.isotopes.end(), short_lived.begin(), short_lived.end());
+        }
         return dataset;
     }
     if (key == "bulk_silicate_earth") {
