@@ -1,10 +1,9 @@
 // world_radial_solver_.hpp: cached whole-planet Love-number solver owned by c_LayeredWorld.
 //
-// build_cache stores the frequency-independent setup once per EOS solve (non-dimensional scales and structure
-// arrays, the c_ShootingInputs / c_MatrixInputs structs, the reused c_RadialSolutionStorage); solve then only
-// non-dimensionalizes the complex moduli the world filled for the forcing frequency, runs the shooting or
-// propagation-matrix method, and extracts the Love numbers. The helper holds no pointer back to the world, which
-// keeps this header free of structures_x includes.
+// build_cache stores the frequency-independent setup once per EOS solve; solve then only non-dimensionalizes
+// the complex moduli the world filled for the forcing frequency, runs the shooting or propagation-matrix
+// method, and extracts the Love numbers. The helper holds no pointer back to the world, which keeps this
+// header free of structures_x includes.
 #pragma once
 
 #include <cmath>
@@ -24,12 +23,11 @@
 #include "matrix_.hpp"
 
 
-// =====================================================================================================================
-// Per-solver input structs, built once by build_cache; each solve updates only the per-call knobs
-// =====================================================================================================================
+// Per-solver input structs, built once by build_cache; each solve updates only the per-call knobs.
 
 struct c_ShootingInputs {
-    // layer_types: 0 = solid, 1 = liquid. bool[] because std::vector<bool> is bit-packed and the solver wants bool*.
+    // layer_types: 0 = solid, 1 = liquid. bool[] because std::vector<bool> is bit-packed and the solver
+    // wants a bool*.
     std::vector<int>        layer_types;
     std::unique_ptr<bool[]> is_static;
     std::unique_ptr<bool[]> is_incompressible;
@@ -39,9 +37,9 @@ struct c_ShootingInputs {
     std::vector<size_t> first_slice_index_by_layer;
     std::vector<size_t> num_slices_by_layer;
 
-    // Surface boundary conditions to solve for, in order (tidal = 1, free = 0, loading = 2). One solve produces a
-    // block of radial functions per entry. The independent solutions do not depend on the boundary condition, so
-    // n conditions cost one integration and n surface solves, not n integrations.
+    // Surface boundary conditions to solve for, in order; one block of radial functions per entry. The
+    // independent solutions do not depend on the boundary condition, so n conditions cost one integration
+    // and n surface solves rather than n integrations.
     std::vector<int> bc_models = {1};
 
     // Non-dim planet scalars.
@@ -67,7 +65,7 @@ struct c_ShootingInputs {
 // Propagation-matrix-method inputs (only valid for a single solid, static, incompressible layer).
 struct c_MatrixInputs {
     size_t num_layers          = 1;
-    // The method lays its own grid down inside c_matrix_propagate; this is the only thing left to say about it.
+    // The method lays its own grid down inside c_matrix_propagate, so this is all it needs.
     size_t slices_per_layer    = 0;
     std::vector<int> bc_models = {1};
     double planet_bulk_density = 0.0;
@@ -128,9 +126,6 @@ inline int c_matrix_solve(
 }
 
 
-// =====================================================================================================================
-// Runtime (per-solve) configuration
-// =====================================================================================================================
 struct c_LoveSolveRuntimeConfig {
     double    frequency       = 1.0e-5;             // [rad/s]; the only physically per-call quantity
     std::vector<int> bc_models = {1};               // tidal = 1, free = 0, loading = 2; one output block each
@@ -153,17 +148,13 @@ struct c_LoveSolveRuntimeConfig {
 };
 
 
-// =====================================================================================================================
-// c_WorldRadialSolver
-// =====================================================================================================================
 class c_WorldRadialSolver {
 public:
     c_WorldRadialSolver() = default;
     ~c_WorldRadialSolver() = default;
 
-    // Cache signature check (layer count, slice count, degree, nondim flag, output-block count) so the world can
-    // skip a rebuild. The block count is in the signature because it sizes the storage, so asking for a different
-    // set of boundary conditions has to rebuild.
+    // Cache signature so the world can skip a rebuild. The output-block count is part of it because that
+    // sizes the storage: asking for a different set of boundary conditions has to rebuild.
     bool cache_matches(
         size_t n_layers,
         size_t total_slices,
@@ -179,7 +170,7 @@ public:
             && this->p_num_ytypes   == num_ytypes;
     }
 
-    // The layer flags are user-mutable without an EOS re-solve, so a cache hit must also confirm them.
+    // The layer flags are user-mutable without an EOS re-solve, so a cache hit must confirm them too.
     bool layer_flags_match(
         const int* layer_types,
         const bool* is_static,
@@ -208,9 +199,9 @@ public:
         return std::move(this->p_storage);
     }
 
-    // Install the per-layer state provider that both methods read gravity, density, and the complex moduli from, at
-    // the exact radius asked for. Set per Love solve, because the callable carries that solve's forcing frequency,
-    // and left in place afterwards so the solution can still be read. See c_EOSSolution::MaterialEval.
+    // The per-layer state provider both methods read gravity, density, and the complex moduli from, at the
+    // exact radius asked for. Set per Love solve, since the callable carries that solve's forcing frequency,
+    // and left in place afterwards so the solution can still be read.
     void set_material_eval(c_EOSSolution::MaterialEval eval) {
         if (this->p_storage) {
             this->p_storage->get_eos_solution_ptr()->p_material_eval = std::move(eval);
@@ -218,8 +209,8 @@ public:
     }
     size_t total_slices() const noexcept { return this->p_total_slices; }
 
-    // Frequency-independent setup from SI inputs. Returns false (with an error on the storage) if the layer slice
-    // partition is invalid.
+    // Frequency-independent setup from SI inputs. False, with an error on the storage, for an invalid layer
+    // slice partition.
     bool build_cache(
         const std::vector<double>& radius_si,
         const std::vector<double>& density_si,
@@ -271,9 +262,9 @@ public:
             rho_nd = bulk_density / density_conv;
         }
 
-        // The non-dim radius grid is built here and handed to the storage, which keeps it only to size its output
-        // sampling. No other structure array is copied: everything the solve reads comes from the world's solved
-        // EOS and the layer's models, through the dense source and provider installed below.
+        // The storage keeps this grid only to size its output sampling. No other structure array is copied:
+        // everything the solve reads comes from the world's solved EOS and the layer's models, through the
+        // dense source and provider installed below.
         this->p_radius_nd = radius_si;
         if (nondimensionalize) {
             for (size_t slice_i = 0; slice_i < total_slices; ++slice_i) {
@@ -281,7 +272,6 @@ public:
             }
         }
 
-        // (Re)build the reusable solution storage with the non-dim radius grid.
         this->p_storage = std::make_unique<c_RadialSolutionStorage>(
             num_ytypes,
             this->p_upper_radii_nd.data(),
@@ -290,7 +280,7 @@ public:
             total_slices,
             degree_l);
 
-        // Per-layer slice partitioning over the non-dim grid (interface radii appear in two layers).
+        // Interface radii appear in two layers.
         std::vector<size_t> first_slice_idx;
         std::vector<size_t> num_slices;
         tidalpy::c_partition_radius_by_layer(
@@ -310,7 +300,7 @@ public:
             }
         }
 
-        // Populate the shooting-method inputs (structural fields; per-call knobs set in solve()).
+        // Structural fields only; solve() sets the per-call knobs.
         c_ShootingInputs& shoot = this->p_shooting_inputs;
         shoot.num_layers          = n_layers;
         shoot.layer_types.assign(layer_types, layer_types + n_layers);
@@ -326,8 +316,8 @@ public:
         shoot.G                          = G_nd;
         shoot.degree_l                   = degree_l;
 
-        // Populate the propagation-matrix inputs (structural fields). It builds its own grid, so all it needs is how
-        // fine that grid should be; the count matches what the caller asked for so the output sampling is unchanged.
+        // It builds its own grid, so all it needs is how fine that grid should be; the count matches what
+        // the caller asked for, leaving the output sampling unchanged.
         c_MatrixInputs& mat = this->p_matrix_inputs;
         mat.num_layers          = n_layers;
         mat.slices_per_layer    = (n_layers > 0) ? total_slices / n_layers : 0;
@@ -335,9 +325,9 @@ public:
         mat.G                   = G_nd;
         mat.degree_l            = degree_l;
 
-        // The solve reads no stored profile, but the solution still reports the planet's scalars, and find_love
-        // runs only on a solution marked solved. These are the same values inject_from_world_eos used to take off
-        // the ends of the arrays it copied, in the units the methods work in.
+        // The solve reads no stored profile, but the solution still reports the planet's scalars and
+        // find_love runs only on a solution marked solved. Same values inject_from_world_eos used to take
+        // off the ends of the arrays it copied, in the units the methods work in.
         c_EOSSolution* storage_eos = this->p_storage->get_eos_solution_ptr();
         const auto to_nd = [nondimensionalize](double value, double conv) {
             return nondimensionalize ? value / conv : value;
@@ -355,8 +345,8 @@ public:
         storage_eos->radius_array_set       = true;
         storage_eos->other_vecs_set         = true;
 
-        // This storage's EOS stands in for the world's, so it also reports the world's solve diagnostics. Without
-        // this they stay at their "never solved" defaults, which an exported solution would report as its own.
+        // This storage's EOS stands in for the world's, so it carries the world's solve diagnostics too.
+        // Without them it keeps its "never solved" defaults, which an exported solution would report.
         if (world_eos_ptr) {
             storage_eos->iterations         = world_eos_ptr->iterations;
             storage_eos->pressure_error     = world_eos_ptr->pressure_error;
@@ -366,8 +356,8 @@ public:
             storage_eos->num_cysolver_calls = world_eos_ptr->num_cysolver_calls;
         }
 
-        // The state provider answers in SI at an SI radius; the scales convert the non-dim shooting radius up and
-        // its answers back down.
+        // The provider answers in SI at an SI radius, so the scales convert the non-dim shooting radius up
+        // and its answers back down.
         storage_eos->p_structure_length_scale  = nondimensionalize ? length_conv  : 1.0;
         storage_eos->p_structure_gravity_scale = nondimensionalize ? gravity_conv : 1.0;
         storage_eos->p_structure_pascal_scale  = nondimensionalize ? pascal_conv  : 1.0;
@@ -386,7 +376,7 @@ public:
         storage->p_love_frequency_si = rt.frequency;
         this->p_solved      = false;
 
-        // Propagation matrix is only valid for a single solid, static, incompressible layer.
+        // The propagation matrix is only valid for a single solid, static, incompressible layer.
         if (rt.use_prop_matrix) {
             const bool ok = (this->p_n_layers == 1)
                 && (this->p_shooting_inputs.layer_types[0] == 0)
@@ -465,8 +455,8 @@ public:
             }
         }
 
-        // Love numbers from the non-dim solution: k = y5 - 1, h = y1 g, l = y3 g, and the displacement and gravity
-        // scales cancel. The storage's surface_gravity stays non-dim for the next solve.
+        // From the non-dim solution: k = y5 - 1, h = y1 g, l = y3 g, with the displacement and gravity
+        // scales cancelling. The storage's surface_gravity stays non-dim for the next solve.
         if (storage->success)
             storage->find_love();
 
@@ -474,8 +464,7 @@ public:
         if (rt.redim_eos_arrays && storage->success && storage->p_uses_interpolants)
             storage->sample_onto_grid();
 
-        // Re-dimensionalize the matrix y-grid and, in export mode only, the EOS arrays; the fast path keeps them
-        // non-dim so the cache survives for the next frequency.
+        // The fast path keeps the EOS arrays non-dim so the cache survives for the next frequency.
         if (this->p_nondim && storage->success) {
             storage->dimensionalize_data(
                 this->p_non_dim_uptr.get(),
@@ -488,7 +477,7 @@ public:
                 storage->p_eos_is_nondim = false;
             }
         }
-        // Export mode consumes the cache (the EOS arrays are now SI).
+        // Export mode consumes the cache: the EOS arrays are SI now.
         if (rt.redim_eos_arrays)
             this->p_cache_valid = false;
 

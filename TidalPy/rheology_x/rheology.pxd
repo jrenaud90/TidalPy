@@ -1,6 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's rheology model hierarchy: the seven C++ models, the combined config
-struct, and the Python wrapper classes."""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
@@ -10,9 +8,6 @@ from libcpp.complex cimport complex as cpp_complex
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "rheology_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_RheologyBase(c_PhysicsBase):
@@ -81,7 +76,6 @@ cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
         double get_voigt_modulus_frac()   const
         double get_voigt_viscosity_frac() const
 
-    # Enum naming each concrete rheology model.
     cdef enum class c_RheologyModel:
         Elastic
         Viscous
@@ -91,17 +85,13 @@ cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
         Andrade
         Sundberg
 
-    # Map a name/alias to the enum (raises ValueError on unknown name).
+    # Raises ValueError on an unknown name.
     c_RheologyModel c_rheology_model_from_name(const string& model_name) except +
 
-    # Build the model named by the enum; returns an owning unique_ptr.
     unique_ptr[c_RheologyBase] c_find_rheology(
         c_RheologyModel model, const c_RheologyConfig& cfg) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations
-# =====================================================================================================================
 cdef class RheologyBase(PhysicsBase):
     cdef unique_ptr[c_RheologyBase] _rheology_ptr   # owns the most-derived C++ model object
 

@@ -16,23 +16,15 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 
-# Wire this DLL's logger pointer so TIDALPY_LOG_* calls in the C++ headers reach the shared spdlog
-# instance.
+# Wire this DLL's logger pointer so TIDALPY_LOG_* calls in the C++ headers reach the shared spdlog.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 
 # Wire this DLL's config pointer so tidalpy_config_ptr resolves to the shared TidalPyConfig instance.
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# TidalPyBaseClass
-# =====================================================================================================================
 cdef class TidalPyBaseClass:
-    """Abstract base for all TidalPy C++ class wrappers.
-
-    Provides binary save/load and schema version access.
-    Not directly instantiable: instantiate StructureBase or PhysicsBase instead.
-    """
+    """Abstract base for all TidalPy C++ class wrappers: binary save/load and schema version access."""
 
     def __cinit__(self):
         self._ptr = NULL
@@ -44,23 +36,12 @@ cdef class TidalPyBaseClass:
                 f"a layer or world, which took ownership of it.")
 
     def get_schema_version_str(self) -> str:
-        """Return the schema version string (e.g. '0.2.0')."""
+        """Schema version string, e.g. '0.2.0'."""
         self._check_ptr()
         return self._ptr.get_schema_version_str().decode("utf-8")
 
     def save_binary(self, str path):
-        """Serialize this object to a TidalPy binary file.
-
-        Parameters
-        ----------
-        path : str
-            Destination file path.
-
-        Raises
-        ------
-        IOError
-            If the file cannot be opened for writing.
-        """
+        """Serialize this object to a TidalPy binary file."""
         self._check_ptr()
         self._ptr.save_binary(path.encode("utf-8"))
 
@@ -72,14 +53,7 @@ cdef class TidalPyBaseClass:
         path : str
             Source file path.
         force : bool, optional
-            If True, attempt to load even on schema version mismatch.
-
-        Raises
-        ------
-        FileNotFoundError
-            If the file does not exist.
-        IOError
-            If the file is invalid or schema version is incompatible.
+            Attempt the load even on a schema version mismatch.
         """
         self._check_ptr()
         if not _os.path.isfile(path):
@@ -90,30 +64,21 @@ cdef class TidalPyBaseClass:
             raise IOError(str(exc)) from exc
 
     cpdef dict get_config_dict(self):
-        """Return a dict of this object's configuration (empty on the base class)."""
+        """This object's configuration; empty on the base class."""
         return {}
 
     def save_config(self, str path):
-        """Save this object's configuration to a TOML file.
-
-        Parameters
-        ----------
-        path : str
-            Destination file path (should end in .toml).
-        """
+        """Save this object's configuration to a TOML file."""
         import toml
         cdef dict config = self.get_config_dict()
         with open(path, 'w', encoding='utf-8') as f:
             toml.dump(config, f)
 
 
-# =====================================================================================================================
-# StructureBase
-# =====================================================================================================================
 cdef class StructureBase(TidalPyBaseClass):
     """Spherical geometry base class storing radius [m] and mass [kg].
 
-    The geometry methods take explicit arguments instead of reading the stored state.
+    The geometry methods take explicit arguments rather than reading the stored state.
 
     Parameters
     ----------
@@ -124,7 +89,7 @@ cdef class StructureBase(TidalPyBaseClass):
     """
 
     def __cinit__(self, *args, **kwargs):
-        # The address of _struct is stable for this object's lifetime; subclasses reset _ptr in __init__.
+        # _struct's address is stable for this object's lifetime; subclasses reset _ptr in __init__.
         self._ptr = &self._struct
 
     def __init__(self, double radius, double mass):
@@ -133,9 +98,6 @@ cdef class StructureBase(TidalPyBaseClass):
     def __dealloc__(self):
         self._ptr = NULL
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def radius(self) -> float:
         """Radius [m]."""
@@ -146,99 +108,43 @@ cdef class StructureBase(TidalPyBaseClass):
         """Mass [kg]."""
         return self._struct.get_mass()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Geometry calculations
-    # ------------------------------------------------------------------------------------------------------------------
     def calc_surface_area(self, double radius) -> float:
-        """Surface area of a sphere [m^2].
-
-        Parameters
-        ----------
-        radius : float
-            Radius [m].
-        """
+        """Surface area of a sphere [m^2]."""
         return self._struct.calc_surface_area(radius)
 
     def calc_volume_sphere(self, double radius) -> float:
-        """Volume of a solid sphere [m^3].
-
-        Parameters
-        ----------
-        radius : float
-            Radius [m].
-        """
+        """Volume of a solid sphere [m^3]."""
         return self._struct.calc_volume_sphere(radius)
 
     def calc_volume_shell(self, double radius_outer, double radius_inner) -> float:
-        """Volume of a spherical shell [m^3].
-
-        Parameters
-        ----------
-        radius_outer : float
-            Outer radius [m].
-        radius_inner : float
-            Inner radius [m].
-        """
+        """Volume of a spherical shell [m^3]."""
         return self._struct.calc_volume_shell(radius_outer, radius_inner)
 
     def calc_surface_gravity(self, double mass, double radius) -> float:
-        """Surface gravitational acceleration [m/s^2].
-
-        Parameters
-        ----------
-        mass : float
-            Mass [kg].
-        radius : float
-            Radius [m].
-        """
+        """Surface gravitational acceleration [m/s^2]."""
         return self._struct.calc_surface_gravity(mass, radius)
 
     def calc_mean_density(self, double mass, double volume) -> float:
-        """Mean density [kg/m^3].
-
-        Parameters
-        ----------
-        mass : float
-            Mass [kg].
-        volume : float
-            Volume [m^3].
-        """
+        """Mean density [kg/m^3]."""
         return self._struct.calc_mean_density(mass, volume)
 
     def calc_escape_velocity(self, double mass, double radius) -> float:
-        """Escape velocity [m/s].
-
-        Parameters
-        ----------
-        mass : float
-            Mass [kg].
-        radius : float
-            Radius [m].
-        """
+        """Escape velocity [m/s]."""
         return self._struct.calc_escape_velocity(mass, radius)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
-
     cpdef dict get_config_dict(self):
-        """Return configuration dict with radius and mass [MKS]."""
+        """Radius and mass [MKS]."""
         return {
             "radius_m": self._struct.get_radius(),
             "mass_kg":  self._struct.get_mass(),
         }
 
 
-# =====================================================================================================================
-# PhysicsBase
-# =====================================================================================================================
 cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries):
-    """Convert the typed config entries a C++ physics model reports into a Python dict."""
     cdef dict out = {}
     cdef size_t i, j
     cdef str key
     cdef list values
-    # One index per entry rather than one per field read below.
     cdef const c_ConfigEntry* entry_ptr = NULL
     for i in range(entries.size()):
         entry_ptr = &entries[i]
@@ -265,11 +171,7 @@ cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries):
 
 
 cdef dict cy_physics_model_config(const c_PhysicsBase* model_ptr):
-    """Config dict of any C++ physics model (an empty dict for a null pointer).
-
-    Used by the Cython wrappers and by the layer and world writers, which hold their attached models through
-    raw pointers.
-    """
+    """Config dict of any C++ physics model; empty for a null pointer."""
     cdef vector[c_ConfigEntry] entries
     if model_ptr == NULL:
         return {}
@@ -280,13 +182,10 @@ cdef dict cy_physics_model_config(const c_PhysicsBase* model_ptr):
 cdef class PhysicsBase(TidalPyBaseClass):
     """Physics model base class.
 
-    Stores a model name string and a non-owning observer pointer to the layer
-    that contains this physics object (set by the layer after construction).
-
     Parameters
     ----------
     model_name : str
-        Physics model name (e.g. 'maxwell', 'convection').
+        Physics model name, e.g. 'maxwell' or 'convection'.
 
     Notes
     -----
@@ -295,7 +194,7 @@ cdef class PhysicsBase(TidalPyBaseClass):
     """
 
     def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr<c_PhysicsBase> auto-inits to nullptr; subclasses own their object
+        pass  # unique_ptr auto-inits to nullptr; subclasses own their object
 
     def __init__(self, str model_name):
         cdef string name = model_name.encode("utf-8")
@@ -306,9 +205,6 @@ cdef class PhysicsBase(TidalPyBaseClass):
         self._physics_ptr.reset()
         self._ptr = NULL
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def model_name(self) -> str:
         """Physics model name."""
@@ -320,60 +216,51 @@ cdef class PhysicsBase(TidalPyBaseClass):
         self._check_ptr()
         (<c_PhysicsBase*>self._ptr).set_model_name(value.encode("utf-8"))
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
-        """Return the configuration dict reported by the C++ model.
+        """The configuration dict the C++ model reports.
 
-        The base entry is the ``model`` name (the key the world builder reads for every physics-model table);
-        each C++ subclass appends its own parameters through ``append_config_entries``, so wrapper classes
-        never override this method.
+        The base entry is the ``model`` name, the key the world builder reads for every physics-model
+        table; each C++ subclass appends its own parameters, so wrapper classes never override this.
         """
         self._check_ptr()
         return cy_physics_model_config(<const c_PhysicsBase*>self._ptr)
 
 
-# =====================================================================================================================
-# Physics-model config key checking
-# =====================================================================================================================
 def factory_defaults(str section, accepted_keys, model_name=None, same_model=None) -> dict:
-    """The parameters a ``make_*`` factory takes when it is called with no config: the world builder's defaults.
+    """The parameters a ``make_*`` factory takes when called with no config: the world builder's defaults.
 
-    A model attached by the world builder resolves its parameters through the layer's own table and then the
-    matching model table of ``[layers.default]`` in ``TidalPy_Configs_x.toml`` (``[tides]`` for a tide model).
-    A model built directly through its factory shares that second tier, so the same configuration file
-    describes both. The table names one model of the family, and its parameters are taken only for that model
-    (compared case-insensitively with ``model_name``): a parameter of one model must not carry over to another
-    that reads the same key with a different meaning, as an isotope dataset's reference time would into a
-    fixed radiogenic rate. The ``model`` key itself and anything the family does not read are left out.
+    The world builder resolves a model's parameters through the layer's own table and then the matching
+    model table of ``[layers.default]`` in ``TidalPy_Configs_x.toml`` (``[tides]`` for a tide model). A
+    model built directly through its factory shares that second tier, so one file describes both. The
+    table's parameters are taken only for the model it names: a parameter of one model must not carry
+    over to another that reads the same key differently, as an isotope dataset's reference time would
+    into a fixed radiogenic rate.
 
     Parameters
     ----------
     section : str
-        The table below ``[layers.default]``, with dots for nesting (``"shear_rheology"``,
-        ``"material.shear_viscosity"``), or ``"tides"`` for the top-level tide table.
+        The table below ``[layers.default]``, dotted for nesting (``"material.shear_viscosity"``), or
+        ``"tides"`` for the top-level tide table.
     accepted_keys : collection of str
         The keys the family reads (the factory's ``*_CONFIG_KEYS``).
     model_name : str, optional
-        The model being built. Given, the table is taken only when its ``model`` names it (a table with no
-        ``model`` key, such as ``[tides]``, is taken as is); left out, the table is taken whatever it names.
+        The model being built. Given, the table is taken only when its ``model`` names it; a table with no
+        ``model`` key, such as ``[tides]``, is taken as is.
     same_model : callable, optional
-        ``same_model(table_name, model_name) -> bool``, the family's own test of whether two names (aliases
-        included) are one model; it may raise ``ValueError`` for a name the family does not know, which counts
-        as a different model. Without it the names are compared as lower-case strings, so an alias does not match.
+        ``same_model(table_name, model_name) -> bool``, the family's own alias-aware name test; a
+        ``ValueError`` from it counts as a different model. Without it the names are compared as lower-case
+        strings, so an alias will not match.
 
     Returns
     -------
     dict
-        The parameters found, or an empty dict when the configuration is not loaded, has no such table, or the
-        table names another model.
+        The parameters found, empty when the config is not loaded, has no such table, or names another model.
     """
     # Deferred: this module is imported while TidalPy initializes, before config_x exists.
     import TidalPy
     cdef dict config_x = getattr(TidalPy, "config_x", None) or {}
-    # `table` stays `object`: walking a dotted section can land on a scalar, and the isinstance check below is
-    # what turns that into an empty table. A `cdef dict` would raise on the assignment before the check ran.
+    # `table` stays `object`: walking a dotted section can land on a scalar, which the isinstance check
+    # below turns into an empty table. `cdef dict` would raise on the assignment first.
     cdef object table
     cdef object named
     cdef bint matches
@@ -406,28 +293,27 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
 def check_config_keys(dict config, accepted_keys, str family):
     """Raise ``ValueError`` if a physics-model config holds a key that no model in its family reads.
 
-    Every ``make_*`` factory calls this before building a model, so a misspelled key, most often a missing unit
-    suffix, fails loudly instead of silently leaving a parameter at its default.
+    Every ``make_*`` factory calls this before building a model, so a misspelled key, most often a missing
+    unit suffix, fails loudly instead of silently leaving a parameter at its default.
 
     Parameters
     ----------
     config : dict or None
         The configuration dict passed to the factory.
     accepted_keys : collection of str
-        Every key that some model in the family reads. ``model`` is always accepted as well, so a
-        ``get_config_dict()`` result can be passed straight back to its factory.
+        Every key some model in the family reads. ``model`` is always accepted too, so a
+        ``get_config_dict()`` result can go straight back to its factory.
     family : str
         Model family named in the error message, for example ``"viscosity"``.
 
     Raises
     ------
     ValueError
-        If ``config`` holds any other key. The message names the closest accepted key for each rejected one and
-        lists every accepted key.
+        The message names the closest accepted key for each rejected one.
 
-    Assumptions
-    -----------
-    The check is per family, not per model: a key read by a different model of the same family passes, because
+    Notes
+    -----
+    The check is per family, not per model: a key read by a different model of the family passes, because
     the world builder merges material defaults beneath a user's table.
     """
     cdef set accepted

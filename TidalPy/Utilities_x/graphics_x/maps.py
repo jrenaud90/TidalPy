@@ -1,10 +1,8 @@
-"""Draw surface maps of a field sampled on a colatitude-longitude grid.
+"""Draw surface maps of a field sampled on a colatitude-longitude grid, such as one radius of a world's
+3D heating or stress-strain grid.
 
-`plot_map` draws one colatitude-by-longitude slice of a 3D result on a global map projection, such as one radius of
-the heating grid from `LayeredWorld.calc_3d_tides` or one component of `LayeredWorld.calc_3d_stress_strain` at one
-radius and time. `make_map_axes` builds a figure with one or more map panels for `plot_map` to draw into. Cartopy
-supplies the projections when it is installed; without it the matplotlib Mollweide and rectangular axes are used. No
-coastlines or other Natural Earth data are drawn, so nothing is downloaded.
+Cartopy supplies the projections when it is installed, matplotlib's Mollweide and rectangular axes
+otherwise. No coastlines or other Natural Earth data are drawn, so nothing is downloaded.
 """
 
 from __future__ import annotations
@@ -20,15 +18,10 @@ from matplotlib.figure import Figure
 try:
     import cartopy.crs as ccrs
 except ImportError:
-    # Cartopy is optional (the `graphics` extra); the matplotlib projections are used without it.
+    # Optional (the `graphics` extra); the matplotlib projections are used without it.
     ccrs = None
 
-# =====================================================================================================================
-# Style and Projections
-# =====================================================================================================================
-
-# Figure size, colormaps, grid lines, and fonts used by `plot_map` and `make_map_axes`; edit in place to restyle
-# every map.
+# Edit in place to restyle every later map.
 MAP_PLOT_STYLE: Dict[str, object] = {
     "figure_size_inches": (9.0, 4.5),
     "colormap": "inferno",
@@ -42,7 +35,7 @@ MAP_PLOT_STYLE: Dict[str, object] = {
     "colorbar_pad": 0.04,
 }
 
-# Projection names accepted by `plot_map` and `make_map_axes`, mapped to whether the projection needs cartopy.
+# Projection name -> whether it needs cartopy.
 MAP_PROJECTIONS: Dict[str, bool] = {
     "mollweide": False,
     "plate_carree": False,
@@ -67,14 +60,6 @@ def resolve_map_backend(projection: str, central_longitude: float, use_cartopy: 
     name : str
         The lower-case projection name.
     cartopy_used : bool
-        Whether cartopy draws the map.
-
-    Raises
-    ------
-    ValueError
-        For an unknown projection, or a request that needs cartopy when it is not used.
-    ImportError
-        If `use_cartopy` is True and cartopy is not installed.
     """
     name = projection.lower()
     if name not in MAP_PROJECTIONS:
@@ -94,9 +79,9 @@ def resolve_map_backend(projection: str, central_longitude: float, use_cartopy: 
 def map_longitude_order(longitudes: np.ndarray, center: float) -> Tuple[np.ndarray, np.ndarray]:
     """Columns to draw and their longitudes, wrapped onto the 360 degrees around the map center.
 
-    Wrapping around the center puts the seam of the data on the map edge. A longitude that repeats after wrapping,
-    such as 0 and 2 pi, keeps only its first column.
-
+    Wrapping around the center puts the seam of the data on the map edge. A longitude that repeats after
+    wrapping, 0 and 2 pi say, keeps only its first column.
+    
     Parameters
     ----------
     longitudes : array
@@ -109,7 +94,7 @@ def map_longitude_order(longitudes: np.ndarray, center: float) -> Tuple[np.ndarr
     column_order : numpy.ndarray of int
         Indices of the columns to draw, in increasing wrapped longitude.
     wrapped : numpy.ndarray of float
-        The wrapped longitudes of those columns [deg], within [center - 180, center + 180).
+        Their wrapped longitudes [deg], within [center - 180, center + 180).
     """
     wrapped = (np.degrees(longitudes) - center + 180.0) % 360.0 - 180.0 + center
     column_order = np.argsort(wrapped, kind="stable")
@@ -121,8 +106,8 @@ def map_longitude_order(longitudes: np.ndarray, center: float) -> Tuple[np.ndarr
 def map_cell_edges(centers: np.ndarray, lower: float, upper: float) -> np.ndarray:
     """Edges of the cells around sorted cell-centered samples, clipped to [lower, upper].
 
-    Interior edges sit halfway between neighboring centers and the outer edges half a cell beyond the end centers. A
-    single sample spans the whole range.
+    Interior edges sit halfway between neighboring centers, the outer edges half a cell beyond the end
+    centers. A single sample spans the whole range.
     """
     if centers.size == 1:
         return np.array([lower, upper])
@@ -131,10 +116,6 @@ def map_cell_edges(centers: np.ndarray, lower: float, upper: float) -> np.ndarra
     last = centers[-1] + (centers[-1] - midpoints[-1])
     return np.clip(np.concatenate(([first], midpoints, [last])), lower, upper)
 
-
-# =====================================================================================================================
-# Plotting
-# =====================================================================================================================
 
 def make_map_axes(
         nrows: int = 1,
@@ -163,7 +144,7 @@ def make_map_axes(
     -------
     figure : matplotlib.figure.Figure
     axes : numpy.ndarray of matplotlib.axes.Axes, shape (nrows, ncols)
-        Cartopy GeoAxes when cartopy is used, otherwise matplotlib Mollweide or rectangular axes.
+        Cartopy GeoAxes when cartopy is used, else matplotlib Mollweide or rectangular axes.
     """
     name, cartopy_used = resolve_map_backend(projection, central_longitude, use_cartopy)
     if figure_size is None:
@@ -211,8 +192,7 @@ def plot_map(
     Parameters
     ----------
     longitudes : array
-        Longitude of each column [rad]. Values are wrapped onto the 360 degrees around the map center and sorted, and
-        a longitude that repeats after wrapping (0 and 2 pi) keeps only its first column.
+        Longitude of each column [rad], wrapped onto the 360 degrees around the map center and sorted.
     colatitudes : array
         Colatitude of each row [rad], 0 at the north pole.
     values : array, shape (len(colatitudes), len(longitudes))
@@ -225,8 +205,8 @@ def plot_map(
     projection : str, default "mollweide"
         A key of `MAP_PROJECTIONS`; ignored when `axis` is given.
     central_longitude : float, default 0.0
-        Longitude at the map center [deg]; a nonzero value needs cartopy. Ignored when `axis` is given, since the
-        panel already has a center.
+        Longitude at the map center [deg]; a nonzero value needs cartopy. Ignored when `axis` is given,
+        which already has a center.
     value_limits : (float, float), optional
         Color scale limits; the default spans the finite values.
     symmetric : bool, default False
@@ -253,10 +233,10 @@ def plot_map(
     Raises
     ------
     ValueError
-        If `values` does not match the axes, has no value to draw, or the color scale options conflict, or for a
-        projection request the backend cannot draw.
+        `values` does not match the axes, has nothing to draw, the color scale options conflict, or the
+        backend cannot draw the requested projection.
     ImportError
-        If `use_cartopy` is True and cartopy is not installed.
+        `use_cartopy` is True and cartopy is not installed.
     """
     style = MAP_PLOT_STYLE
     longitude_values = np.asarray(longitudes, dtype=np.float64).ravel()
@@ -285,7 +265,7 @@ def plot_map(
     cartopy_axis = ccrs is not None and isinstance(getattr(axis, "projection", None), ccrs.Projection)
     center = float(axis.projection.proj4_params.get("lon_0", 0.0)) if cartopy_axis else 0.0
 
-    # Columns in increasing longitude around the map center, rows in increasing latitude
+    # Columns in increasing longitude around the map center, rows in increasing latitude.
     column_order, longitude_degrees = map_longitude_order(longitude_values, center)
     latitude_degrees = 90.0 - np.degrees(colatitude_values)
     row_order = np.argsort(latitude_degrees, kind="stable")
@@ -323,7 +303,7 @@ def plot_map(
         if grid_lines:
             axis.gridlines(**grid_style)
     elif axis.name == "mollweide":
-        # The matplotlib geographic axes take radians and label longitudes across the equator, so fewer labels.
+        # The matplotlib geographic axes take radians and label longitudes across the equator, so fewer.
         mesh = axis.pcolormesh(
             np.radians(longitude_edges),
             np.radians(latitude_edges),

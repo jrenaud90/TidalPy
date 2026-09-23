@@ -1,9 +1,5 @@
 #pragma once
-/*
- * radiogenics_base_.hpp: c_RadiogenicsBase, the abstract base for TidalPy radiogenics models, derived
- * from c_PhysicsBase. Every model implements calc_heating(time [s], mass [kg]) returning heating [W].
- * The three models (Off, Isotope, Fixed) are in radiogenics_.hpp. All calc_* methods are const and MKS.
- */
+/* Abstract base for TidalPy radiogenics models. Concrete models live in radiogenics_.hpp. All MKS. */
 
 #include <stdexcept>
 #include <string>
@@ -13,36 +9,22 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_RadiogenicsBase
-// -------------------------------------------------------------------------------
 class c_RadiogenicsBase : public c_PhysicsBase {
 public:
-    // -----------------------------------------------------------------------
-    // Construction
-    // -----------------------------------------------------------------------
     c_RadiogenicsBase() = default;
 
     explicit c_RadiogenicsBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
 
     ~c_RadiogenicsBase() override = default;
 
-    // -----------------------------------------------------------------------
-    // Radiogenic heating [W] (pure virtual): each model's decay law applied to
-    // `mass` [kg] at `time` [s], which shares its zero point with the reference
-    // time stored on the model. c_SolidLiquidLayer reaches this through
-    // calc_radiogenic_heating. Assumes exponential decay from the reference time.
-    // -----------------------------------------------------------------------
+    // Heating [W] from `mass` [kg] at `time` [s]. Time shares its zero point with the model's
+    // reference time. Assumes exponential decay from that reference time.
     virtual double calc_heating(double time, double mass) const = 0;
 
-    // Reference time [s] of the model's decay law: the time its quoted abundances or rate apply at. Zero for a
-    // model with no decay.
+    // Time [s] the model's quoted abundances or rate apply at; zero for a model with no decay.
     virtual double get_ref_time() const noexcept { return 0.0; }
 
-    // -----------------------------------------------------------------------
-    // Vectorized heating: vary time at constant mass. out_heating is resized to
-    // the time vector length.
-    // -----------------------------------------------------------------------
+    // Over time at constant mass.
     void calc_heating_vectorize_time(
             const std::vector<double>& time,
             double mass,
@@ -54,10 +36,7 @@ public:
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Vectorized heating: vary mass at constant time. out_heating is resized to
-    // the mass vector length.
-    // -----------------------------------------------------------------------
+    // Over mass at constant time.
     void calc_heating_vectorize_mass(
             double time,
             const std::vector<double>& mass,
@@ -69,10 +48,7 @@ public:
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Vectorized heating: vary time and mass element-wise. Both vectors must
-    // share length N; a mismatch throws std::invalid_argument.
-    // -----------------------------------------------------------------------
+    // Element-wise over time and mass.
     void calc_heating_vectorize_all(
             const std::vector<double>& time,
             const std::vector<double>& mass,

@@ -25,7 +25,7 @@ namespace tidalpy {
 // Minimum number of radial slices a layer must have for the shooting method's starting conditions.
 inline constexpr std::size_t C_RS_MIN_SLICES_PER_LAYER = 5;
 
-// Output container for both builders; the planet bulk density is the mass-weighted mean of the assembled structure.
+// Output of both builders; the bulk density is the mass-weighted mean of the assembled structure.
 struct c_RadialSolverInputs {
     std::vector<double> radius;                                   // [m]      one entry per slice
     std::vector<double> density;                              // [kg/m3]  one entry per slice
@@ -138,8 +138,8 @@ inline void c_thickness_from_volume_fractions(
     }
 }
 
-// Constant properties per layer; layer i gets slices_bylayer[i] evenly spaced points from base to top inclusive,
-// so interface radii appear twice as the solver requires.
+// Constant properties per layer. Layer i gets slices_bylayer[i] evenly spaced points from base to top
+// inclusive, so interface radii appear twice as the solver requires.
 inline void c_build_rs_input_homogeneous_layers(
         double planet_radius,
         double forcing_frequency,
@@ -269,11 +269,10 @@ inline void c_build_rs_input_homogeneous_layers(
     out.planet_bulk_density = planet_bulk_density / planet_radius3;
 }
 
-// Properties on an ascending user grid whose last point is the planet radius. The grid is copied and repaired: a
-// slice is inserted at r = 0 if missing, at a layer base when the previous top is not repeated (copying the
-// layer's first slice), and at a missing layer top (copying the slice below). An interface radius listed once is
-// the top of the lower layer. The bulk density is the mass of piecewise-constant shells (density of the upper
-// slice) over the planet volume.
+// Properties on an ascending user grid whose last point is the planet radius. The grid is copied and
+// repaired: a slice is inserted at r = 0 if missing, at a layer base when the previous top is not repeated,
+// and at a missing layer top. An interface radius listed once is the top of the lower layer. The bulk
+// density comes from piecewise-constant shells taking the density of the upper slice.
 inline void c_build_rs_input_from_data(
         double forcing_frequency,
         const std::vector<double>& radius,

@@ -20,9 +20,6 @@ from TidalPy.RadialSolver_x.rs_solution cimport c_RadialSolutionStorage
 from TidalPy.dynamics_x.spin cimport Spin, c_Spin
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_LayerThermal:
@@ -271,9 +268,6 @@ cdef extern from "profile_world_.hpp" namespace "tidalpy" nogil:
     ) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class LayeredWorld(BaseWorld):
     cdef c_LayeredWorld* _layered_ptr   # non-owning; ownership via BaseWorld._world_ptr
     @staticmethod

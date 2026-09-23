@@ -41,16 +41,11 @@
 #include <cctype>
 
 
-// =================================================================================================
-// Constants
-// =================================================================================================
 
 constexpr int C_EOS_INTERPOLATE_METHOD_INT = 0;
 
 
-// =================================================================================================
-// Input validation and string-to-int mapping for the standalone Python wrapper
-// =================================================================================================
+// Input validation and string-to-int mapping for the standalone Python wrapper.
 
 std::string to_lower(const std::string& input)
 {
@@ -117,8 +112,8 @@ void c_validate_and_prep_radial_inputs(
             throw std::invalid_argument("The Propagation matrix technique does not allow for compressible layers.");
     }
 
-    // The same fraction that caps the solver's automatic choice, so a caller is never refused a
-    // starting radius the solver would have picked itself.
+    // The same cap the solver's automatic choice uses, so a caller is never refused a starting radius
+    // the solver would have picked itself.
     const double max_start_radius_frac = tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC;
     if ((starting_radius != 0.0) &&
         (starting_radius > max_start_radius_frac * radius_array[total_slices - 1]))

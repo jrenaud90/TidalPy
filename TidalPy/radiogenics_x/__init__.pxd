@@ -1,5 +1,4 @@
 # distutils: language = c++
-"""Cython-level exports for TidalPy.radiogenics_x."""
 
 from TidalPy.radiogenics_x.radiogenics cimport (
     RadiogenicsBase,

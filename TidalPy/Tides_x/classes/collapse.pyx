@@ -2,12 +2,10 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Standalone global (1D) tidal-mode collapse.
 
-``collapse_global_tides`` runs the global-potential engine (the eccentricity and obliquity functions
-plus the tidal potential of Renaud et al. 2021) for a given orbital and spin state, then collapses the
-per-mode potential terms with an analytic tide model's dissipation multiplier -Im[k_l] to give the
-global tidal heating and the three orbital potential derivatives (dU/dM, dU/dw, dU/dO). Only the
-analytic models ("cpl", "ctl", "ctl_q") are supported here: the rheology model needs per-mode Love
-numbers from the radial solver and is driven by the world's ``calc_tides`` instead.
+``collapse_global_tides`` runs the global-potential engine for an orbital and spin state, then collapses
+the per-mode potential terms with an analytic tide model's -Im[k_l] to give the global tidal heating and
+the three orbital potential derivatives. Only the analytic models are supported here: the rheology model
+needs per-mode Love numbers from the radial solver and is driven by the world's ``calc_tides``.
 """
 
 from libcpp.string cimport string
@@ -27,9 +25,6 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# C++ declarations
-# =====================================================================================================================
 cdef extern from "global_.hpp" nogil:
 
     cdef cppclass c_GlobalPotentialStorage:
@@ -61,19 +56,16 @@ cdef extern from "tide_collapse_.hpp" nogil:
         int num_modes
         int error_code
 
-    # The C++ function takes a third, defaulted pointer to per-mode radial-solver Love numbers. Only a world's
-    # rheology path passes it, and that call is made in C++, so it is left out of this declaration and the
-    # analytic collapse below always takes the default (null).
+    # The C++ function takes a third, defaulted pointer to per-mode radial-solver Love numbers. Only a
+    # world's rheology path passes it, and that call is made in C++, so it is left out here and the
+    # analytic collapse below always takes the null default.
     c_GlobalTideResult c_collapse_global_tides(
         const c_GlobalPotentialStorage& potential,
         const c_TideBase& tide_model) except +
 
 
-# =====================================================================================================================
-# Helpers
-# =====================================================================================================================
 cdef int cy_resolve_obliquity_truncation(object obliquity_truncation) except? -999:
-    """Normalize the obliquity truncation (string 'gen'/'off' or int) to the C++ integer."""
+    """Normalize an obliquity truncation ('gen', 'off', or an int) to the C++ integer."""
     cdef int value = 0
     cdef str text
     if isinstance(obliquity_truncation, str):
@@ -97,7 +89,7 @@ cdef int cy_resolve_obliquity_truncation(object obliquity_truncation) except? -9
 
 
 cdef c_TideModelConfig cy_build_tide_config(dict config) except *:
-    """Build a c_TideModelConfig from optional per-degree list keys (indexed from l=2)."""
+    """Build a c_TideModelConfig from the optional per-degree list keys, indexed from l = 2."""
     cdef c_TideModelConfig cfg
     if config is None:
         return cfg
@@ -113,9 +105,6 @@ cdef c_TideModelConfig cy_build_tide_config(dict config) except *:
     return cfg
 
 
-# =====================================================================================================================
-# Public API
-# =====================================================================================================================
 def collapse_global_tides(
         double planet_radius,
         double orbital_frequency,

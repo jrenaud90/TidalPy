@@ -39,10 +39,6 @@ set_tidalpy_config_ptr(get_shared_config_address())
 BUILDER_WORLD_TYPES = ("star", "gasgiant", "terrestrial", "layered")
 
 
-# =====================================================================================================================
-# BaseWorld
-# =====================================================================================================================
-
 cdef class BaseWorld(StructureBase):
     """Base world: identity, orbital/thermal scalars, and bulk geometry.
 
@@ -108,9 +104,6 @@ cdef class BaseWorld(StructureBase):
         world._ptr = <c_TidalPyBaseClass*>ptr.get()
         return world
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Base class property overrides (read from the most-derived C++ world)
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def radius(self) -> float:
         """World radius [m]."""
@@ -121,9 +114,6 @@ cdef class BaseWorld(StructureBase):
         """World mass [kg]."""
         return self._world_ptr.get().get_mass()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # World properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def name(self) -> str:
         """World name."""
@@ -158,9 +148,6 @@ cdef class BaseWorld(StructureBase):
         """Rotation rate [rad/s]."""
         return self._world_ptr.get().get_spin_frequency()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Calculations
-    # ------------------------------------------------------------------------------------------------------------------
     def calc_surface_gravity(self) -> float:
         """Surface gravitational acceleration [m/s^2] = G·M/R²."""
         return self._world_ptr.get().calc_surface_gravity()
@@ -194,9 +181,6 @@ cdef class BaseWorld(StructureBase):
         """
         return self._world_ptr.get().calc_equilibrium_temperature(insolation_flux)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Mutators
-    # ------------------------------------------------------------------------------------------------------------------
     def set_spin_frequency(self, double freq):
         """Set the rotation rate [rad/s].
 
@@ -214,9 +198,7 @@ cdef class BaseWorld(StructureBase):
         """
         self._world_ptr.get().set_obliquity(obliq)
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Global (1D) tidal dissipation (analytic path; common to all world types)
-    # ------------------------------------------------------------------------------------------------------------------
     def set_tide_model(self, TideBase tide not None):
         """Attach a global tide dissipation model (transfers ownership).
 
@@ -376,9 +358,6 @@ cdef class BaseWorld(StructureBase):
             <int>degree_l, <int>m, <int>p, <int>q)
         return complex(k.real(), k.imag())
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Builder entry point
-    # ------------------------------------------------------------------------------------------------------------------
     @staticmethod
     def build(source, force=False):
         """Build a world from a configuration source (the public builder entry point).
@@ -432,9 +411,6 @@ cdef class BaseWorld(StructureBase):
             world.portable_config["data_file"] = given_data_file
         return world
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def config(self):
         """The normalized configuration dict the world was built from (None if built directly).

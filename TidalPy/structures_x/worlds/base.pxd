@@ -66,9 +66,6 @@ cdef extern from "tide_result_.hpp" nogil:
         cpp_bool all_spatial_summed
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_WorldConfig:
         string   name
@@ -113,9 +110,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double]  get_tidal_love_k(int degree_l, int m, int p, int q) const
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class BaseWorld(StructureBase):
     cdef shared_ptr[c_BaseWorld] _world_ptr   # owns the most-derived C++ world object (shared so a System can co-own it)
     cdef public dict source_config            # normalized config the world was built from (or None)

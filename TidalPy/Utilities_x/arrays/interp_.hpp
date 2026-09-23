@@ -1,8 +1,7 @@
 #pragma once
-/*
- * interp_.hpp: 1-D linear interpolation matching numpy.interp, using a binary search seeded with a guess
- * (adapted from NumPy's compiled_interp). Out-of-range queries clamp to the endpoint values and a NaN
- * slope falls back to the other bracket endpoint. x_domain must be sorted ascending, length >= 1.
+/* 1-D linear interpolation matching numpy.interp, using a binary search seeded with a guess (adapted
+ * from NumPy's compiled_interp). Out-of-range queries clamp to the endpoint values and a NaN slope falls
+ * back to the other bracket endpoint. x_domain must be sorted ascending, length >= 1.
  */
 
 #include <cmath>
@@ -12,13 +11,8 @@
 
 namespace tidalpy {
 
-// ---------------------------------------------------------------------------
-// c_binary_search_with_guess
-// ---------------------------------------------------------------------------
-// Find the index j such that array[j] <= key < array[j+1] for a sorted-ascending
-// array, seeded with `guess` to accelerate near-sequential queries. Returns
-// `length` when key is past the right end; sets `code = -1` (and returns 0) when
-// key is left of the array. Requires length >= 3 (callers handle shorter arrays).
+// Index j with array[j] <= key < array[j+1], seeded with `guess` to speed up near-sequential queries.
+// Returns `length` past the right end; sets `code = -1` left of the array.
 inline std::size_t c_binary_search_with_guess(
         double key,
         const double* array,
@@ -33,8 +27,8 @@ inline std::size_t c_binary_search_with_guess(
     if (key > array[length - 1]) { return length; }
     if (key < array[0])          { code = -1; return 0; }
 
-    // Too short for the guess fast paths (which read array[guess - 1] .. array[guess + 2]);
-    // the only valid interval is index 0. Also keeps the size_t subtraction below safe.
+    // Too short for the guess fast paths, which read array[guess - 1] .. array[guess + 2]; the only
+    // valid interval is index 0. This also keeps the size_t subtraction below safe.
     if (length <= 2) { return 0; }
 
     if (guess > (length - 3)) { guess = length - 3; }
@@ -60,10 +54,8 @@ inline std::size_t c_binary_search_with_guess(
             return guess + 1;
         } else {
             imin = guess + 2;
-            // The guard is written as an addition (guess + window + 1 < length) rather than
-            // length - window - 1 so it stays correct with unsigned size_t: the subtraction form
-            // underflows for short arrays (length <= LIKELY_IN_CACHE_SIZE + 1) and would then read
-            // array[guess + LIKELY_IN_CACHE_SIZE] out of bounds.
+            // Written as an addition rather than length - window - 1: the subtraction form underflows
+            // in unsigned size_t for short arrays and would then read out of bounds.
             if ((guess + LIKELY_IN_CACHE_SIZE + 1 < length) &&
                 (key < array[guess + LIKELY_IN_CACHE_SIZE])) {
                 imax = guess + LIKELY_IN_CACHE_SIZE;
@@ -71,7 +63,6 @@ inline std::size_t c_binary_search_with_guess(
         }
     }
 
-    // Bisection over the restricted range.
     while (imin < imax) {
         const std::size_t imid = imin + ((imax - imin) >> 1);
         if (key >= array[imid]) { imin = imid + 1; } else { imax = imid; }
@@ -81,15 +72,8 @@ inline std::size_t c_binary_search_with_guess(
     return imin - 1;
 }
 
-// ---------------------------------------------------------------------------
-// c_interp: real linear interpolation (numpy.interp-style)
-// ---------------------------------------------------------------------------
-// Interpolate `dependent_values` (sampled on the sorted-ascending `x_domain`) at
-// `desired_x`. Out-of-range queries clamp to the endpoint values. `len_x` is the
-// length of both arrays.
-//
-// `guess` seeds the binary search (pass the previous result for near-sequential
-// queries; pass 0 otherwise). Returns NaN only for an empty domain.
+// `guess` seeds the binary search: pass the previous result for near-sequential queries, else 0.
+// Returns NaN only for an empty domain.
 inline double c_interp(
         double desired_x,
         const double* x_domain,
@@ -99,13 +83,13 @@ inline double c_interp(
     if (len_x == 0) { return std::numeric_limits<double>::quiet_NaN(); }
     if (len_x == 1) { return dependent_values[0]; }
 
-    // Endpoint clamping (matches numpy.interp's default left/right behavior).
+    // Matches numpy.interp's default left/right behavior.
     if (desired_x <= x_domain[0])         { return dependent_values[0]; }
     if (desired_x >= x_domain[len_x - 1]) { return dependent_values[len_x - 1]; }
 
     std::size_t j;
     if (len_x == 2) {
-        j = 0;  // only one interval; the search routine needs len >= 3.
+        j = 0;  // only one interval; the search routine needs len >= 3
     } else {
         int code = 0;
         j = c_binary_search_with_guess(desired_x, x_domain, len_x, guess, code);
@@ -122,7 +106,7 @@ inline double c_interp(
     const double slope  = (fp_jp1 - fp_j) / (xp_jp1 - xp_j);
 
     double result = slope * (desired_x - xp_j) + fp_j;
-    // If we get NaN in one direction, try the other (numpy's robustness trick).
+    // NaN from one direction: try the other, as numpy does.
     if (std::isnan(result)) {
         result = slope * (desired_x - xp_jp1) + fp_jp1;
         if (std::isnan(result) && (fp_jp1 == fp_j)) { result = fp_j; }
@@ -130,11 +114,7 @@ inline double c_interp(
     return result;
 }
 
-// ---------------------------------------------------------------------------
-// c_interp_complex: complex linear interpolation
-// ---------------------------------------------------------------------------
-// As c_interp, but the dependent values are complex. Real and imaginary parts are
-// interpolated independently.
+// As c_interp, with real and imaginary parts interpolated independently.
 inline std::complex<double> c_interp_complex(
         double desired_x,
         const double* x_domain,

@@ -1,9 +1,8 @@
-"""Tidal dissipation for the new backend: global (1D) tide models, Love-number helpers, tidal potentials, and the
-point-wise 3D stress, strain, heating, and displacement kernels.
+"""Global (1D) tide models, Love-number helpers, tidal potentials, and the point-wise 3D stress, strain,
+heating, and displacement kernels.
 
-The world's ``calc_tides`` and ``calc_3d_tides`` drive these internally; this package exposes the pieces for direct
-use. Each name is also importable from its own subpackage (``classes``, ``love``, ``potential``, ``multilayer``,
-``eccentricity``, ``obliquity``).
+The world's ``calc_tides`` and ``calc_3d_tides`` drive these internally; this package exposes the pieces for
+direct use. Each name is also importable from its own subpackage.
 """
 from TidalPy.Tides_x.classes import (
     TideBase,

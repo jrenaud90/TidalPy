@@ -1,9 +1,9 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""Common unit and orbital-element conversions (C++/Cython, scalar).
+"""Common unit and orbital-element conversions.
 
-All quantities MKS unless the conversion itself says otherwise. The ``cf_*`` forms are ``nogil``
-C-level functions for use from other Cython/C++ code; the plain-named forms are the Python API.
+The ``cy_*`` forms are nogil C-level functions for other Cython/C++ code; the plain-named forms are the
+Python API.
 """
 
 from libc.math cimport sqrt, cbrt

@@ -139,9 +139,8 @@ struct c_LoveNumbers
 };
 
 
-/// Compute Love and Shida numbers from the radial solution at the planet surface.
-///
-/// Follows the Tobie et al. (2005) sign convention for y5.
+/// Love and Shida numbers from the y-values at the planet surface, in the Tobie et al. (2005) sign
+/// convention for y5.
 ///
 /// References
 /// ----------

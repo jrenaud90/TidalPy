@@ -1,9 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's stellar luminosity models.
-
-Exports the C++ models, the config struct, the enum factory, and the Python wrapper classes so
-other extensions (for example the star world) can cimport and attach luminosity models.
-"""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
@@ -12,9 +7,6 @@ from libcpp.vector cimport vector
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "luminosity_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_LuminosityBase(c_PhysicsBase):
@@ -49,23 +41,18 @@ cdef extern from "luminosity_.hpp" namespace "tidalpy" nogil:
         double get_coeff()    const
         double get_exponent() const
 
-    # Enum naming each luminosity model.
     cdef enum class c_LuminosityModel:
         Fixed
         MassToLuminosity
         PowerLaw
 
-    # Map a name/alias to the enum (raises ValueError on unknown name).
+    # Raises ValueError on an unknown name.
     c_LuminosityModel c_luminosity_model_from_name(const string& model_name) except +
 
-    # Build the model named by the enum; returns an owning unique_ptr.
     unique_ptr[c_LuminosityBase] c_find_luminosity(
         c_LuminosityModel model, const c_LuminosityConfig& config) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations
-# =====================================================================================================================
 cdef class LuminosityBase(PhysicsBase):
     cdef unique_ptr[c_LuminosityBase] _luminosity_ptr   # owns the most-derived C++ model object
 

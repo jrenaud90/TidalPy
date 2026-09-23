@@ -25,9 +25,6 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# GasLayer
-# =====================================================================================================================
 cdef class GasLayer(PhysicsLayer):
     """Ideal-gas layer: PhysicsLayer plus adiabatic lapse rate, scale height, ideal-gas pressure, and sound speed.
 
@@ -165,9 +162,6 @@ cdef class GasLayer(PhysicsLayer):
         v._init_view(<c_BaseLayer*>ptr, world)
         return v
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Gas properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def mean_molecular_weight(self) -> float:
         """Mean molecular weight of the gas [kg/mol]."""
@@ -188,9 +182,6 @@ cdef class GasLayer(PhysicsLayer):
         """Reference density [kg/m³]."""
         return self._gas_ptr.get_reference_density()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
         """Return all configuration values as a Python dict (MKS): the PhysicsLayer keys plus the gas parameters."""
         cdef dict d = PhysicsLayer.get_config_dict(self)

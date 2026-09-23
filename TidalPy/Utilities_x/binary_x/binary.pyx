@@ -17,14 +17,9 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 
-# Wire this DLL's logger pointer to the shared TidalPy logger so TIDALPY_LOG_* calls inside
-# binary_.hpp reach the correct spdlog instance.
+# Wire this DLL's logger pointer so TIDALPY_LOG_* calls in the C++ headers reach the shared spdlog.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 
-
-# =====================================================================================================================
-# Public Python API
-# =====================================================================================================================
 
 def check_binary_file(path: str) -> dict:
     """Read and validate the header of a TidalPy binary file.
@@ -37,18 +32,13 @@ def check_binary_file(path: str) -> dict:
     Returns
     -------
     dict
-        ``schema_major``, ``schema_minor``, ``schema_patch`` (int), ``schema_version`` (str, for example
-        ``"0.2.0"``), ``class_id`` (int, the BinaryClassID in ``binary_.hpp``), and ``payload_size``
-        (int, bytes of payload following the 20-byte header).
+        ``schema_major``, ``schema_minor``, ``schema_patch``, ``schema_version``, ``class_id`` (the
+        BinaryClassID in ``binary_.hpp``), and ``payload_size``.
 
     Raises
     ------
-    TypeError
-        If `path` is not a str.
-    FileNotFoundError
-        If `path` does not exist.
     IOError
-        If the file cannot be opened, is shorter than 20 bytes, or has invalid magic bytes.
+        The file cannot be opened, is shorter than 20 bytes, or has invalid magic bytes.
     """
     cdef c_BinaryHeader header
 
@@ -80,7 +70,7 @@ def check_binary_file(path: str) -> dict:
 
 
 def get_current_schema_version() -> str:
-    """Return the schema version compiled into this TidalPy build, for example ``"0.2.0"``."""
+    """The schema version compiled into this TidalPy build, e.g. ``"0.2.0"``."""
     return (
         f"{TIDALPY_SCHEMA_MAJOR}"
         f".{TIDALPY_SCHEMA_MINOR}"

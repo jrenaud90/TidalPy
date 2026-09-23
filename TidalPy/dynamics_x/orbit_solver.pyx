@@ -1,11 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""Cython wrappers for TidalPy's orbital rate calculator.
-
-``OrbitSolver`` turns a dissipating body's tidal-potential derivatives (``dU_dM``, ``dU_dw`` from
-``world.calc_tides``) and its orbital state into da/dt, de/dt, and dn/dt. It computes rates only;
-the System class integrates them.
-"""
+"""Cython wrappers for TidalPy's orbital rate calculator. Rates only; the System class integrates them."""
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -33,15 +28,11 @@ cdef c_OrbitState cy_make_state(
     return state
 
 
-# =====================================================================================================================
-# OrbitSolver
-# =====================================================================================================================
 cdef class OrbitSolver:
-    """Orbital rate calculator from tidal dissipation (rates only).
+    """Orbital rate calculator from tidal dissipation.
 
-    The tidal-potential derivatives ``dU_dM`` (wrt mean anomaly) and ``dU_dw`` (wrt argument of
-    pericenter) [J kg-1 rad-1] come from the global tidal solve. For a dual-body dissipation system
-    the two bodies' rates are additive; sum the per-body results.
+    ``dU_dM`` (wrt mean anomaly) and ``dU_dw`` (wrt argument of pericenter) [J kg-1 rad-1] come from the
+    global tidal solve. For a dual-body system the two bodies' rates are additive.
     """
 
     def calc_da_dt(
@@ -72,7 +63,7 @@ cdef class OrbitSolver:
             double dU_dw) -> float:
         """Eccentricity rate [s-1]: ``de/dt = (sqrt(1-e^2)/(n a^2 e))(sqrt(1-e^2) dR/dM - dR/dw)``.
 
-        Returns ``0.0`` for a circular (or degenerate) orbit, where the ``1/e`` term is indeterminate.
+        Zero for a circular orbit, where the ``1/e`` term is indeterminate.
         """
         cdef c_OrbitState state = cy_make_state(
             orbital_frequency,

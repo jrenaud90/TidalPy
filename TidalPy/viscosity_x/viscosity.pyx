@@ -1,11 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""Cython and Python wrappers for TidalPy's viscosity models.
-
-``ArrheniusViscosity`` (alias "arr"), ``ReferenceViscosity`` (alias "ref"), and
-``ConstantViscosity`` (alias "const") return a material's dynamic viscosity [Pa s] at a temperature
-[K] and pressure [Pa]: the pre-melt (solid) viscosity that the partial-melt step weakens.
-"""
+"""Cython and Python wrappers for TidalPy's viscosity models."""
 
 from libcpp.string cimport string
 from libcpp cimport bool as cpp_bool
@@ -25,15 +20,11 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# ViscosityBase
-# =====================================================================================================================
-
 cdef class ViscosityBase(PhysicsBase):
     """Abstract base for viscosity models. Instantiate a concrete subclass."""
 
     def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr<c_ViscosityBase> auto-inits to nullptr
+        pass  # unique_ptr auto-inits to nullptr
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -50,9 +41,6 @@ cdef class ViscosityBase(PhysicsBase):
         return self._visc_ptr.get().calc_viscosity(temperature, pressure)
 
 
-# =====================================================================================================================
-# Viscosity models
-# =====================================================================================================================
 cdef class ConstantViscosity(ViscosityBase):
     """Viscosity independent of temperature and pressure."""
 
@@ -209,10 +197,7 @@ cdef class ArrheniusViscosity(ViscosityBase):
         return self._arr_ptr.get_additional_temp_dependence()
 
 
-# =====================================================================================================================
-# Factory
-# =====================================================================================================================
-# Every config key some viscosity model reads; make_viscosity rejects anything else.
+# Every config key any viscosity model reads; make_viscosity rejects anything else.
 VISCOSITY_CONFIG_KEYS = frozenset({
     "reference_viscosity_pas", "reference_temperature_k", "molar_activation_energy_j_mol",
     "molar_activation_volume_m3_mol", "arrhenius_coeff", "stress_pa", "stress_expo", "grain_size_m",
@@ -220,7 +205,7 @@ VISCOSITY_CONFIG_KEYS = frozenset({
 
 
 def _same_model(str table_name, str model_name) -> bool:
-    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    """Whether two names (aliases included) resolve to the same model."""
     return (
         c_viscosity_model_from_name(table_name.lower().encode("utf-8")) == 
         c_viscosity_model_from_name(model_name.lower().encode("utf-8"))
@@ -233,26 +218,22 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     Parameters
     ----------
     model_name : str
-        One of ``"arrhenius"``/``"arr"``, ``"reference"``/``"ref"``,
-        ``"constant"``/``"const"`` (case-insensitive; aliases accepted).
+        ``"arrhenius"``/``"arr"``, ``"reference"``/``"ref"``, or ``"constant"``/``"const"``.
     config : dict, optional
-        Model parameters, keyed with their units: ``reference_viscosity_pas``, ``reference_temperature_k``,
-        ``molar_activation_energy_j_mol``, ``molar_activation_volume_m3_mol``, ``arrhenius_coeff``, ``stress_pa``,
-        ``stress_expo``, ``grain_size_m``, ``grain_size_expo``, ``additional_temp_dependence``. Absent keys fall
-        back to the C++ defaults.
+        Model parameters, keyed with their units (see ``VISCOSITY_CONFIG_KEYS``). Absent keys fall back to
+        the C++ defaults.
 
     Returns
     -------
     ViscosityBase
-        The concrete model subclass.
 
     Raises
     ------
     ValueError
-        If the model name is unknown, or if ``config`` holds a key that no viscosity model reads.
+        Unknown model name, or a config key that no viscosity model reads.
     """
     if config is None:
-        # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
+        # Fall back to the same defaults the world-attached path uses.
         config = factory_defaults("material.shear_viscosity", VISCOSITY_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, VISCOSITY_CONFIG_KEYS, "viscosity")
     if config is None:

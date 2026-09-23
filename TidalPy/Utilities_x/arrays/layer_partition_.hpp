@@ -1,15 +1,14 @@
 #pragma once
-/*
- * layer_partition_.hpp: split an ascending radius array into per-layer runs.
+/* Split an ascending radius array into per-layer runs.
  *
- * A layered profile repeats each interface radius: once as the top of the layer below and once as the base of the
- * layer above, so that the two sides can carry their own density and moduli. Every consumer that indexes such an
- * array by layer has to agree on where one layer's run ends and the next begins, and they disagree the moment the
- * rule is written out more than once. This is that rule, written once.
+ * A layered profile repeats each interface radius, once as the top of the layer below and once as the base
+ * of the layer above, so the two sides can carry their own density and moduli. Every consumer that indexes
+ * such an array by layer must agree on where one run ends, and they stop agreeing the moment the rule is
+ * written out twice. This is that rule, written once.
  *
- * A layer's run starts at the first slice not yet claimed and ends at the first copy of its upper radius; the
- * second copy starts the layer above. A slice past the upper radius with no copy at it ends the run too, which is
- * what happens when a caller's boundaries do not fall exactly on its grid.
+ * A run starts at the first unclaimed slice and ends at the first copy of its upper radius; the second copy
+ * starts the layer above. A slice past the upper radius with no copy at it also ends the run, which is what
+ * happens when a caller's boundaries do not fall exactly on its grid.
  */
 
 #include <cstddef>
@@ -19,15 +18,13 @@
 
 namespace tidalpy {
 
-/// Relative tolerance for deciding that a slice radius sits on a layer boundary. Interface copies are written from
-/// the same value, so they match far inside this; it is here for a boundary that arrived through a conversion.
+/// Interface copies are written from the same value so they match far inside this; the tolerance is here
+/// for a boundary that arrived through a conversion.
 inline constexpr double d_LAYER_BOUNDARY_RTOL = 1.0e-9;
 
-/// Partition `radius` (ascending, interface radii duplicated) into one run per entry of `upper_radius_bylayer`.
-///
-/// Writes the first index and slice count of each layer. Both outputs are resized to the layer count. A layer that
-/// finds no slices gets a count of zero, which the caller checks against whatever minimum it needs (the shooting
-/// method wants five, an interpolated material wants two).
+/// Writes the first index and slice count of each layer. A layer that finds no slices gets a count of
+/// zero, which the caller checks against whatever minimum it needs: five for the shooting method, two for
+/// an interpolated material.
 inline void c_partition_radius_by_layer(
         const double* radius_ptr,
         const std::size_t num_slices,

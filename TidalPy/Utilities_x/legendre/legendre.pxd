@@ -1,7 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's associated-Legendre utilities (l = 2..10 tables and a generic
-xsf-backed evaluator)."""
-
 
 cdef extern from "legendre_common_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_LegendreValue:

@@ -20,22 +20,20 @@
 
 /// Solve the equation of state for a layered planet.
 ///
-/// Integrates gravity, pressure, mass, and moment of inertia from center to surface in the caller's units (SI or
-/// non-dimensional). The central pressure is found by a secant iteration on the surface-pressure mismatch: the
-/// first update assumes a unit slope (exact for an incompressible planet), later ones use the measured slope.
+/// Integrates gravity, pressure, mass, and moment of inertia from center to surface in the caller's units.
+/// The central pressure comes from a secant iteration on the surface-pressure mismatch; the first update
+/// assumes a unit slope, exact for an incompressible planet, and later ones use the measured slope.
 ///
-/// Only the pass that converges needs its dense output, and capturing it roughly doubles the cost of a pass, so
-/// it is switched on for the first pass of a warm start (which usually converges there) and for any pass the
-/// secant's own error model expects to converge. A pass that converges without it is repeated with it on.
+/// Only the pass that converges needs its dense output, and capturing it roughly doubles the cost of a
+/// pass, so it is switched on for the first pass of a warm start (which usually converges there) and for
+/// any pass the secant's own error model expects to converge. A pass that converges without it is repeated.
 ///
 /// Parameters
 /// ----------
 /// eos_solution_ptr : c_EOSSolution*
 ///     Output; must be constructed with the radius array and layer info.
-/// eos_function_bylayer_ptr_vec : vector of PreEvalFunc
-///     EOS evaluation function per layer (used during integration and kept for later evaluation).
-/// eos_input_bylayer_vec : vector of c_EOS_ODEInput
-///     Input parameters per layer.
+/// eos_function_bylayer_ptr_vec, eos_input_bylayer_vec
+///     EOS evaluation function and arguments per layer; used during the integration and kept for later.
 /// planet_bulk_density : double
 ///     Seeds the central-pressure guess.
 /// surface_pressure : double
@@ -45,21 +43,21 @@
 /// integration_method, rtol, atol
 ///     CyRK method and tolerances.
 /// pressure_tol : double
-///     Surface-pressure convergence tolerance relative to the central-pressure scale
-///     (2/3) pi G rho_bulk^2 R^2 + surface_pressure. Must exceed rtol, the integrator's own noise, to converge.
+///     Surface-pressure tolerance relative to the central-pressure scale (2/3) pi G rho_bulk^2 R^2 +
+///     surface_pressure. Must exceed rtol, the integrator's own noise, to converge.
 /// max_iters : size_t
-///     Iteration cap; reported through max_iters_hit and the message, the solution is still returned.
+///     Iteration cap; reported through max_iters_hit, and the solution is still returned.
 /// verbose : bool
 ///     Print status messages.
 /// segment_vec_ptr : const vector of c_EOSSegment, optional
 ///     The radial segments to integrate, ascending, covering the planet. Null integrates one segment per
-///     layer, which is the layout of a solve that does not carry temperature.
+///     layer, the layout of a solve that does not carry temperature.
 /// integrate_temperature : bool
-///     Carry temperature and heat flow as two extra state variables, with each segment's gradient form taken
-///     from the layout. Requires a segment layout.
+///     Carry temperature and heat flow as two extra states, each segment's gradient form taken from the
+///     layout. Requires a segment layout.
 /// central_pressure_guess : double
-///     First central pressure to try, in solve units: the last converged value when the caller has one. NaN (the
-///     default) or a non-positive value starts from a uniform sphere at the bulk density.
+///     First central pressure to try: the last converged value when the caller has one. NaN or a
+///     non-positive value starts from a uniform sphere at the bulk density.
 ///
 /// Assumptions
 /// -----------
@@ -126,9 +124,9 @@ inline void c_solve_eos(
 
     DiffeqFuncType diffeq = integrate_temperature ? c_eos_diffeq_thermal : c_eos_diffeq;
 
-    // The initial central pressure is the caller's, or that of a uniform sphere at the bulk density. A thermal
-    // solve starts at the innermost segment's temperature with whatever heat flow it carries (zero at a regular
-    // center).
+    // The caller's central pressure, or that of a uniform sphere at the bulk density. A thermal solve
+    // starts at the innermost segment's temperature with whatever heat flow it carries, zero at a regular
+    // center.
     const bool warm_start    = std::isfinite(central_pressure_guess) && (central_pressure_guess > 0.0);
     const double r0_pressure = warm_start ? central_pressure_guess : r0_pressure_guess;
     double y0[C_EOS_THERMAL_Y_VALUES] = {r0_gravity, r0_pressure, r0_mass, r0_moi, 0.0, 0.0};
@@ -138,16 +136,16 @@ inline void c_solve_eos(
         y0[5] = segment_vec[0].start_heat_flow;
     }
 
-    // Secant iteration state on f(P_c) = P_surface(P_c) - surface_pressure. The convergence test is relative to
-    // the central-pressure scale, which is the size of the integrator's own noise on the surface pressure.
+    // Secant state on f(P_c) = P_surface(P_c) - surface_pressure. The convergence test is relative to the
+    // central-pressure scale, the size of the integrator's own noise on the surface pressure.
     const double pressure_scale   = (r0_pressure_guess > 0.0) ? r0_pressure_guess : 1.0;
     const double pressure_tol_abs = pressure_tol * pressure_scale;
     double previous_central       = TidalPyConstants::d_NAN;
     double previous_diff          = TidalPyConstants::d_NAN;
     double oldest_diff            = TidalPyConstants::d_NAN;
 
-    // Only the four structure variables are integrated; density, moduli, and viscosities are evaluated afterwards
-    // from the retained dense output, so the dense interpolant stays a plain polynomial evaluation.
+    // Only the four structure variables are integrated; density, moduli, and viscosities follow from the
+    // retained dense output, so the interpolant stays a plain polynomial evaluation.
     const size_t num_y     = integrate_temperature ? C_EOS_THERMAL_Y_VALUES : C_EOS_Y_VALUES;
     const size_t num_extra = 0;
     eos_solution_ptr->num_y_solved = num_y;
@@ -177,9 +175,9 @@ inline void c_solve_eos(
     int iterations                  = 0;
     bool failed                     = false;
     bool max_iters_hit              = false;
-    // Whether this pass keeps its dense output, and whether it is kept whatever it finds (the repeat of a
-    // converged pass, or the pass after the iteration cap). Capturing dense output roughly doubles the cost of a
-    // pass, so the first pass does it only from a warm start, which usually converges there.
+    // Whether this pass keeps its dense output, and whether it is kept whatever it finds: the repeat of a
+    // converged pass, or the pass after the iteration cap. Capturing roughly doubles the cost of a pass,
+    // so the first pass does it only from a warm start, which usually converges there.
     bool capture_dense              = warm_start;
     bool final_pass                 = false;
     std::vector<std::unique_ptr<CySolverResult>> pass_results_vec;
@@ -189,7 +187,6 @@ inline void c_solve_eos(
     std::unique_ptr<CySolverResult> integration_result_uptr = std::make_unique<CySolverResult>(integration_method);
     CySolverResult* integration_result_ptr = nullptr;
 
-    // Surface-pressure convergence loop.
     while (true)
     {
         calculated_surf_pressure = TidalPyConstants::d_INF;
@@ -200,7 +197,6 @@ inline void c_solve_eos(
             iterations++;
         }
 
-        // Integrate segment by segment from the center outward.
         for (size_t segment_i = 0; segment_i < num_segments; segment_i++)
         {
             const c_EOSSegment& segment = segment_vec[segment_i];
@@ -215,8 +211,8 @@ inline void c_solve_eos(
             }
             else if (integrate_temperature)
             {
-                // A segment that sets its own base temperature breaks the profile there (an isothermal layer
-                // against its neighbor); the rest continue from the segment below.
+                // A segment that sets its own base temperature breaks the profile there, an isothermal
+                // layer against its neighbor; the rest continue from the segment below.
                 if (std::isfinite(segment.start_temperature))
                 {
                     y0_bysegment_vec[4] = segment.start_temperature;
@@ -232,7 +228,7 @@ inline void c_solve_eos(
             eos_input_layer_ptr->conduction_coeff = segment.conduction_coeff;
             eos_input_layer_ptr->adiabat_coeff    = segment.adiabat_coeff;
 
-            // The integration needs only the density, so the material skips its moduli, viscosity, and melt models.
+            // The integration needs only the density, so skip the moduli, viscosity, and melt models.
             eos_input_layer_ptr->update_bulk  = false;
             eos_input_layer_ptr->update_shear = false;
             use_dense_output = capture_dense;
@@ -298,7 +294,7 @@ inline void c_solve_eos(
                 }
                 if (capture_dense)
                 {
-                    // Held until the pass is judged: a converged pass hands these to the solution.
+                    // Held until the pass is judged; a converged pass hands these to the solution.
                     pass_results_vec.push_back(std::move(integration_result_uptr));
                 }
             }
@@ -334,13 +330,13 @@ inline void c_solve_eos(
         {
             if (converged)
             {
-                // Converged without its dense output: the same central pressure again, this time keeping it.
+                // Converged without its dense output, so run the same central pressure again and keep it.
                 final_pass    = true;
                 capture_dense = true;
             }
             else
             {
-                // Secant update; the unit slope is the fallback when the measured slope is unusable.
+                // The unit slope is the fallback when the measured slope is unusable.
                 double step = -pressure_diff;
                 if (std::isfinite(previous_central))
                 {
@@ -350,10 +346,10 @@ inline void c_solve_eos(
                         step = -pressure_diff / slope;
                     }
                 }
-                // The secant error model e[k+1] = M e[k] e[k-1], with M measured from the residuals in hand,
-                // says whether the next pass should converge and so whether it should capture its dense output.
-                // With one residual there is no model yet, and a wrong guess costs more than a repeated pass
-                // saves, so that pass runs without it.
+                // The secant error model e[k+1] = M e[k] e[k-1], with M measured from the residuals in
+                // hand, says whether the next pass should converge and so whether to capture its dense
+                // output. With one residual there is no model yet, and a wrong guess costs more than a
+                // repeated pass saves, so that pass runs without it.
                 const double reference_diff = std::isfinite(oldest_diff) ? oldest_diff : previous_diff;
                 const double predicted_diff = std::isfinite(reference_diff)
                     ? pressure_diff * pressure_diff / std::fabs(reference_diff) : TidalPyConstants::d_INF;
@@ -363,7 +359,7 @@ inline void c_solve_eos(
                 previous_central = y0[1];
                 previous_diff    = pressure_diff;
 
-                // Keep the central pressure positive: halve an overshooting step.
+                // Keep the central pressure positive by halving an overshooting step.
                 double next_central = y0[1] + step;
                 while ((next_central <= 0.0) && (std::fabs(step) > TidalPyConstants::d_EPS * pressure_scale))
                 {
@@ -413,7 +409,7 @@ inline void c_solve_eos(
         eos_solution_ptr->success = true;
         eos_solution_ptr->pressure_error = pressure_diff_abs;
 
-        // Keep the layer EOS functions for on-demand evaluation, then sample the planet onto the radius array.
+        // Keep the layer EOS functions for on-demand evaluation, then sample onto the radius array.
         eos_solution_ptr->save_eos_functions(eos_function_bylayer_ptr_vec, eos_input_bylayer_vec);
         eos_solution_ptr->interpolate_full_planet();
     }

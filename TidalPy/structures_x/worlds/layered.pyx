@@ -331,9 +331,6 @@ cdef enum:
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
-# =====================================================================================================================
-# LayeredWorld
-# =====================================================================================================================
 
 cdef class LayeredWorld(BaseWorld):
     """A world built from an ordered (inner-to-outer) stack of layers.
@@ -400,9 +397,6 @@ cdef class LayeredWorld(BaseWorld):
         world._layer_view_by_name = None
         return world
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Layer management
-    # ------------------------------------------------------------------------------------------------------------------
     def add_layer(self, BaseLayer layer not None):
         """Add a layer to the world (inner to outer).
 
@@ -538,9 +532,6 @@ cdef class LayeredWorld(BaseWorld):
         """True if every layer boundary is continuous (innermost starts at 0)."""
         return self._layered_ptr.validate_layers()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Equation of state
-    # ------------------------------------------------------------------------------------------------------------------
     def solve_eos(
             self,
             double surface_pressure = 0.0,
@@ -778,13 +769,11 @@ cdef class LayeredWorld(BaseWorld):
         """True once every layer has a material EOS model attached."""
         return self._layered_ptr.get_all_eos_set()
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Structure and viscoelastic profile queries (delegate to the containing layer).
     #
     # Every getter takes a scalar radius [m] (returning a float or complex) or a NumPy array of radii
     # (returning an array of the same shape). NaN where the EOS is unsolved, the layer is geometry-only, or
     # no rheology is attached.
-    # ------------------------------------------------------------------------------------------------------------------
     cdef double _eval_real(self, int kind, double radius) noexcept nogil:
         if   kind == _KIND_DENSITY:        return self._layered_ptr.get_density(radius)
         elif kind == _KIND_GRAVITY:        return self._layered_ptr.get_gravity(radius)
@@ -911,9 +900,7 @@ cdef class LayeredWorld(BaseWorld):
         self._ensure_solved(recalc_eos)
         return self._apply_complex(radius, frequency, False)
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Shorthand bundles (one call returns several profiles at once).
-    # ------------------------------------------------------------------------------------------------------------------
     def get_static_viscoelastics(self, radius):
         """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius.
 
@@ -934,9 +921,7 @@ cdef class LayeredWorld(BaseWorld):
             "bulk_viscosity":  self.get_bulk_viscosity(radius),
         }
 
-    # ------------------------------------------------------------------------------------------------------------------
     # calc_* variants: solve the EOS first if it is unsolved (or force_recalc), then read the profile.
-    # ------------------------------------------------------------------------------------------------------------------
     def _ensure_solved(self, cpp_bool force_recalc):
         if force_recalc or not self._layered_ptr.get_eos_solved():
             self.solve_eos()
@@ -1006,9 +991,7 @@ cdef class LayeredWorld(BaseWorld):
         """Planet moment of inertia [kg m^2] from the last EOS solve, or NaN if not solved."""
         return self._layered_ptr.get_planet_moi_eos()
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Spin dynamics (the Spin model attached to the world; uses the world's EOS moment of inertia)
-    # ------------------------------------------------------------------------------------------------------------------
     def set_spin_model(self, Spin spin not None):
         """Attach a :class:`~TidalPy.dynamics_x.Spin` model (its moment-of-inertia factor is the fallback
         when the EOS has not been solved)."""
@@ -1028,9 +1011,6 @@ cdef class LayeredWorld(BaseWorld):
         """Synchronous spin rate [rad s-1]: equal to the orbital mean motion ``orbital_frequency``."""
         return self._layered_ptr.calc_synchronous_spin(orbital_frequency)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Love-number (radial) solve
-    # ------------------------------------------------------------------------------------------------------------------
     def solve_love_numbers(
             self,
             double frequency  = 1.0e-5,
@@ -1275,9 +1255,6 @@ cdef class LayeredWorld(BaseWorld):
             'love_number_l': complex(l.real(), l.imag()),
         }
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Love-number solve state (mirrors EOS getter pattern)
-    # ------------------------------------------------------------------------------------------------------------------
 
     @property
     def love_solved(self) -> bool:
@@ -1389,12 +1366,10 @@ cdef class LayeredWorld(BaseWorld):
             <size_t>ytype_idx, <size_t>y_idx)
         return complex(v.real(), v.imag())
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Global (1D) tidal dissipation
     #
     # The tide model holder, config, and analytic result accessors are inherited from BaseWorld. A layered
     # world overrides calc_tides to add the rheology (radial-solver) path and the per-layer heating.
-    # ------------------------------------------------------------------------------------------------------------------
     def calc_tides(
             self,
             double orbital_frequency,
@@ -1448,9 +1423,6 @@ cdef class LayeredWorld(BaseWorld):
         """Tidal heating [W] deposited in layer ``index`` (= world heating × its effective scale)."""
         return self._layered_ptr.get_layer_tidal_heating(<size_t>index)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # On-demand 3D tidal stress/strain/heating
-    # ------------------------------------------------------------------------------------------------------------------
     def get_3d_tidal_heating(
             self,
             double orbital_frequency,
@@ -1980,12 +1952,6 @@ cdef class LayeredWorld(BaseWorld):
             out['heating'] = values_arr.reshape(shape) if shape else values_arr
         return out
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------------------------
-    # Pinned solver settings
-    # ------------------------------------------------------------------------------------------------------------------
     def set_solver_defaults(self, eos_solver=None, radial_solver=None):
         """Pin ``[eos_solver]`` and ``[radial_solver]`` settings on this world.
 

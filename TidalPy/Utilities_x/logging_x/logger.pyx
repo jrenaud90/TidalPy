@@ -2,9 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Python interface to TidalPy's C++ spdlog logger.
 
-Importing this extension creates the TidalPy spdlog logger with a default console sink and stores a
-stable raw pointer to it; other Cython extensions wire their own DLL-local pointer from
-``get_tidalpy_logger_address()``. ``init_logger`` runs once at TidalPy startup, after the config loads.
+Importing this extension creates the logger with a default console sink and a stable raw pointer to it;
+other extensions wire their own DLL-local pointer from ``get_tidalpy_logger_address()``.
 """
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
@@ -18,28 +17,15 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     cy_get_logger_ptr,
 )
 
-# =====================================================================================================================
-# Module-Init: create logger immediately for a stable pointer address
-# =====================================================================================================================
-
-# Runs at import, before init_logger: creates the logger (stdout, info) and sets tidalpy_logger_ptr.
+# At import, before init_logger, so the pointer address is stable: stdout sink at info level.
 cy_create_default_logger()
 
 
-# =====================================================================================================================
-# Cross-DLL Pointer Export
-# =====================================================================================================================
-
-# Non-owning raw address of the TidalPy spdlog logger, owned by this extension's spdlog registry and
-# valid for the lifetime of the process. Other extensions pass it to set_tidalpy_logger_ptr_void at
-# their own module-init level.
+# Non-owning address of the logger, owned by this extension's spdlog registry for the life of the
+# process. Other extensions pass it to set_tidalpy_logger_ptr_void at their own module-init.
 cdef api void* get_tidalpy_logger_address():
     return cy_get_logger_ptr()
 
-
-# =====================================================================================================================
-# Level Name :: spdlog Integer Mapping
-# =====================================================================================================================
 
 # spdlog level enum: trace=0, debug=1, info=2, warn=3, error=4, critical=5, off=6
 _LEVEL_MAP: dict = {
@@ -55,7 +41,7 @@ _LEVEL_MAP: dict = {
 
 
 cdef int cy_resolve_level(object level) except -1:
-    """Convert a level name (case-insensitive) or an integer 0 to 6 into the spdlog level integer."""
+    """A level name (case-insensitive) or an integer 0 to 6, as the spdlog level integer."""
     cdef str key
     if isinstance(level, str):
         key = level.lower()
@@ -77,25 +63,21 @@ cdef int cy_resolve_level(object level) except -1:
         )
 
 
-# =====================================================================================================================
-# Public Python Functions
-# =====================================================================================================================
-
 def init_logger(dict config = None):
     """Initialize the TidalPy C++ logger from a configuration dictionary.
 
     Replaces the sinks on the logger created at import, so every DLL holding the shared pointer sees the
-    new configuration immediately.
+    new configuration at once.
 
     Parameters
     ----------
     config : dict, optional
-        Logging settings: ``console_level`` and ``file_level`` (name or integer, default ``"info"``),
-        ``log_to_file`` (bool, default False), and ``log_file_path`` (str, used only when writing a file).
+        ``console_level`` and ``file_level`` (name or integer, default ``"info"``), ``log_to_file``
+        (default False), and ``log_file_path``, read only when writing a file.
 
-    Assumptions
-    -----------
-    Called at startup before any C++ code emits TIDALPY_LOG_* messages; not thread-safe against
+    Notes
+    -----
+    Call at startup before any C++ code emits TIDALPY_LOG_* messages; not thread-safe against
     concurrent logging.
     """
     cdef c_LoggerConfig c_config
@@ -107,8 +89,8 @@ def init_logger(dict config = None):
     c_config.file_level    = cy_resolve_level(config.get("file_level", "info"))
     c_config.log_to_file   = True if config.get("log_to_file", False) else False
 
-    # `object`, not `str`: a config can hold a non-string here and the isinstance check below is what falls
-    # back to an empty path. A `cdef str` would raise on the assignment instead.
+    # `object`, not `str`: a config can hold a non-string here, which the isinstance check below turns
+    # into an empty path. `cdef str` would raise on the assignment first.
     cdef object log_path = config.get("log_file_path", "")
     c_config.log_file_path = (log_path.encode("utf-8") if isinstance(log_path, str)
                               else b"")
@@ -122,30 +104,23 @@ def set_log_level(level):
     Parameters
     ----------
     level : str or int
-        Level name (``"trace"``, ``"debug"``, ``"info"``, ``"warning"``/``"warn"``, ``"error"``,
-        ``"critical"``, ``"off"``; case-insensitive) or the equivalent integer 0 to 6.
+        ``"trace"``, ``"debug"``, ``"info"``, ``"warning"``/``"warn"``, ``"error"``, ``"critical"``, or
+        ``"off"`` (case-insensitive), or the equivalent integer 0 to 6.
     """
     cdef int int_level = cy_resolve_level(level)
     cy_set_log_level(int_level)
 
 
 def flush_logger():
-    """Flush every sink of the TidalPy C++ logger (file sinks buffer their output)."""
+    """Flush every sink; file sinks buffer their output."""
     cy_flush_logger()
 
 
 def log_message(level, str message):
     """Emit ``message`` through the TidalPy C++ logger at ``level``.
 
-    Cython and Python code in the new backend log through this function (or the level helpers below) so
-    their messages reach the same sinks as the C++ ``TIDALPY_LOG_*`` macros.
-
-    Parameters
-    ----------
-    level : str or int
-        Log level name (case-insensitive) or integer 0-6; see :func:`set_log_level`.
-    message : str
-        Text to log.
+    Cython and Python code logs through this (or the level helpers below) so its messages reach the same
+    sinks as the C++ ``TIDALPY_LOG_*`` macros.
     """
     cdef int c_level = cy_resolve_level(level)
     cy_log_message(c_level, message.encode("utf-8"))
@@ -184,7 +159,7 @@ def log_critical(str message):
 def shutdown_logger():
     """Flush pending log messages and make all TIDALPY_LOG_* macros no-ops.
 
-    Call on TidalPy shutdown, for example through atexit. The logger object stays in spdlog's registry so
-    that raw pointers held by other DLLs cannot dangle; it is released at process exit.
+    Call on TidalPy shutdown, through atexit say. The logger stays in spdlog's registry so raw pointers
+    held by other DLLs cannot dangle; it is released at process exit.
     """
     cy_shutdown_logger()

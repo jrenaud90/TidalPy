@@ -2,19 +2,18 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Point-wise 3D tidal strain, stress, heating, and displacement kernels.
 
-A thin Cython layer over the C++ kernel (``kernel_.hpp`` and ``strain_radial_.hpp``) that the world's 3D methods
-also use. These are point evaluations and materialize no grids. The caller supplies the radial functions and
-complex moduli at the point (``LayeredWorld.get_love_radial_y``, ``calc_complex_shear_modulus``, and
-``calc_complex_bulk_modulus`` after a radial-solver Love solve at the mode's degree and ``|frequency|``) and one
-tidal mode's potential row from ``TidalPy.Tides_x.potential.tidal_potential_3d_modes``.
+A thin Cython layer over the same C++ kernel the world's 3D methods use. These are point evaluations and
+materialize no grids: the caller supplies the radial functions and complex moduli at the point, from a Love
+solve at the mode's degree and ``|frequency|``, plus one tidal mode's potential row.
 
-Potential rows are complex phasor amplitudes ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)``
-with ``U(t) = Re[U_c e^{i omega t}]``; a real row is a phasor with zero phase. The strains, stresses, and
-displacements returned are complex amplitudes in the same convention. To assemble several modes: evaluate the
-moduli and radial functions at ``|frequency|`` and conjugate the row of any mode whose frequency is negative, sum
-the strain and stress amplitudes of all modes sharing ``|frequency|``, and pass the sums and the frequency to
-:func:`volumetric_heating`, which returns that frequency's cycle-averaged heating [W m-3]; the heating of different
-frequencies adds. A field at time ``t`` is ``Re[amplitude e^{i |frequency| t}]`` summed over the modes.
+Potential rows are complex phasor amplitudes ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2,
+d2U/dtheta_dphi)`` with ``U(t) = Re[U_c e^{i omega t}]``; a real row is a phasor with zero phase, and the
+returned strains, stresses, and displacements follow the same convention. To assemble several modes:
+evaluate the moduli and radial functions at ``|frequency|``, conjugate the row of any mode whose frequency
+is negative, sum the strain and stress amplitudes of every mode sharing ``|frequency|``, and hand the sums
+and the frequency to :func:`volumetric_heating` for that frequency's cycle-averaged heating [W m-3]. The
+heating of different frequencies adds, and a field at time ``t`` is ``Re[amplitude e^{i |frequency| t}]``
+summed over the modes.
 """
 import numpy as np
 from libcpp cimport bool as cpp_bool

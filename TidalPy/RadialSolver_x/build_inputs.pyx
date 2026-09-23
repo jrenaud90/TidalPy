@@ -46,12 +46,8 @@ PlanetBuildData.__doc__ = (
     "runs the solve.")
 
 
-# =====================================================================================================================
-# Internal conversion helpers
-# =====================================================================================================================
-
 cdef tuple cy_as_layer_tuple(object values, size_t num_layers, str name):
-    """Return `values` as a tuple with one entry per layer (ValueError otherwise)."""
+    """Return `values` as a tuple with one entry per layer."""
     if values is None:
         raise ValueError(f"`{name}` must be provided with one entry per layer.")
     cdef tuple out = tuple(values)
@@ -62,7 +58,6 @@ cdef tuple cy_as_layer_tuple(object values, size_t num_layers, str name):
 
 
 cdef void cy_fill_double_vector(object values, str name, vector[double]& out) except *:
-    """Copy a sequence of real numbers into a C++ vector."""
     cdef size_t i
     cdef size_t n = <size_t>len(values)
     out.clear()
@@ -75,7 +70,6 @@ cdef void cy_fill_double_vector(object values, str name, vector[double]& out) ex
 
 
 cdef void cy_fill_size_vector(object values, str name, vector[size_t]& out) except *:
-    """Copy a sequence of non-negative integers into a C++ vector."""
     cdef size_t i
     cdef size_t n = <size_t>len(values)
     cdef object value
@@ -89,7 +83,6 @@ cdef void cy_fill_size_vector(object values, str name, vector[size_t]& out) exce
 
 
 cdef object cy_as_f64_1d(object values, str name):
-    """Return `values` as a C-contiguous 1-D float64 array."""
     cdef cnp.ndarray arr = np.ascontiguousarray(values, dtype=np.float64)
     if arr.ndim != 1:
         raise ValueError(f"`{name}` must be one dimensional, found {arr.ndim} dimensions.")
@@ -97,7 +90,6 @@ cdef object cy_as_f64_1d(object values, str name):
 
 
 cdef void cy_fill_vector_from_array(object values, str name, vector[double]& out) except *:
-    """Copy a 1-D float64 array into a C++ vector."""
     cdef cnp.ndarray[cnp.float64_t, ndim=1] arr = cy_as_f64_1d(values, name)
     cdef size_t n = <size_t>arr.shape[0]
     out.resize(n)
@@ -106,7 +98,6 @@ cdef void cy_fill_vector_from_array(object values, str name, vector[double]& out
 
 
 cdef cnp.ndarray cy_vector_to_f64_array(const vector[double]& vec):
-    """Copy a C++ double vector into a new float64 numpy array."""
     cdef cnp.npy_intp n = <cnp.npy_intp>vec.size()
     cdef cnp.ndarray[cnp.float64_t, ndim=1] arr = np.empty(n, dtype=np.float64, order="C")
     if n > 0:
@@ -115,7 +106,6 @@ cdef cnp.ndarray cy_vector_to_f64_array(const vector[double]& vec):
 
 
 cdef cnp.ndarray cy_vector_to_c128_array(const vector[cpp_complex[double]]& vec):
-    """Copy a C++ complex vector into a new complex128 numpy array."""
     cdef cnp.npy_intp n = <cnp.npy_intp>vec.size()
     cdef cnp.ndarray[cnp.complex128_t, ndim=1] arr = np.empty(n, dtype=np.complex128, order="C")
     if n > 0:
@@ -189,7 +179,6 @@ cdef list cy_resolve_rheology_bylayer(
 cdef object cy_build_outputs(
         const c_RadialSolverInputs& inputs, tuple layer_types, tuple is_static_bylayer,
         tuple is_incompressible_bylayer):
-    """Convert the C++ result into a `PlanetBuildData` namedtuple of numpy arrays."""
     return PlanetBuildData(
         cy_vector_to_f64_array(inputs.radius),
         cy_vector_to_f64_array(inputs.density),
@@ -203,10 +192,6 @@ cdef object cy_build_outputs(
         cy_vector_to_f64_array(inputs.upper_radius_bylayer),
     )
 
-
-# =====================================================================================================================
-# Public builders
-# =====================================================================================================================
 
 def build_rs_input_homogeneous_layers(
         double planet_radius,

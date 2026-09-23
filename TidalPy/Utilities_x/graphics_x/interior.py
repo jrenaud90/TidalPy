@@ -1,9 +1,4 @@
-"""Plot a planet's interior profiles as found by the equation-of-state solver.
-
-`plot_interior` draws gravity and density (shared panel, two x-axes), pressure with optional temperature,
-and, when given, the shear and bulk moduli (real parts, plus imaginary parts on a twin axis for complex
-moduli) against radius or depth.
-"""
+"""Plot a planet's interior profiles as found by the equation-of-state solver."""
 
 from __future__ import annotations
 
@@ -15,12 +10,7 @@ from matplotlib.figure import Figure
 
 import TidalPy
 
-# =====================================================================================================================
-# Style
-# =====================================================================================================================
-
-# The built-in colors, line styles, markers, and sizes of `plot_interior`, and the keys the [graphics.interior]
-# section of TidalPy_Configs_x.toml may override.
+# The built-in style, and the only keys [graphics.interior] of TidalPy_Configs_x.toml may override.
 _BUILTIN_INTERIOR_PLOT_STYLE: Dict[str, object] = {
     "gravity_color": "g",
     "density_color": "k",
@@ -40,10 +30,9 @@ _BUILTIN_INTERIOR_PLOT_STYLE: Dict[str, object] = {
 
 
 def load_interior_plot_style() -> Dict[str, object]:
-    """The built-in style with the ``[graphics.interior]`` table of ``TidalPy_Configs_x.toml`` laid over it.
+    """The built-in style with the ``[graphics.interior]`` table laid over it.
 
-    Only the built-in keys are read from the table; anything else it holds is ignored. Returns the built-in
-    style alone when the configuration is not loaded.
+    Only the built-in keys are read from the table; anything else it holds is ignored.
     """
     style = dict(_BUILTIN_INTERIOR_PLOT_STYLE)
     config_x = getattr(TidalPy, "config_x", None) or {}
@@ -52,18 +41,12 @@ def load_interior_plot_style() -> Dict[str, object]:
     return style
 
 
-# The style `plot_interior` uses: the configuration's [graphics.interior] table over the built-in values, read
-# when this module is imported. Edit in place to restyle every later plot, or call `load_interior_plot_style` again
-# after `TidalPy.reinit` to take a changed configuration.
+# Read once at import. Edit in place to restyle every later plot, or call `load_interior_plot_style`
+# again after `TidalPy.reinit` to pick up a changed configuration.
 INTERIOR_PLOT_STYLE: Dict[str, object] = load_interior_plot_style()
 
 
-# =====================================================================================================================
-# Plotting
-# =====================================================================================================================
-
 def _draw(axis, values, vertical, color, use_scatter: bool, imaginary: bool = False, label: Optional[str] = None):
-    """Draw one profile as a line or scatter series."""
     style = INTERIOR_PLOT_STYLE
     if use_scatter:
         axis.scatter(values, vertical, s=style["marker_size"], c=color,
@@ -127,10 +110,10 @@ def plot_interior(
     axes : numpy.ndarray of matplotlib.axes.Axes
         The primary panels: gravity/density, pressure(/temperature), and moduli when given.
 
-    Assumptions
-    -----------
-    - Arrays are ordered from the planet center outward, so the last gravity value is the surface gravity
-      and the first pressure value is the central pressure.
+    Notes
+    -----
+    Arrays are assumed ordered from the planet center outward, so the last gravity value is the surface
+    gravity and the first pressure value is the central pressure.
     """
     style = INTERIOR_PLOT_STYLE
     radius = np.asarray(radius, dtype=np.float64).ravel()
@@ -162,7 +145,7 @@ def plot_interior(
     figure, axes = plt.subplots(nrows=1, ncols=panel_count, figsize=(panel_count * size, size))
     figure.subplots_adjust(wspace=0.2, hspace=0.1)
 
-    # Panel 1: gravity with density on a twin axis.
+    # Gravity with density on a twin axis.
     ax_gravity = axes[0]
     ax_density = ax_gravity.twiny()
     _draw(ax_gravity, arrays["gravity"], vertical_km, style["gravity_color"], use_scatter)
@@ -171,7 +154,7 @@ def plot_interior(
     ax_gravity.set_xlabel("Gravity [m s$^{-2}$]", color=style["gravity_color"], fontsize=style["label_fontsize"])
     ax_density.set_xlabel("Density [kg m$^{-3}$]", color=style["density_color"], fontsize=style["label_fontsize"])
 
-    # Panel 2: pressure with optional temperature.
+    # Pressure with optional temperature.
     ax_pressure = axes[1]
     _draw(ax_pressure, pressure_gpa, vertical_km, style["pressure_color"], use_scatter)
     ax_pressure.set_xlabel("Pressure [GPa]", color=style["pressure_color"], fontsize=style["label_fontsize"])
@@ -182,7 +165,7 @@ def plot_interior(
         ax_temperature.set_xlabel("Temperature [K]", color=style["temperature_color"],
                                   fontsize=style["label_fontsize"])
 
-    # Panel 3: moduli (real parts, imaginary parts on a twin axis).
+    # Moduli: real parts, imaginary parts on a twin axis.
     if use_moduli:
         ax_modulus = axes[2]
         ax_imaginary = ax_modulus.twiny() if use_complex else None
@@ -207,7 +190,6 @@ def plot_interior(
             if stacked.size > 0 and np.all(stacked > 0.0):
                 ax_imaginary.set_xscale("log")
 
-    # Annotations.
     if annotate:
         ax_gravity.text(*((0.05, 0.90) if depth_plot else (0.25, 0.05)),
                         "$g_{s}$" + f" = {arrays['gravity'][-1]:0.2f} m s$^{{-2}}$",

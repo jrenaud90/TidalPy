@@ -66,10 +66,8 @@ inline constexpr double d_MAX_BOUNDARY_FRACTION = 0.4;
 // smooth geometry, and a radiogenic heating follows the density, so this is far past what a layer's profile needs.
 inline constexpr int d_HEATING_QUADRATURE_NODES = 16;
 
-// -------------------------------------------------------------------------------
 // c_LayerThermal: the thermal description of one layer during a solve. Nothing here is stored on the layer; the
 // solve builds it, iterates on it, and reports what the caller asked for.
-// -------------------------------------------------------------------------------
 struct c_LayerThermal {
     c_TemperatureKind kind = c_TemperatureKind::Isothermal;
 
@@ -120,11 +118,9 @@ inline c_TemperatureKind c_layer_temperature_kind(const c_BaseLayer* layer) noex
     return c_TemperatureKind::Isothermal;
 }
 
-// -------------------------------------------------------------------------------
 // Build the per-layer thermal description from the layers themselves: the temperature each carries, the kind its
 // cooling model asks for, and its thermal material properties. The resistances and flows are filled in later,
 // against a solved structure.
-// -------------------------------------------------------------------------------
 inline void c_init_layer_thermal(
         const std::vector<std::unique_ptr<c_BaseLayer>>& layers,
         std::vector<c_LayerThermal>& out) {
@@ -170,12 +166,10 @@ inline bool c_thermal_contrast_present(
     return false;
 }
 
-// -------------------------------------------------------------------------------
 // Heat generated between two radii of a layer [W], and the temperature drop [K] it adds across that stretch when
 // the stretch conducts (zero for a conductivity that is not positive). With the order of integration swapped,
 //     drop = integral of 4 pi s^2 h(s) R(s, r_top) ds,     R(s, r_top) = (1/s - 1/r_top) / (4 pi k),
 // so both come from one pass over the same nodes. The density is read from the solved structure.
-// -------------------------------------------------------------------------------
 inline void c_stretch_heating(
         const c_EOSSolution& solution,
         const c_Heating& heating,
@@ -210,11 +204,9 @@ inline void c_stretch_heating(
     }
 }
 
-// -------------------------------------------------------------------------------
 // Update the boundary layers, resistances, interface temperatures, and heat flows against a solved structure.
 // Returns the largest relative change in the interface temperatures and flows, which is what the solve watches
 // to decide it has converged.
-// -------------------------------------------------------------------------------
 inline double c_update_layer_thermal(
         const c_EOSSolution& solution,
         const std::vector<std::unique_ptr<c_BaseLayer>>& layers,
@@ -397,10 +389,8 @@ inline double c_update_layer_thermal(
     return largest_change;
 }
 
-// -------------------------------------------------------------------------------
 // Turn the per-layer thermal description into the radial segments the solve integrates. The radii and the two
 // gradient coefficients are converted into the units the solve runs in.
-// -------------------------------------------------------------------------------
 inline void c_build_thermal_segments(
         const std::vector<c_LayerThermal>& thermal_vec,
         const std::vector<std::unique_ptr<c_BaseLayer>>& layers,

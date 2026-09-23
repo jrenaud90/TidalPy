@@ -1,8 +1,6 @@
 #pragma once
-/*
- * legendre_driver_.hpp - Dispatch to the precomputed associated-Legendre tables (l = 2..10) and a
- * generic (any l, m) fallback. Returns P_lm(cos theta) with its first/second colatitude derivatives.
- * All angles in radians; colatitude theta in [0, pi]. Uses the Condon-Shortley phase convention.
+/* Dispatch to the precomputed associated-Legendre tables (l = 2..10). Colatitude theta in [0, pi] rad;
+ * Condon-Shortley phase convention.
  */
 
 #include <cmath>
@@ -24,8 +22,7 @@ namespace tidalpy {
 
 constexpr int C_LEGENDRE_MAX_TABLE_DEGREE = 10;
 
-// Precomputed associated Legendre triple for supported degrees (l = 2..10). Returns NaN triple for an
-// unsupported degree or an out-of-range order (m < 0 or m > l).
+// NaN triple for an unsupported degree or an out-of-range order.
 inline c_LegendreValue c_legendre(int degree_l, int order_m, double colatitude)
 {
     const double cos_t = std::cos(colatitude);

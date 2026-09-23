@@ -2,10 +2,9 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython and Python wrappers for TidalPy's global (1D) tidal dissipation models.
 
-A tide model converts a per-mode Love number into the dissipation multiplier -Im[k_l] used by the
-global mode collapse. Per-degree fixed parameters (fixed_k, fixed_q, fixed_dt_s) are supplied as lists
-indexed from degree l = 2; supported degrees are l = 2..10. The config key carries the unit suffix; the
-constructor keyword and the C++ field stay ``fixed_dt``.
+A tide model turns a per-mode Love number into the dissipation multiplier -Im[k_l] the global mode collapse
+uses. The per-degree fixed parameters are lists indexed from l = 2, and l = 2..10 is supported. The config
+key carries the unit suffix; the constructor keyword and the C++ field stay ``fixed_dt``.
 """
 
 from libcpp.string cimport string
@@ -26,16 +25,13 @@ from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
-# Supported degree range (matches the C++ tide_.hpp slots; l = 2..10).
+# Matches the C++ tide_.hpp slots.
 cdef int C_TIDE_MIN_DEGREE = 2
 cdef int C_TIDE_MAX_DEGREE = 10
 
 
-# =====================================================================================================================
-# Config helpers
-# =====================================================================================================================
 cdef vector[double] cy_to_double_vector(object values) except *:
-    """Convert a Python iterable of floats (indexed from l=2) into a std::vector[double]."""
+    """Convert an iterable of floats, indexed from l = 2, into a std::vector[double]."""
     cdef vector[double] out
     if values is None:
         return out
@@ -58,9 +54,6 @@ cdef c_TideModelConfig cy_build_tide_config(dict config) except *:
     return cfg
 
 
-# =====================================================================================================================
-# TideBase
-# =====================================================================================================================
 cdef class TideBase(PhysicsBase):
     """Abstract base for global tide models. Instantiate a concrete subclass."""
 
@@ -107,9 +100,6 @@ cdef class TideBase(PhysicsBase):
         return bool(self._tide_ptr.get().needs_radial_solve())
 
 
-# =====================================================================================================================
-# Tide models
-# =====================================================================================================================
 cdef class RheologyTide(TideBase):
     """Rheology-based tide: k_l comes from the radial solver (frequency dependent)."""
 
@@ -220,15 +210,12 @@ cdef class CTLQTide(TideBase):
         return self._ctlq_ptr.get_fixed_q(degree_l)
 
 
-# =====================================================================================================================
-# Factory
-# =====================================================================================================================
-# Every config key some tide model reads; make_tide rejects anything else.
+# Every config key any tide model reads; make_tide rejects anything else.
 TIDE_CONFIG_KEYS = frozenset({"fixed_k", "fixed_q", "fixed_dt_s"})
 
 
 def _same_model(str table_name, str model_name) -> bool:
-    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    """Whether two names (aliases included) resolve to the same model."""
     return c_tide_model_from_name(table_name.lower().encode("utf-8")) == c_tide_model_from_name(model_name.lower().encode("utf-8"))
 
 
@@ -244,22 +231,20 @@ def make_tide(str model_name, dict config=None) -> TideBase:
           - ``"ctl"`` / ``"fixed_dt"``
           - ``"ctl_q"`` / ``"fixed_dt_q"``
     config : dict, optional
-        Per-degree model parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s] lists indexed
-        from degree l = 2); absent keys default to zero / the C++ defaults.
+        Per-degree parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s]), indexed from l = 2; absent
+        keys default to zero or the C++ default.
 
     Returns
     -------
     TideBase
-        The model subclass.
 
     Raises
     ------
     ValueError
-        If the model name is unknown, or if ``config`` holds a key other than ``fixed_k``, ``fixed_q``,
-        and ``fixed_dt_s``.
+        Unknown model name, or a config key outside those three.
     """
     if config is None:
-        # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
+        # Fall back to the same defaults the world-attached path uses.
         config = factory_defaults("tides", TIDE_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, TIDE_CONFIG_KEYS, "tide")
     cdef c_TideModelConfig cfg = cy_build_tide_config(config)

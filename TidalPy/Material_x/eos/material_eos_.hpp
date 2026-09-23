@@ -1,29 +1,25 @@
 #pragma once
-/*
- * material_eos_.hpp: material equation-of-state (EOS) models.
+/* Material equation-of-state (EOS) models: a layer's material.
  *
- * A model is a layer's material: it returns the density [kg/m^3] from the local pressure [Pa] (analytic models)
- * or radius [m] (interpolated model), and every other frequency-independent property with it, through
- * calc_material_state. The whole-planet EOS solve evaluates it inline while integrating the structure ODE, so
- * the solved structure is the one place those properties are read from afterwards.
+ * A model returns the density [kg/m^3] from the local pressure (analytic models) or radius (interpolated
+ * model), and every other frequency-independent property with it, through calc_material_state. The
+ * whole-planet EOS solve evaluates it inline while integrating the structure ODE, so afterwards the solved
+ * structure is the one place those properties are read from.
  *
- * The material owns the static shear law mu = mu0 + mu'_P P + mu'_T (T - T_ref), the constant bulk modulus of
- * the models with no pressure law, the static viscosities, the optional viscosity and partial-melt models, and
- * the thermal constants (conductivity, heat capacity, and the expansivity the density law shares).
- * Nothing here depends on a forcing frequency: complex moduli are the rheology's job.
+ * The material owns the static shear law mu = mu0 + mu'_P P + mu'_T (T - T_ref), the constant bulk modulus
+ * of the models with no pressure law, the static viscosities, the optional viscosity and partial-melt
+ * models, and the thermal constants. Nothing here sees a forcing frequency: complex moduli are the
+ * rheology's job.
  *
- * Every model carries a thermal expansivity alpha0 [1/K] and a reference temperature T_ref [K]. Birch-Murnaghan
- * and Vinet add the thermal pressure alpha0 K0 (T - T_ref) to their cold pressure law (alpha K_T taken constant,
- * its high-temperature limit); the constant and interpolated models scale their density by
- * exp(-alpha0 (T - T_ref)). A zero expansivity (the default) or a non-finite temperature gives the athermal EOS.
- *
- * Models (factory aliases): c_ConstantDensityEOS ("constant", "uniform"), c_BirchMurnaghanEOS ("bm",
- * "birch_murnaghan"), c_VinetEOS ("vinet"), c_InterpolatedEOS ("interpolate", "interp").
+ * Every model carries a thermal expansivity alpha0 [1/K] and a reference temperature T_ref [K].
+ * Birch-Murnaghan and Vinet add the thermal pressure alpha0 K0 (T - T_ref) to their cold pressure law,
+ * taking alpha K_T constant at its high-temperature limit; the constant and interpolated models scale their
+ * density by exp(-alpha0 (T - T_ref)). A zero expansivity or a non-finite temperature gives the athermal EOS.
  *
  * References
  * ----------
- * Birch (1947), Phys. Rev. 71, 809. Vinet et al. (1987), J. Geophys. Res. 92, 9319. Anderson (1995), Equations of
- * State of Solids for Geophysics and Ceramic Science (thermal pressure).
+ * Birch (1947), Phys. Rev. 71, 809. Vinet et al. (1987), J. Geophys. Res. 92, 9319. Anderson (1995),
+ * Equations of State of Solids for Geophysics and Ceramic Science (thermal pressure).
  */
 
 #include <algorithm>
@@ -40,20 +36,20 @@
 
 #include "physics_base_.hpp"
 #include "interp_.hpp"
-#include "binary_.hpp"                                   // write_optional_binary, read_optional_binary
-#include "../../viscosity_x/viscosity_.hpp"              // c_ViscosityBase, c_viscosity_from_binary
-#include "../../partial_melt_x/partial_melt_.hpp"        // c_PartialMeltBase, c_partial_melt_from_binary
-#include "../../constants_.hpp"                    // TidalPyConstants::d_EPS
+#include "binary_.hpp"
+#include "../../viscosity_x/viscosity_.hpp"
+#include "../../partial_melt_x/partial_melt_.hpp"
+#include "../../constants_.hpp"
 #include "../../Utilities_x/math_x/numerics_.hpp"  // c_safe_pow, c_safe_exp
 
 namespace tidalpy {
 
-// Defaults for the safeguarded Newton/bisection density-from-pressure inversion (c_MaterialEOSConfig). The cap
-// only guarantees termination; convergence normally takes well under 10 iterations.
+// Safeguarded Newton/bisection density-from-pressure inversion. The cap only guarantees termination;
+// convergence normally takes well under 10 iterations.
 inline constexpr double d_EOS_INVERT_RTOL      = 1.0e-13;
 inline constexpr int    d_EOS_INVERT_MAX_ITERS = 60;
 
-// Default reference temperature of the thermal terms [K]: ambient, where mineral-physics rho0 and K0 are quoted.
+// Ambient, where mineral-physics rho0 and K0 are quoted.
 inline constexpr double d_EOS_REFERENCE_TEMPERATURE = 300.0;
 
 // Combined construction parameters for all EOS models; each model reads only the fields it needs.
@@ -70,7 +66,7 @@ struct c_MaterialEOSConfig {
     int    invert_max_iters = d_EOS_INVERT_MAX_ITERS;  // termination-safeguard cap
 
     // Static (unrelaxed) moduli [Pa] and viscosities [Pa s]. The bulk constant applies to a model with no
-    // pressure law of its own; a NaN viscosity means unset (attach a viscosity model instead).
+    // pressure law of its own; a NaN viscosity means unset, so attach a viscosity model instead.
     double shear_modulus_static   = 0.0;
     double bulk_modulus_static    = 0.0;
     double shear_viscosity_static = std::numeric_limits<double>::quiet_NaN();
@@ -79,31 +75,29 @@ struct c_MaterialEOSConfig {
     double shear_modulus_pressure_derivative    = 0.0;                          // [dimensionless]
     double shear_modulus_temperature_derivative = 0.0;                          // [Pa/K]
     double shear_modulus_reference_temperature  = d_EOS_REFERENCE_TEMPERATURE;  // [K]
-    // Thermal constants. The expansivity is thermal_expansion above: one alpha serves the density law, the
-    // adiabat, and convection.
+    // One alpha (thermal_expansion above) serves the density law, the adiabat, and convection.
     double thermal_conductivity = 4.0;      // k   [W/(m K)]
     double heat_capacity        = 1200.0;   // c_p [J/(kg K)]
 
     // Interpolated model: sorted-ascending radius [m] and matching density [kg/m^3].
     std::vector<double> radius;
     std::vector<double> density;
-    // Interpolated model, optional radius-varying static moduli [Pa] and viscosities [Pa s]; an empty table means
-    // "not provided" (the material's law or constant applies). Non-empty tables must match radius.
+    // Interpolated model, optional radius-varying moduli [Pa] and viscosities [Pa s]. An empty table means
+    // not provided, so the material's law or constant applies; a non-empty one must match radius.
     std::vector<double> shear_modulus;
     std::vector<double> bulk_modulus;
     std::vector<double> shear_viscosity;
     std::vector<double> bulk_viscosity;
 };
 
-// =====================================================================================================================
-// Analytic pressure laws and the density-from-pressure inversion
-// =====================================================================================================================
-// All laws are written in the compression ratio eta = rho / rho0 = V0 / V. They increase monotonically in eta only
-// near eta = 1 (the finite-strain corrections turn them over at extreme eta), so the inversion brackets its root
-// within the monotonic range.
+// Analytic pressure laws and the density-from-pressure inversion.
+//
+// All laws are written in the compression ratio eta = rho / rho0 = V0 / V. They rise monotonically in eta
+// only near eta = 1, since the finite-strain corrections turn them over at extreme eta, so the inversion
+// brackets its root within the monotonic range.
 
-// 3rd-order Birch-Murnaghan pressure [Pa] and isothermal bulk modulus K = eta dP/deta [Pa] at compression
-// eta = rho/rho0. One cube root serves every fractional power, and the inversion wants both values at once.
+// 3rd-order Birch-Murnaghan pressure [Pa] and isothermal bulk modulus K = eta dP/deta [Pa]. One cube root
+// serves every fractional power, and the inversion wants both values at once.
 inline void eos_bm_pressure_and_bulk_modulus(
         double eta,
         double K0,
@@ -122,8 +116,7 @@ inline void eos_bm_pressure_and_bulk_modulus(
         + (eta_73 - eta_53) * strain_coeff * (2.0 / 3.0) * eta_23);
 }
 
-// Vinet pressure [Pa] and isothermal bulk modulus K = eta dP/deta [Pa] at compression eta = rho/rho0
-// (inv_cbrt_eta = (V/V0)^{1/3} = eta^{-1/3}).
+// Vinet pressure [Pa] and isothermal bulk modulus K = eta dP/deta [Pa]; inv_cbrt_eta = (V/V0)^(1/3).
 inline void eos_vinet_pressure_and_bulk_modulus(
         double eta,
         double K0,
@@ -167,10 +160,10 @@ inline double eos_vinet_bulk_modulus(double eta, double K0, double K0_prime) noe
     return bulk_modulus;
 }
 
-// The compressions over which a pressure law rises with compression, and the pressures at the two ends. Every law
-// turns over in tension, and the 3rd-order Birch-Murnaghan factor 1 + (3/4)(K0'-4)(eta^(2/3)-1) changes sign at
-// large eta when K0' < 4, so it turns over in compression too. An end the search never reaches stays unbounded.
-// The range depends on the law's constants alone, so a model finds it once rather than at every inversion.
+// The compressions over which a pressure law rises, and the pressures at the two ends. Every law turns over
+// in tension, and the 3rd-order Birch-Murnaghan factor 1 + (3/4)(K0'-4)(eta^(2/3)-1) changes sign at large
+// eta when K0' < 4, so it turns over in compression too. An end the search never reaches stays unbounded.
+// The range depends on the law's constants alone, so a model finds it once rather than per inversion.
 struct c_PressureLawRange {
     double compression_min = 0.0;
     double compression_max = TidalPyConstants::d_INF;
@@ -178,8 +171,7 @@ struct c_PressureLawRange {
     double pressure_max    = TidalPyConstants::d_INF;
 };
 
-// Find a law's monotonic range: step outward from eta = 1 until the bulk modulus K = eta dP/deta stops being
-// positive, then bisect that sign change to rtol. LawFn fills the pressure and K at a compression.
+// Step outward from eta = 1 until K = eta dP/deta stops being positive, then bisect that sign change.
 template <typename LawFn>
 inline c_PressureLawRange eos_find_monotonic_range(double K0, double K0_prime, LawFn law_fn, double rtol) noexcept {
     c_PressureLawRange range;
@@ -216,12 +208,12 @@ inline c_PressureLawRange eos_find_monotonic_range(double K0, double K0_prime, L
     return range;
 }
 
-// Invert a pressure law for the compression eta = rho/rho0 at a target pressure. A target past either end of the
-// monotonic range has no compression to find and takes that end, so the answer is continuous in the pressure; the
-// structure solve depends on that while its central pressure is still a guess and its outer radii sit in tension.
-// Inside the range this is Newton's method on the exact slope K/eta, started from the Murnaghan law (which
-// inverts in closed form and tracks both laws closely over planetary compressions) and kept inside a bracket
-// that every evaluation tightens; a step that leaves the bracket is replaced by its midpoint.
+// Invert a pressure law for the compression eta at a target pressure. A target past either end of the
+// monotonic range has no compression to find and takes that end, keeping the answer continuous in the
+// pressure; the structure solve depends on that while its central pressure is still a guess and its outer
+// radii sit in tension. Inside the range this is Newton's method on the exact slope K/eta, started from
+// the Murnaghan law (closed-form invertible and close to both laws over planetary compressions) and kept
+// inside a bracket that every evaluation tightens; a step that leaves the bracket takes its midpoint.
 template <typename LawFn>
 inline double eos_invert_eta(
         double pressure_target,
@@ -249,31 +241,26 @@ inline double eos_invert_eta(
         law_fn(eta, K0, K0_prime, pressure, bulk);
         if (pressure < pressure_target) { lo = eta; } else { hi = eta; }
 
-        // A step smaller than the spacing of doubles lands on the bracket's edge, which is convergence and not
-        // an escape, so the bounds are inclusive.
+        // A step smaller than the spacing of doubles lands on the bracket's edge, which is convergence
+        // rather than an escape, so the bounds are inclusive.
         double next = eta + (pressure_target - pressure) * eta / bulk;
         if (!(next >= lo && next <= hi)) { next = 0.5 * (lo + hi); }
 
-        // Converged once the compression stops changing to relative tolerance.
         if (std::abs(next - eta) <= rtol * eta) { return next; }
         eta = next;
     }
-    return eta;  // cap reached without full convergence; return the best estimate.
+    return eta;  // cap reached without full convergence; best estimate
 }
 
-// Lower-case a model name for case-insensitive factory lookup.
 inline std::string eos_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return text;
 }
 
-// =====================================================================================================================
-// c_MaterialState: the frequency-independent properties of a material at one point
-// =====================================================================================================================
-// What c_MaterialEOSBase::calc_material_state fills and what the solved EOS reports at a radius. The moduli and
-// viscosities are the values after the partial-melt model; a complex modulus is for the rheology to compute from
-// them.
+// The frequency-independent properties of a material at one point: what calc_material_state fills and what
+// the solved EOS reports at a radius. The moduli and viscosities are post-partial-melt; a complex modulus
+// is for the rheology to compute from them.
 struct c_MaterialState {
     double density         = std::numeric_limits<double>::quiet_NaN();  // [kg/m^3]
     double melt_fraction   = 0.0;                                       // [m^3/m^3]
@@ -283,9 +270,6 @@ struct c_MaterialState {
     double bulk_viscosity  = std::numeric_limits<double>::quiet_NaN();  // [Pa s]
 };
 
-// =====================================================================================================================
-// c_MaterialEOSBase: abstract base for all EOS models
-// =====================================================================================================================
 class c_MaterialEOSBase : public c_PhysicsBase {
 public:
     explicit c_MaterialEOSBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
@@ -307,7 +291,6 @@ public:
     double get_thermal_expansion()     const noexcept { return this->p_thermal_expansion; }
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
 
-    // Static constants and the shear law (see c_MaterialEOSConfig).
     double get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static; }
     double get_bulk_modulus_static()    const noexcept { return this->p_bulk_modulus_static; }
     double get_shear_viscosity_static() const noexcept { return this->p_shear_viscosity_static; }
@@ -321,8 +304,7 @@ public:
     double get_shear_modulus_reference_temperature() const noexcept {
         return this->p_shear_modulus_reference_temperature;
     }
-    // Thermal constants. The thermal diffusivity [m^2/s] is k / (rho c_p) at a density [kg/m^3]; NaN when the
-    // density or heat capacity is not positive.
+    // Thermal diffusivity [m^2/s] is k / (rho c_p); NaN for a non-positive density or heat capacity.
     double get_thermal_conductivity() const noexcept { return this->p_thermal_conductivity; }
     double get_heat_capacity()        const noexcept { return this->p_heat_capacity; }
     double calc_thermal_diffusivity(double density) const noexcept {
@@ -335,7 +317,7 @@ public:
     void set_shear_viscosity_static(double value) noexcept { this->p_shear_viscosity_static = value; }
     void set_bulk_viscosity_static(double value)  noexcept { this->p_bulk_viscosity_static = value; }
 
-    // Viscosity and partial-melt models (ownership transfers in; each is optional).
+    // Optional viscosity and partial-melt models; ownership transfers in.
     void set_shear_viscosity(std::unique_ptr<c_ViscosityBase> model) {
         this->p_shear_viscosity_model = std::move(model);
     }
@@ -355,8 +337,8 @@ public:
         out.push_back(c_config_double("reference_temperature_k", this->p_reference_temperature));
         out.push_back(c_config_double("shear_modulus_static_pa", this->p_shear_modulus_static));
         out.push_back(c_config_double("bulk_modulus_static_pa", this->p_bulk_modulus_static));
-        // An unset (NaN) static viscosity is left out: absence means unset on the way back in, and a config
-        // that holds no NaN compares equal to itself.
+        // An unset (NaN) static viscosity is left out: absence means unset on the way back in, and a
+        // config that holds no NaN compares equal to itself.
         if (std::isfinite(this->p_shear_viscosity_static)) {
             out.push_back(c_config_double("shear_viscosity_static_pas", this->p_shear_viscosity_static));
         }
@@ -372,13 +354,13 @@ public:
         out.push_back(c_config_double("heat_capacity_j_kgk", this->p_heat_capacity));
     }
 
-    // Density [kg/m^3] from pressure [Pa], temperature [K], and radius [m]; analytic models use the pressure, the
-    // interpolated model the radius. A non-finite temperature gives the athermal density.
+    // Analytic models use the pressure, the interpolated model the radius. A non-finite temperature gives
+    // the athermal density.
     virtual double calc_density(
         double pressure, double temperature, double radius) const = 0;
 
-    // Density and isothermal bulk modulus [Pa] together, so a model that inverts its pressure law does it once.
-    // The bulk modulus is NaN (the material constant applies) unless the model defines one.
+    // Both together, so a model that inverts its pressure law does it once. The bulk modulus is NaN, and
+    // the material constant applies, unless the model defines one.
     virtual void calc_density_and_bulk_modulus(
             double pressure,
             double temperature,
@@ -390,7 +372,6 @@ public:
             ? this->get_tabulated_bulk_modulus(radius) : TidalPyConstants::d_NAN;
     }
 
-    // Isothermal bulk modulus [Pa] at a pressure, temperature, and radius (see calc_density_and_bulk_modulus).
     double calc_bulk_modulus(double pressure, double temperature, double radius) const {
         double density      = TidalPyConstants::d_NAN;
         double bulk_modulus = TidalPyConstants::d_NAN;
@@ -398,9 +379,8 @@ public:
         return bulk_modulus;
     }
 
-    // Radius-varying static moduli [Pa] and viscosities [Pa s] from a model that stores tables of them. NaN means
-    // the model holds no such table, and the law or constant of the material applies; only c_InterpolatedEOS
-    // has any.
+    // Radius-varying static moduli [Pa] and viscosities [Pa s] from a model that tabulates them; only
+    // c_InterpolatedEOS does. NaN means no such table, so the material's law or constant applies.
     virtual double get_tabulated_shear_modulus(double /*radius*/) const {
         return std::numeric_limits<double>::quiet_NaN();
     }
@@ -414,12 +394,11 @@ public:
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    // Every frequency-independent property of the material at a pressure [Pa], temperature [K], and radius [m]:
-    // the one place a point is mapped onto the laws and models of the material, called by the EOS solve as it
-    // integrates. thermal_density says whether the density law sees the temperature (the viscosity and melt
-    // models always do). Each property comes from one source and only that source is evaluated: a table when
-    // the model carries one (the p_has_*_table flags), else the shear law, the K of the pressure law, a viscosity
-    // model, or the constant. The partial-melt model then weakens the shear pair and the bulk pair.
+    // The one place a point is mapped onto the material's laws and models; the EOS solve calls it as it
+    // integrates. thermal_density says whether the density law sees the temperature; the viscosity and melt
+    // models always do. Each property comes from exactly one source, and only that source is evaluated: a
+    // table when the model carries one, else the shear law, the K of the pressure law, a viscosity model,
+    // or the constant. The partial-melt model then weakens the shear pair and the bulk pair.
     void calc_material_state(
             double pressure,
             double temperature,
@@ -465,7 +444,7 @@ public:
         /* Partial Melting */
         out.melt_fraction = 0.0;
         if (this->p_partial_melt_model) {
-            // The liquid viscosity is the pre-melt viscosity until a dedicated liquid-viscosity model exists.
+            // The liquid viscosity stands in as the pre-melt one until a liquid-viscosity model exists.
             c_PartialMeltInputs inputs;
             inputs.temperature       = temperature;
             inputs.premelt_viscosity = shear_viscosity;
@@ -489,21 +468,20 @@ public:
     }
 
 protected:
-    // Temperature above the reference state [K]; zero (the athermal EOS) for a zero expansivity or a non-finite
-    // temperature.
+    // Temperature above the reference state [K]; zero, the athermal EOS, for a zero expansivity or a
+    // non-finite temperature.
     double p_temperature_offset(double temperature) const noexcept {
         if (this->p_thermal_expansion == 0.0 || !std::isfinite(temperature)) { return 0.0; }
         return temperature - this->p_reference_temperature;
     }
 
-    // Density factor exp(-alpha0 (T - T_ref)) of the models with no pressure law to carry a thermal pressure.
+    // exp(-alpha0 (T - T_ref)), for the models with no pressure law to carry a thermal pressure.
     double p_thermal_expansion_factor(double temperature) const noexcept {
         return c_safe_exp(-this->p_thermal_expansion * this->p_temperature_offset(temperature));
     }
 
-    // The material section every model appends after its own binary record: nine doubles (the static constants,
-    // the shear law, the conductivity, and the heat capacity), then a presence flag and nested record for each
-    // of the three optional models.
+    // The section every model appends after its own binary record: nine doubles, then a presence flag and
+    // nested record for each of the three optional models.
     void write_material_binary(std::ostream& out) const {
         const double values[9] = {
             this->p_shear_modulus_static, this->p_bulk_modulus_static,
@@ -553,8 +531,8 @@ protected:
     std::unique_ptr<c_ViscosityBase>   p_bulk_viscosity_model;
     std::unique_ptr<c_PartialMeltBase> p_partial_melt_model;
 
-    // Which properties the model tabulates by radius. Set by a model that holds tables (c_InterpolatedEOS), so
-    // calc_material_state asks for a table only where there is one and evaluates a law only where there is not.
+    // Which properties the model tabulates by radius, so calc_material_state asks for a table only where
+    // there is one and evaluates a law only where there is not.
     bool p_has_shear_modulus_table   = false;
     bool p_has_bulk_modulus_table    = false;
     bool p_has_shear_viscosity_table = false;
@@ -806,7 +784,7 @@ protected:
     int    p_invert_max_iters        = d_EOS_INVERT_MAX_ITERS;
 };
 
-// density(radius) lookup table (PREM-style profiles): linear interpolation in radius, clamped at the ends.
+// density(radius) lookup table (PREM-style profiles); linear in radius, clamped at the ends.
 class c_InterpolatedEOS : public c_MaterialEOSBase {
 public:
     c_InterpolatedEOS() : c_MaterialEOSBase("interpolate") {}
@@ -862,7 +840,7 @@ public:
             this->p_search_seed(radius));
     }
 
-    // Each returns NaN when its table is empty.
+    // NaN when the table is empty.
     double get_tabulated_shear_modulus(double radius) const override {
         return this->p_interp_optional(radius, this->p_shear_modulus);
     }
@@ -938,7 +916,6 @@ protected:
         this->p_has_bulk_viscosity_table  = this->has_bulk_viscosity();
     }
 
-    // Throw unless density and every non-empty optional table match the radius table in length.
     void p_validate_tables() const {
         const std::size_t num_points = this->p_radius.size();
         if (this->p_density.size() != num_points) {
@@ -960,7 +937,6 @@ protected:
         }
     }
 
-    // Interpolate an optional table vs radius; NaN if the table is empty.
     double p_interp_optional(double radius, const std::vector<double>& values) const {
         if (values.empty()) {
             return std::numeric_limits<double>::quiet_NaN();
@@ -968,8 +944,8 @@ protected:
         return c_interp(radius, this->p_radius.data(), values.data(), values.size(), this->p_search_seed(radius));
     }
 
-    // Where a radius would sit if the table were uniform, which a profile usually is: the seed makes the guessed
-    // binary search a few comparisons instead of a full search, on every read of every table.
+    // Where a radius would sit if the table were uniform, which a profile usually is. The seed turns the
+    // guessed binary search into a few comparisons on every read of every table.
     std::size_t p_search_seed(double radius) const noexcept {
         const std::size_t n = this->p_radius.size();
         if (n < 3) { return 0; }
@@ -1001,16 +977,12 @@ protected:
 
     std::vector<double> p_radius;
     std::vector<double> p_density;
-    // Optional tables; empty means not provided.
+    // Empty means not provided.
     std::vector<double> p_shear_modulus;
     std::vector<double> p_bulk_modulus;
     std::vector<double> p_shear_viscosity;
     std::vector<double> p_bulk_viscosity;
 };
-
-// =====================================================================================================================
-// Factory
-// =====================================================================================================================
 
 enum class c_MaterialEOSModel : uint8_t {
     Constant       = 0,
@@ -1019,7 +991,7 @@ enum class c_MaterialEOSModel : uint8_t {
     Interpolated   = 3,
 };
 
-// Map a case-insensitive model name or alias to the enum; throws std::invalid_argument on an unknown name.
+// Model names are matched case-insensitively.
 inline c_MaterialEOSModel c_material_eos_model_from_name(const std::string& model_name) {
     const std::string name = eos_to_lower(model_name);
     if (name == "constant" || name == "uniform" ||
@@ -1032,7 +1004,6 @@ inline c_MaterialEOSModel c_material_eos_model_from_name(const std::string& mode
     throw std::invalid_argument("TidalPy: unknown material EOS model name '" + model_name + "'");
 }
 
-// Build the EOS model named by the enum.
 inline std::unique_ptr<c_MaterialEOSBase> c_find_material_eos(
         c_MaterialEOSModel model, const c_MaterialEOSConfig& cfg) {
     switch (model) {
@@ -1044,13 +1015,12 @@ inline std::unique_ptr<c_MaterialEOSBase> c_find_material_eos(
     throw std::invalid_argument("TidalPy: unrecognised c_MaterialEOSModel enum value");
 }
 
-// Name overload.
 inline std::unique_ptr<c_MaterialEOSBase> c_find_material_eos(
         const std::string& model_name, const c_MaterialEOSConfig& cfg) {
     return c_find_material_eos(c_material_eos_model_from_name(model_name), cfg);
 }
 
-// Reconstruct an EOS model from a binary stream: peek the class id, build, read.
+// The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_MaterialEOSBase> c_material_eos_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);

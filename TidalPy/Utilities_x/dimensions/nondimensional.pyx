@@ -25,7 +25,6 @@ cdef class NonDimensionalScalesClass:
     cdef c_NonDimensionalScales nondim_scales
 
     def __init__(self):
-        # Initialize everything to nan.
         self.nondim_scales.second2_conversion = d_NAN
         self.nondim_scales.second_conversion  = d_NAN
         self.nondim_scales.length_conversion  = d_NAN
@@ -95,12 +94,12 @@ def build_nondimensional_scales(
     Returns
     -------
     NonDimensionalScalesClass
-        The conversion factors from non-dimensional solve units back to MKS.
+        Conversion factors from non-dimensional solve units back to MKS.
 
-    Assumptions
-    -----------
-    The time scale ``sqrt(1 / (pi G rho_bulk))`` is independent of any forcing frequency, so one set of scales
-    serves every frequency in a sweep.
+    Notes
+    -----
+    The time scale ``sqrt(1 / (pi G rho_bulk))`` carries no forcing frequency, so one set of scales serves
+    every frequency in a sweep.
     """
 
     cdef NonDimensionalScalesClass non_dim_scales = NonDimensionalScalesClass()

@@ -10,9 +10,6 @@ from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
 from TidalPy.stellar_x.luminosity cimport LuminosityBase, c_LuminosityBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_StarConfig:
         # Inherited from c_WorldConfig:
@@ -45,9 +42,6 @@ cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
         void   update_luminosity_from_mass() except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class StarWorld(BaseWorld):
     cdef c_StarWorld* _star_ptr   # non-owning; ownership via BaseWorld._world_ptr
     cpdef dict get_config_dict(self)

@@ -1,20 +1,19 @@
 #pragma once
-/*
- * quadrature_.hpp: Gauss-Legendre nodes and weights.
+/* Gauss-Legendre nodes and weights.
  *
- * An n-node rule integrates a polynomial of degree 2n - 1 exactly, which is why it serves both the colatitude
- * integrals of the 3D tides (polynomials in cos theta) and the radial integrals over a layer (smooth profiles).
+ * An n-node rule integrates a polynomial of degree 2n - 1 exactly, which is why it serves both the
+ * colatitude integrals of the 3D tides (polynomials in cos theta) and the radial integrals over a layer.
  */
 
 #include <cmath>
 #include <vector>
 
-#include "../../constants_.hpp"   // TidalPyConstants::d_PI
+#include "../../constants_.hpp"
 
 namespace tidalpy {
 
-/// Gauss-Legendre nodes and weights on [-1, 1], by Newton-Raphson on the Legendre polynomial. Both vectors are
-/// resized to `num_nodes`. Map to [a, b] with x = 0.5 (b - a) node + 0.5 (a + b) and weight 0.5 (b - a).
+/// Nodes and weights on [-1, 1], by Newton-Raphson on the Legendre polynomial. Map to [a, b] with
+/// x = 0.5 (b - a) node + 0.5 (a + b) and weight 0.5 (b - a).
 inline void c_gauss_legendre_nodes(
         int num_nodes,
         std::vector<double>& nodes,

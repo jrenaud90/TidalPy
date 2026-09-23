@@ -16,9 +16,6 @@ from TidalPy.Utilities_x.classes_x.classes cimport (
 from TidalPy.Material_x.eos.material_eos cimport c_MaterialEOSBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "eos_data_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_LayerEOSData:
         c_LayerEOSData()
@@ -93,9 +90,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_melt_fraction(double radius) const
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class BaseLayer(StructureBase):
     cdef unique_ptr[c_BaseLayer] _layer_ptr   # owns the most-derived C++ layer object
     cdef cpp_bool _is_view                    # True => non-owning view into a world-owned layer

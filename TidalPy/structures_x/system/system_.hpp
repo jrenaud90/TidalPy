@@ -40,31 +40,25 @@
 
 namespace tidalpy {
 
-// Relative tolerance within which the two members of a mutual pair must state the same orbital elements. They
-// describe one orbit, so anything past rounding is a contradiction in the input.
+// The two members of a mutual pair describe one orbit, so a disagreement past rounding is a contradiction
+// in the input.
 inline constexpr double d_SHARED_ORBIT_RTOL = 1.0e-12;
 
-// -------------------------------------------------------------------------------
-// c_OrbitElements - the two-body orbital elements (semi-major axis + eccentricity) of one world about
-// another body. Used both for a world's orbit about the tidal host and for its orbit about the star.
-// The reference body's own entry is unused.
-// -------------------------------------------------------------------------------
+// The two-body orbital elements of one world about another, used both for its orbit about the tidal host
+// and for its orbit about the star. The reference body's own entry is unused.
 struct c_OrbitElements {
     double semi_major_axis = TidalPyConstants::d_NAN;   // a [m]
     double eccentricity    = 0.0;                       // e [dimensionless]
 };
 
-// -------------------------------------------------------------------------------
-// c_WorldEvolution - the tidal + orbital + spin rates of one orbiting world for a single tidal solve,
-// together with the orbital/spin state used and the raw tidal outputs so the energy balance can be
-// checked. Produced by c_System::calc_world_evolution. evolved is false when the world has no tidal host or
-// no usable orbit about it; the numeric fields are then unset.
-// -------------------------------------------------------------------------------
+// The tidal, orbital, and spin rates of one orbiting world for a single tidal solve, with the state used
+// and the raw tidal outputs so the energy balance can be checked. evolved is false when the world has no
+// tidal host or no usable orbit about it, and the numeric fields are then unset.
 struct c_WorldEvolution {
     std::size_t world_index = 0;
     bool        evolved     = false;
 
-    // Orbital + spin state used for the solve.
+    // The state the solve used.
     double orbital_frequency = TidalPyConstants::d_NAN;  // mean motion n            [rad s-1]
     double semi_major_axis   = TidalPyConstants::d_NAN;  // a about the host         [m]
     double eccentricity      = 0.0;                      // e about the host         [dimensionless]
@@ -72,7 +66,6 @@ struct c_WorldEvolution {
     double host_mass         = 0.0;                      // tidal host mass          [kg]
     double target_mass       = 0.0;                      // dissipating world mass   [kg]
 
-    // Raw global-tidal-solve outputs for the world.
     double tidal_heating = 0.0;  // total tidal heating                     [W]
     double dU_dM         = 0.0;  // potential derivative wrt mean anomaly   [J kg-1 rad-1]
     double dU_dw         = 0.0;  // potential derivative wrt arg pericenter [J kg-1 rad-1]
@@ -87,20 +80,16 @@ struct c_WorldEvolution {
     double moment_of_inertia = TidalPyConstants::d_NAN;  // world MoI [kg m2] (NaN without a spin model)
     bool   has_spin          = false;                    // set when the world carries a spin model
 
-    // Energy-balance terms [W]: the tidal heating is drawn from the orbit + the spin, so
-    // energy_residual = tidal_heating + dE_orbit_dt + dE_spin_dt is ~0 under conservation.
+    // The tidal heating is drawn from the orbit and the spin, so under conservation
+    // energy_residual = tidal_heating + dE_orbit_dt + dE_spin_dt is about zero.
     double dE_orbit_dt     = 0.0;
     double dE_spin_dt      = 0.0;
     double energy_residual = 0.0;
 };
 
-// -------------------------------------------------------------------------------
-// c_PairEvolution - the dual-body tidal evolution of an orbiting world and its tidal host, from
-// c_System::calc_pair_evolution. Both bodies raise a tide on the shared orbit, so the combined
-// orbital rates and energy balance (the top-level fields) are the sum of each body's single-body
-// contribution (held in `world` and `host`). evolved is false for a world with no tidal host or no usable
-// orbit about it.
-// -------------------------------------------------------------------------------
+// The dual-body tidal evolution of an orbiting world and its tidal host. Both raise a tide on the shared
+// orbit, so the top-level rates and energy balance are the sum of each body's single-body contribution,
+// held in `world` and `host`.
 struct c_PairEvolution {
     std::size_t world_index = 0;   // the orbiting world
     std::size_t host_index  = 0;   // its tidal host
@@ -111,7 +100,6 @@ struct c_PairEvolution {
     double semi_major_axis   = TidalPyConstants::d_NAN;  // a             [m]
     double eccentricity      = 0.0;                      // e             [dimensionless]
 
-    // Combined orbital rates (sum of both bodies' contributions).
     double da_dt = 0.0;  // [m s-1]
     double de_dt = 0.0;  // [s-1]
     double dn_dt = 0.0;  // [rad s-2]
@@ -120,42 +108,31 @@ struct c_PairEvolution {
     c_WorldEvolution world;   // the orbiting world (tide raised by the host)
     c_WorldEvolution host;    // the host (tide raised by the orbiting world)
 
-    // Combined energy balance [W]: total heating vs the shared-orbit energy loss + both spins.
+    // Total heating against the shared-orbit energy loss and both spins.
     double tidal_heating_total = 0.0;  // world + host heating
     double dE_orbit_dt         = 0.0;  // from the combined da/dt
     double dE_spin_dt_total    = 0.0;  // both spins
     double energy_residual     = 0.0;  // heating_total + dE_orbit_dt + dE_spin_dt_total (~0 conserved)
 };
 
-// -------------------------------------------------------------------------------
-// c_System
-// -------------------------------------------------------------------------------
 class c_System : public c_TidalPyBaseClass, public c_TideStateProvider {
 public:
     c_System() = default;
     explicit c_System(const std::string& name) : p_name(name) {}
 
-    // The worlds can outlive the system (the Python wrappers co-own them), so they stop pointing at it.
+    // The worlds can outlive the system, the Python wrappers co-owning them, so they stop pointing at it.
     ~c_System() override { this->p_release_worlds(); }
 
     // Worlds hold a pointer to the system they belong to, so it is not copied.
     c_System(const c_System&) = delete;
     c_System& operator=(const c_System&) = delete;
 
-    // -----------------------------------------------------------------------
-    // Identity
-    // -----------------------------------------------------------------------
     const std::string& get_name() const noexcept { return this->p_name; }
     void set_name(const std::string& name) { this->p_name = name; }
 
-    // -----------------------------------------------------------------------
-    // World membership
-    //
-    // Add a world to the system. The semi_major_axis / eccentricity here describe the world's orbit about its
-    // tidal host, which is named afterwards with set_tidal_host (a host may be added after the worlds it hosts);
-    // its orbit about the star is set separately (set_stellar_semi_major_axis / set_stellar_eccentricity). The
-    // last world added with is_star is the star.
-    // -----------------------------------------------------------------------
+    // The semi_major_axis and eccentricity here describe the world's orbit about its tidal host, named
+    // afterwards with set_tidal_host, since a host may be added after the worlds it hosts; its orbit about
+    // the star is set separately. The last world added with is_star is the star.
     std::size_t add_world(
             std::shared_ptr<c_BaseWorld> world,
             bool is_star = false,
@@ -183,7 +160,7 @@ public:
         return this->p_worlds[index];
     }
 
-    // Index of the world whose name matches (case-sensitive), or -1 if none.
+    // Case-sensitive; -1 when no world matches.
     int find_world_index(const std::string& name) const noexcept {
         for (std::size_t i = 0; i < this->p_worlds.size(); ++i) {
             if (this->p_worlds[i]->get_name() == name) {
@@ -193,15 +170,12 @@ public:
         return -1;
     }
 
-    // -----------------------------------------------------------------------
-    // Tidal hosts (one per world, or none)
-    // -----------------------------------------------------------------------
     bool has_tidal_host(std::size_t index) const {
         this->check_index(index);
         return this->p_host_index_byworld[index] >= 0;
     }
 
-    // Index of the world's tidal host, or -1 for a world with none.
+    // -1 for a world with none.
     int get_tidal_host_index(std::size_t index) const {
         this->check_index(index);
         return this->p_host_index_byworld[index];
@@ -234,7 +208,7 @@ public:
         return this->get_tidal_host(index)->get_mass();
     }
 
-    // True when the world and its tidal host host each other, so the two share one orbit.
+    // The world and its tidal host host each other, so the two share one orbit.
     bool is_mutual_pair(std::size_t index) const {
         this->check_index(index);
         const int host_index = this->p_host_index_byworld[index];
@@ -242,9 +216,7 @@ public:
             && (this->p_host_index_byworld[static_cast<std::size_t>(host_index)] == static_cast<int>(index));
     }
 
-    // -----------------------------------------------------------------------
-    // Star (the insolation source; may or may not be the tidal host)
-    // -----------------------------------------------------------------------
+    // The star is the insolation source, and may or may not also be the tidal host.
     bool has_star() const noexcept {
         return this->p_star_index >= 0 && static_cast<std::size_t>(this->p_star_index) < this->p_worlds.size();
     }
@@ -266,7 +238,7 @@ public:
         return this->get_star()->get_mass();
     }
 
-    // The star's luminosity [W]. Returns NaN if the star world is not a c_StarWorld.
+    // NaN when the star world is not a c_StarWorld.
     double get_star_luminosity() const {
         const c_StarWorld* star = dynamic_cast<const c_StarWorld*>(this->get_star().get());
         if (star == nullptr) {
@@ -275,9 +247,6 @@ public:
         return star->get_luminosity();
     }
 
-    // -----------------------------------------------------------------------
-    // Orbital elements about the tidal host (per world, by index)
-    // -----------------------------------------------------------------------
     void set_semi_major_axis(std::size_t index, double semi_major_axis) {
         this->check_index(index);
         this->p_orbits[index].semi_major_axis = semi_major_axis;
@@ -347,14 +316,12 @@ public:
         return std::cbrt(mu / (orbital_frequency * orbital_frequency));
     }
 
-    // -----------------------------------------------------------------------
     // Orbital elements about the star (per world, by index; the source of insolation)
     //
     // A world's orbit about the star can differ from its orbit about the tidal host. For a moon these
     // are the moon-about-planet (tidal) and the moon-about-star (roughly the planet's heliocentric
     // orbit) ellipses; for a planet whose tidal host is the star they coincide and can be set to the
     // same values. The star's own entry is unused.
-    // -----------------------------------------------------------------------
     void set_stellar_semi_major_axis(std::size_t index, double semi_major_axis) {
         this->check_index(index);
         this->p_stellar_orbits[index].semi_major_axis = semi_major_axis;
@@ -372,8 +339,7 @@ public:
         return this->p_stellar_orbits[index].eccentricity;
     }
 
-    // Standard gravitational parameter mu = G (M_star + M_world) [m^3 s-2] for the world's orbit about
-    // the star. Throws if no star is set; returns NaN for the star's own index.
+    // mu = G (M_star + M_world) for the world's orbit about the star; NaN for the star's own index.
     double calc_stellar_gravitational_parameter(std::size_t index) const {
         this->check_index(index);
         if (!this->has_star()) {
@@ -389,8 +355,7 @@ public:
         return tidalpy_config_ptr->d_G * total_mass;
     }
 
-    // Mean motion n = sqrt(mu / a^3) [rad s-1] for the world's orbit about the star.
-    // Returns NaN for a non-positive/degenerate stellar semi-major axis or the star's own index.
+    // n = sqrt(mu / a^3) for the world's orbit about the star.
     double calc_stellar_orbital_frequency(std::size_t index) const {
         const double mu = this->calc_stellar_gravitational_parameter(index);
         const double semi_major_axis = this->p_stellar_orbits[index].semi_major_axis;
@@ -400,15 +365,10 @@ public:
         return std::sqrt(mu / (semi_major_axis * semi_major_axis * semi_major_axis));
     }
 
-    // -----------------------------------------------------------------------
-    // Insolation (stellar irradiation of a world)
-    //
-    // The orbit-averaged incident stellar flux [W m-2] at a world, F = L_star / (4 pi a^2 sqrt(1-e^2)),
-    // where a, e are the world's orbital elements about the star (the sqrt(1-e^2) is the time-average of
-    // 1/r^2 over an eccentric orbit; Mendez & Rivera-Valentin 2017). This is the incident flux before
-    // the world's own albedo/emissivity are applied. Returns NaN if there is no star, the index is the
-    // star's own, the stellar semi-major axis is unset, or the star has no luminosity.
-    // -----------------------------------------------------------------------
+    // Orbit-averaged incident stellar flux [W m-2], F = L_star / (4 pi a^2 sqrt(1-e^2)), with a and e the
+    // world's orbital elements about the star. The sqrt(1-e^2) is the time-average of 1/r^2 over an
+    // eccentric orbit (Mendez and Rivera-Valentin 2017). This is the incident flux, before the world's own
+    // albedo and emissivity are applied.
     double calc_insolation_flux(std::size_t index) const {
         this->check_index(index);
         if (!this->has_star()) {
@@ -432,9 +392,8 @@ public:
         return luminosity / denom;
     }
 
-    // Surface equilibrium temperature [K] of a world from stellar insolation alone (gray-body radiative
-    // balance using the world's albedo + emissivity: T = ((1-A) F / (4 eps sigma))^(1/4)). Delegates the
-    // radiative balance to the world. Returns NaN if the insolation flux is unavailable.
+    // From stellar insolation alone, by gray-body radiative balance on the world's albedo and emissivity:
+    // T = ((1-A) F / (4 eps sigma))^(1/4).
     double calc_equilibrium_temperature(std::size_t index) const {
         const double flux = this->calc_insolation_flux(index);
         if (!std::isfinite(flux)) {
@@ -443,9 +402,7 @@ public:
         return this->p_worlds[index]->calc_equilibrium_temperature(flux);
     }
 
-    // -----------------------------------------------------------------------
-    // Tide-state provider (c_TideStateProvider): what a world of this system is told about its own tides
-    // -----------------------------------------------------------------------
+    // What a world of this system is told about its own tides.
     bool get_tide_state(std::size_t world_index, c_TideSolveConfig& state_out) const override {
         if (world_index >= this->p_worlds.size() || !this->has_tidal_host(world_index)) {
             return false;
@@ -472,14 +429,9 @@ public:
         return this->calc_equilibrium_temperature(world_index);
     }
 
-    // -----------------------------------------------------------------------
-    // Orbital + spin evolution (single-body tidal dissipation)
-    //
-    // Runs one world's global tidal solve in the current system state, then turns the tidal-potential
-    // derivatives into the orbital rates and the spin rate. Only this world raises tides; its host is a
-    // point mass (the host's own tide is added by calc_pair_evolution). The returned struct carries the
-    // state and raw tidal outputs so the energy balance can be checked.
-    // -----------------------------------------------------------------------
+    // Single-body tidal dissipation: run one world's global tidal solve in the current system state, then
+    // turn the tidal-potential derivatives into the orbital rates and the spin rate. Only this world raises
+    // tides, its host being a point mass; calc_pair_evolution adds the host's own tide.
     c_WorldEvolution calc_world_evolution(std::size_t index) {
         this->check_index(index);
         c_WorldEvolution out;
@@ -502,9 +454,8 @@ public:
             orbit.eccentricity);
     }
 
-    // Evolve every world in the system (single-body dissipation), returning one c_WorldEvolution per
-    // world in index order. A world with no tidal host or no usable orbit comes back with evolved = false.
-    // The two members of a mutual pair each get a row: their contributions to the orbit they share add.
+    // Single-body dissipation for every world, in index order. The two members of a mutual pair each get a
+    // row: their contributions to the orbit they share add.
     std::vector<c_WorldEvolution> calc_system_evolution() {
         std::vector<c_WorldEvolution> results;
         results.reserve(this->p_worlds.size());
@@ -514,16 +465,11 @@ public:
         return results;
     }
 
-    // -----------------------------------------------------------------------
-    // Dual-body tidal evolution
-    //
-    // Each body dissipates as a self-consistent single-body problem with the other as the tide
-    // raiser (masses swapped), so the shared-orbit rates are the sum of the two contributions and
-    // each body evolves its own spin. The energy balance is the sum of the two single-body balances:
+    // Dual-body tidal evolution. Each body dissipates as a self-consistent single-body problem with the
+    // other as the tide raiser, masses swapped, so the shared-orbit rates are the sum of the two and each
+    // body evolves its own spin. The energy balance is the sum of the two single-body balances:
     //   heating_world + heating_host = -(dE_orbit/dt + dE_spin_world/dt + dE_spin_host/dt).
-    // A body with no tide model is rigid and contributes nothing. The pair is the world and its own tidal
-    // host. Returns evolved = false for a world with no tidal host or no usable orbit.
-    // -----------------------------------------------------------------------
+    // A body with no tide model is rigid and contributes nothing.
     c_PairEvolution calc_pair_evolution(std::size_t index) {
         this->check_index(index);
         c_PairEvolution out;
@@ -550,7 +496,7 @@ public:
         out.world = this->calc_dissipation(index, host_mass, orbital_frequency, a, e);
         out.host  = this->calc_dissipation(out.host_index, world_mass, orbital_frequency, a, e);
 
-        // Combined orbital rates + energy (both linear in each body's da/dt, so they add).
+        // Both are linear in each body's da/dt, so they add.
         out.da_dt = out.world.da_dt + out.host.da_dt;
         out.de_dt = out.world.de_dt + out.host.de_dt;
         out.dn_dt = out.world.dn_dt + out.host.dn_dt;
@@ -562,9 +508,7 @@ public:
         return out;
     }
 
-    // Rate of change of a world's Keplerian two-body orbital energy [W] from its semi-major-axis rate:
-    //   E_orbit = -G M_host M_world / (2 a)   ->   dE_orbit/dt = G M_host M_world / (2 a^2) da/dt.
-    // Returns NaN for an unusable semi-major axis or a null config pointer.
+    // E_orbit = -G M_host M_world / (2 a), so dE_orbit/dt = G M_host M_world / (2 a^2) da/dt.
     double calc_orbital_energy_derivative(const c_WorldEvolution& evolution) const {
         if (tidalpy_config_ptr == nullptr) {
             return TidalPyConstants::d_NAN;
@@ -577,9 +521,7 @@ public:
              / (2.0 * a * a) * evolution.da_dt;
     }
 
-    // Rate of change of a world's rotational (spin) energy [W]:
-    //   E_spin = (1/2) I spin^2   ->   dE_spin/dt = I spin dspin/dt.
-    // Returns 0 for a world with no spin model.
+    // E_spin = (1/2) I spin^2, so dE_spin/dt = I spin dspin/dt. Zero for a world with no spin model.
     double calc_spin_energy_derivative(const c_WorldEvolution& evolution) const noexcept {
         if (!evolution.has_spin || !std::isfinite(evolution.moment_of_inertia)) {
             return 0.0;
@@ -587,21 +529,21 @@ public:
         return evolution.moment_of_inertia * evolution.spin_frequency * evolution.dspin_dt;
     }
 
-    // Energy-balance residual [W] for a single evolved world: tidal_heating + dE_orbit/dt + dE_spin/dt.
-    // Conservation (all dissipated tidal power is drawn from the orbit + spin) makes this ~0.
+    // tidal_heating + dE_orbit/dt + dE_spin/dt, which conservation makes about zero: every watt dissipated
+    // is drawn from the orbit and the spin.
     double calc_energy_residual(const c_WorldEvolution& evolution) const {
         return evolution.tidal_heating
              + this->calc_orbital_energy_derivative(evolution)
              + this->calc_spin_energy_derivative(evolution);
     }
 
-    // One body's tidal-dissipation contribution to a two-body orbit, the shared primitive behind
-    // calc_world_evolution (companion = the host) and calc_pair_evolution (each body in turn). A body
-    // with no tide model is rigid: it raises no tide and contributes zero rates, heating, and spin.
+    // One body's tidal-dissipation contribution to a two-body orbit: the shared primitive behind
+    // calc_world_evolution, where the companion is the host, and calc_pair_evolution, which runs each body
+    // in turn. A body with no tide model is rigid and contributes nothing.
     //
-    // c_LayeredWorld hides the base analytic calc_tides with the rheology + layer-distribution path
-    // and owns the spin model, so the concrete type is resolved here to run the right solve and reach
-    // the spin rate; a layerless world (a star) uses the base analytic solve and contributes no spin.
+    // c_LayeredWorld hides the base analytic calc_tides with the rheology and layer-distribution path and
+    // owns the spin model, so the concrete type is resolved here to run the right solve and reach the spin
+    // rate; a layerless world uses the base analytic solve and contributes no spin.
     c_WorldEvolution calc_dissipation(
             std::size_t dissipator_index,
             double companion_mass,
@@ -623,13 +565,13 @@ public:
         out.host_mass         = companion_mass;
         out.target_mass       = target_mass;
 
-        // A body without a tide model is rigid: it raises no tide and contributes nothing.
+        // Rigid: no tide raised, nothing contributed.
         if (!world_ptr->get_tide_model_set()) {
             out.evolved = true;
             return out;
         }
 
-        // Global tidal solve for this body with the companion as the tide raiser.
+        // With the companion as the tide raiser.
         c_TideSolveConfig state;
         state.orbital_frequency = orbital_frequency;
         state.spin_frequency    = spin_frequency;
@@ -645,14 +587,14 @@ public:
             world_ptr->calc_tides(state);
         }
 
-        // calc_tides succeeded above (it throws on failure), so the tide result is populated.
+        // calc_tides throws on failure, so the tide result is populated here.
         const c_GlobalTideResult& tide = world_ptr->get_tide_result();
         out.tidal_heating = tide.tidal_heating;
         out.dU_dM         = tide.dU_dM;
         out.dU_dw         = tide.dU_dw;
         out.dU_dO         = tide.dU_dO;
 
-        // Orbital rates from the tidal-potential derivatives (this body is the dissipator).
+        // From the tidal-potential derivatives, this body being the dissipator.
         c_OrbitState orbit_state;
         orbit_state.orbital_frequency = orbital_frequency;
         orbit_state.semi_major_axis   = semi_major_axis;
@@ -665,14 +607,13 @@ public:
         out.de_dt = rates.de_dt;
         out.dn_dt = rates.dn_dt;
 
-        // Spin rate from this body's own spin model (torque from the companion).
+        // From this body's own spin model, under the torque from the companion.
         if (layered != nullptr) {
             out.moment_of_inertia = layered->get_moment_of_inertia();
             out.dspin_dt          = layered->calc_spin_derivative(companion_mass);
             out.has_spin          = true;
         }
 
-        // Energy-balance bookkeeping for this body.
         out.dE_orbit_dt     = this->calc_orbital_energy_derivative(out);
         out.dE_spin_dt      = this->calc_spin_energy_derivative(out);
         out.energy_residual = out.tidal_heating + out.dE_orbit_dt + out.dE_spin_dt;
@@ -680,15 +621,9 @@ public:
         return out;
     }
 
-    // -----------------------------------------------------------------------
-    // Binary I/O
-    //
-    // The container state (name, star index, and each world's tidal host index and orbital elements about
-    // that host and about the star) followed by every world's complete binary record; read_binary rebuilds the
-    // heterogeneous world list through c_world_from_binary. Physics sub-models a world does not
-    // serialize (the star's luminosity model, layer EOS model and profile data, the spin and tide
-    // models) are reattached after load. c_OrbitSolver is stateless, so it needs no serialized state.
-    // -----------------------------------------------------------------------
+    // The container state, then every world's complete binary record; read_binary rebuilds the
+    // heterogeneous world list through c_world_from_binary. Physics sub-models a world does not serialize
+    // are reattached after load. c_OrbitSolver is stateless, so it needs no serialized state.
     void write_binary(std::ostream& out) const override {
         const auto num_worlds = static_cast<uint64_t>(this->p_worlds.size());
         uint64_t payload =
@@ -733,7 +668,7 @@ public:
             throw std::runtime_error("TidalPy: failed to read System binary data");
         }
 
-        // Per-world tidal host, then the orbital elements about it and about the star (write_binary's order).
+        // Per-world tidal host, then the orbital elements about it and about the star.
         std::vector<int> host_index_byworld(num_worlds, -1);
         for (uint64_t i = 0; i < num_worlds; ++i) {
             int32_t host_index = -1;
@@ -752,7 +687,7 @@ public:
             in.read(reinterpret_cast<char*>(&this->p_stellar_orbits[i].eccentricity),    sizeof(double));
         }
 
-        // Rebuild the heterogeneous world list; each world's concrete type is recovered from its record.
+        // Each world's concrete type is recovered from its own record.
         this->p_release_worlds();
         this->p_worlds.clear();
         this->p_worlds.reserve(num_worlds);

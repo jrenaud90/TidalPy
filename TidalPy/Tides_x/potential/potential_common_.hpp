@@ -60,9 +60,8 @@ typedef c_IntMap<c_Key4, size_t> c_UniqueFreqIndexMap;
 typedef std::vector<c_FrequencyStorage> c_UniqueFreqMap;
 
 
-// Relative tolerance for deciding that two tidal-mode frequencies are the same one, and that a frequency is
-// zero: config_x [numerical] frequency_match_rtol, with a fallback for a call made before the config is loaded.
-// Modes are collapsed onto a shared frequency when they agree to this much.
+// Modes are collapsed onto a shared frequency when they agree to this much; it also decides when a frequency
+// counts as zero. The fallback covers a call made before the config is loaded.
 inline constexpr double d_FREQUENCY_MATCH_RTOL_FALLBACK = 1.0e-9;
 
 inline double c_frequency_match_rtol() noexcept

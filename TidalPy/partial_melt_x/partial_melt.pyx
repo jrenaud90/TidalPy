@@ -1,13 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""Cython wrappers for TidalPy's partial-melt model hierarchy.
-
-A partial-melt model maps a material's pre-melt (solid) viscosity and shear modulus, plus its
-temperature, to the post-melt values, and reports the volumetric melt fraction. These are
-frequency-independent and feed the downstream rheology step. Models: ``OffPartialMelt`` (alias
-``"none"``), ``SpohnPartialMelt`` (alias ``"fischer"``, Fischer and Spohn 1990), and
-``HenningPartialMelt`` (Henning 2009, 2010).
-"""
+"""Cython wrappers for TidalPy's partial-melt models."""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
@@ -26,15 +19,11 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# PartialMeltBase
-# =====================================================================================================================
-
 cdef class PartialMeltBase(PhysicsBase):
     """Abstract base for partial-melt models. Instantiate a concrete subclass."""
 
     def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr<c_PartialMeltBase> auto-inits to nullptr
+        pass  # unique_ptr auto-inits to nullptr
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -90,9 +79,6 @@ cdef class PartialMeltBase(PhysicsBase):
         return (result.melt_fraction, result.postmelt_viscosity, result.postmelt_shear_modulus)
 
 
-# =====================================================================================================================
-# Partial-melt models
-# =====================================================================================================================
 cdef class OffPartialMelt(PartialMeltBase):
     """No melt weakening; post-melt strength equals pre-melt."""
 
@@ -251,10 +237,7 @@ cdef class HenningPartialMelt(PartialMeltBase):
         return self._henning_ptr.get_shear_falloff_slope()
 
 
-# =====================================================================================================================
-# Factory
-# =====================================================================================================================
-# Every config key some partial-melt model reads; make_partial_melt rejects anything else.
+# Every config key any partial-melt model reads; make_partial_melt rejects anything else.
 PARTIAL_MELT_CONFIG_KEYS = frozenset({
     "solidus_k", "liquidus_k", "liquid_shear_pa",
     "fs_visc_power_slope_k", "fs_visc_power_phase", "fs_shear_power_slope_k", "fs_shear_power_phase",
@@ -263,7 +246,7 @@ PARTIAL_MELT_CONFIG_KEYS = frozenset({
 
 
 def _same_model(str table_name, str model_name) -> bool:
-    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    """Whether two names (aliases included) resolve to the same model."""
     return c_partial_melt_model_from_name(table_name.lower().encode("utf-8")) == c_partial_melt_model_from_name(model_name.lower().encode("utf-8"))
 
 
@@ -273,30 +256,27 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     Parameters
     ----------
     model_name : str
-        One of ``"off"``/``"none"``, ``"spohn"``/``"fischer"``, ``"henning"``
-        (case-insensitive; aliases accepted).
+        ``"off"``/``"none"``, ``"spohn"``/``"fischer"``, or ``"henning"``.
     config : dict, optional
-        Model parameters, keyed with their units: ``solidus_k``, ``liquidus_k``, ``liquid_shear_pa``, plus
-        the Spohn (``fs_*``) and Henning (``crit_melt_frac*``, ``hn_*``) scalars. Absent keys fall back to
-        the C++ defaults.
+        Model parameters, keyed with their units (see ``PARTIAL_MELT_CONFIG_KEYS``). Absent keys fall back
+        to the C++ defaults.
 
     Returns
     -------
     PartialMeltBase
-        The concrete model subclass.
 
     Raises
     ------
     ValueError
-        If the model name is unknown, or if ``config`` holds a key that no partial-melt model reads.
+        Unknown model name, or a config key that no partial-melt model reads.
     """
     if config is None:
-        # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
+        # Fall back to the same defaults the world-attached path uses.
         config = factory_defaults("material.partial_melt", PARTIAL_MELT_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, PARTIAL_MELT_CONFIG_KEYS, "partial-melt")
     if config is None:
         config = {}
-    # The default-constructed config carries the C++ defaults; only override what the caller supplies.
+    # The default-constructed config carries the C++ defaults, so only override what the caller gave.
     cdef c_PartialMeltConfig cfg
     if "solidus_k" in config:
         cfg.solidus = config["solidus_k"]

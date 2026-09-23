@@ -1,18 +1,15 @@
 """World and layer builders for the structures_x class system.
 
-Turns a validated configuration ``dict`` (see
-:mod:`TidalPy.structures_x.configs.toml_loader`) into a fully wired C++/Cython
-world: the world object, its ordered stack of layers, and each layer's attached
-physics models (EOS, rheology, viscosity, partial-melt, cooling, radiogenics).
+Turns a validated configuration dict into a fully wired C++/Cython world: the world object, its ordered
+stack of layers, and each layer's attached physics models.
 
-:func:`build_world` resolves a source (bundled name, file path, or ``dict``), validates it, and
-returns the built world; :func:`construct_world` and :func:`construct_layer` take an already-parsed
-``dict``. :func:`build_world_from_dict` and :func:`build_layer_from_dict` rebuild an object from the
-dictionary its ``get_config_dict`` returns.
+:func:`build_world` resolves a source (bundled name, file path, or dict), validates it, and returns the
+built world; :func:`construct_world` and :func:`construct_layer` take an already-parsed dict, and
+:func:`build_world_from_dict` and :func:`build_layer_from_dict` rebuild an object from the dictionary its
+``get_config_dict`` returns.
 
-A value the user omits is taken from the ``[layers.<type>]`` block of ``TidalPy_Configs_x.toml``,
-keyed by the layer's material ``type``, and only if that is also absent does the C++ or Cython
-constructor or physics-model-factory default apply.
+A value the user omits is taken from the ``[layers.<type>]`` block of ``TidalPy_Configs_x.toml``, keyed by
+the layer's material ``type``; only if that is also absent does the constructor or factory default apply.
 """
 
 import copy
@@ -70,9 +67,6 @@ _MODEL_DISPATCH = {
 }
 
 
-# =====================================================================================================================
-# Model construction helper
-# =====================================================================================================================
 def _build_model(make_func: Callable, section_cfg: dict):
     """Build a physics model from a configuration section via its factory.
 
@@ -98,13 +92,9 @@ def _build_model(make_func: Callable, section_cfg: dict):
     return make_func(model_name, params if params else None)
 
 
-# =====================================================================================================================
-# Per-material default lookup + merge
-# =====================================================================================================================
-# TOML configuration keys keep their unit suffixes (a config file has no docstring beside it), while the
-# world and layer constructors take unit-free argument names. The builder is the boundary between the two,
-# so it translates the keys it forwards as keyword arguments. Keys absent here are spelled the same on both
-# sides (``albedo``, ``material_name``, ``adiabatic_index``, ...).
+# TOML keys keep their unit suffixes, a config file having no docstring beside it, while the world and layer
+# constructors take unit-free argument names. The builder is the boundary, so it translates the keys it
+# forwards as keyword arguments. Keys absent here are spelled the same on both sides.
 _CONFIG_KEY_TO_ARGUMENT = {
     "radius_m":                     "radius",
     "mass_kg":                      "mass",
@@ -122,7 +112,7 @@ _CONFIG_KEY_TO_ARGUMENT = {
 
 
 def _merge_section(defaults: dict, overrides: dict) -> dict:
-    """Overlay a model table on its defaults key by key; nested tables (the material's models) merge the same way."""
+    """Overlay a model table on its defaults key by key; nested tables merge the same way."""
     section = dict(defaults)
     for key, value in overrides.items():
         if isinstance(value, dict) and isinstance(section.get(key), dict):
@@ -138,7 +128,7 @@ def _as_constructor_kwargs(config_items) -> dict:
 
 
 def _material_type_defaults(material_type: str | None, layer_class_name: str) -> dict:
-    """Return the ``_x`` config defaults for a material ``type``, filtered to a class.
+    """The ``_x`` config defaults for a material ``type``, filtered to a layer class.
 
     Looks up ``TidalPy.config_x['layers'][material_type]`` and keeps only the scalar
     keys and physics-model sections the given layer class can actually hold (so the
@@ -181,9 +171,6 @@ def _material_type_defaults(material_type: str | None, layer_class_name: str) ->
     return filtered
 
 
-# =====================================================================================================================
-# Layer construction
-# =====================================================================================================================
 def construct_layer(
         layer_name: str,
         layer_cfg: dict,
@@ -233,11 +220,11 @@ def construct_layer(
     layer_class = _LAYER_CLASSES[layer_class_name]
     allowed_scalars = ALLOWED_LAYER_SCALAR_KEYS[layer_class_name]
 
-    # Tier 2: per-material defaults from the _x config (filtered to this class).
+    # Tier 2: per-material defaults from the _x config, filtered to this class.
     merged = _material_type_defaults(layer_cfg.get("type"), layer_class_name)
 
-    # Tier 1: overlay the user's keys (model sections merge per key; user wins). The
-    # class/type/layer_index and the outer-radius specifiers are handled separately.
+    # Tier 1: the user's keys on top, model sections merging per key. The class, type, layer_index, and
+    # outer-radius specifiers are handled separately.
     for key, value in layer_cfg.items():
         if key in ("class", "type", "layer_index") or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
@@ -246,15 +233,15 @@ def construct_layer(
         else:
             merged[key] = value
 
-    # Tier 3: anything still absent falls through to the constructor / factory default.
+    # Tier 3: anything still absent falls through to the constructor or factory default.
     ctor_kwargs = _as_constructor_kwargs(
         (key, value) for key, value in merged.items() if key in allowed_scalars)
-    # Geometry is always supplied by the caller (inner radius is derived from the
-    # previous layer; outer radius is resolved from the specifier).
+    # The caller always supplies the geometry: the inner radius from the previous layer, the outer radius
+    # from the specifier.
     ctor_kwargs["radius_inner"] = radius_inner
     ctor_kwargs["radius_outer"] = radius_outer
-    # The mass has no constructor default. Every successful EOS solve overwrites it with the
-    # solved layer mass, so 0.0 stands in when neither the user nor the material block supplies it.
+    # The mass has no constructor default. Every successful EOS solve overwrites it, so 0.0 stands in when
+    # neither the user nor the material block supplies one.
     ctor_kwargs.setdefault("mass", 0.0)
     if extra_kwargs:
         ctor_kwargs.update(extra_kwargs)
@@ -332,9 +319,7 @@ def build_layer_from_dict(config: dict):
         extra_kwargs=extra_kwargs)
 
 
-# =====================================================================================================================
-# Radial data expansion: a PREM-like profile describes the world's geometry and materials
-# =====================================================================================================================
+# Radial data expansion: a PREM-like profile describing the world's geometry and materials.
 def _layers_from_radial_data(arrays: dict) -> list:
     """Split a normalized radial profile into layers and give each one an interpolated material.
 
@@ -373,7 +358,7 @@ def _layers_from_radial_data(arrays: dict) -> list:
             shear_modulus  = shear[start:stop],
             bulk_modulus   = arrays["bulk_modulus_pa"][start:stop],
             is_solid       = bool(is_solid),
-            # A liquid layer (zero shear velocity) is solved as a static liquid.
+            # A layer with zero shear velocity is liquid, and is solved as a static liquid.
             is_static      = True,
             shear_viscosity = None if shear_visc is None else shear_visc[start:stop],
             bulk_viscosity  = None if bulk_visc is None else bulk_visc[start:stop],
@@ -421,8 +406,8 @@ def _interpolated_layer_config(
     """
     import numpy as np
 
-    # tolist() rather than a float() comprehension: the conversion then happens once in C instead of once per
-    # element in Python, and the material factory wants a sequence of plain floats either way.
+    # tolist() rather than a float() comprehension: the conversion happens once in C rather than once per
+    # element in Python, and the material factory wants plain floats either way.
     def as_floats(values):
         return np.ascontiguousarray(values, dtype=np.float64).tolist()
 
@@ -440,9 +425,9 @@ def _interpolated_layer_config(
 
     layer_cfg = {
         "class":          "solidliquid",
-        # The profile is the material, so the layer takes no defaults from a material type: no
-        # viscosity model, no partial-melt model, and no rheology it did not ask for. A layer
-        # table naming a `type` gets that block back.
+        # The profile is the material, so the layer takes no defaults from a material type: no viscosity
+        # model, no partial-melt model, no rheology it did not ask for. A layer table naming a `type` gets
+        # that block back.
         "type":           NO_MATERIAL_TYPE,
         "layer_index":    index,
         "radius_outer_m": float(material_cfg["radius_m"][-1]),
@@ -517,8 +502,8 @@ def build_world_from_layered_profile(
 
     from TidalPy.structures_x.worlds.layered import build_layered_world_from_profile
 
-    # Everything below the arrays happens in C++: the slice partition, the per-layer geometry, and the
-    # interpolated material EOS each layer carries. Only the array normalization belongs here.
+    # Everything below the arrays happens in C++: the slice partition, the per-layer geometry, and each
+    # layer's interpolated material EOS. Only the array normalization belongs here.
     return build_layered_world_from_profile(
         np.ascontiguousarray(radius, dtype=np.float64),
         np.ascontiguousarray(density, dtype=np.float64),
@@ -558,7 +543,7 @@ def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float
             f"Layer '{layer_name}': provided outer radius {user_outer:.6g} m does not match the "
             f"radius {auto_outer:.6g} m detected from the radial profile.")
 
-    # A user-provided constant overrides the profile's array (constant across the layer).
+    # A user-provided constant overrides the profile's array across the whole layer.
     num_points = len(merged["material"]["radius_m"])
     user_material = user_cfg.get("material", {}) or {}
     _const_override = {
@@ -571,7 +556,7 @@ def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float
         if scalar_key in user_material:
             merged["material"][array_key] = [float(user_material[scalar_key])] * num_points
 
-    # Overlay remaining user keys (geometry specifiers already handled above).
+    # The geometry specifiers were handled above.
     for key, value in user_cfg.items():
         if key == "layer_index" or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
@@ -665,9 +650,6 @@ def _expand_radial_data(config: dict) -> dict:
     return config
 
 
-# =====================================================================================================================
-# World construction
-# =====================================================================================================================
 def _world_type_defaults(world_type: str) -> dict:
     """Return the ``[worlds]`` default block from the ``_x`` config, specialized for a world type.
 
@@ -694,7 +676,7 @@ def _world_type_defaults(world_type: str) -> dict:
     return defaults
 
 
-# The EOS integration method a world built from a radial profile pins on itself (see construct_world).
+# What a world built from a radial profile pins on itself; see construct_world.
 DATA_FILE_EOS_INTEGRATION_METHOD = "RK45"
 
 
@@ -728,8 +710,8 @@ def construct_world(config: dict):
     validate_world_config(config)
     world_type = config["type"]
 
-    # Tier 2 for world-level properties: the `[worlds]` block of the _x config, under whatever the
-    # user supplied. Anything neither supplies is left out entirely so the class default applies.
+    # Tier 2 for world-level properties: the `[worlds]` block of the _x config, under whatever the user
+    # supplied. Anything neither supplies is left out so the class default applies.
     resolved = _world_type_defaults(world_type)
     resolved.update(config)
 
@@ -753,8 +735,8 @@ def construct_world(config: dict):
                 world.set_luminosity_model(_build_model(make_luminosity, config["luminosity"]))
             except ValueError as error:
                 raise ValueError(f"[luminosity] {error}") from error
-        # A star has no layers, but the analytic tide pipeline (cpl/ctl/ctl_q) is common to
-        # all world types, so wire its [tides] table too (default model: fixed_q).
+        # A star has no layers, but the analytic tide pipeline is common to every world type, so wire its
+        # [tides] table too.
         _attach_tides(world, config)
     else:
         if world_type == "gasgiant":
@@ -766,9 +748,9 @@ def construct_world(config: dict):
             world.set_spin_model(Spin(moment_of_inertia_factor=resolved["moment_of_inertia_factor"]))
         _add_layers(world, config["layers"], world_radius)
         _attach_tides(world, config)
-        # The world's own solver settings, if its file pins any (validated above). A world built from a radial
-        # profile takes RK45 for its EOS solve unless its file says otherwise: on an interpolated profile RK45 is
-        # about 2.8 times faster than DOP853 at equal accuracy, since the profile's kinks defeat the high order.
+        # The world's own solver settings, if its file pins any. A world built from a radial profile takes
+        # RK45 for its EOS solve unless its file says otherwise: on an interpolated profile RK45 is about
+        # 2.8 times faster than DOP853 at equal accuracy, the profile's kinks defeating the high order.
         eos_solver = config.get("eos_solver")
         if "data_file" in given or "data" in given:
             eos_solver = dict(eos_solver or {})
@@ -776,18 +758,16 @@ def construct_world(config: dict):
         if eos_solver or "radial_solver" in config:
             world.set_solver_defaults(eos_solver=eos_solver, radial_solver=config.get("radial_solver"))
 
-    # Retain the normalized config on the world for a faithful save_to_toml. A world built from a data file also
-    # keeps the configuration as given, the file reference and the tables that refined it, which is what a saved
-    # copy should carry instead of the expanded profile and the path the file resolved to here.
+    # Retained for a faithful save_to_toml. A world built from a data file also keeps the configuration as
+    # given, the file reference and the tables that refined it, which is what a saved copy should carry
+    # rather than the expanded profile and the path the file resolved to here.
     world.source_config = config
     world.portable_config = dict(given) if "data_file" in given else None
     return world
 
 
-# Built-in fallback for the per-world-family default tide model, used only if the `_x`
-# config (`TidalPy.config_x['tides']['default_model']`, from defaultc_x.py) is unavailable.
-# The config file is the single source of truth; this mirror just keeps the builder working
-# before that config is generated.
+# Fallback for the per-world-family default tide model, used only when the `_x` config is unavailable. The
+# config file is the single source of truth; this mirror keeps the builder working before it is generated.
 _DEFAULT_TIDE_MODEL_FALLBACK = {
     "star":        "fixed_q",
     "gasgiant":    "fixed_dt",
@@ -798,13 +778,12 @@ _DEFAULT_TIDE_MODEL_FALLBACK = {
 SUPPORTED_ECCENTRICITY_TRUNCATIONS = (1, 2, 3, 4, 5, 10, 15, 20)
 SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 1, 2, 10)
 
-# Untabulated obliquity levels already warned about (same once-per-session rule as the
-# eccentricity promotion below).
+# Untabulated obliquity levels already warned about; the same once-per-session rule as the eccentricity
+# promotion below.
 _WARNED_OBLIQUITY_TRUNCATIONS: set = set()
 
-# Untabulated truncation levels already warned about, so a stale configuration file (which
-# would otherwise trigger the promotion warning on every single world build) warns once per
-# session per level.
+# Untabulated truncation levels already warned about, so a stale configuration file warns once per session
+# per level rather than on every world build.
 _WARNED_ECCENTRICITY_TRUNCATIONS: set = set()
 
 
@@ -847,7 +826,7 @@ def _resolve_obliquity_truncation(value) -> int:
 
 
 def _tides_config_x() -> dict:
-    """Return the ``[tides]`` defaults block from the ``_x`` config (empty if absent)."""
+    """The ``[tides]`` defaults block from the ``_x`` config; empty when absent."""
     config_x = getattr(TidalPy, "config_x", None) or {}
     return config_x.get("tides", {}) or {}
 
@@ -876,9 +855,9 @@ def _resolve_eccentricity_truncation(value) -> int:
         f"Supported levels: {SUPPORTED_ECCENTRICITY_TRUNCATIONS}.")
 
 
-# A `[tides]` table may spell either truncation the long way. The config_x defaults always use the
-# `_trunc_lvl` spelling, so an alias has to be rewritten to the canonical name before the two are
-# merged: left as-is it sits beside the default under a different key and the default wins silently.
+# A `[tides]` table may spell either truncation the long way, while the config_x defaults always use
+# `_trunc_lvl`, so an alias must be rewritten before the two are merged: left as-is it sits beside the
+# default under a different key and the default wins silently.
 _TRUNCATION_ALIASES = {
     "eccentricity_truncation": "eccentricity_trunc_lvl",
     "obliquity_truncation":    "obliquity_trunc_lvl",
@@ -964,8 +943,8 @@ def _attach_tides(world, config: dict) -> None:
     defaults = _normalize_truncation_aliases(
         _tides_config_x(), "The [tides] block of TidalPy_Configs_x.toml")
 
-    # The default-model map is the one config_x key that is per-world-type; everything else
-    # merges the config_x [tides] defaults underneath the world's [tides] overrides.
+    # The default-model map is the one config_x key that is per-world-type; everything else merges the
+    # config_x [tides] defaults underneath the world's own [tides] overrides.
     default_model_map = defaults.get("default_model", {}) or {}
     merged = {key: value for key, value in defaults.items() if key != "default_model"}
     merged.update(tides_cfg)
@@ -985,8 +964,8 @@ def _attach_tides(world, config: dict) -> None:
     _warn_short_degree_lists(config.get("name", "?"), tide_model, model_config, max_degree_l)
     world.set_tide_model(tide_model)
 
-    # The truncation levels below also drive the on-demand 3D stress/strain/heating path (the tidal
-    # potential is built dynamically from them by the rheology model; no potential-model object).
+    # These also drive the on-demand 3D path: the rheology model builds the tidal potential from them,
+    # with no potential-model object.
     world.set_tide_config(
         min_degree_l=int(merged.get("min_degree_l", 2)),
         max_degree_l=max_degree_l,
@@ -1039,7 +1018,7 @@ def _resolve_outer_radius(
     if "volume_fraction" in layer_cfg:
         volume_fraction = float(layer_cfg["volume_fraction"])
         return (radius_inner ** 3 + volume_fraction * world_radius ** 3) ** (1.0 / 3.0)
-    # Validation guarantees one specifier is present; guard for direct callers.
+    # Validation guarantees one specifier; this guards a direct caller.
     raise ValueError(
         f"Layer '{layer_name}' has no outer-radius specifier "
         f"(one of {LAYER_GEOMETRY_SPEC_KEYS} is required).")
@@ -1075,9 +1054,6 @@ def _add_layers(world, layers_cfg: dict, world_radius: float) -> None:
         radius_inner = radius_outer
 
 
-# =====================================================================================================================
-# Source resolution + high-level wrapper
-# =====================================================================================================================
 def _resolve_source(source: Union[str, dict]) -> Union[str, dict]:
     """Resolve a world source to a file path or a configuration dict.
 
@@ -1171,7 +1147,7 @@ def build_world_from_dict(config: dict, force: bool = False):
 
 
 def available_worlds() -> list:
-    """Return the sorted names of the bundled ``WorldPack_x`` example worlds.
+    """The sorted names of the bundled ``WorldPack_x`` example worlds.
 
     Combines the user data directory with the packaged worlds. Bundled system configurations share
     the directory and are listed by :func:`available_systems` instead.

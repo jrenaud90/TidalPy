@@ -1,11 +1,8 @@
 #pragma once
-/*
- * viscosity_base_.hpp - c_ViscosityBase: abstract base for TidalPy viscosity models.
+/* Abstract base for TidalPy viscosity models. Concrete models live in viscosity_.hpp.
  *
- * Inherits c_PhysicsBase. A viscosity model returns a material's dynamic viscosity [Pa s] at a
- * temperature [K] and pressure [Pa]. This is the pre-melt (solid) viscosity that the partial-melt
- * step weakens; like the partial-melt outputs it is frequency independent and is cached once per
- * EOS solve. The concrete models (Arrhenius, Reference, Constant) live in viscosity_.hpp.
+ * The result is the pre-melt (solid) viscosity that the partial-melt step weakens. Like the partial-melt
+ * outputs it is frequency independent, so it is cached once per EOS solve.
  *
  * References
  * ----------
@@ -32,8 +29,7 @@ public:
     // Dynamic viscosity [Pa s] at a temperature [K] and pressure [Pa]. Assumes a steady-state flow law.
     virtual double calc_viscosity(double temperature, double pressure) const = 0;
 
-    // Vectorized element-wise over temperature and pressure: the primary radial sweep, one entry per
-    // slice. The two input vectors must match in length.
+    // Element-wise over temperature and pressure; this is the primary radial sweep, one entry per slice.
     void calc_viscosity_vectorize(
             const std::vector<double>& temperature,
             const std::vector<double>& pressure,

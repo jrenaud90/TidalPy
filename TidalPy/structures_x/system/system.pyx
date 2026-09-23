@@ -102,9 +102,6 @@ cdef dict cy_pair_to_dict(c_PairEvolution pair):
     }
 
 
-# =====================================================================================================================
-# System
-# =====================================================================================================================
 cdef class System:
     """A gravitationally bound set of worlds, each with its own tidal host.
 
@@ -137,9 +134,6 @@ cdef class System:
         self._system.reset()
         self._ptr = NULL
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Builder entry point
-    # ------------------------------------------------------------------------------------------------------------------
     @staticmethod
     def build(source, force=False):
         """Build a system from a configuration source (the public builder entry point).
@@ -174,9 +168,6 @@ cdef class System:
         validate_schema_version(config, force=force)
         return construct_system(config, force=force)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Membership
-    # ------------------------------------------------------------------------------------------------------------------
     def add_world(
             self,
             BaseWorld world not None,
@@ -242,9 +233,7 @@ cdef class System:
         """List of the worlds in the system (in the order they were added)."""
         return list(self._world_wrappers)
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Tidal hosts (one per world, or none; identify a world by index, name, or object)
-    # ------------------------------------------------------------------------------------------------------------------
     def set_tidal_host(self, world, tidal_host):
         """Name the world that raises ``world``'s tides. Both must already be members of the system.
 
@@ -285,9 +274,6 @@ cdef class System:
         """
         return True if self._system.get().is_mutual_pair(<size_t>self._resolve_index(world)) else False
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Star (the insolation source; may or may not be the tidal host)
-    # ------------------------------------------------------------------------------------------------------------------
     def set_star(self, world):
         """Designate an already-added world as the star (by index, name, or the world object)."""
         self._system.get().set_star(<size_t>self._resolve_index(world))
@@ -316,9 +302,7 @@ cdef class System:
         """
         return self._system.get().get_star_luminosity()
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Orbital elements about the tidal host (per orbiting world; identify a world by index, name, or object)
-    # ------------------------------------------------------------------------------------------------------------------
     def set_semi_major_axis(self, world, double semi_major_axis):
         """Set a world's semi-major axis about its tidal host [m]."""
         self._system.get().set_semi_major_axis(<size_t>self._resolve_index(world), semi_major_axis)
@@ -355,9 +339,7 @@ cdef class System:
         return self._system.get().calc_semi_major_axis_from_frequency(
             <size_t>self._resolve_index(world), orbital_frequency)
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Orbital elements about the star (the insolation source; may differ from the tidal-host orbit)
-    # ------------------------------------------------------------------------------------------------------------------
     def set_stellar_semi_major_axis(self, world, double semi_major_axis):
         """Set a world's semi-major axis about the star [m]."""
         self._system.get().set_stellar_semi_major_axis(<size_t>self._resolve_index(world), semi_major_axis)
@@ -388,9 +370,6 @@ cdef class System:
         """
         return self._system.get().calc_stellar_orbital_frequency(<size_t>self._resolve_index(world))
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Insolation (stellar irradiation of a world)
-    # ------------------------------------------------------------------------------------------------------------------
     def calc_insolation_flux(self, world) -> float:
         """Orbit-averaged incident stellar flux [W m-2] at a world.
 
@@ -409,9 +388,6 @@ cdef class System:
         """
         return self._system.get().calc_equilibrium_temperature(<size_t>self._resolve_index(world))
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Orbital + spin evolution (single-body tidal dissipation)
-    # ------------------------------------------------------------------------------------------------------------------
     def calc_world_evolution(self, world) -> dict:
         """Evolve one orbiting world for a single tidal solve, returning its rates as a dict.
 
@@ -482,9 +458,6 @@ cdef class System:
         cdef c_PairEvolution pair = self._system.get().calc_pair_evolution(<size_t>self._resolve_index(world))
         return cy_pair_to_dict(pair)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config / serialization
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def config(self):
         """The system configuration dict the system was built from (None if built directly)."""
@@ -597,9 +570,7 @@ cdef class System:
         self._rebuild_world_wrappers()
         self.source_config = None
 
-    # ------------------------------------------------------------------------------------------------------------------
     # World identification: accept an index (int), a world name (str), or the world wrapper object.
-    # ------------------------------------------------------------------------------------------------------------------
     cdef Py_ssize_t _resolve_index(self, object world) except *:
         cdef Py_ssize_t n = len(self._world_wrappers)
         cdef Py_ssize_t i
@@ -623,9 +594,6 @@ cdef class System:
             raise ValueError("world object is not a member of this system")
         raise TypeError(f"world must be an int index, a name (str), or a world object, not {type(world).__name__}")
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Sequence protocol over the member worlds
-    # ------------------------------------------------------------------------------------------------------------------
     def __len__(self):
         """Number of worlds in the system."""
         return len(self._world_wrappers)

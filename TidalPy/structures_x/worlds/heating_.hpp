@@ -41,9 +41,7 @@ struct c_WorldState {
     const std::vector<std::unique_ptr<c_BaseLayer>>* layers_ptr = nullptr;
 };
 
-// -------------------------------------------------------------------------------
 // c_HeatSourceBase: one physical source of internal heat.
-// -------------------------------------------------------------------------------
 class c_HeatSourceBase {
 public:
     virtual ~c_HeatSourceBase() = default;
@@ -59,10 +57,8 @@ public:
     virtual double calc_heating(std::size_t layer_index, double radius, double density) const noexcept = 0;
 };
 
-// -------------------------------------------------------------------------------
 // c_RadiogenicHeatSource: the layers' radiogenics models. Each model's decay law is linear in the mass it is
 // handed, so its specific rate is its heating of one kilogram.
-// -------------------------------------------------------------------------------
 class c_RadiogenicHeatSource : public c_HeatSourceBase {
 public:
     bool is_state_dependent() const noexcept override { return false; }
@@ -101,9 +97,7 @@ protected:
     std::vector<double> p_specific_heating_bylayer;   // [W kg-1]
 };
 
-// -------------------------------------------------------------------------------
 // c_Heating: a world's heat sources, summed.
-// -------------------------------------------------------------------------------
 class c_Heating : public c_EOSHeatingBase {
 public:
     c_Heating() { this->p_sources.push_back(&this->p_radiogenic_source); }

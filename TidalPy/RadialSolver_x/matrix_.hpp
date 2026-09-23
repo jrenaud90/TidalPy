@@ -36,8 +36,7 @@
 ///     [kg m-3].
 /// slices_per_layer : size_t
 ///     Slices this call lays down in each layer. The method propagates from one slice to the next, so it is
-///     discretized by construction; this is the only grid left in the radial solver, and it does not outlive
-///     the call (bar the radii, which the y-grid is interpolated against).
+///     discretized by construction; this is the only grid left in the radial solver.
 /// num_bc_models, bc_models_ptr
 ///     Boundary condition models (free = 0, tidal = 1, loading = 2).
 /// G_to_use : double
@@ -79,7 +78,7 @@ inline int c_matrix_propagate(
 
     solution_storage_ptr->message = "RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n";
 
-    // The matrix method fills the grid, so a prior shooting solve's interpolant state must not remain on the
+    // The matrix method fills the grid, so a prior shooting solve's interpolant state must not survive on
     // reused storage or get_radial_solution would dispatch to the wrong branch.
     solution_storage_ptr->reset_interpolant_storage();
 
@@ -95,7 +94,7 @@ inline int c_matrix_propagate(
         return solution_storage_ptr->error_code;
     }
 
-    // The method propagates from one slice to the next, so it needs a grid. That grid is built here.
+    // The method propagates from one slice to the next, so it needs a grid; built here.
     std::vector<double>& radius_grid = solution_storage_ptr->p_matrix_radius_solve;
     radius_grid.assign(total_slices, 0.0);
     std::vector<double> gravity_grid(total_slices, 0.0);
@@ -164,8 +163,8 @@ inline int c_matrix_propagate(
         return bc_error;
     }
 
-    // Convert the surface conditions from the TS72 to the SVC16 sign convention: the last component flips for the
-    // tidal and loading cases (SVC16 Eq. 1.127); a free surface needs no change.
+    // TS72 to SVC16 sign convention: the last component flips for the tidal and loading cases (SVC16
+    // Eq. 1.127); a free surface needs no change.
     for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
     {
         const size_t full_shift = 3 * ytype_i;
@@ -182,8 +181,7 @@ inline int c_matrix_propagate(
         }
     }
 
-    // Automatic starting radius after Martens' thesis and the LoadDef manual, capped by
-    // config_x [numerical].max_start_radius_fraction.
+    // Automatic starting radius after Martens' thesis and the LoadDef manual, capped by the config.
     if (starting_radius == 0.0)
     {
         starting_radius = planet_radius * std::pow(start_radius_tolerance, 1.0 / degree_l_dbl);
@@ -267,8 +265,8 @@ inline int c_matrix_propagate(
         degree_l,
         G_to_use);
 
-    // Seed the propagation matrix with the core starting conditions. From IcyDwarf: "They are inconsequential on
-    // the rest of the solution, so false assumptions are OK."
+    // Seed with the core starting conditions. From IcyDwarf: "They are inconsequential on the rest of the
+    // solution, so false assumptions are OK."
     size_t index_shift_18 = (first_slice_index - 1) * 18;
     size_t index_shift_36 = (first_slice_index - 1) * 36;
 

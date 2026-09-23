@@ -12,9 +12,6 @@ from libcpp.vector cimport vector
 from libc.stdint cimport uint8_t
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "tidalpy_base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_TidalPyBaseClass:
         string get_schema_version_str() const
@@ -38,7 +35,6 @@ cdef extern from "structure_base_.hpp" namespace "tidalpy" nogil:
 
 
 cdef extern from "config_entry_.hpp" namespace "tidalpy" nogil:
-    # Typed configuration entry reported by a C++ physics model (converted to a dict in Cython).
     cdef enum class c_ConfigEntryKind:
         Double
         Int
@@ -66,15 +62,12 @@ cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
         vector[c_ConfigEntry] get_config_entries() const
 
 
-# Convert a C++ physics model's typed config entries into the dict returned by get_config_dict. Shared by the
-# Cython wrappers and by the layer and world writers, which reach attached models through raw pointers.
+# Shared by the Cython wrappers and by the layer and world writers, which reach attached models through
+# raw pointers.
 cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries)
 cdef dict cy_physics_model_config(const c_PhysicsBase* model_ptr)
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations (for cimport by other extensions)
-# =====================================================================================================================
 cdef class TidalPyBaseClass:
     cdef c_TidalPyBaseClass* _ptr
     cdef void _check_ptr(self) except *
@@ -87,9 +80,7 @@ cdef class StructureBase(TidalPyBaseClass):
 
 
 cdef class PhysicsBase(TidalPyBaseClass):
-    # Owns the c_PhysicsBase only when PhysicsBase is instantiated directly.
-    # Subclasses (e.g. rheology models) leave this empty and own the most-derived
-    # object themselves (via their own unique_ptr), setting the inherited
-    # TidalPyBaseClass._ptr instead.
+    # Owns the c_PhysicsBase only when PhysicsBase is instantiated directly. Subclasses leave this empty,
+    # own the most-derived object through their own unique_ptr, and set the inherited _ptr instead.
     cdef unique_ptr[c_PhysicsBase] _physics_ptr
     cpdef dict get_config_dict(self)

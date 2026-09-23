@@ -1,4 +1,4 @@
-"""TidalPy.Utilities_x.conversions - common unit and orbital-element conversions (C++/Cython)."""
+"""Common unit and orbital-element conversions."""
 
 from TidalPy.Utilities_x.conversions.conversions import (
     Au2m,

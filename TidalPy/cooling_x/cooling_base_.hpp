@@ -1,10 +1,5 @@
 #pragma once
-/*
- * cooling_base_.hpp - c_CoolingBase: abstract base for TidalPy cooling models.
- *
- * Inherits c_PhysicsBase. The concrete models (Off, Convective, Conductive) live in cooling_.hpp.
- * Cooling state and results are bundled in c_CoolingInputs and c_CoolingResult; all quantities MKS.
- */
+/* Abstract base for TidalPy cooling models. Concrete models live in cooling_.hpp. All quantities MKS. */
 
 #include <stdexcept>
 #include <string>
@@ -14,9 +9,7 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_CoolingInputs: the physical state passed to a cooling model (all MKS).
-// -------------------------------------------------------------------------------
+// Physical state passed to a cooling model.
 struct c_CoolingInputs {
     double delta_temp           = 0.0;  // temperature drop across the layer [K]
     double thickness            = 0.0;  // layer (or sub-layer) thickness [m]
@@ -28,9 +21,6 @@ struct c_CoolingInputs {
     double thermal_expansion    = 0.0;  // thermal expansivity [1/K]
 };
 
-// -------------------------------------------------------------------------------
-// c_CoolingResult: the quantities every cooling model reports.
-// -------------------------------------------------------------------------------
 struct c_CoolingResult {
     double cooling_flux    = 0.0;  // heat flux leaving the layer [W/m^2]
     double blt             = 0.0;  // boundary-layer thickness [m]
@@ -38,9 +28,6 @@ struct c_CoolingResult {
     double nusselt_number  = 1.0;  // Nusselt number [dimensionless]
 };
 
-// -------------------------------------------------------------------------------
-// c_CoolingBase
-// -------------------------------------------------------------------------------
 class c_CoolingBase : public c_PhysicsBase {
 public:
     c_CoolingBase() = default;
@@ -49,7 +36,7 @@ public:
 
     ~c_CoolingBase() override = default;
 
-    // Map the layer's physical state to a cooling result. Assumes steady-state boundary-layer theory.
+    // Assumes steady-state boundary-layer theory.
     virtual c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const = 0;
 
     // Vectorized over the temperature drop at otherwise fixed state; out_results is resized.
@@ -86,7 +73,7 @@ public:
         }
     }
 
-    // Vectorized element-wise over temperature drop and viscosity; the two vectors must match in length.
+    // Vectorized element-wise over temperature drop and viscosity.
     void calc_cooling_vectorize_all(
             const std::vector<double>& delta_temp,
             const std::vector<double>& viscosity,

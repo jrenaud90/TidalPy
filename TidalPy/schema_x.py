@@ -1,12 +1,12 @@
-"""Key sets of the new-backend TOML schema: what a world, layer, system, or configuration file may carry, and where.
+"""Key sets of the new-backend TOML schema: what a world, layer, system, or configuration file may carry.
 
-The world builder's loader (:mod:`TidalPy.structures_x.configs.toml_loader`) validates against these and re-exports
-them; the configuration loader (:mod:`TidalPy.configurations`) checks ``TidalPy_Configs_x.toml`` against them while
-``import TidalPy`` runs, which is why they live here, in a module that imports nothing from TidalPy.
-``Documentation/structures_x/config/toml_schema.md`` has the worked schema.
+The world builder's loader validates against these; the configuration loader checks
+``TidalPy_Configs_x.toml`` against them while ``import TidalPy`` runs, which is why they live in a module
+that imports nothing from TidalPy. ``Documentation/structures_x/config/toml_schema.md`` has the worked
+schema.
 """
 
-# World ``type`` values recognized by the builder and the world class each maps to.
+# World ``type`` values recognized by the builder.
 WORLD_TYPES = (
     "star",
     "gasgiant",
@@ -14,7 +14,7 @@ WORLD_TYPES = (
     "layered"
 )
 
-# Layer ``class`` values recognized by the builder (selects the Cython layer class).
+# Layer ``class`` values; selects the Cython layer class.
 LAYER_CLASSES = (
     "base",
     "physics",
@@ -22,12 +22,10 @@ LAYER_CLASSES = (
     "gas"
 )
 
-# Layer material ``type`` values recognized by the builder. A layer's material type
-# selects the ``[layers.<type>]`` section of the ``_x`` config (TidalPy_Configs_x.toml)
-# used to supply per-material parameter defaults. The material type is optional: a layer
-# that names none takes the ``[layers.default]`` section. ``"none"`` opts out of every
-# material default; ``get_config_dict`` writes it because a saved layer lists all of its
-# models explicitly, so a rebuild must not add any.
+# A layer's material type selects the ``[layers.<type>]`` section of TidalPy_Configs_x.toml that supplies
+# its parameter defaults; a layer that names none takes ``[layers.default]``. ``"none"`` opts out of every
+# material default, which is what ``get_config_dict`` writes: a saved layer lists all of its models
+# explicitly, so a rebuild must not add any.
 DEFAULT_MATERIAL_TYPE = "default"
 NO_MATERIAL_TYPE = "none"
 MATERIAL_TYPES = (
@@ -40,9 +38,9 @@ MATERIAL_TYPES = (
     "iron"
 )
 
-# Names of the nested physics-model tables a layer may carry. ``material`` is the layer's EOS model: it holds the
-# density law, the static moduli and viscosities, the shear law, and its own nested ``shear_viscosity``,
-# ``bulk_viscosity`` and ``partial_melt`` tables, so everything frequency-independent sits in one place.
+# The nested physics-model tables a layer may carry. ``material`` is the layer's EOS model and holds every
+# frequency-independent piece: the density law, the static moduli and viscosities, and its own nested
+# ``shear_viscosity``, ``bulk_viscosity``, and ``partial_melt`` tables.
 LAYER_MODEL_SECTIONS = (
     "material",
     "shear_rheology",
@@ -51,11 +49,10 @@ LAYER_MODEL_SECTIONS = (
     "radiogenics",
 )
 
-# Tables that used to sit on the layer and now belong inside ``material``; named so the error can say where.
+# Tables that used to sit on the layer and now belong inside ``material``; named so the error can say so.
 MOVED_TO_MATERIAL = ("eos", "shear_viscosity", "bulk_viscosity", "partial_melt")
 
-# Which model sections each layer type is allowed to carry. Attaching a model the
-# layer class cannot hold is a configuration error caught up front.
+# Attaching a model the layer class cannot hold is a configuration error caught up front.
 ALLOWED_MODEL_SECTIONS = {
     "base": (
         "material",
@@ -79,22 +76,18 @@ ALLOWED_MODEL_SECTIONS = {
     ),
 }
 
-# Mutually-exclusive outer-radius specifiers, builder-only: consumed to compute the layer's outer
-# radius and not forwarded to the layer constructor. A layer must carry exactly one. The inner radius
-# is never user-supplied; it is the previous layer's outer radius (0 for the innermost), since layers
-# are always built inner-to-outer.
+# Mutually exclusive outer-radius specifiers, builder-only: consumed to compute the outer radius and not
+# forwarded to the layer constructor. A layer must carry exactly one. The inner radius is never
+# user-supplied; layers are built inner-to-outer, so it is the previous layer's outer radius.
 LAYER_GEOMETRY_SPEC_KEYS = (
     "radius_outer_m",   # absolute outer radius [m]
     "radius_fraction",  # outer radius = radius_fraction * world radius
     "volume_fraction",  # layer volume = volume_fraction * world volume (-> outer radius)
 )
 
-# Allowed scalar (non-table) layer keys per class, on top of the geometry keys shared
-# by every layer. These mirror the layer-class constructor argument names exactly so
-# the builder can forward only the keys the user supplied. ``layer_index``, ``class``,
-# the material ``type``, and the outer-radius specifiers are handled separately and are
-# not listed here. (``radius_inner_m`` / ``radius_outer_m`` are injected by the builder,
-# not taken from the config.)
+# Allowed scalar (non-table) layer keys per class. These mirror the layer-class constructor argument
+# names exactly, so the builder can forward only the keys the user supplied. ``layer_index``, ``class``,
+# the material ``type``, and the outer-radius specifiers are handled separately.
 _GEOMETRY_LAYER_KEYS = (
     "mass_kg",
     "material_name",
@@ -109,8 +102,8 @@ _PHYSICS_LAYER_KEYS = (
     "is_solid",
     "is_static",
     "is_incompressible",
-    # Layer state: its temperature, whether the density law of its material sees it, and whether the world's heat
-    # sources act inside it during a thermal EOS solve.
+    # Layer state: its temperature, whether its material's density law sees it, and whether the world's
+    # heat sources act inside it during a thermal EOS solve.
     "temperature_k",
     "use_thermal_eos",
     "use_heating"
@@ -129,8 +122,9 @@ MATERIAL_SCALAR_KEYS = (
 # A solid-liquid layer adds no scalar keys of its own: its thermal constants are the material's.
 _SOLIDLIQUID_LAYER_KEYS = ()
 
-# Thermal keys that used to sit on a solid-liquid layer, and the material key each became. The layer's reference
-# density and reference temperature have no successor: the density law has its own, and nothing read the other.
+# Thermal keys that used to sit on a solid-liquid layer, and the material key each became. The layer's
+# reference density and temperature have no successor: the density law has its own, and nothing read the
+# other.
 MOVED_THERMAL_KEYS = {
     "thermal_conductivity_ref_w_mk": "thermal_conductivity_w_mk",
     "thermal_expansion_ref_1_k":     "thermal_expansion_1_k",
@@ -150,8 +144,8 @@ ALLOWED_LAYER_SCALAR_KEYS = {
     "solidliquid": frozenset(_GEOMETRY_LAYER_KEYS + _PHYSICS_LAYER_KEYS + _SOLIDLIQUID_LAYER_KEYS),
 }
 
-# Allowed scalar world keys per family (layered worlds vs stars). ``name``, ``type``,
-# ``schema_version`` and the ``layers`` table are handled separately.
+# Allowed scalar world keys per family. ``name``, ``type``, ``schema_version``, and the ``layers`` table
+# are handled separately.
 _COMMON_WORLD_KEYS = (
     "radius_m",
     "mass_kg",
@@ -181,8 +175,8 @@ WORLD_MODEL_SECTIONS = {
     "luminosity": ("star",),   # a star's mass-to-luminosity model (stellar_x.make_luminosity)
 }
 
-# Keys accepted inside a world's optional '[tides]' table (consumed by the world builder's
-# tide wiring). The `_lvl` spellings are canonical; the long forms are accepted aliases.
+# Keys accepted inside a world's optional '[tides]' table. The `_lvl` spellings are canonical; the long
+# forms are accepted aliases.
 ALLOWED_TIDES_KEYS = frozenset((
     "global_tidal_model",
     "fixed_k",
@@ -200,9 +194,9 @@ ALLOWED_TIDES_KEYS = frozenset((
     "love_fixed_dt_s",
 ))
 
-# The [eos_solver] and [radial_solver] keys a layered world's file may pin (the sections of
-# TidalPy_Configs_x.toml, under the same names). Each key maps to the type it must have and the open lower bound it
-# must exceed (None for a bool or a string); a float key also takes an int.
+# The [eos_solver] and [radial_solver] keys a layered world's file may pin, under the same names as the
+# TidalPy_Configs_x.toml sections. Each maps to its required type and the open lower bound it must exceed
+# (None for a bool or a string); a float key also takes an int.
 _SOLVER_KEY_RULES = {
     "eos_solver": {
         "integration_method": (str, None),
@@ -232,7 +226,7 @@ RADIAL_SOLVER_KEYS = frozenset(_SOLVER_KEY_RULES["radial_solver"])
 SOLVER_TABLES = tuple(_SOLVER_KEY_RULES)
 
 
-# Some parameters are required for world construction
+# Required for world construction.
 _REQUIRED_WORLD_KEYS = (
     'name',
     'type',

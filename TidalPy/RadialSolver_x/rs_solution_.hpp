@@ -53,38 +53,33 @@ public:
     // Love number attributes (stores double-pairs for complex values)
     std::vector<c_LoveNumbers> complex_love_vec = std::vector<c_LoveNumbers>();
 
-    // Surface y-solution (SI), laid out [ytype * C_MAX_NUM_Y + y_index], cached by find_love once per solve.
+    // Surface y-solution (SI), laid out [ytype * C_MAX_NUM_Y + y_index]; find_love caches it once per solve.
     std::vector<std::complex<double>> p_surface_y_si = std::vector<std::complex<double>>();
 
-    // The surface boundary conditions this solve produced blocks for, in order (tidal = 1, free = 0,
-    // loading = 2).
+    // The surface boundary conditions this solve produced blocks for, in order.
     std::vector<int> p_bc_models = std::vector<int>();
 
     // Diagnostic data
     std::vector<size_t> shooting_method_steps_taken_vec = std::vector<size_t>();
 
-    // Worst-case error amplification of the surface boundary condition solve across ytypes (shooting method
-    // only; stays 0 for the matrix method). See c_estimate_surface_amplification in boundaries_.hpp.
+    // Worst-case error amplification of the surface boundary-condition solve across ytypes; shooting method
+    // only, and 0 for the matrix method. See c_estimate_surface_amplification in boundaries_.hpp.
     double surface_amplification = 0.0;
 
-    // ================================================================================================================
-    // Interpolant-based (shooting) solution
-    // ================================================================================================================
-    // When true, get_radial_solution evaluates the per-(layer, solution) dense CyRK interpolants at any radius and
-    // collapses them with the constants below; the matrix method leaves it false and fills full_solution_vec, which
-    // get_radial_solution then interpolates linearly.
+    // When true, get_radial_solution evaluates the per-(layer, solution) dense CyRK interpolants at any
+    // radius and collapses them with the constants below. The matrix method leaves it false and fills
+    // full_solution_vec, which get_radial_solution then interpolates linearly.
     bool p_uses_interpolants = false;
 
-    // The propagation matrix's own radius grid (solve units), laid down inside c_matrix_propagate and kept only
-    // because full_solution_vec is interpolated against it. Empty after a shooting solve, which grids nothing.
+    // The propagation matrix's own radius grid, kept only because full_solution_vec is interpolated against
+    // it. Empty after a shooting solve, which grids nothing.
     std::vector<double> p_matrix_radius_solve = std::vector<double>();
 
     // Forcing frequency [rad s-1] of the last solve; NaN before one.
     double p_love_frequency_si = TidalPyConstants::d_NAN;
 
-    /// The complex shear and bulk moduli [Pa] at an SI radius, as the solve read them: the same provider call the
-    /// integrator made, so a rheology solve reports its rheology at the solved frequency and a supplied-moduli
-    /// solve reports the profile it was given.
+    /// The complex moduli [Pa] at an SI radius, from the same provider call the integrator made: a rheology
+    /// solve reports its rheology at the solved frequency, a supplied-moduli solve the profile it was given.
     void get_complex_moduli_si(
         const double radius_si,
         std::complex<double>& shear_out,
@@ -98,8 +93,8 @@ public:
         double solve_r = 0.0;
         if (!this->p_locate_eos(radius_si, layer_i, solve_r)) { return; }
 
-        // call_material answers in the units the solve ran in, because that is what the integrator wants. This
-        // is a readout, so the pascal scale converts back to SI; it is one in a solve that ran dimensional.
+        // call_material answers in solve units, which is what the integrator wants; this is a readout, so
+        // convert back to SI. The scale is one in a solve that ran dimensional.
         c_EOSMaterialState material_state;
         this->eos_solution_uptr->call_material(layer_i, solve_r, material_state);
         const double pascal_scale = this->eos_solution_uptr->p_structure_pascal_scale;
@@ -113,7 +108,7 @@ public:
     // Collapse constants [ytype][layer][solution], at most 3 solutions per layer.
     std::vector<std::vector<std::array<std::complex<double>, 3>>> p_constants_by_ytype_layer;
 
-    // Per-layer metadata for the collapse, in solve units. char rather than bool for a stable data().
+    // Per-layer metadata for the collapse. char rather than bool for a stable data().
     std::vector<int>    p_layer_types        = std::vector<int>();
     std::vector<char>   p_layer_is_static    = std::vector<char>();
     std::vector<char>   p_layer_is_incomp    = std::vector<char>();
@@ -123,14 +118,14 @@ public:
     double p_starting_radius_solve  = 0.0;   // radii below this return NaN
     double p_frequency_solve        = 0.0;   // forcing frequency (solve units) for y3 reconstruction
 
-    // Dimensional context: radius_solve = r_si / p_length_conv, and the scales re-dimensionalize the solve-unit y to
-    // SI. Identity when the solve ran in SI.
+    // radius_solve = r_si / p_length_conv, and the scales re-dimensionalize a solve-unit y to SI. Identity
+    // when the solve ran in SI.
     double p_length_conv  = 1.0;
     double p_disp_scale   = 1.0;   // y1, y3
     double p_stress_scale = 1.0;   // y2, y4
     double p_pot_scale    = 1.0;   // y6   (y5 is unitless)
-    // Whether the EOS arrays are still non-dim; when re-dimensionalized (export mode) the gravity and density read
-    // during the dynamic-liquid y3 reconstruction are divided back into solve units.
+    // Whether the EOS arrays are still non-dim. Once re-dimensionalized, the gravity and density read during
+    // the dynamic-liquid y3 reconstruction are divided back into solve units.
     bool   p_eos_is_nondim = false;
     double p_grav_conv     = 1.0;
     double p_dens_conv     = 1.0;
@@ -225,8 +220,8 @@ public:
         if (!(this->success && this->eos_solution_uptr->success && this->error_code == 0)) [[unlikely]]
             return;
 
-        // c_find_love is scale-invariant (the displacement and gravity scales cancel), so the solve-unit surface y and
-        // surface gravity give the same k, h, l as the SI pair. The SI surface y is cached here for both methods.
+        // c_find_love is scale invariant, the displacement and gravity scales cancelling, so the solve-unit
+        // surface y and gravity give the same k, h, l as the SI pair. The SI surface y is cached here.
         std::complex<double> surface_solutions[C_MAX_NUM_Y];
         this->p_surface_y_si.assign(
             this->num_ytypes * C_MAX_NUM_Y, std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN)
@@ -264,7 +259,7 @@ public:
         }
     }
 
-    // Re-dimensionalize a solve-unit y1..y6 vector to SI in place (y5 is unitless).
+    // Re-dimensionalize a solve-unit y1..y6 vector to SI in place; y5 is unitless.
     void apply_redimensionalization(std::complex<double>* y6) const noexcept
     {
         y6[0] *= this->p_disp_scale;    // y1
@@ -289,7 +284,7 @@ public:
         bool redimensionalize,
         bool include_eos = true)
     {
-        // include_eos = false leaves the EOS arrays non-dim for reuse across frequency solves (the world path).
+        // include_eos = false leaves the EOS arrays non-dim for reuse across frequency solves.
         double* full_solution_ptr       = this->full_solution_vec.data();
         c_EOSSolution* eos_solution_ptr = this->get_eos_solution_ptr();
         if (include_eos)
@@ -299,7 +294,7 @@ public:
         const double stress_scale       = (nondim_scales->mass_conversion / nondim_scales->length3_conversion);
         const double potential_scale    = (1.0 / nondim_scales->length_conversion);
 
-        // The shooting grid is unfilled (re-dimensionalized on the fly by get_radial_solution) and must not be scaled.
+        // The shooting grid is unfilled, re-dimensionalized on the fly, so it must not be scaled.
         if (this->success && !this->p_uses_interpolants)
         {
             for (size_t solver_i = 0; solver_i < this->num_ytypes; ++solver_i)
@@ -329,11 +324,7 @@ public:
         }
     }
 
-    // ================================================================================================================
-    // Interpolant-based radial-solution evaluation (the dense calling system)
-    // ================================================================================================================
 
-    // Clear the stored shooting interpolants, constants, and metadata before a re-solve.
     void reset_interpolant_storage() noexcept
     {
         this->p_uses_interpolants = false;
@@ -349,7 +340,6 @@ public:
         this->p_frequency_solve       = 0.0;
     }
 
-    // Record the SI-to-solve-unit radius map, the y re-dimensionalization scales, and the EOS unit state.
     void set_dimensional_context(
             double length_conv,
             double disp_scale,
@@ -368,8 +358,8 @@ public:
         this->p_dens_conv     = dens_conv;
     }
 
-    // Collapsed y1..y6 (solve units) at a solve-unit radius, shooting path only. Returns false and NaN-fills out6
-    // if unsolved, below the starting radius, or out of range. get_radial_solution is the SI form.
+    // Collapsed y1..y6 in solve units, shooting path only. False and NaN-filled when unsolved, below the
+    // starting radius, or out of range. get_radial_solution is the SI form.
     bool get_radial_solution_nondim(double radius_solve, size_t ytype_i, std::complex<double>* out6) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
@@ -379,8 +369,8 @@ public:
         if (ytype_i >= this->num_ytypes) return false;
         if (!(radius_solve >= this->p_starting_radius_solve)) return false;   // also rejects NaN
 
-        // Locate the layer. Upper radii ascend; an interface radius belongs to the lower of the two layers, so the
-        // first layer whose upper radius is >= the query wins. A tiny relative slack absorbs the exact-surface case.
+        // Upper radii ascend and an interface radius belongs to the lower layer, so the first layer whose
+        // upper radius reaches the query wins. A little slack absorbs the exact-surface case.
         size_t target_layer_i = this->num_layers;
         for (size_t layer_i = this->p_start_layer_i; layer_i < this->num_layers; ++layer_i)
         {
@@ -400,7 +390,7 @@ public:
         double real_out[2 * C_MAX_NUM_Y];
         for (size_t sol_i = 0; sol_i < num_sols; ++sol_i)
         {
-            // CySolverResult::call is non-const; unique_ptr::get() yields a non-const pointer from this const method.
+            // CySolverResult::call is non-const, so get() is used to escape this method's constness.
             CySolverResult* interp = this->p_interp_by_layer_sol[target_layer_i][sol_i].get();
             if (!interp) return false;
             interp->call(radius_solve, real_out);
@@ -411,8 +401,8 @@ public:
         const std::array<std::complex<double>, 3>& constants =
             this->p_constants_by_ytype_layer[ytype_i][target_layer_i];
 
-        // Collapse: out6[y] = sum_sol const[sol] * ysol[sol][mapped_y]. The y-index mapping mirrors
-        // c_collapse_layer_solution (liquid layers store fewer ys); undefined ys are left NaN.
+        // out6[y] = sum_sol const[sol] * ysol[sol][mapped_y]. The y-index mapping mirrors
+        // c_collapse_layer_solution, since liquid layers store fewer ys; undefined ys stay NaN.
         const bool calculate_y3 = (layer_type != 0) && (!is_static);   // dynamic liquid reconstructs y3 below
         for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i)
         {
@@ -449,12 +439,11 @@ public:
 
         if (calculate_y3)
         {
-            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units. Gravity and density are asked of the layer
-            // that owns this radius, so an interface takes this layer's density rather than the neighbor's, and
-            // they come back in the units the solve ran in. This goes through call_material rather than the
-            // stored slice arrays because a world-attached solve grids nothing: those arrays are empty there,
-            // and reading them gave an uninitialized density (y3 came out infinite through a whole dynamic
-            // liquid layer).
+            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units. Gravity and density are asked of the
+            // layer that owns this radius, so an interface takes this layer's density, not the neighbor's.
+            // This goes through call_material rather than the stored slice arrays because a world-attached
+            // solve grids nothing: those arrays are empty there, and reading them gave an uninitialized
+            // density that sent y3 to infinity through a whole dynamic liquid layer.
             c_EOSMaterialState material_state;
             this->eos_solution_uptr->call_material(target_layer_i, radius_solve, material_state);
             const double w = this->p_frequency_solve;
@@ -464,8 +453,8 @@ public:
         return true;
     }
 
-    // Collapsed y1..y6 (SI) at an SI radius for one ytype: the shooting path evaluates the dense interpolants, the
-    // matrix path linearly interpolates its grid. Returns false and NaN-fills out6 on failure or out of range.
+    // Collapsed y1..y6 (SI) for one ytype: the shooting path evaluates the dense interpolants, the matrix
+    // path linearly interpolates its grid. False and NaN-filled on failure or out of range.
     bool get_radial_solution(double radius_si, size_t ytype_i, std::complex<double>* out6) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
@@ -521,7 +510,7 @@ public:
             this->get_radial_solution(radii_si[i], ytype_i, &out[i * C_MAX_NUM_Y]);
     }
 
-    // SI surface y1..y6 for one ytype from the find_love cache; false and NaN-filled if unavailable.
+    // SI surface y1..y6 for one ytype from the find_love cache.
     bool get_surface_y(size_t ytype_i, std::complex<double>* out6) const
     {
         const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
@@ -536,15 +525,15 @@ public:
         return true;
     }
 
-    // The layer holding an SI radius and that radius in the interpolant's solve-unit domain. False when there is
-    // nothing to read. Shared by the EOS readers below so they always agree on which layer a radius belongs to.
+    // The layer holding an SI radius, and that radius in the interpolant's solve-unit domain. Shared by the
+    // EOS readers below so they always agree on which layer a radius belongs to.
     bool p_locate_eos(double radius_si, size_t& layer_out, double& solve_radius_out) const
     {
         if (!this->eos_solution_uptr || !this->success) return false;
         solve_radius_out = radius_si / this->p_length_conv;
         if (!(solve_radius_out >= 0.0)) return false;   // also rejects NaN
-        // Upper radii ascend; the first layer whose top is at or above the query holds it. A query above the
-        // surface (past the last top, with a rounding step of slack) is outside the body: no layer, no answer.
+        // Upper radii ascend, so the first layer whose top reaches the query holds it. Past the last top,
+        // give or take a rounding step, is outside the body.
         for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
         {
             const double upper = (layer_i < this->p_upper_radii_solve.size())
@@ -559,11 +548,9 @@ public:
         return false;
     }
 
-    // Dense EOS evaluation at an SI radius: the radius is converted into the interpolant's solve-unit domain, the
-    // layer located there, and call_nondim re-dimensionalizes the outputs. out holds C_EOS_DY_VALUES doubles in the
-    // evaluation layout of eos_layout_.hpp, which is frequency-independent: [0] gravity [1] pressure [2] mass
-    // [3] moi [4] density [5] shear modulus [6] bulk modulus [7,8] viscosities [9] temperature [10] heat flow
-    // [11] melt fraction.
+    // Dense EOS evaluation at an SI radius, in the frequency-independent evaluation layout of
+    // eos_layout_.hpp: [0] gravity [1] pressure [2] mass [3] moi [4] density [5] shear modulus
+    // [6] bulk modulus [7,8] viscosities [9] temperature [10] heat flow [11] melt fraction.
     bool get_eos_si(double radius_si, double* out) const
     {
         size_t target_layer_i = 0;
@@ -573,8 +560,7 @@ public:
         return true;
     }
 
-    // The complex moduli the EOS itself carries at an SI radius, which is a real answer only on a path that was
-    // handed its moduli as arrays (see get_complex_moduli_si).
+    // The complex moduli the EOS itself carries; a real answer only on a path handed its moduli as arrays.
     bool get_eos_material_si(double radius_si, c_EOSMaterialState& out) const
     {
         size_t target_layer_i = 0;
@@ -584,7 +570,7 @@ public:
         return true;
     }
 
-    // Fill the SI grid from get_radial_solution over the EOS radius grid, for the array-returning standalone API.
+    // Fill the SI grid over the EOS radius grid, for the array-returning standalone API.
     void sample_onto_grid()
     {
         if (!this->success) return;

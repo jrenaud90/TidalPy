@@ -1,14 +1,4 @@
-"""TidalPy stellar_x - C++ stellar physics model hierarchy.
-
-Exposes the three luminosity models and a name-based factory:
-
-- ``FixedLuminosity``    (alias ``"constant"``)              - luminosity set directly.
-- ``MassToLuminosity``   (aliases ``"cuntz_wang"``/``"cw"``) - piecewise main-sequence L(M).
-- ``PowerLawLuminosity`` (alias ``"power_law"``)             - single power law L ~ M^p.
-
-Each model computes a star's luminosity [W] from its mass via ``calc_luminosity`` and shares the
-Stefan-Boltzmann effective-temperature conversions.
-"""
+"""C++ stellar luminosity models and their name-based factory."""
 
 from TidalPy.stellar_x.luminosity import (
     LuminosityBase,

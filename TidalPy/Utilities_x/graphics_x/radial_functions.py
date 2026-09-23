@@ -2,9 +2,7 @@
 
 The radial functions describe a planet's viscoelastic-gravitational response to a unit degree-l potential:
 radial displacement (y1), radial stress (y2), tangential displacement (y3), tangential stress (y4), the
-gravitational potential perturbation (y5), and the potential stress (y6). `plot_ys` draws them in a
-two-by-three panel figure for one or more solutions, and can overlay the published Enceladus curves of
-Tobie et al. (2005) and Roberts & Nimmo (2008) for benchmarking.
+gravitational potential perturbation (y5), and the potential stress (y6).
 """
 
 from __future__ import annotations
@@ -17,13 +15,9 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-# =====================================================================================================================
-# Constants
-# =====================================================================================================================
-
 DATA_DIRECTORY = Path(__file__).resolve().parent / "data"
 
-# Published benchmark curves: name -> (data file, plotted color, per-series marker, series label).
+# Published benchmark curves, digitized from their figures.
 BENCHMARK_YS: Dict[str, dict] = {
     "tobie2005": {
         "file": "T05-Data.csv",
@@ -42,7 +36,7 @@ BENCHMARK_YS: Dict[str, dict] = {
 }
 BENCHMARK_ALIASES = {"t05": "tobie2005", "tobie": "tobie2005", "rn08": "roberts_nimmo2008", "roberts": "roberts_nimmo2008"}
 
-# Axis limits used by Tobie et al. (2005) for y1..y4 (y5, y6 left automatic).
+# Axis limits used by Tobie et al. (2005) for y1..y4; y5 and y6 stay automatic.
 TOBIE2005_X_LIMITS: Tuple[Optional[Tuple[float, float]], ...] = (
     (0.0, 0.15), (-2100.0, 4500.0), (-0.04, 0.04), (0.0, 2000.0), None, None)
 
@@ -51,10 +45,6 @@ Y_UNITS = ("s$^{2}$ / m", "kg / m$^{3}$", "s$^{2}$ / m", "kg / m$^{3}$", "unitle
 
 ArrayLike = Union[np.ndarray, Sequence[float]]
 
-
-# =====================================================================================================================
-# Benchmark data
-# =====================================================================================================================
 
 def load_benchmark_ys(name: str) -> Dict[str, Dict[str, Tuple[np.ndarray, np.ndarray]]]:
     """Load a published set of radial-function curves.
@@ -68,13 +58,12 @@ def load_benchmark_ys(name: str) -> Dict[str, Dict[str, Tuple[np.ndarray, np.nda
     Returns
     -------
     dict
-        ``{"y1": {"HG": (values, radius), ...}, "y2": ..., "y3": ..., "y4": ...}``. Each series is a pair of
-        arrays: the radial-function values and the radii [m] they were digitized at (NaN padding removed).
-        Only y1..y4 were published.
+        ``{"y1": {"HG": (values, radius), ...}, "y2": ..., "y3": ..., "y4": ...}``. Each series pairs the
+        radial-function values with the radii [m] they were digitized at. Only y1..y4 were published.
 
-    Assumptions
-    -----------
-    - The curves were digitized from the published figures; expect digitization-level scatter.
+    Notes
+    -----
+    The curves were digitized from the published figures, so expect digitization-level scatter.
     """
     key = BENCHMARK_ALIASES.get(name.lower(), name.lower())
     if key not in BENCHMARK_YS:
@@ -91,10 +80,6 @@ def load_benchmark_ys(name: str) -> Dict[str, Dict[str, Tuple[np.ndarray, np.nda
         curves.setdefault(y_name, {})[series] = (values[keep], radius[keep])
     return curves
 
-
-# =====================================================================================================================
-# Input handling
-# =====================================================================================================================
 
 def _as_solution_list(radial_solutions, radius) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """Normalize the solution/radius inputs to equal-length lists of ``(6, N)`` and ``(N,)`` arrays."""
@@ -138,10 +123,6 @@ def _per_solution(values, count: int, default: Sequence, name: str) -> List:
         raise ValueError(f"`{name}` must have one entry per radial solution ({count}); found {len(values)}.")
     return values
 
-
-# =====================================================================================================================
-# Plotting
-# =====================================================================================================================
 
 def plot_ys(
         radial_solutions: Union[ArrayLike, Sequence[ArrayLike]],
@@ -198,10 +179,10 @@ def plot_ys(
     axes : numpy.ndarray of matplotlib.axes.Axes, shape (2, 3)
         Panels for y1, y2, y3 (top row) and y4, y5, y6 (bottom row).
 
-    Assumptions
-    -----------
-    - The radial functions follow TidalPy's y1..y6 convention (unit forcing potential, SI units).
-    - Radii are in meters; the axes show kilometers.
+    Notes
+    -----
+    Assumes TidalPy's y1..y6 convention: unit forcing potential, SI units. Radii are in meters; the axes
+    show kilometers.
     """
     solutions, radii = _as_solution_list(radial_solutions, radius)
     count = len(solutions)
@@ -237,7 +218,6 @@ def plot_ys(
     for panel in imaginary_panels:
         panel.set_xlabel("Imaginary part (dotted)", fontsize="small")
 
-    # Solutions.
     for index, (solution, radius_array) in enumerate(zip(solutions, radii)):
         vertical = (planet_radius - radius_array) if depth_plot else radius_array
         vertical_km = vertical / 1000.0
@@ -247,7 +227,7 @@ def plot_ys(
             if plot_imaginary:
                 imaginary_panels[y_index].plot(np.imag(solution[y_index]), vertical_km, c=colors[index], ls=":")
 
-    # Published benchmark curves (y1..y4 only).
+    # Only y1..y4 were published.
     for key in benchmark_keys:
         spec = BENCHMARK_YS[key]
         for y_name, series in load_benchmark_ys(key).items():
@@ -257,7 +237,6 @@ def plot_ys(
                 panel.scatter(values, vertical / 1000.0, label=f"{spec['label']} {series_name}", c=spec["color"],
                               marker=spec["markers"].get(series_name, "x"), s=50)
 
-    # Limits.
     if x_limits is not None:
         limits = x_limits
     elif use_tobie_limits:

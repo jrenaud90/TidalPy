@@ -10,9 +10,6 @@ from TidalPy.structures_x.layers.base cimport c_TidalScaleMethod
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_GasConfig:
@@ -51,9 +48,6 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         double get_reference_density()      const
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class GasLayer(PhysicsLayer):
     cdef c_GasLayer* _gas_ptr   # non-owning; ownership via BaseLayer._layer_ptr
     

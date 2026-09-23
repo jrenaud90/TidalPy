@@ -15,9 +15,6 @@ from TidalPy.Utilities_x.classes_x.classes cimport TidalPyBaseClass, c_TidalPyBa
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 # World binary-dispatch helpers (worlds/factory_.hpp): reconstruct + type-discriminate a loaded world.
 cdef extern from "factory_.hpp" namespace "tidalpy" nogil:
     int c_world_kind(const c_BaseWorld* world)
@@ -111,9 +108,6 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   calc_energy_residual(const c_WorldEvolution& evolution) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class System(TidalPyBaseClass):
     cdef unique_ptr[c_System] _system
     cdef list _world_wrappers   # Python list of the added BaseWorld wrappers (co-own the C++ worlds)

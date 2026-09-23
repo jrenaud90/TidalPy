@@ -1,5 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's 1-D linear interpolation utilities (``interp_.hpp``)."""
 
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.vector cimport vector

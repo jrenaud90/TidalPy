@@ -42,7 +42,7 @@
 
 namespace tidalpy {
 
-// Construction parameters for c_PhysicsLayer: c_BaseLayerConfig plus the mechanical fields.
+// c_BaseLayerConfig plus the mechanical fields.
 struct c_PhysicsConfig : public c_BaseLayerConfig {
     c_LoveNumbers love_numbers;                       // k, h, l [dimensionless] placeholder
     // Radial-solver layer classification flags.
@@ -57,7 +57,6 @@ struct c_PhysicsConfig : public c_BaseLayerConfig {
 
 class c_PhysicsLayer : public c_BaseLayer {
 public:
-    // Construction
     c_PhysicsLayer() = default;
 
     explicit c_PhysicsLayer(const c_PhysicsConfig& cfg)
@@ -73,8 +72,8 @@ public:
 
     ~c_PhysicsLayer() override = default;
 
-    // The unique_ptr members delete the implicit copy assignment. Cython's stack allocation emits it from
-    // freshly constructed temporaries, which always have null model pointers, so resetting on copy is safe.
+    // The unique_ptr members delete the implicit copy assignment, which Cython's stack allocation emits from
+    // freshly constructed temporaries; those always have null model pointers, so resetting on copy is safe.
     c_PhysicsLayer& operator=(const c_PhysicsLayer& other) noexcept {
         if (this != &other) {
             c_BaseLayer::operator=(other);
@@ -85,7 +84,7 @@ public:
             this->p_temperature       = other.p_temperature;
             this->p_use_thermal_eos   = other.p_use_thermal_eos;
             this->p_use_heating       = other.p_use_heating;
-            // Owned model pointers cannot be copied; source temporaries always have null ptrs.
+            // Owned model pointers cannot be copied; source temporaries always hold null.
             this->p_shear_rheology.reset();
             this->p_bulk_rheology.reset();
         }
@@ -97,7 +96,7 @@ public:
         return static_cast<uint32_t>(BinaryClassID::PhysicsLayer);
     }
 
-    // Static constants of the material, read from the layer's EOS model (NaN when none is attached).
+    // Read from the layer's EOS model; NaN when none is attached.
     double get_shear_modulus_static() const noexcept {
         return this->p_eos ? this->p_eos->get_shear_modulus_static() : TidalPyConstants::d_NAN;
     }
@@ -111,18 +110,16 @@ public:
         return this->p_eos ? this->p_eos->get_bulk_viscosity_static() : TidalPyConstants::d_NAN;
     }
 
-    // Love number getters: full struct or individual components
     c_LoveNumbers        get_love_numbers()   const noexcept { return this->p_love_numbers; }
     std::complex<double> get_love_number_k()  const noexcept { return this->p_love_numbers.k; }
     std::complex<double> get_love_number_h()  const noexcept { return this->p_love_numbers.h; }
     std::complex<double> get_love_number_l()  const noexcept { return this->p_love_numbers.l; }
 
-    // Radial-solver layer classification getters.
     bool get_is_solid()          const noexcept { return this->p_is_solid; }
     bool get_is_static()         const noexcept { return this->p_is_static; }
     bool get_is_incompressible() const noexcept { return this->p_is_incompressible; }
 
-    // Radial-solver layer classification setters (control the shooting / propagation-matrix assumptions).
+    // These control the shooting and propagation-matrix assumptions.
     void set_is_solid(bool value)          noexcept { this->p_is_solid = value; }
     void set_is_static(bool value)         noexcept { this->p_is_static = value; }
     void set_is_incompressible(bool value) noexcept { this->p_is_incompressible = value; }
@@ -133,28 +130,26 @@ public:
     void set_temperature(double value)   noexcept { this->p_temperature = value; }
     void set_use_thermal_eos(bool value) noexcept { this->p_use_thermal_eos = value; }
 
-    // Whether the world's heat sources (its radiogenics model among them) act inside this layer during a
-    // thermal EOS solve. Off, the layer generates no heat whatever models it carries.
+    // Whether the world's heat sources act inside this layer during a thermal EOS solve. Off, the layer
+    // generates no heat whatever models it carries.
     bool get_use_heating() const noexcept { return this->p_use_heating; }
     void set_use_heating(bool value) noexcept { this->p_use_heating = value; }
 
-    // Complex shear modulus [Pa] at a forcing frequency from the material's static constants: the rheology
-    // applied to them, or the static modulus as a purely real number without one. The static viscosity is NaN
-    // until set, so a viscous rheology then returns NaN; the radius-resolved overload reads the solved EOS.
+    // From the material's static constants: the rheology applied to them, or the static modulus as a purely
+    // real number without one. The static viscosity is NaN until set, so a viscous rheology then returns NaN.
     std::complex<double> calc_complex_shear_modulus(double frequency) const noexcept {
         return this->apply_shear_rheology(
             this->get_shear_modulus_static(), this->get_shear_viscosity_static(), frequency);
     }
 
-    // Complex bulk modulus [Pa] at a forcing frequency; same rules as the shear overload above.
+    // Same rules as the shear overload above.
     std::complex<double> calc_complex_bulk_modulus(double frequency) const noexcept {
         return this->apply_bulk_rheology(
             this->get_bulk_modulus_static(), this->get_bulk_viscosity_static(), frequency);
     }
 
-    // The rheology applied to a static modulus [Pa] and viscosity [Pa s] at a forcing frequency [rad/s]. This is
-    // the only place a complex modulus comes from: the EOS supplies the two static inputs and knows nothing about
-    // frequency. Purely real (no dissipation) when no rheology is attached.
+    // The only place a complex modulus comes from: the EOS supplies the two static inputs and knows nothing
+    // about frequency. Purely real, with no dissipation, when no rheology is attached.
     std::complex<double> apply_shear_rheology(
             double static_modulus, double viscosity, double frequency) const noexcept {
         if (this->p_shear_rheology) {
@@ -170,8 +165,7 @@ public:
         return std::complex<double>(static_modulus, 0.0);
     }
 
-    // Radius-resolved complex moduli [Pa] at a forcing frequency: the rheology applied to the static modulus and
-    // viscosity the solved EOS reports at that radius. NaN before an EOS profile is stored.
+    // The rheology applied to the static modulus and viscosity the solved EOS reports at that radius.
     std::complex<double> calc_complex_shear_modulus(double radius, double frequency) const noexcept {
         double state[C_EOS_DY_VALUES];
         this->p_eos_data.evaluate(radius, state);
@@ -185,7 +179,7 @@ public:
             state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
     }
 
-    // Rheology setters (transfer ownership; each registers this layer as the model's observer).
+    // Ownership transfers in, and each registers this layer as the model's observer.
     void set_shear_rheology(std::unique_ptr<c_RheologyBase> shear) {
         this->p_shear_rheology = std::move(shear);
         if (this->p_shear_rheology) { this->p_shear_rheology->set_layer_ptr(this); }
@@ -199,7 +193,7 @@ public:
     bool get_shear_rheology_set() const noexcept { return this->p_shear_rheology != nullptr; }
     bool get_bulk_rheology_set()  const noexcept { return this->p_bulk_rheology  != nullptr; }
 
-    // Non-owning observer pointers (nullptr if unset).
+    // Non-owning; null when unset.
     c_RheologyBase* get_shear_rheology_model() const noexcept { return this->p_shear_rheology.get(); }
     c_RheologyBase* get_bulk_rheology_model()  const noexcept { return this->p_bulk_rheology.get(); }
 
@@ -207,9 +201,8 @@ public:
     std::shared_ptr<const c_RheologyBase> share_shear_rheology() const noexcept { return this->p_shear_rheology; }
     std::shared_ptr<const c_RheologyBase> share_bulk_rheology()  const noexcept { return this->p_bulk_rheology; }
 
-    // Viscosity and partial-melt helpers. The material owns these models, so each call hands the model to the
-    // layer's EOS; they exist so a layer can be configured in one place. Attach the EOS first: without one there
-    // is no material to give the model to.
+    // The material owns these models, so each call hands the model to the layer's EOS; they exist so a layer
+    // can be configured in one place. Attach the EOS first, or there is no material to give the model to.
     void set_shear_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
         this->p_require_eos("a shear viscosity model")->set_shear_viscosity(std::move(viscosity));
     }
@@ -224,7 +217,7 @@ public:
     bool get_bulk_viscosity_set()  const noexcept { return this->get_bulk_viscosity_model()  != nullptr; }
     bool get_partial_melt_set()    const noexcept { return this->get_partial_melt_model()    != nullptr; }
 
-    // Non-owning observer pointers into the EOS (nullptr if unset or no EOS is attached).
+    // Non-owning; null when unset or no EOS is attached.
     c_ViscosityBase* get_shear_viscosity_model() const noexcept {
         return this->p_eos ? this->p_eos->get_shear_viscosity_model() : nullptr;
     }
@@ -235,7 +228,6 @@ public:
         return this->p_eos ? this->p_eos->get_partial_melt_model() : nullptr;
     }
 
-    // Binary I/O
     void write_binary(std::ostream& out) const override {
         const auto     name_len = static_cast<uint32_t>(this->p_name.size());
         const auto     mat_len  = static_cast<uint32_t>(this->p_material_name.size());
@@ -256,7 +248,7 @@ public:
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::PhysicsLayer), payload);
 
-        // c_BaseLayer fields (same layout as c_BaseLayer::write_binary payload)
+        // Same layout as the c_BaseLayer::write_binary payload.
         out.write(reinterpret_cast<const char*>(&this->p_radius), sizeof(double));
         out.write(reinterpret_cast<const char*>(&this->p_mass),   sizeof(double));
         out.write(reinterpret_cast<const char*>(&name_len),       sizeof(uint32_t));
@@ -302,7 +294,6 @@ public:
     }
 
     void read_binary(std::istream& in, bool force = false) override {
-        // Read and validate the 20-byte TPYB header.
         c_TidalPyBaseClass::read_binary(in, force);
 
         // c_BaseLayer fields

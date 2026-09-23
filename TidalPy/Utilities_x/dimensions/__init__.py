@@ -1,8 +1,4 @@
-"""TidalPy.Utilities_x.dimensions - non-dimensionalization utilities (C++/Cython).
-
-Exposes the ``c_NonDimensionalScales`` conversion-scale struct (C++ level) and its Python wrapper
-``NonDimensionalScalesClass`` with the ``build_nondimensional_scales`` builder.
-"""
+"""Non-dimensionalization utilities."""
 
 from TidalPy.Utilities_x.dimensions.nondimensional import (
     NonDimensionalScalesClass,

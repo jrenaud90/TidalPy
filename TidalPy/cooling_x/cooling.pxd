@@ -1,7 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's cooling models: the C++ classes, the input, result, and config
-structs, the enum factory, and the Python wrapper classes.
-"""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
@@ -10,9 +7,6 @@ from libcpp.vector cimport vector
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "cooling_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_CoolingInputs:
@@ -77,17 +71,13 @@ cdef extern from "cooling_.hpp" namespace "tidalpy" nogil:
         Convection
         Conduction
 
-    # Map a name/alias to the enum (raises ValueError on unknown name).
+    # Raises ValueError on an unknown name.
     c_CoolingModel c_cooling_model_from_name(const string& model_name) except +
 
-    # Build the model named by the enum; returns an owning unique_ptr.
     unique_ptr[c_CoolingBase] c_find_cooling(
         c_CoolingModel model, const c_CoolingConfig& cfg) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations
-# =====================================================================================================================
 cdef class CoolingResult:
     cdef public object cooling_flux              # [W/m^2]
     cdef public object boundary_layer_thickness  # [m]

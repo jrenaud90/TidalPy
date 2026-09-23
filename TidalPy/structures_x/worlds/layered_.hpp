@@ -1,16 +1,11 @@
 #pragma once
-/*
- * layered_.hpp: c_LayeredWorld, a world built from an ordered stack of layers (extends c_BaseWorld).
+/* A world built from an ordered stack of layers.
  *
- * Owns its layers as std::unique_ptr<c_BaseLayer> (inner to outer, index 0 = innermost) and provides the
- * whole-planet aggregates (total mass, internal radiogenic heating) and geometry validation. The whole-planet
- * EOS and radial (Love number) solves, which walk every layer, are methods on this class.
+ * Owns its layers inner to outer, index 0 innermost, and provides the whole-planet aggregates and geometry
+ * validation. The whole-planet EOS and radial (Love number) solves, which walk every layer, are methods here.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::LayeredWorld (201)
- *   payload: [all c_BaseWorld fields] + layer_count (uint64_t)
- *   Each layer's own complete binary record (with its recursively-serialized
- *   physics sub-models) follows, in index order, as separate appended records.
+ * Binary payload: the c_BaseWorld fields then the layer count, followed by each layer's own complete binary
+ * record, in index order, as separate appended records.
  */
 
 #include <algorithm>
@@ -29,48 +24,43 @@
 #include "base_.hpp"
 #include "../layers/factory_.hpp"
 
-#include "constants_.hpp"   // TidalPyConstants::d_PI, tidalpy_config_ptr
-#include "../../dynamics_x/spin_.hpp"   // c_Spin (spin-dynamics model attached to the world)
-#include "solver_.hpp"      // c_solve_eos, c_EOS_ODEInput, c_EOSSolution, ODEMethod, PreEvalFunc
-#include "material_.hpp"    // c_MaterialEOSInput, c_preeval_material_eos
-#include "thermal_layout_.hpp"  // c_LayerThermal and the segment layout of a thermal solve
+#include "constants_.hpp"
+#include "../../dynamics_x/spin_.hpp"
+#include "solver_.hpp"
+#include "material_.hpp"
+#include "thermal_layout_.hpp"
 
-// RadialSolver sub-modules (shooting solver, storage, love numbers) are compiled into this translation unit so
-// the shooting CyRK integration runs in the extension that owns the CySolverResult objects; no cross-extension
-// call().
-#include "../../Utilities_x/math_x/numerics_.hpp"        // c_isclose
-#include "../../Utilities_x/dimensions/nondimensional_.hpp"  // c_NonDimensionalScales
-#include "../../utilities/arrays/interp_.hpp"        // c_interp_complex
+// The RadialSolver sub-modules compile into this translation unit so the shooting CyRK integration runs in
+// the extension that owns the CySolverResult objects, with no cross-extension call().
+#include "../../Utilities_x/math_x/numerics_.hpp"
+#include "../../Utilities_x/dimensions/nondimensional_.hpp"
+#include "../../utilities/arrays/interp_.hpp"
 #include "../../RadialSolver_x/rs_constants_.hpp"
 #include "../../RadialSolver_x/rs_solution_.hpp"
 #include "../../RadialSolver_x/love_.hpp"
 #include "../../RadialSolver_x/shooting_.hpp"
-#include "../../RadialSolver_x/world_radial_solver_.hpp"  // c_WorldRadialSolver (cached Love-number solver)
+#include "../../RadialSolver_x/world_radial_solver_.hpp"
 
-// Global (1D) tidal dissipation: the model hierarchy and the stored config and result structs are light (no
-// global-potential tables). The calc_tides orchestration that runs the heavy global-potential engine and
-// collapse is defined out-of-line in world_tides_.hpp, so the eccentricity and obliquity tables compile into
-// only the one extension that includes it.
-#include "../../Tides_x/classes/tide_base_.hpp"     // tidalpy::c_TideBase
-#include "../../Tides_x/classes/tide_result_.hpp"   // c_TideConfig, c_TideSolveConfig, c_GlobalTideResult
-// c_Grid3DAxes, which the 3D grid declarations below take by reference. Only the declarations need it, so an
-// extension that includes this header without world_tides_.hpp (which defines those methods, and which
-// includes this header rather than the other way round) still compiles. tide_.hpp adds no includes this
-// header does not already have, and forward-declares c_LayeredWorld, so the dependency stays one-directional.
+// The tide model hierarchy and its config and result structs are light, with no global-potential tables.
+// The calc_tides orchestration that drives the heavy engine and collapse is defined out-of-line in
+// world_tides_.hpp, so the eccentricity and obliquity tables compile into that one extension alone.
+#include "../../Tides_x/classes/tide_base_.hpp"
+#include "../../Tides_x/classes/tide_result_.hpp"
+// Only the 3D grid declarations below need c_Grid3DAxes, so an extension that includes this header without
+// world_tides_.hpp still compiles. tide_.hpp adds no includes this header does not already have and
+// forward-declares c_LayeredWorld, so the dependency stays one-directional.
 #include "../../Tides_x/classes/tide_.hpp"          // c_Grid3DAxes
-#include "../../Tides_x/love/love_method_.hpp"    // c_LoveMethod, homogeneous-sphere Love numbers
-// Relative paths (not bare names) so every extension that includes layered_.hpp resolves
-// these without needing Utilities_x/lookups on its include path. Light headers, no tables.
-#include "../../Utilities_x/lookups/keys_.hpp"     // c_Key4, c_Key2
-#include "../../Utilities_x/lookups/intmap_.hpp"   // c_IntMap (per-mode solver Love-number store)
+#include "../../Tides_x/love/love_method_.hpp"
+// Relative paths, not bare names, so every extension that includes layered_.hpp resolves these without
+// needing Utilities_x/lookups on its include path.
+#include "../../Utilities_x/lookups/keys_.hpp"
+#include "../../Utilities_x/lookups/intmap_.hpp"
 
 namespace tidalpy {
 
-// Solver settings from the shared runtime config: every EOS and Love-number solve starts from the [eos_solver]
-// and [radial_solver] sections of TidalPy_Configs_x.toml (pushed into the TidalPyConfig singleton by
-// update_constants_x), and a caller overrides only the fields it passes. The member initializers of the two
-// structs stand in only when the config has not been loaded, which does not happen after a normal import.
-// CyRK ODEMethod from the int stored in the shared config; the fallback covers an unloaded config.
+// Every EOS and Love-number solve starts from the [eos_solver] and [radial_solver] sections of the shared
+// config, and a caller overrides only the fields it passes. The member initializers of the two structs below
+// stand in only when the config has not been loaded, which does not happen after a normal import.
 inline ODEMethod c_ode_method_from_config(int method_int, ODEMethod fallback) noexcept {
     if (method_int > static_cast<int>(ODEMethod::RK_BASE_METHOD)
         && method_int <= static_cast<int>(ODEMethod::RADAU)) {
@@ -84,7 +74,7 @@ inline bool c_solver_config_loaded() noexcept {
     return (tidalpy_config_ptr != nullptr) && (tidalpy_config_ptr->d_EOS_SOLVER_METHOD >= 0);
 }
 
-// Parameters for the whole-planet EOS solve, grouped so c_LayeredWorld::solve_eos takes a single argument.
+// Grouped so c_LayeredWorld::solve_eos takes a single argument.
 struct c_WorldEOSSolveConfig {
     double    surface_pressure    = 0.0;                 // [Pa]
     size_t    slices_per_layer    = 100;                 // radial samples per layer (>= 2)
@@ -95,22 +85,21 @@ struct c_WorldEOSSolveConfig {
     double    pressure_tol        = 1.0e-8;              // relative to the central-pressure scale
     size_t    max_iters           = 100;
     bool      nondimensionalize   = true;                // integrate in non-dimensional units
-    // Temperature [K] for every layer, overriding the temperature each carries. NaN uses each layer's own.
+    // Overrides the temperature each layer carries; NaN uses each layer's own.
     double    temperature         = TidalPyConstants::d_NAN;
     // Carry temperature and heat flow through the solve. Without a temperature contrast there is no profile
     // to integrate, so the solve keeps its four structure variables whatever this says.
     bool      solve_temperature   = true;
     // Temperature [K] the outermost layer radiates to. NaN leaves no flow through the surface.
     double    surface_temperature = TidalPyConstants::d_NAN;
-    // Time [s] the heat sources are evaluated at, on the clock the radiogenics models share. NaN takes each
-    // model's own reference time.
+    // On the clock the radiogenics models share; NaN takes each model's own reference time.
     double    time                = TidalPyConstants::d_NAN;
     // Cap on the passes that relax the boundary layers and interface flows against the structure, and the
     // relative change in the interface temperatures and flows that ends them.
     size_t    max_thermal_passes  = 12;
     double    thermal_tol         = 1.0e-8;
     // Relative change in a floating layer's radius that ends the passes, and whether this solve redefines
-    // the mass every floating layer holds (otherwise the first solve of the world's life sets it).
+    // the mass every floating layer holds; otherwise the world's first solve sets it.
     double    radius_tol          = 1.0e-8;
     bool      reset_layer_masses  = false;
     bool      verbose             = false;
@@ -133,7 +122,7 @@ struct c_WorldEOSSolveConfig {
 struct c_LoveSolveConfig {
     double    frequency = 1.0e-5;            // [rad/s]; tidal forcing frequency
     int       degree_l  = 2;                  // harmonic degree
-    // Surface boundary conditions to solve for, in order: 1 = tidal, 2 = loading, 0 = free.
+    // In order; 1 = tidal, 2 = loading, 0 = free.
     std::vector<int> bc_models = {1};
     int       love_method = 0;                  // c_LoveMethod as int: 0 radial_solver, 1 propagation_matrix,
                                                        // 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous
@@ -170,16 +159,16 @@ struct c_LoveSolveConfig {
         this->max_ram_MB         = static_cast<size_t>(config.d_RADIAL_SOLVER_MAX_RAM_MB);
     }
 
-    // Set the boundary conditions from a plain array, for the Cython wrappers.
+    // From a plain array, for the Cython wrappers.
     void set_bc_models(const int* models_ptr, size_t num_models) {
         if (models_ptr == nullptr || num_models == 0) { return; }
         this->bc_models.assign(models_ptr, models_ptr + num_models);
     }
 };
 
-// The [eos_solver] keys a world file may pin, so that the file reproduces its run on its own. Each is optional: a key
-// left unset falls through to the TidalPy configuration at every solve, so a configuration changed after the world was
-// built still reaches it, and a call's own arguments win over both.
+// The [eos_solver] keys a world file may pin so the file reproduces its run on its own. A key left unset
+// falls through to the TidalPy configuration at every solve, so a configuration changed after the world was
+// built still reaches it; a call's own arguments win over both.
 struct c_EOSSolverOverrides {
     std::optional<ODEMethod> integration_method;
     std::optional<double>    rtol;
@@ -231,24 +220,20 @@ struct c_RadialSolverOverrides {
 
 class c_LayeredWorld : public c_BaseWorld {
 public:
-    // Absolute tolerance on the gap between a layer's inner radius and the previous layer's outer
-    // radius, from config_x [numerical].layer_continuity_rtol scaled by that radius.
+    // Absolute gap allowed between a layer's inner radius and the previous layer's outer radius.
     static double layer_continuity_tol(double previous_outer_radius) noexcept {
         const double scale = (previous_outer_radius > 1.0) ? previous_outer_radius : 1.0;
         return tidalpy_config_ptr->d_LAYER_CONTINUITY_RTOL * scale;
     }
 
-    // Construction
     c_LayeredWorld() = default;
 
     explicit c_LayeredWorld(const c_WorldConfig& cfg) : c_BaseWorld(cfg) {}
 
     ~c_LayeredWorld() override = default;
 
-    // Layer ownership
-    // Add a layer, inner to outer. Validates that its inner radius matches the
-    // current outermost radius (0 for the first layer) within the relative
-    // tolerance. Throws std::invalid_argument on a gap/overlap.
+    // Add a layer, inner to outer; its inner radius must match the current outermost radius, 0 for the
+    // first layer, within the continuity tolerance.
     void add_layer(std::unique_ptr<c_BaseLayer> layer) {
         if (!layer) {
             throw std::invalid_argument("TidalPy: cannot add a null layer to a world");
@@ -265,9 +250,7 @@ public:
         this->p_layers.push_back(std::move(layer));
     }
 
-    // True if `layer` would continue the stack: its inner radius matches the
-    // current outermost radius (0 for the first layer) within tolerance. Lets a
-    // caller check continuity before transferring ownership via add_layer.
+    // Whether `layer` would continue the stack, so a caller can check before transferring ownership.
     bool accepts_layer(const c_BaseLayer& layer) const noexcept {
         const double prev_outer = this->p_layers.empty() ? 0.0
                                 : this->p_layers.back()->get_radius_outer();
@@ -275,7 +258,7 @@ public:
         return std::abs(layer.get_radius_inner() - prev_outer) <= tol;
     }
 
-    // Non-owning observer pointer to the layer at index (throws out_of_range).
+    // Non-owning observer pointer.
     c_BaseLayer* get_layer(std::size_t index) const {
         if (index >= this->p_layers.size()) {
             throw std::out_of_range("TidalPy: layer index out of range");
@@ -285,9 +268,8 @@ public:
 
     std::size_t get_num_layers() const noexcept { return this->p_layers.size(); }
 
-    // Whole-planet EOS profile queries (const, MKS). Once the world EOS solve has populated each layer, these
-    // return the radially interpolated density, gravity, and pressure at radius r [m] from the layer that
-    // contains r (clamped at the surface). NaN when no layer contains r or the EOS has not been solved.
+    // Whole-planet EOS profile queries, MKS. Each interpolates within the layer containing r, clamped at the
+    // surface. NaN when no layer contains r or the EOS has not been solved.
     double get_density(double radius) const noexcept {
         const c_BaseLayer* layer = this->find_layer_for_radius(radius);
         return (layer != nullptr) ? layer->get_density(radius)
@@ -306,9 +288,8 @@ public:
                                    : std::numeric_limits<double>::quiet_NaN();
     }
 
-    // Temperature [K] at a radius [m] from the solved profile, and the heat flowing outward through the
-    // sphere of that radius [W]. A solve with no temperature contrast reports each layer's own temperature
-    // and no flow. NaN before the EOS is solved or outside the world.
+    // Temperature [K] and the heat flowing outward through the sphere of that radius [W]. A solve with no
+    // temperature contrast reports each layer's own temperature and no flow.
     double get_temperature(double radius) const noexcept {
         return this->p_read_eos_state(radius, C_EOS_TEMPERATURE_INDEX);
     }
@@ -317,8 +298,8 @@ public:
         return this->p_read_eos_state(radius, C_EOS_HEAT_FLOW_INDEX);
     }
 
-    // Per-layer thermal results of the last solve: temperatures, heat flows, boundary layers, and the
-    // Rayleigh and Nusselt numbers of a convecting layer.
+    // Per-layer results of the last solve: temperatures, heat flows, boundary layers, and the Rayleigh and
+    // Nusselt numbers of a convecting layer.
     const std::vector<c_LayerThermal>& get_layer_thermal() const noexcept { return this->p_layer_thermal; }
     size_t get_thermal_passes()    const noexcept { return this->p_thermal_passes; }
     bool   get_geometry_converged() const noexcept { return this->p_geometry_converged; }
@@ -341,8 +322,8 @@ public:
         return (thermal.heat_flow_in - thermal.heat_flow_out + thermal.heating) / (mass * heat_capacity);
     }
 
-    // Viscoelastic profile queries (post-melt, with pre-melt variants). Each delegates to the layer containing
-    // radius. NaN when no layer contains r, the layer is geometry-only, or the EOS has not been solved.
+    // Viscoelastic profile queries, post-melt with pre-melt variants. NaN when no layer contains r, the
+    // layer is geometry-only, or the EOS has not been solved.
     double get_shear_modulus(double radius) const noexcept {
         const c_BaseLayer* layer = this->find_layer_for_radius(radius);
         return (layer != nullptr) ? layer->get_shear_modulus(radius) : TidalPyConstants::d_NAN;
@@ -364,9 +345,8 @@ public:
         return (layer != nullptr) ? layer->get_melt_fraction(radius) : TidalPyConstants::d_NAN;
     }
 
-    // Radius-resolved complex moduli [Pa] at a frequency, the only per-frequency step: find the layer and apply
-    // its rheology to the stored post-melt static modulus and viscosity. NaN for a geometry-only layer or
-    // before the solve.
+    // The only per-frequency step: find the layer and apply its rheology to the stored post-melt static
+    // modulus and viscosity.
     std::complex<double> calc_complex_shear_modulus(double radius, double frequency) const noexcept {
         const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius));
         if (physics_layer == nullptr) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
@@ -383,8 +363,7 @@ public:
         return !this->p_layers.empty() && this->p_layers.front()->get_eos_data_populated();
     }
 
-    // True once every layer has a material EOS model attached (a precondition
-    // for the world-level EOS solve).
+    // A precondition for the world-level EOS solve.
     bool get_all_eos_set() const noexcept {
         if (this->p_layers.empty()) { return false; }
         for (const auto& layer : this->p_layers) {
@@ -393,18 +372,12 @@ public:
         return true;
     }
 
-    // Whole-planet equation-of-state solve (populates the layer profiles). Integrates the radial structure
-    // (gravity, pressure, enclosed mass, moment of inertia) from center to surface with each layer's attached
-    // material EOS model as the local density source, through the Material_x/eos c_solve_eos machinery and the
-    // c_preeval_material_eos pre-eval, and populates every layer's c_LayerEOSData and mass on success. All
-    // MKS. Throws std::invalid_argument when the world has no layers, a layer lacks an EOS model, or
-    // slices_per_layer < 2.
+    // Whole-planet equation-of-state solve. Integrates gravity, pressure, enclosed mass, and moment of
+    // inertia from center to surface with each layer's material EOS model as the local density source, then
+    // populates every layer's c_LayerEOSData and mass. All MKS.
     //
-    // Assumptions
-    // -----------
-    // - Spherical symmetry.
-    // - Each layer's density comes from its material EOS model (pressure for the analytic models, radius for
-    //   the interpolated model).
+    // Assumes spherical symmetry, and that each layer's density comes from its material EOS model: the
+    // pressure for the analytic models, the radius for the interpolated one.
     void solve_eos(const c_WorldEOSSolveConfig& cfg) {
         const std::size_t n_layers = this->p_layers.size();
         if (n_layers == 0) {
@@ -427,8 +400,8 @@ public:
         const std::size_t slices       = cfg.slices_per_layer;
         const std::size_t total_slices = n_layers * slices;
 
-        // Build a per-layer ascending radius grid (concatenated) and the bulk
-        // density guess (volume-weighted EOS density at the surface pressure).
+        // A concatenated per-layer ascending radius grid, and the bulk density guess as the volume-weighted
+        // EOS density at the surface pressure.
         std::vector<double> full_radius(total_slices);
         std::vector<double> upper_radii(n_layers);
         double total_volume  = 0.0;
@@ -461,10 +434,9 @@ public:
         const double planet_bulk_density = (total_volume > TidalPyConstants::d_EPS) ? (mass_estimate / total_volume) : 3500.0;
         const double planet_radius       = upper_radii.back();
 
-        // Unit scales of the solve. The default non-dimensional solve integrates in the length, density, and time
-        // units of c_NonDimensionalScales (the radius, the bulk density, and 1/sqrt(pi G rho)), so the tolerances
-        // mean the same thing for every planet and the central pressure is of order one. An SI solve keeps every
-        // scale at one.
+        // The default non-dimensional solve integrates in the radius, the bulk density, and 1/sqrt(pi G rho),
+        // so the tolerances mean the same thing for every planet and the central pressure is of order one.
+        // An SI solve keeps every scale at one.
         double length_scale  = 1.0;
         double density_scale = 1.0;
         double pascal_scale  = 1.0;
@@ -649,8 +621,7 @@ public:
         this->p_planet_moi_eos       = solution->moi;
         this->p_eos_solved           = solution->success && solution->other_vecs_set;
 
-        // Populate each layer's structure + viscoelastic profile from its slice of
-        // the full arrays.
+        // Populate each layer's structure and viscoelastic profile from its slice of the full arrays.
         if (this->p_eos_solved) {
             const std::size_t total_slices = solution->radius_array_size;
             for (std::size_t layer_index = 0; layer_index < n_layers; ++layer_index) {
@@ -659,8 +630,8 @@ public:
                 if (slice_end > total_slices) { break; }
                 c_BaseLayer* layer = this->p_layers[layer_index].get();
 
-                // The layer's mass is the enclosed mass gained across its slices. Adjacent layers share the
-                // interface slice, so the layer masses sum exactly to the planet mass.
+                // The enclosed mass gained across its slices. Adjacent layers share the interface slice, so
+                // the layer masses sum exactly to the planet mass.
                 layer->set_mass(
                     solution->mass_array_vec[slice_end - 1] - solution->mass_array_vec[slice_start]);
 
@@ -671,13 +642,12 @@ public:
                     std::vector<double>(solution->gravity_array_vec.begin()  + slice_start, solution->gravity_array_vec.begin()  + slice_end),
                     std::vector<double>(solution->pressure_array_vec.begin() + slice_start, solution->pressure_array_vec.begin() + slice_end));
 
-                // Install the dense-output evaluator for this layer: the solution's SI-radius call, which
-                // evaluates the layer's retained CySolverResult (owning its solver) and the layer's EOS function
-                // for the density and moduli. The captured shared_ptr co-owns the whole solution, so the dense
-                // data and solver stay alive and callable post-solve, and the EOS arguments point at
-                // this->p_eos_material_inputs, which also outlives the solve. The lambda is compiled in this
-                // (CyRK-owning) extension, so the CySolverResult is only ever called by the CyRK copy that built
-                // it. The slice arrays populated above are the fallback for a manual update_eos_data.
+                // The dense-output evaluator: the solution's SI-radius call, which runs the layer's retained
+                // CySolverResult and its EOS function. The captured shared_ptr co-owns the whole solution, so
+                // the dense data and solver stay callable post-solve, and the EOS arguments point at
+                // p_eos_material_inputs, which also outlives the solve. The lambda compiles in this,
+                // CyRK-owning, extension, so the CySolverResult is only ever called by the CyRK copy that
+                // built it. The slice arrays above are the fallback for a manual update_eos_data.
                 if (layer_index < solution->num_layers
                     && !solution->cysolver_results_uptr_vec.empty()) {
                     std::shared_ptr<c_EOSSolution> solution_owner = solution;
@@ -690,14 +660,12 @@ public:
             }
         }
 
-        // Retain the full solution so callers can read the radial profile arrays.
         this->p_eos_solution = std::move(solution);
     }
 
-    // Everything solved on top of the structure describes the structure it was solved with: the Love numbers,
-    // the global tides, the heating handed to each layer, and the cached radial-solver setup (a re-solve changes
-    // the structure and moduli even when the grid size does not). solve_eos calls this before it replaces the
-    // structure, so none of them can be read against the new one; each comes back with its own next solve.
+    // Everything solved on top of the structure describes the structure it was solved with, the cached
+    // radial-solver setup included: a re-solve changes the structure and moduli even when the grid size does
+    // not. solve_eos calls this before it replaces the structure, so nothing can be read against the new one.
     void mark_structure_dirty() noexcept {
         this->p_love_solved           = false;
         this->p_love_analytic_success = false;
@@ -710,12 +678,12 @@ public:
         if (this->p_radial_solver) { this->p_radial_solver->invalidate(); }
     }
 
-    // EOS solve result accessors (valid after solve_eos; NaN/empty otherwise).
+    // Valid after solve_eos; NaN or empty otherwise.
     bool               get_eos_success()          const noexcept { return this->p_eos_success; }
     const std::string& get_eos_message()          const noexcept { return this->p_eos_message; }
     int                get_eos_iterations()       const noexcept { return this->p_eos_iterations; }
-    // True when the central-pressure iteration stopped at max_iters without meeting pressure_tol; the solution
-    // is still populated from the last iteration.
+    // The central-pressure iteration stopped at max_iters without meeting pressure_tol; the solution is
+    // still populated from the last iteration.
     bool               get_eos_max_iters_hit()    const noexcept { return this->p_eos_max_iters_hit; }
     double             get_eos_pressure_error()   const noexcept { return this->p_eos_pressure_error; }
     double             get_surface_gravity_eos()  const noexcept { return this->p_surface_gravity_eos; }
@@ -724,13 +692,12 @@ public:
     double             get_planet_mass_eos()      const noexcept { return this->p_planet_mass_eos; }
     double             get_planet_moi_eos()       const noexcept { return this->p_planet_moi_eos; }
 
-    // Spin dynamics (rates only). The world drives its attached c_Spin model with its own EOS-based moment of
-    // inertia, so the spin-rate change uses the structure-resolved value rather than the uniform-density one.
+    // Rates only. The world drives its c_Spin model with its own EOS-based moment of inertia, so the
+    // spin-rate change uses the structure-resolved value rather than the uniform-density one.
     void           set_spin_model(const c_Spin& spin) noexcept { this->p_spin = spin; }
     const c_Spin&  get_spin_model() const noexcept { return this->p_spin; }
 
-    // Moment of inertia [kg m2]: the EOS-solved value (get_planet_moi_eos) when the EOS has been solved,
-    // otherwise the spin model's factor * M R^2 estimate from the world mass and radius.
+    // The EOS-solved value once the EOS has been solved, else the spin model's factor * M R^2 estimate.
     double get_moment_of_inertia() const noexcept {
         if (this->p_eos_solved && std::isfinite(this->p_planet_moi_eos)) {
             return this->p_planet_moi_eos;
@@ -738,8 +705,7 @@ public:
         return this->p_spin.calc_moment_of_inertia(this->get_mass(), this->get_radius());
     }
 
-    // Tidal spin-rate change [rad s-2] = M_host * dU/dO / I, using the world's stored dU/dO (from the
-    // last calc_tides) and its moment of inertia. Requires a completed tidal solve.
+    // M_host * dU/dO / I, from the last calc_tides' dU/dO and the world's moment of inertia.
     double calc_spin_derivative(double host_mass) const {
         if (!this->get_tides_solved()) {
             throw std::runtime_error(
@@ -748,23 +714,21 @@ public:
         return this->p_spin.calc_dspin_dt(host_mass, this->get_tidal_dU_dO(), this->get_moment_of_inertia());
     }
 
-    // Synchronous spin rate [rad s-1]: equal to the orbital mean motion.
+    // The orbital mean motion.
     double calc_synchronous_spin(double orbital_frequency) const noexcept {
         return this->p_spin.calc_synchronous_spin(orbital_frequency);
     }
 
-    // Non-owning observer pointer to the retained full-planet EOS solution (the
-    // source of the radial profile arrays), or nullptr if solve_eos was not run.
+    // Non-owning; the source of the radial profile arrays, null before solve_eos.
     const c_EOSSolution* get_eos_solution() const noexcept { return this->p_eos_solution.get(); }
 
-    // Whole-planet Love-number solve (non-const; throws std::invalid_argument without a prior solve_eos). Uses
-    // the world's EOS arrays and the layers' rheology models to build the frequency-dependent complex moduli,
-    // then calls the shooting solver directly. The world class is the complete interface;
-    // c_RadialSolutionStorage is an internal detail owned by the cached radial solver. Spherical symmetry,
-    // all MKS.
-    // Ensure the cached radial-solver setup matches the current EOS/config; (re)build it if not. Returns false (and
-    // stamps an error on the solver storage) if the per-layer slice partitioning is invalid. Throws on hard
-    // precondition failures (no EOS solve, no config, no layers, too few slices).
+    // Whole-planet Love-number solve. Uses the world's EOS arrays and the layers' rheology models to build
+    // the frequency-dependent complex moduli, then calls the shooting solver directly. The world class is
+    // the complete interface; c_RadialSolutionStorage is an internal detail of the cached radial solver.
+    // Spherical symmetry, all MKS.
+    //
+    // This first step rebuilds the cached setup when it no longer matches the current EOS and config. False,
+    // with an error stamped on the solver storage, for an invalid per-layer slice partitioning.
     bool ensure_radial_cache(const c_LoveSolveConfig& cfg) {
         if (!this->p_eos_solved || !this->p_eos_solution)
             throw std::invalid_argument("TidalPy: solve_eos must succeed before solve_love_numbers");
@@ -782,9 +746,8 @@ public:
             this->p_radial_solver = std::make_unique<::c_WorldRadialSolver>();
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        // Per-layer metadata (geometry-only layers default to static solid). Gathered before
-        // the cache check because the flags are user-mutable without an EOS re-solve: a cache
-        // hit is only valid when they match what the cached inputs were built from.
+        // Geometry-only layers default to static solid. Gathered before the cache check because the flags
+        // are user-mutable without an EOS re-solve, so a cache hit is only valid when they still match.
         auto layer_types   = std::make_unique<int[]>(n_layers);
         auto is_static_arr = std::make_unique<bool[]>(n_layers);
         auto is_incomp_arr = std::make_unique<bool[]>(n_layers);
@@ -834,7 +797,6 @@ public:
         );
     }
 
-    // Build the per-call runtime config from the user-facing solve config.
     c_LoveSolveRuntimeConfig make_runtime_config(const c_LoveSolveConfig& cfg) const {
         c_LoveSolveRuntimeConfig rt;
         rt.frequency          = cfg.frequency;
@@ -861,7 +823,7 @@ public:
         this->solve_love_numbers(cfg, nullptr);
     }
 
-    // Composite Simpson intervals per tidal layer for the homogeneous volume average (even, 129 nodes).
+    // Composite Simpson intervals per tidal layer for the homogeneous volume average; even, so 129 nodes.
     static constexpr std::size_t homogeneous_quadrature_intervals = 128;
 
     // Frequency-independent inputs to the homogeneous volume average for one tidal layer
@@ -873,8 +835,8 @@ public:
         std::vector<double> viscosity;        // post-melt shear viscosity at each node [Pa s]
     };
 
-    // Reusable state for a run of homogeneous Love solves against one unchanged interior. The node values are
-    // read on first use and the averaged modulus is kept per distinct frequency, so a caller solving many
+    // Reusable state for a run of homogeneous Love solves against one unchanged interior. The node values
+    // are read on first use and the averaged modulus kept per distinct frequency, so a caller solving many
     // (degree, frequency) pairs pays for each frequency once.
     struct c_HomogeneousLoveCache {
         struct c_ShearAtFrequency {
@@ -888,8 +850,8 @@ public:
         std::vector<c_ShearAtFrequency> shear_by_frequency;
     };
 
-    // Same, with reusable state for a caller that solves many frequencies in a row against an unchanged interior.
-    // The homogeneous methods use it; the radial-solver methods ignore it.
+    // Same, with reusable state for many frequencies in a row against an unchanged interior. The homogeneous
+    // methods use it; the radial-solver methods ignore it.
     void solve_love_numbers(const c_LoveSolveConfig& cfg, c_HomogeneousLoveCache* cache) {
         const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
         this->p_love_method_last = method;
@@ -905,15 +867,15 @@ public:
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        // Frequency-dependent step: hand the solver a provider that evaluates each layer's material state at the
-        // radius the integrator asks for, then solve. Nothing is sampled onto the slice grid, so the Love numbers
-        // no longer carry the first-order slice error, and the layer the provider is asked about is the one the
-        // solver is integrating: an interface radius belongs to two layers, and a lookup by radius alone would give
-        // both copies the lower layer's material. The provider captures this solve's frequency.
+        // Hand the solver a provider that evaluates each layer's material state at the radius the integrator
+        // asks for. Nothing is sampled onto the slice grid, so the Love numbers carry no first-order slice
+        // error, and the layer the provider is asked about is the one the solver is integrating: an interface
+        // radius belongs to two layers, and a lookup by radius alone would give both copies the lower layer's
+        // material.
         //
-        // The provider stays on the storage after the solve, so the solution keeps answering at any radius: the
-        // y3 of a dynamic liquid layer is rebuilt from the density and gravity it reads, and an exported solution
-        // reports the complex moduli this solve used.
+        // The provider stays on the storage after the solve, so the solution keeps answering at any radius:
+        // the y3 of a dynamic liquid layer is rebuilt from the density and gravity it reads, and an exported
+        // solution reports the complex moduli this solve used.
         solver->set_material_eval(this->make_material_eval(cfg.frequency));
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
@@ -921,7 +883,7 @@ public:
         this->p_love_solved = solver->get_solved();
     }
 
-    // Solve using externally-supplied complex moduli (the standalone array API path) instead of the layer rheology.
+    // Solve from externally supplied complex moduli, the standalone array API path, not the layer rheology.
     void solve_love_numbers_supplied(
             const c_LoveSolveConfig& cfg,
             const std::complex<double>* shear_in,
@@ -938,12 +900,11 @@ public:
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        // Find, once per layer, the run of supplied points that bounds it. The last point at its base through the
-        // first point at its top. The provider below then interpolates inside that run, so a repeated interface
-        // radius gives the upper copy to the layer above and the lower copy to the layer below; interpolating
-        // across all layers at once would give a lower layer's top the upper layer's value. The bounds match
-        // within the relative tolerance the cache uses for interfaces, so copies that differ by rounding still
-        // count as the interface.
+        // The run of supplied points bounding each layer: the last point at its base through the first at its
+        // top. The provider then interpolates inside that run, so a repeated interface radius gives the upper
+        // copy to the layer above and the lower copy to the layer below; interpolating across all layers at
+        // once would give a lower layer's top the upper layer's value. The bounds match within the same
+        // tolerance the cache uses, so copies differing by rounding still count as the interface.
         const double* radius_in_end = radius_in + n_in;
         std::vector<std::size_t> in_first_by_layer(this->p_layers.size(), 0);
         std::vector<std::size_t> in_count_by_layer(this->p_layers.size(), 0);
@@ -960,9 +921,8 @@ public:
             in_first_by_layer[layer_i] = in_first;
             in_count_by_layer[layer_i] = in_last - in_first + 1;
         }
-        // The provider owns copies of the supplied profile rather than borrowing the caller's arrays, because it
-        // is also what an exported solution reads: it has to outlive this call. The layer runs are captured the
-        // same way for the same reason.
+        // The provider owns copies of the supplied profile rather than borrowing the caller's arrays: an
+        // exported solution reads it, so it has to outlive this call. Same for the layer runs.
         std::vector<double>               radius_copy(radius_in, radius_in + n_in);
         std::vector<std::complex<double>> shear_copy(shear_in, shear_in + n_in);
         std::vector<std::complex<double>> bulk_copy(bulk_in, bulk_in + n_in);
@@ -978,7 +938,7 @@ public:
                 eos_solution->call_si(layer_index, radius_si, state_out);
                 const std::size_t in_first = in_first_by_layer[layer_index];
                 const std::size_t in_count = in_count_by_layer[layer_index];
-                // The supplied grid is usually uniform within a layer, so the fractional position seeds the search.
+                // The supplied grid is usually uniform within a layer, so seed the search by fraction.
                 const double* layer_radius_ptr = radius_copy.data() + in_first;
                 const double layer_span        =
                     (in_count > 1) ? layer_radius_ptr[in_count - 1] - layer_radius_ptr[0] : 0.0;
@@ -990,7 +950,7 @@ public:
                     radius_si, layer_radius_ptr, shear_copy.data() + in_first, in_count, guess);
                 bulk_out = c_interp_complex(
                     radius_si, layer_radius_ptr, bulk_copy.data() + in_first, in_count, guess);
-                // Supplied moduli carry no separate unrelaxed value, so the real part stands in for it, and the
+                // Supplied moduli carry no separate unrelaxed value, so the real part stands in, and the
                 // profile said nothing about viscosity: it gave the response directly.
                 state_out[C_EOS_SHEAR_MODULUS_INDEX]   = shear_out.real();
                 state_out[C_EOS_BULK_MODULUS_INDEX]    = bulk_out.real();
@@ -1002,7 +962,7 @@ public:
         rt.redim_eos_arrays = true;
         solver->solve(rt);
 
-        // Report SI EOS scalars on the released storage (the world own EOS solution is dimensional).
+        // The world's own EOS solution is dimensional, so the released storage reports SI scalars.
         if (solver->get_storage() != nullptr) {
             c_EOSSolution* dst       = solver->get_storage()->get_eos_solution_ptr();
             const c_EOSSolution* src = this->p_eos_solution.get();
@@ -1016,13 +976,12 @@ public:
         this->p_love_solved = solver->get_solved();
     }
 
-    // The per-layer material-state provider the radial solver reads at each integration radius: one dense EOS call
-    // for the frequency-independent state, then the layer's rheology, which is the only part that knows the
-    // frequency. Fills the evaluation layout of eos_layout_.hpp (SI) and the two complex moduli [Pa].
+    // The provider the radial solver reads at each integration radius: one dense EOS call for the
+    // frequency-independent state, then the layer's rheology, the only part that knows the frequency.
     //
-    // The callable co-owns the solved EOS and the rheologies, and the layers are resolved here, once, rather than at
-    // every radius. The solved EOS still reaches each layer's material model through this world, so the world has
-    // to outlive the callable; a solution exported to Python holds its world for that reason.
+    // The callable co-owns the solved EOS and the rheologies, and resolves the layers here, once, rather
+    // than at every radius. The solved EOS still reaches each layer's material model through this world, so
+    // the world has to outlive the callable; a solution exported to Python holds its world for that reason.
     c_EOSSolution::MaterialEval make_material_eval(double frequency) const {
         const std::size_t n_layers = this->p_layers.size();
         std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
@@ -1059,28 +1018,23 @@ public:
         };
     }
 
-    // Move the radial-solution storage out of the helper (one-shot export to a RadialSolverSolution).
+    // One-shot export to a RadialSolverSolution.
     std::unique_ptr<::c_RadialSolutionStorage> release_radial_storage() {
         if (!this->p_radial_solver) { return nullptr; }
         return this->p_radial_solver->release_storage();
     }
 
-    // Love-number solve result accessors, valid after solve_love_numbers succeeds and NaN or empty otherwise.
-    // The world is the sole interface; c_RadialSolutionStorage is internal.
+    // Valid after solve_love_numbers succeeds, NaN or empty otherwise.
 
-    // Analytic Love numbers (homogeneous, cpl, ctl): the world is treated as a homogeneous incompressible
-    // sphere with the planet's bulk density, EOS surface gravity, and radius, and the volume-averaged shear
-    // modulus of the layers flagged is_tidal (composite Simpson rule in radius with the r^2 volume weight,
-    // using each layer's radius-resolved moduli and rheology). The homogeneous method averages the complex
-    // modulus at the forcing frequency; cpl and ctl average the static (unrelaxed) modulus and then impose the
-    // constant phase lag (1 - i/Q) or time lag (1 - i omega dt), taking Q or dt from the solve config or, when
-    // unset, from the attached tide model.
+    // Analytic Love numbers. The world is treated as a homogeneous incompressible sphere with the planet's
+    // bulk density, EOS surface gravity, and radius, and the volume-averaged shear modulus of the is_tidal
+    // layers (composite Simpson in radius with the r^2 weight). The homogeneous method averages the complex
+    // modulus at the forcing frequency; cpl and ctl average the static modulus and then impose the constant
+    // phase lag (1 - i/Q) or time lag (1 - i omega dt), taking Q or dt from the solve config or, unset, from
+    // the attached tide model.
     //
-    // Assumptions
-    // -----------
-    // - Incompressible homogeneous-sphere response; layered structure enters only through the volume average.
-    // - Gas layers carry no shear modulus and are skipped; liquid layers contribute their (zero) shear modulus.
-    // Read the frequency-independent node values of the homogeneous volume average into the cache.
+    // The layered structure enters only through the volume average. Gas layers carry no shear modulus and
+    // are skipped; liquid layers contribute their zero.
     void build_homogeneous_shear_nodes(c_HomogeneousLoveCache& cache) const {
         const std::size_t n_intervals = homogeneous_quadrature_intervals;
         cache.layers.clear();
@@ -1117,9 +1071,9 @@ public:
         cache.built = true;
     }
 
-    // Volume-weighted complex shear modulus over the cached tidal layers at one frequency. The rheology is applied
-    // exactly as calc_complex_shear_modulus applies it, in the same summation order, so the result matches a solve
-    // that re-reads every node. Returns false and records error -41 on a non-finite modulus.
+    // Volume-weighted complex shear modulus over the cached tidal layers at one frequency. The rheology is
+    // applied exactly as calc_complex_shear_modulus applies it, in the same summation order, so the result
+    // matches a solve that re-reads every node.
     bool average_homogeneous_shear(
             const c_HomogeneousLoveCache& cache,
             double frequency,
@@ -1169,7 +1123,7 @@ public:
         }
         const bool use_static = (method != c_LoveMethod::Homogeneous);
 
-        // Without a caller-owned cache the node values go into a local one that ends with this solve.
+        // Without a caller-owned cache the node values go into a local one that dies with this solve.
         c_HomogeneousLoveCache local_cache;
         c_HomogeneousLoveCache& active = (cache != nullptr) ? *cache : local_cache;
         if (!active.built) {
@@ -1184,7 +1138,7 @@ public:
         }
         const double tidal_volume = active.tidal_volume;
 
-        // The average depends on the frequency but not on the degree, so it is formed once per distinct frequency.
+        // The average depends on the frequency but not the degree, so form it once per distinct frequency.
         std::complex<double> shear_avg(0.0, 0.0);
         bool have_average = false;
         for (const auto& entry : active.shear_by_frequency) {
@@ -1260,8 +1214,8 @@ public:
         this->p_love_solved = true;
     }
 
-    // The [eos_solver] and [radial_solver] settings this world's file pinned. Every solve the world runs starts
-    // from the TidalPy configuration with these applied on top (make_eos_solve_config, make_love_solve_config).
+    // The [eos_solver] and [radial_solver] settings this world's file pinned. Every solve starts from the
+    // TidalPy configuration with these applied on top.
     c_EOSSolverOverrides    p_eos_solver_overrides;
     c_RadialSolverOverrides p_radial_solver_overrides;
 
@@ -1278,16 +1232,15 @@ public:
         return this->p_radial_solver_overrides;
     }
 
-    // EOS-solve config: the [eos_solver] section of the TidalPy configuration with the world's pinned keys on top.
+    // The [eos_solver] section of the TidalPy configuration with the world's pinned keys on top.
     c_WorldEOSSolveConfig make_eos_solve_config() const {
         c_WorldEOSSolveConfig cfg;
         this->p_eos_solver_overrides.apply(cfg);
         return cfg;
     }
 
-    // Love-solve config carrying the world's configured method and its cpl / ctl parameters (from the [tides]
-    // config) and its pinned [radial_solver] keys; the tide paths start from this so the configured method and
-    // settings drive every Love-number solve.
+    // The world's configured method and its cpl / ctl parameters from the [tides] config, plus its pinned
+    // [radial_solver] keys. The tide paths start from this, so the configured method drives every solve.
     c_LoveSolveConfig make_love_solve_config() const {
         c_LoveSolveConfig cfg;
         this->p_radial_solver_overrides.apply(cfg);
@@ -1298,8 +1251,8 @@ public:
         return cfg;
     }
 
-    // Same, for paths that need the depth-resolved radial solution (3D stress/strain/heating): the analytic methods
-    // have no radial y-functions, so they are rejected with an explanatory error.
+    // Same, for paths that need the depth-resolved radial solution: the analytic methods have no radial
+    // y-functions, so they are rejected with an explanatory error.
     c_LoveSolveConfig make_radial_love_solve_config() const {
         c_LoveSolveConfig cfg = this->make_love_solve_config();
         const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
@@ -1314,13 +1267,11 @@ public:
 
     bool love_is_analytic() const noexcept { return c_love_method_is_homogeneous(this->p_love_method_last); }
     int  get_love_method_last_int() const noexcept { return static_cast<int>(this->p_love_method_last); }
-    // Diagnostics of the last analytic solve: the volume-averaged shear modulus [Pa] and the averaged volume [m3]
-    // (NaN after a radial-solver solve).
+    // Diagnostics of the last analytic solve; NaN after a radial-solver solve.
     std::complex<double> get_love_analytic_shear() const noexcept { return this->p_love_analytic_shear; }
     double get_love_analytic_tidal_volume() const noexcept { return this->p_love_analytic_tidal_volume; }
 
-    // Non-owning pointer to the internal solution storage (owned by the cached
-    // radial solver). Null until solve_love_numbers has built the cache.
+    // Non-owning; the cached radial solver owns it, and it is null until solve_love_numbers builds the cache.
     const ::c_RadialSolutionStorage* get_love_storage() const noexcept {
         return this->p_radial_solver ? this->p_radial_solver->get_storage() : nullptr;
     }
@@ -1347,17 +1298,15 @@ public:
         const auto* s = this->get_love_storage();
         return s ? s->num_ytypes : 0;
     }
-    // Worst-case error amplification of the surface boundary condition solve (shooting method; 0 until a
-    // solve has run, and 0 for the analytic methods). See c_estimate_surface_amplification in
-    // RadialSolver_x/boundaries/boundaries_.hpp.
+    // Worst-case error amplification of the surface boundary condition solve; 0 before a solve and for the
+    // analytic methods. See c_estimate_surface_amplification in RadialSolver_x/boundaries/boundaries_.hpp.
     double get_love_surface_amplification() const noexcept {
         if (this->love_is_analytic()) return 0.0;
         const auto* s = this->get_love_storage();
         return s ? s->surface_amplification : 0.0;
     }
-    // Primary Love numbers (k, h, l) for the given boundary-condition ytype index (the analytic methods hold a
-    // single tidal set at index 0). NaN when no solve describes the current structure: never solved, failed, or
-    // followed by a solve_eos.
+    // For the given boundary-condition ytype index; the analytic methods hold a single tidal set at index 0.
+    // NaN when no solve describes the current structure: never solved, failed, or followed by a solve_eos.
     std::complex<double> get_love_number_k(std::size_t ytype_idx = 0) const noexcept {
         if (this->love_is_analytic()) {
             return (this->p_love_analytic_success && ytype_idx == 0)
@@ -1388,9 +1337,8 @@ public:
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return s->complex_love_vec[ytype_idx].l;
     }
-    // Full radial solution y-value (SI) at the surface for a given ytype and y-index (0..5 -> y1..y6).
-    // Returns NaN if not solved or after an analytic solve (no radial functions). Evaluated from the radial
-    // solver's dense calling system (shooting) or the gridded solution (matrix) via get_surface_y.
+    // Surface y-value (SI) for a ytype and y-index (0..5 -> y1..y6). NaN if unsolved or after an analytic
+    // solve, which has no radial functions.
     std::complex<double> get_love_surface_y(
             std::size_t ytype_idx, std::size_t y_idx) const noexcept {
         if (this->love_is_analytic()) return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
@@ -1402,10 +1350,9 @@ public:
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return surface_y[y_idx];
     }
-    // Full radial solution y-value (SI) at an arbitrary radius [m] for a given ytype and y-index. The shooting
-    // method evaluates its dense per-layer interpolants at this radius (accurate anywhere, including between EOS
-    // grid slices); the matrix method linearly interpolates its constructed grid. Returns NaN if not solved,
-    // after an analytic solve, out of range, or below the solver's starting radius.
+    // The same at an arbitrary radius [m]. The shooting method evaluates its dense per-layer interpolants,
+    // accurate anywhere including between EOS grid slices; the matrix method interpolates its grid linearly.
+    // NaN if unsolved, analytic, out of range, or below the solver's starting radius.
     std::complex<double> get_radial_solution_y(
             double radius,
             std::size_t ytype_idx,
@@ -1421,28 +1368,24 @@ public:
     }
 
     // Global (1D) tidal dissipation. The tide-model holder, config, results, and the analytic calc_tides path
-    // live on c_BaseWorld; c_LayeredWorld hides calc_tides to add the rheology (radial-solver) path and the
-    // per-layer heating distribution. It is defined out-of-line in world_tides_.hpp, which carries the heavy
-    // global-potential engine.
+    // live on c_BaseWorld; this class hides calc_tides to add the rheology path and the per-layer heating
+    // distribution, out-of-line in world_tides_.hpp, which carries the heavy global-potential engine.
     void calc_tides(const c_TideSolveConfig& state);
 
     // On-demand 3D tidal stress, strain, and heating. The tidal potential is built from the world's [tides]
-    // truncation config (max degree l, eccentricity and obliquity truncation); there is no potential-model
-    // object. The orchestration lives on the rheology tide model (c_RheologyTide) and is defined out-of-line
-    // in world_tides_.hpp, which carries the kernel and potential-engine headers.
+    // truncation config; there is no potential-model object. The orchestration lives on c_RheologyTide,
+    // out-of-line in world_tides_.hpp, which carries the kernel and potential-engine headers.
     //
-    // Secular (cycle and orbit-averaged) 3D volumetric heating [W m-3] at (radius, colatitude): the physically
-    // time-averaged power density, independent of longitude and time. Requires the rheology tide model and a
-    // solved EOS. Its volume integral equals the 1D global heating (get_tidal_heating).
+    // The secular (cycle and orbit-averaged) 3D volumetric heating [W m-3] is the time-averaged power
+    // density, independent of longitude and time, and its volume integral equals the 1D global heating.
     double get_3d_tidal_heating(
             const c_TideSolveConfig& state,
             double radius,
             double colatitude);
 
-    // Batch form: secular 3D volumetric heating [W m-3] at num_points paired (radii[i], colatitudes[i]),
-    // written into out_heating[i]. Same physics and preconditions as the scalar form, but the radial solve is
-    // amortized across points (one per unique (l, frequency)), so it is the efficient way to build a map.
-    // num_threads applies to the per-point evaluation after the radial solves. Defined in world_tides_.hpp.
+    // Batch form over paired (radii[i], colatitudes[i]) points. Same physics as the scalar form, but the
+    // radial solve is amortized across the points, one per unique (l, frequency), which makes it the
+    // efficient way to build a map. num_threads applies to the per-point evaluation after the solves.
     void get_3d_tidal_heating_array(
             const c_TideSolveConfig& state,
             const double* radii,
@@ -1452,17 +1395,14 @@ public:
             int num_threads = 1);
 
     // Instantaneous tidal displacements [m] on the (radius, colatitude, longitude, time) grid; see
-    // c_RheologyTide::calc_3d_displacements_grid. Same rheology + solved-EOS preconditions as
-    // get_3d_tidal_heating. Defined out-of-line in world_tides_.hpp.
+    // c_RheologyTide::calc_3d_displacements_grid. Same preconditions as get_3d_tidal_heating.
     void get_3d_displacements_grid(
             const c_TideSolveConfig& state,
             const c_Grid3DAxes& axes,
             double* out_disp,
             int num_threads = 1);
 
-    // Instantaneous stress [Pa] and strain on the (radius, colatitude, longitude, time) grid; see
-    // c_RheologyTide::calc_3d_stress_strain_grid. Same rheology + solved-EOS preconditions as
-    // get_3d_tidal_heating. Defined out-of-line in world_tides_.hpp.
+    // Instantaneous stress [Pa] and strain on the same grid; see c_RheologyTide::calc_3d_stress_strain_grid.
     void get_3d_stress_strain_grid(
             const c_TideSolveConfig& state,
             const c_Grid3DAxes& axes,
@@ -1470,10 +1410,8 @@ public:
             double* out_strain,
             int num_threads = 1);
 
-    // Collapsed (summed/averaged) secular 3D tidal heating (see c_Heating3DCollapseConfig): the radial
-    // power profile, colatitude profile, per-layer totals, and/or whole-planet total, per the flags.
-    // Same rheology + solved-EOS preconditions as get_3d_tidal_heating. Defined out-of-line in
-    // world_tides_.hpp.
+    // Collapsed secular 3D tidal heating: the radial profile, colatitude profile, per-layer totals, or
+    // whole-planet total, per the flags in c_Heating3DCollapseConfig.
     c_Heating3DCollapsed calc_3d_tides(
             const c_TideSolveConfig& state,
             const double* radii,
@@ -1486,9 +1424,8 @@ public:
             size_t num_times,
             const c_Heating3DCollapseConfig& cfg);
 
-    // The axes and output shape calc_3d_tides produces for these inputs, with values and layer_totals left empty,
-    // so a caller can allocate the buffers calc_3d_tides_into fills. Needs only the layer geometry. Defined
-    // out-of-line in world_tides_.hpp.
+    // The axes and output shape calc_3d_tides produces for these inputs, values and layer_totals left empty,
+    // so a caller can allocate the buffers calc_3d_tides_into fills. Needs only the layer geometry.
     c_Heating3DCollapsed calc_3d_tides_layout(
             const double* radii,
             size_t num_radii,
@@ -1500,10 +1437,8 @@ public:
             size_t num_times,
             const c_Heating3DCollapseConfig& cfg);
 
-    // calc_3d_tides written into caller buffers: out_values holds as many doubles as the layout's shape, and
-    // out_layer_totals n_layers * n_times doubles when all three spatial axes are summed (null otherwise). The
-    // radial solves run on the calling thread and the per-point evaluation on up to cfg.num_threads threads; the
-    // result is identical for any thread count. Defined out-of-line in world_tides_.hpp.
+    // calc_3d_tides written into caller buffers. The radial solves run on the calling thread and the
+    // per-point evaluation on up to cfg.num_threads threads; the result is identical for any thread count.
     void calc_3d_tides_into(
             const c_TideSolveConfig& state,
             const double* radii,
@@ -1518,13 +1453,12 @@ public:
             double* out_values,
             double* out_layer_totals);
 
-    // Effective per-layer tidal-heating scale for the layer's tidal_scale_method (defined in
-    // world_tides_.hpp). Used by calc_tides to distribute the global heating to the layers.
+    // Effective per-layer tidal-heating scale for the layer's tidal_scale_method; calc_tides uses it to
+    // distribute the global heating to the layers.
     double effective_tidal_scale(
             const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const;
 
-    // Per-layer tidal heating [W] = world heating × the layer's effective tidal scale (0 if the
-    // layer is non-tidal). NaN if the index is out of range or tides are unsolved.
+    // World heating times the layer's effective tidal scale; 0 for a non-tidal layer.
     double get_layer_tidal_heating(std::size_t index) const noexcept {
         if (!this->p_tides_solved || index >= this->p_layer_tidal_heating.size()) {
             return TidalPyConstants::d_NAN;
@@ -1532,16 +1466,14 @@ public:
         return this->p_layer_tidal_heating[index];
     }
 
-    // Whole-planet aggregates (const, MKS)
-    // Total mass [kg] = sum of layer masses.
+    // Total mass [kg]: the sum of the layer masses.
     double calc_total_mass() const noexcept {
         double total = 0.0;
         for (const auto& layer : this->p_layers) { total += layer->get_mass(); }
         return total;
     }
 
-    // Total internal radiogenic heating [W] at time. Only SolidLiquidLayers
-    // produce radiogenic heating; other layer types contribute zero.
+    // Only solid-liquid layers produce radiogenic heating; the rest contribute zero.
     double calc_internal_heating(double time) const noexcept {
         double total = 0.0;
         for (const auto& layer : this->p_layers) {
@@ -1553,8 +1485,7 @@ public:
         return total;
     }
 
-    // Returns true if every layer boundary is continuous (inner-to-outer) and the
-    // innermost layer starts at radius 0.
+    // True when every layer boundary is continuous and the innermost layer starts at radius 0.
     bool validate_layers() const noexcept {
         double prev_outer = 0.0;
         for (const auto& layer : this->p_layers) {
@@ -1566,7 +1497,6 @@ public:
         return true;
     }
 
-    // Binary I/O: the world fields and layer count, then each layer's full record.
     void write_binary(std::ostream& out) const override {
         this->write_layered_binary(out, static_cast<uint32_t>(BinaryClassID::LayeredWorld));
     }
@@ -1587,8 +1517,7 @@ public:
     }
 
 protected:
-    // Shared writer so subclasses (e.g. c_GasGiantWorld) reuse the layout with
-    // their own BinaryClassID.
+    // Shared so a subclass reuses the layout with its own BinaryClassID.
     void write_layered_binary(std::ostream& out, uint32_t class_id) const {
         const uint64_t payload = this->world_payload_bytes() + sizeof(uint64_t);
         write_binary_header(out, class_id, payload);
@@ -1598,17 +1527,16 @@ protected:
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write layered-world binary data");
         }
-        // Each layer writes its own complete record (recursively including its models).
+        // Each layer writes its own complete record, its models included.
         for (const auto& layer : this->p_layers) { layer->write_binary(out); }
     }
 
-    // Compute and store a layer's frequency-independent viscoelastic state over its radial slice: the pre-melt
-    // static moduli (from the layer's static values) and pre-melt viscosities (from the attached viscosity
-    // models, NaN if unset), then the post-melt versions (the partial-melt model applied to the shear pair and
-    // then the bulk pair; post equals pre without a melt model). No-op for a geometry-only BaseLayer.
-    // temperature is the placeholder profile temperature.
-    // Step every floating layer toward the mass it holds, and carry the layers above it. Returns the largest
-    // relative radius change, which is what the solve watches to stop.
+    // Store a layer's frequency-independent viscoelastic state over its radial slice: the pre-melt static
+    // moduli and viscosities, then the post-melt versions, which equal the pre-melt ones without a melt
+    // model. A no-op for a geometry-only layer.
+    //
+    // Steps every floating layer toward the mass it holds and carries the layers above it, returning the
+    // largest relative radius change, which is what the solve watches to stop.
     //
     // A layer that holds its mass moves its top by the mass it is short of over the slope of the enclosed
     // mass there, dm/dr = 4 pi r^2 rho. Its base has already moved with the layer below, which changes the
@@ -1631,17 +1559,16 @@ protected:
                     radius_inner_new * radius_inner_new * radius_inner_new + volume_term);
             } else {
                 // Step in enclosed volume, not radius: the mass the layer is short of occupies
-                // mass_missing / rho of it, and the shell keeps the rest. At constant density that lands the
-                // radius in one pass however far away it starts, where a step in radius would crawl in
-                // proportion to the cube root.
+                // mass_missing / rho of it. At constant density that lands the radius in one pass however
+                // far away it starts, where a step in radius would crawl as the cube root.
                 double state[C_EOS_DY_VALUES];
                 solution.call_si(layer_i, radius_outer, state);
                 const double mass_outer    = state[2];
                 const double density_outer = state[4];
                 solution.call_si(layer_i, radius_inner, state);
                 const double mass_inner = state[2];
-                // A layer whose reference mass is still unset adopts what it holds inside the boundaries it was
-                // given, so it stays where it is until something else moves.
+                // A layer whose reference mass is still unset adopts what it holds inside the boundaries it
+                // was given, so it stays put until something else moves.
                 if (!std::isfinite(this->p_reference_mass[layer_i])) {
                     this->p_reference_mass[layer_i] = mass_outer - mass_inner;
                 }
@@ -1672,7 +1599,7 @@ protected:
         return largest_change;
     }
 
-    // One value of the evaluation layout at a radius [m], through the layer that holds it.
+    // One value of the evaluation layout, through the layer that holds the radius.
     double p_read_eos_state(double radius, std::size_t value_index) const noexcept {
         if (!this->p_eos_solved || !this->p_eos_solution) { return TidalPyConstants::d_NAN; }
         for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
@@ -1686,10 +1613,10 @@ protected:
         return TidalPyConstants::d_NAN;
     }
 
-    // Non-owning observer pointer to the layer whose radial span contains radius [m]. Radii beyond the surface
-    // clamp to the outermost layer, radii below the innermost inner radius fall in the innermost layer, and
-    // the result is nullptr only when the world has no layers. Public because it is a const observer query
-    // like get_density(radius); the 3D tidal-heating path reads the layer's solid and incompressible flags.
+    // The layer whose radial span contains radius [m], non-owning. Radii beyond the surface clamp to the
+    // outermost layer, radii below the innermost inner radius fall in the innermost one, and the result is
+    // null only for a world with no layers. Public because it is a const observer query like
+    // get_density(radius); the 3D tidal-heating path reads the layer's solid and incompressible flags.
 public:
     const c_BaseLayer* find_layer_for_radius(double radius) const noexcept {
         if (this->p_layers.empty()) { return nullptr; }
@@ -1702,7 +1629,7 @@ public:
 protected:
     std::vector<std::unique_ptr<c_BaseLayer>> p_layers;
 
-    // EOS solve results (set by solve_eos; not serialized, so repopulate by re-solving).
+    // Set by solve_eos and not serialized, so a load repopulates them by re-solving.
     bool        p_eos_success          = false;
     bool        p_eos_solved           = false;
     std::string p_eos_message          = "EOS not yet solved.";
@@ -1716,12 +1643,12 @@ protected:
     double      p_planet_moi_eos       = std::numeric_limits<double>::quiet_NaN();
     c_Spin      p_spin {};              // spin-dynamics model (uses the world's EOS moment of inertia)
     std::shared_ptr<c_EOSSolution> p_eos_solution;  // retained full-planet solution (co-owned by layer dense evaluators)
-    // Per-layer material-EOS inputs referenced by the solver's stored diffeq args;
-    // must outlive solve_eos so the dense output's diffeq re-calls stay valid.
+    // Referenced by the solver's stored diffeq args, so they must outlive solve_eos for the dense output's
+    // re-calls to stay valid.
     std::vector<c_MaterialEOSInput> p_eos_material_inputs;
     // Thermal description of every layer from the last solve, and how the thermal passes ended.
     std::vector<c_LayerThermal> p_layer_thermal;
-    // The world's heat sources. The structure ODE of a thermal solve reads them through a pointer to this member.
+    // The structure ODE of a thermal solve reads these through a pointer to this member.
     c_Heating p_heating;
     // The mass each floating layer holds on to [kg]; NaN for a layer that holds its volume instead.
     std::vector<double> p_reference_mass;
@@ -1729,12 +1656,11 @@ protected:
     size_t p_thermal_passes    = 0;
     bool   p_thermal_converged = true;
 
-    // Love-number solve: a cached, reusable radial solver (not serialized) holding the frequency-independent
-    // setup and the reused solution storage; rebuilt only when the EOS grid or the layer assumptions change.
+    // A cached, reusable radial solver holding the frequency-independent setup and the reused solution
+    // storage; rebuilt only when the EOS grid or the layer assumptions change. Not serialized.
     bool p_love_solved = false;
     c_LoveMethod  p_love_method_last = c_LoveMethod::RadialSolver;   // method of the most recent Love solve
-    // Result store for the analytic (homogeneous / cpl / ctl) methods; the radial-solver methods report from the
-    // cached solver's storage instead.
+    // For the analytic methods; the radial-solver methods report from the cached solver's storage instead.
     bool          p_love_analytic_success = false;
     int           p_love_analytic_error_code = -100;
     std::string   p_love_analytic_message = "No love-number solve has been run.";

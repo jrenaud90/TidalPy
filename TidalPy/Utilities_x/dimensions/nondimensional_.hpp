@@ -1,11 +1,7 @@
 #pragma once
-/*
- * nondimensional_.hpp - c_NonDimensionalScales: unit-conversion scales for non-dimensionalized solves.
- *
- * The scheme follows Martens (2016, PhD thesis, CalTech, DOI: 10.7907/Z9N29TX7, ~p. 99): the time
- * scale is set by 1/(pi G rho_bulk) (frequency independent), the length scale by the mean radius,
- * and the density scale by the bulk density; the mass and pascal scales follow from those. Used by
- * the radial solver and the EOS solution to convert between SI and solve units.
+/* Unit-conversion scales for non-dimensionalized solves, following Martens (2016, PhD Thesis, CalTech,
+ * DOI: 10.7907/Z9N29TX7, ~p. 99): the time scale from 1/(pi G rho_bulk) (frequency independent), the
+ * length scale from the mean radius, the density scale from the bulk density; mass and pascal follow.
  */
 
 #include <cmath>

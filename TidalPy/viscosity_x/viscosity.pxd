@@ -1,7 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's viscosity models: the C++ classes, the combined config struct,
-the enum factory, and the Python wrapper classes.
-"""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
@@ -10,9 +7,6 @@ from libcpp cimport bool as cpp_bool
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "viscosity_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_ViscosityBase(c_PhysicsBase):
@@ -68,9 +62,6 @@ cdef extern from "viscosity_.hpp" namespace "tidalpy" nogil:
         c_ViscosityModel model, const c_ViscosityConfig& cfg) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations
-# =====================================================================================================================
 cdef class ViscosityBase(PhysicsBase):
     cdef unique_ptr[c_ViscosityBase] _visc_ptr   # owns the most-derived C++ model object
 

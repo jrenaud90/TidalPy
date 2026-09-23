@@ -1,8 +1,5 @@
 #pragma once
-/*
- * tidalpy_base_.hpp: c_TidalPyBaseClass, the abstract base for every TidalPy C++ class.
- *
- * Provides the schema version accessors and the binary save/load interface.
+/* Abstract base for every TidalPy C++ class: schema version accessors and the binary save/load interface.
  *
  * Include chain: tidalpy_base_.hpp -> binary_.hpp -> logger_.hpp -> spdlog
  */
@@ -19,15 +16,11 @@ class c_TidalPyBaseClass {
 public:
     virtual ~c_TidalPyBaseClass() = default;
 
-    // const schema-version members delete the implicit copy/move assignment;
-    // provide them explicitly, since those fields are compile-time constants with the
-    // same value for every instance, so assignment is always a no-op for them.
+    // The const schema-version members delete the implicit copy/move assignment. They are compile-time
+    // constants with the same value in every instance, so assigning them is a no-op; provide them back.
     c_TidalPyBaseClass& operator=(const c_TidalPyBaseClass&) noexcept { return *this; }
     c_TidalPyBaseClass& operator=(c_TidalPyBaseClass&&) noexcept { return *this; }
 
-    // -----------------------------------------------------------------------
-    // Schema version
-    // -----------------------------------------------------------------------
     std::string get_schema_version_str() const {
         return std::to_string(static_cast<int>(p_schema_version_major))
             + '.' + std::to_string(static_cast<int>(p_schema_version_minor))
@@ -48,16 +41,11 @@ public:
         return false;
     }
 
-    // -----------------------------------------------------------------------
-    // Binary I/O
-    // -----------------------------------------------------------------------
-    // Pure virtual: each concrete subclass writes {header, payload}.
-    // Must call write_binary_header(out, class_id, payload_size) first.
+    // Each concrete subclass writes {header, payload}, starting with write_binary_header.
     virtual void write_binary(std::ostream& out) const = 0;
 
-    // Virtual: base reads the 20-byte header and validates schema version.
-    // Subclasses override and call c_TidalPyBaseClass::read_binary(in, force)
-    // first, then read their own payload from the stream.
+    // Reads the header and validates the schema version. Subclasses call this first, then read their
+    // own payload.
     virtual void read_binary(std::istream& in, bool force = false) {
         c_BinaryHeader header = read_binary_header(in);
         if (!check_binary_schema_version(header, force)) {
@@ -67,9 +55,6 @@ public:
         }
     }
 
-    // -----------------------------------------------------------------------
-    // File convenience methods (non-virtual)
-    // -----------------------------------------------------------------------
     void save_binary(const std::string& path) const {
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
         if (!out.is_open()) {

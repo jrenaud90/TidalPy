@@ -21,10 +21,6 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# GasGiantWorld
-# =====================================================================================================================
-
 cdef class GasGiantWorld(LayeredWorld):
     """A layered world representing a gas giant.
 

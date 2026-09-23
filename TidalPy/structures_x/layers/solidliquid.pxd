@@ -14,9 +14,6 @@ from TidalPy.cooling_x.cooling cimport c_CoolingBase
 from TidalPy.radiogenics_x.radiogenics cimport c_RadiogenicsBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_SolidLiquidConfig:
@@ -63,9 +60,6 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         void     set_radiogenics(unique_ptr[c_RadiogenicsBase] radiogenics)
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class SolidLiquidLayer(PhysicsLayer):
     cdef c_SolidLiquidLayer* _solidliquid_ptr   # non-owning; ownership via BaseLayer._layer_ptr
     cpdef dict get_config_dict(self)

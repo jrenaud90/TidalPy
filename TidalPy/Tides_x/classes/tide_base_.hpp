@@ -26,8 +26,8 @@
 #include <string>
 
 // Explicit relative path, not a bare "love_.hpp": the layered and world extensions also carry
-// RadialSolver_x on their include path, which holds a different global-namespace love_.hpp, so a bare
-// include can resolve to the wrong file depending on include-dir order.
+// RadialSolver_x on their include path, which holds a different love_.hpp in the global namespace, so a
+// bare include can resolve to the wrong file depending on include-dir order.
 #include "../love/love_.hpp"   // tidalpy::c_LoveNumbers
 #include "physics_base_.hpp"
 
@@ -41,9 +41,9 @@ public:
 
     ~c_TideBase() override = default;
 
-    // Complex Love numbers (k, h, l) at the tidal forcing frequency magnitude |omega_lmpq| [rad s-1].
-    // The analytic models build k_l from their fixed per-degree parameters, set h and l to NaN (no
-    // radial solution), and ignore solver_love; the rheology model returns solver_love unchanged.
+    // Complex Love numbers at the forcing frequency magnitude |omega_lmpq| [rad s-1]. The analytic models
+    // build k_l from their fixed per-degree parameters, set h and l to NaN, and ignore solver_love; the
+    // rheology model returns solver_love unchanged.
     virtual c_LoveNumbers calc_love_numbers(
             int degree_l, double frequency, const c_LoveNumbers& solver_love) const = 0;
 
@@ -52,7 +52,7 @@ public:
         return -std::imag(this->calc_love_numbers(degree_l, frequency, solver_love).k);
     }
 
-    // True when the world must run the radial solver to supply the Love numbers (rheology only).
+    // True when the world must run the radial solver to supply the Love numbers.
     virtual bool needs_radial_solve() const = 0;
 
     // Fixed per-degree quality factor and time lag [s] when the model carries them; NaN otherwise. The

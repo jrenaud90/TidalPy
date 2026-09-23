@@ -1,7 +1,5 @@
 #pragma once
-/*
- * legendre_common_.hpp - Shared type for the precomputed associated-Legendre tables.
- */
+/* Shared type for the precomputed associated-Legendre tables. */
 
 #include "constants_.hpp"
 

@@ -1,21 +1,18 @@
 """TOML loading, schema validation, and default merging for the structures_x world builder.
 
-Turns a TOML world description (or an equivalent ``dict``) into a validated configuration for
-:mod:`TidalPy.structures_x.configs.world_builder`. TOML is read and validated here and never
-reaches C++.
+Turns a TOML world description, or an equivalent dict, into a validated configuration for the world
+builder. TOML is read and validated here and never reaches C++.
 
-A world configuration (schema ``0.2.0``) carries the required ``name``, ``type``
-(star | gasgiant | terrestrial | layered), ``radius_m``, and ``mass_kg``, optional world scalars, an
-optional ``[tides]`` table, and, for a non-star world, one or more ``[layers.<name>]`` tables. A
-layer names a ``class`` (which Cython layer class to build), an optional material ``type`` (which
-per-material default block to draw from), exactly one outer-radius specifier, scalar parameters, and
-nested physics-model tables each carrying a ``model`` key. The key sets of :mod:`TidalPy.schema_x`, re-exported
-here, are the authoritative list of what is accepted where; ``Documentation/structures_x/config/toml_schema.md``
-has the worked schema.
+A world configuration carries the required ``name``, ``type``, ``radius_m``, and ``mass_kg``, optional
+world scalars, an optional ``[tides]`` table, and, for a non-star world, one or more ``[layers.<name>]``
+tables. A layer names a ``class``, an optional material ``type``, exactly one outer-radius specifier,
+scalar parameters, and nested physics-model tables each carrying a ``model`` key. The key sets of
+:mod:`TidalPy.schema_x`, re-exported here, are the authoritative list of what is accepted where, and
+``Documentation/structures_x/config/toml_schema.md`` has the worked schema.
 
 A parameter the user omits is resolved in three tiers: the user configuration, then the
-``[layers.<type>]`` block of ``TidalPy_Configs_x.toml`` selected by the layer's material ``type``,
-then the C++, Cython, or factory default. That merge lives in the world builder.
+``[layers.<type>]`` block of ``TidalPy_Configs_x.toml`` selected by the layer's material ``type``, then
+the C++, Cython, or factory default. That merge lives in the world builder.
 """
 
 import math
@@ -58,9 +55,7 @@ from TidalPy.schema_x import (
     _REQUIRED_WORLD_KEYS,
 )
 
-# Schema version for the structures_x TOML/world format. Compatibility uses the
-# major.minor pair (patch differences are allowed), mirroring the binary/base-class
-# schema check.
+# Compatibility uses the major.minor pair, patch differences being allowed, mirroring the binary check.
 SCHEMA_VERSION = "0.2.0"
 
 
@@ -112,7 +107,7 @@ def validate_solver_table(section: str, table, where: str) -> None:
 # TOML / source loading
 # =====================================================================================================================
 def warning_enabled(name: str) -> bool:
-    """Whether the ``[warnings]`` switch ``name`` of ``TidalPy_Configs_x.toml`` is on (on when the config is absent)."""
+    """Whether the ``[warnings]`` switch ``name`` is on; on when the config is absent."""
     config_x = getattr(TidalPy, "config_x", None) or {}
     return bool((config_x.get("warnings", {}) or {}).get(name, True))
 
@@ -195,14 +190,12 @@ def validate_schema_version(config: dict, force: bool = False) -> bool:
     found_major = found_parts[0]
     found_minor = found_parts[1] if len(found_parts) > 1 else "0"
 
-    # Major-version mismatch: refuse to load.
     if found_major != expected_parts[0]:
         raise ValueError(
             f"World configuration schema version {found} is incompatible with the "
             f"current schema {SCHEMA_VERSION}: the major versions differ. Refusing to "
             "load. (Pass force=True to bypass this check at your own risk.)")
 
-    # Minor-version mismatch: allow but warn.
     if found_minor != expected_parts[1]:
         if warning_enabled("schema_version"):
             warnings.warn(
@@ -210,7 +203,6 @@ def validate_schema_version(config: dict, force: bool = False) -> bool:
                 f"schema {SCHEMA_VERSION} by a minor version; some functionality may break.")
         return True
 
-    # Identical or patch-only difference: allowed silently.
     return True
 
 
@@ -240,7 +232,7 @@ def validate_world_config(config: dict) -> None:
     world_type = config.get("type", None)
     if world_type is None:
         if config.get("worlds", None):
-            # A system configuration: the two kinds share the world pack directory.
+            # A system configuration; the two kinds share the world pack directory.
             raise ValueError(
                 "This is a system configuration, not a world configuration: it has a 'worlds' table "
                 "and no 'type' key. Build it with build_system() instead of build_world().")
@@ -254,11 +246,11 @@ def validate_world_config(config: dict) -> None:
             raise ValueError(
                 f"World configuration is missing the required '{required}' key.")
 
-    # Flag unknown world-level scalar keys (typo protection). Reserved structural
-    # keys and the optional '[tides]' table (validated separately below) are tolerated.
+    # Typo protection. The reserved structural keys and the optional '[tides]' table, validated separately
+    # below, are tolerated.
     allowed = ALLOWED_WORLD_SCALAR_KEYS[world_type]
-    # 'data_file' (a path) and 'data' (a mapping of arrays) are the two ways to give a radial
-    # profile in place of layer tables; the builder expands either into 'layers' before validation.
+    # 'data_file' and 'data' are the two ways to give a radial profile in place of layer tables; the
+    # builder expands either into 'layers' before validation.
     structural = {"name", "type", "schema_version", "layers", "tides", "data_file", "data"}
     for key, value in config.items():
         if key in SOLVER_TABLES:
@@ -287,7 +279,6 @@ def validate_world_config(config: dict) -> None:
                 raise ValueError(f"The world-level '[{key}]' entry must be a table with a 'model' key.")
             continue
         if isinstance(value, dict):
-            # Unexpected nested table at the world level.
             raise ValueError(
                 f"Unexpected world-level table '[{key}]' for world type "
                 f"'{world_type}'.")
@@ -313,14 +304,14 @@ def validate_world_config(config: dict) -> None:
     validate_physical_values(config)
 
 
-# Relative tolerance on the geometry checks: a stack of layers given by fractions reaches the world radius only
-# to roundoff, and a radius copied from a paper may carry a few digits.
+# A stack of layers given by fractions reaches the world radius only to roundoff, and a radius copied from
+# a paper may carry only a few digits.
 _GEOMETRY_RTOL = 1.0e-6
 
 
 def _require_number(where: str, key: str, value, minimum=None, maximum=None,
                     minimum_open: bool = False, maximum_open: bool = False) -> float:
-    """Check that ``value`` is a finite real number inside an interval; return it as a float."""
+    """Check ``value`` is a finite real number inside an interval, and return it as a float."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{where}: '{key}' must be a number, not {value!r}.")
     number = float(value)
@@ -372,8 +363,8 @@ def validate_physical_values(config: dict) -> None:
     if not layers:
         return
 
-    # The builder stacks the layers by index (declaration order where none is given), each one starting where the
-    # one below it ends, so the geometry is checked in that same order.
+    # The builder stacks the layers by index, declaration order where none is given, each starting where the
+    # one below ends, so the geometry is checked in that same order.
     ordered = []
     seen_indices = {}
     for order_index, (layer_name, layer_cfg) in enumerate(layers.items()):
@@ -457,16 +448,14 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
             f"Layer '{layer_name}' has unknown class '{layer_class}'. "
             f"Expected one of {LAYER_CLASSES}.")
 
-    # The material ``type`` is optional; when present it selects the per-material
-    # defaults in the `_x` config and must name a known material.
+    # Optional; when present it selects the per-material defaults in the `_x` config.
     material_type = layer_cfg.get("type", None)
     if material_type is not None and material_type not in MATERIAL_TYPES:
         raise ValueError(
             f"Layer '{layer_name}' has unknown material type '{material_type}'. "
             f"Expected one of {MATERIAL_TYPES}.")
 
-    # Geometry: the inner radius is derived (never user-supplied); the outer radius is
-    # given by exactly one of the specifier keys.
+    # The inner radius is derived, never user-supplied; the outer radius comes from exactly one specifier.
     if "radius_inner_m" in layer_cfg:
         raise ValueError(
             f"Layer '{layer_name}' must not specify 'radius_inner_m': the inner radius "
@@ -500,9 +489,9 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
                 raise ValueError(
                     f"Layer '{layer_name}' of class '{layer_class}' cannot hold a "
                     f"'{key}' model. Allowed for this class: {allowed_models}.")
-            # The material table is mostly scalars, and overriding one of them (a fitted shear modulus, say)
-            # should not mean restating the model the layer's material type already names. The builder checks
-            # that a model is there once the defaults are merged in.
+            # The material table is mostly scalars, and overriding one of them, a fitted shear modulus say,
+            # should not mean restating the model the layer's material type already names. The builder
+            # checks a model is there once the defaults are merged in.
             if "model" not in value and key != "material":
                 raise ValueError(
                     f"Model table '[{key}]' on layer '{layer_name}' is missing the "
@@ -524,9 +513,8 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
 # =====================================================================================================================
 # System validation
 # =====================================================================================================================
-# Allowed keys in a system's ``[worlds.<name>]`` entry. ``world`` (the world source: a bundled world
-# name, a path to a world TOML, or an inline world config table) is required; the rest are optional and
-# mirror the ``System.add_world`` / ``set_stellar_*`` arguments.
+# ``world``, the world source, is required; the rest are optional and mirror the ``System.add_world`` and
+# ``set_stellar_*`` arguments.
 SYSTEM_WORLD_KEYS = (
     "world",                      # required: bundled name / path / inline world config
     "tidal_host",                 # key of the world that raises this world's tides (none when left out)
@@ -537,7 +525,7 @@ SYSTEM_WORLD_KEYS = (
     "stellar_eccentricity",       # orbit about the star
 )
 
-# Reserved system-level keys (everything else must live inside a ``[worlds.<name>]`` table).
+# Everything else must live inside a ``[worlds.<name>]`` table.
 _SYSTEM_STRUCTURAL_KEYS = ("name", "schema_version", "worlds")
 
 
@@ -565,7 +553,7 @@ def validate_system_config(config: dict) -> None:
     worlds = config.get("worlds", None)
     if not worlds:
         if config.get("type", None):
-            # A single world configuration: the two kinds share the world pack directory.
+            # A single world configuration; the two kinds share the world pack directory.
             raise ValueError(
                 "This is a world configuration, not a system configuration: it has a 'type' key and "
                 "no 'worlds' table. Build it with build_world() instead of build_system().")
@@ -574,7 +562,7 @@ def validate_system_config(config: dict) -> None:
     if not isinstance(worlds, dict):
         raise ValueError("The 'worlds' entry must be a table of named worlds.")
 
-    # Flag unknown system-level keys (typo protection).
+    # Typo protection.
     for key in config:
         if key not in _SYSTEM_STRUCTURAL_KEYS:
             raise ValueError(

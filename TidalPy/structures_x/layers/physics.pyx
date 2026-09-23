@@ -34,10 +34,6 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# PhysicsLayer
-# =====================================================================================================================
-
 cdef class PhysicsLayer(BaseLayer):
     """Mechanical-properties layer: static shear/bulk modulus, viscosities, Love numbers, and optional rheology.
 
@@ -156,9 +152,6 @@ cdef class PhysicsLayer(BaseLayer):
         v._init_view(<c_BaseLayer*>ptr, world)
         return v
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Static mechanical properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def shear_modulus_static(self) -> float:
         """Unrelaxed (static) shear modulus [Pa]."""
@@ -214,9 +207,6 @@ cdef class PhysicsLayer(BaseLayer):
         """True if a bulk rheology model has been attached."""
         return self._physics_ptr.get_bulk_rheology_set()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Radial-solver layer classification flags
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def is_solid(self) -> bool:
         """True if this layer is solid, False for liquid. Used by the radial Love-number solver."""
@@ -244,9 +234,6 @@ cdef class PhysicsLayer(BaseLayer):
     def is_incompressible(self, value: bool):
         self._physics_ptr.set_is_incompressible(<cpp_bool>bool(value))
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Material state
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def temperature(self) -> float:
         """Layer temperature [K] at which the viscosity and melt models are evaluated."""
@@ -274,9 +261,6 @@ cdef class PhysicsLayer(BaseLayer):
     def use_heating(self, value: bool):
         self._physics_ptr.set_use_heating(<cpp_bool>bool(value))
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Rheology attachment
-    # ------------------------------------------------------------------------------------------------------------------
     def set_shear_rheology(self, RheologyBase rheology not None):
         """Attach a rheology model used to compute the complex shear modulus.
 
@@ -319,9 +303,6 @@ cdef class PhysicsLayer(BaseLayer):
         self._physics_ptr.set_bulk_rheology(move(rheology._rheology_ptr))
         rheology._ptr = NULL
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Viscosity + partial-melt attachment
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def shear_viscosity_set(self) -> bool:
         """True if a shear viscosity model has been attached."""
@@ -401,9 +382,6 @@ cdef class PhysicsLayer(BaseLayer):
         self._physics_ptr.set_partial_melt(move(partial_melt._melt_ptr))
         partial_melt._ptr = NULL
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Calculations
-    # ------------------------------------------------------------------------------------------------------------------
     def _apply_complex(self, radius, double frequency, cpp_bool is_shear):
         # Radius-resolved complex modulus: float -> complex; np.ndarray -> complex np.ndarray (same shape).
         cdef cnp.ndarray in_arr
@@ -498,9 +476,6 @@ cdef class PhysicsLayer(BaseLayer):
             return complex(result.real(), result.imag())
         return self._apply_complex(first_arg, <double>frequency, False)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
         """Return all configuration values as a Python dict (MKS).
 

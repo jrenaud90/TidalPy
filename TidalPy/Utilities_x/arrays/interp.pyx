@@ -11,28 +11,22 @@ from TidalPy.Utilities_x.arrays.interp cimport c_interp, c_partition_radius_by_l
 
 
 def interp(x, xp, fp):
-    """Linear interpolation of ``fp`` (sampled on ``xp``) at ``x`` (numpy.interp-style).
+    """Linear interpolation of ``fp`` (sampled on ``xp``) at ``x``, numpy.interp-style.
 
     Parameters
     ----------
     x : float or array_like
-        Query coordinate(s) at which to interpolate.
+        Query coordinate(s).
     xp : array_like of float
-        Sample coordinates, sorted in ascending order (length >= 1).
+        Sample coordinates, sorted ascending; results are undefined otherwise.
     fp : array_like of float
         Sample values, the same length as ``xp``.
 
     Returns
     -------
     float or numpy.ndarray
-        The interpolated value(s). A Python ``float`` for scalar ``x``; otherwise
-        a ``float64`` array with the shape of ``x``. Queries outside
+        A float for scalar ``x``, else a float64 array shaped like ``x``. Queries outside
         ``[xp[0], xp[-1]]`` clamp to the corresponding endpoint value.
-
-    Assumptions
-    -----------
-    - ``xp`` is sorted ascending; results are undefined otherwise.
-    - ``xp`` and ``fp`` have the same length.
     """
     cdef double[::1] xp_v = np.ascontiguousarray(xp, dtype=np.float64)
     cdef double[::1] fp_v = np.ascontiguousarray(fp, dtype=np.float64)
@@ -50,8 +44,8 @@ def interp(x, xp, fp):
                 n,
                 0)
 
-    # `object` rather than `cnp.ndarray`: this module does not cimport numpy, and the sweep below runs off the
-    # memoryviews, so the array objects are only here to be reshaped and returned.
+    # `object` rather than `cnp.ndarray`: this module does not cimport numpy, and the sweep below runs off
+    # the memoryviews, so the array objects are only here to be reshaped and returned.
     cdef object x_in = np.ascontiguousarray(x, dtype=np.float64)
     cdef double[::1] x_v = x_in.ravel()
     cdef size_t m = x_v.shape[0]
@@ -68,8 +62,8 @@ def partition_radius_by_layer(double[::1] radius not None, double[::1] upper_rad
     """Split an ascending radius array into one run of slices per layer.
 
     A layered profile repeats each interface radius, once for the layer below and once for the layer above.
-    This applies the rule that decides which copy belongs to which layer, and it is the same C++ routine the
-    equation-of-state solution and the world radial solver partition with, so the three cannot disagree.
+    This is the same C++ routine the EOS solution and the world radial solver partition with, so the three
+    cannot disagree about which copy belongs to which layer.
 
     Parameters
     ----------

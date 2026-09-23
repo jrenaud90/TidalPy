@@ -62,10 +62,6 @@ cdef enum:
     _KIND_MELT_FRACTION  = 11
 
 
-# =====================================================================================================================
-# BaseLayer
-# =====================================================================================================================
-
 cdef class BaseLayer(StructureBase):
     """Geometry base layer: inner and outer radii, mass, and material identity.
 
@@ -140,9 +136,6 @@ cdef class BaseLayer(StructureBase):
             self._layer_ptr.reset()
         self._ptr = NULL
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Non-owning view construction (used by a world to hand back a wrapper around a layer it owns)
-    # ------------------------------------------------------------------------------------------------------------------
     cdef void _init_view(self, c_BaseLayer* ptr, object world):
         """Set this wrapper up as a non-owning view onto a world-owned C++ layer.
 
@@ -160,10 +153,7 @@ cdef class BaseLayer(StructureBase):
         v._init_view(ptr, world)
         return v
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Base class property overrides
-    # (_layer_ptr always points to the actual most-derived C++ layer; safe for subclasses)
-    # ------------------------------------------------------------------------------------------------------------------
+    # _layer_ptr always points at the most-derived C++ layer, so these are safe for subclasses.
     @property
     def radius(self) -> float:
         """Outer radius [m]."""
@@ -178,9 +168,6 @@ cdef class BaseLayer(StructureBase):
         """
         return self._layer_ptr.get().get_mass()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Geometry properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def name(self) -> str:
         """Layer name."""
@@ -273,9 +260,6 @@ cdef class BaseLayer(StructureBase):
         """
         return self._layer_ptr.get().get_tidal_heating()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # EOS profile
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def eos_data_populated(self) -> bool:
         """True after EOS profile data has been populated (world EOS solve or update_eos_data)."""
@@ -390,9 +374,7 @@ cdef class BaseLayer(StructureBase):
         """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if EOS data not populated."""
         return self._apply_real(radius, _KIND_PRESSURE)
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Viscoelastic profile (populated by the world EOS solve; NaN before then or on a geometry-only layer)
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def viscoelastic_populated(self) -> bool:
         """True after the world EOS solve has populated this layer's viscoelastic state."""
@@ -421,9 +403,7 @@ cdef class BaseLayer(StructureBase):
         """
         return self._apply_real(radius, _KIND_MELT_FRACTION)
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Shorthand bundles (one call returns several profiles at once; mirrors the world-level surface)
-    # ------------------------------------------------------------------------------------------------------------------
     def get_static_viscoelastics(self, radius):
         """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius [m], each a
         float or np.ndarray.
@@ -444,9 +424,6 @@ cdef class BaseLayer(StructureBase):
             "melt_fraction":   self.get_melt_fraction(radius),
         }
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
         """Return all configuration values as a Python dict (MKS) in the world builder's layer schema.
 

@@ -9,7 +9,6 @@
 #include "../../../utilities/arrays/interp_.hpp"
 
 
-/// Non-owning table pointers for the interpolation EOS pre-evaluation.
 struct c_InterpolateEOSInput
 {
     size_t num_slices = 0;
@@ -18,11 +17,11 @@ struct c_InterpolateEOSInput
     std::complex<double>* bulk_modulus_array_ptr  = nullptr;
     std::complex<double>* shear_modulus_array_ptr = nullptr;
 
-    // Slice index of the last pre-evaluation, the seed for the next binary search.
+    // Seed for the next binary search.
     size_t last_slice_index = 0;
 };
 
-/// Interpolation EOS pre-evaluation (CyRK PreEvalFunc signature).
+/// CyRK PreEvalFunc signature.
 inline void c_preeval_interpolate(
         char* preeval_output,
         double radius,
@@ -34,7 +33,7 @@ inline void c_preeval_interpolate(
     c_InterpolateEOSInput* eos_data = reinterpret_cast<c_InterpolateEOSInput*>(ode_args->eos_input_ptr);
     c_EOSOutput* output = reinterpret_cast<c_EOSOutput*>(preeval_output);
 
-    // One search shared by the three interpolations (c_interp reads the index but does not update it).
+    // One search shared by the three interpolations; c_interp reads the index but does not update it.
     int b_search_code = 0;
     size_t index_j = c_binary_search_with_guess(
         radius,

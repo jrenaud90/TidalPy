@@ -12,9 +12,6 @@ from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "tide_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_TideBase(c_PhysicsBase):
@@ -63,9 +60,6 @@ cdef extern from "tide_.hpp" namespace "tidalpy" nogil:
     unique_ptr[c_TideBase] c_find_tide(c_TideModel model, const c_TideModelConfig& cfg) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations
-# =====================================================================================================================
 cdef class TideBase(PhysicsBase):
     cdef unique_ptr[c_TideBase] _tide_ptr   # owns the most-derived C++ model object
 

@@ -1,5 +1,4 @@
 # distutils: language = c++
-"""Cython-level exports for TidalPy.cooling_x: the C++ cooling classes and their Python wrappers."""
 
 from TidalPy.cooling_x.cooling cimport (
     CoolingResult,

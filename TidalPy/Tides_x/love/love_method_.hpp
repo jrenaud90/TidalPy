@@ -126,9 +126,7 @@ inline bool c_love_method_is_homogeneous(c_LoveMethod method) noexcept
         || method == c_LoveMethod::HomogeneousCTL;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // Homogeneous incompressible sphere
-// ---------------------------------------------------------------------------------------------------------------------
 
 // Degree-l effective rigidity: (2 l^2 + 4 l + 3) / l * mu / (rho g R). Templated so the shear modulus may be real
 // (static rigidity) or complex (viscoelastic).

@@ -54,9 +54,6 @@ cdef extern from "love_method_.hpp" namespace "tidalpy" nogil:
     c_LoveNumbers c_apply_fixed_dt(const c_LoveNumbers& love, double frequency, double fixed_dt) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class LoveNumbers:
     cdef c_LoveNumbers _love
     cpdef dict to_dict(self)

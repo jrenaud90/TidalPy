@@ -1,23 +1,13 @@
 #pragma once
-/*
- * partial_melt_.hpp: TidalPy's partial-melt models (melt weakening of viscosity and modulus).
- *
- * Each model derives from c_PartialMeltBase and implements calc_partial_melt(c_PartialMeltInputs),
- * returning a c_PartialMeltResult (melt fraction, post-melt viscosity [Pa·s], post-melt modulus [Pa]).
- *
- * Models, with the aliases the factory accepts:
- *   c_OffPartialMelt      (alias "none")     no melt weakening; returns the pre-melt values.
- *   c_SpohnPartialMelt    (alias "fischer")  Fischer and Spohn (1990) temperature law.
- *   c_HenningPartialMelt                     Henning (2009, 2010) three-regime law.
+/* TidalPy's partial-melt models (melt weakening of viscosity and modulus). All MKS.
  *
  * References
  * ----------
  * - Fischer and Spohn (1990), Icarus 83, 39.
  * - Henning, O'Connell, and Sasselov (2009); Renaud and Henning (2018), ApJ 857, 98.
  *
- * Binary payload under class_id BinaryClassID::<Model> (701-703): model_name length (uint32_t), the
- * model_name bytes, then the model's doubles. Off writes [solidus, liquidus, liquid_shear], Spohn
- * appends its 4 scalars, and Henning its 7. The layer observer pointer is not serialized.
+ * Binary payload: model name then the model's doubles. Off writes [solidus, liquidus, liquid_shear],
+ * Spohn appends its 4 scalars, Henning its 7. The layer observer pointer is not serialized.
  */
 
 #include <algorithm>
@@ -36,10 +26,7 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_PartialMeltConfig: construction parameters for every melt model. Each model
-// reads only the fields it needs.
-// -------------------------------------------------------------------------------
+// Combined construction parameters; each model reads only the fields it needs.
 struct c_PartialMeltConfig {
     // Shared melt envelope.
     double solidus      = 1600.0;  // [K]
@@ -62,23 +49,13 @@ struct c_PartialMeltConfig {
     double hn_shear_falloff_slope = 700.0;
 };
 
-// -------------------------------------------------------------------------------
-// Lower-case a model name for case-insensitive factory lookup.
-// -------------------------------------------------------------------------------
 inline std::string melt_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return text;
 }
 
-// =====================================================================================================================
-// Partial-melt models
-// =====================================================================================================================
-
-// -------------------------------------------------------------------------------
-// c_OffPartialMelt: no melt weakening (alias "none"); the post-melt strength equals
-// the pre-melt strength and the melt fraction is still reported.
-// -------------------------------------------------------------------------------
+// No melt weakening (alias "none"); the melt fraction is still reported.
 class c_OffPartialMelt : public c_PartialMeltBase {
 public:
     c_OffPartialMelt() : c_PartialMeltBase("off") {}
@@ -107,11 +84,8 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_SpohnPartialMelt: Fischer and Spohn (1990) temperature law (aliases "fischer",
-// "fischer_spohn"). The post-melt viscosity and shear modulus depend only on
-// temperature, not on the pre-melt values, and are floored at the liquid limits.
-// -------------------------------------------------------------------------------
+// Fischer and Spohn (1990) temperature law (aliases "fischer", "fischer_spohn"). The post-melt
+// strengths depend only on temperature, not on the pre-melt values.
 class c_SpohnPartialMelt : public c_PartialMeltBase {
 public:
     c_SpohnPartialMelt() : c_PartialMeltBase("spohn") {}
@@ -179,13 +153,8 @@ protected:
     double p_fs_shear_power_phase = 40.6;
 };
 
-// -------------------------------------------------------------------------------
-// c_HenningPartialMelt: Henning (2009, 2010) three-regime melt weakening.
-//
-// Below the critical melt fraction the strength weakens exponentially; in the
-// transition band [crit, crit + width] a steeper breakdown falloff applies; above
-// it the material is liquid-like. Floored at the liquid limits.
-// -------------------------------------------------------------------------------
+// Henning (2009, 2010) three-regime melt weakening: exponential weakening below the critical melt
+// fraction, a steeper breakdown falloff across [crit, crit + width], then liquid-like above it.
 class c_HenningPartialMelt : public c_PartialMeltBase {
 public:
     c_HenningPartialMelt() : c_PartialMeltBase("henning") {}
@@ -231,7 +200,6 @@ public:
         double post_visc;
         double post_shear;
         if (phi <= 0.0) {
-            // No melt: return pre-melt strengths.
             post_visc  = in.premelt_viscosity;
             post_shear = in.premelt_shear;
         } else if (phi < crit) {
@@ -240,7 +208,7 @@ public:
             post_shear = in.premelt_shear
                        * c_safe_exp((this->p_hn_shear_param_1 / in.temperature) - this->p_hn_shear_param_2);
         } else if (phi <= crit_plus) {
-            // Transition / breakdown band: maximum sub-critical effect then a steep falloff.
+            // Breakdown band: the full sub-critical effect, then a steep falloff.
             post_visc  = in.premelt_viscosity
                        * c_safe_exp(-this->p_hn_visc_slope_1 * crit)
                        * c_safe_exp(-this->p_hn_visc_falloff_slope * (phi - crit));
@@ -295,18 +263,13 @@ protected:
     double p_hn_shear_falloff_slope = 700.0;
 };
 
-// =====================================================================================================================
-// Factory
-// =====================================================================================================================
-
 enum class c_PartialMeltModel : uint8_t {
     Off     = 0,
     Spohn   = 1,
     Henning = 2,
 };
 
-// Map a (case-insensitive) model name or alias to a c_PartialMeltModel enum value.
-// Throws std::invalid_argument on an unknown name.
+// Model names are matched case-insensitively.
 inline c_PartialMeltModel c_partial_melt_model_from_name(const std::string& model_name) {
     const std::string name = melt_to_lower(model_name);
     if (name == "off" || name == "none")            { return c_PartialMeltModel::Off; }
@@ -316,7 +279,6 @@ inline c_PartialMeltModel c_partial_melt_model_from_name(const std::string& mode
     throw std::invalid_argument("TidalPy: unknown partial-melt model name '" + model_name + "'");
 }
 
-// Build the partial-melt model named by the enum; returns an owning unique_ptr.
 inline std::unique_ptr<c_PartialMeltBase> c_find_partial_melt(
         c_PartialMeltModel model, const c_PartialMeltConfig& cfg) {
     switch (model) {
@@ -327,13 +289,12 @@ inline std::unique_ptr<c_PartialMeltBase> c_find_partial_melt(
     throw std::invalid_argument("TidalPy: unrecognised c_PartialMeltModel enum value");
 }
 
-// Name overload.
 inline std::unique_ptr<c_PartialMeltBase> c_find_partial_melt(
         const std::string& model_name, const c_PartialMeltConfig& cfg) {
     return c_find_partial_melt(c_partial_melt_model_from_name(model_name), cfg);
 }
 
-// Reconstruct a partial-melt model from a binary stream (peek class id -> build -> read).
+// The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_PartialMeltBase> c_partial_melt_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);

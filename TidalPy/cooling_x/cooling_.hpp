@@ -1,18 +1,13 @@
 #pragma once
-/*
- * cooling_.hpp - TidalPy's cooling (heat-transport) models: c_OffCooling (alias "none"),
- * c_ConvectiveCooling (parameterized boundary-layer convection), and c_ConductiveCooling.
- *
- * Each implements c_CoolingBase::calc_cooling and returns a c_CoolingResult (heat flux [W/m^2],
- * boundary-layer thickness [m], Rayleigh and Nusselt numbers). All quantities are MKS.
+/* TidalPy's cooling (heat-transport) models. All quantities MKS.
  *
  * References
  * ----------
  * - Turcotte and Schubert (2002), Geodynamics: Rayleigh and Nusselt convection scaling.
  * - Solomatov (1995); Schubert, Turcotte, and Olson (2001): boundary-layer theory.
  *
- * Binary payload: the model name followed by the model's parameters as doubles. The observing
- * layer pointer is not serialized.
+ * Binary payload: model name then the model's parameters as doubles. The observing layer pointer is not
+ * serialized.
  */
 
 #include <algorithm>
@@ -32,8 +27,7 @@
 
 namespace tidalpy {
 
-// Guard a denominator that may approach zero: a magnitude below the shared numerical floor
-// (config_x [numerical].numerical_floor) becomes a signed floor value.
+// Guard a denominator that may approach zero; clamps to a signed numerical floor.
 inline double cool_guard(double value) noexcept {
     const double floor_value = tidalpy_config_ptr->d_NUMERICAL_FLOOR;
     if (std::abs(value) < floor_value) {
@@ -42,18 +36,14 @@ inline double cool_guard(double value) noexcept {
     return value;
 }
 
-// c_CoolingConfig: construction parameters for the convection model (the others take none).
+// Construction parameters for the convection model; the other models take none.
 struct c_CoolingConfig {
     double convection_alpha  = 1.0;                  // Nu = alpha * (Ra / Ra_crit)^beta  [dimensionless]
     double convection_beta   = 0.3333333333333333;   // convection exponent (~1/3)        [dimensionless]
     double critical_rayleigh = 1100.0;               // critical Rayleigh number           [dimensionless]
 };
 
-// =====================================================================================================================
-// Cooling functions
-// =====================================================================================================================
-
-// Off: no cooling. Boundary layer is half the layer thickness; flux zero.
+// No cooling. Boundary layer is set to half the layer thickness so downstream users see a sane value.
 inline c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
     result.cooling_flux    = 0.0;
@@ -63,7 +53,7 @@ inline c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
     return result;
 }
 
-// Conduction: flux = k * delta_temp / thickness; boundary layer = thickness.
+// Conduction across the whole layer: flux = k * delta_temp / thickness.
 inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
     result.blt             = in.thickness;
@@ -80,11 +70,10 @@ inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
 //   boundary layer = thickness / Nu
 //   flux = k * delta_temp / boundary_layer
 //
-// Nu_min is config_x [numerical] minimum_nusselt (2 by default: Nu = 1 is conduction across the whole layer,
-// and the floor keeps a barely convecting layer losing heat through a boundary layer half the layer thick).
-// Degenerate inputs (delta_temp <= 0, or a thickness at or below tidalpy_config_ptr->d_MIN_THICKNESS)
-// collapse to Ra = 0 and Nu = Nu_min. Each test is made once, with a NaN contrast or thickness counting as
-// degenerate, which keeps the Rayleigh number, the Nusselt number, and the boundary layer in agreement.
+// Nu_min defaults to 2: Nu = 1 is conduction across the whole layer, so the floor keeps a barely convecting
+// layer losing heat through a boundary layer half the layer thick. Degenerate inputs (no temperature
+// contrast, or a vanishingly thin layer) collapse to Ra = 0 and Nu = Nu_min. Each test is made once so that
+// Ra, Nu, and the boundary layer stay consistent with one another.
 inline c_CoolingResult cool_convection(
         const c_CoolingInputs& in, const c_CoolingConfig& cfg) noexcept {
     const double eps = TidalPyConstants::d_EPS;
@@ -105,7 +94,7 @@ inline c_CoolingResult cool_convection(
 
     double nusselt = cfg.convection_alpha
                    * std::pow(rayleigh / cool_guard(cfg.critical_rayleigh), cfg.convection_beta);
-    // A NaN from another input (the viscosity, say) stays NaN so that it reaches the caller.
+    // A NaN from another input (the viscosity, say) falls through so it reaches the caller.
     if (no_contrast || too_thin || (nusselt <= min_nusselt)) { nusselt = min_nusselt; }
 
     double blt = in.thickness / cool_guard(nusselt);
@@ -119,18 +108,13 @@ inline c_CoolingResult cool_convection(
     return result;
 }
 
-// Lower-case a model name for case-insensitive factory lookup.
 inline std::string cool_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return text;
 }
 
-// =====================================================================================================================
-// Cooling models
-// =====================================================================================================================
-
-// c_OffCooling: cooling disabled (alias "none").
+// Cooling disabled (alias "none").
 class c_OffCooling : public c_CoolingBase {
 public:
     c_OffCooling() : c_CoolingBase("off") {}
@@ -149,7 +133,6 @@ public:
     }
 };
 
-// c_ConductiveCooling: conduction across the layer.
 class c_ConductiveCooling : public c_CoolingBase {
 public:
     c_ConductiveCooling() : c_CoolingBase("conduction") {}
@@ -168,7 +151,7 @@ public:
     }
 };
 
-// c_ConvectiveCooling: parameterized boundary-layer convection.
+// Parameterized boundary-layer convection.
 class c_ConvectiveCooling : public c_CoolingBase {
 public:
     c_ConvectiveCooling() : c_CoolingBase("convection") {}
@@ -216,18 +199,13 @@ protected:
     double p_critical_rayleigh = 1100.0;
 };
 
-// =====================================================================================================================
-// Factory
-// =====================================================================================================================
-
 enum class c_CoolingModel : uint8_t {
     Off        = 0,
     Convection = 1,
     Conduction = 2,
 };
 
-// Map a (case-insensitive) model name or alias to a c_CoolingModel value. Recognized names:
-// "off"/"none", "convection"/"convective", "conduction"/"conductive".
+// Model names are matched case-insensitively.
 inline c_CoolingModel c_cooling_model_from_name(const std::string& model_name) {
     const std::string name = cool_to_lower(model_name);
 
@@ -238,7 +216,6 @@ inline c_CoolingModel c_cooling_model_from_name(const std::string& model_name) {
     throw std::invalid_argument("TidalPy: unknown cooling model name '" + model_name + "'");
 }
 
-// Build the cooling model named by the enum; returns an owning unique_ptr.
 inline std::unique_ptr<c_CoolingBase> c_find_cooling(
         c_CoolingModel model, const c_CoolingConfig& cfg) {
     switch (model) {
@@ -249,14 +226,13 @@ inline std::unique_ptr<c_CoolingBase> c_find_cooling(
     throw std::invalid_argument("TidalPy: unrecognised c_CoolingModel enum value");
 }
 
-// Name overload.
 inline std::unique_ptr<c_CoolingBase> c_find_cooling(
         const std::string& model_name, const c_CoolingConfig& cfg) {
     return c_find_cooling(c_cooling_model_from_name(model_name), cfg);
 }
 
-// Reconstruct a cooling model from a binary stream. The class id is peeked without consuming the
-// header so the matching default-constructed model can restore the record itself.
+// The class id is peeked without consuming the header so the matching default-constructed model can
+// restore the record itself.
 inline std::unique_ptr<c_CoolingBase> c_cooling_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);

@@ -1,6 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's partial-melt model hierarchy: the C++ models, the config, input and
-result structs, the enum factory, and the Python wrapper classes."""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
@@ -10,9 +8,6 @@ from libcpp cimport bool as cpp_bool
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_PartialMeltInputs:
@@ -85,9 +80,6 @@ cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
         c_PartialMeltModel model, const c_PartialMeltConfig& cfg) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations
-# =====================================================================================================================
 cdef class PartialMeltBase(PhysicsBase):
     cdef unique_ptr[c_PartialMeltBase] _melt_ptr   # owns the most-derived C++ model object
 

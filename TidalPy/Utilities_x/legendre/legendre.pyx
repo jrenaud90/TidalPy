@@ -2,11 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Python wrappers for TidalPy's associated-Legendre utilities.
 
-Both entry points return ``(P_lm(cos theta), dP_lm/dtheta, d2P_lm/dtheta2)`` for the unnormalized
-associated Legendre functions with the Condon-Shortley phase, matching ``scipy.special.assoc_legendre_p``
-with ``branch_cut=2``. ``legendre`` uses the precomputed tables (l = 2..10) and ``legendre_generic`` the
-vendored ``xsf`` library for any degree. Colatitude theta is in radians on [0, pi]; out-of-range orders
-(m < 0 or m > l) return NaNs.
+Both entry points return ``(P_lm(cos theta), dP_lm/dtheta, d2P_lm/dtheta2)`` unnormalized with the
+Condon-Shortley phase, matching ``scipy.special.assoc_legendre_p`` with ``branch_cut=2``.
 """
 
 from TidalPy.Utilities_x.legendre.legendre cimport (
@@ -31,8 +28,7 @@ def legendre(int degree_l, int order_m, double colatitude):
     Returns
     -------
     tuple of float
-        ``(P_lm(cos theta), dP_lm/dtheta, d2P_lm/dtheta2)``. NaNs if m is out of range or l is
-        outside the supported table range.
+        NaNs if m is out of range or l is outside the supported table range.
     """
     cdef c_LegendreValue value = c_legendre(degree_l, order_m, colatitude)
     return (value.p, value.dp_dtheta, value.d2p_dtheta2)
@@ -53,7 +49,7 @@ def legendre_generic(int degree_l, int order_m, double colatitude):
     Returns
     -------
     tuple of float
-        ``(P_lm(cos theta), dP_lm/dtheta, d2P_lm/dtheta2)``. NaNs if m is out of range.
+        NaNs if m is out of range.
     """
     cdef c_LegendreValue value = c_legendre_generic(degree_l, order_m, colatitude)
     return (value.p, value.dp_dtheta, value.d2p_dtheta2)

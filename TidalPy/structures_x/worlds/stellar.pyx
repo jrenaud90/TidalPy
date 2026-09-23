@@ -24,10 +24,6 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# StarWorld
-# =====================================================================================================================
-
 cdef class StarWorld(BaseWorld):
     """A star: no layers, no EOS; effective temperature and luminosity.
 
@@ -95,9 +91,6 @@ cdef class StarWorld(BaseWorld):
         world._star_ptr = <c_StarWorld*>ptr.get()
         return world
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def effective_temperature(self) -> float:
         """Effective temperature [K]."""
@@ -108,9 +101,6 @@ cdef class StarWorld(BaseWorld):
         """Luminosity [W]."""
         return self._star_ptr.get_luminosity()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Calculations
-    # ------------------------------------------------------------------------------------------------------------------
     def calc_luminosity_from_temperature(self, double temperature) -> float:
         """Stefan-Boltzmann luminosity [W] = 4·pi·R²·sigma·T⁴."""
         return self._star_ptr.calc_luminosity_from_temperature(temperature)
@@ -119,9 +109,6 @@ cdef class StarWorld(BaseWorld):
         """Effective temperature [K] from luminosity via Stefan-Boltzmann."""
         return self._star_ptr.calc_temperature_from_luminosity(luminosity)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Mutators (keep T and L consistent)
-    # ------------------------------------------------------------------------------------------------------------------
     def set_effective_temperature(self, double temperature):
         """Set effective temperature [K]; recomputes luminosity."""
         self._star_ptr.set_effective_temperature(temperature)
@@ -130,9 +117,7 @@ cdef class StarWorld(BaseWorld):
         """Set luminosity [W]; recomputes effective temperature."""
         self._star_ptr.set_luminosity(luminosity)
 
-    # ------------------------------------------------------------------------------------------------------------------
     # Luminosity model (mass -> luminosity, using the star's own mass and radius)
-    # ------------------------------------------------------------------------------------------------------------------
     def set_luminosity_model(self, LuminosityBase model not None):
         """Attach a :class:`~TidalPy.stellar_x.LuminosityBase` model (transfers ownership).
 
@@ -162,9 +147,6 @@ cdef class StarWorld(BaseWorld):
         no luminosity model is attached."""
         self._star_ptr.update_luminosity_from_mass()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
     def family_world_type(self) -> str:
         """Builder world ``type`` for stars."""
         return "star"

@@ -1,18 +1,12 @@
 #pragma once
-/*
- * viscosity_.hpp - TidalPy (solid and liquid) viscosity models: c_ConstantViscosity (alias
- * "const"), c_ReferenceViscosity (alias "ref"), and c_ArrheniusViscosity (alias "arr").
- *
- * Each implements c_ViscosityBase::calc_viscosity(temperature, pressure) and returns the dynamic
- * viscosity [Pa s]. All quantities MKS. The molar gas constant R comes from the shared TidalPy
- * config (tidalpy_config_ptr->d_R).
+/* TidalPy (solid and liquid) viscosity models. All quantities MKS.
  *
  * References
  * ----------
  * - Moore (2006): Arrhenius flow law (activation energy and volume).
  * - Henning (2009): reference-viscosity (relative activation) law.
  *
- * Binary payload: the model name followed by the model's parameters as doubles.
+ * Binary payload: model name then the model's parameters as doubles.
  */
 
 #include <algorithm>
@@ -26,13 +20,13 @@
 #include <string>
 #include <vector>
 
-#include "constants_.hpp"      // tidalpy_config_ptr->d_R, TidalPyConstants::d_EPS/d_INF
+#include "constants_.hpp"
 #include "viscosity_base_.hpp"
 #include "../Utilities_x/math_x/numerics_.hpp"  // c_safe_pow
 
 namespace tidalpy {
 
-// c_ViscosityConfig: combined construction parameters; each model reads only the fields it needs.
+// Combined construction parameters; each model reads only the fields it needs.
 struct c_ViscosityConfig {
     // Constant / Reference.
     double reference_viscosity   = 1.0e22;   // [Pa s]
@@ -51,18 +45,13 @@ struct c_ViscosityConfig {
     bool   additional_temp_dependence = false;  // multiply by T if true
 };
 
-// Lower-case a model name for case-insensitive factory lookup.
 inline std::string visc_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return text;
 }
 
-// =====================================================================================================================
-// Viscosity models
-// =====================================================================================================================
-
-// c_ConstantViscosity: viscosity independent of temperature and pressure (alias "const").
+// Viscosity independent of temperature and pressure (alias "const").
 class c_ConstantViscosity : public c_ViscosityBase {
 public:
     c_ConstantViscosity() : c_ViscosityBase("constant") {}
@@ -95,7 +84,7 @@ protected:
     double p_reference_viscosity = 1.0e22;
 };
 
-// c_ReferenceViscosity: relative-activation law (alias "ref").
+// Relative-activation law (alias "ref"):
 //   eta = eta_ref * exp( ((E_a + P * V_a) / R) * (1/T - 1/T_ref) )
 class c_ReferenceViscosity : public c_ViscosityBase {
 public:
@@ -123,8 +112,7 @@ public:
 
     double calc_viscosity(double temperature, double pressure) const override {
         const double R = tidalpy_config_ptr->d_R;
-        // A non-positive temperature is the cold limit: effectively rigid (infinite viscosity),
-        // which the rheology models treat as a purely elastic response.
+        // Cold limit: rigid, which the rheology models read as a purely elastic response.
         if (temperature <= TidalPyConstants::d_EPS
             || this->p_reference_temperature <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_INF;
@@ -133,7 +121,7 @@ public:
         const double exponent =
             ((this->p_molar_activation_energy + pressure * this->p_molar_activation_volume) / R)
             * delta_inv_temp;
-        // Plain exp: an overflowing (very cold) exponent saturates to the same rigid limit.
+        // Plain exp: an overflowing (very cold) exponent saturates to that same rigid limit.
         return this->p_reference_viscosity * std::exp(exponent);
     }
 
@@ -158,7 +146,7 @@ protected:
     double p_molar_activation_volume = 0.0;
 };
 
-// c_ArrheniusViscosity: Arrhenius flow law (alias "arr").
+// Arrhenius flow law (alias "arr"):
 //   eta = A * sigma^(1-n) * d^m * exp( (E_a + P * V_a) / (R * T) ), times T when
 //   additional_temp_dependence is set.
 class c_ArrheniusViscosity : public c_ViscosityBase {
@@ -199,15 +187,13 @@ public:
 
     double calc_viscosity(double temperature, double pressure) const override {
         const double R = tidalpy_config_ptr->d_R;
-        // A non-positive temperature is the cold limit: effectively rigid (infinite viscosity),
-        // which the rheology models treat as a purely elastic response.
+        // Cold limit: rigid, which the rheology models read as a purely elastic response.
         if (temperature <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_INF;
         }
         const double exponent =
             (this->p_molar_activation_energy + pressure * this->p_molar_activation_volume)
             / (R * temperature);
-        // Plain exp: an overflowing (very cold) exponent saturates to the same rigid limit.
         double viscosity = this->p_arrhenius_coeff
                          * c_safe_pow(this->p_stress, 1.0 - this->p_stress_expo)
                          * c_safe_pow(this->p_grain_size, this->p_grain_size_expo)
@@ -249,18 +235,13 @@ protected:
     bool   p_additional_temp_dependence = false;
 };
 
-// =====================================================================================================================
-// Factory
-// =====================================================================================================================
-
 enum class c_ViscosityModel : uint8_t {
     Arrhenius = 0,
     Reference = 1,
     Constant  = 2,
 };
 
-// Map a (case-insensitive) model name or alias to a c_ViscosityModel enum value.
-// Throws std::invalid_argument on an unknown name.
+// Model names are matched case-insensitively.
 inline c_ViscosityModel c_viscosity_model_from_name(const std::string& model_name) {
     const std::string name = visc_to_lower(model_name);
     if (name == "arrhenius" || name == "arr")   { return c_ViscosityModel::Arrhenius; }
@@ -269,7 +250,6 @@ inline c_ViscosityModel c_viscosity_model_from_name(const std::string& model_nam
     throw std::invalid_argument("TidalPy: unknown viscosity model name '" + model_name + "'");
 }
 
-// Build the viscosity model named by the enum; returns an owning unique_ptr.
 inline std::unique_ptr<c_ViscosityBase> c_find_viscosity(
         c_ViscosityModel model, const c_ViscosityConfig& cfg) {
     switch (model) {
@@ -280,13 +260,12 @@ inline std::unique_ptr<c_ViscosityBase> c_find_viscosity(
     throw std::invalid_argument("TidalPy: unrecognised c_ViscosityModel enum value");
 }
 
-// Name overload.
 inline std::unique_ptr<c_ViscosityBase> c_find_viscosity(
         const std::string& model_name, const c_ViscosityConfig& cfg) {
     return c_find_viscosity(c_viscosity_model_from_name(model_name), cfg);
 }
 
-// Reconstruct a viscosity model from a binary stream (peek class id -> build -> read).
+// The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_ViscosityBase> c_viscosity_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);

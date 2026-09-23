@@ -1,5 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for the material EOS models, config struct, factory, and wrapper classes."""
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
@@ -11,9 +10,6 @@ from TidalPy.viscosity_x.viscosity cimport c_ViscosityBase
 from TidalPy.partial_melt_x.partial_melt cimport c_PartialMeltBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_MaterialState:
@@ -128,11 +124,8 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         c_MaterialEOSModel model, const c_MaterialEOSConfig& cfg) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations
-# =====================================================================================================================
-# Config dict of a material: the EOS model's own entries plus a sub-table for each attached viscosity or
-# partial-melt model. Shared with the layer wrappers, which emit it as their ``material`` table.
+# The EOS model's own config entries plus a sub-table for each attached viscosity or partial-melt model.
+# Shared with the layer wrappers, which emit it as their ``material`` table.
 cdef dict cy_material_config(const c_MaterialEOSBase* eos_ptr)
 
 

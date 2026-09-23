@@ -10,21 +10,20 @@
 
 #include "cysolution.hpp"  // CyRK: CySolverResult
 
-#include "../../Utilities_x/dimensions/nondimensional_.hpp" // c_NonDimensionalScales
+#include "../../Utilities_x/dimensions/nondimensional_.hpp"
 #include "constants_.hpp"
 
-#include "ode_.hpp" // C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
-#include "../../utilities/arrays/interp_.hpp"  // c_binary_search_with_guess, c_interp, c_interp_complex
-#include "../../Utilities_x/math_x/numerics_.hpp"  // c_isclose
+#include "ode_.hpp"
+#include "../../utilities/arrays/interp_.hpp"
+#include "../../Utilities_x/math_x/numerics_.hpp"
 #include "../../Utilities_x/arrays/layer_partition_.hpp"  // c_partition_radius_by_layer
 
 
-/// C++ class storing the equation of state integration results for a layered planet.
+/// Equation-of-state integration results for a layered planet.
 ///
-/// Stores CyRK integration results for each layer, and provides methods for interpolating the full planet's
-/// gravity, pressure, mass, moment of inertia, density, and unrelaxed moduli at any radius. The viscoelastic
-/// response at a forcing frequency belongs to a rheology rather than to the equation of state and is reached
-/// through call_material.
+/// Holds the CyRK results of each layer and interpolates the planet's gravity, pressure, mass, moment of
+/// inertia, density, and unrelaxed moduli at any radius. The viscoelastic response at a forcing frequency
+/// belongs to a rheology rather than to the equation of state and is reached through call_material.
 class c_EOSSolution
 {
 
@@ -41,17 +40,16 @@ public:
     bool radius_array_set      = false;
     bool other_vecs_set        = false;
 
-    // Scales between this solution's units and the provider's SI: provider_radius = this_radius * length scale,
+    // Between this solution's units and the provider's SI: provider_radius = this_radius * length scale,
     // this_value = provider_value / scale. All one in a solve that ran dimensional.
     double p_structure_length_scale  = 1.0;
     double p_structure_gravity_scale = 1.0;
     double p_structure_pascal_scale  = 1.0;
     double p_structure_density_scale = 1.0;
 
-    // Optional state provider (the world Love solve). One call at an SI radius for one layer fills the whole
-    // evaluation layout of eos_layout_.hpp (C_EOS_DY_VALUES SI doubles, from the world's solved EOS at dense
-    // accuracy) and the complex shear and bulk moduli [Pa] at the solve's forcing frequency. It stays installed
-    // after the solve, which is what lets the solution answer at any radius afterwards.
+    // Optional state provider, installed by the world Love solve. One call at an SI radius for one layer
+    // fills the whole evaluation layout plus the complex moduli at the solve's forcing frequency. It stays
+    // installed after the solve, which is what lets the solution answer at any radius afterwards.
     using MaterialEval = std::function<void(
         size_t layer_index,
         double radius_si,
@@ -84,17 +82,16 @@ public:
     // Store results from CyRK's cysolve_ivp.
     std::vector<double> upper_radius_bylayer_vec  = std::vector<double>();
     std::vector<size_t> steps_taken_vec           = std::vector<size_t>();
-    // One retained integrator per radial segment, in ascending radius. A layer is one segment unless its
-    // temperature profile has a kink (see c_EOSSegment), so the mapping below finds a layer's segments.
+    // One retained integrator per radial segment, ascending. A layer is one segment unless its temperature
+    // profile has a kink, so the mapping below finds a layer's segments.
     std::vector<std::unique_ptr<CySolverResult>> cysolver_results_uptr_vec =
         std::vector<std::unique_ptr<CySolverResult>>();
     std::vector<double> segment_upper_radius_vec   = std::vector<double>();
     std::vector<size_t> first_segment_bylayer_vec  = std::vector<size_t>();
     std::vector<size_t> num_segments_bylayer_vec   = std::vector<size_t>();
-    // Uniform temperature [K] of each segment, used when the solve did not carry temperature.
+    // Used when the solve did not carry temperature.
     std::vector<double> segment_temperature_vec    = std::vector<double>();
-    // State variables the retained integrators carry: C_EOS_Y_VALUES, or C_EOS_THERMAL_Y_VALUES when the
-    // solve integrated temperature and heat flow.
+    // C_EOS_THERMAL_Y_VALUES when the solve integrated temperature and heat flow.
     size_t num_y_solved = C_EOS_Y_VALUES;
 
     // Copy of user-provided radius array
@@ -108,20 +105,20 @@ public:
     std::vector<double> density_array_vec  = std::vector<double>();
     std::vector<std::complex<double>> complex_shear_array_vec = std::vector<std::complex<double>>();
     std::vector<std::complex<double>> complex_bulk_array_vec  = std::vector<std::complex<double>>();
-    // Static (real) shear/bulk viscosity [Pa s] vs radius (EOS-model extra outputs).
+    // Static (real) shear/bulk viscosity [Pa s] vs radius.
     std::vector<double> shear_viscosity_array_vec = std::vector<double>();
     std::vector<double> bulk_viscosity_array_vec  = std::vector<double>();
     // Temperature [K] and heat flow [W] vs radius.
     std::vector<double> temperature_array_vec     = std::vector<double>();
     std::vector<double> heat_flow_array_vec       = std::vector<double>();
 
-    // Per-layer EOS functions and arguments saved by c_solve_eos. The retained integrators carry only the four
-    // structure variables; density, moduli, and viscosities are evaluated on demand from the interpolated state.
+    // Saved by c_solve_eos. The retained integrators carry only the four structure variables; density,
+    // moduli, and viscosities are evaluated on demand from the interpolated state.
     std::vector<PreEvalFunc>    eos_function_bylayer_vec = std::vector<PreEvalFunc>();
     std::vector<c_EOS_ODEInput> eos_input_bylayer_vec    = std::vector<c_EOS_ODEInput>();
 
-    // Per-layer partition of the radius array (see update_slice_partition). An interface radius is the last slice
-    // of the lower layer and the first slice of the upper one, so a lookup for a layer must stay inside its slices.
+    // An interface radius is the last slice of the lower layer and the first slice of the upper one, so a
+    // lookup for a layer must stay inside its own slices.
     std::vector<size_t> first_slice_bylayer_vec = std::vector<size_t>();
     std::vector<size_t> num_slices_bylayer_vec  = std::vector<size_t>();
 
@@ -189,7 +186,7 @@ public:
         this->cysolver_results_uptr_vec.clear();
     }
 
-    /// One segment per layer: the layout of a solve that does not carry temperature.
+    /// The layout of a solve that does not carry temperature.
     void set_segments_from_layers()
     {
         this->segment_upper_radius_vec  = this->upper_radius_bylayer_vec;
@@ -202,7 +199,6 @@ public:
         }
     }
 
-    /// Record a segment layout (ascending radius) before a solve.
     void set_segments(const std::vector<c_EOSSegment>& segment_vec)
     {
         const size_t num_segments = segment_vec.size();
@@ -225,7 +221,7 @@ public:
         }
     }
 
-    /// The segment of a layer that holds a radius (the last one at or above it; its first as a fallback).
+    /// The last segment at or above the radius; the layer's first as a fallback.
     size_t segment_index(const size_t layer_index, const double radius_val) const noexcept
     {
         if (layer_index >= this->num_segments_bylayer_vec.size()) { return layer_index; }
@@ -240,7 +236,6 @@ public:
     }
 
 
-    /// Record the number of integration steps taken for a layer.
     void save_steps_taken(size_t steps_taken)
     {
         this->steps_taken_vec.push_back(steps_taken);
@@ -248,8 +243,8 @@ public:
     }
 
 
-    /// Keep the per-layer EOS evaluation functions and their arguments so the density, moduli, and viscosities can
-    /// be evaluated at any radius after the solve. The copies ask the functions for every output.
+    /// Kept so the density, moduli, and viscosities can be evaluated at any radius after the solve. The
+    /// copies ask the functions for every output.
     void save_eos_functions(
         const std::vector<PreEvalFunc>& eos_function_bylayer,
         const std::vector<c_EOS_ODEInput>& eos_input_bylayer)
@@ -264,9 +259,9 @@ public:
     }
 
 
-    /// Partition the radius array by layer: a layer's slices run from its first slice through the first copy of
-    /// its upper radius, the second copy of an interface radius starting the next layer. Both copies share a radius
-    /// but carry their own layer's density and moduli, so every array lookup must stay inside one layer's slices.
+    /// A layer's slices run from its first through the first copy of its upper radius; the second copy starts
+    /// the next layer. Both copies share a radius but carry their own layer's density and moduli, so every
+    /// array lookup must stay inside one layer's slices.
     void update_slice_partition() noexcept
     {
         if (this->upper_radius_bylayer_vec.size() < this->num_layers)
@@ -287,8 +282,8 @@ public:
 
 
 
-    /// Radius in solve units for an SI radius: the retained integrators live in the units the solve ran in, so a
-    /// re-dimensionalized solution converts an SI query back before evaluating them.
+    /// The retained integrators live in the units the solve ran in, so a re-dimensionalized solution
+    /// converts an SI query back before evaluating them.
     double convert_radius_si_to_solve(const double radius_si) const noexcept
     {
         return (this->nondim_status == 1) ? radius_si / this->redim_length_scale : radius_si;
@@ -296,18 +291,17 @@ public:
 
 
 protected:
-    /// Evaluate one layer's retained integrator at a radius in solve units, with no rescaling: the four structure
-    /// variables from the dense output, then the density, moduli, and viscosities from the layer's EOS function at
-    /// that state. Writes C_EOS_DY_VALUES doubles; the extra outputs are NaN when no EOS function was saved.
+    /// No rescaling: the four structure variables from the dense output, then the density, moduli, and
+    /// viscosities from the layer's EOS function at that state. The extra outputs are NaN when no EOS
+    /// function was saved.
     void p_evaluate_solver(
         const size_t layer_index,
         const double radius_val,
         double* y_interp_ptr,
         c_EOSMaterialState* material_out = nullptr) const
     {
-        // The retained integrator writes num_y_solved values, so it fills a buffer of its own and the
-        // structure variables are copied out; the evaluation layout uses slots 4 and 5 for the density and
-        // the shear modulus.
+        // The integrator writes num_y_solved values into a buffer of its own, and the structure variables
+        // are copied out: the evaluation layout uses slots 4 and 5 for the density and the shear modulus.
         const size_t segment_i = this->segment_index(layer_index, radius_val);
         double state_arr[C_EOS_THERMAL_Y_VALUES];
         this->cysolver_results_uptr_vec[segment_i]->call(radius_val, &state_arr[0]);
@@ -335,11 +329,11 @@ protected:
             && this->eos_function_bylayer_vec[layer_index] != nullptr)
         {
             c_EOSOutput eos_output;
-            // The EOS functions take their arguments through non-const pointers but leave this solution unchanged.
+            // The EOS functions take non-const pointers but leave this solution unchanged.
             char* input_ptr = const_cast<char*>(
                 reinterpret_cast<const char*>(&this->eos_input_bylayer_vec[layer_index]));
-            // The EOS function reads the state layout, where a thermal solve keeps its temperature at index 4;
-            // in the evaluation layout that slot is the density this call is about to fill.
+            // The EOS function reads the state layout, where a thermal solve keeps its temperature at index
+            // 4; in the evaluation layout that slot is the density this call is about to fill.
             this->eos_function_bylayer_vec[layer_index](
                 reinterpret_cast<char*>(&eos_output), radius_val, &state_arr[0], input_ptr);
             y_interp_ptr[C_EOS_DENSITY_INDEX]         = eos_output.density;
@@ -367,9 +361,8 @@ protected:
     }
 
 
-    /// Apply the solution's dimensional state to the first `count` outputs of an evaluation (structure variables,
-    /// density, and the two static moduli). The viscosities and everything past them are always SI and are left
-    /// alone.
+    /// Applies to the structure variables, density, and the two static moduli. The viscosities and
+    /// everything past them are SI in every state and are left alone.
     void p_rescale_outputs(double* y_interp_ptr, const size_t count) const noexcept
     {
         if (this->nondim_status == 0)
@@ -402,20 +395,17 @@ public:
 
 
 
-    /// Evaluate every EOS output at a single radius in solve units (non-dimensional when the solve was) for a
-    /// specific layer, writing C_EOS_DY_VALUES doubles in the evaluation layout of eos_layout_.hpp: gravity,
-    /// pressure, mass, moment of inertia, density, the unrelaxed shear and bulk moduli, the shear and bulk
-    /// viscosities, temperature, heat flow, and melt fraction. A re-dimensionalized solution returns SI values for
-    /// all but the viscosities, which are SI in every state. Frequency-independent throughout: a viscoelastic
-    /// response comes from call_material. call_si takes the radius in metres.
+    /// Every EOS output at one radius in solve units, in the evaluation layout of eos_layout_.hpp. A
+    /// re-dimensionalized solution returns SI for all but the viscosities, which are SI in every state.
+    /// Frequency independent throughout; a viscoelastic response comes from call_material.
     void call_nondim(
         const size_t layer_index,
         const double radius_val,
         double* y_interp_ptr) const
     {
-        // Provider mode, installed by the world's Love solve: this solution stores no grid at all, and the provider
-        // answers in SI at the exact radius asked for. Only the frequency-independent values belong in this
-        // layout; the provider's complex moduli reach the solver through call_material.
+        // Provider mode: this solution stores no grid at all, and the provider answers in SI at the exact
+        // radius asked for. Only frequency-independent values belong in this layout; the provider's
+        // complex moduli reach the solver through call_material.
         if (this->p_material_eval)
         {
             std::complex<double> shear_unused;
@@ -434,8 +424,7 @@ public:
     }
 
 
-    /// The radial solver's read at an integration radius in solve units: gravity, density, and the complex shear
-    /// and bulk moduli, in the solution's current units.
+    /// The radial solver's read at an integration radius: gravity, density, and the complex moduli.
     void call_material(
         const size_t layer_index,
         const double radius_val,
@@ -443,8 +432,8 @@ public:
     {
         out = c_EOSMaterialState();
 
-        // Provider mode: the world Love solve. One provider call reads the world's solved EOS once and applies
-        // the rheology, at the exact radius asked for; its SI answers are scaled into this solution's units.
+        // One provider call reads the world's solved EOS and applies the rheology at the exact radius asked
+        // for; its SI answers are scaled into this solution's units.
         if (this->p_material_eval)
         {
             double state[C_EOS_DY_VALUES];
@@ -457,7 +446,7 @@ public:
             return;
         }
 
-        // Integrator mode: this solution's own retained integrators plus the layer's EOS model.
+        // Otherwise: this solution's own retained integrators plus the layer's EOS model.
         if (layer_index >= this->current_layers_saved) [[unlikely]]
         {
             throw std::out_of_range("Layer index out of range.");
@@ -482,15 +471,14 @@ public:
     }
 
 
-    /// `call_material` for an SI radius [m]: the radius is converted into solve units first.
+    /// `call_material` for an SI radius [m].
     void call_material_si(const size_t layer_index, const double radius_si, c_EOSMaterialState& out) const
     {
         this->call_material(layer_index, this->convert_radius_si_to_solve(radius_si), out);
     }
 
 
-    /// The four structure variables (gravity, pressure, mass, moment of inertia) at a radius in solve units,
-    /// without evaluating the layer's EOS function. Writes C_EOS_Y_VALUES doubles.
+    /// The four structure variables alone, without evaluating the layer's EOS function.
     void call_y(
         const size_t layer_index,
         const double radius_val,
@@ -511,22 +499,22 @@ public:
     }
 
 
-    /// `call_nondim` for an SI radius [m]: the radius is converted into solve units first.
+    /// `call_nondim` for an SI radius [m].
     void call_si(const size_t layer_index, const double radius_si, double* y_interp_ptr) const
     {
         this->call_nondim(layer_index, this->convert_radius_si_to_solve(radius_si), y_interp_ptr);
     }
 
 
-    /// `call_y` for an SI radius [m]: the radius is converted into solve units first.
+    /// `call_y` for an SI radius [m].
     void call_y_si(const size_t layer_index, const double radius_si, double* y_interp_ptr) const
     {
         this->call_y(layer_index, this->convert_radius_si_to_solve(radius_si), y_interp_ptr);
     }
 
 
-    /// The layer holding an SI radius [m]: the innermost whose upper radius reaches it. An interface radius
-    /// belongs to the lower layer, matching the convention the rest of this solution uses.
+    /// The innermost layer whose upper radius reaches it. An interface radius belongs to the lower layer,
+    /// matching the convention the rest of this solution uses.
     size_t layer_at_radius_si(const double radius_si) const noexcept
     {
         const double radius_solve = this->convert_radius_si_to_solve(radius_si);
@@ -543,7 +531,6 @@ public:
 
 
 
-    /// Prepare storage vectors for a new or changed radius array.
     void change_radius_array(
         double* new_radius_ptr,
         size_t new_radius_size)
@@ -586,7 +573,7 @@ public:
         this->update_slice_partition();
     }
 
-    /// Run full planet interpolation through each layer using the stored radius array.
+    /// Interpolate the whole planet onto the stored radius array, layer by layer.
     void interpolate_full_planet()
     {
         this->solution_nondim_status = this->nondim_status;
@@ -604,8 +591,8 @@ public:
         size_t current_layer_index        = 0;
         double current_layer_upper_radius = this->upper_radius_bylayer_vec[0];
 
-        // Zero initialized because the surface values are read from this array after the loop: a loop that
-        // breaks on its first pass would otherwise leave the planet's mass and moi holding stack garbage.
+        // Zero initialized because the surface values are read out after the loop: a loop that breaks on
+        // its first pass would otherwise leave the planet's mass and moi holding stack garbage.
         double y_interp_arr[C_EOS_DY_VALUES] = {0.0};
         double* y_interp_ptr = &y_interp_arr[0];
 
@@ -646,7 +633,7 @@ public:
                 }
             }
 
-            // The evaluation layout carries only the unrelaxed moduli, so the complex ones come back alongside it.
+            // The evaluation layout carries only the unrelaxed moduli, so the complex ones come separately.
             c_EOSMaterialState material_state;
             this->p_evaluate_solver(current_layer_index, radius_val, y_interp_ptr, &material_state);
 
@@ -670,7 +657,6 @@ public:
             }
         }
 
-        // The last interpolated values are the surface values.
         this->surface_gravity  = y_interp_ptr[0];
         this->surface_pressure = y_interp_ptr[1];
         this->mass             = y_interp_ptr[2];
@@ -681,8 +667,7 @@ public:
 
 
 
-    /// Scale the structure variables, density, and moduli into or out of non-dimensional units. The viscosity
-    /// arrays are SI in every state and are left alone.
+    /// The viscosity arrays are SI in every state and are left alone.
     void dimensionalize_data(
         c_NonDimensionalScales* nondim_scales,
         bool redimensionalize)
@@ -694,8 +679,8 @@ public:
         this->redim_moi_scale     = nondim_scales->mass_conversion * nondim_scales->length_conversion * nondim_scales->length_conversion;
         this->redim_pascal_scale  = nondim_scales->pascal_conversion;
 
-        // A solution that was neither non-dimensionalized nor re-dimensionalized at solve time is assumed to be in
-        // the state the requested direction implies.
+        // A solution neither non-dimensionalized nor re-dimensionalized at solve time is taken to be in the
+        // state the requested direction implies.
         if (this->solution_nondim_status == 0)
         {
             if (redimensionalize)

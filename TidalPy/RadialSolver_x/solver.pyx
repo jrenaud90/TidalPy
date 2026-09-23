@@ -30,18 +30,16 @@ from TidalPy.Tides_x.love.love cimport c_parse_love_method_int
 # than cimporting structures_x.worlds.layered; see the note there for why that import cannot be used.
 
 
-# Name the world built from a supplied profile carries. It reaches nothing a caller can see; it is here so a
-# C++ message about that world says where it came from.
+# Nothing a caller can see reads this; it is here so a C++ message about that world says where it came from.
 DEF PROFILE_WORLD_NAME = b"radial_solver_profile"
 
 
 cdef class _ProfileWorldAnchor:
     """Owns the C++ world a supplied profile was built into, for as long as its solution is alive.
 
-    The standalone API hands `radial_solver` arrays rather than a world, so the world it builds is an
-    implementation detail: nothing reads it back and it never reaches Python. What it must do is outlive the
-    solution, because the material provider the Love solve installed on the solution reads this world's solved
-    EOS. `RadialSolverSolution._adopt` keeps whatever object it is handed alive, so this is that object.
+    The standalone API hands `radial_solver` arrays rather than a world, so the world it builds never reaches
+    Python. It must outlive the solution, though, because the material provider the Love solve installed on
+    the solution reads this world's solved EOS; `RadialSolverSolution._adopt` keeps this object alive for it.
     """
     cdef shared_ptr[c_LayeredWorld] world_sptr
 
@@ -326,12 +324,10 @@ def radial_solver(
         )
 
         # The supplied arrays describe a planet, so build that planet and solve it the way a built world is
-        # solved. One code path serves both APIs: the interior comes from an interpolated material per layer,
-        # and the complex moduli are handed to the solve rather than derived from a rheology.
-        #
-        # The EOS interpolates the static (unrelaxed) moduli, which are the real parts of the supplied complex
-        # ones. They are copied into C++ vectors rather than NumPy views so that no part of the profile becomes
-        # a Python object on its way to the solver.
+        # solved: one code path for both APIs, with an interpolated material per layer and the complex moduli
+        # handed in rather than derived from a rheology. The EOS interpolates the static moduli, the real
+        # parts of the supplied complex ones. Copied into C++ vectors rather than NumPy views so no part of
+        # the profile becomes a Python object on its way to the solver.
         shear_static.resize(total_slices)
         bulk_static.resize(total_slices)
         for slice_i in range(total_slices):
@@ -356,8 +352,8 @@ def radial_solver(
 
     world_ptr = world_sptr.get()
 
-    # Whole-planet EOS solve. The config starts from the [eos_solver] section of the TidalPy configuration,
-    # exactly as the world-attached path does, with this call's already-resolved settings written over it.
+    # The config starts from the [eos_solver] section, exactly as the world-attached path does, with this
+    # call's already-resolved settings written over it.
     eos_cfg = world_ptr.make_eos_solve_config()
     eos_cfg.surface_pressure   = surface_pressure
     eos_cfg.slices_per_layer   = <size_t>max(<int>(total_slices // num_layers), 5)
@@ -376,8 +372,8 @@ def radial_solver(
             f"iteration. Raise eos_pressure_tol above the integration eos_rtol ({c_eos_rtol:0.1e}) or tighten "
             f"eos_rtol.")
 
-    # Love solve from the supplied complex moduli rather than a layer rheology. The boundary-condition models
-    # and both integration methods were resolved by the input check above, so nothing is re-parsed here.
+    # From the supplied complex moduli rather than a layer rheology. The boundary-condition models and both
+    # integration methods were resolved by the input check above, so nothing is re-parsed here.
     love_cfg.frequency          = frequency
     love_cfg.degree_l           = degree_l
     love_cfg.set_bc_models(&bc_models_out[0], num_bc_models_out)

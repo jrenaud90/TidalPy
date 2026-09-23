@@ -1,11 +1,6 @@
-"""TidalPy.Utilities_x.graphics_x - plotting helpers for the new backend.
+"""Plotting helpers for the new backend.
 
-`plot_ys` draws the six radial functions (y1..y6) of one or more radial-solver solutions, optionally
-against published benchmark curves; `plot_interior` draws a planet's interior profiles (gravity, density,
-pressure, optional temperature and moduli). Both return the matplotlib figure and axes so callers can
-adjust them further. `RadialSolverSolution.plot_ys` and `.plot_interior` call these with the solution's
-own arrays. `plot_map` draws one colatitude-by-longitude slice of a 3D field as a global map, and
-`make_map_axes` builds figures of map panels for it; both use cartopy when it is installed.
+Every entry point returns the matplotlib figure and axes so callers can adjust them further.
 """
 
 from TidalPy.Utilities_x.graphics_x.radial_functions import (

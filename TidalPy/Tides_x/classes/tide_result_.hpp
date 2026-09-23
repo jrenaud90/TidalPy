@@ -71,7 +71,6 @@ struct c_GlobalTideResult {
     int error_code       = 0;    // propagated from the potential solve
 };
 
-// -------------------------------------------------------------------------------
 // 3D tidal-heating collapse (flavor flags and result).
 //
 // orbit_averaged = true gives the secular volumetric heating density h_bar [W m-3]: the time average
@@ -91,7 +90,6 @@ struct c_GlobalTideResult {
 //
 // Non-summed spatial axes use the supplied radii, colatitudes, and longitudes; summed axes use
 // internal integration grids. The time axis always uses the supplied times.
-// -------------------------------------------------------------------------------
 struct c_Heating3DCollapseConfig {
     bool orbit_averaged   = true;   // true: secular density; false: instantaneous sigma:eps_dot vs time
     bool latitude_summed  = false;  // integrate over colatitude (Gauss-Legendre, sin theta weight)

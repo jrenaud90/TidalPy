@@ -1,30 +1,26 @@
 #pragma once
-/*
- * material_.hpp: EOS pre-evaluation that asks a layer's material (c_MaterialEOSBase) for its properties at the
- * current radius, pressure (y[1]), and temperature during the whole-planet structure solve. While the solve
- * iterates it needs the density alone; the full frequency-independent state (static moduli, viscosities, melt
- * fraction) is evaluated when the update_shear / update_bulk flags are set, which is every dense evaluation of
- * the finished solution.
+/* EOS pre-evaluation: asks a layer's material for its properties at the current radius, pressure, and
+ * temperature during the whole-planet structure solve. While the solve iterates it needs the density alone;
+ * the full frequency-independent state follows only when the update_shear / update_bulk flags are set, which
+ * is every dense evaluation of the finished solution.
  */
 
 #include <complex>
 
-#include "../ode_.hpp"             // c_EOS_ODEInput, c_EOSOutput, PreEvalFunc signature
-#include "../material_eos_.hpp"    // tidalpy::c_MaterialEOSBase, tidalpy::c_MaterialState
-#include "../../../constants_.hpp" // TidalPyConstants::d_NAN
+#include "../ode_.hpp"
+#include "../material_eos_.hpp"
+#include "../../../constants_.hpp"
 
 
-/// Input for the material-EOS pre-evaluation: a non-owning model pointer, the temperature, and the unit scales of
-/// the solve. The models work in SI, so a non-dimensional solve scales the radius and pressure up before the call
-/// and the density and moduli down afterwards; the viscosities are returned in SI either way.
+/// The models work in SI, so a non-dimensional solve scales the radius and pressure up before the call and
+/// the density and moduli down afterwards; the viscosities come back in SI either way.
 struct c_MaterialEOSInput
 {
     tidalpy::c_MaterialEOSBase* eos_model_ptr = nullptr;
-    // Temperature [K] of the layer. A solve that integrates temperature takes the local state value instead.
+    // A solve that integrates temperature takes the local state value instead.
     double temperature   = 0.0;
     bool   use_state_temperature = false;
-    // True when the density law sees the temperature (the layer asked for a thermal EOS). The viscosity and
-    // partial-melt models see it either way.
+    // Whether the density law sees the temperature; the viscosity and partial-melt models always do.
     bool   thermal_density = false;
     double length_scale  = 1.0;
     double pascal_scale  = 1.0;
@@ -32,7 +28,7 @@ struct c_MaterialEOSInput
 };
 
 
-/// Material-EOS pre-evaluation (CyRK PreEvalFunc signature).
+/// CyRK PreEvalFunc signature.
 inline void c_preeval_material_eos(
         char* preeval_output,
         double radius,
@@ -54,7 +50,7 @@ inline void c_preeval_material_eos(
 
     if (!(ode_args->update_shear || ode_args->update_bulk))
     {
-        // The structure iteration needs the density alone, so it skips the viscosity and melt models.
+        // The structure iteration needs the density alone, so skip the viscosity and melt models.
         const double density_temperature = eos_data->thermal_density ? temperature : TidalPyConstants::d_NAN;
         output->density = eos_model->calc_density(
             pressure_si, density_temperature, radius_si) / eos_data->density_scale;

@@ -1,9 +1,7 @@
 #pragma once
-/*
- * numerics_.hpp: small shared numerical helpers for all TidalPy C++ code.
+/* Small shared numerical helpers.
  *
- * Header-only and dependency-free (standard library only) so even the lowest-level utility modules can
- * include it. The NaN returned by the guarded helpers is the same quiet NaN as TidalPyConstants::d_NAN.
+ * Dependency-free (standard library only) so even the lowest-level utility modules can include it.
  */
 
 #include <cmath>
@@ -11,11 +9,7 @@
 #include <limits>
 
 
-// =====================================================================================================================
-// Floating-point comparison
-// =====================================================================================================================
-
-/// Check whether two doubles are approximately equal (NaN-safe; mirrors math.isclose).
+/// NaN-safe; mirrors math.isclose.
 inline bool c_isclose(
         double value_a,
         double value_b,
@@ -39,15 +33,9 @@ inline bool c_isclose(
 }
 
 
-// =====================================================================================================================
-// Guarded growth functions
-//
-// Scientific formulas with exponential or power-law growth can silently overflow to inf
-// (or produce NaN from a domain error). These wrappers return a quiet NaN instead so a
-// bad parameter regime is visible to the caller rather than propagating garbage.
-// =====================================================================================================================
+// Formulas with exponential or power-law growth silently overflow to inf (or a domain-error NaN). These
+// wrappers return a quiet NaN instead, so a bad parameter regime is visible rather than propagating.
 
-/// std::pow that returns NaN instead of inf (or a domain-error NaN) when the result is not finite.
 inline double c_safe_pow(double base, double exponent)
 {
     const double result = std::pow(base, exponent);
@@ -58,7 +46,6 @@ inline double c_safe_pow(double base, double exponent)
     return result;
 }
 
-/// std::exp that returns NaN instead of inf when the result overflows.
 inline double c_safe_exp(double exponent)
 {
     const double result = std::exp(exponent);

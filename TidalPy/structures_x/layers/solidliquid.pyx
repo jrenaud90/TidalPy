@@ -28,9 +28,6 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# SolidLiquidLayer
-# =====================================================================================================================
 cdef class SolidLiquidLayer(PhysicsLayer):
     """Thermo-mechanical layer with optional cooling and radiogenics sub-models.
 
@@ -153,9 +150,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         v._init_view(<c_BaseLayer*>ptr, world)
         return v
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Thermal properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def thermal_conductivity(self) -> float:
         """Thermal conductivity k [W/(m K)] of the layer's material (its EOS model); NaN when none is attached."""
@@ -181,9 +175,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         """True after a radiogenics sub-model has been attached."""
         return self._solidliquid_ptr.get_radiogenics_set()
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Sub-model attachment
-    # ------------------------------------------------------------------------------------------------------------------
     def set_cooling(self, CoolingBase cooling not None):
         """Attach a cooling (heat-transport) sub-model.
 
@@ -227,9 +218,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         self._solidliquid_ptr.set_radiogenics(move(radiogenics._radiogenics_ptr))
         radiogenics._ptr = NULL
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Calculations
-    # ------------------------------------------------------------------------------------------------------------------
     def calc_thermal_conductivity(self, double temperature) -> float:
         """Thermal conductivity [W/(m·K)]: the reference value, with no temperature dependence modeled.
 
@@ -317,9 +305,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         """
         return self._solidliquid_ptr.calc_radiogenic_heating(time, mass)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Config
-    # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
         """Return all configuration values as a Python dict (MKS).
 

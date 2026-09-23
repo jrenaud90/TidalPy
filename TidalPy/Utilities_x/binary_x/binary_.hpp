@@ -1,6 +1,5 @@
 #pragma once
-/*
- * binary_.hpp: TidalPy binary file format utilities.
+/* TidalPy binary file format utilities.
  *
  * Every TidalPy binary file starts with a fixed 20-byte c_BinaryHeader:
  *
@@ -30,26 +29,16 @@
 
 namespace tidalpy {
 
-// ---------------------------------------------------------------------------
-// Schema version constants (separate from TidalPy package version)
-// ---------------------------------------------------------------------------
-
+// Schema version: independent of the TidalPy package version.
 inline constexpr uint8_t TIDALPY_SCHEMA_MAJOR = 0;
 inline constexpr uint8_t TIDALPY_SCHEMA_MINOR = 2;
 inline constexpr uint8_t TIDALPY_SCHEMA_PATCH = 0;
 
-// Magic bytes: the first 4 bytes of every TidalPy binary file.
 inline constexpr char TIDALPY_BINARY_MAGIC[4] = {'T', 'P', 'Y', 'B'};
 
-// Total size of the binary header in bytes.
 inline constexpr std::size_t TIDALPY_BINARY_HEADER_BYTES = 20;
 
-// ---------------------------------------------------------------------------
-// Class type IDs
-// ---------------------------------------------------------------------------
-// Each serializable class has a unique ID stored in c_BinaryHeader.class_id.
-// Ranges: 1 to 99 utility and base, 100 to 199 layers, 200 to 299 worlds, 300+ physics.
-
+// One id per serializable class, stored in c_BinaryHeader.class_id.
 enum class BinaryClassID : uint32_t {
     Unknown          = 0,
     // 01-09: Base Structure classes
@@ -118,10 +107,6 @@ enum class BinaryClassID : uint32_t {
     PowerLawLuminosity = 1003
 };
 
-// ---------------------------------------------------------------------------
-// Header struct
-// ---------------------------------------------------------------------------
-
 struct c_BinaryHeader {
     char     magic[4];      // "TPYB"
     uint8_t  schema_major;
@@ -132,11 +117,6 @@ struct c_BinaryHeader {
     uint64_t payload_size;  // bytes of payload after this header
 };
 
-// ---------------------------------------------------------------------------
-// Write
-// ---------------------------------------------------------------------------
-
-// Write the 20-byte header to an output stream.
 // payload_size may be 0 if the caller will seek back and update it.
 inline void write_binary_header(
     std::ostream& out, uint32_t class_id, uint64_t payload_size = 0)
@@ -154,12 +134,6 @@ inline void write_binary_header(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Read
-// ---------------------------------------------------------------------------
-
-// Read the 20-byte header from an input stream.
-// Throws std::runtime_error if magic bytes are wrong or stream is too short.
 inline c_BinaryHeader read_binary_header(std::istream& in) {
     c_BinaryHeader h{};
     in.read(h.magic, 4);
@@ -181,7 +155,6 @@ inline c_BinaryHeader read_binary_header(std::istream& in) {
     return h;
 }
 
-// Convenience overload: open a file by path, read and return its header.
 inline c_BinaryHeader read_binary_header_from_file(const std::string& path) {
     std::ifstream in(path, std::ios::binary);
     if (!in.is_open()) {
@@ -190,13 +163,7 @@ inline c_BinaryHeader read_binary_header_from_file(const std::string& path) {
     return read_binary_header(in);
 }
 
-// ---------------------------------------------------------------------------
-// Version check
-// ---------------------------------------------------------------------------
-
-// Returns true if the header's schema major.minor matches the current version.
-// Logs an info message if only patch differs.
-// Logs a warning and returns false on major/minor mismatch (unless force=true).
+// True when the header's schema major.minor matches the current version. A differing patch only logs.
 inline bool check_binary_schema_version(
     const c_BinaryHeader& header, bool force = false)
 {
@@ -223,11 +190,8 @@ inline bool check_binary_schema_version(
     return false;
 }
 
-// ---------------------------------------------------------------------------
-// Length-prefixed string serialization
-// ---------------------------------------------------------------------------
-// Strings are written as a uint32_t length followed by the raw UTF-8 bytes. Shared by every serializable
-// class so the encoding lives in one place.
+// Strings are a uint32_t length then the raw UTF-8 bytes. Shared by every serializable class so the
+// encoding lives in one place.
 
 inline void write_binary_string(std::ostream& out, const std::string& text) {
     const auto length = static_cast<uint32_t>(text.size());
@@ -248,19 +212,15 @@ inline std::string read_binary_string(std::istream& in) {
     return text;
 }
 
-// Number of payload bytes a length-prefixed string occupies (for header sizing).
+// Payload bytes a length-prefixed string occupies, for header sizing.
 inline uint64_t binary_string_bytes(const std::string& text) {
     return sizeof(uint32_t) + static_cast<uint64_t>(text.size());
 }
 
-// ---------------------------------------------------------------------------
-// Optional sub-object serialization
-// ---------------------------------------------------------------------------
-// An owned, optional sub-object (held in a std::unique_ptr) is serialized as a one-byte
-// presence flag (0 = absent, 1 = present) followed, when present, by the sub-object's own complete binary record.
-// The presence flag belongs to the owning record's payload; the nested record is a separate, self-describing
-// record appended to the stream. Used for the recursive serialization of models held by layers and
-// layers held by worlds.
+// An owned optional sub-object is a one-byte presence flag followed, when present, by the sub-object's
+// own complete binary record. The flag belongs to the owning record's payload; the nested record is a
+// separate self-describing record appended to the stream. This is how models held by layers, and layers
+// held by worlds, serialize recursively.
 
 template <typename T>
 inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& obj) {
@@ -275,8 +235,7 @@ inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& o
 }
 
 
-// The same, for a sub-object held by shared_ptr (a layer's rheologies, which an exported radial solution
-// co-owns). The record written is identical; only the ownership differs.
+// The same for a shared_ptr sub-object (a layer's rheologies, co-owned by an exported radial solution).
 template <typename T>
 inline void write_optional_binary(std::ostream& out, const std::shared_ptr<T>& obj) {
     const uint8_t present = obj ? 1 : 0;
@@ -289,8 +248,7 @@ inline void write_optional_binary(std::ostream& out, const std::shared_ptr<T>& o
     }
 }
 
-// Read the presence flag and, when set, rebuild the sub-object through the supplied factory (which peeks
-// the record's class id and returns an owning unique_ptr). Returns nullptr when the flag is absent.
+// The factory peeks the record's class id and returns an owning unique_ptr.
 template <typename T, typename Factory>
 inline std::unique_ptr<T> read_optional_binary(std::istream& in, bool force, Factory factory) {
     uint8_t present = 0;
@@ -304,9 +262,6 @@ inline std::unique_ptr<T> read_optional_binary(std::istream& in, bool force, Fac
     return std::unique_ptr<T>();
 }
 
-// Number of payload bytes one optional sub-object's presence flag contributes to
-// the owning record's payload (the nested record itself is a separate appended
-// record; see above).
 inline constexpr uint64_t optional_binary_flag_bytes() { return sizeof(uint8_t); }
 
 } // namespace tidalpy

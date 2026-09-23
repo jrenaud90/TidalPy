@@ -1,5 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for the material-EOS pre-evaluation used by the world EOS solve."""
 
 from TidalPy.Material_x.eos.material_eos cimport c_MaterialEOSBase
 

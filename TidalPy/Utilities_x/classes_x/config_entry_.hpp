@@ -1,11 +1,9 @@
 #pragma once
-/*
- * config_entry_.hpp: typed configuration entries reported by every TidalPy physics model.
+/* Typed configuration entries reported by every TidalPy physics model.
  *
- * c_PhysicsBase::append_config_entries fills a vector of c_ConfigEntry. The Cython base wrapper turns that vector
- * into the Python dict returned by get_config_dict, so a subclass only overrides append_config_entries (call the
- * parent, then push its own parameters with the c_config_* builders). C++ never reads or writes TOML, and the
- * entries are not part of the binary format.
+ * c_PhysicsBase::append_config_entries fills a vector of these; the Cython base wrapper turns it into the
+ * dict get_config_dict returns. C++ never reads or writes TOML, and the entries are not part of the
+ * binary format.
  */
 
 #include <cstdint>

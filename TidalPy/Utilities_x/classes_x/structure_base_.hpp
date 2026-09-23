@@ -1,11 +1,10 @@
 #pragma once
-/*
- * structure_base_.hpp: c_StructureBase, the spherical geometry base class.
+/* Spherical geometry base class.
  *
- * Stores radius [m] and mass [kg]. The calc_* methods are const and take explicit arguments rather than
- * reading the stored radius and mass, so they are pure functions with no hidden state.
+ * The calc_* methods take explicit arguments rather than reading the stored radius and mass, so they stay
+ * pure functions with no hidden state.
  *
- * Binary payload under class_id BinaryClassID::StructureBase (2): p_radius then p_mass, two doubles.
+ * Binary payload: radius then mass.
  */
 
 #include <cmath>
@@ -18,9 +17,6 @@ namespace tidalpy {
 
 class c_StructureBase : public c_TidalPyBaseClass {
 public:
-    // -----------------------------------------------------------------------
-    // Construction
-    // -----------------------------------------------------------------------
     c_StructureBase() = default;
 
     c_StructureBase(double radius, double mass)
@@ -28,15 +24,10 @@ public:
 
     ~c_StructureBase() override = default;
 
-    // -----------------------------------------------------------------------
-    // Getters
-    // -----------------------------------------------------------------------
     double get_radius() const noexcept { return p_radius; }
     double get_mass()   const noexcept { return p_mass; }
 
-    // -----------------------------------------------------------------------
-    // Geometry calculations (all const; all MKS inputs and outputs)
-    // -----------------------------------------------------------------------
+    // Geometry; all MKS in and out.
     // Surface area of a sphere [m^2]
     double calc_surface_area(double radius) const noexcept {
         return 4.0 * TidalPyConstants::d_PI * radius * radius;
@@ -70,9 +61,6 @@ public:
         return std::sqrt(2.0 * tidalpy_config_ptr->d_G * mass / radius);
     }
 
-    // -----------------------------------------------------------------------
-    // Binary I/O
-    // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         constexpr uint64_t payload = 2 * sizeof(double);
         write_binary_header(

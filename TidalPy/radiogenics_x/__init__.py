@@ -1,9 +1,4 @@
-"""TidalPy radiogenics_x: the C++ radiogenics model hierarchy.
-
-``OffRadiogenics`` (alias ``"none"``) produces no heating, ``IsotopeRadiogenics`` sums decaying isotopes,
-and ``FixedRadiogenics`` (alias ``"constant"``) uses a lumped rate with optional decay. Each returns the
-total radiogenic heating [W] from ``calc_heating``.
-"""
+"""C++ radiogenic heating models and their name-based factory."""
 
 from TidalPy.radiogenics_x.radiogenics import (
     RadiogenicsBase,

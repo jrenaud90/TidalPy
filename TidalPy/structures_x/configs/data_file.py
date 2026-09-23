@@ -1,4 +1,4 @@
-"""Radial data files: a PREM-like profile in --> a purely interpolated planet out.
+"""Radial data files: a PREM-like profile in, a purely interpolated planet out.
 
 A world config may describe its interior with a radial profile rather than by listing each layer's
 geometry and material. The profile is either a delimited file
@@ -9,29 +9,25 @@ or, from Python, a mapping of arrays
 
     build_world({..., "data": {"radius_km": [...], "density": [...], "vp": [...], "vs": [...]}})
 
-A profile says how many layers the world has, where their boundaries are, and what each is made of.
-It does not say everything a layer can carry: it holds no complex moduli, so a rheology is still
-named in a ``[layers.<name>]`` table, as are a cooling model and radiogenics. Such a table refines
-one detected layer (by ``layer_index``, or by being called ``layer_<N>``), and only the layers being
-refined need one.
+A profile says how many layers the world has, where their boundaries are, and what each is made of. It
+does not say everything a layer can carry: it holds no complex moduli, so a rheology is still named in a
+``[layers.<name>]`` table, as are a cooling model and radiogenics. Such a table refines one detected
+layer, and only the layers being refined need one.
 
-Both go through :func:`load_radial_data`, which normalizes them to MKS arrays ascending in radius.
-A profile must carry a radius (or a depth), a density, and the seismic velocities V_p and V_s, from
-which the static moduli follow
+Both go through :func:`load_radial_data`, which normalizes them to MKS arrays ascending in radius. A
+profile must carry a radius (or a depth), a density, and the seismic velocities V_p and V_s, from which
+the static moduli follow
 
     mu = rho V_s^2                K = rho (V_p^2 - 4/3 V_s^2)
 
 A profile may instead give those moduli directly, and may add a shear and a bulk viscosity. Without
-viscosities the layers are elastic: nothing dissipates, and no viscosity or partial-melt model is
-built for them.
+viscosities the layers are elastic: nothing dissipates, and no viscosity or partial-melt model is built.
 
-Columns are found by name, so their order does not matter and they may state their units
-(``radius_km``, ``Vp [km/s]``, ``rho_kg_m3``, ``eta_shear``); a name whose unit is not one this
-reader converts is taken to be MKS already. A file with no header is read positionally in the
-canonical order (radius, density, V_p, V_s, and optionally the two viscosities).
-:func:`detect_layer_boundaries` then splits the profile into layers at every solid/liquid
-transition, and the world builder hands each layer's slice to an interpolated EOS, which owns those
-arrays. That EOS is the only place a radial grid persists.
+Columns are found by name, so their order does not matter and they may state their units; a name whose
+unit is not one this reader converts is taken to be MKS already. A file with no header is read
+positionally in the canonical order. :func:`detect_layer_boundaries` then splits the profile at every
+solid/liquid transition, and the world builder hands each layer's slice to an interpolated EOS, which
+owns those arrays. That EOS is the only place a radial grid persists.
 """
 
 import os

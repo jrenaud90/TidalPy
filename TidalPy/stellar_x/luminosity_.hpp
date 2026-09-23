@@ -1,28 +1,13 @@
 #pragma once
-/*
- * luminosity_.hpp - Implements TidalPy's stellar luminosity models.
- *
- * Inherits c_LuminosityBase (luminosity_base_.hpp), which itself inherits c_PhysicsBase. Each model
- * implements calc_luminosity(mass) [W]; the base supplies the Stefan-Boltzmann effective-temperature
- * conversions shared by every model.
- *
- * Models (with config aliases handled by the factory):
- *   c_FixedLuminosity    (alias "constant")            - luminosity set directly (mass independent).
- *   c_MassToLuminosity   (alias "cuntz_wang" / "cw")   - piecewise main-sequence L(M) relation.
- *   c_PowerLawLuminosity (alias "power_law")           - single power law L = Lsun * coeff * (M/Msun)^p.
- *
- * The solar mass and luminosity anchors come from TidalPyConstants (d_MASS_SOLAR, d_LUMINOSITY_SOLAR).
+/* TidalPy's stellar luminosity models. Solar anchors come from TidalPyConstants.
  *
  * References
  * ----------
  * - Cuntz and Wang (2018), doi:10.3847/2515-5172/aaaa67 - low-mass mass-luminosity polynomial exponent.
  * - Wikipedia mass-luminosity relation (piecewise main-sequence scaling) for the high/low-mass regimes.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::<Model> (1001-1003)
- *   payload: model_name length (uint32_t) | model_name bytes | model params (scalar doubles)
- *   All three models serialize via the shared c_PhysicsBase helpers.
- *   The layer observer pointer (p_layer_ptr) is NOT serialized.
+ * Binary payload: model name then the model's doubles, through the shared c_PhysicsBase helpers. The
+ * layer observer pointer is not serialized.
  */
 
 #include <algorithm>
@@ -41,30 +26,20 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// c_LuminosityConfig - combined construction parameters for all models.
-// Each model reads only the fields it needs.
-// -------------------------------------------------------------------------------
+// Combined construction parameters; each model reads only the fields it needs.
 struct c_LuminosityConfig {
-    // Fixed model - the luminosity to report regardless of mass.
-    double luminosity = 0.0;                  // [W]
+    double luminosity = 0.0;                  // [W]; Fixed model
 
-    // Power-law model - L = Lsun * power_law_coeff * (M / Msun)^power_law_exponent.
+    // Power-law model: L = Lsun * coeff * (M / Msun)^exponent.
     double power_law_coeff    = 1.0;            // dimensionless prefactor
     double power_law_exponent = 3.5;            // dimensionless exponent (classic main-sequence value)
 };
 
-// =====================================================================================================================
-// Luminosity relations [W]
-// =====================================================================================================================
-
-// Fixed: report the stored luminosity regardless of mass.
 inline double lum_from_fixed(double /*mass*/, double luminosity) noexcept {
     return luminosity;
 }
 
-// Mass-to-luminosity: the piecewise main-sequence relation (Cuntz and Wang 2018).
-// mass_ratio = M / Msun.
+// Piecewise main-sequence relation (Cuntz and Wang 2018).
 inline double lum_from_mass(double mass) noexcept {
     const double mass_solar      = TidalPyConstants::d_MASS_SOLAR;
     const double luminosity_solar = TidalPyConstants::d_LUMINOSITY_SOLAR;
@@ -89,15 +64,14 @@ inline double lum_from_mass(double mass) noexcept {
     if (mass_ratio < 2.0) {
         return luminosity_solar * std::pow(mass_ratio, 4.0);
     }
-    // The linear branch takes over where it meets the 1.4 M^3.5 branch (~55 Msun);
-    // both give ~1.75e6 Lsun there, keeping the relation continuous.
+    // The linear branch takes over where it meets the 1.4 M^3.5 branch (~55 Msun); both give
+    // ~1.75e6 Lsun there, so the relation stays continuous.
     if (mass_ratio < 55.0) {
         return luminosity_solar * 1.4 * std::pow(mass_ratio, 3.5);
     }
     return luminosity_solar * 3.2e4 * mass_ratio;
 }
 
-// Power law: L = Lsun * coeff * (M / Msun)^exponent.
 inline double lum_from_power_law(double mass, double coeff, double exponent) noexcept {
     const double mass_solar       = TidalPyConstants::d_MASS_SOLAR;
     const double luminosity_solar = TidalPyConstants::d_LUMINOSITY_SOLAR;
@@ -107,22 +81,13 @@ inline double lum_from_power_law(double mass, double coeff, double exponent) noe
     return luminosity_solar * coeff * std::pow(mass / mass_solar, exponent);
 }
 
-// -------------------------------------------------------------------------------
-// Lower-case a model name for case-insensitive factory lookup.
-// -------------------------------------------------------------------------------
 inline std::string lum_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
     return text;
 }
 
-// =====================================================================================================================
-// Luminosity models
-// =====================================================================================================================
-
-// -------------------------------------------------------------------------------
-// c_FixedLuminosity - luminosity supplied directly (mass independent, alias "constant").
-// -------------------------------------------------------------------------------
+// Luminosity supplied directly, independent of mass (alias "constant").
 class c_FixedLuminosity : public c_LuminosityBase {
 public:
     c_FixedLuminosity() : c_LuminosityBase("fixed") {}
@@ -155,9 +120,7 @@ protected:
     double p_luminosity = 0.0;
 };
 
-// -------------------------------------------------------------------------------
-// c_MassToLuminosity - piecewise main-sequence L(M) (aliases "cuntz_wang", "cw").
-// -------------------------------------------------------------------------------
+// Piecewise main-sequence L(M) (aliases "cuntz_wang", "cw").
 class c_MassToLuminosity : public c_LuminosityBase {
 public:
     c_MassToLuminosity() : c_LuminosityBase("mass_to_luminosity") {}
@@ -177,9 +140,7 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_PowerLawLuminosity - single power law L = Lsun * coeff * (M/Msun)^p (alias "power_law").
-// -------------------------------------------------------------------------------
+// Single power law L = Lsun * coeff * (M/Msun)^p (alias "power_law").
 class c_PowerLawLuminosity : public c_LuminosityBase {
 public:
     c_PowerLawLuminosity() : c_LuminosityBase("power_law") {}
@@ -218,30 +179,14 @@ protected:
     double p_exponent = 3.5;
 };
 
-// =====================================================================================================================
-// Factory
-// =====================================================================================================================
-
-// -------------------------------------------------------------------------------
-// c_LuminosityModel - one named value per luminosity model.
-// -------------------------------------------------------------------------------
+// One value per model, so c_find_luminosity dispatches without string comparisons.
 enum class c_LuminosityModel : uint8_t {
     Fixed            = 0,
     MassToLuminosity = 1,
     PowerLaw         = 2,
 };
 
-// -------------------------------------------------------------------------------
-// c_luminosity_model_from_name - map a (case-insensitive) model name or alias to a
-// c_LuminosityModel enum value.
-//
-// Recognized names and aliases:
-//   "fixed" / "constant"
-//   "mass_to_luminosity" / "cuntz_wang" / "cw"
-//   "power_law" / "powerlaw"
-//
-// Throws std::invalid_argument if the model name is unknown.
-// -------------------------------------------------------------------------------
+// Model names are matched case-insensitively.
 inline c_LuminosityModel c_luminosity_model_from_name(const std::string& model_name) {
     const std::string name = lum_to_lower(model_name);
 
@@ -254,12 +199,7 @@ inline c_LuminosityModel c_luminosity_model_from_name(const std::string& model_n
     throw std::invalid_argument("TidalPy: unknown luminosity model name '" + model_name + "'");
 }
 
-// -------------------------------------------------------------------------------
-// c_find_luminosity - build the luminosity model named by a c_LuminosityModel.
-//
-// Returns a unique_ptr to a newly heap-allocated concrete model constructed from the supplied config.
-// This is the canonical C++ factory. Throws std::invalid_argument for an unrecognised enum value.
-// -------------------------------------------------------------------------------
+// The canonical C++ factory: worlds, binary reconstruction, and the Cython wrapper all route here.
 inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(
         c_LuminosityModel model, const c_LuminosityConfig& config) {
     switch (model) {
@@ -270,21 +210,12 @@ inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(
     throw std::invalid_argument("TidalPy: unrecognised c_LuminosityModel enum value");
 }
 
-// -------------------------------------------------------------------------------
-// c_find_luminosity (name overload) - maps a name/alias to the enum and builds the model.
-// -------------------------------------------------------------------------------
 inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(
         const std::string& model_name, const c_LuminosityConfig& config) {
     return c_find_luminosity(c_luminosity_model_from_name(model_name), config);
 }
 
-// -------------------------------------------------------------------------------
-// c_luminosity_from_binary - reconstruct a luminosity model from a binary stream.
-//
-// Peeks the upcoming record's BinaryClassID (without consuming the header), constructs the matching
-// default-initialized concrete model, then delegates to its read_binary to restore the model name and
-// parameters. Throws std::runtime_error if the class id is not a known luminosity model.
-// -------------------------------------------------------------------------------
+// The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_LuminosityBase> c_luminosity_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);

@@ -1,6 +1,4 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's radiogenics model hierarchy: the three C++ models, the combined
-config struct, and the Python wrapper classes."""
 
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
@@ -9,9 +7,6 @@ from libcpp.vector cimport vector
 from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "radiogenics_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_RadiogenicsBase(c_PhysicsBase):
@@ -32,7 +27,6 @@ cdef extern from "radiogenics_base_.hpp" namespace "tidalpy" nogil:
 
 cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
 
-    # A single radioactive isotope (value type; no base class).
     cdef cppclass c_Isotope:
         c_Isotope() except +
         c_Isotope(
@@ -49,7 +43,6 @@ cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
         double decay_constant() const
         double specific_heating(double time, double ref_time) const
 
-    # A named, literature-sourced set of isotopes plus its reference time.
     cdef cppclass c_IsotopeDataset:
         vector[c_Isotope] isotopes
         double ref_time
@@ -60,7 +53,7 @@ cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
         double average_half_life
         double ref_time
 
-    # Built-in isotope dataset catalog (raises ValueError on unknown name).
+    # Raises ValueError on an unknown dataset name.
     c_IsotopeDataset c_get_isotope_dataset(const string& name) except +
     vector[string] c_isotope_dataset_names()
 
@@ -82,23 +75,18 @@ cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
         double get_average_half_life()     const
         double get_ref_time()              const
 
-    # Enum naming each radiogenics model.
     cdef enum class c_RadiogenicsModel:
         Off
         Isotope
         Fixed
 
-    # Map a name/alias to the enum (raises ValueError on unknown name).
+    # Raises ValueError on an unknown name.
     c_RadiogenicsModel c_radiogenics_model_from_name(const string& model_name) except +
 
-    # Build the model named by the enum; returns an owning unique_ptr.
     unique_ptr[c_RadiogenicsBase] c_find_radiogenics(
         c_RadiogenicsModel model, const c_RadiogenicsConfig& cfg) except +
 
 
-# =====================================================================================================================
-# Cython wrapper class declarations
-# =====================================================================================================================
 cdef class RadiogenicsBase(PhysicsBase):
     cdef unique_ptr[c_RadiogenicsBase] _radiogenics_ptr   # owns the most-derived C++ model object
 

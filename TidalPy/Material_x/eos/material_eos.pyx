@@ -2,15 +2,13 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrappers for the material EOS models.
 
-A model is a layer's material. It returns the density [kg/m^3] from the local pressure [Pa] (analytic models) or
-radius [m] (interpolated model), and it owns every other frequency-independent property: the static shear law,
-the static bulk modulus and viscosities, and the optional viscosity and partial-melt models. The whole-planet EOS
-solve evaluates all of it as it integrates. Models: ConstantDensityEOS ("constant"), BirchMurnaghanEOS ("bm"),
-VinetEOS ("vinet"), InterpolatedEOS ("interp").
+A model is a layer's material: the density from the local pressure (analytic models) or radius (interpolated
+model), plus every other frequency-independent property. The whole-planet EOS solve evaluates all of it as it
+integrates.
 
-Every model takes a thermal expansivity and a reference temperature. Birch-Murnaghan and Vinet add the thermal
-pressure alpha0 K0 (T - T_ref) to their pressure law; the constant and interpolated models scale their density by
-exp(-alpha0 (T - T_ref)). A zero expansivity (the default) or no temperature gives the athermal EOS.
+Every model takes a thermal expansivity and a reference temperature. Birch-Murnaghan and Vinet add the
+thermal pressure alpha0 K0 (T - T_ref) to their pressure law; the constant and interpolated models scale
+their density by exp(-alpha0 (T - T_ref)). A zero expansivity or no temperature gives the athermal EOS.
 """
 
 from libcpp.string cimport string
@@ -34,9 +32,7 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# Free analytic pressure laws (Python-accessible for cross-checks)
-# =====================================================================================================================
+# Exposed to Python for cross-checks.
 def birch_murnaghan_pressure(double eta, double reference_bulk_modulus,
                              double bulk_modulus_derivative=4.0) -> float:
     """3rd-order Birch-Murnaghan pressure [Pa] at compression eta = rho/rho0."""
@@ -49,14 +45,11 @@ def vinet_pressure(double eta, double reference_bulk_modulus,
     return eos_vinet_pressure(eta, reference_bulk_modulus, bulk_modulus_derivative)
 
 
-# =====================================================================================================================
-# MaterialEOSBase
-# =====================================================================================================================
 cdef class MaterialEOSBase(PhysicsBase):
     """Abstract base for material EOS models. Instantiate a concrete subclass."""
 
     def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr<c_MaterialEOSBase> auto-inits to nullptr
+        pass  # unique_ptr auto-inits to nullptr
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -68,7 +61,7 @@ cdef class MaterialEOSBase(PhysicsBase):
         self._ptr = NULL
 
     cdef c_MaterialEOSBase* _model(self) except NULL:
-        # Attaching the model to a layer moves it out of this wrapper, which is then an empty shell.
+        # Attaching the model to a layer moves it out of this wrapper, leaving an empty shell.
         cdef c_MaterialEOSBase* model = self._eos_ptr.get()
         if model == NULL:
             raise ValueError("This EOS model holds no C++ object (already attached or moved).")
@@ -117,9 +110,6 @@ cdef class MaterialEOSBase(PhysicsBase):
         """Bulk viscosity [Pa s] at radius [m] from the model's table; NaN unless it carries one."""
         return self._model().get_tabulated_bulk_viscosity(radius)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # The material: static constants, the shear law, and the viscosity and partial-melt models
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def shear_modulus_static(self) -> float:
         """Static (unrelaxed) shear modulus mu0 [Pa] of the shear law."""
@@ -188,7 +178,7 @@ cdef class MaterialEOSBase(PhysicsBase):
     def set_shear_viscosity(self, ViscosityBase viscosity not None):
         """Attach a viscosity model supplying the shear viscosity before the partial-melt model.
 
-        Ownership of the C++ model moves out of ``viscosity``, which is left an empty shell and must not be reused.
+        Ownership moves out of ``viscosity``, which is left an empty shell and must not be reused.
         """
         if viscosity._visc_ptr.get() == NULL:
             raise ValueError("This viscosity model holds no C++ object (already attached or moved).")
@@ -197,7 +187,7 @@ cdef class MaterialEOSBase(PhysicsBase):
     def set_bulk_viscosity(self, ViscosityBase viscosity not None):
         """Attach a viscosity model supplying the bulk viscosity before the partial-melt model.
 
-        Ownership of the C++ model moves out of ``viscosity``, which is left an empty shell and must not be reused.
+        Ownership moves out of ``viscosity``, which is left an empty shell and must not be reused.
         """
         if viscosity._visc_ptr.get() == NULL:
             raise ValueError("This viscosity model holds no C++ object (already attached or moved).")
@@ -206,8 +196,7 @@ cdef class MaterialEOSBase(PhysicsBase):
     def set_partial_melt(self, PartialMeltBase partial_melt not None):
         """Attach a partial-melt model that weakens the static moduli and viscosities with melt fraction.
 
-        Ownership of the C++ model moves out of ``partial_melt``, which is left an empty shell and must not be
-        reused.
+        Ownership moves out of ``partial_melt``, which is left an empty shell and must not be reused.
         """
         if partial_melt._melt_ptr.get() == NULL:
             raise ValueError("This partial-melt model holds no C++ object (already attached or moved).")
@@ -232,10 +221,8 @@ cdef class MaterialEOSBase(PhysicsBase):
                             thermal_density=True) -> dict:
         """Every frequency-independent property of the material at one point.
 
-        This is what the EOS solve evaluates as it integrates: the shear law and constants, then a viscosity
-        model in place of a constant, then a table or the pressure law's own bulk modulus in place of either,
-        then the partial-melt model. After a solve, read these from the world or layer getters instead, which
-        report what the solve used.
+        This is what the EOS solve evaluates as it integrates. After a solve, read these from the world or
+        layer getters instead, which report what the solve actually used.
 
         Parameters
         ----------
@@ -246,7 +233,7 @@ cdef class MaterialEOSBase(PhysicsBase):
         radius : float, optional
             Radius [m], read by the interpolated model alone.
         thermal_density : bool, optional
-            Whether the density law sees the temperature (the viscosity and melt models always do).
+            Whether the density law sees the temperature; the viscosity and melt models always do.
 
         Returns
         -------
@@ -286,7 +273,7 @@ cdef dict cy_material_config(const c_MaterialEOSBase* eos_ptr):
     return d
 
 
-# The keyword arguments every model constructor takes for the material, mapped onto c_MaterialEOSConfig.
+# The material keyword arguments every model constructor takes, mapped onto c_MaterialEOSConfig.
 _MATERIAL_KWARGS = (
     "shear_modulus_static", "bulk_modulus_static", "shear_viscosity_static", "bulk_viscosity_static",
     "shear_modulus_pressure_derivative", "shear_modulus_temperature_derivative",
@@ -318,9 +305,6 @@ cdef int cy_fill_material_config(c_MaterialEOSConfig& config, dict material) exc
     return 0
 
 
-# =====================================================================================================================
-# EOS Models
-# =====================================================================================================================
 cdef class ConstantDensityEOS(MaterialEOSBase):
     """Incompressible (uniform) density EOS."""
 
@@ -329,8 +313,7 @@ cdef class ConstantDensityEOS(MaterialEOSBase):
 
     def __init__(self, double reference_density=3500.0, double thermal_expansion=0.0, reference_temperature=None,
                  **material):
-        # None keeps the C++ default reference temperature. The material keywords are those of
-        # _MATERIAL_KWARGS (static moduli and viscosities, and the shear law).
+        # None keeps the C++ default reference temperature; the material keywords are _MATERIAL_KWARGS.
         cdef c_MaterialEOSConfig config
         cy_fill_material_config(config, material)
         config.reference_density = reference_density
@@ -481,7 +464,7 @@ cdef class VinetEOS(MaterialEOSBase):
 
 
 cdef class InterpolatedEOS(MaterialEOSBase):
-    """density(radius) lookup table (e.g. PREM-style profiles)."""
+    """density(radius) lookup table, PREM-style profiles and the like."""
 
     def __cinit__(self, *args, **kwargs):
         self._interp_ptr = NULL
@@ -537,10 +520,7 @@ cdef class InterpolatedEOS(MaterialEOSBase):
         return self._interp_ptr.get_num_points()
 
 
-# =====================================================================================================================
-# Factory
-# =====================================================================================================================
-# Every config key some material EOS model reads; make_material_eos rejects anything else.
+# Every config key any material EOS model reads; make_material_eos rejects anything else.
 MATERIAL_EOS_CONFIG_KEYS = frozenset({
     "reference_density_kg_m3", "reference_bulk_modulus_pa", "bulk_modulus_derivative", "invert_rtol",
     "invert_max_iters", "radius_m", "density_kg_m3", "shear_modulus_pa", "bulk_modulus_pa",
@@ -548,12 +528,12 @@ MATERIAL_EOS_CONFIG_KEYS = frozenset({
     "shear_modulus_static_pa", "bulk_modulus_static_pa", "shear_viscosity_static_pas", "bulk_viscosity_static_pas",
     "shear_modulus_pressure_derivative", "shear_modulus_temperature_derivative_pa_k",
     "shear_modulus_reference_temperature_k", "thermal_conductivity_w_mk", "heat_capacity_j_kgk",
-    # Nested model tables ({"model": ..., ...}), built with make_viscosity / make_partial_melt and attached.
+    # Nested model tables, built with make_viscosity / make_partial_melt and attached.
     "shear_viscosity", "bulk_viscosity", "partial_melt"})
 
 
 def _same_model(str table_name, str model_name) -> bool:
-    """Whether two model names, aliases included, resolve to one model; ValueError for a name not in the family."""
+    """Whether two names (aliases included) resolve to the same model."""
     return c_material_eos_model_from_name(table_name.lower().encode("utf-8")) == c_material_eos_model_from_name(model_name.lower().encode("utf-8"))
 
 
@@ -565,21 +545,16 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
     model_name : str
         ``"constant"``, ``"bm"``/``"birch_murnaghan"``, ``"vinet"``, or ``"interpolate"`` (case-insensitive).
     config : dict, optional
-        ``reference_density_kg_m3``, ``reference_bulk_modulus_pa``, ``bulk_modulus_derivative``, ``invert_rtol``,
-        ``invert_max_iters`` (analytic models); ``radius_m`` and ``density_kg_m3`` sequences plus the optional
-        ``shear_modulus_pa``, ``bulk_modulus_pa``, ``shear_viscosity_pas``, ``bulk_viscosity_pas`` tables
-        (interpolated model); ``thermal_expansion_1_k`` and ``reference_temperature_k`` (every model). The
-        material keys, also for every model: ``shear_modulus_static_pa``, ``bulk_modulus_static_pa``,
-        ``shear_viscosity_static_pas``, ``bulk_viscosity_static_pas``, the shear law's
-        ``shear_modulus_pressure_derivative``, ``shear_modulus_temperature_derivative_pa_k`` and
-        ``shear_modulus_reference_temperature_k``, the thermal constants ``thermal_conductivity_w_mk`` and
-        ``heat_capacity_j_kgk``, and the nested model tables ``shear_viscosity``,
-        ``bulk_viscosity`` and ``partial_melt`` (each a dict with a ``model`` key and that model's own keys).
+        Model parameters, keyed with their units (see ``MATERIAL_EOS_CONFIG_KEYS``). The analytic models read
+        ``reference_density_kg_m3``, ``reference_bulk_modulus_pa``, ``bulk_modulus_derivative``, and the
+        inversion settings; the interpolated model reads the ``radius_m`` and ``density_kg_m3`` sequences plus
+        its optional tables. Every model reads the thermal terms, the static constants, the shear law, and the
+        nested ``shear_viscosity``, ``bulk_viscosity``, and ``partial_melt`` tables, each a dict with a
+        ``model`` key and that model's own keys.
 
     Returns
     -------
     MaterialEOSBase
-        The concrete model subclass.
 
     Raises
     ------
@@ -587,12 +562,12 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
         Unknown model name, or a ``config`` key that no material EOS model reads.
     """
     if config is None:
-        # No config at all: the defaults of the world-attached path ([layers.default] or [tides] of config_x).
+        # Fall back to the same defaults the world-attached path uses.
         config = factory_defaults("material", MATERIAL_EOS_CONFIG_KEYS, model_name, _same_model)
     check_config_keys(config, MATERIAL_EOS_CONFIG_KEYS, "material EOS")
     if config is None:
         config = {}
-    # Only the supplied keys override the C++ struct defaults.
+    # The default-constructed config carries the C++ defaults, so only override what the caller gave.
     cdef c_MaterialEOSConfig cfg
     if "reference_density_kg_m3" in config:
         cfg.reference_density = config["reference_density_kg_m3"]
@@ -674,7 +649,7 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
 
 def _attach_material_models(MaterialEOSBase eos, dict config) -> MaterialEOSBase:
     """Build and attach the nested viscosity and partial-melt tables of a material config."""
-    # Imported here: these modules sit beside this one and nothing at import time needs them.
+    # Deferred: these modules sit beside this one and nothing at import time needs them.
     from TidalPy.viscosity_x.viscosity import make_viscosity
     from TidalPy.partial_melt_x.partial_melt import make_partial_melt
 
@@ -683,8 +658,7 @@ def _attach_material_models(MaterialEOSBase eos, dict config) -> MaterialEOSBase
     cdef object maker
     cdef dict section
     cdef str model_name
-    # `model` is whichever model class the maker returns (a viscosity or a partial-melt model), so it stays
-    # `object`; the two makers do not share a base class.
+    # `object` because the two makers share no base class.
     cdef object model
     for key, setter, maker in (
             ("shear_viscosity", eos.set_shear_viscosity, make_viscosity),

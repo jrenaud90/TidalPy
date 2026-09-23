@@ -5,7 +5,7 @@
 #include <complex>
 
 
-// Collapse the independent shooting solutions into one solution using the constant vector.
+// Collapse the independent shooting solutions into one, weighted by the constant vector.
 //
 // Parameters
 // ----------
@@ -13,23 +13,16 @@
 //     Output solution array.
 // constant_vector_ptr : complex*
 //     Scale factor for each independent solution.
-// storage_by_solution : std::vector<std::vector<std::complex<double>>>&
+// storage_by_solution : vector of vector of complex
 //     Per-solution intermediate y values, slice-major.
 // layer_radius_ptr, layer_density_ptr, layer_gravity_ptr : double*
 //     Radius [m], density [kg m-3], and gravity [m s-2] at each slice of this layer.
 // frequency_to_use : double
-//     Forcing frequency [rad s-1], used for y_3 in dynamic liquid layers.
-// layer_start_index : size_t
-//     Index of this layer's first slice.
-// num_layer_slices, num_sols, max_num_y, num_ys, num_output_ys : size_t
-//     Slice count, independent solution count, and the y count per solution (maximum, defined for
-//     this layer type, and in the output array).
-// ytype_i : size_t
-//     Y-type index.
+//     Forcing frequency [rad s-1]; only used for y_3 in dynamic liquid layers.
+// num_ys, num_output_ys : size_t
+//     Y count defined for this layer type, and in the output array.
 // layer_type : int
 //     0=solid, 1=liquid.
-// layer_is_static : bool
-// layer_is_incomp : bool
 inline void c_collapse_layer_solution(
         std::complex<double>* solution_ptr,
         std::complex<double>* constant_vector_ptr,

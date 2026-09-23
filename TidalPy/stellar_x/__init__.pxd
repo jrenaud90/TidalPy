@@ -1,5 +1,4 @@
 # distutils: language = c++
-"""Cython-level exports for TidalPy.stellar_x: the C++ luminosity classes and their wrappers."""
 
 from TidalPy.stellar_x.luminosity cimport (
     LuminosityBase,

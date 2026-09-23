@@ -1,16 +1,15 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""Python and Cython wrapper for the dynamic Kaula 3D tidal-potential engine (potential_3d_.hpp).
+"""Python and Cython wrapper for the dynamic Kaula 3D tidal-potential engine.
 
-``tidal_potential_3d_modes(...)`` returns every active tidal mode's degree ``l``, signed forcing
-frequency ``omega_lmpq`` [rad s-1], and the complex potential angular-factor amplitude row
-``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)`` (the mode's time factor pulled
-out: ``U(t) = Re[U_c e^{i omega t}]``). Modes and coefficients come from the eccentricity and
-obliquity functions the global 1D path uses plus the associated Legendre functions, following Kaula
-and Efroimsky and Williams (2009) Eq. 18.
+``tidal_potential_3d_modes`` returns every active tidal mode's degree, signed forcing frequency, and
+complex potential angular-factor amplitude row, the mode's time factor pulled out so
+``U(t) = Re[U_c e^{i omega t}]``. Modes and coefficients come from the eccentricity and obliquity
+functions the global 1D path uses, plus the associated Legendre functions, following Kaula and Efroimsky
+and Williams (2009) Eq. 18.
 
-All quantities MKS; frequencies rad s-1; angles radians. The potential's ``r^2`` coefficient uses the
-supplied ``planet_radius`` (pass the surface radius for the 3D kernel).
+All quantities MKS. The potential's ``r^2`` coefficient uses the supplied ``planet_radius``; pass the
+surface radius for the 3D kernel.
 """
 
 import numpy as np
@@ -46,10 +45,8 @@ def tidal_potential_3d_modes(
         int obliquity_truncation=0):
     """Active tidal modes with complex potential angular-factor amplitudes at one point.
 
-    The body radius comes first, then the orbital state in the same order as the world's
-    ``calc_tides`` (orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis,
-    host mass), then Newton's constant.
-    The point's colatitude and longitude [radians] follow, then the degree range and truncations.
+    The body radius comes first, then the orbital state in the same order as the world's ``calc_tides``,
+    then Newton's constant, the point's colatitude and longitude, and the degree range and truncations.
 
     Returns
     -------
@@ -101,8 +98,7 @@ def tidal_potential_3d_modes(
     cdef Py_ssize_t i
     cdef c_TidalPotential3DMode* mode_ptr = NULL
 
-    # The old form indexed `modes` eight times per iteration and built six Python complex objects; one
-    # element pointer and C stores replace both.
+    # One element pointer and C stores, rather than eight indexings and six boxed complex objects per mode.
     with nogil:
         for i in range(num):
             mode_ptr = &modes[i]

@@ -1,5 +1,3 @@
-# Utilities_x.conversions Cython package - exposes the nogil conversion functions.
-
 from TidalPy.Utilities_x.conversions.conversions cimport (
     cy_Au2m,
     cy_days2rads,

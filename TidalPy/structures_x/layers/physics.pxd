@@ -14,9 +14,6 @@ from TidalPy.viscosity_x.viscosity cimport c_ViscosityBase
 from TidalPy.partial_melt_x.partial_melt cimport c_PartialMeltBase
 
 
-# =====================================================================================================================
-# C++ class declarations
-# =====================================================================================================================
 cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_PhysicsConfig:
@@ -85,9 +82,6 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         void                set_use_heating(cpp_bool)
 
 
-# =====================================================================================================================
-# Cython wrapper class declaration
-# =====================================================================================================================
 cdef class PhysicsLayer(BaseLayer):
     cdef c_PhysicsLayer* _physics_ptr   # non-owning; ownership via BaseLayer._layer_ptr
     cpdef dict get_config_dict(self)

@@ -1,10 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""Cython and Python wrapper for TidalPy's Love numbers container.
-
-``LoveNumbers`` is a Python view of the c_LoveNumbers C++ struct holding the three complex tidal Love
-numbers k, h, and l.
-"""
+"""Python view of the c_LoveNumbers C++ struct."""
 
 from libcpp.complex cimport complex as cpp_complex
 
@@ -19,21 +15,12 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-# =====================================================================================================================
-# LoveNumbers
-# =====================================================================================================================
 cdef class LoveNumbers:
     """Container for the three complex tidal Love numbers k, h, and l.
 
-    All three are dimensionless complex numbers describing a body's response to a tidal potential: k
-    is the change in the external gravitational potential from the body's redistributed mass, h the
-    radial surface displacement, and l the tangential surface displacement. The real part is the
-    elastic amplitude and the imaginary part the dissipation at the tidal forcing frequency.
-
-    Parameters
-    ----------
-    k, h, l : complex, optional
-        The three Love numbers [dimensionless]. Default ``0+0j`` each.
+    k is the change in the external gravitational potential from the body's redistributed mass, h the
+    radial surface displacement, and l the tangential one. The real part is the elastic amplitude, the
+    imaginary part the dissipation at the tidal forcing frequency.
     """
 
     def __init__(self, complex k=0+0j, complex h=0+0j, complex l=0+0j):
@@ -41,9 +28,6 @@ cdef class LoveNumbers:
         self._love.h = cpp_complex[double](h.real, h.imag)
         self._love.l = cpp_complex[double](l.real, l.imag)
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------------------------------------------------------
     @property
     def k(self) -> complex:
         """Potential Love number [dimensionless]."""
@@ -59,9 +43,6 @@ cdef class LoveNumbers:
         """Tangential displacement Love number [dimensionless]."""
         return complex(self._love.l.real(), self._love.l.imag())
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Python protocol
-    # ------------------------------------------------------------------------------------------------------------------
     def __repr__(self) -> str:
         return (f"LoveNumbers("
                 f"k={complex(self._love.k.real(), self._love.k.imag())}, "
@@ -81,9 +62,6 @@ cdef class LoveNumbers:
         yield complex(self._love.h.real(), self._love.h.imag())
         yield complex(self._love.l.real(), self._love.l.imag())
 
-    # ------------------------------------------------------------------------------------------------------------------
-    # Serialization helpers
-    # ------------------------------------------------------------------------------------------------------------------
     cpdef dict to_dict(self):
         """Return all components as a flat dict with re/im suffixes.
 

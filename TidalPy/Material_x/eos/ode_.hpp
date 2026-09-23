@@ -2,16 +2,15 @@
 
 #include <complex>
 
-#include "c_common.hpp"    // CyRK: PreEvalFunc typedef
-#include "constants_.hpp"  // TidalPy: TidalPyConstants
-#include "eos_layout_.hpp" // TidalPy: the state and evaluation layouts
+#include "c_common.hpp"    // CyRK: PreEvalFunc
+#include "constants_.hpp"
+#include "eos_layout_.hpp"
 
 
 
 static const double C_FOUR_PI = 4.0 * TidalPyConstants::d_PI;
 
 
-/// EOS evaluation output at a radius.
 struct c_EOSOutput
 {
     double density                        = TidalPyConstants::d_NAN;
@@ -39,9 +38,8 @@ enum class c_TemperatureKind : uint8_t
     Adiabatic  = 2,   // dT/dr = -adiabat_coeff * g * T
 };
 
-/// One radial segment of the structure solve: a stretch of a layer over which the temperature gradient keeps
-/// one form. A layer is one segment unless its temperature profile has a kink, which is where the adaptive
-/// stepper would otherwise lose its order. The coefficients are already in the units the solve runs in.
+/// A stretch of a layer over which the temperature gradient keeps one form. A layer is one segment unless
+/// its temperature profile has a kink, which is where the adaptive stepper would otherwise lose its order.
 struct c_EOSSegment
 {
     double            upper_radius      = 0.0;                            // segment top [solve units]
@@ -53,19 +51,18 @@ struct c_EOSSegment
     double            adiabat_coeff     = 0.0;                            // alpha g_scale length_scale / c_p
 };
 
-/// Heat generated inside the planet, as the thermal structure ODE reads it. The world implements this from its
-/// heat sources; it is abstract here so this header stays free of the layer and world classes.
+/// Heat generated inside the planet, as the thermal structure ODE reads it. Abstract so this header stays
+/// free of the layer and world classes; the world implements it from its heat sources.
 class c_EOSHeatingBase
 {
 public:
     virtual ~c_EOSHeatingBase() = default;
 
-    /// dL/dr = 4 pi r^2 h at a radius of one layer, where the local density is `density`. The radius, the
-    /// density, and the length in the returned Watts per length are all in the units the solve runs in.
+    /// dL/dr = 4 pi r^2 h, in the units the solve runs in.
     virtual double calc_heat_flow_gradient(size_t layer_index, double radius, double density) const noexcept = 0;
 };
 
-/// Input parameters for the EOS ODE solver. The temperature fields are set per segment by the solver.
+/// The temperature fields are set per segment by the solver.
 struct c_EOS_ODEInput
 {
     double G_to_use       = 0.0;
@@ -76,14 +73,14 @@ struct c_EOS_ODEInput
     c_TemperatureKind temperature_kind = c_TemperatureKind::Isothermal;
     double conduction_coeff = 0.0;
     double adiabat_coeff    = 0.0;
-    // Heat sources of a thermal solve (non-owning; null for none) and the layer this input belongs to.
+    // Heat sources of a thermal solve, non-owning and null for none.
     const c_EOSHeatingBase* heating_ptr = nullptr;
     size_t layer_index = 0;
 };
 
 
-/// The four structure derivatives of a self-gravitating spherically symmetric body in hydrostatic equilibrium.
-/// Returns the local density, which the thermal ODE needs for its heat sources.
+/// The four structure derivatives of a self-gravitating spherically symmetric body in hydrostatic
+/// equilibrium. Returns the local density, which the thermal ODE needs for its heat sources.
 inline double c_eos_structure_derivatives(
         double* dy_ptr,
         double radius,
@@ -106,7 +103,7 @@ inline double c_eos_structure_derivatives(
 
     const double rho = eos_output.density;
 
-    // The gravity equation has a 1/r singularity: all derivatives are zero at the origin and beyond the planet.
+    // The gravity equation has a 1/r singularity; all derivatives vanish at the origin and past the surface.
     if ((radius < TidalPyConstants::d_EPS_10) || (radius > eos_input_ptr->planet_radius))
     {
         dy_ptr[0] = 0.0;
@@ -125,7 +122,7 @@ inline double c_eos_structure_derivatives(
 }
 
 
-/// Hydrostatic structure ODE (CyRK DiffeqFuncType signature).
+/// CyRK DiffeqFuncType signature.
 inline void c_eos_diffeq(
         double* dy_ptr,
         double radius,
@@ -137,14 +134,12 @@ inline void c_eos_diffeq(
 }
 
 
-/// Hydrostatic structure ODE carrying temperature and heat flow (CyRK DiffeqFuncType signature).
-///
-/// The four structure derivatives are those of c_eos_diffeq, with the density evaluated at the local
-/// temperature when the layer's EOS is thermal. The two extra states are
+/// As c_eos_diffeq, with the density evaluated at the local temperature when the layer's EOS is thermal,
+/// plus two extra states:
 ///   dT/dr = 0, -conduction_coeff L / r^2, or -adiabat_coeff g T, by the segment's temperature kind, and
-///   dL/dr = 4 pi r^2 h, the heat generated at this radius by the world's heat sources (zero without any).
-/// The temperature is in Kelvin whatever units the rest of the solve runs in; the coefficients carry the
-/// conversion. The heat flow is in Watts.
+///   dL/dr = 4 pi r^2 h, the heat the world's sources generate at this radius.
+/// The temperature is in Kelvin and the heat flow in Watts whatever units the rest of the solve runs in;
+/// the coefficients carry the conversion.
 inline void c_eos_diffeq_thermal(
         double* dy_ptr,
         double radius,

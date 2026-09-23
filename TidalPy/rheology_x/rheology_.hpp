@@ -1,19 +1,5 @@
 #pragma once
-/*
- * rheology_.hpp: TidalPy's rheology models.
- *
- * Each model derives from c_RheologyBase and implements calc_complex_modulus(modulus, viscosity,
- * frequency), returning the complex (shear or bulk) modulus [Pa]. Inputs are reference (background) MKS
- * values at the layer mid-point.
- *
- * Models, with the aliases the factory accepts:
- *   c_Elastic   (alias "off")              purely elastic, no dissipation.
- *   c_Viscous   (alias "newton")           purely viscous (Newtonian fluid).
- *   c_Voigt     (alias "voigt-kelvin")     Voigt-Kelvin element.
- *   c_Maxwell                              standard Maxwell body.
- *   c_Burgers                              Maxwell and Voigt in series.
- *   c_Andrade                              Maxwell plus an Andrade transient term.
- *   c_Sundberg  (alias "sundberg-cooper")  Andrade and Voigt.
+/* TidalPy's rheology models. Inputs are reference (background) MKS values at the layer mid-point.
  *
  * References
  * ----------
@@ -22,8 +8,7 @@
  * - Efroimsky (2012), ApJ, DOI: 10.1088/0004-637X/746/2/150 (complex compliances and Love numbers).
  * - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784 (Andrade and Sundberg-Cooper).
  *
- * Binary payload under class_id BinaryClassID::<Model> (301-307): model_name length (uint32_t), the
- * model_name bytes, then the model's doubles. The layer observer pointer is not serialized.
+ * Binary payload: model name then the model's doubles. The layer observer pointer is not serialized.
  */
 
 #include <algorithm>
@@ -43,11 +28,7 @@
 
 namespace tidalpy {
 
-// -------------------------------------------------------------------------------
-// Replace a magnitude smaller than the shared numerical floor (config_x
-// [numerical].numerical_floor) with a signed floor value, guarding denominators
-// that may approach zero (e.g. at zero forcing frequency).
-// -------------------------------------------------------------------------------
+// Guard a denominator that may approach zero (zero forcing frequency, say); clamps to a signed floor.
 inline double rheo_guard(double value) noexcept {
     const double floor_value = tidalpy_config_ptr->d_NUMERICAL_FLOOR;
     if (std::abs(value) < floor_value) {
@@ -56,10 +37,7 @@ inline double rheo_guard(double value) noexcept {
     return value;
 }
 
-// -------------------------------------------------------------------------------
-// c_RheologyConfig: construction parameters for every rheology model. Each model
-// reads only the fields it needs.
-// -------------------------------------------------------------------------------
+// Combined construction parameters; each model reads only the fields it needs.
 struct c_RheologyConfig {
     double alpha                = 0.3;     // Andrade exponent           [dimensionless]
     double zeta                 = 1.0;     // Andrade timescale ratio    [dimensionless]
@@ -67,18 +45,9 @@ struct c_RheologyConfig {
     double voigt_viscosity_frac = 0.02;    // Voigt viscosity fraction   [dimensionless]
 };
 
-// =====================================================================================================================
-// Internal element compliances [Pa^-1]
-//
-// The public interface of every model is the complex modulus, but the composite rheologies (Burgers,
-// Andrade, Sundberg) combine their elements in series, so the element compliances add and the modulus is
-// the reciprocal of that sum. These intermediates stay in the detail namespace and are never exposed to
-// Python. Each takes the (shear or bulk) viscosity [Pa·s], the unrelaxed modulus [Pa] that sets the
-// static compliance J = 1/modulus, and the forcing frequency [rad s-1].
-//
-// Assumes a linear viscoelastic regime at a single forcing frequency; the Andrade family additionally
-// assumes a positive forcing frequency.
-// =====================================================================================================================
+// Internal element compliances [Pa^-1]. The composite rheologies (Burgers, Andrade, Sundberg) put their
+// elements in series, so the element compliances add and the modulus is the reciprocal of that sum.
+// The Andrade family additionally assumes a positive forcing frequency.
 namespace detail {
 
 // Maxwell element compliance: J* = J - i / (viscosity * frequency).
@@ -91,8 +60,7 @@ inline c_ComplexCompliance element_compliance_maxwell(
     return c_ComplexCompliance(static_compliance, -1.0 / denom);
 }
 
-// Voigt-Kelvin element compliance using fractional modulus/viscosity offsets.
-// The Voigt arm's compliance is the layer compliance divided by the modulus
+// Voigt-Kelvin element. The Voigt arm's compliance is the layer compliance divided by the modulus
 // fraction: J_voigt = (1 / modulus) / voigt_modulus_frac.
 inline c_ComplexCompliance element_compliance_voigt(
         double modulus,
@@ -137,14 +105,10 @@ inline c_ComplexCompliance element_compliance_andrade(
 
 }  // namespace detail
 
-// =====================================================================================================================
-// Complex (shear or bulk) modulus functions [Pa]
-//
-// Real part = storage (in-phase), imaginary part = loss (out-of-phase, positive for energy loss). Simple
-// models are analytic; the series composites invert the sum of their element compliances.
-// =====================================================================================================================
+// Complex (shear or bulk) modulus functions [Pa]. Simple models are analytic; the series composites
+// invert the sum of their element compliances.
 
-// Elastic: mu* = modulus (real).  No dissipation, frequency-independent.
+// Elastic: mu* = modulus. No dissipation, frequency independent.
 inline c_ComplexModulus rheo_modulus_elastic(
         double modulus,
         double /*viscosity*/,
@@ -250,25 +214,16 @@ inline c_ComplexModulus rheo_modulus_sundberg(
     return c_ComplexModulus(1.0, 0.0) / total;
 }
 
-// -------------------------------------------------------------------------------
-// Lower-case a model name for case-insensitive factory lookup.
-// -------------------------------------------------------------------------------
 inline std::string rheo_to_lower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return text;
 }
 
-// =====================================================================================================================
-// Rheology models
-//
 // Each model supplies only its BinaryClassID and its scalar params; c_PhysicsBase handles the header,
 // the model name, and the byte layout.
-// =====================================================================================================================
 
-// -------------------------------------------------------------------------------
-// c_Elastic: purely elastic response (alias "off").
-// -------------------------------------------------------------------------------
+// Purely elastic response (alias "off").
 class c_Elastic : public c_RheologyBase {
 public:
     c_Elastic() : c_RheologyBase("elastic") {}
@@ -293,9 +248,7 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_Viscous: purely viscous response (alias "newton").
-// -------------------------------------------------------------------------------
+// Purely viscous response (alias "newton").
 class c_Viscous : public c_RheologyBase {
 public:
     c_Viscous() : c_RheologyBase("viscous") {}
@@ -320,9 +273,6 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_Maxwell: standard Maxwell body.
-// -------------------------------------------------------------------------------
 class c_Maxwell : public c_RheologyBase {
 public:
     c_Maxwell() : c_RheologyBase("maxwell") {}
@@ -347,9 +297,7 @@ public:
     }
 };
 
-// -------------------------------------------------------------------------------
-// c_Voigt: Voigt-Kelvin element (alias "voigt-kelvin").
-// -------------------------------------------------------------------------------
+// Voigt-Kelvin element (alias "voigt-kelvin").
 class c_Voigt : public c_RheologyBase {
 public:
     c_Voigt() : c_RheologyBase("voigt") {}
@@ -395,9 +343,7 @@ protected:
     double p_voigt_viscosity_frac  = 0.02;
 };
 
-// -------------------------------------------------------------------------------
-// c_Burgers: Maxwell and Voigt in series.
-// -------------------------------------------------------------------------------
+// Maxwell and Voigt in series.
 class c_Burgers : public c_RheologyBase {
 public:
     c_Burgers() : c_RheologyBase("burgers") {}
@@ -443,9 +389,7 @@ protected:
     double p_voigt_viscosity_frac  = 0.02;
 };
 
-// -------------------------------------------------------------------------------
-// c_Andrade: Maxwell plus an Andrade transient term.
-// -------------------------------------------------------------------------------
+// Maxwell plus an Andrade transient term.
 class c_Andrade : public c_RheologyBase {
 public:
     c_Andrade() : c_RheologyBase("andrade") {}
@@ -491,9 +435,7 @@ protected:
     double p_zeta  = 1.0;
 };
 
-// -------------------------------------------------------------------------------
-// c_Sundberg: Andrade and Voigt (alias "sundberg-cooper").
-// -------------------------------------------------------------------------------
+// Andrade and Voigt (alias "sundberg-cooper").
 class c_Sundberg : public c_RheologyBase {
 public:
     c_Sundberg() : c_RheologyBase("sundberg") {}
@@ -552,14 +494,7 @@ protected:
     double p_voigt_viscosity_frac  = 0.02;
 };
 
-// =====================================================================================================================
-// Factory
-// =====================================================================================================================
-
-// -------------------------------------------------------------------------------
-// c_RheologyModel: one value per model, so c_find_rheology dispatches without
-// string comparisons.
-// -------------------------------------------------------------------------------
+// One value per model, so c_find_rheology dispatches without string comparisons.
 enum class c_RheologyModel : uint8_t {
     Elastic  = 0,
     Viscous  = 1,
@@ -570,10 +505,7 @@ enum class c_RheologyModel : uint8_t {
     Sundberg = 6,
 };
 
-// -------------------------------------------------------------------------------
-// Map a case-insensitive model name or alias to the enum; throws
-// std::invalid_argument on an unknown name.
-// -------------------------------------------------------------------------------
+// Model names are matched case-insensitively.
 inline c_RheologyModel c_rheology_model_from_name(const std::string& model_name) {
     const std::string name = rheo_to_lower(model_name);
 
@@ -591,11 +523,7 @@ inline c_RheologyModel c_rheology_model_from_name(const std::string& model_name)
     throw std::invalid_argument("TidalPy: unknown rheology model name '" + model_name + "'");
 }
 
-// -------------------------------------------------------------------------------
-// Build the model named by the enum and return an owning unique_ptr. This is the
-// canonical C++ factory: layers, binary reconstruction, and the Cython wrapper all
-// route through it. Throws std::invalid_argument for an unrecognised enum value.
-// -------------------------------------------------------------------------------
+// The canonical C++ factory: layers, binary reconstruction, and the Cython wrapper all route here.
 inline std::unique_ptr<c_RheologyBase> c_find_rheology(
         c_RheologyModel model, const c_RheologyConfig& cfg) {
     switch (model) {
@@ -610,18 +538,13 @@ inline std::unique_ptr<c_RheologyBase> c_find_rheology(
     throw std::invalid_argument("TidalPy: unrecognised c_RheologyModel enum value");
 }
 
-// Name overload.
 inline std::unique_ptr<c_RheologyBase> c_find_rheology(
         const std::string& model_name, const c_RheologyConfig& cfg) {
     return c_find_rheology(c_rheology_model_from_name(model_name), cfg);
 }
 
-// -------------------------------------------------------------------------------
-// Reconstruct a rheology model from a binary stream: peek the record's
-// BinaryClassID without consuming the header, build that model, then read it.
-// Used by the layer recursive deserialization (structures_x/layers). Throws
-// std::runtime_error for an unknown class id.
-// -------------------------------------------------------------------------------
+// The class id is peeked without consuming the header so the default-constructed model restores itself.
+// Used by the layer recursive deserialization in structures_x/layers.
 inline std::unique_ptr<c_RheologyBase> c_rheology_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);
