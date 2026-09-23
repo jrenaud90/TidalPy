@@ -1,8 +1,8 @@
 """A Love-number solve refuses an input no method can answer, and its settings mean the same in any units.
 
-Degree 1, a non-positive or out-of-range frequency, and a starting-radius tolerance outside (0, 1) raise ValueError on
-the world path and the standalone ``radial_solver`` alike, rather than failing mid-integration or starting deep in
-the planet and reporting success. The homogeneous methods pair the EOS surface gravity with the EOS mass, and a
+Degree 1 (for a tidal or free-surface solve; a loading solve may ask for it), a non-positive or out-of-range frequency,
+and a starting-radius tolerance outside (0, 1) raise ValueError on the world path and the standalone
+``radial_solver`` alike, rather than failing mid-integration or starting deep in the planet and reporting success. The homogeneous methods pair the EOS surface gravity with the EOS mass, and a
 step limit given in meters is honored whether the solve runs non-dimensionally or not.
 """
 import numpy as np
@@ -38,14 +38,25 @@ def test_the_world_path_refuses_invalid_input(io, kwargs):
         io.solve_love_numbers(**call)
 
 
-@pytest.mark.parametrize("degree_l", [1, -1])
-def test_the_standalone_solver_refuses_degree_below_2(degree_l):
-    inputs = build_rs_input_homogeneous_layers(
+def _one_layer_inputs():
+    return build_rs_input_homogeneous_layers(
         1.0e6, _IO_FREQUENCY, (3000.0,), (1.0e11,), (5.0e10,), (1.0e30,), (1.0e20,),
         ("solid",), (True,), (False,), Maxwell(), Elastic(),
         radius_fraction_tuple=(1.0,), slice_per_layer=50)
+
+
+@pytest.mark.parametrize("degree_l, solve_for", [
+    (1, ("tidal",)), (1, ("free",)), (1, ("tidal", "loading")), (0, ("loading",)), (-1, ("tidal",))])
+def test_the_standalone_solver_refuses_an_undefined_degree(degree_l, solve_for):
     with pytest.raises(ValueError):
-        radial_solver(*inputs, degree_l=degree_l)
+        radial_solver(*_one_layer_inputs(), degree_l=degree_l, solve_for=solve_for)
+
+
+def test_a_degree_one_load_is_solved():
+    """A degree-1 surface load deforms the body (Farrell 1972), so a loading-only solve at degree 1 is allowed."""
+    solution = radial_solver(*_one_layer_inputs(), degree_l=1, solve_for=("loading",))
+    assert solution.success, solution.message
+    assert np.isfinite(solution.h) and solution.h != 0.0
 
 
 def test_homogeneous_methods_use_the_solved_mass(io):

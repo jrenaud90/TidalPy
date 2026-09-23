@@ -1132,7 +1132,7 @@ cdef class LayeredWorld(BaseWorld):
         frequency : float, optional
             Tidal forcing frequency [rad/s]. Default 1e-5.
         degree_l : int, optional
-            Harmonic degree. Default 2.
+            Harmonic degree. Default 2. It must be 2 or more, or 1 for a solve for loading alone.
         solve_for : str or sequence of str, optional
             Surface boundary condition: ``'tidal'`` (default; tidal Love numbers k, h, l), ``'loading'``
             (load Love numbers k', h', l'), or ``'free'`` (free-surface response). Same names as the

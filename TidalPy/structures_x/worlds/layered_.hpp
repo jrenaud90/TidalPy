@@ -1287,9 +1287,18 @@ public:
     // out of range otherwise surfaces as a failed integration, or as a start deep in the planet that reports success
     // with a wrong answer.
     static void validate_love_config(const c_LoveSolveConfig& cfg) {
-        if (cfg.degree_l < 2) {
+        // Under a tidal or free-surface condition degree 1 is a translation of the whole body, with no Love number
+        // to find. A surface load of degree 1 does deform the body (its Love numbers depend on the reference frame;
+        // Farrell 1972), so a solve for loading alone may ask for it. Boundary models: 0 free, 1 tidal, 2 loading.
+        bool loading_only = !cfg.bc_models.empty();
+        for (const int bc_model : cfg.bc_models) {
+            if (bc_model != 2) { loading_only = false; }
+        }
+        const int min_degree = loading_only ? 1 : 2;
+        if (cfg.degree_l < min_degree) {
             throw std::invalid_argument(
-                "TidalPy: degree_l must be 2 or more for a Love-number solve; got " + std::to_string(cfg.degree_l)
+                "TidalPy: degree_l must be 2 or more for a tidal or free-surface Love-number solve (degree 1 is a "
+                "translation of the body), and 1 or more for a loading solve; got " + std::to_string(cfg.degree_l)
                 + ".");
         }
         if (!std::isfinite(cfg.frequency) || !(cfg.frequency > 0.0)) {

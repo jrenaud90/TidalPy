@@ -128,7 +128,8 @@ def radial_solver(
     upper_radius_bylayer_array : np.ndarray[dtype=np.float64]
         Upper radius of each layer [m].
     degree_l : int, default=2
-        Harmonic degree.
+        Harmonic degree: 2 or more, or 1 for a solve for loading alone (a degree-1 tidal or free-surface response
+        is a translation of the body). Anything lower raises ``ValueError``.
     solve_for : tuple[str, ...], optional
         Up to 5 of "tidal", "loading", "free"; None means ("tidal",).
     starting_radius : float64, default=0.0
