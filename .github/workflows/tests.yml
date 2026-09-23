@@ -248,8 +248,10 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      # sympy backs Test_Tides_x's independent check of the multilayer angular integrals; without it that
+      # file skips itself and the check never runs anywhere.
       - name: Install Test Dependencies
-        run: python -m pip install pytest pytest-xdist
+        run: python -m pip install pytest pytest-xdist sympy
 
       - name: Install Package with Burnman
         if: ${{ contains(fromJSON(env.BURNMAN_PYTHONS), matrix.python-version) }}
@@ -261,5 +263,8 @@ jobs:
 
       # --capture=sys leaves file-descriptor output alone, so the spdlog messages from the C++ backend still
       # reach the log; the default pytest capture would swallow them.
+      #
+      # `-n logical` rather than `-n auto`: psutil is present in the runner image, which makes xdist read
+      # `auto` as physical cores, and that is half of what the Linux and Windows runners offer.
       - name: Run pytest
-        run: pytest -n auto --capture=sys -v Tests/
+        run: pytest -n logical --capture=sys Tests/
