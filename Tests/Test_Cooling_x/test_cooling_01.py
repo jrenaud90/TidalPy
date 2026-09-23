@@ -416,3 +416,18 @@ def test_isinstance_chain(cls):
     assert isinstance(inst, mod.CoolingBase)
     assert isinstance(inst, PhysicsBase)
     assert isinstance(inst, TidalPyBaseClass)
+
+
+def test_convection_without_contrast_keeps_the_floored_boundary_layer():
+    """No temperature contrast gives no flux, and a boundary layer of thickness / Nu_min rather than a fixed length.
+
+    A whole-planet temperature solve uses the boundary layer as the resistance to the neighboring layers, whose
+    temperatures can differ from this one's, so it must follow the same rule as any other sub-critical layer.
+    """
+    mod = _import_cooling()
+    thick = 5.0e5
+    res = mod.ConvectiveCooling().calc_cooling(0.0, thick, _G, _RHO, _VISC, _K, _DIFF, _EXP)
+    assert res.cooling_flux == 0.0
+    assert res.rayleigh == 0.0
+    assert res.nusselt == 2.0
+    assert res.boundary_layer_thickness == pytest.approx(0.5 * thick)

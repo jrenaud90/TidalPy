@@ -1,6 +1,6 @@
 # System (`structures_x.system`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 A `System` links two or more worlds (a star, planets, moons) into a gravitationally bound group. It tracks two roles independently:
 
@@ -46,11 +46,11 @@ system.add_world(earth)                          # The Moon's tidal host, named 
 system.add_world(
     moon,
     tidal_host=earth,                            # The Earth raises the Moon's tides
-    semi_major_axis=3.844e8,                     # Moon about the Earth (tidal)
+    semi_major_axis=3.84748e8,                   # Moon about the Earth (tidal); 3.844e8 m is the mean distance
     eccentricity=0.0549)
 system.set_tidal_host(earth, moon)               # The Moon raises the Earth's tides in turn
-system.set_stellar_semi_major_axis("moon", au)   # Moon about the Sun (insolation)
-system.set_stellar_eccentricity("moon", 0.0167)
+system.set_stellar_semi_major_axis(moon, au)     # Moon about the Sun (insolation)
+system.set_stellar_eccentricity(moon, 0.0167)
 ```
 
 ### Mutual Pairs
@@ -86,7 +86,7 @@ system = build_system("sol_system")      # a bundled system name, a .toml path, 
 system.calc_insolation_flux("earth")     # ~1361 W/m^2 (the solar constant)
 ```
 
-`build_system(source, force=False)`, a thin wrapper over `System.build` that mirrors `build_world` and `BaseWorld.build`, resolves the source, validates it (schema version and structure), and builds each member world with `build_world`. `construct_system(config)` does the same from an already-parsed `dict`. To make the star and the tidal host different bodies, set `is_host` and `is_star` on different worlds (_e.g._, a moon whose tidal host is its planet but whose insolation comes from the system star), and give each world both a tidal-host orbit (`semi_major_axis_m` and `eccentricity`) and a stellar orbit (`stellar_semi_major_axis_m` and `stellar_eccentricity`).
+`build_system(source, force=False)`, a thin wrapper over `System.build` that mirrors `build_world` and `BaseWorld.build`, resolves the source, validates it (schema version and structure), and builds each member world with `build_world`. `construct_system(config)` does the same from an already-parsed `dict`. To make the star and the tidal host different bodies, give a world a `tidal_host` other than the world marked `is_star` (_e.g._, a moon whose tidal host is its planet but whose insolation comes from the system star), and give each world both a tidal-host orbit (`semi_major_axis_m` and `eccentricity`) and a stellar orbit (`stellar_semi_major_axis_m` and `stellar_eccentricity`).
 
 A built system retains its normalized configuration on `source_config` and can be written back out:
 

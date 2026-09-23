@@ -588,8 +588,17 @@ cdef class LayeredWorld(BaseWorld):
             the length, density, and time units) so the tolerances mean the same thing for every planet.
             Results are always returned in SI.
         temperature : float, optional
-            Temperature [K] passed to each EOS model's ``calc_density`` (unused by the current isothermal
-            models). Default 0.0.
+            Temperature [K] given to every layer for this solve in place of the layer's own ``temperature``.
+            ``None`` uses each layer's own. It sets the viscosity, melt, and thermal-expansion density of the
+            layer's material models.
+        solve_temperature : bool, optional
+            Carry temperature and heat flow through the structure solve, so each layer's profile follows its
+            cooling model (conducting boundary layers around an adiabatic interior for convection) and its
+            material models see the local temperature. Without a temperature contrast between the layers or to
+            the surface there is no profile to integrate and the solve keeps the four structure variables.
+            ``None`` takes the world's ``[eos_solver]`` setting, then the config's.
+        surface_temperature : float, optional
+            Temperature [K] the outermost layer radiates to. ``None`` leaves no flow through the surface.
         verbose : bool, optional
             Print solver status messages. Default False.
         time : float, optional

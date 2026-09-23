@@ -855,6 +855,8 @@ public:
     void solve_love_numbers(const c_LoveSolveConfig& cfg, c_HomogeneousLoveCache* cache) {
         const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
         this->p_love_method_last = method;
+        // The analytic results describe the last analytic solve only; a radial solve clears them.
+        this->reset_analytic_love();
         if (c_love_method_is_homogeneous(method)) {
             this->solve_love_numbers_homogeneous(cfg, method, cache);
             return;
@@ -891,6 +893,7 @@ public:
             const double* radius_in,
             std::size_t n_in) {
         const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
+        this->reset_analytic_love();
         if (!c_love_method_uses_radial_solver(method)) {
             throw std::invalid_argument(
                 "TidalPy: solve_love_numbers_supplied supports only the radial_solver and propagation_matrix "
@@ -964,14 +967,7 @@ public:
 
         // The world's own EOS solution is dimensional, so the released storage reports SI scalars.
         if (solver->get_storage() != nullptr) {
-            c_EOSSolution* dst       = solver->get_storage()->get_eos_solution_ptr();
-            const c_EOSSolution* src = this->p_eos_solution.get();
-            dst->radius           = src->radius;
-            dst->mass             = src->mass;
-            dst->moi              = src->moi;
-            dst->surface_gravity  = src->surface_gravity;
-            dst->surface_pressure = src->surface_pressure;
-            dst->central_pressure = src->central_pressure;
+            this->copy_eos_scalars_si(solver->get_storage()->get_eos_solution_ptr());
         }
         this->p_love_solved = solver->get_solved();
     }
@@ -1021,7 +1017,25 @@ public:
     // One-shot export to a RadialSolverSolution.
     std::unique_ptr<::c_RadialSolutionStorage> release_radial_storage() {
         if (!this->p_radial_solver) { return nullptr; }
-        return this->p_radial_solver->release_storage();
+        std::unique_ptr<::c_RadialSolutionStorage> storage = this->p_radial_solver->release_storage();
+        // The cached solve keeps its EOS scalars in solve units for the next frequency; a released solution
+        // reports them, so it takes the world's SI values. Nothing solves on the storage after this.
+        if (storage) { this->copy_eos_scalars_si(storage->get_eos_solution_ptr()); }
+        return storage;
+    }
+
+    // The planet scalars of the world's own (dimensional) EOS solution, copied onto a storage's EOS solution
+    // that is about to be reported to a caller.
+    void copy_eos_scalars_si(c_EOSSolution* dst) const {
+        const c_EOSSolution* src = this->p_eos_solution.get();
+        if (dst == nullptr || src == nullptr) { return; }
+        dst->radius           = src->radius;
+        dst->mass             = src->mass;
+        dst->moi              = src->moi;
+        dst->surface_gravity  = src->surface_gravity;
+        dst->surface_pressure = src->surface_pressure;
+        dst->central_pressure = src->central_pressure;
+        dst->pressure_error   = src->pressure_error;
     }
 
     // Valid after solve_love_numbers succeeds, NaN or empty otherwise.
@@ -1106,15 +1120,20 @@ public:
         return true;
     }
 
+    // Clear the analytic Love results so nothing reports a value from an earlier solve.
+    void reset_analytic_love() noexcept {
+        this->p_love_analytic_success      = false;
+        this->p_love_analytic              = c_LoveNumbers();
+        this->p_love_analytic_shear        = std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        this->p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;
+    }
+
     void solve_love_numbers_homogeneous(
             const c_LoveSolveConfig& cfg,
             c_LoveMethod method,
             c_HomogeneousLoveCache* cache) {
         this->p_love_solved = false;
-        this->p_love_analytic_success = false;
-        this->p_love_analytic = c_LoveNumbers();
-        this->p_love_analytic_shear = std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        this->p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;
+        this->reset_analytic_love();
         if (!this->p_eos_solved || !this->p_eos_solution) {
             throw std::invalid_argument("TidalPy: solve_eos() must be called before solve_love_numbers().");
         }
@@ -1457,6 +1476,9 @@ public:
     // distribute the global heating to the layers.
     double effective_tidal_scale(
             const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const;
+
+    // Maxwell time [s] the tidal_timescale scale compares with the forcing period (defined in world_tides_.hpp).
+    double layer_maxwell_time(const c_PhysicsLayer* phys) const;
 
     // World heating times the layer's effective tidal scale; 0 for a non-tidal layer.
     double get_layer_tidal_heating(std::size_t index) const noexcept {

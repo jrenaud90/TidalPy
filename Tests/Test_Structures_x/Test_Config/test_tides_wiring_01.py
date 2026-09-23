@@ -158,3 +158,22 @@ def test_the_rheology_model_is_refused_by_a_star():
     with pytest.raises((ValueError, RuntimeError)):
         world = build_world(_config("star", {"global_tidal_model": "rheology"}))
         world.calc_tides(2.0e-5, 2.0e-5, 0.01, 0.0, 1.0e9, 1.0e30)
+
+
+def test_set_tide_config_changes_only_the_given_settings():
+    """An omitted argument keeps its stored value instead of resetting to a default."""
+    from TidalPy.structures_x.configs import build_world
+    world = build_world("io")
+    world.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=5, obliquity_truncation=0,
+                          tidal_timescale_width_decades=2.0, love_method="homogeneous", love_fixed_q=80.0)
+    before = world.get_tide_config()
+    world.set_tide_config(eccentricity_truncation=10)
+    after = world.get_tide_config()
+    assert after["eccentricity_trunc_lvl"] == 10
+    for key in ("min_degree_l", "max_degree_l", "obliquity_trunc_lvl", "tidal_timescale_width_decades",
+                "love_method", "love_fixed_q"):
+        assert after[key] == before[key]
+    world.set_tide_config(love_fixed_q=float("nan"))   # NaN clears it
+    assert "love_fixed_q" not in world.get_tide_config()
+    with pytest.raises(NotImplementedError):
+        world.set_tide_config(eccentricity_truncation=6)

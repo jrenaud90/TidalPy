@@ -1,6 +1,6 @@
 # Worlds (`structures_x.worlds`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry; a layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
 
@@ -347,7 +347,7 @@ The non-dimensionalization is itself frequency-independent (the `c_NonDimensiona
 |----------------------|------------------------------|
 | `user_provided` (`user_provided_scale`) | the layer's `tidal_scale` field |
 | `volume_fraction` (`volume_fraction_scale`) | layer volume / planet volume |
-| `tidal_timescale` (`tidal_timescale_scale`) | a log-Gaussian bell in the layer's Maxwell time $\tau = \eta/\mu$ (from its static shear modulus + viscosity) peaking where $\tau$ equals the orbital forcing period $2\pi/n$; width [decades] from `set_tide_config(tidal_timescale_width_decades=...)`. 0 for a geometry-only layer or when $\mu$, $\eta$, or $n$ is unusable. |
+| `tidal_timescale` (`tidal_timescale_scale`) | a log-Gaussian bell in the layer's Maxwell time $\tau = \eta/\mu$ peaking where $\tau$ equals the orbital forcing period $2\pi/n$; width [decades] from `set_tide_config(tidal_timescale_width_decades=...)`. After `solve_eos`, $\tau$ is the volume-weighted geometric mean of the solved post-melt $\eta/\mu$ over the layer (so viscosity models and temperature profiles are seen); before it, the static constants. The bell is a weight per layer, so the layer shares need not sum to the world total. 0 for a geometry-only layer or when $\mu$, $\eta$, or $n$ is unusable. |
 
 A non-tidal layer (`is_tidal = false`) always gets 0. Methods may differ per layer.
 
@@ -390,7 +390,7 @@ world.get_tidal_love_k(2, 2, 0, 0)    # complex k₂ for the (l,m,p,q) = (2,2,0,
 |--------|---------|-------------|
 | `set_tide_model(tide)` | - | Attach a tide model (transfers ownership). |
 | `tide_model_set` | bool | Whether a model is attached. |
-| `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=10, tidal_timescale_width_decades=1.0, love_method='radial_solver', love_fixed_q=None, love_fixed_dt=None)` | - | Set the stored `[tides]` truncation/degree and the world's default Love-number method (see the RadialSolver section). |
+| `set_tide_config(min_degree_l=None, max_degree_l=None, eccentricity_truncation=None, obliquity_truncation=None, tidal_timescale_width_decades=None, love_method=None, love_fixed_q=None, love_fixed_dt=None)` | - | Change the stored `[tides]` truncation/degree settings and the world's default Love-number method (see the RadialSolver section). Only the arguments given change; the rest keep their current values (`get_tide_config()`). A NaN `love_fixed_q` or `love_fixed_dt` clears it. |
 | `get_tide_config()` | dict | The stored settings under the builder's `[tides]` key names (`*_trunc_lvl`). |
 | `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | - | Run the global tidal solve. |
 | `tides_solved` | bool | Whether a successful solve is held. A new tide model or tide configuration clears it, and so does a layered world's `solve_eos`, after which the heating and potential-derivative getters return NaN and each layer's `get_tidal_heating()` does too, until the next `calc_tides`. |

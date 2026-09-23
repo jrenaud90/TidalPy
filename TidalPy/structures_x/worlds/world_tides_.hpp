@@ -149,9 +149,10 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
 // Effective per-layer tidal-heating scale for the layer's tidal_scale_method; 0 for a non-tidal layer.
 //   user_provided   : the layer's tidal_scale field.
 //   volume_fraction : layer volume / planet volume.
-//   tidal_timescale : a log-Gaussian bell in the layer's Maxwell time tau = eta/mu about the tidal forcing
-//                     period, with the width [decades] from the tide config. 0 for a geometry-only layer or
-//                     when mu, eta, or the forcing are unusable.
+//   tidal_timescale : a log-Gaussian bell in the layer's Maxwell time tau = eta/mu (layer_maxwell_time) about
+//                     the tidal forcing period, with the width [decades] from the tide config. 0 for a
+//                     geometry-only layer or when mu, eta, or the forcing are unusable. The bell is a weight
+//                     per layer, not a partition: the layer shares need not sum to one.
 inline double c_LayeredWorld::effective_tidal_scale(
         const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const {
     if (!layer->get_is_tidal()) {
@@ -168,15 +169,11 @@ inline double c_LayeredWorld::effective_tidal_scale(
             if (phys == nullptr) {
                 return 0.0;   // geometry-only layer has no Maxwell time
             }
-            const double shear_modulus  = phys->get_shear_modulus_static();
-            const double shear_viscosity = phys->get_shear_viscosity_static();
-            const double orbital_freq   = std::abs(state.orbital_frequency);
-            if (!std::isfinite(shear_modulus) || shear_modulus <= TidalPyConstants::d_EPS
-             || !std::isfinite(shear_viscosity) || shear_viscosity <= TidalPyConstants::d_EPS
-             || orbital_freq <= TidalPyConstants::d_EPS) {
+            const double maxwell_time = this->layer_maxwell_time(phys);            // [s]
+            const double orbital_freq = std::abs(state.orbital_frequency);
+            if (!std::isfinite(maxwell_time) || maxwell_time <= 0.0 || orbital_freq <= TidalPyConstants::d_EPS) {
                 return 0.0;
             }
-            const double maxwell_time   = shear_viscosity / shear_modulus;          // [s]
             const double forcing_period = 2.0 * TidalPyConstants::d_PI / orbital_freq;  // [s]
             double width = this->p_tide_config.tidal_timescale_width_decades;
             if (width <= TidalPyConstants::d_EPS) {
@@ -188,6 +185,45 @@ inline double c_LayeredWorld::effective_tidal_scale(
         default:
             return 0.0;
     }
+}
+
+// Maxwell time [s] of a layer for the tidal_timescale scale. After an EOS solve it is the volume-weighted mean of
+// log10(eta/mu) over the layer's post-melt profile, so a viscosity spanning many decades across the layer (a cold
+// lid over a warm interior) is averaged in the log space the bell is defined in, and a viscosity set by a model
+// rather than a constant is seen. Before a solve it is the layer's static eta/mu. NaN when neither is usable.
+inline double c_LayeredWorld::layer_maxwell_time(const c_PhysicsLayer* phys) const {
+    const double eps = TidalPyConstants::d_EPS;
+    const double r_inner = phys->get_radius_inner();
+    const double r_outer = phys->get_radius_outer();
+    if (this->p_eos_solved && this->p_eos_solution && (r_outer > r_inner)) {
+        // Trapezoid in volume (weight r^2) on the node count of the homogeneous Love average.
+        const std::size_t n_intervals = homogeneous_quadrature_intervals;
+        const double dr = (r_outer - r_inner) / static_cast<double>(n_intervals);
+        double weight_sum = 0.0;
+        double log_sum    = 0.0;
+        for (std::size_t i = 0; i <= n_intervals; ++i) {
+            const double radius    = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * dr;
+            const double modulus   = phys->get_shear_modulus(radius);     // post-melt
+            const double viscosity = phys->get_shear_viscosity(radius);   // post-melt
+            if (!std::isfinite(modulus) || !(modulus > eps) || !std::isfinite(viscosity) || !(viscosity > eps)) {
+                continue;
+            }
+            const double end_weight = (i == 0 || i == n_intervals) ? 0.5 : 1.0;
+            const double weight     = end_weight * radius * radius;
+            weight_sum += weight;
+            log_sum    += weight * std::log10(viscosity / modulus);
+        }
+        if (weight_sum > 0.0) {
+            return std::pow(10.0, log_sum / weight_sum);
+        }
+        return TidalPyConstants::d_NAN;
+    }
+    const double modulus   = phys->get_shear_modulus_static();
+    const double viscosity = phys->get_shear_viscosity_static();
+    if (!std::isfinite(modulus) || !(modulus > eps) || !std::isfinite(viscosity) || !(viscosity > eps)) {
+        return TidalPyConstants::d_NAN;
+    }
+    return viscosity / modulus;
 }
 
 

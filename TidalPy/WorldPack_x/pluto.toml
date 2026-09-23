@@ -23,8 +23,8 @@
 # model output and not a check on the interior.
 #
 # Tides
-# The ocean is a static liquid layer, which decouples the shell from the core and is worth a factor of 32 in
-# the degree-2 Love number: k2 = 0.1458 at the 6.3872 day period against 0.0046 for the same body with the
+# The ocean is a static liquid layer, which decouples the shell from the core and is worth a factor of 31 in
+# the degree-2 Love number: k2 = 0.1458 at the 6.3872 day period against 0.00468 for the same body with the
 # ocean frozen into the shell. Nothing is fitted to that, since Pluto has no measured k2, but it is the
 # largest single consequence of the ocean and a test pins both numbers.
 #

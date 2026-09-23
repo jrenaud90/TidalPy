@@ -150,3 +150,28 @@ def test_tidal_timescale_zero_without_moduli():
     world = _cpl_timescale_world(0.0, 0.0)
     _solve(world)
     assert world.get_layer_tidal_heating(0) == 0.0
+
+
+def test_tidal_timescale_uses_the_solved_viscosity_model():
+    """A viscosity set by a model (no static constant) reaches the Maxwell time once the EOS is solved."""
+    from TidalPy.structures_x.configs import build_world
+    forcing_period = 2.0 * math.pi / _N
+    shear_modulus = 6.0e10
+    world = build_world({
+        "schema_version": "0.2.0", "name": "ts-model", "type": "terrestrial", "radius_m": _R,
+        "mass_kg": (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0,
+        "tides": {"global_tidal_model": "cpl", "fixed_k": [0.3], "fixed_q": [50.0],
+                  "eccentricity_trunc_lvl": 2, "obliquity_trunc_lvl": 0},
+        "layers": {"mantle": {
+            "class": "solidliquid", "layer_index": 0, "radius_fraction": 1.0, "is_tidal": True,
+            "tidal_scale_method": "tidal_timescale",
+            "material": {"model": "constant", "reference_density_kg_m3": 4000.0,
+                         "shear_modulus_static_pa": shear_modulus,
+                         # tau = eta / mu = 10 forcing periods, one decade off the peak
+                         "shear_viscosity": {"model": "constant",
+                                             "reference_viscosity_pas": 10.0 * forcing_period * shear_modulus},
+                         "partial_melt": {"model": "off"}}}}})
+    world.solve_eos()
+    _solve(world)
+    total = world.get_tidal_heating()
+    assert math.isclose(world.get_layer_tidal_heating(0) / total, math.exp(-0.5), rel_tol=1.0e-6)

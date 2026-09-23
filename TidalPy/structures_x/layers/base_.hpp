@@ -43,7 +43,8 @@ namespace tidalpy {
 // How a layer's share of the world's global tidal heating is set:
 //   user_provided   : the layer's tidal_scale field.
 //   volume_fraction : layer volume / planet volume.
-//   tidal_timescale : Maxwell-time bell curve against the tidal forcing period (volume-averaged eta/mu).
+//   tidal_timescale : Maxwell-time bell curve against the tidal forcing period (volume-weighted log mean of
+//                     the solved eta/mu; the static constants before an EOS solve).
 enum class c_TidalScaleMethod : uint8_t {
     user_provided   = 0,
     volume_fraction = 1,

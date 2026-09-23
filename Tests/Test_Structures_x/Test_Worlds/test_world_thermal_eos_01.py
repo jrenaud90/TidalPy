@@ -285,3 +285,30 @@ def test_bundled_worlds_are_unchanged(world_name):
     for key in ("planet_mass", "planet_moi", "surface_gravity", "central_pressure"):
         assert thermal_result[key] == fast_result[key], key
     assert thermal_result["thermal_passes"] == 0
+
+
+@pytest.mark.parametrize("core_temperature", (1700.0, 1800.0, 1850.0, 1900.0))
+def test_hot_core_under_an_isothermal_mantle_keeps_planetary_heat_flow(core_temperature):
+    """Io with a core hotter than a mantle at the asthenosphere's temperature.
+
+    The mantle has no contrast to the layer above, so its convection model once returned a fixed 1 m boundary layer.
+    The core then drove about 1e16 W through that metre, melted a sliver at the mantle base, and the Love solve
+    returned k2 near -0.58 + 0.25i while reporting success. The boundary layer now follows the floored Nusselt
+    number, so the heat flow stays planetary. A core hot enough to melt the mantle base past its critical melt
+    fraction leaves a near-fluid solid region the radial solver cannot integrate; that is reported as a failure, and a
+    reported success always carries a physical k2.
+    """
+    from TidalPy.structures_x.configs import build_world
+    io = build_world("io")
+    io.core.temperature = core_temperature
+    io.solve_eos(solve_temperature=True, surface_temperature=110.0)
+    heat_flow_into_mantle = float(io.get_heat_flow(np.array([io.mantle.radius_inner + 10.0]))[0])
+    assert abs(heat_flow_into_mantle) < 1.0e12   # [W]; Io's whole output is about 1e14 W
+    io.solve_love_numbers(frequency=4.11e-5, degree_l=2)
+    love_k2 = complex(io.love_number_k)
+    if core_temperature <= 1800.0:
+        assert io.love_success
+    if io.love_success:
+        assert 0.02 < love_k2.real < 0.1
+        assert -0.05 < love_k2.imag < 0.0
+        assert io.love_surface_amplification < 1.0e2

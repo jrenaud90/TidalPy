@@ -219,54 +219,65 @@ cdef class BaseWorld(StructureBase):
 
     def set_tide_config(
             self,
-            int min_degree_l=2,
-            int max_degree_l=2,
-            int eccentricity_truncation=3,
-            int obliquity_truncation=10,
-            double tidal_timescale_width_decades=1.0,
-            str love_method='radial_solver',
+            min_degree_l=None,
+            max_degree_l=None,
+            eccentricity_truncation=None,
+            obliquity_truncation=None,
+            tidal_timescale_width_decades=None,
+            love_method=None,
             love_fixed_q=None,
             love_fixed_dt=None):
-        """Set the stored ``[tides]`` truncation/degree configuration and the world's Love-number method.
+        """Change the stored ``[tides]`` truncation/degree configuration and the world's Love-number method.
+
+        Only the arguments given change; every other setting keeps its current value (see
+        :meth:`get_tide_config`), so a call can adjust one setting without resetting the rest.
 
         Parameters
         ----------
-        min_degree_l, max_degree_l : int
+        min_degree_l, max_degree_l : int, optional
             Tidal harmonic degree range (2..10).
-        eccentricity_truncation : int
+        eccentricity_truncation : int, optional
             Eccentricity-function truncation level n (every term through e^n). Tabulated levels: 1..5, 10, 15, 20.
-        obliquity_truncation : int
+        obliquity_truncation : int, optional
             Obliquity-function truncation: 0 (off), 1 or 2 (every term through I^1 or I^2), 10 (general).
-        tidal_timescale_width_decades : float
+        tidal_timescale_width_decades : float, optional
             Width [decades] of the log-Gaussian bell used by the ``tidal_timescale`` layer
             scale method.
-        love_method : str
+        love_method : str, optional
             How the world obtains Love numbers when its tide model asks for them (and the default for
-            ``solve_love_numbers``): ``'radial_solver'`` (``'shooting'``, ``'rs'``; default),
-            ``'propagation_matrix'`` (``'prop_matrix'``, ``'pm'``, ``'prop'``), ``'homogeneous'``
-            (``'homogen'``), ``'cpl'``, ``'ctl'``, or ``'laterally_inhomogeneous'`` (``'3d'``,
-            ``'lat_inhom'``; reserved, not implemented).
+            ``solve_love_numbers``): ``'radial_solver'`` (``'shooting'``, ``'rs'``), ``'propagation_matrix'``
+            (``'prop_matrix'``, ``'pm'``, ``'prop'``), ``'homogeneous'`` (``'homogen'``), ``'cpl'``, ``'ctl'``,
+            or ``'laterally_inhomogeneous'`` (``'3d'``, ``'lat_inhom'``; reserved, not implemented).
         love_fixed_q, love_fixed_dt : float, optional
-            Quality factor for the ``'cpl'`` method and time lag [s] for the ``'ctl'`` method. Left unset,
-            the attached tide model's per-degree fixed Q / time lag is used.
+            Quality factor for the ``'cpl'`` method and time lag [s] for the ``'ctl'`` method. A NaN clears the
+            value, after which the attached tide model's per-degree fixed Q / time lag is used.
         """
-        if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
+        if eccentricity_truncation is not None and eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
             raise NotImplementedError(
                 f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
                 'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
-        if obliquity_truncation not in (0, 1, 2, 10):
+        if obliquity_truncation is not None and obliquity_truncation not in (0, 1, 2, 10):
             raise NotImplementedError(
                 f'Obliquity truncation {obliquity_truncation} is not tabulated. '
                 'Supported levels: 0 (off), 1, 2, 10 (fully general).')
-        cdef c_TideConfig cfg
-        cfg.min_degree_l                  = min_degree_l
-        cfg.max_degree_l                  = max_degree_l
-        cfg.eccentricity_truncation       = eccentricity_truncation
-        cfg.obliquity_truncation          = obliquity_truncation
-        cfg.tidal_timescale_width_decades = tidal_timescale_width_decades
-        cfg.love_method                   = c_parse_love_method_int(love_method.encode('utf-8'))
-        cfg.love_fixed_q                  = float('nan') if love_fixed_q is None else <double>love_fixed_q
-        cfg.love_fixed_dt                 = float('nan') if love_fixed_dt is None else <double>love_fixed_dt
+        # Start from the stored configuration so an omitted argument leaves its setting unchanged.
+        cdef c_TideConfig cfg = self._world_ptr.get().get_tide_config()
+        if min_degree_l is not None:
+            cfg.min_degree_l = <int>min_degree_l
+        if max_degree_l is not None:
+            cfg.max_degree_l = <int>max_degree_l
+        if eccentricity_truncation is not None:
+            cfg.eccentricity_truncation = <int>eccentricity_truncation
+        if obliquity_truncation is not None:
+            cfg.obliquity_truncation = <int>obliquity_truncation
+        if tidal_timescale_width_decades is not None:
+            cfg.tidal_timescale_width_decades = <double>tidal_timescale_width_decades
+        if love_method is not None:
+            cfg.love_method = c_parse_love_method_int(str(love_method).encode('utf-8'))
+        if love_fixed_q is not None:
+            cfg.love_fixed_q = <double>love_fixed_q
+        if love_fixed_dt is not None:
+            cfg.love_fixed_dt = <double>love_fixed_dt
         self._world_ptr.get().set_tide_config(cfg)
 
     def calc_tides(
