@@ -190,6 +190,29 @@ inline bool check_binary_schema_version(
     return false;
 }
 
+// Bytes left in a stream after its read position; the most a record can still claim. A stream that cannot report
+// its size gives no limit.
+inline uint64_t binary_bytes_remaining(std::istream& in) {
+    const std::streampos here = in.tellg();
+    if (here == std::streampos(-1)) { return UINT64_MAX; }
+    in.seekg(0, std::ios::end);
+    const std::streampos end = in.tellg();
+    in.seekg(here);
+    if ((end == std::streampos(-1)) || (end < here)) { return UINT64_MAX; }
+    return static_cast<uint64_t>(end - here);
+}
+
+// Throw when a record claims more elements than the stream still holds, before anything is allocated for them: a
+// corrupt or truncated count otherwise asks for gigabytes.
+inline void check_binary_count(std::istream& in, uint64_t count, uint64_t element_bytes, const char* what) {
+    const uint64_t bytes_per_element = (element_bytes > 0) ? element_bytes : 1;
+    if (count > binary_bytes_remaining(in) / bytes_per_element) {
+        throw std::runtime_error(
+            std::string("TidalPy: corrupt or truncated binary data: the ") + what
+            + " count is larger than what is left in the file");
+    }
+}
+
 // Strings are a uint32_t length then the raw UTF-8 bytes. Shared by every serializable class so the
 // encoding lives in one place.
 
@@ -204,6 +227,8 @@ inline void write_binary_string(std::ostream& out, const std::string& text) {
 inline std::string read_binary_string(std::istream& in) {
     uint32_t length = 0;
     in.read(reinterpret_cast<char*>(&length), sizeof(uint32_t));
+    if (!in) { throw std::runtime_error("TidalPy: failed to read a string length from binary data"); }
+    check_binary_count(in, length, 1, "string");
     std::string text;
     text.resize(length);
     if (length > 0) {

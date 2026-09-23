@@ -656,9 +656,11 @@ public:
         }
     }
 
+    // The whole record is read into locals and committed only once it is complete, so a corrupt or truncated file
+    // throws with the system unchanged rather than half replaced.
     void read_binary(std::istream& in, bool force = false) override {
         c_TidalPyBaseClass::read_binary(in, force);
-        this->p_name = read_binary_string(in);
+        std::string name = read_binary_string(in);
 
         int32_t star_index = -1;
         in.read(reinterpret_cast<char*>(&star_index), sizeof(int32_t));
@@ -667,6 +669,7 @@ public:
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read System binary data");
         }
+        check_binary_count(in, num_worlds, sizeof(int32_t) + 4 * sizeof(double), "world");
 
         // Per-world tidal host, then the orbital elements about it and about the star.
         std::vector<int> host_index_byworld(num_worlds, -1);
@@ -676,30 +679,43 @@ public:
             host_index_byworld[i] = (host_index >= 0 && static_cast<uint64_t>(host_index) < num_worlds
                                      && static_cast<uint64_t>(host_index) != i) ? host_index : -1;
         }
-        this->p_orbits.assign(num_worlds, c_OrbitElements{});
+        std::vector<c_OrbitElements> orbits(num_worlds, c_OrbitElements{});
         for (uint64_t i = 0; i < num_worlds; ++i) {
-            in.read(reinterpret_cast<char*>(&this->p_orbits[i].semi_major_axis), sizeof(double));
-            in.read(reinterpret_cast<char*>(&this->p_orbits[i].eccentricity),    sizeof(double));
+            in.read(reinterpret_cast<char*>(&orbits[i].semi_major_axis), sizeof(double));
+            in.read(reinterpret_cast<char*>(&orbits[i].eccentricity),    sizeof(double));
         }
-        this->p_stellar_orbits.assign(num_worlds, c_OrbitElements{});
+        std::vector<c_OrbitElements> stellar_orbits(num_worlds, c_OrbitElements{});
         for (uint64_t i = 0; i < num_worlds; ++i) {
-            in.read(reinterpret_cast<char*>(&this->p_stellar_orbits[i].semi_major_axis), sizeof(double));
-            in.read(reinterpret_cast<char*>(&this->p_stellar_orbits[i].eccentricity),    sizeof(double));
+            in.read(reinterpret_cast<char*>(&stellar_orbits[i].semi_major_axis), sizeof(double));
+            in.read(reinterpret_cast<char*>(&stellar_orbits[i].eccentricity),    sizeof(double));
+        }
+        if (!in) {
+            throw std::runtime_error("TidalPy: failed to read System binary data");
+        }
+        if ((star_index < -1) || ((star_index >= 0) && (static_cast<uint64_t>(star_index) >= num_worlds))) {
+            throw std::runtime_error("TidalPy: corrupt System binary data: the star index is out of range");
         }
 
         // Each world's concrete type is recovered from its own record.
-        this->p_release_worlds();
-        this->p_worlds.clear();
-        this->p_worlds.reserve(num_worlds);
+        std::vector<std::shared_ptr<c_BaseWorld>> worlds;
+        worlds.reserve(num_worlds);
         for (uint64_t i = 0; i < num_worlds; ++i) {
-            this->p_worlds.push_back(c_world_from_binary(in, force));
-            this->p_worlds.back()->set_tide_state_provider(this, static_cast<std::size_t>(i));
+            worlds.push_back(c_world_from_binary(in, force));
         }
-
-        this->p_host_index_byworld = std::move(host_index_byworld);
-        this->p_star_index = star_index;
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read System binary data");
+        }
+
+        // Commit.
+        this->p_release_worlds();
+        this->p_name               = std::move(name);
+        this->p_worlds             = std::move(worlds);
+        this->p_orbits             = std::move(orbits);
+        this->p_stellar_orbits     = std::move(stellar_orbits);
+        this->p_host_index_byworld = std::move(host_index_byworld);
+        this->p_star_index         = star_index;
+        for (std::size_t i = 0; i < this->p_worlds.size(); ++i) {
+            this->p_worlds[i]->set_tide_state_provider(this, i);
         }
     }
 

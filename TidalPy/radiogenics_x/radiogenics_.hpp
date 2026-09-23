@@ -333,6 +333,8 @@ public:
         in.read(reinterpret_cast<char*>(&this->p_ref_time), sizeof(double));
         uint64_t n = 0;
         in.read(reinterpret_cast<char*>(&n), sizeof(uint64_t));
+        if (!in) { throw std::runtime_error("TidalPy: failed to read isotope radiogenics binary data"); }
+        check_binary_count(in, n, sizeof(uint32_t) + 4 * sizeof(double), "isotope");
         this->p_isotopes.clear();
         this->p_isotopes.reserve(n);
         for (uint64_t i = 0; i < n; ++i) {

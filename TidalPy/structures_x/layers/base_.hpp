@@ -259,7 +259,6 @@ public:
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
             sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
             sizeof(double)   +               // tidal_scale
-            sizeof(uint8_t)  +               // tidal_scale_method
             optional_binary_flag_bytes();    // material EOS model presence flag
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::BaseLayer), payload);
@@ -280,8 +279,6 @@ public:
         const uint8_t is_volume_fixed = static_cast<uint8_t>(this->p_is_volume_fixed);
         out.write(reinterpret_cast<const char*>(&is_volume_fixed),  sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
-        const uint8_t scale_method_byte = static_cast<uint8_t>(this->p_tidal_scale_method);
-        out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
 
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write BaseLayer binary data");
@@ -292,14 +289,14 @@ public:
 
     void read_binary(std::istream& in, bool force = false) override {
         c_TidalPyBaseClass::read_binary(in, force);
+        // A loaded layer carries no solved profile or heating until its world solves again.
+        this->clear_eos_data();
+        this->p_tidal_heating = TidalPyConstants::d_NAN;
 
         in.read(reinterpret_cast<char*>(&this->p_radius), sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_mass),   sizeof(double));
 
-        uint32_t name_len = 0;
-        in.read(reinterpret_cast<char*>(&name_len), sizeof(uint32_t));
-        this->p_name.resize(name_len);
-        if (name_len > 0) in.read(this->p_name.data(), name_len);
+        this->p_name = read_binary_string(in);
 
         int32_t idx = 0;
         in.read(reinterpret_cast<char*>(&idx), sizeof(int32_t));
@@ -307,10 +304,7 @@ public:
 
         in.read(reinterpret_cast<char*>(&this->p_radius_inner), sizeof(double));
 
-        uint32_t mat_len = 0;
-        in.read(reinterpret_cast<char*>(&mat_len), sizeof(uint32_t));
-        this->p_material_name.resize(mat_len);
-        if (mat_len > 0) in.read(this->p_material_name.data(), mat_len);
+        this->p_material_name = read_binary_string(in);
 
         uint8_t is_tidal = 0;
         in.read(reinterpret_cast<char*>(&is_tidal), sizeof(uint8_t));
@@ -321,9 +315,6 @@ public:
 
         in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
 
-        uint8_t scale_method_byte = 0;
-        in.read(reinterpret_cast<char*>(&scale_method_byte), sizeof(uint8_t));
-        this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
 
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read BaseLayer binary data");

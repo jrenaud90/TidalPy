@@ -1071,4 +1071,13 @@ inline std::unique_ptr<c_MaterialEOSBase> c_material_eos_from_binary(std::istrea
     return model;
 }
 
+// A deep copy of a material model, its viscosity and partial-melt models included, made through its binary record
+// so every model's full state is carried without a hand-written copy per class. The copy observes no layer.
+inline std::unique_ptr<c_MaterialEOSBase> c_clone_material_eos(const c_MaterialEOSBase& model) {
+    std::stringstream buffer(std::ios::in | std::ios::out | std::ios::binary);
+    model.write_binary(buffer);
+    buffer.seekg(0);
+    return c_material_eos_from_binary(buffer, true);
+}
+
 }  // namespace tidalpy

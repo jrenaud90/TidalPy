@@ -5,6 +5,7 @@
  */
 
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -64,13 +65,35 @@ public:
         write_binary(out);
     }
 
+    // Loads into this object. The file must hold a record of this object's own class: a record of another class
+    // would be read field by field into the wrong layout (a Sundberg model into a Maxwell one keeps computing
+    // Maxwell; a physics layer's file into a base layer drops its models), so it is refused before anything is
+    // read. force relaxes only the schema-version check.
     void load_binary(const std::string& path, bool force = false) {
         std::ifstream in(path, std::ios::binary);
         if (!in.is_open()) {
             throw std::runtime_error(
                 "TidalPy: cannot open binary file: " + path);
         }
+        const std::streampos start = in.tellg();
+        const c_BinaryHeader file_header = read_binary_header(in);
+        in.seekg(start);
+        const uint32_t own_class_id = this->get_binary_class_id();
+        if (file_header.class_id != own_class_id) {
+            throw std::runtime_error(
+                "TidalPy: cannot load binary file " + path + ": it holds a record of class id "
+                + std::to_string(file_header.class_id) + ", not this object's class id "
+                + std::to_string(own_class_id) + "; load it into an object of the class that saved it");
+        }
         read_binary(in, force);
+    }
+
+    // The class id this object writes in its binary header.
+    uint32_t get_binary_class_id() const {
+        std::stringstream probe(std::ios::in | std::ios::out | std::ios::binary);
+        this->write_binary(probe);
+        probe.seekg(0);
+        return read_binary_header(probe).class_id;
     }
 
 protected:

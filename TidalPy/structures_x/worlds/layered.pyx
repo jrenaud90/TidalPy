@@ -438,6 +438,25 @@ cdef class LayeredWorld(BaseWorld):
         self._layer_views = None
         self._layer_view_by_name = None
 
+    def load_binary(self, str path, cpp_bool force=False):
+        """Load this world's state, its layers included, from a TidalPy binary file.
+
+        The load replaces the world's layers, so layer views taken from this world before it (``world.<name>``,
+        ``get_layer``, iteration) no longer refer to a layer of this world and must not be used; take new ones.
+        Nothing solved survives the load: run ``solve_eos`` again.
+
+        Parameters
+        ----------
+        path : str
+            Source file path.
+        force : bool, optional
+            Attempt the load even on a schema version mismatch.
+        """
+        # Drop the cached views before the C++ layers they point at are replaced.
+        self._layer_views = None
+        self._layer_view_by_name = None
+        BaseWorld.load_binary(self, path, force)
+
     @property
     def num_layers(self) -> int:
         """Number of layers in the world."""

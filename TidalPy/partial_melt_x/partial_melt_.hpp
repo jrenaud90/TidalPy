@@ -231,26 +231,24 @@ public:
     }
 
     void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, static_cast<uint32_t>(BinaryClassID::HenningPartialMelt),
-            {this->p_solidus, this->p_liquidus, this->p_liquid_shear,
-             this->p_crit_melt_frac, this->p_crit_melt_frac_width,
-             this->p_hn_visc_slope_1, this->p_hn_visc_falloff_slope,
-             this->p_hn_shear_param_1, this->p_hn_shear_param_2,
-             this->p_hn_shear_falloff_slope});
+        std::vector<double> params = this->envelope_params();
+        params.insert(params.end(), {this->p_crit_melt_frac, this->p_crit_melt_frac_width,
+                                     this->p_hn_visc_slope_1, this->p_hn_visc_falloff_slope,
+                                     this->p_hn_shear_param_1, this->p_hn_shear_param_2,
+                                     this->p_hn_shear_falloff_slope});
+        this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::HenningPartialMelt), params);
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 10);
-        this->p_solidus                = params[0];
-        this->p_liquidus               = params[1];
-        this->p_liquid_shear           = params[2];
-        this->p_crit_melt_frac         = params[3];
-        this->p_crit_melt_frac_width   = params[4];
-        this->p_hn_visc_slope_1        = params[5];
-        this->p_hn_visc_falloff_slope  = params[6];
-        this->p_hn_shear_param_1       = params[7];
-        this->p_hn_shear_param_2       = params[8];
-        this->p_hn_shear_falloff_slope = params[9];
+        const std::vector<double> params = this->read_physics_binary(in, force, C_NUM_ENVELOPE_PARAMS + 7);
+        this->set_envelope_params(params);
+        const std::size_t i0 = C_NUM_ENVELOPE_PARAMS;
+        this->p_crit_melt_frac         = params[i0];
+        this->p_crit_melt_frac_width   = params[i0 + 1];
+        this->p_hn_visc_slope_1        = params[i0 + 2];
+        this->p_hn_visc_falloff_slope  = params[i0 + 3];
+        this->p_hn_shear_param_1       = params[i0 + 4];
+        this->p_hn_shear_param_2       = params[i0 + 5];
+        this->p_hn_shear_falloff_slope = params[i0 + 6];
     }
 
 protected:

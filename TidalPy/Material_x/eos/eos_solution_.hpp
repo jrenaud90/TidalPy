@@ -58,6 +58,11 @@ public:
         std::complex<double>& bulk_out)>;
     MaterialEval p_material_eval;
 
+    // Whatever the retained integrators' diffeq arguments point into (the per-layer material inputs and models,
+    // the heat sources), co-owned so that every later dense call reads what the solve used, however long the
+    // solution is kept and whatever its owner does next.
+    std::shared_ptr<const void> input_keepalive;
+
     std::string message         = "No Message Set.";
     size_t current_layers_saved = 0;
     size_t num_layers           = 0;
@@ -694,7 +699,6 @@ public:
         }
         else
         {
-            // TODO: Handle repeated same-direction dimensionalization requests instead of raising.
             throw std::runtime_error("Unsupported dimensionalization encountered.");
         }
 
