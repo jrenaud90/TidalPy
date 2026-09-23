@@ -105,3 +105,10 @@ cdef class RadialSolverSolution:
         double* new_radius_array_ptr,
         size_t new_size_radius_array,
         cpp_bool array_changed = *) noexcept
+
+
+# Warn when the surface boundary condition solve is poorly conditioned. Returns True when it warned. Holds
+# the GIL: it formats and logs a message.
+cdef bint cy_check_surface_solve_conditioning(
+    double surface_amplification,
+    double integration_rtol) except *

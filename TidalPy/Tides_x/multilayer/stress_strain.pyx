@@ -189,11 +189,15 @@ def strain_stress_heating_point(
         &stress12[0],
         &heating)
 
-    cdef cnp.ndarray[cnp.complex128_t, ndim=1] strain = np.empty(6, dtype=np.complex128)
-    cdef cnp.ndarray[cnp.complex128_t, ndim=1] stress = np.empty(6, dtype=np.complex128)
-    for k in range(6):
-        strain[k] = complex(strain12[2 * k], strain12[2 * k + 1])
-        stress[k] = complex(stress12[2 * k], stress12[2 * k + 1])
+    cdef cnp.ndarray strain = np.empty(6, dtype=np.complex128)
+    cdef cnp.ndarray stress = np.empty(6, dtype=np.complex128)
+    cdef double complex[::1] strain_mv = strain
+    cdef double complex[::1] stress_mv = stress
+    # C stores into the buffers; the previous form built two Python complex objects per component.
+    with nogil:
+        for k in range(6):
+            strain_mv[k] = strain12[2 * k] + 1j * strain12[2 * k + 1]
+            stress_mv[k] = stress12[2 * k] + 1j * stress12[2 * k + 1]
     return strain, stress, heating
 
 
@@ -241,7 +245,9 @@ def displacement_point(
     cy_potential_row_to_flat(potential6, &potential12[0])
     cdef double[6] disp6
     c_displacements_flat(&y_ri[0], &potential12[0], colatitude, &disp6[0])
-    cdef cnp.ndarray[cnp.complex128_t, ndim=1] displacement = np.empty(3, dtype=np.complex128)
-    for k in range(3):
-        displacement[k] = complex(disp6[2 * k], disp6[2 * k + 1])
+    cdef cnp.ndarray displacement = np.empty(3, dtype=np.complex128)
+    cdef double complex[::1] displacement_mv = displacement
+    with nogil:
+        for k in range(3):
+            displacement_mv[k] = disp6[2 * k] + 1j * disp6[2 * k + 1]
     return displacement

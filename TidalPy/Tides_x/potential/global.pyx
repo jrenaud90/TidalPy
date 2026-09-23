@@ -104,13 +104,17 @@ def global_potential(
     # Potential map (c_IntMap<c_Key4, c_GlobalPotentialResultAtMode> -> dict)
     cdef dict potential_dict = dict()
     cdef c_Key4 pkey
+    # One index per mode; the four derivatives below came from four separate lookups.
+    # A pointer, not a copy: the result struct has no default constructor.
+    cdef const c_GlobalPotentialResultAtMode* mode_result_ptr = NULL
     for i in range(c_result.potential_map.size()):
         pkey = c_result.potential_map.data[i].first
+        mode_result_ptr = &c_result.potential_map.data[i].second
         potential_dict[(pkey.a, pkey.b, pkey.c, pkey.d)] = (
-            c_result.potential_map.data[i].second.dU_dM,
-            c_result.potential_map.data[i].second.dU_dw,
-            c_result.potential_map.data[i].second.dU_dO,
-            c_result.potential_map.data[i].second.E_dot
+            mode_result_ptr.dU_dM,
+            mode_result_ptr.dU_dw,
+            mode_result_ptr.dU_dO,
+            mode_result_ptr.E_dot
         )
 
     return mode_map, unique_freq_index_map, unique_freq_list, potential_dict

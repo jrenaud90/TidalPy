@@ -34,7 +34,7 @@ from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLi
 from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
 from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_YTYPES
 from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
-from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
+from TidalPy.RadialSolver_x.rs_solution cimport cy_check_surface_solve_conditioning
 from TidalPy.Tides_x.love.love cimport (
     c_parse_love_method_int, c_love_method_name_int, c_love_method_uses_radial_solver_int)
 from TidalPy.Utilities_x.logging_x.logger import log_warning
@@ -1164,7 +1164,7 @@ cdef class LayeredWorld(BaseWorld):
 
         # The conditioning diagnostic belongs to the radial solvers.
         if warnings and c_love_method_uses_radial_solver_int(cfg.love_method):
-            check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
+            cy_check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
         return self._build_love_result()
 
     def solve_love_numbers_supplied(
@@ -1231,7 +1231,7 @@ cdef class LayeredWorld(BaseWorld):
                 radius_ptr,
                 n_in)
         if warnings:
-            check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
+            cy_check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
         return self._build_love_result()
 
     def release_radial_solution(self):

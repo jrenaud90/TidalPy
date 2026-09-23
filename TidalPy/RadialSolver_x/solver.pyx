@@ -24,7 +24,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 from TidalPy.exceptions import SolutionFailedError
 from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution, c_RadialSolutionStorage
-from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
+from TidalPy.RadialSolver_x.rs_solution cimport cy_check_surface_solve_conditioning
 from TidalPy.Tides_x.love.love cimport c_parse_love_method_int
 # The world types and the C++ profile builder come from this module's own .pxd, which redeclares them rather
 # than cimporting structures_x.worlds.layered; see the note there for why that import cannot be used.
@@ -434,6 +434,6 @@ def radial_solver(
             log_warning(
                 f"Large number of steps taken found in radial solver solution "
                 f"(max = {np.max(solution.steps_taken)}).")
-        check_surface_solve_conditioning(solution.surface_solve_amplification, c_integration_rtol)
+        cy_check_surface_solve_conditioning(solution.surface_solve_amplification, c_integration_rtol)
 
     return solution

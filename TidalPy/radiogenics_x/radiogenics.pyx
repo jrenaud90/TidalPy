@@ -111,13 +111,16 @@ cdef object cy_isotopes_to_arrays(const vector[c_Isotope]& isotopes):
     cdef double[::1] m_half = half
     cdef double[::1] m_frac = frac
     cdef double[::1] m_conc = conc
-    names = []
+    cdef list names = []
+    # One index per isotope rather than one per field.
+    cdef const c_Isotope* isotope_ptr = NULL
     for i in range(n):
-        m_hpr[i]  = isotopes[i].heat_production
-        m_half[i] = isotopes[i].half_life
-        m_frac[i] = isotopes[i].mass_frac
-        m_conc[i] = isotopes[i].concentration
-        names.append(isotopes[i].name.decode("utf-8"))
+        isotope_ptr = &isotopes[i]
+        m_hpr[i]  = isotope_ptr.heat_production
+        m_half[i] = isotope_ptr.half_life
+        m_frac[i] = isotope_ptr.mass_frac
+        m_conc[i] = isotope_ptr.concentration
+        names.append(isotope_ptr.name.decode("utf-8"))
     return hpr, half, frac, conc, names
 
 

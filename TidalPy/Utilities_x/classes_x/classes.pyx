@@ -238,20 +238,23 @@ cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries):
     cdef size_t i, j
     cdef str key
     cdef list values
+    # One index per entry rather than one per field read below.
+    cdef const c_ConfigEntry* entry_ptr = NULL
     for i in range(entries.size()):
-        key = entries[i].key.decode("utf-8")
-        if entries[i].kind == c_ConfigEntryKind.Double:
-            out[key] = entries[i].value_double
-        elif entries[i].kind == c_ConfigEntryKind.Int:
-            out[key] = entries[i].value_int
-        elif entries[i].kind == c_ConfigEntryKind.Bool:
-            out[key] = True if entries[i].value_bool else False
-        elif entries[i].kind == c_ConfigEntryKind.String:
-            out[key] = entries[i].value_string.decode("utf-8")
-        elif entries[i].kind == c_ConfigEntryKind.DoubleList:
+        entry_ptr = &entries[i]
+        key = entry_ptr.key.decode("utf-8")
+        if entry_ptr.kind == c_ConfigEntryKind.Double:
+            out[key] = entry_ptr.value_double
+        elif entry_ptr.kind == c_ConfigEntryKind.Int:
+            out[key] = entry_ptr.value_int
+        elif entry_ptr.kind == c_ConfigEntryKind.Bool:
+            out[key] = True if entry_ptr.value_bool else False
+        elif entry_ptr.kind == c_ConfigEntryKind.String:
+            out[key] = entry_ptr.value_string.decode("utf-8")
+        elif entry_ptr.kind == c_ConfigEntryKind.DoubleList:
             values = []
-            for j in range(entries[i].value_double_list.size()):
-                values.append(entries[i].value_double_list[j])
+            for j in range(entry_ptr.value_double_list.size()):
+                values.append(entry_ptr.value_double_list[j])
             out[key] = values
         else:
             values = []

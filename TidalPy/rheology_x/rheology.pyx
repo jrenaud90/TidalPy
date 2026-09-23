@@ -55,10 +55,14 @@ cdef object cy_complex_vector_to_ndarray(vector[cpp_complex[double]]& src, tuple
     """Build a complex128 ndarray (of the given shape) from a std::vector."""
     cdef Py_ssize_t n = <Py_ssize_t>src.size()
     cdef Py_ssize_t i
-    out = np.empty(n, dtype=np.complex128)
+    cdef cnp.ndarray out = np.empty(n, dtype=np.complex128)
     cdef double complex[::1] mv = out
-    for i in range(n):
-        mv[i] = src[i].real() + 1j * src[i].imag()
+    cdef cpp_complex[double]* value_ptr = NULL
+    # One index per element rather than one per component, and no interpreter needed for the copy.
+    with nogil:
+        for i in range(n):
+            value_ptr = &src[i]
+            mv[i] = value_ptr.real() + 1j * value_ptr.imag()
     return out.reshape(shape)
 
 

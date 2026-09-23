@@ -53,7 +53,9 @@ DBL_EPSILON = np.finfo(np.float64).eps
 SEVERE_SURFACE_AMPLIFICATION = 1.0e8
 
 
-def check_surface_solve_conditioning(double surface_amplification, double integration_rtol):
+cdef bint cy_check_surface_solve_conditioning(
+        double surface_amplification,
+        double integration_rtol) except *:
     """Log a warning when the surface boundary condition solve is poorly conditioned.
 
     Warns when the roundoff floor (``surface_amplification`` times machine epsilon) exceeds the integration
@@ -82,6 +84,16 @@ def check_surface_solve_conditioning(double surface_amplification, double integr
             f"tolerances cannot beat the roundoff floor.")
         return True
     return False
+
+
+def check_surface_solve_conditioning(double surface_amplification, double integration_rtol):
+    """Python entry point for :func:`cy_check_surface_solve_conditioning`.
+
+    The ``_x`` callers cimport the cdef directly. This wrapper exists for the classic
+    ``TidalPy.RadialSolver.solver``, which cannot cimport this module: pulling the ``_x`` declarations into
+    that translation unit redefines the classic ``c_NonDimensionalScales``.
+    """
+    return bool(cy_check_surface_solve_conditioning(surface_amplification, integration_rtol))
 
 
 cdef class RadialSolverSolution:

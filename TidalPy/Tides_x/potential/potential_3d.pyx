@@ -92,17 +92,27 @@ def tidal_potential_3d_modes(
             f"TidalPy: tidal potential engine failed (error {error_code}); check degree/truncation levels")
 
     cdef Py_ssize_t num = <Py_ssize_t>modes.size()
-    cdef cnp.ndarray[cnp.int32_t, ndim=1] degrees = np.empty(num, dtype=np.int32)
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] freqs = np.empty(num, dtype=np.float64)
-    cdef cnp.ndarray[cnp.complex128_t, ndim=2] pots = np.empty((num, 6), dtype=np.complex128)
+    cdef cnp.ndarray degrees = np.empty(num, dtype=np.int32)
+    cdef cnp.ndarray freqs = np.empty(num, dtype=np.float64)
+    cdef cnp.ndarray pots = np.empty((num, 6), dtype=np.complex128)
+    cdef cnp.int32_t[::1] degrees_mv = degrees
+    cdef double[::1] freqs_mv = freqs
+    cdef double complex[:, ::1] pots_mv = pots
     cdef Py_ssize_t i
-    for i in range(num):
-        degrees[i] = modes[i].degree_l
-        freqs[i]   = modes[i].mode_frequency
-        pots[i, 0] = complex(modes[i].potential.U.real(), modes[i].potential.U.imag())
-        pots[i, 1] = complex(modes[i].potential.dU_dtheta.real(), modes[i].potential.dU_dtheta.imag())
-        pots[i, 2] = complex(modes[i].potential.dU_dphi.real(), modes[i].potential.dU_dphi.imag())
-        pots[i, 3] = complex(modes[i].potential.d2U_dtheta2.real(), modes[i].potential.d2U_dtheta2.imag())
-        pots[i, 4] = complex(modes[i].potential.d2U_dphi2.real(), modes[i].potential.d2U_dphi2.imag())
-        pots[i, 5] = complex(modes[i].potential.d2U_dtheta_dphi.real(), modes[i].potential.d2U_dtheta_dphi.imag())
+    cdef c_TidalPotential3DMode* mode_ptr = NULL
+
+    # The old form indexed `modes` eight times per iteration and built six Python complex objects; one
+    # element pointer and C stores replace both.
+    with nogil:
+        for i in range(num):
+            mode_ptr = &modes[i]
+            degrees_mv[i] = mode_ptr.degree_l
+            freqs_mv[i]   = mode_ptr.mode_frequency
+            pots_mv[i, 0] = mode_ptr.potential.U.real() + 1j * mode_ptr.potential.U.imag()
+            pots_mv[i, 1] = mode_ptr.potential.dU_dtheta.real() + 1j * mode_ptr.potential.dU_dtheta.imag()
+            pots_mv[i, 2] = mode_ptr.potential.dU_dphi.real() + 1j * mode_ptr.potential.dU_dphi.imag()
+            pots_mv[i, 3] = mode_ptr.potential.d2U_dtheta2.real() + 1j * mode_ptr.potential.d2U_dtheta2.imag()
+            pots_mv[i, 4] = mode_ptr.potential.d2U_dphi2.real() + 1j * mode_ptr.potential.d2U_dphi2.imag()
+            pots_mv[i, 5] = (mode_ptr.potential.d2U_dtheta_dphi.real() +
+                             1j * mode_ptr.potential.d2U_dtheta_dphi.imag())
     return degrees, freqs, pots
