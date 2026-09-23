@@ -373,7 +373,14 @@ cdef class RadialSolverSolution:
         return plot_ys(result_list, radius_list, show_plot=show_plot, **plot_kwargs)
 
     def plot_interior(self, cpp_bool show_plot = True, **plot_kwargs):
-        """Plot the EOS interior profiles; extra keyword arguments pass through to ``plot_interior``."""
+        """Plot the EOS interior profiles; extra keyword arguments pass through to ``plot_interior``.
+
+        Returns
+        -------
+        figure : matplotlib.figure.Figure
+        axes : numpy.ndarray of matplotlib.axes.Axes
+            The ``(figure, axes)`` pair ``TidalPy.Utilities_x.graphics_x.plot_interior`` returns.
+        """
         if not self.eos_success:
             raise AttributeError("`RadialSolverSolution` can not plot the interior because the EOS solve was not successful.")
         from TidalPy.Utilities_x.graphics_x import plot_interior
@@ -644,9 +651,12 @@ cdef class RadialSolverSolution:
     def layer_upper_radius_array(self):
         cdef cnp.ndarray[cnp.float64_t, ndim=1] upper_radius_array = np.empty(self.num_layers, dtype=np.float64)
         cdef c_EOSSolution* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
+        # A solution released from a world keeps its EOS in solve units; report the radii in meters.
+        cdef double length_conv = (
+            self.solution_storage_ptr.p_length_conv if self.solution_storage_ptr.p_eos_is_nondim else 1.0)
         cdef size_t layer_i
         for layer_i in range(self.num_layers):
-            upper_radius_array[layer_i] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
+            upper_radius_array[layer_i] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i] * length_conv
         return upper_radius_array
 
     @property

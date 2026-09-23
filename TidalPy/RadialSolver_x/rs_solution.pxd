@@ -39,6 +39,8 @@ cdef extern from "rs_solution_.hpp" nogil:
         vector[size_t] shooting_method_steps_taken_vec
         double surface_amplification
         double p_love_frequency_si
+        double p_length_conv
+        cpp_bool p_eos_is_nondim
 
         c_EOSSolution* get_eos_solution_ptr()
         void change_radius_array(
