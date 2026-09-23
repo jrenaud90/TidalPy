@@ -418,12 +418,15 @@ cdef class PhysicsLayer(BaseLayer):
             flat_in = in_arr.reshape(-1)
             flat_out = out_arr.reshape(-1)
             n = flat_in.shape[0]
-            for i in range(n):
-                if is_shear:
-                    value = self._physics_ptr.calc_complex_shear_modulus(flat_in[i], frequency)
-                else:
-                    value = self._physics_ptr.calc_complex_bulk_modulus(flat_in[i], frequency)
-                flat_out[i] = value.real() + 1j * value.imag()
+            # Every name in this loop is a C type, so it runs without the interpreter, as the matching
+            # per-radius loops in worlds/layered.pyx and layers/base.pyx already do.
+            with nogil:
+                for i in range(n):
+                    if is_shear:
+                        value = self._physics_ptr.calc_complex_shear_modulus(flat_in[i], frequency)
+                    else:
+                        value = self._physics_ptr.calc_complex_bulk_modulus(flat_in[i], frequency)
+                    flat_out[i] = value.real() + 1j * value.imag()
             return out_arr
         if is_shear:
             value = self._physics_ptr.calc_complex_shear_modulus(<double>radius, frequency)

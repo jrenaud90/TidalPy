@@ -1,6 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
+from libc.math cimport NAN
 from libcpp.memory cimport make_unique, unique_ptr
 from libcpp.string cimport string as cpp_string
 from libcpp.complex cimport complex as cpp_complex
@@ -294,14 +295,23 @@ cdef class RadialSolverSolution:
         cdef Py_ssize_t i
         cdef size_t field_i
 
-        for i in range(num_radii):
-            if not self.solution_storage_ptr.get_eos_si(radii[i], &state[i, 0]):
-                for field_i in range(C_EOS_DY_VALUES):
-                    state[i, field_i] = np.nan
-            # NaN out of range, so it needs no separate check.
-            self.solution_storage_ptr.get_complex_moduli_si(radii[i], shear_c, bulk_c)
-            shear[i] = complex(shear_c.real(), shear_c.imag())
-            bulk[i]  = complex(bulk_c.real(), bulk_c.imag())
+        # Typed views so the fill below writes C doubles and C complexes straight into the buffers. Building a
+        # Python complex per radius, as this loop used to, allocated an object for every element and kept the
+        # whole sweep on the interpreter.
+        cdef double[::1] radii_mv = radii
+        cdef double[:, ::1] state_mv = state
+        cdef double complex[::1] shear_mv = shear
+        cdef double complex[::1] bulk_mv = bulk
+
+        with nogil:
+            for i in range(num_radii):
+                if not self.solution_storage_ptr.get_eos_si(radii_mv[i], &state_mv[i, 0]):
+                    for field_i in range(C_EOS_DY_VALUES):
+                        state_mv[i, field_i] = NAN
+                # NaN out of range, so it needs no separate check.
+                self.solution_storage_ptr.get_complex_moduli_si(radii_mv[i], shear_c, bulk_c)
+                shear_mv[i] = shear_c.real() + 1j * shear_c.imag()
+                bulk_mv[i]  = bulk_c.real() + 1j * bulk_c.imag()
 
         cdef dict out = {}
         if np.ndim(radius) == 0:

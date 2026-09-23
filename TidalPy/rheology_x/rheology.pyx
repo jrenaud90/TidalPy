@@ -20,7 +20,11 @@ from libcpp.memory cimport unique_ptr
 from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
+cimport numpy as cnp
+
 import numpy as np
+
+cnp.import_array()
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -38,7 +42,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # =====================================================================================================================
 # Internal helpers for vectorized solving
 # =====================================================================================================================
-cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept:
+cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept nogil:
     """Copy a contiguous 1-D float64 memoryview into a std::vector[double]."""
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
@@ -192,13 +196,18 @@ cdef class RheologyBase(PhysicsBase):
         cdef vector[double] vmod, vvisc
         cdef vector[cpp_complex[double]] vout
         cdef double[::1] mv
-        mod_c  = np.ascontiguousarray(modulus,    dtype=np.float64).ravel()
-        visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        mv = mod_c;  cy_fill_vector(mv, vmod)
-        mv = visc_c; cy_fill_vector(mv, vvisc)
-        self._rheology_ptr.get().calc_complex_modulus_vectorize_modulus(
-            vmod, vvisc, frequency, vout)
-        return cy_complex_vector_to_ndarray(vout, mod_c.shape)
+        cdef double[::1] mv2
+        cdef cnp.ndarray mod_c  = np.ascontiguousarray(modulus,   dtype=np.float64).ravel()
+        cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
+        mv = mod_c
+        mv2 = visc_c
+        # Fill and sweep are both pure C++ over the whole array; the interpreter is not needed.
+        with nogil:
+            cy_fill_vector(mv, vmod)
+            cy_fill_vector(mv2, vvisc)
+            self._rheology_ptr.get().calc_complex_modulus_vectorize_modulus(
+                vmod, vvisc, frequency, vout)
+        return cy_complex_vector_to_ndarray(vout, (mod_c.shape[0],))
 
     def calc_complex_modulus_vectorize_frequency(self, double modulus,
                                                  double viscosity, frequency):
@@ -222,11 +231,13 @@ cdef class RheologyBase(PhysicsBase):
         cdef vector[double] vfreq
         cdef vector[cpp_complex[double]] vout
         cdef double[::1] mv
-        freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
-        mv = freq_c; cy_fill_vector(mv, vfreq)
-        self._rheology_ptr.get().calc_complex_modulus_vectorize_frequency(
-            modulus, viscosity, vfreq, vout)
-        return cy_complex_vector_to_ndarray(vout, freq_c.shape)
+        cdef cnp.ndarray freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
+        mv = freq_c
+        with nogil:
+            cy_fill_vector(mv, vfreq)
+            self._rheology_ptr.get().calc_complex_modulus_vectorize_frequency(
+                modulus, viscosity, vfreq, vout)
+        return cy_complex_vector_to_ndarray(vout, (freq_c.shape[0],))
 
     def calc_complex_modulus_vectorize_all(self, modulus, viscosity,
                                            frequency):
@@ -246,15 +257,21 @@ cdef class RheologyBase(PhysicsBase):
         cdef vector[double] vmod, vvisc, vfreq
         cdef vector[cpp_complex[double]] vout
         cdef double[::1] mv
-        mod_c  = np.ascontiguousarray(modulus,      dtype=np.float64).ravel()
-        visc_c = np.ascontiguousarray(viscosity,   dtype=np.float64).ravel()
-        freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
-        mv = mod_c;  cy_fill_vector(mv, vmod)
-        mv = visc_c; cy_fill_vector(mv, vvisc)
-        mv = freq_c; cy_fill_vector(mv, vfreq)
-        self._rheology_ptr.get().calc_complex_modulus_vectorize_all(
-            vmod, vvisc, vfreq, vout)
-        return cy_complex_vector_to_ndarray(vout, mod_c.shape)
+        cdef double[::1] mv2
+        cdef double[::1] mv3
+        cdef cnp.ndarray mod_c  = np.ascontiguousarray(modulus,   dtype=np.float64).ravel()
+        cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
+        cdef cnp.ndarray freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
+        mv = mod_c
+        mv2 = visc_c
+        mv3 = freq_c
+        with nogil:
+            cy_fill_vector(mv, vmod)
+            cy_fill_vector(mv2, vvisc)
+            cy_fill_vector(mv3, vfreq)
+            self._rheology_ptr.get().calc_complex_modulus_vectorize_all(
+                vmod, vvisc, vfreq, vout)
+        return cy_complex_vector_to_ndarray(vout, (mod_c.shape[0],))
 
 
 # =====================================================================================================================

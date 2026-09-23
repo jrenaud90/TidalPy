@@ -17,7 +17,11 @@ from libcpp.memory cimport unique_ptr
 from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
+cimport numpy as cnp
+
 import numpy as np
+
+cnp.import_array()
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -35,7 +39,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # =====================================================================================================================
 # Internal helpers
 # =====================================================================================================================
-cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept:
+cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept nogil:
     """Copy a contiguous 1-D float64 memoryview into a std::vector[double]."""
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
@@ -52,7 +56,7 @@ cdef c_CoolingInputs cy_build_inputs(
         double viscosity,
         double thermal_conductivity,
         double thermal_diffusivity,
-        double thermal_expansion):
+        double thermal_expansion) noexcept nogil:
     """Pack the eight cooling inputs into a c_CoolingInputs struct."""
     cdef c_CoolingInputs inp
     inp.delta_temp = delta_temp
@@ -75,19 +79,24 @@ cdef CoolingResult cy_results_to_py(vector[c_CoolingResult]& src, tuple shape):
     """Build a CoolingResult of float64 ndarrays from a std::vector of results."""
     cdef Py_ssize_t n = <Py_ssize_t>src.size()
     cdef Py_ssize_t i
-    flux = np.empty(n, dtype=np.float64)
-    blt  = np.empty(n, dtype=np.float64)
-    ray  = np.empty(n, dtype=np.float64)
-    nu   = np.empty(n, dtype=np.float64)
+    cdef cnp.ndarray flux = np.empty(n, dtype=np.float64)
+    cdef cnp.ndarray blt  = np.empty(n, dtype=np.float64)
+    cdef cnp.ndarray ray  = np.empty(n, dtype=np.float64)
+    cdef cnp.ndarray nu   = np.empty(n, dtype=np.float64)
     cdef double[::1] m_flux = flux
     cdef double[::1] m_blt  = blt
     cdef double[::1] m_ray  = ray
     cdef double[::1] m_nu   = nu
-    for i in range(n):
-        m_flux[i] = src[i].cooling_flux
-        m_blt[i] = src[i].blt
-        m_ray[i] = src[i].rayleigh_number
-        m_nu[i]  = src[i].nusselt_number
+    cdef c_CoolingResult* cooling_result_ptr = NULL
+
+    # Unpacking the result structs is pure C, so it does not need the interpreter.
+    with nogil:
+        for i in range(n):
+            cooling_result_ptr = &src[i]
+            m_flux[i] = cooling_result_ptr.cooling_flux
+            m_blt[i]  = cooling_result_ptr.blt
+            m_ray[i]  = cooling_result_ptr.rayleigh_number
+            m_nu[i]   = cooling_result_ptr.nusselt_number
     return CoolingResult(flux.reshape(shape), blt.reshape(shape), ray.reshape(shape), nu.reshape(shape))
 
 
@@ -105,6 +114,8 @@ cdef object cy_solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
     cdef vector[double] vtemp, vvisc
     cdef vector[c_CoolingResult] vout
     cdef double[::1] mv
+    cdef cnp.ndarray temp_arr, visc_arr, d_b, v_b, d_c, v_c
+    cdef tuple out_shape
 
     if not (d_arr or v_arr):
         base.delta_temp  = <double>delta_temp
@@ -114,26 +125,38 @@ cdef object cy_solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
     if d_arr and not v_arr:
         base.viscosity = <double>viscosity
         temp_arr = np.ascontiguousarray(delta_temp, dtype=np.float64)
-        mv = temp_arr.ravel(); cy_fill_vector(mv, vtemp)
-        model.calc_cooling_vectorize_temperature(vtemp, base, vout)
-        return cy_results_to_py(vout, temp_arr.shape)
+        out_shape = np.shape(temp_arr)
+        mv = temp_arr.ravel()
+        # The fill and the sweep are both pure C++ over the whole array, so the interpreter is not needed.
+        with nogil:
+            cy_fill_vector(mv, vtemp)
+            model.calc_cooling_vectorize_temperature(vtemp, base, vout)
+        return cy_results_to_py(vout, out_shape)
 
     if v_arr and not d_arr:
         base.delta_temp = <double>delta_temp
         visc_arr = np.ascontiguousarray(viscosity, dtype=np.float64)
-        mv = visc_arr.ravel(); cy_fill_vector(mv, vvisc)
-        model.calc_cooling_vectorize_viscosity(vvisc, base, vout)
-        return cy_results_to_py(vout, visc_arr.shape)
+        out_shape = np.shape(visc_arr)
+        mv = visc_arr.ravel()
+        with nogil:
+            cy_fill_vector(mv, vvisc)
+            model.calc_cooling_vectorize_viscosity(vvisc, base, vout)
+        return cy_results_to_py(vout, out_shape)
 
     d_b, v_b = np.broadcast_arrays(
         np.asarray(delta_temp, dtype=np.float64),
         np.asarray(viscosity, dtype=np.float64))
     d_c = np.ascontiguousarray(d_b)
     v_c = np.ascontiguousarray(v_b)
-    mv = d_c.ravel(); cy_fill_vector(mv, vtemp)
-    mv = v_c.ravel(); cy_fill_vector(mv, vvisc)
-    model.calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
-    return cy_results_to_py(vout, d_c.shape)
+    out_shape = np.shape(d_c)
+    mv = d_c.ravel()
+    with nogil:
+        cy_fill_vector(mv, vtemp)
+    mv = v_c.ravel()
+    with nogil:
+        cy_fill_vector(mv, vvisc)
+        model.calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
+    return cy_results_to_py(vout, out_shape)
 
 
 # =====================================================================================================================
@@ -285,10 +308,13 @@ cdef class CoolingBase(PhysicsBase):
         cdef vector[double] vtemp
         cdef vector[c_CoolingResult] vout
         cdef double[::1] mv
-        temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
-        mv = temp_c; cy_fill_vector(mv, vtemp)
-        self._cooling_ptr.get().calc_cooling_vectorize_temperature(vtemp, base, vout)
-        return cy_results_to_py(vout, temp_c.shape)
+        cdef cnp.ndarray temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
+        mv = temp_c
+        # The fill and the sweep are both pure C++ over the whole array, so the interpreter is not needed.
+        with nogil:
+            cy_fill_vector(mv, vtemp)
+            self._cooling_ptr.get().calc_cooling_vectorize_temperature(vtemp, base, vout)
+        return cy_results_to_py(vout, (temp_c.shape[0],))
 
     def calc_cooling_vectorize_viscosity(
             self,
@@ -318,10 +344,12 @@ cdef class CoolingBase(PhysicsBase):
         cdef vector[double] vvisc
         cdef vector[c_CoolingResult] vout
         cdef double[::1] mv
-        visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        mv = visc_c; cy_fill_vector(mv, vvisc)
-        self._cooling_ptr.get().calc_cooling_vectorize_viscosity(vvisc, base, vout)
-        return cy_results_to_py(vout, visc_c.shape)
+        cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
+        mv = visc_c
+        with nogil:
+            cy_fill_vector(mv, vvisc)
+            self._cooling_ptr.get().calc_cooling_vectorize_viscosity(vvisc, base, vout)
+        return cy_results_to_py(vout, (visc_c.shape[0],))
 
     def calc_cooling_vectorize_all(
             self,
@@ -351,13 +379,17 @@ cdef class CoolingBase(PhysicsBase):
             thermal_expansion)
         cdef vector[double] vtemp, vvisc
         cdef vector[c_CoolingResult] vout
-        cdef double[::1] mv
-        temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
-        visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        mv = temp_c; cy_fill_vector(mv, vtemp)
-        mv = visc_c; cy_fill_vector(mv, vvisc)
-        self._cooling_ptr.get().calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
-        return cy_results_to_py(vout, temp_c.shape)
+        cdef double[::1] temp_c_view
+        cdef double[::1] visc_c_view
+        cdef cnp.ndarray temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
+        cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
+        temp_c_view = temp_c
+        visc_c_view = visc_c
+        with nogil:
+            cy_fill_vector(temp_c_view, vtemp)
+            cy_fill_vector(visc_c_view, vvisc)
+            self._cooling_ptr.get().calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
+        return cy_results_to_py(vout, (temp_c.shape[0],))
 
 
 

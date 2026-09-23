@@ -18,7 +18,11 @@ from libcpp.string cimport string
 from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
+cimport numpy as cnp
+
 import numpy as np
+
+cnp.import_array()
 
 import TidalPy
 from TidalPy.Utilities_x.logging_x.logger cimport (
@@ -37,7 +41,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # =====================================================================================================================
 # Internal helpers for vectorized solving
 # =====================================================================================================================
-cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept:
+cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept nogil:
     """Copy a contiguous 1-D float64 memoryview into a std::vector[double]."""
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
@@ -50,10 +54,11 @@ cdef object cy_double_vector_to_ndarray(vector[double]& src, tuple shape):
     """Build a float64 ndarray (of the given shape) from a std::vector."""
     cdef Py_ssize_t n = <Py_ssize_t>src.size()
     cdef Py_ssize_t i
-    out = np.empty(n, dtype=np.float64)
+    cdef cnp.ndarray out = np.empty(n, dtype=np.float64)
     cdef double[::1] mv = out
-    for i in range(n):
-        mv[i] = src[i]
+    with nogil:
+        for i in range(n):
+            mv[i] = src[i]
     return out.reshape(shape)
 
 
@@ -128,6 +133,10 @@ cdef object cy_solve_heating(c_RadiogenicsBase* model, object time, object mass)
     cdef vector[double] vtime, vmass
     cdef vector[double] vout
     cdef double[::1] mv
+    cdef double[::1] mv2
+    cdef cnp.ndarray time_arr, mass_arr, t_b, m_b, t_c, m_c
+    cdef tuple out_shape
+    cdef double scalar_val
 
     # All scalar -> scalar result.
     if not (t_arr or m_arr):
@@ -136,18 +145,24 @@ cdef object cy_solve_heating(c_RadiogenicsBase* model, object time, object mass)
     # Time varies; mass constant.
     if t_arr and not m_arr:
         time_arr = np.ascontiguousarray(time, dtype=np.float64)
+        out_shape = np.shape(time_arr)
         mv = time_arr.ravel()
-        cy_fill_vector(mv, vtime)
-        model.calc_heating_vectorize_time(vtime, <double>mass, vout)
-        return cy_double_vector_to_ndarray(vout, time_arr.shape)
+        scalar_val = <double>mass  # coercion from Python needs the GIL, so do it before releasing it
+        with nogil:
+            cy_fill_vector(mv, vtime)
+            model.calc_heating_vectorize_time(vtime, scalar_val, vout)
+        return cy_double_vector_to_ndarray(vout, out_shape)
 
     # Mass varies; time constant.
     if m_arr and not t_arr:
         mass_arr = np.ascontiguousarray(mass, dtype=np.float64)
+        out_shape = np.shape(mass_arr)
         mv = mass_arr.ravel()
-        cy_fill_vector(mv, vmass)
-        model.calc_heating_vectorize_mass(<double>time, vmass, vout)
-        return cy_double_vector_to_ndarray(vout, mass_arr.shape)
+        scalar_val = <double>time
+        with nogil:
+            cy_fill_vector(mv, vmass)
+            model.calc_heating_vectorize_mass(scalar_val, vmass, vout)
+        return cy_double_vector_to_ndarray(vout, out_shape)
 
     # General case: broadcast both and vary everything.
     t_b, m_b = np.broadcast_arrays(
@@ -155,10 +170,14 @@ cdef object cy_solve_heating(c_RadiogenicsBase* model, object time, object mass)
         np.asarray(mass, dtype=np.float64))
     t_c = np.ascontiguousarray(t_b)
     m_c = np.ascontiguousarray(m_b)
-    mv = t_c.ravel(); cy_fill_vector(mv, vtime)
-    mv = m_c.ravel(); cy_fill_vector(mv, vmass)
-    model.calc_heating_vectorize_all(vtime, vmass, vout)
-    return cy_double_vector_to_ndarray(vout, t_c.shape)
+    out_shape = np.shape(t_c)
+    mv = t_c.ravel()
+    mv2 = m_c.ravel()
+    with nogil:
+        cy_fill_vector(mv, vtime)
+        cy_fill_vector(mv, vmass)
+        model.calc_heating_vectorize_all(vtime, vmass, vout)
+    return cy_double_vector_to_ndarray(vout, out_shape)
 
 
 # =====================================================================================================================
@@ -227,10 +246,13 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef vector[double] vtime
         cdef vector[double] vout
         cdef double[::1] mv
-        time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
-        mv = time_c; cy_fill_vector(mv, vtime)
-        self._radiogenics_ptr.get().calc_heating_vectorize_time(vtime, mass, vout)
-        return cy_double_vector_to_ndarray(vout, time_c.shape)
+        cdef cnp.ndarray time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
+        mv = time_c
+        # Fill and sweep are both pure C++ over the whole array; the interpreter is not needed.
+        with nogil:
+            cy_fill_vector(mv, vtime)
+            self._radiogenics_ptr.get().calc_heating_vectorize_time(vtime, mass, vout)
+        return cy_double_vector_to_ndarray(vout, (time_c.shape[0],))
 
     def calc_heating_vectorize_mass(self, double time, mass):
         """Radiogenic heating over a mass sweep at constant time.
@@ -251,10 +273,12 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef vector[double] vmass
         cdef vector[double] vout
         cdef double[::1] mv
-        mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
-        mv = mass_c; cy_fill_vector(mv, vmass)
-        self._radiogenics_ptr.get().calc_heating_vectorize_mass(time, vmass, vout)
-        return cy_double_vector_to_ndarray(vout, mass_c.shape)
+        cdef cnp.ndarray mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
+        mv = mass_c
+        with nogil:
+            cy_fill_vector(mv, vmass)
+            self._radiogenics_ptr.get().calc_heating_vectorize_mass(time, vmass, vout)
+        return cy_double_vector_to_ndarray(vout, (mass_c.shape[0],))
 
     def calc_heating_vectorize_all(self, time, mass):
         """Radiogenic heating over element-wise (time, mass) pairs.
@@ -273,12 +297,16 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef vector[double] vtime, vmass
         cdef vector[double] vout
         cdef double[::1] mv
-        time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
-        mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
-        mv = time_c; cy_fill_vector(mv, vtime)
-        mv = mass_c; cy_fill_vector(mv, vmass)
-        self._radiogenics_ptr.get().calc_heating_vectorize_all(vtime, vmass, vout)
-        return cy_double_vector_to_ndarray(vout, time_c.shape)
+        cdef double[::1] mv2
+        cdef cnp.ndarray time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
+        cdef cnp.ndarray mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
+        mv = time_c
+        mv2 = mass_c
+        with nogil:
+            cy_fill_vector(mv, vtime)
+            cy_fill_vector(mv2, vmass)
+            self._radiogenics_ptr.get().calc_heating_vectorize_all(vtime, vmass, vout)
+        return cy_double_vector_to_ndarray(vout, (time_c.shape[0],))
 
 
 # =====================================================================================================================
