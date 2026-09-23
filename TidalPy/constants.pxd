@@ -45,6 +45,7 @@ cdef extern from "constants_.hpp" nogil:
         double   d_MIN_SPIN_ORBIT_DIFF
         double   d_MIN_VISCOSITY
         double   d_MIN_MODULUS
+        double   d_MIN_SOLID_RIGIDITY
         double   d_MIN_THICKNESS
         double   d_NUMERICAL_FLOOR
         double   d_LAYER_CONTINUITY_RTOL

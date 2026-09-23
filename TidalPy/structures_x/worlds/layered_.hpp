@@ -218,6 +218,20 @@ struct c_RadialSolverOverrides {
     }
 };
 
+// One stretch of a layer as the radial solver integrates it. A layer is one stretch unless its partial-melt model
+// makes part of it molten; it is then split at the edges of each molten stretch
+// (c_LayeredWorld::update_radial_segments).
+struct c_RadialSegment {
+    std::size_t world_layer  = 0;
+    double      radius_inner = 0.0;     // [m]
+    double      radius_outer = 0.0;     // [m]
+    bool        molten       = false;   // at the liquid_shear floor or below the minimum solid rigidity
+};
+
+// Round-off allowance on the liquid-shear floor. A molten point's post-melt shear modulus is the partial-melt
+// model's liquid_shear returned through the solve's unit conversions, while a solid lies orders of magnitude above.
+inline constexpr double d_MOLTEN_SHEAR_RTOL = 1.0e-9;
+
 class c_LayeredWorld : public c_BaseWorld {
 public:
     // Absolute gap allowed between a layer's inner radius and the previous layer's outer radius.
@@ -661,6 +675,112 @@ public:
         }
 
         this->p_eos_solution = std::move(solution);
+        this->update_radial_segments();
+    }
+
+    // The stretches the radial solver integrates, inner to outer, from the last successful EOS solve. Each layer
+    // is one stretch unless its partial-melt model makes part of it molten: the post-melt shear modulus sits at the
+    // model's liquid_shear floor, or its rigidity mu / (rho g R) is below the config's minimum_solid_rigidity, which
+    // takes in the steep weakening just short of the floor. Molten stretches are found on the EOS slices, their
+    // edges refined by bisection on the dense profile, and the layer is split there, each edge on the solid side so
+    // no solid stretch reaches into the melt. Whether a molten stretch is solved as a liquid is decided per Love
+    // solve (ensure_radial_cache), since the layer flags can change without a new EOS solve.
+    void update_radial_segments() {
+        this->p_radial_segments.clear();
+        const c_EOSSolution* solution = this->p_eos_solution.get();
+        const std::size_t n_layers = this->p_layers.size();
+        if (!this->p_eos_solved || (solution == nullptr) || (n_layers == 0)) { return; }
+        const std::size_t slices = solution->radius_array_size / n_layers;
+        // The rigidity scale rho g R of the planet: bulk density, surface gravity, radius.
+        const double planet_radius = solution->radius;
+        const double planet_volume =
+            (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
+        const double rigidity_scale = (planet_volume > TidalPyConstants::d_EPS)
+            ? (this->p_planet_mass_eos / planet_volume) * this->p_surface_gravity_eos * planet_radius : 0.0;
+        const double min_rigidity = tidalpy_config_ptr->d_MIN_SOLID_RIGIDITY;
+        const double weak_shear = (std::isfinite(min_rigidity) && std::isfinite(rigidity_scale))
+            ? min_rigidity * rigidity_scale : 0.0;   // [Pa]
+
+        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            const c_BaseLayer* layer  = this->p_layers[layer_i].get();
+            const double radius_inner = layer->get_radius_inner();
+            const double radius_outer = layer->get_radius_outer();
+            const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(layer);
+            const c_PartialMeltBase* melt_model =
+                (physics_layer != nullptr) ? physics_layer->get_partial_melt_model() : nullptr;
+            if ((melt_model == nullptr) || (slices < 2)) {
+                this->p_radial_segments.push_back({layer_i, radius_inner, radius_outer, false});
+                continue;
+            }
+
+            const double molten_shear =
+                std::max(melt_model->get_liquid_shear() * (1.0 + d_MOLTEN_SHEAR_RTOL), weak_shear);   // [Pa]
+            const auto is_molten = [layer, molten_shear](double radius) {
+                return layer->get_shear_modulus(radius) <= molten_shear;
+            };
+            // An edge is refined until its bracket is as narrow as the tolerance on a layer interface, and a
+            // stretch no thicker than that is part of its neighbor.
+            const double edge_tolerance = d_LAYER_BOUNDARY_RTOL * radius_outer;
+            const std::size_t first_segment = this->p_radial_segments.size();
+            const double* slice_radius = solution->radius_array_vec.data() + layer_i * slices;
+            double stretch_start  = radius_inner;
+            bool   stretch_molten = is_molten(slice_radius[0]);
+            for (std::size_t slice_i = 1; slice_i < slices; ++slice_i) {
+                const bool molten_here = is_molten(slice_radius[slice_i]);
+                if (molten_here == stretch_molten) { continue; }
+                double lower = slice_radius[slice_i - 1];
+                double upper = slice_radius[slice_i];
+                while (upper - lower > edge_tolerance) {
+                    const double middle = 0.5 * (lower + upper);
+                    if (is_molten(middle) == stretch_molten) { lower = middle; } else { upper = middle; }
+                }
+                // The bracket end that is solid, so the molten stretch takes the unresolved sliver.
+                const double edge = stretch_molten ? upper : lower;
+                if (edge - stretch_start > edge_tolerance) {
+                    this->p_radial_segments.push_back({layer_i, stretch_start, edge, stretch_molten});
+                    stretch_start = edge;
+                }
+                stretch_molten = molten_here;
+            }
+            this->p_radial_segments.push_back({layer_i, stretch_start, radius_outer, stretch_molten});
+
+            // A skipped sliver can leave two neighbors in the same state; they are one stretch.
+            std::vector<c_RadialSegment> merged;
+            for (std::size_t segment_i = first_segment; segment_i < this->p_radial_segments.size(); ++segment_i) {
+                const c_RadialSegment& segment = this->p_radial_segments[segment_i];
+                if (!merged.empty() && (merged.back().molten == segment.molten)) {
+                    merged.back().radius_outer = segment.radius_outer;
+                } else {
+                    merged.push_back(segment);
+                }
+            }
+            this->p_radial_segments.resize(first_segment);
+            this->p_radial_segments.insert(this->p_radial_segments.end(), merged.begin(), merged.end());
+
+            for (const c_RadialSegment& segment : merged) {
+                if (segment.molten && physics_layer->get_is_solid()) {
+                    TIDALPY_LOG_INFO(
+                        "TidalPy: layer '{}' of world '{}' is molten between {:.6e} and {:.6e} m; the radial solver "
+                        "treats that stretch as a static liquid.",
+                        layer->get_name(), this->get_name(), segment.radius_inner, segment.radius_outer);
+                }
+            }
+        }
+    }
+
+    // Empty before a successful EOS solve.
+    const std::vector<c_RadialSegment>& get_radial_segments() const noexcept { return this->p_radial_segments; }
+
+    // The molten stretches the radial solver treats as static liquids: those of the layers that are solid.
+    std::vector<c_RadialSegment> get_molten_regions() const {
+        std::vector<c_RadialSegment> regions;
+        for (const c_RadialSegment& segment : this->p_radial_segments) {
+            if (!segment.molten) { continue; }
+            const auto* physics_layer =
+                dynamic_cast<const c_PhysicsLayer*>(this->p_layers[segment.world_layer].get());
+            if ((physics_layer != nullptr) && physics_layer->get_is_solid()) { regions.push_back(segment); }
+        }
+        return regions;
     }
 
     // Everything solved on top of the structure describes the structure it was solved with, the cached
@@ -675,6 +795,7 @@ public:
         for (const auto& layer_uptr : this->p_layers) {
             layer_uptr->set_tidal_heating(TidalPyConstants::d_NAN);
         }
+        this->p_radial_segments.clear();
         if (this->p_radial_solver) { this->p_radial_solver->invalidate(); }
     }
 
@@ -746,53 +867,108 @@ public:
             this->p_radial_solver = std::make_unique<::c_WorldRadialSolver>();
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        // Geometry-only layers default to static solid. Gathered before the cache check because the flags
-        // are user-mutable without an EOS re-solve, so a cache hit is only valid when they still match.
-        auto layer_types   = std::make_unique<int[]>(n_layers);
-        auto is_static_arr = std::make_unique<bool[]>(n_layers);
-        auto is_incomp_arr = std::make_unique<bool[]>(n_layers);
-        std::vector<double> upper_radii(n_layers);
-        for (std::size_t i = 0; i < n_layers; ++i) {
-            const auto* phys = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[i].get());
-            if (phys != nullptr) {
-                layer_types[i]   = phys->get_is_solid() ? 0 : 1;
-                is_static_arr[i] = phys->get_is_static();
-                is_incomp_arr[i] = phys->get_is_incompressible();
-            } else {
-                layer_types[i]   = 0;
-                is_static_arr[i] = true;
-                is_incomp_arr[i] = false;
+        // The solver's layers: every world layer once, except that a solid layer with molten stretches is split
+        // at their edges and each molten stretch is a static liquid (it keeps the layer's compressibility flag).
+        // The static formulation reads only density and gravity, so it does not see the melt-weakened bulk
+        // modulus there. Geometry-only layers default to static solid. Gathered before the cache check because
+        // the flags are user-mutable without an EOS re-solve, so a cache hit is only valid when they still match.
+        const c_EOSSolution* world_eos = this->p_eos_solution.get();
+        const std::size_t slices = total_slices / n_layers;
+        std::vector<int>         layer_types;
+        std::vector<char>        is_static_flags;
+        std::vector<char>        is_incompressible_flags;
+        std::vector<double>      upper_radii;
+        std::vector<std::size_t> world_layer_of;
+        std::vector<double>      radius_grid;
+        radius_grid.reserve(total_slices);
+        const auto add_solver_layer = [&](std::size_t world_layer, int layer_type, bool is_static,
+                                          bool is_incompressible, double radius_inner, double radius_outer) {
+            layer_types.push_back(layer_type);
+            is_static_flags.push_back(is_static);
+            is_incompressible_flags.push_back(is_incompressible);
+            upper_radii.push_back(radius_outer);
+            world_layer_of.push_back(world_layer);
+            const c_BaseLayer* layer = this->p_layers[world_layer].get();
+            const double layer_thickness = layer->get_radius_outer() - layer->get_radius_inner();
+            const double* layer_radii = world_eos->radius_array_vec.data() + world_layer * slices;
+            if ((radius_inner == layer->get_radius_inner()) && (radius_outer == layer->get_radius_outer())) {
+                // A whole layer keeps the EOS slices, so a world with nothing molten solves on its own grid.
+                radius_grid.insert(radius_grid.end(), layer_radii, layer_radii + slices);
+                return;
             }
-            upper_radii[i] = this->p_layers[i]->get_radius_outer();
+            // A stretch takes its share of the layer's slices, at least as many as the shooting method needs.
+            const double share = (layer_thickness > 0.0) ? (radius_outer - radius_inner) / layer_thickness : 1.0;
+            const std::size_t count = std::max(
+                C_MIN_SLICES_PER_LAYER, static_cast<std::size_t>(std::ceil(share * static_cast<double>(slices))));
+            for (std::size_t slice_i = 0; slice_i < count; ++slice_i) {
+                const double fraction = static_cast<double>(slice_i) / static_cast<double>(count - 1);
+                radius_grid.push_back((slice_i + 1 == count)
+                    ? radius_outer : radius_inner + fraction * (radius_outer - radius_inner));
+            }
+        };
+
+        std::size_t segment_i = 0;
+        const std::vector<c_RadialSegment>& segments = this->p_radial_segments;
+        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            const c_BaseLayer* layer = this->p_layers[layer_i].get();
+            const auto* phys = dynamic_cast<const c_PhysicsLayer*>(layer);
+            const bool is_solid          = (phys == nullptr) || phys->get_is_solid();
+            const bool is_static         = (phys == nullptr) || phys->get_is_static();
+            const bool is_incompressible = (phys != nullptr) && phys->get_is_incompressible();
+
+            std::size_t layer_segment_end = segment_i;
+            while ((layer_segment_end < segments.size()) && (segments[layer_segment_end].world_layer == layer_i)) {
+                ++layer_segment_end;
+            }
+            if (!is_solid || (layer_segment_end - segment_i < 2)) {
+                // One stretch: the layer's own flags, or a static liquid when a solid layer is molten throughout.
+                const bool molten = is_solid && (layer_segment_end > segment_i) && segments[segment_i].molten;
+                add_solver_layer(layer_i, (is_solid && !molten) ? 0 : 1, molten || is_static, is_incompressible,
+                                 layer->get_radius_inner(), layer->get_radius_outer());
+            } else {
+                for (std::size_t stretch_i = segment_i; stretch_i < layer_segment_end; ++stretch_i) {
+                    const c_RadialSegment& segment = segments[stretch_i];
+                    add_solver_layer(layer_i, segment.molten ? 1 : 0, segment.molten || is_static, is_incompressible,
+                                     segment.radius_inner, segment.radius_outer);
+                }
+            }
+            segment_i = layer_segment_end;
         }
 
+        const std::size_t n_solver_layers = layer_types.size();
+        auto layer_types_arr = std::make_unique<int[]>(n_solver_layers);
+        auto is_static_arr   = std::make_unique<bool[]>(n_solver_layers);
+        auto is_incomp_arr   = std::make_unique<bool[]>(n_solver_layers);
+        for (std::size_t solver_layer_i = 0; solver_layer_i < n_solver_layers; ++solver_layer_i) {
+            layer_types_arr[solver_layer_i] = layer_types[solver_layer_i];
+            is_static_arr[solver_layer_i]   = static_cast<bool>(is_static_flags[solver_layer_i]);
+            is_incomp_arr[solver_layer_i]   = static_cast<bool>(is_incompressible_flags[solver_layer_i]);
+        }
+        this->p_radial_world_layer = world_layer_of;
+
         const std::size_t num_ytypes = cfg.bc_models.empty() ? 1 : cfg.bc_models.size();
-        if (solver->cache_matches(n_layers, total_slices, cfg.degree_l, cfg.nondimensionalize, num_ytypes)
-            && solver->layer_flags_match(layer_types.get(), is_static_arr.get(), is_incomp_arr.get(), n_layers))
+        if (solver->cache_matches(
+                n_solver_layers, radius_grid.size(), cfg.degree_l, cfg.nondimensionalize, num_ytypes)
+            && solver->layer_flags_match(
+                layer_types_arr.get(), is_static_arr.get(), is_incomp_arr.get(), upper_radii.data(), n_solver_layers))
             return true;
 
-        const c_EOSSolution* world_eos = this->p_eos_solution.get();
         const double r_planet = world_eos->radius;
         const double vol      = (4.0 / 3.0) * TidalPyConstants::d_PI * r_planet * r_planet * r_planet;
         const double bulk_rho = (vol > TidalPyConstants::d_EPS) ? this->p_planet_mass_eos / vol : 3500.0;
 
         return solver->build_cache(
-            world_eos->radius_array_vec,
-            world_eos->density_array_vec,
-            world_eos->gravity_array_vec,
-            world_eos->pressure_array_vec,
-            world_eos->mass_array_vec,
-            world_eos->moi_array_vec,
+            radius_grid,
             upper_radii,
-            layer_types.get(),
+            layer_types_arr.get(),
             is_static_arr.get(),
             is_incomp_arr.get(),
-            n_layers,
+            n_solver_layers,
             r_planet,
             bulk_rho,
             cfg.degree_l,
             cfg.nondimensionalize,
-            this->p_eos_solution.get(),
+            *world_eos,
             num_ytypes
         );
     }
@@ -930,13 +1106,16 @@ public:
         std::vector<std::complex<double>> shear_copy(shear_in, shear_in + n_in);
         std::vector<std::complex<double>> bulk_copy(bulk_in, bulk_in + n_in);
         std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
+        const std::vector<std::size_t> world_layer_of = this->p_radial_world_layer;
         solver->set_material_eval(
-            [eos_solution, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer](
-                    std::size_t layer_index,
+            [eos_solution, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer, world_layer_of](
+                    std::size_t solver_layer_index,
                     double radius_si,
                     double* state_out,
                     std::complex<double>& shear_out,
                     std::complex<double>& bulk_out) {
+                // The solver counts the stretches of a split layer as layers of their own.
+                const std::size_t layer_index = world_layer_of[solver_layer_index];
                 // One dense read gives the structure and the density; the supplied profile gives the moduli.
                 eos_solution->call_si(layer_index, radius_si, state_out);
                 const std::size_t in_first = in_first_by_layer[layer_index];
@@ -991,12 +1170,15 @@ public:
             bulk_bylayer[layer_i]       = physics_layer->share_bulk_rheology();
         }
         std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
-        return [eos_solution, shear_bylayer, bulk_bylayer, is_physics_bylayer, frequency](
-                std::size_t layer_index,
+        const std::vector<std::size_t> world_layer_of = this->p_radial_world_layer;
+        return [eos_solution, shear_bylayer, bulk_bylayer, is_physics_bylayer, world_layer_of, frequency](
+                std::size_t solver_layer_index,
                 double radius_si,
                 double* state_out,
                 std::complex<double>& shear_out,
                 std::complex<double>& bulk_out) {
+            // The solver counts the stretches of a split layer as layers of their own.
+            const std::size_t layer_index = world_layer_of[solver_layer_index];
             eos_solution->call_si(layer_index, radius_si, state_out);
             // A layer with no material models has no modulus to report.
             if (layer_index >= is_physics_bylayer.size() || !is_physics_bylayer[layer_index]) { return; }
@@ -1695,6 +1877,10 @@ protected:
     std::complex<double> p_love_analytic_shear = {TidalPyConstants::d_NAN, 0.0};   // volume-averaged shear [Pa]
     double        p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;          // averaged volume [m3]
     std::unique_ptr<::c_WorldRadialSolver> p_radial_solver;
+    // The stretches of the last successful EOS solve (update_radial_segments), and the world layer each of the
+    // cached radial solver's layers belongs to (ensure_radial_cache).
+    std::vector<c_RadialSegment> p_radial_segments;
+    std::vector<std::size_t>     p_radial_world_layer;
 
     // Global (1D) tidal dissipation: the model/config/result state lives on c_BaseWorld;
     // c_LayeredWorld adds only the per-layer heating distribution (results not serialized).

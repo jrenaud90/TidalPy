@@ -70,6 +70,8 @@ struct TidalPyConfig
     // Material Extremes    
     double d_MIN_VISCOSITY;// Updated from TidalPy.config['physics']['materials']['minimum_viscosity']
     double d_MIN_MODULUS;// Updated from TidalPy.config['physics']['materials']['minimum_modulus']
+    // Rigidity mu / (rho g R) below which a melt-weakened solid is solved as a static liquid.
+    double d_MIN_SOLID_RIGIDITY; // Updated from TidalPy.config_x['numerical']['minimum_solid_rigidity']
 
     // Planet Extremes
     double d_MIN_THICKNESS; // Updated from TidalPy.config['layers']['minimum_layer_thickness']
@@ -146,6 +148,7 @@ struct TidalPyConfig
         d_MIN_SPIN_ORBIT_DIFF = nan;
         d_MIN_VISCOSITY = nan;
         d_MIN_MODULUS = nan;
+        d_MIN_SOLID_RIGIDITY = nan;
         d_MIN_THICKNESS = nan;
         d_NUMERICAL_FLOOR = nan;
         d_LAYER_CONTINUITY_RTOL = nan;

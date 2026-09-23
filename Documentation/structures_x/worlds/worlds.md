@@ -203,6 +203,7 @@ result["layer_heating"]                      # [W] generated inside each layer
 | `eos_solved` | bool | `True` once profiles are populated. |
 | `all_eos_set` | bool | `True` once every layer has an EOS model. |
 | `surface_gravity_eos`, `central_pressure`, `planet_mass_eos`, `planet_moi_eos` | float | Scalar results of the last solve (NaN if unsolved). |
+| `molten_regions` | list | Molten stretches of solid layers in the last solve, as `(layer_name, radius_inner, radius_outer)` with radii in \[m\]. The radial solver treats each as a static liquid (see Molten Stretches in a Solid Layer under Calculating Love Numbers). |
 
 `get_density` / `get_gravity` / `get_pressure` delegate to the layer that contains `r` (radii beyond the surface clamp to the outermost layer), so the individual layers expose the same getters independently.
 
@@ -287,7 +288,14 @@ The solver interpolates nothing between EOS slices. Gravity, pressure, mass, and
 
 `slices_per_layer` still sizes the profile arrays the solve returns and the `[layers.*]` array properties, and the propagation-matrix method still propagates across those slices, so it remains a real knob for those. It no longer affects a shooting-method Love number.
 
-`solve_for` selects the surface boundary condition, with the same names as the standalone `radial_solver`: `'tidal'` (default) yields the tidal Love numbers k, h, l; `'loading'` yields the load Love numbers k', h', l' (surface mass load response; k'.real is negative); `'free'` the free-surface response. `solve_love_numbers_supplied` takes the same argument.
+#### Molten Stretches in a Solid Layer
+
+A solid layer's partial-melt model can weaken part of the layer past use as a solid, for example the base of a mantle over a hot core. Past the critical melt fraction the post-melt shear modulus falls steeply to the model's `liquid_shear` floor (10$^{-5}$ Pa by default), and the solid equations, which divide by the shear modulus, cannot be integrated through it. After every EOS solve the world marks as molten each stretch of a layer with a partial-melt model where the modulus sits at that floor or where its rigidity $\mu / (\bar{\rho} g R)$ (planet bulk density, surface gravity, and radius) is below `minimum_solid_rigidity` in the `[numerical]` section of the TidalPy configuration (10$^{-6}$ by default). The stretches are found on the EOS slices and their edges refined by bisection on the dense profile. `molten_regions` lists them as `(layer_name, radius_inner, radius_outer)`, and a message at the info log level names each one.
+
+The radial solver splits the layer at those edges and solves each molten stretch as a static liquid, which reads only the density and gravity. The partial-melt model floors the bulk modulus there too, which a compressible dynamic liquid would read. The solid parts keep the layer's own flags, and each stretch takes its share of the layer's slices, at least five, for the solution's output grid. Treating a solid of rigidity $10^{-6}$ as a liquid changes the Love numbers by about that fraction. The split changes only the radial solve: the layer is one layer everywhere else, its 3D heating takes nothing from the molten stretch (a liquid carries no shear dissipation there), and a layer declared liquid is never split.
+
+> [!NOTE]
+> Only a layer with a partial-melt model is split. A solid layer given a near-zero shear modulus some other way is solved as a solid, and the solver may fail on it or return $\mathrm{Im}[k]$ with the wrong sign and only a conditioning warning.
 
 **Love-number properties (after a successful solve)**
 
@@ -333,7 +341,7 @@ A default-constructed `c_LoveSolveConfig` (and `c_WorldEOSSolveConfig`) reads th
 The non-dimensionalization is itself frequency-independent (the `c_NonDimensionalScales` time scale is $1/\sqrt{\pi G \bar{\rho}}$ for the bulk density $\bar{\rho}$, not $1/\omega$), so the only quantities that change between calls at different frequencies are the complex moduli and the shooting integration.
 
 1. Validates `eos_solved` and `tidalpy_config_ptr`.
-2. If the cache does not match the current EOS grid/assumptions, `build_cache` captures (once): the non-dim radius/density/gravity/pressure/mass/moi arrays, per-layer metadata (solid/liquid, static, incompressible) and slice partitioning, the non-dim scalars (`G`, bulk density, surface pressure), and a reused `c_RadialSolutionStorage` whose internal `c_EOSSolution` arrays serve as the scratch buffers. The cache is invalidated automatically whenever `solve_eos` re-runs.
+2. If the cache does not match the current EOS grid/assumptions, `build_cache` captures (once), for the solver's layers (the world's layers, with a solid layer split at the edges of its molten stretches; `get_radial_segments()` lists the stretches and the providers map each solver layer back to its world layer): the non-dim radius/density/gravity/pressure/mass/moi arrays, per-layer metadata (solid/liquid, static, incompressible) and slice partitioning, the non-dim scalars (`G`, bulk density, surface pressure), and a reused `c_RadialSolutionStorage` whose internal `c_EOSSolution` arrays serve as the scratch buffers. The cache is invalidated automatically whenever `solve_eos` re-runs.
 3. Per call: the world installs a material-state provider (`c_EOSSolution::MaterialEval`, a type-erased callable carrying that solve's frequency) that the shooting solve calls for density and the complex moduli at each integration radius, and also fills the dimensional moduli scratch at the slice radii for the propagation-matrix method and the array outputs. The helper non-dimensionalizes the scratch in place, re-applies the cached non-dim structure arrays via `inject_from_world_eos`, and runs the selected solver.
 4. Re-dimensionalizes the y-solution, restores the SI surface gravity, and calls `c_RadialSolutionStorage::find_love()`.
 

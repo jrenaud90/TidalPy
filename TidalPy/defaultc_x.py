@@ -92,6 +92,12 @@ schema_version = "{SCHEMA_VERSION_X}"
     # Material floors.
     minimum_viscosity = 100.0
     minimum_modulus = 1.0e-3
+    # A layer with a partial-melt model is solved by the radial solver as a static liquid wherever its post-melt
+    # rigidity mu / (rho g R) (planet bulk density, surface gravity, and radius) falls below this, as well as
+    # wherever the model reaches its liquid_shear floor. The solid equations divide by the shear modulus, so a
+    # near-fluid solid cannot be integrated, while treating it as liquid changes the Love numbers by about this
+    # fraction. Applied when the EOS is solved.
+    minimum_solid_rigidity = 1.0e-6
     # Geometry floor: a layer thinner than this is ignored.
     minimum_layer_thickness = 0.1
     # Smallest magnitude a denominator may take before a guard substitutes it. Applies wherever a

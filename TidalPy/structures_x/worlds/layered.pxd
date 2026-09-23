@@ -35,6 +35,12 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
 
 
 cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
+    cdef cppclass c_RadialSegment:
+        size_t   world_layer
+        double   radius_inner
+        double   radius_outer
+        cpp_bool molten
+
     cdef cppclass c_Grid3DAxes:
         const double* radii
         size_t        num_radii
@@ -151,6 +157,8 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_central_pressure() const
         double       get_planet_mass_eos() const
         double       get_planet_moi_eos() const
+        const vector[c_RadialSegment]& get_radial_segments() const
+        vector[c_RadialSegment] get_molten_regions() const
         void         set_spin_model(const c_Spin& spin)
         const c_Spin& get_spin_model() const
         double       get_moment_of_inertia() const

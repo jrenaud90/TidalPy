@@ -23,6 +23,9 @@
 #include "matrix_.hpp"
 
 
+// The fewest radial slices a layer's run may have: the shooting method needs five to place its output.
+inline constexpr size_t C_MIN_SLICES_PER_LAYER = 5;
+
 // Per-solver input structs, built once by build_cache; each solve updates only the per-call knobs.
 
 struct c_ShootingInputs {
@@ -170,20 +173,24 @@ public:
             && this->p_num_ytypes   == num_ytypes;
     }
 
-    // The layer flags are user-mutable without an EOS re-solve, so a cache hit must confirm them too.
+    // The layer flags are user-mutable without an EOS re-solve, so a cache hit must confirm them too, and the
+    // layer tops with them: a world splits a layer at the edges of a molten stretch.
     bool layer_flags_match(
         const int* layer_types,
         const bool* is_static,
         const bool* is_incompressible,
+        const double* upper_radii_si,
         size_t n_layers) const noexcept
     {
         const c_ShootingInputs& shoot = this->p_shooting_inputs;
         if (shoot.layer_types.size() != n_layers) { return false; }
+        if (this->p_upper_radii_si.size() != n_layers) { return false; }
         if (!shoot.is_static || !shoot.is_incompressible) { return false; }
         for (size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
             if (shoot.layer_types[layer_i]       != layer_types[layer_i])       { return false; }
             if (shoot.is_static[layer_i]         != is_static[layer_i])         { return false; }
             if (shoot.is_incompressible[layer_i] != is_incompressible[layer_i]) { return false; }
+            if (this->p_upper_radii_si[layer_i]  != upper_radii_si[layer_i])    { return false; }
         }
         return true;
     }
@@ -209,15 +216,12 @@ public:
     }
     size_t total_slices() const noexcept { return this->p_total_slices; }
 
-    // Frequency-independent setup from SI inputs. False, with an error on the storage, for an invalid layer
-    // slice partition.
+    // Frequency-independent setup from SI inputs: the radius grid of the solver's layers (each layer's run, its
+    // interface radii repeated), their tops and flags, and the world's solved EOS, which supplies the planet's
+    // scalars. The solver's layers can outnumber the world's, when a layer is split. False, with an error on the
+    // storage, for an invalid layer slice partition.
     bool build_cache(
         const std::vector<double>& radius_si,
-        const std::vector<double>& density_si,
-        const std::vector<double>& gravity_si,
-        const std::vector<double>& pressure_si,
-        const std::vector<double>& mass_si,
-        const std::vector<double>& moi_si,
         const std::vector<double>& upper_radii_si,
         const int* layer_types,
         const bool* is_static,
@@ -227,18 +231,24 @@ public:
         double bulk_density,
         int degree_l,
         bool nondimensionalize,
-        const c_EOSSolution* world_eos_ptr = nullptr,
+        const c_EOSSolution& world_eos,
         size_t num_ytypes = 1)
     {
         const size_t total_slices = radius_si.size();
         if (num_ytypes == 0) { num_ytypes = 1; }
+        // The planet's scalars are the center and surface values of the world's own grid.
+        const std::vector<double>& gravity_si  = world_eos.gravity_array_vec;
+        const std::vector<double>& pressure_si = world_eos.pressure_array_vec;
+        const std::vector<double>& mass_si     = world_eos.mass_array_vec;
+        const std::vector<double>& moi_si      = world_eos.moi_array_vec;
 
         this->p_n_layers           = n_layers;
         this->p_total_slices       = total_slices;
         this->p_degree_l           = degree_l;
         this->p_nondim             = nondimensionalize;
         this->p_num_ytypes         = num_ytypes;
-        this->p_surface_gravity_si = gravity_si[total_slices - 1];
+        this->p_surface_gravity_si = gravity_si.back();
+        this->p_upper_radii_si     = upper_radii_si;
 
         // unique_ptr because c_NonDimensionalScales is not assignable.
         this->p_non_dim_uptr = std::make_unique<c_NonDimensionalScales>(planet_radius, bulk_density);
@@ -291,7 +301,7 @@ public:
             first_slice_idx,
             num_slices);
         for (size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-            if (num_slices[layer_i] < 5) {
+            if (num_slices[layer_i] < C_MIN_SLICES_PER_LAYER) {
                 this->p_storage->error_code = -5;
                 this->p_storage->message    = "TidalPy: at least 5 slices per layer required";
                 this->p_storage->success    = false;
@@ -332,12 +342,12 @@ public:
         const auto to_nd = [nondimensionalize](double value, double conv) {
             return nondimensionalize ? value / conv : value;
         };
-        storage_eos->radius                 = to_nd(radius_si[total_slices - 1],   length_conv);
-        storage_eos->surface_gravity        = to_nd(gravity_si[total_slices - 1],  gravity_conv);
-        storage_eos->surface_pressure       = to_nd(pressure_si[total_slices - 1], pascal_conv);
-        storage_eos->central_pressure       = to_nd(pressure_si[0],                pascal_conv);
-        storage_eos->mass                   = to_nd(mass_si[total_slices - 1],     mass_conv);
-        storage_eos->moi                    = to_nd(moi_si[total_slices - 1],      moi_conv);
+        storage_eos->radius                 = to_nd(radius_si.back(),    length_conv);
+        storage_eos->surface_gravity        = to_nd(gravity_si.back(),   gravity_conv);
+        storage_eos->surface_pressure       = to_nd(pressure_si.back(),  pascal_conv);
+        storage_eos->central_pressure       = to_nd(pressure_si.front(), pascal_conv);
+        storage_eos->mass                   = to_nd(mass_si.back(),      mass_conv);
+        storage_eos->moi                    = to_nd(moi_si.back(),       moi_conv);
         storage_eos->nondim_status          = 0;
         storage_eos->solution_nondim_status = 0;
         storage_eos->success                = true;
@@ -347,14 +357,12 @@ public:
 
         // This storage's EOS stands in for the world's, so it carries the world's solve diagnostics too.
         // Without them it keeps its "never solved" defaults, which an exported solution would report.
-        if (world_eos_ptr) {
-            storage_eos->iterations         = world_eos_ptr->iterations;
-            storage_eos->pressure_error     = world_eos_ptr->pressure_error;
-            storage_eos->max_iters_hit      = world_eos_ptr->max_iters_hit;
-            storage_eos->message            = world_eos_ptr->message;
-            storage_eos->steps_taken_vec    = world_eos_ptr->steps_taken_vec;
-            storage_eos->num_cysolver_calls = world_eos_ptr->num_cysolver_calls;
-        }
+        storage_eos->iterations         = world_eos.iterations;
+        storage_eos->pressure_error     = world_eos.pressure_error;
+        storage_eos->max_iters_hit      = world_eos.max_iters_hit;
+        storage_eos->message            = world_eos.message;
+        storage_eos->steps_taken_vec    = world_eos.steps_taken_vec;
+        storage_eos->num_cysolver_calls = world_eos.num_cysolver_calls;
 
         // The provider answers in SI at an SI radius, so the scales convert the non-dim shooting radius up
         // and its answers back down.
@@ -500,6 +508,7 @@ public:
     c_MatrixInputs   p_matrix_inputs;
 
     std::vector<double> p_upper_radii_nd;
+    std::vector<double> p_upper_radii_si;
     // The non-dim radius grid, kept only to size and place the storage's output sampling.
     std::vector<double> p_radius_nd;
 

@@ -293,10 +293,10 @@ def test_hot_core_under_an_isothermal_mantle_keeps_planetary_heat_flow(core_temp
 
     The mantle has no contrast to the layer above, so its convection model once returned a fixed 1 m boundary layer.
     The core then drove about 1e16 W through that metre, melted a sliver at the mantle base, and the Love solve
-    returned k2 near -0.58 + 0.25i while reporting success. The boundary layer now follows the floored Nusselt
-    number, so the heat flow stays planetary. A core hot enough to melt the mantle base past its critical melt
-    fraction leaves a near-fluid solid region the radial solver cannot integrate; that is reported as a failure, and a
-    reported success always carries a physical k2.
+    returned k2 near -0.58 + 0.25i while reporting success. The boundary layers now take the drop across both of
+    them, including the one to the core, so the heat flow stays planetary. A core hot enough to melt the mantle base
+    past the liquid limit of its partial-melt model leaves a molten stretch there, which the radial solver treats as
+    a static liquid, so every case solves with a physical k2.
     """
     from TidalPy.structures_x.configs import build_world
     io = build_world("io")
@@ -306,9 +306,9 @@ def test_hot_core_under_an_isothermal_mantle_keeps_planetary_heat_flow(core_temp
     assert abs(heat_flow_into_mantle) < 1.0e12   # [W]; Io's whole output is about 1e14 W
     io.solve_love_numbers(frequency=4.11e-5, degree_l=2)
     love_k2 = complex(io.love_number_k)
-    if core_temperature <= 1800.0:
-        assert io.love_success
-    if io.love_success:
-        assert 0.02 < love_k2.real < 0.1
-        assert -0.05 < love_k2.imag < 0.0
-        assert io.love_surface_amplification < 1.0e2
+    assert io.love_success, io.love_message
+    assert 0.02 < love_k2.real < 0.1
+    assert -0.05 < love_k2.imag < 0.0
+    # A molten stretch is a liquid layer, which raises the surface-solve amplification from about 10 to a few
+    # hundred; the solver warns only when the amplification times machine epsilon reaches the tolerance.
+    assert io.love_surface_amplification < 1.0e4

@@ -308,7 +308,8 @@ const NODES = [
       '(thermal_layout_.hpp), and runs the solver once per thermal pass, relaxing the boundary layers, interface ' +
       'temperatures, heat flows, and floating layer radii between passes. Starts each solve from the last ' +
       'converged central pressure.',
-    inputs: 'c_WorldEOSSolveConfig', outputs: 'retained c_EOSSolution; layers populated; radial cache invalidated' },
+    inputs: 'c_WorldEOSSolveConfig',
+    outputs: 'retained c_EOSSolution; layers populated; molten stretches found; radial cache invalidated' },
   { id: 'c_solve_eos', lane: 'eos', kind: 'cpp', shape: 'func',
     label: 'c_solve_eos', sub: 'Material_x/eos/solver_.hpp', file: 'Material_x/eos/solver_.hpp',
     purpose: 'Integrates gravity, pressure, enclosed mass, and moment of inertia (plus temperature and heat flow ' +
@@ -584,8 +585,9 @@ const EDGES = [
       'the solved EOS reports at the radius asked for.',
     inputs: 'static modulus, viscosity, frequency', outputs: 'complex moduli [Pa]' },
   { from: 'c_solve_love_world', to: 'c_WorldRadialSolver', flow: 'love', type: 'call',
-    purpose: 'ensure_radial_cache builds the frequency-independent setup once per EOS solve; each solve installs ' +
-      'its provider and calls solve.',
+    purpose: 'ensure_radial_cache builds the frequency-independent setup once per EOS solve, splitting a solid ' +
+      'layer at the edges of its molten stretches and solving each as a static liquid; each solve installs its ' +
+      'provider, which maps the solver layers back to the world layers, and calls solve.',
     inputs: 'layer radii and flags, degree, boundary conditions, the provider', outputs: 'Love numbers, dense y(r)' },
   { from: 'c_WorldRadialSolver', to: 'c_shooting_solver', flow: 'love', type: 'call',
     purpose: 'Shoot on the cached non-dimensional inputs (c_matrix_propagate instead for one solid, static, ' +

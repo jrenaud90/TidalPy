@@ -1000,6 +1000,26 @@ cdef class LayeredWorld(BaseWorld):
         """Planet moment of inertia [kg m^2] from the last EOS solve, or NaN if not solved."""
         return self._layered_ptr.get_planet_moi_eos()
 
+    @property
+    def molten_regions(self) -> list:
+        """Molten stretches of solid layers from the last EOS solve, as ``(layer_name, radius_inner, radius_outer)``.
+
+        A stretch is molten where the layer's partial-melt model has weakened it past use as a solid: the post-melt
+        shear modulus sits at the model's ``liquid_shear`` floor, or its rigidity mu / (rho g R) (planet bulk density,
+        surface gravity, and radius) is below the ``[numerical]`` ``minimum_solid_rigidity`` of the TidalPy
+        configuration. The radial solver splits the layer at the stretch's edges and solves the stretch as a static
+        liquid. Radii in [m]; empty before an EOS solve or when nothing is molten.
+        """
+        cdef vector[c_RadialSegment] segments = self._layered_ptr.get_molten_regions()
+        cdef size_t segment_i
+        regions = []
+        for segment_i in range(segments.size()):
+            regions.append((
+                self._layered_ptr.get_layer(segments[segment_i].world_layer).get_name().decode("utf-8"),
+                segments[segment_i].radius_inner,
+                segments[segment_i].radius_outer))
+        return regions
+
     # Spin dynamics (the Spin model attached to the world; uses the world's EOS moment of inertia)
     def set_spin_model(self, Spin spin not None):
         """Attach a :class:`~TidalPy.dynamics_x.Spin` model (its moment-of-inertia factor is the fallback
