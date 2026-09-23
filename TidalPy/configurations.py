@@ -214,7 +214,7 @@ def save_dict_to_toml(dict_to_save: dict,
             # Append a number to the config name until one is found that is not already in use.
             file_path = unique_path(file_path, is_dir=False, make_dir=False)
     
-    with open(file_path, 'w') as toml_file:
+    with open(file_path, 'w', encoding='utf-8') as toml_file:
         toml_output = toml.dump(dict_to_save, toml_file)
     return toml_output
 
@@ -242,7 +242,7 @@ def check_config_version(
         Flag for if this configuration file is compatible.
     """
     compatible = False
-    with open(config_path, 'r') as config_file:
+    with open(config_path, 'r', encoding='utf-8') as config_file:
         config_version_found = False
         for line in islice(config_file, 0, 10):  # Assume the version number is in the first 10 lines
             if 'version:' in line.lower():
@@ -289,7 +289,7 @@ def get_default_config() -> dict:
     # Check if TidalPy's config file is not present.
     if not os.path.isfile(config_path):
         # Create toml file with default configurations.
-        with open(config_path, 'w') as config_file:
+        with open(config_path, 'w', encoding='utf-8') as config_file:
             config_file.write('#===========================================================#\n')
             config_file.write(f'#    TidalPy Default Configurations for Version: {version}\n')
             config_file.write('#===========================================================#\n\n')
@@ -339,7 +339,7 @@ def get_default_config_x() -> dict:
     config_x_path = os.path.join(config_dir, 'TidalPy_Configs_x.toml')
     # Write the default _x config if it is not already present.
     if not os.path.isfile(config_x_path):
-        with open(config_x_path, 'w') as config_file:
+        with open(config_x_path, 'w', encoding='utf-8') as config_file:
             config_file.write(config_version_header('TidalPy _x Default Configurations'))
             config_file.write(default_config_x_str)
     else:
@@ -438,7 +438,7 @@ def save_config_x(file_path: str, overwrite: bool = True) -> str:
         get_default_config_x()
     if os.path.isfile(file_path) and not overwrite:
         file_path = unique_path(file_path, is_dir=False, make_dir=False)
-    with open(file_path, 'w') as config_file:
+    with open(file_path, 'w', encoding='utf-8') as config_file:
         config_file.write(config_version_header('TidalPy _x Configurations'))
         toml.dump(TidalPy.config_x, config_file)
     return file_path

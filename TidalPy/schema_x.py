@@ -92,8 +92,8 @@ _GEOMETRY_LAYER_KEYS = (
     "mass_kg",
     "material_name",
     "is_tidal",
+    # The layer's share in the quasi-homogeneous Love methods; absent takes its volume fraction.
     "tidal_scale",
-    "tidal_scale_method",
     # False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
     "is_volume_fixed"
 )
@@ -130,11 +130,11 @@ MOVED_THERMAL_KEYS = {
     "thermal_expansion_ref_1_k":     "thermal_expansion_1_k",
     "heat_capacity_ref_j_kgk":       "heat_capacity_j_kgk",
 }
+# Stored and serialized for a future gas description; nothing reads them yet. A gas layer's density is its material's.
 _GAS_LAYER_KEYS = (
     "mean_molecular_weight_kg_mol",
     "adiabatic_index",
     "reference_temperature_k",
-    "reference_density_kg_m3"
 )
 
 ALLOWED_LAYER_SCALAR_KEYS = {
@@ -188,7 +188,7 @@ ALLOWED_TIDES_KEYS = frozenset((
     "eccentricity_truncation",
     "obliquity_trunc_lvl",
     "obliquity_truncation",
-    "tidal_timescale_width_decades",
+    "layer_tidal_heating",
     "love_method",
     "love_fixed_q",
     "love_fixed_dt_s",

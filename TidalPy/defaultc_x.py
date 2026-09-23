@@ -49,6 +49,12 @@ def _rock_layer_block(section: str) -> str:
         solidus_k = 1600.0
         liquidus_k = 2000.0
         liquid_shear_pa = 1.0e-5
+        # Molten silicate: the floor on the post-melt viscosity.
+        liquid_viscosity_pas = 0.2
+        # Set true to weaken the bulk modulus with melt as well (a Hashin-Shtrikman bound; far weaker than the
+        # shear weakening). The melt's bulk modulus is a silicate melt's at low pressure.
+        bulk_melt_weakening = false
+        liquid_bulk_modulus_pa = 2.0e10
         crit_melt_frac = 0.5
         crit_melt_frac_width = 0.05
         hn_visc_slope_1 = 13.5
@@ -161,7 +167,9 @@ schema_version = "{SCHEMA_VERSION_X}"
     # Integrate in non-dimensional units (the planet radius, its bulk density, and 1/sqrt(pi G rho) as the length,
     # density, and time units) so the tolerances above mean the same thing for every planet.
     nondimensionalize = true
-    # Radial samples per layer stored by the world-level solve (the profile the Love-number solve interpolates).
+    # Radial samples per layer in the profile a solve reports (its arrays and each layer's hand-set fallback).
+    # Nothing else reads them: the Love solves and every profile getter evaluate the solve's dense output at the
+    # exact radius, so their answers do not depend on this, and raising it only costs time.
     slices_per_layer = 100
 
 
@@ -189,7 +197,9 @@ schema_version = "{SCHEMA_VERSION_X}"
     # Tighten the relative tolerance of the stress-like radial functions by layer type (experimental).
     scale_rtols = false
     max_num_steps = 500000
-    expected_size = 1000
+    # The integrator's first storage allocation, in steps. A layer's solve takes a few to a few dozen steps at
+    # these tolerances, and the storage grows when it needs to, so this only sets how much is reserved up front.
+    expected_size = 128
     max_ram_mb = 500
     # Integrate in non-dimensional units.
     nondimensionalize = true
@@ -211,9 +221,10 @@ schema_version = "{SCHEMA_VERSION_X}"
     eccentricity_trunc_lvl = 3
     obliquity_trunc_lvl = "off"
 
-    # Width [decades] of the log-Gaussian bell used by a layer's `tidal_timescale` scale
-    # method (scale peaks where the layer's Maxwell time equals the orbital forcing period).
-    tidal_timescale_width_decades = 1.0
+    # Whether calc_tides also resolves each layer's tidal heating when the Love numbers come from the radial
+    # solver: a volume integral of the radial solution that costs about as much as the global solve again. The
+    # quasi-homogeneous Love methods and the analytic tide models share out the heating whatever this says.
+    layer_tidal_heating = true
 
     # Per-degree static potential Love numbers k_l (index 0 -> l=2). Falls off roughly as
     # k_l ~ k_2 / (l - 1) for a soft, near-homogeneous body (k_2 ~ 0.3).
@@ -341,6 +352,10 @@ schema_version = "{SCHEMA_VERSION_X}"
         model = "off"
         solidus_k = 4000.0
         liquidus_k = 5000.0
+        # Liquid iron (de Wijs et al. 1998 viscosity; bulk modulus near 1 bar).
+        liquid_viscosity_pas = 1.3e-2
+        bulk_melt_weakening = false
+        liquid_bulk_modulus_pa = 1.1e11
 
     [layers.iron.shear_rheology]
         model = "maxwell"
@@ -390,6 +405,10 @@ schema_version = "{SCHEMA_VERSION_X}"
         model = "off"
         solidus_k = 250.0
         liquidus_k = 273.15
+        # Liquid water.
+        liquid_viscosity_pas = 8.9e-4
+        bulk_melt_weakening = false
+        liquid_bulk_modulus_pa = 2.2e9
 
     [layers.ice.shear_rheology]
         model = "maxwell"
@@ -437,6 +456,10 @@ schema_version = "{SCHEMA_VERSION_X}"
         model = "off"
         solidus_k = 270.0
         liquidus_k = 300.0
+        # Liquid water.
+        liquid_viscosity_pas = 8.9e-4
+        bulk_melt_weakening = false
+        liquid_bulk_modulus_pa = 2.2e9
 
     [layers.hp_ice.shear_rheology]
         model = "andrade"
