@@ -11,7 +11,7 @@ Solid-state creep is thermally activated: viscosity falls exponentially with tem
 | Model | Aliases | Viscosity $\eta$ [Pa s] |
 |---|---|---|
 | `ArrheniusViscosity` | `arrhenius`, `arr` | $A \, \sigma^{1-n} d^{\,m} \exp\left(\dfrac{E_a + P V_a}{R T}\right)$, multiplied by $T$ when `additional_temp_dependence` is set |
-| `ReferenceViscosity` | `reference`, `ref` | $\eta_\mathrm{ref} \exp\left[\dfrac{E_a + P V_a}{R} \left(\dfrac{1}{T} - \dfrac{1}{T_\mathrm{ref}}\right)\right]$ |
+| `ReferenceViscosity` | `reference`, `ref` | $\eta_\mathrm{ref} \exp\left[\dfrac{E_a}{R} \left(\dfrac{1}{T} - \dfrac{1}{T_\mathrm{ref}}\right) + \dfrac{P V_a}{R T}\right]$ |
 | `ConstantViscosity` | `constant`, `const` | $\eta_\mathrm{ref}$, independent of temperature and pressure |
 
 Each parameter carries two names: the constructor keyword, which is also the read-only property, and the config key used in a TOML table, a `make_viscosity` config dictionary, and `get_config_dict()`. A dimensional config key ends in its unit; the code name does not.
@@ -33,7 +33,9 @@ The stress exponent $n$ distinguishes creep regimes: $n = 1$ is diffusion creep,
 
 ### Behavior at the Limits
 
-Every model returns infinity at or below zero temperature: the cold limit of a thermally activated fluid is a solid that does not flow, and an infinite viscosity makes the rheology models return a purely elastic response. A reference model with a non-positive reference temperature also returns infinity. Very cold but positive temperatures reach infinity by overflowing the exponential, which is deliberate rather than guarded against.
+The reference viscosity $\eta_\mathrm{ref}$ is the viscosity at $T_\mathrm{ref}$ and zero pressure, so a positive activation volume always raises the viscosity with pressure, as it does in the Arrhenius law.
+
+The Arrhenius and reference models return infinity at or below zero temperature (`ConstantViscosity` returns its constant at any temperature): the cold limit of a thermally activated fluid is a solid that does not flow, and an infinite viscosity makes the rheology models return a purely elastic response. A reference model with a non-positive reference temperature also returns infinity. Very cold but positive temperatures reach infinity by overflowing the exponential, which is deliberate rather than guarded against.
 
 ### Choosing a Model
 

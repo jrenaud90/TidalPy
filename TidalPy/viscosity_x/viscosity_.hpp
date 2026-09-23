@@ -117,10 +117,12 @@ public:
             || this->p_reference_temperature <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_INF;
         }
+        // The activation energy is anchored at the reference temperature; the reference viscosity is at zero
+        // pressure, so the activation volume always raises the viscosity, by exp(P V_a / (R T)).
         const double delta_inv_temp = (1.0 / temperature) - (1.0 / this->p_reference_temperature);
         const double exponent =
-            ((this->p_molar_activation_energy + pressure * this->p_molar_activation_volume) / R)
-            * delta_inv_temp;
+            (this->p_molar_activation_energy / R) * delta_inv_temp
+            + (pressure * this->p_molar_activation_volume) / (R * temperature);
         // Plain exp: an overflowing (very cold) exponent saturates to that same rigid limit.
         return this->p_reference_viscosity * std::exp(exponent);
     }
