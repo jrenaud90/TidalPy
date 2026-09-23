@@ -13,8 +13,10 @@
  * solve that used it cannot disagree. All MKS.
  */
 
+#include <cmath>
 #include <cstddef>
 #include <functional>
+#include <stdexcept>
 #include <vector>
 
 #include "constants_.hpp"   // TidalPyConstants::d_NAN
@@ -85,6 +87,18 @@ public:
         const std::vector<double>& gravity_ms2,
         const std::vector<double>& pressure)
     {
+        const std::size_t num_points = radius.size();
+        if ((num_points == 0) || (density_kgm3.size() != num_points) || (gravity_ms2.size() != num_points)
+                || (pressure.size() != num_points)) {
+            throw std::invalid_argument(
+                "TidalPy: a layer EOS profile needs radius, density, gravity, and pressure arrays of one nonzero "
+                "length.");
+        }
+        for (std::size_t point_i = 0; point_i < num_points; ++point_i) {
+            if (!std::isfinite(radius[point_i]) || ((point_i > 0) && (radius[point_i] < radius[point_i - 1]))) {
+                throw std::invalid_argument("TidalPy: a layer EOS profile's radii must be finite and ascending.");
+            }
+        }
         this->p_radius     = radius;
         this->p_density_kgm3 = density_kgm3;
         this->p_gravity_ms2 = gravity_ms2;

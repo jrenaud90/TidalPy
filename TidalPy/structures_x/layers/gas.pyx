@@ -2,8 +2,9 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrapper for TidalPy's gas layer class.
 
-GasLayer extends PhysicsLayer with ideal-gas thermodynamics (adiabatic lapse rate, scale height, ideal-gas
-pressure, sound speed). It has no phase changes and no cooling or radiogenics sub-models.
+GasLayer extends PhysicsLayer with ideal-gas parameters (mean molecular weight, adiabatic index, and a reference
+state), stored and serialized for a future gas description; nothing reads them yet, and the layer's density comes
+from its material's law. It has no phase changes and no cooling or radiogenics sub-models.
 """
 
 from libcpp.complex cimport complex as cpp_complex
@@ -26,7 +27,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 
 cdef class GasLayer(PhysicsLayer):
-    """Ideal-gas layer: PhysicsLayer plus adiabatic lapse rate, scale height, ideal-gas pressure, and sound speed.
+    """Gas layer: PhysicsLayer plus stored ideal-gas parameters, which nothing reads yet.
 
     No phase changes, cooling, or radiogenics sub-models are available (use SolidLiquidLayer for those).
 
@@ -84,8 +85,8 @@ cdef class GasLayer(PhysicsLayer):
     Assumptions
     -----------
     - Spherically symmetric layer geometry.
-    - The gas is ideal; real-gas corrections are not included.
-    - The universal gas constant comes from the TidalPy global configuration.
+    - The density, moduli, and viscosities are the material's, as for any physics layer; the ideal-gas parameters
+      take no part in any calculation yet.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -180,10 +181,13 @@ cdef class GasLayer(PhysicsLayer):
         return self._gas_ptr.get_reference_density()
 
     cpdef dict get_config_dict(self):
-        """Return all configuration values as a Python dict (MKS): the PhysicsLayer keys plus the gas parameters."""
+        """Return all configuration values as a Python dict (MKS): the PhysicsLayer keys plus the gas parameters.
+
+        The layer's own ``reference_density`` is left out: a layer file cannot carry it (the layer's density is its
+        material's, in the ``material`` table).
+        """
         cdef dict d = PhysicsLayer.get_config_dict(self)
         d["mean_molecular_weight_kg_mol"] = self._gas_ptr.get_mean_molecular_weight()
         d["adiabatic_index"]              = self._gas_ptr.get_adiabatic_index()
         d["reference_temperature_k"]      = self._gas_ptr.get_reference_temperature()
-        d["reference_density_kg_m3"]      = self._gas_ptr.get_reference_density()
         return d

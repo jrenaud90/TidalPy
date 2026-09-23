@@ -3,7 +3,7 @@
 Covers the serialized fields beyond the geometry scalars: the attached material EOS
 model (for every layer class), the shear/bulk viscosity and partial-melt models (each
 written as a presence flag plus the model's own recursive record), the
-``tidal_scale_method`` selector, and the radial-solver
+``tidal_scale``, and the radial-solver
 classification flags (``is_solid``/``is_static``/``is_incompressible``).
 """
 import math
@@ -31,7 +31,7 @@ def _build_layer(cls):
     from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
     layer = cls(
         "mantle", 0, 0.0, 1.0e6, 1.0e22,
-        tidal_scale_method="tidal_timescale")
+        tidal_scale=0.25)
     # The material owns the static constants and the viscosity and partial-melt models attached below.
     layer.set_eos(ConstantDensityEOS(shear_modulus_static=6.0e10, bulk_modulus_static=2.0e11))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 3.0e19}))
@@ -58,7 +58,7 @@ def test_strength_models_binary_roundtrip(cls_index, tmp_path):
     assert loaded.shear_viscosity_set
     assert loaded.bulk_viscosity_set
     assert loaded.partial_melt_set
-    assert loaded.tidal_scale_method == original.tidal_scale_method
+    assert loaded.tidal_scale == 0.25
     assert loaded.is_static
     assert loaded.is_incompressible
     assert loaded.shear_modulus_static == pytest.approx(6.0e10)
@@ -78,7 +78,7 @@ def test_unset_strength_models_stay_unset(tmp_path):
     assert not loaded.bulk_viscosity_set
     assert not loaded.partial_melt_set
     assert not loaded.eos_set
-    assert loaded.tidal_scale_method == original.tidal_scale_method
+    assert loaded.tidal_scale is None   # an unset scale (the volume fraction) round-trips unset
 
 
 def _import_all_layer_classes():

@@ -27,7 +27,10 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_PI, d_NAN
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_layer_class_name
+from TidalPy.structures_x.layers.base cimport (
+    BaseLayer, c_BaseLayer, c_layer_class_name, cy_eos_fields, C_EOS_DENSITY_INDEX, C_EOS_GRAVITY_INDEX,
+    C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX, C_EOS_BULK_MODULUS_INDEX,
+    C_EOS_BULK_VISCOSITY_INDEX, C_EOS_MELT_FRACTION_INDEX)
 from TidalPy.structures_x.layers.base import LAYER_STANDALONE_CONFIG_KEYS
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
@@ -332,6 +335,10 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
+cdef void _world_eos_state(const void* owner, double radius, double* y_out) noexcept nogil:
+    (<const c_LayeredWorld*>owner).get_eos_state(radius, y_out)
+
+
 cdef class LayeredWorld(BaseWorld):
     """A world built from an ordered (inner-to-outer) stack of layers.
 
@@ -623,6 +630,9 @@ cdef class LayeredWorld(BaseWorld):
         time : float, optional
             Time [s] the heat sources of the layers with ``use_heating`` are evaluated at, on the clock their
             radiogenics models share. ``None`` takes each model's own reference time.
+        reset_layer_masses : bool, optional
+            A layer that holds its mass (``is_volume_fixed = False``) forgets the mass it holds and takes the
+            mass its current boundaries hold in this solve. Default False.
 
         Returns
         -------
@@ -630,9 +640,12 @@ cdef class LayeredWorld(BaseWorld):
             ``success``, ``message``, ``iterations``, ``max_iters_hit``, ``pressure_error`` [Pa], the radial
             profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``,
             ``temperature``, ``heat_flow``), the scalar results (``surface_gravity``, ``surface_pressure``,
-            ``central_pressure``, ``planet_mass``, ``planet_moi``), and the per-layer thermal results
-            (``layer_temperature`` [K], ``layer_heat_flow_in`` and ``layer_heat_flow_out`` [W],
-            ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1]).
+            ``central_pressure``, ``planet_mass``, ``planet_moi``), the iteration report (``thermal_passes``,
+            ``thermal_converged``, ``geometry_converged``), and the per-layer results (``layer_radius_outer``
+            [m], ``layer_temperature`` [K], ``layer_heat_flow_in`` and ``layer_heat_flow_out`` [W],
+            ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1], ``layer_node_temperature`` and
+            ``layer_top_temperature`` [K], ``layer_boundary_thickness`` [m], ``layer_rayleigh_number``,
+            ``layer_nusselt_number``, and ``layer_in_thermal_network``).
 
         Raises
         ------
@@ -709,6 +722,13 @@ cdef class LayeredWorld(BaseWorld):
         cdef list layer_heating          = []
         cdef list layer_temperature_rate = []
         cdef list layer_radius_outer     = []
+        cdef list layer_node_temperature = []
+        cdef list layer_top_temperature  = []
+        cdef list layer_boundary_thickness = []
+        cdef list layer_rayleigh_number  = []
+        cdef list layer_nusselt_number   = []
+        cdef list layer_in_thermal_network = []
+        cdef const vector[c_LayerThermal]* layer_thermal = NULL
         # Typed views, so the profiles are copied as doubles. Indexing the arrays as Python objects boxes every
         # value and costs more than the whole structure integration at the default grid size.
         cdef double[::1] radius_view
@@ -720,11 +740,18 @@ cdef class LayeredWorld(BaseWorld):
         cdef double[::1] temperature_view
         cdef double[::1] heat_flow_view
         if sol != NULL and self._layered_ptr.get_eos_solved():
+            layer_thermal = &self._layered_ptr.get_layer_thermal()
             for j in range(num_layers):
-                layer_temperature.append(self._layered_ptr.get_layer_thermal()[j].temperature)
-                layer_heat_flow_in.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_in)
-                layer_heat_flow_out.append(self._layered_ptr.get_layer_thermal()[j].heat_flow_out)
-                layer_heating.append(self._layered_ptr.get_layer_thermal()[j].heating)
+                layer_temperature.append(layer_thermal[0][j].temperature)
+                layer_heat_flow_in.append(layer_thermal[0][j].heat_flow_in)
+                layer_heat_flow_out.append(layer_thermal[0][j].heat_flow_out)
+                layer_heating.append(layer_thermal[0][j].heating)
+                layer_node_temperature.append(layer_thermal[0][j].node_temperature)
+                layer_top_temperature.append(layer_thermal[0][j].top_temperature)
+                layer_boundary_thickness.append(layer_thermal[0][j].boundary_thickness)
+                layer_rayleigh_number.append(layer_thermal[0][j].rayleigh_number)
+                layer_nusselt_number.append(layer_thermal[0][j].nusselt_number)
+                layer_in_thermal_network.append(bool(layer_thermal[0][j].in_network))
                 layer_temperature_rate.append(self._layered_ptr.calc_layer_temperature_rate(j))
                 layer_radius_outer.append(self._layered_ptr.get_layer(j).get_radius_outer())
             if num_points > 0:
@@ -785,6 +812,12 @@ cdef class LayeredWorld(BaseWorld):
             'layer_heat_flow_out':    layer_heat_flow_out,
             'layer_heating':          layer_heating,
             'layer_temperature_rate': layer_temperature_rate,
+            'layer_node_temperature':   layer_node_temperature,
+            'layer_top_temperature':    layer_top_temperature,
+            'layer_boundary_thickness': layer_boundary_thickness,
+            'layer_rayleigh_number':    layer_rayleigh_number,
+            'layer_nusselt_number':     layer_nusselt_number,
+            'layer_in_thermal_network': layer_in_thermal_network,
         }
 
     @property
@@ -932,22 +965,24 @@ cdef class LayeredWorld(BaseWorld):
     def get_static_viscoelastics(self, radius):
         """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius.
 
-        Each element is a float (scalar radius) or np.ndarray (array of radii).
+        Each element is a float (scalar radius) or np.ndarray (array of radii). One evaluation of the solved state
+        per radius fills all four.
         """
-        return (self.get_shear_modulus(radius), self.get_shear_viscosity(radius),
-                self.get_bulk_modulus(radius),  self.get_bulk_viscosity(radius))
+        return cy_eos_fields(
+            <const void*>self._layered_ptr, _world_eos_state, radius,
+            (C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
+             C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX))
 
     def get_state(self, radius):
-        """All EOS-related profiles at radius as a dict (float or np.ndarray values)."""
-        return {
-            "density":         self.get_density(radius),
-            "gravity":         self.get_gravity(radius),
-            "pressure":        self.get_pressure(radius),
-            "shear_modulus":   self.get_shear_modulus(radius),
-            "shear_viscosity": self.get_shear_viscosity(radius),
-            "bulk_modulus":    self.get_bulk_modulus(radius),
-            "bulk_viscosity":  self.get_bulk_viscosity(radius),
-        }
+        """All EOS-related profiles at radius as a dict (float or np.ndarray values), from one evaluation of the
+        solved state per radius."""
+        values = cy_eos_fields(
+            <const void*>self._layered_ptr, _world_eos_state, radius,
+            (C_EOS_DENSITY_INDEX, C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX,
+             C_EOS_SHEAR_VISCOSITY_INDEX, C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX,
+             C_EOS_MELT_FRACTION_INDEX))
+        return dict(zip(("density", "gravity", "pressure", "shear_modulus", "shear_viscosity", "bulk_modulus",
+                         "bulk_viscosity", "melt_fraction"), values))
 
     # calc_* variants: solve the EOS first if it is unsolved (or force_recalc), then read the profile.
     def _ensure_solved(self, cpp_bool force_recalc):
@@ -1356,8 +1391,32 @@ cdef class LayeredWorld(BaseWorld):
 
     @property
     def love_tidal_volume(self) -> float:
-        """Volume [m3] of the tidal layers averaged by the last analytic Love solve (NaN otherwise)."""
+        """Volume [m3] of the tidal layers that took part in the last quasi-homogeneous Love solve (NaN otherwise)."""
         return self._layered_ptr.get_love_analytic_tidal_volume()
+
+    @property
+    def love_layer_parts(self) -> list:
+        """Each tidal layer's part of the last quasi-homogeneous Love solve (``homogeneous``, ``cpl``, ``ctl``).
+
+        One dict per layer that took part: ``layer`` (its name), ``tidal_scale``, the Love numbers of a homogeneous
+        planet made of the layer's averaged material (``love_number_k``, ``love_number_h``, ``love_number_l``), and
+        its complex ``shear_modulus`` [Pa] at the solve's frequency. The world's Love numbers are the sum of
+        ``tidal_scale`` times these. Empty after a radial-solver solve.
+        """
+        cdef list parts = []
+        cdef const vector[c_LayerLove]* layer_parts = &self._layered_ptr.get_love_layer_parts()
+        cdef size_t i
+        for i in range(layer_parts.size()):
+            parts.append({
+                "layer":         self._layered_ptr.get_layer(layer_parts[0][i].layer_index).get_name().decode("utf-8"),
+                "tidal_scale":   layer_parts[0][i].tidal_scale,
+                "love_number_k": complex(layer_parts[0][i].love.k.real(), layer_parts[0][i].love.k.imag()),
+                "love_number_h": complex(layer_parts[0][i].love.h.real(), layer_parts[0][i].love.h.imag()),
+                "love_number_l": complex(layer_parts[0][i].love.l.real(), layer_parts[0][i].love.l.imag()),
+                "shear_modulus": complex(
+                    layer_parts[0][i].shear_modulus.real(), layer_parts[0][i].shear_modulus.imag()),
+            })
+        return parts
 
     @property
     def love_num_ytypes(self) -> int:
@@ -1509,6 +1568,9 @@ cdef class LayeredWorld(BaseWorld):
         planet equals the 1D :meth:`get_tidal_heating`. Requires the rheology tide model
         (:meth:`set_tide_model`) and a solved EOS (:meth:`solve_eos`). Returns NaN at the center and below the
         solver's starting radius, and 0 in liquid layers.
+
+        Each call solves every radial response again, which costs about as much as the whole of
+        :meth:`get_3d_tidal_heating_array` over hundreds of points; for more than one point, use that.
         """
         cdef c_TideSolveConfig state
         state.orbital_frequency = orbital_frequency
@@ -1517,7 +1579,10 @@ cdef class LayeredWorld(BaseWorld):
         state.obliquity         = obliquity
         state.semi_major_axis   = semi_major_axis
         state.host_mass         = host_mass
-        return self._layered_ptr.get_3d_tidal_heating(state, radius, colatitude)
+        cdef double heating
+        with nogil:
+            heating = self._layered_ptr.get_3d_tidal_heating(state, radius, colatitude)
+        return heating
 
     def get_3d_tidal_heating_array(
             self,
@@ -1849,12 +1914,13 @@ cdef class LayeredWorld(BaseWorld):
         summed, ``total`` [W] and ``per_layer`` [W] (innermost first, each an array over time when
         instantaneous). Requires the rheology tide model and a solved EOS.
 
-        With ``latitude_summed`` and ``orbit_averaged`` the colatitude integral uses the precomputed analytic
-        angular Gram table (exact, no theta grid); ``latitude_analytic=False`` falls back to the
-        Gauss-Legendre quadrature, which agrees to quadrature accuracy. A latitude band can be integrated
-        instead of the full sphere by setting ``colatitude_min`` and ``colatitude_max`` [rad] (defaults 0 and
-        pi), so complementary bands add up to the full-sphere result; a band narrower than the full sphere
-        always uses the quadrature. The band has no effect when colatitude is not summed.
+        With ``latitude_summed``, ``longitude_summed``, and ``orbit_averaged`` the colatitude integral uses the
+        precomputed analytic angular Gram table of the longitude mean (exact, no theta grid);
+        ``latitude_analytic=False`` falls back to the Gauss-Legendre quadrature, which agrees to quadrature accuracy,
+        and a call that keeps its longitudes always uses the quadrature. A point in a liquid (or a molten stretch) has
+        zero heating. A latitude band can be integrated instead of the full sphere by setting ``colatitude_min`` and
+        ``colatitude_max`` [rad] (defaults 0 and pi), so complementary bands add up to the full-sphere result; a band
+        narrower than the full sphere always uses the quadrature. The band has no effect when colatitude is not summed.
 
         ``num_threads`` (default 1) spreads the per-point evaluation, which follows the radial solves on the
         calling thread, over colatitude rows; the result is identical for any thread count. The analytic

@@ -1,6 +1,6 @@
 """Tests for the associated-Legendre utilities (TidalPy.Utilities_x.legendre).
 
-Both the precomputed closed-form tables (``legendre``, degrees l = 2..10) and the generic xsf-backed
+Both the precomputed closed-form tables (``legendre``, degrees l = 2..10) and the generic recurrence
 evaluator (``legendre_generic``, any degree) must reproduce, for every supported (l, m):
 
 * the value P_lm(cos theta) and its first/second colatitude derivatives vs ``scipy.special``

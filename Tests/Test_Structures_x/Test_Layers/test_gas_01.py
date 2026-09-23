@@ -139,7 +139,7 @@ _ALL_KEYS = (
     "love_number_h_re", "love_number_h_im",
     "love_number_l_re", "love_number_l_im",
     "mean_molecular_weight_kg_mol", "adiabatic_index",
-    "reference_temperature_k", "reference_density_kg_m3",
+    "reference_temperature_k",
 )
 
 
@@ -160,7 +160,8 @@ def test_get_config_dict_values():
     assert cfg["mean_molecular_weight_kg_mol"] == pytest.approx(_MW)
     assert cfg["adiabatic_index"]              == pytest.approx(_GAMMA)
     assert cfg["reference_temperature_k"]      == pytest.approx(_T_REF_K)
-    assert cfg["reference_density_kg_m3"]      == pytest.approx(_RHO_REF)
+    # The layer's own density is not a layer key: the density is the material's.
+    assert "reference_density_kg_m3" not in cfg
 
 
 # =====================================================================================================================

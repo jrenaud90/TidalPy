@@ -64,8 +64,8 @@ inline double lum_from_mass(double mass) noexcept {
     if (mass_ratio < 2.0) {
         return luminosity_solar * std::pow(mass_ratio, 4.0);
     }
-    // The linear branch takes over where it meets the 1.4 M^3.5 branch (~55 Msun); both give
-    // ~1.75e6 Lsun there, so the relation stays continuous.
+    // The linear branch takes over near where it meets the 1.4 M^3.5 branch: at 55 Msun it is 1.9 percent above it.
+    // The joints at 0.2 (-18.7 percent) and 2 Msun (-1.0 percent) step too; luminosity.md tabulates them.
     if (mass_ratio < 55.0) {
         return luminosity_solar * 1.4 * std::pow(mass_ratio, 3.5);
     }

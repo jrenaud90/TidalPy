@@ -9,6 +9,10 @@ world objects stay usable and are handed straight back by iteration (``for world
 indexing (``system[i]``), and attribute access (``system.<world_name>``).
 """
 
+import operator
+import os
+from numbers import Integral
+
 from libc.math cimport NAN, isfinite
 from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
@@ -164,9 +168,12 @@ cdef class System:
         # `_resolve_source` accepts a path string, a Path, or an already-parsed mapping, so `object` it is.
         cdef object resolved = _resolve_source(source)
         cdef dict config = load_toml(resolved)
-        config = merge_with_defaults(config)
+        # Checked before the defaults fill a missing version in, so a file without one says so.
         validate_schema_version(config, force=force)
-        return construct_system(config, force=force)
+        config = merge_with_defaults(config)
+        # A member's relative world path is relative to the system file.
+        base_dir = os.path.dirname(os.path.abspath(resolved)) if isinstance(resolved, str) else None
+        return construct_system(config, force=force, base_dir=base_dir)
 
     def add_world(
             self,
@@ -409,8 +416,10 @@ cdef class System:
             energy-balance terms (``dE_orbit_dt``, ``dE_spin_dt``, ``energy_residual``), all MKS.
             ``evolved`` is ``False`` for a world with no tidal host or no usable orbit about it.
         """
-        cdef c_WorldEvolution evolution = self._system.get().calc_world_evolution(
-            <size_t>self._resolve_index(world))
+        cdef size_t index = <size_t>self._resolve_index(world)
+        cdef c_WorldEvolution evolution
+        with nogil:
+            evolution = self._system.get().calc_world_evolution(index)
         return cy_evolution_to_dict(evolution)
 
     def calc_system_evolution(self) -> list:
@@ -425,7 +434,9 @@ cdef class System:
             no usable orbit comes back with ``evolved`` set to ``False``. The two members of a mutual pair
             each get an entry, and their contributions to the orbit they share add.
         """
-        cdef vector[c_WorldEvolution] results = self._system.get().calc_system_evolution()
+        cdef vector[c_WorldEvolution] results
+        with nogil:
+            results = self._system.get().calc_system_evolution()
         cdef list out = []
         cdef size_t i
         for i in range(results.size()):
@@ -455,7 +466,10 @@ cdef class System:
             :meth:`calc_world_evolution`-style dict). ``evolved`` is ``False`` for a world with no tidal
             host or no usable orbit about it.
         """
-        cdef c_PairEvolution pair = self._system.get().calc_pair_evolution(<size_t>self._resolve_index(world))
+        cdef size_t index = <size_t>self._resolve_index(world)
+        cdef c_PairEvolution pair
+        with nogil:
+            pair = self._system.get().calc_pair_evolution(index)
         return cy_pair_to_dict(pair)
 
     @property
@@ -575,8 +589,12 @@ cdef class System:
         cdef Py_ssize_t n = len(self._world_wrappers)
         cdef Py_ssize_t i
         cdef int found
-        if isinstance(world, int):
-            i = <Py_ssize_t>world
+        if isinstance(world, bool):
+            # A bool is an int to Python, so True would quietly name world 1.
+            raise TypeError("a world is named by an int index, a name (str), or the world object, not a bool")
+        if isinstance(world, Integral):
+            # Any integer type, numpy's included.
+            i = <Py_ssize_t>operator.index(world)
             if i < 0:
                 i += n
             if i < 0 or i >= n:

@@ -45,9 +45,26 @@ struct c_RheologyConfig {
     double voigt_viscosity_frac = 0.02;    // Voigt viscosity fraction   [dimensionless]
 };
 
+// The factors of the Andrade transient that depend on alpha alone: Gamma(1 + alpha) and the cosine and sine of
+// alpha pi / 2. A model computes them once when its alpha is set, not on every call.
+struct c_AndradeFactors {
+    double gamma_term = 1.0;
+    double cos_term   = 1.0;
+    double sin_term   = 0.0;
+
+    c_AndradeFactors() = default;
+    explicit c_AndradeFactors(double alpha) noexcept :
+        gamma_term(std::tgamma(1.0 + alpha)),
+        cos_term(std::cos(0.5 * alpha * TidalPyConstants::d_PI)),
+        sin_term(std::sin(0.5 * alpha * TidalPyConstants::d_PI)) {}
+};
+
 // Internal element compliances [Pa^-1]. The composite rheologies (Burgers, Andrade, Sundberg) put their
 // elements in series, so the element compliances add and the modulus is the reciprocal of that sum.
 // The Andrade family additionally assumes a positive forcing frequency.
+//
+// An infinite viscosity is the viscosity models' cold limit (rigid): its dashpots never move, at any frequency
+// including zero, so the viscous and transient terms vanish rather than forming inf / inf or inf * 0.
 namespace detail {
 
 // Maxwell element compliance: J* = J - i / (viscosity * frequency).
@@ -56,6 +73,9 @@ inline c_ComplexCompliance element_compliance_maxwell(
         double viscosity,
         double frequency) noexcept {
     const double static_compliance = 1.0 / rheo_guard(modulus);
+    if (std::isinf(viscosity)) {
+        return c_ComplexCompliance(static_compliance, 0.0);
+    }
     const double denom = rheo_guard(viscosity * frequency);
     return c_ComplexCompliance(static_compliance, -1.0 / denom);
 }
@@ -73,6 +93,10 @@ inline c_ComplexCompliance element_compliance_voigt(
     const double voigt_viscosity  = voigt_viscosity_frac * viscosity;
 
     const double scaled = voigt_compliance * voigt_viscosity * frequency;
+    if (std::isinf(viscosity) || std::isinf(scaled)) {
+        // A locked (or effectively locked) dashpot: the Voigt arm does not deform.
+        return c_ComplexCompliance(0.0, 0.0);
+    }
     const double denom  = scaled * scaled + 1.0;
     const double real_j = voigt_compliance / denom;
     const double imag_j = -(voigt_compliance * voigt_compliance) * voigt_viscosity
@@ -80,23 +104,28 @@ inline c_ComplexCompliance element_compliance_voigt(
     return c_ComplexCompliance(real_j, imag_j);
 }
 
-// Andrade element compliance: Maxwell compliance plus a transient term ~ omega^{-alpha}.
+// Andrade element compliance: Maxwell compliance plus a transient term ~ omega^{-alpha}. factors must be
+// c_AndradeFactors(alpha).
 inline c_ComplexCompliance element_compliance_andrade(
         double modulus,
         double viscosity,
         double frequency,
         double alpha,
-        double zeta) noexcept {
+        double zeta,
+        const c_AndradeFactors& factors) noexcept {
+    if (std::isinf(viscosity)) {
+        // The transient creep scales with the Maxwell time, so it vanishes with the viscous flow.
+        return element_compliance_maxwell(modulus, viscosity, frequency);
+    }
     const double static_compliance = 1.0 / rheo_guard(modulus);
     const double andrade_term =
         rheo_guard(static_compliance * viscosity * frequency * zeta);
 
     const double const_term =
-        static_compliance * std::pow(andrade_term, -alpha) * std::tgamma(1.0 + alpha);
-    const double half_pi_alpha = alpha * TidalPyConstants::d_PI / 2.0;
+        static_compliance * std::pow(andrade_term, -alpha) * factors.gamma_term;
     const c_ComplexCompliance andrade_transient(
-        std::cos(half_pi_alpha) * const_term,
-        -std::sin(half_pi_alpha) * const_term
+        factors.cos_term * const_term,
+        -factors.sin_term * const_term
     );
 
     return element_compliance_maxwell(modulus, viscosity, frequency)
@@ -136,20 +165,18 @@ inline c_ComplexModulus rheo_modulus_maxwell(
             frequency);
 }
 
-// Voigt-Kelvin: mu* = 1 / J_voigt.
+// Voigt-Kelvin: mu* = 1 / J_voigt = voigt_modulus_frac * modulus + i * voigt_viscosity_frac * viscosity * frequency,
+// the spring and dashpot in parallel. An infinite viscosity is infinitely stiff at any nonzero frequency; at zero
+// frequency only the spring is loaded.
 inline c_ComplexModulus rheo_modulus_voigt(
         double modulus,
         double viscosity,
         double frequency,
         double voigt_modulus_frac,
         double voigt_viscosity_frac) noexcept {
-    return c_ComplexModulus(1.0, 0.0)
-         / detail::element_compliance_voigt(
-            modulus,
-            viscosity,
-            frequency,
-            voigt_modulus_frac,
-            voigt_viscosity_frac);
+    const double spring = rheo_guard(modulus) * rheo_guard(voigt_modulus_frac);
+    const double dashpot = (frequency == 0.0) ? 0.0 : voigt_viscosity_frac * viscosity * frequency;
+    return c_ComplexModulus(spring, dashpot);
 }
 
 // Burgers: Maxwell and Voigt elements in series; mu* = 1 / (J_maxwell + J_voigt).
@@ -173,23 +200,59 @@ inline c_ComplexModulus rheo_modulus_burgers(
     return c_ComplexModulus(1.0, 0.0) / total;
 }
 
-// Andrade: mu* = 1 / J_andrade.
+// Andrade: mu* = 1 / J_andrade. factors must be c_AndradeFactors(alpha); the form without them builds them.
 inline c_ComplexModulus rheo_modulus_andrade(
         double modulus,
         double viscosity,
         double frequency,
         double alpha,
-        double zeta) noexcept {
+        double zeta,
+        const c_AndradeFactors& factors) noexcept {
     return c_ComplexModulus(1.0, 0.0)
          / detail::element_compliance_andrade(
             modulus,
             viscosity,
             frequency,
             alpha,
-            zeta);
+            zeta,
+            factors);
+}
+inline c_ComplexModulus rheo_modulus_andrade(
+        double modulus,
+        double viscosity,
+        double frequency,
+        double alpha,
+        double zeta) noexcept {
+    return rheo_modulus_andrade(modulus, viscosity, frequency, alpha, zeta, c_AndradeFactors(alpha));
 }
 
-// Sundberg-Cooper: Andrade and Voigt elements in series; mu* = 1 / (J_andrade + J_voigt).
+// Sundberg-Cooper: Andrade and Voigt elements in series; mu* = 1 / (J_andrade + J_voigt). factors must be
+// c_AndradeFactors(alpha); the form without them builds them.
+inline c_ComplexModulus rheo_modulus_sundberg(
+        double modulus,
+        double viscosity,
+        double frequency,
+        double alpha,
+        double zeta,
+        double voigt_modulus_frac,
+        double voigt_viscosity_frac,
+        const c_AndradeFactors& factors) noexcept {
+    const c_ComplexCompliance total =
+        detail::element_compliance_andrade(
+            modulus,
+            viscosity,
+            frequency,
+            alpha,
+            zeta,
+            factors)
+      + detail::element_compliance_voigt(
+            modulus,
+            viscosity,
+            frequency,
+            voigt_modulus_frac,
+            voigt_viscosity_frac);
+    return c_ComplexModulus(1.0, 0.0) / total;
+}
 inline c_ComplexModulus rheo_modulus_sundberg(
         double modulus,
         double viscosity,
@@ -198,20 +261,9 @@ inline c_ComplexModulus rheo_modulus_sundberg(
         double zeta,
         double voigt_modulus_frac,
         double voigt_viscosity_frac) noexcept {
-    const c_ComplexCompliance total =
-        detail::element_compliance_andrade(
-            modulus,
-            viscosity,
-            frequency,
-            alpha,
-            zeta)
-      + detail::element_compliance_voigt(
-            modulus,
-            viscosity,
-            frequency,
-            voigt_modulus_frac,
-            voigt_viscosity_frac);
-    return c_ComplexModulus(1.0, 0.0) / total;
+    return rheo_modulus_sundberg(
+        modulus, viscosity, frequency, alpha, zeta, voigt_modulus_frac, voigt_viscosity_frac,
+        c_AndradeFactors(alpha));
 }
 
 inline std::string rheo_to_lower(std::string text) {
@@ -224,7 +276,7 @@ inline std::string rheo_to_lower(std::string text) {
 // the model name, and the byte layout.
 
 // Purely elastic response (alias "off").
-class c_Elastic : public c_RheologyBase {
+class c_Elastic final : public c_RheologyBase {
 public:
     c_Elastic() : c_RheologyBase("elastic") {}
     explicit c_Elastic(const c_RheologyConfig& /*cfg*/) : c_RheologyBase("elastic") {}
@@ -249,7 +301,7 @@ public:
 };
 
 // Purely viscous response (alias "newton").
-class c_Viscous : public c_RheologyBase {
+class c_Viscous final : public c_RheologyBase {
 public:
     c_Viscous() : c_RheologyBase("viscous") {}
     explicit c_Viscous(const c_RheologyConfig& /*cfg*/) : c_RheologyBase("viscous") {}
@@ -273,7 +325,7 @@ public:
     }
 };
 
-class c_Maxwell : public c_RheologyBase {
+class c_Maxwell final : public c_RheologyBase {
 public:
     c_Maxwell() : c_RheologyBase("maxwell") {}
     explicit c_Maxwell(const c_RheologyConfig& /*cfg*/) : c_RheologyBase("maxwell") {}
@@ -298,7 +350,7 @@ public:
 };
 
 // Voigt-Kelvin element (alias "voigt-kelvin").
-class c_Voigt : public c_RheologyBase {
+class c_Voigt final : public c_RheologyBase {
 public:
     c_Voigt() : c_RheologyBase("voigt") {}
     explicit c_Voigt(const c_RheologyConfig& cfg)
@@ -344,7 +396,7 @@ protected:
 };
 
 // Maxwell and Voigt in series.
-class c_Burgers : public c_RheologyBase {
+class c_Burgers final : public c_RheologyBase {
 public:
     c_Burgers() : c_RheologyBase("burgers") {}
     explicit c_Burgers(const c_RheologyConfig& cfg)
@@ -390,7 +442,7 @@ protected:
 };
 
 // Maxwell plus an Andrade transient term.
-class c_Andrade : public c_RheologyBase {
+class c_Andrade final : public c_RheologyBase {
 public:
     c_Andrade() : c_RheologyBase("andrade") {}
     explicit c_Andrade(const c_RheologyConfig& cfg)
@@ -417,7 +469,8 @@ public:
             viscosity,
             frequency,
             this->p_alpha,
-            this->p_zeta);
+            this->p_zeta,
+            this->p_andrade_factors);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -428,15 +481,18 @@ public:
         const std::vector<double> params = this->read_physics_binary(in, force, 2);
         this->p_alpha = params[0];
         this->p_zeta  = params[1];
+        this->p_andrade_factors = c_AndradeFactors(this->p_alpha);
     }
 
 protected:
     double p_alpha = 0.3;
     double p_zeta  = 1.0;
+    // Declared after p_alpha, so every constructor builds it from the alpha it set.
+    c_AndradeFactors p_andrade_factors{this->p_alpha};
 };
 
 // Andrade and Voigt (alias "sundberg-cooper").
-class c_Sundberg : public c_RheologyBase {
+class c_Sundberg final : public c_RheologyBase {
 public:
     c_Sundberg() : c_RheologyBase("sundberg") {}
     explicit c_Sundberg(const c_RheologyConfig& cfg)
@@ -471,7 +527,8 @@ public:
             this->p_alpha,
             this->p_zeta,
             this->p_voigt_modulus_frac,
-            this->p_voigt_viscosity_frac);
+            this->p_voigt_viscosity_frac,
+            this->p_andrade_factors);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -485,6 +542,7 @@ public:
         this->p_zeta                 = params[1];
         this->p_voigt_modulus_frac   = params[2];
         this->p_voigt_viscosity_frac = params[3];
+        this->p_andrade_factors      = c_AndradeFactors(this->p_alpha);
     }
 
 protected:
@@ -492,6 +550,8 @@ protected:
     double p_zeta                  = 1.0;
     double p_voigt_modulus_frac = 5.0;
     double p_voigt_viscosity_frac  = 0.02;
+    // Declared after p_alpha, so every constructor builds it from the alpha it set.
+    c_AndradeFactors p_andrade_factors{this->p_alpha};
 };
 
 // One value per model, so c_find_rheology dispatches without string comparisons.

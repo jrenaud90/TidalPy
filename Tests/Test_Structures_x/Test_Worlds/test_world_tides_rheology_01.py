@@ -120,8 +120,9 @@ def test_rheology_potential_derivatives_present():
 # =====================================================================================================================
 # Layer-side heating
 # =====================================================================================================================
-def test_rheology_layer_heating_scaled_by_tidal_scale():
-    """Per-layer heating is the world heating scaled by the layer's tidal_scale.
+def test_rheology_layer_heating_comes_from_the_radial_solution():
+    """With the radial solver a layer's heating is its share of the radial solution's heating, whatever its
+    tidal_scale (which only the quasi-homogeneous Love methods read), so a lone layer takes the whole.
 
     calc_tides also writes this value onto the C++ layer object (layer.get_tidal_heating);
     from Python it is read back through the world-side accessor.
@@ -130,7 +131,7 @@ def test_rheology_layer_heating_scaled_by_tidal_scale():
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
     _solve(world)
     total = world.get_tidal_heating()
-    assert math.isclose(world.get_layer_tidal_heating(0), total * 0.8, rel_tol=1.0e-9)
+    assert math.isclose(world.get_layer_tidal_heating(0), total, rel_tol=1.0e-12)
 
 
 def test_layer_heating_nan_before_solve():

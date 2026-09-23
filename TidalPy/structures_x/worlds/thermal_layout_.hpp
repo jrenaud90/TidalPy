@@ -17,6 +17,10 @@
  * A layer with no cooling model is isothermal and perfectly conducting: it pins the node to its own temperature.
  * The center carries no flow (a regular solution), and the surface node is the world's surface temperature.
  *
+ * A layer with no temperature of its own (a geometry-only layer, or one whose temperature is not a positive
+ * number, such as the 0 K default) takes no part: its interfaces carry no flow, so it is neither a heat sink nor a
+ * source for its neighbors, and each neighbor keeps its own temperature at the shared interface.
+ *
  * What each cooling model makes of a layer:
  *   off / none   one isothermal segment.
  *   conduction   two conducting halves, meeting at the layer's mid-radius where its temperature applies.
@@ -71,6 +75,12 @@ inline constexpr int d_HEATING_QUADRATURE_NODES = 16;
 struct c_LayerThermal {
     c_TemperatureKind kind = c_TemperatureKind::Isothermal;
 
+    // False for a layer with no temperature of its own: its interfaces are insulating (see the header comment).
+    bool in_network = true;
+    // True when the cooling model gave no usable boundary-layer thickness (a NaN viscosity, say), so the
+    // boundary layers fell back to the largest share of the layer they may take.
+    bool boundary_fallback = false;
+
     double temperature      = 0.0;  // [K] the layer's own temperature, an input of the solve
     double top_temperature  = 0.0;  // [K] at the top of its interior (an adiabat arrives colder than its base)
     double node_temperature = 0.0;  // [K] at the interface above this layer
@@ -112,18 +122,22 @@ inline c_TemperatureKind c_layer_temperature_kind(const c_BaseLayer* layer) noex
     if (solidliquid_layer == nullptr) { return c_TemperatureKind::Isothermal; }
     const c_CoolingBase* cooling_model = solidliquid_layer->get_cooling_model();
     if (cooling_model == nullptr) { return c_TemperatureKind::Isothermal; }
-    const std::string& name = cooling_model->get_model_name();
-    if (name == "conduction") { return c_TemperatureKind::Conductive; }
-    if (name == "convection") { return c_TemperatureKind::Adiabatic; }
+    switch (cooling_model->get_model_type()) {
+        case c_CoolingModel::Conduction: return c_TemperatureKind::Conductive;
+        case c_CoolingModel::Convection: return c_TemperatureKind::Adiabatic;
+        case c_CoolingModel::Off:        return c_TemperatureKind::Isothermal;
+    }
     return c_TemperatureKind::Isothermal;
 }
 
 // Build the per-layer thermal description from the layers themselves: the temperature each carries, the kind its
-// cooling model asks for, and its thermal material properties. The resistances and flows are filled in later,
+// cooling model asks for, and its thermal material properties. A finite temperature_override replaces every
+// layer's own temperature (a geometry-only layer then has one too). The resistances and flows are filled in later,
 // against a solved structure.
 inline void c_init_layer_thermal(
         const std::vector<std::unique_ptr<c_BaseLayer>>& layers,
-        std::vector<c_LayerThermal>& out) {
+        std::vector<c_LayerThermal>& out,
+        double temperature_override = TidalPyConstants::d_NAN) {
     const std::size_t n_layers = layers.size();
     out.assign(n_layers, c_LayerThermal());
     for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
@@ -131,10 +145,16 @@ inline void c_init_layer_thermal(
         c_LayerThermal& thermal  = out[layer_i];
 
         const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(layer);
-        thermal.temperature     = (physics_layer != nullptr) ? physics_layer->get_temperature() : 0.0;
+        if (std::isfinite(temperature_override)) {
+            thermal.temperature = temperature_override;
+        } else {
+            thermal.temperature = (physics_layer != nullptr) ? physics_layer->get_temperature() : 0.0;
+        }
+        thermal.in_network = ((physics_layer != nullptr) || std::isfinite(temperature_override))
+            && std::isfinite(thermal.temperature) && (thermal.temperature > 0.0);
         thermal.top_temperature = thermal.temperature;
         thermal.node_temperature = thermal.temperature;
-        thermal.kind            = c_layer_temperature_kind(layer);
+        thermal.kind            = thermal.in_network ? c_layer_temperature_kind(layer) : c_TemperatureKind::Isothermal;
 
         // The thermal constants belong to the material, so any layer with an EOS model has them.
         if (const c_MaterialEOSBase* eos_model = layer->get_eos()) {
@@ -154,13 +174,18 @@ inline void c_init_layer_thermal(
 inline bool c_thermal_contrast_present(
         const std::vector<c_LayerThermal>& thermal_vec,
         double surface_temperature) noexcept {
-    if (thermal_vec.empty()) { return false; }
-    const double first = thermal_vec.front().temperature;
+    // Only the layers in the network count: a layer with no temperature exchanges no heat, so it sets up no
+    // contrast however far its placeholder temperature is from its neighbors'.
+    const c_LayerThermal* first = nullptr;
     for (const c_LayerThermal& thermal : thermal_vec) {
-        if (!c_isclose(thermal.temperature, first, 1.0e-12, 1.0e-12)) { return true; }
+        if (!thermal.in_network) { continue; }
+        if (first == nullptr) { first = &thermal; continue; }
+        if (!c_isclose(thermal.temperature, first->temperature, 1.0e-12, 1.0e-12)) { return true; }
     }
-    if (std::isfinite(surface_temperature)
-        && !c_isclose(surface_temperature, thermal_vec.back().temperature, 1.0e-12, 1.0e-12)) {
+    if (first == nullptr) { return false; }
+    const c_LayerThermal& top = thermal_vec.back();
+    if (top.in_network && std::isfinite(surface_temperature)
+        && !c_isclose(surface_temperature, top.temperature, 1.0e-12, 1.0e-12)) {
         return true;
     }
     return false;
@@ -229,6 +254,7 @@ inline double c_update_layer_thermal(
         thermal.boundary_thickness = 0.0;
         thermal.resistance_bottom  = 0.0;
         thermal.resistance_top     = 0.0;
+        thermal.boundary_fallback  = false;
         if (thermal.kind == c_TemperatureKind::Isothermal) { continue; }
 
         if (thermal.kind == c_TemperatureKind::Conductive) {
@@ -258,12 +284,16 @@ inline double c_update_layer_thermal(
                 pressure, thermal.temperature, solidliquid_layer->get_use_thermal_eos(), radius_mid, material);
         }
 
-        const double inner_temperature = (layer_i > 0)
+        // A neighbor outside the network exchanges no heat, so there is no drop across that boundary layer.
+        const double inner_temperature = ((layer_i > 0) && thermal_vec[layer_i - 1].in_network)
             ? thermal_vec[layer_i - 1].top_temperature
             : thermal.temperature;
-        const double outer_temperature = (layer_i + 1 < n_layers)
-            ? thermal_vec[layer_i + 1].temperature
-            : (std::isfinite(surface_temperature) ? surface_temperature : thermal.temperature);
+        double outer_temperature = thermal.temperature;
+        if (layer_i + 1 < n_layers) {
+            if (thermal_vec[layer_i + 1].in_network) { outer_temperature = thermal_vec[layer_i + 1].temperature; }
+        } else if (std::isfinite(surface_temperature)) {
+            outer_temperature = surface_temperature;
+        }
 
         c_CoolingInputs cooling_inputs;
         cooling_inputs.delta_temp = std::fabs(inner_temperature - thermal.temperature)
@@ -282,7 +312,11 @@ inline double c_update_layer_thermal(
         thermal.rayleigh_number = cooling_result.rayleigh_number;
         thermal.nusselt_number  = cooling_result.nusselt_number;
         double boundary = cooling_result.blt;
-        if (!(boundary > 0.0) || !std::isfinite(boundary)) { boundary = 0.5 * thickness; }
+        if (!(boundary > 0.0) || !std::isfinite(boundary)) {
+            // The solve reports it; the layer's viscosity is the usual cause.
+            thermal.boundary_fallback = true;
+            boundary = d_MAX_BOUNDARY_FRACTION * thickness;
+        }
         if (boundary > d_MAX_BOUNDARY_FRACTION * thickness) { boundary = d_MAX_BOUNDARY_FRACTION * thickness; }
         thermal.boundary_thickness = boundary;
 
@@ -364,7 +398,13 @@ inline double c_update_layer_thermal(
         double flow = 0.0;
         const bool lower_conducts = (resistance_lower > TidalPyConstants::d_EPS);
         const bool upper_conducts = (resistance_upper > TidalPyConstants::d_EPS);
-        if (lower_conducts && upper_conducts) {
+        const bool upper_in_network = at_surface || thermal_vec[layer_i + 1].in_network;
+        if (!lower.in_network || !upper_in_network) {
+            // A layer with no temperature closes the interface: no flow, and the side in the network keeps its
+            // own temperature there.
+            node = lower.in_network ? temperature_lower : temperature_upper;
+            flow = 0.0;
+        } else if (lower_conducts && upper_conducts) {
             const double conductance_lower = 1.0 / resistance_lower;
             const double conductance_upper = 1.0 / resistance_upper;
             node = (temperature_lower * conductance_lower + temperature_upper * conductance_upper)
@@ -442,11 +482,13 @@ inline void c_build_thermal_segments(
         // temperature applies, so the two stretches around it carry their own heat flow.
         const double split_lower = has_interior ? (radius_inner + boundary) : 0.5 * (radius_inner + radius_outer);
 
-        // The innermost layer has no node below to continue from, so its base starts where the stretch has to
-        // start to reach the layer's own temperature at its top.
+        // The innermost layer has no node below to continue from, and nor does one above a layer outside the
+        // network (whose profile holds its own placeholder temperature), so its base starts where the stretch has
+        // to start to reach the layer's own temperature at its top.
+        const bool starts_fresh = (layer_i == 0) || !thermal_vec[layer_i - 1].in_network;
         c_EOSSegment lower = segment;
         lower.temperature_kind  = c_TemperatureKind::Conductive;
-        lower.start_temperature = (layer_i == 0)
+        lower.start_temperature = starts_fresh
             ? (thermal.temperature + thermal.heat_flow_in * thermal.resistance_bottom + thermal.heating_drop_bottom)
             : TidalPyConstants::d_NAN;
         lower.start_heat_flow   = thermal.heat_flow_in;

@@ -61,7 +61,6 @@ def test_view_exposes_base_and_subclass_api():
     # Base-layer API:
     assert mantle.radius_outer == _R
     assert math.isclose(mantle.tidal_scale, 0.7)
-    assert mantle.tidal_scale_method == "user_provided_scale"
     # PhysicsLayer-specific API:
     assert math.isclose(mantle.shear_modulus_static, 6.0e10)
     assert math.isclose(world.core.shear_modulus_static, 8.0e10)
@@ -177,7 +176,7 @@ def test_layer_view_reports_tidal_heating():
     world.calc_tides(orbital_frequency=2.05e-5, spin_frequency=2.05e-5, eccentricity=0.0041,
                      obliquity=0.0, semi_major_axis=4.2e8, host_mass=1.898e27)
     total = world.get_tidal_heating()
-    # layer.get_tidal_heating() (on the view) == world heating * the layer's tidal_scale.
+    # An analytic tide model: layer.get_tidal_heating() (on the view) == world heating * the layer's tidal_scale.
     assert math.isclose(world.mantle.get_tidal_heating(), total * 0.7, rel_tol=1.0e-9)
     assert math.isclose(world.core.get_tidal_heating(), total * 0.3, rel_tol=1.0e-9)
     # Agrees with the world-side accessor.

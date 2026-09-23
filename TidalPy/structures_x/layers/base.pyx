@@ -62,6 +62,42 @@ cdef enum:
     _KIND_MELT_FRACTION  = 11
 
 
+cdef object cy_eos_fields(const void* owner, cy_eos_state_fn fill, object radius, tuple indices):
+    """The dense-layout values at ``indices`` from one evaluation per radius, as a tuple: floats for a scalar
+    radius, arrays shaped like ``radius`` for an array."""
+    cdef vector[double] state = vector[double](C_EOS_DY_VALUES)
+    cdef vector[size_t] field_index
+    cdef object index
+    for index in indices:
+        field_index.push_back(<size_t>index)
+    cdef size_t num_fields = field_index.size()
+    cdef size_t field_i
+    cdef cnp.ndarray in_arr
+    cdef cnp.ndarray out_arr
+    cdef double[::1] flat_in
+    cdef double[:, ::1] flat_out
+    cdef Py_ssize_t i, n
+    if isinstance(radius, np.ndarray):
+        in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
+        flat_in = in_arr.reshape(-1)
+        n = flat_in.shape[0]
+        out_arr = np.empty((num_fields, n), dtype=np.float64)
+        flat_out = out_arr
+        with nogil:
+            for i in range(n):
+                fill(owner, flat_in[i], state.data())
+                for field_i in range(num_fields):
+                    flat_out[field_i, i] = state[field_index[field_i]]
+        shape = np.shape(in_arr)
+        return tuple([out_arr[field_i].reshape(shape) for field_i in range(num_fields)])
+    fill(owner, <double>radius, state.data())
+    return tuple([state[field_index[field_i]] for field_i in range(num_fields)])
+
+
+cdef void _layer_eos_state(const void* owner, double radius, double* y_out) noexcept nogil:
+    (<const c_BaseLayer*>owner).get_eos_state(radius, y_out)
+
+
 cdef class BaseLayer(StructureBase):
     """Geometry base layer: inner and outer radii, mass, and material identity.
 
@@ -420,23 +456,23 @@ cdef class BaseLayer(StructureBase):
     # Shorthand bundles (one call returns several profiles at once; mirrors the world-level surface)
     def get_static_viscoelastics(self, radius):
         """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius [m], each a
-        float or np.ndarray.
+        float or np.ndarray. One evaluation of the solved state per radius fills all four.
         """
-        return (self.get_shear_modulus(radius), self.get_shear_viscosity(radius),
-                self.get_bulk_modulus(radius),  self.get_bulk_viscosity(radius))
+        return cy_eos_fields(
+            <const void*>self._layer_ptr.get(), _layer_eos_state, radius,
+            (C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
+             C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX))
 
     def get_state(self, radius):
-        """All EOS-related profiles at radius as a dict (float or np.ndarray values)."""
-        return {
-            "density":         self.get_density(radius),
-            "gravity":         self.get_gravity(radius),
-            "pressure":        self.get_pressure(radius),
-            "shear_modulus":   self.get_shear_modulus(radius),
-            "shear_viscosity": self.get_shear_viscosity(radius),
-            "bulk_modulus":    self.get_bulk_modulus(radius),
-            "bulk_viscosity":  self.get_bulk_viscosity(radius),
-            "melt_fraction":   self.get_melt_fraction(radius),
-        }
+        """All EOS-related profiles at radius as a dict (float or np.ndarray values), from one evaluation of the
+        solved state per radius."""
+        values = cy_eos_fields(
+            <const void*>self._layer_ptr.get(), _layer_eos_state, radius,
+            (C_EOS_DENSITY_INDEX, C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX,
+             C_EOS_SHEAR_VISCOSITY_INDEX, C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX,
+             C_EOS_MELT_FRACTION_INDEX))
+        return dict(zip(("density", "gravity", "pressure", "shear_modulus", "shear_viscosity", "bulk_modulus",
+                         "bulk_viscosity", "melt_fraction"), values))
 
     cpdef dict get_config_dict(self):
         """Return all configuration values as a Python dict (MKS) in the world builder's layer schema.

@@ -61,13 +61,30 @@ _COLUMN_ALIASES = {
 POSITIONAL_ORDER = ("radius", "density", "vp", "vs", "shear_viscosity", "bulk_viscosity")
 _REQUIRED_POSITIONAL = 4
 
-# Unit suffixes this reader converts, by the kind of quantity carrying them. Any other suffix (``pa``,
-# ``kg_m3``, ``pas``) names a unit that is already MKS.
+# Unit suffixes this reader understands, by the kind of quantity carrying them, with the factor to MKS. A column
+# whose suffix is not listed for its quantity is refused rather than read as MKS, since a table in g/cm3 or km/s
+# read as kg/m3 or m/s is wrong by a factor of 1000 and would otherwise build a planet without complaint.
 _LENGTH_UNITS = {"m": 1.0, "meter": 1.0, "meters": 1.0, "metre": 1.0, "metres": 1.0,
                  "km": 1.0e3, "kilometer": 1.0e3, "kilometers": 1.0e3,
                  "kilometre": 1.0e3, "kilometres": 1.0e3}
 _VELOCITY_UNITS = {"m_s": 1.0, "ms": 1.0, "m_s1": 1.0, "m_per_s": 1.0,
                    "km_s": 1.0e3, "kms": 1.0e3, "km_s1": 1.0e3, "km_per_s": 1.0e3}
+_DENSITY_UNITS = {"kg_m3": 1.0, "kg_m_3": 1.0, "kgm3": 1.0, "kg_per_m3": 1.0,
+                  "g_cm3": 1.0e3, "g_cm_3": 1.0e3, "gcm3": 1.0e3, "g_cc": 1.0e3, "gcc": 1.0e3, "g_per_cm3": 1.0e3}
+_MODULUS_UNITS = {"pa": 1.0, "mpa": 1.0e6, "gpa": 1.0e9}
+_VISCOSITY_UNITS = {"pas": 1.0, "pa_s": 1.0}
+_UNITS_BY_QUANTITY = {
+    "radius": _LENGTH_UNITS, "depth": _LENGTH_UNITS,
+    "vp": _VELOCITY_UNITS, "vs": _VELOCITY_UNITS,
+    "density": _DENSITY_UNITS,
+    "shear_modulus": _MODULUS_UNITS, "bulk_modulus": _MODULUS_UNITS,
+    "shear_viscosity": _VISCOSITY_UNITS, "bulk_viscosity": _VISCOSITY_UNITS,
+}
+
+# A density below this [kg m-3], or a seismic velocity below this [m s-1], is almost certainly a column in g/cm3 or
+# km/s without its unit: no planetary material is that light or that slow.
+_MIN_PLAUSIBLE_DENSITY = 100.0
+_MIN_PLAUSIBLE_VELOCITY = 100.0
 
 # A radius or depth given without a unit is read as kilometers below this value [m] and as meters at
 # or above it. A planet large enough for this library is at least 100 km in radius, and no radius in
@@ -81,11 +98,15 @@ def _normalize_name(name: str) -> str:
 
 
 def _match_quantity(name: str):
-    """Map a column name to ``(quantity, unit)``, or ``(None, None)`` when it names nothing this reader reads.
+    """Map a column name to ``(quantity, factor)``, or ``(None, None)`` when it names nothing this reader reads.
 
-    An exact alias wins; otherwise the longest alias the name starts with claims it, and the rest of
-    the name is its unit. A unit this reader does not convert (``pa``, ``kg_m3``) yields ``None``,
-    meaning the column is MKS already.
+    An exact alias wins, with no unit (``None``: MKS, or for a radius, judged by magnitude); otherwise the longest
+    alias the name starts with claims it, and the rest of the name is its unit, whose factor to MKS is returned.
+
+    Raises
+    ------
+    ValueError
+        The name carries a unit this reader does not know for its quantity.
     """
     stem = _normalize_name(name)
     best = None
@@ -99,11 +120,12 @@ def _match_quantity(name: str):
         return None, None
     quantity, alias = best
     unit = stem[len(alias) + 1:]
-    if quantity in ("radius", "depth"):
-        return quantity, _LENGTH_UNITS.get(unit)
-    if quantity in ("vp", "vs"):
-        return quantity, _VELOCITY_UNITS.get(unit)
-    return quantity, None
+    known_units = _UNITS_BY_QUANTITY.get(quantity, {})
+    if unit not in known_units:
+        raise ValueError(
+            f"Radial data column '{name}' states the unit '{unit}', which this reader does not convert for a "
+            f"{quantity.replace('_', ' ')} column; use one of: {', '.join(sorted(known_units))}.")
+    return quantity, known_units[unit]
 
 
 def _length_to_meters(values: np.ndarray, factor: Optional[float]) -> np.ndarray:
@@ -138,7 +160,7 @@ def _read_table(file_path: str):
     header = None
     delimiter = None
     rows = []
-    with open(file_path, "r") as handle:
+    with open(file_path, "r", encoding="utf-8") as handle:
         for line_number, raw_line in enumerate(handle, start=1):
             line = raw_line.strip()
             if not line:
@@ -301,7 +323,7 @@ def load_radial_data(source: Union[str, dict], surface_radius: Optional[float] =
 
     if "density" not in columns:
         raise ValueError(f"Radial data{where} has no density column.")
-    density = columns["density"][0]
+    density = _scaled(columns["density"])
 
     # ---- the static moduli, from the velocities or given outright --------------------------------------------
     vp = None
@@ -312,8 +334,8 @@ def load_radial_data(source: Union[str, dict], surface_radius: Optional[float] =
         shear_modulus = density * vs * vs
         bulk_modulus  = density * (vp * vp - (4.0 / 3.0) * vs * vs)
     elif "shear_modulus" in columns and "bulk_modulus" in columns:
-        shear_modulus = columns["shear_modulus"][0]
-        bulk_modulus  = columns["bulk_modulus"][0]
+        shear_modulus = _scaled(columns["shear_modulus"])
+        bulk_modulus  = _scaled(columns["bulk_modulus"])
     else:
         raise ValueError(
             f"Radial data{where} must give the seismic velocities (columns vp and vs) or the static "
@@ -326,8 +348,8 @@ def load_radial_data(source: Union[str, dict], surface_radius: Optional[float] =
         "vs_m_s":              vs,
         "shear_modulus_pa":    shear_modulus,
         "bulk_modulus_pa":     bulk_modulus,
-        "shear_viscosity_pas": columns["shear_viscosity"][0] if "shear_viscosity" in columns else None,
-        "bulk_viscosity_pas":  columns["bulk_viscosity"][0] if "bulk_viscosity" in columns else None,
+        "shear_viscosity_pas": _scaled(columns["shear_viscosity"]) if "shear_viscosity" in columns else None,
+        "bulk_viscosity_pas":  _scaled(columns["bulk_viscosity"]) if "bulk_viscosity" in columns else None,
     }
     if radius.size < 2:
         raise ValueError(f"Radial data{where} has {radius.size} row(s); a profile needs at least 2.")
@@ -342,11 +364,39 @@ def load_radial_data(source: Union[str, dict], surface_radius: Optional[float] =
               for key, value in arrays.items()}
 
     _validate_profile(arrays, where)
+    _check_units(arrays, where)
     return arrays
+
+
+def _check_units(arrays: dict, where: str) -> None:
+    """Catch a column in g/cm3 or km/s whose name gave no unit, and so was read as MKS.
+
+    A density or velocity that far below any material's would build a world a thousand times too light or too
+    soft. This runs after the profile checks, so a profile with a missing column pair or a non-positive value is
+    told that first.
+    """
+    density = arrays["density_kg_m3"]
+    if np.any(density < _MIN_PLAUSIBLE_DENSITY):
+        raise ValueError(
+            f"Radial data{where} has densities below {_MIN_PLAUSIBLE_DENSITY:g} kg/m3; if the column is in g/cm3, "
+            "name it with its unit (for example 'density_g_cm3').")
+    vp, vs = arrays["vp_m_s"], arrays["vs_m_s"]
+    if vp is not None:
+        slow = (np.abs(vp) < _MIN_PLAUSIBLE_VELOCITY) | ((vs != 0.0) & (np.abs(vs) < _MIN_PLAUSIBLE_VELOCITY))
+        if np.any(slow):
+            raise ValueError(
+                f"Radial data{where} has seismic velocities below {_MIN_PLAUSIBLE_VELOCITY:g} m/s; if the columns "
+                "are in km/s, name them with their unit (for example 'vp_km_s').")
 
 
 def _velocity(column) -> np.ndarray:
     """Convert a seismic velocity column to m/s; one with no stated unit is already MKS."""
+    values, factor = column
+    return values if factor is None else values * factor
+
+
+def _scaled(column) -> np.ndarray:
+    """Convert a column to MKS by its stated unit; one with no stated unit is already MKS."""
     values, factor = column
     return values if factor is None else values * factor
 

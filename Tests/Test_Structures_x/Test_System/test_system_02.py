@@ -213,8 +213,10 @@ def test_layerless_world_evolves_without_spin():
     ev = system.calc_world_evolution("companion")
     assert ev["evolved"] is True
     assert ev["has_spin"] is False
-    assert ev["dspin_dt"] == 0.0
-    assert ev["dE_spin_dt"] == 0.0
+    # Torqued, but with no moment of inertia to turn the torque into a rate: unknown, not zero.
+    assert math.isnan(ev["dspin_dt"])
+    assert math.isnan(ev["dE_spin_dt"])
+    assert math.isnan(ev["energy_residual"])
     assert ev["tidal_heating"] > 0.0
     assert np.isfinite(ev["da_dt"])
     assert np.isfinite(ev["de_dt"])

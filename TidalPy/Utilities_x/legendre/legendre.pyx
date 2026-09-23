@@ -35,7 +35,7 @@ def legendre(int degree_l, int order_m, double colatitude):
 
 
 def legendre_generic(int degree_l, int order_m, double colatitude):
-    """Associated Legendre triple from the generic xsf evaluator (any degree l).
+    """Associated Legendre triple from the generic evaluator (any degree l), exact at the poles.
 
     Parameters
     ----------

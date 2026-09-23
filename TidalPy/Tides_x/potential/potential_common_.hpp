@@ -91,7 +91,7 @@ inline bool record_unique_frequencies(
         nonzero_freq = not c_isclose(frequency, 0.0, match_rtol, 0.0);
     }
     
-    // TODO: Do we want to keep zero frequencies? I don't think so...
+    // A zero-frequency mode is a static deformation: it dissipates nothing, so it is not recorded.
     if (nonzero_freq)
     {    
         bool found = false;
@@ -118,6 +118,8 @@ inline bool record_unique_frequencies(
     return nonzero_freq;
 }
 
+// (l - m)! / (l + m)! (2 - delta_m0) for every tabulated (l, m): the (2 - delta_m0) of the potential's real form is
+// already in each entry, so callers must not apply it again.
 inline c_IntMap<c_Key2, double>& c_get_lm_coeff_map() {
     // The table is filled inside the initializer of a function-local static, which runs once even when several
     // threads arrive together.

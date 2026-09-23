@@ -127,7 +127,7 @@ def _as_constructor_kwargs(config_items) -> dict:
     return {_CONFIG_KEY_TO_ARGUMENT.get(key, key): value for key, value in config_items}
 
 
-def _material_type_defaults(material_type: str | None, layer_class_name: str) -> dict:
+def _material_type_defaults(material_type: Optional[str], layer_class_name: str) -> dict:
     """The ``_x`` config defaults for a material ``type``, filtered to a layer class.
 
     Looks up ``TidalPy.config_x['layers'][material_type]`` and keeps only the scalar
@@ -726,10 +726,18 @@ def construct_world(config: dict):
 
     world_radius = config["radius_m"]
     if world_type == "star":
+        # A star given its luminosity but not its temperature takes the temperature from the luminosity (below),
+        # not the default (solar) temperature.
+        luminosity_only = ("luminosity_w" in config) and ("effective_temperature_k" not in config) \
+            and (float(config["luminosity_w"]) > 0.0)
         for key in ("effective_temperature_k", "luminosity_w"):
+            if key == "effective_temperature_k" and luminosity_only:
+                continue
             if key in resolved:
                 world_kwargs[_CONFIG_KEY_TO_ARGUMENT[key]] = resolved[key]
         world = StarWorld(**world_kwargs)
+        if luminosity_only:
+            world.set_luminosity(float(config["luminosity_w"]))
         if "luminosity" in config:
             try:
                 world.set_luminosity_model(_build_model(make_luminosity, config["luminosity"]))
@@ -762,7 +770,7 @@ def construct_world(config: dict):
     # given, the file reference and the tables that refined it, which is what a saved copy should carry
     # rather than the expanded profile and the path the file resolved to here.
     world.source_config = config
-    world.portable_config = dict(given) if "data_file" in given else None
+    world.portable_config = copy.deepcopy(given) if "data_file" in given else None
     return world
 
 
@@ -1077,10 +1085,12 @@ def _resolve_source(source: Union[str, dict]) -> Union[str, dict]:
     FileNotFoundError
         If a bundled-name lookup fails.
     TypeError
-        If ``source`` is neither a ``str`` nor a ``dict``.
+        If ``source`` is neither a ``str``, a path-like object, nor a ``dict``.
     """
     if isinstance(source, dict):
         return source
+    if isinstance(source, os.PathLike):
+        source = os.fspath(source)
     if isinstance(source, str):
         if source.endswith(".toml") or os.path.isfile(source):
             return source

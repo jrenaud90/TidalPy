@@ -53,7 +53,7 @@ cdef class Spin:
         """Tidal spin-rate change [rad s-2]: ``dspin/dt = M_host * dU_dO / I``.
 
         ``dU_dO`` is the potential derivative wrt the longitude of the node [J kg-1 rad-1] from the
-        global tidal solve. NaN for a non-positive moment of inertia.
+        global tidal solve. NaN for a zero moment of inertia (magnitude at most machine epsilon).
         """
         return self._spin.calc_dspin_dt(host_mass, dU_dO, moment_of_inertia)
 

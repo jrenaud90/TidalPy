@@ -35,7 +35,7 @@ love_method = "radial_solver"
 [layers.mantle]
 layer_index = 2
 is_tidal = true
-tidal_scale = 0.999                 # two tidal layers: their scales partition the world total (each defaults to 1.0)
+tidal_scale = 0.999                 # the layer's share in the quasi-homogeneous Love methods (default: its volume fraction)
 temperature_k = 1600.0
 
 [layers.mantle.shear_rheology]

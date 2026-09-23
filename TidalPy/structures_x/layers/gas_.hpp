@@ -2,8 +2,9 @@
 /*
  * gas_.hpp: c_GasLayer, an ideal-gas layer built on c_PhysicsLayer.
  *
- * Adds the ideal-gas parameters an attached EOS model reads (mean molecular weight, adiabatic index, and the
- * reference state). No phase changes, no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
+ * Adds ideal-gas parameters (mean molecular weight, adiabatic index, and a reference state), stored and serialized
+ * for a future gas description; nothing reads them yet, and the layer's density comes from its material's law. No
+ * phase changes, no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::GasLayer (103)

@@ -16,6 +16,8 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
+from TidalPy.Tides_x.classes.tide import TIDE_CONFIG_KEYS, _same_model
+from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
 from TidalPy.Tides_x.classes.tide cimport (
     c_TideBase, c_TideModel, c_TideModelConfig, c_tide_model_from_name, c_find_tide,
 )
@@ -53,6 +55,7 @@ cdef extern from "tide_collapse_.hpp" nogil:
         double dU_dM
         double dU_dw
         double dU_dO
+        double dU_dM_minus_dw
         int num_modes
         int error_code
 
@@ -79,8 +82,13 @@ cdef int cy_resolve_obliquity_truncation(object obliquity_truncation) except? -9
                 value = int(obliquity_truncation)
             except ValueError:
                 raise ValueError("Unexpected obliquity truncation encountered.")
-    elif isinstance(obliquity_truncation, int):
-        value = obliquity_truncation
+    elif isinstance(obliquity_truncation, bool):
+        raise ValueError("An obliquity truncation is 'off', 'gen', or an integer level, not a bool.")
+    elif isinstance(obliquity_truncation, (int, float)) and float(obliquity_truncation).is_integer():
+        # A whole-valued float (2.0) is the level it names, rather than falling through to 'off'.
+        value = int(obliquity_truncation)
+    else:
+        raise ValueError(f"Unexpected obliquity truncation {obliquity_truncation!r}.")
     if value not in (0, 1, 2, 10):
         raise NotImplementedError(
             f"Obliquity truncation {value} is not tabulated. "
@@ -152,13 +160,14 @@ def collapse_global_tides(
         The ``"rheology"`` model is not supported here (use the world's ``calc_tides``).
     tide_config : dict, optional
         Per-degree model parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s] lists indexed
-        from degree l = 2).
+        from degree l = 2). Absent takes the ``[tides]`` defaults of the TidalPy configuration, as ``make_tide``
+        does; any other key raises ``ValueError``.
     min_degree_l, max_degree_l : int
         Tidal harmonic degree range (2..10).
     eccentricity_truncation : int
         Eccentricity truncation level. Tabulated levels: 1..5, 10, 15, 20.
     obliquity_truncation : str or int
-        Obliquity truncation: ``"off"`` (0), 2, 4, or ``"gen"``/``"general"`` (10).
+        Obliquity truncation: ``"off"`` (0), 1, 2, or ``"gen"``/``"general"`` (10).
 
     Returns
     -------
@@ -168,17 +177,31 @@ def collapse_global_tides(
     Raises
     ------
     ValueError
-        If the tide model name is unknown.
+        If the tide model name or a config key is unknown, the degree range is out of order, the eccentricity is
+        outside [0, 1), or the semi-major axis is not positive.
     NotImplementedError
         If the rheology model is requested, or a truncation/degree is unsupported.
     """
     cdef int i_obliquity_truncation = cy_resolve_obliquity_truncation(obliquity_truncation)
 
+    if not (2 <= min_degree_l <= max_degree_l <= 10):
+        raise ValueError(
+            f"The degree range must satisfy 2 <= min_degree_l <= max_degree_l <= 10; got {min_degree_l} to "
+            f"{max_degree_l}.")
+    if not (0.0 <= eccentricity < 1.0):
+        raise ValueError(f"The eccentricity must be in [0, 1); got {eccentricity}.")
+    if not (semi_major_axis > 0.0):
+        raise ValueError(f"The semi-major axis must be positive; got {semi_major_axis} m.")
     if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
         raise NotImplementedError(
             f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
             'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
 
+    # The same defaults and key check as make_tide: an absent config takes the [tides] defaults, and an unknown or
+    # misspelled key raises instead of silently leaving a list empty (which would give no heating).
+    if tide_config is None:
+        tide_config = factory_defaults("tides", TIDE_CONFIG_KEYS, tide_model, _same_model)
+    check_config_keys(tide_config, TIDE_CONFIG_KEYS, "tide")
     cdef c_TideModelConfig cfg = cy_build_tide_config(tide_config)
     cdef c_TideModel model_enum = c_tide_model_from_name(tide_model.encode("utf-8"))
     if model_enum == c_TideModel.Rheology:
@@ -214,5 +237,6 @@ def collapse_global_tides(
         "dUdM": result.dU_dM,
         "dUdw": result.dU_dw,
         "dUdO": result.dU_dO,
+        "dUdM_minus_dw": result.dU_dM_minus_dw,
         "num_modes": result.num_modes,
     }

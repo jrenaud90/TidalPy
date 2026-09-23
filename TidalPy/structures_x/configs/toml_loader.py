@@ -15,6 +15,7 @@ A parameter the user omits is resolved in three tiers: the user configuration, t
 the C++, Cython, or factory default. That merge lives in the world builder.
 """
 
+import copy
 import math
 import os
 import warnings
@@ -112,6 +113,31 @@ def warning_enabled(name: str) -> bool:
     return bool((config_x.get("warnings", {}) or {}).get(name, True))
 
 
+# Parsed configuration files by path, with the text each was parsed from. A file read again with the same text (a
+# world built by name in a loop, say) skips the parse, which is most of the cost of building a world; any change to
+# the text parses it again. The text itself is compared, not the modification time, which on some file systems only
+# ticks every few milliseconds: a sweep that rewrites a file between builds always gets what it wrote.
+_PARSED_TOML: dict = {}
+
+
+def _load_toml_file(path: str) -> dict:
+    """Parse a TOML file, reusing the last parse of the same path while its text is unchanged; returns a copy."""
+    # Read as toml.load does: UTF-8, with universal newlines.
+    with open(path, "r", encoding="utf-8") as file:
+        text = file.read()
+    key = os.path.normcase(os.path.abspath(path))
+    cached = _PARSED_TOML.get(key)
+    if cached is None or cached[0] != text:
+        try:
+            parsed = toml.loads(text)
+        except toml.TomlDecodeError as error:
+            raise ValueError(f"Could not parse the TOML file '{path}': {error}") from error
+        cached = (text, parsed)
+        _PARSED_TOML[key] = cached
+    # A copy, so a caller that edits its configuration leaves the cached one as the file says.
+    return copy.deepcopy(cached[1])
+
+
 def load_toml(source: Union[str, dict]) -> dict:
     """Load a world configuration from a TOML file path or an existing ``dict``.
 
@@ -119,7 +145,7 @@ def load_toml(source: Union[str, dict]) -> dict:
     ----------
     source : str or dict
         Either a path to a ``.toml`` file or an already-parsed configuration
-        ``dict`` (returned as a shallow copy).
+        ``dict`` (returned as a deep copy).
 
     Returns
     -------
@@ -134,11 +160,15 @@ def load_toml(source: Union[str, dict]) -> dict:
         If ``source`` is neither a ``str`` nor a ``dict``.
     """
     if isinstance(source, dict):
-        return dict(source)
+        # A deep copy, so a world keeps the configuration it was built from even when the caller then edits the
+        # nested tables of their dict (a parameter sweep, say).
+        return copy.deepcopy(source)
+    if isinstance(source, os.PathLike):
+        source = os.fspath(source)
     if isinstance(source, str):
         if not os.path.isfile(source):
             raise FileNotFoundError(f"World configuration file not found: {source}")
-        return toml.load(source)
+        return _load_toml_file(source)
     raise TypeError(
         f"Unsupported world configuration source type: {type(source)}. "
         "Provide a path to a .toml file or a configuration dict.")
@@ -504,6 +534,12 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
             raise ValueError(
                 f"Layer '{layer_name}' sets '{key}' on the layer. It is a property of the material: move it "
                 f"into '[layers.{layer_name}.material]'.")
+        elif key == "reference_density_kg_m3":
+            # A gas layer once took this key, but its density has always come from the material's law, so a value
+            # here was silently ignored (and the solved mass missed the one intended).
+            raise ValueError(
+                f"Layer '{layer_name}' sets 'reference_density_kg_m3' on the layer, where nothing reads it: the "
+                f"layer's density comes from its material. Set it in '[layers.{layer_name}.material]'.")
         elif key not in allowed_scalars:
             raise ValueError(
                 f"Unexpected key '{key}' on layer '{layer_name}' of class "
@@ -614,9 +650,9 @@ def merge_with_defaults(config: dict) -> dict:
     """Return a normalized copy of ``config`` with structural defaults filled in.
 
     Only structural, non-physical defaults are applied here (currently just
-    ``schema_version``). Physical parameter defaults are deliberately left to the
-    C++ class constructors and physics-model factories so each default has a
-    single home.
+    ``schema_version``). The physical defaults come from the ``TidalPy_Configs_x.toml``
+    tables the builder merges each layer and model with. Check the version with
+    :func:`validate_schema_version` before calling this, since this fills a missing one.
 
     Parameters
     ----------

@@ -39,6 +39,14 @@ SYSTEM_CONFIG = "system"
 # Data-directory copies already reported as differing from their packaged file (once per file per session).
 _WARNED_STALE_COPIES: set = set()
 
+# Data directories already filled this session. Installation is copy-if-absent, so doing it again would only list
+# the package and check every file; a copy deleted from the data directory during a session is read from the
+# package until the next session installs it again.
+_INSTALLED_DATA_DIRS: set = set()
+
+# The packaged files' normalized contents, read once: the package does not change during a session.
+_PACKAGED_CONTENTS: dict = {}
+
 
 def get_worlds_x_dir() -> str:
     """Return the user-editable data directory for structures_x worlds.
@@ -69,6 +77,9 @@ def install_worldpack_x(force: bool = False) -> str:
         The data directory the worlds were installed into.
     """
     data_dir = get_worlds_x_dir()
+    key = os.path.normcase(os.path.abspath(data_dir))
+    if (not force) and (key in _INSTALLED_DATA_DIRS):
+        return data_dir
     if not os.path.isdir(PACKAGED_WORLDPACK_DIR):
         return data_dir
     for entry in os.listdir(PACKAGED_WORLDPACK_DIR):
@@ -77,6 +88,7 @@ def install_worldpack_x(force: bool = False) -> str:
         destination = os.path.join(data_dir, entry)
         if force or not os.path.isfile(destination):
             shutil.copyfile(os.path.join(PACKAGED_WORLDPACK_DIR, entry), destination)
+    _INSTALLED_DATA_DIRS.add(key)
     return data_dir
 
 
@@ -84,6 +96,14 @@ def _read_normalized(file_path: str) -> bytes:
     """File contents with line endings normalized, so an editor's or git's newline choice is not a difference."""
     with open(file_path, "rb") as file:
         return file.read().replace(b"\r\n", b"\n")
+
+
+def _packaged_normalized(packaged_path: str) -> bytes:
+    """A packaged file's normalized contents, read once per session."""
+    key = os.path.normcase(os.path.abspath(packaged_path))
+    if key not in _PACKAGED_CONTENTS:
+        _PACKAGED_CONTENTS[key] = _read_normalized(packaged_path)
+    return _PACKAGED_CONTENTS[key]
 
 
 def warn_if_stale_copy(data_path: str) -> bool:
@@ -111,7 +131,7 @@ def warn_if_stale_copy(data_path: str) -> bool:
     if os.path.abspath(data_path) == os.path.abspath(packaged_path):
         return False
     try:
-        differs = _read_normalized(data_path) != _read_normalized(packaged_path)
+        differs = _read_normalized(data_path) != _packaged_normalized(packaged_path)
     except OSError:
         return False
     if not differs:
@@ -169,10 +189,14 @@ def resolve_data_file(data_file: str, base_dir: str = None) -> str:
     candidates.append(os.path.join(PACKAGED_WORLDPACK_DIR, data_file))
     candidates.append(os.path.join(os.getcwd(), data_file))
     candidates.append(data_file)
+    worlds_dir = os.path.abspath(get_worlds_x_dir())
     for candidate in candidates:
         if os.path.isfile(candidate):
-            warn_if_stale_copy(candidate)
-            return os.path.abspath(candidate)
+            resolved = os.path.abspath(candidate)
+            # Only the data directory holds copies of the packaged files; a user's own file elsewhere is theirs.
+            if os.path.dirname(resolved) == worlds_dir:
+                warn_if_stale_copy(candidate)
+            return resolved
     raise FileNotFoundError(
         f"Could not resolve world data file '{data_file}'. Looked in: "
         + ", ".join(candidates))
@@ -200,7 +224,8 @@ def resolve_world_path(name: str) -> str:
         If no bundled world of that name exists in either location.
     """
     install_worldpack_x()
-    file_name = name + ".toml"
+    # The bundled names are lowercase; matching them that way works the same on case-sensitive file systems.
+    file_name = name.lower() + ".toml"
 
     data_path = os.path.join(get_worlds_x_dir(), file_name)
     if os.path.isfile(data_path):

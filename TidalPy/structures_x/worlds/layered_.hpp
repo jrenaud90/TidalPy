@@ -15,6 +15,7 @@
 #include <istream>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <ostream>
 #include <stdexcept>
@@ -138,7 +139,7 @@ struct c_LoveSolveConfig {
     double    atol               = 1.0e-10;
     bool      scale_rtols        = false;
     size_t    max_num_steps      = 500000;
-    size_t    expected_size      = 1000;
+    size_t    expected_size      = 128;
     size_t    max_ram_MB         = 500;
     double    max_step           = 0.0;
     bool      verbose            = false;
@@ -218,6 +219,143 @@ struct c_RadialSolverOverrides {
     }
 };
 
+// Serializes the calls that change or run on a world's solve state (the EOS solve, the Love solves, the tide and 3D
+// calls, binary loads), so two threads sharing one world take turns instead of corrupting it; separate worlds run
+// in parallel. Recursive, since calc_tides runs the 3D integral, another such call, on the same thread. A null
+// mutex (a moved-from world) locks nothing.
+class c_WorldCallLock {
+public:
+    explicit c_WorldCallLock(std::recursive_mutex* mutex_ptr) {
+        if (mutex_ptr != nullptr) { this->p_lock = std::unique_lock<std::recursive_mutex>(*mutex_ptr); }
+    }
+private:
+    std::unique_lock<std::recursive_mutex> p_lock;
+};
+
+// What one EOS solve evaluates its materials with: a copy of every layer's material model, the per-layer inputs
+// the structure ODE reaches them through, and the heat sources of a thermal solve. The solution co-owns it, so a
+// retained or exported solution keeps answering exactly as solved.
+struct c_EOSSolveState {
+    std::vector<std::unique_ptr<c_MaterialEOSBase>> materials;
+    std::vector<c_MaterialEOSInput>                 inputs;
+    c_Heating                                       heating;
+};
+
+// One tidal layer's part of a quasi-homogeneous Love solve (the homogeneous, cpl, and ctl methods): the Love numbers
+// of a homogeneous planet made of the layer's averaged material, and the tidal scale the world weighs them by.
+struct c_LayerLove {
+    std::size_t          layer_index = 0;
+    double               tidal_scale = 0.0;                               // dimensionless
+    c_LoveNumbers        love;                                            // the layer's own Love numbers
+    std::complex<double> shear_modulus = {TidalPyConstants::d_NAN, 0.0};  // its complex shear modulus [Pa]
+    double               volume = 0.0;                                    // [m3]
+};
+
+// Everything one Love-number solve produces: the radial solver and its solution storage for the radial methods, or
+// the Love numbers of the quasi-homogeneous methods. The world keeps one for solve_love_numbers and the getters that
+// report it; calc_tides and the 3D paths solve into workspaces of their own, so they neither overwrite the world's
+// last solve nor share solver state with it.
+struct c_LoveWorkspace {
+    bool         solved      = false;
+    c_LoveMethod method_last = c_LoveMethod::RadialSolver;
+
+    // The radial methods: the cached solver, and the world layer each of its layers belongs to.
+    std::unique_ptr<::c_WorldRadialSolver> radial_solver;
+    std::vector<std::size_t>               radial_world_layer;
+
+    // The quasi-homogeneous methods: the world's Love numbers (the tidal-scale-weighted sum of the layers') and
+    // each tidal layer's part.
+    bool                     analytic_success    = false;
+    int                      analytic_error_code = -100;
+    std::string              analytic_message    = "No love-number solve has been run.";
+    c_LoveNumbers            analytic;
+    std::vector<c_LayerLove> analytic_layers;
+
+    bool is_analytic() const noexcept { return c_love_method_is_homogeneous(this->method_last); }
+
+    // Forget the analytic results, so nothing reports a value from an earlier solve.
+    void reset_analytic() noexcept {
+        this->analytic_success    = false;
+        this->analytic_error_code = -100;
+        this->analytic            = c_LoveNumbers();
+        this->analytic_layers.clear();
+    }
+
+    // Everything solved describes a structure that is about to change.
+    void invalidate() noexcept {
+        this->solved = false;
+        this->reset_analytic();
+        if (this->radial_solver) { this->radial_solver->invalidate(); }
+    }
+
+    // Non-owning; null until a radial solve builds the cache.
+    const ::c_RadialSolutionStorage* get_storage() const noexcept {
+        return this->radial_solver ? this->radial_solver->get_storage() : nullptr;
+    }
+
+    bool get_success() const noexcept {
+        if (this->is_analytic()) { return this->analytic_success; }
+        const auto* storage = this->get_storage();
+        return (storage && this->solved) ? storage->success : false;
+    }
+    int get_error_code() const noexcept {
+        if (this->is_analytic()) { return this->analytic_error_code; }
+        const auto* storage = this->get_storage();
+        return storage ? storage->error_code : -100;
+    }
+    const std::string& get_message() const noexcept {
+        static const std::string no_message = "No love-number solve has been run.";
+        if (this->is_analytic()) { return this->analytic_message; }
+        const auto* storage = this->get_storage();
+        return storage ? storage->message : no_message;
+    }
+    std::size_t get_num_ytypes() const noexcept {
+        if (this->is_analytic()) { return this->analytic_success ? 1 : 0; }
+        const auto* storage = this->get_storage();
+        return storage ? storage->num_ytypes : 0;
+    }
+    double get_surface_amplification() const noexcept {
+        if (this->is_analytic()) { return 0.0; }
+        const auto* storage = this->get_storage();
+        return storage ? storage->surface_amplification : 0.0;
+    }
+
+    // The Love numbers for a boundary-condition ytype; the analytic methods hold one tidal set at index 0. NaN when
+    // no solve describes the current structure.
+    c_LoveNumbers get_love(std::size_t ytype_idx = 0) const noexcept {
+        const std::complex<double> nan_value(TidalPyConstants::d_NAN, 0.0);
+        const c_LoveNumbers nan_love(nan_value, nan_value, nan_value);
+        if (this->is_analytic()) {
+            return (this->analytic_success && ytype_idx == 0) ? this->analytic : nan_love;
+        }
+        const auto* storage = this->get_storage();
+        if (!storage || !this->solved || ytype_idx >= storage->complex_love_vec.size()) { return nan_love; }
+        const ::c_LoveNumbers& solved_love = storage->complex_love_vec[ytype_idx];
+        return c_LoveNumbers(solved_love.k, solved_love.h, solved_love.l);
+    }
+
+    // The radial functions (SI) at a radius [m] for a ytype and y-index (0..5 -> y1..y6); NaN when unsolved, after
+    // an analytic solve (which has no radial functions), or where the solution does not reach.
+    std::complex<double> get_radial_y(double radius, std::size_t ytype_idx, std::size_t y_idx) const noexcept {
+        const std::complex<double> nan_value(TidalPyConstants::d_NAN, 0.0);
+        if (this->is_analytic()) { return nan_value; }
+        const auto* storage = this->get_storage();
+        if (!storage || !this->solved || !storage->success || y_idx >= C_MAX_NUM_Y) { return nan_value; }
+        std::complex<double> y_at_r[C_MAX_NUM_Y];
+        if (!storage->get_radial_solution(radius, ytype_idx, y_at_r)) { return nan_value; }
+        return y_at_r[y_idx];
+    }
+    std::complex<double> get_surface_y(std::size_t ytype_idx, std::size_t y_idx) const noexcept {
+        const std::complex<double> nan_value(TidalPyConstants::d_NAN, 0.0);
+        if (this->is_analytic()) { return nan_value; }
+        const auto* storage = this->get_storage();
+        if (!storage || !this->solved || !storage->success || y_idx >= C_MAX_NUM_Y) { return nan_value; }
+        std::complex<double> surface_y[C_MAX_NUM_Y];
+        if (!storage->get_surface_y(ytype_idx, surface_y)) { return nan_value; }
+        return surface_y[y_idx];
+    }
+};
+
 // One stretch of a layer as the radial solver integrates it. A layer is one stretch unless its partial-melt model
 // makes part of it molten; it is then split at the edges of each molten stretch
 // (c_LayeredWorld::update_radial_segments).
@@ -249,6 +387,7 @@ public:
     // Add a layer, inner to outer; its inner radius must match the current outermost radius, 0 for the
     // first layer, within the continuity tolerance.
     void add_layer(std::unique_ptr<c_BaseLayer> layer) {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (!layer) {
             throw std::invalid_argument("TidalPy: cannot add a null layer to a world");
         }
@@ -262,6 +401,8 @@ public:
                 "match the previous layer's outer radius (add layers inner-to-outer)");
         }
         this->p_layers.push_back(std::move(layer));
+        // The solved structure describes the old stack.
+        this->p_reset_solved_state();
     }
 
     // Whether `layer` would continue the stack, so a caller can check before transferring ownership.
@@ -290,6 +431,19 @@ public:
                                    : std::numeric_limits<double>::quiet_NaN();
     }
 
+    // Every solved quantity at a radius in one dense evaluation, in the layout of eos_layout_.hpp, through the
+    // layer the single-quantity getters use; NaN throughout for a world with no layers.
+    void get_eos_state(double radius, double* y_out) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        if (layer == nullptr) {
+            for (std::size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i) {
+                y_out[value_i] = TidalPyConstants::d_NAN;
+            }
+            return;
+        }
+        layer->get_eos_state(radius, y_out);
+    }
+
     double get_gravity(double radius) const noexcept {
         const c_BaseLayer* layer = this->find_layer_for_radius(radius);
         return (layer != nullptr) ? layer->get_gravity(radius)
@@ -312,15 +466,17 @@ public:
         return this->p_read_eos_state(radius, C_EOS_HEAT_FLOW_INDEX);
     }
 
-    // Per-layer results of the last solve: temperatures, heat flows, boundary layers, and the Rayleigh and
-    // Nusselt numbers of a convecting layer.
+    // Per-layer results of the last solve (the solve_eos result reports each of them per layer): temperatures,
+    // heat flows, boundary layers, and the Rayleigh and Nusselt numbers of a convecting layer.
     const std::vector<c_LayerThermal>& get_layer_thermal() const noexcept { return this->p_layer_thermal; }
     size_t get_thermal_passes()    const noexcept { return this->p_thermal_passes; }
     bool   get_geometry_converged() const noexcept { return this->p_geometry_converged; }
     bool   get_thermal_converged() const noexcept { return this->p_thermal_converged; }
 
-    // The world's heat sources, as the last thermal solve prepared them.
-    const c_Heating& get_heating() const noexcept { return this->p_heating; }
+    // The world's heat sources, as the last successful solve prepared them; none before one.
+    const c_Heating& get_heating() const noexcept {
+        return this->p_solve_state ? this->p_solve_state->heating : this->p_no_heating;
+    }
 
     // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
     //   M c_p dT/dt = L_in - L_out + H.
@@ -372,10 +528,8 @@ public:
         return physics_layer->calc_complex_bulk_modulus(radius, frequency);
     }
 
-    // True once the EOS solve has populated the innermost layer's profile.
-    bool get_eos_solved() const noexcept {
-        return !this->p_layers.empty() && this->p_layers.front()->get_eos_data_populated();
-    }
+    // True after a successful EOS solve of the current layer stack, until something invalidates it.
+    bool get_eos_solved() const noexcept { return this->p_eos_solved; }
 
     // A precondition for the world-level EOS solve.
     bool get_all_eos_set() const noexcept {
@@ -393,6 +547,7 @@ public:
     // Assumes spherical symmetry, and that each layer's density comes from its material EOS model: the
     // pressure for the analytic models, the radius for the interpolated one.
     void solve_eos(const c_WorldEOSSolveConfig& cfg) {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         const std::size_t n_layers = this->p_layers.size();
         if (n_layers == 0) {
             throw std::invalid_argument("TidalPy: cannot solve the EOS for a world with no layers");
@@ -477,13 +632,14 @@ public:
         eos_function_vec.reserve(n_layers);
         eos_input_vec.reserve(n_layers);
 
-        // The per-layer material-EOS inputs live in a world member, not a local. The solver keeps a copy of
-        // each c_EOS_ODEInput, and that copy holds a pointer (eos_input_ptr) into this vector through which
-        // every later evaluation of the density and moduli reaches the layer's EOS model, so it must outlive
-        // solve_eos. The vector lives as long as the world and is re-set on every solve.
-        // From here on the solve replaces the structure, so nothing solved on top of the old one may be read.
-        this->mark_structure_dirty();
-        this->p_eos_material_inputs.assign(n_layers, c_MaterialEOSInput());
+        // Everything this solve evaluates its materials with is its own: a copy of each layer's material model,
+        // the per-layer inputs the structure ODE reaches it through (the solver keeps a copy of each
+        // c_EOS_ODEInput, whose eos_input_ptr points into these), and the heat sources. The solution co-owns
+        // it, so a retained or exported solution keeps reading exactly what was solved, whatever later happens
+        // to the layers, their models, or another solve.
+        auto solve_state = std::make_shared<c_EOSSolveState>();
+        solve_state->materials.reserve(n_layers);
+        solve_state->inputs.assign(n_layers, c_MaterialEOSInput());
 
         c_EOS_ODEInput ode_input;
         ode_input.G_to_use      = G_solve;
@@ -491,28 +647,29 @@ public:
         ode_input.update_bulk   = false;
         ode_input.update_shear  = false;
         for (std::size_t i = 0; i < n_layers; ++i) {
-            this->p_eos_material_inputs[i].eos_model_ptr = this->p_layers[i]->get_eos();
-            this->p_eos_material_inputs[i].length_scale  = length_scale;
-            this->p_eos_material_inputs[i].pascal_scale  = pascal_scale;
-            this->p_eos_material_inputs[i].density_scale = density_scale;
-            ode_input.eos_input_ptr = reinterpret_cast<char*>(&this->p_eos_material_inputs[i]);
+            solve_state->materials.push_back(c_clone_material_eos(*this->p_layers[i]->get_eos()));
+            c_MaterialEOSInput& material_input = solve_state->inputs[i];
+            material_input.eos_model_ptr = solve_state->materials[i].get();
+            material_input.length_scale  = length_scale;
+            material_input.pascal_scale  = pascal_scale;
+            material_input.density_scale = density_scale;
+            ode_input.eos_input_ptr = reinterpret_cast<char*>(&material_input);
             eos_function_vec.push_back(c_preeval_material_eos);
             eos_input_vec.push_back(ode_input);
         }
 
         // Thermal layout. Each layer carries its own temperature and its cooling model says how heat moves
         // inside it; a uniform override replaces every layer's value.
-        c_init_layer_thermal(this->p_layers, this->p_layer_thermal);
-        if (std::isfinite(cfg.temperature)) {
-            for (c_LayerThermal& thermal : this->p_layer_thermal) { thermal.temperature = cfg.temperature; }
-        }
+        std::vector<c_LayerThermal> layer_thermal;
+        c_init_layer_thermal(this->p_layers, layer_thermal, cfg.temperature);
         // Heat sources, prepared once: none of them depends on the solved state. They need the heat flow of a
         // thermal solve to act through, so a solve with temperature switched off leaves them out.
         c_WorldState world_state;
         world_state.time       = cfg.time;
         world_state.layers_ptr = &this->p_layers;
-        this->p_heating.update_sources(world_state, length_scale, density_scale);
-        const bool heating_active = this->p_heating.get_is_active();
+        c_Heating& heating = solve_state->heating;
+        heating.update_sources(world_state, length_scale, density_scale);
+        const bool heating_active = heating.get_is_active();
         if (heating_active && !cfg.solve_temperature) {
             TIDALPY_LOG_WARN(
                 "TidalPy: world '{}' has layers with use_heating set, but solve_temperature is off, so this EOS "
@@ -520,9 +677,9 @@ public:
         }
         // A temperature contrast or a heated layer gives the solve a profile to integrate.
         const bool thermal_contrast = cfg.solve_temperature
-            && (c_thermal_contrast_present(this->p_layer_thermal, cfg.surface_temperature) || heating_active);
+            && (c_thermal_contrast_present(layer_thermal, cfg.surface_temperature) || heating_active);
         for (std::size_t i = 0; i < n_layers; ++i) {
-            eos_input_vec[i].heating_ptr = thermal_contrast ? &this->p_heating : nullptr;
+            eos_input_vec[i].heating_ptr = thermal_contrast ? &heating : nullptr;
             eos_input_vec[i].layer_index = i;
         }
         const double gravity_scale = length_scale / second2_scale;
@@ -545,81 +702,119 @@ public:
             ? (this->p_central_pressure / pascal_scale) : TidalPyConstants::d_NAN;
         const std::size_t last_pass =
             (thermal_contrast || geometry_floats) ? cfg.max_thermal_passes : 0;
-        this->p_thermal_passes    = 0;
-        this->p_thermal_converged = !thermal_contrast;
-        bool geometry_converged   = !geometry_floats;
-        for (std::size_t pass = 0; pass <= last_pass; ++pass) {
-            const bool integrate_temperature = thermal_contrast && (pass > 0);
-            if (pass > 0) {
-                // The layers may have moved, so the grid and the segment bounds follow them.
-                for (std::size_t i = 0; i < n_layers; ++i) {
-                    const c_BaseLayer* layer = this->p_layers[i].get();
-                    const double r_inner = layer->get_radius_inner() / length_scale;
-                    const double r_outer = layer->get_radius_outer() / length_scale;
-                    upper_radii[i] = r_outer;
-                    for (std::size_t s = 0; s < slices; ++s) {
-                        const double frac = static_cast<double>(s) / static_cast<double>(slices - 1);
-                        full_radius[i * slices + s] = r_inner + frac * (r_outer - r_inner);
-                    }
-                }
-                // The structure derivatives vanish above the planet radius, so a world that grew has to say so.
-                for (std::size_t i = 0; i < n_layers; ++i) {
-                    eos_input_vec[i].planet_radius = upper_radii.back();
-                }
-            }
-            c_build_thermal_segments(
-                this->p_layer_thermal, this->p_layers, integrate_temperature,
-                length_scale, gravity_scale, segment_vec);
-            for (std::size_t i = 0; i < n_layers; ++i) {
-                // The viscosity and melt models of the material always see the temperature; its density law
-                // sees it only when the layer asked for a thermal EOS.
-                const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[i].get());
-                const bool thermal_eos = (physics_layer != nullptr) && physics_layer->get_use_thermal_eos();
-                this->p_eos_material_inputs[i].temperature           = this->p_layer_thermal[i].temperature;
-                this->p_eos_material_inputs[i].use_state_temperature = integrate_temperature;
-                this->p_eos_material_inputs[i].thermal_density       = thermal_eos;
-            }
-
-            solution = std::make_shared<c_EOSSolution>(
-                upper_radii.data(), n_layers, full_radius.data(), total_slices);
-            c_solve_eos(
-                solution.get(),
-                eos_function_vec,
-                eos_input_vec,
-                bulk_density_solve,
-                surface_pressure_solve,
-                G_solve,
-                cfg.integration_method,
-                cfg.rtol,
-                cfg.atol,
-                cfg.pressure_tol,
-                cfg.max_iters,
-                cfg.verbose,
-                &segment_vec,
-                integrate_temperature,
-                central_pressure_guess
-            );
-
-            // Return the solution to SI: the arrays, layer radii, and pressure error are scaled in place, and
-            // every later evaluation of the retained integrators (call_si) converts on the way in and out.
-            if (cfg.nondimensionalize) {
-                solution->dimensionalize_data(scales_uptr.get(), true);
-            }
-            if (!solution->success) { break; }
-            this->p_thermal_passes = pass;
-            central_pressure_guess = solution->central_pressure / pascal_scale;
-
-            if (thermal_contrast) {
-                const double thermal_change = c_update_layer_thermal(
-                    *solution, this->p_layers, cfg.surface_temperature, integrate_temperature,
-                    this->p_layer_thermal, &this->p_heating);
-                this->p_thermal_converged = integrate_temperature && (thermal_change < cfg.thermal_tol);
-            }
-            if (geometry_floats) {
-                geometry_converged = (this->update_floating_radii(*solution) < cfg.radius_tol);
-            }
-            if (this->p_thermal_converged && geometry_converged) { break; }
+        std::size_t thermal_passes = 0;
+        bool thermal_converged     = !thermal_contrast;
+        bool geometry_converged    = !geometry_floats;
+        // Floating layers move during the passes; a solve that fails or throws puts them back.
+        std::vector<double> radius_inner_before(n_layers);
+        std::vector<double> radius_outer_before(n_layers);
+        for (std::size_t i = 0; i < n_layers; ++i) {
+            radius_inner_before[i] = this->p_layers[i]->get_radius_inner();
+            radius_outer_before[i] = this->p_layers[i]->get_radius_outer();
         }
+        const double world_radius_before = this->p_radius;
+        // The radii each pass solves on. A pass moves floating layers after it solves, so the layers go back onto
+        // the last pass's grid at the end: every slice and interface then sits in its own layer.
+        std::vector<double> radius_inner_solved = radius_inner_before;
+        std::vector<double> radius_outer_solved = radius_outer_before;
+        double world_radius_solved = world_radius_before;
+        const auto restore_radii = [&]() {
+            if (!geometry_floats) { return; }
+            for (std::size_t i = 0; i < n_layers; ++i) {
+                this->p_layers[i]->set_radii(radius_inner_before[i], radius_outer_before[i]);
+            }
+            this->p_radius = world_radius_before;
+        };
+        try {
+            for (std::size_t pass = 0; pass <= last_pass; ++pass) {
+                const bool integrate_temperature = thermal_contrast && (pass > 0);
+                if (pass > 0) {
+                    // The layers may have moved, so the grid and the segment bounds follow them.
+                    for (std::size_t i = 0; i < n_layers; ++i) {
+                        const c_BaseLayer* layer = this->p_layers[i].get();
+                        const double r_inner = layer->get_radius_inner() / length_scale;
+                        const double r_outer = layer->get_radius_outer() / length_scale;
+                        upper_radii[i] = r_outer;
+                        for (std::size_t s = 0; s < slices; ++s) {
+                            const double frac = static_cast<double>(s) / static_cast<double>(slices - 1);
+                            full_radius[i * slices + s] = r_inner + frac * (r_outer - r_inner);
+                        }
+                    }
+                    // The structure derivatives vanish above the planet radius, so a world that grew has to say so.
+                    for (std::size_t i = 0; i < n_layers; ++i) {
+                        eos_input_vec[i].planet_radius = upper_radii.back();
+                    }
+                    for (std::size_t i = 0; i < n_layers; ++i) {
+                        radius_inner_solved[i] = this->p_layers[i]->get_radius_inner();
+                        radius_outer_solved[i] = this->p_layers[i]->get_radius_outer();
+                    }
+                    world_radius_solved = this->p_radius;
+                }
+                c_build_thermal_segments(
+                    layer_thermal, this->p_layers, integrate_temperature,
+                    length_scale, gravity_scale, segment_vec);
+                for (std::size_t i = 0; i < n_layers; ++i) {
+                    // The viscosity and melt models of the material always see the temperature; its density law
+                    // sees it only when the layer asked for a thermal EOS.
+                    const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[i].get());
+                    const bool thermal_eos = (physics_layer != nullptr) && physics_layer->get_use_thermal_eos();
+                    solve_state->inputs[i].temperature           = layer_thermal[i].temperature;
+                    solve_state->inputs[i].use_state_temperature = integrate_temperature;
+                    solve_state->inputs[i].thermal_density       = thermal_eos;
+                }
+
+                solution = std::make_shared<c_EOSSolution>(
+                    upper_radii.data(), n_layers, full_radius.data(), total_slices);
+                solution->input_keepalive = solve_state;
+                c_solve_eos(
+                    solution.get(),
+                    eos_function_vec,
+                    eos_input_vec,
+                    bulk_density_solve,
+                    surface_pressure_solve,
+                    G_solve,
+                    cfg.integration_method,
+                    cfg.rtol,
+                    cfg.atol,
+                    cfg.pressure_tol,
+                    cfg.max_iters,
+                    cfg.verbose,
+                    &segment_vec,
+                    integrate_temperature,
+                    central_pressure_guess
+                );
+
+                // Return the solution to SI: the arrays, layer radii, and pressure error are scaled in place, and
+                // every later evaluation of the retained integrators (call_si) converts on the way in and out.
+                if (cfg.nondimensionalize) {
+                    solution->dimensionalize_data(scales_uptr.get(), true);
+                }
+                if (!solution->success) { break; }
+                thermal_passes = pass;
+                central_pressure_guess = solution->central_pressure / pascal_scale;
+
+                if (thermal_contrast) {
+                    const double thermal_change = c_update_layer_thermal(
+                        *solution, this->p_layers, cfg.surface_temperature, integrate_temperature,
+                        layer_thermal, &heating);
+                    thermal_converged = integrate_temperature && (thermal_change < cfg.thermal_tol);
+                }
+                if (geometry_floats) {
+                    geometry_converged = (this->update_floating_radii(*solution) < cfg.radius_tol);
+                }
+                if (thermal_converged && geometry_converged) { break; }
+            }
+        } catch (...) {
+            // Nothing half-solved survives a throw: the layers go back where they were and the world is unsolved.
+            restore_radii();
+            this->p_reset_solved_state();
+            throw;
+        }
+
+        // Commit. Whatever was solved on top of the previous structure no longer describes the world.
+        this->mark_structure_dirty();
+        this->p_thermal_passes     = thermal_passes;
+        this->p_thermal_converged  = thermal_converged;
         this->p_geometry_converged = geometry_converged;
 
         // Store scalar results.
@@ -635,8 +830,70 @@ public:
         this->p_planet_moi_eos       = solution->moi;
         this->p_eos_solved           = solution->success && solution->other_vecs_set;
 
+        if (!this->p_eos_solved) {
+            // A failed solve leaves the world unsolved rather than holding the previous structure: the layers go
+            // back where they were, and no layer profile, thermal state, or radial setup from before survives.
+            // The failed solution stays for its diagnostics only.
+            restore_radii();
+            this->p_layer_thermal.clear();
+            this->p_solve_state.reset();
+            this->p_love = c_LoveWorkspace();
+            for (const auto& layer_uptr : this->p_layers) { layer_uptr->clear_eos_data(); }
+            this->p_eos_solution = std::move(solution);
+            return;
+        }
+        this->p_layer_thermal = std::move(layer_thermal);
+        this->p_solve_state   = solve_state;
+
+        // Floating layers go back onto the grid the last pass solved on; once converged the move this undoes is
+        // below radius_tol.
+        if (geometry_floats) {
+            for (std::size_t i = 0; i < n_layers; ++i) {
+                this->p_layers[i]->set_radii(radius_inner_solved[i], radius_outer_solved[i]);
+            }
+            this->p_radius = world_radius_solved;
+        }
+        if (!thermal_converged) {
+            TIDALPY_LOG_WARN(
+                "TidalPy: world '{}' EOS solve used all {} thermal passes before its interface temperatures and heat "
+                "flows settled to thermal_tol = {:.1e}; the temperature profile is from the last pass.",
+                this->get_name(), cfg.max_thermal_passes, cfg.thermal_tol);
+        }
+        if (!geometry_converged) {
+            TIDALPY_LOG_WARN(
+                "TidalPy: world '{}' EOS solve used all {} passes before its floating layer radii settled to "
+                "radius_tol = {:.1e}; the structure is from the last pass.",
+                this->get_name(), cfg.max_thermal_passes, cfg.radius_tol);
+        }
+        for (std::size_t layer_index = 0; layer_index < n_layers; ++layer_index) {
+            if (!this->p_layer_thermal[layer_index].boundary_fallback) { continue; }
+            TIDALPY_LOG_WARN(
+                "TidalPy: layer '{}' of world '{}' convects, but its cooling model gave no boundary-layer thickness "
+                "(Rayleigh number {:.3e}); each boundary layer takes {} of the layer's thickness instead. Check the "
+                "layer's viscosity at its temperature.",
+                this->p_layers[layer_index]->get_name(), this->get_name(),
+                this->p_layer_thermal[layer_index].rayleigh_number, d_MAX_BOUNDARY_FRACTION);
+        }
+
+        // A layer whose pressure passes what its material's pressure law represents (Birch-Murnaghan with K0' below
+        // 4 turns over at a finite compression) has its density held at the law's largest compression there, and a
+        // bulk modulus near zero; the solve still succeeds, so say so.
+        for (std::size_t layer_index = 0; layer_index < n_layers; ++layer_index) {
+            const double law_max_pressure = solve_state->materials[layer_index]->get_max_pressure();
+            const std::size_t base_slice = layer_index * slices;
+            if (!std::isfinite(law_max_pressure) || (base_slice >= solution->pressure_array_vec.size())) { continue; }
+            const double layer_max_pressure = solution->pressure_array_vec[base_slice];
+            if (layer_max_pressure > law_max_pressure) {
+                TIDALPY_LOG_WARN(
+                    "TidalPy: layer '{}' of world '{}' reaches {:.4e} Pa, past the {:.4e} Pa its material's pressure "
+                    "law represents; its density is held at the law's largest compression there. Check the law's "
+                    "bulk modulus derivative (a Birch-Murnaghan K0' below 4 turns over).",
+                    this->p_layers[layer_index]->get_name(), this->get_name(), layer_max_pressure, law_max_pressure);
+            }
+        }
+
         // Populate each layer's structure and viscoelastic profile from its slice of the full arrays.
-        if (this->p_eos_solved) {
+        {
             const std::size_t total_slices = solution->radius_array_size;
             for (std::size_t layer_index = 0; layer_index < n_layers; ++layer_index) {
                 const std::size_t slice_start = layer_index * slices;
@@ -658,8 +915,8 @@ public:
 
                 // The dense-output evaluator: the solution's SI-radius call, which runs the layer's retained
                 // CySolverResult and its EOS function. The captured shared_ptr co-owns the whole solution, so
-                // the dense data and solver stay callable post-solve, and the EOS arguments point at
-                // p_eos_material_inputs, which also outlives the solve. The lambda compiles in this,
+                // the dense data and solver stay callable post-solve, and through it the solve state its EOS
+                // arguments point at. The lambda compiles in this,
                 // CyRK-owning, extension, so the CySolverResult is only ever called by the CyRK copy that
                 // built it. The slice arrays above are the fallback for a manual update_eos_data.
                 if (layer_index < solution->num_layers
@@ -706,8 +963,10 @@ public:
             const double radius_inner = layer->get_radius_inner();
             const double radius_outer = layer->get_radius_outer();
             const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(layer);
+            // The melt model the solve used, which the layer may have replaced since.
             const c_PartialMeltBase* melt_model =
-                (physics_layer != nullptr) ? physics_layer->get_partial_melt_model() : nullptr;
+                ((physics_layer != nullptr) && this->p_solve_state && (layer_i < this->p_solve_state->materials.size()))
+                ? this->p_solve_state->materials[layer_i]->get_partial_melt_model() : nullptr;
             if ((melt_model == nullptr) || (slices < 2)) {
                 this->p_radial_segments.push_back({layer_i, radius_inner, radius_outer, false});
                 continue;
@@ -771,6 +1030,15 @@ public:
     // Empty before a successful EOS solve.
     const std::vector<c_RadialSegment>& get_radial_segments() const noexcept { return this->p_radial_segments; }
 
+    // Whether a radius [m] lies inside a molten stretch of a solid layer, which the radial solver treats as a
+    // static liquid.
+    bool get_is_molten_at(double radius) const noexcept {
+        for (const c_RadialSegment& segment : this->p_radial_segments) {
+            if (segment.molten && (radius > segment.radius_inner) && (radius < segment.radius_outer)) { return true; }
+        }
+        return false;
+    }
+
     // The molten stretches the radial solver treats as static liquids: those of the layers that are solid.
     std::vector<c_RadialSegment> get_molten_regions() const {
         std::vector<c_RadialSegment> regions;
@@ -787,8 +1055,7 @@ public:
     // radial-solver setup included: a re-solve changes the structure and moduli even when the grid size does
     // not. solve_eos calls this before it replaces the structure, so nothing can be read against the new one.
     void mark_structure_dirty() noexcept {
-        this->p_love_solved           = false;
-        this->p_love_analytic_success = false;
+        this->p_love.invalidate();
         this->p_tides_solved          = false;
         this->p_tide_solver_love.clear();
         this->p_layer_tidal_heating.clear();
@@ -796,7 +1063,21 @@ public:
             layer_uptr->set_tidal_heating(TidalPyConstants::d_NAN);
         }
         this->p_radial_segments.clear();
-        if (this->p_radial_solver) { this->p_radial_solver->invalidate(); }
+    }
+
+    // Forget everything solved: the EOS solution, the layer profiles, the thermal state, and every result built
+    // on them. Called when the layers no longer match what was solved (a layer added, a binary load) and when a
+    // solve throws, so no reader can mistake an old structure for the current one.
+    void p_reset_solved_state() {
+        this->mark_structure_dirty();
+        this->p_eos_solved  = false;
+        this->p_eos_success = false;
+        this->p_eos_message = "EOS not yet solved.";
+        this->p_eos_solution.reset();
+        this->p_solve_state.reset();
+        this->p_layer_thermal.clear();
+        this->p_love = c_LoveWorkspace();
+        for (const auto& layer_uptr : this->p_layers) { layer_uptr->clear_eos_data(); }
     }
 
     // Valid after solve_eos; NaN or empty otherwise.
@@ -848,9 +1129,9 @@ public:
     // the complete interface; c_RadialSolutionStorage is an internal detail of the cached radial solver.
     // Spherical symmetry, all MKS.
     //
-    // This first step rebuilds the cached setup when it no longer matches the current EOS and config. False,
-    // with an error stamped on the solver storage, for an invalid per-layer slice partitioning.
-    bool ensure_radial_cache(const c_LoveSolveConfig& cfg) {
+    // This first step rebuilds the workspace's cached setup when it no longer matches the current EOS and config.
+    // False, with an error stamped on the solver storage, for an invalid per-layer slice partitioning.
+    bool ensure_radial_cache(const c_LoveSolveConfig& cfg, c_LoveWorkspace& workspace) const {
         if (!this->p_eos_solved || !this->p_eos_solution)
             throw std::invalid_argument("TidalPy: solve_eos must succeed before solve_love_numbers");
         if (tidalpy_config_ptr == nullptr)
@@ -863,9 +1144,9 @@ public:
         if (total_slices < 5)
             throw std::invalid_argument("TidalPy: EOS solution has too few radial slices (< 5)");
 
-        if (!this->p_radial_solver)
-            this->p_radial_solver = std::make_unique<::c_WorldRadialSolver>();
-        ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
+        if (!workspace.radial_solver)
+            workspace.radial_solver = std::make_unique<::c_WorldRadialSolver>();
+        ::c_WorldRadialSolver* solver = workspace.radial_solver.get();
 
         // The solver's layers: every world layer once, except that a solid layer with molten stretches is split
         // at their edges and each molten stretch is a static liquid (it keeps the layer's compressibility flag).
@@ -944,7 +1225,7 @@ public:
             is_static_arr[solver_layer_i]   = static_cast<bool>(is_static_flags[solver_layer_i]);
             is_incomp_arr[solver_layer_i]   = static_cast<bool>(is_incompressible_flags[solver_layer_i]);
         }
-        this->p_radial_world_layer = world_layer_of;
+        workspace.radial_world_layer = world_layer_of;
 
         const std::size_t num_ytypes = cfg.bc_models.empty() ? 1 : cfg.bc_models.size();
         if (solver->cache_matches(
@@ -995,46 +1276,90 @@ public:
         return rt;
     }
 
+    // The world's own solve: its results are what the Love getters report and release_radial_storage hands out.
     void solve_love_numbers(const c_LoveSolveConfig& cfg) {
-        this->solve_love_numbers(cfg, nullptr);
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        this->solve_love_numbers(cfg, nullptr, this->p_love);
     }
 
-    // Composite Simpson intervals per tidal layer for the homogeneous volume average; even, so 129 nodes.
+    // Reject a Love-solve configuration that no method can answer before anything is solved. A degree below 2 has
+    // no tidal Love number (degree 1 is a translation of the body), and a frequency or starting-radius tolerance
+    // out of range otherwise surfaces as a failed integration, or as a start deep in the planet that reports success
+    // with a wrong answer.
+    static void validate_love_config(const c_LoveSolveConfig& cfg) {
+        if (cfg.degree_l < 2) {
+            throw std::invalid_argument(
+                "TidalPy: degree_l must be 2 or more for a Love-number solve; got " + std::to_string(cfg.degree_l)
+                + ".");
+        }
+        if (!std::isfinite(cfg.frequency) || !(cfg.frequency > 0.0)) {
+            throw std::invalid_argument(
+                "TidalPy: the forcing frequency of a Love-number solve must be finite and positive [rad s-1]; the "
+                "Love numbers at -omega are the complex conjugates of those at omega.");
+        }
+        if (tidalpy_config_ptr != nullptr) {
+            if ((cfg.frequency < tidalpy_config_ptr->d_MIN_FREQUENCY)
+                || (cfg.frequency > tidalpy_config_ptr->d_MAX_FREQUENCY)) {
+                throw std::invalid_argument(
+                    "TidalPy: the forcing frequency " + std::to_string(cfg.frequency) + " rad s-1 is outside the "
+                    "range set by [numerical] minimum_frequency and maximum_frequency in the TidalPy configuration "
+                    "(is it in rad s-1?).");
+            }
+        }
+        if (!(cfg.start_radius_tol > 0.0) || !(cfg.start_radius_tol < 1.0)) {
+            throw std::invalid_argument(
+                "TidalPy: start_radius_tol must be between 0 and 1 (exclusive); got "
+                + std::to_string(cfg.start_radius_tol) + ".");
+        }
+        if (!(cfg.starting_radius >= 0.0) || !(cfg.max_step >= 0.0)) {
+            throw std::invalid_argument("TidalPy: starting_radius and max_step must be zero (automatic) or positive.");
+        }
+    }
+
+    // Composite Simpson intervals per tidal layer for the quasi-homogeneous averages; even, so 129 nodes.
     static constexpr std::size_t homogeneous_quadrature_intervals = 128;
 
-    // Frequency-independent inputs to the homogeneous volume average for one tidal layer
-    struct c_HomogeneousShearLayer {
+    // One tidal layer as the quasi-homogeneous Love methods see it: its volume-averaged post-melt shear and bulk
+    // moduli, its log-volume-averaged post-melt viscosities, and its tidal scale. Frequency independent.
+    struct c_HomogeneousLayer {
         const c_PhysicsLayer* layer = nullptr;
-        double dr = 0.0;                      // node spacing [m]
-        std::vector<double> radius;           // node radii [m]
-        std::vector<double> static_modulus;   // post-melt static shear modulus at each node [Pa]
-        std::vector<double> viscosity;        // post-melt shear viscosity at each node [Pa s]
+        std::size_t layer_index     = 0;
+        double shear_modulus   = TidalPyConstants::d_NAN;   // [Pa]
+        double bulk_modulus    = TidalPyConstants::d_NAN;   // [Pa]
+        double shear_viscosity = TidalPyConstants::d_NAN;   // [Pa s]
+        double bulk_viscosity  = TidalPyConstants::d_NAN;   // [Pa s]
+        double tidal_scale     = 0.0;                       // dimensionless
+        double volume          = 0.0;                       // [m3]
     };
 
-    // Reusable state for a run of homogeneous Love solves against one unchanged interior. The node values
-    // are read on first use and the averaged modulus kept per distinct frequency, so a caller solving many
-    // (degree, frequency) pairs pays for each frequency once.
+    // Reusable averages for a run of quasi-homogeneous Love solves against one unchanged interior: every tidal
+    // layer is read once, and each frequency then costs one rheology evaluation per layer.
     struct c_HomogeneousLoveCache {
-        struct c_ShearAtFrequency {
-            double frequency;                 // forcing frequency the average was formed at [rad s-1]
-            bool use_static;                  // true for the cpl / ctl methods, which average the static modulus
-            std::complex<double> shear;       // volume-averaged shear modulus [Pa]
-        };
         bool built = false;
-        std::vector<c_HomogeneousShearLayer> layers;
-        double tidal_volume = 0.0;            // summed volume of the averaged layers [m3]
-        std::vector<c_ShearAtFrequency> shear_by_frequency;
+        std::vector<c_HomogeneousLayer> layers;
     };
 
-    // Same, with reusable state for many frequencies in a row against an unchanged interior. The homogeneous
-    // methods use it; the radial-solver methods ignore it.
+    // The world's own solve with reusable averages for many frequencies in a row. The quasi-homogeneous methods use
+    // them; the radial-solver methods ignore them.
     void solve_love_numbers(const c_LoveSolveConfig& cfg, c_HomogeneousLoveCache* cache) {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        this->solve_love_numbers(cfg, cache, this->p_love);
+    }
+
+    // A Love-number solve into `workspace`, which holds everything it produces. Nothing on the world changes, so the
+    // tide paths solve into workspaces of their own without touching the world's last solve.
+    void solve_love_numbers(
+            const c_LoveSolveConfig& cfg,
+            c_HomogeneousLoveCache* cache,
+            c_LoveWorkspace& workspace) const {
+        validate_love_config(cfg);
         const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
-        this->p_love_method_last = method;
+        workspace.solved      = false;
+        workspace.method_last = method;
         // The analytic results describe the last analytic solve only; a radial solve clears them.
-        this->reset_analytic_love();
+        workspace.reset_analytic();
         if (c_love_method_is_homogeneous(method)) {
-            this->solve_love_numbers_homogeneous(cfg, method, cache);
+            this->solve_love_numbers_homogeneous(cfg, method, cache, workspace);
             return;
         }
         if (method == c_LoveMethod::LaterallyInhomogeneous) {
@@ -1042,8 +1367,8 @@ public:
                 "TidalPy: the laterally_inhomogeneous Love-number method is reserved for the 3D Love solver and is "
                 "not implemented.");
         }
-        if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
-        ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
+        if (!this->ensure_radial_cache(cfg, workspace)) { workspace.solved = false; return; }
+        ::c_WorldRadialSolver* solver = workspace.radial_solver.get();
 
         // Hand the solver a provider that evaluates each layer's material state at the radius the integrator
         // asks for. Nothing is sampled onto the slice grid, so the Love numbers carry no first-order slice
@@ -1054,11 +1379,11 @@ public:
         // The provider stays on the storage after the solve, so the solution keeps answering at any radius:
         // the y3 of a dynamic liquid layer is rebuilt from the density and gravity it reads, and an exported
         // solution reports the complex moduli this solve used.
-        solver->set_material_eval(this->make_material_eval(cfg.frequency));
+        solver->set_material_eval(this->make_material_eval(cfg.frequency, workspace.radial_world_layer));
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         solver->solve(rt);
-        this->p_love_solved = solver->get_solved();
+        workspace.solved = solver->get_solved();
     }
 
     // Solve from externally supplied complex moduli, the standalone array API path, not the layer rheology.
@@ -1068,16 +1393,19 @@ public:
             const std::complex<double>* bulk_in,
             const double* radius_in,
             std::size_t n_in) {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        validate_love_config(cfg);
         const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
-        this->reset_analytic_love();
+        this->p_love.solved = false;
+        this->p_love.reset_analytic();
         if (!c_love_method_uses_radial_solver(method)) {
             throw std::invalid_argument(
                 "TidalPy: solve_love_numbers_supplied supports only the radial_solver and propagation_matrix "
                 "Love-number methods.");
         }
-        this->p_love_method_last = method;
-        if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
-        ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
+        this->p_love.method_last = method;
+        if (!this->ensure_radial_cache(cfg, this->p_love)) { this->p_love.solved = false; return; }
+        ::c_WorldRadialSolver* solver = this->p_love.radial_solver.get();
 
         // The run of supplied points bounding each layer: the last point at its base through the first at its
         // top. The provider then interpolates inside that run, so a repeated interface radius gives the upper
@@ -1106,7 +1434,7 @@ public:
         std::vector<std::complex<double>> shear_copy(shear_in, shear_in + n_in);
         std::vector<std::complex<double>> bulk_copy(bulk_in, bulk_in + n_in);
         std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
-        const std::vector<std::size_t> world_layer_of = this->p_radial_world_layer;
+        const std::vector<std::size_t> world_layer_of = this->p_love.radial_world_layer;
         solver->set_material_eval(
             [eos_solution, radius_copy, shear_copy, bulk_copy, in_first_by_layer, in_count_by_layer, world_layer_of](
                     std::size_t solver_layer_index,
@@ -1142,13 +1470,16 @@ public:
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
         rt.redim_eos_arrays = true;
+        // The returned solution's result grid is the caller's radius array, as they gave it.
+        rt.sample_radius_si = radius_in;
+        rt.num_sample_radii = n_in;
         solver->solve(rt);
 
         // The world's own EOS solution is dimensional, so the released storage reports SI scalars.
         if (solver->get_storage() != nullptr) {
             this->copy_eos_scalars_si(solver->get_storage()->get_eos_solution_ptr());
         }
-        this->p_love_solved = solver->get_solved();
+        this->p_love.solved = solver->get_solved();
     }
 
     // The provider the radial solver reads at each integration radius: one dense EOS call for the
@@ -1157,7 +1488,9 @@ public:
     // The callable co-owns the solved EOS and the rheologies, and resolves the layers here, once, rather
     // than at every radius. The solved EOS still reaches each layer's material model through this world, so
     // the world has to outlive the callable; a solution exported to Python holds its world for that reason.
-    c_EOSSolution::MaterialEval make_material_eval(double frequency) const {
+    c_EOSSolution::MaterialEval make_material_eval(
+            double frequency,
+            const std::vector<std::size_t>& world_layer_of) const {
         const std::size_t n_layers = this->p_layers.size();
         std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
         std::vector<std::shared_ptr<const c_RheologyBase>> bulk_bylayer(n_layers);
@@ -1170,7 +1503,6 @@ public:
             bulk_bylayer[layer_i]       = physics_layer->share_bulk_rheology();
         }
         std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
-        const std::vector<std::size_t> world_layer_of = this->p_radial_world_layer;
         return [eos_solution, shear_bylayer, bulk_bylayer, is_physics_bylayer, world_layer_of, frequency](
                 std::size_t solver_layer_index,
                 double radius_si,
@@ -1198,8 +1530,11 @@ public:
 
     // One-shot export to a RadialSolverSolution.
     std::unique_ptr<::c_RadialSolutionStorage> release_radial_storage() {
-        if (!this->p_radial_solver) { return nullptr; }
-        std::unique_ptr<::c_RadialSolutionStorage> storage = this->p_radial_solver->release_storage();
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        if (!this->p_love.radial_solver) { return nullptr; }
+        std::unique_ptr<::c_RadialSolutionStorage> storage = this->p_love.radial_solver->release_storage();
+        // The released solution's result grid is filled on the solve's EOS grid, which a plain solve leaves empty.
+        if (storage && storage->success && (storage->get_sample_radii_si().empty())) { storage->sample_onto_grid(); }
         // The cached solve keeps its EOS scalars in solve units for the next frequency; a released solution
         // reports them, so it takes the world's SI values. Nothing solves on the storage after this.
         if (storage) { this->copy_eos_scalars_si(storage->get_eos_solution_ptr()); }
@@ -1220,199 +1555,173 @@ public:
         dst->pressure_error   = src->pressure_error;
     }
 
-    // Valid after solve_love_numbers succeeds, NaN or empty otherwise.
-
-    // Analytic Love numbers. The world is treated as a homogeneous incompressible sphere with the planet's
-    // bulk density, EOS surface gravity, and radius, and the volume-averaged shear modulus of the is_tidal
-    // layers (composite Simpson in radius with the r^2 weight). The homogeneous method averages the complex
-    // modulus at the forcing frequency; cpl and ctl average the static modulus and then impose the constant
-    // phase lag (1 - i/Q) or time lag (1 - i omega dt), taking Q or dt from the solve config or, unset, from
-    // the attached tide model.
+    // Quasi-homogeneous Love numbers (the homogeneous, cpl, and ctl methods). Each tidal layer is treated as a
+    // homogeneous incompressible planet made of its own averaged material: its volume-averaged post-melt shear
+    // modulus and its log-volume-averaged post-melt viscosity (composite Simpson in radius with the r^2 weight),
+    // with the planet's radius, EOS bulk density, and EOS surface gravity. The homogeneous method applies the
+    // layer's rheology to that average at the forcing frequency; cpl and ctl take the static average and impose
+    // the constant phase lag (1 - i/Q) or time lag (1 - i omega dt), with Q or dt from the solve config or, unset,
+    // from the tides config or the attached tide model. The world's Love numbers are the sum over the tidal layers
+    // of each layer's tidal scale (its volume fraction unless set) times its Love numbers, so a one-layer planet
+    // gets exactly the homogeneous value and a small, weak layer cannot dominate the planet's dissipation.
     //
-    // The layered structure enters only through the volume average. Gas layers carry no shear modulus and
-    // are skipped; liquid layers contribute their zero.
-    void build_homogeneous_shear_nodes(c_HomogeneousLoveCache& cache) const {
+    // Gas layers carry no shear modulus and are skipped; a layer that is not tidal, or has a zero tidal scale,
+    // takes no part.
+    void build_homogeneous_layers(c_HomogeneousLoveCache& cache) const {
         const std::size_t n_intervals = homogeneous_quadrature_intervals;
+        const double planet_radius = this->get_radius();
+        const double planet_volume =
+            (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
         cache.layers.clear();
-        cache.tidal_volume = 0.0;
-        for (const auto& layer_ptr : this->p_layers) {
-            const c_BaseLayer* layer = layer_ptr.get();
-            if (!layer->get_is_tidal()) {
-                continue;
-            }
+        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
+            const c_BaseLayer* layer = this->p_layers[layer_i].get();
+            const double tidal_scale = layer->calc_tidal_scale(planet_volume);
+            if (!(tidal_scale > 0.0)) { continue; }
             const auto* physics = dynamic_cast<const c_PhysicsLayer*>(layer);
-            if (physics == nullptr) {
-                continue;   // gas layers: no shear modulus
-            }
+            if (physics == nullptr) { continue; }   // gas layers: no shear modulus
             const double r_inner = layer->get_radius_inner();
             const double r_outer = layer->get_radius_outer();
-            if (!(r_outer > r_inner)) {
-                continue;
-            }
-            c_HomogeneousShearLayer nodes;
-            nodes.layer = physics;
-            nodes.dr = (r_outer - r_inner) / static_cast<double>(n_intervals);
-            nodes.radius.resize(n_intervals + 1);
-            nodes.static_modulus.resize(n_intervals + 1);
-            nodes.viscosity.resize(n_intervals + 1);
+            if (!(r_outer > r_inner)) { continue; }
+
+            const double dr = (r_outer - r_inner) / static_cast<double>(n_intervals);
+            double weight_sum          = 0.0;
+            double shear_sum           = 0.0;
+            double bulk_sum            = 0.0;
+            double log_shear_visc_sum  = 0.0;
+            double log_bulk_visc_sum   = 0.0;
             for (std::size_t i = 0; i <= n_intervals; ++i) {
-                const double r = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * nodes.dr;
-                nodes.radius[i]         = r;
-                nodes.static_modulus[i] = physics->get_shear_modulus(r);    // post-melt
-                nodes.viscosity[i]      = physics->get_shear_viscosity(r);  // post-melt
+                const double r = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * dr;
+                const double simpson = (i == 0 || i == n_intervals) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
+                const double weight = simpson * r * r;
+                weight_sum         += weight;
+                shear_sum          += weight * physics->get_shear_modulus(r);     // post-melt
+                bulk_sum           += weight * physics->get_bulk_modulus(r);
+                log_shear_visc_sum += weight * std::log10(physics->get_shear_viscosity(r));
+                log_bulk_visc_sum  += weight * std::log10(physics->get_bulk_viscosity(r));
             }
-            cache.tidal_volume += layer->get_volume();
-            cache.layers.push_back(std::move(nodes));
+            c_HomogeneousLayer averaged;
+            averaged.layer           = physics;
+            averaged.layer_index     = layer_i;
+            averaged.shear_modulus   = shear_sum / weight_sum;
+            averaged.bulk_modulus    = bulk_sum / weight_sum;
+            averaged.shear_viscosity = std::pow(10.0, log_shear_visc_sum / weight_sum);
+            averaged.bulk_viscosity  = std::pow(10.0, log_bulk_visc_sum / weight_sum);
+            averaged.tidal_scale     = tidal_scale;
+            averaged.volume          = layer->get_volume();
+            cache.layers.push_back(averaged);
         }
         cache.built = true;
-    }
-
-    // Volume-weighted complex shear modulus over the cached tidal layers at one frequency. The rheology is
-    // applied exactly as calc_complex_shear_modulus applies it, in the same summation order, so the result
-    // matches a solve that re-reads every node.
-    bool average_homogeneous_shear(
-            const c_HomogeneousLoveCache& cache,
-            double frequency,
-            bool use_static,
-            std::complex<double>& shear_avg) {
-        const std::size_t n_intervals = homogeneous_quadrature_intervals;
-        std::complex<double> shear_integral(0.0, 0.0);
-        for (const c_HomogeneousShearLayer& nodes : cache.layers) {
-            const c_RheologyBase* rheology = nodes.layer->get_shear_rheology_model();
-            std::complex<double> layer_sum(0.0, 0.0);
-            for (std::size_t i = 0; i <= n_intervals; ++i) {
-                const double r = nodes.radius[i];
-                const double weight = (i == 0 || i == n_intervals) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
-                const std::complex<double> mu = (use_static || rheology == nullptr)
-                    ? std::complex<double>(nodes.static_modulus[i], 0.0)
-                    : rheology->calc_complex_modulus(nodes.static_modulus[i], nodes.viscosity[i], frequency);
-                if (!std::isfinite(mu.real()) || !std::isfinite(mu.imag())) {
-                    this->p_love_analytic_error_code = -41;
-                    this->p_love_analytic_message =
-                        "TidalPy: layer '" + nodes.layer->get_name() + "' returned a non-finite shear modulus at r = "
-                        + std::to_string(r) + " m (viscosity or rheology not set?); the homogeneous Love-number "
-                        "methods need finite moduli in every tidal layer.";
-                    return false;
-                }
-                layer_sum += weight * mu * (r * r);
-            }
-            shear_integral += layer_sum * (nodes.dr / 3.0) * (4.0 * TidalPyConstants::d_PI);
-        }
-        shear_avg = shear_integral / cache.tidal_volume;
-        return true;
-    }
-
-    // Clear the analytic Love results so nothing reports a value from an earlier solve.
-    void reset_analytic_love() noexcept {
-        this->p_love_analytic_success      = false;
-        this->p_love_analytic              = c_LoveNumbers();
-        this->p_love_analytic_shear        = std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        this->p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;
     }
 
     void solve_love_numbers_homogeneous(
             const c_LoveSolveConfig& cfg,
             c_LoveMethod method,
-            c_HomogeneousLoveCache* cache) {
-        this->p_love_solved = false;
-        this->reset_analytic_love();
+            c_HomogeneousLoveCache* cache,
+            c_LoveWorkspace& workspace) const {
+        workspace.solved = false;
+        workspace.reset_analytic();
         if (!this->p_eos_solved || !this->p_eos_solution) {
             throw std::invalid_argument("TidalPy: solve_eos() must be called before solve_love_numbers().");
         }
-        if (cfg.degree_l < 2) {
-            throw std::invalid_argument("TidalPy: the homogeneous Love-number methods need degree_l >= 2.");
-        }
         const bool use_static = (method != c_LoveMethod::Homogeneous);
 
-        // Without a caller-owned cache the node values go into a local one that dies with this solve.
+        // Without a caller-owned cache the averages go into a local one that dies with this solve.
         c_HomogeneousLoveCache local_cache;
         c_HomogeneousLoveCache& active = (cache != nullptr) ? *cache : local_cache;
         if (!active.built) {
-            this->build_homogeneous_shear_nodes(active);
+            this->build_homogeneous_layers(active);
         }
-        if (!(active.tidal_volume > 0.0)) {
-            this->p_love_analytic_error_code = -40;
-            this->p_love_analytic_message =
-                "TidalPy: the homogeneous Love-number methods need at least one tidal layer (is_tidal) with a shear "
-                "modulus.";
+        if (active.layers.empty()) {
+            workspace.analytic_error_code = -40;
+            workspace.analytic_message =
+                "TidalPy: the homogeneous Love-number methods need at least one tidal layer (is_tidal, with a nonzero "
+                "tidal_scale) with a shear modulus.";
             return;
         }
-        const double tidal_volume = active.tidal_volume;
 
-        // The average depends on the frequency but not the degree, so form it once per distinct frequency.
-        std::complex<double> shear_avg(0.0, 0.0);
-        bool have_average = false;
-        for (const auto& entry : active.shear_by_frequency) {
-            if (entry.frequency == cfg.frequency && entry.use_static == use_static) {
-                shear_avg = entry.shear;
-                have_average = true;
-                break;
-            }
-        }
-        if (!have_average) {
-            if (!this->average_homogeneous_shear(active, cfg.frequency, use_static, shear_avg)) {
-                return;
-            }
-            active.shear_by_frequency.push_back({cfg.frequency, use_static, shear_avg});
-        }
-
+        // The bulk density of the solved structure, which the EOS surface gravity also comes from; the declared
+        // mass can differ from what the layers hold.
         const double radius = this->get_radius();
-        const double density_bulk = this->get_mass() / ((4.0 / 3.0) * TidalPyConstants::d_PI * radius * radius * radius);
+        const double density_bulk =
+            this->p_planet_mass_eos / ((4.0 / 3.0) * TidalPyConstants::d_PI * radius * radius * radius);
         const double gravity = this->p_surface_gravity_eos;
         if (!(gravity > 0.0) || !std::isfinite(gravity)) {
-            this->p_love_analytic_error_code = -42;
-            this->p_love_analytic_message =
+            workspace.analytic_error_code = -42;
+            workspace.analytic_message =
                 "TidalPy: the EOS surface gravity is not finite and positive; re-run solve_eos() before the "
                 "homogeneous Love-number methods.";
             return;
         }
 
-        c_LoveNumbers love = c_calc_homogeneous_love_numbers(
-            shear_avg,
-            density_bulk,
-            gravity,
-            radius,
-            cfg.degree_l);
+        // Precedence for Q and dt: the solve config, then the [tides] config, then the attached tide model.
+        double fixed_q  = cfg.fixed_q;
+        double fixed_dt = cfg.fixed_dt;
         if (method == c_LoveMethod::HomogeneousCPL) {
-            // Precedence: the solve config, then the [tides] config, then the attached tide model.
-            double fixed_q = cfg.fixed_q;
-            if (!std::isfinite(fixed_q)) {
-                fixed_q = this->get_tide_config().love_fixed_q;
-            }
-            if (!std::isfinite(fixed_q) && this->p_tide) {
-                fixed_q = this->p_tide->get_fixed_q(cfg.degree_l);
-            }
+            if (!std::isfinite(fixed_q)) { fixed_q = this->get_tide_config().love_fixed_q; }
+            if (!std::isfinite(fixed_q) && this->p_tide) { fixed_q = this->p_tide->get_fixed_q(cfg.degree_l); }
             if (!(fixed_q > 0.0) || !std::isfinite(fixed_q)) {
                 throw std::invalid_argument(
                     "TidalPy: the cpl Love-number method needs a positive fixed_q for degree "
                     + std::to_string(cfg.degree_l) + " (pass fixed_q, set it in the tides config, or attach a tide "
                     "model that carries a fixed Q).");
             }
-            love = c_apply_fixed_q(love, fixed_q);
         } else if (method == c_LoveMethod::HomogeneousCTL) {
-            double fixed_dt = cfg.fixed_dt;
-            if (!std::isfinite(fixed_dt)) {
-                fixed_dt = this->get_tide_config().love_fixed_dt;
-            }
-            if (!std::isfinite(fixed_dt) && this->p_tide) {
-                fixed_dt = this->p_tide->get_fixed_dt(cfg.degree_l);
-            }
+            if (!std::isfinite(fixed_dt)) { fixed_dt = this->get_tide_config().love_fixed_dt; }
+            if (!std::isfinite(fixed_dt) && this->p_tide) { fixed_dt = this->p_tide->get_fixed_dt(cfg.degree_l); }
             if (!(fixed_dt >= 0.0) || !std::isfinite(fixed_dt)) {
                 throw std::invalid_argument(
                     "TidalPy: the ctl Love-number method needs a non-negative fixed_dt for degree "
                     + std::to_string(cfg.degree_l) + " (pass fixed_dt, set love_fixed_dt_s in the tides config, or "
                     "attach a tide model that carries a fixed time lag).");
             }
-            love = c_apply_fixed_dt(love, cfg.frequency, fixed_dt);
         }
 
-        this->p_love_analytic = love;
-        this->p_love_analytic_shear = shear_avg;
-        this->p_love_analytic_tidal_volume = tidal_volume;
-        this->p_love_analytic_success = true;
-        this->p_love_analytic_error_code = 0;
-        this->p_love_analytic_message = std::string("Homogeneous-sphere Love numbers (") + c_love_method_name(method) + ").";
-        this->p_love_solved = true;
+        c_LoveNumbers world_love;
+        std::vector<c_LayerLove> layer_loves;
+        layer_loves.reserve(active.layers.size());
+        for (const c_HomogeneousLayer& averaged : active.layers) {
+            const c_RheologyBase* rheology = averaged.layer->get_shear_rheology_model();
+            const std::complex<double> shear = (use_static || rheology == nullptr)
+                ? std::complex<double>(averaged.shear_modulus, 0.0)
+                : rheology->calc_complex_modulus(averaged.shear_modulus, averaged.shear_viscosity, cfg.frequency);
+            if (!std::isfinite(shear.real()) || !std::isfinite(shear.imag())) {
+                workspace.analytic_error_code = -41;
+                workspace.analytic_message =
+                    "TidalPy: layer '" + averaged.layer->get_name() + "' has a non-finite averaged shear modulus "
+                    "(viscosity or rheology not set?); the homogeneous Love-number methods need finite moduli in every "
+                    "tidal layer.";
+                return;
+            }
+            c_LoveNumbers layer_love = c_calc_homogeneous_love_numbers(
+                shear,
+                density_bulk,
+                gravity,
+                radius,
+                cfg.degree_l);
+            if (method == c_LoveMethod::HomogeneousCPL) {
+                layer_love = c_apply_fixed_q(layer_love, fixed_q);
+            } else if (method == c_LoveMethod::HomogeneousCTL) {
+                layer_love = c_apply_fixed_dt(layer_love, cfg.frequency, fixed_dt);
+            }
+            world_love.k += averaged.tidal_scale * layer_love.k;
+            world_love.h += averaged.tidal_scale * layer_love.h;
+            world_love.l += averaged.tidal_scale * layer_love.l;
+            c_LayerLove part;
+            part.layer_index   = averaged.layer_index;
+            part.tidal_scale   = averaged.tidal_scale;
+            part.love          = layer_love;
+            part.shear_modulus = shear;
+            part.volume        = averaged.volume;
+            layer_loves.push_back(part);
+        }
+
+        workspace.analytic            = world_love;
+        workspace.analytic_layers     = std::move(layer_loves);
+        workspace.analytic_success    = true;
+        workspace.analytic_error_code = 0;
+        workspace.analytic_message    =
+            std::string("Quasi-homogeneous Love numbers (") + c_love_method_name(method) + ").";
+        workspace.solved = true;
     }
 
     // The [eos_solver] and [radial_solver] settings this world's file pinned. Every solve starts from the
@@ -1466,90 +1775,57 @@ public:
         return cfg;
     }
 
-    bool love_is_analytic() const noexcept { return c_love_method_is_homogeneous(this->p_love_method_last); }
-    int  get_love_method_last_int() const noexcept { return static_cast<int>(this->p_love_method_last); }
-    // Diagnostics of the last analytic solve; NaN after a radial-solver solve.
-    std::complex<double> get_love_analytic_shear() const noexcept { return this->p_love_analytic_shear; }
-    double get_love_analytic_tidal_volume() const noexcept { return this->p_love_analytic_tidal_volume; }
+    bool love_is_analytic() const noexcept { return this->p_love.is_analytic(); }
+    int  get_love_method_last_int() const noexcept { return static_cast<int>(this->p_love.method_last); }
+
+    // Diagnostics of the last quasi-homogeneous solve, NaN after a radial-solver solve: the tidal-scale-weighted mean
+    // of the layers' complex shear moduli [Pa], and the volume of the layers that took part [m3].
+    std::complex<double> get_love_analytic_shear() const noexcept {
+        if (!this->p_love.analytic_success) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
+        std::complex<double> weighted(0.0, 0.0);
+        double scale_sum = 0.0;
+        for (const c_LayerLove& part : this->p_love.analytic_layers) {
+            weighted  += part.tidal_scale * part.shear_modulus;
+            scale_sum += part.tidal_scale;
+        }
+        return (scale_sum > 0.0) ? weighted / scale_sum : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+    }
+    double get_love_analytic_tidal_volume() const noexcept {
+        if (!this->p_love.analytic_success) { return TidalPyConstants::d_NAN; }
+        double volume = 0.0;
+        for (const c_LayerLove& part : this->p_love.analytic_layers) { volume += part.volume; }
+        return volume;
+    }
+    // Each tidal layer's part of the last quasi-homogeneous solve; empty otherwise.
+    const std::vector<c_LayerLove>& get_love_layer_parts() const noexcept { return this->p_love.analytic_layers; }
 
     // Non-owning; the cached radial solver owns it, and it is null until solve_love_numbers builds the cache.
-    const ::c_RadialSolutionStorage* get_love_storage() const noexcept {
-        return this->p_radial_solver ? this->p_radial_solver->get_storage() : nullptr;
-    }
+    const ::c_RadialSolutionStorage* get_love_storage() const noexcept { return this->p_love.get_storage(); }
 
-    bool get_love_solved() const noexcept { return this->p_love_solved; }
-    bool get_love_success() const noexcept {
-        if (this->love_is_analytic()) return this->p_love_analytic_success;
-        const auto* s = this->get_love_storage();
-        return (s && this->p_love_solved) ? s->success : false;
-    }
-    int get_love_error_code() const noexcept {
-        if (this->love_is_analytic()) return this->p_love_analytic_error_code;
-        const auto* s = this->get_love_storage();
-        return s ? s->error_code : -100;
-    }
-    const std::string& get_love_message() const noexcept {
-        static const std::string no_msg = "No love-number solve has been run.";
-        if (this->love_is_analytic()) return this->p_love_analytic_message;
-        const auto* s = this->get_love_storage();
-        return s ? s->message : no_msg;
-    }
-    std::size_t get_love_num_ytypes() const noexcept {
-        if (this->love_is_analytic()) return this->p_love_analytic_success ? 1 : 0;
-        const auto* s = this->get_love_storage();
-        return s ? s->num_ytypes : 0;
-    }
+    bool get_love_solved() const noexcept { return this->p_love.solved; }
+    bool get_love_success() const noexcept { return this->p_love.get_success(); }
+    int get_love_error_code() const noexcept { return this->p_love.get_error_code(); }
+    const std::string& get_love_message() const noexcept { return this->p_love.get_message(); }
+    std::size_t get_love_num_ytypes() const noexcept { return this->p_love.get_num_ytypes(); }
     // Worst-case error amplification of the surface boundary condition solve; 0 before a solve and for the
     // analytic methods. See c_estimate_surface_amplification in RadialSolver_x/boundaries/boundaries_.hpp.
-    double get_love_surface_amplification() const noexcept {
-        if (this->love_is_analytic()) return 0.0;
-        const auto* s = this->get_love_storage();
-        return s ? s->surface_amplification : 0.0;
-    }
+    double get_love_surface_amplification() const noexcept { return this->p_love.get_surface_amplification(); }
     // For the given boundary-condition ytype index; the analytic methods hold a single tidal set at index 0.
     // NaN when no solve describes the current structure: never solved, failed, or followed by a solve_eos.
     std::complex<double> get_love_number_k(std::size_t ytype_idx = 0) const noexcept {
-        if (this->love_is_analytic()) {
-            return (this->p_love_analytic_success && ytype_idx == 0)
-                ? this->p_love_analytic.k : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        }
-        const auto* s = this->get_love_storage();
-        if (!s || !this->p_love_solved || ytype_idx >= s->complex_love_vec.size())
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        return s->complex_love_vec[ytype_idx].k;
+        return this->p_love.get_love(ytype_idx).k;
     }
     std::complex<double> get_love_number_h(std::size_t ytype_idx = 0) const noexcept {
-        if (this->love_is_analytic()) {
-            return (this->p_love_analytic_success && ytype_idx == 0)
-                ? this->p_love_analytic.h : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        }
-        const auto* s = this->get_love_storage();
-        if (!s || !this->p_love_solved || ytype_idx >= s->complex_love_vec.size())
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        return s->complex_love_vec[ytype_idx].h;
+        return this->p_love.get_love(ytype_idx).h;
     }
     std::complex<double> get_love_number_l(std::size_t ytype_idx = 0) const noexcept {
-        if (this->love_is_analytic()) {
-            return (this->p_love_analytic_success && ytype_idx == 0)
-                ? this->p_love_analytic.l : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        }
-        const auto* s = this->get_love_storage();
-        if (!s || !this->p_love_solved || ytype_idx >= s->complex_love_vec.size())
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        return s->complex_love_vec[ytype_idx].l;
+        return this->p_love.get_love(ytype_idx).l;
     }
     // Surface y-value (SI) for a ytype and y-index (0..5 -> y1..y6). NaN if unsolved or after an analytic
     // solve, which has no radial functions.
     std::complex<double> get_love_surface_y(
             std::size_t ytype_idx, std::size_t y_idx) const noexcept {
-        if (this->love_is_analytic()) return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        const auto* s = this->get_love_storage();
-        if (!s || !this->p_love_solved || !s->success || y_idx >= C_MAX_NUM_Y)
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        std::complex<double> surface_y[C_MAX_NUM_Y];
-        if (!s->get_surface_y(ytype_idx, surface_y))
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        return surface_y[y_idx];
+        return this->p_love.get_surface_y(ytype_idx, y_idx);
     }
     // The same at an arbitrary radius [m]. The shooting method evaluates its dense per-layer interpolants,
     // accurate anywhere including between EOS grid slices; the matrix method interpolates its grid linearly.
@@ -1558,14 +1834,7 @@ public:
             double radius,
             std::size_t ytype_idx,
             std::size_t y_idx) const noexcept {
-        if (this->love_is_analytic()) return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        const auto* s = this->get_love_storage();
-        if (!s || !this->p_love_solved || !s->success || y_idx >= C_MAX_NUM_Y)
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        std::complex<double> y_at_r[C_MAX_NUM_Y];
-        if (!s->get_radial_solution(radius, ytype_idx, y_at_r))
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        return y_at_r[y_idx];
+        return this->p_love.get_radial_y(radius, ytype_idx, y_idx);
     }
 
     // Global (1D) tidal dissipation. The tide-model holder, config, results, and the analytic calc_tides path
@@ -1665,7 +1934,8 @@ public:
     // The tidal scale of each layer in the quasi-homogeneous Love methods (c_BaseLayer::calc_tidal_scale).
     double get_layer_tidal_scale(std::size_t index) const {
         const double planet_radius = this->get_radius();
-        const double planet_volume = (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
+        const double planet_volume =
+            (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
         return this->get_layer(index)->calc_tidal_scale(planet_volume);
     }
 
@@ -1713,6 +1983,7 @@ public:
     }
 
     void read_binary(std::istream& in, bool force = false) override {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         c_TidalPyBaseClass::read_binary(in, force);
         this->read_world_fields(in);
         uint64_t n_layers = 0;
@@ -1720,11 +1991,15 @@ public:
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read LayeredWorld binary data");
         }
+        check_binary_count(in, n_layers, sizeof(c_BinaryHeader), "layer");
         this->p_layers.clear();
         this->p_layers.reserve(n_layers);
         for (uint64_t i = 0; i < n_layers; ++i) {
             this->p_layers.push_back(c_layer_from_binary(in, force));
         }
+        // Nothing solved describes the loaded layers, and the masses floating layers held belong to the old ones.
+        this->p_reference_mass.clear();
+        this->p_reset_solved_state();
     }
 
 protected:
@@ -1813,7 +2088,8 @@ protected:
     // One value of the evaluation layout, through the layer that holds the radius.
     double p_read_eos_state(double radius, std::size_t value_index) const noexcept {
         if (!this->p_eos_solved || !this->p_eos_solution) { return TidalPyConstants::d_NAN; }
-        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
+        const std::size_t n_solved = std::min(this->p_layers.size(), this->p_eos_solution->num_layers);
+        for (std::size_t layer_i = 0; layer_i < n_solved; ++layer_i) {
             const c_BaseLayer* layer = this->p_layers[layer_i].get();
             if (radius >= layer->get_radius_inner() && radius <= layer->get_radius_outer()) {
                 double state[C_EOS_DY_VALUES];
@@ -1854,35 +2130,25 @@ protected:
     double      p_planet_moi_eos       = std::numeric_limits<double>::quiet_NaN();
     c_Spin      p_spin {};              // spin-dynamics model (uses the world's EOS moment of inertia)
     std::shared_ptr<c_EOSSolution> p_eos_solution;  // retained full-planet solution (co-owned by layer dense evaluators)
-    // Referenced by the solver's stored diffeq args, so they must outlive solve_eos for the dense output's
-    // re-calls to stay valid.
-    std::vector<c_MaterialEOSInput> p_eos_material_inputs;
-    // Thermal description of every layer from the last solve, and how the thermal passes ended.
+    // The materials, inputs, and heat sources of the last successful solve, co-owned by its solution.
+    std::shared_ptr<c_EOSSolveState> p_solve_state;
+    // What get_heating reports before a successful solve.
+    c_Heating p_no_heating;
+    // Thermal description of every layer from the last successful solve, and how the thermal passes ended.
     std::vector<c_LayerThermal> p_layer_thermal;
-    // The structure ODE of a thermal solve reads these through a pointer to this member.
-    c_Heating p_heating;
     // The mass each floating layer holds on to [kg]; NaN for a layer that holds its volume instead.
     std::vector<double> p_reference_mass;
     bool p_geometry_converged  = true;
     size_t p_thermal_passes    = 0;
     bool   p_thermal_converged = true;
 
-    // A cached, reusable radial solver holding the frequency-independent setup and the reused solution
-    // storage; rebuilt only when the EOS grid or the layer assumptions change. Not serialized.
-    bool p_love_solved = false;
-    c_LoveMethod  p_love_method_last = c_LoveMethod::RadialSolver;   // method of the most recent Love solve
-    // For the analytic methods; the radial-solver methods report from the cached solver's storage instead.
-    bool          p_love_analytic_success = false;
-    int           p_love_analytic_error_code = -100;
-    std::string   p_love_analytic_message = "No love-number solve has been run.";
-    c_LoveNumbers p_love_analytic;
-    std::complex<double> p_love_analytic_shear = {TidalPyConstants::d_NAN, 0.0};   // volume-averaged shear [Pa]
-    double        p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;          // averaged volume [m3]
-    std::unique_ptr<::c_WorldRadialSolver> p_radial_solver;
-    // The stretches of the last successful EOS solve (update_radial_segments), and the world layer each of the
-    // cached radial solver's layers belongs to (ensure_radial_cache).
+    // The world's own Love solve (solve_love_numbers): the cached radial solver, rebuilt only when the EOS grid or
+    // the layer assumptions change, or the quasi-homogeneous results. Not serialized.
+    c_LoveWorkspace p_love;
+    // Taken by the calls c_WorldCallLock lists; held through a pointer so the world stays movable.
+    std::unique_ptr<std::recursive_mutex> p_call_mutex = std::make_unique<std::recursive_mutex>();
+    // The stretches of the last successful EOS solve (update_radial_segments).
     std::vector<c_RadialSegment> p_radial_segments;
-    std::vector<std::size_t>     p_radial_world_layer;
 
     // Global (1D) tidal dissipation: the model/config/result state lives on c_BaseWorld;
     // c_LayeredWorld adds only the per-layer heating distribution (results not serialized).

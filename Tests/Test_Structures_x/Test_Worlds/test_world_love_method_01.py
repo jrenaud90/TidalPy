@@ -160,21 +160,27 @@ def test_analytic_getters_do_not_leak_radial_results():
     assert not math.isnan(world.get_love_surface_y(0, 0).real)
 
 
-def test_volume_average_excludes_non_tidal_layers():
-    """Only layers flagged is_tidal enter the volume-averaged shear modulus."""
+def test_non_tidal_layers_take_no_part():
+    """Only layers flagged is_tidal take part, each weighted by its tidal scale (its volume fraction)."""
     included = _two_layer_world(core_tidal=True)
     excluded = _two_layer_world(core_tidal=False)
     result_in = included.solve_love_numbers(frequency=FREQ, love_method="homogeneous")
     result_ex = excluded.solve_love_numbers(frequency=FREQ, love_method="homogeneous")
     core_volume = (4.0 / 3.0) * math.pi * (0.5 * RADIUS) ** 3
     total_volume = (4.0 / 3.0) * math.pi * RADIUS**3
-    mu_all = (3.0 * SHEAR * core_volume + SHEAR * (total_volume - core_volume)) / total_volume
-    assert included.love_effective_shear_modulus == pytest.approx(mu_all, rel=1e-10)
+    core_fraction = core_volume / total_volume
+    # The effective modulus is the tidal-scale-weighted mean of the layers' moduli.
+    mu_scaled = 3.0 * SHEAR * core_fraction + SHEAR * (1.0 - core_fraction)
+    assert included.love_effective_shear_modulus == pytest.approx(mu_scaled, rel=1e-10)
     assert included.love_tidal_volume == pytest.approx(total_volume, rel=1e-12)
     assert excluded.love_effective_shear_modulus == pytest.approx(SHEAR, rel=1e-12)
     assert excluded.love_tidal_volume == pytest.approx(total_volume - core_volume, rel=1e-12)
-    assert result_ex["love_number_k"] == pytest.approx(_reference_love(excluded, SHEAR).k, rel=1e-12)
-    assert result_in["love_number_k"].real < result_ex["love_number_k"].real   # stiffer average deforms less
+    # k is the sum of each tidal layer's homogeneous-planet k times its tidal scale.
+    k_mantle = _reference_love(excluded, SHEAR).k
+    k_core = _reference_love(included, 3.0 * SHEAR).k
+    assert result_ex["love_number_k"] == pytest.approx((1.0 - core_fraction) * k_mantle, rel=1e-12)
+    assert result_in["love_number_k"] == pytest.approx(
+        core_fraction * k_core + (1.0 - core_fraction) * k_mantle, rel=1e-12)
 
 
 def test_cpl_and_ctl_structure():
@@ -244,7 +250,7 @@ def test_calc_tides_uses_configured_method():
     world.set_tide_config(max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0, love_method="homogeneous")
     world.calc_tides(**orbit)
     heating_analytic = world.get_tidal_heating()
-    assert world.love_method == "homogeneous"
+    assert world.get_tide_config()["love_method"] == "homogeneous"
     assert heating_analytic > 0.0
     np.testing.assert_allclose(heating_analytic, heating_radial, rtol=1e-3)   # same physics; bulk = 1e15 Pa
     # The analytic methods have no depth-resolved solution, so the 3D path refuses with a pointed error.

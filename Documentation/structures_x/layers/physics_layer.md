@@ -1,6 +1,6 @@
 # PhysicsLayer
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 `TidalPy.structures_x.layers.PhysicsLayer` extends `BaseLayer` with what a tidal calculation needs from the layer itself: the radial-solver assumptions, the layer temperature, the Love numbers, and the shear and bulk rheology.
 
@@ -29,11 +29,10 @@ PhysicsLayer(
     material_name:      str     = "",
     is_tidal:           bool    = True,
     is_volume_fixed:    bool    = True,
-    tidal_scale:        float   = 1.0,
+    tidal_scale:        float   = None,
     love_number_k:      complex = 0+0j,
     love_number_h:      complex = 0+0j,
     love_number_l:      complex = 0+0j,
-    tidal_scale_method: str     = "user_provided",
     is_solid:           bool    = True,
     is_static:          bool    = True,
     is_incompressible:  bool    = False,
@@ -55,11 +54,10 @@ PhysicsLayer(
 | `material_name` | `str` | - | Material identifier. Optional. |
 | `is_tidal` | `bool` | - | Tidal dissipation flag. Default `True`. |
 | `is_volume_fixed` | `bool` | - | `False` lets the layer grow or shrink to hold its mass during an EOS solve. Default `True`. |
-| `tidal_scale` | `float` | - | Dimensionless tidal heating scale. Default `1.0`. |
+| `tidal_scale` | `float` | - | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating; `None` (default) takes its volume fraction. See [Worlds](../worlds/worlds.md). |
 | `love_number_k` | `complex` | - | Potential Love number k (placeholder). Default `0+0j`. |
 | `love_number_h` | `complex` | - | Radial displacement Love number h (placeholder). Default `0+0j`. |
 | `love_number_l` | `complex` | - | Tangential displacement Love number l (placeholder). Default `0+0j`. |
-| `tidal_scale_method` | `str` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
 | `is_solid`, `is_static`, `is_incompressible` | `bool` | - | Radial-solver assumptions; see Layer Assumptions below. Defaults `True`, `True`, `False`. |
 | `temperature` | `float` | K | Layer temperature at which the material's viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
 | `use_thermal_eos` | `bool` | - | Let the material's density law see the temperature, so the density and bulk modulus depend on it. Default `False`. |

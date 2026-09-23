@@ -67,7 +67,7 @@ def test_base_layer_construction_basic():
     assert bl.mass          == pytest.approx(1.932e24)
     assert bl.material_name == ""
     assert bl.is_tidal      is True
-    assert bl.tidal_scale   == pytest.approx(1.0)
+    assert bl.tidal_scale   is None   # unset: the layer's volume fraction
 
 
 def test_base_layer_construction_full_kwargs():

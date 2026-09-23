@@ -119,7 +119,8 @@ def radial_solver(
     frequency : float64
         Forcing frequency [rad s-1].
     planet_bulk_density : float64
-        [kg m-3].
+        [kg m-3]. Accepted for the classic call signature only: the solve takes the bulk density from the mass its
+        equation of state places inside the radius array, so the Love numbers do not depend on this value.
     layer_types : tuple[str, ...]
         "solid" or "liquid" per layer.
     is_static_bylayer, is_incompressible_bylayer : tuple[bool, ...]

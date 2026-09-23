@@ -24,7 +24,7 @@ min_degree_l = 2
 max_degree_l = 3                    # the lists above have to reach this degree, or the builder warns
 eccentricity_truncation = 10        # the long spelling of eccentricity_trunc_lvl
 obliquity_truncation = "gen"        # the long spelling of obliquity_trunc_lvl; "gen" is the general form (10)
-tidal_timescale_width_decades = 1.0
+layer_tidal_heating = true          # also resolve each layer's heating when the Love numbers come from the radial solver
 love_method = "ctl"                 # the Love numbers of solve_love_numbers: static k times (1 - i omega dt)
 love_fixed_q = 1.0e5                # what the cpl method would use
 love_fixed_dt_s = 1.0e-2            # what the ctl method uses; set, so it never falls back to the tide model's list
@@ -35,14 +35,13 @@ type = "gas"
 layer_index = 0
 radius_fraction = 1.0               # one layer spanning the whole world
 is_tidal = true
-tidal_scale = 1.0
+tidal_scale = 1.0                   # the layer's share of an analytic tide model's heating (default: its volume fraction)
 is_solid = false                    # a gas layer is a liquid to the radial solver (its class default)
 is_static = true
 temperature_k = 165.0
-mean_molecular_weight_kg_mol = 2.22e-3  # the gas-layer scalars: an ideal-gas description of the envelope
+mean_molecular_weight_kg_mol = 2.22e-3  # stored for a future gas description; nothing reads them yet
 adiabatic_index = 1.4
 reference_temperature_k = 165.0
-reference_density_kg_m3 = 1000.0
 
 [layers.envelope.material]
 model = "constant"

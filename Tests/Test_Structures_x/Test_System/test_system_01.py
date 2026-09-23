@@ -354,12 +354,16 @@ def test_insolation_guards():
 
     system = System()
     system.add_world(_sun(), is_star=True)
-    system.add_world(_planet(), tidal_host=0, semi_major_axis=AU)
+    # Not tidally hosted by the star, so its orbit about the star is set on its own.
+    system.add_world(_planet(), semi_major_axis=AU)
     # The star's own entry has no insolation.
     assert np.isnan(system.calc_insolation_flux(0))
     # Unset stellar semi-major axis -> NaN.
     assert np.isnan(system.calc_insolation_flux("earth"))
     assert np.isnan(system.calc_equilibrium_temperature("earth"))
+    # Once the star is its tidal host the two orbits are one, and the insolation follows the tidal orbit.
+    system.set_tidal_host("earth", 0)
+    assert np.isfinite(system.calc_insolation_flux("earth"))
 
 
 def test_set_star_by_index_name_object():

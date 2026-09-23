@@ -656,9 +656,10 @@ const EDGES = [
     purpose: 'Sum the mode terms with the dissipation multipliers.',
     inputs: 'potential storage, Love numbers per mode', outputs: 'c_GlobalTideResult' },
   { from: 'c_calc_tides', to: 'c_PhysicsLayer', flow: 'tides1d', type: 'make',
-    purpose: 'Distribute the world heating to the tidal layers through each layer tidal_scale_method ' +
-      '(user scale, volume fraction, or the Maxwell-time bell).',
-    inputs: 'world heating, layer scales, forcing period', outputs: 'per-layer heating [W]' },
+    purpose: 'Resolve the heating of each layer: the volume integral of the radial solution for the radial methods ' +
+      '(the 3D engine with every axis summed), the scaled Love numbers of each layer for the quasi-homogeneous ' +
+      'methods, or the total times the layer tidal scale for an analytic tide model.',
+    inputs: 'world heating, radial solutions or layer Love numbers, tidal scales', outputs: 'per-layer heating [W]' },
 
   // Tides 3D.
   { from: 'calc_3d_tides', to: 'c_calc_3d', flow: 'tides3d', type: 'call',

@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
-_Updated: 2026-09-22_
+_Updated: 2026-09-23_
 
 Schema version `0.2.0`.
 
@@ -99,7 +99,7 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `material_name` | optional | all | Free-form material label. |
 | `is_tidal` | optional | all | Whether the layer participates in tides. |
 | `is_volume_fixed` | optional | all | `false` lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior; the layers above it move with it. Default `true`. |
-| `tidal_scale` | optional | all | Tidal scaling factor, used for homogeneous tidal solvers. |
+| `tidal_scale` | optional | all | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating. Absent takes the layer's volume over the planet's. The radial solver resolves the layers directly and does not use it. |
 | `is_solid` | optional | physics, solidliquid, gas | `false` makes the layer a liquid in the radial Love-number solve. Default `true` (`false` for `gas`). |
 | `is_static` | optional | physics, solidliquid, gas | Static approximation (no inertia) in the radial solve. Default `true`, so a liquid layer is a static liquid unless this is `false`. |
 | `is_incompressible` | optional | physics, solidliquid, gas | Incompressible approximation in the radial solve. Default `false`. |
@@ -115,8 +115,9 @@ the same numbers. Setting one of them on the layer is a validation error whose m
 **Gas layer parameters:**
 - `mean_molecular_weight_kg_mol`
 - `adiabatic_index`
-- `reference_temperature_k`
-- `reference_density_kg_m3`.
+- `reference_temperature_k`.
+
+These are stored and saved for a future gas description; nothing reads them yet. A gas layer's density comes from its material, so a layer-level `reference_density_kg_m3` is a validation error that points to `[layers.<name>.material]`, where the density law's own `reference_density_kg_m3` lives.
 
 An unrecognized scalar key (or a model table not allowed for the layer's class) is a validation error, which protects against typos.
 
@@ -190,7 +191,7 @@ An optional world-level `[tides]` table sets how the world dissipates tidal ener
 | `max_degree_l` | all | Highest harmonic degree in the mode sum. Default `2`. |
 | `eccentricity_trunc_lvl` | all | Eccentricity truncation order $e^n$. Tabulated at 1, 2, 3, 4, 5, 10, 15, and 20; default `3`. An untabulated level is promoted to the next tabulated one with a once-per-session warning, so accuracy never drops silently. `eccentricity_truncation` is accepted as an alias. |
 | `obliquity_trunc_lvl` | all | Obliquity truncation order $I^n$. Tabulated at 0, 1, 2, and 10; default `"off"`. `"off"` means 0 (no obliquity terms), 1 and 2 keep every term through $I^1$ and $I^2$, and `"gen"` or `"general"` means 10 (the exact, untruncated form). Untabulated integers are promoted like the eccentricity levels. `obliquity_truncation` is accepted as an alias. |
-| `tidal_timescale_width_decades` | layered families | Width \[decades\] of the log-Gaussian bell a layer's `tidal_timescale` scale method uses. The bell peaks where the layer's Maxwell time equals the forcing period. Default `1.0`. |
+| `layer_tidal_heating` | layered families | Whether `calc_tides` also resolves each layer's heating when the Love numbers come from the radial solver, a volume integral of the radial solution that costs about as much as the global solve again. The other paths share out the heating at no extra cost. Default `true`. |
 | `love_method` | layered families | How the Love numbers are obtained: `radial_solver` (aliases `shooting`, `rs`; the default), `propagation_matrix` (`prop_matrix`, `pm`, `prop`), `homogeneous` (`homogen`), `cpl`, `ctl`, or `laterally_inhomogeneous` (`3d`, `lat_inhom`, reserved for the 3D solver). The three homogeneous methods use the analytic homogeneous-sphere formulas instead of a radial solve, so they have no depth-resolved solution and the 3D stress, strain, and heating path raises `RuntimeError` while one of them is configured. |
 | `love_fixed_q` | layered families | Scalar $Q$ the `cpl` Love method applies to the static Love numbers. Unset by default, in which case the tide model's own `fixed_q` is used. |
 | `love_fixed_dt_s` | layered families | Scalar time lag \[s\] the `ctl` Love method applies. Unset by default, falling back to the tide model's `fixed_dt_s`. |

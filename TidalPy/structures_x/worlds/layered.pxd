@@ -18,11 +18,14 @@ from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
 from TidalPy.RadialSolver_x.rs_solution cimport c_RadialSolutionStorage
 from TidalPy.dynamics_x.spin cimport Spin, c_Spin
+from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 
 
 cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_LayerThermal:
+        cpp_bool in_network
+        cpp_bool boundary_fallback
         double temperature
         double top_temperature
         double node_temperature
@@ -35,6 +38,13 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
 
 
 cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
+    cdef cppclass c_LayerLove:
+        size_t              layer_index
+        double              tidal_scale
+        c_LoveNumbers       love
+        cpp_complex[double] shear_modulus
+        double              volume
+
     cdef cppclass c_RadialSegment:
         size_t   world_layer
         double   radius_inner
@@ -143,6 +153,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_shear_viscosity(double radius) const
         double       get_bulk_viscosity(double radius) const
         double       get_melt_fraction(double radius) const
+        void         get_eos_state(double radius, double* y_out) const
         cpp_complex[double] calc_complex_shear_modulus(double radius, double frequency) const
         cpp_complex[double] calc_complex_bulk_modulus(double radius, double frequency) const
         cpp_bool     get_eos_solved() const
@@ -193,6 +204,8 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         int                  get_love_method_last_int() const
         cpp_complex[double]  get_love_analytic_shear() const
         double               get_love_analytic_tidal_volume() const
+        const vector[c_LayerLove]& get_love_layer_parts() const
+        double               get_layer_tidal_scale(size_t index) except +
         # Global (1D) tidal dissipation: the model/config/result accessors are inherited from
         # c_BaseWorld; c_LayeredWorld only adds the rheology-capable calc_tides + layer heating.
         void                 calc_tides(const c_TideSolveConfig& state) except +

@@ -3,10 +3,10 @@
  * world_tides_.hpp: out-of-line definition of c_LayeredWorld::calc_tides and the 3D tidal paths.
  *
  * c_LayeredWorld extends the common analytic tide path (c_BaseWorld::calc_tides in world_tides_base_.hpp) with
- * two layered-world capabilities: the rheology model, whose -Im[k_l(omega)] comes from the world radial solver
- * run at each unique tidal frequency (the EOS must be solved first), and the distribution of the heating to the
- * layers by each layer's tidal_scale_method. The tide-model holder, config, and result state stay on
- * c_BaseWorld.
+ * two layered-world capabilities: the rheology model, whose -Im[k_l(omega)] comes from the world's Love solve at
+ * each unique tidal frequency (the EOS must be solved first), and each layer's share of the heating. The Love
+ * solves of these paths go into workspaces of their own, so they leave the world's last solve_love_numbers result
+ * alone. The tide-model holder, config, and result state stay on c_BaseWorld.
  *
  * This header pulls in the heavy global-potential tables; force-include it in the layered and gas-giant world
  * extension only.
@@ -36,15 +36,27 @@
 
 namespace tidalpy {
 
+// The heating [W] each layer takes depends on where the Love numbers come from:
+//   radial_solver, propagation_matrix : the volume integral of the radial solution's orbit-averaged heating density
+//                                       over the layer (calc_layer_tidal_heating_radial), when the tides config's
+//                                       layer_tidal_heating is on; NaN otherwise.
+//   homogeneous, cpl, ctl             : each tidal layer is a homogeneous planet of its own averaged material whose
+//                                       Im(k) is scaled by its tidal scale; the layer takes the heating of those
+//                                       scaled Love numbers, and the layers sum to the total.
+//   an analytic tide model            : the whole-body heating times the layer's tidal scale.
 inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
+    const c_WorldCallLock call_lock(this->p_call_mutex.get());
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world: call set_tide_model() first");
     }
 
     const double planet_radius = this->get_radius();
+    const double planet_volume =
+        (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
     const double G_to_use = c_get_G();
     const c_TideConfig& tcfg = this->p_tide_config;
+    const std::size_t n_layers = this->p_layers.size();
 
     // Model-independent per-mode terms, plus the unique-frequency maps.
     c_GlobalPotentialStorage potential = c_global_potential(
@@ -69,10 +81,12 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         throw std::runtime_error("TidalPy: global potential failed during calc_tides");
     }
 
-    // Collapse the per-mode potential terms with the tide model's dissipation multiplier.
-    this->p_tide_solver_love.clear();
+    // Everything is gathered here and committed to the world at the end.
+    c_GlobalTideResult tide_result;
+    c_IntMap<c_Key4, tidalpy::c_LoveNumbers> tide_love;
+    std::vector<double> layer_heating(n_layers, TidalPyConstants::d_NAN);
     if (this->p_tide->needs_radial_solve()) {
-        // The per-mode -Im[k_l(omega)] comes from the world radial solver, which needs a solved EOS.
+        // The per-mode -Im[k_l(omega)] comes from the world's Love solve, which needs a solved EOS.
         if (!this->p_eos_solved || !this->p_eos_solution) {
             this->p_tides_solved = false;
             throw std::runtime_error(
@@ -80,13 +94,18 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
                 "solve_eos() before calc_tides()");
         }
 
-        // Once per unique (degree_l, frequency) pair, so modes sharing a degree and frequency reuse one
-        // radial solve; each active mode's Love numbers are then recorded by its (l, m, p, q).
-        c_IntMap<c_Key2, tidalpy::c_LoveNumbers> love_by_l_freq;
+        // Once per unique (degree_l, frequency) pair, so modes sharing a degree and frequency reuse one solve; each
+        // active mode's Love numbers are then recorded by its (l, m, p, q). The quasi-homogeneous methods also keep
+        // each tidal layer's scaled Love numbers per solve, in the fixed layer order of the averages cache.
+        c_LoveWorkspace workspace;
         c_LoveSolveConfig love_cfg = this->make_love_solve_config();
-
-        // The homogeneous methods reuse their node values and per-frequency averages across these solves.
+        const bool quasi_homogeneous = c_love_method_is_homogeneous(c_love_method_from_int(love_cfg.love_method));
         c_HomogeneousLoveCache homogeneous_cache;
+        c_IntMap<c_Key2, std::size_t> solve_by_l_freq;
+        std::vector<tidalpy::c_LoveNumbers> world_love_by_solve;
+        std::vector<std::vector<tidalpy::c_LoveNumbers>> layer_love_by_solve;
+        std::vector<std::size_t> part_layer_index;
+        c_IntMap<c_Key4, std::size_t> solve_by_mode;
         for (const auto& mode_entry : potential.potential_map) {
             const c_Key4& lmpq_key = mode_entry.first;
             const int degree_l     = static_cast<int>(lmpq_key.a);
@@ -101,84 +120,70 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
 
             c_Key2 lf_key(static_cast<int16_t>(degree_l), static_cast<int16_t>(freq_index));
             bool cached = false;
-            love_by_l_freq.get(cached, lf_key);
+            std::size_t solve_index = solve_by_l_freq.get(cached, lf_key);
             if (!cached) {
-                love_cfg.degree_l        = degree_l;
+                love_cfg.degree_l  = degree_l;
                 love_cfg.frequency = frequency;
-                this->solve_love_numbers(love_cfg, &homogeneous_cache);
-                if (!this->get_love_success()) {
+                this->solve_love_numbers(love_cfg, &homogeneous_cache, workspace);
+                if (!workspace.get_success()) {
                     this->p_tides_solved = false;
                     throw std::runtime_error(
-                        "TidalPy: radial-solver Love-number solve failed during calc_tides: "
-                        + this->get_love_message());
+                        "TidalPy: Love-number solve failed during calc_tides: " + workspace.get_message());
                 }
-                tidalpy::c_LoveNumbers solved_love;
-                solved_love.k = this->get_love_number_k(0);
-                solved_love.h = this->get_love_number_h(0);
-                solved_love.l = this->get_love_number_l(0);
-                love_by_l_freq.set(lf_key, solved_love);
+                solve_index = world_love_by_solve.size();
+                world_love_by_solve.push_back(workspace.get_love(0));
+                if (quasi_homogeneous) {
+                    std::vector<tidalpy::c_LoveNumbers> scaled_parts;
+                    scaled_parts.reserve(workspace.analytic_layers.size());
+                    part_layer_index.clear();
+                    for (const c_LayerLove& part : workspace.analytic_layers) {
+                        scaled_parts.emplace_back(
+                            part.tidal_scale * part.love.k,
+                            part.tidal_scale * part.love.h,
+                            part.tidal_scale * part.love.l);
+                        part_layer_index.push_back(part.layer_index);
+                    }
+                    layer_love_by_solve.push_back(std::move(scaled_parts));
+                }
+                solve_by_l_freq.set(lf_key, solve_index);
             }
-
-            bool have = false;
-            tidalpy::c_LoveNumbers mode_love = love_by_l_freq.get(have, lf_key);
-            this->p_tide_solver_love.set(lmpq_key, mode_love);
+            tide_love.set(lmpq_key, world_love_by_solve[solve_index]);
+            solve_by_mode.set(lmpq_key, solve_index);
         }
 
-        this->p_tide_result = c_collapse_global_tides(potential, *this->p_tide, &this->p_tide_solver_love);
+        tide_result = c_collapse_global_tides(potential, *this->p_tide, &tide_love);
+
+        if (quasi_homogeneous) {
+            // The collapse is linear in each mode's -Im[k], so the layers' own collapses sum to the total.
+            std::fill(layer_heating.begin(), layer_heating.end(), 0.0);
+            for (std::size_t part_i = 0; part_i < part_layer_index.size(); ++part_i) {
+                c_IntMap<c_Key4, tidalpy::c_LoveNumbers> part_love;
+                for (const auto& mode_entry : solve_by_mode.data) {
+                    part_love.set(mode_entry.first, layer_love_by_solve[mode_entry.second][part_i]);
+                }
+                layer_heating[part_layer_index[part_i]] =
+                    c_collapse_global_tides(potential, *this->p_tide, &part_love).tidal_heating;
+            }
+        } else if (tcfg.layer_tidal_heating) {
+            this->calc_layer_tidal_heating_radial(state, tide_result.tidal_heating, layer_heating);
+        }
     } else {
-        // The analytic models need no radial-solver Love numbers.
-        this->p_tide_result = c_collapse_global_tides(potential, *this->p_tide, nullptr);
+        // The analytic models need no Love solve. They describe the whole body, so each tidal layer takes its
+        // tidal scale of the total.
+        tide_result = c_collapse_global_tides(potential, *this->p_tide, nullptr);
+        for (std::size_t i = 0; i < n_layers; ++i) {
+            layer_heating[i] = tide_result.tidal_heating * this->p_layers[i]->calc_tidal_scale(planet_volume);
+        }
+    }
+
+    // Commit: layer.get_tidal_heating() reports each layer's share.
+    this->p_tide_result        = tide_result;
+    this->p_tide_solver_love   = tide_love;
+    this->p_layer_tidal_heating = layer_heating;
+    for (std::size_t i = 0; i < n_layers; ++i) {
+        this->p_layers[i]->set_tidal_heating(layer_heating[i]);
     }
     this->p_tides_solved = true;
-
-    // Distribute the heating by each layer's tidal scale and store it there, so layer.get_tidal_heating()
-    // reports it.
-    const double planet_volume =
-        (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
-    const std::size_t n_layers = this->p_layers.size();
-    std::vector<double> scales;
-    this->calc_layer_tidal_scales(planet_volume, state, scales);
-    this->p_layer_tidal_heating.assign(n_layers, 0.0);
-    for (std::size_t i = 0; i < n_layers; ++i) {
-        const double heat = this->p_tide_result.tidal_heating * scales[i];
-        this->p_layer_tidal_heating[i] = heat;
-        this->p_layers[i]->set_tidal_heating(heat);
-    }
-}
-
-// Per-layer share of the world's tidal heating, one entry per layer; 0 for a non-tidal layer.
-//   user_provided   : the layer's tidal_scale field.
-//   volume_fraction : layer volume / planet volume.
-//   tidal_timescale : the tidal layers using this method share what volume_fraction would give them together,
-//                     split in proportion to volume times the layer's bell weight (effective_tidal_scale). Equal
-//                     Maxwell times give the volume fractions; the group gets nothing when no member has a
-//                     usable Maxwell time.
-inline void c_LayeredWorld::calc_layer_tidal_scales(
-        double planet_volume, const c_TideSolveConfig& state, std::vector<double>& out) const {
-    const std::size_t n_layers = this->p_layers.size();
-    out.assign(n_layers, 0.0);
-    double group_volume = 0.0;            // [m3] tidal layers using tidal_timescale
-    double group_weighted_volume = 0.0;   // [m3] their volumes times their bell weights
-    for (std::size_t i = 0; i < n_layers; ++i) {
-        const c_BaseLayer* layer = this->p_layers[i].get();
-        out[i] = this->effective_tidal_scale(layer, planet_volume, state);
-        if (layer->get_is_tidal() && (layer->get_tidal_scale_method() == c_TidalScaleMethod::tidal_timescale)) {
-            group_volume          += layer->get_volume();
-            group_weighted_volume += out[i] * layer->get_volume();
-        }
-    }
-    if (group_volume <= 0.0) { return; }
-
-    const bool usable = (group_weighted_volume > 0.0) && (planet_volume > TidalPyConstants::d_EPS);
-    for (std::size_t i = 0; i < n_layers; ++i) {
-        const c_BaseLayer* layer = this->p_layers[i].get();
-        if (!layer->get_is_tidal() || (layer->get_tidal_scale_method() != c_TidalScaleMethod::tidal_timescale)) {
-            continue;
-        }
-        out[i] = usable
-            ? (group_volume / planet_volume) * out[i] * layer->get_volume() / group_weighted_volume
-            : 0.0;
-    }
 }
 
 // Each layer's orbit-averaged heating [W] from the radial solution: the secular heating density integrated over
@@ -323,41 +328,51 @@ inline c_WaveSet3D c_world_wave_set_3d(
             std::string("TidalPy: tidal potential engine failed during ") + what + " (error "
             + std::to_string(engine_error) + "); check degree/truncation levels");
     }
-    const double min_freq =
-        (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_SPIN_ORBIT_DIFF : 1.0e-9;
+    // The floor below which a mode is inactive is the 1D path's (record_unique_frequencies), so both paths keep the
+    // same modes; a slow mode near a Maxwell peak otherwise went missing from the 3D heating alone.
+    const double min_freq = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_FREQUENCY : 0.0;
     return c_build_wave_set_3d(modes, min_freq);
 }
 
-// Run the world radial solve for one radial group and return its solution storage.
+// Run the world radial solve for one radial group into `workspace` and return its solution storage, which lives
+// until the workspace's next solve. The world's own last Love solve is left alone.
 inline const ::c_RadialSolutionStorage* c_solve_radial_group_3d(
-        c_LayeredWorld& world,
+        const c_LayeredWorld& world,
         c_LoveSolveConfig& love_cfg,
         const c_RadialGroup3D& group,
-        const char* what) {
+        const char* what,
+        c_LoveWorkspace& workspace) {
     love_cfg.degree_l = group.degree_l;
     love_cfg.frequency = group.frequency;
-    world.solve_love_numbers(love_cfg);
-    if (!world.get_love_success()) {
+    world.solve_love_numbers(love_cfg, nullptr, workspace);
+    if (!workspace.get_success()) {
         throw std::runtime_error(
-            std::string("TidalPy: radial solve failed during ") + what + ": " + world.get_love_message());
+            std::string("TidalPy: radial solve failed during ") + what + ": " + workspace.get_message());
     }
-    const ::c_RadialSolutionStorage* storage = world.get_love_storage();
+    const ::c_RadialSolutionStorage* storage = workspace.get_storage();
     if (storage == nullptr) {
         throw std::runtime_error(std::string("TidalPy: missing radial solution during ") + what);
     }
     return storage;
 }
 
-// Strain radial coefficients of one radial group at one radius. False where there is no depth-resolved
-// strain solution: the center, below the solver start, and inside a liquid layer, where y3 and y4 are
-// undefined. A point-wise quantity is NaN there and a radial sum takes it as zero. The is_solid check below
-// still guards a layer whose flags changed after the solve.
+// Strain radial coefficients of one radial group at one radius. False where there is no depth-resolved strain
+// solution (the center, below the solver start), where a point-wise quantity is NaN and a radial sum takes it as
+// zero. A liquid point (a liquid layer, or a molten stretch the radial solver treats as a static liquid) is not
+// missing: it has no shear kernel, so its coefficients are invalid and it contributes no heating (0) while its
+// stress and strain are NaN.
 inline bool c_strain_coeffs_at_radius_3d(
         c_LayeredWorld& world,
         const ::c_RadialSolutionStorage* storage,
         double radius,
         const c_RadialGroup3D& group,
         tides::c_StrainRadialCoeffs& out) {
+    const auto* point_layer = dynamic_cast<const c_PhysicsLayer*>(world.find_layer_for_radius(radius));
+    if (((point_layer != nullptr) && !point_layer->get_is_solid()) || world.get_is_molten_at(radius)) {
+        out = tides::c_StrainRadialCoeffs();
+        out.valid = false;
+        return true;
+    }
     std::complex<double> y_at_r[C_MAX_NUM_Y];
     if (!storage->get_radial_solution(radius, 0, y_at_r)
         || !std::isfinite(y_at_r[0].real()) || !std::isfinite(y_at_r[1].real())
@@ -409,9 +424,10 @@ inline c_RadialCoefficients3D c_radial_coefficients_3d(
     out.radius_failed.assign(num_radii, 0);
     std::vector<size_t> radius_missing(num_radii, 0);
     c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+    c_LoveWorkspace workspace;
     for (size_t g = 0; g < num_groups; ++g) {
         const ::c_RadialSolutionStorage* storage =
-            c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], what);
+            c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], what, workspace);
         for (size_t ir = 0; ir < num_radii; ++ir) {
             if (!c_strain_coeffs_at_radius_3d(
                 world,
@@ -878,6 +894,7 @@ inline double c_LayeredWorld::get_3d_tidal_heating(
         const c_TideSolveConfig& state,
         double radius,
         double colatitude) {
+    const c_WorldCallLock call_lock(this->p_call_mutex.get());
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world. Call set_tide_model() first");
@@ -903,6 +920,7 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
         size_t num_points,
         double* out_heating,
         int num_threads) {
+    const c_WorldCallLock call_lock(this->p_call_mutex.get());
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world. Call set_tide_model() first");
@@ -933,6 +951,7 @@ inline void c_LayeredWorld::get_3d_displacements_grid(
         const c_Grid3DAxes& axes,
         double* out_disp,
         int num_threads) {
+    const c_WorldCallLock call_lock(this->p_call_mutex.get());
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world. Call set_tide_model() first");
@@ -985,9 +1004,10 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
     std::vector<unsigned char> group_missing(nr * num_groups, 0);
     std::vector<size_t> radius_missing(nr, 0);
     c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+    c_LoveWorkspace workspace;
     for (size_t g = 0; g < num_groups; ++g) {
-        const ::c_RadialSolutionStorage* storage =
-            tides3d::c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], "3D tidal displacements");
+        const ::c_RadialSolutionStorage* storage = tides3d::c_solve_radial_group_3d(
+            world, love_cfg, set.radial_groups[g], "3D tidal displacements", workspace);
         for (size_t ir = 0; ir < nr; ++ir) {
             std::complex<double> y_at_r[C_MAX_NUM_Y];
             const size_t slot = ir * num_groups + g;
@@ -1134,6 +1154,7 @@ inline void c_LayeredWorld::get_3d_stress_strain_grid(
         double* out_stress,
         double* out_strain,
         int num_threads) {
+    const c_WorldCallLock call_lock(this->p_call_mutex.get());
     if (!this->p_tide) {
         throw std::runtime_error("TidalPy: no tide model attached to the world: call set_tide_model() first");
     }
@@ -1316,7 +1337,10 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
     const std::vector<unsigned char>& radius_solve_failed = radial_coefficients.radius_failed;
     const double nan_v = TidalPyConstants::d_NAN;
 
-    if (!instantaneous && cfg.latitude_summed && cfg.latitude_analytic && grids.latitude_full_sphere) {
+    // The Gram path integrates the longitude-mean density, so it serves only a call that also sums longitude; a
+    // call that keeps longitudes takes the Gauss-Legendre colatitude quadrature below.
+    if (!instantaneous && cfg.latitude_summed && cfg.longitude_summed && cfg.latitude_analytic
+            && grids.latitude_full_sphere) {
         // Integrate the longitude-mean secular density over theta with the Gram matrices, exactly and with
         // no theta grid. theta is summed away, so scatter over (radius, phi). With no per-point grid to
         // spread over threads, this runs on the calling thread.
@@ -1501,6 +1525,7 @@ inline void c_LayeredWorld::calc_3d_tides_into(
         const c_Heating3DCollapseConfig& cfg,
         double* out_values,
         double* out_layer_totals) {
+    const c_WorldCallLock call_lock(this->p_call_mutex.get());
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world. Call set_tide_model() first");

@@ -1,6 +1,6 @@
 # SolidLiquidLayer
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 `TidalPy.structures_x.layers.SolidLiquidLayer` extends `PhysicsLayer` with optional sub-models for radiogenic heating and convective or conductive cooling, and with the thermal-transport calculations that need the layer's geometry or solved profile. It adds no parameters of its own.
 
@@ -32,11 +32,10 @@ SolidLiquidLayer(
     mass:                     float,
     material_name:            str     = "",
     is_tidal:                 bool    = True,
-    tidal_scale:              float   = 1.0,
+    tidal_scale:              float   = None,
     love_number_k:            complex = 0+0j,
     love_number_h:            complex = 0+0j,
     love_number_l:            complex = 0+0j,
-    tidal_scale_method:       str     = "user_provided",
     is_solid:                 bool    = True,
     is_static:                bool    = True,
     is_incompressible:        bool    = False,
@@ -57,9 +56,8 @@ SolidLiquidLayer(
 | `mass` | kg | Total layer mass. Overwritten by each successful world EOS solve. |
 | `material_name` | - | Material identifier. Default `""`. |
 | `is_tidal` | - | Tidal dissipation flag. Default `True`. |
-| `tidal_scale` | - | Dimensionless tidal heating scale. Default `1.0`. |
+| `tidal_scale` | - | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating; `None` (default) takes its volume fraction. See [Worlds](../worlds/worlds.md). |
 | `love_number_k`, `love_number_h`, `love_number_l` | - | Per-layer complex Love numbers, if you want to carry them on the layer. Default `0+0j`. |
-| `tidal_scale_method` | - | How the layer's share of the world's tidal heating is set. Default `"user_provided"`. |
 | `is_solid`, `is_static`, `is_incompressible` | - | Radial-solver assumptions; see [PhysicsLayer](physics_layer.md). Defaults `True`, `True`, `False`. |
 | `temperature`, `use_thermal_eos`, `use_heating` | | Layer-state parameters; see [PhysicsLayer](physics_layer.md). |
 

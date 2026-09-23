@@ -52,6 +52,11 @@ struct c_GlobalPotentialResult
     int error_code = 0;
 };
 
+// The tidal potential's mode decomposition for degrees min_degree_l to max_degree_l: each (l, m, p, q) mode's
+// frequency and its contributions to the potential derivatives and the heating, before the Love numbers. The
+// result's error_code is 0 on success, -1 for a truncation level the obliquity or eccentricity functions do not
+// tabulate at a degree, -2 for a degree they do not tabulate, and -20 for a degree with no (l, m) coefficient;
+// working_on_l then names the degree.
 inline c_GlobalPotentialStorage c_global_potential(
         double planet_radius,
         double semi_major_axis,
@@ -81,8 +86,8 @@ inline c_GlobalPotentialStorage c_global_potential(
     result.unique_freq_index_map.reserve(target_size);
     result.unique_freq_map.reserve(target_size);
     result.potential_map.reserve(target_size);
-    // The four maps take about 96 bytes on the stack; the heap cost at eccentricity truncation 6 is roughly
-    // 11 kB at l = 2, 31 kB at l = 3, and 62 kB at l = 4.
+    // The four maps take about 96 bytes on the stack, and their heap storage grows with the number of modes
+    // reserved above.
 
     // For later calculation of the maximum relative mode.
     double max_mode_strength = 0;
@@ -202,7 +207,7 @@ inline c_GlobalPotentialStorage c_global_potential(
                     // The full tidal mode is
                     //   omega_lmpq = (l - 2p) periastron_dot + (l - 2p + q) n + m (node_dot - spin),
                     // which reduces to the form below once periastron_dot and node_dot are taken as zero.
-                    // TODO: support nonzero periapse and node precession.
+                    // Periapse and node precession are not modeled, so both rates are zero here.
                     c_ModeStorage mode_storage = c_ModeStorage(
                         lmpq_key.a - 2 * lmpq_key.c + lmpq_key.d,  // n coeff 
                         -lmpq_key.b                                // o coeff

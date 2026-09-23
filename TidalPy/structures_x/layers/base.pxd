@@ -80,6 +80,25 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_shear_viscosity(double radius) const
         double   get_bulk_viscosity(double radius) const
         double   get_melt_fraction(double radius) const
+        void     get_eos_state(double radius, double* y_out) const
+
+
+cdef extern from "eos_layout_.hpp" nogil:
+    const size_t C_EOS_DY_VALUES
+    const size_t C_EOS_GRAVITY_INDEX
+    const size_t C_EOS_PRESSURE_INDEX
+    const size_t C_EOS_DENSITY_INDEX
+    const size_t C_EOS_SHEAR_MODULUS_INDEX
+    const size_t C_EOS_BULK_MODULUS_INDEX
+    const size_t C_EOS_SHEAR_VISCOSITY_INDEX
+    const size_t C_EOS_BULK_VISCOSITY_INDEX
+    const size_t C_EOS_MELT_FRACTION_INDEX
+
+
+# Fills the dense EOS layout at one radius for the object behind owner (a layer, a world).
+ctypedef void (*cy_eos_state_fn)(const void* owner, double radius, double* y_out) noexcept nogil
+
+cdef object cy_eos_fields(const void* owner, cy_eos_state_fn fill, object radius, tuple indices)
 
 
 cdef class BaseLayer(StructureBase):

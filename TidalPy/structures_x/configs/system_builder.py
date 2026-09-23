@@ -26,7 +26,22 @@ from TidalPy.structures_x.configs.toml_loader import validate_system_config
 # =====================================================================================================================
 # System construction
 # =====================================================================================================================
-def construct_system(config: dict, force: bool = False):
+def _member_source(source, base_dir):
+    """A member's ``world`` as its system file means it.
+
+    A relative path names a file beside the system file, as a world's ``data_file`` names one beside the world
+    file; it falls back to the working directory when no such file exists there. A bundled name stays a name.
+    """
+    if base_dir is None or not isinstance(source, (str, os.PathLike)):
+        return source
+    source = os.fspath(source)
+    if os.path.isabs(source):
+        return source
+    candidate = os.path.join(base_dir, source)
+    return candidate if os.path.isfile(candidate) else source
+
+
+def construct_system(config: dict, force: bool = False, base_dir: str = None):
     """Construct a ``System`` from a validated system configuration dict.
 
     Member worlds are built with :func:`build_world` and added in declaration order; their tidal hosts are
@@ -38,6 +53,9 @@ def construct_system(config: dict, force: bool = False):
         The system configuration dictionary.
     force : bool, optional
         If True, bypass the schema-version compatibility warning of each built world. Default False.
+    base_dir : str, optional
+        The directory of the system file, which a member's relative ``world`` path is relative to. ``None`` (a
+        configuration built in Python) leaves such paths relative to the working directory.
 
     Returns
     -------
@@ -53,7 +71,7 @@ def construct_system(config: dict, force: bool = False):
 
     system = System(config.get("name", ""))
     for world_key, world_cfg in config["worlds"].items():
-        world_obj = build_world(world_cfg["world"], force=force)
+        world_obj = build_world(_member_source(world_cfg["world"], base_dir), force=force)
         # The ``[worlds.<name>]`` table key is the world's identity within the system (so a bundled world
         # template can be reused under different names, and members are referenced by their system key
         # rather than the source world's own name).
@@ -102,10 +120,12 @@ def _resolve_source(source: Union[str, dict]) -> Union[str, dict]:
     FileNotFoundError
         If a bundled-name lookup fails.
     TypeError
-        If ``source`` is neither a ``str`` nor a ``dict``.
+        If ``source`` is neither a ``str``, a path-like object, nor a ``dict``.
     """
     if isinstance(source, dict):
         return source
+    if isinstance(source, os.PathLike):
+        source = os.fspath(source)
     if isinstance(source, str):
         if source.endswith(".toml") or os.path.isfile(source):
             return source

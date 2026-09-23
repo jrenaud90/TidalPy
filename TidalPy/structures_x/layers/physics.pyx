@@ -413,7 +413,7 @@ cdef class PhysicsLayer(BaseLayer):
         """Complex shear modulus [Pa]: layer-constant or radius-resolved.
 
         ``calc_complex_shear_modulus(frequency)`` applies the shear rheology to the layer-constant static shear
-        modulus and viscosity. That static viscosity is NaN unless it was given at construction, so a viscous
+        modulus and viscosity. That static viscosity is the material's (NaN unless it sets one), so a viscous
         rheology then returns NaN: set it explicitly or use the radius-resolved form after the world EOS solve.
         ``calc_complex_shear_modulus(radius, frequency)`` instead uses the post-melt static modulus and viscosity
         stored at ``radius`` by that solve.
@@ -445,7 +445,7 @@ cdef class PhysicsLayer(BaseLayer):
         """Complex bulk modulus [Pa]: layer-constant or radius-resolved.
 
         ``calc_complex_bulk_modulus(frequency)`` applies the bulk rheology to the layer-constant static bulk
-        modulus and viscosity. That static viscosity is NaN unless it was given at construction, so a viscous
+        modulus and viscosity. That static viscosity is the material's (NaN unless it sets one), so a viscous
         rheology then returns NaN: set it explicitly or use the radius-resolved form after the world EOS solve.
         ``calc_complex_bulk_modulus(radius, frequency)`` instead uses the post-melt static modulus and viscosity
         stored at ``radius`` by that solve.

@@ -409,8 +409,9 @@ cdef class BaseWorld(StructureBase):
         cdef object given_data_file = None
         cdef str base_dir
         cdef BaseWorld world
-        config = merge_with_defaults(config)
+        # Checked before the defaults fill a missing version in, so a file without one says so.
         validate_schema_version(config, force=force)
+        config = merge_with_defaults(config)
         # Resolve a companion data file (e.g. a PREM profile) relative to the world
         # file's directory so construct_world can open it directly.
         if "data_file" in config:
@@ -475,11 +476,11 @@ cdef class BaseWorld(StructureBase):
     def save_to_toml(self, str file_path, overwrite=True):
         """Write this world's configuration to a TOML file.
 
-        Prefers the retained build configuration for a faithful round trip: :attr:`portable_config` for a world
-        built from a ``data_file`` (the file reference as given and the tables that refined its layers, so the
-        saved file builds anywhere the data file resolves), otherwise :attr:`source_config`. Falls back to
-        :meth:`get_config_dict`, which is validated against the world schema first so a directly constructed world
-        either writes a buildable file or raises ``ValueError``. The file starts with a comment header naming
+        Writes :meth:`get_config_dict`, the world as it is now (a change made after the build, a new obliquity
+        say, is saved), validated against the world schema first so the file builds or this raises
+        ``ValueError``. A world built from a ``data_file`` writes :attr:`portable_config` instead: the file
+        reference as given and the tables that refined its layers, so the saved file builds anywhere the data
+        file resolves (changes made to that world after the build are not saved). The file starts with a comment header naming
         the TidalPy, SciPy, and CyRK versions that wrote it.
 
         Parameters
@@ -493,8 +494,6 @@ cdef class BaseWorld(StructureBase):
         cdef dict config
         if self.portable_config is not None:
             config = self.portable_config
-        elif self.source_config is not None:
-            config = self.source_config
         else:
             from TidalPy.structures_x.configs.toml_loader import validate_world_config
             config = self.get_config_dict()

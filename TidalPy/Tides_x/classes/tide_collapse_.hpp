@@ -65,6 +65,7 @@ inline c_GlobalTideResult c_collapse_global_tides(
         result.dU_dM         += terms.dU_dM * neg_imk;
         result.dU_dw         += terms.dU_dw * neg_imk;
         result.dU_dO         += terms.dU_dO * neg_imk;
+        result.dU_dM_minus_dw += terms.dU_dM_minus_dw * neg_imk;
         result.num_modes     += 1;
     }
 

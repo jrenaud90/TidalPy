@@ -108,7 +108,7 @@ The material also holds three optional models, attached with `set_shear_viscosit
 2. The viscosities: the attached viscosity model at the temperature and pressure, else the static viscosity.
 3. The density and, where the model defines one, the bulk modulus of the density law. The law sees the temperature only when `thermal_density` is set, which is what a layer's `use_thermal_eos` switch controls; the viscosity and partial-melt models always see it.
 4. A table of an interpolated model replaces the law or constant, and the bulk modulus of a Birch-Murnaghan or Vinet law replaces `bulk_modulus_static`.
-5. The partial-melt model, applied to the shear modulus and viscosity and then to the bulk pair.
+5. The partial-melt model, applied to the shear modulus and viscosity and, when its `bulk_melt_weakening` switch is on, to the bulk modulus.
 
 It returns a dict of `density`, `melt_fraction`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, and `bulk_viscosity`, all after the partial-melt step.
 

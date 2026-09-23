@@ -1,6 +1,6 @@
 # BaseLayer
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 `TidalPy.structures_x.layers.BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii \[m\], total mass \[kg\], and an optional material identifier for one spherically symmetric shell inside a planetary body. Derived geometry (thickness, volume, surface areas) is computed at construction and accessible through read-only properties.
 
@@ -27,8 +27,7 @@ BaseLayer(
     mass:               float,
     material_name:      str   = "",
     is_tidal:           bool  = True,
-    tidal_scale:        float = 1.0,
-    tidal_scale_method: str   = "user_provided",
+    tidal_scale:        float = None,
 )
 ```
 
@@ -43,7 +42,7 @@ BaseLayer(
 | `mass` | `float` | kg | Total layer mass. Overwritten by each successful world EOS solve. |
 | `material_name` | `str` | - | Material identifier (e.g. `"perovskite"`). Optional. |
 | `is_tidal` | `bool` | - | Whether this layer dissipates tidal energy. Default `True`. |
-| `tidal_scale` | `float` | - | Dimensionless scale on tidal heating. Default `1.0`. |
+| `tidal_scale` | `float` | - | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating; `None` (default) takes its volume fraction. See [Worlds](../worlds/worlds.md). |
 
 ## Properties
 
@@ -65,7 +64,7 @@ Read-only properties.
 | `surface_area_inner` | m² | Inner surface area. |
 | `material_name` | - | Material identifier. |
 | `is_tidal` | - | Tidal dissipation flag. |
-| `tidal_scale` | - | Tidal heating scale factor. |
+| `tidal_scale` | - | The configured tidal scale, or `None` when the layer takes its volume fraction. Settable. |
 
 ### EOS Profile
 
@@ -178,7 +177,7 @@ layer.save_config("layer.toml")
 cfg = layer.get_config_dict()  # -> dict with all construction parameters
 ```
 
-The dict follows the world builder's layer schema: `class` names the layer class (`base`, `physics`, `solidliquid`, or `gas`), the scalar keys are the constructor parameters, and each attached physics model is a sub-table keyed by `model` (`eos` here; subclasses add their own). `name` and `radius_inner` belong to a standalone layer only; a world drops them when it nests the layer under its name (`LAYER_STANDALONE_CONFIG_KEYS`).
+The dict follows the world builder's layer schema: `class` names the layer class (`base`, `physics`, `solidliquid`, or `gas`), the scalar keys are the constructor parameters, and each attached physics model is a sub-table keyed by `model` (`material` here, the layer's material EOS model; subclasses add their own). `name` and `radius_inner` belong to a standalone layer only; a world drops them when it nests the layer under its name (`LAYER_STANDALONE_CONFIG_KEYS`).
 
 ```python
 layer.set_eos(ConstantDensityEOS(reference_density=4400.0))
@@ -190,7 +189,7 @@ layer.get_config_dict()["material"]  # {'model': 'constant', 'reference_density_
 | Member | Description |
 |---|---|
 | `get_tidal_heating()` | Tidal heating deposited in this layer [W], set by the world's tidal solve. |
-| `tidal_scale`, `tidal_scale_method` | The layer's share of the world's tidal heating, and how that share is chosen (`user_provided`, `volume_fraction`, `tidal_timescale`). Both are settable; see [Worlds](../worlds/worlds.md). |
+| `tidal_scale` | The layer's share of the planet in the quasi-homogeneous Love methods and of an analytic tide model's heating (its volume fraction when unset). Settable; see [Worlds](../worlds/worlds.md). |
 | `is_tidal` | Whether the layer takes any tidal heating at all. A non-tidal layer always gets zero. |
 | `get_schema_version_str()` | The schema version this class reads and writes, for configuration and binary compatibility. |
 

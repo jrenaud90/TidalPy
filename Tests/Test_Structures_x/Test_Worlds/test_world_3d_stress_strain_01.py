@@ -276,7 +276,8 @@ def _liquid_core_world(core_is_static):
 
 @pytest.mark.parametrize("core_is_static", [True, False])
 def test_liquid_layer_has_no_stress_or_strain(core_is_static):
-    """The kernel is a solid-layer computation: a point inside a liquid layer is NaN, and the solid above is not."""
+    """The kernel is a solid-layer computation: stress and strain inside a liquid layer are NaN (and its heating 0),
+    and the solid above is not."""
     world = _liquid_core_world(core_is_static)
     # The world Love solve itself has to get through the liquid core (this world once failed it).
     assert world.solve_love_numbers(frequency=_N)["success"]
@@ -291,10 +292,10 @@ def test_liquid_layer_has_no_stress_or_strain(core_is_static):
         assert np.all(np.isfinite(result[name][2:])), f"{name} in the solid mantle"
         assert np.any(result[name][2:] != 0.0)
 
-    # The secular heating density follows the same rule point by point, and a radial sum takes the liquid as
-    # contributing nothing, so the summed heating is finite and is the 1D total.
+    # A liquid carries no shear dissipation, so its secular heating density is 0 point by point, and the summed
+    # heating is finite and is the 1D total.
     density = world.get_3d_tidal_heating_array(*state, np.array([0.5 * _R_CORE, 0.7 * _R]), np.array([0.5, 0.5]))
-    assert np.isnan(density[0]) and density[1] > 0.0
+    assert density[0] == 0.0 and density[1] > 0.0
     world.calc_tides(*state)
     summed = world.calc_3d_tides(*state, radial_summed=True, latitude_summed=True, longitude_summed=True)
     assert summed["total"] == pytest.approx(world.get_tidal_heating(), rel=2.0e-2)

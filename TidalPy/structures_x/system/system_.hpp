@@ -19,8 +19,7 @@
  *
  * The system owns its worlds through shared_ptr so the Python world wrappers and the system can co-own
  * the same underlying C++ world. It also holds the orbital rate engine (c_OrbitSolver) that turns each
- * dissipating world's tidal-potential derivatives into orbital rates; that wiring is added on top of
- * this container.
+ * dissipating world's tidal-potential derivatives into orbital rates.
  */
 
 #include <cmath>
@@ -50,6 +49,21 @@ struct c_OrbitElements {
     double semi_major_axis = TidalPyConstants::d_NAN;   // a [m]
     double eccentricity    = 0.0;                       // e [dimensionless]
 };
+
+// A semi-major axis is positive (NaN leaves it unset) and an eccentricity lies in [0, 1): anything else is no
+// bound orbit, and would reach the rate equations as NaN or a negative square root.
+inline void c_check_orbit(double semi_major_axis, double eccentricity, const std::string& world_name) {
+    if (!std::isnan(semi_major_axis) && !(std::isfinite(semi_major_axis) && (semi_major_axis > 0.0))) {
+        throw std::invalid_argument(
+            "TidalPy: world '" + world_name + "' was given a semi-major axis of " + std::to_string(semi_major_axis)
+            + " m; it must be positive.");
+    }
+    if (!((eccentricity >= 0.0) && (eccentricity < 1.0))) {
+        throw std::invalid_argument(
+            "TidalPy: world '" + world_name + "' was given an eccentricity of " + std::to_string(eccentricity)
+            + "; a bound orbit has 0 <= e < 1.");
+    }
+}
 
 // The tidal, orbital, and spin rates of one orbiting world for a single tidal solve, with the state used
 // and the raw tidal outputs so the energy balance can be checked. evolved is false when the world has no
@@ -141,6 +155,20 @@ public:
         if (world == nullptr) {
             throw std::invalid_argument("TidalPy: c_System::add_world - world is null");
         }
+        for (const std::shared_ptr<c_BaseWorld>& member : this->p_worlds) {
+            if (member == world) {
+                throw std::invalid_argument(
+                    "TidalPy: world '" + world->get_name() + "' is already a member of system '" + this->p_name
+                    + "'.");
+            }
+        }
+        // Worlds are found by name, so two of one name would leave the second unreachable.
+        if (this->find_world_index(world->get_name()) >= 0) {
+            throw std::invalid_argument(
+                "TidalPy: system '" + this->p_name + "' already has a world named '" + world->get_name()
+                + "'; give each world its own name.");
+        }
+        c_check_orbit(semi_major_axis, eccentricity, world->get_name());
         const std::size_t index = this->p_worlds.size();
         world->set_tide_state_provider(this, index);
         this->p_worlds.push_back(std::move(world));
@@ -249,11 +277,26 @@ public:
 
     void set_semi_major_axis(std::size_t index, double semi_major_axis) {
         this->check_index(index);
+        c_check_orbit(semi_major_axis, 0.0, this->p_worlds[index]->get_name());
         this->p_orbits[index].semi_major_axis = semi_major_axis;
     }
     void set_eccentricity(std::size_t index, double eccentricity) {
         this->check_index(index);
+        c_check_orbit(TidalPyConstants::d_NAN, eccentricity, this->p_worlds[index]->get_name());
         this->p_orbits[index].eccentricity = eccentricity;
+    }
+
+    // True when the world's tidal host is the star: the two orbits are then one, and the stellar elements are its
+    // tidal elements.
+    bool is_hosted_by_star(std::size_t index) const {
+        this->check_index(index);
+        return this->has_star() && (this->p_host_index_byworld[index] == this->p_star_index);
+    }
+
+    // The world's orbit about the star, the source of its insolation.
+    c_OrbitElements get_stellar_orbit(std::size_t index) const {
+        this->check_index(index);
+        return this->is_hosted_by_star(index) ? this->get_host_orbit(index) : this->p_stellar_orbits[index];
     }
 
     // The elements of the world's orbit about its tidal host. A member of a mutual pair that carries no
@@ -321,22 +364,26 @@ public:
     // A world's orbit about the star can differ from its orbit about the tidal host. For a moon these
     // are the moon-about-planet (tidal) and the moon-about-star (roughly the planet's heliocentric
     // orbit) ellipses; for a planet whose tidal host is the star they coincide and can be set to the
-    // same values. The star's own entry is unused.
+    // same values. For a world whose tidal host is the star they are the same orbit: the stellar elements read
+    // the tidal ones, and setting either sets both, so an evolution loop that moves the orbit moves the
+    // insolation with it. The star's own entry is unused.
     void set_stellar_semi_major_axis(std::size_t index, double semi_major_axis) {
         this->check_index(index);
+        c_check_orbit(semi_major_axis, 0.0, this->p_worlds[index]->get_name());
         this->p_stellar_orbits[index].semi_major_axis = semi_major_axis;
+        if (this->is_hosted_by_star(index)) { this->p_orbits[index].semi_major_axis = semi_major_axis; }
     }
     void set_stellar_eccentricity(std::size_t index, double eccentricity) {
         this->check_index(index);
+        c_check_orbit(TidalPyConstants::d_NAN, eccentricity, this->p_worlds[index]->get_name());
         this->p_stellar_orbits[index].eccentricity = eccentricity;
+        if (this->is_hosted_by_star(index)) { this->p_orbits[index].eccentricity = eccentricity; }
     }
     double get_stellar_semi_major_axis(std::size_t index) const {
-        this->check_index(index);
-        return this->p_stellar_orbits[index].semi_major_axis;
+        return this->get_stellar_orbit(index).semi_major_axis;
     }
     double get_stellar_eccentricity(std::size_t index) const {
-        this->check_index(index);
-        return this->p_stellar_orbits[index].eccentricity;
+        return this->get_stellar_orbit(index).eccentricity;
     }
 
     // mu = G (M_star + M_world) for the world's orbit about the star; NaN for the star's own index.
@@ -358,7 +405,7 @@ public:
     // n = sqrt(mu / a^3) for the world's orbit about the star.
     double calc_stellar_orbital_frequency(std::size_t index) const {
         const double mu = this->calc_stellar_gravitational_parameter(index);
-        const double semi_major_axis = this->p_stellar_orbits[index].semi_major_axis;
+        const double semi_major_axis = this->get_stellar_orbit(index).semi_major_axis;
         if (!std::isfinite(mu) || !std::isfinite(semi_major_axis) || semi_major_axis <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_NAN;
         }
@@ -378,8 +425,9 @@ public:
             return TidalPyConstants::d_NAN;
         }
         const double luminosity = this->get_star_luminosity();
-        const double semi_major_axis = this->p_stellar_orbits[index].semi_major_axis;
-        const double eccentricity = this->p_stellar_orbits[index].eccentricity;
+        const c_OrbitElements stellar_orbit = this->get_stellar_orbit(index);
+        const double semi_major_axis = stellar_orbit.semi_major_axis;
+        const double eccentricity = stellar_orbit.eccentricity;
         if (!std::isfinite(luminosity) || !std::isfinite(semi_major_axis)
                 || semi_major_axis <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_NAN;
@@ -602,20 +650,24 @@ public:
         orbit_state.target_mass       = target_mass;
         orbit_state.host_mass         = companion_mass;
         const c_OrbitDerivatives rates =
-            this->p_orbit_solver.calc_derivatives(orbit_state, out.dU_dM, out.dU_dw);
+            this->p_orbit_solver.calc_derivatives(orbit_state, out.dU_dM, out.dU_dw, tide.dU_dM_minus_dw);
         out.da_dt = rates.da_dt;
         out.de_dt = rates.de_dt;
         out.dn_dt = rates.dn_dt;
 
-        // From this body's own spin model, under the torque from the companion.
+        // From this body's own spin model, under the torque from the companion. A dissipating body with no spin
+        // model (a star or gas giant) is torqued all the same, but nothing here knows its moment of inertia, so
+        // its spin rate, the spin energy it gives up, and with them the energy balance are unknown: NaN, not 0.
         if (layered != nullptr) {
             out.moment_of_inertia = layered->get_moment_of_inertia();
             out.dspin_dt          = layered->calc_spin_derivative(companion_mass);
             out.has_spin          = true;
+        } else {
+            out.dspin_dt = TidalPyConstants::d_NAN;
         }
 
         out.dE_orbit_dt     = this->calc_orbital_energy_derivative(out);
-        out.dE_spin_dt      = this->calc_spin_energy_derivative(out);
+        out.dE_spin_dt      = out.has_spin ? this->calc_spin_energy_derivative(out) : TidalPyConstants::d_NAN;
         out.energy_residual = out.tidal_heating + out.dE_orbit_dt + out.dE_spin_dt;
         out.evolved         = true;
         return out;

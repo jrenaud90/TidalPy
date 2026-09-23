@@ -69,6 +69,9 @@ struct c_GlobalTideResult {
     double dU_dM         = 0.0;  // potential derivative wrt mean anomaly              [J kg-1 rad-1]
     double dU_dw         = 0.0;  // potential derivative wrt argument of pericenter    [J kg-1 rad-1]
     double dU_dO         = 0.0;  // potential derivative wrt longitude of node         [J kg-1 rad-1]
+    // dU_dM - dU_dw summed mode by mode [J kg-1 rad-1]. The eccentricity rate needs this difference, which at small
+    // eccentricity is far smaller than either term, so it is not formed from the two sums.
+    double dU_dM_minus_dw = 0.0;
     int num_modes        = 0;    // number of active (nonzero-frequency) modes summed
     int error_code       = 0;    // propagated from the potential solve
 };
@@ -85,7 +88,7 @@ struct c_GlobalTideResult {
 // Reduction convention (marginal densities): when any spatial axis is summed, each surviving spatial
 // axis carries its Jacobian (r^2 for radius, sin theta for colatitude, 1 for longitude) and each
 // summed axis is integrated with its Jacobian and quadrature (colatitude: Gauss-Legendre in cos theta,
-// which absorbs the sin theta weight; radius: per-layer trapezoid; longitude: 2*pi analytic when
+// which absorbs the sin theta weight; radius: Gauss-Legendre nodes inside each layer; longitude: 2*pi analytic when
 // averaged, trapezoid over [0, 2*pi) when instantaneous), so a plain integral over the surviving axes
 // recovers the total. With no axis summed the output is the raw density. Whole-planet and per-layer
 // totals appear only when all three spatial axes are summed.
