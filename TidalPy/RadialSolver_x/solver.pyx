@@ -31,7 +31,7 @@ from TidalPy.Tides_x.love.love cimport c_parse_love_method_int
 
 
 # Nothing a caller can see reads this; it is here so a C++ message about that world says where it came from.
-DEF PROFILE_WORLD_NAME = b"radial_solver_profile"
+cdef cpp_string PROFILE_WORLD_NAME = b"radial_solver_profile"
 
 
 cdef class _ProfileWorldAnchor:
