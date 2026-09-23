@@ -269,6 +269,15 @@ const NODES = [
       'calls mark_structure_dirty first, so the Love numbers, the tidal result, and the heating of every layer that ' +
       'were solved on the old structure read as unsolved until their next solve.',
     inputs: 'c_WorldConfig, layers moved in by add_layer', outputs: 'profile getters, Love numbers, tidal results' },
+  { id: 'c_build_world_from_layered_profile', lane: 'structures', kind: 'cpp', shape: 'func',
+    label: 'c_build_world_from_layered_profile', sub: 'profile_world_.hpp',
+    file: 'structures_x/worlds/profile_world_.hpp',
+    purpose: 'Builds a layered world from a radial profile entirely in C++: each layer takes an interpolated ' +
+      'material EOS over its own slice (partitioned by c_partition_radius_by_layer), is_tidal follows is_solid, ' +
+      'and no per-material defaults are pulled in. Backs the standalone radial_solver and ' +
+      'build_layered_world_from_profile, so the two build the same world.',
+    inputs: 'radius, density, static moduli, layer radii, layer types and flags, bulk density',
+    outputs: 'shared_ptr<c_LayeredWorld>' },
   { id: 'c_PhysicsLayer', lane: 'structures', kind: 'cpp', shape: 'class',
     label: 'c_PhysicsLayer', sub: 'c_SolidLiquidLayer, c_GasLayer', file: 'structures_x/layers/physics_.hpp',
     purpose: 'Holds its models (unique_ptr; the models observe the layer through raw pointers), the EOS profile ' +
@@ -610,6 +619,9 @@ const EDGES = [
       'then build a temporary world from the profile in C++: an interpolated material per layer. The same ' +
       'routine backs build_world_from_layered_profile, so neither can drift from the other.',
     inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary c_LayeredWorld' },
+  { from: 'c_build_world_from_layered_profile', to: 'c_LayeredWorld', flow: 'love', type: 'make',
+    purpose: 'Create the world and add each interpolated-EOS layer inner to outer.',
+    inputs: 'one c_PhysicsLayer per profile layer', outputs: 'the layered world, ready for solve_eos' },
   { from: 'radial_solver', to: 'solve_eos', flow: 'love', type: 'call',
     purpose: 'Solve the temporary world structure with the EOS settings given.',
     inputs: 'surface pressure, EOS settings', outputs: 'a solved world' },
@@ -700,6 +712,14 @@ const LANE_PITCH = LANE_BOX_W + GUTTER, LEFT = 20, TOP = 64, GAP_Y = 38;
 const MIN_H = 62, LINE_H = 17, SUB_LINE_H = 14, PAD_Y = 13, LABEL_CHARS = 31, SUB_CHARS = 35;
 
 const nodeById = Object.fromEntries(NODES.map(n => [n.id, n]));
+// An edge naming a box that does not exist would stop the whole map from drawing: report it and leave it out.
+for (let i = EDGES.length - 1; i >= 0; i--) {
+  const edge = EDGES[i];
+  if (!nodeById[edge.from] || !nodeById[edge.to]) {
+    console.error(`code map: edge ${edge.from} -> ${edge.to} names a box that is not in NODES; skipped.`);
+    EDGES.splice(i, 1);
+  }
+}
 const laneIndex = Object.fromEntries(LANES.map((l, i) => [l.id, i]));
 
 // Wrap a label at maxChars; a word longer than that breaks after a dot or an opening parenthesis.
