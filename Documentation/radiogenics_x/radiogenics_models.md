@@ -1,6 +1,6 @@
 # Radiogenic Models (`radiogenics_x`)
 
-_Updated: 2026-09-20_
+_Updated: 2026-09-23_
 
 A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] is returned by `calc_heating(time, mass)`.
 
@@ -29,7 +29,7 @@ For a half life $t_{1/2}$ the decay constant is $\gamma = \ln(0.5) / t_{1/2}$, a
 | `isotope` (`isotopes`) | $m \sum_i q_i f_i c_i \exp[\gamma_i (t - t_{\text{ref}})]$ | a list of isotopes, `ref_time` |
 | `fixed` (`constant`) | $m\, q \exp[\gamma (t - t_{\text{ref}})]$ | `fixed_heat_production`, `average_half_life`, `ref_time` |
 
-Here $q_i$ is the specific heat production of pure isotope $i$, $f_i$ its mass fraction within its parent element, and $c_i$ that element's concentration in the layer material. The product $q_i f_i c_i$ is the specific heating the isotope contributed at the reference time, per kilogram of layer, and the exponential carries it forward or backward in time.
+Here $q_i$ is the specific heat production of pure isotope $i$, $f_i$ its mass fraction within its parent element, and $c_i$ that element's concentration in the layer material, both at the reference time. The product $q_i f_i c_i$ is the specific heating the isotope contributed at the reference time, per kilogram of layer, and the exponential carries it forward or backward in time. A source that quotes the isotope's own concentration rather than its element's is entered with $f_i = 1$.
 
 ### Off
 
@@ -58,8 +58,8 @@ One isotope is described by the `c_Isotope` C++ struct, a plain value type with 
 | `name` | Isotope label, for example `"U238"`. |
 | `heat_production` | Specific heat production of the pure isotope [W kg$^{-1}$]. |
 | `half_life` | Half life [s]. |
-| `mass_frac` | Mass fraction of the isotope within its element [kg kg$^{-1}$]. |
-| `concentration` | Concentration of the parent element in the layer material [kg kg$^{-1}$]. |
+| `mass_frac` | Mass fraction of the isotope within its element at the reference time [kg kg$^{-1}$]; 1 when `concentration` is the isotope's own. |
+| `concentration` | Concentration of the parent element in the layer material at the reference time [kg kg$^{-1}$]. |
 
 It provides `decay_constant()` [s$^{-1}$] and `specific_heating(time, ref_time)` [W kg$^{-1}$]. `c_IsotopeRadiogenics` holds a `std::vector<c_Isotope>` and sums the specific heating of each member before scaling by the layer mass.
 
@@ -90,15 +90,25 @@ TidalPy provides some sets of isotopes popular in the literature. List them with
 | Dataset | Isotopes | Reference time | Applicability | Source |
 |---|---|---|---|---|
 | `modern_day_chondritic` | U238, U235, Th232, K40 | 4600 Myr | Present-day rocky and icy bodies of broadly chondritic composition. | Hussmann and Spohn (2004); Turcotte and Schubert (2001) |
-| `llri_and_slri` | U238, U235, Th232, K40, Mn53, Fe60, Al26 | 0 Myr | Early solar system thermal evolution, where the short-lived isotopes dominate the first few million years. | Castillo-Rogez et al. (2007) |
+| `llri` | U238, U235, Th232, K40 | 0 Myr | Ordinary chondritic rock of a body that formed too late for the short-lived isotopes to matter. | Castillo-Rogez et al. (2007) |
+| `slri` | Al26, Fe60, Mn53 | 0 Myr | The short-lived isotopes of the same rock, on their own. | Castillo-Rogez et al. (2007) |
+| `llri_and_slri` | U238, U235, Th232, K40, Al26, Fe60, Mn53 | 0 Myr | Early solar system thermal evolution, where the short-lived isotopes dominate the first few million years. The union of `llri` and `slri`. | Castillo-Rogez et al. (2007) |
 | `bulk_silicate_earth` | U238, U235, Th232, K40 | 4600 Myr | Present-day Earth-like silicate mantles (U 20.3 ppb, Th 79.5 ppb, K 240 ppm). | McDonough and Sun (1995) concentrations; Turcotte and Schubert (2002) rates |
 
 > [!NOTE]
-> Notice that the reference times differ. The two present-day sets quote concentrations at 4600 Myr, so evaluating them at $t = 0$ gives the heating at solar system formation and evaluating at $t = $ `ref_time` gives today's. The short-lived set quotes its concentrations at formation instead, so it is evaluated at the body's age directly.
+> Notice that the reference times differ. The two present-day sets quote concentrations at 4600 Myr, so evaluating them at $t = 0$ gives the heating at solar system formation and evaluating at $t = $ `ref_time` gives today's. The three Castillo-Rogez et al. (2007) sets quote their concentrations at formation instead, so they are evaluated at the time since formation directly.
+
+The Castillo-Rogez et al. (2007) sets are ordinary chondritic rock at the formation of the calcium-aluminum-rich inclusions (CAIs). Their Table 3 quotes each isotope's own concentration at that time, so heating at formation is the heat production times that concentration.
+
+- The long-lived isotopes are entered with that concentration and a mass fraction of 1. The isotopic abundances in their Table 4 are present-day values, which do not hold at formation.
+- The short-lived isotopes are entered as the initial isotopic ratio of their Table 5 times the element concentration it implies (26Al/27Al = 5 × 10$^{-5}$ of 1.2 wt% aluminum, 60Fe/56Fe = 10$^{-6}$ of 22.5 wt% iron, 53Mn/55Mn = 10$^{-5}$ of 0.257 wt% manganese). The product reproduces Table 3.
+- The paper explores 60Fe/56Fe from 10$^{-7}$ to 10$^{-6}$; the set uses the 10$^{-6}$ of its short-lived-isotope models. Where the paper quotes a range for a half life or a heat production, the set uses its middle.
+
+At formation the rock releases about 1.0 × 10$^{-7}$ W kg$^{-1}$, 84 percent of it from 26Al. The long-lived isotopes alone give about 4 × 10$^{-11}$ W kg$^{-1}$ at formation and 5 × 10$^{-12}$ W kg$^{-1}$ at 4568 Myr.
 
 `isotope_dataset(name)` returns the dataset as a dict with the keys `heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, `isotope_names`, and `ref_time_s`.
 
-A name that is not one of the three built-ins is looked up in the global config under `TidalPy.config['physics']['radiogenics']['known_isotope_data']`, and an inline dict is accepted in the same place. Those two sources follow the older convention of storing half lives and reference times in mega-years, with the per-isotope keys `hpr`, `half_life`, `iso_mass_fraction`, and `element_concentration`; the Python factory converts them to seconds. The built-in catalog is always preferred over a same-named config entry.
+A name that is not one of the built-ins is looked up in the global config under `TidalPy.config['physics']['radiogenics']['known_isotope_data']`, and an inline dict is accepted in the same place. Those two sources follow the older convention of storing half lives and reference times in mega-years, with the per-isotope keys `hpr`, `half_life`, `iso_mass_fraction`, and `element_concentration`; the Python factory converts them to seconds. The built-in catalog is always preferred over a same-named config entry.
 
 ## Python API
 

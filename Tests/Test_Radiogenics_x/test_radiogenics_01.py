@@ -299,7 +299,7 @@ def test_available_isotope_datasets():
     """The three built-in datasets are advertised."""
     mod = _import_radiogenics()
     names = mod.available_isotope_datasets()
-    assert set(names) == {"modern_day_chondritic", "llri_and_slri", "bulk_silicate_earth"}
+    assert set(names) == {"modern_day_chondritic", "llri", "slri", "llri_and_slri", "bulk_silicate_earth"}
 
 
 _MYR_S = 1.0e6 * 365.25 * 24.0 * 3600.0
@@ -307,6 +307,8 @@ _MYR_S = 1.0e6 * 365.25 * 24.0 * 3600.0
 
 @pytest.mark.parametrize("name,n_isotopes,ref_time", [
     ("modern_day_chondritic", 4, 4600.0 * _MYR_S),
+    ("llri", 4, 0.0),
+    ("slri", 3, 0.0),
     ("llri_and_slri", 7, 0.0),
     ("bulk_silicate_earth", 4, 4600.0 * _MYR_S),
 ])
@@ -326,14 +328,61 @@ def test_isotope_dataset_contents(name, n_isotopes, ref_time):
     assert all(hl > 0.0 for hl in ds["half_lives_s"])
 
 
+# Castillo-Rogez et al. (2007) Table 3: each isotope's own concentration in ordinary chondritic rock at CAI formation
+# [kg/kg], with 60Fe at the 60Fe/56Fe = 1e-6 end of its 22.5 to 225 ppb range.
+_CASTILLO_ROGEZ_TABLE_3 = {
+    "Al26": 600.0e-9, "Fe60": 225.0e-9, "Mn53": 25.7e-9,
+    "K40": 1104.0e-9, "Th232": 53.8e-9, "U235": 8.2e-9, "U238": 26.2e-9}
+_LONG_LIVED = {"U238", "U235", "Th232", "K40"}
+_SHORT_LIVED = {"Al26", "Fe60", "Mn53"}
+
+
+@pytest.mark.parametrize("name,expected_isotopes", [
+    ("llri", _LONG_LIVED),
+    ("slri", _SHORT_LIVED),
+    ("llri_and_slri", _LONG_LIVED | _SHORT_LIVED),
+])
+def test_castillo_rogez_isotope_concentrations_reproduce_table_3(name, expected_isotopes):
+    """Each isotope's mass fraction times concentration is its Table 3 concentration at formation.
+
+    Table 3 already folds the isotopic abundance in (26Al: 5e-5 of 1.2 wt% aluminum is 600 ppb), so multiplying it
+    by the Table 4 or Table 5 abundance again would count the abundance twice.
+    """
+    mod = _import_radiogenics()
+    dataset = mod.isotope_dataset(name)
+    assert set(dataset["isotope_names"]) == expected_isotopes
+    for isotope, mass_frac, concentration in zip(
+            dataset["isotope_names"], dataset["mass_fracs"], dataset["concentrations"]):
+        assert mass_frac * concentration == pytest.approx(_CASTILLO_ROGEZ_TABLE_3[isotope], rel=1e-12)
+    # The long-lived isotopes carry their own concentration; the short-lived ones their element's times the
+    # Table 5 initial ratio.
+    fractions = dict(zip(dataset["isotope_names"], dataset["mass_fracs"]))
+    for isotope in expected_isotopes & _LONG_LIVED:
+        assert fractions[isotope] == 1.0
+    for isotope, ratio in (("Al26", 5.0e-5), ("Fe60", 1.0e-6), ("Mn53", 1.0e-5)):
+        if isotope in expected_isotopes:
+            assert fractions[isotope] == ratio
+
+
+@pytest.mark.parametrize("time_myr", [0.0, 0.5, 3.0, 10.0, 100.0, 4568.0])
+def test_llri_and_slri_is_the_sum_of_llri_and_slri(time_myr):
+    """The combined Castillo-Rogez set heats exactly as its two halves together."""
+    mod = _import_radiogenics()
+    combined = mod.IsotopeRadiogenics.from_dataset("llri_and_slri")
+    long_lived = mod.IsotopeRadiogenics.from_dataset("llri")
+    short_lived = mod.IsotopeRadiogenics.from_dataset("slri")
+    time = time_myr * _MYR_S
+    assert combined.calc_heating(time, _MASS) == pytest.approx(
+        long_lived.calc_heating(time, _MASS) + short_lived.calc_heating(time, _MASS), rel=1e-12)
+
+
 def test_llri_heating_finite_at_formation():
     """The LLRI+SLRI dataset gives the formation-epoch heating its table implies, dominated by Al26.
 
-    Castillo-Rogez et al. (2007) quote each isotope's own concentration, so the specific heating at formation is
-    the sum of heat production times concentration: Al26 alone gives 0.146 W/kg * 0.6 ppm = 8.8e-8 W/kg, over
-    90 percent of the total and about two thousand times the long-lived isotopes together. The short-lived isotopes are gone within a few tens of Myr.
+    The specific heating at formation is the sum of heat production times Table 3 concentration: Al26 gives
+    0.146 W/kg * 600 ppb = 8.8e-8 W/kg of about 1.0e-7 W/kg, and the long-lived isotopes about 4e-11 W/kg. The
+    short-lived isotopes are gone within a few tens of Myr.
     """
-    import math
     mod = _import_radiogenics()
     model = mod.IsotopeRadiogenics.from_dataset("llri_and_slri")
     dataset = mod.isotope_dataset("llri_and_slri")
@@ -341,15 +390,27 @@ def test_llri_heating_finite_at_formation():
     heating_10myr = model.calc_heating(10.0 * _MYR_S, _MASS)
     heating_100myr = model.calc_heating(100.0 * _MYR_S, _MASS)
     assert math.isfinite(heating_formation)
-    expected = sum(h * f * c for h, f, c in zip(
-        dataset["heat_production_w_kg"], dataset["mass_fracs"], dataset["concentrations"]))
+    expected = sum(
+        heat_production * _CASTILLO_ROGEZ_TABLE_3[isotope]
+        for isotope, heat_production in zip(dataset["isotope_names"], dataset["heat_production_w_kg"]))
     assert heating_formation == pytest.approx(expected * _MASS, rel=1e-12)
-    # Al26 alone is 0.146 W/kg * 0.6 ppm; Fe60 and Mn53 add most of the rest.
-    assert 0.146 * 0.6e-6 < heating_formation / _MASS < 1.2 * 0.146 * 0.6e-6
+    assert heating_formation / _MASS == pytest.approx(1.043e-7, rel=1e-3)
     # Monotonic decay; once Al26 and Fe60 are gone, only a small fraction of the formation heating remains.
     assert heating_10myr < heating_formation
     assert heating_100myr < heating_10myr
     assert heating_100myr < 1.0e-3 * heating_formation
+
+
+def test_llri_heating_today_is_chondritic():
+    """Decayed to the present, the long-lived set gives the heating of ordinary chondrites today, about 5e-12 W/kg.
+
+    This checks the back-decayed Table 3 concentrations against the present-day chondritic rate, independent of the
+    formation-epoch numbers.
+    """
+    mod = _import_radiogenics()
+    model = mod.IsotopeRadiogenics.from_dataset("llri")
+    heating_today = model.calc_heating(4568.0 * _MYR_S, _MASS) / _MASS
+    assert 4.0e-12 < heating_today < 6.0e-12
 
 
 def test_isotope_dataset_unknown_raises():

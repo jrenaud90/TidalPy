@@ -286,7 +286,7 @@ critical_rayleigh = 1100.0
 
 [layers.upper_mantle.radiogenics]
 model = "isotope"
-isotopes = "modern_day_chondritic"  # modern_day_chondritic | llri_and_slri | bulk_silicate_earth
+isotopes = "modern_day_chondritic"  # modern_day_chondritic | llri | slri | llri_and_slri | bulk_silicate_earth
 
 # Layer 5: the crust, a `physics` layer that names no material type, so nothing is merged in: this table is the
 # whole layer. With no rheology attached it responds elastically, as a data-file world's layers do. Its material
