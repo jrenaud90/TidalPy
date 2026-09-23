@@ -92,7 +92,6 @@ inline void c_solve_eos(
     std::vector<double> rtols_vec = {rtol};
     std::vector<double> atols_vec = {atol};
 
-    const size_t len_radius_array  = eos_solution_ptr->radius_array_vec.size();
     const double planet_radius     = eos_solution_ptr->radius_array_vec.back();
     const double r0_gravity        = 0.0;
     const double r0_pressure_guess = (

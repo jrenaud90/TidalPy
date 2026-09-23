@@ -145,7 +145,6 @@ int c_shooting_solver(
 
     const size_t num_layers   = eos_solution_storage_ptr->num_layers;
     const size_t total_slices = eos_solution_storage_ptr->radius_array_size;
-    const size_t top_slice_i  = total_slices - 1;
 
     const double planet_radius   = eos_solution_storage_ptr->radius;
     const double surface_gravity = eos_solution_storage_ptr->surface_gravity;
@@ -195,10 +194,9 @@ int c_shooting_solver(
 
     for (size_t current_layer_i = 0; current_layer_i < num_layers; ++current_layer_i)
     {
-        const int layer_type            = layer_types_ptr[current_layer_i];
-        const bool layer_is_static      = is_static_by_layer_ptr[current_layer_i];
-        const bool layer_is_incomp      = is_incompressible_by_layer_ptr[current_layer_i];
-        const double layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i];
+        const int layer_type       = layer_types_ptr[current_layer_i];
+        const bool layer_is_static = is_static_by_layer_ptr[current_layer_i];
+        const bool layer_is_incomp = is_incompressible_by_layer_ptr[current_layer_i];
 
         const size_t num_sols = c_find_num_shooting_solutions(
             layer_type,
@@ -251,8 +249,6 @@ int c_shooting_solver(
     double initial_y_only_real[36];
     double* initial_y_only_real_ptr = &initial_y_only_real[0];
     bool starting_y_check = false;
-
-    const size_t num_output_ys = C_MAX_NUM_Y * num_ytypes;
 
     std::complex<double>* solution_ptr = reinterpret_cast<std::complex<double>*>(solution_storage_ptr->full_solution_vec.data());
 
@@ -461,8 +457,6 @@ int c_shooting_solver(
         eos_solution_storage_ptr->call_material(current_layer_i, radius_upper, eos_material_state);
         const double gravity_upper = eos_material_state.gravity;
         const double density_upper = eos_material_state.density;
-        const std::complex<double> shear_upper = eos_material_state.shear_modulus;
-        const std::complex<double> bulk_upper  = eos_material_state.bulk_modulus;
 
         if (max_step_from_arrays)
         {
@@ -737,12 +731,11 @@ int c_shooting_solver(
     {
         solution_storage_ptr->message = std::string("Integration completed for all layers. Beginning solution collapse.\n");
 
-        double layer_above_lower_gravity   = TidalPyConstants::d_NAN;
-        double layer_above_lower_density   = TidalPyConstants::d_NAN;
-        double liquid_density_at_interface = TidalPyConstants::d_NAN;
-        int layer_above_type               = 9;
-        bool layer_above_is_static         = false;
-        bool layer_above_is_incomp         = false;
+        double layer_above_lower_gravity = TidalPyConstants::d_NAN;
+        double layer_above_lower_density = TidalPyConstants::d_NAN;
+        int layer_above_type             = 9;
+        bool layer_above_is_static       = false;
+        bool layer_above_is_incomp       = false;
 
         // The storage is reused across solves.
         solution_storage_ptr->surface_amplification = 0.0;

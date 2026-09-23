@@ -193,7 +193,6 @@ inline int c_matrix_propagate(
 
     // Find the layer holding the starting radius.
     double layer_upper_radius, last_layer_upper_radius, radius_check;
-    size_t start_layer_i           = 0;
     size_t last_index_before_start = 0;
     size_t first_slice_index       = 0;
     double last_radius_check       = 0.0;
@@ -208,7 +207,6 @@ inline int c_matrix_propagate(
 
         if (last_layer_upper_radius < starting_radius && starting_radius <= layer_upper_radius)
         {
-            start_layer_i = current_layer_i;
             first_slice_index = first_slice_index_by_layer_ptr[current_layer_i];
 
             for (size_t slice_i = first_slice_index;

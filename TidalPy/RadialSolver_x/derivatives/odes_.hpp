@@ -481,7 +481,6 @@ inline void c_liquid_dynamic_compressible(
     const double density_gravity   = density * gravity;
     const double f2                = rs_args_ptr->frequency * rs_args_ptr->frequency;
     const double dynamic_term_no_r = -f2 * density;
-    const double dynamic_term      = dynamic_term_no_r * radius;
     const double grav_term         = rs_args_ptr->grav_coeff * density;
 
     // Liquid: shear = 0 so lame = bulk modulus.
