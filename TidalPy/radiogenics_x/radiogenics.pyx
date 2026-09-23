@@ -157,7 +157,7 @@ cdef object cy_solve_heating(c_RadiogenicsBase* model, object time, object mass)
     mv2 = m_c.ravel()
     with nogil:
         cy_fill_vector(mv, vtime)
-        cy_fill_vector(mv, vmass)
+        cy_fill_vector(mv2, vmass)
         model.calc_heating_vectorize_all(vtime, vmass, vout)
     return cy_double_vector_to_ndarray(vout, out_shape)
 
