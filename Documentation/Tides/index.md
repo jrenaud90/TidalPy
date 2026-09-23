@@ -2,8 +2,6 @@
 
 **TidalPy's classic Tides module**
 
-[Auto Generated API](https://tidalpy.readthedocs.io/en/latest/API/generated/TidalPy.tides.html)
-
 `TidalPy.tides` is the tidal machinery of the classic backend: the tidal potential and its mode decomposition, the analytic Love-number formulas, the dissipation and heating calculators, and the world-attached tide methods.
 
 | Piece | What it holds |

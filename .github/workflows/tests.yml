@@ -10,10 +10,17 @@
 #   PR comment saying "run tests"                   reduced   requires admin approval
 #   PR comment saying "run full suite"              full      requires admin approval
 #   schedule, weekly                                reduced   runs immediately
-#   workflow_dispatch                               your pick runs immediately
+#   workflow_dispatch                               your pick admins only, runs immediately
 #
 # A push whose message says neither phrase starts nothing at all. Phrase matching is case insensitive, and
 # "run full suite" is checked first so a message carrying both phrases gets the full suite.
+#
+# MANUAL RUNS
+# The "Run workflow" button on the Actions tab starts a run on any branch or tag, picking the suite, with no
+# commit or pull request needed. Two things govern who sees it and who may use it. GitHub only offers the
+# button to accounts with write access, so it is never public, and it only appears at all when this file is
+# present on the repository's DEFAULT branch, whatever branch the run itself targets. On top of that,
+# `authorize-dispatch` below restricts manual runs to the accounts named in DISPATCH_ADMINS.
 
 
 name: Tests
@@ -52,6 +59,8 @@ env:
   BURNMAN_PYTHONS: '["3.9", "3.10", "3.11", "3.12"]'
   FULL_PYTHONS: '["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]'
   REDUCED_PYTHONS: '["3.13", "3.14"]'
+  # Accounts allowed to start a manual run, separated by spaces. See `authorize-dispatch`.
+  DISPATCH_ADMINS: 'jrenaud90'
 
 jobs:
   # Works out which suite was asked for and which commit to test, so nothing below has to re-derive it. The
@@ -162,8 +171,39 @@ jobs:
           gh api --silent -X POST "repos/${REPO}/issues/${PR_NUMBER}/comments" \
               -f body="Queued the **${SUITE}** test suite, pending admin approval: ${RUN_URL}"
 
+  # Restricts the "Run workflow" button to admins. GitHub already limits it to accounts with write access, so
+  # this is the narrower rule on top of that: a manual run is for the maintainers named in DISPATCH_ADMINS.
+  #
+  # An explicit list rather than a permission lookup on purpose. The REST endpoint that reports a user's
+  # permission level needs administration scope, and `GITHUB_TOKEN` cannot be granted it, so that call would
+  # 403 on every run and the gate would fail closed for everyone. To let someone start manual runs, add their
+  # username to DISPATCH_ADMINS above.
+  authorize-dispatch:
+    if: github.event_name == 'workflow_dispatch'
+
+    name: Authorize manual run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the actor is an admin
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          for admin in $DISPATCH_ADMINS; do
+              if [ "$admin" = "$ACTOR" ]; then
+                  echo "::notice::${ACTOR} is authorized to start a manual run."
+                  exit 0
+              fi
+          done
+
+          echo "::error::${ACTOR} may not start a manual run. Manual runs are limited to the accounts in" \
+               "DISPATCH_ADMINS in .github/workflows/tests.yml."
+          exit 1
+
   # Holds the run until a required reviewer approves it. Skipped for schedule and workflow_dispatch, which the
-  # jobs below tell apart from a rejection by inspecting `result`.
+  # jobs below tell apart from a rejection by inspecting `result`. A manual run is gated by
+  # `authorize-dispatch` instead, so pressing the button does not also require approving it.
   approve-ci:
     needs: decide
     if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
@@ -176,14 +216,17 @@ jobs:
         run: echo "Approved; running the ${{ needs.decide.outputs.suite }} suite."
 
   lint-with-ruff:
-    needs: [decide, approve-ci]
-    # `!cancelled()` is what lets this job evaluate at all when `approve-ci` was skipped; without a status
-    # function here, a skipped dependency skips the dependent unconditionally.
+    needs: [decide, approve-ci, authorize-dispatch]
+    # `!cancelled()` is what lets this job evaluate at all when a dependency was skipped; without a status
+    # function here, a skipped dependency skips the dependent unconditionally. The three arms are the three
+    # ways a run is allowed to proceed: an approved run, the weekly schedule, and an authorized manual run.
     if: |
       !cancelled() && (
         needs.approve-ci.result == 'success' ||
-        ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
-         needs.approve-ci.result == 'skipped')
+        (github.event_name == 'schedule' && needs.approve-ci.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' &&
+         needs.approve-ci.result == 'skipped' &&
+         needs.authorize-dispatch.result == 'success')
       )
 
     name: Lint TidalPy with ruff
@@ -209,12 +252,14 @@ jobs:
         run: ruff check TidalPy/ --ignore F401,E402,E501 --select E,F
 
   test:
-    needs: [decide, approve-ci]
+    needs: [decide, approve-ci, authorize-dispatch]
     if: |
       !cancelled() && (
         needs.approve-ci.result == 'success' ||
-        ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
-         needs.approve-ci.result == 'skipped')
+        (github.event_name == 'schedule' && needs.approve-ci.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' &&
+         needs.approve-ci.result == 'skipped' &&
+         needs.authorize-dispatch.result == 'success')
       )
 
     name: Test on ${{ matrix.os-name }} (Python ${{ matrix.python-version }})

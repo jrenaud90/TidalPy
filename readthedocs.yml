@@ -1,25 +1,14 @@
 version: 2
 
-# TidalPy builds its C++ extensions from source, and setup.py refuses to start without the vendored
-# submodules (xsf, eigen, spdlog). Read the Docs clones with --depth 1 and does not initialize submodules
-# unless asked, so without this the build fails at "Getting requirements to build wheel".
-submodules:
-  include: all
-  recursive: true
 
 build:
   os: "ubuntu-lts-latest"
   tools:
     python: "3.12"
-  
-  jobs:
-    pre_build:
-      - doxygen DoxyFile
 
 sphinx:
   configuration: Documentation/conf.py
 
 python:
   install:
-    - method: pip
-      path: .[docs]
+    - requirements: Documentation/requirements.txt

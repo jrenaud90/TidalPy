@@ -95,13 +95,6 @@ Benchmarks_x/Performance/Perf_Trends.ipynb
 
 ```{toctree}
 :maxdepth: 2
-:caption: Auto Generated API
-
-TidalPy API <API/index.md>
-```
-
-```{toctree}
-:maxdepth: 2
 :caption: Additional Info
 :hidden:
 

@@ -85,6 +85,12 @@ dev = [
     "ipympl>=0.8.7",
 ]
 
+# For building the documentation locally against an installed TidalPy. The Read the Docs build installs
+# Documentation/requirements.txt instead, which is this list without the packages only needed to execute
+# notebooks, because that build does not install TidalPy and never runs one.
+#
+# Dropped 2026-09-23 with the API reference they served: "breathe", which needs a Doxygen pass nothing runs
+# any more, and "sphinx-autodoc-typehints", which only does anything under autodoc.
 docs = [
     "sphinx",
     "myst-parser",
@@ -95,9 +101,7 @@ docs = [
     "nbsphinx",
     "ipykernel",
     "nbconvert",
-    "jupyter",
-    "sphinx-autodoc-typehints",
-    "breathe"
+    "jupyter"
 ]
 
 # Recommended (sometimes required) graphics packages

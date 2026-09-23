@@ -7,9 +7,7 @@
     <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI: 10.5281/zenodo.7017475"></a>
     <a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.8.0a2.dev1-orange" alt="TidalPy Version 0.8.0a2.dev1" /></a><br />
     <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13|3.14-blue" alt="Python Version 3.9-3.14" /></a>
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a><br />
+    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/tests.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/tests.yml/badge.svg?branch=main" alt="Tests" /></a><br />
     <a href="https://pypi.org/project/TidalPy/"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/TidalPy?label=PyPI%20Downloads" /></a>
     <a href="https://anaconda.org/conda-forge/tidalpy"> <img alt="Conda Downloads" src="https://img.shields.io/conda/d/conda-forge/tidalpy" /></a>
     <a href="https://emac.gsfc.nasa.gov?cid=2207-034"><img src="https://img.shields.io/badge/EMAC-2207--034-blue" alt="EMAC 2207-034"></a>

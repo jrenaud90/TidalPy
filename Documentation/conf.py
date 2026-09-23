@@ -1,8 +1,6 @@
-import sys
 import os
 import shutil
 import toml
-import subprocess
 import re
 from pathlib import Path
 
@@ -12,25 +10,12 @@ FILE_PATH = os.path.dirname(__file__)
 # directory (Read the Docs, a local `sphinx-build` from the repository root, or one from inside Documentation/).
 REPO_PATH = os.path.abspath(os.path.join(FILE_PATH, os.pardir))
 
-# Auto generate API documentation
-def generate_api_docs():
-    src_path = os.path.join(REPO_PATH, "TidalPy")
-    out_path = os.path.join(FILE_PATH, 'API', 'generated')
-    Path(out_path).mkdir(parents=True, exist_ok=True)
-
-    subprocess.call([
-        "sphinx-apidoc",
-        "-o", str(out_path),
-        str(src_path),
-        "--force",
-        "--implicit-namespaces",
-        "--module-first",
-        "--no-toc"
-    ])
-generate_api_docs()
+# This build never imports TidalPy. The package is not installed on Read the Docs, because compiling its 112
+# C++ extension modules overruns the 15 minute build limit on its own, so there is no `sys.path` entry for it
+# and no autodoc or autosummary pass. Everything rendered here is either hand written, a notebook shown from
+# its stored outputs, or read out of pyproject.toml below.
 
 # Basic configurations
-sys.path.insert(0, os.path.join(REPO_PATH, 'TidalPy'))
 html_static_path = ["_static"]
 # Self-contained pages served next to the generated ones (linked from index.md and future_structure.md).
 html_extra_path = ["code_map.html"]
@@ -137,29 +122,12 @@ myst_enable_extensions = [
 # build time and does not raise a "local id not found" warning.
 myst_heading_anchors = 3
 
-# Autodoc settings
-extensions.append('sphinx.ext.autodoc')
-extensions.append('sphinx.ext.viewcode')
-extensions.append('sphinx.ext.autosummary')
-autosummary_generate = True
-autosummary_imported_members = True
-autosummary_generate_recursive = True
-autosummary_ignore_top = False
-autodoc_default_options = {
-    "members": True,
-    "undoc-members": False,
-    "private-members": False,
-    "show-inheritance": True,
-}
-napoleon_google_docstring = True
-napoleon_numpy_docstring = True
-# Support C++ autodocs
-extensions.append('breathe')
-breathe_default_project = "TidalPy"
+# There is no API reference, generated or otherwise: the module guides are the reference. So no autodoc,
+# autosummary, viewcode or napoleon, which only do anything against an imported package and TidalPy is not
+# installed for this build, and no breathe, which would need a Doxygen pass this build does not run.
 
 # Jupyter notebook rendering
 extensions.append('nbsphinx')
-extensions.append('sphinx.ext.napoleon')
 nbsphinx_allow_errors = True  # set True if you want docs to build even if notebooks fail
 # The notebooks are committed with their outputs, and several take minutes or need optional packages, so the
 # documentation build shows the stored outputs and never runs a notebook.

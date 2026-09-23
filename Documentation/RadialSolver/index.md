@@ -2,8 +2,6 @@
 
 **TidalPy's RadialSolver Module**
 
-[Auto Generated API](https://tidalpy.readthedocs.io/en/latest/API/generated/TidalPy.RadialSolver.html)
-
 `TidalPy.RadialSolver` calculates Love numbers for planets.
 
 ```{toctree}
