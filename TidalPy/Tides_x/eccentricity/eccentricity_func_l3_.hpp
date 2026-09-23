@@ -113,7 +113,6 @@ EccentricityFuncOutput c_eccentricity_function_l3_e2(double eccentricity)
     double common_term_9 = 6.625*eccentricity_2;
 
     c_IntMap<c_Key1, double> result_by_q(5);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (3, 0).
@@ -231,7 +230,6 @@ EccentricityFuncOutput c_eccentricity_function_l3_e3(double eccentricity)
     double common_term_12 = 12.833333333333333*eccentricity_3;
 
     c_IntMap<c_Key1, double> result_by_q(7);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (3, 0).
@@ -372,7 +370,6 @@ EccentricityFuncOutput c_eccentricity_function_l3_e4(double eccentricity)
     double common_term_16 = 23.0859375*eccentricity_4;
 
     c_IntMap<c_Key1, double> result_by_q(9);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (3, 0).
@@ -542,7 +539,6 @@ EccentricityFuncOutput c_eccentricity_function_l3_e5(double eccentricity)
     double common_term_20 = 39.5875*eccentricity_5;
 
     c_IntMap<c_Key1, double> result_by_q(11);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (3, 0).
@@ -761,7 +757,6 @@ EccentricityFuncOutput c_eccentricity_function_l3_e10(double eccentricity)
     double common_term_40 = 405.72292616667571*eccentricity_10;
 
     c_IntMap<c_Key1, double> result_by_q(21);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (3, 0).
@@ -1125,7 +1120,6 @@ EccentricityFuncOutput c_eccentricity_function_l3_e15(double eccentricity)
     double common_term_60 = 3114.5396917942013*eccentricity_15;
 
     c_IntMap<c_Key1, double> result_by_q(31);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (3, 0).
@@ -1634,7 +1628,6 @@ EccentricityFuncOutput c_eccentricity_function_l3_e20(double eccentricity)
     double common_term_80 = 20941.559755338364*eccentricity_20;
 
     c_IntMap<c_Key1, double> result_by_q(41);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (3, 0).

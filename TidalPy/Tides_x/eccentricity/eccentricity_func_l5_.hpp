@@ -144,7 +144,6 @@ EccentricityFuncOutput c_eccentricity_function_l5_e2(double eccentricity)
     double common_term_13 = 10.875*eccentricity_2;
 
     c_IntMap<c_Key1, double> result_by_q(5);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (5, 0).
@@ -306,7 +305,6 @@ EccentricityFuncOutput c_eccentricity_function_l5_e3(double eccentricity)
     double common_term_20 = 24.833333333333333*eccentricity_3;
 
     c_IntMap<c_Key1, double> result_by_q(7);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (5, 0).
@@ -517,7 +515,6 @@ EccentricityFuncOutput c_eccentricity_function_l5_e4(double eccentricity)
     double common_term_26 = 51.221354166666667*eccentricity_4;
 
     c_IntMap<c_Key1, double> result_by_q(9);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (5, 0).
@@ -770,7 +767,6 @@ EccentricityFuncOutput c_eccentricity_function_l5_e5(double eccentricity)
     double common_term_31 = 98.775*eccentricity_5;
 
     c_IntMap<c_Key1, double> result_by_q(11);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (5, 0).
@@ -1088,7 +1084,6 @@ EccentricityFuncOutput c_eccentricity_function_l5_e10(double eccentricity)
     double common_term_61 = 1545.8537958783616*eccentricity_10;
 
     c_IntMap<c_Key1, double> result_by_q(21);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (5, 0).
@@ -1621,7 +1616,6 @@ EccentricityFuncOutput c_eccentricity_function_l5_e15(double eccentricity)
     double common_term_91 = 15764.316954849364*eccentricity_15;
 
     c_IntMap<c_Key1, double> result_by_q(31);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (5, 0).
@@ -2369,7 +2363,6 @@ EccentricityFuncOutput c_eccentricity_function_l5_e20(double eccentricity)
     double common_term_121 = 131451.80748928829*eccentricity_20;
 
     c_IntMap<c_Key1, double> result_by_q(41);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (5, 0).

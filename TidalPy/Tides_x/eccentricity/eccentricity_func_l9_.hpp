@@ -222,7 +222,6 @@ EccentricityFuncOutput c_eccentricity_function_l9_e2(double eccentricity)
     double common_term_23 = 22.375*eccentricity_2;
 
     c_IntMap<c_Key1, double> result_by_q(5);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (9, 0).
@@ -482,7 +481,6 @@ EccentricityFuncOutput c_eccentricity_function_l9_e3(double eccentricity)
     double common_term_34 = 66.333333333333333*eccentricity_3;
 
     c_IntMap<c_Key1, double> result_by_q(7);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (9, 0).
@@ -819,7 +817,6 @@ EccentricityFuncOutput c_eccentricity_function_l9_e4(double eccentricity)
     double common_term_44 = 171.0546875*eccentricity_4;
 
     c_IntMap<c_Key1, double> result_by_q(9);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (9, 0).
@@ -1227,7 +1224,6 @@ EccentricityFuncOutput c_eccentricity_function_l9_e5(double eccentricity)
     double common_term_54 = 401.15*eccentricity_5;
 
     c_IntMap<c_Key1, double> result_by_q(11);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (9, 0).
@@ -1749,7 +1745,6 @@ EccentricityFuncOutput c_eccentricity_function_l9_e10(double eccentricity)
     double common_term_103 = 13037.374969302384*eccentricity_10;
 
     c_IntMap<c_Key1, double> result_by_q(21);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (9, 0).
@@ -2620,7 +2615,6 @@ EccentricityFuncOutput c_eccentricity_function_l9_e15(double eccentricity)
     double common_term_153 = 220904.65009367382*eccentricity_15;
 
     c_IntMap<c_Key1, double> result_by_q(31);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (9, 0).
@@ -3846,7 +3840,6 @@ EccentricityFuncOutput c_eccentricity_function_l9_e20(double eccentricity)
     double common_term_203 = 2726101.8874118609*eccentricity_20;
 
     c_IntMap<c_Key1, double> result_by_q(41);
-    double tmp_double;
 
     // eccentricity function by mode:
     // l , p = (9, 0).
