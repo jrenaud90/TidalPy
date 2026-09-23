@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 TidalPy's settings and parameters are read when the package is first imported. They live in a configuration file in the user's documents directory, whose location varies by operating system.
 
@@ -72,7 +72,7 @@ Tightening the EOS tolerance costs almost nothing, so it is set where the mass, 
 
 ### Numerical Settings
 
-`[numerical]` holds the floors and tolerances the C++ code reads through its shared configuration singleton: the frequency extremes (`minimum_frequency`, `maximum_frequency`, `min_spin_orbit_diff`), the material floors (`minimum_viscosity`, `minimum_modulus`), the geometry floor `minimum_layer_thickness`, the guarded-denominator `numerical_floor`, `layer_continuity_rtol`, `max_start_radius_fraction`, `frequency_match_rtol` (how close two tidal-mode frequencies must be to share one radial solve, and how small a frequency counts as zero), `minimum_nusselt` (the floor of the convection cooling model), and the quadrature resolutions of the 3D tidal heating integrals (`tides_3d_latitude_nodes`, `tides_3d_longitude_nodes`, `tides_3d_radial_slices`, the defaults of the matching `calc_3d_tides` arguments). `TidalPy.constants.update_constants_x()` pushes an edited value into the C++ side without a restart.
+`[numerical]` holds the floors and tolerances the C++ code reads through its shared configuration singleton: the frequency extremes (`minimum_frequency`, `maximum_frequency`, `min_spin_orbit_diff`), the material floors (`minimum_viscosity`, `minimum_modulus`), the geometry floor `minimum_layer_thickness`, the guarded-denominator `numerical_floor`, `layer_continuity_rtol`, `max_start_radius_fraction`, `frequency_match_rtol` (how close two tidal-mode frequencies must be to share one radial solve, and how small a frequency counts as zero), `minimum_nusselt` (the floor of the convection cooling model), `eos_invert_rtol` and `eos_invert_max_iters` (the density-from-pressure inversion of the Birch-Murnaghan and Vinet material models, used by any model built without its own `invert_rtol` or `invert_max_iters`), and the quadrature resolutions of the 3D tidal heating integrals (`tides_3d_latitude_nodes`, `tides_3d_longitude_nodes`, `tides_3d_radial_slices`, the defaults of the matching `calc_3d_tides` arguments). `TidalPy.constants.update_constants_x()` pushes an edited value into the C++ side without a restart.
 
 ### Graphics
 

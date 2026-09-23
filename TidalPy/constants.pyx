@@ -81,6 +81,8 @@ layer_continuity_rtol = d_NAN
 max_start_radius_fraction = d_NAN
 frequency_match_rtol = d_NAN
 minimum_nusselt = d_NAN
+eos_invert_rtol = d_NAN
+eos_invert_max_iters = -1
 tides_3d_latitude_nodes = -1
 tides_3d_longitude_nodes = -1
 tides_3d_radial_slices = -1
@@ -198,6 +200,7 @@ def update_constants_x():
     """
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
     global numerical_floor, layer_continuity_rtol, max_start_radius_fraction, frequency_match_rtol, minimum_nusselt
+    global eos_invert_rtol, eos_invert_max_iters
     global tides_3d_latitude_nodes, tides_3d_longitude_nodes, tides_3d_radial_slices
 
     numerical = TidalPy.config_x['numerical']
@@ -213,6 +216,8 @@ def update_constants_x():
     tidalpy_config_ptr.d_MAX_START_RADIUS_FRAC = numerical['max_start_radius_fraction']
     tidalpy_config_ptr.d_FREQUENCY_MATCH_RTOL = numerical['frequency_match_rtol']
     tidalpy_config_ptr.d_MIN_NUSSELT = numerical['minimum_nusselt']
+    tidalpy_config_ptr.d_EOS_INVERT_RTOL = numerical['eos_invert_rtol']
+    tidalpy_config_ptr.d_EOS_INVERT_MAX_ITERS = int(numerical['eos_invert_max_iters'])
     tidalpy_config_ptr.d_TIDES_3D_LATITUDE_NODES = int(numerical['tides_3d_latitude_nodes'])
     tidalpy_config_ptr.d_TIDES_3D_LONGITUDE_NODES = int(numerical['tides_3d_longitude_nodes'])
     tidalpy_config_ptr.d_TIDES_3D_RADIAL_SLICES = int(numerical['tides_3d_radial_slices'])
@@ -255,6 +260,8 @@ def update_constants_x():
     max_start_radius_fraction = tidalpy_config_ptr.d_MAX_START_RADIUS_FRAC
     frequency_match_rtol = tidalpy_config_ptr.d_FREQUENCY_MATCH_RTOL
     minimum_nusselt = tidalpy_config_ptr.d_MIN_NUSSELT
+    eos_invert_rtol = tidalpy_config_ptr.d_EOS_INVERT_RTOL
+    eos_invert_max_iters = tidalpy_config_ptr.d_EOS_INVERT_MAX_ITERS
     tides_3d_latitude_nodes = tidalpy_config_ptr.d_TIDES_3D_LATITUDE_NODES
     tides_3d_longitude_nodes = tidalpy_config_ptr.d_TIDES_3D_LONGITUDE_NODES
     tides_3d_radial_slices = tidalpy_config_ptr.d_TIDES_3D_RADIAL_SLICES

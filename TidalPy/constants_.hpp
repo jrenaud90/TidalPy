@@ -92,6 +92,11 @@ struct TidalPyConfig
     // Smallest Nusselt number the convection cooling model reports.
     double d_MIN_NUSSELT; // Updated from TidalPy.config_x['numerical']['minimum_nusselt']
 
+    // Density-from-pressure inversion of the compressible material EOS models (Birch-Murnaghan, Vinet): the
+    // relative convergence tolerance and the iteration cap. Read when a model is built without its own values.
+    double d_EOS_INVERT_RTOL;      // Updated from TidalPy.config_x['numerical']['eos_invert_rtol']
+    int    d_EOS_INVERT_MAX_ITERS; // Updated from TidalPy.config_x['numerical']['eos_invert_max_iters']
+
     // Quadrature resolutions of the 3D tidal heating integrals (calc_3d_tides), -1 until the config is loaded:
     // the Gauss-Legendre order of the colatitude integral, the trapezoid nodes of the instantaneous longitude
     // integral, and the Gauss-Legendre nodes per layer of the radial integral.
@@ -147,6 +152,8 @@ struct TidalPyConfig
         d_MAX_START_RADIUS_FRAC = nan;
         d_FREQUENCY_MATCH_RTOL = nan;
         d_MIN_NUSSELT = nan;
+        d_EOS_INVERT_RTOL = nan;
+        d_EOS_INVERT_MAX_ITERS = -1;
         d_TIDES_3D_LATITUDE_NODES = -1;
         d_TIDES_3D_LONGITUDE_NODES = -1;
         d_TIDES_3D_RADIAL_SLICES = -1;

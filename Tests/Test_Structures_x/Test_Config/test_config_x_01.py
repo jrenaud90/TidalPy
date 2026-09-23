@@ -59,7 +59,8 @@ def test_config_x_has_numerical_section():
     for key in ("minimum_frequency", "maximum_frequency", "min_spin_orbit_diff",
                 "minimum_viscosity", "minimum_modulus", "minimum_layer_thickness",
                 "numerical_floor", "layer_continuity_rtol", "max_start_radius_fraction",
-                "frequency_match_rtol", "minimum_nusselt", "test_constant"):
+                "frequency_match_rtol", "minimum_nusselt", "eos_invert_rtol", "eos_invert_max_iters",
+                "test_constant"):
         assert key in numerical
 
 
@@ -117,6 +118,8 @@ def test_update_constants_x_populated_singleton():
     assert math.isclose(constants.min_thickness, numerical["minimum_layer_thickness"])
     assert math.isclose(constants.frequency_match_rtol, numerical["frequency_match_rtol"])
     assert math.isclose(constants.minimum_nusselt, numerical["minimum_nusselt"])
+    assert math.isclose(constants.eos_invert_rtol, numerical["eos_invert_rtol"])
+    assert constants.eos_invert_max_iters == numerical["eos_invert_max_iters"]
     assert math.isclose(constants.test_constant, numerical["test_constant"])
 
 

@@ -8,6 +8,7 @@ through the shared config singleton. These tests pin that wiring: changing a val
   radiogenics_x.
 - ``layer_continuity_rtol``: how far a layer's inner radius may sit from the previous layer's outer radius.
 - ``max_start_radius_fraction``: how close to the surface a radial-solver integration may start.
+- ``eos_invert_rtol``, ``eos_invert_max_iters``: the density inversion of the compressible material EOS models.
 """
 import math
 
@@ -291,3 +292,53 @@ def test_minimum_nusselt_floors_the_convection_model(numerical_setter):
     assert at_three.nusselt == 3.0
     assert at_three.boundary_layer_thickness == pytest.approx(1.0e4 / 3.0)
     assert at_three.cooling_flux == pytest.approx(1.5 * at_default.cooling_flux)
+
+
+# =====================================================================================================================
+# eos_invert_rtol, eos_invert_max_iters: the density inversion of the compressible material EOS models
+# =====================================================================================================================
+def test_default_eos_inversion_is_wired_through():
+    from TidalPy.constants import eos_invert_rtol, eos_invert_max_iters
+    assert TidalPy.config_x["numerical"]["eos_invert_rtol"] == 1.0e-13
+    assert TidalPy.config_x["numerical"]["eos_invert_max_iters"] == 60
+    assert (eos_invert_rtol, eos_invert_max_iters) == (1.0e-13, 60)
+
+
+@pytest.mark.parametrize("model_name", ("birch_murnaghan", "vinet"))
+def test_eos_inversion_default_comes_from_the_config(numerical_setter, model_name):
+    """Every way of building a compressible model takes the configured values, and stores them."""
+    from TidalPy.Material_x.eos.material_eos import BirchMurnaghanEOS, VinetEOS, make_material_eos
+    eos_class = BirchMurnaghanEOS if model_name == "birch_murnaghan" else VinetEOS
+    numerical_setter("eos_invert_rtol", 1.0e-9)
+    numerical_setter("eos_invert_max_iters", 25)
+    built = (eos_class(3500.0, 1.3e11, 4.5),
+             make_material_eos(model_name, {"reference_density_kg_m3": 3500.0}),
+             make_material_eos(model_name))
+    for eos in built:
+        assert (eos.invert_rtol, eos.invert_max_iters) == (1.0e-9, 25)
+        config = eos.get_config_dict()
+        assert (config["invert_rtol"], config["invert_max_iters"]) == (1.0e-9, 25)
+
+
+def test_eos_inversion_is_fixed_when_the_model_is_built(numerical_setter):
+    """A later config change reaches new models only; an explicit value always wins."""
+    from TidalPy.Material_x.eos.material_eos import BirchMurnaghanEOS
+    numerical_setter("eos_invert_rtol", 1.0e-9)
+    existing = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5)
+    explicit = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5, invert_rtol=1.0e-11, invert_max_iters=80)
+    numerical_setter("eos_invert_rtol", 1.0e-7)
+    assert existing.invert_rtol == 1.0e-9
+    assert BirchMurnaghanEOS(3500.0, 1.3e11, 4.5).invert_rtol == 1.0e-7
+    assert (explicit.invert_rtol, explicit.invert_max_iters) == (1.0e-11, 80)
+
+
+def test_eos_inversion_tolerance_changes_the_density(numerical_setter):
+    """The configured values reach the inversion itself: a one-step, loose inversion returns a different density."""
+    from TidalPy.Material_x.eos.material_eos import BirchMurnaghanEOS
+    pressure = 5.0e10
+    numerical_setter("eos_invert_rtol", 1.0e-13)
+    tight = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5)
+    numerical_setter("eos_invert_rtol", 1.0e-1)
+    numerical_setter("eos_invert_max_iters", 1)
+    loose = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5)
+    assert tight.calc_density(pressure, 300.0) != loose.calc_density(pressure, 300.0)

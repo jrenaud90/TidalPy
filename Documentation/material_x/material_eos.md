@@ -1,6 +1,6 @@
 # Material EOS Models (`Material_x.eos`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-23_
 
 A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four are evaluated through the same call, `calc_density(pressure, temperature=None, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
 
@@ -137,7 +137,7 @@ The analytic laws give pressure as a function of compression, but the solve need
 
 The laws are monotonic in $\eta$ only over a finite range. Every law turns over in tension, and the third-order Birch-Murnaghan correction term changes sign at large compression when $K_0' < 4$, so $P(\eta)$ turns over there too. This range depends only on $K_0$ and $K_0'$, so each model finds it once, when it is built or loaded, by stepping outward from $\eta = 1$ until $K$ stops being positive and bisecting that sign change. A pressure outside the range has no compression to find and returns the compression at that end of the range. The density is therefore continuous in pressure everywhere, which the structure solve relies on: while its central pressure is still a guess, its outer radii can sit far into tension.
 
-Two numerical knobs control the iteration, both carried in the config so they can be set per material:
+Two numerical knobs control the iteration. Their defaults come from `[numerical]` in `TidalPy_Configs_x.toml` (`eos_invert_rtol`, `eos_invert_max_iters`), and each material can set its own:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -149,7 +149,7 @@ bm = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5, invert_rtol=1e-9, invert_max_iters=8
 bm.invert_rtol, bm.invert_max_iters      # (1e-09, 80)
 ```
 
-Both appear in `get_config_dict()` and survive the binary round trip. Their defaults live in one place, the C++ `c_MaterialEOSConfig` member initializers, and the Python wrappers override them only when a value is supplied explicitly.
+A model built without its own values takes the configured defaults when it is built, so a later change to the config does not reach an existing model. Both appear in `get_config_dict()` and survive the binary round trip, so a saved world records the values it was solved with.
 
 ### Choosing a Model
 
@@ -263,15 +263,15 @@ std::unique_ptr<c_MaterialEOSBase> eos =
 
 ### `c_MaterialEOSConfig`
 
-One combined config shared by every model; each reads only the fields it needs. Its member initializers are the single source of default values for both C++ and Python.
+One combined config shared by every model; each reads only the fields it needs. Its member initializers are the single source of default values for both C++ and Python, except the two inversion settings, which are unset (NaN and -1) and take the `[numerical]` defaults when a model is built.
 
 | Field | Used by | Default |
 |---|---|---|
 | `reference_density` | all | `3500.0` |
 | `reference_bulk_modulus` | Birch-Murnaghan, Vinet | `1.0e11` |
 | `bulk_modulus_derivative` | Birch-Murnaghan, Vinet | `4.0` |
-| `invert_rtol` | Birch-Murnaghan, Vinet | `d_EOS_INVERT_RTOL` (`1e-13`) |
-| `invert_max_iters` | Birch-Murnaghan, Vinet | `d_EOS_INVERT_MAX_ITERS` (`60`) |
+| `invert_rtol` | Birch-Murnaghan, Vinet | NaN: `[numerical]` `eos_invert_rtol` (`1e-13`) |
+| `invert_max_iters` | Birch-Murnaghan, Vinet | -1: `[numerical]` `eos_invert_max_iters` (`60`) |
 | `thermal_expansion` | all | `0.0` (athermal) |
 | `reference_temperature` | all | `d_EOS_REFERENCE_TEMPERATURE` (`300.0`) |
 | `shear_modulus_static`, `bulk_modulus_static` | all | `0.0` |

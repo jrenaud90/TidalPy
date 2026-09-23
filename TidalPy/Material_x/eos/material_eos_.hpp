@@ -44,10 +44,40 @@
 
 namespace tidalpy {
 
-// Safeguarded Newton/bisection density-from-pressure inversion. The cap only guarantees termination;
+// Safeguarded Newton/bisection density-from-pressure inversion. Its tolerance and iteration cap come from
+// TidalPy.config_x['numerical'] ('eos_invert_rtol', 'eos_invert_max_iters') when a model is built without its
+// own; the fallbacks cover a model built before the config is loaded. The cap only guarantees termination;
 // convergence normally takes well under 10 iterations.
-inline constexpr double d_EOS_INVERT_RTOL      = 1.0e-13;
-inline constexpr int    d_EOS_INVERT_MAX_ITERS = 60;
+inline constexpr double d_EOS_INVERT_RTOL_FALLBACK      = 1.0e-13;
+inline constexpr int    d_EOS_INVERT_MAX_ITERS_FALLBACK = 60;
+
+// The inversion tolerance a model uses: its own when positive and finite, otherwise the configured default.
+inline double c_resolve_eos_invert_rtol(double invert_rtol) noexcept
+{
+    if (std::isfinite(invert_rtol) && invert_rtol > 0.0)
+    {
+        return invert_rtol;
+    }
+    if (tidalpy_config_ptr != nullptr && std::isfinite(tidalpy_config_ptr->d_EOS_INVERT_RTOL))
+    {
+        return tidalpy_config_ptr->d_EOS_INVERT_RTOL;
+    }
+    return d_EOS_INVERT_RTOL_FALLBACK;
+}
+
+// The inversion iteration cap a model uses: its own when positive, otherwise the configured default.
+inline int c_resolve_eos_invert_max_iters(int invert_max_iters) noexcept
+{
+    if (invert_max_iters > 0)
+    {
+        return invert_max_iters;
+    }
+    if (tidalpy_config_ptr != nullptr && tidalpy_config_ptr->d_EOS_INVERT_MAX_ITERS > 0)
+    {
+        return tidalpy_config_ptr->d_EOS_INVERT_MAX_ITERS;
+    }
+    return d_EOS_INVERT_MAX_ITERS_FALLBACK;
+}
 
 // Ambient, where mineral-physics rho0 and K0 are quoted.
 inline constexpr double d_EOS_REFERENCE_TEMPERATURE = 300.0;
@@ -62,8 +92,10 @@ struct c_MaterialEOSConfig {
     double thermal_expansion     = 0.0;                          // alpha0 [1/K]
     double reference_temperature = d_EOS_REFERENCE_TEMPERATURE;  // T_ref [K], where rho0 and K0 apply
 
-    double invert_rtol      = d_EOS_INVERT_RTOL;       // relative convergence tol on eta
-    int    invert_max_iters = d_EOS_INVERT_MAX_ITERS;  // termination-safeguard cap
+    // Density inversion: relative convergence tol on eta and the termination-safeguard cap. NaN and -1 mean
+    // unset, which takes the configured default when the model is built.
+    double invert_rtol      = std::numeric_limits<double>::quiet_NaN();
+    int    invert_max_iters = -1;
 
     // Static (unrelaxed) moduli [Pa] and viscosities [Pa s]. The bulk constant applies to a model with no
     // pressure law of its own; a NaN viscosity means unset, so attach a viscosity model instead.
@@ -589,8 +621,8 @@ public:
           p_reference_density(cfg.reference_density),
           p_reference_bulk_modulus(cfg.reference_bulk_modulus),
           p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
-          p_invert_rtol(cfg.invert_rtol),
-          p_invert_max_iters(cfg.invert_max_iters) { this->update_law_range(); }
+          p_invert_rtol(c_resolve_eos_invert_rtol(cfg.invert_rtol)),
+          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) { this->update_law_range(); }
     ~c_BirchMurnaghanEOS() override = default;
 
     double get_reference_density()       const noexcept { return this->p_reference_density; }
@@ -678,8 +710,8 @@ protected:
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;
-    double p_invert_rtol             = d_EOS_INVERT_RTOL;
-    int    p_invert_max_iters        = d_EOS_INVERT_MAX_ITERS;
+    double p_invert_rtol             = c_resolve_eos_invert_rtol(std::numeric_limits<double>::quiet_NaN());
+    int    p_invert_max_iters        = c_resolve_eos_invert_max_iters(-1);
 };
 
 // Vinet (universal) EOS, density from pressure.
@@ -691,8 +723,8 @@ public:
           p_reference_density(cfg.reference_density),
           p_reference_bulk_modulus(cfg.reference_bulk_modulus),
           p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
-          p_invert_rtol(cfg.invert_rtol),
-          p_invert_max_iters(cfg.invert_max_iters) { this->update_law_range(); }
+          p_invert_rtol(c_resolve_eos_invert_rtol(cfg.invert_rtol)),
+          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) { this->update_law_range(); }
     ~c_VinetEOS() override = default;
 
     double get_reference_density()       const noexcept { return this->p_reference_density; }
@@ -780,8 +812,8 @@ protected:
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;
-    double p_invert_rtol             = d_EOS_INVERT_RTOL;
-    int    p_invert_max_iters        = d_EOS_INVERT_MAX_ITERS;
+    double p_invert_rtol             = c_resolve_eos_invert_rtol(std::numeric_limits<double>::quiet_NaN());
+    int    p_invert_max_iters        = c_resolve_eos_invert_max_iters(-1);
 };
 
 // density(radius) lookup table (PREM-style profiles); linear in radius, clamped at the ends.

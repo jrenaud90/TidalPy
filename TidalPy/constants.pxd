@@ -51,6 +51,8 @@ cdef extern from "constants_.hpp" nogil:
         double   d_MAX_START_RADIUS_FRAC
         double   d_FREQUENCY_MATCH_RTOL
         double   d_MIN_NUSSELT
+        double   d_EOS_INVERT_RTOL
+        int      d_EOS_INVERT_MAX_ITERS
         int      d_TIDES_3D_LATITUDE_NODES
         int      d_TIDES_3D_LONGITUDE_NODES
         int      d_TIDES_3D_RADIAL_SLICES

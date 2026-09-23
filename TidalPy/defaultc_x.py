@@ -112,6 +112,12 @@ schema_version = "{SCHEMA_VERSION_X}"
     # layer; the floor of 2 keeps a barely convecting layer losing heat through a boundary layer half the
     # layer thick rather than the whole of it.
     minimum_nusselt = 2.0
+    # Density-from-pressure inversion of the compressible material EOS models (Birch-Murnaghan, Vinet): the
+    # relative convergence tolerance on the compression, and an iteration cap that only guarantees termination
+    # (convergence normally takes well under ten steps). A model built with its own `invert_rtol` or
+    # `invert_max_iters` keeps them; the value in use is stored on the model and written with it.
+    eos_invert_rtol = 1.0e-13
+    eos_invert_max_iters = 60
     # Quadrature resolutions of the 3D tidal heating integrals (`calc_3d_tides`): the Gauss-Legendre order of the
     # colatitude integral, the trapezoid nodes of the instantaneous longitude integral, and the Gauss-Legendre
     # nodes per layer of the radial integral. The nodes stay inside each layer, so the collapsed total converges
