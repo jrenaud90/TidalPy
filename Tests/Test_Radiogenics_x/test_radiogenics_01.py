@@ -575,7 +575,15 @@ def test_convenience_vectorize_all_and_broadcast():
     assert got_mixed.shape == (3,)
     inst = mod.FixedRadiogenics(1.0e-11, 5.0e17, 0.0)
     for i in range(3):
+        assert got_all[i] == pytest.approx(inst.calc_heating(times[i], masses[i]))
         assert got_mixed[i] == pytest.approx(inst.calc_heating(times[i], _MASS))
+    # Both arrays with different shapes broadcast to a 2-D result, element by element.
+    iso = mod.IsotopeRadiogenics(_HPR, _HALF, _FRAC, _CONC, 0.0)
+    got_2d = mod.isotope(times[:, None], masses[None, :], _HPR, _HALF, _FRAC, _CONC, ref_time=0.0)
+    assert got_2d.shape == (3, 3)
+    for i in range(3):
+        for j in range(3):
+            assert got_2d[i, j] == pytest.approx(iso.calc_heating(times[i], masses[j]))
 
 
 def test_convenience_preserves_2d_shape():

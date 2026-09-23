@@ -88,3 +88,32 @@ def test_generic_supports_high_degree():
         assert np.allclose(got, ref, rtol=1e-10, atol=1e-10)
     # The table does not cover l = 11.
     assert all(np.isnan(legendre(11, 4, 0.7)))
+
+
+# The poles and their neighborhood: the generic derivatives come from the order recurrence, so they stay exact where
+# a chain rule through x = cos(theta) would multiply an infinite dP/dx (odd m) by sin(theta) = 0.
+_POLAR_COLATS = [0.0, 1.0e-6, 1.0e-3, np.pi - 1.0e-6, np.pi]
+
+
+@pytest.mark.parametrize("l,m", _LM)
+def test_generic_matches_the_tables_at_the_poles(l, m):
+    for colat in _POLAR_COLATS:
+        table = np.array(legendre(l, m, float(colat)))
+        generic = np.array(legendre_generic(l, m, float(colat)))
+        scale = max(1.0, float(np.max(np.abs(table))))
+        assert np.all(np.isfinite(generic)), f"l={l} m={m} colat={colat}: {generic}"
+        np.testing.assert_allclose(generic, table, rtol=1e-10, atol=1e-10 * scale,
+                                   err_msg=f"l={l} m={m} colat={colat}")
+
+
+@pytest.mark.parametrize("m", range(0, 13))
+def test_generic_derivatives_past_the_tables(m):
+    """Beyond the tables (l = 12) the derivatives agree with central differences of the value, near the poles too."""
+    step = 1.0e-5
+    for colat in (1.0e-3, 0.2, 1.3, np.pi - 1.0e-3):
+        value, first, second = legendre_generic(12, m, float(colat))
+        above = legendre_generic(12, m, float(colat) + step)[0]
+        below = legendre_generic(12, m, float(colat) - step)[0]
+        scale = max(1.0, abs(value), abs(above))
+        assert first == pytest.approx((above - below) / (2.0 * step), rel=1e-5, abs=1e-5 * scale)
+        assert second == pytest.approx((above - 2.0 * value + below) / step ** 2, rel=1e-4, abs=1e-3 * scale)

@@ -184,6 +184,28 @@ def test_zero_frequency_finite():
         assert math.isfinite(mu.imag)
 
 
+@pytest.mark.parametrize("frequency", [_OMEGA, 0.0])
+@pytest.mark.parametrize("name", ["maxwell", "burgers", "andrade", "sundberg"])
+def test_infinite_viscosity_is_elastic(name, frequency):
+    """An infinite viscosity (the viscosity models' cold limit) locks every dashpot, so the series models are elastic.
+
+    This holds at zero frequency too, where the viscous term would otherwise be inf * 0.
+    """
+    mu = _make(name).calc_complex_modulus(_MU, math.inf, frequency)
+    assert mu.real == pytest.approx(_MU, rel=1.0e-12)
+    assert mu.imag == 0.0
+
+
+def test_infinite_viscosity_voigt_is_rigid():
+    """A Voigt-Kelvin solid with an infinite viscosity is infinitely stiff under forcing, and a spring at rest."""
+    voigt = _make("voigt")
+    forced = voigt.calc_complex_modulus(_MU, math.inf, _OMEGA)
+    assert forced.real == pytest.approx(5.0 * _MU, rel=1.0e-12)
+    assert math.isinf(forced.imag) and forced.imag > 0.0
+    static = voigt.calc_complex_modulus(_MU, math.inf, 0.0)
+    assert static == pytest.approx(complex(5.0 * _MU, 0.0), rel=1.0e-12)
+
+
 # =====================================================================================================================
 # Parameter getters
 # =====================================================================================================================

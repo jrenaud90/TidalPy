@@ -27,9 +27,13 @@ inline std::size_t c_binary_search_with_guess(
     if (key > array[length - 1]) { return length; }
     if (key < array[0])          { code = -1; return 0; }
 
-    // Too short for the guess fast paths, which read array[guess - 1] .. array[guess + 2]; the only
-    // valid interval is index 0. This also keeps the size_t subtraction below safe.
-    if (length <= 2) { return 0; }
+    // Too short for the guess fast paths, which read array[guess - 1] .. array[guess + 2]: scan the few intervals
+    // directly. This also keeps the size_t subtraction below safe.
+    if (length <= 4) {
+        std::size_t interval = 0;
+        while ((interval + 2 < length) && (key >= array[interval + 1])) { ++interval; }
+        return interval;
+    }
 
     if (guess > (length - 3)) { guess = length - 3; }
     if (guess < 1)            { guess = 1; }

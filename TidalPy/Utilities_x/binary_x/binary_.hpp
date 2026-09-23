@@ -19,6 +19,7 @@
  */
 
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -155,8 +156,14 @@ inline c_BinaryHeader read_binary_header(std::istream& in) {
     return h;
 }
 
+// A path handed over from Python is UTF-8. A narrow std::string path is read in the system code page on Windows,
+// which garbles any non-ASCII directory, so paths are opened through a UTF-8 std::filesystem::path.
+inline std::filesystem::path c_utf8_path(const std::string& path) {
+    return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(path.data()), path.size()));
+}
+
 inline c_BinaryHeader read_binary_header_from_file(const std::string& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(c_utf8_path(path), std::ios::binary);
     if (!in.is_open()) {
         throw std::runtime_error("TidalPy: cannot open binary file: " + path);
     }

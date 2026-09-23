@@ -127,12 +127,15 @@ inline void cy_flush_logger() {
     if (tidalpy_logger_ptr) { tidalpy_logger_ptr->flush(); }
 }
 
-/** Flush and null the pointer so the TIDALPY_LOG_* macros become no-ops. The logger stays in spdlog's
- * registry so raw addresses held by other DLLs cannot dangle; it is released at process exit.
+/** Flush, turn the logger off, and null this module's pointer. Every extension holds its own copy of the pointer
+ * (one per DLL on Windows), so nulling this one alone would leave the others logging; the level is what they all
+ * share. The logger stays in spdlog's registry so raw addresses held by other DLLs cannot dangle; it is released at
+ * process exit.
  */
 inline void cy_shutdown_logger() {
     if (tidalpy_logger_ptr) {
         tidalpy_logger_ptr->flush();
+        tidalpy_logger_ptr->set_level(spdlog::level::off);
         tidalpy_logger_ptr = nullptr;
     }
 }

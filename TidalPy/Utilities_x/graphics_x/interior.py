@@ -41,9 +41,16 @@ def load_interior_plot_style() -> Dict[str, object]:
     return style
 
 
-# Read once at import. Edit in place to restyle every later plot, or call `load_interior_plot_style`
-# again after `TidalPy.reinit` to pick up a changed configuration.
+# Read once at import. Edit in place to restyle every later plot, or call `reload_interior_plot_style` after
+# `TidalPy.reinit` to pick up a changed configuration.
 INTERIOR_PLOT_STYLE: Dict[str, object] = load_interior_plot_style()
+
+
+def reload_interior_plot_style() -> Dict[str, object]:
+    """Refresh ``INTERIOR_PLOT_STYLE`` in place from the current configuration and return it."""
+    INTERIOR_PLOT_STYLE.clear()
+    INTERIOR_PLOT_STYLE.update(load_interior_plot_style())
+    return INTERIOR_PLOT_STYLE
 
 
 def _draw(axis, values, vertical, color, use_scatter: bool, imaginary: bool = False, label: Optional[str] = None):
@@ -203,7 +210,7 @@ def plot_interior(
                             horizontalalignment="left", verticalalignment="center", transform=ax_density.transAxes)
 
     if planet_name is not None:
-        figure.suptitle(planet_name.title(), y=1.1, fontsize=style["title_fontsize"])
+        figure.suptitle(planet_name, y=1.1, fontsize=style["title_fontsize"])
     if show_plot:
         plt.show()
     return figure, axes

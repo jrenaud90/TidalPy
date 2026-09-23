@@ -19,6 +19,7 @@
 #include <complex>
 #include <limits>
 
+#include "constants_.hpp"                        // TidalPyConstants::d_EPS
 #include "strain_radial_.hpp"
 #include "../potential/potential_point_.hpp"   // tidalpy::c_PotentialPointC (shared with the potential engine)
 
@@ -32,8 +33,8 @@ struct c_Tensor6
     std::array<std::complex<double>, 6> c { };
 };
 
-// 1 / sin(theta) and 1 / tan(theta) as the strain uses them, NaN where either is singular (a pole, or the equator for
-// the cotangent's tangent).
+// 1 / sin(theta) and 1 / tan(theta) as the strain uses them, NaN at a pole. A colatitude whose sine is within machine
+// epsilon of zero is a pole, so 0 and pi (whose sine is 1.2e-16, not 0) are treated alike.
 struct c_ColatitudeTrig
 {
     double sin_inv   = 0.0;
@@ -43,10 +44,14 @@ struct c_ColatitudeTrig
 inline c_ColatitudeTrig c_colatitude_trig(double colatitude) noexcept
 {
     const double sin_theta = std::sin(colatitude);
-    const double tan_theta = std::tan(colatitude);
     c_ColatitudeTrig trig;
-    trig.sin_inv   = (sin_theta == 0.0) ? std::numeric_limits<double>::quiet_NaN() : 1.0 / sin_theta;
-    trig.cot_theta = (tan_theta == 0.0) ? std::numeric_limits<double>::quiet_NaN() : 1.0 / tan_theta;
+    if (std::abs(sin_theta) <= TidalPyConstants::d_EPS) {
+        trig.sin_inv   = std::numeric_limits<double>::quiet_NaN();
+        trig.cot_theta = std::numeric_limits<double>::quiet_NaN();
+        return trig;
+    }
+    trig.sin_inv   = 1.0 / sin_theta;
+    trig.cot_theta = 1.0 / std::tan(colatitude);
     return trig;
 }
 
@@ -202,8 +207,9 @@ inline void c_compute_displacements(
 {
     out.c[0] = y1 * P.U;
     out.c[1] = y3 * P.dU_dtheta;
+    // The same pole test as c_colatitude_trig.
     const double sin_theta = std::sin(colatitude);
-    if (std::abs(sin_theta) > 1.0e-15)
+    if (std::abs(sin_theta) > TidalPyConstants::d_EPS)
     {
         out.c[2] = y3 * P.dU_dphi / sin_theta;
     }

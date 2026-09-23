@@ -484,7 +484,6 @@ schema_version = "{SCHEMA_VERSION_X}"
     mean_molecular_weight_kg_mol = 2.22e-3
     adiabatic_index = 1.4
     reference_temperature_k = 165.0
-    reference_density_kg_m3 = 1000.0
 
     [layers.gas.material]
         model = "constant"

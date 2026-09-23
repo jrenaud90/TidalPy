@@ -57,7 +57,7 @@ public:
     }
 
     void save_binary(const std::string& path) const {
-        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        std::ofstream out(c_utf8_path(path), std::ios::binary | std::ios::trunc);
         if (!out.is_open()) {
             throw std::runtime_error(
                 "TidalPy: cannot open file for writing: " + path);
@@ -70,7 +70,7 @@ public:
     // Maxwell; a physics layer's file into a base layer drops its models), so it is refused before anything is
     // read. force relaxes only the schema-version check.
     void load_binary(const std::string& path, bool force = false) {
-        std::ifstream in(path, std::ios::binary);
+        std::ifstream in(c_utf8_path(path), std::ios::binary);
         if (!in.is_open()) {
             throw std::runtime_error(
                 "TidalPy: cannot open binary file: " + path);
