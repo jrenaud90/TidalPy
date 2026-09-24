@@ -18,9 +18,9 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.Tides_x.classes.tide import TIDE_CONFIG_KEYS, _same_model
 from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
-import TidalPy
 from TidalPy.Tides_x.eccentricity.eccentricity_driver import (
     validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
+from TidalPy.Tides_x.obliquity.obliquity_driver import validate_obliquity_truncation
 from TidalPy.Tides_x.classes.tide cimport (
     c_TideBase, c_TideModel, c_TideModelConfig, c_tide_model_from_name, c_find_tide,
 )
@@ -71,33 +71,6 @@ cdef extern from "tide_collapse_.hpp" nogil:
         const c_TideBase& tide_model) except +
 
 
-cdef int cy_resolve_obliquity_truncation(object obliquity_truncation) except? -999:
-    """Normalize an obliquity truncation ('gen', 'off', or an int) to the C++ integer."""
-    cdef int value = 0
-    cdef str text
-    if isinstance(obliquity_truncation, str):
-        text = obliquity_truncation.lower()
-        if text in ("gen", "general"):
-            value = 10
-        elif text in ("off",):
-            value = 0
-        else:
-            try:
-                value = int(obliquity_truncation)
-            except ValueError:
-                raise ValueError("Unexpected obliquity truncation encountered.")
-    elif isinstance(obliquity_truncation, bool):
-        raise ValueError("An obliquity truncation is 'off', 'gen', or an integer level, not a bool.")
-    elif isinstance(obliquity_truncation, (int, float)) and float(obliquity_truncation).is_integer():
-        # A whole-valued float (2.0) is the level it names, rather than falling through to 'off'.
-        value = int(obliquity_truncation)
-    else:
-        raise ValueError(f"Unexpected obliquity truncation {obliquity_truncation!r}.")
-    if value not in (0, 1, 2, 10):
-        raise NotImplementedError(
-            f"Obliquity truncation {value} is not tabulated. "
-            "Supported levels: 0 ('off'), 1, 2, 10 ('gen', fully general).")
-    return value
 
 
 cdef c_TideModelConfig cy_build_tide_config(dict config) except *:
@@ -176,8 +149,9 @@ def collapse_global_tides(
     eccentricity_exact_tolerance : float, optional
         Heating tail tolerance of the ``"exact"`` functions; None takes the ``[tides]`` value.
     obliquity_truncation : str or int, optional
-        Obliquity truncation: ``"off"`` (0), 1, 2, or ``"gen"``/``"general"`` (10). None takes the ``[tides]``
-        ``obliquity_trunc_lvl`` of the TidalPy configuration (``"off"`` by default, which ignores the obliquity).
+        Obliquity truncation: ``"off"`` (0), 2 or 4 (every product of two obliquity functions through I^N), or
+        ``"gen"``/``"general"`` (the general functions). None takes the ``[tides]`` ``obliquity_trunc_lvl`` of the
+        TidalPy configuration (``"off"`` by default, which ignores the obliquity).
 
     Returns
     -------
@@ -192,11 +166,8 @@ def collapse_global_tides(
     NotImplementedError
         If the rheology model is requested, or a truncation/degree is unsupported.
     """
-    if obliquity_truncation is None:
-        # The same default a built world takes: the [tides] obliquity_trunc_lvl of TidalPy.config_x.
-        obliquity_truncation = ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(
-            "obliquity_trunc_lvl", "off")
-    cdef int i_obliquity_truncation = cy_resolve_obliquity_truncation(obliquity_truncation)
+    # None takes the [tides] obliquity_trunc_lvl of the TidalPy configuration, as a built world does.
+    cdef int i_obliquity_truncation = validate_obliquity_truncation(obliquity_truncation)
 
     if not (2 <= min_degree_l <= max_degree_l <= 10):
         raise ValueError(

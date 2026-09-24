@@ -1,9 +1,10 @@
 """Obliquity-truncation validation at every entry point.
 
-The obliquity functions are tabulated at truncations 0 (off), 1, 2, and 10 (fully general). Every
-entry point that accepts an obliquity truncation must reject an untabulated level up front with a
-clear message (mirroring the eccentricity-truncation validation), and the world builder promotes an
-untabulated configured level to the next tabulated one with a once-per-session warning.
+The obliquity functions are tabulated at levels 0 (off), 2, and 4 (every product of two obliquity functions
+through I^N), plus the general functions ("gen"). Every entry point that accepts an obliquity truncation must reject an
+untabulated level up front with a clear message (mirroring the eccentricity-truncation validation), and the world
+builder promotes an untabulated configured level to the next tabulated one (past 4, to the general functions) with a
+once-per-session warning.
 """
 
 import warnings as _warnings
@@ -15,6 +16,7 @@ from TidalPy.constants import G, mass_trap1
 from TidalPy.Tides_x.potential import tidal_potential_3d_modes, global_potential
 from TidalPy.Tides_x.classes.collapse import collapse_global_tides
 from TidalPy.structures_x.worlds.layered import LayeredWorld
+from TidalPy.Tides_x.obliquity import OBLIQUITY_GENERAL
 from TidalPy.structures_x.configs.world_builder import (
     _resolve_obliquity_truncation,
     _WARNED_OBLIQUITY_TRUNCATIONS,
@@ -27,17 +29,17 @@ _R = 1.0e6
 
 
 def test_supported_levels_constant():
-    assert SUPPORTED_OBLIQUITY_TRUNCATIONS == (0, 1, 2, 10)
+    assert SUPPORTED_OBLIQUITY_TRUNCATIONS == (0, 2, 4)
 
 
-@pytest.mark.parametrize("bad_level", (3, 4, 6, 12))
+@pytest.mark.parametrize("bad_level", (1, 3, 6, 10, 12))
 def test_set_tide_config_rejects_untabulated(bad_level):
     world = LayeredWorld("w", _R, 1.0e20)
     with pytest.raises(NotImplementedError, match="Obliquity truncation"):
         world.set_tide_config(obliquity_truncation=bad_level)
 
 
-@pytest.mark.parametrize("good_level", (0, 1, 2, 10))
+@pytest.mark.parametrize("good_level", (0, 2, 4, "gen", "off"))
 def test_set_tide_config_accepts_tabulated(good_level):
     world = LayeredWorld("w", _R, 1.0e20)
     world.set_tide_config(obliquity_truncation=good_level)
@@ -62,14 +64,15 @@ def test_collapse_rejects_untabulated():
 
 
 def test_builder_resolver_passthrough_and_aliases():
-    assert _resolve_obliquity_truncation("gen") == 10
-    assert _resolve_obliquity_truncation("general") == 10
+    assert _resolve_obliquity_truncation("gen") == OBLIQUITY_GENERAL
+    assert _resolve_obliquity_truncation("general") == OBLIQUITY_GENERAL
+    assert _resolve_obliquity_truncation(OBLIQUITY_GENERAL) == OBLIQUITY_GENERAL
     assert _resolve_obliquity_truncation("off") == 0
     for level in SUPPORTED_OBLIQUITY_TRUNCATIONS:
         assert _resolve_obliquity_truncation(level) == level
 
 
-@pytest.mark.parametrize("level, promoted", [(3, 10), (4, 10), (6, 10), (12, 10)])
+@pytest.mark.parametrize("level, promoted", [(1, 2), (3, 4), (6, OBLIQUITY_GENERAL), (10, OBLIQUITY_GENERAL)])
 def test_builder_resolver_promotes_with_warning(level, promoted):
     _WARNED_OBLIQUITY_TRUNCATIONS.discard(level)
     with pytest.warns(UserWarning, match="not tabulated"):

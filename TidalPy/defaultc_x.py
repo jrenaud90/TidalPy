@@ -233,6 +233,9 @@ schema_version = "{SCHEMA_VERSION_X}"
     # For eccentricity_trunc_lvl = "exact" (the functions from the exact orbit, any e < 1): the modes kept leave a
     # q^2-weighted tail of the squared functions below this fraction of the total.
     eccentricity_exact_tolerance = 1.0e-4
+    # Obliquity truncation "off" (level 0), 2, 4 (every product of two obliquity functions through I^N), or "gen" (the
+    # exact functions). Level 2 stays within 1% of the exact heating to I ~ 8 degrees, level 4 to I ~ 27 degrees
+    # (Documentation/Tides_x/obliquity.md).
     obliquity_trunc_lvl = "off"
 
     # Whether calc_tides also resolves each layer's tidal heating when the Love numbers come from the radial

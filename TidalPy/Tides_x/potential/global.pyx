@@ -6,9 +6,9 @@ set_tidalpy_config_ptr(get_shared_config_address())
 from TidalPy.Tides_x.potential.potential_common cimport ModeMap, UniqueFrequencyMap
 from TidalPy.Tides_x.potential.potential_common import ModeMap, UniqueFrequencyMap
 
-import TidalPy
 from TidalPy.Tides_x.eccentricity.eccentricity_driver import (
     validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
+from TidalPy.Tides_x.obliquity.obliquity_driver import validate_obliquity_truncation
 
 def global_potential(
         double planet_radius,
@@ -29,10 +29,11 @@ def global_potential(
 
     Arguments follow the world's ``calc_tides`` order after the body radius [m]; frequencies in rad s-1,
     angles in radians, MKS throughout. ``min_degree_l`` and ``max_degree_l`` must satisfy
-    2 <= min <= max <= 10. ``obliquity_truncation`` is ``'off'``, 1, 2, or ``'gen'``; None takes the
-    ``[tides]`` ``obliquity_trunc_lvl`` of the TidalPy configuration (``'off'`` by default, which ignores the
-    obliquity). ``eccentricity_truncation`` is a level of ``ECCENTRICITY_TRUNCATIONS`` (every product of two
-    eccentricity functions through e^N) or ``"exact"``; None takes the ``[tides]`` ``eccentricity_trunc_lvl``.
+    2 <= min <= max <= 10. ``obliquity_truncation`` is ``'off'`` (0), 2 or 4 (every product of two obliquity
+    functions through I^N), or ``'gen'`` (the general functions); None takes the ``[tides]`` ``obliquity_trunc_lvl``
+    of the TidalPy configuration (``'off'`` by default, which ignores the obliquity). ``eccentricity_truncation``
+    is a level of ``ECCENTRICITY_TRUNCATIONS`` (every product of two eccentricity functions through e^N) or
+    ``"exact"``; None takes the ``[tides]`` ``eccentricity_trunc_lvl``.
     ``eccentricity_exact_tolerance`` sets the mode range of ``"exact"``; None takes the ``[tides]`` value.
 
     Returns
@@ -45,32 +46,8 @@ def global_potential(
         raise ValueError(
             f"The degree range must satisfy 2 <= min_degree_l <= max_degree_l <= 10; got {min_degree_l} to "
             f"{max_degree_l}.")
-    if obliquity_truncation is None:
-        # The same default a built world takes: the [tides] obliquity_trunc_lvl of TidalPy.config_x.
-        obliquity_truncation = ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(
-            "obliquity_trunc_lvl", "off")
-    cdef int i_obliquity_truncation = 0
-    if isinstance(obliquity_truncation, str):
-        if obliquity_truncation.lower() in ('gen', 'general'):
-            i_obliquity_truncation = 10
-        elif obliquity_truncation.lower() in ('off',):
-            i_obliquity_truncation = 0
-        else:
-            try:
-                i_obliquity_truncation = int(obliquity_truncation)
-            except ValueError:
-                raise ValueError("Unexpected obliquity truncation encountered.")
-    elif isinstance(obliquity_truncation, bool):
-        raise ValueError("An obliquity truncation is 'off', 'gen', or an integer level, not a bool.")
-    elif isinstance(obliquity_truncation, (int, float)) and float(obliquity_truncation).is_integer():
-        # A whole-valued float (2.0) is the level it names, rather than falling through to 'off'.
-        i_obliquity_truncation = int(obliquity_truncation)
-    else:
-        raise ValueError(f"Unexpected obliquity truncation {obliquity_truncation!r}.")
-    if i_obliquity_truncation not in (0, 1, 2, 10):
-        raise NotImplementedError(
-            f"Obliquity truncation {i_obliquity_truncation} is not tabulated. "
-            "Supported levels: 0 ('off'), 1, 2, 10 ('gen', fully general).")
+    # None takes the [tides] obliquity_trunc_lvl of the TidalPy configuration, as a built world does.
+    cdef int i_obliquity_truncation = validate_obliquity_truncation(obliquity_truncation)
     # None takes the [tides] eccentricity_trunc_lvl of the TidalPy configuration, as a built world does.
     cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
     cdef double eccentricity_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)

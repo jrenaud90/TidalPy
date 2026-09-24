@@ -376,11 +376,11 @@ def test_obliquity_truncation_alias_takes_effect(key):
 
 
 def test_obliquity_truncation_words_resolve():
-    """``"off"`` is 0 and ``"gen"`` is the exact, untruncated form."""
+    """``"off"`` is 0 and ``"gen"`` is the general (exact) form, written back as ``"gen"``."""
     assert _terrestrial_with_tides({"obliquity_trunc_lvl": "off"}).get_config_dict()[
         "tides"]["obliquity_trunc_lvl"] == 0
     assert _terrestrial_with_tides({"obliquity_trunc_lvl": "gen"}).get_config_dict()[
-        "tides"]["obliquity_trunc_lvl"] == 10
+        "tides"]["obliquity_trunc_lvl"] == "gen"
 
 
 def test_both_truncation_spellings_raises():

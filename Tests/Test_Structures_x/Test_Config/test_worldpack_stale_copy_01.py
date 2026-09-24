@@ -141,5 +141,5 @@ def test_truncation_promotion_warning_has_a_switch(monkeypatch):
     with warnings.catch_warnings(record=True) as record:
         warnings.simplefilter("always")
         assert world_builder._resolve_eccentricity_truncation(7) == 8
-        assert world_builder._resolve_obliquity_truncation(3) == 10
+        assert world_builder._resolve_obliquity_truncation(3) == 4
     assert not record

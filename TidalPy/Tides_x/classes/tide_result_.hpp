@@ -17,6 +17,7 @@
 
 #include "constants_.hpp"   // TidalPyConstants::d_PI (colatitude band default)
 #include "../eccentricity/eccentricity_accuracy_.hpp"   // level limits, C_ECCENTRICITY_EXACT
+#include "../obliquity/obliquity_accuracy_.hpp"         // level limits, C_OBLIQUITY_GENERAL
 
 // c_TideConfig: the world's stored [tides] configuration. The dissipation model itself is held
 // separately on the world (c_TideBase).
@@ -27,7 +28,8 @@ struct c_TideConfig {
                                         // C_ECCENTRICITY_EXACT for the functions from the exact orbit
     // Heating tail tolerance of the exact eccentricity functions (ignored by the tabulated levels).
     double eccentricity_exact_tolerance = C_ECCENTRICITY_EXACT_TOLERANCE;
-    int obliquity_truncation    = 0;    // obliquity-function truncation (0=off, 1, 2 (F through I^n), 10=general)
+    int obliquity_truncation    = 0;    // obliquity truncation level N (0 = off, 2, 4: every product of two F
+                                        // through I^N), or C_OBLIQUITY_GENERAL for the exact functions
     // Whether calc_tides also resolves the heating of each layer. With a radial-solver Love method that is the
     // volume integral of the radial solution's heating density over each layer, which costs about as much as the
     // global solve again; switching it off leaves every layer's heating NaN on that path. The quasi-homogeneous

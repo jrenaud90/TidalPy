@@ -26,6 +26,7 @@ from TidalPy.Tides_x.classes.tide cimport TideBase
 from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_name_int
 from TidalPy.Tides_x.eccentricity.eccentricity_driver import (
     eccentricity_truncation_name, validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
+from TidalPy.Tides_x.obliquity.obliquity_driver import obliquity_truncation_name, validate_obliquity_truncation
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides (the analytic global tidal
 # path) plus the heavy global-potential engine it uses, so they compile into this extension.
@@ -245,8 +246,10 @@ cdef class BaseWorld(StructureBase):
             50), or ``"exact"`` for the functions from the exact orbit (any e < 1).
         eccentricity_exact_tolerance : float, optional
             Heating tail tolerance in (0, 1) that sets the mode range of ``"exact"`` (ignored by the levels).
-        obliquity_truncation : int, optional
-            Obliquity-function truncation: 0 (off), 1 or 2 (every term through I^1 or I^2), 10 (general).
+        obliquity_truncation : int or str, optional
+            Obliquity truncation level N: every product of two obliquity functions is kept through I^N. Tabulated
+            levels: ``TidalPy.Tides_x.obliquity.OBLIQUITY_TRUNCATIONS`` (0 or ``"off"``, 2, 4), or ``"gen"`` for
+            the general functions (any obliquity).
         layer_tidal_heating : bool, optional
             Whether ``calc_tides`` also resolves each layer's heating when the Love numbers come from the radial
             solver (a volume integral of the radial solution that costs about as much as the global solve again);
@@ -264,10 +267,8 @@ cdef class BaseWorld(StructureBase):
             eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
         if eccentricity_exact_tolerance is not None:
             eccentricity_exact_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)
-        if obliquity_truncation is not None and obliquity_truncation not in (0, 1, 2, 10):
-            raise NotImplementedError(
-                f'Obliquity truncation {obliquity_truncation} is not tabulated. '
-                'Supported levels: 0 (off), 1, 2, 10 (fully general).')
+        if obliquity_truncation is not None:
+            obliquity_truncation = validate_obliquity_truncation(obliquity_truncation)
         # Start from the stored configuration so an omitted argument leaves its setting unchanged.
         cdef c_TideConfig cfg = self._world_ptr.get().get_tide_config()
         if min_degree_l is not None:
@@ -464,7 +465,8 @@ cdef class BaseWorld(StructureBase):
         -------
         dict
             ``min_degree_l``, ``max_degree_l``, ``eccentricity_trunc_lvl`` (an int, or ``"exact"``),
-            ``eccentricity_exact_tolerance``, ``obliquity_trunc_lvl``, ``layer_tidal_heating``, ``love_method``, and
+            ``eccentricity_exact_tolerance``, ``obliquity_trunc_lvl`` (an int, or ``"gen"``),
+            ``layer_tidal_heating``, ``love_method``, and
             ``love_fixed_q`` / ``love_fixed_dt_s`` when set.
         """
         cdef c_TideConfig cfg = self._world_ptr.get().get_tide_config()
@@ -473,7 +475,7 @@ cdef class BaseWorld(StructureBase):
             "max_degree_l":                  cfg.max_degree_l,
             "eccentricity_trunc_lvl":        eccentricity_truncation_name(cfg.eccentricity_truncation),
             "eccentricity_exact_tolerance":  cfg.eccentricity_exact_tolerance,
-            "obliquity_trunc_lvl":           cfg.obliquity_truncation,
+            "obliquity_trunc_lvl":           obliquity_truncation_name(cfg.obliquity_truncation),
             "layer_tidal_heating":           bool(cfg.layer_tidal_heating),
             "love_method":                   c_love_method_name_int(cfg.love_method).decode('utf-8'),
         }

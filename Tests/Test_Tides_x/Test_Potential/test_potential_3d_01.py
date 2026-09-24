@@ -209,7 +209,7 @@ def test_summed_modes_match_direct_potential(degree_l):
             min_degree_l=degree_l,
             max_degree_l=degree_l,
             eccentricity_truncation=20,
-            obliquity_truncation=10)
+            obliquity_truncation="gen")
         summed = float(np.sum(np.real(pots[:, 0] * np.exp(1j * freqs * time))))
         direct = _direct_potential(degree_l, colatitude, longitude, time, eccentricity, obliquity)
         assert abs(summed - direct) < 1.0e-12 * scale

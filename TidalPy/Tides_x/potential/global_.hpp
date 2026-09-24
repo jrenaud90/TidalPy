@@ -135,7 +135,9 @@ inline c_GlobalPotentialStorage c_global_potential(
         // Set the degree l we are working on for error reporting.
         result.working_on_l = degree_l;
 
-        ObliquityFuncOutput obliquity_funcs = c_obliquity_func(
+        // The heating goes as F^2 too: each square cut at the obliquity truncation's power (plain squares for the
+        // general functions).
+        ObliquityFuncOutput obliquity_squared_funcs = c_obliquity_squared_func(
             &result.error_code,
             obliquity,
             degree_l,
@@ -173,9 +175,9 @@ inline c_GlobalPotentialStorage c_global_potential(
         
         double lm_coeff = TidalPyConstants::d_NAN;
 
-        for (const auto& [lmp_key, F_lmp] : obliquity_funcs.first) {
+        for (const auto& [lmp_key, F_lmp_squared] : obliquity_squared_funcs.first) {
 
-            if (F_lmp == 0.0)
+            if (F_lmp_squared == 0.0)
             {
                 continue;
             }
@@ -200,7 +202,7 @@ inline c_GlobalPotentialStorage c_global_potential(
             lmpq_key.c = lmp_key.c;
 
             // The global potential goes as F^2 (the 3D path uses F); fold in (l - m)!/(l + m)!(2 - d_m0).
-            double lmp_coeff = F_lmp * F_lmp * ra_l_coeff * lm_coeff;
+            double lmp_coeff = F_lmp_squared * ra_l_coeff * lm_coeff;
 
             found = false;
             const c_IntMap<c_Key1, double>* eccentricity_squared_by_q_ptr =

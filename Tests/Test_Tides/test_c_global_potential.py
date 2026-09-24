@@ -35,7 +35,7 @@ def _global_potential(**kwargs):
 
 
 @pytest.mark.parametrize('degree_l', (2, 3, 4))
-@pytest.mark.parametrize('obliquity_truncation', ('gen', 1, 2, 'off'))
+@pytest.mark.parametrize('obliquity_truncation', ('gen', 2, 4, 'off'))
 @pytest.mark.parametrize('eccentricity_truncation', (2, 4, 6, 8, 10, 20))
 def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_truncation):
     """Tests that global_potential runs without error and returns correct types for various parameters."""

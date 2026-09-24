@@ -1,8 +1,5 @@
-from TidalPy.Tides_x.obliquity.obliquity_common cimport ObliquityFuncOutput
+from TidalPy.Tides_x.obliquity.obliquity_common cimport c_ObliquitySeriesTable, c_ObliquityGeneralTable
 
 cdef extern from "obliquity_func_l6_.hpp" nogil:
-
-    ObliquityFuncOutput c_obliquity_function_l6_gen(double obliquity)
-    ObliquityFuncOutput c_obliquity_function_l6_1(double obliquity)
-    ObliquityFuncOutput c_obliquity_function_l6_2(double obliquity)
-    ObliquityFuncOutput c_obliquity_function_l6_off(double obliquity)
+    c_ObliquitySeriesTable c_obliquity_series_l6(int truncation)
+    c_ObliquityGeneralTable c_obliquity_general_l6()

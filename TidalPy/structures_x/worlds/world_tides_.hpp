@@ -295,6 +295,7 @@ inline c_WaveSet3D c_build_wave_set_3d(
         const std::vector<c_TidalPotential3DModeCoeff>& modes,
         double min_frequency,
         double eccentricity,
+        double obliquity,
         bool secular) {
     c_WaveSet3D set;
     set.secular = secular;
@@ -306,7 +307,8 @@ inline c_WaveSet3D c_build_wave_set_3d(
         for (size_t a = 0; a < num_all; ++a) {
             for (size_t b = a; b < num_all; ++b) {
                 if (!c_tidal_wave_same_frequency(set.waves[a].frequency, set.waves[b].frequency)) { continue; }
-                const std::complex<double> power = c_wave_pair_power_3d(set.waves[a], set.waves[b], eccentricity);
+                const std::complex<double> power =
+                    c_wave_pair_power_3d(set.waves[a], set.waves[b], eccentricity, obliquity);
                 if (std::abs(power) == 0.0) { continue; }
                 all_power[a * num_all + b] = power;
                 all_power[b * num_all + a] = std::conj(power);
@@ -407,7 +409,7 @@ inline c_WaveSet3D c_world_wave_set_3d(
     // The floor below which a mode is inactive is the 1D path's (record_unique_frequencies), so both paths keep the
     // same modes; a slow mode near a Maxwell peak otherwise went missing from the 3D heating alone.
     const double min_freq = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_FREQUENCY : 0.0;
-    return c_build_wave_set_3d(modes, min_freq, state.eccentricity, secular);
+    return c_build_wave_set_3d(modes, min_freq, state.eccentricity, state.obliquity, secular);
 }
 
 // Run the world radial solve for one radial group into `workspace` and return its solution storage, which lives

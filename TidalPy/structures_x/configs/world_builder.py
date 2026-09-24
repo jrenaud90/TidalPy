@@ -30,6 +30,8 @@ from TidalPy.structures_x.worlds.gasgiant import GasGiantWorld
 from TidalPy.structures_x.worlds.stellar import StarWorld
 from TidalPy.Tides_x.eccentricity import ECCENTRICITY_TRUNCATIONS, promote_eccentricity_truncation
 from TidalPy.Tides_x.eccentricity.eccentricity_driver import _WARNED_PROMOTIONS as _WARNED_ECCENTRICITY_PROMOTIONS
+from TidalPy.Tides_x.obliquity.obliquity_driver import (
+    OBLIQUITY_TRUNCATIONS, promote_obliquity_truncation, _WARNED_PROMOTIONS as _WARNED_OBLIQUITY_PROMOTIONS)
 
 from TidalPy.configurations import keep_on_model_change
 from TidalPy.rheology_x.rheology import make_rheology, _same_model as _same_rheology_model
@@ -821,11 +823,11 @@ _DEFAULT_TIDE_MODEL_FALLBACK = {
 }
 
 SUPPORTED_ECCENTRICITY_TRUNCATIONS = ECCENTRICITY_TRUNCATIONS
-SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 1, 2, 10)
+SUPPORTED_OBLIQUITY_TRUNCATIONS = OBLIQUITY_TRUNCATIONS
 
 # Untabulated obliquity levels already warned about; the same once-per-session rule as the eccentricity
-# promotion below.
-_WARNED_OBLIQUITY_TRUNCATIONS: set = set()
+# promotion below, and the set the standalone functions use too.
+_WARNED_OBLIQUITY_TRUNCATIONS: set = _WARNED_OBLIQUITY_PROMOTIONS
 
 # Untabulated truncation levels already warned about, so a stale configuration file warns once per session
 # per level rather than on every world build. The eccentricity set is the one the standalone functions use too.
@@ -833,41 +835,16 @@ _WARNED_ECCENTRICITY_TRUNCATIONS: set = _WARNED_ECCENTRICITY_PROMOTIONS
 
 
 def _resolve_obliquity_truncation(value) -> int:
-    """Resolve an obliquity truncation (string ``'gen'``/``'off'`` or int) to a tabulated level.
+    """Resolve a configured obliquity truncation (``'off'``, ``'gen'``, or an int level) to a tabulated level.
 
-    The obliquity functions are tabulated at truncations 0 (off), 1 and 2 (every term through I^1
-    and I^2), and 10 (the fully general, untruncated form). A configured integer that is not
-    tabulated is promoted to the next tabulated level with a once-per-session warning (anything
-    above 2 promotes to the exact general form), so stale configuration files keep working while
-    the accuracy never silently decreases.
+    The obliquity functions are tabulated at levels 0 (off), 2, and 4 (every product of two obliquity functions through
+    I^N), plus the general (exact) functions (``OBLIQUITY_GENERAL``, ``'gen'``). A configured integer that is not
+    tabulated is promoted to the next tabulated level with a once-per-session warning (1 to 2, and anything past 4,
+    such as the old general code 10, to the general functions), so stale configuration files keep working while the
+    accuracy never silently decreases (``promote_obliquity_truncation``).
     """
-    if isinstance(value, str):
-        text = value.lower()
-        if text in ("gen", "general"):
-            return 10
-        if text in ("off",):
-            return 0
-        level = int(value)
-    else:
-        level = int(value)
-    if level in SUPPORTED_OBLIQUITY_TRUNCATIONS:
-        return level
-    if level < 0:
-        raise ValueError(
-            f"Obliquity truncation {level} is not supported. "
-            f"Supported levels: {SUPPORTED_OBLIQUITY_TRUNCATIONS} (10 = fully general).")
-    for supported in SUPPORTED_OBLIQUITY_TRUNCATIONS:
-        if supported > level:
-            promoted = supported
-            break
-    else:
-        promoted = 10
-    if level not in _WARNED_OBLIQUITY_TRUNCATIONS and warning_enabled("truncation_promotion"):
-        _WARNED_OBLIQUITY_TRUNCATIONS.add(level)
-        warnings.warn(
-            f"Obliquity truncation {level} is not tabulated; using {promoted} instead. "
-            f"Supported levels: {SUPPORTED_OBLIQUITY_TRUNCATIONS} (10 = fully general).")
-    return promoted
+    return promote_obliquity_truncation(
+        value, warned_levels=_WARNED_OBLIQUITY_TRUNCATIONS, warn=warning_enabled("truncation_promotion"))
 
 
 def _tides_config_x() -> dict:

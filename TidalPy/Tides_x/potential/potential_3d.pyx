@@ -15,9 +15,9 @@ surface radius for the 3D kernel.
 import numpy as np
 cimport numpy as cnp
 
-import TidalPy
 from TidalPy.Tides_x.eccentricity.eccentricity_driver import (
     validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
+from TidalPy.Tides_x.obliquity.obliquity_driver import validate_obliquity_truncation
 cnp.import_array()
 
 from libcpp.vector cimport vector
@@ -52,7 +52,7 @@ def tidal_potential_3d_modes(
 
     The body radius comes first, then the orbital state in the same order as the world's ``calc_tides``,
     then Newton's constant, the point's colatitude and longitude, and the degree range and truncations. The
-    obliquity truncation is ``'off'`` (0, which ignores the obliquity), 1, 2, or ``'gen'`` (10); None takes the
+    obliquity truncation is ``'off'`` (0, which ignores the obliquity), 2, 4, or ``'gen'``; None takes the
     ``[tides]`` ``obliquity_trunc_lvl`` of the TidalPy configuration, as a built world does.
 
     Returns
@@ -68,16 +68,7 @@ def tidal_potential_3d_modes(
     # None takes the [tides] eccentricity_trunc_lvl of the TidalPy configuration, as a built world does.
     cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
     cdef double eccentricity_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)
-    if obliquity_truncation is None:
-        obliquity_truncation = ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(
-            "obliquity_trunc_lvl", "off")
-    if isinstance(obliquity_truncation, str):
-        obliquity_truncation = {"off": 0, "gen": 10, "general": 10}.get(
-            obliquity_truncation.lower(), obliquity_truncation)
-    if isinstance(obliquity_truncation, bool) or obliquity_truncation not in (0, 1, 2, 10):
-        raise NotImplementedError(
-            f'Obliquity truncation {obliquity_truncation!r} is not tabulated. '
-            'Supported levels: 0 (off), 1, 2, 10 (fully general).')
+    cdef int i_obliquity_truncation = validate_obliquity_truncation(obliquity_truncation)
 
     cdef int error_code = 0
     cdef vector[c_TidalPotential3DMode] modes = c_tidal_potential_3d_modes(
@@ -91,7 +82,7 @@ def tidal_potential_3d_modes(
         G_to_use,
         min_degree_l,
         max_degree_l,
-        obliquity_truncation,
+        i_obliquity_truncation,
         i_eccentricity_truncation,
         eccentricity_tolerance,
         colatitude,

@@ -333,7 +333,8 @@ protected:
 
     // Checks the orbital state a tidal solve is about to use: throws std::invalid_argument for an eccentricity
     // outside [0, 1) or a semi-major axis that is not positive, and warns once per world when an obliquity would be
-    // ignored because the obliquity truncation is off or when the eccentricity is past the range of the eccentricity
+    // ignored because the obliquity truncation is off, when the obliquity is past the range of the obliquity
+    // truncation (c_obliquity_truncation_limit), or when the eccentricity is past the range of the eccentricity
     // truncation (c_eccentricity_truncation_limit).
     void p_check_tide_state(const c_TideSolveConfig& state) const {
         if (!((state.eccentricity >= 0.0) && (state.eccentricity < 1.0))) {
@@ -351,9 +352,23 @@ protected:
             this->p_obliquity_off_warned = true;
             TIDALPY_LOG_WARN(
                 "TidalPy: world '{}' has an obliquity of {:.3e} rad but its obliquity truncation is off, so its "
-                "obliquity tides are ignored. Set obliquity_trunc_lvl (1, 2, or 'gen') in its [tides] table or "
+                "obliquity tides are ignored. Set obliquity_trunc_lvl (2, 4, or 'gen') in its [tides] table or "
                 "set_tide_config to include them. Shown once per world.",
                 this->get_name(), state.obliquity);
+        }
+        const int obliquity_truncation = this->p_tide_config.obliquity_truncation;
+        if (obliquity_truncation != C_OBLIQUITY_OFF) {
+            const double obliquity_limit =
+                c_obliquity_truncation_limit(obliquity_truncation, this->p_tide_config.max_degree_l);
+            if ((std::abs(state.obliquity) > obliquity_limit) && !this->p_obliquity_range_warned) {
+                this->p_obliquity_range_warned = true;
+                TIDALPY_LOG_WARN(
+                    "TidalPy: world '{}' has an obliquity of {:.3f} rad, past {:.3f}, where its obliquity truncation "
+                    "(level {}) can misstate the tides by 10% or more. Raise obliquity_trunc_lvl in its [tides] table "
+                    "or set_tide_config (recommend_obliquity_truncation picks a level for a tolerance), or use 'gen'. "
+                    "Shown once per world.",
+                    this->get_name(), state.obliquity, obliquity_limit, obliquity_truncation);
+            }
         }
         const int eccentricity_truncation = this->p_tide_config.eccentricity_truncation;
         const double eccentricity_limit   =
@@ -370,6 +385,7 @@ protected:
         }
     }
     mutable bool p_obliquity_off_warned = false;
+    mutable bool p_obliquity_range_warned = false;
     mutable bool p_eccentricity_range_warned = false;
 
     // Global (1D) tidal dissipation state. The configuration and model are serialized (the tide section); the

@@ -27,7 +27,7 @@ def test_a_whole_valued_float_truncation_is_its_level():
     as_int = collapse_global_tides(**_IO, tide_model="cpl", tide_config=config, obliquity_truncation=2)
     as_float = collapse_global_tides(**_IO, tide_model="cpl", tide_config=config, obliquity_truncation=2.0)
     assert as_float["tidal_heating"] == as_int["tidal_heating"]
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         collapse_global_tides(**_IO, tide_model="cpl", tide_config=config, obliquity_truncation=2.5)
 
 

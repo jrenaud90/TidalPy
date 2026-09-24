@@ -1,10 +1,10 @@
 """Obliquity in the tidal collapse (1D global heating and the 3D grid).
 
-The tide config's ``obliquity_truncation`` (0, 2, 4, or 10) controls the obliquity function order used
-by the mode engine. With the truncation at 0 the obliquity input is ignored entirely; with it on, a
-nonzero obliquity activates the m = 1 harmonics and (for this configuration) raises the heating. The
-1D and 3D paths must stay mutually consistent with obliquity on, and the heating must converge as the
-obliquity truncation rises.
+The tide config's ``obliquity_truncation`` (0 or "off", 2, 4, or "gen") controls the obliquity function order
+used by the mode engine: level N keeps every product of two obliquity functions through I^N. With the truncation at 0
+the obliquity input is ignored entirely; with it on, a nonzero obliquity activates the m = 1 harmonics and (for this
+configuration) raises the heating. The 1D and 3D paths must stay mutually consistent with obliquity on, and the heating
+must converge as the obliquity truncation rises.
 """
 import math
 
@@ -71,7 +71,7 @@ def test_obliquity_ignored_when_truncation_off():
 def test_zero_obliquity_unaffected_by_truncation():
     """At zero obliquity the extra obliquity terms all vanish, so every truncation level agrees."""
     reference = _heating_1d(_build_world(obliquity_truncation=0), 0.0)
-    for truncation in (1, 2, 10):
+    for truncation in (2, 4, "gen"):
         h = _heating_1d(_build_world(obliquity_truncation=truncation), 0.0)
         assert math.isclose(h, reference, rel_tol=1e-8), f"truncation {truncation}: {h} != {reference}"
 
@@ -85,22 +85,27 @@ def test_positive_obliquity_changes_heating():
 
 
 def test_3d_total_matches_1d_with_obliquity():
-    """The fully collapsed 3D total equals the 1D heating with obliquity active at every truncation."""
-    for truncation in (1, 2, 10):
+    """The fully collapsed 3D total equals the 1D heating with obliquity active at every truncation.
+
+    Both cut every product of two obliquity functions at I^N; they differ only by the same-(l, m), same-frequency
+    cross terms the 1D formula drops, which need e and I both nonzero and are small away from synchronous rotation."""
+    for truncation in (2, 4, "gen"):
         world = _build_world(obliquity_truncation=truncation)
         h_1d = _heating_1d(world, _OBLIQUITY)
         h_3d = _heating_3d_total(world, _OBLIQUITY)
-        assert math.isclose(h_3d, h_1d, rel_tol=1e-2), \
+        # Measured 2026-09-24: 3D / 1D - 1 = 1.6e-7 at every level (radial quadrature).
+        assert math.isclose(h_3d, h_1d, rel_tol=1e-5), \
             f"truncation {truncation}: 3D {h_3d:.4e} != 1D {h_1d:.4e}"
 
 
 def test_obliquity_truncation_convergence():
-    """The heating converges as the obliquity truncation rises (order 2 is much closer to 10 than 1)."""
-    h_1 = _heating_1d(_build_world(obliquity_truncation=1), _OBLIQUITY)
+    """The heating converges as the obliquity truncation rises (level 4 is much closer to the general functions)."""
     h_2 = _heating_1d(_build_world(obliquity_truncation=2), _OBLIQUITY)
-    h_10 = _heating_1d(_build_world(obliquity_truncation=10), _OBLIQUITY)
-    err_1 = abs(h_1 - h_10) / h_10
-    err_2 = abs(h_2 - h_10) / h_10
-    assert err_2 < err_1
-    # Level 2 is complete through I^2; the I^4 remainder is about 1.4% at I = 0.3.
-    assert err_2 < 2.0e-2
+    h_4 = _heating_1d(_build_world(obliquity_truncation=4), _OBLIQUITY)
+    h_gen = _heating_1d(_build_world(obliquity_truncation="gen"), _OBLIQUITY)
+    err_2 = abs(h_2 - h_gen) / h_gen
+    err_4 = abs(h_4 - h_gen) / h_gen
+    assert err_4 < 0.1 * err_2
+    # I = 0.3 rad is past level 2's 1% point (0.145) and within level 4's (0.47).
+    assert err_2 < 1.0e-1
+    assert err_4 < 1.0e-2

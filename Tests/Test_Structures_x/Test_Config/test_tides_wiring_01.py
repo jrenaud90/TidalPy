@@ -145,7 +145,8 @@ def test_no_tides_table_at_all_still_wires_the_world():
     assert world.get_tide_config()["max_degree_l"] == TidalPy.config_x["tides"]["max_degree_l"]
 
 
-@pytest.mark.parametrize("spelling, level", [("off", 0), ("gen", 10), ("general", 10), (1, 1), (2, 2)])
+@pytest.mark.parametrize("spelling, level", [("off", 0), ("gen", "gen"), ("general", "gen"), (2, 2), (4, 4),
+                                             (1, 2), (10, "gen")])
 def test_obliquity_truncation_spellings(spelling, level):
     found = build_world(_config("terrestrial", {"obliquity_trunc_lvl": spelling})).get_tide_config()
     assert found["obliquity_trunc_lvl"] == level
