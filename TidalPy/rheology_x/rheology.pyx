@@ -34,7 +34,7 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept nogil:
+cdef void cy_fill_vector(const double[::1] src, vector[double]& dst) noexcept nogil:
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
     dst.resize(n)
@@ -65,7 +65,7 @@ cdef object cy_solve_complex_modulus(
     cdef cpp_complex[double] scalar_result
     cdef vector[double] vmod, vvisc, vfreq
     cdef vector[cpp_complex[double]] vout
-    cdef double[::1] mv
+    cdef const double[::1] mv
 
     # Deliberately `object`, not `cnp.ndarray`: `.shape` is handed on as a Python tuple. Typed as
     # `cnp.ndarray` it would become a C `npy_intp*` and the reshape would silently take an address.
@@ -167,8 +167,8 @@ cdef class RheologyBase(PhysicsBase):
         self._check_ptr()
         cdef vector[double] vmod, vvisc
         cdef vector[cpp_complex[double]] vout
-        cdef double[::1] mv
-        cdef double[::1] mv2
+        cdef const double[::1] mv
+        cdef const double[::1] mv2
         cdef cnp.ndarray mod_c  = np.ascontiguousarray(modulus,   dtype=np.float64).ravel()
         cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
         mv = mod_c
@@ -186,7 +186,7 @@ cdef class RheologyBase(PhysicsBase):
         self._check_ptr()
         cdef vector[double] vfreq
         cdef vector[cpp_complex[double]] vout
-        cdef double[::1] mv
+        cdef const double[::1] mv
         cdef cnp.ndarray freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
         mv = freq_c
         with nogil:
@@ -201,9 +201,9 @@ cdef class RheologyBase(PhysicsBase):
         self._check_ptr()
         cdef vector[double] vmod, vvisc, vfreq
         cdef vector[cpp_complex[double]] vout
-        cdef double[::1] mv
-        cdef double[::1] mv2
-        cdef double[::1] mv3
+        cdef const double[::1] mv
+        cdef const double[::1] mv2
+        cdef const double[::1] mv3
         cdef cnp.ndarray mod_c  = np.ascontiguousarray(modulus,   dtype=np.float64).ravel()
         cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
         cdef cnp.ndarray freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()

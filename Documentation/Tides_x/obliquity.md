@@ -1,6 +1,6 @@
 # Obliquity Functions
 
-_Updated: 2026-09-18_
+_Updated: 2026-09-23_
 
 The obliquity functions $F_{l,m,p}(I)$ are the other forcing component of the tidal potential, alongside the [eccentricity functions](eccentricity.md); see $F_{lmp}(I)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). The potential built from them gives tidal strain, heating, and spin-orbit evolution.
 
@@ -35,6 +35,8 @@ Truncation $n$ keeps every term of the Taylor expansion of $F_{l,m,p}(I)$ throug
 | `10` | `"gen"`, `"general"` | 9 | Exact | No truncation: exact, and the slowest. |
 
 At zero obliquity with truncation `0`, the two surviving degree-2 terms are $F_{2,0,1} = -1/2$ and $F_{2,2,0} = 3$.
+
+The default everywhere is `"off"`: the `[tides]` `obliquity_trunc_lvl` of the TidalPy configuration, which a built world, a directly constructed world, and the standalone functions (`global_potential`, `collapse_global_tides`, `tidal_potential_3d_modes`) all take when no truncation is given. A world that runs `calc_tides` with a nonzero obliquity while its truncation is off logs a warning once, since its obliquity tides are then ignored.
 
 > [!WARNING]
 > The truncation level chosen for the obliquity functions is compounded by the truncation used on eccentricity. A high eccentricity truncation coupled with a high obliquity truncation will result in many tidal modes leading to slower calculations.

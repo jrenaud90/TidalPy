@@ -18,6 +18,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.Tides_x.classes.tide import TIDE_CONFIG_KEYS, _same_model
 from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
+import TidalPy
 from TidalPy.Tides_x.classes.tide cimport (
     c_TideBase, c_TideModel, c_TideModelConfig, c_tide_model_from_name, c_find_tide,
 )
@@ -127,7 +128,7 @@ def collapse_global_tides(
         int min_degree_l=2,
         int max_degree_l=2,
         int eccentricity_truncation=3,
-        object obliquity_truncation='gen') -> dict:
+        object obliquity_truncation=None) -> dict:
     """Collapse the global tidal modes into heating and orbital potential derivatives.
 
     The body radius comes first, then the orbital state in the same order as the world's
@@ -160,14 +161,15 @@ def collapse_global_tides(
         The ``"rheology"`` model is not supported here (use the world's ``calc_tides``).
     tide_config : dict, optional
         Per-degree model parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s] lists indexed
-        from degree l = 2). Absent takes the ``[tides]`` defaults of the TidalPy configuration, as ``make_tide``
-        does; any other key raises ``ValueError``.
+        from degree l = 2). A key left out takes the ``[tides]`` default of the TidalPy configuration, as
+        ``make_tide`` does; any other key raises ``ValueError``.
     min_degree_l, max_degree_l : int
         Tidal harmonic degree range (2..10).
     eccentricity_truncation : int
         Eccentricity truncation level. Tabulated levels: 1..5, 10, 15, 20.
-    obliquity_truncation : str or int
-        Obliquity truncation: ``"off"`` (0), 1, 2, or ``"gen"``/``"general"`` (10).
+    obliquity_truncation : str or int, optional
+        Obliquity truncation: ``"off"`` (0), 1, 2, or ``"gen"``/``"general"`` (10). None takes the ``[tides]``
+        ``obliquity_trunc_lvl`` of the TidalPy configuration (``"off"`` by default, which ignores the obliquity).
 
     Returns
     -------
@@ -182,6 +184,10 @@ def collapse_global_tides(
     NotImplementedError
         If the rheology model is requested, or a truncation/degree is unsupported.
     """
+    if obliquity_truncation is None:
+        # The same default a built world takes: the [tides] obliquity_trunc_lvl of TidalPy.config_x.
+        obliquity_truncation = ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(
+            "obliquity_trunc_lvl", "off")
     cdef int i_obliquity_truncation = cy_resolve_obliquity_truncation(obliquity_truncation)
 
     if not (2 <= min_degree_l <= max_degree_l <= 10):
@@ -199,9 +205,9 @@ def collapse_global_tides(
 
     # The same defaults and key check as make_tide: an absent config takes the [tides] defaults, and an unknown or
     # misspelled key raises instead of silently leaving a list empty (which would give no heating).
-    if tide_config is None:
-        tide_config = factory_defaults("tides", TIDE_CONFIG_KEYS, tide_model, _same_model)
-    check_config_keys(tide_config, TIDE_CONFIG_KEYS, "tide")
+    if tide_config is not None:
+        check_config_keys(tide_config, TIDE_CONFIG_KEYS, "tide")
+    tide_config = {**factory_defaults("tides", TIDE_CONFIG_KEYS, tide_model, _same_model), **(tide_config or {})}
     cdef c_TideModelConfig cfg = cy_build_tide_config(tide_config)
     cdef c_TideModel model_enum = c_tide_model_from_name(tide_model.encode("utf-8"))
     if model_enum == c_TideModel.Rheology:

@@ -75,13 +75,21 @@ inline c_GlobalPotentialStorage c_global_potential(
     c_GlobalPotentialStorage result;
     result.error_code = 0;
 
+    // Only degrees 2 to 10 are tabulated; checked before anything is sized from them.
+    if ((min_degree_l < 2) || (max_degree_l > 10) || (min_degree_l > max_degree_l) || (eccentricity_truncation < 0))
+    {
+        result.error_code   = -2;
+        result.working_on_l = (min_degree_l < 2) ? min_degree_l : max_degree_l;
+        return result;
+    }
+
     // Upper bound on the number of modes; an overestimate, since some modes are skipped.
-    int target_size = 0;
+    size_t target_size = 0;
     for (int degree_l = min_degree_l; degree_l <= max_degree_l; degree_l++)
     {
-        target_size += (degree_l + 1) * (degree_l + 1);
+        target_size += static_cast<size_t>((degree_l + 1) * (degree_l + 1));
     }
-    target_size *= (2 * eccentricity_truncation + 1);
+    target_size *= static_cast<size_t>(2 * eccentricity_truncation + 1);
     result.mode_map.reserve(target_size);
     result.unique_freq_index_map.reserve(target_size);
     result.unique_freq_map.reserve(target_size);

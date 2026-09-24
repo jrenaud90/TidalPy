@@ -324,3 +324,41 @@ def test_bad_starting_radius():
             starting_radius = 0.91 * 1000,  # Must be less than 90% total radius.
             raise_on_fail=True
         )
+
+
+def _homogeneous_profile():
+    radius_array = np.linspace(0.0, 6.0e6, 50)
+    density_array = np.full(50, 5000.0)
+    bulk_array = np.full(50, 1.0e11 + 0j)
+    shear_array = np.full(50, 5.0e10 + 1.0e8j)
+    return radius_array, density_array, bulk_array, shear_array
+
+
+def test_no_layers_is_rejected():
+    """An empty layer description is an input error, not a crash (the matrix path once read layer_types[0])."""
+    from TidalPy.RadialSolver_x.solver import radial_solver as _radial_solver
+    radius_array, density_array, bulk_array, shear_array = _homogeneous_profile()
+    with pytest.raises(ValueError, match="At least one layer"):
+        _radial_solver(
+            radius_array, density_array, bulk_array, shear_array, 1.0e-5, 5000.0, (), (), (), np.array([]),
+            love_method='propagation_matrix')
+
+
+def test_short_eos_method_list_is_rejected():
+    from TidalPy.RadialSolver_x.solver import radial_solver as _radial_solver
+    radius_array, density_array, bulk_array, shear_array = _homogeneous_profile()
+    with pytest.raises(ValueError, match="one method per layer"):
+        _radial_solver(
+            radius_array, density_array, bulk_array, shear_array, 1.0e-5, 5000.0,
+            ("solid", "solid"), (False, False), (False, False), np.array([3.0e6, 6.0e6]),
+            eos_method_bylayer=("interpolate",))
+
+
+def test_top_layer_must_end_at_the_profile_top():
+    """A top layer below the last radius would silently drop the rest of the profile."""
+    from TidalPy.RadialSolver_x.solver import radial_solver as _radial_solver
+    radius_array, density_array, bulk_array, shear_array = _homogeneous_profile()
+    with pytest.raises(ValueError, match="planet radius"):
+        _radial_solver(
+            radius_array, density_array, bulk_array, shear_array, 1.0e-5, 5000.0,
+            ("solid",), (False,), (False,), np.array([5.0e6]))

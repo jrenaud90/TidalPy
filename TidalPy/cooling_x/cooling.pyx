@@ -32,7 +32,7 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept nogil:
+cdef void cy_fill_vector(const double[::1] src, vector[double]& dst) noexcept nogil:
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
     dst.resize(n)
@@ -98,7 +98,7 @@ cdef object cy_solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
 
     cdef vector[double] vtemp, vvisc
     cdef vector[c_CoolingResult] vout
-    cdef double[::1] mv
+    cdef const double[::1] mv
     cdef cnp.ndarray temp_arr, visc_arr, d_b, v_b, d_c, v_c
     cdef tuple out_shape
 
@@ -273,7 +273,7 @@ cdef class CoolingBase(PhysicsBase):
             thermal_expansion)
         cdef vector[double] vtemp
         cdef vector[c_CoolingResult] vout
-        cdef double[::1] mv
+        cdef const double[::1] mv
         cdef cnp.ndarray temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
         mv = temp_c
         with nogil:
@@ -304,7 +304,7 @@ cdef class CoolingBase(PhysicsBase):
             thermal_expansion)
         cdef vector[double] vvisc
         cdef vector[c_CoolingResult] vout
-        cdef double[::1] mv
+        cdef const double[::1] mv
         cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
         mv = visc_c
         with nogil:
@@ -335,8 +335,8 @@ cdef class CoolingBase(PhysicsBase):
             thermal_expansion)
         cdef vector[double] vtemp, vvisc
         cdef vector[c_CoolingResult] vout
-        cdef double[::1] temp_c_view
-        cdef double[::1] visc_c_view
+        cdef const double[::1] temp_c_view
+        cdef const double[::1] visc_c_view
         cdef cnp.ndarray temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
         cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
         temp_c_view = temp_c

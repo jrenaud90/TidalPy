@@ -152,26 +152,31 @@ cdef class PhysicsLayer(BaseLayer):
     @property
     def shear_modulus_static(self) -> float:
         """Unrelaxed (static) shear modulus [Pa]."""
+        self._check_ptr()
         return self._physics_ptr.get_shear_modulus_static()
 
     @property
     def bulk_modulus_static(self) -> float:
         """Unrelaxed (static) bulk modulus [Pa]."""
+        self._check_ptr()
         return self._physics_ptr.get_bulk_modulus_static()
 
     @property
     def shear_viscosity_static(self) -> float:
         """Reference dynamic shear viscosity [Pa·s]."""
+        self._check_ptr()
         return self._physics_ptr.get_shear_viscosity_static()
 
     @property
     def bulk_viscosity_static(self) -> float:
         """Reference dynamic bulk viscosity [Pa·s]."""
+        self._check_ptr()
         return self._physics_ptr.get_bulk_viscosity_static()
 
     @property
     def love_numbers(self) -> LoveNumbers:
         """All three complex Love numbers (k, h, l) as a LoveNumbers object."""
+        self._check_ptr()
         cdef LoveNumbers result = LoveNumbers.__new__(LoveNumbers)
         result._love = self._physics_ptr.get_love_numbers()
         return result
@@ -179,83 +184,100 @@ cdef class PhysicsLayer(BaseLayer):
     @property
     def love_number_k(self) -> complex:
         """Complex potential Love number k (stored value; zero until assigned)."""
+        self._check_ptr()
         cdef cpp_complex[double] k = self._physics_ptr.get_love_number_k()
         return complex(k.real(), k.imag())
 
     @property
     def love_number_h(self) -> complex:
         """Complex radial displacement Love number h (stored value; zero until assigned)."""
+        self._check_ptr()
         cdef cpp_complex[double] h = self._physics_ptr.get_love_number_h()
         return complex(h.real(), h.imag())
 
     @property
     def love_number_l(self) -> complex:
         """Complex tangential displacement Love number l (stored value; zero until assigned)."""
+        self._check_ptr()
         cdef cpp_complex[double] l = self._physics_ptr.get_love_number_l()
         return complex(l.real(), l.imag())
 
     @property
     def shear_rheology_set(self) -> bool:
         """True if a shear rheology model has been attached."""
+        self._check_ptr()
         return self._physics_ptr.get_shear_rheology_set()
 
     @property
     def bulk_rheology_set(self) -> bool:
         """True if a bulk rheology model has been attached."""
+        self._check_ptr()
         return self._physics_ptr.get_bulk_rheology_set()
 
     @property
     def is_solid(self) -> bool:
         """True if this layer is solid, False for liquid. Used by the radial Love-number solver."""
+        self._check_ptr()
         return bool(self._physics_ptr.get_is_solid())
 
     @is_solid.setter
     def is_solid(self, value: bool):
+        self._check_ptr()
         self._physics_ptr.set_is_solid(<cpp_bool>bool(value))
 
     @property
     def is_static(self) -> bool:
         """True if the static (no-dynamic-terms) approximation is used. Used by the radial solver."""
+        self._check_ptr()
         return bool(self._physics_ptr.get_is_static())
 
     @is_static.setter
     def is_static(self, value: bool):
+        self._check_ptr()
         self._physics_ptr.set_is_static(<cpp_bool>bool(value))
 
     @property
     def is_incompressible(self) -> bool:
         """True if the incompressible approximation is used. Used by the radial solver."""
+        self._check_ptr()
         return bool(self._physics_ptr.get_is_incompressible())
 
     @is_incompressible.setter
     def is_incompressible(self, value: bool):
+        self._check_ptr()
         self._physics_ptr.set_is_incompressible(<cpp_bool>bool(value))
 
     @property
     def temperature(self) -> float:
         """Layer temperature [K] at which the viscosity and melt models are evaluated."""
+        self._check_ptr()
         return self._physics_ptr.get_temperature()
 
     @temperature.setter
     def temperature(self, double value):
+        self._check_ptr()
         self._physics_ptr.set_temperature(value)
 
     @property
     def use_thermal_eos(self) -> bool:
         """True if the EOS model receives the temperature (thermal density and bulk modulus)."""
+        self._check_ptr()
         return bool(self._physics_ptr.get_use_thermal_eos())
 
     @use_thermal_eos.setter
     def use_thermal_eos(self, value: bool):
+        self._check_ptr()
         self._physics_ptr.set_use_thermal_eos(<cpp_bool>bool(value))
 
     @property
     def use_heating(self) -> bool:
         """True if the world's heat sources act inside this layer during a thermal EOS solve."""
+        self._check_ptr()
         return bool(self._physics_ptr.get_use_heating())
 
     @use_heating.setter
     def use_heating(self, value: bool):
+        self._check_ptr()
         self._physics_ptr.set_use_heating(<cpp_bool>bool(value))
 
     def set_shear_rheology(self, RheologyBase rheology not None):
@@ -273,6 +295,7 @@ cdef class PhysicsLayer(BaseLayer):
         ValueError
             If ``rheology`` has already been attached or otherwise moved.
         """
+        self._check_ptr()
         if rheology._rheology_ptr.get() == NULL:
             raise ValueError(
                 "This rheology model holds no C++ object (already attached or moved).")
@@ -294,6 +317,7 @@ cdef class PhysicsLayer(BaseLayer):
         ValueError
             If ``rheology`` has already been attached or otherwise moved.
         """
+        self._check_ptr()
         if rheology._rheology_ptr.get() == NULL:
             raise ValueError(
                 "This rheology model holds no C++ object (already attached or moved).")
@@ -303,16 +327,19 @@ cdef class PhysicsLayer(BaseLayer):
     @property
     def shear_viscosity_set(self) -> bool:
         """True if a shear viscosity model has been attached."""
+        self._check_ptr()
         return self._physics_ptr.get_shear_viscosity_set()
 
     @property
     def bulk_viscosity_set(self) -> bool:
         """True if a bulk viscosity model has been attached."""
+        self._check_ptr()
         return self._physics_ptr.get_bulk_viscosity_set()
 
     @property
     def partial_melt_set(self) -> bool:
         """True if a partial-melt model has been attached."""
+        self._check_ptr()
         return self._physics_ptr.get_partial_melt_set()
 
     def set_shear_viscosity(self, ViscosityBase viscosity not None):
@@ -327,6 +354,7 @@ cdef class PhysicsLayer(BaseLayer):
         ValueError
             If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
         """
+        self._check_ptr()
         if viscosity._visc_ptr.get() == NULL:
             raise ValueError(
                 "This viscosity model holds no C++ object (already attached or moved).")
@@ -348,6 +376,7 @@ cdef class PhysicsLayer(BaseLayer):
         ValueError
             If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
         """
+        self._check_ptr()
         if viscosity._visc_ptr.get() == NULL:
             raise ValueError(
                 "This viscosity model holds no C++ object (already attached or moved).")
@@ -369,6 +398,7 @@ cdef class PhysicsLayer(BaseLayer):
         ValueError
             If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
         """
+        self._check_ptr()
         if partial_melt._melt_ptr.get() == NULL:
             raise ValueError(
                 "This partial-melt model holds no C++ object (already attached or moved).")
@@ -380,6 +410,7 @@ cdef class PhysicsLayer(BaseLayer):
         partial_melt._ptr = NULL
 
     def _apply_complex(self, radius, double frequency, cpp_bool is_shear):
+        self._check_ptr()
         # Radius-resolved complex modulus: float -> complex; np.ndarray -> complex np.ndarray (same shape).
         cdef cnp.ndarray in_arr
         cdef cnp.ndarray out_arr
@@ -435,6 +466,7 @@ cdef class PhysicsLayer(BaseLayer):
         -----------
         - Linear viscoelastic response at a single forcing frequency.
         """
+        self._check_ptr()
         cdef cpp_complex[double] result
         if frequency is None:
             result = self._physics_ptr.calc_complex_shear_modulus(<double>first_arg)
@@ -467,6 +499,7 @@ cdef class PhysicsLayer(BaseLayer):
         -----------
         - Linear viscoelastic response at a single forcing frequency.
         """
+        self._check_ptr()
         cdef cpp_complex[double] result
         if frequency is None:
             result = self._physics_ptr.calc_complex_bulk_modulus(<double>first_arg)

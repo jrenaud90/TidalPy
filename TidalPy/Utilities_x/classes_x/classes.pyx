@@ -207,14 +207,10 @@ cdef class PhysicsBase(TidalPyBaseClass):
 
     @property
     def model_name(self) -> str:
-        """Physics model name."""
+        """Physics model name. Read-only: the name is what the model computes, so a different model is a new
+        object built by the family's ``make_*`` factory."""
         self._check_ptr()
         return (<c_PhysicsBase*>self._ptr).get_model_name().decode("utf-8")
-
-    @model_name.setter
-    def model_name(self, str value):
-        self._check_ptr()
-        (<c_PhysicsBase*>self._ptr).set_model_name(value.encode("utf-8"))
 
     cpdef dict get_config_dict(self):
         """The configuration dict the C++ model reports.

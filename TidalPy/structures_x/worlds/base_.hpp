@@ -135,7 +135,20 @@ public:
     bool get_tide_model_set() const noexcept { return this->p_tide != nullptr; }
     const c_TideBase* get_tide_model() const noexcept { return this->p_tide.get(); }
 
-    void set_tide_config(const c_TideConfig& cfg) noexcept {
+    // Throws std::invalid_argument for a degree range outside 2 <= min <= max <= 10 (the tabulated degrees) or a
+    // non-positive Love-method Q or negative time lag (NaN leaves either unset).
+    void set_tide_config(const c_TideConfig& cfg) {
+        if (!((cfg.min_degree_l >= 2) && (cfg.min_degree_l <= cfg.max_degree_l) && (cfg.max_degree_l <= 10))) {
+            throw std::invalid_argument(
+                "TidalPy: the tidal degree range must satisfy 2 <= min_degree_l <= max_degree_l <= 10; got " +
+                std::to_string(cfg.min_degree_l) + " to " + std::to_string(cfg.max_degree_l) + ".");
+        }
+        if (cfg.love_fixed_q <= 0.0) {
+            throw std::invalid_argument("TidalPy: love_fixed_q must be positive (NaN leaves it unset).");
+        }
+        if (cfg.love_fixed_dt < 0.0) {
+            throw std::invalid_argument("TidalPy: love_fixed_dt must not be negative (NaN leaves it unset).");
+        }
         this->p_tide_config  = cfg;
         this->p_tides_solved = false;
     }
@@ -244,6 +257,32 @@ protected:
     double      p_emissivity = 1.0;   // [dimensionless]
     double      p_obliquity  = 0.0;   // [rad]
     double      p_spin_frequency = 0.0;   // [rad/s]
+
+    // Checks the orbital state a tidal solve is about to use: throws std::invalid_argument for an eccentricity
+    // outside [0, 1) or a semi-major axis that is not positive, and warns once per world when an obliquity would be
+    // ignored because the obliquity truncation is off.
+    void p_check_tide_state(const c_TideSolveConfig& state) const {
+        if (!((state.eccentricity >= 0.0) && (state.eccentricity < 1.0))) {
+            throw std::invalid_argument(
+                "TidalPy: world '" + this->get_name() + "' tides need an eccentricity in [0, 1); got " +
+                std::to_string(state.eccentricity) + ".");
+        }
+        if (!(state.semi_major_axis > 0.0)) {
+            throw std::invalid_argument(
+                "TidalPy: world '" + this->get_name() + "' tides need a positive semi-major axis; got " +
+                std::to_string(state.semi_major_axis) + " m.");
+        }
+        if ((state.obliquity != 0.0) && (this->p_tide_config.obliquity_truncation == 0)
+                && !this->p_obliquity_off_warned) {
+            this->p_obliquity_off_warned = true;
+            TIDALPY_LOG_WARN(
+                "TidalPy: world '{}' has an obliquity of {:.3e} rad but its obliquity truncation is off, so its "
+                "obliquity tides are ignored. Set obliquity_trunc_lvl (1, 2, or 'gen') in its [tides] table or "
+                "set_tide_config to include them. Shown once per world.",
+                this->get_name(), state.obliquity);
+        }
+    }
+    mutable bool p_obliquity_off_warned = false;
 
     // Global (1D) tidal dissipation state (results are not serialized; recompute with calc_tides).
     c_TideConfig                         p_tide_config;

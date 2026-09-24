@@ -138,6 +138,24 @@ cdef class BaseLayer(StructureBase):
         # unique_ptr<c_BaseLayer> auto-inits to nullptr; _ptr set in __init__.
         self._is_view   = False
         self._world_ref = None
+        self._detached  = False
+
+    cdef void _check_ptr(self) except *:
+        if self._detached:
+            raise RuntimeError(
+                "This layer view no longer refers to a layer: its world loaded a binary file, which replaced the "
+                "world's layers. Take a new view from the world (world.<layer name>, get_layer, or iteration).")
+        StructureBase._check_ptr(self)
+
+    cdef void _detach(self) noexcept:
+        if self._is_view:
+            self._layer_ptr.release()
+        self._ptr      = NULL
+        self._detached = True
+
+    cdef void _notify_world_of_move(self) except *:
+        if self._is_view and (self._world_ref is not None):
+            self._world_ref._layer_moved()
 
     def __init__(
             self,
@@ -202,6 +220,7 @@ cdef class BaseLayer(StructureBase):
         force : bool, optional
             Attempt the load even on a schema version mismatch.
         """
+        self._check_ptr()
         if self._is_view:
             raise ValueError(
                 f"Layer '{self.name}' belongs to a world and cannot be loaded in place: load the world's binary "
@@ -212,6 +231,7 @@ cdef class BaseLayer(StructureBase):
     @property
     def radius(self) -> float:
         """Outer radius [m]."""
+        self._check_ptr()
         return self._layer_ptr.get().get_radius_outer()
 
     @property
@@ -221,70 +241,84 @@ cdef class BaseLayer(StructureBase):
         Each successful world EOS solve overwrites it with the mass the solved density profile places between the
         layer's inner and outer radii.
         """
+        self._check_ptr()
         return self._layer_ptr.get().get_mass()
 
     @property
     def name(self) -> str:
         """Layer name."""
+        self._check_ptr()
         return self._layer_ptr.get().get_name().decode("utf-8")
 
     @property
     def layer_index(self) -> int:
         """Zero-based layer index (0 = innermost)."""
+        self._check_ptr()
         return self._layer_ptr.get().get_layer_index()
 
     @property
     def radius_inner(self) -> float:
         """Inner boundary radius [m]."""
+        self._check_ptr()
         return self._layer_ptr.get().get_radius_inner()
 
     @property
     def radius_outer(self) -> float:
         """Outer boundary radius [m]."""
+        self._check_ptr()
         return self._layer_ptr.get().get_radius_outer()
 
     @property
     def thickness(self) -> float:
         """Layer thickness [m] (radius_outer - radius_inner)."""
+        self._check_ptr()
         return self._layer_ptr.get().get_thickness()
 
     @property
     def volume(self) -> float:
         """Layer volume [m^3] (spherical shell)."""
+        self._check_ptr()
         return self._layer_ptr.get().get_volume()
 
     @property
     def density_bulk(self) -> float:
         """Bulk density [kg/m^3] = mass / volume, NaN for a zero-volume layer; follows the EOS-set mass."""
+        self._check_ptr()
         return self._layer_ptr.get().get_density_bulk()
 
     @property
     def surface_area_inner(self) -> float:
         """Inner boundary surface area [m^2]."""
+        self._check_ptr()
         return self._layer_ptr.get().get_surface_area_inner()
 
     @property
     def surface_area_outer(self) -> float:
         """Outer boundary surface area [m^2]."""
+        self._check_ptr()
         return self._layer_ptr.get().get_surface_area_outer()
 
     @property
     def material_name(self) -> str:
         """Material identifier string."""
+        self._check_ptr()
         return self._layer_ptr.get().get_material_name().decode("utf-8")
 
     @property
     def is_volume_fixed(self) -> bool:
         """False if the layer grows or shrinks to hold its mass during an EOS solve."""
+        self._check_ptr()
         return self._layer_ptr.get().get_is_volume_fixed()
 
     @is_volume_fixed.setter
     def is_volume_fixed(self, value: bool):
+        self._check_ptr()
         self._layer_ptr.get().set_is_volume_fixed(<cpp_bool>bool(value))
 
     @property
     def is_tidal(self) -> bool:
         """Whether this layer contributes to tidal dissipation."""
+        self._check_ptr()
         return self._layer_ptr.get().get_is_tidal()
 
     @property
@@ -295,11 +329,13 @@ cdef class BaseLayer(StructureBase):
         heating of an analytic tide model; the radial solver resolves the layers directly. Settable; ``None``
         returns to the volume fraction. The value in use is ``LayeredWorld.get_layer_tidal_scale``.
         """
+        self._check_ptr()
         cdef double value = self._layer_ptr.get().get_tidal_scale()
         return None if value != value else value
 
     @tidal_scale.setter
     def tidal_scale(self, value):
+        self._check_ptr()
         self._layer_ptr.get().set_tidal_scale(d_NAN if value is None else <double>value)
 
     def get_tidal_heating(self) -> float:
@@ -308,26 +344,31 @@ cdef class BaseLayer(StructureBase):
         Set by :meth:`LayeredWorld.calc_tides`; how the heating is resolved per layer depends on the world's Love
         method (see the worlds documentation, Tidal Heating of Each Layer).
         """
+        self._check_ptr()
         return self._layer_ptr.get().get_tidal_heating()
 
     @property
     def eos_data_populated(self) -> bool:
         """True after EOS profile data has been populated (world EOS solve or update_eos_data)."""
+        self._check_ptr()
         return self._layer_ptr.get().get_eos_data_populated()
 
     @property
     def eos_set(self) -> bool:
         """True after a material EOS model has been attached via :meth:`set_eos`."""
+        self._check_ptr()
         return self._layer_ptr.get().get_eos_set()
 
     def set_radii(self, double radius_inner, double radius_outer):
         """Move the layer's boundaries [m], keeping every derived geometric quantity in step.
 
         The world EOS solve calls this itself when a layer holding its mass grows or shrinks. Setting the
-        radii by hand leaves the world's own radius and its other layers untouched, so keep the stack
-        continuous.
+        radii by hand on a world's layer leaves the world's own radius and its other layers untouched, so keep
+        the stack continuous, and forgets the world's solved profile, which no longer lines up with its layers.
         """
+        self._check_ptr()
         self._layer_ptr.get().set_radii(radius_inner, radius_outer)
+        self._notify_world_of_move()
 
     def set_eos(self, MaterialEOSBase eos not None):
         """Attach a material EOS model, the layer's density source for the world-level ``solve_eos``.
@@ -344,6 +385,7 @@ cdef class BaseLayer(StructureBase):
         ValueError
             If ``eos`` has already been attached or otherwise moved.
         """
+        self._check_ptr()
         if eos._eos_ptr.get() == NULL:
             raise ValueError(
                 "This EOS model holds no C++ object (already attached or moved).")
@@ -373,6 +415,7 @@ cdef class BaseLayer(StructureBase):
         -----------
         - All four sequences have the same length and radius is strictly ascending.
         """
+        self._check_ptr()
         cdef vector[double] r_vec   = radius
         cdef vector[double] rho_vec = density_kgm3
         cdef vector[double] g_vec = gravity_ms2
@@ -394,6 +437,7 @@ cdef class BaseLayer(StructureBase):
         return 0.0
 
     def _apply_real(self, radius, int kind):
+        self._check_ptr()
         # float -> float; np.ndarray -> np.ndarray (same shape, looped under nogil).
         cdef cnp.ndarray in_arr
         cdef cnp.ndarray out_arr
@@ -414,36 +458,44 @@ cdef class BaseLayer(StructureBase):
 
     def get_density(self, radius):
         """Density [kg/m^3] at radius [m] (float or np.ndarray); NaN if EOS data not populated."""
+        self._check_ptr()
         return self._apply_real(radius, _KIND_DENSITY)
 
     def get_gravity(self, radius):
         """Gravitational acceleration [m/s^2] at radius [m] (float or np.ndarray); NaN if not populated."""
+        self._check_ptr()
         return self._apply_real(radius, _KIND_GRAVITY)
 
     def get_pressure(self, radius):
         """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if EOS data not populated."""
+        self._check_ptr()
         return self._apply_real(radius, _KIND_PRESSURE)
 
     # Viscoelastic profile (populated by the world EOS solve; NaN before then or on a geometry-only layer)
     @property
     def viscoelastic_populated(self) -> bool:
         """True after the world EOS solve has populated this layer's viscoelastic state."""
+        self._check_ptr()
         return self._layer_ptr.get().get_viscoelastic_populated()
 
     def get_shear_modulus(self, radius):
         """Post-melt static shear modulus [Pa] at radius [m] (float or np.ndarray); NaN if unpopulated."""
+        self._check_ptr()
         return self._apply_real(radius, _KIND_SHEAR_MOD)
 
     def get_bulk_modulus(self, radius):
         """Post-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray); NaN if unpopulated."""
+        self._check_ptr()
         return self._apply_real(radius, _KIND_BULK_MOD)
 
     def get_shear_viscosity(self, radius):
         """Post-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
+        self._check_ptr()
         return self._apply_real(radius, _KIND_SHEAR_VISC)
 
     def get_bulk_viscosity(self, radius):
         """Post-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
+        self._check_ptr()
         return self._apply_real(radius, _KIND_BULK_VISC)
 
     def get_melt_fraction(self, radius):
@@ -451,6 +503,7 @@ cdef class BaseLayer(StructureBase):
 
         0.0 where no partial-melt model is attached; NaN if unpopulated.
         """
+        self._check_ptr()
         return self._apply_real(radius, _KIND_MELT_FRACTION)
 
     # Shorthand bundles (one call returns several profiles at once; mirrors the world-level surface)
@@ -458,6 +511,7 @@ cdef class BaseLayer(StructureBase):
         """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius [m], each a
         float or np.ndarray. One evaluation of the solved state per radius fills all four.
         """
+        self._check_ptr()
         return cy_eos_fields(
             <const void*>self._layer_ptr.get(), _layer_eos_state, radius,
             (C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
@@ -466,6 +520,7 @@ cdef class BaseLayer(StructureBase):
     def get_state(self, radius):
         """All EOS-related profiles at radius as a dict (float or np.ndarray values), from one evaluation of the
         solved state per radius."""
+        self._check_ptr()
         values = cy_eos_fields(
             <const void*>self._layer_ptr.get(), _layer_eos_state, radius,
             (C_EOS_DENSITY_INDEX, C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX,

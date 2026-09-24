@@ -14,6 +14,8 @@ surface radius for the 3D kernel.
 
 import numpy as np
 cimport numpy as cnp
+
+import TidalPy
 cnp.import_array()
 
 from libcpp.vector cimport vector
@@ -42,12 +44,13 @@ def tidal_potential_3d_modes(
         int min_degree_l=2,
         int max_degree_l=2,
         int eccentricity_truncation=3,
-        int obliquity_truncation=10):
+        object obliquity_truncation=None):
     """Active tidal modes with complex potential angular-factor amplitudes at one point.
 
     The body radius comes first, then the orbital state in the same order as the world's ``calc_tides``,
     then Newton's constant, the point's colatitude and longitude, and the degree range and truncations. The
-    obliquity truncation defaults to the general form (10), as the world's does; 0 ignores the obliquity.
+    obliquity truncation is ``'off'`` (0, which ignores the obliquity), 1, 2, or ``'gen'`` (10); None takes the
+    ``[tides]`` ``obliquity_trunc_lvl`` of the TidalPy configuration, as a built world does.
 
     Returns
     -------
@@ -63,9 +66,15 @@ def tidal_potential_3d_modes(
         raise NotImplementedError(
             f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
             'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
-    if obliquity_truncation not in (0, 1, 2, 10):
+    if obliquity_truncation is None:
+        obliquity_truncation = ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(
+            "obliquity_trunc_lvl", "off")
+    if isinstance(obliquity_truncation, str):
+        obliquity_truncation = {"off": 0, "gen": 10, "general": 10}.get(
+            obliquity_truncation.lower(), obliquity_truncation)
+    if isinstance(obliquity_truncation, bool) or obliquity_truncation not in (0, 1, 2, 10):
         raise NotImplementedError(
-            f'Obliquity truncation {obliquity_truncation} is not tabulated. '
+            f'Obliquity truncation {obliquity_truncation!r} is not tabulated. '
             'Supported levels: 0 (off), 1, 2, 10 (fully general).')
 
     cdef int error_code = 0

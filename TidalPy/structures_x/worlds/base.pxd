@@ -97,7 +97,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         void                 set_tide_model(unique_ptr[c_TideBase] tide)
         cpp_bool             get_tide_model_set() const
         const c_TideBase*    get_tide_model() const
-        void                 set_tide_config(const c_TideConfig& cfg)
+        void                 set_tide_config(const c_TideConfig& cfg) except +
         const c_TideConfig&  get_tide_config() const
         void                 calc_tides(const c_TideSolveConfig& state) except +
         cpp_bool             get_tide_state(c_TideSolveConfig& state_out) except +

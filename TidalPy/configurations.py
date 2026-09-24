@@ -11,6 +11,7 @@ import warnings
 from typing import Union
 from itertools import islice
 
+import numpy as np
 import toml
 
 import TidalPy
@@ -37,8 +38,9 @@ def merge_configs(base: dict, overrides: dict) -> dict:
 
     Tables merge key by key, so an override only needs the values it changes; any other value (a list included)
     replaces the base value whole. A physics-model table (a table with a ``model`` key) is the exception: when the
-    override names a different model, its table replaces the base table instead of merging, so no parameter of the
-    base model is carried over to a model that does not take it.
+    override names a different model, the base model's own parameters are dropped before the merge
+    (``keep_on_model_change``), so none reaches a model that does not take it, while nested model tables and a
+    material's law-independent properties still merge.
 
     Parameters
     ----------
@@ -59,12 +61,75 @@ def merge_configs(base: dict, overrides: dict) -> dict:
             model_changed = ("model" in value) and ("model" in base_value) and \
                 (str(value["model"]).lower() != str(base_value["model"]).lower())
             if model_changed:
-                merged[key] = copy.deepcopy(value)
-            else:
-                merged[key] = merge_configs(base_value, value)
+                base_value = keep_on_model_change(key, base_value)
+            merged[key] = merge_configs(base_value, value)
         else:
             merged[key] = copy.deepcopy(value)
     return merged
+
+
+# Keys of a `material` table that belong to one equation-of-state law. Its other keys (density, static moduli,
+# thermal constants) and nested model tables (viscosities, partial melt) describe the material under any law.
+MATERIAL_LAW_KEYS = frozenset({
+    "reference_bulk_modulus_pa", "bulk_modulus_derivative", "invert_rtol", "invert_max_iters",
+    "radius_m", "density_kg_m3", "shear_modulus_pa", "bulk_modulus_pa", "shear_viscosity_pas", "bulk_viscosity_pas"})
+
+
+def plain_config(value):
+    """A copy of a configuration with numpy scalars and arrays turned into plain Python values.
+
+    The ``toml`` package writes a numpy number as its repr in quotes (``"np.float64(4.2e8)"``), which no reader
+    turns back into a number, so everything written to a TOML file passes through this first.
+
+    Parameters
+    ----------
+    value : object
+        A configuration dict, or any value inside one.
+
+    Returns
+    -------
+    object
+        The same structure with dicts copied, tuples and arrays as lists, and numpy scalars as Python ones.
+    """
+    if isinstance(value, dict):
+        return {key: plain_config(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [plain_config(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return [plain_config(item) for item in value.tolist()]
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def keep_on_model_change(table_name: str, base_table: dict) -> dict:
+    """What of a base model table survives when an override names a different model.
+
+    The base model's own parameters do not carry over: a key one model reads can mean something else to another
+    (an isotope dataset's reference time is not a fixed rate's). Nested model tables still merge, and a
+    ``material`` table keeps the properties no equation-of-state law owns.
+
+    Parameters
+    ----------
+    table_name : str
+        The table's key (``material``, ``radiogenics``, ...).
+    base_table : dict
+        The table being overridden.
+
+    Returns
+    -------
+    dict
+        A new table holding only what carries over.
+    """
+    kept = {}
+    for key, value in base_table.items():
+        if key == "model":
+            continue
+        if isinstance(value, dict):
+            kept[key] = copy.deepcopy(value)
+        elif (table_name == "material") and (key not in MATERIAL_LAW_KEYS):
+            kept[key] = copy.deepcopy(value)
+    return kept
 
 def find_unknown_config_x_keys(overrides: dict, packaged: dict) -> list:
     """The keys of a ``TidalPy_Configs_x.toml`` (or an override dict) that nothing in TidalPy reads.
@@ -438,9 +503,9 @@ def save_config_x(file_path: str, overwrite: bool = True) -> str:
         get_default_config_x()
     if os.path.isfile(file_path) and not overwrite:
         file_path = unique_path(file_path, is_dir=False, make_dir=False)
-    with open(file_path, 'w', encoding='utf-8') as config_file:
+    with open(file_path, 'w', encoding='utf-8', newline='\n') as config_file:
         config_file.write(config_version_header('TidalPy _x Configurations'))
-        toml.dump(TidalPy.config_x, config_file)
+        toml.dump(plain_config(TidalPy.config_x), config_file)
     return file_path
 
 

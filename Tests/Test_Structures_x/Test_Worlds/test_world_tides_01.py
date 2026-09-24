@@ -64,11 +64,34 @@ def test_cpl_world_matches_analytic_heating():
     assert math.isclose(world.get_tidal_heating(), expected, rel_tol=5.0e-3)
 
 
-def test_layer_heating_is_world_heating_times_tidal_scale():
+def test_analytic_layer_heating_sums_to_the_world_heating():
+    """An analytic model fixes the whole body's heating, so the tidal layers share all of it by their scales."""
     world = _cpl_world(tidal_scale=0.8)
     _solve(world)
     heat = world.get_tidal_heating()
-    assert math.isclose(world.get_layer_tidal_heating(0), heat * 0.8, rel_tol=1.0e-9)
+    layer_heating = [world.get_layer_tidal_heating(i) for i in range(world.num_layers)]
+    assert math.isclose(sum(h for h in layer_heating if math.isfinite(h)), heat, rel_tol=1.0e-12)
+
+
+@pytest.mark.parametrize("state, message", (
+    ({"eccentricity": 1.2}, "eccentricity"),
+    ({"eccentricity": -0.1}, "eccentricity"),
+    ({"semi_major_axis": -4.2e8}, "semi-major axis"),
+))
+def test_unphysical_orbits_are_rejected(state, message):
+    world = _cpl_world()
+    call = {"orbital_frequency": _N, "spin_frequency": _N, "eccentricity": _ECC, "obliquity": 0.0,
+            "semi_major_axis": _SMA, "host_mass": _HOST_MASS}
+    call.update(state)
+    with pytest.raises(ValueError, match=message):
+        world.calc_tides(**call)
+
+
+@pytest.mark.parametrize("degrees", ((3, 2), (1, 2), (2, 11)))
+def test_degree_range_is_checked_when_set(degrees):
+    world = _cpl_world()
+    with pytest.raises(ValueError, match="degree range"):
+        world.set_tide_config(min_degree_l=degrees[0], max_degree_l=degrees[1])
 
 
 def test_potential_derivatives_present():

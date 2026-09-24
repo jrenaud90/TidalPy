@@ -265,6 +265,33 @@ inline int c_matrix_propagate(
         degree_l,
         G_to_use);
 
+    // Each slice i is a shell (r_{i-1}, r_i] of its own material, and inside it y = Y_i(r) c_i. Continuity at
+    // r_{i-1} gives c_i = Y_i(r_{i-1})^-1 y(r_{i-1}), so the propagator needs the inverse of slice i's matrix at the
+    // shell's lower radius: slice i's density and shear modulus with the radius and gravity of slice i - 1. Using
+    // slice i - 1's own inverse instead would cancel every interior factor and leave a uniform body.
+    std::vector<double> radius_lower_grid(total_slices, 0.0);
+    std::vector<double> gravity_lower_grid(total_slices, 0.0);
+    for (size_t slice_i = 1; slice_i < total_slices; ++slice_i)
+    {
+        radius_lower_grid[slice_i]  = radius_array_ptr[slice_i - 1];
+        gravity_lower_grid[slice_i] = gravity_array_ptr[slice_i - 1];
+    }
+    std::vector<std::complex<double>> fundamental_lower_mtx_vec(matrix_size);
+    std::vector<std::complex<double>> inverse_lower_mtx_vec(matrix_size);
+    c_fundamental_matrix(
+        first_slice_index,
+        total_slices,
+        radius_lower_grid.data(),
+        density_array_ptr,
+        gravity_lower_grid.data(),
+        complex_shear_array_ptr,
+        fundamental_lower_mtx_vec.data(),
+        inverse_lower_mtx_vec.data(),
+        derivative_mtx_ptr,
+        degree_l,
+        G_to_use);
+    const std::complex<double>* inverse_lower_mtx_ptr = inverse_lower_mtx_vec.data();
+
     // Seed with the core starting conditions. From IcyDwarf: "They are inconsequential on the rest of the
     // solution, so false assumptions are OK."
     size_t index_shift_18 = (first_slice_index - 1) * 18;
@@ -401,13 +428,12 @@ inline int c_matrix_propagate(
     for (size_t slice_i = first_slice_index; slice_i < total_slices; ++slice_i)
     {
         index_shift_36 = slice_i * 36;
-        const size_t last_index_shift_36 = (slice_i - 1) * 36;
         index_shift_18 = slice_i * 18;
         const size_t last_index_shift_18 = (slice_i - 1) * 18;
 
-        // P_{i} = Y_{i} @ ( Y_{i-1}^{-1} @ P_{i-1} )
+        // P_{i} = Y_{i}(r_i) @ ( Y_{i}(r_{i-1})^{-1} @ P_{i-1} )
 
-        // First matrix multiplication: A = Y_{i-1}^{-1} @ P_{i-1}
+        // First matrix multiplication: A = Y_{i}(r_{i-1})^{-1} @ P_{i-1}
         for (size_t j = 0; j < 6; ++j)
         {
             for (size_t k = 0; k < 3; ++k)
@@ -416,7 +442,7 @@ inline int c_matrix_propagate(
                 for (size_t jj = 0; jj < 6; ++jj)
                 {
                     temp_cmplx += (
-                        inverse_fundamental_mtx_ptr[last_index_shift_36 + j * 6 + jj] *
+                        inverse_lower_mtx_ptr[index_shift_36 + j * 6 + jj] *
                         propagation_mtx_ptr[last_index_shift_18 + jj * 3 + k]);
                 }
                 temp_matrix[j * 3 + k] = temp_cmplx;

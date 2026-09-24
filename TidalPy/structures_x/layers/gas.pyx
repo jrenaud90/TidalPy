@@ -163,21 +163,25 @@ cdef class GasLayer(PhysicsLayer):
     @property
     def mean_molecular_weight(self) -> float:
         """Mean molecular weight of the gas [kg/mol]."""
+        self._check_ptr()
         return self._gas_ptr.get_mean_molecular_weight()
 
     @property
     def adiabatic_index(self) -> float:
         """Ratio of specific heats γ = c_p/c_v [dimensionless]."""
+        self._check_ptr()
         return self._gas_ptr.get_adiabatic_index()
 
     @property
     def reference_temperature(self) -> float:
         """Reference temperature [K]."""
+        self._check_ptr()
         return self._gas_ptr.get_reference_temperature()
 
     @property
     def reference_density(self) -> float:
         """Reference density [kg/m³]."""
+        self._check_ptr()
         return self._gas_ptr.get_reference_density()
 
     cpdef dict get_config_dict(self):

@@ -215,7 +215,14 @@ public:
         if (index == host_index) {
             throw std::invalid_argument("TidalPy: c_System::set_tidal_host - a world cannot be its own tidal host");
         }
+        const int previous_host = this->p_host_index_byworld[index];
         this->p_host_index_byworld[index] = static_cast<int>(host_index);
+        try {
+            this->p_reconcile_star_hosted_orbit(index);
+        } catch (...) {
+            this->p_host_index_byworld[index] = previous_host;
+            throw;
+        }
     }
 
     void clear_tidal_host(std::size_t index) {
@@ -252,7 +259,16 @@ public:
 
     void set_star(std::size_t index) {
         this->check_index(index);
+        const int previous_star = this->p_star_index;
         this->p_star_index = static_cast<int>(index);
+        try {
+            for (std::size_t world_i = 0; world_i < this->p_worlds.size(); ++world_i) {
+                this->p_reconcile_star_hosted_orbit(world_i);
+            }
+        } catch (...) {
+            this->p_star_index = previous_star;
+            throw;
+        }
     }
 
     const std::shared_ptr<c_BaseWorld>& get_star() const {
@@ -284,6 +300,30 @@ public:
         this->check_index(index);
         c_check_orbit(TidalPyConstants::d_NAN, eccentricity, this->p_worlds[index]->get_name());
         this->p_orbits[index].eccentricity = eccentricity;
+    }
+
+    // A world whose tidal host is the star has one orbit, stored in both element sets. When it becomes star-hosted
+    // after its elements were set (a builder sets them before the roles), the set that has a semi-major axis fills
+    // the one that does not; two different orbits throw std::invalid_argument rather than one being dropped.
+    void p_reconcile_star_hosted_orbit(std::size_t index) {
+        if (!this->is_hosted_by_star(index)) { return; }
+        c_OrbitElements& tidal   = this->p_orbits[index];
+        c_OrbitElements& stellar = this->p_stellar_orbits[index];
+        const bool tidal_set   = std::isfinite(tidal.semi_major_axis);
+        const bool stellar_set = std::isfinite(stellar.semi_major_axis);
+        if (tidal_set && stellar_set) {
+            if (!c_isclose(tidal.semi_major_axis, stellar.semi_major_axis, d_SHARED_ORBIT_RTOL, 0.0)
+                    || !c_isclose(tidal.eccentricity, stellar.eccentricity, d_SHARED_ORBIT_RTOL, d_SHARED_ORBIT_RTOL)) {
+                throw std::invalid_argument(
+                    "TidalPy: c_System - world '" + this->p_worlds[index]->get_name() + "' has the star as its "
+                    "tidal host, so its orbit about the star is its tidal orbit, but the two sets of elements "
+                    "differ; give one orbit.");
+            }
+        } else if (stellar_set) {
+            tidal = stellar;
+        } else if (tidal_set) {
+            stellar = tidal;
+        }
     }
 
     // True when the world's tidal host is the star: the two orbits are then one, and the stellar elements are its
@@ -655,9 +695,11 @@ public:
         out.de_dt = rates.de_dt;
         out.dn_dt = rates.dn_dt;
 
-        // From this body's own spin model, under the torque from the companion. A dissipating body with no spin
-        // model (a star or gas giant) is torqued all the same, but nothing here knows its moment of inertia, so
-        // its spin rate, the spin energy it gives up, and with them the energy balance are unknown: NaN, not 0.
+        // From this body's own spin model, under the torque from the companion. Every layered world, gas giants
+        // included, carries one: it uses the EOS moment of inertia after solve_eos and its moment_of_inertia_factor
+        // (0.4 unless set) before. A dissipating body with no spin model (a star) is torqued all the same, but
+        // nothing here knows its moment of inertia, so its spin rate, the spin energy it gives up, and with them the
+        // energy balance are unknown: NaN, not 0.
         if (layered != nullptr) {
             out.moment_of_inertia = layered->get_moment_of_inertia();
             out.dspin_dt          = layered->calc_spin_derivative(companion_mass);

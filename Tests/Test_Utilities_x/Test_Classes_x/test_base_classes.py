@@ -207,12 +207,13 @@ def test_physics_base_schema_version():
     assert pb.get_schema_version_str() == "0.2.0"
 
 
-def test_physics_base_model_name_setter():
-    """PhysicsBase.model_name setter updates the stored name."""
+def test_physics_base_model_name_is_read_only():
+    """The name is what the model computes, so it cannot be changed under it."""
     mod = _import_classes()
     pb = mod.PhysicsBase("maxwell")
-    pb.model_name = "andrade"
-    assert pb.model_name == "andrade"
+    with pytest.raises(AttributeError):
+        pb.model_name = "andrade"
+    assert pb.model_name == "maxwell"
 
 
 def test_physics_base_get_config_dict():

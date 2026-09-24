@@ -105,6 +105,13 @@ cdef class BaseLayer(StructureBase):
     cdef unique_ptr[c_BaseLayer] _layer_ptr   # owns the most-derived C++ layer object
     cdef cpp_bool _is_view                    # True => non-owning view into a world-owned layer
     cdef object   _world_ref                  # keep-alive ref to the owning world (views only)
+    cdef cpp_bool _detached                   # True => a world load replaced the layer this view pointed at
+    cdef object   __weakref__                 # lets the owning world track the views it hands out
+    cdef void _check_ptr(self) except *
+    # Called by the owning world when a load replaces its layers: forget the C++ layer without deleting it.
+    cdef void _detach(self) noexcept
+    # Tell the owning world a view moved its layer's radii.
+    cdef void _notify_world_of_move(self) except *
     cpdef dict get_config_dict(self)
     # Scalar kernel behind the vectorized real-valued radius getters (see _apply_real in base.pyx).
     cdef double _eval_real(self, int kind, double radius) noexcept nogil

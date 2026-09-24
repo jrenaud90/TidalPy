@@ -70,11 +70,23 @@ inline std::string tide_to_lower(std::string text) {
 }
 
 // Copy a possibly short or over-long per-degree config vector into a fixed 9-slot array.
+// Throws std::invalid_argument for more values than tabulated degrees or for a value that is negative or not
+// finite: every per-degree parameter (k, Q, dt) is non-negative, and a zero Q means no dissipation.
 inline void tide_fill_degree_slots(
         const std::vector<double>& src, std::array<double, C_TIDE_NUM_DEGREES>& dst) {
+    if (src.size() > static_cast<std::size_t>(C_TIDE_NUM_DEGREES)) {
+        throw std::invalid_argument(
+            "TidalPy: a per-degree tide parameter list holds " + std::to_string(src.size()) +
+            " values, more than the " + std::to_string(C_TIDE_NUM_DEGREES) + " degrees (l = 2 to 10) it covers.");
+    }
     dst.fill(0.0);
-    const std::size_t n = std::min<std::size_t>(src.size(), C_TIDE_NUM_DEGREES);
-    for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t i = 0; i < src.size(); ++i) {
+        if (!(std::isfinite(src[i]) && (src[i] >= 0.0))) {
+            throw std::invalid_argument(
+                "TidalPy: per-degree tide parameters (fixed_k, fixed_q, fixed_dt_s) must be finite and not "
+                "negative; got " + std::to_string(src[i]) + " at degree " + std::to_string(i + C_TIDE_MIN_DEGREE) +
+                ".");
+        }
         dst[i] = src[i];
     }
 }

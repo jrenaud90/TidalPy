@@ -50,6 +50,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world: call set_tide_model() first");
     }
+    this->p_check_tide_state(state);
 
     const double planet_radius = this->get_radius();
     const double planet_volume =
@@ -168,11 +169,19 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
             this->calc_layer_tidal_heating_radial(state, tide_result.tidal_heating, layer_heating);
         }
     } else {
-        // The analytic models need no Love solve. They describe the whole body, so each tidal layer takes its
-        // tidal scale of the total.
+        // The analytic models need no Love solve. They fix the whole body's heating, so each tidal layer takes the
+        // fraction its tidal scale is of all the tidal layers' scales, and the layers sum to the total. With no
+        // tidal layer the heating has nowhere to go and every layer reports NaN.
         tide_result = c_collapse_global_tides(potential, *this->p_tide, nullptr);
+        double scale_sum = 0.0;
         for (std::size_t i = 0; i < n_layers; ++i) {
-            layer_heating[i] = tide_result.tidal_heating * this->p_layers[i]->calc_tidal_scale(planet_volume);
+            layer_heating[i] = this->p_layers[i]->calc_tidal_scale(planet_volume);
+            scale_sum += layer_heating[i];
+        }
+        for (std::size_t i = 0; i < n_layers; ++i) {
+            layer_heating[i] = (scale_sum > 0.0)
+                ? tide_result.tidal_heating * layer_heating[i] / scale_sum
+                : TidalPyConstants::d_NAN;
         }
     }
 

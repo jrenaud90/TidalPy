@@ -150,26 +150,31 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     @property
     def thermal_conductivity(self) -> float:
         """Thermal conductivity k [W/(m K)] of the layer's material (its EOS model); NaN when none is attached."""
+        self._check_ptr()
         return self._solidliquid_ptr.get_thermal_conductivity()
 
     @property
     def thermal_expansion(self) -> float:
         """Thermal expansivity alpha [1/K] of the layer's material; NaN when none is attached."""
+        self._check_ptr()
         return self._solidliquid_ptr.get_thermal_expansion()
 
     @property
     def heat_capacity(self) -> float:
         """Specific heat capacity c_p [J/(kg K)] of the layer's material; NaN when none is attached."""
+        self._check_ptr()
         return self._solidliquid_ptr.get_heat_capacity()
 
     @property
     def cooling_set(self) -> bool:
         """True after a cooling sub-model has been attached."""
+        self._check_ptr()
         return self._solidliquid_ptr.get_cooling_set()
 
     @property
     def radiogenics_set(self) -> bool:
         """True after a radiogenics sub-model has been attached."""
+        self._check_ptr()
         return self._solidliquid_ptr.get_radiogenics_set()
 
     def set_cooling(self, CoolingBase cooling not None):
@@ -187,6 +192,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         ValueError
             If ``cooling`` has already been attached or otherwise moved.
         """
+        self._check_ptr()
         if cooling._cooling_ptr.get() == NULL:
             raise ValueError(
                 "This cooling model holds no C++ object (already attached or moved).")
@@ -209,6 +215,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         ValueError
             If ``radiogenics`` has already been attached or otherwise moved.
         """
+        self._check_ptr()
         if radiogenics._radiogenics_ptr.get() == NULL:
             raise ValueError(
                 "This radiogenics model holds no C++ object (already attached or moved).")
@@ -228,6 +235,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Thermal conductivity [W/(m·K)].
         """
+        self._check_ptr()
         return self._solidliquid_ptr.calc_thermal_conductivity(temperature)
 
     def calc_thermal_diffusivity(self, double temperature) -> float:
@@ -243,6 +251,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Thermal diffusivity [m²/s].
         """
+        self._check_ptr()
         return self._solidliquid_ptr.calc_thermal_diffusivity(temperature)
 
     def calc_adiabatic_temperature_gradient(self, double temperature,
@@ -263,6 +272,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Adiabatic temperature gradient [K/m].
         """
+        self._check_ptr()
         return self._solidliquid_ptr.calc_adiabatic_temperature_gradient(
             temperature, pressure)
 
@@ -282,6 +292,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Conductive heat flux [W/m²]. Positive when T_base > T_top.
         """
+        self._check_ptr()
         return self._solidliquid_ptr.calc_heat_flux_conductive(
             temperature_base, temperature_top)
 
@@ -300,6 +311,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Radiogenic heating power [W].
         """
+        self._check_ptr()
         return self._solidliquid_ptr.calc_radiogenic_heating(time, mass)
 
     cpdef dict get_config_dict(self):

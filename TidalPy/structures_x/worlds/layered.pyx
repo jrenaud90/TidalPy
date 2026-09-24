@@ -10,6 +10,8 @@ methods on this class.
 cimport numpy as cnp
 cnp.import_array()
 
+import weakref
+
 import numpy as np
 
 from libc.stdint cimport uint32_t
@@ -420,9 +422,8 @@ cdef class LayeredWorld(BaseWorld):
         Raises
         ------
         ValueError
-            If ``layer`` has already been added/moved.
-        RuntimeError
-            If the layer geometry is not continuous with the existing stack.
+            If ``layer`` has already been added or moved, is a view of another world's layer, does not continue
+            the existing stack, reaches past the world radius, or shares its name with a layer already added.
         """
         if layer._layer_ptr.get() == NULL:
             raise ValueError(
@@ -433,14 +434,13 @@ cdef class LayeredWorld(BaseWorld):
                 "added to another world. Construct a new layer instead.")
         # Validate continuity before transferring ownership so a rejected layer
         # stays usable (the C++ add_layer would otherwise consume it on throw).
-        if not self._layered_ptr.accepts_layer(deref(layer._layer_ptr.get())):
-            raise ValueError(
-                "Layer geometry is not continuous: the inner radius does not match "
-                "the current outermost radius (add layers inner-to-outer, innermost "
-                "starting at radius 0).")
+        cdef string rejection = self._layered_ptr.layer_rejection_reason(deref(layer._layer_ptr.get()))
+        if rejection.size() > 0:
+            raise ValueError(rejection.decode('utf-8'))
         cdef c_BaseLayer* added_layer_ptr = layer._layer_ptr.get()
         self._layered_ptr.add_layer(move(layer._layer_ptr))
         layer._init_view(added_layer_ptr, self)
+        self._track_view(layer)
         # The layer set changed; drop the cached views so they rebuild on next access.
         self._layer_views = None
         self._layer_view_by_name = None
@@ -459,10 +459,31 @@ cdef class LayeredWorld(BaseWorld):
         force : bool, optional
             Attempt the load even on a schema version mismatch.
         """
-        # Drop the cached views before the C++ layers they point at are replaced.
+        # Every view handed out points at a C++ layer the load replaces: detach them before the layers are freed,
+        # so a held view raises instead of reading freed memory.
+        cdef object view_ref
+        cdef BaseLayer view
+        if self._issued_views is not None:
+            for view_ref in self._issued_views:
+                view = view_ref()
+                if view is not None:
+                    view._detach()
+            self._issued_views = []
         self._layer_views = None
         self._layer_view_by_name = None
         BaseWorld.load_binary(self, path, force)
+
+    cdef void _track_view(self, BaseLayer view) except *:
+        """Remember a view this world handed out (weakly), so a load that replaces the layers can detach it."""
+        if self._issued_views is None:
+            self._issued_views = []
+        # Drop references to views that no longer exist, so the list stays as long as the live views.
+        self._issued_views = [view_ref for view_ref in self._issued_views if view_ref() is not None]
+        self._issued_views.append(weakref.ref(view))
+
+    def _layer_moved(self):
+        """Called by a layer view after it moved its layer's radii: the solved profile no longer lines up."""
+        self._layered_ptr.update_after_layer_geometry_change()
 
     @property
     def num_layers(self) -> int:
@@ -482,6 +503,7 @@ cdef class LayeredWorld(BaseWorld):
             self._layer_view_by_name = {}
             for i in range(n):
                 view = cy_wrap_layer_view(self._layered_ptr.get_layer(i), self)
+                self._track_view(view)
                 self._layer_views.append(view)
                 self._layer_view_by_name[view.name] = view
         return self._layer_views

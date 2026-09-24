@@ -29,10 +29,13 @@ from TidalPy.structures_x.worlds.layered import LayeredWorld
 from TidalPy.structures_x.worlds.gasgiant import GasGiantWorld
 from TidalPy.structures_x.worlds.stellar import StarWorld
 
-from TidalPy.rheology_x.rheology import make_rheology
-from TidalPy.cooling_x.cooling import make_cooling
-from TidalPy.radiogenics_x.radiogenics import make_radiogenics
-from TidalPy.Material_x.eos.material_eos import make_material_eos
+from TidalPy.configurations import keep_on_model_change
+from TidalPy.rheology_x.rheology import make_rheology, _same_model as _same_rheology_model
+from TidalPy.cooling_x.cooling import make_cooling, _same_model as _same_cooling_model
+from TidalPy.radiogenics_x.radiogenics import make_radiogenics, _same_model as _same_radiogenics_model
+from TidalPy.Material_x.eos.material_eos import make_material_eos, _same_model as _same_material_model
+from TidalPy.viscosity_x.viscosity import _same_model as _same_viscosity_model
+from TidalPy.partial_melt_x.partial_melt import _same_model as _same_partial_melt_model
 from TidalPy.Tides_x.classes.tide import make_tide
 from TidalPy.stellar_x.luminosity import make_luminosity
 from TidalPy.dynamics_x.spin import Spin
@@ -111,12 +114,44 @@ _CONFIG_KEY_TO_ARGUMENT = {
 }
 
 
-def _merge_section(defaults: dict, overrides: dict) -> dict:
-    """Overlay a model table on its defaults key by key; nested tables merge the same way."""
+# Model table name -> the family's alias-aware test of whether two model names are one model.
+_SAME_MODEL = {
+    "material":        _same_material_model,
+    "shear_rheology":  _same_rheology_model,
+    "bulk_rheology":   _same_rheology_model,
+    "cooling":         _same_cooling_model,
+    "radiogenics":     _same_radiogenics_model,
+    "shear_viscosity": _same_viscosity_model,
+    "bulk_viscosity":  _same_viscosity_model,
+    "partial_melt":    _same_partial_melt_model,
+}
+
+
+def _model_changes(section_name, defaults: dict, overrides: dict) -> bool:
+    """Whether ``overrides`` names a different model than ``defaults`` (aliases count as the same model)."""
+    if ("model" not in overrides) or ("model" not in defaults):
+        return False
+    same_model = _SAME_MODEL.get(section_name)
+    if same_model is None:
+        return str(defaults["model"]).lower() != str(overrides["model"]).lower()
+    try:
+        return not same_model(str(defaults["model"]), str(overrides["model"]))
+    except ValueError:
+        return True
+
+
+def _merge_section(defaults: dict, overrides: dict, section_name=None) -> dict:
+    """Overlay a model table on its defaults key by key; nested tables merge the same way.
+
+    When the override names a different model, the default model's own parameters are dropped first
+    (``keep_on_model_change``), so none of them reaches a model that would read it differently.
+    """
+    if _model_changes(section_name, defaults, overrides):
+        defaults = keep_on_model_change(section_name or "", defaults)
     section = dict(defaults)
     for key, value in overrides.items():
         if isinstance(value, dict) and isinstance(section.get(key), dict):
-            section[key] = _merge_section(section[key], value)
+            section[key] = _merge_section(section[key], value, key)
         else:
             section[key] = value
     return section
@@ -165,7 +200,7 @@ def _material_type_defaults(material_type: Optional[str], layer_class_name: str)
     for key, value in type_block.items():
         if isinstance(value, dict):
             if key in allowed_models:
-                filtered[key] = _merge_section({}, value)
+                filtered[key] = _merge_section({}, value, key)
         elif key in allowed_scalars:
             filtered[key] = value
     return filtered
@@ -229,7 +264,7 @@ def construct_layer(
         if key in ("class", "type", "layer_index") or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
         if isinstance(value, dict):
-            merged[key] = _merge_section(merged.get(key, {}), value)
+            merged[key] = _merge_section(merged.get(key, {}), value, key)
         else:
             merged[key] = value
 
@@ -561,7 +596,7 @@ def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float
         if key == "layer_index" or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
         if key == "material" and isinstance(value, dict):
-            merged["material"] = _merge_section(merged["material"], value)
+            merged["material"] = _merge_section(merged["material"], value, "material")
         else:
             merged[key] = value
     return merged

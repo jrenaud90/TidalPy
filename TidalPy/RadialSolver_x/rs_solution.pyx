@@ -229,41 +229,6 @@ cdef class RadialSolverSolution:
             cnp.NPY_UINT64,
             self.solution_storage_ptr.shooting_method_steps_taken_vec.data())
 
-    def eos_call_nondim(self, double radius):
-        """The raw dense EOS row at a radius in the solve's own units.
-
-        An internal readout; ``eos_call`` is the SI form with named fields. The row holds
-        ``C_EOS_DY_VALUES`` doubles in the order of ``EOS_CALL_FIELDS``.
-        """
-        cdef c_EOSSolution* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
-
-        cdef int layer_index = -1
-        cdef size_t layer_i
-        cdef double layer_r = 0.0
-        cdef double last_layer_r = 0.0
-
-        # Half-open intervals: an interior interface goes to the layer above, the surface to the top layer.
-        cdef size_t num_eos_layers = eos_solution_ptr.upper_radius_bylayer_vec.size()
-        for layer_i in range(num_eos_layers):
-            layer_r = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
-            if last_layer_r <= radius < layer_r:
-                layer_index = <int>layer_i
-                break
-            last_layer_r = layer_r
-        if (layer_index < 0) and (num_eos_layers > 0):
-            if radius == eos_solution_ptr.upper_radius_bylayer_vec[num_eos_layers - 1]:
-                layer_index = <int>(num_eos_layers - 1)
-
-        if layer_index < 0:
-            raise ValueError("Could not find correct layer for provided radius.")
-
-        cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
-        cdef double[::1] eos_interp_view = eos_interp
-        cdef double* eos_interp_ptr      = &eos_interp_view[0]
-
-        eos_solution_ptr.call_nondim(<size_t>layer_index, radius, eos_interp_ptr)
-        return eos_interp
-
     def eos_call(self, radius) -> dict:
         """The dense equation-of-state and material state at an SI radius [m], as named fields.
 

@@ -803,9 +803,15 @@ public:
             }
         }
 
-        if (this->other_vecs_set)
+        // A solution may carry its scalars without the sampled arrays (a radial solver's stand-in for a world EOS),
+        // so the loop is bounded by what every array actually holds.
+        const size_t num_slices = std::min({
+            this->radius_array_size, this->radius_array_vec.size(), this->gravity_array_vec.size(),
+            this->pressure_array_vec.size(), this->mass_array_vec.size(), this->moi_array_vec.size(),
+            this->density_array_vec.size(), this->complex_shear_array_vec.size(), this->complex_bulk_array_vec.size()});
+        if (this->other_vecs_set && (num_slices > 0))
         {
-            for (size_t slice_i = 0; slice_i < this->radius_array_size; slice_i++)
+            for (size_t slice_i = 0; slice_i < num_slices; slice_i++)
             {
                 if (redimensionalize)
                 {
@@ -831,12 +837,25 @@ public:
                 }
             }
 
-            this->radius           = this->radius_array_vec[this->radius_array_size - 1];
-            this->surface_gravity  = this->gravity_array_vec[this->radius_array_size - 1];
-            this->surface_pressure = this->pressure_array_vec[this->radius_array_size - 1];
-            this->mass             = this->mass_array_vec[this->radius_array_size - 1];
-            this->moi              = this->moi_array_vec[this->radius_array_size - 1];
+            this->radius           = this->radius_array_vec[num_slices - 1];
+            this->surface_gravity  = this->gravity_array_vec[num_slices - 1];
+            this->surface_pressure = this->pressure_array_vec[num_slices - 1];
+            this->mass             = this->mass_array_vec[num_slices - 1];
+            this->moi              = this->moi_array_vec[num_slices - 1];
             this->central_pressure = this->pressure_array_vec[0];
+        }
+        else
+        {
+            // No arrays to read the scalars back from: convert them in place.
+            const auto convert = [redimensionalize](double& value, double scale) {
+                value = redimensionalize ? value * scale : value / scale;
+            };
+            convert(this->radius,           this->redim_length_scale);
+            convert(this->surface_gravity,  this->redim_gravity_scale);
+            convert(this->surface_pressure, this->redim_pascal_scale);
+            convert(this->central_pressure, this->redim_pascal_scale);
+            convert(this->mass,             this->redim_mass_scale);
+            convert(this->moi,              this->redim_moi_scale);
         }
     }
 };

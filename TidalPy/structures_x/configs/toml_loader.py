@@ -21,6 +21,7 @@ import os
 import warnings
 from typing import Union
 
+import numpy as np
 import toml
 
 import TidalPy
@@ -270,6 +271,7 @@ def validate_world_config(config: dict) -> None:
     if world_type not in WORLD_TYPES:
         raise ValueError(
             f"Unknown world type '{world_type}'. Expected one of {WORLD_TYPES}.")
+    _require_booleans(f"World '{config.get('name', '?')}'", config)
 
     for required in _REQUIRED_WORLD_KEYS:
         if required not in config:
@@ -292,6 +294,7 @@ def validate_world_config(config: dict) -> None:
         if key == "tides":
             if not isinstance(value, dict):
                 raise ValueError("The '[tides]' entry must be a table.")
+            _require_booleans("[tides]", value)
             for tides_key in value:
                 if tides_key not in ALLOWED_TIDES_KEYS:
                     raise ValueError(
@@ -337,6 +340,20 @@ def validate_world_config(config: dict) -> None:
 # A stack of layers given by fractions reaches the world radius only to roundoff, and a radius copied from
 # a paper may carry only a few digits.
 _GEOMETRY_RTOL = 1.0e-6
+
+
+# Schema keys that are switches. TOML writes them as true or false; a string or a number in their place is a
+# mistake that bool() would hide, since bool("false") is True.
+BOOLEAN_KEYS = frozenset({
+    "is_incompressible", "is_solid", "is_static", "is_tidal", "is_volume_fixed", "is_star",
+    "layer_tidal_heating", "solve_temperature", "use_heating", "use_kamata", "use_thermal_eos"})
+
+
+def _require_booleans(where: str, table: dict) -> None:
+    """Raise ``ValueError`` when a switch in ``table`` (see ``BOOLEAN_KEYS``) is not a true boolean."""
+    for key, value in table.items():
+        if (key in BOOLEAN_KEYS) and not isinstance(value, (bool, np.bool_)):
+            raise ValueError(f"{where}: '{key}' must be true or false, not {value!r}.")
 
 
 def _require_number(where: str, key: str, value, minimum=None, maximum=None,
@@ -469,6 +486,7 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
     """
     if not isinstance(layer_cfg, dict):
         raise ValueError(f"Layer '{layer_name}' must be a table of key-value pairs.")
+    _require_booleans(f"Layer '{layer_name}'", layer_cfg)
 
     layer_class = layer_cfg.get("class", None)
     if layer_class is None:
@@ -608,6 +626,7 @@ def validate_system_config(config: dict) -> None:
     for world_key, world_cfg in worlds.items():
         if not isinstance(world_cfg, dict):
             raise ValueError(f"System world '{world_key}' must be a table of key-value pairs.")
+        _require_booleans(f"System world '{world_key}'", world_cfg)
         if "world" not in world_cfg:
             raise ValueError(
                 f"System world '{world_key}' is missing the required 'world' key (a bundled world "

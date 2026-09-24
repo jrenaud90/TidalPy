@@ -10,7 +10,7 @@ import os
 
 import toml
 
-from TidalPy.configurations import config_version_header
+from TidalPy.configurations import config_version_header, plain_config
 from TidalPy.structures_x.configs.toml_loader import SCHEMA_VERSION
 
 
@@ -18,7 +18,7 @@ def _write_toml(out_config: dict, file_path: str, title: str) -> None:
     """Write the header and the table with LF newlines."""
     with open(file_path, "w", encoding="utf-8", newline="\n") as toml_file:
         toml_file.write(config_version_header(title))
-        toml.dump(out_config, toml_file)
+        toml.dump(plain_config(out_config), toml_file)
 
 
 def save_world_to_toml(config: dict, file_path: str, overwrite: bool = True) -> str:

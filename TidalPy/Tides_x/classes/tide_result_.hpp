@@ -23,7 +23,7 @@ struct c_TideConfig {
     int min_degree_l            = 2;    // lowest tidal harmonic degree (>= 2)
     int max_degree_l            = 2;    // highest tidal harmonic degree (<= 10)
     int eccentricity_truncation = 3;    // eccentricity-function truncation level n (G through e^n)
-    int obliquity_truncation    = 10;   // obliquity-function truncation (0=off, 1, 2 (F through I^n), 10=general)
+    int obliquity_truncation    = 0;    // obliquity-function truncation (0=off, 1, 2 (F through I^n), 10=general)
     // Whether calc_tides also resolves the heating of each layer. With a radial-solver Love method that is the
     // volume integral of the radial solution's heating density over each layer, which costs about as much as the
     // global solve again; switching it off leaves every layer's heating NaN on that path. The quasi-homogeneous

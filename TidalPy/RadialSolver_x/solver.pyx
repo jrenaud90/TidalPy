@@ -168,6 +168,14 @@ def radial_solver(
     Returns
     -------
     solution : RadialSolverSolution
+
+    Raises
+    ------
+    ValueError
+        If the inputs fail validation.
+    SolutionFailedError
+        If the profile's EOS solve fails (always, since there is no structure to solve on), or the Love solve
+        fails and ``raise_on_fail`` is set.
     """
 
     cdef TidalPyConfig* shared_config = tidalpy_config_ptr
@@ -367,12 +375,11 @@ def radial_solver(
     eos_cfg.nondimensionalize  = c_nondimensionalize
     with nogil:
         world_ptr.solve_eos(eos_cfg)
-    if world_ptr.get_eos_max_iters_hit():
-        log_warning(
-            f"The supplied profile's EOS solve stopped at max_iters = {c_eos_max_iters} with a surface-pressure "
-            f"mismatch above eos_pressure_tol = {c_eos_pressure_tol:0.1e}; the profile is from the last "
-            f"iteration. Raise eos_pressure_tol above the integration eos_rtol ({c_eos_rtol:0.1e}) or tighten "
-            f"eos_rtol.")
+    if not world_ptr.get_eos_success():
+        # With no hydrostatic structure there is nothing for the Love solve to run on, so this raises whatever
+        # `raise_on_fail` says.
+        raise SolutionFailedError(
+            "The supplied profile's EOS solve failed: " + world_ptr.get_eos_message().decode('utf-8'))
 
     # From the supplied complex moduli rather than a layer rheology. The boundary-condition models and both
     # integration methods were resolved by the input check above, so nothing is re-parsed here.

@@ -4,7 +4,6 @@ A post-solve dense EOS query at an arbitrary SI radius routes through the solver
 answers in SI with named fields: a float radius gives scalars, an array of radii gives arrays of the same shape.
 The layout is frequency-independent, so its moduli are the unrelaxed ones; the ``complex_*`` fields come from
 the same read ``get_complex_shear_modulus`` makes, which on this path reports the supplied complex arrays.
-``eos_call_nondim`` is the raw row at a radius in solve units, kept for internal use.
 """
 import numpy as np
 import pytest
@@ -186,15 +185,3 @@ def test_eos_call_two_layers_distinct_moduli():
     assert shallow["shear_modulus"] == pytest.approx(3.0e10, rel=1e-3)
     assert deep["density"] == pytest.approx(6000.0, rel=1e-3)
     assert shallow["density"] == pytest.approx(4000.0, rel=1e-3)
-
-
-def test_eos_call_nondim_is_the_raw_row():
-    """The solve-unit readout returns the bare row whose slots are EOS_CALL_FIELDS, in the solve's own radius."""
-    solution, _, _, density, planet_radius = _build_homogeneous(nondimensionalize=True)
-    # A non-dimensional solve measures radius in planet radii.
-    row = solution.eos_call_nondim(0.5)
-    assert row.shape == (len(EOS_CALL_FIELDS),)
-    named = solution.eos_call(0.5 * planet_radius)
-    for slot, name in enumerate(EOS_CALL_FIELDS):
-        assert np.array_equal(row[slot], named[name], equal_nan=True), name
-    assert row[EOS_CALL_FIELDS.index("density")] == pytest.approx(density, rel=1e-6)

@@ -231,8 +231,9 @@ def make_tide(str model_name, dict config=None) -> TideBase:
           - ``"ctl"`` / ``"fixed_dt"``
           - ``"ctl_q"`` / ``"fixed_dt_q"``
     config : dict, optional
-        Per-degree parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s]), indexed from l = 2; absent
-        keys default to zero or the C++ default.
+        Per-degree parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s]), indexed from l = 2. A key left out
+        takes the ``[tides]`` value of the TidalPy configuration, as the world builder does, so
+        ``{"fixed_q": [50]}`` keeps the configured ``fixed_k``.
 
     Returns
     -------
@@ -243,10 +244,11 @@ def make_tide(str model_name, dict config=None) -> TideBase:
     ValueError
         Unknown model name, or a config key outside those three.
     """
-    if config is None:
-        # Fall back to the same defaults the world-attached path uses.
-        config = factory_defaults("tides", TIDE_CONFIG_KEYS, model_name, _same_model)
-    check_config_keys(config, TIDE_CONFIG_KEYS, "tide")
+    # Key by key over the same defaults the world-attached path uses, so a partial config never leaves a list empty
+    # (an empty fixed_k would silently give no dissipation).
+    if config is not None:
+        check_config_keys(config, TIDE_CONFIG_KEYS, "tide")
+    config = {**factory_defaults("tides", TIDE_CONFIG_KEYS, model_name, _same_model), **(config or {})}
     cdef c_TideModelConfig cfg = cy_build_tide_config(config)
     cdef c_TideModel model = c_tide_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_TideBase] ptr = c_find_tide(model, cfg)

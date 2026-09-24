@@ -391,26 +391,41 @@ public:
         if (!layer) {
             throw std::invalid_argument("TidalPy: cannot add a null layer to a world");
         }
-        const double prev_outer = this->p_layers.empty() ? 0.0
-                                : this->p_layers.back()->get_radius_outer();
-        const double inner      = layer->get_radius_inner();
-        const double tol        = layer_continuity_tol(prev_outer);
-        if (std::abs(inner - prev_outer) > tol) {
-            throw std::invalid_argument(
-                "TidalPy: layer geometry is not continuous. Inner radius does not "
-                "match the previous layer's outer radius (add layers inner-to-outer)");
-        }
+        const std::string rejection = this->layer_rejection_reason(*layer);
+        if (!rejection.empty()) { throw std::invalid_argument(rejection); }
         this->p_layers.push_back(std::move(layer));
         // The solved structure describes the old stack.
         this->p_reset_solved_state();
+        this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;   // a different planet now
     }
 
     // Whether `layer` would continue the stack, so a caller can check before transferring ownership.
-    bool accepts_layer(const c_BaseLayer& layer) const noexcept {
+    bool accepts_layer(const c_BaseLayer& layer) const {
+        return this->layer_rejection_reason(layer).empty();
+    }
+
+    // Why add_layer would refuse `layer`, or an empty string when it would take it: the layer must continue the
+    // stack (its inner radius at the previous layer's outer radius), stay inside the world radius, and carry a
+    // name no other layer has, since layers are reached by name.
+    std::string layer_rejection_reason(const c_BaseLayer& layer) const {
         const double prev_outer = this->p_layers.empty() ? 0.0
                                 : this->p_layers.back()->get_radius_outer();
-        const double tol        = layer_continuity_tol(prev_outer);
-        return std::abs(layer.get_radius_inner() - prev_outer) <= tol;
+        if (std::abs(layer.get_radius_inner() - prev_outer) > layer_continuity_tol(prev_outer)) {
+            return "TidalPy: layer geometry is not continuous. Inner radius does not match the previous layer's "
+                   "outer radius (add layers inner-to-outer, innermost starting at radius 0).";
+        }
+        if (layer.get_radius_outer() > this->p_radius + layer_continuity_tol(this->p_radius)) {
+            return "TidalPy: layer '" + layer.get_name() + "' reaches " + std::to_string(layer.get_radius_outer()) +
+                   " m, past the radius of world '" + this->get_name() + "' (" + std::to_string(this->p_radius) +
+                   " m).";
+        }
+        for (const auto& existing : this->p_layers) {
+            if (existing->get_name() == layer.get_name()) {
+                return "TidalPy: world '" + this->get_name() + "' already has a layer named '" + layer.get_name() +
+                       "'; give each layer its own name.";
+            }
+        }
+        return std::string();
     }
 
     // Non-owning observer pointer.
@@ -702,11 +717,10 @@ public:
         }
         std::vector<c_EOSSegment> segment_vec;
         std::shared_ptr<c_EOSSolution> solution;
-        // The central pressure the secant iteration starts from, in solve units: the world's last converged solve,
-        // then the pass before. A re-solve after a small change then converges in a pass or two. NaN, on a world
-        // that has never been solved, starts from a uniform sphere.
-        double central_pressure_guess = this->p_eos_solved
-            ? (this->p_central_pressure / pascal_scale) : TidalPyConstants::d_NAN;
+        // The central pressure the secant iteration starts from, in solve units: the world's last converged solve
+        // (kept when a layer change forgets the solved state), then the pass before. A re-solve after a small change
+        // then converges in a pass or two. NaN, on a world that has never been solved, starts from a uniform sphere.
+        double central_pressure_guess = this->p_warm_start_central_pressure / pascal_scale;
         const std::size_t last_pass =
             (thermal_contrast || geometry_floats) ? cfg.max_thermal_passes : 0;
         std::size_t thermal_passes = 0;
@@ -849,6 +863,7 @@ public:
             this->p_eos_solution = std::move(solution);
             return;
         }
+        this->p_warm_start_central_pressure = this->p_central_pressure;
         this->p_layer_thermal = std::move(layer_thermal);
         this->p_solve_state   = solve_state;
 
@@ -1070,6 +1085,14 @@ public:
             layer_uptr->set_tidal_heating(TidalPyConstants::d_NAN);
         }
         this->p_radial_segments.clear();
+    }
+
+    // A layer this world owns was moved through a view. The solved profile no longer lines up with the layers, so
+    // it is forgotten. A change of material leaves the solved state alone: the solve ran on copies of the
+    // materials, and it describes the world until the next solve_eos.
+    void update_after_layer_geometry_change() {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        this->p_reset_solved_state();
     }
 
     // Forget everything solved: the EOS solution, the layer profiles, the thermal state, and every result built
@@ -1547,7 +1570,10 @@ public:
     // One-shot export to a RadialSolverSolution.
     std::unique_ptr<::c_RadialSolutionStorage> release_radial_storage() {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
-        if (!this->p_love.radial_solver) { return nullptr; }
+        // Only the latest radial solve on the current structure: a later analytic solve or a structure change
+        // means the stored solution no longer describes this world.
+        if (!this->p_love.radial_solver || this->p_love.is_analytic()
+            || !this->p_love.radial_solver->get_storage_current()) { return nullptr; }
         std::unique_ptr<::c_RadialSolutionStorage> storage = this->p_love.radial_solver->release_storage();
         // The released solution's result grid is filled on the solve's EOS grid, which a plain solve leaves empty.
         if (storage && storage->success && (storage->get_sample_radii_si().empty())) { storage->sample_onto_grid(); }
@@ -1581,8 +1607,8 @@ public:
     // of each layer's tidal scale (its volume fraction unless set) times its Love numbers, so a one-layer planet
     // gets exactly the homogeneous value and a small, weak layer cannot dominate the planet's dissipation.
     //
-    // Gas layers carry no shear modulus and are skipped; a layer that is not tidal, or has a zero tidal scale,
-    // takes no part.
+    // A physics layer takes part with the moduli its material gives, so a fluid layer adds its fluid Love number;
+    // a geometry-only layer, one that is not tidal, or one with a zero tidal scale takes no part.
     void build_homogeneous_layers(c_HomogeneousLoveCache& cache) const {
         const std::size_t n_intervals = homogeneous_quadrature_intervals;
         const double planet_radius = this->get_radius();
@@ -1594,7 +1620,7 @@ public:
             const double tidal_scale = layer->calc_tidal_scale(planet_volume);
             if (!(tidal_scale > 0.0)) { continue; }
             const auto* physics = dynamic_cast<const c_PhysicsLayer*>(layer);
-            if (physics == nullptr) { continue; }   // gas layers: no shear modulus
+            if (physics == nullptr) { continue; }   // geometry-only layer: no material moduli
             const double r_inner = layer->get_radius_inner();
             const double r_outer = layer->get_radius_outer();
             if (!(r_outer > r_inner)) { continue; }
@@ -2016,6 +2042,7 @@ public:
         // Nothing solved describes the loaded layers, and the masses floating layers held belong to the old ones.
         this->p_reference_mass.clear();
         this->p_reset_solved_state();
+        this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;
     }
 
 protected:
@@ -2142,6 +2169,8 @@ protected:
     double      p_surface_gravity_eos  = std::numeric_limits<double>::quiet_NaN();
     double      p_surface_pressure_eos = std::numeric_limits<double>::quiet_NaN();
     double      p_central_pressure     = std::numeric_limits<double>::quiet_NaN();
+    // The last successful solve's central pressure [Pa]: the next solve's starting guess, which outlives a reset.
+    double      p_warm_start_central_pressure = std::numeric_limits<double>::quiet_NaN();
     double      p_planet_mass_eos      = std::numeric_limits<double>::quiet_NaN();
     double      p_planet_moi_eos       = std::numeric_limits<double>::quiet_NaN();
     c_Spin      p_spin {};              // spin-dynamics model (uses the world's EOS moment of inertia)

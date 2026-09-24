@@ -82,8 +82,18 @@ void c_validate_and_prep_radial_inputs(
     ODEMethod& eos_integration_method_out
 )
 {
+    if (num_layers == 0)
+        throw std::invalid_argument("At least one layer is required.");
+    if (total_slices < 2)
+        throw std::invalid_argument("`radius_array` needs at least two values.");
     if (layer_types.size() != num_layers)
         throw std::invalid_argument("Number of `layer_types` must match `num_layers`.");
+    if (!eos_method_bylayer.empty() && (eos_method_bylayer.size() != num_layers))
+        throw std::invalid_argument("`eos_method_bylayer` must give one method per layer.");
+    // The solver builds the planet out to the top layer's upper radius, so a longer profile would be cut silently.
+    if (!c_isclose(upper_radius_bylayer_array[num_layers - 1], radius_array[total_slices - 1], 1.0e-9, 0.0))
+        throw std::invalid_argument(
+            "The top layer's upper radius must equal the last value of `radius_array` (the planet radius).");
 
     double last_layer_r = 0.0;
     for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)

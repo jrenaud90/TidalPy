@@ -35,7 +35,7 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef void cy_fill_vector(double[::1] src, vector[double]& dst) noexcept nogil:
+cdef void cy_fill_vector(const double[::1] src, vector[double]& dst) noexcept nogil:
     cdef Py_ssize_t n = src.shape[0]
     cdef Py_ssize_t i
     dst.resize(n)
@@ -62,10 +62,10 @@ cdef void cy_build_isotopes(
         object names,
         vector[c_Isotope]& dst):
     """Build a std::vector[c_Isotope] from parallel sequences; labels default to ``isotope_<i>``."""
-    cdef double[::1] a_hpr  = np.ascontiguousarray(heat_production, dtype=np.float64).ravel()
-    cdef double[::1] a_half = np.ascontiguousarray(half_lives,         dtype=np.float64).ravel()
-    cdef double[::1] a_frac = np.ascontiguousarray(mass_fracs,           dtype=np.float64).ravel()
-    cdef double[::1] a_conc = np.ascontiguousarray(concentrations,       dtype=np.float64).ravel()
+    cdef const double[::1] a_hpr  = np.ascontiguousarray(heat_production, dtype=np.float64).ravel()
+    cdef const double[::1] a_half = np.ascontiguousarray(half_lives,         dtype=np.float64).ravel()
+    cdef const double[::1] a_frac = np.ascontiguousarray(mass_fracs,           dtype=np.float64).ravel()
+    cdef const double[::1] a_conc = np.ascontiguousarray(concentrations,       dtype=np.float64).ravel()
     cdef Py_ssize_t n = a_hpr.shape[0]
     if a_half.shape[0] != n or a_frac.shape[0] != n or a_conc.shape[0] != n:
         raise ValueError(
@@ -115,8 +115,8 @@ cdef object cy_solve_heating(c_RadiogenicsBase* model, object time, object mass)
 
     cdef vector[double] vtime, vmass
     cdef vector[double] vout
-    cdef double[::1] mv
-    cdef double[::1] mv2
+    cdef const double[::1] mv
+    cdef const double[::1] mv2
     cdef cnp.ndarray time_arr, mass_arr, t_b, m_b, t_c, m_c
     cdef tuple out_shape
     cdef double scalar_val
@@ -205,7 +205,7 @@ cdef class RadiogenicsBase(PhysicsBase):
         self._check_ptr()
         cdef vector[double] vtime
         cdef vector[double] vout
-        cdef double[::1] mv
+        cdef const double[::1] mv
         cdef cnp.ndarray time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
         mv = time_c
         with nogil:
@@ -218,7 +218,7 @@ cdef class RadiogenicsBase(PhysicsBase):
         self._check_ptr()
         cdef vector[double] vmass
         cdef vector[double] vout
-        cdef double[::1] mv
+        cdef const double[::1] mv
         cdef cnp.ndarray mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
         mv = mass_c
         with nogil:
@@ -231,8 +231,8 @@ cdef class RadiogenicsBase(PhysicsBase):
         self._check_ptr()
         cdef vector[double] vtime, vmass
         cdef vector[double] vout
-        cdef double[::1] mv
-        cdef double[::1] mv2
+        cdef const double[::1] mv
+        cdef const double[::1] mv2
         cdef cnp.ndarray time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
         cdef cnp.ndarray mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
         mv = time_c
@@ -568,11 +568,15 @@ def make_radiogenics(str model_name, dict config=None):
         isinstance(isotopes, str)
         and isotopes.lower() in {name.decode("utf-8") for name in c_isotope_dataset_names()}
     )
+    # Explicit MKS arrays win over a named dataset (the resolver's rule), so a dataset name merged in from the
+    # material defaults never replaces the isotopes a layer lists itself.
+    cdef cpp_bool explicit_arrays = ("half_lives_s" in config) or ("heat_production_w_kg" in config)
     if model == c_RadiogenicsModel.Isotope:
-        if built_in:
+        if built_in and not explicit_arrays:
             ds = c_get_isotope_dataset(isotopes.encode("utf-8"))
             cfg.isotopes = ds.isotopes
-            cfg.ref_time = ds.ref_time
+            # A given reference time says when the dataset's abundances apply; otherwise the dataset's own.
+            cfg.ref_time = config["ref_time_s"] if "ref_time_s" in config else ds.ref_time
         else:
             hpr, half_lives, mass_fracs, concentrations, names, iso_ref = \
                 _resolve_isotope_config(config)

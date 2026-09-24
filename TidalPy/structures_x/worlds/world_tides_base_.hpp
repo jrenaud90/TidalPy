@@ -33,6 +33,7 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
             "the radial solver); use an analytic model (cpl/ctl/ctl_q) on this world type");
     }
 
+    this->p_check_tide_state(state);
     const double planet_radius = this->get_radius();
     const double G_to_use = c_get_G();
     const c_TideConfig& tcfg = this->p_tide_config;

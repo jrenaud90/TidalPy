@@ -78,12 +78,33 @@ def test_fixed_q_love(frequency):
 
 
 def test_fixed_q_zero_q_is_elastic():
-    """A zero/unset Q_l must not divide by zero; it should give no dissipation."""
-    model = _import().make_tide("cpl", {"fixed_k": [0.3]})  # no fixed_q -> 0
+    """A zero Q_l must not divide by zero; it gives no dissipation."""
+    model = _import().make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [0.0]})
     love = model.calc_love_numbers(2, 1.0e-5)
     assert isclose(love.k.real, 0.3, rel_tol=1e-12)
     assert love.k.imag == 0.0
     assert model.calc_neg_imk(2, 1.0e-5) == 0.0
+
+
+def test_partial_config_takes_the_configured_defaults():
+    """A key left out of the config takes the [tides] value, as the world builder does, rather than zero."""
+    import TidalPy
+    configured_q = TidalPy.config_x["tides"]["fixed_q"][0]
+    model = _import().make_tide("cpl", {"fixed_k": [0.3]})
+    assert isclose(model.calc_neg_imk(2, 1.0e-5), 0.3 / configured_q, rel_tol=1e-12)
+    configured_k = TidalPy.config_x["tides"]["fixed_k"][0]
+    model = _import().make_tide("cpl", {"fixed_q": [50.0]})
+    assert isclose(model.calc_neg_imk(2, 1.0e-5), configured_k / 50.0, rel_tol=1e-12)
+
+
+@pytest.mark.parametrize("config", (
+    {"fixed_q": [-50.0]},
+    {"fixed_k": [float("nan")]},
+    {"fixed_k": [0.3] * 10},
+))
+def test_bad_per_degree_parameters_are_rejected(config):
+    with pytest.raises(ValueError):
+        _import().make_tide("cpl", config)
 
 
 # =====================================================================================================================

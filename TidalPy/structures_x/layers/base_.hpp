@@ -80,6 +80,17 @@ public:
           p_is_volume_fixed(cfg.is_volume_fixed),
           p_tidal_scale(cfg.tidal_scale)
     {
+        // An inverted or negative shell would carry a negative volume through every mass and heating sum.
+        if (!(std::isfinite(cfg.radius_inner) && std::isfinite(cfg.radius_outer)
+                && (cfg.radius_inner >= 0.0) && (cfg.radius_outer >= cfg.radius_inner))) {
+            throw std::invalid_argument(
+                "TidalPy: layer '" + cfg.name + "' needs finite radii with 0 <= radius_inner <= radius_outer; got " +
+                std::to_string(cfg.radius_inner) + " to " + std::to_string(cfg.radius_outer) + " m.");
+        }
+        if (cfg.mass < 0.0) {
+            throw std::invalid_argument(
+                "TidalPy: layer '" + cfg.name + "' has a negative mass (" + std::to_string(cfg.mass) + " kg).");
+        }
         this->update_physicals();
     }
 

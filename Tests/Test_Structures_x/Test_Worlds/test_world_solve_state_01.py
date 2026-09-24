@@ -92,15 +92,24 @@ def test_a_layer_view_cannot_be_loaded_in_place(tmp_path):
         world.mantle.load_binary(path)
 
 
-def test_adding_a_layer_leaves_the_world_unsolved():
-    """A new layer makes the solved structure stale; reading it gives NaN instead of reading past the solution."""
+def test_a_layer_past_the_world_radius_is_refused():
+    """A solved world's layers fill it, so a further layer would reach past its radius; the world stays solved."""
     world = _solved_io()
     top = world.radius
     shell = PhysicsLayer("shell", world.num_layers, top, top + 1.0e4, 0.0)
     shell.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 1000.0}))
-    world.add_layer(shell)
+    with pytest.raises(ValueError, match="past the radius"):
+        world.add_layer(shell)
+    assert world.eos_solved
+    assert math.isfinite(world.get_density(_MANTLE_RADIUS))
+
+
+def test_moving_a_layer_leaves_the_world_unsolved():
+    """Moved radii no longer line up with the solved profile; reading it gives NaN instead of a mismatched value."""
+    world = _solved_io()
+    mantle = world.mantle
+    mantle.set_radii(mantle.radius_inner, mantle.radius_outer)
     assert not world.eos_solved
-    assert math.isnan(world.get_temperature(top + 5.0e3))
     assert math.isnan(world.get_density(_MANTLE_RADIUS))
 
 

@@ -131,8 +131,10 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         c_LayeredWorld()
         c_LayeredWorld(const c_WorldConfig& cfg) except +
         void         add_layer(unique_ptr[c_BaseLayer] layer) except +
-        cpp_bool     accepts_layer(const c_BaseLayer& layer) const
+        cpp_bool     accepts_layer(const c_BaseLayer& layer) except +
+        string       layer_rejection_reason(const c_BaseLayer& layer) except +
         c_BaseLayer* get_layer(size_t index) except +
+        void         update_after_layer_geometry_change() except +
         size_t       get_num_layers() const
         double       calc_total_mass() const
         double       calc_internal_heating(double time) const
@@ -189,7 +191,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
                 const cpp_complex[double]* bulk_in,
                 const double* radius_in,
                 size_t n_in) except +
-        unique_ptr[c_RadialSolutionStorage] release_radial_storage()
+        unique_ptr[c_RadialSolutionStorage] release_radial_storage() except +
         cpp_bool             get_love_solved() const
         cpp_bool             get_love_success() const
         int                  get_love_error_code() const
@@ -297,6 +299,10 @@ cdef class LayeredWorld(BaseWorld):
     # wrappers are not rebuilt on every world.<layer> / get_layer access.
     cdef list _layer_views
     cdef dict _layer_view_by_name
+    # Weak references to every layer view handed out (cached or from add_layer), so a load that replaces the
+    # layers can detach them instead of leaving them pointing at freed memory.
+    cdef list _issued_views
+    cdef void _track_view(self, BaseLayer view) except *
     # Scalar dispatch for the vectorized real-valued radius getters (nogil-callable
     # so the float-or-ndarray wrappers can loop without the GIL).
     cdef double _eval_real(self, int kind, double radius) noexcept nogil

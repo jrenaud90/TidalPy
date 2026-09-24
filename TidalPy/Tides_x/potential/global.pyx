@@ -6,6 +6,8 @@ set_tidalpy_config_ptr(get_shared_config_address())
 from TidalPy.Tides_x.potential.potential_common cimport ModeMap, UniqueFrequencyMap
 from TidalPy.Tides_x.potential.potential_common import ModeMap, UniqueFrequencyMap
 
+import TidalPy
+
 def global_potential(
         double planet_radius,
         double orbital_frequency,
@@ -18,12 +20,15 @@ def global_potential(
         int min_degree_l=2,
         int max_degree_l=2,
         int eccentricity_truncation=3,
-        object obliquity_truncation='gen'
+        object obliquity_truncation=None
     ):
     """Build the global (1D) tidal potential mode tables for one orbital state.
 
     Arguments follow the world's ``calc_tides`` order after the body radius [m]; frequencies in rad s-1,
-    angles in radians, MKS throughout.
+    angles in radians, MKS throughout. ``min_degree_l`` and ``max_degree_l`` must satisfy
+    2 <= min <= max <= 10. ``obliquity_truncation`` is ``'off'``, 1, 2, or ``'gen'``; None takes the
+    ``[tides]`` ``obliquity_trunc_lvl`` of the TidalPy configuration (``'off'`` by default, which ignores the
+    obliquity).
 
     Returns
     -------
@@ -31,6 +36,14 @@ def global_potential(
         ``(mode_map, unique_freq_index_map, unique_freq_list, potential_dict)``; ``potential_dict`` maps
         ``(l, m, p, q)`` to ``(dU_dM, dU_dw, dU_dO, E_dot)``.
     """
+    if not (2 <= min_degree_l <= max_degree_l <= 10):
+        raise ValueError(
+            f"The degree range must satisfy 2 <= min_degree_l <= max_degree_l <= 10; got {min_degree_l} to "
+            f"{max_degree_l}.")
+    if obliquity_truncation is None:
+        # The same default a built world takes: the [tides] obliquity_trunc_lvl of TidalPy.config_x.
+        obliquity_truncation = ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(
+            "obliquity_trunc_lvl", "off")
     cdef int i_obliquity_truncation = 0
     if isinstance(obliquity_truncation, str):
         if obliquity_truncation.lower() in ('gen', 'general'):
@@ -85,7 +98,7 @@ def global_potential(
         elif c_result.error_code == -2:
             raise NotImplementedError(
                 f"Global potential error code -2: Unsupported degree l={c_result.working_on_l} "
-                f"for obliquity functions.")
+                f"(the eccentricity and obliquity functions are tabulated for l = 2 to 10).")
         else:
             raise RuntimeError(
                 f"Unknown global potential error code: {c_result.error_code} "

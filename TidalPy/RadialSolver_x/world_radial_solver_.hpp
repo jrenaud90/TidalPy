@@ -200,14 +200,23 @@ public:
         return true;
     }
 
-    void invalidate() noexcept { this->p_cache_valid = false; }
+    // The structure changed: the cache must be rebuilt and the stored solution no longer describes the world.
+    void invalidate() noexcept {
+        this->p_cache_valid     = false;
+        this->p_solved          = false;
+        this->p_storage_current = false;
+    }
 
     c_RadialSolutionStorage* get_storage() const noexcept { return this->p_storage.get(); }
 
     bool get_solved() const noexcept { return this->p_solved; }
 
+    // True once a solve has filled the storage, until the structure changes or the storage is released.
+    bool get_storage_current() const noexcept { return this->p_storage_current; }
+
     std::unique_ptr<c_RadialSolutionStorage> release_storage() noexcept {
-        this->p_cache_valid = false;
+        this->p_cache_valid     = false;
+        this->p_storage_current = false;
         return std::move(this->p_storage);
     }
 
@@ -403,7 +412,8 @@ public:
                 storage->message    = "TidalPy: the propagation-matrix method requires a single solid, static, "
                                       "incompressible layer.";
                 storage->success    = false;
-                this->p_solved      = false;
+                this->p_solved          = false;
+                this->p_storage_current = true;
                 return;
             }
         }
@@ -505,7 +515,8 @@ public:
         if (rt.redim_eos_arrays)
             this->p_cache_valid = false;
 
-        this->p_solved = storage->success;
+        this->p_solved          = storage->success;
+        this->p_storage_current = true;
     }
 
     // Cached state (frequency-independent unless noted).
@@ -515,6 +526,7 @@ public:
     int    p_degree_l     = 0;
     bool   p_nondim       = true;
     bool   p_solved       = false;
+    bool   p_storage_current = false;
     size_t p_num_ytypes   = 1;
     double p_surface_gravity_si = TidalPyConstants::d_NAN;
 
