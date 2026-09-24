@@ -1860,7 +1860,8 @@ cdef class LayeredWorld(BaseWorld):
         depends on longitude wherever waves at one frequency have different longitude structure, as they do
         for a synchronously rotating body. With ``orbit_averaged=False`` it is the instantaneous mechanical
         power density ``sigma_ij(t) * eps_dot_ij(t)`` [W m-3] at each supplied time (a fourth axis), which
-        time-averages to ``h_bar``.
+        time-averages to ``h_bar`` through e^N: ``h_bar`` cuts every product of two eccentricity functions at the
+        truncation level's e^N, while the instantaneous power keeps the partial terms past it.
 
         Any spatial dimension can be integrated out with ``latitude_summed``, ``longitude_summed``, or
         ``radial_summed``. If any spatial axis is summed, the surviving spatial axes carry their Jacobian

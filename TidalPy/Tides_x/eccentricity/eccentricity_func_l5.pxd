@@ -1,12 +1,4 @@
-from TidalPy.Tides_x.eccentricity.eccentricity_common cimport EccentricityFuncOutput
+from TidalPy.Tides_x.eccentricity.eccentricity_common cimport c_EccentricitySeriesTable
 
 cdef extern from "eccentricity_func_l5_.hpp" nogil:
-
-    EccentricityFuncOutput c_eccentricity_function_l5_e1(double eccentricity)
-    EccentricityFuncOutput c_eccentricity_function_l5_e2(double eccentricity)
-    EccentricityFuncOutput c_eccentricity_function_l5_e3(double eccentricity)
-    EccentricityFuncOutput c_eccentricity_function_l5_e4(double eccentricity)
-    EccentricityFuncOutput c_eccentricity_function_l5_e5(double eccentricity)
-    EccentricityFuncOutput c_eccentricity_function_l5_e10(double eccentricity)
-    EccentricityFuncOutput c_eccentricity_function_l5_e15(double eccentricity)
-    EccentricityFuncOutput c_eccentricity_function_l5_e20(double eccentricity)
+    c_EccentricitySeriesTable c_eccentricity_series_l5(int truncation)

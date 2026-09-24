@@ -365,8 +365,8 @@ def _terrestrial_with_tides(tides_toml_keys):
 @pytest.mark.parametrize("key", ["eccentricity_trunc_lvl", "eccentricity_truncation"])
 def test_eccentricity_truncation_alias_takes_effect(key):
     """Both spellings reach the world. The alias used to be masked by the config_x default."""
-    tides = _terrestrial_with_tides({key: 5}).get_config_dict()["tides"]
-    assert tides["eccentricity_trunc_lvl"] == 5
+    tides = _terrestrial_with_tides({key: 6}).get_config_dict()["tides"]
+    assert tides["eccentricity_trunc_lvl"] == 6
 
 
 @pytest.mark.parametrize("key", ["obliquity_trunc_lvl", "obliquity_truncation"])
@@ -386,7 +386,7 @@ def test_obliquity_truncation_words_resolve():
 def test_both_truncation_spellings_raises():
     """Two spellings of one truncation leave the intended level ambiguous."""
     with pytest.raises(ValueError, match="both 'eccentricity_trunc_lvl' and its alias"):
-        _terrestrial_with_tides({"eccentricity_trunc_lvl": 3, "eccentricity_truncation": 5})
+        _terrestrial_with_tides({"eccentricity_trunc_lvl": 4, "eccentricity_truncation": 6})
 
 
 # =====================================================================================================

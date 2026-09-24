@@ -31,7 +31,9 @@ _BULK = 1.0e11
 _VISC = 1.0e19
 _N = 2.0 * np.pi / 86400.0
 _ECC = 0.05
-_ECC_TRUNCATION = 3
+# The helpers form the heating from the unsquared potential, the world's secular heating cuts every product of two
+# eccentricity functions at e^N; at level 20 the terms past e^N are far below the tolerances here.
+_ECC_TRUNCATION = 20
 _HOST = mass_trap1
 _MASS = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
 _SMA = orbital_motion2semi_a(_N, _HOST, _MASS)

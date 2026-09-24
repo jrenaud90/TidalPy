@@ -4,9 +4,8 @@ The expected values were produced on 2026-09-09 by the classic ``TidalPy.toolbox
 (cpl model, k2 = 0.3, Q = 50) with Newton's constant from SciPy (6.6743e-11) and the semi-major axis derived from the
 mean motion by Kepler's law with the target mass included. They are frozen here so the check outlives the classic
 modules. The new collapse agrees to 6e-9 or better; the residual is roundoff in the classic module's tabulated
-(l-m)!/(l+m)! constants. The classic functions were squared, so classic truncation 2 held G^2 through e^2; at
-synchronous rotation only the q = +-1 modes dissipate, and their G^2 through e^2 is exactly the new truncation 1
-(G through e^1). The new truncation 2 adds the q = +-2 modes, e^4 terms the classic level omits.
+(l-m)!/(l+m)! constants. Both backends define truncation N by the squared functions: every G^2 is kept through e^N,
+so each case below uses the classic case's own level.
 """
 from math import isclose
 
@@ -22,18 +21,18 @@ SEMI_MAJOR_AXIS = 421682810.06527996   # From the mean motion, Jupiter's mass, a
 FIXED_K2 = 0.3
 FIXED_Q = 50.0
 
-# (spin / n, eccentricity, max degree l, new eccentricity truncation, classic results)
+# (spin / n, eccentricity, max degree l, eccentricity truncation, classic results)
 CASES = [
-    (1.0, 0.0041, 2, 1,
+    (1.0, 0.0041, 2, 2,
      dict(tidal_heating=37346752766277.4, dUdM=1.2991557524181804e-09, dUdw=8.205194225799033e-10,
           dUdO=8.205194225799033e-10, tidal_torque=1.5575099679411725e+18)),
-    (1.0, 0.05, 2, 10,
+    (1.0, 0.05, 2, 20,
      dict(tidal_heating=5655178150962627.0, dUdM=1.9498006598381115e-07, dUdw=1.2250325035012449e-07,
           dUdO=1.2250325035012449e-07, tidal_torque=2.325356698146063e+20)),
-    (1.5, 0.05, 2, 10,
+    (1.5, 0.05, 2, 20,
      dict(tidal_heating=1.5759276726255667e+17, dUdM=-4.006802467150424e-06, dUdw=-4.0176752226914675e-06,
           dUdO=-4.0176752226914675e-06, tidal_torque=-7.626351107712944e+21)),
-    (1.5, 0.1, 3, 10,
+    (1.5, 0.1, 3, 20,
      dict(tidal_heating=1.5542047449232224e+17, dUdM=-3.78066188470465e-06, dUdw=-3.848354751533603e-06,
           dUdO=-3.848354751533603e-06, tidal_torque=-7.304946989361085e+21)),
 ]

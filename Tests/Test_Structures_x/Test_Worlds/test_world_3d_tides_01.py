@@ -58,7 +58,7 @@ def _build_world(tide_model="rheology"):
     # The 3D path builds the tidal potential from these truncation levels. e^3 (ecc trunc 3), no
     # obliquity, l = 2 -> the NSR-modes set the legacy collapse_multilayer_modes(use_modes=True) uses.
     world.set_tide_config(min_degree_l=2, max_degree_l=2,
-                          eccentricity_truncation=3, obliquity_truncation=0)
+                          eccentricity_truncation=6, obliquity_truncation=0)
     return world
 
 

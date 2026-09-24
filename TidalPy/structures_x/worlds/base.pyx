@@ -24,6 +24,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport (
 )
 from TidalPy.Tides_x.classes.tide cimport TideBase
 from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_name_int
+from TidalPy.Tides_x.eccentricity.eccentricity_driver import validate_eccentricity_truncation
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides (the analytic global tidal
 # path) plus the heavy global-potential engine it uses, so they compile into this extension.
@@ -237,7 +238,9 @@ cdef class BaseWorld(StructureBase):
         min_degree_l, max_degree_l : int, optional
             Tidal harmonic degree range (2..10).
         eccentricity_truncation : int, optional
-            Eccentricity-function truncation level n (every term through e^n). Tabulated levels: 1..5, 10, 15, 20.
+            Eccentricity-function truncation level N: every product of two eccentricity functions is kept through
+            e^N. Tabulated levels: ``TidalPy.Tides_x.eccentricity.ECCENTRICITY_TRUNCATIONS`` (2, 4, 6, 8, 10, 20,
+            50).
         obliquity_truncation : int, optional
             Obliquity-function truncation: 0 (off), 1 or 2 (every term through I^1 or I^2), 10 (general).
         layer_tidal_heating : bool, optional
@@ -253,10 +256,8 @@ cdef class BaseWorld(StructureBase):
             Quality factor for the ``'cpl'`` method and time lag [s] for the ``'ctl'`` method. A NaN clears the
             value, after which the attached tide model's per-degree fixed Q / time lag is used.
         """
-        if eccentricity_truncation is not None and eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
-            raise NotImplementedError(
-                f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
-                'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
+        if eccentricity_truncation is not None:
+            eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
         if obliquity_truncation is not None and obliquity_truncation not in (0, 1, 2, 10):
             raise NotImplementedError(
                 f'Obliquity truncation {obliquity_truncation} is not tabulated. '

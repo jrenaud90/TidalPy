@@ -1,6 +1,6 @@
 # Obliquity Functions
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 The obliquity functions $F_{l,m,p}(I)$ are the other forcing component of the tidal potential, alongside the [eccentricity functions](eccentricity.md); see $F_{lmp}(I)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). The potential built from them gives tidal strain, heating, and spin-orbit evolution.
 
@@ -67,7 +67,7 @@ The C++ and Cython entry points mirror the Python ones: `Tides_x/obliquity/obliq
 As with eccentricity, the usual route is a world's `[tides]` configuration rather than a direct call:
 
 ```python
-world.set_tide_config(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
+world.set_tide_config(max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0)
 ```
 
 The TOML spelling is `obliquity_trunc_lvl`, which also accepts `"off"`. See [Global Tides](global_tides.md) and the [TOML schema](../structures_x/config/toml_schema.md).

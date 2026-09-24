@@ -36,7 +36,7 @@ def _global_potential(**kwargs):
 
 @pytest.mark.parametrize('degree_l', (2, 3, 4))
 @pytest.mark.parametrize('obliquity_truncation', ('gen', 1, 2, 'off'))
-@pytest.mark.parametrize('eccentricity_truncation', (1, 2, 3, 4, 5, 10))
+@pytest.mark.parametrize('eccentricity_truncation', (2, 4, 6, 8, 10, 20))
 def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_truncation):
     """Tests that global_potential runs without error and returns correct types for various parameters."""
 
@@ -54,7 +54,7 @@ def test_global_potential_basic(degree_l, obliquity_truncation, eccentricity_tru
     assert isinstance(unique_freq_list, list)
     assert isinstance(potential_dict, dict)
 
-    # Every truncation keeps the e^1 terms, so a synchronous eccentric orbit always has active modes.
+    # Every truncation keeps the e^2 heating terms, so a synchronous eccentric orbit always has active modes.
     assert len(mode_map) > 0
     assert len(unique_freq_list) > 0
     assert len(potential_dict) > 0
@@ -109,7 +109,7 @@ def test_global_potential_zero_obliquity(obliquity_truncation):
         obliquity=0.0,
         eccentricity=0.1,
         obliquity_truncation=obliquity_truncation,
-        eccentricity_truncation=5
+        eccentricity_truncation=10
     )
 
     assert len(mode_map) > 0
@@ -123,7 +123,7 @@ def test_global_potential_zero_obliquity(obliquity_truncation):
             assert m in (0, 2)
 
 
-@pytest.mark.parametrize('eccentricity_truncation', (1, 2, 3, 4, 5, 10))
+@pytest.mark.parametrize('eccentricity_truncation', (2, 4, 6, 8, 10, 20))
 def test_global_potential_zero_eccentricity(eccentricity_truncation):
     """Tests global_potential with zero eccentricity."""
 
@@ -233,10 +233,10 @@ def test_global_potential_nonsynchronous():
         assert isclose(mode_val, expected_mode, rel_tol=1e-12)
 
 
-@pytest.mark.parametrize('eccentricity_truncation', (1, 3))
+@pytest.mark.parametrize('eccentricity_truncation', (2, 6))
 def test_global_potential_synchronous_heating_matches_analytic(eccentricity_truncation):
     """At synchronous rotation, zero obliquity, and low eccentricity, the summed mode heating per unit k2/Q
-    equals the classic (21/2) G M_host^2 R^5 n e^2 / a^6, from the lowest truncation up."""
+    equals the classic (21/2) G M_host^2 R^5 n e^2 / a^6, from the lowest truncation up (exactly at level 2)."""
 
     eccentricity = 0.01
 
@@ -271,7 +271,7 @@ def test_global_potential_unsupported_eccentricity_truncation():
             obliquity=0.1,
             eccentricity=0.1,
             obliquity_truncation=2,
-            eccentricity_truncation=6
+            eccentricity_truncation=7
         )
 
 def test_global_potential_spot_check_l2_off_sync():

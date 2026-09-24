@@ -133,13 +133,13 @@ def test_truncation_promotion_warning_has_a_switch(monkeypatch):
     monkeypatch.setattr(world_builder, "_WARNED_ECCENTRICITY_TRUNCATIONS", set())
     with warnings.catch_warnings(record=True) as record:
         warnings.simplefilter("always")
-        assert world_builder._resolve_eccentricity_truncation(6) == 10
+        assert world_builder._resolve_eccentricity_truncation(7) == 8
     assert any("not tabulated" in str(entry.message) for entry in record)
 
     monkeypatch.setattr(world_builder, "_WARNED_ECCENTRICITY_TRUNCATIONS", set())
     _switched_off(monkeypatch, "truncation_promotion")
     with warnings.catch_warnings(record=True) as record:
         warnings.simplefilter("always")
-        assert world_builder._resolve_eccentricity_truncation(6) == 10
+        assert world_builder._resolve_eccentricity_truncation(7) == 8
         assert world_builder._resolve_obliquity_truncation(3) == 10
     assert not record

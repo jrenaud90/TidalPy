@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides_x.multilayer`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 This module computes the depth- and direction-resolved tidal response (the complex strain and stress tensors and the volumetric heating) of a layered world. The response is evaluated at a single point on demand, so a map is built only when the caller evaluates a set of points.
 
@@ -21,7 +21,7 @@ where $n$ is the mean motion, $\dot{\theta}$ the spin rate, and $\mathcal{T}_{lm
 > [!WARNING]
 > This assumes no periapse or node precession. It also assumes that the change in the mean anomaly can be approximated by the mean motion.
 
-The user selects the truncation via three knobs (on the world's `[tides]` config): `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). A nonzero obliquity truncation turns on the odd-`m` (`P_21`, ...) harmonics automatically. A mode whose $|\omega|$ does not exceed `[numerical] minimum_frequency` (1e-14 rad/s, `TidalPy.constants.min_frequency`) is switched off later, the same floor the 1D `calc_tides` path uses. (`[numerical] min_spin_orbit_diff` belongs to the classic backend; the new backend does not read it.)
+The user selects the truncation via three knobs (on the world's `[tides]` config): `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). Eccentricity level $N$ keeps the potential through $e^N$ and cuts every product of two eccentricity functions that the secular heating forms at $e^N$, as the 1D path does, so the volume integral of the secular heating equals the 1D heating at any eccentricity (see [Eccentricity Functions](eccentricity.md)). The instantaneous fields (displacements, stress, strain, and the instantaneous power) are linear in the potential and use the unsquared functions. A nonzero obliquity truncation turns on the odd-`m` (`P_21`, ...) harmonics automatically. A mode whose $|\omega|$ does not exceed `[numerical] minimum_frequency` (1e-14 rad/s, `TidalPy.constants.min_frequency`) is switched off later, the same floor the 1D `calc_tides` path uses. (`[numerical] min_spin_orbit_diff` belongs to the classic backend; the new backend does not read it.)
 
 ### Displacement, Strain, and Stress
 
@@ -126,7 +126,7 @@ world.add_layer(layer)
 world.solve_eos()
 world.set_tide_model(make_tide("rheology"))
 # The tidal potential truncation comes from the tide config (or the [tides] TOML table):
-world.set_tide_config(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
+world.set_tide_config(max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0)
 
 orbital_frequency = 4.1e-5      # [rad s-1]
 spin_frequency = 5.6e-5         # non-synchronous
@@ -162,7 +162,7 @@ It reproduces the scalar `get_3d_tidal_heating` point-for-point (to machine prec
 `calc_3d_tides` produces the 3D heating as a full grid over `(radius, colatitude, longitude[, time])` or reduced along any spatial dimension. Two quantities:
 
 * `orbit_averaged=True` (default): the secular heating density `h_bar` [W m-3], the time average of the instantaneous power at each point. It depends on longitude wherever waves at one frequency have different longitude structure (synchronous rotation above all) and is constant along longitude otherwise.
-* `orbit_averaged=False`: the instantaneous mechanical power density `sigma_ij(t) * eps_dot_ij(t)` [W m-3] at each supplied time (a 4th axis). It depends on longitude and time and time-averages to `h_bar` at the same point (every wave is a real field at `+|omega|`, so every cross term is present).
+* `orbit_averaged=False`: the instantaneous mechanical power density `sigma_ij(t) * eps_dot_ij(t)` [W m-3] at each supplied time (a 4th axis). It depends on longitude and time and time-averages to `h_bar` at the same point (every wave is a real field at `+|omega|`, so every cross term is present) through the truncation level's $e^N$: `h_bar` cuts every product of two eccentricity functions at $e^N$, while the instantaneous power is formed from the unsquared potential and keeps the partial terms past it, so the two differ at large eccentricity and a low level.
 
 Non-summed spatial axes take user arrays (`radii`, `colatitudes`, `longitudes`); the `times` array is required when `orbit_averaged=False`. Reduction convention: if any spatial axis is summed, the surviving spatial axes carry their Jacobian (`r^2`, `sin theta`, `1`) so a plain integral over them recovers the total; if none is summed the output is the raw density (its longitude mean matches the scalar `get_3d_tidal_heating`). The colatitude integral (secular, `latitude_summed`) is done analytically by default: the six angular functions the strain/stress needs form a bounded basis whose sphere integrals are precomputed once into a per-`(l, m)` Gram table (`Tides_x.multilayer.stress_strain.angular_gram`), and the cross terms between coherent waves of different degree at one frequency use a cross-degree Gram matrix integrated by Gauss-Legendre quadrature (exact, the integrands being polynomials in `cos theta`), so no colatitude grid is needed on the collapse. This is exact and, for a large radius grid (a radial profile or map), a few times faster than the numerical quadrature (the Love-number solves otherwise dominate). The analytic integral is of the longitude mean, so it is used only when longitude is summed too; a call that keeps its longitudes uses the Gauss-Legendre colatitude grid (`latitude_nodes`) whatever `latitude_analytic` says. Pass `latitude_analytic=False` to use that grid for a longitude-summed call as well; the two agree to machine precision there. The radial integral uses `radial_slices` Gauss-Legendre nodes inside each layer, none on a layer boundary, and the longitude integral the analytic `2*pi` times the longitude mean when averaged or a `longitude_nodes` trapezoid when instantaneous.
 
@@ -303,7 +303,7 @@ colatitude, longitude = 0.8, 0.3
 degrees, freqs, pots = tidal_potential_3d_modes(
     world.radius, orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis,
     host_mass, G, colatitude, longitude,
-    min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
+    min_degree_l=2, max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0)
 # pots[i] = complex (U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi) for mode i
 ```
 

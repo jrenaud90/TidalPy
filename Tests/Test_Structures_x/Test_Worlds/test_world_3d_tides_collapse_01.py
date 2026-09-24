@@ -63,7 +63,7 @@ def _build_world(two_layer=False, soft_shell=False):
 
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=2,
-                          eccentricity_truncation=3, obliquity_truncation=0)
+                          eccentricity_truncation=6, obliquity_truncation=0)
     world.solve_eos(G_to_use=G)
     return world
 

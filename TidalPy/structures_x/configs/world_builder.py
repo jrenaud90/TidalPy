@@ -28,6 +28,8 @@ from TidalPy.structures_x.worlds.base import BaseWorld
 from TidalPy.structures_x.worlds.layered import LayeredWorld
 from TidalPy.structures_x.worlds.gasgiant import GasGiantWorld
 from TidalPy.structures_x.worlds.stellar import StarWorld
+from TidalPy.Tides_x.eccentricity import ECCENTRICITY_TRUNCATIONS, promote_eccentricity_truncation
+from TidalPy.Tides_x.eccentricity.eccentricity_driver import _WARNED_PROMOTIONS as _WARNED_ECCENTRICITY_PROMOTIONS
 
 from TidalPy.configurations import keep_on_model_change
 from TidalPy.rheology_x.rheology import make_rheology, _same_model as _same_rheology_model
@@ -818,7 +820,7 @@ _DEFAULT_TIDE_MODEL_FALLBACK = {
     "layered":     "rheology",
 }
 
-SUPPORTED_ECCENTRICITY_TRUNCATIONS = (1, 2, 3, 4, 5, 10, 15, 20)
+SUPPORTED_ECCENTRICITY_TRUNCATIONS = ECCENTRICITY_TRUNCATIONS
 SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 1, 2, 10)
 
 # Untabulated obliquity levels already warned about; the same once-per-session rule as the eccentricity
@@ -826,8 +828,8 @@ SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 1, 2, 10)
 _WARNED_OBLIQUITY_TRUNCATIONS: set = set()
 
 # Untabulated truncation levels already warned about, so a stale configuration file warns once per session
-# per level rather than on every world build.
-_WARNED_ECCENTRICITY_TRUNCATIONS: set = set()
+# per level rather than on every world build. The eccentricity set is the one the standalone functions use too.
+_WARNED_ECCENTRICITY_TRUNCATIONS: set = _WARNED_ECCENTRICITY_PROMOTIONS
 
 
 def _resolve_obliquity_truncation(value) -> int:
@@ -875,27 +877,17 @@ def _tides_config_x() -> dict:
 
 
 def _resolve_eccentricity_truncation(value) -> int:
-    """Resolve an eccentricity truncation to a tabulated level.
+    """Resolve a configured eccentricity truncation to a tabulated level.
 
-    The eccentricity functions are tabulated at truncations e^1 through e^5, e^10, e^15, and
-    e^20. A configured level that is not tabulated (for example the legacy default of 6) is
-    promoted to the next tabulated level with a once-per-session warning, so stale
-    configuration files keep working while the accuracy never silently decreases.
+    Level N keeps every product of two eccentricity functions through e^N; the tabulated levels are
+    ``ECCENTRICITY_TRUNCATIONS``. A configured level that is not tabulated (for example an odd level) is
+    promoted to the next tabulated level with a once-per-session warning, so stale configuration files
+    keep working while the accuracy never silently decreases.
     """
-    level = int(value)
-    if level in SUPPORTED_ECCENTRICITY_TRUNCATIONS:
-        return level
-    for supported in SUPPORTED_ECCENTRICITY_TRUNCATIONS:
-        if supported > level:
-            if level not in _WARNED_ECCENTRICITY_TRUNCATIONS and warning_enabled("truncation_promotion"):
-                _WARNED_ECCENTRICITY_TRUNCATIONS.add(level)
-                warnings.warn(
-                    f"Eccentricity truncation {level} is not tabulated; using {supported} instead. "
-                    f"Supported levels: {SUPPORTED_ECCENTRICITY_TRUNCATIONS}.")
-            return supported
-    raise ValueError(
-        f"Eccentricity truncation {level} is not supported. "
-        f"Supported levels: {SUPPORTED_ECCENTRICITY_TRUNCATIONS}.")
+    return promote_eccentricity_truncation(
+        value,
+        warned_levels=_WARNED_ECCENTRICITY_TRUNCATIONS,
+        warn=warning_enabled("truncation_promotion"))
 
 
 # A `[tides]` table may spell either truncation the long way, while the config_x defaults always use
@@ -1019,7 +1011,7 @@ def _attach_tides(world, config: dict) -> None:
         max_degree_l=max_degree_l,
         # Both spellings were normalized to the canonical key above.
         eccentricity_truncation=_resolve_eccentricity_truncation(
-            merged.get("eccentricity_trunc_lvl", 3)),
+            merged.get("eccentricity_trunc_lvl", 10)),
         obliquity_truncation=_resolve_obliquity_truncation(
             merged.get("obliquity_trunc_lvl", "off")),
         layer_tidal_heating=bool(merged.get("layer_tidal_heating", True)),

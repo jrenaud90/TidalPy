@@ -7,6 +7,7 @@ from TidalPy.Tides_x.potential.potential_common cimport ModeMap, UniqueFrequency
 from TidalPy.Tides_x.potential.potential_common import ModeMap, UniqueFrequencyMap
 
 import TidalPy
+from TidalPy.Tides_x.eccentricity.eccentricity_driver import validate_eccentricity_truncation
 
 def global_potential(
         double planet_radius,
@@ -19,7 +20,7 @@ def global_potential(
         double G_to_use,
         int min_degree_l=2,
         int max_degree_l=2,
-        int eccentricity_truncation=3,
+        object eccentricity_truncation=None,
         object obliquity_truncation=None
     ):
     """Build the global (1D) tidal potential mode tables for one orbital state.
@@ -28,7 +29,8 @@ def global_potential(
     angles in radians, MKS throughout. ``min_degree_l`` and ``max_degree_l`` must satisfy
     2 <= min <= max <= 10. ``obliquity_truncation`` is ``'off'``, 1, 2, or ``'gen'``; None takes the
     ``[tides]`` ``obliquity_trunc_lvl`` of the TidalPy configuration (``'off'`` by default, which ignores the
-    obliquity).
+    obliquity). ``eccentricity_truncation`` is a level of ``ECCENTRICITY_TRUNCATIONS`` (every product of two
+    eccentricity functions through e^N); None takes the ``[tides]`` ``eccentricity_trunc_lvl``.
 
     Returns
     -------
@@ -66,10 +68,8 @@ def global_potential(
         raise NotImplementedError(
             f"Obliquity truncation {i_obliquity_truncation} is not tabulated. "
             "Supported levels: 0 ('off'), 1, 2, 10 ('gen', fully general).")
-    if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
-        raise NotImplementedError(
-            f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
-            'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
+    # None takes the [tides] eccentricity_trunc_lvl of the TidalPy configuration, as a built world does.
+    cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
 
     cdef c_GlobalPotentialStorage c_result = c_global_potential(
         planet_radius,
@@ -83,7 +83,7 @@ def global_potential(
         min_degree_l,
         max_degree_l,
         i_obliquity_truncation,
-        eccentricity_truncation
+        i_eccentricity_truncation
     )
 
     if c_result.error_code != 0:

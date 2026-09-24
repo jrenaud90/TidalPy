@@ -26,8 +26,8 @@ def _world(filename):
 
 def _configure_tide(world, model, config):
     world.set_tide_model(make_tide(model, config))
-    # Truncation 1 keeps G through e^1, so a synchronous body's dissipation is exactly the leading-order e^2 term.
-    world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=1, obliquity_truncation=0)
+    # Truncation 2 keeps the heating through e^2, so a synchronous body's dissipation is exactly the e^2 term.
+    world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
 
 
 # =====================================================================================================================
@@ -45,9 +45,9 @@ def test_terrestrial_fixedq_e2e():
     heating = world.get_tidal_heating()
     assert np.isfinite(heating) and heating > 0.0
 
-    # Leading-order dissipation scales as the square of the eccentricity.
+    # The e^2 dissipation scales as the square of the eccentricity.
     world.calc_tides(n, n, 0.10, 0.0, 4.0e8, 6.0e24)
-    assert math.isclose(world.get_tidal_heating() / heating, 4.0, rel_tol=1e-6)
+    assert math.isclose(world.get_tidal_heating() / heating, 4.0, rel_tol=1e-12)
 
 
 # =====================================================================================================================

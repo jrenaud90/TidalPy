@@ -281,13 +281,53 @@ struct c_WaveSet3D {
     std::vector<int> wave_angular_pair;           // per wave, index into angular_pairs
     std::vector<int> azimuthal_orders;            // unique signed azimuthal wavenumber mu = azimuthal_sign * m
     std::vector<int> wave_azimuthal_order;        // per wave, index into azimuthal_orders
+    // A secular set's cut amplitude products [a * num_waves + b] (c_wave_pair_power_3d) for waves of one frequency,
+    // which the secular heating takes in place of amplitude_a * conj(amplitude_b); empty for an instantaneous set,
+    // whose fields are linear in the unsquared amplitudes.
+    bool secular = false;
+    std::vector<std::complex<double>> pair_power;
 };
 
+// A secular set keeps only the waves with a non-zero cut product with some wave of their frequency (at zero obliquity,
+// the modes with |q| <= N / 2), so the radial solves cover exactly what the heating uses.
 inline c_WaveSet3D c_build_wave_set_3d(
         const std::vector<c_TidalPotential3DModeCoeff>& modes,
-        double min_frequency) {
+        double min_frequency,
+        double eccentricity,
+        bool secular) {
     c_WaveSet3D set;
+    set.secular = secular;
     set.waves = c_coherent_tidal_waves_3d(modes, min_frequency);
+    if (secular) {
+        const size_t num_all = set.waves.size();
+        std::vector<std::complex<double>> all_power(num_all * num_all, std::complex<double>(0.0, 0.0));
+        std::vector<unsigned char> keep(num_all, 0);
+        for (size_t a = 0; a < num_all; ++a) {
+            for (size_t b = a; b < num_all; ++b) {
+                if (!c_tidal_wave_same_frequency(set.waves[a].frequency, set.waves[b].frequency)) { continue; }
+                const std::complex<double> power = c_wave_pair_power_3d(set.waves[a], set.waves[b], eccentricity);
+                if (std::abs(power) == 0.0) { continue; }
+                all_power[a * num_all + b] = power;
+                all_power[b * num_all + a] = std::conj(power);
+                keep[a] = 1;
+                keep[b] = 1;
+            }
+        }
+        std::vector<size_t> kept;
+        for (size_t a = 0; a < num_all; ++a) {
+            if (keep[a]) { kept.push_back(a); }
+        }
+        std::vector<c_TidalWave3D> kept_waves;
+        kept_waves.reserve(kept.size());
+        set.pair_power.assign(kept.size() * kept.size(), std::complex<double>(0.0, 0.0));
+        for (size_t i = 0; i < kept.size(); ++i) {
+            kept_waves.push_back(set.waves[kept[i]]);
+            for (size_t j = 0; j < kept.size(); ++j) {
+                set.pair_power[i * kept.size() + j] = all_power[kept[i] * num_all + kept[j]];
+            }
+        }
+        set.waves = std::move(kept_waves);
+    }
     const size_t num_waves = set.waves.size();
     set.wave_radial_group.assign(num_waves, -1);
     set.wave_frequency_group.assign(num_waves, -1);
@@ -339,7 +379,8 @@ inline c_WaveSet3D c_build_wave_set_3d(
 inline c_WaveSet3D c_world_wave_set_3d(
         c_LayeredWorld& world,
         const c_TideSolveConfig& state,
-        const char* what) {
+        const char* what,
+        bool secular) {
     const c_TideConfig& tide_cfg = world.get_tide_config();
     int engine_error = 0;
     const std::vector<c_TidalPotential3DModeCoeff> modes = c_tidal_potential_3d_mode_coeffs(
@@ -364,7 +405,7 @@ inline c_WaveSet3D c_world_wave_set_3d(
     // The floor below which a mode is inactive is the 1D path's (record_unique_frequencies), so both paths keep the
     // same modes; a slow mode near a Maxwell peak otherwise went missing from the 3D heating alone.
     const double min_freq = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_FREQUENCY : 0.0;
-    return c_build_wave_set_3d(modes, min_freq);
+    return c_build_wave_set_3d(modes, min_freq, state.eccentricity, secular);
 }
 
 // Run the world radial solve for one radial group into `workspace` and return its solution storage, which lives
@@ -531,19 +572,28 @@ struct c_FrequencyAmplitudes3D {
 // The radius-independent part of every wave at one (colatitude, longitude), which a grid forms once per
 // point and reuses at every radius. c_wave_angular_colatitude_3d sets the colatitude: the Legendre values
 // of each (l, m) and the sine and cotangent factors. c_wave_angular_longitude_3d then sets the longitude:
-// the phasor e^{i mu phi} of each mu, every wave's potential point, and its angular strain factors.
+// the phasor e^{i mu phi} of each mu, every wave's potential point, and its angular strain factors. For a secular set
+// the potentials are per unit amplitude: its heating weighs pairs of waves by their cut amplitude products.
 struct c_WaveAngular3D {
     std::vector<c_LegendreValue> legendre;                  // [angular pair] at the colatitude
     tides::c_ColatitudeTrig trig;                           // sine and cotangent factors of the colatitude
     std::vector<std::complex<double>> phasors;              // [azimuthal order] at the longitude
     std::vector<c_PotentialPointC> potentials;              // [wave] at the point
     std::vector<tides::c_AngularStrainFactors> factors;     // [wave] at the point, when strain factors were asked for
+    // Per-wave unit stress and strain at the current radius, a workspace for c_secular_density_3d so the per-point
+    // call allocates nothing; an angular state belongs to one thread.
+    mutable std::vector<tides::c_Tensor6> unit_stress;
+    mutable std::vector<tides::c_Tensor6> unit_strain;
+    mutable std::vector<unsigned char> unit_valid;
 
     explicit c_WaveAngular3D(const c_WaveSet3D& set) :
         legendre(set.angular_pairs.size()),
         phasors(set.azimuthal_orders.size()),
         potentials(set.waves.size()),
-        factors(set.waves.size()) {}
+        factors(set.waves.size()),
+        unit_stress(set.waves.size()),
+        unit_strain(set.waves.size()),
+        unit_valid(set.waves.size(), 0) {}
 };
 
 inline void c_wave_angular_colatitude_3d(const c_WaveSet3D& set, double colatitude, c_WaveAngular3D& angular) {
@@ -565,7 +615,8 @@ inline void c_wave_angular_longitude_3d(
         angular.potentials[w] = c_wave_point_from_parts(
             set.waves[w],
             angular.legendre[static_cast<size_t>(set.wave_angular_pair[w])],
-            angular.phasors[static_cast<size_t>(set.wave_azimuthal_order[w])]);
+            angular.phasors[static_cast<size_t>(set.wave_azimuthal_order[w])],
+            set.secular ? std::complex<double>(1.0, 0.0) : set.waves[w].amplitude);
         if (strain_factors) {
             angular.factors[w] = tides::c_angular_strain_factors(angular.potentials[w], angular.trig);
         }
@@ -641,36 +692,49 @@ inline std::vector<c_SecularGroup3D> c_secular_groups_3d(const c_WaveSet3D& set,
     return groups;
 }
 
-// Secular density at one point: each group's waves summed into a total complex stress and strain, then
-// (|omega|/2) Im(sigma_c : conj(eps_c)) summed over the groups. coeffs_by_group[g] is radial group g's strain radial
-// coefficient set at this radius (valid == false where the group has no shear kernel there), and the wave angular
-// state carries strain factors at the point (the longitude mean evaluates it at phi = 0).
+// Secular density at one point of a secular set: for each group, (|omega|/2) Im(sigma_c : conj(eps_c)) of the group's
+// total stress and strain with every product of two amplitudes cut at e^N, i.e. the sum over wave pairs (a, b) of
+// Im(P_ab sigma~_a : conj(eps~_b)), sigma~ and eps~ per unit amplitude and P_ab the cut product. coeffs_by_group[g] is
+// radial group g's strain radial coefficient set at this radius (valid == false where the group has no shear kernel
+// there), and the wave angular state carries unit-amplitude strain factors at the point (the longitude mean evaluates
+// it at phi = 0).
 inline double c_secular_density_3d(
         const c_WaveSet3D& set,
         const std::vector<c_SecularGroup3D>& groups,
         const std::vector<tides::c_StrainRadialCoeffs>& coeffs_by_group,
         const c_WaveAngular3D& angular) {
+    if (!set.secular) {
+        throw std::logic_error("TidalPy: the secular 3D heating needs a secular wave set (cut pair products)");
+    }
+    const size_t num_waves = set.waves.size();
+    std::vector<tides::c_Tensor6>& stress = angular.unit_stress;
+    std::vector<tides::c_Tensor6>& strain = angular.unit_strain;
+    std::vector<unsigned char>& valid = angular.unit_valid;
     double heating = 0.0;
     for (const c_SecularGroup3D& group : groups) {
-        tides::c_Tensor6 stress_total;
-        tides::c_Tensor6 strain_total;
-        bool any = false;
         for (const size_t w : group.waves) {
             const tides::c_StrainRadialCoeffs& radial = coeffs_by_group[set.wave_radial_group[w]];
-            if (!radial.valid) { continue; }
-            tides::c_Tensor6 strain;
-            tides::c_Tensor6 stress;
-            tides::c_compute_strain_stress_from_factors(radial, angular.factors[w], strain, stress);
-            for (size_t k = 0; k < 6; ++k) {
-                stress_total.c[k] += stress.c[k];
-                strain_total.c[k] += strain.c[k];
+            valid[w] = radial.valid ? 1 : 0;
+            if (valid[w]) {
+                tides::c_compute_strain_stress_from_factors(radial, angular.factors[w], strain[w], stress[w]);
             }
-            any = true;
         }
-        if (any) {
-            heating += 0.5 * set.frequencies[group.frequency_group]
-                     * tides::c_volumetric_heating_signed(stress_total, strain_total);
+        double group_heating = 0.0;
+        for (const size_t a : group.waves) {
+            if (!valid[a]) { continue; }
+            for (const size_t b : group.waves) {
+                if (!valid[b]) { continue; }
+                const std::complex<double> power = set.pair_power[a * num_waves + b];
+                if (std::abs(power) == 0.0) { continue; }
+                double pair_heating = 0.0;
+                for (size_t k = 0; k < 6; ++k) {
+                    const double term = std::imag(power * stress[a].c[k] * std::conj(strain[b].c[k]));
+                    pair_heating += (k < 3) ? term : 2.0 * term;
+                }
+                group_heating += pair_heating;
+            }
         }
+        heating += 0.5 * set.frequencies[group.frequency_group] * group_heating;
     }
     return heating;
 }
@@ -856,6 +920,9 @@ inline double c_secular_theta_integral_3d(
         const c_WaveSet3D& set,
         const std::vector<tides::c_StrainRadialCoeffs>& coeffs_by_group,
         c_GramCache3D& gram_cache) {
+    if (!set.secular) {
+        throw std::logic_error("TidalPy: the secular 3D heating needs a secular wave set (cut pair products)");
+    }
     double total = 0.0;
     const size_t num_waves = set.waves.size();
     std::vector<unsigned char> done(num_waves, 0);
@@ -902,7 +969,8 @@ inline double c_secular_theta_integral_3d(
                 for (int i = 0; i < 6; ++i) {
                     for (int j = 0; j < 6; ++j) { gram[i][j] = found->second[static_cast<size_t>(i * 6 + j)]; }
                 }
-                const std::complex<double> c_pair = wave_a.amplitude * std::conj(wave_b.amplitude);
+                const std::complex<double> c_pair = set.pair_power[a * num_waves + b];
+                if (std::abs(c_pair) == 0.0) { continue; }
                 total += 0.5 * frequency * tides::c_theta_integrated_heating_pair(
                     radial_a,
                     radial_b,
@@ -1031,7 +1099,7 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
         const c_Grid3DAxes& axes,
         double* out_disp,
         int num_threads) const {
-    const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "3D tidal displacements");
+    const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "3D tidal displacements", false);
     const size_t nr = axes.num_radii;
     const size_t nth = axes.num_colatitudes;
     const size_t nph = axes.num_longitudes;
@@ -1142,7 +1210,7 @@ inline void c_RheologyTide::calc_3d_stress_strain_grid(
     }
 
     const char* what = "3D tidal stress and strain";
-    const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, what);
+    const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, what, false);
     const tides3d::c_RadialCoefficients3D radial_coefficients =
         tides3d::c_radial_coefficients_3d(world, set, axes.radii, nr, what);
     const tides3d::c_PhaseTable3D phase = tides3d::c_phase_table_3d(set.frequencies, axes.times, nt);
@@ -1228,7 +1296,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
         size_t num_points,
         double* out_heating,
         int num_threads) const {
-    const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "secular 3D tidal heating");
+    const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "secular 3D tidal heating", true);
     for (size_t i = 0; i < num_points; ++i) {
         out_heating[i] = 0.0;
     }
@@ -1316,7 +1384,8 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
         const c_Heating3DCollapseConfig& cfg,
         double* out_values,
         double* out_layer_totals) const {
-    const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, "3D tidal heating");
+    const tides3d::c_WaveSet3D set =
+        tides3d::c_world_wave_set_3d(world, state, "3D tidal heating", cfg.orbit_averaged);
 
     // Axis grids, output layout, and zeroed outputs.
     const tides3d::c_CollapseGrids3D grids = tides3d::c_collapse_grids_3d(

@@ -19,6 +19,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 from TidalPy.Tides_x.classes.tide import TIDE_CONFIG_KEYS, _same_model
 from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
 import TidalPy
+from TidalPy.Tides_x.eccentricity.eccentricity_driver import validate_eccentricity_truncation
 from TidalPy.Tides_x.classes.tide cimport (
     c_TideBase, c_TideModel, c_TideModelConfig, c_tide_model_from_name, c_find_tide,
 )
@@ -127,7 +128,7 @@ def collapse_global_tides(
         dict tide_config=None,
         int min_degree_l=2,
         int max_degree_l=2,
-        int eccentricity_truncation=3,
+        object eccentricity_truncation=None,
         object obliquity_truncation=None) -> dict:
     """Collapse the global tidal modes into heating and orbital potential derivatives.
 
@@ -165,8 +166,9 @@ def collapse_global_tides(
         ``make_tide`` does; any other key raises ``ValueError``.
     min_degree_l, max_degree_l : int
         Tidal harmonic degree range (2..10).
-    eccentricity_truncation : int
-        Eccentricity truncation level. Tabulated levels: 1..5, 10, 15, 20.
+    eccentricity_truncation : int, optional
+        Eccentricity truncation level N, one of ``ECCENTRICITY_TRUNCATIONS`` (every product of two eccentricity
+        functions through e^N). None takes the ``[tides]`` ``eccentricity_trunc_lvl`` of the TidalPy configuration.
     obliquity_truncation : str or int, optional
         Obliquity truncation: ``"off"`` (0), 1, 2, or ``"gen"``/``"general"`` (10). None takes the ``[tides]``
         ``obliquity_trunc_lvl`` of the TidalPy configuration (``"off"`` by default, which ignores the obliquity).
@@ -198,10 +200,8 @@ def collapse_global_tides(
         raise ValueError(f"The eccentricity must be in [0, 1); got {eccentricity}.")
     if not (semi_major_axis > 0.0):
         raise ValueError(f"The semi-major axis must be positive; got {semi_major_axis} m.")
-    if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
-        raise NotImplementedError(
-            f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
-            'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
+    # None takes the [tides] eccentricity_trunc_lvl of the TidalPy configuration, as a built world does.
+    cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
 
     # The same defaults and key check as make_tide: an absent config takes the [tides] defaults, and an unknown or
     # misspelled key raises instead of silently leaving a list empty (which would give no heating).
@@ -229,7 +229,7 @@ def collapse_global_tides(
         min_degree_l,
         max_degree_l,
         i_obliquity_truncation,
-        eccentricity_truncation)
+        i_eccentricity_truncation)
 
     if potential.error_code != 0:
         raise RuntimeError(

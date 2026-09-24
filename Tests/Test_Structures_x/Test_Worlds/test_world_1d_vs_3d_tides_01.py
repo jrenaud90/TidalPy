@@ -52,7 +52,7 @@ def _build_world():
     world.add_layer(layer)
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=2,
-                          eccentricity_truncation=3, obliquity_truncation=0)
+                          eccentricity_truncation=6, obliquity_truncation=0)
     world.solve_eos(G_to_use=G)
     return world
 
@@ -99,3 +99,28 @@ def test_scalar_is_a_pure_function():
     h1 = world.get_3d_tidal_heating(_N, spin, _ECC, 0.0, sma, _HOST, r, colat)
     assert math.isclose(h0, h1, rel_tol=1e-12)
     assert h0 > 0.0
+
+
+@pytest.mark.parametrize("truncation, eccentricity", [(20, 0.4), (50, 0.6)])
+@pytest.mark.parametrize("spin_factor", [1.0, 1.37])
+def test_3d_total_matches_1d_at_high_eccentricity(truncation, eccentricity, spin_factor):
+    """Both paths cut every product of two eccentricity functions at e^N, so the collapsed 3D total equals the 1D
+    heating at any eccentricity; uncut 3D products would carry terms past e^N that the 1D sum does not."""
+    sma = orbital_motion2semi_a(_N, _HOST, _MASS)
+    spin = spin_factor * _N
+    world = _build_world()
+    world.set_tide_config(eccentricity_truncation=truncation)
+    world.calc_tides(orbital_frequency=_N, spin_frequency=spin, eccentricity=eccentricity,
+                     obliquity=0.0, semi_major_axis=sma, host_mass=_HOST)
+    h_1d = world.get_tidal_heating()
+    result = world.calc_3d_tides(
+        _N,
+        spin,
+        eccentricity,
+        0.0,
+        sma,
+        _HOST,
+        radial_summed=True,
+        latitude_summed=True,
+        longitude_summed=True)
+    assert math.isclose(result['total'], h_1d, rel_tol=1.0e-6), (result['total'], h_1d)

@@ -327,7 +327,8 @@ protected:
 
     // Checks the orbital state a tidal solve is about to use: throws std::invalid_argument for an eccentricity
     // outside [0, 1) or a semi-major axis that is not positive, and warns once per world when an obliquity would be
-    // ignored because the obliquity truncation is off.
+    // ignored because the obliquity truncation is off or when the eccentricity is past the range of the eccentricity
+    // truncation (c_eccentricity_truncation_limit).
     void p_check_tide_state(const c_TideSolveConfig& state) const {
         if (!((state.eccentricity >= 0.0) && (state.eccentricity < 1.0))) {
             throw std::invalid_argument(
@@ -348,8 +349,22 @@ protected:
                 "set_tide_config to include them. Shown once per world.",
                 this->get_name(), state.obliquity);
         }
+        const int eccentricity_truncation = this->p_tide_config.eccentricity_truncation;
+        const double eccentricity_limit   =
+            c_eccentricity_truncation_limit(eccentricity_truncation, this->p_tide_config.max_degree_l);
+        if ((state.eccentricity >= eccentricity_limit) && !this->p_eccentricity_range_warned) {
+            this->p_eccentricity_range_warned = true;
+            TIDALPY_LOG_WARN(
+                "TidalPy: world '{}' has an eccentricity of {:.3f}, past {:.2f}, where its eccentricity truncation "
+                "(level {}) can underestimate the tides by 10% or more. Raise eccentricity_trunc_lvl in its [tides] "
+                "table or set_tide_config (level 50 holds to about {:.2f}, past which no tabulated level is "
+                "reliable). Shown once per world.",
+                this->get_name(), state.eccentricity, eccentricity_limit, eccentricity_truncation,
+                c_eccentricity_truncation_limit(50, this->p_tide_config.max_degree_l));
+        }
     }
     mutable bool p_obliquity_off_warned = false;
+    mutable bool p_eccentricity_range_warned = false;
 
     // Global (1D) tidal dissipation state. The configuration and model are serialized (the tide section); the
     // results are not (recompute with calc_tides).

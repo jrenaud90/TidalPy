@@ -26,9 +26,9 @@ _ECC       = 0.05
 def _star(model="cpl", config=None):
     star = StarWorld("test_star", _STAR_RADIUS, _STAR_MASS)
     star.set_tide_model(make_tide(model, config if config is not None else {"fixed_k": [0.03], "fixed_q": [1.0e6]}))
-    # Truncation 1 keeps G through e^1: the leading-order e^2 dissipation of the analytic rate below.
+    # Truncation 2 keeps the heating through e^2: the leading-order e^2 dissipation of the analytic rate below.
     star.set_tide_config(min_degree_l=2, max_degree_l=2,
-                         eccentricity_truncation=1, obliquity_truncation=0)
+                         eccentricity_truncation=2, obliquity_truncation=0)
     return star
 
 
@@ -54,12 +54,12 @@ def test_star_cpl_tides_positive_heating():
 
 
 def test_star_cpl_matches_analytic_rate():
-    """A synchronous, low-e star reproduces the analytic CPL heating rate."""
+    """A synchronous star at truncation 2 reproduces the analytic CPL heating rate exactly."""
     k2, q2 = 0.03, 1.0e6
     star = _star("cpl", {"fixed_k": [k2], "fixed_q": [q2]})
     _solve(star)
     expected = (21.0 / 2.0) * (k2 / q2) * G * _HOST_MASS ** 2 * _STAR_RADIUS ** 5 * _N * _ECC ** 2 / _SMA ** 6
-    assert math.isclose(star.get_tidal_heating(), expected, rel_tol=5.0e-3)
+    assert math.isclose(star.get_tidal_heating(), expected, rel_tol=1.0e-12)
 
 
 def test_star_potential_derivatives_present():

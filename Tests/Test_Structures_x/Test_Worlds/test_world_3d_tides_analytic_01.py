@@ -54,7 +54,7 @@ def _build_world(max_degree_l=2, two_layer=False):
         world.add_layer(_mk("mantle", 0, 0.0, _R))
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=max_degree_l,
-                          eccentricity_truncation=3, obliquity_truncation=0)
+                          eccentricity_truncation=6, obliquity_truncation=0)
     world.solve_eos(G_to_use=G)
     return world
 

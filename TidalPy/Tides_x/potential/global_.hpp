@@ -89,7 +89,8 @@ inline c_GlobalPotentialStorage c_global_potential(
     {
         target_size += static_cast<size_t>((degree_l + 1) * (degree_l + 1));
     }
-    target_size *= static_cast<size_t>(2 * eccentricity_truncation + 1);
+    // Modes with |q| <= N / 2 enter the heating.
+    target_size *= static_cast<size_t>(2 * (eccentricity_truncation / 2) + 1);
     result.mode_map.reserve(target_size);
     result.unique_freq_index_map.reserve(target_size);
     result.unique_freq_map.reserve(target_size);
@@ -142,7 +143,9 @@ inline c_GlobalPotentialStorage c_global_potential(
             return result;
         }
 
-        EccentricityFuncOutput eccentricity_funcs = c_eccentricity_func(
+        // The heating goes as G^2: each square cut at the truncation's power, so the mode sum is the heating's
+        // Taylor series through e^N.
+        EccentricityFuncOutput eccentricity_squared_funcs = c_eccentricity_squared_func(
             &result.error_code,
             eccentricity,
             degree_l,
@@ -196,15 +199,15 @@ inline c_GlobalPotentialStorage c_global_potential(
             double lmp_coeff = F_lmp * F_lmp * ra_l_coeff * lm_coeff;
 
             found = false;
-            const c_IntMap<c_Key1, double>* eccentricity_by_q_ptr = 
-                eccentricity_funcs.second.get_ptr(found, c_Key2(lmp_key.a, lmp_key.c));  // a == l; b == m; c == p
-            
-            // No entry for this (l, p) means G_lpq = 0 for every q.
+            const c_IntMap<c_Key1, double>* eccentricity_squared_by_q_ptr =
+                eccentricity_squared_funcs.second.get_ptr(found, c_Key2(lmp_key.a, lmp_key.c));  // a == l; c == p
+
+            // No entry for this (l, p) means G_lpq^2 = 0 through e^N for every q.
             if (found)
             {
-                for (const auto& [q_key, G_lpq] : *eccentricity_by_q_ptr)
+                for (const auto& [q_key, G_lpq_squared] : *eccentricity_squared_by_q_ptr)
                 {
-                    if (G_lpq == 0.0)
+                    if (G_lpq_squared == 0.0)
                     {
                         continue;
                     }
@@ -244,7 +247,7 @@ inline c_GlobalPotentialStorage c_global_potential(
                         // mode_strength doubles as the common coefficient G^2 times the lmp coeff (which
                         // carries F^2), so a user can see which modes matter and lower a truncation level
                         // that is higher than the problem needs.
-                        double common_coeff = G_lpq * G_lpq * lmp_coeff;
+                        double common_coeff = G_lpq_squared * lmp_coeff;
 
                         // The per-mode strength keeps the sign of the tidal mode.
                         mode_storage.mode_strength = mode_sign * common_coeff;

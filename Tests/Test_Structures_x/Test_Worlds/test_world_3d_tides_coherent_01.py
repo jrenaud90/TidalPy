@@ -54,7 +54,7 @@ def _build_world(max_degree_l=2):
     world.add_layer(layer)
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=max_degree_l,
-                          eccentricity_truncation=3, obliquity_truncation=0)
+                          eccentricity_truncation=6, obliquity_truncation=0)
     world.solve_eos(G_to_use=G)
     return world
 
@@ -103,9 +103,12 @@ def test_secular_grid_is_time_average_of_instantaneous(max_degree_l):
     At synchronous rotation one orbital period is the exact common period of every active mode, and the
     instantaneous power is a trigonometric polynomial in time, so a uniform trapezoid over the period is exact.
     Degree 4 puts waves of different degree and order at one frequency, so their stress and strain amplitudes
-    have to be combined into one total per frequency before the power is formed.
+    have to be combined into one total per frequency before the power is formed. The secular heating cuts every
+    product of two eccentricity functions at e^N while the instantaneous power is formed from the unsquared potential,
+    so the two differ by terms past e^N; at level 20 and e = 0.05 those are far below the tolerance.
     """
     world = _build_world(max_degree_l=max_degree_l)
+    world.set_tide_config(eccentricity_truncation=20)
     r, colat = 0.9 * _R, 1.0
     lons = np.array([0.0, 0.5, 1.0, 0.5 * np.pi, 2.5])
     secular = world.calc_3d_tides(*_SYNC, radii=np.array([r]), colatitudes=np.array([colat]),

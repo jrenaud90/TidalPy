@@ -34,7 +34,7 @@ def _modes(**kw):
 
 
 def test_shapes_consistent():
-    degrees, freqs, pots = _modes(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
+    degrees, freqs, pots = _modes(max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0)
     assert degrees.ndim == 1 and freqs.ndim == 1 and pots.ndim == 2
     assert degrees.shape[0] == freqs.shape[0] == pots.shape[0]
     assert pots.shape[1] == 6
@@ -46,12 +46,12 @@ def test_shapes_consistent():
 def test_no_obliquity_orders_are_even():
     """At zero obliquity only m = 0 and m = 2 harmonics survive (F_2mp = 0 for odd m at i = 0), so the
     dU/dphi terms vanish for m = 0 and are nonzero for m = 2 — the mode set carries no m = 1 content."""
-    degrees, freqs, pots = _modes(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
-    # Frequencies must be integer-ish combinations q*n and (2+q)*n - 2*spin.
+    degrees, freqs, pots = _modes(max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0)
+    # Frequencies must be integer-ish combinations q*n and (2+q)*n - 2*spin; truncation 6 keeps |q| <= 6.
     for f in freqs:
         # f = a*n + b*spin for small integers a, b -> check it matches one such combo within tol.
         found = False
-        for a in range(-6, 7):
+        for a in range(-8, 9):
             for b in (0, -2, 2):
                 if abs(f - (a * _N + b * _SPIN)) < 1e-18 + 1e-9 * abs(f):
                     found = True
@@ -60,8 +60,8 @@ def test_no_obliquity_orders_are_even():
 
 def test_obliquity_activates_m1_modes():
     """A nonzero obliquity turns on the m = 1 (P_21) harmonics, adding modes vs the no-obliquity set."""
-    _, freqs_no_obl, _ = _modes(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
-    _, freqs_obl, _ = _modes(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=2,
+    _, freqs_no_obl, _ = _modes(max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0)
+    _, freqs_obl, _ = _modes(max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=2,
                              obliquity=0.2)
     assert freqs_obl.shape[0] > freqs_no_obl.shape[0]
 
@@ -128,9 +128,9 @@ def test_amplitude_ratios_match_kaula_eccentricity_functions(q, g_ratio_tol):
 def test_amplitude_colatitude_dependence_matches_legendre():
     """The m = 2 amplitude scales as P_22(cos theta) = 3 sin^2(theta) between two colatitudes."""
     theta_1, theta_2 = 1.1, 0.6
-    _, freqs_1, pots_1 = _modes(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0,
+    _, freqs_1, pots_1 = _modes(max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0,
                                 colatitude=theta_1)
-    _, freqs_2, pots_2 = _modes(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0,
+    _, freqs_2, pots_2 = _modes(max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0,
                                 colatitude=theta_2)
     target = 2.0 * _N - 2.0 * _SPIN
     ratio = _amp_at(freqs_1, pots_1, target) / _amp_at(freqs_2, pots_2, target)

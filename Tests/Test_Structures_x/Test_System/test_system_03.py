@@ -147,7 +147,7 @@ def _dissipating_moon():
     moon.add_layer(layer)
     moon.set_tide_model(make_tide("rheology"))
     moon.set_tide_config(min_degree_l=2, max_degree_l=2,
-                         eccentricity_truncation=3, obliquity_truncation=0)
+                         eccentricity_truncation=6, obliquity_truncation=0)
     moon.set_spin_model(Spin())
     moon.solve_eos(G_to_use=G)
     moon.set_spin_frequency(1.5 * _EVO_N)
@@ -180,7 +180,7 @@ def test_loaded_system_orbital_evolution_matches(tmp_path):
     assert moon.mantle.eos_set
     moon.set_tide_model(make_tide("rheology"))
     moon.set_tide_config(min_degree_l=2, max_degree_l=2,
-                         eccentricity_truncation=3, obliquity_truncation=0)
+                         eccentricity_truncation=6, obliquity_truncation=0)
     moon.set_spin_model(Spin())
     moon.solve_eos(G_to_use=G)
     moon.set_spin_frequency(1.5 * _EVO_N)

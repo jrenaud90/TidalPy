@@ -226,8 +226,10 @@ schema_version = "{SCHEMA_VERSION_X}"
 [tides]
     min_degree_l = 2
     max_degree_l = 2
-    # Eccentricity functions are tabulated at truncations e^1..e^5, e^10, e^15, e^20.
-    eccentricity_trunc_lvl = 3
+    # Eccentricity truncation levels 2, 4, 6, 8, 10, 20, 50: level N keeps every product of two eccentricity
+    # functions (the heating) through e^N. Level 10 stays within 1% of the exact heating to e ~ 0.31, level 20 to
+    # e ~ 0.49, level 50 to e ~ 0.74 (Documentation/Tides_x/eccentricity.md).
+    eccentricity_trunc_lvl = 10
     obliquity_trunc_lvl = "off"
 
     # Whether calc_tides also resolves each layer's tidal heating when the Love numbers come from the radial

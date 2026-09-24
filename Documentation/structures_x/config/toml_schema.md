@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 Schema version `0.2.0`.
 
@@ -191,7 +191,7 @@ The per-degree lists of the `[tides]` block (`fixed_k = 0.3`, `fixed_q = 100` at
 | `fixed_dt_s` | all | Per-degree tidal time lags $\Delta t_l$ \[s\], same indexing. Read by `ctl` and `ctl_q`. The key carries the unit; the model alias stays `fixed_dt`. |
 | `min_degree_l` | all | Lowest harmonic degree in the mode sum. Default `2`. |
 | `max_degree_l` | all | Highest harmonic degree in the mode sum. Default `2`. |
-| `eccentricity_trunc_lvl` | all | Eccentricity truncation order $e^n$. Tabulated at 1, 2, 3, 4, 5, 10, 15, and 20; default `3`. An untabulated level is promoted to the next tabulated one with a once-per-session warning, so accuracy never drops silently. `eccentricity_truncation` is accepted as an alias. |
+| `eccentricity_trunc_lvl` | all | Eccentricity truncation level $N$: every product of two eccentricity functions, and so the heating, is kept through $e^N$ (see [Eccentricity Functions](../../Tides_x/eccentricity.md)). Tabulated at 2, 4, 6, 8, 10, 20, and 50; default `10`. An untabulated level is promoted to the next tabulated one with a once-per-session warning, so accuracy never drops silently. `eccentricity_truncation` is accepted as an alias. |
 | `obliquity_trunc_lvl` | all | Obliquity truncation order $I^n$. Tabulated at 0, 1, 2, and 10; default `"off"`. `"off"` means 0 (no obliquity terms), 1 and 2 keep every term through $I^1$ and $I^2$, and `"gen"` or `"general"` means 10 (the exact, untruncated form). Untabulated integers are promoted like the eccentricity levels. `obliquity_truncation` is accepted as an alias. |
 | `layer_tidal_heating` | layered families | Whether `calc_tides` also resolves each layer's heating when the Love numbers come from the radial solver, a volume integral of the radial solution that costs about as much as the global solve again. The other paths share out the heating at no extra cost. Default `true`. |
 | `love_method` | layered families | How the Love numbers are obtained: `radial_solver` (aliases `shooting`, `rs`; the default), `propagation_matrix` (`prop_matrix`, `pm`, `prop`), `homogeneous` (`homogen`), `cpl`, `ctl`, or `laterally_inhomogeneous` (`3d`, `lat_inhom`, reserved for the 3D solver). The three homogeneous methods use the analytic homogeneous-sphere formulas instead of a radial solve, so they have no depth-resolved solution and the 3D stress, strain, and heating path raises `RuntimeError` while one of them is configured. |
@@ -205,7 +205,7 @@ The per-degree lists of the `[tides]` block (`fixed_k = 0.3`, `fixed_q = 100` at
 global_tidal_model = "rheology"      # dissipation from the layers' complex moduli
 min_degree_l = 2
 max_degree_l = 3                     # include the degree-3 tide
-eccentricity_trunc_lvl = 5           # e^5; 3 is the default
+eccentricity_trunc_lvl = 20          # heating through e^20; 10 is the default
 obliquity_trunc_lvl = "gen"          # exact obliquity terms
 love_method = "radial_solver"
 ```

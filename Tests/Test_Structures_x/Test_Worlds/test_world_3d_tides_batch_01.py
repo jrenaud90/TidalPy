@@ -46,7 +46,7 @@ def _build_world():
     world.add_layer(layer)
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=2,
-                          eccentricity_truncation=3, obliquity_truncation=0)
+                          eccentricity_truncation=6, obliquity_truncation=0)
     world.solve_eos(G_to_use=G)
     return world
 
@@ -134,7 +134,7 @@ def test_batch_requires_eos_solved():
     world.add_layer(layer)
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=2,
-                          eccentricity_truncation=3, obliquity_truncation=0)
+                          eccentricity_truncation=6, obliquity_truncation=0)
     sma = orbital_motion2semi_a(_N, _HOST, _MASS)
     with pytest.raises(RuntimeError):
         world.get_3d_tidal_heating_array(*_args(1.5 * _N, sma),

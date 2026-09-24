@@ -73,7 +73,7 @@ def _world():
         layer.set_bulk_rheology(Maxwell())
         world.add_layer(layer)
     world.set_tide_model(make_tide("rheology"))
-    world.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=5, obliquity_truncation=2)
+    world.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=10, obliquity_truncation=2)
     world.solve_eos(G_to_use=G)
     return world
 

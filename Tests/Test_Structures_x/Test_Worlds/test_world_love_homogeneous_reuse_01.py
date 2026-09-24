@@ -75,7 +75,7 @@ def test_a_changed_interior_is_seen_by_the_next_call():
     """Nothing survives between calc_tides calls, so a stiffer tidal layer changes the answer at once."""
     stiffer = make_viscosity("constant", {"reference_viscosity_pas": 3.4239e14})
 
-    world = _io("homogeneous", eccentricity_truncation=5, max_degree_l=2)
+    world = _io("homogeneous", eccentricity_truncation=10, max_degree_l=2)
     world.calc_tides(*_ORBIT)
     before = world.get_tidal_heating()
 
@@ -84,7 +84,7 @@ def test_a_changed_interior_is_seen_by_the_next_call():
     world.calc_tides(*_ORBIT)
     after = world.get_tidal_heating()
 
-    reference = _io("homogeneous", eccentricity_truncation=5, max_degree_l=2)
+    reference = _io("homogeneous", eccentricity_truncation=10, max_degree_l=2)
     reference.asthenosphere.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 3.4239e14}))
     reference.solve_eos()
     reference.calc_tides(*_ORBIT)

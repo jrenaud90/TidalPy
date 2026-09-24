@@ -16,6 +16,7 @@ import numpy as np
 cimport numpy as cnp
 
 import TidalPy
+from TidalPy.Tides_x.eccentricity.eccentricity_driver import validate_eccentricity_truncation
 cnp.import_array()
 
 from libcpp.vector cimport vector
@@ -43,7 +44,7 @@ def tidal_potential_3d_modes(
         double longitude,
         int min_degree_l=2,
         int max_degree_l=2,
-        int eccentricity_truncation=3,
+        object eccentricity_truncation=None,
         object obliquity_truncation=None):
     """Active tidal modes with complex potential angular-factor amplitudes at one point.
 
@@ -62,10 +63,8 @@ def tidal_potential_3d_modes(
         Row i: the complex amplitudes ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2,
         d2U/dtheta_dphi)`` for mode i (with the mode's e^{i omega t} pulled out).
     """
-    if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
-        raise NotImplementedError(
-            f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
-            'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
+    # None takes the [tides] eccentricity_trunc_lvl of the TidalPy configuration, as a built world does.
+    cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
     if obliquity_truncation is None:
         obliquity_truncation = ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(
             "obliquity_trunc_lvl", "off")
@@ -90,7 +89,7 @@ def tidal_potential_3d_modes(
         min_degree_l,
         max_degree_l,
         obliquity_truncation,
-        eccentricity_truncation,
+        i_eccentricity_truncation,
         colatitude,
         longitude,
         &error_code)

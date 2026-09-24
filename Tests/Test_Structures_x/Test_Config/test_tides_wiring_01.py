@@ -10,6 +10,7 @@ import pytest
 
 import TidalPy
 from TidalPy.structures_x import build_world
+from TidalPy.Tides_x.eccentricity import promote_eccentricity_truncation
 
 
 def _config(world_type="terrestrial", tides=None):
@@ -113,7 +114,7 @@ def test_the_short_list_switch_silences_it(monkeypatch):
 
 def test_every_setting_reaches_the_world():
     tides = {
-        "min_degree_l": 2, "max_degree_l": 4, "eccentricity_trunc_lvl": 5, "obliquity_trunc_lvl": 2,
+        "min_degree_l": 2, "max_degree_l": 4, "eccentricity_trunc_lvl": 10, "obliquity_trunc_lvl": 2,
         "layer_tidal_heating": False, "love_method": "homogeneous", "love_fixed_q": 120.0,
         "love_fixed_dt_s": 45.0}
     world = build_world(_config("terrestrial", tides))
@@ -131,7 +132,8 @@ def test_a_key_left_out_takes_the_package_configuration():
     found = build_world(_config("terrestrial", {"max_degree_l": 3})).get_tide_config()
     assert found["max_degree_l"] == 3
     assert found["min_degree_l"] == defaults["min_degree_l"]
-    assert found["eccentricity_trunc_lvl"] == defaults["eccentricity_trunc_lvl"]
+    # A configuration file written before the levels changed can hold an untabulated level, which is promoted.
+    assert found["eccentricity_trunc_lvl"] == promote_eccentricity_truncation(defaults["eccentricity_trunc_lvl"])
     assert found["love_method"] == defaults.get("love_method", "radial_solver")
     # Unset lags stay unset: they are written only when the file gives them.
     assert "love_fixed_q" not in found and "love_fixed_dt_s" not in found
@@ -164,7 +166,7 @@ def test_set_tide_config_changes_only_the_given_settings():
     """An omitted argument keeps its stored value instead of resetting to a default."""
     from TidalPy.structures_x.configs import build_world
     world = build_world("io")
-    world.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=5, obliquity_truncation=0,
+    world.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=10, obliquity_truncation=0,
                           layer_tidal_heating=False, love_method="homogeneous", love_fixed_q=80.0)
     before = world.get_tide_config()
     world.set_tide_config(eccentricity_truncation=10)
@@ -176,4 +178,4 @@ def test_set_tide_config_changes_only_the_given_settings():
     world.set_tide_config(love_fixed_q=float("nan"))   # NaN clears it
     assert "love_fixed_q" not in world.get_tide_config()
     with pytest.raises(NotImplementedError):
-        world.set_tide_config(eccentricity_truncation=6)
+        world.set_tide_config(eccentricity_truncation=7)

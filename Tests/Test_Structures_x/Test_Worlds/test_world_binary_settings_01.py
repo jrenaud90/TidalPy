@@ -40,7 +40,7 @@ def test_layered_world_keeps_its_tide_spin_and_solver_settings(tmp_path):
     world.set_tide_config(
         min_degree_l=2,
         max_degree_l=3,
-        eccentricity_truncation=5,
+        eccentricity_truncation=10,
         obliquity_truncation=2,
         layer_tidal_heating=False)
     world.set_spin_model(Spin(moment_of_inertia_factor=0.33))
