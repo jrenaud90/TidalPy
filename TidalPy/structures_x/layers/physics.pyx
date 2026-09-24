@@ -417,22 +417,24 @@ cdef class PhysicsLayer(BaseLayer):
         cdef double[::1] flat_in
         cdef double complex[::1] flat_out
         cdef cpp_complex[double] value
-        cdef Py_ssize_t i, n
+        cdef size_t num_radii
         if isinstance(radius, np.ndarray):
             in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
             out_arr = np.empty_like(in_arr, dtype=np.complex128)
             flat_in = in_arr.reshape(-1)
             flat_out = out_arr.reshape(-1)
-            n = flat_in.shape[0]
-            # Every name in this loop is a C type, so it runs without the interpreter, as the matching
-            # per-radius loops in worlds/layered.pyx and layers/base.pyx already do.
-            with nogil:
-                for i in range(n):
-                    if is_shear:
-                        value = self._physics_ptr.calc_complex_shear_modulus(flat_in[i], frequency)
-                    else:
-                        value = self._physics_ptr.calc_complex_bulk_modulus(flat_in[i], frequency)
-                    flat_out[i] = value.real() + 1j * value.imag()
+            num_radii = <size_t>flat_in.shape[0]
+            # One C++ call for the whole array, without the GIL, holding the owning world's call lock throughout
+            # so the read takes turns with a solve_eos on another thread. double complex and std::complex<double>
+            # share one layout.
+            if num_radii > 0:
+                with nogil:
+                    self._physics_ptr.calc_complex_moduli(
+                        is_shear,
+                        &flat_in[0],
+                        num_radii,
+                        frequency,
+                        <cpp_complex[double]*><void*>&flat_out[0])
             return out_arr
         if is_shear:
             value = self._physics_ptr.calc_complex_shear_modulus(<double>radius, frequency)

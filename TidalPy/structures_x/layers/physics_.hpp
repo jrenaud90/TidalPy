@@ -56,6 +56,9 @@ struct c_PhysicsConfig : public c_BaseLayerConfig {
 };
 
 class c_PhysicsLayer : public c_BaseLayer {
+    // The owning world applies the rheology through p_complex_modulus while it holds its call lock.
+    friend class c_LayeredWorld;
+
 public:
     c_PhysicsLayer() = default;
 
@@ -165,18 +168,31 @@ public:
         return std::complex<double>(static_modulus, 0.0);
     }
 
-    // The rheology applied to the static modulus and viscosity the solved EOS reports at that radius.
+    // The rheology applied to the static modulus and viscosity the solved EOS reports at that radius. The solved
+    // profile is read under the owning world's call lock (c_BaseLayer::set_owner_call_mutex).
     std::complex<double> calc_complex_shear_modulus(double radius, double frequency) const noexcept {
-        double state[C_EOS_DY_VALUES];
-        this->p_eos_data.evaluate(radius, state);
-        return this->apply_shear_rheology(
-            state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        return this->p_complex_modulus(true, radius, frequency);
     }
     std::complex<double> calc_complex_bulk_modulus(double radius, double frequency) const noexcept {
-        double state[C_EOS_DY_VALUES];
-        this->p_eos_data.evaluate(radius, state);
-        return this->apply_bulk_rheology(
-            state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        return this->p_complex_modulus(false, radius, frequency);
+    }
+
+    // Vectorized form of the two above at one frequency [rad s-1]: the shear (is_shear) or bulk complex modulus [Pa]
+    // at each of radii[0 .. num_radii) [m], taking the owner's lock once for the whole call.
+    //
+    // Assumes moduli_out holds num_radii values.
+    void calc_complex_moduli(
+            bool is_shear,
+            const double* radii,
+            std::size_t num_radii,
+            double frequency,
+            std::complex<double>* moduli_out) const noexcept {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        for (std::size_t radius_i = 0; radius_i < num_radii; ++radius_i) {
+            moduli_out[radius_i] = this->p_complex_modulus(is_shear, radii[radius_i], frequency);
+        }
     }
 
     // Ownership transfers in, and each registers this layer as the model's observer.
@@ -354,6 +370,19 @@ public:
     }
 
 protected:
+    // The shear (is_shear) or bulk rheology applied to the solved static modulus and viscosity at a radius [m];
+    // the caller holds the owner's lock.
+    std::complex<double> p_complex_modulus(bool is_shear, double radius, double frequency) const noexcept {
+        double state[C_EOS_DY_VALUES];
+        this->p_eos_state(radius, state);
+        if (is_shear) {
+            return this->apply_shear_rheology(
+                state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
+        }
+        return this->apply_bulk_rheology(
+            state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
+    }
+
     // The attached EOS model, or a clear error naming what needed it.
     c_MaterialEOSBase* p_require_eos(const char* what) const {
         if (!this->p_eos) {

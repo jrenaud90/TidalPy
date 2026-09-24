@@ -30,9 +30,10 @@ from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.layers.base cimport (
-    BaseLayer, c_BaseLayer, c_layer_class_name, cy_eos_fields, C_EOS_DENSITY_INDEX, C_EOS_GRAVITY_INDEX,
-    C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX, C_EOS_BULK_MODULUS_INDEX,
-    C_EOS_BULK_VISCOSITY_INDEX, C_EOS_MELT_FRACTION_INDEX)
+    BaseLayer, c_BaseLayer, c_layer_class_name, cy_eos_field, cy_eos_fields, C_EOS_DENSITY_INDEX,
+    C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
+    C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX, C_EOS_TEMPERATURE_INDEX, C_EOS_HEAT_FLOW_INDEX,
+    C_EOS_MELT_FRACTION_INDEX)
 from TidalPy.structures_x.layers.base import LAYER_STANDALONE_CONFIG_KEYS
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
@@ -319,26 +320,21 @@ cdef int cy_resolve_love_method(str love_method) except? -999:
             "implemented.")
     return method
 
-# Selectors for the vectorized real-valued radius getters (see _eval_real).
-cdef enum:
-    _KIND_DENSITY        = 0
-    _KIND_GRAVITY        = 1
-    _KIND_PRESSURE       = 2
-    _KIND_SHEAR_MOD      = 3
-    _KIND_BULK_MOD       = 4
-    _KIND_SHEAR_VISC     = 5
-    _KIND_BULK_VISC      = 6
-    _KIND_MELT_FRACTION  = 7
-    _KIND_TEMPERATURE    = 11
-    _KIND_HEAT_FLOW      = 12
-
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef void _world_eos_state(const void* owner, double radius, double* y_out) noexcept nogil:
-    (<const c_LayeredWorld*>owner).get_eos_state(radius, y_out)
+# The world's profile read for cy_eos_field and cy_eos_fields (layers/base.pyx): one C++ call per input that holds
+# the world's call lock throughout.
+cdef void cy_world_eos_fields(
+        const void* owner,
+        const size_t* field_indices,
+        size_t num_fields,
+        const double* radii,
+        size_t num_radii,
+        double* values_out) noexcept nogil:
+    (<const c_LayeredWorld*>owner).get_eos_fields(field_indices, num_fields, radii, num_radii, values_out)
 
 
 cdef class LayeredWorld(BaseWorld):
@@ -858,59 +854,32 @@ cdef class LayeredWorld(BaseWorld):
     #
     # Every getter takes a scalar radius [m] (returning a float or complex) or a NumPy array of radii
     # (returning an array of the same shape). NaN where the EOS is unsolved, the layer is geometry-only, or
-    # no rheology is attached.
-    cdef double _eval_real(self, int kind, double radius) noexcept nogil:
-        if   kind == _KIND_DENSITY:        return self._layered_ptr.get_density(radius)
-        elif kind == _KIND_GRAVITY:        return self._layered_ptr.get_gravity(radius)
-        elif kind == _KIND_PRESSURE:       return self._layered_ptr.get_pressure(radius)
-        elif kind == _KIND_SHEAR_MOD:      return self._layered_ptr.get_shear_modulus(radius)
-        elif kind == _KIND_BULK_MOD:       return self._layered_ptr.get_bulk_modulus(radius)
-        elif kind == _KIND_SHEAR_VISC:     return self._layered_ptr.get_shear_viscosity(radius)
-        elif kind == _KIND_BULK_VISC:      return self._layered_ptr.get_bulk_viscosity(radius)
-        elif kind == _KIND_MELT_FRACTION:  return self._layered_ptr.get_melt_fraction(radius)
-        elif kind == _KIND_TEMPERATURE:    return self._layered_ptr.get_temperature(radius)
-        elif kind == _KIND_HEAT_FLOW:      return self._layered_ptr.get_heat_flow(radius)
-        return 0.0
-
-    def _apply_real(self, radius, int kind):
-        # float -> float; np.ndarray -> np.ndarray (same shape, looped under nogil).
-        cdef cnp.ndarray in_arr
-        cdef cnp.ndarray out_arr
-        cdef double[::1] flat_in
-        cdef double[::1] flat_out
-        cdef Py_ssize_t i, n
-        if isinstance(radius, np.ndarray):
-            in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
-            out_arr = np.empty_like(in_arr)
-            flat_in = in_arr.reshape(-1)
-            flat_out = out_arr.reshape(-1)
-            n = flat_in.shape[0]
-            with nogil:
-                for i in range(n):
-                    flat_out[i] = self._eval_real(kind, flat_in[i])
-            return out_arr
-        return self._eval_real(kind, <double>radius)
-
+    # no rheology is attached. Each makes one C++ call for the whole input, which holds the world's call lock
+    # throughout, so a read takes turns with solve_eos and the other locked calls on other threads and every value
+    # of one call comes from one solve (see cy_eos_field in layers/base.pyx).
     def _apply_complex(self, radius, double frequency, cpp_bool is_shear):
-        # float -> complex; np.ndarray -> complex np.ndarray (same shape).
+        # float -> complex; np.ndarray -> complex np.ndarray (same shape), read without the GIL.
         cdef cnp.ndarray in_arr
         cdef cnp.ndarray out_arr
         cdef double[::1] flat_in
         cdef double complex[::1] flat_out
         cdef cpp_complex[double] value
-        cdef Py_ssize_t i, n
+        cdef size_t num_radii
         if isinstance(radius, np.ndarray):
             in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
             out_arr = np.empty_like(in_arr, dtype=np.complex128)
             flat_in = in_arr.reshape(-1)
             flat_out = out_arr.reshape(-1)
-            n = flat_in.shape[0]
-            for i in range(n):
-                if is_shear:
-                    value = self._layered_ptr.calc_complex_shear_modulus(flat_in[i], frequency)
-                else:
-                    value = self._layered_ptr.calc_complex_bulk_modulus(flat_in[i], frequency)
-                flat_out[i] = value.real() + 1j * value.imag()
+            num_radii = <size_t>flat_in.shape[0]
+            # double complex and std::complex<double> share one layout.
+            if num_radii > 0:
+                with nogil:
+                    self._layered_ptr.calc_complex_moduli(
+                        is_shear,
+                        &flat_in[0],
+                        num_radii,
+                        frequency,
+                        <cpp_complex[double]*><void*>&flat_out[0])
             return out_arr
         if is_shear:
             value = self._layered_ptr.calc_complex_shear_modulus(<double>radius, frequency)
@@ -920,22 +889,22 @@ cdef class LayeredWorld(BaseWorld):
 
     def get_density(self, radius):
         """Density [kg/m^3] at radius [m] (float or np.ndarray); NaN if unsolved."""
-        return self._apply_real(radius, _KIND_DENSITY)
+        return cy_eos_field(<const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_DENSITY_INDEX)
 
     def get_gravity(self, radius):
         """Gravitational acceleration [m/s^2] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_GRAVITY)
+        return cy_eos_field(<const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_GRAVITY_INDEX)
 
     def get_pressure(self, radius):
         """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if unsolved."""
-        return self._apply_real(radius, _KIND_PRESSURE)
+        return cy_eos_field(<const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_PRESSURE_INDEX)
 
     def get_temperature(self, radius):
         """Temperature [K] at radius [m] (float or np.ndarray) from the solved profile.
 
         A solve with no temperature contrast reports each layer's own temperature. NaN if unsolved.
         """
-        return self._apply_real(radius, _KIND_TEMPERATURE)
+        return cy_eos_field(<const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_TEMPERATURE_INDEX)
 
     def get_heat_flow(self, radius):
         """Heat flowing outward through the sphere of radius [m] (float or np.ndarray) \[W\].
@@ -943,27 +912,32 @@ cdef class LayeredWorld(BaseWorld):
         Zero everywhere when the solve carried no temperature. The flow steps across the interior of a
         convecting layer: that difference is the heat the layer stores or releases.
         """
-        return self._apply_real(radius, _KIND_HEAT_FLOW)
+        return cy_eos_field(<const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_HEAT_FLOW_INDEX)
 
     def get_shear_modulus(self, radius):
         """Post-melt static shear modulus [Pa] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_SHEAR_MOD)
+        return cy_eos_field(
+            <const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_SHEAR_MODULUS_INDEX)
 
     def get_bulk_modulus(self, radius):
         """Post-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_BULK_MOD)
+        return cy_eos_field(
+            <const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_BULK_MODULUS_INDEX)
 
     def get_shear_viscosity(self, radius):
         """Post-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_SHEAR_VISC)
+        return cy_eos_field(
+            <const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_SHEAR_VISCOSITY_INDEX)
 
     def get_bulk_viscosity(self, radius):
         """Post-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray)."""
-        return self._apply_real(radius, _KIND_BULK_VISC)
+        return cy_eos_field(
+            <const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_BULK_VISCOSITY_INDEX)
 
     def get_melt_fraction(self, radius):
         """Melt fraction at radius [m] (float or np.ndarray); 0.0 where the material has no partial-melt model."""
-        return self._apply_real(radius, _KIND_MELT_FRACTION)
+        return cy_eos_field(
+            <const void*>self._layered_ptr, cy_world_eos_fields, radius, C_EOS_MELT_FRACTION_INDEX)
 
     def calc_complex_shear_modulus(self, radius, double frequency, cpp_bool recalc_eos=False):
         """Complex shear modulus [Pa] at radius [m] (float or np.ndarray) and frequency [rad/s].
@@ -993,7 +967,7 @@ cdef class LayeredWorld(BaseWorld):
         per radius fills all four.
         """
         return cy_eos_fields(
-            <const void*>self._layered_ptr, _world_eos_state, radius,
+            <const void*>self._layered_ptr, cy_world_eos_fields, radius,
             (C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
              C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX))
 
@@ -1001,7 +975,7 @@ cdef class LayeredWorld(BaseWorld):
         """All EOS-related profiles at radius as a dict (float or np.ndarray values), from one evaluation of the
         solved state per radius."""
         values = cy_eos_fields(
-            <const void*>self._layered_ptr, _world_eos_state, radius,
+            <const void*>self._layered_ptr, cy_world_eos_fields, radius,
             (C_EOS_DENSITY_INDEX, C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX,
              C_EOS_SHEAR_VISCOSITY_INDEX, C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX,
              C_EOS_MELT_FRACTION_INDEX))

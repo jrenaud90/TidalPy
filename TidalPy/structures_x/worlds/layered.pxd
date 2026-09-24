@@ -156,8 +156,21 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_bulk_viscosity(double radius) const
         double       get_melt_fraction(double radius) const
         void         get_eos_state(double radius, double* y_out) const
+        # Vectorized profile reads; each takes the world's call lock once for the whole array.
+        void         get_eos_fields(
+                         const size_t* field_indices,
+                         size_t num_fields,
+                         const double* radii,
+                         size_t num_radii,
+                         double* values_out) const
         cpp_complex[double] calc_complex_shear_modulus(double radius, double frequency) const
         cpp_complex[double] calc_complex_bulk_modulus(double radius, double frequency) const
+        void         calc_complex_moduli(
+                         cpp_bool is_shear,
+                         const double* radii,
+                         size_t num_radii,
+                         double frequency,
+                         cpp_complex[double]* moduli_out) const
         cpp_bool     get_eos_solved() const
         cpp_bool     get_all_eos_set() const
         cpp_bool     get_eos_success() const
@@ -303,8 +316,5 @@ cdef class LayeredWorld(BaseWorld):
     # layers can detach them instead of leaving them pointing at freed memory.
     cdef list _issued_views
     cdef void _track_view(self, BaseLayer view) except *
-    # Scalar dispatch for the vectorized real-valued radius getters (nogil-callable
-    # so the float-or-ndarray wrappers can loop without the GIL).
-    cdef double _eval_real(self, int kind, double radius) noexcept nogil
     cpdef dict get_config_dict(self)
     cdef list _ensure_layer_views(self)

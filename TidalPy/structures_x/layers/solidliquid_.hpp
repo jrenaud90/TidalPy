@@ -93,12 +93,15 @@ public:
     }
 
     // Adiabatic temperature gradient [K/m]: dT/dr = alpha T g / c_p. Gravity comes from the EOS profile at the
-    // layer's outer boundary; 0.0 when that profile is unpopulated.
+    // layer's outer boundary, read under the owning world's call lock; 0.0 when that profile is unpopulated.
     double calc_adiabatic_temperature_gradient(double temperature,
                                                double /*pressure*/) const noexcept {
         double g = 0.0;
-        if (this->p_eos_data.is_populated()) {
-            g = this->p_eos_data.get_gravity(this->p_radius);
+        {
+            const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+            if (this->p_eos_data.is_populated()) {
+                g = this->p_eos_data.get_gravity(this->p_radius);
+            }
         }
         if (g <= 0.0 || temperature <= 0.0) { return 0.0; }
         return this->get_thermal_expansion() * temperature * g / this->get_heat_capacity();

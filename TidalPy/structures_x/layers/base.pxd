@@ -81,6 +81,13 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_bulk_viscosity(double radius) const
         double   get_melt_fraction(double radius) const
         void     get_eos_state(double radius, double* y_out) const
+        # Vectorized profile read; takes the owning world's call lock once for the whole array.
+        void     get_eos_fields(
+                     const size_t* field_indices,
+                     size_t num_fields,
+                     const double* radii,
+                     size_t num_radii,
+                     double* values_out) const
 
 
 cdef extern from "eos_layout_.hpp" nogil:
@@ -92,13 +99,24 @@ cdef extern from "eos_layout_.hpp" nogil:
     const size_t C_EOS_BULK_MODULUS_INDEX
     const size_t C_EOS_SHEAR_VISCOSITY_INDEX
     const size_t C_EOS_BULK_VISCOSITY_INDEX
+    const size_t C_EOS_TEMPERATURE_INDEX
+    const size_t C_EOS_HEAT_FLOW_INDEX
     const size_t C_EOS_MELT_FRACTION_INDEX
 
 
-# Fills the dense EOS layout at one radius for the object behind owner (a layer, a world).
-ctypedef void (*cy_eos_state_fn)(const void* owner, double radius, double* y_out) noexcept nogil
+# Fills entries field_indices[0 .. num_fields) of the dense EOS layout at radii[0 .. num_radii) for the object behind
+# owner (a layer, a world), field-major: values_out[field_i * num_radii + radius_i]. The C++ call holds the object's
+# call lock for the whole array, so it runs without the GIL and never waits for it while holding the lock.
+ctypedef void (*cy_eos_fields_fn)(
+    const void* owner,
+    const size_t* field_indices,
+    size_t num_fields,
+    const double* radii,
+    size_t num_radii,
+    double* values_out) noexcept nogil
 
-cdef object cy_eos_fields(const void* owner, cy_eos_state_fn fill, object radius, tuple indices)
+cdef object cy_eos_field(const void* owner, cy_eos_fields_fn fill, object radius, size_t field_index)
+cdef object cy_eos_fields(const void* owner, cy_eos_fields_fn fill, object radius, tuple indices)
 
 
 cdef class BaseLayer(StructureBase):
@@ -113,8 +131,6 @@ cdef class BaseLayer(StructureBase):
     # Tell the owning world a view moved its layer's radii.
     cdef void _notify_world_of_move(self) except *
     cpdef dict get_config_dict(self)
-    # Scalar kernel behind the vectorized real-valued radius getters (see _apply_real in base.pyx).
-    cdef double _eval_real(self, int kind, double radius) noexcept nogil
     # Initialize as a non-owning view; subclass `_view` factories set their own typed pointer first.
     cdef void _init_view(self, c_BaseLayer* ptr, object world)
     @staticmethod

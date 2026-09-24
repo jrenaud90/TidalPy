@@ -52,6 +52,13 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double] calc_complex_bulk_modulus(double freq)   const
         cpp_complex[double] calc_complex_shear_modulus(double radius, double freq) const
         cpp_complex[double] calc_complex_bulk_modulus(double radius, double freq)  const
+        # Vectorized radius-resolved form; takes the owning world's call lock once for the whole array.
+        void                calc_complex_moduli(
+                                cpp_bool is_shear,
+                                const double* radii,
+                                size_t num_radii,
+                                double frequency,
+                                cpp_complex[double]* moduli_out) const
         cpp_bool            get_shear_rheology_set()                 const
         c_RheologyBase*     get_shear_rheology_model()               const
         c_RheologyBase*     get_bulk_rheology_model()                const

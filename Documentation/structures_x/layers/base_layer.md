@@ -145,6 +145,8 @@ rho = mantle.get_density(radii)        # ndarray, shape (100,)
 mu, eta_mu, kk, eta_k = mantle.get_static_viscoelastics(radii)
 ```
 
+A layer that belongs to a world reads its profile under that world's call lock, so a getter on a layer view takes turns with the world's `solve_eos` on another thread, as the world's own getters do (see the threading note under [Equation of State](../worlds/worlds.md#equation-of-state)). One call reads a whole array under a single turn; in C++ that is `c_BaseLayer::get_eos_fields(field_indices, num_fields, radii, num_radii, values_out)`, and `c_PhysicsLayer::calc_complex_moduli` is the matching complex-modulus form. A standalone layer has no lock to take.
+
 ### Inherited Geometry Calculations
 
 Pure-function methods that do not depend on stored state (Inherited from `StructureBase`):

@@ -219,18 +219,7 @@ struct c_RadialSolverOverrides {
     }
 };
 
-// Serializes the calls that change or run on a world's solve state (the EOS solve, the Love solves, the tide and 3D
-// calls, binary loads), so two threads sharing one world take turns instead of corrupting it; separate worlds run
-// in parallel. Recursive, since calc_tides runs the 3D integral, another such call, on the same thread. A null
-// mutex (a moved-from world) locks nothing.
-class c_WorldCallLock {
-public:
-    explicit c_WorldCallLock(std::recursive_mutex* mutex_ptr) {
-        if (mutex_ptr != nullptr) { this->p_lock = std::unique_lock<std::recursive_mutex>(*mutex_ptr); }
-    }
-private:
-    std::unique_lock<std::recursive_mutex> p_lock;
-};
+// c_WorldCallLock, the world's call lock, is defined in layers/base_.hpp: a world's layers take it too.
 
 // What one EOS solve evaluates its materials with: a copy of every layer's material model, the per-layer inputs
 // the structure ODE reaches them through, and the heat sources of a thermal solve. The solution co-owns it, so a
@@ -370,6 +359,12 @@ struct c_RadialSegment {
 // model's liquid_shear returned through the solve's unit conversions, while a solid lies orders of magnitude above.
 inline constexpr double d_MOLTEN_SHEAR_RTOL = 1.0e-9;
 
+// The evaluation-layout entries (eos_layout_.hpp) a layered world reads from its own EOS solution rather than from
+// the dense output of the layer that holds the radius.
+inline bool c_is_world_eos_field(std::size_t field_index) noexcept {
+    return (field_index == C_EOS_TEMPERATURE_INDEX) || (field_index == C_EOS_HEAT_FLOW_INDEX);
+}
+
 class c_LayeredWorld : public c_BaseWorld {
 public:
     // Absolute gap allowed between a layer's inner radius and the previous layer's outer radius.
@@ -393,6 +388,8 @@ public:
         }
         const std::string rejection = this->layer_rejection_reason(*layer);
         if (!rejection.empty()) { throw std::invalid_argument(rejection); }
+        // The layer's profile reads now take turns with this world's calls.
+        layer->set_owner_call_mutex(this->p_call_mutex.get());
         this->p_layers.push_back(std::move(layer));
         // The solved structure describes the old stack.
         this->p_reset_solved_state();
@@ -438,47 +435,79 @@ public:
 
     std::size_t get_num_layers() const noexcept { return this->p_layers.size(); }
 
-    // Whole-planet EOS profile queries, MKS. Each interpolates within the layer containing r, clamped at the
+    // Whole-planet EOS profile queries, MKS. Each reads the dense output of the layer containing r, clamped at the
     // surface. NaN when no layer contains r or the EOS has not been solved.
+    //
+    // Every profile read holds the world's call lock (c_WorldCallLock) for the whole call, so it takes turns with
+    // solve_eos, load_binary, and the other locked calls, which replace the profile it reads; get_eos_fields and
+    // calc_complex_moduli take it once for a whole array of radii. A lock that cannot be taken (a broken process)
+    // terminates, since these are noexcept, rather than returning a value read without it.
     double get_density(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_density(radius)
-                                   : std::numeric_limits<double>::quiet_NaN();
+        return this->p_eos_field(radius, C_EOS_DENSITY_INDEX);
     }
 
     // Every solved quantity at a radius in one dense evaluation, in the layout of eos_layout_.hpp, through the
     // layer the single-quantity getters use; NaN throughout for a world with no layers.
     void get_eos_state(double radius, double* y_out) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        if (layer == nullptr) {
-            for (std::size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i) {
-                y_out[value_i] = TidalPyConstants::d_NAN;
-            }
-            return;
-        }
-        layer->get_eos_state(radius, y_out);
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        this->p_layer_eos_state(radius, y_out);
     }
 
     double get_gravity(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_gravity(radius)
-                                   : std::numeric_limits<double>::quiet_NaN();
+        return this->p_eos_field(radius, C_EOS_GRAVITY_INDEX);
     }
 
     double get_pressure(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_pressure(radius)
-                                   : std::numeric_limits<double>::quiet_NaN();
+        return this->p_eos_field(radius, C_EOS_PRESSURE_INDEX);
     }
 
     // Temperature [K] and the heat flowing outward through the sphere of that radius [W]. A solve with no
-    // temperature contrast reports each layer's own temperature and no flow.
+    // temperature contrast reports each layer's own temperature and no flow. Read from the world's solution
+    // itself, so NaN where no layer spans the radius (no clamp at the surface).
     double get_temperature(double radius) const noexcept {
-        return this->p_read_eos_state(radius, C_EOS_TEMPERATURE_INDEX);
+        return this->p_eos_field(radius, C_EOS_TEMPERATURE_INDEX);
     }
 
     double get_heat_flow(double radius) const noexcept {
-        return this->p_read_eos_state(radius, C_EOS_HEAT_FLOW_INDEX);
+        return this->p_eos_field(radius, C_EOS_HEAT_FLOW_INDEX);
+    }
+
+    // Vectorized profile read: entries field_indices[0 .. num_fields) of the evaluation layout (eos_layout_.hpp) at
+    // each of radii[0 .. num_radii) [m], written field-major: values_out[field_i * num_radii + radius_i]. Each
+    // entry is what its single getter returns (get_temperature and get_heat_flow for those two indices), from one
+    // dense evaluation per radius and source; an index outside the layout gives NaN. The world's call lock is taken
+    // once for the whole call, so every value comes from one solve and a loop over radii pays for one lock.
+    //
+    // Assumes values_out holds num_fields * num_radii doubles.
+    void get_eos_fields(
+            const std::size_t* field_indices,
+            std::size_t num_fields,
+            const double* radii,
+            std::size_t num_radii,
+            double* values_out) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        // Temperature and heat flow come from the world's solution, the rest from the layer's dense output.
+        bool needs_layer_state = false;
+        bool needs_world_state = false;
+        for (std::size_t field_i = 0; field_i < num_fields; ++field_i) {
+            if (c_is_world_eos_field(field_indices[field_i])) { needs_world_state = true; }
+            else                                              { needs_layer_state = true; }
+        }
+        double layer_state[C_EOS_DY_VALUES];
+        double world_state[C_EOS_DY_VALUES];
+        for (std::size_t radius_i = 0; radius_i < num_radii; ++radius_i) {
+            const double radius = radii[radius_i];
+            if (needs_layer_state) { this->p_layer_eos_state(radius, layer_state); }
+            if (needs_world_state) { this->p_world_eos_state(radius, world_state); }
+            for (std::size_t field_i = 0; field_i < num_fields; ++field_i) {
+                const std::size_t field_index = field_indices[field_i];
+                double value = TidalPyConstants::d_NAN;
+                if (field_index < C_EOS_DY_VALUES) {
+                    value = c_is_world_eos_field(field_index) ? world_state[field_index] : layer_state[field_index];
+                }
+                values_out[field_i * num_radii + radius_i] = value;
+            }
+        }
     }
 
     // Per-layer results of the last solve (the solve_eos result reports each of them per layer): temperatures,
@@ -510,37 +539,47 @@ public:
     // Viscoelastic profile queries, post-melt with pre-melt variants. NaN when no layer contains r, the
     // layer is geometry-only, or the EOS has not been solved.
     double get_shear_modulus(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_shear_modulus(radius) : TidalPyConstants::d_NAN;
+        return this->p_eos_field(radius, C_EOS_SHEAR_MODULUS_INDEX);
     }
     double get_bulk_modulus(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_bulk_modulus(radius) : TidalPyConstants::d_NAN;
+        return this->p_eos_field(radius, C_EOS_BULK_MODULUS_INDEX);
     }
     double get_shear_viscosity(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_shear_viscosity(radius) : TidalPyConstants::d_NAN;
+        return this->p_eos_field(radius, C_EOS_SHEAR_VISCOSITY_INDEX);
     }
     double get_bulk_viscosity(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_bulk_viscosity(radius) : TidalPyConstants::d_NAN;
+        return this->p_eos_field(radius, C_EOS_BULK_VISCOSITY_INDEX);
     }
     double get_melt_fraction(double radius) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
-        return (layer != nullptr) ? layer->get_melt_fraction(radius) : TidalPyConstants::d_NAN;
+        return this->p_eos_field(radius, C_EOS_MELT_FRACTION_INDEX);
     }
 
     // The only per-frequency step: find the layer and apply its rheology to the stored post-melt static
-    // modulus and viscosity.
+    // modulus and viscosity. The 3D tide paths call these with the call lock already held, which the recursive
+    // lock allows.
     std::complex<double> calc_complex_shear_modulus(double radius, double frequency) const noexcept {
-        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius));
-        if (physics_layer == nullptr) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
-        return physics_layer->calc_complex_shear_modulus(radius, frequency);
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_complex_modulus(true, radius, frequency);
     }
     std::complex<double> calc_complex_bulk_modulus(double radius, double frequency) const noexcept {
-        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius));
-        if (physics_layer == nullptr) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
-        return physics_layer->calc_complex_bulk_modulus(radius, frequency);
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_complex_modulus(false, radius, frequency);
+    }
+
+    // Vectorized form of the two above at one frequency [rad s-1]: the shear (is_shear) or bulk complex modulus [Pa]
+    // at each of radii[0 .. num_radii) [m], taking the call lock once for the whole call.
+    //
+    // Assumes moduli_out holds num_radii values.
+    void calc_complex_moduli(
+            bool is_shear,
+            const double* radii,
+            std::size_t num_radii,
+            double frequency,
+            std::complex<double>* moduli_out) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        for (std::size_t radius_i = 0; radius_i < num_radii; ++radius_i) {
+            moduli_out[radius_i] = this->p_complex_modulus(is_shear, radii[radius_i], frequency);
+        }
     }
 
     // True after a successful EOS solve of the current layer stack, until something invalidates it.
@@ -1844,29 +1883,51 @@ public:
     // Non-owning; the cached radial solver owns it, and it is null until solve_love_numbers builds the cache.
     const ::c_RadialSolutionStorage* get_love_storage() const noexcept { return this->p_love.get_storage(); }
 
-    bool get_love_solved() const noexcept { return this->p_love.solved; }
-    bool get_love_success() const noexcept { return this->p_love.get_success(); }
-    int get_love_error_code() const noexcept { return this->p_love.get_error_code(); }
+    // The Love results read the solver storage that solve_eos and the Love solves replace, so each read holds the
+    // call lock. get_love_message returns a reference, which cannot outlast the lock, so it is left to the thread
+    // that ran the solve.
+    bool get_love_solved() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.solved;
+    }
+    bool get_love_success() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.get_success();
+    }
+    int get_love_error_code() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.get_error_code();
+    }
     const std::string& get_love_message() const noexcept { return this->p_love.get_message(); }
-    std::size_t get_love_num_ytypes() const noexcept { return this->p_love.get_num_ytypes(); }
+    std::size_t get_love_num_ytypes() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.get_num_ytypes();
+    }
     // Worst-case error amplification of the surface boundary condition solve; 0 before a solve and for the
     // analytic methods. See c_estimate_surface_amplification in RadialSolver_x/boundaries/boundaries_.hpp.
-    double get_love_surface_amplification() const noexcept { return this->p_love.get_surface_amplification(); }
+    double get_love_surface_amplification() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.get_surface_amplification();
+    }
     // For the given boundary-condition ytype index; the analytic methods hold a single tidal set at index 0.
     // NaN when no solve describes the current structure: never solved, failed, or followed by a solve_eos.
     std::complex<double> get_love_number_k(std::size_t ytype_idx = 0) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_love(ytype_idx).k;
     }
     std::complex<double> get_love_number_h(std::size_t ytype_idx = 0) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_love(ytype_idx).h;
     }
     std::complex<double> get_love_number_l(std::size_t ytype_idx = 0) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_love(ytype_idx).l;
     }
     // Surface y-value (SI) for a ytype and y-index (0..5 -> y1..y6). NaN if unsolved or after an analytic
     // solve, which has no radial functions.
     std::complex<double> get_love_surface_y(
             std::size_t ytype_idx, std::size_t y_idx) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_surface_y(ytype_idx, y_idx);
     }
     // The same at an arbitrary radius [m]. The shooting method evaluates its dense per-layer interpolants,
@@ -1876,6 +1937,7 @@ public:
             double radius,
             std::size_t ytype_idx,
             std::size_t y_idx) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_radial_y(radius, ytype_idx, y_idx);
     }
 
@@ -2038,6 +2100,7 @@ public:
         this->p_layers.reserve(n_layers);
         for (uint64_t i = 0; i < n_layers; ++i) {
             this->p_layers.push_back(c_layer_from_binary(in, force));
+            this->p_layers.back()->set_owner_call_mutex(this->p_call_mutex.get());
         }
         // Nothing solved describes the loaded layers, and the masses floating layers held belong to the old ones.
         this->p_reference_mass.clear();
@@ -2128,19 +2191,51 @@ protected:
         return largest_change;
     }
 
-    // One value of the evaluation layout, through the layer that holds the radius.
-    double p_read_eos_state(double radius, std::size_t value_index) const noexcept {
-        if (!this->p_eos_solved || !this->p_eos_solution) { return TidalPyConstants::d_NAN; }
+    // One entry of the evaluation layout at a radius, as get_eos_fields reports it, under the call lock.
+    double p_eos_field(double radius, std::size_t field_index) const noexcept {
+        double value = TidalPyConstants::d_NAN;
+        this->get_eos_fields(&field_index, 1, &radius, 1, &value);
+        return value;
+    }
+
+    // The evaluation layout at a radius from the dense output of the layer that holds it (clamped at the surface);
+    // NaN throughout for a world with no layers. The caller holds the call lock, which is also the layer's, so the
+    // layer is read through its unlocked helper and an array read takes the lock once.
+    void p_layer_eos_state(double radius, double* state_out) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        if (layer == nullptr) {
+            for (std::size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i) {
+                state_out[value_i] = TidalPyConstants::d_NAN;
+            }
+            return;
+        }
+        layer->p_eos_state(radius, state_out);
+    }
+
+    // The evaluation layout at a radius from the world's own solution, through the layer whose span holds it; NaN
+    // throughout before a successful solve or where no layer spans the radius. The caller holds the call lock.
+    void p_world_eos_state(double radius, double* state_out) const noexcept {
+        for (std::size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i) {
+            state_out[value_i] = TidalPyConstants::d_NAN;
+        }
+        if (!this->p_eos_solved || !this->p_eos_solution) { return; }
         const std::size_t n_solved = std::min(this->p_layers.size(), this->p_eos_solution->num_layers);
         for (std::size_t layer_i = 0; layer_i < n_solved; ++layer_i) {
             const c_BaseLayer* layer = this->p_layers[layer_i].get();
             if (radius >= layer->get_radius_inner() && radius <= layer->get_radius_outer()) {
-                double state[C_EOS_DY_VALUES];
-                this->p_eos_solution->call_si(layer_i, radius, state);
-                return state[value_index];
+                this->p_eos_solution->call_si(layer_i, radius, state_out);
+                return;
             }
         }
-        return TidalPyConstants::d_NAN;
+    }
+
+    // The shear (is_shear) or bulk complex modulus [Pa] at a radius [m] and frequency [rad s-1] from the rheology
+    // of the layer that holds the radius; NaN for a geometry-only layer. The caller holds the call lock, which is also
+    // the layer's.
+    std::complex<double> p_complex_modulus(bool is_shear, double radius, double frequency) const noexcept {
+        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius));
+        if (physics_layer == nullptr) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
+        return physics_layer->p_complex_modulus(is_shear, radius, frequency);
     }
 
     // The layer whose radial span contains radius [m], non-owning. Radii beyond the surface clamp to the

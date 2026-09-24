@@ -49,53 +49,76 @@ LAYER_STANDALONE_CONFIG_KEYS = (
 )
 
 
-# Selectors for the vectorized real-valued radius getters (see _eval_real). Mirrors the world-level
-# surface in structures_x/worlds/layered.pyx so layers and worlds share one calling convention.
-cdef enum:
-    _KIND_DENSITY        = 0
-    _KIND_GRAVITY        = 1
-    _KIND_PRESSURE       = 2
-    _KIND_SHEAR_MOD      = 3
-    _KIND_BULK_MOD       = 4
-    _KIND_SHEAR_VISC     = 5
-    _KIND_BULK_VISC      = 6
-    _KIND_MELT_FRACTION  = 11
+# The profile getters of layers and worlds share these two helpers. Each makes one C++ call for the whole input, which
+# holds the owning world's call lock throughout (see c_WorldCallLock), so a read takes turns with a solve_eos on
+# another thread and every value of one call comes from one solve. An array is read without the GIL; a scalar keeps
+# it, which saves the release on the fast path and is safe because a thread holding the call lock never waits for
+# the GIL.
+cdef object cy_eos_field(const void* owner, cy_eos_fields_fn fill, object radius, size_t field_index):
+    """One dense-layout value at ``field_index``: a float for a scalar radius, an array shaped like ``radius`` for an
+    array."""
+    cdef cnp.ndarray in_arr
+    cdef cnp.ndarray out_arr
+    cdef double[::1] flat_in
+    cdef double[::1] flat_out
+    cdef size_t num_radii
+    cdef size_t field = field_index
+    cdef double radius_value
+    cdef double value = d_NAN
+    if isinstance(radius, np.ndarray):
+        in_arr   = np.ascontiguousarray(radius, dtype=np.float64)
+        out_arr  = np.empty_like(in_arr)
+        flat_in  = in_arr.reshape(-1)
+        flat_out = out_arr.reshape(-1)
+        num_radii = <size_t>flat_in.shape[0]
+        if num_radii > 0:
+            with nogil:
+                fill(owner, &field, 1, &flat_in[0], num_radii, &flat_out[0])
+        return out_arr
+    radius_value = <double>radius
+    fill(owner, &field, 1, &radius_value, 1, &value)
+    return value
 
 
-cdef object cy_eos_fields(const void* owner, cy_eos_state_fn fill, object radius, tuple indices):
+cdef object cy_eos_fields(const void* owner, cy_eos_fields_fn fill, object radius, tuple indices):
     """The dense-layout values at ``indices`` from one evaluation per radius, as a tuple: floats for a scalar
     radius, arrays shaped like ``radius`` for an array."""
-    cdef vector[double] state = vector[double](C_EOS_DY_VALUES)
-    cdef vector[size_t] field_index
-    cdef object index
-    for index in indices:
-        field_index.push_back(<size_t>index)
-    cdef size_t num_fields = field_index.size()
+    cdef size_t num_fields = <size_t>len(indices)
+    cdef vector[size_t] field_index = vector[size_t](num_fields)
+    cdef vector[double] values = vector[double](num_fields)
     cdef size_t field_i
     cdef cnp.ndarray in_arr
     cdef cnp.ndarray out_arr
     cdef double[::1] flat_in
     cdef double[:, ::1] flat_out
-    cdef Py_ssize_t i, n
+    cdef size_t num_radii
+    cdef double radius_value
+    for field_i in range(num_fields):
+        field_index[field_i] = <size_t>indices[field_i]
     if isinstance(radius, np.ndarray):
-        in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
-        flat_in = in_arr.reshape(-1)
-        n = flat_in.shape[0]
-        out_arr = np.empty((num_fields, n), dtype=np.float64)
-        flat_out = out_arr
-        with nogil:
-            for i in range(n):
-                fill(owner, flat_in[i], state.data())
-                for field_i in range(num_fields):
-                    flat_out[field_i, i] = state[field_index[field_i]]
+        in_arr    = np.ascontiguousarray(radius, dtype=np.float64)
+        flat_in   = in_arr.reshape(-1)
+        num_radii = <size_t>flat_in.shape[0]
+        out_arr   = np.empty((num_fields, num_radii), dtype=np.float64)
+        if num_radii > 0 and num_fields > 0:
+            flat_out = out_arr
+            with nogil:
+                fill(owner, field_index.data(), num_fields, &flat_in[0], num_radii, &flat_out[0, 0])
         shape = np.shape(in_arr)
         return tuple([out_arr[field_i].reshape(shape) for field_i in range(num_fields)])
-    fill(owner, <double>radius, state.data())
-    return tuple([state[field_index[field_i]] for field_i in range(num_fields)])
+    radius_value = <double>radius
+    fill(owner, field_index.data(), num_fields, &radius_value, 1, values.data())
+    return tuple([values[field_i] for field_i in range(num_fields)])
 
 
-cdef void _layer_eos_state(const void* owner, double radius, double* y_out) noexcept nogil:
-    (<const c_BaseLayer*>owner).get_eos_state(radius, y_out)
+cdef void cy_layer_eos_fields(
+        const void* owner,
+        const size_t* field_indices,
+        size_t num_fields,
+        const double* radii,
+        size_t num_radii,
+        double* values_out) noexcept nogil:
+    (<const c_BaseLayer*>owner).get_eos_fields(field_indices, num_fields, radii, num_radii, values_out)
 
 
 cdef class BaseLayer(StructureBase):
@@ -424,52 +447,22 @@ cdef class BaseLayer(StructureBase):
         eos_data.populate(r_vec, rho_vec, g_vec, p_vec)
         self._layer_ptr.get().update_eos_data(eos_data)
 
-    cdef double _eval_real(self, int kind, double radius) noexcept nogil:
-        cdef c_BaseLayer* layer = self._layer_ptr.get()
-        if   kind == _KIND_DENSITY:        return layer.get_density(radius)
-        elif kind == _KIND_GRAVITY:        return layer.get_gravity(radius)
-        elif kind == _KIND_PRESSURE:       return layer.get_pressure(radius)
-        elif kind == _KIND_SHEAR_MOD:      return layer.get_shear_modulus(radius)
-        elif kind == _KIND_BULK_MOD:       return layer.get_bulk_modulus(radius)
-        elif kind == _KIND_SHEAR_VISC:     return layer.get_shear_viscosity(radius)
-        elif kind == _KIND_BULK_VISC:      return layer.get_bulk_viscosity(radius)
-        elif kind == _KIND_MELT_FRACTION:  return layer.get_melt_fraction(radius)
-        return 0.0
-
-    def _apply_real(self, radius, int kind):
-        self._check_ptr()
-        # float -> float; np.ndarray -> np.ndarray (same shape, looped under nogil).
-        cdef cnp.ndarray in_arr
-        cdef cnp.ndarray out_arr
-        cdef double[::1] flat_in
-        cdef double[::1] flat_out
-        cdef Py_ssize_t i, n
-        if isinstance(radius, np.ndarray):
-            in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
-            out_arr = np.empty_like(in_arr)
-            flat_in = in_arr.reshape(-1)
-            flat_out = out_arr.reshape(-1)
-            n = flat_in.shape[0]
-            with nogil:
-                for i in range(n):
-                    flat_out[i] = self._eval_real(kind, flat_in[i])
-            return out_arr
-        return self._eval_real(kind, <double>radius)
-
+    # The profile getters: a float radius [m] gives a float, an np.ndarray a same-shape array, read in one C++ call
+    # under the owning world's call lock (see cy_eos_field).
     def get_density(self, radius):
         """Density [kg/m^3] at radius [m] (float or np.ndarray); NaN if EOS data not populated."""
         self._check_ptr()
-        return self._apply_real(radius, _KIND_DENSITY)
+        return cy_eos_field(<const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius, C_EOS_DENSITY_INDEX)
 
     def get_gravity(self, radius):
         """Gravitational acceleration [m/s^2] at radius [m] (float or np.ndarray); NaN if not populated."""
         self._check_ptr()
-        return self._apply_real(radius, _KIND_GRAVITY)
+        return cy_eos_field(<const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius, C_EOS_GRAVITY_INDEX)
 
     def get_pressure(self, radius):
         """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if EOS data not populated."""
         self._check_ptr()
-        return self._apply_real(radius, _KIND_PRESSURE)
+        return cy_eos_field(<const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius, C_EOS_PRESSURE_INDEX)
 
     # Viscoelastic profile (populated by the world EOS solve; NaN before then or on a geometry-only layer)
     @property
@@ -481,22 +474,26 @@ cdef class BaseLayer(StructureBase):
     def get_shear_modulus(self, radius):
         """Post-melt static shear modulus [Pa] at radius [m] (float or np.ndarray); NaN if unpopulated."""
         self._check_ptr()
-        return self._apply_real(radius, _KIND_SHEAR_MOD)
+        return cy_eos_field(
+            <const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius, C_EOS_SHEAR_MODULUS_INDEX)
 
     def get_bulk_modulus(self, radius):
         """Post-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray); NaN if unpopulated."""
         self._check_ptr()
-        return self._apply_real(radius, _KIND_BULK_MOD)
+        return cy_eos_field(
+            <const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius, C_EOS_BULK_MODULUS_INDEX)
 
     def get_shear_viscosity(self, radius):
         """Post-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
         self._check_ptr()
-        return self._apply_real(radius, _KIND_SHEAR_VISC)
+        return cy_eos_field(
+            <const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius, C_EOS_SHEAR_VISCOSITY_INDEX)
 
     def get_bulk_viscosity(self, radius):
         """Post-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray); NaN if unpopulated."""
         self._check_ptr()
-        return self._apply_real(radius, _KIND_BULK_VISC)
+        return cy_eos_field(
+            <const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius, C_EOS_BULK_VISCOSITY_INDEX)
 
     def get_melt_fraction(self, radius):
         """Melt fraction at radius [m] (float or np.ndarray) from the attached partial-melt model.
@@ -504,7 +501,8 @@ cdef class BaseLayer(StructureBase):
         0.0 where no partial-melt model is attached; NaN if unpopulated.
         """
         self._check_ptr()
-        return self._apply_real(radius, _KIND_MELT_FRACTION)
+        return cy_eos_field(
+            <const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius, C_EOS_MELT_FRACTION_INDEX)
 
     # Shorthand bundles (one call returns several profiles at once; mirrors the world-level surface)
     def get_static_viscoelastics(self, radius):
@@ -513,7 +511,7 @@ cdef class BaseLayer(StructureBase):
         """
         self._check_ptr()
         return cy_eos_fields(
-            <const void*>self._layer_ptr.get(), _layer_eos_state, radius,
+            <const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius,
             (C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
              C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX))
 
@@ -522,7 +520,7 @@ cdef class BaseLayer(StructureBase):
         solved state per radius."""
         self._check_ptr()
         values = cy_eos_fields(
-            <const void*>self._layer_ptr.get(), _layer_eos_state, radius,
+            <const void*>self._layer_ptr.get(), cy_layer_eos_fields, radius,
             (C_EOS_DENSITY_INDEX, C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX,
              C_EOS_SHEAR_VISCOSITY_INDEX, C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX,
              C_EOS_MELT_FRACTION_INDEX))
