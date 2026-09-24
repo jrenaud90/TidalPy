@@ -3,6 +3,8 @@
 from TidalPy.Utilities_x.logging_x.logger import (
     init_logger,
     set_log_level,
+    set_console_level,
+    set_file_level,
     shutdown_logger,
     flush_logger,
     log_message,
@@ -17,6 +19,8 @@ from TidalPy.Utilities_x.logging_x.logger import (
 __all__ = [
     "init_logger",
     "set_log_level",
+    "set_console_level",
+    "set_file_level",
     "shutdown_logger",
     "flush_logger",
     "log_message",

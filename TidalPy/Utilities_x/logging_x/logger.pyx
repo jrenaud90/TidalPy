@@ -3,14 +3,20 @@
 """Python interface to TidalPy's C++ spdlog logger.
 
 Importing this extension creates the logger with a default console sink and a stable raw pointer to it;
-other extensions wire their own DLL-local pointer from ``get_tidalpy_logger_address()``.
+other extensions wire their own DLL-local pointer from ``get_tidalpy_logger_address()``. Importing it also
+registers ``flush_logger`` with ``atexit`` so buffered lines reach the log file at interpreter exit. The module is
+imported once per process, so ``TidalPy.reinit()`` never registers the hook a second time.
 """
+
+import atexit
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     c_LoggerConfig,
     cy_create_default_logger,
     cy_init_logger,
     cy_set_log_level,
+    cy_set_console_level,
+    cy_set_file_level,
     cy_log_message,
     cy_flush_logger,
     cy_shutdown_logger,
@@ -66,8 +72,9 @@ cdef int cy_resolve_level(object level) except -1:
 def init_logger(dict config = None):
     """Initialize the TidalPy C++ logger from a configuration dictionary.
 
-    Replaces the sinks on the logger created at import, so every DLL holding the shared pointer sees the
-    new configuration at once.
+    Replaces the console and file sinks behind the logger created at import, so every DLL holding the shared
+    pointer sees the new configuration at once, and resets the logger-level threshold (``set_log_level``) to
+    ``"trace"`` so only the sink levels filter.
 
     Parameters
     ----------
@@ -77,8 +84,8 @@ def init_logger(dict config = None):
 
     Notes
     -----
-    Call at startup before any C++ code emits TIDALPY_LOG_* messages; not thread-safe against
-    concurrent logging.
+    Safe while C++ threads are logging: the sinks are swapped under the lock the logger holds while it writes, so
+    each message goes entirely to the old sinks or entirely to the new ones.
     """
     cdef c_LoggerConfig c_config
 
@@ -99,7 +106,12 @@ def init_logger(dict config = None):
 
 
 def set_log_level(level):
-    """Set the active log level on the TidalPy logger and all its sinks.
+    """Set the logger-level threshold: messages below it reach no sink.
+
+    The console and file sinks keep their own levels (``set_console_level``, ``set_file_level``), so this only
+    ever narrows what they write: ``set_log_level("info")`` in a notebook, where the console sink is off, leaves the
+    console silent. The next ``init_logger`` call (including ``TidalPy.reinit()``) resets the threshold to
+    ``"trace"``.
 
     Parameters
     ----------
@@ -111,8 +123,52 @@ def set_log_level(level):
     cy_set_log_level(int_level)
 
 
+def set_console_level(level):
+    """Set the console sink's level, for example to turn console output back on in a notebook.
+
+    The logger-level threshold (``set_log_level``) still applies on top of it. The next ``init_logger`` call
+    (including ``TidalPy.reinit()``) restores the configured console level.
+
+    Parameters
+    ----------
+    level : str or int
+        A level name (case-insensitive) or the equivalent integer 0 to 6, as for ``set_log_level``.
+
+    Returns
+    -------
+    bool
+        True when the console sink was updated.
+    """
+    cdef int int_level = cy_resolve_level(level)
+    return cy_set_console_level(int_level)
+
+
+def set_file_level(level):
+    """Set the file sink's level.
+
+    The logger-level threshold (``set_log_level``) still applies on top of it. The next ``init_logger`` call
+    (including ``TidalPy.reinit()``) restores the configured file level.
+
+    Parameters
+    ----------
+    level : str or int
+        A level name (case-insensitive) or the equivalent integer 0 to 6, as for ``set_log_level``.
+
+    Returns
+    -------
+    bool
+        True when the file sink was updated; False, changing nothing, when no log file is being written.
+    """
+    cdef int int_level = cy_resolve_level(level)
+    return cy_set_file_level(int_level)
+
+
 def flush_logger():
-    """Flush every sink; file sinks buffer their output."""
+    """Flush every sink.
+
+    File sinks buffer lines below the warning level; warnings and above are flushed as they are written. Registered
+    with ``atexit`` at import, so a normal interpreter exit flushes the file.
+    """
     cy_flush_logger()
 
 
@@ -120,7 +176,7 @@ def log_message(level, str message):
     """Emit ``message`` through the TidalPy C++ logger at ``level``.
 
     Cython and Python code logs through this (or the level helpers below) so its messages reach the same
-    sinks as the C++ ``TIDALPY_LOG_*`` macros.
+    sinks as the C++ ``TIDALPY_LOG_*`` macros. A level of ``"off"`` (6) emits nothing.
     """
     cdef int c_level = cy_resolve_level(level)
     cy_log_message(c_level, message.encode("utf-8"))
@@ -159,7 +215,13 @@ def log_critical(str message):
 def shutdown_logger():
     """Flush pending log messages and make all TIDALPY_LOG_* macros no-ops.
 
-    Call on TidalPy shutdown, through atexit say. The logger stays in spdlog's registry so raw pointers
-    held by other DLLs cannot dangle; it is released at process exit.
+    Not needed at interpreter exit, where the ``atexit`` hook flushes. The logger stays in spdlog's registry so raw
+    pointers held by other DLLs cannot dangle; it is released at process exit. A later ``init_logger`` call turns it
+    back on.
     """
     cy_shutdown_logger()
+
+
+# Flush buffered info and debug lines at a normal interpreter exit. A crash skips atexit, which is why warnings and
+# above are flushed as they are written.
+atexit.register(flush_logger)

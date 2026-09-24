@@ -4,7 +4,7 @@
     set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 """
 
-from libcpp cimport bool
+from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 
 
@@ -12,7 +12,7 @@ cdef extern from "logger_.hpp" namespace "tidalpy" nogil:
     cdef struct c_LoggerConfig:
         int console_level
         int file_level
-        bool log_to_file
+        cpp_bool log_to_file
         string log_file_path
 
     # Set this DLL's tidalpy_logger_ptr from a void* obtained via get_tidalpy_logger_address().
@@ -25,7 +25,12 @@ cdef extern from "logger_.hpp" namespace "tidalpy" nogil:
 
     void cy_init_logger(const c_LoggerConfig& config) except +
 
+    # Logger-level threshold only; the sinks keep their own levels.
     void cy_set_log_level(int level) except +
+
+    # False when the sink does not exist (no file is being written, for the file sink).
+    cpp_bool cy_set_console_level(int level) except +
+    cpp_bool cy_set_file_level(int level) except +
 
     void cy_log_message(int level, const string& message) except +
 
