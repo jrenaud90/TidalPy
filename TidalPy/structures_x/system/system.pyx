@@ -63,6 +63,7 @@ cdef dict cy_evolution_to_dict(c_WorldEvolution evolution):
     return {
         'world_index':       <int>evolution.world_index,
         'evolved':           True if evolution.evolved else False,
+        'has_tide_model':    True if evolution.has_tide_model else False,
         'orbital_frequency': evolution.orbital_frequency,
         'semi_major_axis':   evolution.semi_major_axis,
         'eccentricity':      evolution.eccentricity,
@@ -91,6 +92,7 @@ cdef dict cy_pair_to_dict(c_PairEvolution pair):
         'world_index':         <int>pair.world_index,
         'host_index':          <int>pair.host_index,
         'evolved':             True if pair.evolved else False,
+        'has_tide_model':      True if pair.has_tide_model else False,
         'orbital_frequency':   pair.orbital_frequency,
         'semi_major_axis':     pair.semi_major_axis,
         'eccentricity':        pair.eccentricity,
@@ -415,6 +417,14 @@ cdef class System:
             ``dU_dw``, ``dU_dO``), the rates (``da_dt``, ``de_dt``, ``dn_dt``, ``dspin_dt``), and the
             energy-balance terms (``dE_orbit_dt``, ``dE_spin_dt``, ``energy_residual``), all MKS.
             ``evolved`` is ``False`` for a world with no tidal host or no usable orbit about it.
+            ``has_tide_model`` is ``False`` for a rigid world (no tide model attached): it raises no tide, so
+            its rates and energy terms are zero while ``evolved`` stays ``True``, and a warning is logged once
+            per world.
+
+        Assumptions
+        -----------
+        Tide models are not serialized, so after :meth:`load_binary` every world reports
+        ``has_tide_model = False`` until one is reattached with ``set_tide_model``.
         """
         cdef size_t index = <size_t>self._resolve_index(world)
         cdef c_WorldEvolution evolution
@@ -431,8 +441,9 @@ cdef class System:
         -------
         list of dict
             One :meth:`calc_world_evolution` dict per world, in index order. A world with no tidal host or
-            no usable orbit comes back with ``evolved`` set to ``False``. The two members of a mutual pair
-            each get an entry, and their contributions to the orbit they share add.
+            no usable orbit comes back with ``evolved`` set to ``False``, and a rigid world with
+            ``has_tide_model`` set to ``False``. The two members of a mutual pair each get an entry, and their
+            contributions to the orbit they share add.
         """
         cdef vector[c_WorldEvolution] results
         with nogil:
@@ -464,7 +475,9 @@ cdef class System:
             ``semi_major_axis`` / ``eccentricity`` / ``world_index`` / ``host_index`` / ``evolved``), and
             each body's full single-body contribution under keys ``world`` and ``host`` (each a
             :meth:`calc_world_evolution`-style dict). ``evolved`` is ``False`` for a world with no tidal
-            host or no usable orbit about it.
+            host or no usable orbit about it. ``has_tide_model`` is ``True`` when at least one body carries a
+            tide model; ``False`` means both are rigid, every rate is zero, and a warning is logged once per
+            world. Each body's own flag is in its ``world`` or ``host`` entry.
         """
         cdef size_t index = <size_t>self._resolve_index(world)
         cdef c_PairEvolution pair
@@ -558,7 +571,8 @@ cdef class System:
         Rebuilds the heterogeneous world list from the stream (each world's concrete type is
         recovered from its record) and the Python wrappers around it. Physics sub-models a world does
         not serialize (the star's luminosity model, layer EOS data, tide and spin models) are
-        reattached after load.
+        reattached after load; until a world's tide model is reattached its evolution results report
+        ``has_tide_model = False`` with zero rates.
 
         Parameters
         ----------
@@ -572,7 +586,10 @@ cdef class System:
         FileNotFoundError
             If the file does not exist.
         IOError
-            If the file is invalid or the schema version is incompatible.
+            If the file is invalid or the schema version is incompatible, or if its roles or orbits are
+            corrupt (a tidal host index that names no other world, an out-of-range star index, a duplicate
+            world name, or an orbit that is not bound). Those checks leave the system unchanged; data found after
+            the system's record, which is only detected once the worlds are read, raises with them loaded.
         """
         import os as _os
         if not _os.path.isfile(path):
@@ -581,7 +598,9 @@ cdef class System:
             self._system.get().load_binary(path.encode("utf-8"), force)
         except RuntimeError as exc:
             raise IOError(str(exc)) from exc
-        self._rebuild_world_wrappers()
+        finally:
+            # The wrappers follow whatever worlds the C++ system holds, including after a load that failed late.
+            self._rebuild_world_wrappers()
         self.source_config = None
 
     # World identification: accept an index (int), a world name (str), or the world wrapper object.

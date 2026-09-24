@@ -1,6 +1,6 @@
 # Conversions and Scales (`Utilities_x.conversions`, `Utilities_x.dimensions`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-23_
 
 `conversions` converts between MKS and the units typically used in the literature, and between orbital elements related by Kepler's third law. `dimensions` builds the scale factors that turn a dimensional interior problem into a non-dimensional one, so the non-dimensionalization the solvers rely on is defined in one place.
 
@@ -35,9 +35,9 @@ orbital_motion    = semi_a2orbital_motion(semi_major_axis, host_mass, target_mas
 
 Both are Kepler's third law, $n^2 a^3 = G (M_{\text{host}} + M_{\text{target}})$, solved for one element or the other. The orbiting body's mass defaults to zero, which is the test-particle limit and is usually what a satellite problem wants; supply it when the mass ratio is large enough to matter, as in a binary or a planet-moon pair like Pluto and Charon.
 
-Both take an optional `G_to_use` so a comparison against a published result can use whatever value of the gravitational constant that work adopted. The default is TidalPy's own, which comes from SciPy at initialization.
+Both take an optional `G_to_use` so a comparison against a published result can use whatever value of the gravitational constant that work adopted. The default, `None`, uses TidalPy's own value, which comes from SciPy through the TidalPy config and is read on every call, so a reinitialized config is honored.
 
-A non-positive host mass or a negative target mass raises `ValueError`.
+A non-positive orbital motion or semi-major axis (NaN included), a non-positive host mass, a negative target mass, or a non-positive `G_to_use` raises `ValueError`.
 
 ## Non-Dimensionalization
 
@@ -69,4 +69,4 @@ Callers rarely build these by hand. The radial solver and the world equation-of-
 
 ## C++ API
 
-The conversion functions have `cf_` prefixed `nogil` Cython counterparts (`cy_orbital_motion2semi_a` and the rest) for use from `cdef` code without Python overhead. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, populated by `cy_build_nondimensional_scales`, and are passed by reference into the solvers that need them.
+The conversion functions have `cy_` prefixed `nogil` Cython counterparts (`cy_orbital_motion2semi_a` and the rest) for use from `cdef` code without Python overhead. They skip the input checks. The two Kepler functions take `G_to_use` as a `double` that defaults to `-1.0`: any negative value reads the config's gravitational constant at call time, the same convention as the EOS solver. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, populated by `cy_build_nondimensional_scales`, and are passed by reference into the solvers that need them.

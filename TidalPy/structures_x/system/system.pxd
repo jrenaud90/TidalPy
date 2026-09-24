@@ -24,6 +24,7 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_WorldEvolution:
         size_t   world_index
         cpp_bool evolved
+        cpp_bool has_tide_model
         double   orbital_frequency
         double   semi_major_axis
         double   eccentricity
@@ -48,6 +49,7 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         size_t           world_index
         size_t           host_index
         cpp_bool         evolved
+        cpp_bool         has_tide_model
         double           orbital_frequency
         double           semi_major_axis
         double           eccentricity

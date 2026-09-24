@@ -24,6 +24,8 @@ cdef double cy_myr2sec(
     double myrs
     ) noexcept nogil
 
+# Kepler's third law without input checks. G_to_use defaults to -1.0: a negative value reads the config's G at call
+# time.
 cdef double cy_orbital_motion2semi_a(
     double orbital_motion,
     double host_mass,

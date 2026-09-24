@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -67,10 +68,14 @@ inline void c_check_orbit(double semi_major_axis, double eccentricity, const std
 
 // The tidal, orbital, and spin rates of one orbiting world for a single tidal solve, with the state used
 // and the raw tidal outputs so the energy balance can be checked. evolved is false when the world has no
-// tidal host or no usable orbit about it, and the numeric fields are then unset.
+// tidal host or no usable orbit about it, and the numeric fields are then unset. has_tide_model is false for a
+// rigid world (no tide model attached): it raises no tide, so its rates and energy terms are zero while evolved
+// stays true. Tide models are not serialized, so every world of a freshly loaded system reports false until one
+// is reattached.
 struct c_WorldEvolution {
-    std::size_t world_index = 0;
-    bool        evolved     = false;
+    std::size_t world_index    = 0;
+    bool        evolved        = false;
+    bool        has_tide_model = false;
 
     // The state the solve used.
     double orbital_frequency = TidalPyConstants::d_NAN;  // mean motion n            [rad s-1]
@@ -103,11 +108,13 @@ struct c_WorldEvolution {
 
 // The dual-body tidal evolution of an orbiting world and its tidal host. Both raise a tide on the shared
 // orbit, so the top-level rates and energy balance are the sum of each body's single-body contribution,
-// held in `world` and `host`.
+// held in `world` and `host`. has_tide_model is true when at least one of the two bodies carries a tide model;
+// false means both are rigid and every rate is zero.
 struct c_PairEvolution {
-    std::size_t world_index = 0;   // the orbiting world
-    std::size_t host_index  = 0;   // its tidal host
-    bool        evolved     = false;
+    std::size_t world_index    = 0;      // the orbiting world
+    std::size_t host_index     = 0;      // its tidal host
+    bool        evolved        = false;
+    bool        has_tide_model = false;  // either body can dissipate
 
     // Shared two-body orbit state.
     double orbital_frequency = TidalPyConstants::d_NAN;  // mean motion n [rad s-1]
@@ -175,6 +182,10 @@ public:
         this->p_orbits.push_back(c_OrbitElements{semi_major_axis, eccentricity});
         this->p_stellar_orbits.push_back(c_OrbitElements{});
         this->p_host_index_byworld.push_back(-1);
+        {
+            const std::lock_guard<std::mutex> lock(this->p_warning_mutex);
+            this->p_no_tide_model_warned.push_back(0);
+        }
         if (is_star) {
             this->p_star_index = static_cast<int>(index);
         }
@@ -519,11 +530,13 @@ public:
 
     // Single-body tidal dissipation: run one world's global tidal solve in the current system state, then
     // turn the tidal-potential derivatives into the orbital rates and the spin rate. Only this world raises
-    // tides, its host being a point mass; calc_pair_evolution adds the host's own tide.
+    // tides, its host being a point mass; calc_pair_evolution adds the host's own tide. A rigid world (no tide
+    // model) comes back evolved with zero rates and has_tide_model false, and is warned about once.
     c_WorldEvolution calc_world_evolution(std::size_t index) {
         this->check_index(index);
         c_WorldEvolution out;
-        out.world_index = index;
+        out.world_index    = index;
+        out.has_tide_model = this->p_worlds[index]->get_tide_model_set();
 
         // A world with no tidal host, or no usable orbit about it, has no tide to evolve under.
         if (!this->has_tidal_host(index)) {
@@ -534,12 +547,16 @@ public:
             return out;
         }
         const c_OrbitElements orbit = this->get_host_orbit(index);
-        return this->calc_dissipation(
+        out = this->calc_dissipation(
             index,
             this->get_tidal_host_mass(index),
             orbital_frequency,
             orbit.semi_major_axis,
             orbit.eccentricity);
+        if (!out.has_tide_model) {
+            this->p_warn_no_tide_model(index);
+        }
+        return out;
     }
 
     // Single-body dissipation for every world, in index order. The two members of a mutual pair each get a
@@ -557,7 +574,9 @@ public:
     // other as the tide raiser, masses swapped, so the shared-orbit rates are the sum of the two and each
     // body evolves its own spin. The energy balance is the sum of the two single-body balances:
     //   heating_world + heating_host = -(dE_orbit/dt + dE_spin_world/dt + dE_spin_host/dt).
-    // A body with no tide model is rigid and contributes nothing.
+    // A body with no tide model is rigid and contributes nothing. A rigid host beside a dissipating world is a
+    // normal setup (a star treated as a point mass), so only a pair in which neither body can dissipate is warned
+    // about, once per world, and reports has_tide_model false.
     c_PairEvolution calc_pair_evolution(std::size_t index) {
         this->check_index(index);
         c_PairEvolution out;
@@ -592,7 +611,12 @@ public:
         out.dE_orbit_dt         = out.world.dE_orbit_dt + out.host.dE_orbit_dt;
         out.dE_spin_dt_total    = out.world.dE_spin_dt + out.host.dE_spin_dt;
         out.energy_residual     = out.tidal_heating_total + out.dE_orbit_dt + out.dE_spin_dt_total;
+        out.has_tide_model      = out.world.has_tide_model || out.host.has_tide_model;
         out.evolved             = true;
+        if (!out.has_tide_model) {
+            this->p_warn_no_tide_model(index);
+            this->p_warn_no_tide_model(out.host_index);
+        }
         return out;
     }
 
@@ -627,7 +651,8 @@ public:
 
     // One body's tidal-dissipation contribution to a two-body orbit: the shared primitive behind
     // calc_world_evolution, where the companion is the host, and calc_pair_evolution, which runs each body
-    // in turn. A body with no tide model is rigid and contributes nothing.
+    // in turn. A body with no tide model is rigid and contributes nothing: its result is evolved with zero rates
+    // and has_tide_model false. This primitive does not warn; its callers decide when a rigid body is a problem.
     //
     // c_LayeredWorld hides the base analytic calc_tides with the rheology and layer-distribution path and
     // owns the spin model, so the concrete type is resolved here to run the right solve and reach the spin
@@ -654,7 +679,8 @@ public:
         out.target_mass       = target_mass;
 
         // Rigid: no tide raised, nothing contributed.
-        if (!world_ptr->get_tide_model_set()) {
+        out.has_tide_model = world_ptr->get_tide_model_set();
+        if (!out.has_tide_model) {
             out.evolved = true;
             return out;
         }
@@ -751,7 +777,10 @@ public:
     }
 
     // The whole record is read into locals and committed only once it is complete, so a corrupt or truncated file
-    // throws with the system unchanged rather than half replaced.
+    // throws with the system unchanged rather than half replaced. The saved roles and orbits went through the same
+    // checks as add_world, set_tidal_host, and the orbit setters, so a tidal host index that names no other world,
+    // an out-of-range star index, a duplicate world name, or an unbound orbit can only come from a corrupt file and
+    // throws std::runtime_error rather than being dropped.
     void read_binary(std::istream& in, bool force = false) override {
         c_TidalPyBaseClass::read_binary(in, force);
         std::string name = read_binary_string(in);
@@ -770,8 +799,7 @@ public:
         for (uint64_t i = 0; i < num_worlds; ++i) {
             int32_t host_index = -1;
             in.read(reinterpret_cast<char*>(&host_index), sizeof(int32_t));
-            host_index_byworld[i] = (host_index >= 0 && static_cast<uint64_t>(host_index) < num_worlds
-                                     && static_cast<uint64_t>(host_index) != i) ? host_index : -1;
+            host_index_byworld[i] = host_index;
         }
         std::vector<c_OrbitElements> orbits(num_worlds, c_OrbitElements{});
         for (uint64_t i = 0; i < num_worlds; ++i) {
@@ -789,6 +817,18 @@ public:
         if ((star_index < -1) || ((star_index >= 0) && (static_cast<uint64_t>(star_index) >= num_worlds))) {
             throw std::runtime_error("TidalPy: corrupt System binary data: the star index is out of range");
         }
+        // -1 marks a world with no tidal host; any other value must name a different world of this system.
+        for (uint64_t i = 0; i < num_worlds; ++i) {
+            const int host_index = host_index_byworld[i];
+            const bool names_other_world = (host_index >= 0) && (static_cast<uint64_t>(host_index) < num_worlds)
+                                           && (static_cast<uint64_t>(host_index) != i);
+            if ((host_index != -1) && !names_other_world) {
+                throw std::runtime_error(
+                    "TidalPy: corrupt System binary data: world " + std::to_string(i) + " has the tidal host index "
+                    + std::to_string(host_index) + ", which names no other world of this "
+                    + std::to_string(num_worlds) + "-world system.");
+            }
+        }
 
         // Each world's concrete type is recovered from its own record.
         std::vector<std::shared_ptr<c_BaseWorld>> worlds;
@@ -798,6 +838,23 @@ public:
         }
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read System binary data");
+        }
+
+        // Checked once the worlds are read so the errors can name them.
+        for (uint64_t i = 0; i < num_worlds; ++i) {
+            const std::string& world_name = worlds[i]->get_name();
+            for (uint64_t j = 0; j < i; ++j) {
+                if (worlds[j]->get_name() == world_name) {
+                    throw std::runtime_error(
+                        "TidalPy: corrupt System binary data: two worlds are named '" + world_name + "'.");
+                }
+            }
+            try {
+                c_check_orbit(orbits[i].semi_major_axis, orbits[i].eccentricity, world_name);
+                c_check_orbit(stellar_orbits[i].semi_major_axis, stellar_orbits[i].eccentricity, world_name);
+            } catch (const std::invalid_argument& error) {
+                throw std::runtime_error(std::string("TidalPy: corrupt System binary data: ") + error.what());
+            }
         }
 
         // Commit.
@@ -811,6 +868,9 @@ public:
         for (std::size_t i = 0; i < this->p_worlds.size(); ++i) {
             this->p_worlds[i]->set_tide_state_provider(this, i);
         }
+        // The loaded worlds are new instances, so each can be warned about once more.
+        const std::lock_guard<std::mutex> lock(this->p_warning_mutex);
+        this->p_no_tide_model_warned.assign(this->p_worlds.size(), 0);
     }
 
 protected:
@@ -819,6 +879,24 @@ protected:
         if (index >= this->p_worlds.size()) {
             throw std::out_of_range("TidalPy: c_System world index out of range");
         }
+    }
+
+    // Warns, once per world of this system, that a world with no tide model is rigid, so the evolution it enters
+    // has zero rates. Tide models are not serialized, so this is also how a loaded system whose tide models were
+    // not reattached shows up. The flags are shared by concurrent evolution calls, hence the lock.
+    void p_warn_no_tide_model(std::size_t index) {
+        {
+            const std::lock_guard<std::mutex> lock(this->p_warning_mutex);
+            if (this->p_no_tide_model_warned[index] != 0) {
+                return;
+            }
+            this->p_no_tide_model_warned[index] = 1;
+        }
+        TIDALPY_LOG_WARN(
+            "TidalPy: world '{}' of system '{}' has no tide model, so it is rigid: it raises no tide and the "
+            "evolution rates it enters are zero (has_tide_model is false in the result). Tide models are not saved "
+            "in binary files; reattach one with set_tide_model after load_binary. Shown once per world.",
+            this->p_worlds[index]->get_name(), this->p_name);
     }
 
     // The worlds stop asking this system for their tide state (those still pointing at it, that is: a world
@@ -838,6 +916,8 @@ protected:
     std::vector<int> p_host_index_byworld;                      // each world's tidal host in p_worlds, or -1
     int p_star_index = -1;                                      // index into p_worlds, or -1 if unset
     c_OrbitSolver p_orbit_solver;                              // stateless engine turning dU/dX into orbital rates
+    std::vector<uint8_t> p_no_tide_model_warned;                // per world: the rigid-world warning was shown
+    std::mutex p_warning_mutex;                                 // guards p_no_tide_model_warned
 };
 
 } // namespace tidalpy

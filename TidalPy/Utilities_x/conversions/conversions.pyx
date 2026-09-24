@@ -43,16 +43,34 @@ cdef inline double cy_orbital_motion2semi_a(
         double orbital_motion,
         double host_mass,
         double target_mass = 0.0,
-        double G_to_use = tidalpy_config_ptr.d_G) noexcept nogil:
+        double G_to_use = -1.0) noexcept nogil:
+    """Semi-major axis [m] from a mean motion [rad s-1] by Kepler's third law, without input checks.
 
+    A negative ``G_to_use`` (the default) reads the gravitational constant from the TidalPy config at call time.
+
+    Assumptions
+    -----------
+    Two-body Keplerian orbit. The caller supplies a positive frequency and masses; nothing is validated.
+    """
+    if G_to_use < 0.0:
+        G_to_use = tidalpy_config_ptr.d_G
     return cbrt(G_to_use * (host_mass + target_mass) / (orbital_motion * orbital_motion))
 
 cdef inline double cy_semi_a2orbital_motion(
         double semi_major_axis,
         double host_mass,
         double target_mass = 0.0,
-        double G_to_use = tidalpy_config_ptr.d_G) noexcept nogil:
+        double G_to_use = -1.0) noexcept nogil:
+    """Mean motion [rad s-1] from a semi-major axis [m] by Kepler's third law, without input checks.
 
+    A negative ``G_to_use`` (the default) reads the gravitational constant from the TidalPy config at call time.
+
+    Assumptions
+    -----------
+    Two-body Keplerian orbit. The caller supplies a positive semi-major axis and masses; nothing is validated.
+    """
+    if G_to_use < 0.0:
+        G_to_use = tidalpy_config_ptr.d_G
     return sqrt(G_to_use * (host_mass + target_mass) / (semi_major_axis * semi_major_axis * semi_major_axis))
 
 
@@ -156,7 +174,7 @@ def orbital_motion2semi_a(
         double orbital_motion,
         double host_mass,
         double target_mass = 0.0,
-        double G_to_use = tidalpy_config_ptr.d_G):
+        G_to_use = None):
     """ Convert orbital mean motion to semi-major axis (Kepler's 3rd law)
 
     Parameters
@@ -167,8 +185,9 @@ def orbital_motion2semi_a(
         Central body's mass in [kg]
     target_mass : float, default = 0
         Target (or orbiting) body's mass in [kg]
-    G_to_use : float, default = tidalpy_config_ptr.d_G
-        Gravitational constant [N m2 kg-2]
+    G_to_use : float, optional
+        Gravitational constant [m3 kg-1 s-2]. ``None`` (the default) reads the TidalPy config's value at call
+        time.
 
     Returns
     -------
@@ -178,21 +197,34 @@ def orbital_motion2semi_a(
     Raises
     ------
     ValueError
-        If the host mass is not positive or the target mass is negative.
+        If the orbital motion or the host mass is not positive, the target mass is negative, or ``G_to_use``
+        is not positive.
+
+    Assumptions
+    -----------
+    Two-body Keplerian orbit: n^2 a^3 = G (M_host + M_target).
     """
 
+    # Read at call time so a reinitialized config is honored.
+    cdef double G_value = tidalpy_config_ptr.d_G if G_to_use is None else <double>G_to_use
+
+    # Written as `not (x > 0)` so a NaN is refused as well.
+    if not (orbital_motion > 0.):
+        raise ValueError(f'Orbital motion must be greater than zero; got {orbital_motion} rad s-1.')
     if host_mass <= 0.:
         raise ValueError('Host mass must be greater than zero.')
     if target_mass < 0.:
         raise ValueError('Target mass must be greater than or equal to zero.')
+    if not (G_value > 0.):
+        raise ValueError(f'G_to_use must be greater than zero; got {G_value}.')
 
-    return cy_orbital_motion2semi_a(orbital_motion, host_mass, target_mass, G_to_use)
+    return cy_orbital_motion2semi_a(orbital_motion, host_mass, target_mass, G_value)
 
 def semi_a2orbital_motion(
         double semi_major_axis,
         double host_mass,
         double target_mass = 0.0,
-        double G_to_use = tidalpy_config_ptr.d_G):
+        G_to_use = None):
     """ Convert semi-major axis to mean orbital motion (Kepler's 3rd law)
 
     Parameters
@@ -203,8 +235,9 @@ def semi_a2orbital_motion(
         Central body's mass in [kg]
     target_mass : float, default = 0
         Target (or orbiting) body's mass in [kg]
-    G_to_use : float, default = tidalpy_config_ptr.d_G
-        Gravitational constant [N m2 kg-2]
+    G_to_use : float, optional
+        Gravitational constant [m3 kg-1 s-2]. ``None`` (the default) reads the TidalPy config's value at call
+        time.
 
     Returns
     -------
@@ -214,12 +247,25 @@ def semi_a2orbital_motion(
     Raises
     ------
     ValueError
-        If the host mass is not positive or the target mass is negative.
+        If the semi-major axis or the host mass is not positive, the target mass is negative, or ``G_to_use``
+        is not positive.
+
+    Assumptions
+    -----------
+    Two-body Keplerian orbit: n^2 a^3 = G (M_host + M_target).
     """
 
+    # Read at call time so a reinitialized config is honored.
+    cdef double G_value = tidalpy_config_ptr.d_G if G_to_use is None else <double>G_to_use
+
+    # Written as `not (x > 0)` so a NaN is refused as well.
+    if not (semi_major_axis > 0.):
+        raise ValueError(f'Semi-major axis must be greater than zero; got {semi_major_axis} m.')
     if host_mass <= 0.:
         raise ValueError('Host mass must be greater than zero.')
     if target_mass < 0.:
         raise ValueError('Target mass must be greater than or equal to zero.')
+    if not (G_value > 0.):
+        raise ValueError(f'G_to_use must be greater than zero; got {G_value}.')
 
-    return cy_semi_a2orbital_motion(semi_major_axis, host_mass, target_mass, G_to_use)
+    return cy_semi_a2orbital_motion(semi_major_axis, host_mass, target_mass, G_value)
