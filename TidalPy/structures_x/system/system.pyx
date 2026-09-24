@@ -422,11 +422,6 @@ cdef class System:
             ``has_tide_model`` is ``False`` for a rigid world (no tide model attached): it raises no tide, so
             its rates and energy terms are zero while ``evolved`` stays ``True``, and a warning is logged once
             per world.
-
-        Assumptions
-        -----------
-        Tide models are not serialized, so after :meth:`load_binary` every world reports
-        ``has_tide_model = False`` until one is reattached with ``set_tide_model``.
         """
         cdef size_t index = <size_t>self._resolve_index(world)
         cdef c_WorldEvolution evolution
@@ -571,10 +566,9 @@ cdef class System:
         """Load this system's state from a TidalPy binary file (overriding the base to rewrap worlds).
 
         Rebuilds the heterogeneous world list from the stream (each world's concrete type is
-        recovered from its record) and the Python wrappers around it. Physics sub-models a world does
-        not serialize (the star's luminosity model, layer EOS data, tide and spin models) are
-        reattached after load; until a world's tide model is reattached its evolution results report
-        ``has_tide_model = False`` with zero rates.
+        recovered from its record) and the Python wrappers around it. Each world comes back with its tide
+        model and ``[tides]`` settings, spin model, pinned solver settings, and (for a star) luminosity
+        model; solved state is not saved, so call ``solve_eos`` on each layered world before evolving.
 
         Parameters
         ----------

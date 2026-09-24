@@ -4,8 +4,10 @@
  * Owns its layers inner to outer, index 0 innermost, and provides the whole-planet aggregates and geometry
  * validation. The whole-planet EOS and radial (Love number) solves, which walk every layer, are methods here.
  *
- * Binary payload: the c_BaseWorld fields then the layer count, followed by each layer's own complete binary
- * record, in index order, as separate appended records.
+ * Binary payload: the c_BaseWorld fields and tide section (tide configuration and model), the layer count, the
+ * spin model's moment-of-inertia factor, and the pinned [eos_solver] and [radial_solver] settings (each key a
+ * presence flag, then its value when set), followed by each layer's own complete binary record, in index order, as
+ * separate appended records. Solved state (the EOS profile, Love numbers, tide results) is not saved.
  */
 
 #include <algorithm>
@@ -18,6 +20,7 @@
 #include <mutex>
 #include <optional>
 #include <ostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -2214,11 +2217,23 @@ public:
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         c_TidalPyBaseClass::read_binary(in, force);
         this->read_world_fields(in);
-        uint64_t n_layers = 0;
-        in.read(reinterpret_cast<char*>(&n_layers), sizeof(uint64_t));
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read LayeredWorld binary data");
         }
+        this->read_tide_section(in, force);
+        uint64_t n_layers = 0;
+        in.read(reinterpret_cast<char*>(&n_layers), sizeof(uint64_t));
+        c_SpinConfig spin_config;
+        in.read(reinterpret_cast<char*>(&spin_config.moment_of_inertia_factor), sizeof(double));
+        if (!in) {
+            throw std::runtime_error("TidalPy: failed to read LayeredWorld binary data");
+        }
+        try {
+            this->p_spin = c_Spin(spin_config);
+        } catch (const std::invalid_argument& error) {
+            throw std::runtime_error(std::string("TidalPy: corrupt LayeredWorld binary data: ") + error.what());
+        }
+        this->read_solver_overrides(in);
         check_binary_count(in, n_layers, sizeof(c_BinaryHeader), "layer");
         this->p_layers.clear();
         this->p_layers.reserve(n_layers);
@@ -2235,16 +2250,102 @@ public:
 protected:
     // Shared so a subclass reuses the layout with its own BinaryClassID.
     void write_layered_binary(std::ostream& out, uint32_t class_id) const {
-        const uint64_t payload = this->world_payload_bytes() + sizeof(uint64_t);
+        std::ostringstream overrides_stream;
+        this->write_solver_overrides(overrides_stream);
+        const std::string overrides_bytes = overrides_stream.str();
+        const uint64_t payload = this->world_payload_bytes() + tide_section_payload_bytes()
+            + sizeof(uint64_t) + sizeof(double) + static_cast<uint64_t>(overrides_bytes.size());
         write_binary_header(out, class_id, payload);
         this->write_world_fields(out);
+        this->write_tide_section(out);
         const auto n_layers = static_cast<uint64_t>(this->p_layers.size());
         out.write(reinterpret_cast<const char*>(&n_layers), sizeof(uint64_t));
+        const double moi_factor = this->p_spin.get_config().moment_of_inertia_factor;
+        out.write(reinterpret_cast<const char*>(&moi_factor), sizeof(double));
+        out.write(overrides_bytes.data(), static_cast<std::streamsize>(overrides_bytes.size()));
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write layered-world binary data");
         }
         // Each layer writes its own complete record, its models included.
         for (const auto& layer : this->p_layers) { layer->write_binary(out); }
+    }
+
+    // One pinned solver key: a presence flag, then the value as the fixed-width Stored type when set.
+    template <typename Stored, typename Value>
+    static void write_optional_setting(std::ostream& out, const std::optional<Value>& setting) {
+        const uint8_t present = setting.has_value() ? 1 : 0;
+        out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
+        if (setting.has_value()) {
+            const Stored stored = static_cast<Stored>(*setting);
+            out.write(reinterpret_cast<const char*>(&stored), sizeof(Stored));
+        }
+    }
+
+    template <typename Stored, typename Value>
+    static void read_optional_setting(std::istream& in, std::optional<Value>& setting) {
+        uint8_t present = 0;
+        in.read(reinterpret_cast<char*>(&present), sizeof(uint8_t));
+        if (present) {
+            Stored stored {};
+            in.read(reinterpret_cast<char*>(&stored), sizeof(Stored));
+            setting = static_cast<Value>(stored);
+        } else {
+            setting.reset();
+        }
+    }
+
+    // The [eos_solver] then the [radial_solver] keys, in declaration order: ODE methods as int32_t, counts as
+    // uint64_t, switches as uint8_t.
+    void write_solver_overrides(std::ostream& out) const {
+        const c_EOSSolverOverrides& eos = this->p_eos_solver_overrides;
+        write_optional_setting<int32_t>(out, eos.integration_method);
+        write_optional_setting<double>(out, eos.rtol);
+        write_optional_setting<double>(out, eos.atol);
+        write_optional_setting<double>(out, eos.pressure_tol);
+        write_optional_setting<uint64_t>(out, eos.max_iters);
+        write_optional_setting<uint64_t>(out, eos.slices_per_layer);
+        write_optional_setting<uint8_t>(out, eos.nondimensionalize);
+        write_optional_setting<uint8_t>(out, eos.solve_temperature);
+        const c_RadialSolverOverrides& radial = this->p_radial_solver_overrides;
+        write_optional_setting<int32_t>(out, radial.integration_method);
+        write_optional_setting<double>(out, radial.rtol);
+        write_optional_setting<double>(out, radial.atol);
+        write_optional_setting<uint8_t>(out, radial.use_kamata);
+        write_optional_setting<double>(out, radial.start_radius_tol);
+        write_optional_setting<uint8_t>(out, radial.scale_rtols);
+        write_optional_setting<uint64_t>(out, radial.max_num_steps);
+        write_optional_setting<uint64_t>(out, radial.expected_size);
+        write_optional_setting<uint64_t>(out, radial.max_ram_MB);
+        write_optional_setting<uint8_t>(out, radial.nondimensionalize);
+    }
+
+    // Reads into locals and commits only when the whole block was read.
+    void read_solver_overrides(std::istream& in) {
+        c_EOSSolverOverrides eos;
+        read_optional_setting<int32_t>(in, eos.integration_method);
+        read_optional_setting<double>(in, eos.rtol);
+        read_optional_setting<double>(in, eos.atol);
+        read_optional_setting<double>(in, eos.pressure_tol);
+        read_optional_setting<uint64_t>(in, eos.max_iters);
+        read_optional_setting<uint64_t>(in, eos.slices_per_layer);
+        read_optional_setting<uint8_t>(in, eos.nondimensionalize);
+        read_optional_setting<uint8_t>(in, eos.solve_temperature);
+        c_RadialSolverOverrides radial;
+        read_optional_setting<int32_t>(in, radial.integration_method);
+        read_optional_setting<double>(in, radial.rtol);
+        read_optional_setting<double>(in, radial.atol);
+        read_optional_setting<uint8_t>(in, radial.use_kamata);
+        read_optional_setting<double>(in, radial.start_radius_tol);
+        read_optional_setting<uint8_t>(in, radial.scale_rtols);
+        read_optional_setting<uint64_t>(in, radial.max_num_steps);
+        read_optional_setting<uint64_t>(in, radial.expected_size);
+        read_optional_setting<uint64_t>(in, radial.max_ram_MB);
+        read_optional_setting<uint8_t>(in, radial.nondimensionalize);
+        if (!in) {
+            throw std::runtime_error("TidalPy: failed to read the LayeredWorld solver settings binary data");
+        }
+        this->p_eos_solver_overrides    = eos;
+        this->p_radial_solver_overrides = radial;
     }
 
     // Store a layer's frequency-independent viscoelastic state over its radial slice: the pre-melt static

@@ -2,8 +2,8 @@
 
 A world with no tide model is rigid: it raises no tide, so its evolution rates are zero. The evolution results say
 so through ``has_tide_model`` (``evolved`` stays ``True``), and the system logs a warning once per world when a
-result is zero for that reason. Tide models are not serialized, so every world of a freshly loaded system is rigid
-until its tide model is reattached. A system binary whose roles or orbits are corrupt raises instead of loading.
+result is zero for that reason. Tide models are saved with their worlds, so a loaded system evolves as the saved
+one did. A system binary whose roles or orbits are corrupt raises instead of loading.
 """
 import math
 import struct
@@ -144,7 +144,7 @@ def test_rigid_host_beside_dissipating_world_not_warned(spdlog_text):
 # =====================================================================================================================
 # Tide models after a binary round trip
 # =====================================================================================================================
-def test_loaded_system_reports_missing_tide_models(tmp_path, spdlog_text):
+def test_loaded_system_keeps_its_tide_models(tmp_path, spdlog_text):
     system = _system(name="saved", star_tides=True, companion_tides=True)
     reference_world = system.calc_world_evolution("companion")
     reference_pair = system.calc_pair_evolution("companion")
@@ -156,26 +156,17 @@ def test_loaded_system_reports_missing_tide_models(tmp_path, spdlog_text):
     loaded = System()
     loaded.load_binary(path)
 
-    # Tide models are not serialized: the loaded worlds are rigid until reattached, and say so.
+    # The loaded system reproduces the original rates without reattaching anything, and warns about nothing.
     result = loaded.calc_world_evolution("companion")
     assert result["evolved"] is True
-    assert result["has_tide_model"] is False
-    assert result["da_dt"] == 0.0
-    pair = loaded.calc_pair_evolution("companion")
-    assert pair["has_tide_model"] is False
-    assert pair["world"]["has_tide_model"] is False and pair["host"]["has_tide_model"] is False
-    assert _WARNING_TEXT in spdlog_text()
-
-    # Reattached, the loaded system reproduces the original rates.
-    _attach_fixed_q(loaded["star"])
-    _attach_fixed_q(loaded["companion"])
-    result = loaded.calc_world_evolution("companion")
     assert result["has_tide_model"] is True
     for key in ("tidal_heating", "da_dt", "de_dt", "dn_dt"):
         assert math.isclose(result[key], reference_world[key], rel_tol=1e-12), key
     pair = loaded.calc_pair_evolution("companion")
     assert pair["has_tide_model"] is True
+    assert pair["world"]["has_tide_model"] is True and pair["host"]["has_tide_model"] is True
     assert math.isclose(pair["da_dt"], reference_pair["da_dt"], rel_tol=1e-12)
+    assert _WARNING_TEXT not in spdlog_text()
 
 
 # =====================================================================================================================

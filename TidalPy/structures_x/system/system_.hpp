@@ -70,8 +70,7 @@ inline void c_check_orbit(double semi_major_axis, double eccentricity, const std
 // and the raw tidal outputs so the energy balance can be checked. evolved is false when the world has no
 // tidal host or no usable orbit about it, and the numeric fields are then unset. has_tide_model is false for a
 // rigid world (no tide model attached): it raises no tide, so its rates and energy terms are zero while evolved
-// stays true. Tide models are not serialized, so every world of a freshly loaded system reports false until one
-// is reattached.
+// stays true.
 struct c_WorldEvolution {
     std::size_t world_index    = 0;
     bool        evolved        = false;
@@ -747,8 +746,9 @@ public:
     }
 
     // The container state, then every world's complete binary record; read_binary rebuilds the
-    // heterogeneous world list through c_world_from_binary. Physics sub-models a world does not serialize
-    // are reattached after load. c_OrbitSolver is stateless, so it needs no serialized state.
+    // heterogeneous world list through c_world_from_binary, each world with its models and settings; only solved
+    // state (the EOS profiles) is recomputed after load. c_OrbitSolver is stateless, so it needs no serialized
+    // state.
     void write_binary(std::ostream& out) const override {
         const auto num_worlds = static_cast<uint64_t>(this->p_worlds.size());
         uint64_t payload =
@@ -887,8 +887,7 @@ protected:
     }
 
     // Warns, once per world of this system, that a world with no tide model is rigid, so the evolution it enters
-    // has zero rates. Tide models are not serialized, so this is also how a loaded system whose tide models were
-    // not reattached shows up. The flags are shared by concurrent evolution calls, hence the lock.
+    // has zero rates. The flags are shared by concurrent evolution calls, hence the lock.
     void p_warn_no_tide_model(std::size_t index) {
         {
             const std::lock_guard<std::mutex> lock(this->p_warning_mutex);
@@ -899,8 +898,8 @@ protected:
         }
         TIDALPY_LOG_WARN(
             "TidalPy: world '{}' of system '{}' has no tide model, so it is rigid: it raises no tide and the "
-            "evolution rates it enters are zero (has_tide_model is false in the result). Tide models are not saved "
-            "in binary files; reattach one with set_tide_model after load_binary. Shown once per world.",
+            "evolution rates it enters are zero (has_tide_model is false in the result). Attach one with "
+            "set_tide_model. Shown once per world.",
             this->p_worlds[index]->get_name(), this->p_name);
     }
 

@@ -17,6 +17,11 @@
  *     emissivity               (double, 8)
  *     obliquity            (double, 8)
  *     spin_frequency     (double, 8)
+ *   then the tide section, which every world class writes right after these fields:
+ *     min_degree_l, max_degree_l, eccentricity_truncation, obliquity_truncation, love_method (int32_t, 4 each)
+ *     layer_tidal_heating      (uint8_t, 1)
+ *     love_fixed_q, love_fixed_dt (double, 8 each)
+ *     tide model presence flag (uint8_t, 1), followed when set by the tide model's own complete record
  */
 
 #include <cmath>
@@ -36,6 +41,7 @@
 // calc_tides definition in world_tides_base_.hpp.
 #include "../../Tides_x/classes/tide_base_.hpp"     // tidalpy::c_TideBase, c_LoveNumbers
 #include "../../Tides_x/classes/tide_result_.hpp"   // c_TideConfig, c_TideSolveConfig, c_GlobalTideResult
+#include "../../Tides_x/classes/tide_.hpp"          // c_tide_from_binary (the tide model in the world record)
 #include "../../Utilities_x/lookups/keys_.hpp"      // c_Key4
 #include "../../Utilities_x/lookups/intmap_.hpp"    // c_IntMap (per-mode solver Love-number store)
 
@@ -138,6 +144,11 @@ public:
     // Throws std::invalid_argument for a degree range outside 2 <= min <= max <= 10 (the tabulated degrees) or a
     // non-positive Love-method Q or negative time lag (NaN leaves either unset).
     void set_tide_config(const c_TideConfig& cfg) {
+        validate_tide_config(cfg);
+        this->p_tide_config  = cfg;
+        this->p_tides_solved = false;
+    }
+    static void validate_tide_config(const c_TideConfig& cfg) {
         if (!((cfg.min_degree_l >= 2) && (cfg.min_degree_l <= cfg.max_degree_l) && (cfg.max_degree_l <= 10))) {
             throw std::invalid_argument(
                 "TidalPy: the tidal degree range must satisfy 2 <= min_degree_l <= max_degree_l <= 10; got " +
@@ -149,8 +160,6 @@ public:
         if (cfg.love_fixed_dt < 0.0) {
             throw std::invalid_argument("TidalPy: love_fixed_dt must not be negative (NaN leaves it unset).");
         }
-        this->p_tide_config  = cfg;
-        this->p_tides_solved = false;
     }
     const c_TideConfig& get_tide_config() const noexcept { return this->p_tide_config; }
 
@@ -204,6 +213,7 @@ public:
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read BaseWorld binary data");
         }
+        this->read_tide_section(in, force);
     }
 
 protected:
@@ -216,13 +226,70 @@ protected:
              + sizeof(double) * 4;                      // albedo, emissivity, obliquity, spin
     }
 
-    // Write the c_BaseWorld payload (header + fields) for the given class id.
+    // Write the c_BaseWorld record (header, fields, tide section) for the given class id.
     void write_world_binary(std::ostream& out, uint32_t class_id) const {
-        write_binary_header(out, class_id, this->world_payload_bytes());
+        write_binary_header(out, class_id, this->world_payload_bytes() + tide_section_payload_bytes());
         this->write_world_fields(out);
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write world binary data");
         }
+        this->write_tide_section(out);
+    }
+
+    // The tide section: the [tides] configuration, then the tide model as an optional sub-object, so a loaded
+    // world dissipates as the saved one did. The payload counts the configuration and the presence flag; the
+    // model's own record follows as a separate appended record. Tide results are not saved (recompute them).
+    static constexpr uint64_t tide_section_payload_bytes() noexcept {
+        return 5 * sizeof(int32_t) + sizeof(uint8_t) + 2 * sizeof(double) + optional_binary_flag_bytes();
+    }
+
+    void write_tide_section(std::ostream& out) const {
+        const c_TideConfig& cfg = this->p_tide_config;
+        const int32_t ints[5] = {
+            cfg.min_degree_l, cfg.max_degree_l, cfg.eccentricity_truncation, cfg.obliquity_truncation,
+            cfg.love_method};
+        out.write(reinterpret_cast<const char*>(ints), sizeof(ints));
+        const uint8_t layer_heating_byte = cfg.layer_tidal_heating ? 1 : 0;
+        out.write(reinterpret_cast<const char*>(&layer_heating_byte), sizeof(uint8_t));
+        out.write(reinterpret_cast<const char*>(&cfg.love_fixed_q),  sizeof(double));
+        out.write(reinterpret_cast<const char*>(&cfg.love_fixed_dt), sizeof(double));
+        if (!out) {
+            throw std::runtime_error("TidalPy: failed to write world tide configuration binary data");
+        }
+        write_optional_binary(out, this->p_tide);
+    }
+
+    // Reads into locals and commits only once the whole section is read and valid, so a corrupt record throws
+    // std::runtime_error without replacing the world's tide model or configuration.
+    void read_tide_section(std::istream& in, bool force) {
+        int32_t ints[5] = {0, 0, 0, 0, 0};
+        in.read(reinterpret_cast<char*>(ints), sizeof(ints));
+        uint8_t layer_heating_byte = 1;
+        in.read(reinterpret_cast<char*>(&layer_heating_byte), sizeof(uint8_t));
+        c_TideConfig cfg;
+        cfg.min_degree_l            = ints[0];
+        cfg.max_degree_l            = ints[1];
+        cfg.eccentricity_truncation = ints[2];
+        cfg.obliquity_truncation    = ints[3];
+        cfg.love_method             = ints[4];
+        cfg.layer_tidal_heating     = (layer_heating_byte != 0);
+        in.read(reinterpret_cast<char*>(&cfg.love_fixed_q),  sizeof(double));
+        in.read(reinterpret_cast<char*>(&cfg.love_fixed_dt), sizeof(double));
+        if (!in) {
+            throw std::runtime_error("TidalPy: failed to read world tide configuration binary data");
+        }
+        try {
+            validate_tide_config(cfg);
+        } catch (const std::invalid_argument& error) {
+            throw std::runtime_error(std::string("TidalPy: corrupt world binary data: ") + error.what());
+        }
+        std::unique_ptr<c_TideBase> tide = read_optional_binary<c_TideBase>(in, force, c_tide_from_binary);
+
+        this->p_tide_config  = cfg;
+        this->p_tide         = std::move(tide);
+        this->p_tides_solved = false;
+        this->p_tide_result  = c_GlobalTideResult();
+        this->p_tide_solver_love.clear();
     }
 
     // Write only the c_BaseWorld fields (no header) so subclasses can append.
@@ -284,7 +351,8 @@ protected:
     }
     mutable bool p_obliquity_off_warned = false;
 
-    // Global (1D) tidal dissipation state (results are not serialized; recompute with calc_tides).
+    // Global (1D) tidal dissipation state. The configuration and model are serialized (the tide section); the
+    // results are not (recompute with calc_tides).
     c_TideConfig                         p_tide_config;
     std::unique_ptr<c_TideBase>          p_tide;
     c_GlobalTideResult                   p_tide_result;

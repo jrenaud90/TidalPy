@@ -21,8 +21,8 @@ namespace tidalpy {
 
 // Peeks the upcoming record's BinaryClassID without consuming it, builds the matching world as a shared_ptr (so
 // a c_System and the Python wrapper can co-own it), then calls its read_binary. Throws std::runtime_error when
-// the class id is not a known world type. Sub-models a world does not serialize (the star's luminosity model,
-// the layer EOS profile data) are reattached after load.
+// the class id is not a known world type. The layer EOS profile data is not serialized; re-run solve_eos after
+// load.
 inline std::shared_ptr<c_BaseWorld> c_world_from_binary(std::istream& in, bool force = false) {
     const std::streampos start = in.tellg();
     const c_BinaryHeader header = read_binary_header(in);
