@@ -444,7 +444,10 @@ default_config_str = """
                 # Castillo-Rogez et al. (2007). Table 3 quotes each long-lived isotope's own concentration at
                 # formation (the Table 4 isotopic abundances are present-day values), so those carry a mass
                 # fraction of 1. The short-lived isotopes carry the Table 5 initial ratio of the element
-                # concentration that reproduces Table 3 (60Fe at the 1e-6 of the paper's SLRI models).
+                # concentration that reproduces Table 3 (60Fe at the 1e-6 of the paper's SLRI models). The decay data
+                # are corrected from the paper, whose values disagree with the decay energies: K40 half life 1248 Myr;
+                # Al26 0.355 W/kg at 0.717 Myr (Lebrun et al. 2013); Fe60 0.0366 W/kg at 2.62 Myr (Rugel et al.
+                # 2009); Mn53 5.8e-5 W/kg (electron capture deposits only its X-ray and Auger energy).
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.U238]
                     iso_mass_fraction = 1.0
                     hpr = 9.465e-5
@@ -463,21 +466,21 @@ default_config_str = """
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.K40]
                     iso_mass_fraction = 1.0
                     hpr = 2.917e-5
-                    half_life = 1277.0
+                    half_life = 1248.0
                     element_concentration = 1104.0e-9
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.Mn53]
                     iso_mass_fraction = 1.0e-5
-                    hpr = 0.027
+                    hpr = 5.8e-5
                     half_life = 3.7
                     element_concentration = 2.57e-3
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.Fe60]
                     iso_mass_fraction = 1.0e-6
-                    hpr = 0.071
-                    half_life = 1.5
+                    hpr = 0.0366
+                    half_life = 2.62
                     element_concentration = 0.225
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.Al26]
                     iso_mass_fraction = 5.0e-5
-                    hpr = 0.146
-                    half_life = 0.723
+                    hpr = 0.355
+                    half_life = 0.717
                     element_concentration = 1.2e-2
 """

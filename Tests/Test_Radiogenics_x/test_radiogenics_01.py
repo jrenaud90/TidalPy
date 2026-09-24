@@ -380,8 +380,8 @@ def test_llri_heating_finite_at_formation():
     """The LLRI+SLRI dataset gives the formation-epoch heating its table implies, dominated by Al26.
 
     The specific heating at formation is the sum of heat production times Table 3 concentration: Al26 gives
-    0.146 W/kg * 600 ppb = 8.8e-8 W/kg of about 1.0e-7 W/kg, and the long-lived isotopes about 4e-11 W/kg. The
-    short-lived isotopes are gone within a few tens of Myr.
+    0.355 W/kg * 600 ppb = 2.13e-7 W/kg of about 2.21e-7 W/kg, Fe60 most of the rest, and the long-lived isotopes
+    about 4e-11 W/kg. The short-lived isotopes are gone within a few tens of Myr.
     """
     mod = _import_radiogenics()
     model = mod.IsotopeRadiogenics.from_dataset("llri_and_slri")
@@ -394,7 +394,7 @@ def test_llri_heating_finite_at_formation():
         heat_production * _CASTILLO_ROGEZ_TABLE_3[isotope]
         for isotope, heat_production in zip(dataset["isotope_names"], dataset["heat_production_w_kg"]))
     assert heating_formation == pytest.approx(expected * _MASS, rel=1e-12)
-    assert heating_formation / _MASS == pytest.approx(1.043e-7, rel=1e-3)
+    assert heating_formation / _MASS == pytest.approx(2.2128e-7, rel=1e-3)
     # Monotonic decay; once Al26 and Fe60 are gone, only a small fraction of the formation heating remains.
     assert heating_10myr < heating_formation
     assert heating_100myr < heating_10myr

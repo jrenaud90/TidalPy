@@ -135,14 +135,16 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name);
 // Table 4, concentrations from their Table 3. Table 3 quotes each isotope's own concentration, already decayed back
 // to formation, while the isotopic abundances of Table 4 are present-day values that do not hold at formation, so
 // each isotope is entered with its own concentration and a mass fraction of 1. The Th232 half life is the middle
-// of the quoted 14010 to 14050 Myr.
+// of the quoted 14010 to 14050 Myr. The K40 half life is 1248 Myr, not the table's 1277 Myr, which its own decay
+// constant (5.54e-10 per year) contradicts. Table 4 labels heat production per kg of element; the values are per kg
+// of isotope, as used here.
 inline std::vector<c_Isotope> c_castillo_rogez_2007_llri() {
     const double myr = TidalPyConstants::d_SECONDS_PER_MYR;
     return {
         c_Isotope("U238",  9.465e-5, 4468.0  * myr, 1.0, 26.2e-9),
         c_Isotope("U235",  5.687e-4, 703.81  * myr, 1.0, 8.2e-9),
         c_Isotope("Th232", 2.638e-5, 14030.0 * myr, 1.0, 53.8e-9),
-        c_Isotope("K40",   2.917e-5, 1277.0  * myr, 1.0, 1104.0e-9),
+        c_Isotope("K40",   2.917e-5, 1248.0  * myr, 1.0, 1104.0e-9),
     };
 }
 
@@ -150,14 +152,18 @@ inline std::vector<c_Isotope> c_castillo_rogez_2007_llri() {
 // isotopic ratios from their Table 5. Each element concentration is the Table 3 isotope concentration divided by
 // that ratio, as the paper builds Table 3 (26Al: 5e-5 of 1.2 wt% aluminum is 600 ppb), so the product reproduces
 // Table 3 exactly. The ratio to the stable isotope stands in for the mass fraction within the element, as it does
-// in the paper. Where Table 5 quotes a range, the Fe60 ratio is the 1e-6 of the paper's short-lived-isotope models
-// and the Al26 half life and Fe60 heat production are the middle of the range.
+// in the paper; the Fe60 ratio is the 1e-6 of the paper's short-lived-isotope models. The decay data are corrected
+// from Table 5, whose values are inconsistent with the decay energies: Al26 deposits 3.12 MeV per decay, 0.355 W/kg
+// at a 0.717 Myr half life (Lebrun et al. 2013, after Sramek et al. 2012; Table 5's 0.146 W/kg implies 1.29 MeV);
+// Fe60 has a 2.62 Myr half life (Rugel et al. 2009, PRL 103, 072502) and deposits 2.71 MeV with its Co60 daughter,
+// 0.0366 W/kg; Mn53 decays by electron capture and deposits only its X-ray and Auger energy, about 5 keV, 5.8e-5 W/kg
+// (Table 5's 0.027 W/kg exceeds its whole 0.597 MeV decay energy).
 inline std::vector<c_Isotope> c_castillo_rogez_2007_slri() {
     const double myr = TidalPyConstants::d_SECONDS_PER_MYR;
     return {
-        c_Isotope("Al26", 0.146, 0.723 * myr, 5.0e-5, 1.2e-2),
-        c_Isotope("Fe60", 0.071, 1.5   * myr, 1.0e-6, 0.225),
-        c_Isotope("Mn53", 0.027, 3.7   * myr, 1.0e-5, 2.57e-3),
+        c_Isotope("Al26", 0.355,  0.717 * myr, 5.0e-5, 1.2e-2),
+        c_Isotope("Fe60", 0.0366, 2.62  * myr, 1.0e-6, 0.225),
+        c_Isotope("Mn53", 5.8e-5, 3.7   * myr, 1.0e-5, 2.57e-3),
     };
 }
 
