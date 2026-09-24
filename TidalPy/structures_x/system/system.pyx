@@ -313,11 +313,13 @@ cdef class System:
 
     # Orbital elements about the tidal host (per orbiting world; identify a world by index, name, or object)
     def set_semi_major_axis(self, world, double semi_major_axis):
-        """Set a world's semi-major axis about its tidal host [m]."""
+        """Set a world's semi-major axis about its tidal host [m]. For a world whose tidal host is the star this
+        is also its semi-major axis about the star."""
         self._system.get().set_semi_major_axis(<size_t>self._resolve_index(world), semi_major_axis)
 
     def set_eccentricity(self, world, double eccentricity):
-        """Set a world's orbital eccentricity about its tidal host."""
+        """Set a world's orbital eccentricity about its tidal host. For a world whose tidal host is the star this
+        is also its eccentricity about the star."""
         self._system.get().set_eccentricity(<size_t>self._resolve_index(world), eccentricity)
 
     def get_semi_major_axis(self, world) -> float:

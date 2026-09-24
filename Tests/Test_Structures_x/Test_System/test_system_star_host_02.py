@@ -29,3 +29,21 @@ def test_two_different_orbits_are_refused():
     with pytest.raises(ValueError, match="differ"):
         system.set_tidal_host(planet, "sun")
     assert not system.has_tidal_host(planet)
+
+
+@pytest.mark.parametrize("setter, getter, value", [
+    ("set_eccentricity", "get_stellar_eccentricity", 0.1),
+    ("set_semi_major_axis", "get_stellar_semi_major_axis", 2.0 * AU)])
+def test_changing_the_tidal_orbit_moves_the_stored_stellar_orbit(setter, getter, value):
+    # Changing a star-hosted world's orbit, moving its tidal host away, and restoring the star must not leave a
+    # stale stellar copy that conflicts with the tidal orbit.
+    system, planet = _system_with_planet(semi_major_axis=AU)
+    system.add_world(LayeredWorld("moon", 1.7e6, 7.3e22), semi_major_axis=3.8e8)
+    system.set_tidal_host(planet, "sun")
+    system.set_eccentricity(planet, 0.05)
+    getattr(system, setter)(planet, value)
+    system.set_tidal_host(planet, "moon")
+    assert getattr(system, getter)(planet) == pytest.approx(value)
+    system.set_tidal_host(planet, "sun")
+    assert getattr(system, getter)(planet) == pytest.approx(value)
+    assert system.get_tidal_host(planet).name == "sun"

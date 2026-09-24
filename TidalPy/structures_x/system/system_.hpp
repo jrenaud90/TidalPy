@@ -302,15 +302,20 @@ public:
         return star->get_luminosity();
     }
 
+    // For a world whose tidal host is the star the two element sets are one orbit, so these also set the stellar
+    // elements (as the stellar setters set the tidal ones); a stale stellar copy would otherwise conflict with the
+    // tidal orbit once the host changes away from the star and back.
     void set_semi_major_axis(std::size_t index, double semi_major_axis) {
         this->check_index(index);
         c_check_orbit(semi_major_axis, 0.0, this->p_worlds[index]->get_name());
         this->p_orbits[index].semi_major_axis = semi_major_axis;
+        if (this->is_hosted_by_star(index)) { this->p_stellar_orbits[index].semi_major_axis = semi_major_axis; }
     }
     void set_eccentricity(std::size_t index, double eccentricity) {
         this->check_index(index);
         c_check_orbit(TidalPyConstants::d_NAN, eccentricity, this->p_worlds[index]->get_name());
         this->p_orbits[index].eccentricity = eccentricity;
+        if (this->is_hosted_by_star(index)) { this->p_stellar_orbits[index].eccentricity = eccentricity; }
     }
 
     // A world whose tidal host is the star has one orbit, stored in both element sets. When it becomes star-hosted
