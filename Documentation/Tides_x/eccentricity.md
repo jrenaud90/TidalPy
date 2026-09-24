@@ -69,6 +69,11 @@ The series of the highest-$\lvert q \rvert$ modes converge slowly at large $e$, 
 
 The mode range follows from the tolerance `eccentricity_exact_tolerance` (`[tides]`, default $10^{-4}$): the modes kept are those whose $q^2$-weighted squares leave a tail below that fraction of the whole. That weight is the synchronous constant-time-lag heating's, the most demanding of the tide models measured, so the tolerance bounds its relative error; against Hut (1981) the heating is within the tolerance from $e = 0.1$ to $0.9$. The price is modes: at $10^{-4}$ it keeps about $\lvert q \rvert \le 55$ at $e = 0.7$, 105 at 0.8, and 320 at 0.9, against 25 for level 50. Each distinct forcing frequency needs its own Love number solve, so at $e = 0.9$ a rheology tide solves a few hundred of them per call. The transform itself costs about 0.1 ms per degree at small $e$ and 2 ms at $e = 0.9$ (7 ms at degree 10).
 
+> [!NOTE]
+> The tolerance guarantee has one blind spot: a body that rings. Deciding which modes to drop, the exact option assumes the fast, high-$q$ modes matter less and less, which is true for the fixed-Q and fixed-time-lag models and for most viscoelastic bodies. A body solved with inertia (a dynamic layer) also has natural vibration frequencies, like a bell. A tidal mode that happens to force the body near one of them is amplified enormously, so it can matter even though it looks negligible by the usual measure. If that mode lies just outside the kept range, its heating is missed.
+>
+> This only matters at high eccentricity, where the orbit forces the body at very high frequencies. In the [exact-orbit benchmark](../../Benchmarks_x/Tides/Exact_Orbit_Tidal_Heating.ipynb), a dynamic Maxwell Io at $e = 0.8$ rings at about 147 times its orbital frequency, a period of 17 minutes. At the default tolerance, 0.13% of its heating is missed, far more than the $10^{-4}$ promised. A tolerance of $10^{-10}$ keeps enough modes to include the resonance, and then the heating is right to $10^{-12}$. The tabulated levels miss such modes as well. For a dynamic body at high eccentricity, tighten the tolerance until the heating stops changing.
+
 Past about $e = 0.99$ the functions would need more than 20000 modes and are refused.
 
 ## Choosing a Truncation

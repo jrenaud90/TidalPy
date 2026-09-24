@@ -22,6 +22,7 @@ These demos target the Python API. C++ API demos may be added later.
 
 14. `14_bundled_worlds`: a tour of the bundled worlds, checking each solved interior's mass, moment of inertia, and Love number against the observations it was fitted to or predicts; Jupiter's layered interior, Pluto's ocean, Io's heat budget, and the TRAPPIST-1 planets.
 15. `15_thermal_interior`: the cooling and radiogenic model families, the temperature and heat-flow profile carried through the equation-of-state solve, tidal heating by layer, and a simple heat budget.
+17. `17_tidal_truncations`: the eccentricity and obliquity truncation levels; heating and $\dot{e}$ against eccentricity at each level and with the exact eccentricity functions, and the error of each; how many modes the exact functions need; the cost of each level with closed-form and radial-solver Love numbers; and the helpers that pick a level.
 
 ### Systems
 11. `11_multi_world`: constructing systems of multiple worlds, changing tidal hosts, adding and removing planets, saving and loading systems, and the instantaneous spin, semi-major axis, and eccentricity derivatives.
