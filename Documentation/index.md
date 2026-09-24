@@ -92,8 +92,11 @@ Demos_x/Systems/16_earth_moon_sun.ipynb
 
 Benchmarks_x/RadialSolver/Earth_Love_Numbers.ipynb
 Benchmarks_x/RadialSolver/Enceladus_Tobie_Roberts.ipynb
+Benchmarks_x/RadialSolver/Homogeneous_Viscoelastic_Love_Numbers.ipynb
 Benchmarks_x/EOS/EOS_vs_BurnMan.ipynb
 Benchmarks_x/Tides/Renaud2021_Dual_Body_Eccentric.ipynb
+Benchmarks_x/Tides/Hut1981_Constant_Time_Lag.ipynb
+Benchmarks_x/Tides/Exact_Orbit_Tidal_Heating.ipynb
 Benchmarks_x/Performance/Perf_Trends.ipynb
 ```
 

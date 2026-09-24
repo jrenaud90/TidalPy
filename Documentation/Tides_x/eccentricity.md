@@ -50,7 +50,17 @@ The count below is the number of non-zero modes at degree $l = 2$; higher degree
 
 The very large truncations can carry numerical error. Treat their results with suspicion and test sensitivity by pushing $e$ into the range where the extra terms start to matter, then check that the answer is stable.
 
-Renaud et al. (2021) found that $e^{10}$ terms matter once eccentricity passes roughly 0.5: at $e = 0.8$, heating computed at truncation 5 is up to two orders of magnitude below the truncation 10 result.
+Every level is a power series in $e$ cut at a fixed order, and none is reliable at high eccentricity. Against the closed-form constant-time-lag heating of Hut (1981), exact in $e$ (see the benchmark `Benchmarks_x/Tides/Hut1981_Constant_Time_Lag.ipynb`), the error in synchronous-rotation heating is:
+
+| Truncation | Error below $10^{-6}$ up to | Error below 1% up to |
+|---|---|---|
+| 2 | - | $e pprox 0.05$ |
+| 5 | $e pprox 0.05$ | $e pprox 0.21$ |
+| 10 | $e pprox 0.25$ | $e pprox 0.37$ |
+| 15 | $e pprox 0.31$ | $e pprox 0.44$ |
+| 20 | $e pprox 0.37$ | $e pprox 0.48$ |
+
+Above $e pprox 0.5$ every level is off by tens of percent or more, and from $e pprox 0.55$ a higher level is worse, not better (truncation 20 is 8 times too high at $e = 0.6$): the series converge slowly toward the Laplace limit, $e pprox 0.663$. Renaud et al. (2021) found that the $e^{10}$ terms matter once the eccentricity passes about 0.1 to 0.3; results beyond $e pprox 0.5$ from any tabulated level, theirs included, should be treated as qualitative.
 
 The cost is worse than linear. Each new truncation activates new tidal modes, and new modes can introduce new unique forcing frequencies, each of which needs its own Love number solve. Doubling the mode count more than doubles the work, and the effect compounds at $l > 2$ because higher degrees activate more modes of their own. We recommend the lowest truncation that covers your eccentricity values. In a numerical integration where eccentricity may be driven higher (_e.g._, in a mean motion resonance), a truncation adequate for the initial eccentricity may become inaccurate as the eccentricity rises.
 
