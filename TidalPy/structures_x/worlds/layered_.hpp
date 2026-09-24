@@ -1776,15 +1776,18 @@ public:
             double bulk_sum            = 0.0;
             double log_shear_visc_sum  = 0.0;
             double log_bulk_visc_sum   = 0.0;
+            // One dense evaluation per node gives all four quantities.
+            double state[C_EOS_DY_VALUES];
             for (std::size_t i = 0; i <= n_intervals; ++i) {
                 const double r = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * dr;
                 const double simpson = (i == 0 || i == n_intervals) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
                 const double weight = simpson * r * r;
+                physics->get_eos_state(r, state);
                 weight_sum         += weight;
-                shear_sum          += weight * physics->get_shear_modulus(r);     // post-melt
-                bulk_sum           += weight * physics->get_bulk_modulus(r);
-                log_shear_visc_sum += weight * std::log10(physics->get_shear_viscosity(r));
-                log_bulk_visc_sum  += weight * std::log10(physics->get_bulk_viscosity(r));
+                shear_sum          += weight * state[C_EOS_SHEAR_MODULUS_INDEX];     // post-melt
+                bulk_sum           += weight * state[C_EOS_BULK_MODULUS_INDEX];
+                log_shear_visc_sum += weight * std::log10(state[C_EOS_SHEAR_VISCOSITY_INDEX]);
+                log_bulk_visc_sum  += weight * std::log10(state[C_EOS_BULK_VISCOSITY_INDEX]);
             }
             c_HomogeneousLayer averaged;
             averaged.layer           = physics;

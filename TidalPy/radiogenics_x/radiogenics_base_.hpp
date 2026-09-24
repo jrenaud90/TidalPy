@@ -24,8 +24,8 @@ public:
     // Time [s] the model's quoted abundances or rate apply at; zero for a model with no decay.
     virtual double get_ref_time() const noexcept { return 0.0; }
 
-    // Over time at constant mass.
-    void calc_heating_vectorize_time(
+    // Over time at constant mass. The vectorized calls are virtual so a model can hoist per-call constants.
+    virtual void calc_heating_vectorize_time(
             const std::vector<double>& time,
             double mass,
             std::vector<double>& out_heating) const {
@@ -37,7 +37,7 @@ public:
     }
 
     // Over mass at constant time.
-    void calc_heating_vectorize_mass(
+    virtual void calc_heating_vectorize_mass(
             double time,
             const std::vector<double>& mass,
             std::vector<double>& out_heating) const {
@@ -49,7 +49,7 @@ public:
     }
 
     // Element-wise over time and mass.
-    void calc_heating_vectorize_all(
+    virtual void calc_heating_vectorize_all(
             const std::vector<double>& time,
             const std::vector<double>& mass,
             std::vector<double>& out_heating) const {

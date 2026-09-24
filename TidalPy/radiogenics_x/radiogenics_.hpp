@@ -308,6 +308,38 @@ public:
         return rad_heating_isotope(time, mass, this->p_isotopes, this->p_ref_time);
     }
 
+    // The vectorized calls form each isotope's decay constant and reference heating once per call rather than once
+    // per point, and sum the isotopes in the same order as calc_heating, so the results are identical to it.
+    void calc_heating_vectorize_time(
+            const std::vector<double>& time,
+            double mass,
+            std::vector<double>& out_heating) const override {
+        this->p_specific_heating_sweep(time, out_heating);
+        for (double& heating : out_heating) { heating *= mass; }
+    }
+
+    void calc_heating_vectorize_mass(
+            double time,
+            const std::vector<double>& mass,
+            std::vector<double>& out_heating) const override {
+        const double specific_heating = rad_heating_isotope(time, 1.0, this->p_isotopes, this->p_ref_time);
+        out_heating.resize(mass.size());
+        for (std::size_t i = 0; i < mass.size(); ++i) { out_heating[i] = specific_heating * mass[i]; }
+    }
+
+    void calc_heating_vectorize_all(
+            const std::vector<double>& time,
+            const std::vector<double>& mass,
+            std::vector<double>& out_heating) const override {
+        if (time.size() != mass.size()) {
+            throw std::invalid_argument(
+                "TidalPy::calc_heating_vectorize_all: time and mass vectors must "
+                "have the same length");
+        }
+        this->p_specific_heating_sweep(time, out_heating);
+        for (std::size_t i = 0; i < mass.size(); ++i) { out_heating[i] *= mass[i]; }
+    }
+
     void write_binary(std::ostream& out) const override {
         const auto n = static_cast<uint64_t>(this->p_isotopes.size());
         uint64_t payload =
@@ -358,6 +390,19 @@ public:
     }
 
 protected:
+    // Specific heating [W/kg] at every time, isotope by isotope.
+    void p_specific_heating_sweep(const std::vector<double>& time, std::vector<double>& out) const {
+        const std::size_t n = time.size();
+        out.assign(n, 0.0);
+        for (const c_Isotope& isotope : this->p_isotopes) {
+            const double gamma = isotope.decay_constant();
+            const double q_ref = isotope.mass_frac * isotope.concentration * isotope.heat_production;
+            for (std::size_t i = 0; i < n; ++i) {
+                out[i] += q_ref * c_safe_exp(gamma * (time[i] - this->p_ref_time));
+            }
+        }
+    }
+
     std::vector<c_Isotope> p_isotopes;
     double p_ref_time = 0.0;
 };
