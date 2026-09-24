@@ -88,6 +88,10 @@ struct TidalPyConfig
     // solver's own automatic choice and rejects a caller's starting radius above it.
     double d_MAX_START_RADIUS_FRAC; // Updated from TidalPy.config_x['numerical']['max_start_radius_fraction']
 
+    // Smallest equilibrated reciprocal condition number the radial solver's surface boundary-condition system
+    // may have; below it the system is singular to working precision and the solve fails.
+    double d_MIN_SURFACE_RCOND; // Updated from TidalPy.config_x['numerical']['minimum_surface_rcond']
+
     // Relative tolerance within which two tidal-mode frequencies are the same one, and a frequency is zero.
     double d_FREQUENCY_MATCH_RTOL; // Updated from TidalPy.config_x['numerical']['frequency_match_rtol']
 
@@ -153,6 +157,7 @@ struct TidalPyConfig
         d_NUMERICAL_FLOOR = nan;
         d_LAYER_CONTINUITY_RTOL = nan;
         d_MAX_START_RADIUS_FRAC = nan;
+        d_MIN_SURFACE_RCOND = nan;
         d_FREQUENCY_MATCH_RTOL = nan;
         d_MIN_NUSSELT = nan;
         d_EOS_INVERT_RTOL = nan;

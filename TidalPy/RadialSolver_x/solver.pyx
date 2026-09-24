@@ -129,7 +129,9 @@ def radial_solver(
         Upper radius of each layer [m].
     degree_l : int, default=2
         Harmonic degree: 2 or more, or 1 for a solve for loading alone (a degree-1 tidal or free-surface response
-        is a translation of the body). Anything lower raises ``ValueError``.
+        is a translation of the body). Anything lower raises ``ValueError``. A degree-1 load on a static body
+        (every layer static) fails with error code -13: a rigid translation meets every surface condition, so the
+        response depends on a reference frame the solver does not choose.
     solve_for : tuple[str, ...], optional
         Up to 5 of "tidal", "loading", "free"; None means ("tidal",).
     starting_radius : float64, default=0.0
@@ -439,6 +441,9 @@ def radial_solver(
             log_warning(
                 f"Large number of steps taken found in radial solver solution "
                 f"(max = {np.max(solution.steps_taken)}).")
-        cy_check_surface_solve_conditioning(solution.surface_solve_amplification, c_integration_rtol)
+        # A failed solve already says why in its message.
+        if solution.success:
+            cy_check_surface_solve_conditioning(
+                solution.surface_solve_amplification, c_integration_rtol, solution.surface_solve_rcond)
 
     return solution

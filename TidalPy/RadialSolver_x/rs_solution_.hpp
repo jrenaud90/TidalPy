@@ -22,12 +22,16 @@
 // Error Codes:
 // -1 : Equation of State storage (c_EOSSolution) could not be initialized.
 // -2 : (set by python wrapper) Unknown / Unsupported boundary condition provided.
-// -5 : There was a problem with the inputs to radial solver
+// -5 : There was a problem with the inputs to radial solver (including a starting radius outside the planet, above
+//      [numerical] max_start_radius_fraction of it, or with no radial slice above it in its layer)
 //
 // -1X : Error in shooting method
 // -10 : Error in finding starting conditions
 // -11 : Numerical integration failed
-// -12 : Error using ZGESV solver with boundary condition
+// -12 : The surface boundary condition solve returned non-finite constants
+// -13 : The surface boundary condition system is singular to working precision (surface_rcond below
+//       [numerical] minimum_surface_rcond)
+// -14 : Unknown surface boundary condition model, or an unsupported number of them
 //
 // -2X : Error in propagation matrix method
 // -20 : Unknown core starting conditions
@@ -66,6 +70,11 @@ public:
     // Worst-case error amplification of the surface boundary-condition solve across ytypes; shooting method
     // only, and 0 for the matrix method. See c_estimate_surface_amplification in boundaries_.hpp.
     double surface_amplification = 0.0;
+
+    // Equilibrated reciprocal condition number of the surface boundary-condition system, the rank measure the
+    // amplification cannot give; shooting method only, NaN for the matrix method or before the collapse. See
+    // c_estimate_surface_rcond in boundaries_.hpp.
+    double surface_rcond = TidalPyConstants::d_NAN;
 
     // When true, get_radial_solution evaluates the per-(layer, solution) dense CyRK interpolants at any
     // radius and collapses them with the constants below. The matrix method leaves it false and fills

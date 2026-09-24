@@ -58,33 +58,59 @@ SEVERE_SURFACE_AMPLIFICATION = 1.0e8
 
 cdef bint cy_check_surface_solve_conditioning(
         double surface_amplification,
-        double integration_rtol) except *:
+        double integration_rtol,
+        double surface_rcond = NAN) except *:
     """Log a warning when the surface boundary condition solve is poorly conditioned.
 
     Warns when the roundoff floor (``surface_amplification`` times machine epsilon) exceeds the requested
-    integration tolerance, or when the amplification alone exceeds ``SEVERE_SURFACE_AMPLIFICATION``.
+    integration tolerance, when the amplification alone exceeds ``SEVERE_SURFACE_AMPLIFICATION``, or when the
+    reciprocal condition number ``surface_rcond`` of the surface system is below the integration tolerance. The
+    solution constants carry the integration error divided by roughly ``surface_rcond``, so below the tolerance
+    they have no guaranteed correct digit. A NaN ``surface_rcond`` (a caller that has none) skips that check; a
+    system singular to working precision never reaches here, since the solve fails instead.
+
+    Parameters
+    ----------
+    surface_amplification : float
+        Error amplification of the surface solve (``RadialSolverSolution.surface_solve_amplification``).
+    integration_rtol : float
+        Relative tolerance the radial functions were integrated to.
+    surface_rcond : float, default NaN
+        Equilibrated reciprocal condition number of the surface system
+        (``RadialSolverSolution.surface_solve_rcond``).
+
+    Returns
+    -------
+    bool
+        True when the warning was logged.
     """
-    if (surface_amplification * DBL_EPSILON > integration_rtol) or \
-            (surface_amplification > SEVERE_SURFACE_AMPLIFICATION):
+    cdef cpp_bool amplification_poor = (surface_amplification * DBL_EPSILON > integration_rtol) or \
+        (surface_amplification > SEVERE_SURFACE_AMPLIFICATION)
+    # NaN compares false, so a caller without the rank measure is judged on the amplification alone.
+    cdef cpp_bool rank_poor = surface_rcond < integration_rtol
+    if amplification_poor or rank_poor:
         log_warning(
             f"Radial solver surface boundary condition solve is poorly conditioned (error amplification "
             f"~{surface_amplification:0.1e}; achievable relative accuracy "
-            f"~{surface_amplification * DBL_EPSILON:0.1e} vs requested integration rtol "
-            f"{integration_rtol:0.1e}). Love numbers and surface outputs may be much less accurate than "
-            f"requested. A larger (or automatic) starting radius improves conditioning; tightening "
-            f"tolerances cannot beat the roundoff floor.")
+            f"~{surface_amplification * DBL_EPSILON:0.1e}; reciprocal condition number "
+            f"{surface_rcond:0.1e}; requested integration rtol {integration_rtol:0.1e}). Love numbers and "
+            f"surface outputs may be much less accurate than requested. A larger (or automatic) starting radius "
+            f"improves conditioning; tightening tolerances cannot beat the roundoff floor.")
         return True
     return False
 
 
-def check_surface_solve_conditioning(double surface_amplification, double integration_rtol):
-    """Python entry point for :func:`cy_check_surface_solve_conditioning`.
+def check_surface_solve_conditioning(
+        double surface_amplification,
+        double integration_rtol,
+        double surface_rcond = NAN):
+    """Python entry point for :func:`cy_check_surface_solve_conditioning`; same arguments and return.
 
     The ``_x`` callers cimport the cdef directly. This wrapper is for the classic
     ``TidalPy.RadialSolver.solver``, which cannot cimport this module: pulling the ``_x`` declarations into
     that translation unit redefines the classic ``c_NonDimensionalScales``.
     """
-    return bool(cy_check_surface_solve_conditioning(surface_amplification, integration_rtol))
+    return bool(cy_check_surface_solve_conditioning(surface_amplification, integration_rtol, surface_rcond))
 
 
 cdef class RadialSolverSolution:
@@ -390,6 +416,8 @@ cdef class RadialSolverSolution:
         cdef size_t layer_i
         for layer_i in range(self.num_layers):
             log_message += f"\n\t\t\tLayer {layer_i} = {self.steps_taken[layer_i]}"
+        log_message += f"\n\t\tSurface solve amplification:  {self.surface_solve_amplification:0.3e}"
+        log_message += f"\n\t\tSurface solve rcond:          {self.surface_solve_rcond:0.3e}"
         if self.success:
             log_message += f"\n\t\tk_{self.degree_l} = {self.k}"
             log_message += f"\n\t\th_{self.degree_l} = {self.h}"
@@ -855,9 +883,25 @@ cdef class RadialSolverSolution:
 
         Large cancelling collapse constants, from deep starting radii or high degrees, amplify roundoff and
         integration error into the Love numbers by up to this factor, so the achievable relative accuracy is
-        about this times machine epsilon. Near 1 is well conditioned; 0 for the propagation matrix method.
+        about this times machine epsilon. Near 1 is well conditioned; 0 for the propagation matrix method. It
+        measures cancellation only and can read 1 for a singular system; :attr:`surface_solve_rcond` gives the rank.
         """
         return self.solution_storage_ptr.surface_amplification
+
+    @property
+    def surface_solve_rcond(self):
+        """Reciprocal condition number of the surface boundary condition system; shooting method only.
+
+        The rank measure :attr:`surface_solve_amplification` cannot give: the 1-norm reciprocal condition number of
+        the matrix the surface conditions are solved with, after each radial function is scaled by its largest
+        magnitude across the independent solutions and each solution by its largest scaled radial function, so it
+        depends on neither units nor how the starting solutions were normalized. It is at most 1; near 1 is well
+        conditioned. The solution constants carry the integration error divided by roughly this value, so a value
+        below the integration rtol is warned about, and a value below ``[numerical] minimum_surface_rcond`` of
+        ``TidalPy.config_x`` (the system is singular to working precision) fails the solve with error code -13.
+        NaN for the propagation matrix method, or when the solve stopped before the surface.
+        """
+        return self.solution_storage_ptr.surface_rcond
 
     def get_result_by_ytype_name(self, str ytype_name):
         cdef size_t ytype_i

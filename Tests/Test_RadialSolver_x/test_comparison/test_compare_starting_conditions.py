@@ -62,4 +62,10 @@ def test_compare_starting_conditions(layer_type, is_static, is_incompressible, u
         degree_l, G_to_use, new_arr
     )
 
+    if use_kamata and is_solid and (not is_static) and is_incompressible:
+        # The new first solution is (s1 - s2) gamma / omega^2 of the classic basis, which stays independent of s2 as
+        # omega -> 0; the classic pair converges there. The same combination of the classic solutions must match.
+        gamma = 4.0 * np.pi * G_to_use * density / 3.0
+        old_arr[0] = (old_arr[0] - old_arr[1]) * gamma / frequency ** 2
+
     np.testing.assert_allclose(new_arr, old_arr, rtol=1e-10)

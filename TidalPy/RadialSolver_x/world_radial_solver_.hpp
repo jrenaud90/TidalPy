@@ -396,10 +396,32 @@ public:
         storage->error_code = 0;
         // Diagnostics describe this solve only: a failed integration must not leave the previous solve's.
         storage->surface_amplification = 0.0;
+        storage->surface_rcond         = TidalPyConstants::d_NAN;
         std::fill(storage->shooting_method_steps_taken_vec.begin(), storage->shooting_method_steps_taken_vec.end(), 0);
         storage->p_bc_models = rt.bc_models;
         storage->p_love_frequency_si = rt.frequency;
         this->p_solved      = false;
+
+        // A manual starting radius must leave interior to integrate through, so it takes the same cap as the
+        // automatic choice and the standalone input check: at or above the surface there is nothing to integrate,
+        // and just below it the Love numbers are inaccurate. Both methods read it.
+        const double planet_radius_si = this->p_upper_radii_si.empty() ?
+            TidalPyConstants::d_NAN : this->p_upper_radii_si.back();
+        const double max_start_radius_si = tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius_si;
+        if ((rt.starting_radius != 0.0) && std::isfinite(max_start_radius_si) &&
+            !(rt.starting_radius <= max_start_radius_si))
+        {
+            storage->error_code = -5;
+            storage->message    =
+                "TidalPy: the starting radius " + c_format_scientific(rt.starting_radius) + " m is above the " +
+                "largest allowed, " + c_format_scientific(max_start_radius_si) + " m ([numerical] " +
+                "max_start_radius_fraction times the planet radius " + c_format_scientific(planet_radius_si) +
+                " m). Use a lower starting radius, or 0 for the automatic choice.";
+            storage->success        = false;
+            this->p_solved          = false;
+            this->p_storage_current = true;
+            return;
+        }
 
         // The propagation matrix is only valid for a single solid, static, incompressible layer.
         if (rt.use_prop_matrix) {

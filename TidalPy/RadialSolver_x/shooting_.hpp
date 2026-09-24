@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -34,6 +35,15 @@
 
 
 constexpr double d_EPS_DBL_10000 = 10000.0 * TidalPyConstants::d_EPS;
+
+// A value in scientific notation for a status message; std::to_string prints fixed point, which shows a small
+// radius or condition number as zero.
+inline std::string c_format_scientific(double value)
+{
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%.3e", value);
+    return std::string(buffer);
+}
 
 inline size_t c_find_num_shooting_solutions(
     int layer_type,
@@ -134,6 +144,9 @@ int c_shooting_solver(
     c_EOSSolution* eos_solution_storage_ptr = solution_storage_ptr->get_eos_solution_ptr();
 
     solution_storage_ptr->message = std::string("RadialSolver.ShootingMethod:: Starting integration\n");
+    // The conditioning diagnostics describe this solve only; they stay at these values if it stops early.
+    solution_storage_ptr->surface_amplification = 0.0;
+    solution_storage_ptr->surface_rcond         = TidalPyConstants::d_NAN;
     if (verbose)
     {
         printf("%s", solution_storage_ptr->message.c_str());
@@ -155,7 +168,7 @@ int c_shooting_solver(
     // 15 = 5 (max solve_for entries) * 3 (surface conditions)
     double boundary_conditions[15];
     double* bc_pointer = &boundary_conditions[0];
-    c_get_surface_bc(
+    const int surface_bc_code = c_get_surface_bc(
         bc_pointer,
         bc_models_ptr,
         num_ytypes,
@@ -163,6 +176,21 @@ int c_shooting_solver(
         planet_bulk_density,
         degree_l_dbl
     );
+    if (surface_bc_code != 0)
+    {
+        // A bad model would otherwise leave NaN boundary conditions for the surface solve to collapse onto.
+        solution_storage_ptr->error_code = -14;
+        solution_storage_ptr->success    = false;
+        solution_storage_ptr->message    =
+            std::string("RadialSolver.ShootingMethod:: Invalid surface boundary conditions (code ") +
+            std::to_string(surface_bc_code) +
+            std::string("): between 1 and 5 models are allowed, each free (0), tidal (1), or loading (2).\n");
+        if (verbose)
+        {
+            printf("%s", solution_storage_ptr->message.c_str());
+        }
+        return solution_storage_ptr->error_code;
+    }
 
     const size_t num_extra            = 0;
     const double first_step_size      = 0.0;
@@ -303,67 +331,78 @@ int c_shooting_solver(
         starting_radius = std::fmin(starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
     }
 
-    // Find the layer holding the starting radius; lower layers are skipped.
+    // Find the layer holding the starting radius, [lower, upper), so a start on an interface begins in the layer
+    // above it, and that layer's first slice at or above the start; lower layers are skipped. The starting layer
+    // is integrated from the starting radius to its top slice, so that slice must lie above the start. A starting
+    // radius at or below zero, at or above the surface, or NaN lies in no layer and fails the solve.
+    bool   start_layer_found       = false;
     size_t start_layer_i           = 0;
-    size_t last_index_before_start = 0;
-    size_t start_index_in_layer    = 0;
-    double last_radius_check       = 0.0;
-    double layer_upper_radius      = TidalPyConstants::d_INF;
-    double last_layer_upper_radius = TidalPyConstants::d_INF;
+    size_t start_first_slice_index = 0;  // first slice at or above the starting radius
+    size_t start_layer_slices      = 0;  // slices from there to the top of the starting layer
     for (size_t current_layer_i = 0; current_layer_i < num_layers; ++current_layer_i)
     {
-        layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i];
-        if (current_layer_i == 0)
-        {
-            last_layer_upper_radius = 0.0;
-        }
-        else
-        {
-            last_layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i - 1];
-        }
+        const double layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i];
+        const double layer_lower_radius = (current_layer_i == 0) ?
+            0.0 : eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i - 1];
 
-        if (last_layer_upper_radius < starting_radius && starting_radius <= layer_upper_radius)
+        if ((starting_radius > 0.0) && (layer_lower_radius <= starting_radius) &&
+            (starting_radius < layer_upper_radius))
         {
-            start_layer_i = current_layer_i;
-            const size_t first_slice_index = first_slice_index_by_layer_vec[current_layer_i];
+            start_layer_found = true;
+            start_layer_i     = current_layer_i;
 
-            // Find the last slice before the starting radius.
-            start_index_in_layer = 0;
-            for (size_t slice_i = first_slice_index; slice_i < first_slice_index + num_slices_by_layer_vec[current_layer_i]; ++slice_i)
+            const size_t layer_first_slice = first_slice_index_by_layer_vec[current_layer_i];
+            const size_t layer_end_slice   = layer_first_slice + num_slices_by_layer_vec[current_layer_i];
+            size_t slice_i = layer_first_slice;
+            while ((slice_i < layer_end_slice) && (radius_array_ptr[slice_i] < starting_radius))
             {
-                const double radius_check = radius_array_ptr[slice_i];
-                if (last_radius_check < starting_radius && starting_radius <= radius_check)
-                {
-                    if (slice_i == 0)
-                    {
-                        last_index_before_start = 0;
-                    }
-                    else
-                    {
-                        last_index_before_start = slice_i - 1;
-                    }
-                    break;
-                }
-                else
-                {
-                    start_index_in_layer += 1;
-                    last_radius_check     = radius_check;
-                }
+                ++slice_i;
             }
+            start_first_slice_index = slice_i;
+            start_layer_slices      = layer_end_slice - slice_i;
             break;
         }
-        else
+    }
+
+    if (!start_layer_found)
+    {
+        solution_storage_ptr->error_code = -5;
+        solution_storage_ptr->success    = false;
+        solution_storage_ptr->message    =
+            std::string("RadialSolver.ShootingMethod:: The starting radius (") + c_format_scientific(starting_radius) +
+            std::string(" in solve units) is not inside the planet, (0, ") + c_format_scientific(planet_radius) +
+            std::string("). Use a starting radius inside the planet, or 0 for the automatic choice.\n");
+        if (verbose)
         {
-            last_radius_check = last_layer_upper_radius;
+            printf("%s", solution_storage_ptr->message.c_str());
         }
+        return solution_storage_ptr->error_code;
+    }
+    if ((start_layer_slices == 0) ||
+        !(radius_array_ptr[start_first_slice_index + start_layer_slices - 1] > starting_radius))
+    {
+        solution_storage_ptr->error_code = -5;
+        solution_storage_ptr->success    = false;
+        solution_storage_ptr->message    =
+            std::string("RadialSolver.ShootingMethod:: No radial slice of layer ") + std::to_string(start_layer_i) +
+            std::string(" lies above the starting radius (") + c_format_scientific(starting_radius) +
+            std::string(" in solve units), so there is nothing to integrate through. Lower the starting radius.\n");
+        if (verbose)
+        {
+            printf("%s", solution_storage_ptr->message.c_str());
+        }
+        return solution_storage_ptr->error_code;
     }
 
     // Record the start info so the dense calling system NaNs any query below the starting radius.
     solution_storage_ptr->p_start_layer_i         = start_layer_i;
     solution_storage_ptr->p_starting_radius_solve = starting_radius;
 
-    // NaN the gridded solution below the starting radius.
-    for (size_t slice_i = 0; slice_i < last_index_before_start + 1; ++slice_i)
+    // NaN the gridded solution below the starting radius, within the grid the storage holds.
+    const size_t stored_slices =
+        solution_storage_ptr->full_solution_vec.size() / (static_cast<size_t>(C_MAX_NUM_Y_REAL) * num_ytypes);
+    const size_t slices_below_start = std::min(start_first_slice_index, stored_slices);
+    for (size_t slice_i = 0; slice_i < slices_below_start; ++slice_i)
     {
         for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
         {
@@ -400,8 +439,8 @@ int c_shooting_solver(
         if (current_layer_i == start_layer_i)
         {
             // The starting layer begins at the slice at or above the starting radius.
-            first_slice_index = last_index_before_start + 1;
-            layer_slices -= start_index_in_layer;
+            first_slice_index = start_first_slice_index;
+            layer_slices      = start_layer_slices;
         }
         else
         {
@@ -752,6 +791,7 @@ int c_shooting_solver(
 
         // The storage is reused across solves.
         solution_storage_ptr->surface_amplification = 0.0;
+        solution_storage_ptr->surface_rcond         = TidalPyConstants::d_NAN;
 
         for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
         {
@@ -779,8 +819,8 @@ int c_shooting_solver(
                 size_t layer_slices      = num_slices_by_layer_vec[layer_i_reversed];
                 if (layer_i_reversed == start_layer_i)
                 {
-                    first_slice_index = last_index_before_start + 1;
-                    layer_slices -= start_index_in_layer;
+                    first_slice_index = start_first_slice_index;
+                    layer_slices      = start_layer_slices;
                 }
                 else
                 {
@@ -845,6 +885,37 @@ int c_shooting_solver(
 
                 if (current_layer_i == 0)
                 {
+                    // Rank of the surface system, which does not depend on the boundary condition: a singular
+                    // system still hands back finite, arbitrary constants that the amplification cannot flag.
+                    const double surface_rcond = c_estimate_surface_rcond(
+                        uppermost_y_per_solution_ptr,
+                        num_sols,
+                        num_ys,
+                        C_MAX_NUM_Y,
+                        layer_type,
+                        layer_is_static);
+                    solution_storage_ptr->surface_rcond = surface_rcond;
+                    const double minimum_surface_rcond = tidalpy_config_ptr->d_MIN_SURFACE_RCOND;
+                    // The negated comparison also fails a NaN rcond; a NaN threshold (config unloaded) never fails.
+                    if (!(surface_rcond >= minimum_surface_rcond) && !std::isnan(minimum_surface_rcond))
+                    {
+                        solution_storage_ptr->error_code = -13;
+                        solution_storage_ptr->success    = false;
+                        solution_storage_ptr->message    =
+                            std::string("RadialSolver.ShootingMethod:: The surface boundary condition system is ") +
+                            std::string("singular to working precision (reciprocal condition number ") +
+                            c_format_scientific(surface_rcond) + std::string(" < [numerical] ") +
+                            std::string("minimum_surface_rcond ") + c_format_scientific(minimum_surface_rcond) +
+                            std::string("), so its solution constants are undetermined. A degree-1 solve for a ") +
+                            std::string("static body has a rigid-translation mode that no surface condition fixes; ") +
+                            std::string("otherwise try a larger or the automatic starting radius.\n");
+                        if (verbose)
+                        {
+                            printf("%s", solution_storage_ptr->message.c_str());
+                        }
+                        return solution_storage_ptr->error_code;
+                    }
+
                     c_apply_surface_bc(
                         constant_vector_ptr,
                         &bc_solution_info,

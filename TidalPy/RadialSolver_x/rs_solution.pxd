@@ -38,6 +38,7 @@ cdef extern from "rs_solution_.hpp" nogil:
         vector[int] p_bc_models
         vector[size_t] shooting_method_steps_taken_vec
         double surface_amplification
+        double surface_rcond
         double p_love_frequency_si
         double p_length_conv
         cpp_bool p_eos_is_nondim
@@ -114,7 +115,8 @@ cdef class RadialSolverSolution:
 
 
 # Warn when the surface boundary condition solve is poorly conditioned. Returns True when it warned. Holds
-# the GIL: it formats and logs a message.
+# the GIL: it formats and logs a message. A NaN surface_rcond (the default) skips the rank check.
 cdef bint cy_check_surface_solve_conditioning(
     double surface_amplification,
-    double integration_rtol) except *
+    double integration_rtol,
+    double surface_rcond = *) except *

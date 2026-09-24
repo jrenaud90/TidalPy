@@ -88,7 +88,9 @@ def kamata_solid_dynamic_incompressible(
     """
     Calculate Kamata starting conditions for a solid dynamic incompressible layer.
 
-    KMN15 Eqs. B17-B28. Three independent solutions.
+    KMN15 Eqs. B17-B28. Three independent solutions. The first is KMN15's first minus its second, times
+    gamma / w^2 (gamma = 4 pi G rho / 3), in closed form: the published pair converges as w -> 0, which left the
+    basis nearly degenerate at tidal frequencies. The combination spans the same solutions.
     """
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]

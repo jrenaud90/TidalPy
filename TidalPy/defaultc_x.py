@@ -117,6 +117,13 @@ schema_version = "{SCHEMA_VERSION_X}"
     # automatic choice is capped here, and a starting radius supplied above it is rejected: too close
     # to the surface leaves too little of the interior to integrate through.
     max_start_radius_fraction = 0.90
+    # Smallest reciprocal condition number (units- and normalization-independent, see `surface_solve_rcond`) the
+    # radial solver's surface boundary-condition system may have. Below it the system is singular to working
+    # precision, the solution constants are undetermined, and the solve fails. An exactly singular system, such as
+    # a degree-1 solve for a static body (a rigid translation meets every surface condition), measures 1e-16 to
+    # 2e-15; a healthy solve 1e-3 to 1e-1; an extreme manual start (0.1 m in a 6000 km body at degree 3), which
+    # still solves with a conditioning warning, about 1e-13.
+    minimum_surface_rcond = 1.0e-14
     # Relative tolerance within which two tidal-mode frequencies count as one (their modes then share a
     # radial solve), and within which a frequency counts as zero.
     frequency_match_rtol = 1.0e-9

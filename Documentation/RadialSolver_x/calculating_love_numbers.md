@@ -1,6 +1,6 @@
 # Calculating Love Numbers
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-23_
 
 `TidalPy.RadialSolver_x.radial_solver` is the array-based entry point to the viscoelastic-gravitational solve. You hand it a radial grid with density and complex moduli on it, a forcing frequency, and a description of the layers; it returns a [`RadialSolverSolution`](solution_class.md) carrying the radial functions and the Love numbers. If you already have a built world, prefer `LayeredWorld.solve_love_numbers`, which fills these arrays from the layer rheologies for you.
 
@@ -72,9 +72,9 @@ Every solver setting whose default is `None` takes its value from the TidalPy co
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `starting_radius` | `0.0` | Radius where integration begins [m]. `0.0` picks one automatically using the Martens (2016) criterion and `start_radius_tolerance`. Starting very deep at high degree makes the surface boundary solve ill-conditioned: the solution constants grow enormous and cancel, amplifying Love numbers error. The solver measures this on every solve and warns when the achievable accuracy drops below the requested tolerance; prefer the automatic radius when that warning appears. |
+| `starting_radius` | `0.0` | Radius where integration begins [m]. `0.0` picks one automatically using the Martens (2016) criterion and `start_radius_tolerance`. Starting very deep at high degree makes the surface boundary solve ill-conditioned: the solution constants grow enormous and cancel, amplifying Love numbers error. The solver measures this on every solve and warns when the achievable accuracy drops below the requested tolerance; prefer the automatic radius when that warning appears. A manual radius above `[numerical] max_start_radius_fraction` of the planet radius (default 0.9) is refused, here with a `ValueError` and on the world path with a failed solve. |
 | `start_radius_tolerance` | `None` (config) | Tolerance for that automatic choice: the start is at $R \cdot \mathrm{tol}^{1/l}$. |
-| `use_kamata` | `None` (config) | Use the Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972). Kamata is the more stable choice for incompressible layers, and is required for an incompressible solid layer at the center, where the Takeuchi and Saito form is undefined. It does not cover a static incompressible solid layer. |
+| `use_kamata` | `None` (config) | Use the Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972). Kamata is the more stable choice for incompressible layers, and is required for an incompressible solid layer at the center, where the Takeuchi and Saito form is undefined. It does not cover a static incompressible solid layer. For a dynamic incompressible solid, the first of the three Kamata solutions is replaced by a combination with the second that stays independent at long forcing periods, where the published pair converges (the difference is $O(\omega^2 / \gamma)$, $\gamma = 4 \pi G ho / 3$). |
 | `integration_method` | `None` (config) | `'RK23'`, `'RK45'`, `'DOP853'`, or the implicit methods `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
 | `integration_rtol`, `integration_atol` | `None` (config) | Relative and absolute integration tolerances. |
 | `scale_rtols_bylayer_type` | `None` (config) | Scale the relative tolerance by layer type; liquid layers generally want a tighter value. Experimental. |
@@ -107,7 +107,7 @@ The radial solver must have a EOS solution before it can solve the viscoelastic-
 | Argument | Default | Meaning |
 |---|---|---|
 | `verbose` | `False` | Print solver status while running. |
-| `warnings` | `True` | Emit solver warnings, including the surface-conditioning diagnostic. The diagnostic itself (`surface_solve_amplification`) is recorded on every solve. |
+| `warnings` | `True` | Emit solver warnings, including the surface-conditioning diagnostic. The diagnostics themselves (`surface_solve_amplification` and `surface_solve_rcond`) are recorded on every solve. |
 | `raise_on_fail` | `False` | Raise instead of failing quietly. By default a failed solve returns with `success = False` and an explanatory `message`. |
 | `perform_checks` | `True` | Accepted for compatibility with the classic solver; the new backend validates unconditionally. |
 | `log_info` | `False` | Log the solution's key diagnostics. There is a cost, more so with file logging enabled. |
@@ -125,5 +125,9 @@ Start with `solution.message`, then `solution.steps_taken`, then plot. The messa
 **Slow solves or huge step counts.** A healthy solve needs a few hundred steps per solution per layer; a few thousand happens in awkward cases; ten thousand or more means the solution is likely unstable. `solution.plot_ys()` is a quick check, since instability shows up as large spikes, ringing, or curves that do not vary smoothly with radius. Things to try, roughly in order: change the integration tolerances, change the integration method, switch the starting condition with `use_kamata`, lower `degree_l`, start higher in the planet with `starting_radius`, revisit the layer assumptions (dynamic compressible liquid layers especially), add a small solid core beneath a fully liquid one, or add more slices to the input arrays.
 
 **NaN Love numbers from a successful solve.** The surface boundary condition solve was ill-conditioned. Check `solution.surface_solve_amplification`: values far above one mean the solution constants are cancelling catastrophically. Raise the starting radius, or let the solver choose it.
+
+**"The surface boundary condition system is singular to working precision" (error code -13).** The reciprocal condition number of the surface system, `solution.surface_solve_rcond`, fell below `[numerical] minimum_surface_rcond` (default `1e-14`), so no set of solution constants is determined by the surface conditions. A degree-1 solve for a static body always lands here: a rigid translation of the body meets every surface condition, so the degree-1 response depends on the choice of reference frame, which the solver does not make. Otherwise the independent solutions have become numerically dependent; start higher in the planet or use the automatic starting radius. A value between the threshold and the integration `rtol` is solved but logged as poorly conditioned, since the constants then carry the integration error divided by roughly `surface_solve_rcond`.
+
+**"The starting radius ... is not inside the planet" or "No radial slice ... lies above the starting radius" (error code -5).** A manual starting radius must lie inside the planet with at least one radial slice above it in its layer. A starting radius exactly on an interface begins in the layer above it.
 
 **A crash with no exception.** Rerun with the same inputs while watching memory. If it reproduces, record the inputs and open an issue on [GitHub](https://github.com/jrenaud90/TidalPy/issues).

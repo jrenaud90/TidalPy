@@ -52,11 +52,13 @@ def test_the_standalone_solver_refuses_an_undefined_degree(degree_l, solve_for):
         radial_solver(*_one_layer_inputs(), degree_l=degree_l, solve_for=solve_for)
 
 
-def test_a_degree_one_load_is_solved():
-    """A degree-1 surface load deforms the body (Farrell 1972), so a loading-only solve at degree 1 is allowed."""
+def test_a_degree_one_load_fails_as_singular_without_a_frame():
+    """A degree-1 load is allowed, but with no reference frame imposed a rigid translation satisfies the surface
+    conditions, so the surface system is singular and the solve fails cleanly instead of returning arbitrary Love
+    numbers (Farrell 1972; the frame condition is not implemented yet)."""
     solution = radial_solver(*_one_layer_inputs(), degree_l=1, solve_for=("loading",))
-    assert solution.success, solution.message
-    assert np.isfinite(solution.h) and solution.h != 0.0
+    assert not solution.success
+    assert solution.error_code == -13
 
 
 def test_homogeneous_methods_use_the_solved_mass(io):
