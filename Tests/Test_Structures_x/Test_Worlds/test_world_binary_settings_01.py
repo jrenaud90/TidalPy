@@ -93,7 +93,7 @@ def test_loaded_world_reproduces_its_tidal_heating_without_reattaching(tmp_path)
     world = build_world("io")
     world.solve_eos()
     world.calc_tides(**_IO_ORBIT)
-    reference = world.tidal_heating
+    reference = world.get_tidal_heating()
     assert math.isfinite(reference) and reference > 0.0
 
     loaded = _round_trip(world, LayeredWorld("placeholder", 1.0, 1.0), tmp_path)
@@ -101,4 +101,4 @@ def test_loaded_world_reproduces_its_tidal_heating_without_reattaching(tmp_path)
     assert not loaded.tides_solved
     loaded.solve_eos()
     loaded.calc_tides(**_IO_ORBIT)
-    assert loaded.tidal_heating == pytest.approx(reference, rel=1e-12)
+    assert loaded.get_tidal_heating() == pytest.approx(reference, rel=1e-12)
