@@ -371,6 +371,14 @@ cdef class BaseWorld(StructureBase):
             self._world_ptr.get().get_tidal_dU_dO(),
         )
 
+    def get_tidal_dU_dM_minus_dw(self) -> float:
+        """The per-mode sum of ``dUdM - dUdw`` from the last tide solve [J kg-1 rad-1]; NaN before one.
+
+        Pass it as ``dU_dM_minus_dw`` to :meth:`OrbitSolver.calc_de_dt`: at small eccentricity the separate sums of
+        :meth:`get_tidal_potential_derivatives` nearly cancel in ``de/dt``, and this sum keeps the rate exact.
+        """
+        return self._world_ptr.get().get_tidal_dU_dM_minus_dw()
+
     def get_num_tidal_modes(self) -> int:
         """Number of active (nonzero-frequency) tidal modes summed in the last solve."""
         return self._world_ptr.get().get_num_tidal_modes()

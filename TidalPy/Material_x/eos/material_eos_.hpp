@@ -390,6 +390,21 @@ public:
     c_ViscosityBase*   get_bulk_viscosity_model()  const noexcept { return this->p_bulk_viscosity_model.get(); }
     c_PartialMeltBase* get_partial_melt_model()    const noexcept { return this->p_partial_melt_model.get(); }
 
+    // Take each viscosity and partial-melt model of `previous` that this material has none of. A layer attaches
+    // these models through its own setters but its material holds them, so a layer that replaces its material keeps
+    // them unless the new material brings its own.
+    void adopt_missing_models(c_MaterialEOSBase& previous) noexcept {
+        if (!this->p_shear_viscosity_model) {
+            this->p_shear_viscosity_model = std::move(previous.p_shear_viscosity_model);
+        }
+        if (!this->p_bulk_viscosity_model) {
+            this->p_bulk_viscosity_model = std::move(previous.p_bulk_viscosity_model);
+        }
+        if (!this->p_partial_melt_model) {
+            this->p_partial_melt_model = std::move(previous.p_partial_melt_model);
+        }
+    }
+
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_PhysicsBase::append_config_entries(out);
         out.push_back(c_config_double("thermal_expansion_1_k", this->p_thermal_expansion));

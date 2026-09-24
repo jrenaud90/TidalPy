@@ -67,8 +67,9 @@ cdef class OrbitSolver:
         """Eccentricity rate [s-1]: ``de/dt = (sqrt(1-e^2)/(n a^2 e))(sqrt(1-e^2) dR/dM - dR/dw)``.
 
         Zero for a circular orbit, where the ``1/e`` term is indeterminate. ``dU_dM_minus_dw``, the collapse's
-        per-mode sum of ``dU_dM - dU_dw`` (``tide_result["dUdM_minus_dw"]``), keeps the rate exact at small
-        eccentricity, where the two separate sums nearly cancel; without it the difference is formed from them.
+        per-mode sum of ``dU_dM - dU_dw`` (a world's ``get_tidal_dU_dM_minus_dw()`` after ``calc_tides``, or
+        ``tide_result["dUdM_minus_dw"]`` of the standalone collapse), keeps the rate exact at small eccentricity,
+        where the two separate sums nearly cancel; without it the difference is formed from them.
         """
         cdef c_OrbitState state = cy_make_state(
             orbital_frequency,

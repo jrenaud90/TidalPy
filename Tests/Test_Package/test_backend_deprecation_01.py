@@ -1,4 +1,4 @@
-"""The package announces the classic-to-`_x` backend transition once per session at import time.
+"""The package announces the classic-to-`_x` backend transition once per session, at the first classic import.
 
 The warning uses the named category ``TidalPy.exceptions.TidalPyDeprecationWarning`` (a ``FutureWarning``
 subclass, so it is visible by default) and points at the porting guide. A subprocess is used because the
@@ -10,14 +10,20 @@ import sys
 
 
 def test_import_emits_backend_deprecation_warning(tmp_path):
-    """Importing TidalPy emits exactly one TidalPyDeprecationWarning pointing at the porting guide."""
+    """Only a classic import warns, exactly once, with a TidalPyDeprecationWarning pointing at the porting guide."""
     code = (
         "import warnings\n"
         "with warnings.catch_warnings(record=True) as caught:\n"
         "    warnings.simplefilter('always')\n"
         "    import TidalPy\n"
-        "from TidalPy.exceptions import TidalPyDeprecationWarning\n"
+        "    import TidalPy.structures_x\n"
+        "    import TidalPy.Tides_x.classes\n"
+        "    from TidalPy.exceptions import TidalPyDeprecationWarning\n"
+        "    new_backend_hits = [w for w in caught if issubclass(w.category, TidalPyDeprecationWarning)]\n"
+        "    import TidalPy.rheology\n"
+        "    import TidalPy.tides\n"
         "assert issubclass(TidalPyDeprecationWarning, FutureWarning)\n"
+        "assert not new_backend_hits, 'the new backend alone should not warn'\n"
         "hits = [w for w in caught if issubclass(w.category, TidalPyDeprecationWarning)]\n"
         "assert len(hits) == 1, f'expected exactly one backend warning, got {len(hits)}'\n"
         "message = str(hits[0].message)\n"

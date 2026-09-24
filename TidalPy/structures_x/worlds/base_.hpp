@@ -184,6 +184,11 @@ public:
     double get_tidal_dU_dO() const noexcept {
         return this->p_tides_solved ? this->p_tide_result.dU_dO : TidalPyConstants::d_NAN;
     }
+    // The per-mode sum of dU/dM - dU/dw, which keeps de/dt exact at small eccentricity where the two separate sums
+    // nearly cancel.
+    double get_tidal_dU_dM_minus_dw() const noexcept {
+        return this->p_tides_solved ? this->p_tide_result.dU_dM_minus_dw : TidalPyConstants::d_NAN;
+    }
     int get_num_tidal_modes() const noexcept {
         return this->p_tides_solved ? this->p_tide_result.num_modes : 0;
     }

@@ -395,15 +395,32 @@ def _one_layer_bm_world(radius, reference_density, bulk_modulus):
                                             "bulk_modulus_derivative": 4.0}}}})
 
 
+@pytest.fixture
+def without_mass_check():
+    """Lift `[numerical] maximum_eos_mass_ratio` for a test whose world carries a placeholder mass."""
+    import TidalPy
+    import TidalPy.constants
+    numerical = TidalPy.config_x["numerical"]
+    original = numerical["maximum_eos_mass_ratio"]
+    numerical["maximum_eos_mass_ratio"] = math.inf
+    TidalPy.constants.update_constants_x()
+    yield
+    numerical["maximum_eos_mass_ratio"] = original
+    TidalPy.constants.update_constants_x()
+
+
 @pytest.mark.parametrize("radius, reference_density, bulk_modulus, max_passes", [
     (2.0e7, 3300.0, 1.3e11, 16),   # 21 passes when the step crawled by the residual
     (6.4e6, 5000.0, 1.0e10, 30),   # 274 passes
     (1.2e7, 3000.0, 5.0e9, 60),    # stopped at the 300-pass cap
 ])
 def test_secant_iteration_does_not_crawl_where_the_surface_pressure_first_falls(
-        radius, reference_density, bulk_modulus, max_passes):
+        radius, reference_density, bulk_modulus, max_passes, without_mass_check):
     """Where the surface pressure first falls as the central pressure rises, the step grows geometrically until the
-    mismatch changes sign, then the root is bracketed, instead of stepping one residual's worth of pressure per pass."""
+    mismatch changes sign, then the root is bracketed, instead of stepping one residual's worth of pressure per pass.
+
+    The bodies carry a placeholder mass (their solved masses are 30 to 1400 times it), and this checks the root search
+    rather than the mass, so the mass check is lifted."""
     world = _one_layer_bm_world(radius, reference_density, bulk_modulus)
     result = world.solve_eos(G_to_use=G, max_iters=300)
     assert result["success"] is True, result["message"]

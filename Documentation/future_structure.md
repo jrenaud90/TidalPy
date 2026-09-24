@@ -6,7 +6,7 @@ TidalPy's internals were rewritten in C++ for v0.8.0. The new implementation liv
 
 This page explains what is different, maps the classic modules to their replacements, and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> draws the new backend's main classes and functions, the calls between them, and the purpose, inputs, and outputs of each call.
 
-TidalPy announces this transition once per session when the package is imported. The notice can be silenced with:
+TidalPy announces this transition once per session, the first time a classic module is imported; code that uses only the `_x` modules is not warned. The notice can be silenced, before or after importing TidalPy, with:
 
 ```python
 import warnings

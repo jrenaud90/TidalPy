@@ -1,6 +1,6 @@
 # Love Numbers (`Tides_x.love`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-24_
 
 `TidalPy.Tides_x.love` contains the Love-number storage type, the names of the Love-number solution methods, and the closed-form homogeneous-sphere Love numbers. Solved Love numbers come from the radial solver (`RadialSolver_x.radial_solver` for the standalone array API, or `LayeredWorld.solve_love_numbers` on a built world), which populates the storage type after integration; `LayeredWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
 
@@ -81,9 +81,9 @@ A world obtains its Love numbers by one of these methods (`LayeredWorld.solve_lo
 |---|---|---|
 | `radial_solver` | `shooting`, `rs` | Shooting-method radial solve (default). |
 | `propagation_matrix` | `prop_matrix`, `pm`, `prop` | Propagation-matrix radial solve (single solid, static, incompressible layer). |
-| `homogeneous` | `homogen` | Homogeneous-sphere formulas with the volume-averaged complex shear modulus of the tidal layers. |
-| `cpl` | | Homogeneous-sphere formulas on the static modulus, then `(1 - i/Q)`. |
-| `ctl` | | Homogeneous-sphere formulas on the static modulus, then `(1 - i omega dt)`. |
+| `homogeneous` | `homogen` | Quasi-homogeneous: each tidal layer's homogeneous-sphere Love numbers from its own averaged complex shear modulus, summed with the layers' tidal scales as weights (see Quasi-Homogeneous Love Numbers in [Worlds](../../structures_x/worlds/worlds.md)). |
+| `cpl` | | The same on each layer's static (unrelaxed) averaged modulus, then `(1 - i/Q)`. |
+| `ctl` | | The same on each layer's static (unrelaxed) averaged modulus, then `(1 - i omega dt)`. |
 | `laterally_inhomogeneous` | `3d`, `lat_inhom` | Reserved for the 3D Love solver (`NotImplementedError`). |
 
 ## Homogeneous-Sphere Formulas

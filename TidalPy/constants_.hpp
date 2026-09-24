@@ -16,7 +16,7 @@ struct TidalPyConstants
     static constexpr double d_ppm = 1.0e-6;
     static constexpr double d_ppb = 1.0e-9;
     static constexpr double d_INF = std::numeric_limits<double>::infinity();
-    static constexpr double d_PI = std::numbers::pi;
+    static constexpr double d_PI  = std::numbers::pi;
     static constexpr double d_NAN = std::numeric_limits<double>::quiet_NaN();
     // Natural log of one half. The decay constant for a half life t_half is d_LN_HALF / t_half,
     // so this is negative: ln(1/2) = -ln(2).
@@ -99,6 +99,10 @@ struct TidalPyConfig
     // Smallest Nusselt number the convection cooling model reports.
     double d_MIN_NUSSELT; // Updated from TidalPy.config_x['numerical']['minimum_nusselt']
 
+    // Largest factor by which a solved world's enclosed mass may differ from its stated mass before the EOS solve
+    // fails as having no hydrostatic structure near that mass.
+    double d_MAX_EOS_MASS_RATIO; // Updated from TidalPy.config_x['numerical']['maximum_eos_mass_ratio']
+
     // Density-from-pressure inversion of the compressible material EOS models (Birch-Murnaghan, Vinet): the
     // relative convergence tolerance and the iteration cap. Read when a model is built without its own values.
     double d_EOS_INVERT_RTOL;      // Updated from TidalPy.config_x['numerical']['eos_invert_rtol']
@@ -161,6 +165,7 @@ struct TidalPyConfig
         d_MIN_SURFACE_RCOND = nan;
         d_FREQUENCY_MATCH_RTOL = nan;
         d_MIN_NUSSELT = nan;
+        d_MAX_EOS_MASS_RATIO = nan;
         d_EOS_INVERT_RTOL = nan;
         d_EOS_INVERT_MAX_ITERS = -1;
         d_TIDES_3D_LATITUDE_NODES = -1;

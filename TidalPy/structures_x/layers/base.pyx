@@ -413,7 +413,11 @@ cdef class BaseLayer(StructureBase):
     def set_eos(self, MaterialEOSBase eos not None):
         """Attach a material EOS model, the layer's density source for the world-level ``solve_eos``.
 
-        Ownership of the C++ model moves out of ``eos``, which is left an empty shell and must not be reused.
+        Ownership of the C++ model moves out of ``eos``, which is left an empty shell and must not be reused. The
+        layer's viscosity and partial-melt models are held by its material, so replacing the material keeps the ones
+        attached before (with ``set_shear_viscosity``, ``set_bulk_viscosity``, ``set_partial_melt``, or in the
+        material's own config) unless ``eos`` carries its own. A layer in a solved world takes the new material at the
+        next ``solve_eos``.
 
         Parameters
         ----------

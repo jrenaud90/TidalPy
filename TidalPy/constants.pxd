@@ -53,6 +53,7 @@ cdef extern from "constants_.hpp" nogil:
         double   d_MIN_SURFACE_RCOND
         double   d_FREQUENCY_MATCH_RTOL
         double   d_MIN_NUSSELT
+        double   d_MAX_EOS_MASS_RATIO
         double   d_EOS_INVERT_RTOL
         int      d_EOS_INVERT_MAX_ITERS
         int      d_TIDES_3D_LATITUDE_NODES

@@ -83,6 +83,7 @@ max_start_radius_fraction = d_NAN
 minimum_surface_rcond = d_NAN
 frequency_match_rtol = d_NAN
 minimum_nusselt = d_NAN
+maximum_eos_mass_ratio = d_NAN
 eos_invert_rtol = d_NAN
 eos_invert_max_iters = -1
 tides_3d_latitude_nodes = -1
@@ -202,6 +203,7 @@ def update_constants_x():
     """
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
     global numerical_floor, layer_continuity_rtol, max_start_radius_fraction, frequency_match_rtol, minimum_nusselt
+    global maximum_eos_mass_ratio
     global eos_invert_rtol, eos_invert_max_iters, minimum_solid_rigidity, minimum_surface_rcond
     global tides_3d_latitude_nodes, tides_3d_longitude_nodes, tides_3d_radial_slices
 
@@ -220,6 +222,7 @@ def update_constants_x():
     tidalpy_config_ptr.d_MIN_SURFACE_RCOND = numerical['minimum_surface_rcond']
     tidalpy_config_ptr.d_FREQUENCY_MATCH_RTOL = numerical['frequency_match_rtol']
     tidalpy_config_ptr.d_MIN_NUSSELT = numerical['minimum_nusselt']
+    tidalpy_config_ptr.d_MAX_EOS_MASS_RATIO = numerical['maximum_eos_mass_ratio']
     tidalpy_config_ptr.d_EOS_INVERT_RTOL = numerical['eos_invert_rtol']
     tidalpy_config_ptr.d_EOS_INVERT_MAX_ITERS = int(numerical['eos_invert_max_iters'])
     tidalpy_config_ptr.d_TIDES_3D_LATITUDE_NODES = int(numerical['tides_3d_latitude_nodes'])
@@ -265,6 +268,7 @@ def update_constants_x():
     minimum_surface_rcond = tidalpy_config_ptr.d_MIN_SURFACE_RCOND
     frequency_match_rtol = tidalpy_config_ptr.d_FREQUENCY_MATCH_RTOL
     minimum_nusselt = tidalpy_config_ptr.d_MIN_NUSSELT
+    maximum_eos_mass_ratio = tidalpy_config_ptr.d_MAX_EOS_MASS_RATIO
     minimum_solid_rigidity = tidalpy_config_ptr.d_MIN_SOLID_RIGIDITY
     eos_invert_rtol = tidalpy_config_ptr.d_EOS_INVERT_RTOL
     eos_invert_max_iters = tidalpy_config_ptr.d_EOS_INVERT_MAX_ITERS

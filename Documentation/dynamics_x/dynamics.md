@@ -1,6 +1,6 @@
 # Spin and Orbital Rates (`dynamics_x`)
 
-_Updated: 2026-09-15_
+_Updated: 2026-09-24_
 
 The module holds two calculators:
 
@@ -76,6 +76,8 @@ rates["da_dt"], rates["de_dt"], rates["dn_dt"]
 ```
 
 `calc_derivatives` computes all three in one call and is the entry point the system class uses. The eccentricity rate carries a $1/e$ factor that is indeterminate at $e = 0$, so a circular or degenerate orbit returns exactly zero rather than a division by zero.
+
+At small eccentricity the two terms of $\dot{e}$ nearly cancel, so forming their difference from the separate sums loses precision as the eccentricity shrinks. `calc_de_dt` and `calc_derivatives` take the per-mode sum of $\partial U / \partial M - \partial U / \partial \omega$ as an optional last argument, `dU_dM_minus_dw`, which keeps the rate exact; a world returns it with `world.get_tidal_dU_dM_minus_dw()` after `calc_tides`, and `System` passes it for you.
 
 For a system where both bodies dissipate, the two contributions are additive in the disturbing-function derivatives: solve each body's tides with the other as the raiser and sum the rates. `System.calc_pair_evolution` does exactly that.
 

@@ -15,6 +15,7 @@
 #include <complex>
 #include <cstdint>
 #include <istream>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -917,6 +918,29 @@ public:
         this->p_thermal_passes     = thermal_passes;
         this->p_thermal_converged  = thermal_converged;
         this->p_geometry_converged = geometry_converged;
+
+        // A structure far from the world's stated mass has no hydrostatic solution near it: the only surface-pressure
+        // root the solve could find lies on a collapsed branch, at an absurd central pressure. That is a failed solve.
+        if (solution->success) {
+            const double mass_limit  = (tidalpy_config_ptr != nullptr)
+                ? tidalpy_config_ptr->d_MAX_EOS_MASS_RATIO : TidalPyConstants::d_NAN;
+            const double stated_mass = this->get_mass();
+            if (std::isfinite(mass_limit) && (mass_limit > 1.0) && (stated_mass > 0.0)) {
+                const double mass_ratio = solution->mass / stated_mass;
+                if (!(mass_ratio <= mass_limit && mass_ratio >= 1.0 / mass_limit)) {
+                    std::ostringstream message;
+                    message << std::setprecision(4)
+                        << "TidalPy: the solved structure of world '" << this->get_name() << "' holds " << mass_ratio
+                        << " times its stated mass of " << stated_mass << " kg (central pressure "
+                        << solution->central_pressure << " Pa), outside the factor of " << mass_limit
+                        << " that [numerical] maximum_eos_mass_ratio allows. These layers have no hydrostatic "
+                           "structure near the stated mass; check their materials (densities and bulk moduli) and "
+                           "radii.";
+                    solution->success = false;
+                    solution->message = message.str();
+                }
+            }
+        }
 
         // Store scalar results.
         this->p_eos_success          = solution->success;

@@ -107,6 +107,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double               get_tidal_dU_dM() const
         double               get_tidal_dU_dw() const
         double               get_tidal_dU_dO() const
+        double               get_tidal_dU_dM_minus_dw() const
         int                  get_num_tidal_modes() const
         cpp_complex[double]  get_tidal_love_k(int degree_l, int m, int p, int q) const
 

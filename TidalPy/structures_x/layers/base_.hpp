@@ -282,8 +282,10 @@ public:
         }
     }
 
-    // The per-layer density source of the world-level EOS solve. Ownership transfers in.
+    // The per-layer density source of the world-level EOS solve. Ownership transfers in. The viscosity and
+    // partial-melt models the layer's previous material held carry over to a new material that has none of its own.
     void set_eos(std::unique_ptr<c_MaterialEOSBase> eos) {
+        if (eos && this->p_eos) { eos->adopt_missing_models(*this->p_eos); }
         this->p_eos = std::move(eos);
         if (this->p_eos) { this->p_eos->set_layer_ptr(this); }
     }

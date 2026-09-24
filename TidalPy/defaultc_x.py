@@ -130,6 +130,11 @@ schema_version = "{SCHEMA_VERSION}"
     # layer; the floor of 2 keeps a barely convecting layer losing heat through a boundary layer half the
     # layer thick rather than the whole of it.
     minimum_nusselt = 2.0
+    # Largest factor by which a solved world's enclosed mass may differ from the mass the world states (either way)
+    # before its EOS solve fails. A structure far from its stated mass usually has no hydrostatic solution near it:
+    # the only surface-pressure root lies on a collapsed branch at an absurd central pressure. Real worlds whose
+    # layers are not fitted to their mass sit well inside this factor.
+    maximum_eos_mass_ratio = 10.0
     # Density-from-pressure inversion of the compressible material EOS models (Birch-Murnaghan, Vinet): the
     # relative convergence tolerance on the compression, and an iteration cap that only guarantees termination
     # (convergence normally takes well under ten steps). A model built with its own `invert_rtol` or

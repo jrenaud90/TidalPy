@@ -1,6 +1,6 @@
 # BaseLayer
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 `TidalPy.structures_x.layers.BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii \[m\], total mass \[kg\], and an optional material identifier for one spherically symmetric shell inside a planetary body. Derived geometry (thickness, volume, surface areas) is computed at construction and accessible through read-only properties.
 
@@ -77,7 +77,7 @@ Read-only properties.
 
 ### `set_eos(model)`
 
-Attach a [material EOS model](../../material_x/material_eos.md) (the per-layer density source). Ownership of the C++ model transfers into the layer; the passed wrapper becomes an empty shell. The model is consumed by the world-level [`solve_eos`](../worlds/worlds.md#equation-of-state), which integrates the planet structure and populates this layer's EOS profile.
+Attach a [material EOS model](../../material_x/material_eos.md) (the per-layer density source). Ownership of the C++ model transfers into the layer; the passed wrapper becomes an empty shell. The layer's viscosity and partial-melt models are held by its material, so replacing the material keeps the ones attached before unless the new model carries its own. The model is consumed by the world-level [`solve_eos`](../worlds/worlds.md#equation-of-state), which integrates the planet structure and populates this layer's EOS profile.
 
 ```python
 from TidalPy.Material_x.eos import make_material_eos
