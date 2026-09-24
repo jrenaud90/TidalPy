@@ -28,9 +28,11 @@ The melt fraction is computed and returned, and the strengths pass through untou
 
 ### Spohn (Fischer and Spohn 1990)
 
-$$\eta_\mathrm{post} = 10^{\,(s_\eta / T) - p_\eta}, \qquad \mu_\mathrm{post} = 10^{\,(s_\mu / T) - p_\mu}$$
+$$\eta_\mathrm{post} = 10^{\,L_\eta + s_\eta (1/T - 1/T_\mathrm{solidus})}, \qquad \mu_\mathrm{post} = 10^{\,L_\mu + s_\mu (1/T - 1/T_\mathrm{solidus})}$$
 
-with the slopes $s$ and phases $p$ given by `fs_visc_power_slope`, `fs_visc_power_phase`, `fs_shear_power_slope`, and `fs_shear_power_phase`. Both results are floored at the liquid limits, `liquid_viscosity` and `liquid_shear`.
+with the slopes $s$ given by `fs_visc_power_slope` and `fs_shear_power_slope`, and the base-10 logarithms of the strengths at the solidus, $L$, by `fs_visc_log10_at_solidus` and `fs_shear_log10_at_solidus`. Both results are floored at the liquid limits, `liquid_viscosity` and `liquid_shear`.
+
+Fischer and Spohn (1990) fit silicates with absolute laws, $10^{27000/T - 1}$ Pa s and $10^{82000/T - 40.6}$ Pa. Those are the form above at a 1600 K solidus ($L_\eta$ = 15.875, $L_\mu$ = 10.65), so the defaults reproduce them there. Anchoring the law at the model's own solidus keeps it usable for other materials: the absolute fit at an icy solidus of 273 K would give a shear modulus of $10^{260}$ Pa.
 
 The law applies above the solidus ($\phi > 0$). At or below it the pre-melt viscosity and shear modulus are returned unchanged; the law itself grows without bound as the temperature falls (10$^{41}$ Pa at 1000 K with the defaults). Above the solidus the pre-melt values do not appear on the right-hand side, so the layer's viscosity model has no effect wherever the material is partially molten.
 
@@ -41,11 +43,13 @@ Three regimes in the melt fraction, with a transition band running from `crit_me
 | Regime | Post-melt viscosity | Post-melt shear modulus |
 |---|---|---|
 | $\phi \le 0$ | $\eta_\mathrm{pre}$ | $\mu_\mathrm{pre}$ |
-| $0 < \phi < \phi_c$ | $\eta_\mathrm{pre} \exp(-a_\eta \phi)$ | $\mu_\mathrm{pre} \exp(b_1/T - b_2)$ |
-| $\phi_c \le \phi \le \phi_c + w$ | $\eta_\mathrm{pre} \exp(-a_\eta \phi_c) \exp(-f_\eta (\phi - \phi_c))$ | $\mu_\mathrm{pre} \exp(b_1/T_\mathrm{break} - b_2) \exp(-f_\mu (\phi - \phi_c))$ |
+| $0 < \phi < \phi_c$ | $\eta_\mathrm{pre} \exp(-a_\eta \phi)$ | $\mu_\mathrm{pre} \exp[b_1 (1/T - 1/T_\mathrm{solidus})]$ |
+| $\phi_c \le \phi \le \phi_c + w$ | $\eta_\mathrm{pre} \exp(-a_\eta \phi_c) \exp(-f_\eta (\phi - \phi_c))$ | $\mu_\mathrm{pre} \exp[b_1 (1/T_\mathrm{break} - 1/T_\mathrm{solidus})] \exp(-f_\mu (\phi - \phi_c))$ |
 | $\phi > \phi_c + w$ | $\eta_\mathrm{liquid}$ | `liquid_shear` |
 
-Here $a_\eta$ is `hn_visc_slope_1`, $b_1$ and $b_2$ are `hn_shear_param_1` and `hn_shear_param_2`, and $f_\eta$ and $f_\mu$ are `hn_visc_falloff_slope` and `hn_shear_falloff_slope`. Every branch is floored at the liquid limits.
+Here $a_\eta$ is `hn_visc_slope_1`, $b_1$ is `hn_shear_param_1`, and $f_\eta$ and $f_\mu$ are `hn_visc_falloff_slope` and `hn_shear_falloff_slope`. Every branch is floored at the liquid limits.
+
+The shear law is Henning et al. (2009) Eq. 20, $\exp(40000/T - 25)$, anchored at the solidus: their constant 25 is $40000/1600$, the silicate solidus they calibrated to, so the default 1600 K solidus reproduces it exactly. Written this way the shear modulus is continuous at any solidus, where the published constant would stiffen an icy layer by a factor of $e^{100}$ as it began to melt. Configurations from a 0.8.0 pre-release that still set `hn_shear_param_2` get a warning and the key is ignored.
 
 Below the critical melt fraction, melt sits in isolated pockets and weakens the solid framework gradually. Above it the framework loses contact and the material behaves as a crystal-laden liquid, a drop of many orders of magnitude. The breakdown band is a steep but finite bridge between the two regimes; its width is a numerical convenience that keeps the transition differentiable, not a measured quantity.
 
@@ -60,15 +64,14 @@ Each parameter carries two names: the constructor keyword, which is also the rea
 | `liquid_shear` | `liquid_shear_pa` | 1.0e-5 | Pa | All |
 | `liquid_viscosity` | `liquid_viscosity_pas` | 0.2 | Pa s | All |
 | `fs_visc_power_slope` | `fs_visc_power_slope_k` | 27000.0 | K | Spohn |
-| `fs_visc_power_phase` | `fs_visc_power_phase` | 1.0 | - | Spohn |
+| `fs_visc_log10_at_solidus` | `fs_visc_log10_at_solidus` | 15.875 | log10 Pa s | Spohn |
 | `fs_shear_power_slope` | `fs_shear_power_slope_k` | 82000.0 | K | Spohn |
-| `fs_shear_power_phase` | `fs_shear_power_phase` | 40.6 | - | Spohn |
+| `fs_shear_log10_at_solidus` | `fs_shear_log10_at_solidus` | 10.65 | log10 Pa | Spohn |
 | `crit_melt_frac` | `crit_melt_frac` | 0.5 | - | Henning |
 | `crit_melt_frac_width` | `crit_melt_frac_width` | 0.05 | - | Henning |
 | `hn_visc_slope_1` | `hn_visc_slope_1` | 13.5 | - | Henning |
 | `hn_visc_falloff_slope` | `hn_visc_falloff_slope` | 370.0 | - | Henning |
 | `hn_shear_param_1` | `hn_shear_param_1_k` | 40000.0 | K | Henning |
-| `hn_shear_param_2` | `hn_shear_param_2` | 25.0 | - | Henning |
 | `hn_shear_falloff_slope` | `hn_shear_falloff_slope` | 700.0 | - | Henning |
 
 `liquid_shear` and `liquid_viscosity` are the shear modulus and viscosity assigned to material treated as pure liquid, and they are also the floors every model applies to its post-melt shear modulus and viscosity. The shear default is small but not exactly zero. The viscosity default is a molten silicate's; the packaged configuration gives each material type its own (rock 0.2, iron 1.3e-2, ice and high-pressure ice 8.9e-4 Pa s).
@@ -111,9 +114,9 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 
 `OffPartialMelt(solidus=1600.0, liquidus=2000.0, liquid_shear=1.0e-5, liquid_viscosity=0.2, bulk_melt_weakening=False, liquid_bulk_modulus=2.0e10)`
 
-`SpohnPartialMelt(solidus, liquidus, liquid_shear, fs_visc_power_slope=27000.0, fs_visc_power_phase=1.0, fs_shear_power_slope=82000.0, fs_shear_power_phase=40.6, liquid_viscosity, bulk_melt_weakening, liquid_bulk_modulus)`
+`SpohnPartialMelt(solidus, liquidus, liquid_shear, fs_visc_power_slope=27000.0, fs_visc_log10_at_solidus=15.875, fs_shear_power_slope=82000.0, fs_shear_log10_at_solidus=10.65, liquid_viscosity, bulk_melt_weakening, liquid_bulk_modulus)`
 
-`HenningPartialMelt(solidus, liquidus, liquid_shear, crit_melt_frac=0.5, crit_melt_frac_width=0.05, hn_visc_slope_1=13.5, hn_visc_falloff_slope=370.0, hn_shear_param_1=40000.0, hn_shear_param_2=25.0, hn_shear_falloff_slope=700.0, liquid_viscosity, bulk_melt_weakening, liquid_bulk_modulus)`
+`HenningPartialMelt(solidus, liquidus, liquid_shear, crit_melt_frac=0.5, crit_melt_frac_width=0.05, hn_visc_slope_1=13.5, hn_visc_falloff_slope=370.0, hn_shear_param_1=40000.0, hn_shear_falloff_slope=700.0, liquid_viscosity, bulk_melt_weakening, liquid_bulk_modulus)`
 
 | Member | Returns | Description |
 |---|---|---|
@@ -121,8 +124,8 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 | `calc_partial_melt(temperature, premelt_viscosity, premelt_shear)` | `(phi, viscosity, shear_modulus)` | Melt fraction, post-melt viscosity [Pa s], post-melt shear modulus [Pa]. |
 | `calc_bulk_modulus_melt(temperature, premelt_bulk_modulus, framework_shear_modulus)` | `float` | Post-melt bulk modulus [Pa]; the pre-melt value unless `bulk_melt_weakening` is on. |
 | `solidus`, `liquidus`, `liquid_shear`, `liquid_viscosity`, `bulk_melt_weakening`, `liquid_bulk_modulus` | `float`, `bool` | The melt envelope and liquid limits, read-only. |
-| `fs_visc_power_slope`, `fs_visc_power_phase`, `fs_shear_power_slope`, `fs_shear_power_phase` | `float` | The Spohn model's parameters, read-only. |
-| `crit_melt_frac`, `crit_melt_frac_width`, `hn_visc_slope_1`, `hn_visc_falloff_slope`, `hn_shear_param_1`, `hn_shear_param_2`, `hn_shear_falloff_slope` | `float` | The Henning model's parameters, read-only. |
+| `fs_visc_power_slope`, `fs_visc_log10_at_solidus`, `fs_shear_power_slope`, `fs_shear_log10_at_solidus` | `float` | The Spohn model's parameters, read-only. |
+| `crit_melt_frac`, `crit_melt_frac_width`, `hn_visc_slope_1`, `hn_visc_falloff_slope`, `hn_shear_param_1`, `hn_shear_falloff_slope` | `float` | The Henning model's parameters, read-only. |
 | `model_name` | `str` | The resolved model name (`off`, `spohn`, `henning`). |
 | `get_config_dict()` | `dict` | `model` plus every parameter the model carries, under the config keys from the table above. |
 | `save_config(path)` | - | That dict written as TOML. |

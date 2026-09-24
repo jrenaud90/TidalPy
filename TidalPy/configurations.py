@@ -131,6 +131,57 @@ def keep_on_model_change(table_name: str, base_table: dict) -> dict:
             kept[key] = copy.deepcopy(value)
     return kept
 
+
+# Model-table keys a 0.8.0 pre-release wrote into TidalPy_Configs_x.toml that no model reads any more, with the reason.
+# A loaded file has them dropped, with one warning, so an existing file keeps building worlds.
+RETIRED_CONFIG_X_MODEL_KEYS = {
+    "hn_shear_param_2": "the Henning shear law is anchored at the solidus, exp[b1 (1/T - 1/T_sol)], so it has no "
+                        "separate offset (the old default 25 is 40000 / 1600)",
+}
+
+
+def drop_retired_config_x_keys(config: dict, source: str) -> list:
+    """Remove the retired model keys (``RETIRED_CONFIG_X_MODEL_KEYS``) from a loaded configuration, in place.
+
+    Parameters
+    ----------
+    config : dict
+        A ``TidalPy_Configs_x.toml`` or override dict; nested tables are searched.
+    source : str
+        What ``config`` is, for the warning.
+
+    Returns
+    -------
+    list of str
+        The dotted paths of the keys removed; empty when there were none. A nonempty list is also warned about,
+        under the ``[warnings] unknown_config_key`` switch.
+    """
+    removed = []
+
+    def walk(table, path):
+        for key in list(table):
+            here = f"{path}.{key}" if path else key
+            if isinstance(table[key], dict):
+                walk(table[key], here)
+            elif key in RETIRED_CONFIG_X_MODEL_KEYS:
+                del table[key]
+                removed.append(here)
+
+    walk(config, "")
+    if removed:
+        # The file's own switch wins, then the configuration already loaded.
+        loaded = TidalPy.config_x if isinstance(TidalPy.config_x, dict) else {}
+        switch = (loaded.get("warnings", {}) or {}).get("unknown_config_key", True)
+        switch = (config.get("warnings", {}) or {}).get("unknown_config_key", switch)
+        if switch:
+            reasons = "; ".join(f"{key}: {why}" for key, why in RETIRED_CONFIG_X_MODEL_KEYS.items()
+                                if any(path.split(".")[-1] == key for path in removed))
+            warnings.warn(
+                f"{source} sets {len(removed)} key(s) no longer read, which are ignored: {', '.join(removed)} "
+                f"({reasons}). Delete them from the file to silence this warning.")
+    return removed
+
+
 def find_unknown_config_x_keys(overrides: dict, packaged: dict) -> list:
     """The keys of a ``TidalPy_Configs_x.toml`` (or an override dict) that nothing in TidalPy reads.
 
@@ -413,6 +464,7 @@ def get_default_config_x() -> dict:
 
     packaged = get_packaged_config_x()
     user_config = toml.load(config_x_path)
+    drop_retired_config_x_keys(user_config, f"The configuration file {config_x_path}")
     warn_unknown_config_x_keys(user_config, packaged, f"The configuration file {config_x_path}")
     config_x_dict = merge_configs(packaged, user_config)
 
@@ -464,6 +516,9 @@ def set_config_x(new_config: Union[str, dict]) -> dict:
 
     if TidalPy.config_x is None:
         get_default_config_x()
+    source = f"The configuration file {new_config}" if isinstance(new_config, str) else "The configuration override"
+    overrides = copy.deepcopy(overrides)
+    drop_retired_config_x_keys(overrides, source)
     warn_unknown_config_x_keys(
         overrides, get_packaged_config_x(),
         f"The configuration file {new_config}" if isinstance(new_config, str) else "The configuration override")

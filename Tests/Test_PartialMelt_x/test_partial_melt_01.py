@@ -87,6 +87,18 @@ def test_spohn_formula(T):
     assert shear == pytest.approx(exp_shear, rel=1e-9)
 
 
+def test_spohn_anchored_at_the_solidus():
+    """At another solidus the law keeps its value at the solidus and its slope, instead of the absolute 1600 K fit."""
+    solidus, liquidus, T = 250.0, 300.0, 252.0
+    m = _import().SpohnPartialMelt(solidus=solidus, liquidus=liquidus, liquid_shear=_LIQ_SHEAR)
+    phi, visc, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR)
+    assert phi == pytest.approx(0.04)
+    assert visc == pytest.approx(10.0 ** (15.875 + 27000.0 * (1.0 / T - 1.0 / solidus)), rel=1e-9)
+    assert shear == pytest.approx(10.0 ** (10.65 + 82000.0 * (1.0 / T - 1.0 / solidus)), rel=1e-9)
+    # The published fit would give 10^263 Pa here.
+    assert shear < 1.0e11
+
+
 @pytest.mark.parametrize("T", [200.0, 1000.0, _SOLIDUS])
 def test_spohn_below_solidus_returns_premelt(T):
     """The Fischer-Spohn law applies only above the solidus; below it (where the law would overflow) nothing melts."""
@@ -110,6 +122,7 @@ def _henning_expected(T):
         visc, shear = _PREMELT_VISC, _PREMELT_SHEAR
     elif phi < crit:
         visc = _PREMELT_VISC * math.exp(-vslope1 * phi)
+        # Henning et al. (2009) Eq. 20 as published: 25 = 40000 / 1600, the reference solidus.
         shear = _PREMELT_SHEAR * math.exp((sp1 / T) - sp2)
     elif phi <= crit_plus:
         visc = _PREMELT_VISC * math.exp(-vslope1 * crit) * math.exp(-vfall * (phi - crit))
@@ -126,6 +139,30 @@ def test_henning_regimes(T):
     exp_visc, exp_shear = _henning_expected(T)
     assert visc == pytest.approx(exp_visc, rel=1e-9)
     assert shear == pytest.approx(exp_shear, rel=1e-9)
+
+
+@pytest.mark.parametrize("solidus", [250.0, 1200.0, 1600.0])
+def test_henning_shear_continuous_at_any_solidus(solidus):
+    """The sub-critical shear law exp[b1 (1/T - 1/T_sol)] is 1 at the solidus, whatever the solidus."""
+    liquidus = 1.25 * solidus
+    m = _import().HenningPartialMelt(solidus=solidus, liquidus=liquidus, liquid_shear=_LIQ_SHEAR)
+    T = solidus * (1.0 + 1.0e-9)
+    _, _, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR)
+    assert shear == pytest.approx(_PREMELT_SHEAR, rel=1e-4)
+    T = solidus + 0.2 * (liquidus - solidus)
+    _, _, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR)
+    assert shear == pytest.approx(_PREMELT_SHEAR * math.exp(40000.0 * (1.0 / T - 1.0 / solidus)), rel=1e-9)
+
+
+def test_henning_retired_offset_key_warns_and_is_ignored():
+    """A pre-release user config that still sets hn_shear_param_2 builds, with a warning, and the key has no effect."""
+    mod = _import()
+    with pytest.warns(UserWarning, match="hn_shear_param_2"):
+        m = mod.make_partial_melt("henning", {"solidus_k": 1200.0, "hn_shear_param_2": 3.0})
+    assert "hn_shear_param_2" not in m.get_config_dict()
+    reference = mod.make_partial_melt("henning", {"solidus_k": 1200.0})
+    assert m.calc_partial_melt(1300.0, _PREMELT_VISC, _PREMELT_SHEAR) == \
+        reference.calc_partial_melt(1300.0, _PREMELT_VISC, _PREMELT_SHEAR)
 
 
 def test_henning_liquid_regime_floors():
@@ -252,10 +289,10 @@ _CONFIG_KEYS = {
 
 
 @pytest.mark.parametrize("cls_name,params", [
-    ("SpohnPartialMelt", dict(fs_visc_power_slope=25000.0, fs_visc_power_phase=1.5,
-                              fs_shear_power_slope=80000.0, fs_shear_power_phase=39.0)),
+    ("SpohnPartialMelt", dict(fs_visc_power_slope=25000.0, fs_visc_log10_at_solidus=15.5,
+                              fs_shear_power_slope=80000.0, fs_shear_log10_at_solidus=10.2)),
     ("HenningPartialMelt", dict(crit_melt_frac=0.4, crit_melt_frac_width=0.08, hn_visc_slope_1=12.0,
-                                hn_visc_falloff_slope=350.0, hn_shear_param_1=41000.0, hn_shear_param_2=24.0,
+                                hn_visc_falloff_slope=350.0, hn_shear_param_1=41000.0,
                                 hn_shear_falloff_slope=650.0)),
 ])
 def test_model_parameter_properties(cls_name, params):

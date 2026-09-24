@@ -59,8 +59,8 @@ def _rock_layer_block(section: str) -> str:
         crit_melt_frac_width = 0.05
         hn_visc_slope_1 = 13.5
         hn_visc_falloff_slope = 370.0
+        # Shear modulus below the critical melt fraction: mu exp[b1 (1/T - 1/T_sol)], anchored at the solidus.
         hn_shear_param_1_k = 40000.0
-        hn_shear_param_2 = 25.0
         hn_shear_falloff_slope = 700.0
 
     [layers.{section}.shear_rheology]

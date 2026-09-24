@@ -189,10 +189,10 @@ liquid_shear_pa = 1.0e-5            # the shear modulus of the melt
 liquid_viscosity_pas = 0.2          # the viscosity of the melt, and the floor on the post-melt viscosity
 bulk_melt_weakening = true          # also weaken the bulk modulus (a Hashin-Shtrikman bound; off by default)
 liquid_bulk_modulus_pa = 2.0e10     # the bulk modulus of the melt, used only when bulk_melt_weakening is on
-fs_visc_power_slope_k = 27000.0     # the viscosity and shear-modulus power laws: slope and phase
-fs_visc_power_phase = 1.0
+fs_visc_power_slope_k = 27000.0     # the viscosity and shear-modulus power laws: slope, and log10 at the solidus
+fs_visc_log10_at_solidus = 15.875
 fs_shear_power_slope_k = 82000.0
-fs_shear_power_phase = 40.6
+fs_shear_log10_at_solidus = 10.65
 
 [layers.lower_mantle.shear_rheology]
 model = "sundberg"                  # Sundberg-Cooper: Andrade transient plus a Voigt element
@@ -262,8 +262,7 @@ crit_melt_frac = 0.5                # the melt fraction of the rheological trans
 crit_melt_frac_width = 0.05
 hn_visc_slope_1 = 13.5              # the viscosity and shear-modulus falloffs on each side of the transition
 hn_visc_falloff_slope = 370.0
-hn_shear_param_1_k = 40000.0
-hn_shear_param_2 = 25.0
+hn_shear_param_1_k = 40000.0        # the shear law exp[b1 (1/T - 1/T_sol)] below the transition
 hn_shear_falloff_slope = 700.0
 
 [layers.upper_mantle.shear_rheology]

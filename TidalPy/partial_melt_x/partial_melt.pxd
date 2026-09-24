@@ -42,15 +42,14 @@ cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
         cpp_bool bulk_melt_weakening
         double liquid_bulk_modulus
         double fs_visc_power_slope
-        double fs_visc_power_phase
+        double fs_visc_log10_at_solidus
         double fs_shear_power_slope
-        double fs_shear_power_phase
+        double fs_shear_log10_at_solidus
         double crit_melt_frac
         double crit_melt_frac_width
         double hn_visc_slope_1
         double hn_visc_falloff_slope
         double hn_shear_param_1
-        double hn_shear_param_2
         double hn_shear_falloff_slope
 
     cdef cppclass c_OffPartialMelt(c_PartialMeltBase):
@@ -61,9 +60,9 @@ cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
         c_SpohnPartialMelt() except +
         c_SpohnPartialMelt(const c_PartialMeltConfig& cfg) except +
         double get_visc_power_slope() const
-        double get_visc_power_phase() const
+        double get_visc_log10_at_solidus() const
         double get_shear_power_slope() const
-        double get_shear_power_phase() const
+        double get_shear_log10_at_solidus() const
 
     cdef cppclass c_HenningPartialMelt(c_PartialMeltBase):
         c_HenningPartialMelt() except +
@@ -73,7 +72,6 @@ cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
         double get_visc_slope_1() const
         double get_visc_falloff_slope() const
         double get_shear_param_1() const
-        double get_shear_param_2() const
         double get_shear_falloff_slope() const
 
     cdef enum class c_PartialMeltModel:

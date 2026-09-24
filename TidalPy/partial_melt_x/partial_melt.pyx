@@ -2,6 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrappers for TidalPy's partial-melt models."""
 
+import warnings
+
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.utility cimport move
@@ -146,7 +148,12 @@ cdef class OffPartialMelt(PartialMeltBase):
 
 
 cdef class SpohnPartialMelt(PartialMeltBase):
-    """Fischer & Spohn (1990) temperature-based melt law."""
+    """Fischer & Spohn (1990) temperature-based melt law, anchored at the solidus.
+
+    Above the solidus the post-melt viscosity and shear modulus are 10^(log10_at_solidus + s (1 / T - 1 / T_sol)),
+    independent of the pre-melt values. The defaults reproduce Fischer and Spohn's fits, 10^(27000 / T - 1) Pa s and
+    10^(82000 / T - 40.6) Pa, at the default 1600 K solidus.
+    """
 
     def __cinit__(self, *args, **kwargs):
         self._spohn_ptr = NULL
@@ -157,9 +164,9 @@ cdef class SpohnPartialMelt(PartialMeltBase):
             double liquidus=2000.0,
             double liquid_shear=1.0e-5,
             double fs_visc_power_slope=27000.0,
-            double fs_visc_power_phase=1.0,
+            double fs_visc_log10_at_solidus=15.875,
             double fs_shear_power_slope=82000.0,
-            double fs_shear_power_phase=40.6,
+            double fs_shear_log10_at_solidus=10.65,
             double liquid_viscosity=0.2,
             cpp_bool bulk_melt_weakening=False,
             double liquid_bulk_modulus=2.0e10):
@@ -170,10 +177,10 @@ cdef class SpohnPartialMelt(PartialMeltBase):
         config.liquid_viscosity    = liquid_viscosity
         config.bulk_melt_weakening = bulk_melt_weakening
         config.liquid_bulk_modulus = liquid_bulk_modulus
-        config.fs_visc_power_slope = fs_visc_power_slope
-        config.fs_visc_power_phase = fs_visc_power_phase
-        config.fs_shear_power_slope = fs_shear_power_slope
-        config.fs_shear_power_phase = fs_shear_power_phase
+        config.fs_visc_power_slope       = fs_visc_power_slope
+        config.fs_visc_log10_at_solidus  = fs_visc_log10_at_solidus
+        config.fs_shear_power_slope      = fs_shear_power_slope
+        config.fs_shear_log10_at_solidus = fs_shear_log10_at_solidus
         cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(c_PartialMeltModel.Spohn, config)
         self._spohn_ptr = <c_SpohnPartialMelt*>ptr.get()
         self._melt_ptr  = move(ptr)
@@ -184,31 +191,36 @@ cdef class SpohnPartialMelt(PartialMeltBase):
 
     @property
     def fs_visc_power_slope(self) -> float:
-        """Viscosity-law temperature slope s [K] in the weakening factor exp(s / T - p)."""
+        """Viscosity-law temperature slope s [K] in 10^(log10_at_solidus + s (1 / T - 1 / T_sol)) [Pa s]."""
         self._check_ptr()
         return self._spohn_ptr.get_visc_power_slope()
 
     @property
-    def fs_visc_power_phase(self) -> float:
-        """Viscosity-law phase p (dimensionless) in the weakening factor exp(s / T - p)."""
+    def fs_visc_log10_at_solidus(self) -> float:
+        """log10 of the post-melt viscosity at the solidus [log10 Pa s]."""
         self._check_ptr()
-        return self._spohn_ptr.get_visc_power_phase()
+        return self._spohn_ptr.get_visc_log10_at_solidus()
 
     @property
     def fs_shear_power_slope(self) -> float:
-        """Shear-law temperature slope s [K] in the weakening factor exp(s / T - p)."""
+        """Shear-law temperature slope s [K] in 10^(log10_at_solidus + s (1 / T - 1 / T_sol)) [Pa]."""
         self._check_ptr()
         return self._spohn_ptr.get_shear_power_slope()
 
     @property
-    def fs_shear_power_phase(self) -> float:
-        """Shear-law phase p (dimensionless) in the post-melt shear modulus 10^(s / T - p) [Pa]."""
+    def fs_shear_log10_at_solidus(self) -> float:
+        """log10 of the post-melt shear modulus at the solidus [log10 Pa]."""
         self._check_ptr()
-        return self._spohn_ptr.get_shear_power_phase()
+        return self._spohn_ptr.get_shear_log10_at_solidus()
 
 
 cdef class HenningPartialMelt(PartialMeltBase):
-    """Henning (2009/2010) three-regime melt weakening."""
+    """Henning (2009/2010) three-regime melt weakening.
+
+    Below the critical melt fraction the shear modulus is mu_pre exp[b1 (1 / T - 1 / T_sol)] with b1 =
+    ``hn_shear_param_1``, which is 1 at the solidus. Henning et al. (2009) Eq. 20, exp(40000 / T - 25), is this law at
+    the default 1600 K solidus.
+    """
 
     def __cinit__(self, *args, **kwargs):
         self._henning_ptr = NULL
@@ -223,7 +235,6 @@ cdef class HenningPartialMelt(PartialMeltBase):
             double hn_visc_slope_1=13.5,
             double hn_visc_falloff_slope=370.0,
             double hn_shear_param_1=40000.0,
-            double hn_shear_param_2=25.0,
             double hn_shear_falloff_slope=700.0,
             double liquid_viscosity=0.2,
             cpp_bool bulk_melt_weakening=False,
@@ -240,7 +251,6 @@ cdef class HenningPartialMelt(PartialMeltBase):
         config.hn_visc_slope_1      = hn_visc_slope_1
         config.hn_visc_falloff_slope = hn_visc_falloff_slope
         config.hn_shear_param_1 = hn_shear_param_1
-        config.hn_shear_param_2 = hn_shear_param_2
         config.hn_shear_falloff_slope = hn_shear_falloff_slope
         cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(c_PartialMeltModel.Henning, config)
         self._henning_ptr = <c_HenningPartialMelt*>ptr.get()
@@ -276,15 +286,9 @@ cdef class HenningPartialMelt(PartialMeltBase):
 
     @property
     def hn_shear_param_1(self) -> float:
-        """Shear-law temperature parameter b_1 [K] in exp(b_1 / T - b_2)."""
+        """Shear-law temperature parameter b_1 [K] in exp[b_1 (1 / T - 1 / T_sol)]."""
         self._check_ptr()
         return self._henning_ptr.get_shear_param_1()
-
-    @property
-    def hn_shear_param_2(self) -> float:
-        """Shear-law offset b_2 (dimensionless) in exp(b_1 / T - b_2)."""
-        self._check_ptr()
-        return self._henning_ptr.get_shear_param_2()
 
     @property
     def hn_shear_falloff_slope(self) -> float:
@@ -297,9 +301,16 @@ cdef class HenningPartialMelt(PartialMeltBase):
 PARTIAL_MELT_CONFIG_KEYS = frozenset({
     "solidus_k", "liquidus_k", "liquid_shear_pa", "liquid_viscosity_pas", "bulk_melt_weakening",
     "liquid_bulk_modulus_pa",
-    "fs_visc_power_slope_k", "fs_visc_power_phase", "fs_shear_power_slope_k", "fs_shear_power_phase",
+    "fs_visc_power_slope_k", "fs_visc_log10_at_solidus", "fs_shear_power_slope_k", "fs_shear_log10_at_solidus",
     "crit_melt_frac", "crit_melt_frac_width", "hn_visc_slope_1", "hn_visc_falloff_slope",
-    "hn_shear_param_1_k", "hn_shear_param_2", "hn_shear_falloff_slope"})
+    "hn_shear_param_1_k", "hn_shear_falloff_slope"})
+
+# Keys a 0.8.0 pre-release wrote into the user's TidalPy_Configs_x.toml that no model reads any more. They are dropped
+# with a warning rather than rejected, so an existing configuration file still builds worlds.
+RETIRED_PARTIAL_MELT_CONFIG_KEYS = {
+    "hn_shear_param_2": "the Henning shear law is anchored at the solidus, exp[b1 (1/T - 1/T_sol)], so it has no "
+                        "separate offset (the old default 25 is 40000 / 1600)",
+}
 
 
 def _same_model(str table_name, str model_name) -> bool:
@@ -326,10 +337,22 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     ------
     ValueError
         Unknown model name, or a config key that no partial-melt model reads.
+
+    Warns
+    -----
+    UserWarning
+        A retired key (``RETIRED_PARTIAL_MELT_CONFIG_KEYS``) is present; it is ignored.
     """
     if config is None:
         # Fall back to the same defaults the world-attached path uses.
         config = factory_defaults("material.partial_melt", PARTIAL_MELT_CONFIG_KEYS, model_name, _same_model)
+    cdef list retired = [key for key in RETIRED_PARTIAL_MELT_CONFIG_KEYS if config and key in config]
+    if retired:
+        warnings.warn(
+            "Partial-melt config key(s) no longer read and ignored: "
+            + "; ".join(f"`{key}` ({RETIRED_PARTIAL_MELT_CONFIG_KEYS[key]})" for key in retired)
+            + ". Remove them from your TidalPy_Configs_x.toml or world file.", stacklevel=2)
+        config = {key: value for key, value in config.items() if key not in RETIRED_PARTIAL_MELT_CONFIG_KEYS}
     check_config_keys(config, PARTIAL_MELT_CONFIG_KEYS, "partial-melt")
     if config is None:
         config = {}
@@ -349,12 +372,12 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
         cfg.liquid_bulk_modulus = config["liquid_bulk_modulus_pa"]
     if "fs_visc_power_slope_k" in config:
         cfg.fs_visc_power_slope = config["fs_visc_power_slope_k"]
-    if "fs_visc_power_phase" in config:
-        cfg.fs_visc_power_phase = config["fs_visc_power_phase"]
+    if "fs_visc_log10_at_solidus" in config:
+        cfg.fs_visc_log10_at_solidus = config["fs_visc_log10_at_solidus"]
     if "fs_shear_power_slope_k" in config:
         cfg.fs_shear_power_slope = config["fs_shear_power_slope_k"]
-    if "fs_shear_power_phase" in config:
-        cfg.fs_shear_power_phase = config["fs_shear_power_phase"]
+    if "fs_shear_log10_at_solidus" in config:
+        cfg.fs_shear_log10_at_solidus = config["fs_shear_log10_at_solidus"]
     if "crit_melt_frac" in config:
         cfg.crit_melt_frac = config["crit_melt_frac"]
     if "crit_melt_frac_width" in config:
@@ -365,8 +388,6 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
         cfg.hn_visc_falloff_slope = config["hn_visc_falloff_slope"]
     if "hn_shear_param_1_k" in config:
         cfg.hn_shear_param_1 = config["hn_shear_param_1_k"]
-    if "hn_shear_param_2" in config:
-        cfg.hn_shear_param_2 = config["hn_shear_param_2"]
     if "hn_shear_falloff_slope" in config:
         cfg.hn_shear_falloff_slope = config["hn_shear_falloff_slope"]
 

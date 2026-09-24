@@ -53,11 +53,11 @@ def _world(middle_layers):
                         "radius_m": _RADIUS, "mass_kg": mass, "layers": layers})
 
 
-# Henning weakening with its sub-critical factor exp(p1 / T - p2) set to 1 and a negligible breakdown band, so a point
-# keeps its unmelted moduli up to the breakdown and is molten past it.
+# Henning weakening with its sub-critical factor exp[b1 (1/T - 1/T_sol)] set to 1 and a negligible breakdown band, so a
+# point keeps its unmelted moduli up to the breakdown and is molten past it.
 _SHARP_MELT = {"model": "henning", "solidus_k": 1400.0, "liquidus_k": 1600.0,
                "crit_melt_frac": 1.0e-6, "crit_melt_frac_width": 1.0e-6,
-               "hn_shear_param_1_k": 0.0, "hn_shear_param_2": 0.0}
+               "hn_shear_param_1_k": 0.0}
 
 
 def _love(world):

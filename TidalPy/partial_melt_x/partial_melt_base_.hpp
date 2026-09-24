@@ -37,18 +37,17 @@ struct c_PartialMeltConfig {
     double liquid_bulk_modulus = 2.0e10;  // bulk modulus of the melt [Pa]
 
     // Spohn (Fischer & Spohn 1990) parameters.
-    double fs_visc_power_slope  = 27000.0;  // [K]
-    double fs_visc_power_phase  = 1.0;
-    double fs_shear_power_slope = 82000.0;  // [K]
-    double fs_shear_power_phase = 40.6;
+    double fs_visc_power_slope       = 27000.0;  // [K]
+    double fs_visc_log10_at_solidus  = 15.875;   // log10 of the post-melt viscosity at the solidus [Pa s]
+    double fs_shear_power_slope      = 82000.0;  // [K]
+    double fs_shear_log10_at_solidus = 10.65;    // log10 of the post-melt shear modulus at the solidus [Pa]
 
     // Henning (2009/2010) parameters.
     double crit_melt_frac         = 0.5;      // [m^3/m^3]
     double crit_melt_frac_width   = 0.05;     // [m^3/m^3]
     double hn_visc_slope_1        = 13.5;
     double hn_visc_falloff_slope  = 370.0;
-    double hn_shear_param_1       = 40000.0;  // [K]
-    double hn_shear_param_2       = 25.0;
+    double hn_shear_param_1       = 40000.0;  // [K], b1 in exp[b1 (1 / T - 1 / T_sol)]
     double hn_shear_falloff_slope = 700.0;
 };
 
