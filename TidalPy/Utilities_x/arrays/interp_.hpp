@@ -77,14 +77,14 @@ inline std::size_t c_binary_search_with_guess(
 }
 
 // `guess` seeds the binary search: pass the previous result for near-sequential queries, else 0.
-// Returns NaN only for an empty domain.
+// Returns NaN for an empty domain or a NaN query, as numpy.interp does.
 inline double c_interp(
         double desired_x,
         const double* x_domain,
         const double* dependent_values,
         std::size_t len_x,
         std::size_t guess = 0) {
-    if (len_x == 0) { return std::numeric_limits<double>::quiet_NaN(); }
+    if (len_x == 0 || std::isnan(desired_x)) { return std::numeric_limits<double>::quiet_NaN(); }
     if (len_x == 1) { return dependent_values[0]; }
 
     // Matches numpy.interp's default left/right behavior.
@@ -125,7 +125,7 @@ inline std::complex<double> c_interp_complex(
         const std::complex<double>* dependent_values,
         std::size_t len_x,
         std::size_t guess = 0) {
-    if (len_x == 0) {
+    if (len_x == 0 || std::isnan(desired_x)) {
         const double nan = std::numeric_limits<double>::quiet_NaN();
         return std::complex<double>(nan, nan);
     }

@@ -607,8 +607,9 @@ cdef class LayeredWorld(BaseWorld):
             Convergence tolerance on the surface-pressure mismatch, relative to the central-pressure scale
             (2/3) pi G rho^2 R^2. Keep it above ``rtol``, the integrator's own noise on the surface pressure.
         max_iters : int, optional
-            Maximum central-pressure iterations. Hitting the cap logs a warning, sets ``max_iters_hit`` in the
-            result, and keeps the last iteration's profile.
+            Maximum central-pressure iterations. Hitting the cap sets ``max_iters_hit``; if the surface pressure
+            is still off its target by more than ``pressure_tol`` the structure is not hydrostatic, so the solve
+            reports ``success = False``, logs a warning, and leaves the world unsolved.
         nondimensionalize : bool, optional
             Integrate in non-dimensional units (the planet radius, its bulk density, and 1/sqrt(pi G rho) as
             the length, density, and time units) so the tolerances mean the same thing for every planet.
@@ -693,11 +694,12 @@ cdef class LayeredWorld(BaseWorld):
         with nogil:
             self._layered_ptr.solve_eos(cfg)
 
-        if self._layered_ptr.get_eos_max_iters_hit():
+        if self._layered_ptr.get_eos_max_iters_hit() and not self._layered_ptr.get_eos_success():
             log_warning(
                 f"World '{self.name}' EOS solve stopped at max_iters = {cfg.max_iters} with a surface-pressure "
-                f"mismatch above pressure_tol = {cfg.pressure_tol:0.1e}; the profile is from the last iteration. "
-                f"Raise pressure_tol above the integration rtol ({cfg.rtol:0.1e}) or tighten rtol.")
+                f"mismatch above pressure_tol = {cfg.pressure_tol:0.1e}, so the world is left unsolved. Its layers "
+                f"may have no hydrostatic structure at this radius and mass; otherwise raise max_iters, or keep "
+                f"pressure_tol above the integration rtol ({cfg.rtol:0.1e}).")
 
         return self._build_eos_result()
 

@@ -413,8 +413,7 @@ public:
         {
             // CySolverResult::call is non-const, so get() is used to escape this method's constness.
             CySolverResult* interp = this->p_interp_by_layer_sol[target_layer_i][sol_i].get();
-            if (!interp) return false;
-            interp->call(radius_solve, real_out);
+            if (!c_call_dense_checked(interp, radius_solve, real_out, 2 * num_ys)) return false;
             for (size_t y_i = 0; y_i < num_ys; ++y_i)
                 ysol[sol_i][y_i] = std::complex<double>(real_out[2 * y_i], real_out[2 * y_i + 1]);
         }

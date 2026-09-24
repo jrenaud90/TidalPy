@@ -26,6 +26,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <initializer_list>
 #include <istream>
 #include <limits>
 #include <memory>
@@ -304,6 +305,32 @@ struct c_MaterialState {
     double bulk_viscosity  = std::numeric_limits<double>::quiet_NaN();  // [Pa s]
 };
 
+// Physical-range checks shared by the material constructors; each throws std::invalid_argument (ValueError in
+// Python) naming the model and the parameter. A NaN static modulus means "unset" and is allowed.
+inline void c_require_positive_finite(const std::string& model_name, const char* parameter, double value) {
+    if (!(std::isfinite(value) && (value > 0.0))) {
+        throw std::invalid_argument(
+            "TidalPy: material EOS '" + model_name + "' needs a finite, positive " + parameter + "; got " +
+            std::to_string(value) + ".");
+    }
+}
+
+inline void c_require_finite(const std::string& model_name, const char* parameter, double value) {
+    if (!std::isfinite(value)) {
+        throw std::invalid_argument(
+            "TidalPy: material EOS '" + model_name + "' needs a finite " + parameter + "; got " +
+            std::to_string(value) + ".");
+    }
+}
+
+inline void c_require_not_negative(const std::string& model_name, const char* parameter, double value) {
+    if (value < 0.0) {
+        throw std::invalid_argument(
+            "TidalPy: material EOS '" + model_name + "' needs a non-negative " + parameter + "; got " +
+            std::to_string(value) + ".");
+    }
+}
+
 class c_MaterialEOSBase : public c_PhysicsBase {
 public:
     explicit c_MaterialEOSBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
@@ -319,7 +346,10 @@ public:
           p_shear_modulus_temperature_derivative(cfg.shear_modulus_temperature_derivative),
           p_shear_modulus_reference_temperature(cfg.shear_modulus_reference_temperature),
           p_thermal_conductivity(cfg.thermal_conductivity),
-          p_heat_capacity(cfg.heat_capacity) {}
+          p_heat_capacity(cfg.heat_capacity) {
+        c_require_not_negative(model_name, "static shear modulus", cfg.shear_modulus_static);
+        c_require_not_negative(model_name, "static bulk modulus", cfg.bulk_modulus_static);
+    }
     ~c_MaterialEOSBase() override = default;
 
     double get_thermal_expansion()     const noexcept { return this->p_thermal_expansion; }
@@ -584,7 +614,9 @@ public:
     c_ConstantDensityEOS() : c_MaterialEOSBase("constant") {}
     explicit c_ConstantDensityEOS(const c_MaterialEOSConfig& cfg)
         : c_MaterialEOSBase("constant", cfg),
-          p_reference_density(cfg.reference_density) {}
+          p_reference_density(cfg.reference_density) {
+        c_require_positive_finite("constant", "reference density", cfg.reference_density);
+    }
     ~c_ConstantDensityEOS() override = default;
 
     double get_reference_density() const noexcept { return this->p_reference_density; }
@@ -629,7 +661,12 @@ public:
           p_reference_bulk_modulus(cfg.reference_bulk_modulus),
           p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
           p_invert_rtol(c_resolve_eos_invert_rtol(cfg.invert_rtol)),
-          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) { this->update_law_range(); }
+          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) {
+        c_require_positive_finite("birch_murnaghan", "reference density", cfg.reference_density);
+        c_require_positive_finite("birch_murnaghan", "reference bulk modulus", cfg.reference_bulk_modulus);
+        c_require_finite("birch_murnaghan", "bulk modulus derivative", cfg.bulk_modulus_derivative);
+        this->update_law_range();
+    }
     ~c_BirchMurnaghanEOS() override = default;
 
     double get_reference_density()       const noexcept { return this->p_reference_density; }
@@ -736,7 +773,12 @@ public:
           p_reference_bulk_modulus(cfg.reference_bulk_modulus),
           p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
           p_invert_rtol(c_resolve_eos_invert_rtol(cfg.invert_rtol)),
-          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) { this->update_law_range(); }
+          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) {
+        c_require_positive_finite("vinet", "reference density", cfg.reference_density);
+        c_require_positive_finite("vinet", "reference bulk modulus", cfg.reference_bulk_modulus);
+        c_require_finite("vinet", "bulk modulus derivative", cfg.bulk_modulus_derivative);
+        this->update_law_range();
+    }
     ~c_VinetEOS() override = default;
 
     double get_reference_density()       const noexcept { return this->p_reference_density; }
@@ -979,6 +1021,14 @@ protected:
         if (this->p_density.size() != num_points) {
             throw std::invalid_argument(
                 "TidalPy: interpolated EOS density table length does not match its radius table.");
+        }
+        for (const double density_value : this->p_density) {
+            c_require_positive_finite("interpolate", "density at every radius", density_value);
+        }
+        for (const std::vector<double>* modulus_table : {&this->p_shear_modulus, &this->p_bulk_modulus}) {
+            for (const double modulus_value : *modulus_table) {
+                c_require_not_negative("interpolate", "modulus at every radius", modulus_value);
+            }
         }
         const std::vector<double>* optional_tables[4] = {
             &this->p_shear_modulus, &this->p_bulk_modulus,

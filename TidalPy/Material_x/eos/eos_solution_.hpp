@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <stdexcept>
 #include <cstdio>
 #include <cstring>
@@ -17,6 +18,56 @@
 #include "../../utilities/arrays/interp_.hpp"
 #include "../../Utilities_x/math_x/numerics_.hpp"
 #include "../../Utilities_x/arrays/layer_partition_.hpp"  // c_partition_radius_by_layer
+
+
+/// Dense-output read of a finished CyRK integration that never hands back unwritten memory.
+///
+/// CyRK's `call` returns an error without writing when the query lies outside the integrated domain, which a
+/// radius computed by arithmetic can miss by a rounding step at a layer end. A query within the layer
+/// continuity tolerance of an end is evaluated at that end; anything further out, a non-finite query, or a
+/// failed call leaves every output NaN.
+///
+/// Parameters
+/// ----------
+/// result_ptr : Integration with dense output; null gives NaN.
+/// time_value : Query in the integration's own independent-variable units.
+/// y_out_ptr : Receives `num_y` values.
+/// num_y : Number of values CyRK writes for this integration.
+///
+/// Returns
+/// -------
+/// True when `y_out_ptr` holds a valid evaluation.
+inline bool c_call_dense_checked(
+        CySolverResult* result_ptr,
+        double time_value,
+        double* y_out_ptr,
+        const size_t num_y) noexcept
+{
+    for (size_t y_i = 0; y_i < num_y; ++y_i) { y_out_ptr[y_i] = TidalPyConstants::d_NAN; }
+    if (!result_ptr || !result_ptr->config_uptr || !std::isfinite(time_value)) { return false; }
+
+    const double domain_low  = std::min(result_ptr->config_uptr->t_start, result_ptr->config_uptr->t_end);
+    const double domain_high = std::max(result_ptr->config_uptr->t_start, result_ptr->config_uptr->t_end);
+    const double end_rtol    = tidalpy_config_ptr ? tidalpy_config_ptr->d_LAYER_CONTINUITY_RTOL : 0.0;
+    const double slack       = end_rtol * std::max(std::abs(domain_low), std::abs(domain_high));
+    if (time_value < domain_low)
+    {
+        if (time_value < domain_low - slack) { return false; }
+        time_value = domain_low;
+    }
+    else if (time_value > domain_high)
+    {
+        if (time_value > domain_high + slack) { return false; }
+        time_value = domain_high;
+    }
+
+    if (result_ptr->call(time_value, y_out_ptr) != CyrkErrorCodes::NO_ERROR)
+    {
+        for (size_t y_i = 0; y_i < num_y; ++y_i) { y_out_ptr[y_i] = TidalPyConstants::d_NAN; }
+        return false;
+    }
+    return true;
+}
 
 
 /// Equation-of-state integration results for a layered planet.
@@ -309,7 +360,25 @@ protected:
         // are copied out: the evaluation layout uses slots 4 and 5 for the density and the shear modulus.
         const size_t segment_i = this->segment_index(layer_index, radius_val);
         double state_arr[C_EOS_THERMAL_Y_VALUES];
-        this->cysolver_results_uptr_vec[segment_i]->call(radius_val, &state_arr[0]);
+        const bool state_found = (segment_i < this->cysolver_results_uptr_vec.size())
+            && c_call_dense_checked(
+                this->cysolver_results_uptr_vec[segment_i].get(), radius_val, &state_arr[0], C_EOS_THERMAL_Y_VALUES);
+        if (!state_found)
+        {
+            // Outside the layer's solved domain: every output is unknown.
+            for (size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i)
+            {
+                y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
+            }
+            if (material_out)
+            {
+                material_out->gravity       = TidalPyConstants::d_NAN;
+                material_out->density       = TidalPyConstants::d_NAN;
+                material_out->shear_modulus = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
+                material_out->bulk_modulus  = std::complex<double>(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
+            }
+            return;
+        }
         for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
         {
             y_interp_ptr[value_i] = state_arr[value_i];
@@ -494,8 +563,19 @@ public:
             throw std::out_of_range("Layer index out of range.");
         }
         double state_arr[C_EOS_THERMAL_Y_VALUES];
-        this->cysolver_results_uptr_vec[this->segment_index(layer_index, radius_val)]->call(
-            radius_val, &state_arr[0]);
+        const size_t segment_i = this->segment_index(layer_index, radius_val);
+        if (segment_i < this->cysolver_results_uptr_vec.size())
+        {
+            c_call_dense_checked(
+                this->cysolver_results_uptr_vec[segment_i].get(), radius_val, &state_arr[0], C_EOS_THERMAL_Y_VALUES);
+        }
+        else
+        {
+            for (size_t value_i = 0; value_i < C_EOS_THERMAL_Y_VALUES; ++value_i)
+            {
+                state_arr[value_i] = TidalPyConstants::d_NAN;
+            }
+        }
         for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
         {
             y_interp_ptr[value_i] = state_arr[value_i];

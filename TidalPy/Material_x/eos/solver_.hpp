@@ -62,8 +62,9 @@
 /// Assumptions
 /// -----------
 /// - Spherical symmetry and hydrostatic equilibrium.
-/// - The surface pressure rises monotonically with the central pressure (any EOS with positive density and
-///   compressibility), which the secant iteration relies on.
+/// - The secant iteration on the central pressure expects the surface pressure to rise with it near the root.
+///   Where the measured slope is not positive it steps by the residual itself, which converges slowly. A
+///   structure still off its target surface pressure at `max_iters` is reported as a failure.
 inline void c_solve_eos(
         c_EOSSolution* eos_solution_ptr,
         std::vector<PreEvalFunc>& eos_function_bylayer_ptr_vec,
@@ -359,8 +360,15 @@ inline void c_solve_eos(
                 previous_central = y0[1];
                 previous_diff    = pressure_diff;
 
-                // A non-finite step has nowhere to go: stop at the pass cap rather than halving forever.
-                if (!std::isfinite(step)) { break; }
+                // A non-finite step has nowhere to go, and this pass kept no dense output to report.
+                if (!std::isfinite(step))
+                {
+                    failed = true;
+                    integrator_failure_message =
+                        std::string("the secant step on the central pressure is not finite (surface pressure "
+                                    "residual ") + std::to_string(pressure_diff) + std::string(" Pa)");
+                    break;
+                }
                 // Keep the central pressure positive by halving an overshooting step.
                 double next_central = y0[1] + step;
                 while ((next_central <= 0.0) && (std::fabs(step) > TidalPyConstants::d_EPS * pressure_scale))
@@ -384,14 +392,9 @@ inline void c_solve_eos(
 
     eos_solution_ptr->iterations = iterations;
 
-    if (max_iters_hit)
-    {
-        eos_solution_ptr->message = std::string("Warning in `c_solve_eos`: Maximum number of iterations hit without convergence.");
-        if (verbose)
-        {
-            std::printf("%s", eos_solution_ptr->message.c_str());
-        }
-    }
+    // The pass the cap forces is kept for its diagnostics, but a structure whose surface pressure misses the
+    // target is not hydrostatic and must not be reported as solved.
+    const bool unconverged = max_iters_hit && !failed && !(pressure_diff_abs <= pressure_tol_abs);
 
     if (failed)
     {
@@ -408,8 +411,21 @@ inline void c_solve_eos(
     }
     else
     {
-        eos_solution_ptr->success = true;
+        eos_solution_ptr->success = !unconverged;
         eos_solution_ptr->pressure_error = pressure_diff_abs;
+        if (unconverged)
+        {
+            eos_solution_ptr->message =
+                std::string("`c_solve_eos` found no hydrostatic structure: after ") + std::to_string(iterations) +
+                std::string(" iterations the surface pressure misses its target by ") +
+                std::to_string(pressure_diff_abs) + std::string(" Pa (tolerance ") +
+                std::to_string(pressure_tol_abs) + std::string(" Pa). The layers' equations of state may have no "
+                "hydrostatic solution at this radius and mass; otherwise raise `max_iters`.");
+            if (verbose)
+            {
+                std::printf("%s\n", eos_solution_ptr->message.c_str());
+            }
+        }
 
         // Keep the layer EOS functions for on-demand evaluation, then sample onto the radius array.
         eos_solution_ptr->save_eos_functions(eos_function_bylayer_ptr_vec, eos_input_bylayer_vec);

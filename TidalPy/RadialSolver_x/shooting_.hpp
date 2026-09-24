@@ -685,7 +685,20 @@ int c_shooting_solver(
 
             // Top-of-layer y for the next layer's interface condition.
             double interp_top[C_MAX_NUM_Y_REAL];
-            integration_solution_ptr->call(radius_upper, interp_top);
+            if (!c_call_dense_checked(integration_solution_ptr, radius_upper, interp_top, 2 * num_ys))
+            {
+                solution_storage_ptr->error_code = -11;
+                solution_storage_ptr->success    = false;
+                solution_storage_ptr->message    =
+                    std::string("RadialSolver.ShootingMethod:: Dense output unavailable at the top of layer ") +
+                    std::to_string(current_layer_i) + std::string("; solution ") + std::to_string(solution_i) +
+                    std::string(".\n");
+                if (verbose)
+                {
+                    printf("%s", solution_storage_ptr->message.c_str());
+                }
+                return solution_storage_ptr->error_code;
+            }
             for (size_t y_i = 0; y_i < num_ys; ++y_i)
             {
                 uppermost_y_per_solution_ptr[solution_i * C_MAX_NUM_Y + y_i] =
@@ -818,8 +831,11 @@ int c_shooting_solver(
                 for (size_t solution_i = 0; solution_i < num_sols; ++solution_i)
                 {
                     double interp_top[C_MAX_NUM_Y_REAL];
-                    solution_storage_ptr->p_interp_by_layer_sol[layer_i_reversed][solution_i]->call(
-                        radius_upper, interp_top);
+                    c_call_dense_checked(
+                        solution_storage_ptr->p_interp_by_layer_sol[layer_i_reversed][solution_i].get(),
+                        radius_upper,
+                        interp_top,
+                        2 * num_ys);
                     for (size_t y_i = 0; y_i < num_ys; ++y_i)
                     {
                         uppermost_y_per_solution_ptr[solution_i * C_MAX_NUM_Y + y_i] =

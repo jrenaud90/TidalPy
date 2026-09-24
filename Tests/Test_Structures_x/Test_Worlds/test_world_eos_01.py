@@ -387,14 +387,15 @@ def test_secant_iteration_converges_on_a_compressible_planet():
 
 
 def test_max_iters_hit_is_reported():
-    """Stopping at the iteration cap keeps the last profile and says so in the result."""
+    """Stopping at the iteration cap off the target surface pressure is a failure: the structure is not
+    hydrostatic, so the world stays unsolved and the message says why."""
     world = _compressible_world()
     result = world.solve_eos(G_to_use=G, pressure_tol=1.0e-12, max_iters=1)
-    assert result["success"] is True
+    assert result["success"] is False
     assert result["max_iters_hit"] is True
     assert result["iterations"] == 1
-    assert "Maximum number of iterations" in result["message"]
-    assert world.eos_solved is True
+    assert "no hydrostatic structure" in result["message"]
+    assert world.eos_solved is False
 
 
 def test_pressure_tolerance_is_relative_to_the_central_pressure():

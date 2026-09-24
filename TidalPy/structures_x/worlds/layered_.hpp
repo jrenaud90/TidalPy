@@ -602,6 +602,13 @@ public:
         }
         const double planet_bulk_density = (total_volume > TidalPyConstants::d_EPS) ? (mass_estimate / total_volume) : 3500.0;
         const double planet_radius       = upper_radii.back();
+        // Tides, the potential, and the homogeneous Love methods use the world radius, so the layers must end there.
+        if (std::abs(planet_radius - this->p_radius) > layer_continuity_tol(this->p_radius)) {
+            throw std::invalid_argument(
+                "TidalPy: world '" + this->get_name() + "' has radius " + std::to_string(this->p_radius) +
+                " m but its outermost layer ends at " + std::to_string(planet_radius) +
+                " m; the layers must fill the world exactly.");
+        }
 
         // The default non-dimensional solve integrates in the radius, the bulk density, and 1/sqrt(pi G rho),
         // so the tolerances mean the same thing for every planet and the central pressure is of order one.
@@ -1084,8 +1091,8 @@ public:
     bool               get_eos_success()          const noexcept { return this->p_eos_success; }
     const std::string& get_eos_message()          const noexcept { return this->p_eos_message; }
     int                get_eos_iterations()       const noexcept { return this->p_eos_iterations; }
-    // The central-pressure iteration stopped at max_iters without meeting pressure_tol; the solution is
-    // still populated from the last iteration.
+    // The central-pressure iteration reached max_iters. A solve that then still misses pressure_tol is a failure
+    // (get_eos_success false) whose solution is kept for its diagnostics only.
     bool               get_eos_max_iters_hit()    const noexcept { return this->p_eos_max_iters_hit; }
     double             get_eos_pressure_error()   const noexcept { return this->p_eos_pressure_error; }
     double             get_surface_gravity_eos()  const noexcept { return this->p_surface_gravity_eos; }

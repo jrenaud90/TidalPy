@@ -1,6 +1,6 @@
 # Numerics (`Utilities_x.math_x`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-23_
 
 Three small C++ functions, in the header-only `numerics_.hpp`, that the physics modules call in place of their standard-library equivalents.
 
@@ -12,7 +12,7 @@ There is no Python or Cython wrapper. This is infrastructure used from inside C+
 bool c_isclose(double value_a, double value_b, double rtol = 1e-9, double atol = 0.0);
 ```
 
-Mirrors Python's `math.isclose`. Two values are close when their absolute difference is within the larger of the relative tolerance scaled by the bigger magnitude and the absolute tolerance. Exact equality short-circuits to true, and any NaN input returns false, so a NaN never compares close to anything including itself.
+Mirrors Python's `math.isclose`. Two values are close when their absolute difference is within the larger of the relative tolerance scaled by the bigger magnitude and the absolute tolerance. Exact equality short-circuits to true, any NaN input returns false, so a NaN never compares close to anything including itself, and an infinite value is close only to the same infinity.
 
 The default absolute tolerance is zero, which means values near zero compare close only when they are equal. Pass a non-zero `atol` when comparing against zero.
 
@@ -31,4 +31,4 @@ Returning NaN loses the information that the true answer was large rather than u
 
 ## Where Numerics are Used
 
-The viscosity models guard their Arrhenius exponentials, the partial-melt models guard their power laws, and both decaying radiogenics models guard their decay exponentials. Each module's page notes where a NaN can appear and what it means there. See [Viscosity Models](../viscosity_x/viscosity_models.md), [Partial-Melt Models](../partial_melt_x/partial_melt_models.md), and [Radiogenic Models](../radiogenics_x/radiogenics_models.md).
+The partial-melt models guard their power laws and both decaying radiogenics models guard their decay exponentials. The viscosity models keep the plain exponential on purpose: their cold limit is an infinite (rigid) viscosity, not NaN. Each module's page notes where a NaN can appear and what it means there. See [Viscosity Models](../viscosity_x/viscosity_models.md), [Partial-Melt Models](../partial_melt_x/partial_melt_models.md), and [Radiogenic Models](../radiogenics_x/radiogenics_models.md).
