@@ -1,6 +1,6 @@
 # System (`structures_x.system`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 A `System` links two or more worlds (a star, planets, moons) into a gravitationally bound group. It tracks two roles independently:
 
@@ -227,7 +227,7 @@ loaded.load_binary("system.tpyb")
 loaded["earth"]        # comes back as a LayeredWorld (with its layers), the Sun as a StarWorld, ...
 ```
 
-`System` inherits the binary machinery (`save_binary`, `load_binary`, `get_schema_version_str`, `save_config`) from the shared `TidalPyBaseClass`. As for a directly loaded world, the sub-models a world does not serialize (the layer EOS profile data and the tide, spin, and luminosity models) are not carried in the binary and are reattached after load; the container state (name, the star role, and each world's tidal host and orbital elements about both that host and the star) and each world's own fields (including, for a star, its effective temperature, so insolation survives) are. Until a loaded world's tide model is reattached with `set_tide_model`, its evolution results report `has_tide_model = False` with zero rates (see [Orbital and Spin Evolution](#orbital-and-spin-evolution)).
+`System` inherits the binary machinery (`save_binary`, `load_binary`, `get_schema_version_str`, `save_config`) from the shared `TidalPyBaseClass`. The binary carries the container state (name, the star role, and each world's tidal host and orbital elements about both that host and the star) and each world's complete record, with its tide model and tide configuration, spin model, pinned solver settings, and, for a star, its effective temperature and luminosity model (see [Binary Serialization](../worlds/worlds.md#binary-serialization)). A loaded system therefore evolves as the saved one did once each layered world has re-run `solve_eos`: solved state, the EOS profiles included, is not saved.
 
 `load_binary` raises `IOError` for a file whose system record is corrupt: a tidal host index that names no other world, an out-of-range star index, two worlds with one name, or an orbit that is not bound (a semi-major axis that is not positive or an eccentricity outside $[0, 1)$). The system is left unchanged.
 

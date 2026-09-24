@@ -1,6 +1,6 @@
 # Worlds (`structures_x.worlds`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry; a layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
 
@@ -501,7 +501,15 @@ Binary class id 203 (`BinaryClassID::StarWorld`).
 
 ## Binary Serialization
 
-A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then each layer's own complete binary record in index order. Because each layer recursively serializes its attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models (see [Binary serialization](../../utilities_x/binary_x.md)), a single `save_binary` / `load_binary` round-trips the entire world graph: no Python reconstruction step is needed. On load, each layer is rebuilt as the correct concrete subclass via the layer binary-dispatch factory (`c_layer_from_binary`). The record is the structure alone: the tide model and its configuration, the pinned solver settings (`get_solver_defaults`), and every solved result are not in it and are set or recomputed after a load.
+A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then each layer's own complete binary record in index order. Because each layer recursively serializes its attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models (see [Binary serialization](../../utilities_x/binary_x.md)), a single `save_binary` / `load_binary` round-trips the entire world graph: no Python reconstruction step is needed. On load, each layer is rebuilt as the correct concrete subclass via the layer binary-dispatch factory (`c_layer_from_binary`).
+
+The record also carries every setting that changes a result, so a loaded world computes what the saved one did:
+
+- Every world type: the tide model and its configuration (`get_tide_config()`: degrees, truncations, Love method, `love_fixed_q`, `love_fixed_dt`, `layer_tidal_heating`).
+- `LayeredWorld` and `GasGiantWorld`: the spin model's `moment_of_inertia_factor` and the pinned solver settings (`get_solver_defaults()`).
+- `StarWorld`: the luminosity model.
+
+Solved state is not saved: the EOS profile, Love numbers, and tide results are recomputed with `solve_eos` and `calc_tides` after a load. Loading into an existing world replaces all of these, so a record saved without a tide model leaves the world without one.
 
 ```python
 world.save_binary("earth.tpyb")

@@ -1,6 +1,6 @@
 # Binary Serialization (`Utilities_x.binary_x`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 TidalPy writes worlds, layers, systems, and physics models to a compact binary format. A TOML configuration is the readable, editable way to describe a world; the binary format saves and restores an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
 
@@ -164,6 +164,14 @@ What each layer class carries recursively, after its own scalar payload:
 | `c_PhysicsLayer` | material EOS model, shear rheology, bulk rheology, shear viscosity, bulk viscosity, partial melt |
 | `c_GasLayer` | the same six, inherited |
 | `c_SolidLiquidLayer` | the same six, plus cooling and radiogenics |
+
+Worlds carry their layers and world-scale models the same way:
+
+| World | Recursively serialized sub-objects |
+|---|---|
+| `c_BaseWorld` | tide model (after the tide configuration scalars) |
+| `c_LayeredWorld`, `c_GasGiantWorld` | tide model, then every layer in index order (the spin model's moment-of-inertia factor and the pinned solver settings are scalars in the payload) |
+| `c_StarWorld` | tide model, luminosity model |
 
 > [!NOTE]
 > The equation-of-state profile data is never serialized, because it is derived from the attached model: `solve_eos` runs directly on a loaded world and regenerates it.
