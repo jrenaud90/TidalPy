@@ -38,6 +38,33 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
 
 
 cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
+
+    cdef cppclass c_WorldEOSReport:
+        cpp_bool solved
+        cpp_bool success
+        string message
+        int iterations
+        cpp_bool max_iters_hit
+        double pressure_error
+        double surface_gravity
+        double surface_pressure
+        double central_pressure
+        double planet_mass
+        double planet_moi
+        size_t thermal_passes
+        cpp_bool thermal_converged
+        cpp_bool geometry_converged
+        vector[double] radius
+        vector[double] gravity
+        vector[double] pressure
+        vector[double] mass
+        vector[double] moi
+        vector[double] density
+        vector[double] temperature
+        vector[double] heat_flow
+        vector[c_LayerThermal] layer_thermal
+        vector[double] layer_temperature_rate
+        vector[double] layer_radius_outer
     cdef cppclass c_LayerLove:
         size_t              layer_index
         double              tidal_scale
@@ -140,6 +167,8 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       calc_internal_heating(double time) const
         cpp_bool     validate_layers() const
         void         solve_eos(const c_WorldEOSSolveConfig& cfg) except +
+        c_WorldEOSReport solve_eos_report(const c_WorldEOSSolveConfig& cfg) except +
+        c_WorldEOSReport get_eos_report() except +
         double       get_temperature(double radius)
         double       get_heat_flow(double radius)
         size_t       get_thermal_passes()
@@ -174,7 +203,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_bool     get_eos_solved() const
         cpp_bool     get_all_eos_set() const
         cpp_bool     get_eos_success() const
-        const string& get_eos_message() const
+        string       get_eos_message() except +
         int          get_eos_iterations() const
         cpp_bool     get_eos_max_iters_hit() const
         double       get_eos_pressure_error() const
@@ -208,9 +237,10 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_bool             get_love_solved() const
         cpp_bool             get_love_success() const
         int                  get_love_error_code() const
-        const string&        get_love_message() const
+        string               get_love_message() except +
         size_t               get_love_num_ytypes() const
         double               get_love_surface_amplification() const
+        double               get_love_surface_rcond() const
         cpp_complex[double]  get_love_number_k(size_t ytype_idx) const
         cpp_complex[double]  get_love_number_h(size_t ytype_idx) const
         cpp_complex[double]  get_love_number_l(size_t ytype_idx) const

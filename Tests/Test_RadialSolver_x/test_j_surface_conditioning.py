@@ -10,6 +10,7 @@ Python logger is captured too in case a classic solver ever warns through it.
 The layered world exposes the same diagnostic as ``love_surface_amplification``.
 """
 import logging
+import math
 
 import numpy as np
 import pytest
@@ -120,3 +121,25 @@ def test_amplification_is_recorded_whatever_the_warnings_flag(warnings_flag):
     result = world.solve_love_numbers(frequency=1.0e-5, warnings=warnings_flag)
     assert result['success']
     assert 0.0 < world.love_surface_amplification < SEVERE_SURFACE_AMPLIFICATION
+
+
+def test_world_level_rcond_property():
+    """The layered world reports the surface system's rcond, the rank measure, as the standalone solution does."""
+    world = build_world("earth_simple")
+    world.solve_eos()
+    assert math.isnan(world.love_surface_rcond)
+    world.solve_love_numbers(frequency=1.0e-5)
+    rcond = world.love_surface_rcond
+    assert 1.0e-8 < rcond <= 1.0
+    # The released solution carries the same number.
+    solution = world.release_radial_solution()
+    assert solution.surface_solve_rcond == rcond
+
+
+def test_world_level_rcond_is_nan_for_the_analytic_methods():
+    world = build_world("earth_simple")
+    world.solve_eos()
+    world.solve_love_numbers(frequency=1.0e-5)
+    assert world.love_surface_rcond > 0.0
+    world.solve_love_numbers(frequency=1.0e-5, love_method="homogeneous")
+    assert math.isnan(world.love_surface_rcond)

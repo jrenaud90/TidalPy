@@ -93,6 +93,69 @@ cdef cnp.ndarray cy_vec_to_ndarray(const vector[double]& v):
             mv[i] = v[i]
     return out
 
+# The solve_eos result dict from a report copied under the world's call lock (c_LayeredWorld::get_eos_report).
+cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
+    cdef size_t j
+    cdef size_t num_layers = report.layer_thermal.size()
+    cdef list layer_temperature        = []
+    cdef list layer_heat_flow_in       = []
+    cdef list layer_heat_flow_out      = []
+    cdef list layer_heating            = []
+    cdef list layer_node_temperature   = []
+    cdef list layer_top_temperature    = []
+    cdef list layer_boundary_thickness = []
+    cdef list layer_rayleigh_number    = []
+    cdef list layer_nusselt_number     = []
+    cdef list layer_in_thermal_network = []
+    for j in range(num_layers):
+        layer_temperature.append(report.layer_thermal[j].temperature)
+        layer_heat_flow_in.append(report.layer_thermal[j].heat_flow_in)
+        layer_heat_flow_out.append(report.layer_thermal[j].heat_flow_out)
+        layer_heating.append(report.layer_thermal[j].heating)
+        layer_node_temperature.append(report.layer_thermal[j].node_temperature)
+        layer_top_temperature.append(report.layer_thermal[j].top_temperature)
+        layer_boundary_thickness.append(report.layer_thermal[j].boundary_thickness)
+        layer_rayleigh_number.append(report.layer_thermal[j].rayleigh_number)
+        layer_nusselt_number.append(report.layer_thermal[j].nusselt_number)
+        layer_in_thermal_network.append(bool(report.layer_thermal[j].in_network))
+
+    return {
+        'success':          bool(report.success),
+        'message':          report.message.decode('utf-8'),
+        'iterations':       report.iterations,
+        'max_iters_hit':    bool(report.max_iters_hit),
+        'pressure_error':   report.pressure_error,
+        'radius':           cy_vec_to_ndarray(report.radius),
+        'gravity':          cy_vec_to_ndarray(report.gravity),
+        'pressure':         cy_vec_to_ndarray(report.pressure),
+        'mass':             cy_vec_to_ndarray(report.mass),
+        'moi':              cy_vec_to_ndarray(report.moi),
+        'density':          cy_vec_to_ndarray(report.density),
+        'surface_gravity':  report.surface_gravity,
+        'surface_pressure': report.surface_pressure,
+        'central_pressure': report.central_pressure,
+        'planet_mass':      report.planet_mass,
+        'planet_moi':       report.planet_moi,
+        'temperature':      cy_vec_to_ndarray(report.temperature),
+        'heat_flow':        cy_vec_to_ndarray(report.heat_flow),
+        'thermal_passes':   report.thermal_passes,
+        'thermal_converged':      bool(report.thermal_converged),
+        'geometry_converged':     bool(report.geometry_converged),
+        'layer_radius_outer':     list(report.layer_radius_outer),
+        'layer_temperature':      layer_temperature,
+        'layer_heat_flow_in':     layer_heat_flow_in,
+        'layer_heat_flow_out':    layer_heat_flow_out,
+        'layer_heating':          layer_heating,
+        'layer_temperature_rate': list(report.layer_temperature_rate),
+        'layer_node_temperature':   layer_node_temperature,
+        'layer_top_temperature':    layer_top_temperature,
+        'layer_boundary_thickness': layer_boundary_thickness,
+        'layer_rayleigh_number':    layer_rayleigh_number,
+        'layer_nusselt_number':     layer_nusselt_number,
+        'layer_in_thermal_network': layer_in_thermal_network,
+    }
+
+
 def build_layered_world_from_profile(
         double[::1] radius not None,
         double[::1] density not None,
@@ -707,138 +770,25 @@ cdef class LayeredWorld(BaseWorld):
         if nondimensionalize is not None:
             cfg.nondimensionalize = <cpp_bool>bool(nondimensionalize)
 
-        # Pure-C++ solve. Input validation throws std::invalid_argument, surfaced
-        # here as ValueError via the ``except +`` on the C++ declaration.
+        # Pure-C++ solve. Input validation throws std::invalid_argument, surfaced here as ValueError via the
+        # ``except +`` on the C++ declaration. The result is copied out under the world's call lock in the same call,
+        # so another thread's solve_eos cannot replace it before it is read.
+        cdef c_WorldEOSReport report
         with nogil:
-            self._layered_ptr.solve_eos(cfg)
+            report = self._layered_ptr.solve_eos_report(cfg)
 
-        if self._layered_ptr.get_eos_max_iters_hit() and not self._layered_ptr.get_eos_success():
+        if report.max_iters_hit and not report.success:
             log_warning(
                 f"World '{self.name}' EOS solve stopped at max_iters = {cfg.max_iters} with a surface-pressure "
                 f"mismatch above pressure_tol = {cfg.pressure_tol:0.1e}, so the world is left unsolved. Its layers "
                 f"may have no hydrostatic structure at this radius and mass; otherwise raise max_iters, or keep "
                 f"pressure_tol above the integration rtol ({cfg.rtol:0.1e}).")
 
-        return self._build_eos_result()
+        return cy_eos_report_to_dict(report)
 
     def _build_eos_result(self):
-        """Assemble the Python result dict from the retained C++ EOS solution."""
-        cdef const c_EOSSolution* sol = self._layered_ptr.get_eos_solution()
-        cdef size_t n = sol.radius_array_size if sol != NULL else 0
-        cdef cnp.ndarray radius_out   = np.empty(n, dtype=np.float64)
-        cdef cnp.ndarray gravity_out  = np.empty(n, dtype=np.float64)
-        cdef cnp.ndarray pressure_out = np.empty(n, dtype=np.float64)
-        cdef cnp.ndarray mass_out     = np.empty(n, dtype=np.float64)
-        cdef cnp.ndarray moi_out      = np.empty(n, dtype=np.float64)
-        cdef cnp.ndarray density_out  = np.empty(n, dtype=np.float64)
-        cdef cnp.ndarray temperature_out = np.empty(n, dtype=np.float64)
-        cdef cnp.ndarray heat_flow_out   = np.empty(n, dtype=np.float64)
-        cdef size_t j
-        cdef Py_ssize_t num_points = <Py_ssize_t>n
-        cdef size_t num_layers = self._layered_ptr.get_num_layers()
-        cdef list layer_temperature      = []
-        cdef list layer_heat_flow_in     = []
-        cdef list layer_heat_flow_out    = []
-        cdef list layer_heating          = []
-        cdef list layer_temperature_rate = []
-        cdef list layer_radius_outer     = []
-        cdef list layer_node_temperature = []
-        cdef list layer_top_temperature  = []
-        cdef list layer_boundary_thickness = []
-        cdef list layer_rayleigh_number  = []
-        cdef list layer_nusselt_number   = []
-        cdef list layer_in_thermal_network = []
-        cdef const vector[c_LayerThermal]* layer_thermal = NULL
-        # Typed views, so the profiles are copied as doubles. Indexing the arrays as Python objects boxes every
-        # value and costs more than the whole structure integration at the default grid size.
-        cdef double[::1] radius_view
-        cdef double[::1] gravity_view
-        cdef double[::1] pressure_view
-        cdef double[::1] mass_view
-        cdef double[::1] moi_view
-        cdef double[::1] density_view
-        cdef double[::1] temperature_view
-        cdef double[::1] heat_flow_view
-        if sol != NULL and self._layered_ptr.get_eos_solved():
-            layer_thermal = &self._layered_ptr.get_layer_thermal()
-            for j in range(num_layers):
-                layer_temperature.append(layer_thermal[0][j].temperature)
-                layer_heat_flow_in.append(layer_thermal[0][j].heat_flow_in)
-                layer_heat_flow_out.append(layer_thermal[0][j].heat_flow_out)
-                layer_heating.append(layer_thermal[0][j].heating)
-                layer_node_temperature.append(layer_thermal[0][j].node_temperature)
-                layer_top_temperature.append(layer_thermal[0][j].top_temperature)
-                layer_boundary_thickness.append(layer_thermal[0][j].boundary_thickness)
-                layer_rayleigh_number.append(layer_thermal[0][j].rayleigh_number)
-                layer_nusselt_number.append(layer_thermal[0][j].nusselt_number)
-                layer_in_thermal_network.append(bool(layer_thermal[0][j].in_network))
-                layer_temperature_rate.append(self._layered_ptr.calc_layer_temperature_rate(j))
-                layer_radius_outer.append(self._layered_ptr.get_layer(j).get_radius_outer())
-            if num_points > 0:
-                radius_view      = radius_out
-                gravity_view     = gravity_out
-                pressure_view    = pressure_out
-                mass_view        = mass_out
-                moi_view         = moi_out
-                density_view     = density_out
-                temperature_view = temperature_out
-                heat_flow_view   = heat_flow_out
-                with nogil:
-                    cy_fill_from_vec(radius_view,      sol.radius_array_vec,      num_points)
-                    cy_fill_from_vec(gravity_view,     sol.gravity_array_vec,     num_points)
-                    cy_fill_from_vec(pressure_view,    sol.pressure_array_vec,    num_points)
-                    cy_fill_from_vec(mass_view,        sol.mass_array_vec,        num_points)
-                    cy_fill_from_vec(moi_view,         sol.moi_array_vec,         num_points)
-                    cy_fill_from_vec(density_view,     sol.density_array_vec,     num_points)
-                    cy_fill_from_vec(temperature_view, sol.temperature_array_vec, num_points)
-                    cy_fill_from_vec(heat_flow_view,   sol.heat_flow_array_vec,   num_points)
-        elif num_points > 0:
-            # No solution to report: the arrays come from np.empty, so say so rather than hand back whatever
-            # the allocator held.
-            radius_out[:]      = d_NAN
-            gravity_out[:]     = d_NAN
-            pressure_out[:]    = d_NAN
-            mass_out[:]        = d_NAN
-            moi_out[:]         = d_NAN
-            density_out[:]     = d_NAN
-            temperature_out[:] = d_NAN
-            heat_flow_out[:]   = d_NAN
-
-        return {
-            'success':          self._layered_ptr.get_eos_success(),
-            'message':          self._layered_ptr.get_eos_message().decode('utf-8'),
-            'iterations':       self._layered_ptr.get_eos_iterations(),
-            'max_iters_hit':    bool(self._layered_ptr.get_eos_max_iters_hit()),
-            'pressure_error':   self._layered_ptr.get_eos_pressure_error(),
-            'radius':           radius_out,
-            'gravity':          gravity_out,
-            'pressure':         pressure_out,
-            'mass':             mass_out,
-            'moi':              moi_out,
-            'density':          density_out,
-            'surface_gravity':  self._layered_ptr.get_surface_gravity_eos(),
-            'surface_pressure': self._layered_ptr.get_surface_pressure_eos(),
-            'central_pressure': self._layered_ptr.get_central_pressure(),
-            'planet_mass':      self._layered_ptr.get_planet_mass_eos(),
-            'planet_moi':       self._layered_ptr.get_planet_moi_eos(),
-            'temperature':      temperature_out,
-            'heat_flow':        heat_flow_out,
-            'thermal_passes':   self._layered_ptr.get_thermal_passes(),
-            'thermal_converged':      bool(self._layered_ptr.get_thermal_converged()),
-            'geometry_converged':     bool(self._layered_ptr.get_geometry_converged()),
-            'layer_radius_outer':     layer_radius_outer,
-            'layer_temperature':      layer_temperature,
-            'layer_heat_flow_in':     layer_heat_flow_in,
-            'layer_heat_flow_out':    layer_heat_flow_out,
-            'layer_heating':          layer_heating,
-            'layer_temperature_rate': layer_temperature_rate,
-            'layer_node_temperature':   layer_node_temperature,
-            'layer_top_temperature':    layer_top_temperature,
-            'layer_boundary_thickness': layer_boundary_thickness,
-            'layer_rayleigh_number':    layer_rayleigh_number,
-            'layer_nusselt_number':     layer_nusselt_number,
-            'layer_in_thermal_network': layer_in_thermal_network,
-        }
+        """The result dict of the last ``solve_eos``, from a copy of the solution taken under the world's call lock."""
+        return cy_eos_report_to_dict(self._layered_ptr.get_eos_report())
 
     @property
     def eos_solved(self) -> bool:
@@ -1225,7 +1175,9 @@ cdef class LayeredWorld(BaseWorld):
 
         # The conditioning diagnostic belongs to the radial solvers.
         if warnings and c_love_method_uses_radial_solver_int(cfg.love_method):
-            cy_check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
+            cy_check_surface_solve_conditioning(
+                self._layered_ptr.get_love_surface_amplification(), cfg.rtol,
+                self._layered_ptr.get_love_surface_rcond())
         return self._build_love_result()
 
     def solve_love_numbers_supplied(
@@ -1292,7 +1244,9 @@ cdef class LayeredWorld(BaseWorld):
                 radius_ptr,
                 n_in)
         if warnings:
-            cy_check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), cfg.rtol)
+            cy_check_surface_solve_conditioning(
+                self._layered_ptr.get_love_surface_amplification(), cfg.rtol,
+                self._layered_ptr.get_love_surface_rcond())
         return self._build_love_result()
 
     def release_radial_solution(self):
@@ -1371,6 +1325,18 @@ cdef class LayeredWorld(BaseWorld):
         matrix method does not use the shooting surface collapse.
         """
         return self._layered_ptr.get_love_surface_amplification()
+
+    @property
+    def love_surface_rcond(self) -> float:
+        """Reciprocal condition number of the last solve's surface boundary condition system.
+
+        Units- and normalization-independent: near 1 is well posed, and a value near machine epsilon means the
+        solution constants are undetermined (the solve then fails with error code -13 once it is below
+        ``[numerical] minimum_surface_rcond``). A value below the integration rtol draws a conditioning warning.
+        NaN before a shooting-method solve and for the other Love methods. The standalone solver reports the same
+        number as ``RadialSolverSolution.surface_solve_rcond``.
+        """
+        return self._layered_ptr.get_love_surface_rcond()
 
     @property
     def love_method(self) -> str:

@@ -52,7 +52,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         c_WorldEOSSolveConfig make_eos_solve_config() const
         void solve_eos(const c_WorldEOSSolveConfig& cfg) except +
         cpp_bool get_eos_success() const
-        const cpp_string& get_eos_message() const
+        cpp_string get_eos_message() except +
         void solve_love_numbers_supplied(
             const c_LoveSolveConfig& cfg,
             const cpp_complex[double]* shear_in,

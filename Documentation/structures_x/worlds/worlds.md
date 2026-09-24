@@ -335,6 +335,7 @@ The radial solver splits the layer at those edges and solves each molten stretch
 | `love_number_k`, `love_number_h`, `love_number_l` | complex | Love numbers for the first boundary condition at the solved degree. Equivalent to `get_love_number_k(0)` and friends. |
 | `love_method` | str | Canonical name of the method the last solve used. |
 | `love_surface_amplification` | float | Conditioning of the surface boundary-condition solve, recorded on every shooting solve whether or not `warnings` is on; near 1 is healthy, 0 after an analytic solve. |
+| `love_surface_rcond` | float | Reciprocal condition number of the surface boundary-condition system, the rank measure the amplification cannot give: near machine epsilon the solution constants are undetermined and the solve fails with error code -13 (below `[numerical] minimum_surface_rcond`); below the integration rtol it draws a conditioning warning. NaN before a shooting solve and for the other methods. The standalone solver reports it as `surface_solve_rcond`. |
 | `love_effective_shear_modulus`, `love_tidal_volume` | complex, float | The tidal-scale-weighted mean of the layers' complex shear moduli [Pa] and the volume of the layers that took part [m3] in the last quasi-homogeneous solve; NaN after a radial-solver solve. |
 | `love_layer_parts` | list of dict | Each tidal layer's part of the last quasi-homogeneous solve: `layer`, `tidal_scale`, `love_number_k`, `love_number_h`, `love_number_l`, and `shear_modulus`. Empty after a radial-solver solve. |
 

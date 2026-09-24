@@ -221,6 +221,41 @@ struct c_RadialSolverOverrides {
 
 // c_WorldCallLock, the world's call lock, is defined in layers/base_.hpp: a world's layers take it too.
 
+// A copy of everything a solve_eos result reports, taken under the world's call lock so that another thread's
+// solve_eos cannot replace the solution while it is read. The profile arrays are empty when no solve has populated
+// the world; the per-layer entries are filled only after a completed solve (get_eos_solved).
+struct c_WorldEOSReport {
+    bool        solved             = false;
+    bool        success            = false;
+    std::string message;
+    int         iterations         = 0;
+    bool        max_iters_hit      = false;
+    double      pressure_error     = TidalPyConstants::d_NAN;  // [Pa]
+    double      surface_gravity    = TidalPyConstants::d_NAN;  // [m s-2]
+    double      surface_pressure   = TidalPyConstants::d_NAN;  // [Pa]
+    double      central_pressure   = TidalPyConstants::d_NAN;  // [Pa]
+    double      planet_mass        = TidalPyConstants::d_NAN;  // [kg]
+    double      planet_moi         = TidalPyConstants::d_NAN;  // [kg m2]
+    std::size_t thermal_passes     = 0;
+    bool        thermal_converged  = false;
+    bool        geometry_converged = false;
+
+    // Radial profile of the solve (SI), one entry per reported sample.
+    std::vector<double> radius;
+    std::vector<double> gravity;
+    std::vector<double> pressure;
+    std::vector<double> mass;
+    std::vector<double> moi;
+    std::vector<double> density;
+    std::vector<double> temperature;
+    std::vector<double> heat_flow;
+
+    // One entry per layer.
+    std::vector<c_LayerThermal> layer_thermal;
+    std::vector<double>         layer_temperature_rate;  // [K s-1]
+    std::vector<double>         layer_radius_outer;      // [m]
+};
+
 // What one EOS solve evaluates its materials with: a copy of every layer's material model, the per-layer inputs
 // the structure ODE reaches them through, and the heat sources of a thermal solve. The solution co-owns it, so a
 // retained or exported solution keeps answering exactly as solved.
@@ -307,6 +342,11 @@ struct c_LoveWorkspace {
         if (this->is_analytic()) { return 0.0; }
         const auto* storage = this->get_storage();
         return storage ? storage->surface_amplification : 0.0;
+    }
+    double get_surface_rcond() const noexcept {
+        if (this->is_analytic()) { return TidalPyConstants::d_NAN; }
+        const auto* storage = this->get_storage();
+        return storage ? storage->surface_rcond : TidalPyConstants::d_NAN;
     }
 
     // The Love numbers for a boundary-condition ytype; the analytic methods hold one tidal set at index 0. NaN when
@@ -1149,9 +1189,67 @@ public:
         for (const auto& layer_uptr : this->p_layers) { layer_uptr->clear_eos_data(); }
     }
 
-    // Valid after solve_eos; NaN or empty otherwise.
+    // Solve the EOS and copy its result out before any other thread can start a solve on this world.
+    c_WorldEOSReport solve_eos_report(const c_WorldEOSSolveConfig& cfg) {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        this->solve_eos(cfg);
+        return this->get_eos_report();
+    }
+
+    // A consistent copy of the last solve's result (see c_WorldEOSReport).
+    c_WorldEOSReport get_eos_report() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        c_WorldEOSReport report;
+        report.solved             = this->p_eos_solved;
+        report.success            = this->p_eos_success;
+        report.message            = this->p_eos_message;
+        report.iterations         = this->p_eos_iterations;
+        report.max_iters_hit      = this->p_eos_max_iters_hit;
+        report.pressure_error     = this->p_eos_pressure_error;
+        report.surface_gravity    = this->p_surface_gravity_eos;
+        report.surface_pressure   = this->p_surface_pressure_eos;
+        report.central_pressure   = this->p_central_pressure;
+        report.planet_mass        = this->p_planet_mass_eos;
+        report.planet_moi         = this->p_planet_moi_eos;
+        report.thermal_passes     = this->p_thermal_passes;
+        report.thermal_converged  = this->p_thermal_converged;
+        report.geometry_converged = this->p_geometry_converged;
+
+        const c_EOSSolution* solution = this->p_eos_solution.get();
+        if (solution == nullptr || !this->p_eos_solved) { return report; }
+        const std::size_t num_points = solution->radius_array_size;
+        const auto copy_profile = [num_points](const std::vector<double>& source, std::vector<double>& target) {
+            const std::size_t count = std::min(num_points, source.size());
+            target.assign(source.begin(), source.begin() + static_cast<std::ptrdiff_t>(count));
+            target.resize(num_points, TidalPyConstants::d_NAN);
+        };
+        copy_profile(solution->radius_array_vec,      report.radius);
+        copy_profile(solution->gravity_array_vec,     report.gravity);
+        copy_profile(solution->pressure_array_vec,    report.pressure);
+        copy_profile(solution->mass_array_vec,        report.mass);
+        copy_profile(solution->moi_array_vec,         report.moi);
+        copy_profile(solution->density_array_vec,     report.density);
+        copy_profile(solution->temperature_array_vec, report.temperature);
+        copy_profile(solution->heat_flow_array_vec,   report.heat_flow);
+
+        const std::size_t num_layers = std::min(this->p_layers.size(), this->p_layer_thermal.size());
+        report.layer_thermal.assign(this->p_layer_thermal.begin(),
+                                    this->p_layer_thermal.begin() + static_cast<std::ptrdiff_t>(num_layers));
+        report.layer_temperature_rate.reserve(num_layers);
+        report.layer_radius_outer.reserve(num_layers);
+        for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
+            report.layer_temperature_rate.push_back(this->calc_layer_temperature_rate(layer_i));
+            report.layer_radius_outer.push_back(this->p_layers[layer_i]->get_radius_outer());
+        }
+        return report;
+    }
+
+    // Valid after solve_eos; NaN or empty otherwise. The message is a copy taken under the call lock.
     bool               get_eos_success()          const noexcept { return this->p_eos_success; }
-    const std::string& get_eos_message()          const noexcept { return this->p_eos_message; }
+    std::string get_eos_message() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_eos_message;
+    }
     int                get_eos_iterations()       const noexcept { return this->p_eos_iterations; }
     // The central-pressure iteration reached max_iters. A solve that then still misses pressure_tol is a failure
     // (get_eos_success false) whose solution is kept for its diagnostics only.
@@ -1884,8 +1982,7 @@ public:
     const ::c_RadialSolutionStorage* get_love_storage() const noexcept { return this->p_love.get_storage(); }
 
     // The Love results read the solver storage that solve_eos and the Love solves replace, so each read holds the
-    // call lock. get_love_message returns a reference, which cannot outlast the lock, so it is left to the thread
-    // that ran the solve.
+    // call lock; the message is returned as a copy for the same reason.
     bool get_love_solved() const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.solved;
@@ -1898,7 +1995,10 @@ public:
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_error_code();
     }
-    const std::string& get_love_message() const noexcept { return this->p_love.get_message(); }
+    std::string get_love_message() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.get_message();
+    }
     std::size_t get_love_num_ytypes() const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_num_ytypes();
@@ -1908,6 +2008,12 @@ public:
     double get_love_surface_amplification() const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_love.get_surface_amplification();
+    }
+    // Reciprocal condition number of the surface boundary condition system; NaN before a shooting-method solve and
+    // for the other methods. See c_estimate_surface_rcond in RadialSolver_x/boundaries/boundaries_.hpp.
+    double get_love_surface_rcond() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.get_surface_rcond();
     }
     // For the given boundary-condition ytype index; the analytic methods hold a single tidal set at index 0.
     // NaN when no solve describes the current structure: never solved, failed, or followed by a solve_eos.
