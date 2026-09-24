@@ -684,6 +684,27 @@ def test_load_binary_missing_file_raises():
         mod.FixedRadiogenics().load_binary("does_not_exist_12345.tpyb")
 
 
+def test_isotope_binary_payload_size_mismatch_raises():
+    """An isotope record whose header claims more payload than its isotope list occupies is refused, unread."""
+    mod = _import_radiogenics()
+    original = mod.IsotopeRadiogenics(_HPR, _HALF, _FRAC, _CONC, 1.0e17, names=["U238", "Th232"])
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "isotope.tpyb")
+        original.save_binary(path)
+        with open(path, "rb") as binary_file:
+            record = bytearray(binary_file.read())
+        # The header's payload size is the uint64 at byte 12, in the writer's (little-endian) byte order.
+        payload_size = int.from_bytes(record[12:20], "little")
+        record[12:20] = (payload_size + 8).to_bytes(8, "little")
+        record += bytes(8)
+        with open(path, "wb") as binary_file:
+            binary_file.write(record)
+        restored = mod.IsotopeRadiogenics()
+        with pytest.raises(IOError, match="payload bytes"):
+            restored.load_binary(path)
+    assert restored.num_isotopes == 0
+
+
 # =====================================================================================================================
 # isinstance chain
 # =====================================================================================================================

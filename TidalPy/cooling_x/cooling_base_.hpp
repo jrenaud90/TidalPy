@@ -2,10 +2,10 @@
 /* Abstract base for TidalPy cooling models. Concrete models live in cooling_.hpp. All quantities MKS. */
 
 #include <cstdint>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "broadcast_.hpp"
 #include "physics_base_.hpp"
 
 namespace tidalpy {
@@ -50,61 +50,25 @@ public:
     // model is never told apart by its name.
     virtual c_CoolingModel get_model_type() const noexcept = 0;
 
-    // Vectorized over the temperature drop at otherwise fixed state; out_results is resized.
-    void calc_cooling_vectorize_temperature(
-            const std::vector<double>& delta_temp,
-            const c_CoolingInputs& base_inputs,
-            std::vector<c_CoolingResult>& out_results) const
-    {
-        const std::size_t n = delta_temp.size();
-        out_results.resize(n);
-        c_CoolingInputs inputs = base_inputs;
-        
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            inputs.delta_temp = delta_temp[i];
-            out_results[i]    = this->calc_cooling(inputs);
-        }
-    }
-
-    // Vectorized over the viscosity at otherwise fixed state.
-    void calc_cooling_vectorize_viscosity(
-            const std::vector<double>& viscosity,
-            const c_CoolingInputs& base_inputs,
-            std::vector<c_CoolingResult>& out_results) const
-    {
-        const std::size_t n = viscosity.size();
-        out_results.resize(n);
-        c_CoolingInputs inputs = base_inputs;
-        
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            inputs.viscosity = viscosity[i];
-            out_results[i]   = this->calc_cooling(inputs);
-        }
-    }
-
-    // Vectorized element-wise over temperature drop and viscosity.
-    void calc_cooling_vectorize_all(
+    // Element-wise over the temperature drop and the viscosity at an otherwise fixed state (base_inputs). Each holds
+    // one value per point or a single value used at every point; out_results is resized.
+    void calc_cooling_vectorize(
             const std::vector<double>& delta_temp,
             const std::vector<double>& viscosity,
             const c_CoolingInputs& base_inputs,
             std::vector<c_CoolingResult>& out_results) const
     {
-        if (delta_temp.size() != viscosity.size())
-        {
-            throw std::invalid_argument(
-                "TidalPy::calc_cooling_vectorize_all: delta_temp and viscosity "
-                "vectors must have the same length");
-        }
-        const std::size_t n = delta_temp.size();
-        out_results.resize(n);
+        const std::size_t num_points = c_broadcast_length(
+            {delta_temp.size(), viscosity.size()}, "calc_cooling_vectorize");
+        const std::size_t delta_temp_stride = c_broadcast_stride(delta_temp.size());
+        const std::size_t viscosity_stride  = c_broadcast_stride(viscosity.size());
+        out_results.resize(num_points);
         c_CoolingInputs inputs = base_inputs;
-        
-        for (std::size_t i = 0; i < n; ++i)
+
+        for (std::size_t i = 0; i < num_points; ++i)
         {
-            inputs.delta_temp = delta_temp[i];
-            inputs.viscosity  = viscosity[i];
+            inputs.delta_temp = delta_temp[i * delta_temp_stride];
+            inputs.viscosity  = viscosity[i * viscosity_stride];
             out_results[i]    = this->calc_cooling(inputs);
         }
     }

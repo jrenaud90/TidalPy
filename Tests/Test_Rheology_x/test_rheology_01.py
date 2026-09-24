@@ -444,6 +444,19 @@ def test_class_vectorize_methods_match_scalar():
         assert by_all[i] == pytest.approx(s.calc_complex_modulus(mods[i], viscs[i], freqs[i]))
 
 
+def test_vectorized_keeps_each_complex_value():
+    """Vectorized results are the scalar results exactly, including a locked (infinite-viscosity) Voigt dashpot, whose
+    infinite loss modulus leaves the storage modulus finite."""
+    mod = _import_rheology()
+    viscs = np.array([1.0e20, np.inf])
+    got = mod.voigt(np.full(2, _MU), viscs, _OMEGA)
+    for i in range(2):
+        expected = mod.Voigt().calc_complex_modulus(_MU, viscs[i], _OMEGA)
+        assert got[i].real == expected.real
+        assert got[i].imag == expected.imag
+    assert np.isfinite(got[1].real)
+
+
 def test_class_vectorize_size_mismatch_raises():
     """Mismatched input lengths raise ValueError from the C++ layer."""
     mod = _import_rheology()

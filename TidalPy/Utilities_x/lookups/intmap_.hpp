@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <tuple>
@@ -53,16 +54,13 @@ public:
             return;
         }
 
-        auto it = std::lower_bound(this->data.begin(), this->data.end(), key_ref,
-            [](const auto& entry, RefKeyType k) { return entry.first.reference < k; });
-
-
-        if (it != this->data.end() && it->first.reference == key_ref)
+        const std::size_t index = this->p_lower_index(key_ref);
+        if (index < this->data.size() && this->data[index].first.reference == key_ref)
         {
-            it->second = value;
+            this->data[index].second = value;
         } else
         {
-            this->data.insert(it, {key, value});
+            this->data.insert(this->data.begin() + index, {key, value});
         }
     }
 
@@ -70,14 +68,10 @@ public:
     {
         o_found = true;
 
-        RefKeyType key_ref = key.reference;
-        
-        auto it = std::lower_bound(this->data.begin(), this->data.end(), key_ref, 
-            [](const auto& entry, RefKeyType k) { return entry.first.reference < k; });
-            
-        if (it != this->data.end() && it->first.reference == key_ref)
+        const std::size_t index = this->p_find_index(key.reference);
+        if (index < this->data.size())
         {
-            return it->second;
+            return this->data[index].second;
         }
 
         o_found = false;
@@ -88,16 +82,13 @@ public:
     {
         o_found = true;
 
-        RefKeyType key_ref = key.reference;
-        
-        auto it = std::lower_bound(this->data.begin(), this->data.end(), key_ref, 
-            [](const auto& entry, RefKeyType k) { return entry.first.reference < k; });
-            
-        if (it != this->data.end() && it->first.reference == key_ref)
+        const std::size_t index = this->p_find_index(key.reference);
+        if (index < this->data.size())
         {
-            return &(it->second);  // Points into the vector; a later set() can invalidate it.
+            return &(this->data[index].second);  // Points into the vector; a later set() can invalidate it.
         }
 
+        o_found = false;
         return nullptr;
     }
 
@@ -106,4 +97,24 @@ public:
 
     auto begin() const { return this->data.begin(); }
     auto end() const { return this->data.end(); }
+
+private:
+    // Index of the first entry whose key is not below key_ref; data is kept sorted by the packed key reference.
+    std::size_t p_lower_index(RefKeyType key_ref) const
+    {
+        const auto it = std::lower_bound(this->data.begin(), this->data.end(), key_ref,
+            [](const std::pair<KeyType, ValueType>& entry, RefKeyType k) { return entry.first.reference < k; });
+        return static_cast<std::size_t>(it - this->data.begin());
+    }
+
+    // Index of the entry holding key_ref, or data.size() when there is none.
+    std::size_t p_find_index(RefKeyType key_ref) const
+    {
+        const std::size_t index = this->p_lower_index(key_ref);
+        if (index < this->data.size() && this->data[index].first.reference == key_ref)
+        {
+            return index;
+        }
+        return this->data.size();
+    }
 };

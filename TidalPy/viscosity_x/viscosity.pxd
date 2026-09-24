@@ -64,15 +64,16 @@ cdef extern from "viscosity_.hpp" namespace "tidalpy" nogil:
 
 cdef class ViscosityBase(PhysicsBase):
     cdef unique_ptr[c_ViscosityBase] _visc_ptr   # owns the most-derived C++ model object
+    cdef void _adopt(self, unique_ptr[c_ViscosityBase]& model) noexcept
 
 
 cdef class ConstantViscosity(ViscosityBase):
-    cdef c_ConstantViscosity* _constant_ptr      # non-owning; ownership via ViscosityBase._visc_ptr
+    pass
 
 
 cdef class ReferenceViscosity(ViscosityBase):
-    cdef c_ReferenceViscosity* _ref_ptr          # non-owning; ownership via ViscosityBase._visc_ptr
+    pass
 
 
 cdef class ArrheniusViscosity(ViscosityBase):
-    cdef c_ArrheniusViscosity* _arr_ptr          # non-owning; ownership via ViscosityBase._visc_ptr
+    pass

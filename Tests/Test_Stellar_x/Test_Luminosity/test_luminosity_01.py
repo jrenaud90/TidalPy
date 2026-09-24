@@ -211,6 +211,14 @@ def test_direct_function_broadcast():
     assert out.shape == (3,)
 
 
+def test_read_only_mass_is_accepted():
+    masses = np.array([0.5, 1.0, 2.0]) * MASS_SOLAR
+    masses.setflags(write=False)
+    expected = np.array([MassToLuminosity().calc_luminosity(float(mass)) for mass in masses])
+    assert np.array_equal(MassToLuminosity().calc_luminosity(masses), expected)
+    assert np.array_equal(mass_to_luminosity(masses), expected)
+
+
 # =====================================================================================================================
 # Config dict + binary round-trip
 # =====================================================================================================================

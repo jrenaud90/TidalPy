@@ -15,10 +15,3 @@ cdef extern from "nondimensional_.hpp" nogil:
             double mean_radius,
             double bulk_density
         )
-
-
-cdef void cy_build_nondimensional_scales(
-    c_NonDimensionalScales* non_dim_scales_ptr,
-    double mean_radius,
-    double bulk_density
-    ) noexcept nogil

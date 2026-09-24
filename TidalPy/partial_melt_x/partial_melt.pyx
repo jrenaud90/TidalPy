@@ -14,8 +14,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
+from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass, cy_resolve_factory_config
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -25,9 +24,6 @@ set_tidalpy_config_ptr(get_shared_config_address())
 cdef class PartialMeltBase(PhysicsBase):
     """Abstract base for partial-melt models. Instantiate a concrete subclass."""
 
-    def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr auto-inits to nullptr
-
     def __init__(self, *args, **kwargs):
         raise TypeError(
             "PartialMeltBase is abstract; instantiate a concrete model "
@@ -36,6 +32,11 @@ cdef class PartialMeltBase(PhysicsBase):
     def __dealloc__(self):
         self._melt_ptr.reset()
         self._ptr = NULL
+
+    cdef void _adopt(self, unique_ptr[c_PartialMeltBase]& model) noexcept:
+        """Take ownership of ``model``; the inherited ``_ptr`` observes it."""
+        self._melt_ptr = move(model)
+        self._ptr = <c_TidalPyBaseClass*>self._melt_ptr.get()
 
     @property
     def solidus(self) -> float:
@@ -119,9 +120,6 @@ cdef class PartialMeltBase(PhysicsBase):
 cdef class OffPartialMelt(PartialMeltBase):
     """No melt weakening; post-melt strength equals pre-melt."""
 
-    def __cinit__(self, *args, **kwargs):
-        self._off_ptr = NULL
-
     def __init__(
             self,
             double solidus=1600.0,
@@ -137,14 +135,8 @@ cdef class OffPartialMelt(PartialMeltBase):
         config.liquid_viscosity    = liquid_viscosity
         config.bulk_melt_weakening = bulk_melt_weakening
         config.liquid_bulk_modulus = liquid_bulk_modulus
-        cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(
-            c_PartialMeltModel.Off, config)
-        self._off_ptr  = <c_OffPartialMelt*>ptr.get()
-        self._melt_ptr = move(ptr)
-        self._ptr      = <c_TidalPyBaseClass*>self._melt_ptr.get()
-
-    def __dealloc__(self):
-        self._off_ptr = NULL
+        cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Off, config)
+        self._adopt(model)
 
 
 cdef class SpohnPartialMelt(PartialMeltBase):
@@ -154,9 +146,6 @@ cdef class SpohnPartialMelt(PartialMeltBase):
     independent of the pre-melt values. The defaults reproduce Fischer and Spohn's fits, 10^(27000 / T - 1) Pa s and
     10^(82000 / T - 40.6) Pa, at the default 1600 K solidus.
     """
-
-    def __cinit__(self, *args, **kwargs):
-        self._spohn_ptr = NULL
 
     def __init__(
             self,
@@ -181,37 +170,32 @@ cdef class SpohnPartialMelt(PartialMeltBase):
         config.fs_visc_log10_at_solidus  = fs_visc_log10_at_solidus
         config.fs_shear_power_slope      = fs_shear_power_slope
         config.fs_shear_log10_at_solidus = fs_shear_log10_at_solidus
-        cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(c_PartialMeltModel.Spohn, config)
-        self._spohn_ptr = <c_SpohnPartialMelt*>ptr.get()
-        self._melt_ptr  = move(ptr)
-        self._ptr       = <c_TidalPyBaseClass*>self._melt_ptr.get()
-
-    def __dealloc__(self):
-        self._spohn_ptr = NULL
+        cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Spohn, config)
+        self._adopt(model)
 
     @property
     def fs_visc_power_slope(self) -> float:
         """Viscosity-law temperature slope s [K] in 10^(log10_at_solidus + s (1 / T - 1 / T_sol)) [Pa s]."""
         self._check_ptr()
-        return self._spohn_ptr.get_visc_power_slope()
+        return (<c_SpohnPartialMelt*>self._melt_ptr.get()).get_visc_power_slope()
 
     @property
     def fs_visc_log10_at_solidus(self) -> float:
         """log10 of the post-melt viscosity at the solidus [log10 Pa s]."""
         self._check_ptr()
-        return self._spohn_ptr.get_visc_log10_at_solidus()
+        return (<c_SpohnPartialMelt*>self._melt_ptr.get()).get_visc_log10_at_solidus()
 
     @property
     def fs_shear_power_slope(self) -> float:
         """Shear-law temperature slope s [K] in 10^(log10_at_solidus + s (1 / T - 1 / T_sol)) [Pa]."""
         self._check_ptr()
-        return self._spohn_ptr.get_shear_power_slope()
+        return (<c_SpohnPartialMelt*>self._melt_ptr.get()).get_shear_power_slope()
 
     @property
     def fs_shear_log10_at_solidus(self) -> float:
         """log10 of the post-melt shear modulus at the solidus [log10 Pa]."""
         self._check_ptr()
-        return self._spohn_ptr.get_shear_log10_at_solidus()
+        return (<c_SpohnPartialMelt*>self._melt_ptr.get()).get_shear_log10_at_solidus()
 
 
 cdef class HenningPartialMelt(PartialMeltBase):
@@ -221,9 +205,6 @@ cdef class HenningPartialMelt(PartialMeltBase):
     ``hn_shear_param_1``, which is 1 at the solidus. Henning et al. (2009) Eq. 20, exp(40000 / T - 25), is this law at
     the default 1600 K solidus.
     """
-
-    def __cinit__(self, *args, **kwargs):
-        self._henning_ptr = NULL
 
     def __init__(
             self,
@@ -252,49 +233,44 @@ cdef class HenningPartialMelt(PartialMeltBase):
         config.hn_visc_falloff_slope = hn_visc_falloff_slope
         config.hn_shear_param_1 = hn_shear_param_1
         config.hn_shear_falloff_slope = hn_shear_falloff_slope
-        cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(c_PartialMeltModel.Henning, config)
-        self._henning_ptr = <c_HenningPartialMelt*>ptr.get()
-        self._melt_ptr    = move(ptr)
-        self._ptr         = <c_TidalPyBaseClass*>self._melt_ptr.get()
-
-    def __dealloc__(self):
-        self._henning_ptr = NULL
+        cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Henning, config)
+        self._adopt(model)
 
     @property
     def crit_melt_frac(self) -> float:
         """Critical melt fraction phi_c at which the solid framework breaks down."""
         self._check_ptr()
-        return self._henning_ptr.get_crit_melt_frac()
+        return (<c_HenningPartialMelt*>self._melt_ptr.get()).get_crit_melt_frac()
 
     @property
     def crit_melt_frac_width(self) -> float:
         """Width w of the transition band from phi_c to phi_c + w."""
         self._check_ptr()
-        return self._henning_ptr.get_crit_melt_frac_width()
+        return (<c_HenningPartialMelt*>self._melt_ptr.get()).get_crit_melt_frac_width()
 
     @property
     def hn_visc_slope_1(self) -> float:
         """Viscosity weakening slope below phi_c: eta = eta_premelt * exp(-hn_visc_slope_1 * phi)."""
         self._check_ptr()
-        return self._henning_ptr.get_visc_slope_1()
+        return (<c_HenningPartialMelt*>self._melt_ptr.get()).get_visc_slope_1()
 
     @property
     def hn_visc_falloff_slope(self) -> float:
         """Viscosity falloff slope applied to (phi - phi_c) across the transition band."""
         self._check_ptr()
-        return self._henning_ptr.get_visc_falloff_slope()
+        return (<c_HenningPartialMelt*>self._melt_ptr.get()).get_visc_falloff_slope()
 
     @property
     def hn_shear_param_1(self) -> float:
         """Shear-law temperature parameter b_1 [K] in exp[b_1 (1 / T - 1 / T_sol)]."""
         self._check_ptr()
-        return self._henning_ptr.get_shear_param_1()
+        return (<c_HenningPartialMelt*>self._melt_ptr.get()).get_shear_param_1()
 
     @property
     def hn_shear_falloff_slope(self) -> float:
         """Shear falloff slope applied to (phi - phi_c) across the transition band."""
         self._check_ptr()
-        return self._henning_ptr.get_shear_falloff_slope()
+        return (<c_HenningPartialMelt*>self._melt_ptr.get()).get_shear_falloff_slope()
 
 
 # Every config key any partial-melt model reads; make_partial_melt rejects anything else.
@@ -313,9 +289,15 @@ RETIRED_PARTIAL_MELT_CONFIG_KEYS = {
 }
 
 
+# The wrapper class of each c_PartialMeltModel, in enum order.
+_PARTIAL_MELT_CLASSES = (OffPartialMelt, SpohnPartialMelt, HenningPartialMelt)
+
+
 def _same_model(str table_name, str model_name) -> bool:
     """Whether two names (aliases included) resolve to the same model."""
-    return c_partial_melt_model_from_name(table_name.lower().encode("utf-8")) == c_partial_melt_model_from_name(model_name.lower().encode("utf-8"))
+    return (
+        c_partial_melt_model_from_name(table_name.encode("utf-8"))
+        == c_partial_melt_model_from_name(model_name.encode("utf-8")))
 
 
 def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
@@ -343,9 +325,8 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     UserWarning
         A retired key (``RETIRED_PARTIAL_MELT_CONFIG_KEYS``) is present; it is ignored.
     """
-    if config is None:
-        # Fall back to the same defaults the world-attached path uses.
-        config = factory_defaults("material.partial_melt", PARTIAL_MELT_CONFIG_KEYS, model_name, _same_model)
+    # The world builder's defaults hold no retired key (factory_defaults keeps only accepted ones), so only a
+    # caller's config needs filtering.
     cdef list retired = [key for key in RETIRED_PARTIAL_MELT_CONFIG_KEYS if config and key in config]
     if retired:
         warnings.warn(
@@ -353,65 +334,31 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
             + "; ".join(f"`{key}` ({RETIRED_PARTIAL_MELT_CONFIG_KEYS[key]})" for key in retired)
             + ". Remove them from your TidalPy_Configs_x.toml or world file.", stacklevel=2)
         config = {key: value for key, value in config.items() if key not in RETIRED_PARTIAL_MELT_CONFIG_KEYS}
-    check_config_keys(config, PARTIAL_MELT_CONFIG_KEYS, "partial-melt")
-    if config is None:
-        config = {}
+    # None falls back to the same defaults the world-attached path uses.
+    config = cy_resolve_factory_config(
+        config, "material.partial_melt", PARTIAL_MELT_CONFIG_KEYS, model_name, _same_model, "partial-melt")
     # The default-constructed config carries the C++ defaults, so only override what the caller gave.
     cdef c_PartialMeltConfig cfg
-    if "solidus_k" in config:
-        cfg.solidus = config["solidus_k"]
-    if "liquidus_k" in config:
-        cfg.liquidus = config["liquidus_k"]
-    if "liquid_shear_pa" in config:
-        cfg.liquid_shear = config["liquid_shear_pa"]
-    if "liquid_viscosity_pas" in config:
-        cfg.liquid_viscosity = config["liquid_viscosity_pas"]
-    if "bulk_melt_weakening" in config:
-        cfg.bulk_melt_weakening = bool(config["bulk_melt_weakening"])
-    if "liquid_bulk_modulus_pa" in config:
-        cfg.liquid_bulk_modulus = config["liquid_bulk_modulus_pa"]
-    if "fs_visc_power_slope_k" in config:
-        cfg.fs_visc_power_slope = config["fs_visc_power_slope_k"]
-    if "fs_visc_log10_at_solidus" in config:
-        cfg.fs_visc_log10_at_solidus = config["fs_visc_log10_at_solidus"]
-    if "fs_shear_power_slope_k" in config:
-        cfg.fs_shear_power_slope = config["fs_shear_power_slope_k"]
-    if "fs_shear_log10_at_solidus" in config:
-        cfg.fs_shear_log10_at_solidus = config["fs_shear_log10_at_solidus"]
-    if "crit_melt_frac" in config:
-        cfg.crit_melt_frac = config["crit_melt_frac"]
-    if "crit_melt_frac_width" in config:
-        cfg.crit_melt_frac_width = config["crit_melt_frac_width"]
-    if "hn_visc_slope_1" in config:
-        cfg.hn_visc_slope_1 = config["hn_visc_slope_1"]
-    if "hn_visc_falloff_slope" in config:
-        cfg.hn_visc_falloff_slope = config["hn_visc_falloff_slope"]
-    if "hn_shear_param_1_k" in config:
-        cfg.hn_shear_param_1 = config["hn_shear_param_1_k"]
-    if "hn_shear_falloff_slope" in config:
-        cfg.hn_shear_falloff_slope = config["hn_shear_falloff_slope"]
+    cfg.solidus                   = config.get("solidus_k", cfg.solidus)
+    cfg.liquidus                  = config.get("liquidus_k", cfg.liquidus)
+    cfg.liquid_shear              = config.get("liquid_shear_pa", cfg.liquid_shear)
+    cfg.liquid_viscosity          = config.get("liquid_viscosity_pas", cfg.liquid_viscosity)
+    cfg.bulk_melt_weakening       = bool(config.get("bulk_melt_weakening", cfg.bulk_melt_weakening))
+    cfg.liquid_bulk_modulus       = config.get("liquid_bulk_modulus_pa", cfg.liquid_bulk_modulus)
+    cfg.fs_visc_power_slope       = config.get("fs_visc_power_slope_k", cfg.fs_visc_power_slope)
+    cfg.fs_visc_log10_at_solidus  = config.get("fs_visc_log10_at_solidus", cfg.fs_visc_log10_at_solidus)
+    cfg.fs_shear_power_slope      = config.get("fs_shear_power_slope_k", cfg.fs_shear_power_slope)
+    cfg.fs_shear_log10_at_solidus = config.get("fs_shear_log10_at_solidus", cfg.fs_shear_log10_at_solidus)
+    cfg.crit_melt_frac            = config.get("crit_melt_frac", cfg.crit_melt_frac)
+    cfg.crit_melt_frac_width      = config.get("crit_melt_frac_width", cfg.crit_melt_frac_width)
+    cfg.hn_visc_slope_1           = config.get("hn_visc_slope_1", cfg.hn_visc_slope_1)
+    cfg.hn_visc_falloff_slope     = config.get("hn_visc_falloff_slope", cfg.hn_visc_falloff_slope)
+    cfg.hn_shear_param_1          = config.get("hn_shear_param_1_k", cfg.hn_shear_param_1)
+    cfg.hn_shear_falloff_slope    = config.get("hn_shear_falloff_slope", cfg.hn_shear_falloff_slope)
 
     cdef c_PartialMeltModel model = c_partial_melt_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(model, cfg)
-
-    cdef OffPartialMelt     off_melt
-    cdef SpohnPartialMelt   spohn_melt
-    cdef HenningPartialMelt henning_melt
-    if model == c_PartialMeltModel.Off:
-        off_melt = OffPartialMelt.__new__(OffPartialMelt)
-        off_melt._off_ptr  = <c_OffPartialMelt*>ptr.get()
-        off_melt._melt_ptr = move(ptr)
-        off_melt._ptr      = <c_TidalPyBaseClass*>off_melt._melt_ptr.get()
-        return off_melt
-    elif model == c_PartialMeltModel.Spohn:
-        spohn_melt = SpohnPartialMelt.__new__(SpohnPartialMelt)
-        spohn_melt._spohn_ptr = <c_SpohnPartialMelt*>ptr.get()
-        spohn_melt._melt_ptr  = move(ptr)
-        spohn_melt._ptr       = <c_TidalPyBaseClass*>spohn_melt._melt_ptr.get()
-        return spohn_melt
-    else:
-        henning_melt = HenningPartialMelt.__new__(HenningPartialMelt)
-        henning_melt._henning_ptr = <c_HenningPartialMelt*>ptr.get()
-        henning_melt._melt_ptr    = move(ptr)
-        henning_melt._ptr         = <c_TidalPyBaseClass*>henning_melt._melt_ptr.get()
-        return henning_melt
+    wrapper_class = _PARTIAL_MELT_CLASSES[<int>model]
+    cdef PartialMeltBase wrapper = wrapper_class.__new__(wrapper_class)
+    wrapper._adopt(ptr)
+    return wrapper

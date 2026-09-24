@@ -1,6 +1,6 @@
 # Radiogenic Models (`radiogenics_x`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] is returned by `calc_heating(time, mass)`.
 
@@ -242,7 +242,7 @@ Binary class ids 500 through 503 are reserved for this module.
 **C++ (`TidalPy/radiogenics_x/radiogenics_.hpp`)**
 
 1. Add any new parameters to `c_RadiogenicsConfig` with sensible defaults. The single combined config is shared by all models, and each reads only the fields it needs.
-2. Add a free function implementing the heating law, guarding any half-life denominator with `rad_guard` and any growth term with `c_safe_exp` or `c_safe_pow`, so an overflow returns NaN like the existing models.
+2. Add a free function implementing the heating law, guarding any half-life denominator with `c_guard_denominator` (`constants_.hpp`) and any growth term with `c_safe_exp` or `c_safe_pow`, so an overflow returns NaN like the existing models.
 3. Add the model class deriving from `c_RadiogenicsBase`: a default constructor and one taking the config, `get_*` accessors, the `calc_heating` override, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers. Variable-length data is written directly after the header and model name, as `c_IsotopeRadiogenics` does.
 4. Add the enum value, the name and alias branch in `c_radiogenics_model_from_name`, and the cases in `c_find_radiogenics` and `c_radiogenics_from_binary`.
 

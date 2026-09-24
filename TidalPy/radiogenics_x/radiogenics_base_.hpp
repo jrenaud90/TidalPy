@@ -1,10 +1,10 @@
 #pragma once
 /* Abstract base for TidalPy radiogenics models. Concrete models live in radiogenics_.hpp. All MKS. */
 
-#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "broadcast_.hpp"
 #include "physics_base_.hpp"
 
 namespace tidalpy {
@@ -24,44 +24,17 @@ public:
     // Time [s] the model's quoted abundances or rate apply at; zero for a model with no decay.
     virtual double get_ref_time() const noexcept { return 0.0; }
 
-    // Over time at constant mass. The vectorized calls are virtual so a model can hoist per-call constants.
-    virtual void calc_heating_vectorize_time(
-            const std::vector<double>& time,
-            double mass,
-            std::vector<double>& out_heating) const {
-        const std::size_t n = time.size();
-        out_heating.resize(n);
-        for (std::size_t i = 0; i < n; ++i) {
-            out_heating[i] = this->calc_heating(time[i], mass);
-        }
-    }
-
-    // Over mass at constant time.
-    virtual void calc_heating_vectorize_mass(
-            double time,
-            const std::vector<double>& mass,
-            std::vector<double>& out_heating) const {
-        const std::size_t n = mass.size();
-        out_heating.resize(n);
-        for (std::size_t i = 0; i < n; ++i) {
-            out_heating[i] = this->calc_heating(time, mass[i]);
-        }
-    }
-
-    // Element-wise over time and mass.
-    virtual void calc_heating_vectorize_all(
+    // Element-wise over time and mass. Each holds one value per point or a single value used at every point.
+    virtual void calc_heating_vectorize(
             const std::vector<double>& time,
             const std::vector<double>& mass,
             std::vector<double>& out_heating) const {
-        if (time.size() != mass.size()) {
-            throw std::invalid_argument(
-                "TidalPy::calc_heating_vectorize_all: time and mass vectors must "
-                "have the same length");
-        }
-        const std::size_t n = time.size();
-        out_heating.resize(n);
-        for (std::size_t i = 0; i < n; ++i) {
-            out_heating[i] = this->calc_heating(time[i], mass[i]);
+        const std::size_t num_points = c_broadcast_length({time.size(), mass.size()}, "calc_heating_vectorize");
+        const std::size_t time_stride = c_broadcast_stride(time.size());
+        const std::size_t mass_stride = c_broadcast_stride(mass.size());
+        out_heating.resize(num_points);
+        for (std::size_t i = 0; i < num_points; ++i) {
+            out_heating[i] = this->calc_heating(time[i * time_stride], mass[i * mass_stride]);
         }
     }
 };

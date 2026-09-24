@@ -34,15 +34,7 @@ cdef extern from "cooling_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_CoolingBase(c_PhysicsBase):
         c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const
-        void calc_cooling_vectorize_temperature(
-            const vector[double]& delta_temp,
-            const c_CoolingInputs& base_inputs,
-            vector[c_CoolingResult]& out_results) except +
-        void calc_cooling_vectorize_viscosity(
-            const vector[double]& viscosity,
-            const c_CoolingInputs& base_inputs,
-            vector[c_CoolingResult]& out_results) except +
-        void calc_cooling_vectorize_all(
+        void calc_cooling_vectorize(
             const vector[double]& delta_temp,
             const vector[double]& viscosity,
             const c_CoolingInputs& base_inputs,
@@ -88,6 +80,7 @@ cdef class CoolingResult:
 
 cdef class CoolingBase(PhysicsBase):
     cdef unique_ptr[c_CoolingBase] _cooling_ptr   # owns the most-derived C++ model object
+    cdef void _adopt(self, unique_ptr[c_CoolingBase]& model) noexcept
 
 
 cdef class OffCooling(CoolingBase):
@@ -99,4 +92,4 @@ cdef class ConductiveCooling(CoolingBase):
 
 
 cdef class ConvectiveCooling(CoolingBase):
-    cdef c_ConvectiveCooling* _convective_ptr   # non-owning; ownership via CoolingBase._cooling_ptr
+    pass

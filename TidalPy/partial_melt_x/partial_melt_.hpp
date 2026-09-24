@@ -14,8 +14,6 @@
  * appends its 4 scalars, Henning its 6. The layer observer pointer is not serialized.
  */
 
-#include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <istream>
@@ -25,21 +23,16 @@
 #include <string>
 #include <vector>
 
+#include "model_names_.hpp"
 #include "partial_melt_base_.hpp"
 #include "../Utilities_x/math_x/numerics_.hpp"  // c_safe_pow, c_safe_exp
 
 namespace tidalpy {
 
-inline std::string melt_to_lower(std::string text) {
-    std::transform(text.begin(), text.end(), text.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return text;
-}
-
 // No melt weakening (alias "none"); the melt fraction is still reported.
-class c_OffPartialMelt : public c_PartialMeltBase {
+class c_OffPartialMelt final : public c_PartialMeltBase {
 public:
-    c_OffPartialMelt() : c_PartialMeltBase("off") {}
+    c_OffPartialMelt() : c_OffPartialMelt(c_PartialMeltConfig{}) {}
     explicit c_OffPartialMelt(const c_PartialMeltConfig& cfg) : c_PartialMeltBase("off", cfg) {}
     ~c_OffPartialMelt() override = default;
 
@@ -51,9 +44,12 @@ public:
         return result;
     }
 
+    uint32_t get_binary_class_id() const override {
+        return static_cast<uint32_t>(BinaryClassID::OffPartialMelt);
+    }
+
     void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, static_cast<uint32_t>(BinaryClassID::OffPartialMelt), this->envelope_params());
+        this->write_physics_binary(out, this->get_binary_class_id(), this->envelope_params());
     }
     void read_binary(std::istream& in, bool force = false) override {
         this->set_envelope_params(this->read_physics_binary(in, force, C_NUM_ENVELOPE_PARAMS));
@@ -65,9 +61,9 @@ public:
 // it the pre-melt pair is returned unchanged. Fischer and Spohn's absolute fits, 10^(27000 / T - 1) Pa s and
 // 10^(82000 / T - 40.6) Pa, are this form at T_sol = 1600 K (log10 values 15.875 and 10.65); anchoring at the
 // solidus keeps an icy solidus from giving 10^260 Pa.
-class c_SpohnPartialMelt : public c_PartialMeltBase {
+class c_SpohnPartialMelt final : public c_PartialMeltBase {
 public:
-    c_SpohnPartialMelt() : c_PartialMeltBase("spohn") {}
+    c_SpohnPartialMelt() : c_SpohnPartialMelt(c_PartialMeltConfig{}) {}
     explicit c_SpohnPartialMelt(const c_PartialMeltConfig& cfg)
         : c_PartialMeltBase("spohn", cfg),
           p_fs_visc_power_slope(cfg.fs_visc_power_slope),
@@ -115,11 +111,15 @@ public:
         return result;
     }
 
+    uint32_t get_binary_class_id() const override {
+        return static_cast<uint32_t>(BinaryClassID::SpohnPartialMelt);
+    }
+
     void write_binary(std::ostream& out) const override {
         std::vector<double> params = this->envelope_params();
         params.insert(params.end(), {this->p_fs_visc_power_slope, this->p_fs_visc_log10_at_solidus,
                                      this->p_fs_shear_power_slope, this->p_fs_shear_log10_at_solidus});
-        this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::SpohnPartialMelt), params);
+        this->write_physics_binary(out, this->get_binary_class_id(), params);
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, C_NUM_ENVELOPE_PARAMS + 4);
@@ -132,10 +132,10 @@ public:
     }
 
 protected:
-    double p_fs_visc_power_slope       = 27000.0;  // [K]
-    double p_fs_visc_log10_at_solidus  = 15.875;   // log10 of the viscosity at the solidus [Pa s]
-    double p_fs_shear_power_slope      = 82000.0;  // [K]
-    double p_fs_shear_log10_at_solidus = 10.65;    // log10 of the shear modulus at the solidus [Pa]
+    double p_fs_visc_power_slope;        // [K]
+    double p_fs_visc_log10_at_solidus;   // log10 of the viscosity at the solidus [Pa s]
+    double p_fs_shear_power_slope;       // [K]
+    double p_fs_shear_log10_at_solidus;  // log10 of the shear modulus at the solidus [Pa]
 };
 
 // Henning (2009, 2010) three-regime melt weakening: exponential weakening below the critical melt
@@ -144,9 +144,9 @@ protected:
 // The sub-critical shear law is mu_pre exp[b1 (1 / T - 1 / T_sol)], which is 1 at the solidus. Henning et al.
 // (2009) Eq. 20, exp(40000 / T - 25), is this form for b1 = 40000 K at the silicate solidus of 1600 K
 // (25 = 40000 / 1600); anchoring at the model's solidus keeps the law continuous for any other solidus.
-class c_HenningPartialMelt : public c_PartialMeltBase {
+class c_HenningPartialMelt final : public c_PartialMeltBase {
 public:
-    c_HenningPartialMelt() : c_PartialMeltBase("henning") {}
+    c_HenningPartialMelt() : c_HenningPartialMelt(c_PartialMeltConfig{}) {}
     explicit c_HenningPartialMelt(const c_PartialMeltConfig& cfg)
         : c_PartialMeltBase("henning", cfg),
           p_crit_melt_frac(cfg.crit_melt_frac),
@@ -218,12 +218,16 @@ public:
         return result;
     }
 
+    uint32_t get_binary_class_id() const override {
+        return static_cast<uint32_t>(BinaryClassID::HenningPartialMelt);
+    }
+
     void write_binary(std::ostream& out) const override {
         std::vector<double> params = this->envelope_params();
         params.insert(params.end(), {this->p_crit_melt_frac, this->p_crit_melt_frac_width,
                                      this->p_hn_visc_slope_1, this->p_hn_visc_falloff_slope,
                                      this->p_hn_shear_param_1, this->p_hn_shear_falloff_slope});
-        this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::HenningPartialMelt), params);
+        this->write_physics_binary(out, this->get_binary_class_id(), params);
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, C_NUM_ENVELOPE_PARAMS + 6);
@@ -238,12 +242,12 @@ public:
     }
 
 protected:
-    double p_crit_melt_frac         = 0.5;
-    double p_crit_melt_frac_width   = 0.05;
-    double p_hn_visc_slope_1        = 13.5;
-    double p_hn_visc_falloff_slope  = 370.0;
-    double p_hn_shear_param_1       = 40000.0;  // [K]
-    double p_hn_shear_falloff_slope = 700.0;
+    double p_crit_melt_frac;
+    double p_crit_melt_frac_width;
+    double p_hn_visc_slope_1;
+    double p_hn_visc_falloff_slope;
+    double p_hn_shear_param_1;  // [K]
+    double p_hn_shear_falloff_slope;
 };
 
 enum class c_PartialMeltModel : uint8_t {
@@ -254,7 +258,7 @@ enum class c_PartialMeltModel : uint8_t {
 
 // Model names are matched case-insensitively.
 inline c_PartialMeltModel c_partial_melt_model_from_name(const std::string& model_name) {
-    const std::string name = melt_to_lower(model_name);
+    const std::string name = c_to_lower(model_name);
     if (name == "off" || name == "none")            { return c_PartialMeltModel::Off; }
     if (name == "spohn" || name == "fischer" ||
         name == "fischer_spohn")                    { return c_PartialMeltModel::Spohn; }
@@ -262,6 +266,8 @@ inline c_PartialMeltModel c_partial_melt_model_from_name(const std::string& mode
     throw std::invalid_argument("TidalPy: unknown partial-melt model name '" + model_name + "'");
 }
 
+// Builds a model from its enum value and parameters; the Cython wrappers construct through it. A saved record is
+// restored by c_partial_melt_from_binary instead.
 inline std::unique_ptr<c_PartialMeltBase> c_find_partial_melt(
         c_PartialMeltModel model, const c_PartialMeltConfig& cfg) {
     switch (model) {
@@ -279,9 +285,7 @@ inline std::unique_ptr<c_PartialMeltBase> c_find_partial_melt(
 
 // The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_PartialMeltBase> c_partial_melt_from_binary(std::istream& in, bool force = false) {
-    const std::streampos start = in.tellg();
-    const c_BinaryHeader header = read_binary_header(in);
-    in.seekg(start);
+    const c_BinaryHeader header = c_peek_binary_header(in);
 
     std::unique_ptr<c_PartialMeltBase> model;
     switch (static_cast<BinaryClassID>(header.class_id)) {

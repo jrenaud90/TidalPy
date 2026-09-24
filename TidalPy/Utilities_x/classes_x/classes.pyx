@@ -221,9 +221,6 @@ cdef class PhysicsBase(TidalPyBaseClass):
     inherited ``_ptr`` instead, so ``model_name`` reads through ``_ptr`` cast to ``c_PhysicsBase*``.
     """
 
-    def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr auto-inits to nullptr; subclasses own their object
-
     def __init__(self, str model_name):
         cdef string name = model_name.encode("utf-8")
         self._physics_ptr = make_unique[c_PhysicsBase](name)
@@ -287,7 +284,7 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
     # below turns into an empty table. `cdef dict` would raise on the assignment first.
     cdef object table
     cdef object named
-    cdef bint matches
+    cdef cpp_bool matches
     cdef set accepted
     cdef str part
     if section == "tides":
@@ -312,6 +309,20 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
     accepted = set(accepted_keys)
     accepted.discard("model")
     return {key: value for key, value in table.items() if key in accepted}
+
+
+cdef dict cy_resolve_factory_config(
+        dict config, str section, object accepted_keys, str model_name, object same_model, str family):
+    """The config a ``make_*`` factory builds from.
+
+    ``None`` takes ``factory_defaults(section, accepted_keys, model_name, same_model)``, the world builder's defaults;
+    a given dict, empty included, is used as is. Either way ``check_config_keys`` then rejects a key the family does
+    not read, naming ``family``.
+    """
+    if config is None:
+        config = factory_defaults(section, accepted_keys, model_name, same_model)
+    check_config_keys(config, accepted_keys, family)
+    return config
 
 
 def check_config_keys(dict config, accepted_keys, str family):

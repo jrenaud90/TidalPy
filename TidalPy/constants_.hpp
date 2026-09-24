@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <limits>
 #include <numbers>
 #include <stdexcept>
@@ -207,4 +208,20 @@ inline void set_tidalpy_config_ptr(TidalPyConfig* ptr)
 inline double c_get_G() noexcept
 {
     return (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : TidalPyConstants::d_NAN;
+}
+
+// Guards a denominator that may approach zero (a zero forcing frequency, say): a magnitude below the config's
+// numerical floor is replaced by the floor, keeping the sign. Shared by every module that divides by such a quantity
+// (rheology, cooling, radiogenics). An unwired config pointer leaves the value unchanged, as an unloaded (NaN) floor
+// does.
+inline double c_guard_denominator(double value) noexcept
+{
+    if (tidalpy_config_ptr == nullptr) {
+        return value;
+    }
+    const double floor_value = tidalpy_config_ptr->d_NUMERICAL_FLOOR;
+    if (std::abs(value) < floor_value) {
+        return (value < 0.0) ? -floor_value : floor_value;
+    }
+    return value;
 }

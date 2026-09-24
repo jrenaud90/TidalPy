@@ -17,8 +17,7 @@ from libcpp.vector cimport vector
 
 cimport numpy as cnp
 
-import numpy as np
-
+# The shared vector helpers build their result arrays through the NumPy C API.
 cnp.import_array()
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
@@ -26,100 +25,32 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
+from TidalPy.Utilities_x.arrays.vectors cimport cy_broadcast_inputs, cy_complex_vector_to_ndarray
+from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass, cy_resolve_factory_config
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef void cy_fill_vector(const double[::1] src, vector[double]& dst) noexcept nogil:
-    cdef Py_ssize_t n = src.shape[0]
-    cdef Py_ssize_t i
-    dst.resize(n)
-    for i in range(n):
-        dst[i] = src[i]
-
-
-cdef object cy_complex_vector_to_ndarray(vector[cpp_complex[double]]& src, tuple shape):
-    cdef Py_ssize_t n = <Py_ssize_t>src.size()
-    cdef Py_ssize_t i
-    cdef cnp.ndarray out = np.empty(n, dtype=np.complex128)
-    cdef double complex[::1] mv = out
-    cdef cpp_complex[double]* value_ptr = NULL
-    with nogil:
-        for i in range(n):
-            value_ptr = &src[i]
-            mv[i] = value_ptr.real() + 1j * value_ptr.imag()
-    return out.reshape(shape)
-
-
 cdef object cy_solve_complex_modulus(
-        c_RheologyBase* model, object modulus, object viscosity, object frequency):
-    """Dispatch to the most specific C++ vectorized routine for the given input pattern."""
-    cdef cpp_bool f_arr = isinstance(frequency, np.ndarray)
-    cdef cpp_bool m_arr = isinstance(modulus, np.ndarray)
-    cdef cpp_bool v_arr = isinstance(viscosity, np.ndarray)
-
+        c_RheologyBase* model, object modulus, object viscosity, object frequency, cpp_bool flatten):
+    """Complex modulus for float or ndarray inputs broadcast together (cy_broadcast_inputs); a Python complex when
+    every input is a float and ``flatten`` is off."""
     cdef cpp_complex[double] scalar_result
-    cdef vector[double] vmod, vvisc, vfreq
-    cdef vector[cpp_complex[double]] vout
-    cdef const double[::1] mv
-
-    # Deliberately `object`, not `cnp.ndarray`: `.shape` is handed on as a Python tuple. Typed as
-    # `cnp.ndarray` it would become a C `npy_intp*` and the reshape would silently take an address.
-    cdef object freq_arr
-    cdef object mod_b, visc_b, mod_c, visc_c
-    cdef object f_b, m_b, v_b, f_c, m_c, v_c
-
-    if not (f_arr or m_arr or v_arr):
-        scalar_result = model.calc_complex_modulus(
-            <double>modulus, <double>viscosity, <double>frequency)
+    cdef vector[vector[double]] inputs
+    cdef vector[cpp_complex[double]] complex_modulus
+    cdef object shape = cy_broadcast_inputs((modulus, viscosity, frequency), inputs, flatten)
+    if shape is None:
+        scalar_result = model.calc_complex_modulus(<double>modulus, <double>viscosity, <double>frequency)
         return complex(scalar_result.real(), scalar_result.imag())
-
-    # Frequency varies; modulus and viscosity constant.
-    if f_arr and not m_arr and not v_arr:
-        freq_arr = np.ascontiguousarray(frequency, dtype=np.float64)
-        mv = freq_arr.ravel()
-        cy_fill_vector(mv, vfreq)
-        model.calc_complex_modulus_vectorize_frequency(
-            <double>modulus, <double>viscosity, vfreq, vout)
-        return cy_complex_vector_to_ndarray(vout, freq_arr.shape)
-
-    # Modulus and/or viscosity vary; frequency constant.
-    if (m_arr or v_arr) and not f_arr:
-        mod_b, visc_b = np.broadcast_arrays(
-            np.asarray(modulus, dtype=np.float64),
-            np.asarray(viscosity, dtype=np.float64))
-        mod_c  = np.ascontiguousarray(mod_b)
-        visc_c = np.ascontiguousarray(visc_b)
-        mv = mod_c.ravel();  cy_fill_vector(mv, vmod)
-        mv = visc_c.ravel(); cy_fill_vector(mv, vvisc)
-        model.calc_complex_modulus_vectorize_modulus(
-            vmod, vvisc, <double>frequency, vout)
-        return cy_complex_vector_to_ndarray(vout, mod_c.shape)
-
-    # Everything varies.
-    f_b, m_b, v_b = np.broadcast_arrays(
-        np.asarray(frequency, dtype=np.float64),
-        np.asarray(modulus, dtype=np.float64),
-        np.asarray(viscosity, dtype=np.float64))
-    f_c = np.ascontiguousarray(f_b)
-    m_c = np.ascontiguousarray(m_b)
-    v_c = np.ascontiguousarray(v_b)
-    mv = f_c.ravel(); cy_fill_vector(mv, vfreq)
-    mv = m_c.ravel(); cy_fill_vector(mv, vmod)
-    mv = v_c.ravel(); cy_fill_vector(mv, vvisc)
-    model.calc_complex_modulus_vectorize_all(vmod, vvisc, vfreq, vout)
-    return cy_complex_vector_to_ndarray(vout, f_c.shape)
+    with nogil:
+        model.calc_complex_modulus_vectorize(inputs[0], inputs[1], inputs[2], complex_modulus)
+    return cy_complex_vector_to_ndarray(complex_modulus, shape)
 
 
 cdef class RheologyBase(PhysicsBase):
     """Abstract base for rheology models; owns the most-derived C++ model object."""
-
-    def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr auto-inits to nullptr; concrete models set it
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -130,6 +61,11 @@ cdef class RheologyBase(PhysicsBase):
     def __dealloc__(self):
         self._rheology_ptr.reset()
         self._ptr = NULL
+
+    cdef void _adopt(self, unique_ptr[c_RheologyBase]& model) noexcept:
+        """Take ownership of ``model``; the inherited ``_ptr`` observes it."""
+        self._rheology_ptr = move(model)
+        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
 
     def calc_complex_modulus(self, double modulus,
                              double viscosity,
@@ -165,58 +101,19 @@ cdef class RheologyBase(PhysicsBase):
                                                double frequency):
         """Complex modulus over equal-length (modulus, viscosity) pairs at one frequency."""
         self._check_ptr()
-        cdef vector[double] vmod, vvisc
-        cdef vector[cpp_complex[double]] vout
-        cdef const double[::1] mv
-        cdef const double[::1] mv2
-        cdef cnp.ndarray mod_c  = np.ascontiguousarray(modulus,   dtype=np.float64).ravel()
-        cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        mv = mod_c
-        mv2 = visc_c
-        with nogil:
-            cy_fill_vector(mv, vmod)
-            cy_fill_vector(mv2, vvisc)
-            self._rheology_ptr.get().calc_complex_modulus_vectorize_modulus(
-                vmod, vvisc, frequency, vout)
-        return cy_complex_vector_to_ndarray(vout, (mod_c.shape[0],))
+        return cy_solve_complex_modulus(self._rheology_ptr.get(), modulus, viscosity, frequency, True)
 
     def calc_complex_modulus_vectorize_frequency(self, double modulus,
                                                  double viscosity, frequency):
         """Complex modulus over a frequency sweep at constant modulus and viscosity."""
         self._check_ptr()
-        cdef vector[double] vfreq
-        cdef vector[cpp_complex[double]] vout
-        cdef const double[::1] mv
-        cdef cnp.ndarray freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
-        mv = freq_c
-        with nogil:
-            cy_fill_vector(mv, vfreq)
-            self._rheology_ptr.get().calc_complex_modulus_vectorize_frequency(
-                modulus, viscosity, vfreq, vout)
-        return cy_complex_vector_to_ndarray(vout, (freq_c.shape[0],))
+        return cy_solve_complex_modulus(self._rheology_ptr.get(), modulus, viscosity, frequency, True)
 
     def calc_complex_modulus_vectorize_all(self, modulus, viscosity,
                                            frequency):
         """Complex modulus over element-wise (modulus, viscosity, frequency) triples."""
         self._check_ptr()
-        cdef vector[double] vmod, vvisc, vfreq
-        cdef vector[cpp_complex[double]] vout
-        cdef const double[::1] mv
-        cdef const double[::1] mv2
-        cdef const double[::1] mv3
-        cdef cnp.ndarray mod_c  = np.ascontiguousarray(modulus,   dtype=np.float64).ravel()
-        cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        cdef cnp.ndarray freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
-        mv = mod_c
-        mv2 = visc_c
-        mv3 = freq_c
-        with nogil:
-            cy_fill_vector(mv, vmod)
-            cy_fill_vector(mv2, vvisc)
-            cy_fill_vector(mv3, vfreq)
-            self._rheology_ptr.get().calc_complex_modulus_vectorize_all(
-                vmod, vvisc, vfreq, vout)
-        return cy_complex_vector_to_ndarray(vout, (mod_c.shape[0],))
+        return cy_solve_complex_modulus(self._rheology_ptr.get(), modulus, viscosity, frequency, True)
 
 
 cdef class Elastic(RheologyBase):
@@ -224,9 +121,8 @@ cdef class Elastic(RheologyBase):
 
     def __init__(self):
         cdef c_RheologyConfig config
-        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Elastic, config)
-        self._rheology_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
+        cdef unique_ptr[c_RheologyBase] model = c_find_rheology(c_RheologyModel.Elastic, config)
+        self._adopt(model)
 
 
 cdef class Viscous(RheologyBase):
@@ -234,9 +130,8 @@ cdef class Viscous(RheologyBase):
 
     def __init__(self):
         cdef c_RheologyConfig config
-        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Viscous, config)
-        self._rheology_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
+        cdef unique_ptr[c_RheologyBase] model = c_find_rheology(c_RheologyModel.Viscous, config)
+        self._adopt(model)
 
 
 cdef class Maxwell(RheologyBase):
@@ -244,9 +139,8 @@ cdef class Maxwell(RheologyBase):
 
     def __init__(self):
         cdef c_RheologyConfig config
-        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Maxwell, config)
-        self._rheology_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
+        cdef unique_ptr[c_RheologyBase] model = c_find_rheology(c_RheologyModel.Maxwell, config)
+        self._adopt(model)
 
 
 cdef class Voigt(RheologyBase):
@@ -260,33 +154,25 @@ cdef class Voigt(RheologyBase):
         Voigt viscosity as a fraction of the layer viscosity. Default ``0.02``.
     """
 
-    def __cinit__(self, *args, **kwargs):
-        self._voigt_ptr = NULL
-
     def __init__(self, double voigt_modulus_frac=5.0,
                  double voigt_viscosity_frac=0.02):
         cdef c_RheologyConfig config
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Voigt, config)
-        self._voigt_ptr = <c_Voigt*>ptr.get()
-        self._rheology_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
-
-    def __dealloc__(self):
-        self._voigt_ptr = NULL  # RheologyBase._rheology_ptr owns the object
+        cdef unique_ptr[c_RheologyBase] model = c_find_rheology(c_RheologyModel.Voigt, config)
+        self._adopt(model)
 
     @property
     def voigt_modulus_frac(self) -> float:
         """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         self._check_ptr()
-        return self._voigt_ptr.get_voigt_modulus_frac()
+        return (<c_Voigt*>self._rheology_ptr.get()).get_voigt_modulus_frac()
 
     @property
     def voigt_viscosity_frac(self) -> float:
         """Voigt viscosity fraction [dimensionless]."""
         self._check_ptr()
-        return self._voigt_ptr.get_voigt_viscosity_frac()
+        return (<c_Voigt*>self._rheology_ptr.get()).get_voigt_viscosity_frac()
 
 
 cdef class Burgers(RheologyBase):
@@ -300,33 +186,25 @@ cdef class Burgers(RheologyBase):
         Voigt viscosity as a fraction of the layer viscosity. Default ``0.02``.
     """
 
-    def __cinit__(self, *args, **kwargs):
-        self._burgers_ptr = NULL
-
     def __init__(self, double voigt_modulus_frac=5.0,
                  double voigt_viscosity_frac=0.02):
         cdef c_RheologyConfig config
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Burgers, config)
-        self._burgers_ptr = <c_Burgers*>ptr.get()
-        self._rheology_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
-
-    def __dealloc__(self):
-        self._burgers_ptr = NULL
+        cdef unique_ptr[c_RheologyBase] model = c_find_rheology(c_RheologyModel.Burgers, config)
+        self._adopt(model)
 
     @property
     def voigt_modulus_frac(self) -> float:
         """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         self._check_ptr()
-        return self._burgers_ptr.get_voigt_modulus_frac()
+        return (<c_Burgers*>self._rheology_ptr.get()).get_voigt_modulus_frac()
 
     @property
     def voigt_viscosity_frac(self) -> float:
         """Voigt viscosity fraction [dimensionless]."""
         self._check_ptr()
-        return self._burgers_ptr.get_voigt_viscosity_frac()
+        return (<c_Burgers*>self._rheology_ptr.get()).get_voigt_viscosity_frac()
 
 
 cdef class Andrade(RheologyBase):
@@ -340,32 +218,24 @@ cdef class Andrade(RheologyBase):
         Andrade timescale ratio [dimensionless]. Default ``1.0``.
     """
 
-    def __cinit__(self, *args, **kwargs):
-        self._andrade_ptr = NULL
-
     def __init__(self, double alpha=0.3, double zeta=1.0):
         cdef c_RheologyConfig config
         config.alpha = alpha
         config.zeta  = zeta
-        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Andrade, config)
-        self._andrade_ptr = <c_Andrade*>ptr.get()
-        self._rheology_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
-
-    def __dealloc__(self):
-        self._andrade_ptr = NULL
+        cdef unique_ptr[c_RheologyBase] model = c_find_rheology(c_RheologyModel.Andrade, config)
+        self._adopt(model)
 
     @property
     def alpha(self) -> float:
         """Andrade exponent [dimensionless]."""
         self._check_ptr()
-        return self._andrade_ptr.get_alpha()
+        return (<c_Andrade*>self._rheology_ptr.get()).get_alpha()
 
     @property
     def zeta(self) -> float:
         """Andrade timescale ratio [dimensionless]."""
         self._check_ptr()
-        return self._andrade_ptr.get_zeta()
+        return (<c_Andrade*>self._rheology_ptr.get()).get_zeta()
 
 
 cdef class Sundberg(RheologyBase):
@@ -383,9 +253,6 @@ cdef class Sundberg(RheologyBase):
         Voigt viscosity as a fraction of the layer viscosity. Default ``0.02``.
     """
 
-    def __cinit__(self, *args, **kwargs):
-        self._sundberg_ptr = NULL
-
     def __init__(self, double alpha=0.3, double zeta=1.0,
                  double voigt_modulus_frac=5.0,
                  double voigt_viscosity_frac=0.02):
@@ -394,46 +261,47 @@ cdef class Sundberg(RheologyBase):
         config.zeta                 = zeta
         config.voigt_modulus_frac   = voigt_modulus_frac
         config.voigt_viscosity_frac = voigt_viscosity_frac
-        cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(c_RheologyModel.Sundberg, config)
-        self._sundberg_ptr = <c_Sundberg*>ptr.get()
-        self._rheology_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._rheology_ptr.get()
-
-    def __dealloc__(self):
-        self._sundberg_ptr = NULL
+        cdef unique_ptr[c_RheologyBase] model = c_find_rheology(c_RheologyModel.Sundberg, config)
+        self._adopt(model)
 
     @property
     def alpha(self) -> float:
         """Andrade exponent [dimensionless]."""
         self._check_ptr()
-        return self._sundberg_ptr.get_alpha()
+        return (<c_Sundberg*>self._rheology_ptr.get()).get_alpha()
 
     @property
     def zeta(self) -> float:
         """Andrade timescale ratio [dimensionless]."""
         self._check_ptr()
-        return self._sundberg_ptr.get_zeta()
+        return (<c_Sundberg*>self._rheology_ptr.get()).get_zeta()
 
     @property
     def voigt_modulus_frac(self) -> float:
         """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         self._check_ptr()
-        return self._sundberg_ptr.get_voigt_modulus_frac()
+        return (<c_Sundberg*>self._rheology_ptr.get()).get_voigt_modulus_frac()
 
     @property
     def voigt_viscosity_frac(self) -> float:
         """Voigt viscosity fraction [dimensionless]."""
         self._check_ptr()
-        return self._sundberg_ptr.get_voigt_viscosity_frac()
+        return (<c_Sundberg*>self._rheology_ptr.get()).get_voigt_viscosity_frac()
 
 
 # Every config key any rheology model reads; make_rheology rejects anything else.
 RHEOLOGY_CONFIG_KEYS = frozenset({"alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac"})
 
 
+# The wrapper class of each c_RheologyModel, in enum order.
+_RHEOLOGY_CLASSES = (Elastic, Viscous, Voigt, Maxwell, Burgers, Andrade, Sundberg)
+
+
 def _same_model(str table_name, str model_name) -> bool:
     """Whether two names (aliases included) resolve to the same model."""
-    return c_rheology_model_from_name(table_name.lower().encode("utf-8")) == c_rheology_model_from_name(model_name.lower().encode("utf-8"))
+    return (
+        c_rheology_model_from_name(table_name.encode("utf-8"))
+        == c_rheology_model_from_name(model_name.encode("utf-8")))
 
 
 def make_rheology(str model_name, dict config=None):
@@ -459,75 +327,23 @@ def make_rheology(str model_name, dict config=None):
     ValueError
         Unknown model name, or a config key that no rheology model reads.
     """
-    if config is None:
-        # Fall back to the same defaults the world-attached path uses.
-        config = factory_defaults("shear_rheology", RHEOLOGY_CONFIG_KEYS, model_name, _same_model)
-    check_config_keys(config, RHEOLOGY_CONFIG_KEYS, "rheology")
-    if config is None:
-        config = {}
+    # None falls back to the same defaults the world-attached path uses.
+    config = cy_resolve_factory_config(
+        config, "shear_rheology", RHEOLOGY_CONFIG_KEYS, model_name, _same_model, "rheology")
 
     # The default-constructed config carries the C++ defaults, so only override what the caller gave.
     cdef c_RheologyConfig cfg
-    if "alpha" in config:
-        cfg.alpha = config["alpha"]
-    if "zeta" in config:
-        cfg.zeta = config["zeta"]
-    if "voigt_modulus_frac" in config:
-        cfg.voigt_modulus_frac = config["voigt_modulus_frac"]
-    if "voigt_viscosity_frac" in config:
-        cfg.voigt_viscosity_frac = config["voigt_viscosity_frac"]
+    cfg.alpha                = config.get("alpha", cfg.alpha)
+    cfg.zeta                 = config.get("zeta", cfg.zeta)
+    cfg.voigt_modulus_frac   = config.get("voigt_modulus_frac", cfg.voigt_modulus_frac)
+    cfg.voigt_viscosity_frac = config.get("voigt_viscosity_frac", cfg.voigt_viscosity_frac)
 
     cdef c_RheologyModel model = c_rheology_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(model, cfg)
-
-    # Adopt the owning unique_ptr into the matching Python wrapper.
-    cdef Elastic  e
-    cdef Viscous  vi
-    cdef Maxwell  m
-    cdef Voigt    vo
-    cdef Burgers  b
-    cdef Andrade  a
-    cdef Sundberg s
-
-    if model == c_RheologyModel.Elastic:
-        e = Elastic.__new__(Elastic)
-        e._rheology_ptr = move(ptr)
-        e._ptr = <c_TidalPyBaseClass*>e._rheology_ptr.get()
-        return e
-    elif model == c_RheologyModel.Viscous:
-        vi = Viscous.__new__(Viscous)
-        vi._rheology_ptr = move(ptr)
-        vi._ptr = <c_TidalPyBaseClass*>vi._rheology_ptr.get()
-        return vi
-    elif model == c_RheologyModel.Maxwell:
-        m = Maxwell.__new__(Maxwell)
-        m._rheology_ptr = move(ptr)
-        m._ptr = <c_TidalPyBaseClass*>m._rheology_ptr.get()
-        return m
-    elif model == c_RheologyModel.Voigt:
-        vo = Voigt.__new__(Voigt)
-        vo._voigt_ptr    = <c_Voigt*>ptr.get()
-        vo._rheology_ptr = move(ptr)
-        vo._ptr          = <c_TidalPyBaseClass*>vo._voigt_ptr
-        return vo
-    elif model == c_RheologyModel.Burgers:
-        b = Burgers.__new__(Burgers)
-        b._burgers_ptr  = <c_Burgers*>ptr.get()
-        b._rheology_ptr = move(ptr)
-        b._ptr          = <c_TidalPyBaseClass*>b._burgers_ptr
-        return b
-    elif model == c_RheologyModel.Andrade:
-        a = Andrade.__new__(Andrade)
-        a._andrade_ptr  = <c_Andrade*>ptr.get()
-        a._rheology_ptr = move(ptr)
-        a._ptr          = <c_TidalPyBaseClass*>a._andrade_ptr
-        return a
-    else:  # c_RheologyModel.Sundberg
-        s = Sundberg.__new__(Sundberg)
-        s._sundberg_ptr = <c_Sundberg*>ptr.get()
-        s._rheology_ptr = move(ptr)
-        s._ptr          = <c_TidalPyBaseClass*>s._sundberg_ptr
-        return s
+    wrapper_class = _RHEOLOGY_CLASSES[<int>model]
+    cdef RheologyBase wrapper = wrapper_class.__new__(wrapper_class)
+    wrapper._adopt(ptr)
+    return wrapper
 
 
 # Convenience functions. Each builds a stack-allocated C++ model that dies with the call. ``modulus``,
@@ -538,21 +354,21 @@ def elastic(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Elastic model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Elastic model = c_Elastic(cfg)
-    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency, False)
 
 
 def viscous(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Viscous (Newton) model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Viscous model = c_Viscous(cfg)
-    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency, False)
 
 
 def maxwell(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Maxwell model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Maxwell model = c_Maxwell(cfg)
-    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency, False)
 
 
 def voigt(
@@ -566,7 +382,7 @@ def voigt(
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Voigt model = c_Voigt(cfg)
-    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency, False)
 
 
 def burgers(
@@ -580,7 +396,7 @@ def burgers(
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Burgers model = c_Burgers(cfg)
-    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency, False)
 
 
 def andrade(
@@ -594,7 +410,7 @@ def andrade(
     cfg.alpha = alpha
     cfg.zeta  = zeta
     cdef c_Andrade model = c_Andrade(cfg)
-    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency, False)
 
 
 def sundberg(
@@ -612,4 +428,4 @@ def sundberg(
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Sundberg model = c_Sundberg(cfg)
-    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency, False)

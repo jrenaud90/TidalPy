@@ -11,15 +11,7 @@ cdef extern from "radiogenics_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_RadiogenicsBase(c_PhysicsBase):
         double calc_heating(double time, double mass) const
-        void calc_heating_vectorize_time(
-            const vector[double]& time,
-            double mass,
-            vector[double]& out_heating) except +
-        void calc_heating_vectorize_mass(
-            double time,
-            const vector[double]& mass,
-            vector[double]& out_heating) except +
-        void calc_heating_vectorize_all(
+        void calc_heating_vectorize(
             const vector[double]& time,
             const vector[double]& mass,
             vector[double]& out_heating) except +
@@ -89,6 +81,7 @@ cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
 
 cdef class RadiogenicsBase(PhysicsBase):
     cdef unique_ptr[c_RadiogenicsBase] _radiogenics_ptr   # owns the most-derived C++ model object
+    cdef void _adopt(self, unique_ptr[c_RadiogenicsBase]& model) noexcept
 
 
 cdef class OffRadiogenics(RadiogenicsBase):
@@ -96,8 +89,8 @@ cdef class OffRadiogenics(RadiogenicsBase):
 
 
 cdef class IsotopeRadiogenics(RadiogenicsBase):
-    cdef c_IsotopeRadiogenics* _isotope_ptr   # non-owning; ownership via RadiogenicsBase._radiogenics_ptr
+    pass
 
 
 cdef class FixedRadiogenics(RadiogenicsBase):
-    cdef c_FixedRadiogenics* _fixed_ptr   # non-owning; ownership via RadiogenicsBase._radiogenics_ptr
+    pass

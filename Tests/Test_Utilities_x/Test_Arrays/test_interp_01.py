@@ -89,3 +89,14 @@ def test_empty_domain_raises():
 def test_accepts_python_lists():
     interp = _import_interp()
     assert interp(0.5, [0.0, 1.0], [0.0, 2.0]) == pytest.approx(1.0)
+
+
+def test_accepts_read_only_arrays():
+    interp = _import_interp()
+    xp = _XP.copy()
+    fp = _FP.copy()
+    x = np.array([0.5, 2.5, 4.5])
+    for array in (xp, fp, x):
+        array.setflags(write=False)
+    np.testing.assert_allclose(interp(x, xp, fp), np.interp(x, xp, fp))
+    assert interp(1.5, xp, fp) == pytest.approx(float(np.interp(1.5, xp, fp)))

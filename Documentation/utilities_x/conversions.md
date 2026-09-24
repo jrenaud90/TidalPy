@@ -1,6 +1,6 @@
 # Conversions and Scales (`Utilities_x.conversions`, `Utilities_x.dimensions`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 `conversions` converts between MKS and the units typically used in the literature, and between orbital elements related by Kepler's third law. `dimensions` builds the scale factors that turn a dimensional interior problem into a non-dimensional one, so the non-dimensionalization the solvers rely on is defined in one place.
 
@@ -69,4 +69,4 @@ Callers rarely build these by hand. The radial solver and the world equation-of-
 
 ## C++ API
 
-The conversion functions have `cy_` prefixed `nogil` Cython counterparts (`cy_orbital_motion2semi_a` and the rest) for use from `cdef` code without Python overhead. They skip the input checks. The two Kepler functions take `G_to_use` as a `double` that defaults to `-1.0`: any negative value reads the config's gravitational constant at call time, the same convention as the EOS solver. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, populated by `cy_build_nondimensional_scales`, and are passed by reference into the solvers that need them.
+The two Kepler functions wrap `c_orbital_motion2semi_a` and `c_semi_a2orbital_motion` from `conversions_.hpp`; the C++ functions skip the input checks. `G_to_use` defaults to `None`, which reads the config's gravitational constant at call time. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, built by its constructor from a mean radius and a bulk density, and are passed by reference into the solvers that need them.

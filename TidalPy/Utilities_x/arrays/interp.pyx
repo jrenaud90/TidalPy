@@ -28,8 +28,9 @@ def interp(x, xp, fp):
         A float for scalar ``x``, else a float64 array shaped like ``x``. Queries outside
         ``[xp[0], xp[-1]]`` clamp to the corresponding endpoint value.
     """
-    cdef double[::1] xp_v = np.ascontiguousarray(xp, dtype=np.float64)
-    cdef double[::1] fp_v = np.ascontiguousarray(fp, dtype=np.float64)
+    # Const views, so read-only arrays are accepted.
+    cdef const double[::1] xp_v = np.ascontiguousarray(xp, dtype=np.float64)
+    cdef const double[::1] fp_v = np.ascontiguousarray(fp, dtype=np.float64)
     cdef size_t n = xp_v.shape[0]
     if n == 0:
         raise ValueError("xp must have at least one element.")
@@ -47,7 +48,7 @@ def interp(x, xp, fp):
     # `object` rather than `cnp.ndarray`: this module does not cimport numpy, and the sweep below runs off
     # the memoryviews, so the array objects are only here to be reshaped and returned.
     cdef object x_in = np.ascontiguousarray(x, dtype=np.float64)
-    cdef double[::1] x_v = x_in.ravel()
+    cdef const double[::1] x_v = x_in.ravel()
     cdef size_t m = x_v.shape[0]
     cdef object out = np.empty(m, dtype=np.float64)
     cdef double[::1] out_v = out
@@ -58,7 +59,8 @@ def interp(x, xp, fp):
     return out.reshape(np.shape(x))
 
 
-def partition_radius_by_layer(double[::1] radius not None, double[::1] upper_radius_bylayer not None):
+def partition_radius_by_layer(
+        const double[::1] radius not None, const double[::1] upper_radius_bylayer not None):
     """Split an ascending radius array into one run of slices per layer.
 
     A layered profile repeats each interface radius, once for the layer below and once for the layer above.

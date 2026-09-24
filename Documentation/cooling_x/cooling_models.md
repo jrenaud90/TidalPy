@@ -1,6 +1,6 @@
 # Cooling Models (`cooling_x`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 A cooling model maps a layer's physical state onto a **cooling result**: the surface heat flux $q$ [W m$^{-2}$], the thermal boundary-layer thickness [m], and the Rayleigh and Nusselt numbers. The heat flux is what drives a layer's thermal evolution, and the boundary-layer thickness is what makes convective transport so much more effective than conduction: the same temperature drop is squeezed across a thin layer at the top instead of the whole interior.
 
@@ -126,7 +126,7 @@ sweep = convective(np.linspace(100.0, 2000.0, 50), 1.0e6, 9.8, 3300.0,
                    1.0e21, 4.0, 1.0e-6, 3.0e-5)
 ```
 
-The signatures are `cooling_off(delta_temp, thickness)`, `conductive(delta_temp, thickness, thermal_conductivity)`, and `convective(delta_temp, thickness, gravity, density, viscosity, thermal_conductivity, thermal_diffusivity, thermal_expansion, convection_alpha=1.0, convection_beta=1/3, critical_rayleigh=1100.0)`. Each builds a stack-allocated C++ model, picks the most specific vectorized routine for the input pattern, and returns a `CoolingResult`. The off and conduction functions take only the inputs they actually use, which is why their argument lists are shorter than `calc_cooling`'s fixed eight.
+The signatures are `cooling_off(delta_temp, thickness)`, `conductive(delta_temp, thickness, thermal_conductivity)`, and `convective(delta_temp, thickness, gravity, density, viscosity, thermal_conductivity, thermal_diffusivity, thermal_expansion, convection_alpha=1.0, convection_beta=1/3, critical_rayleigh=1100.0)`. Each builds a stack-allocated C++ model, runs the shared broadcasting loop over the inputs (a scalar input is held fixed), and returns a `CoolingResult`. The off and conduction functions take only the inputs they actually use, which is why their argument lists are shorter than `calc_cooling`'s fixed eight.
 
 ## Serialization
 
@@ -145,7 +145,7 @@ To add a cooling model named `Foo`:
 **C++ (`TidalPy/cooling_x/cooling_.hpp`)**
 
 1. If `Foo` needs new parameters, add them to `c_CoolingConfig` with defaults.
-2. Add a `cool_foo(const c_CoolingInputs&[, const c_CoolingConfig&])` free function implementing the heat-transport law. Use the `cool_guard` floor on any denominator.
+2. Add a `cool_foo(const c_CoolingInputs&[, const c_CoolingConfig&])` free function implementing the heat-transport law. Guard any denominator with `c_guard_denominator` (`constants_.hpp`), the shared floor.
 3. Add the class `c_Foo : public c_CoolingBase` with constructors `c_Foo()` and `explicit c_Foo(const c_CoolingConfig&)` that pass a model-name string to the base and copy any parameters into `p_*` members, a `get_*` accessor per parameter, an override of `calc_cooling(const c_CoolingInputs&)` returning a `c_CoolingResult`, and overrides of `write_binary` / `read_binary` built on the base helpers.
 
 **C++ (`TidalPy/Utilities_x/binary_x/binary_.hpp`)**

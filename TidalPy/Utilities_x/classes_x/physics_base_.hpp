@@ -31,7 +31,6 @@ public:
     ~c_PhysicsBase() override = default;
 
     const std::string& get_model_name() const noexcept { return p_model_name; }
-    void set_model_name(const std::string& name) { p_model_name = name; }
 
     const c_BaseLayer* get_layer_ptr() const noexcept { return p_layer_ptr; }
     void set_layer_ptr(c_BaseLayer* layer_ptr) noexcept { p_layer_ptr = layer_ptr; }
@@ -48,7 +47,8 @@ public:
     }
 
     // Every physics model serializes the same way: a header with the model's BinaryClassID, the model
-    // name, then zero or more scalar params. Subclasses pass their own class id and parameter list.
+    // name, then zero or more scalar params. Subclasses pass their own class id, the one their
+    // get_binary_class_id override returns, and their parameter list.
     void write_physics_binary(
             std::ostream& out,
             uint32_t class_id,

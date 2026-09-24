@@ -12,8 +12,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
+from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass, cy_resolve_factory_config
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -22,9 +21,6 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 cdef class ViscosityBase(PhysicsBase):
     """Abstract base for viscosity models. Instantiate a concrete subclass."""
-
-    def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr auto-inits to nullptr
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -35,6 +31,11 @@ cdef class ViscosityBase(PhysicsBase):
         self._visc_ptr.reset()
         self._ptr = NULL
 
+    cdef void _adopt(self, unique_ptr[c_ViscosityBase]& model) noexcept:
+        """Take ownership of ``model``; the inherited ``_ptr`` observes it."""
+        self._visc_ptr = move(model)
+        self._ptr = <c_TidalPyBaseClass*>self._visc_ptr.get()
+
     def calc_viscosity(self, double temperature, double pressure=0.0) -> float:
         """Dynamic viscosity [Pa s] at the given temperature [K] and pressure [Pa]."""
         self._check_ptr()
@@ -44,32 +45,21 @@ cdef class ViscosityBase(PhysicsBase):
 cdef class ConstantViscosity(ViscosityBase):
     """Viscosity independent of temperature and pressure."""
 
-    def __cinit__(self, *args, **kwargs):
-        self._constant_ptr = NULL
-
     def __init__(self, double reference_viscosity=1.0e22):
         cdef c_ViscosityConfig config
         config.reference_viscosity = reference_viscosity
-        cdef unique_ptr[c_ViscosityBase] ptr = c_find_viscosity(c_ViscosityModel.Constant, config)
-        self._constant_ptr = <c_ConstantViscosity*>ptr.get()
-        self._visc_ptr     = move(ptr)
-        self._ptr          = <c_TidalPyBaseClass*>self._visc_ptr.get()
-
-    def __dealloc__(self):
-        self._constant_ptr = NULL
+        cdef unique_ptr[c_ViscosityBase] model = c_find_viscosity(c_ViscosityModel.Constant, config)
+        self._adopt(model)
 
     @property
     def reference_viscosity(self) -> float:
         """Reference (constant) viscosity [Pa s]."""
         self._check_ptr()
-        return self._constant_ptr.get_reference_viscosity()
+        return (<c_ConstantViscosity*>self._visc_ptr.get()).get_reference_viscosity()
 
 
 cdef class ReferenceViscosity(ViscosityBase):
     """Relative-activation law: eta = eta_ref * exp(((E_a + P*V_a)/R)*(1/T - 1/T_ref))."""
-
-    def __cinit__(self, *args, **kwargs):
-        self._ref_ptr = NULL
 
     def __init__(
             self,
@@ -82,44 +72,36 @@ cdef class ReferenceViscosity(ViscosityBase):
         config.reference_temperature   = reference_temperature
         config.molar_activation_energy = molar_activation_energy
         config.molar_activation_volume = molar_activation_volume
-        cdef unique_ptr[c_ViscosityBase] ptr = c_find_viscosity(c_ViscosityModel.Reference, config)
-        self._ref_ptr  = <c_ReferenceViscosity*>ptr.get()
-        self._visc_ptr = move(ptr)
-        self._ptr      = <c_TidalPyBaseClass*>self._visc_ptr.get()
-
-    def __dealloc__(self):
-        self._ref_ptr = NULL
+        cdef unique_ptr[c_ViscosityBase] model = c_find_viscosity(c_ViscosityModel.Reference, config)
+        self._adopt(model)
 
     @property
     def reference_viscosity(self) -> float:
         """Reference viscosity [Pa s]."""
         self._check_ptr()
-        return self._ref_ptr.get_reference_viscosity()
+        return (<c_ReferenceViscosity*>self._visc_ptr.get()).get_reference_viscosity()
 
     @property
     def reference_temperature(self) -> float:
         """Reference temperature [K]."""
         self._check_ptr()
-        return self._ref_ptr.get_reference_temperature()
+        return (<c_ReferenceViscosity*>self._visc_ptr.get()).get_reference_temperature()
 
     @property
     def molar_activation_energy(self) -> float:
         """Molar activation energy E_a [J/mol]."""
         self._check_ptr()
-        return self._ref_ptr.get_molar_activation_energy()
+        return (<c_ReferenceViscosity*>self._visc_ptr.get()).get_molar_activation_energy()
 
     @property
     def molar_activation_volume(self) -> float:
         """Molar activation volume V_a [m^3/mol]."""
         self._check_ptr()
-        return self._ref_ptr.get_molar_activation_volume()
+        return (<c_ReferenceViscosity*>self._visc_ptr.get()).get_molar_activation_volume()
 
 
 cdef class ArrheniusViscosity(ViscosityBase):
     """Arrhenius flow law: eta = A * sigma^(1-n) * d^m * exp((E_a + P*V_a)/(R*T))."""
-
-    def __cinit__(self, *args, **kwargs):
-        self._arr_ptr = NULL
 
     def __init__(
             self,
@@ -140,61 +122,56 @@ cdef class ArrheniusViscosity(ViscosityBase):
         config.molar_activation_energy    = molar_activation_energy
         config.molar_activation_volume    = molar_activation_volume
         config.additional_temp_dependence = additional_temp_dependence
-        cdef unique_ptr[c_ViscosityBase] ptr = c_find_viscosity(c_ViscosityModel.Arrhenius, config)
-        self._arr_ptr  = <c_ArrheniusViscosity*>ptr.get()
-        self._visc_ptr = move(ptr)
-        self._ptr      = <c_TidalPyBaseClass*>self._visc_ptr.get()
-
-    def __dealloc__(self):
-        self._arr_ptr = NULL
+        cdef unique_ptr[c_ViscosityBase] model = c_find_viscosity(c_ViscosityModel.Arrhenius, config)
+        self._adopt(model)
 
     @property
     def arrhenius_coeff(self) -> float:
         """Pre-exponential coefficient A."""
         self._check_ptr()
-        return self._arr_ptr.get_arrhenius_coeff()
+        return (<c_ArrheniusViscosity*>self._visc_ptr.get()).get_arrhenius_coeff()
 
     @property
     def stress(self) -> float:
         """Applied shear stress sigma [Pa]; the stress term drops out when ``stress_expo`` is 1."""
         self._check_ptr()
-        return self._arr_ptr.get_stress()
+        return (<c_ArrheniusViscosity*>self._visc_ptr.get()).get_stress()
 
     @property
     def stress_expo(self) -> float:
         """Stress exponent n: 1 for diffusion creep, above 1 for dislocation creep."""
         self._check_ptr()
-        return self._arr_ptr.get_stress_expo()
+        return (<c_ArrheniusViscosity*>self._visc_ptr.get()).get_stress_expo()
 
     @property
     def grain_size(self) -> float:
         """Grain size d [m]."""
         self._check_ptr()
-        return self._arr_ptr.get_grain_size()
+        return (<c_ArrheniusViscosity*>self._visc_ptr.get()).get_grain_size()
 
     @property
     def grain_size_expo(self) -> float:
         """Grain-size exponent m; 0 removes the grain-size dependence."""
         self._check_ptr()
-        return self._arr_ptr.get_grain_size_expo()
+        return (<c_ArrheniusViscosity*>self._visc_ptr.get()).get_grain_size_expo()
 
     @property
     def molar_activation_energy(self) -> float:
         """Molar activation energy E_a [J/mol]."""
         self._check_ptr()
-        return self._arr_ptr.get_molar_activation_energy()
+        return (<c_ArrheniusViscosity*>self._visc_ptr.get()).get_molar_activation_energy()
 
     @property
     def molar_activation_volume(self) -> float:
         """Molar activation volume V_a [m^3/mol]."""
         self._check_ptr()
-        return self._arr_ptr.get_molar_activation_volume()
+        return (<c_ArrheniusViscosity*>self._visc_ptr.get()).get_molar_activation_volume()
 
     @property
     def additional_temp_dependence(self) -> bool:
         """Whether the law is multiplied by an additional factor of T."""
         self._check_ptr()
-        return self._arr_ptr.get_additional_temp_dependence()
+        return (<c_ArrheniusViscosity*>self._visc_ptr.get()).get_additional_temp_dependence()
 
 
 # Every config key any viscosity model reads; make_viscosity rejects anything else.
@@ -204,12 +181,15 @@ VISCOSITY_CONFIG_KEYS = frozenset({
     "grain_size_expo", "additional_temp_dependence"})
 
 
+# The wrapper class of each c_ViscosityModel, in enum order.
+_VISCOSITY_CLASSES = (ArrheniusViscosity, ReferenceViscosity, ConstantViscosity)
+
+
 def _same_model(str table_name, str model_name) -> bool:
     """Whether two names (aliases included) resolve to the same model."""
     return (
-        c_viscosity_model_from_name(table_name.lower().encode("utf-8")) == 
-        c_viscosity_model_from_name(model_name.lower().encode("utf-8"))
-    )
+        c_viscosity_model_from_name(table_name.encode("utf-8"))
+        == c_viscosity_model_from_name(model_name.encode("utf-8")))
 
 
 def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
@@ -232,55 +212,25 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     ValueError
         Unknown model name, or a config key that no viscosity model reads.
     """
-    if config is None:
-        # Fall back to the same defaults the world-attached path uses.
-        config = factory_defaults("material.shear_viscosity", VISCOSITY_CONFIG_KEYS, model_name, _same_model)
-    check_config_keys(config, VISCOSITY_CONFIG_KEYS, "viscosity")
-    if config is None:
-        config = {}
+    # None falls back to the same defaults the world-attached path uses.
+    config = cy_resolve_factory_config(
+        config, "material.shear_viscosity", VISCOSITY_CONFIG_KEYS, model_name, _same_model, "viscosity")
+    # The default-constructed config carries the C++ defaults, so only override what the caller gave.
     cdef c_ViscosityConfig cfg
-    if "reference_viscosity_pas" in config:
-        cfg.reference_viscosity = config["reference_viscosity_pas"]
-    if "reference_temperature_k" in config:
-        cfg.reference_temperature = config["reference_temperature_k"]
-    if "molar_activation_energy_j_mol" in config:
-        cfg.molar_activation_energy = config["molar_activation_energy_j_mol"]
-    if "molar_activation_volume_m3_mol" in config:
-        cfg.molar_activation_volume = config["molar_activation_volume_m3_mol"]
-    if "arrhenius_coeff" in config:
-        cfg.arrhenius_coeff = config["arrhenius_coeff"]
-    if "stress_pa" in config:
-        cfg.stress = config["stress_pa"]
-    if "stress_expo" in config:
-        cfg.stress_expo = config["stress_expo"]
-    if "grain_size_m" in config:
-        cfg.grain_size = config["grain_size_m"]
-    if "grain_size_expo" in config:
-        cfg.grain_size_expo = config["grain_size_expo"]
-    if "additional_temp_dependence" in config:
-        cfg.additional_temp_dependence = bool(config["additional_temp_dependence"])
+    cfg.reference_viscosity        = config.get("reference_viscosity_pas", cfg.reference_viscosity)
+    cfg.reference_temperature      = config.get("reference_temperature_k", cfg.reference_temperature)
+    cfg.molar_activation_energy    = config.get("molar_activation_energy_j_mol", cfg.molar_activation_energy)
+    cfg.molar_activation_volume    = config.get("molar_activation_volume_m3_mol", cfg.molar_activation_volume)
+    cfg.arrhenius_coeff            = config.get("arrhenius_coeff", cfg.arrhenius_coeff)
+    cfg.stress                     = config.get("stress_pa", cfg.stress)
+    cfg.stress_expo                = config.get("stress_expo", cfg.stress_expo)
+    cfg.grain_size                 = config.get("grain_size_m", cfg.grain_size)
+    cfg.grain_size_expo            = config.get("grain_size_expo", cfg.grain_size_expo)
+    cfg.additional_temp_dependence = bool(config.get("additional_temp_dependence", cfg.additional_temp_dependence))
 
     cdef c_ViscosityModel model = c_viscosity_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_ViscosityBase] ptr = c_find_viscosity(model, cfg)
-
-    cdef ArrheniusViscosity arr_visc
-    cdef ReferenceViscosity ref_visc
-    cdef ConstantViscosity  const_visc
-    if model == c_ViscosityModel.Arrhenius:
-        arr_visc = ArrheniusViscosity.__new__(ArrheniusViscosity)
-        arr_visc._arr_ptr  = <c_ArrheniusViscosity*>ptr.get()
-        arr_visc._visc_ptr = move(ptr)
-        arr_visc._ptr      = <c_TidalPyBaseClass*>arr_visc._visc_ptr.get()
-        return arr_visc
-    elif model == c_ViscosityModel.Reference:
-        ref_visc = ReferenceViscosity.__new__(ReferenceViscosity)
-        ref_visc._ref_ptr  = <c_ReferenceViscosity*>ptr.get()
-        ref_visc._visc_ptr = move(ptr)
-        ref_visc._ptr      = <c_TidalPyBaseClass*>ref_visc._visc_ptr.get()
-        return ref_visc
-    else:
-        const_visc = ConstantViscosity.__new__(ConstantViscosity)
-        const_visc._constant_ptr = <c_ConstantViscosity*>ptr.get()
-        const_visc._visc_ptr     = move(ptr)
-        const_visc._ptr          = <c_TidalPyBaseClass*>const_visc._visc_ptr.get()
-        return const_visc
+    wrapper_class = _VISCOSITY_CLASSES[<int>model]
+    cdef ViscosityBase wrapper = wrapper_class.__new__(wrapper_class)
+    wrapper._adopt(ptr)
+    return wrapper

@@ -26,7 +26,7 @@
 
 namespace tidalpy {
 
-// Combined construction parameters; each model reads only the fields it needs.
+// Combined construction parameters; each model reads only the fields it needs. Its defaults are the models' defaults.
 struct c_PartialMeltConfig {
     // Shared melt envelope and liquid limits.
     double solidus             = 1600.0;  // [K]
@@ -69,9 +69,10 @@ public:
     // Number of shared parameters every model writes first in its binary payload.
     static constexpr std::size_t C_NUM_ENVELOPE_PARAMS = 6;
 
-    c_PartialMeltBase() = default;
+    c_PartialMeltBase() : c_PartialMeltBase(std::string(), c_PartialMeltConfig{}) {}
 
-    explicit c_PartialMeltBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
+    explicit c_PartialMeltBase(const std::string& model_name)
+        : c_PartialMeltBase(model_name, c_PartialMeltConfig{}) {}
 
     c_PartialMeltBase(const std::string& model_name, const c_PartialMeltConfig& cfg)
         : c_PhysicsBase(model_name),
@@ -186,12 +187,12 @@ protected:
         if (shear     <= this->p_liquid_shear)     { shear     = this->p_liquid_shear; }
     }
 
-    double p_solidus             = 1600.0;  // [K]
-    double p_liquidus            = 2000.0;  // [K]
-    double p_liquid_shear        = 1.0e-5;  // [Pa]
-    double p_liquid_viscosity    = 0.2;     // [Pa·s]
-    bool   p_bulk_melt_weakening = false;
-    double p_liquid_bulk_modulus = 2.0e10;  // [Pa]
+    double p_solidus;              // [K]
+    double p_liquidus;             // [K]
+    double p_liquid_shear;         // [Pa]
+    double p_liquid_viscosity;     // [Pa·s]
+    bool   p_bulk_melt_weakening;
+    double p_liquid_bulk_modulus;  // [Pa]
 };
 
 } // namespace tidalpy

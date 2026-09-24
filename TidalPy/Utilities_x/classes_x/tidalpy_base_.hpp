@@ -100,9 +100,7 @@ public:
             throw std::runtime_error(
                 "TidalPy: cannot open binary file: " + path);
         }
-        const std::streampos start = in.tellg();
-        const c_BinaryHeader file_header = read_binary_header(in);
-        in.seekg(start);
+        const c_BinaryHeader file_header = c_peek_binary_header(in);
         const uint32_t own_class_id = this->get_binary_class_id();
         if (file_header.class_id != own_class_id) {
             throw std::runtime_error(
@@ -124,9 +122,11 @@ public:
         }
     }
 
-    // The class id this object writes in its binary header. It runs a full write into a buffer that keeps only the
-    // header bytes, so it costs the time of a save but no memory for the record.
-    uint32_t get_binary_class_id() const {
+    // The class id this object writes in its binary header. A class that writes one fixed id overrides this to return
+    // it, and writes its header with that override, so the id lives in one place. This fallback, for the classes that
+    // do not, runs a full write into a buffer that keeps only the header bytes: the time of a save, but no memory for
+    // the record. A base class whose subclasses write their own ids must not override it.
+    virtual uint32_t get_binary_class_id() const {
         c_BinaryHeaderCaptureBuffer header_capture;
         std::ostream probe(&header_capture);
         this->write_binary(probe);

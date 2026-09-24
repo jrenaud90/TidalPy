@@ -185,6 +185,15 @@ inline c_BinaryHeader read_binary_header(std::istream& in) {
     return h;
 }
 
+// Reads the header of the record at the read position and rewinds to it, so a factory can pick the class that then
+// reads the whole record itself.
+inline c_BinaryHeader c_peek_binary_header(std::istream& in) {
+    const std::streampos start = in.tellg();
+    const c_BinaryHeader header = read_binary_header(in);
+    in.seekg(start);
+    return header;
+}
+
 // A path handed over from Python is UTF-8. A narrow std::string path is read in the system code page on Windows,
 // which garbles any non-ASCII directory, so paths are opened through a UTF-8 std::filesystem::path.
 inline std::filesystem::path c_utf8_path(const std::string& path) {
@@ -347,7 +356,7 @@ inline uint64_t binary_string_bytes(const std::string& text) {
 // held by worlds, serialize recursively.
 
 template <typename T>
-inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& obj) {
+inline void c_write_optional_record(std::ostream& out, const T* obj) {
     const uint8_t present = obj ? 1 : 0;
     out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
     if (obj) {
@@ -358,18 +367,15 @@ inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& o
     }
 }
 
+template <typename T>
+inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& obj) {
+    c_write_optional_record(out, obj.get());
+}
 
 // The same for a shared_ptr sub-object (a layer's rheologies, co-owned by an exported radial solution).
 template <typename T>
 inline void write_optional_binary(std::ostream& out, const std::shared_ptr<T>& obj) {
-    const uint8_t present = obj ? 1 : 0;
-    out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
-    if (obj) {
-        obj->write_binary(out);
-    }
-    if (!out) {
-        throw std::runtime_error("TidalPy: failed to write optional sub-object binary data");
-    }
+    c_write_optional_record(out, obj.get());
 }
 
 // The factory peeks the record's class id and returns an owning unique_ptr.

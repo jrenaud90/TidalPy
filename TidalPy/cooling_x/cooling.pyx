@@ -24,20 +24,12 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
+from TidalPy.Utilities_x.arrays.vectors cimport cy_broadcast_inputs
+from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_TidalPyBaseClass, cy_resolve_factory_config
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
-
-
-cdef void cy_fill_vector(const double[::1] src, vector[double]& dst) noexcept nogil:
-    cdef Py_ssize_t n = src.shape[0]
-    cdef Py_ssize_t i
-    dst.resize(n)
-    for i in range(n):
-        dst[i] = src[i]
 
 
 cdef c_CoolingInputs cy_build_inputs(
@@ -90,57 +82,20 @@ cdef CoolingResult cy_results_to_py(vector[c_CoolingResult]& src, tuple shape):
     return CoolingResult(flux.reshape(shape), blt.reshape(shape), ray.reshape(shape), nu.reshape(shape))
 
 
-cdef object cy_solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
-                           object delta_temp, object viscosity):
-    """Dispatch to the most specific C++ vectorized routine for the given input pattern."""
-    cdef cpp_bool d_arr = isinstance(delta_temp, np.ndarray)
-    cdef cpp_bool v_arr = isinstance(viscosity, np.ndarray)
-
-    cdef vector[double] vtemp, vvisc
-    cdef vector[c_CoolingResult] vout
-    cdef const double[::1] mv
-    cdef cnp.ndarray temp_arr, visc_arr, d_b, v_b, d_c, v_c
-    cdef tuple out_shape
-
-    if not (d_arr or v_arr):
-        base.delta_temp  = <double>delta_temp
-        base.viscosity = <double>viscosity
-        return cy_result_to_py(model.calc_cooling(base))
-
-    if d_arr and not v_arr:
-        base.viscosity = <double>viscosity
-        temp_arr = np.ascontiguousarray(delta_temp, dtype=np.float64)
-        out_shape = np.shape(temp_arr)
-        mv = temp_arr.ravel()
-        with nogil:
-            cy_fill_vector(mv, vtemp)
-            model.calc_cooling_vectorize_temperature(vtemp, base, vout)
-        return cy_results_to_py(vout, out_shape)
-
-    if v_arr and not d_arr:
+cdef object cy_solve_cooling(
+        c_CoolingBase* model, c_CoolingInputs base, object delta_temp, object viscosity, cpp_bool flatten):
+    """Cooling for float or ndarray ``delta_temp`` and ``viscosity`` broadcast together (cy_broadcast_inputs) at the
+    otherwise fixed state ``base``; a CoolingResult of floats when both are floats and ``flatten`` is off."""
+    cdef vector[vector[double]] inputs
+    cdef vector[c_CoolingResult] results
+    cdef object shape = cy_broadcast_inputs((delta_temp, viscosity), inputs, flatten)
+    if shape is None:
         base.delta_temp = <double>delta_temp
-        visc_arr = np.ascontiguousarray(viscosity, dtype=np.float64)
-        out_shape = np.shape(visc_arr)
-        mv = visc_arr.ravel()
-        with nogil:
-            cy_fill_vector(mv, vvisc)
-            model.calc_cooling_vectorize_viscosity(vvisc, base, vout)
-        return cy_results_to_py(vout, out_shape)
-
-    d_b, v_b = np.broadcast_arrays(
-        np.asarray(delta_temp, dtype=np.float64),
-        np.asarray(viscosity, dtype=np.float64))
-    d_c = np.ascontiguousarray(d_b)
-    v_c = np.ascontiguousarray(v_b)
-    out_shape = np.shape(d_c)
-    mv = d_c.ravel()
+        base.viscosity  = <double>viscosity
+        return cy_result_to_py(model.calc_cooling(base))
     with nogil:
-        cy_fill_vector(mv, vtemp)
-    mv = v_c.ravel()
-    with nogil:
-        cy_fill_vector(mv, vvisc)
-        model.calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
-    return cy_results_to_py(vout, out_shape)
+        model.calc_cooling_vectorize(inputs[0], inputs[1], base, results)
+    return cy_results_to_py(results, shape)
 
 
 cdef class CoolingResult:
@@ -189,9 +144,6 @@ cdef class CoolingResult:
 cdef class CoolingBase(PhysicsBase):
     """Abstract base for cooling models; holds the owning pointer to the C++ model object."""
 
-    def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr auto-inits to nullptr; concrete models set it
-
     def __init__(self, *args, **kwargs):
         raise TypeError(
             "CoolingBase is abstract; instantiate a concrete model "
@@ -202,6 +154,11 @@ cdef class CoolingBase(PhysicsBase):
         # unique_ptr frees the most-derived C++ object; _ptr is only an observer.
         self._cooling_ptr.reset()
         self._ptr = NULL
+
+    cdef void _adopt(self, unique_ptr[c_CoolingBase]& model) noexcept:
+        """Take ownership of ``model``; the inherited ``_ptr`` observes it."""
+        self._cooling_ptr = move(model)
+        self._ptr = <c_TidalPyBaseClass*>self._cooling_ptr.get()
 
     def calc_cooling(
             self,
@@ -267,19 +224,11 @@ cdef class CoolingBase(PhysicsBase):
             thickness,
             gravity,
             density,
-            viscosity,
+            0.0,
             thermal_conductivity,
             thermal_diffusivity,
             thermal_expansion)
-        cdef vector[double] vtemp
-        cdef vector[c_CoolingResult] vout
-        cdef const double[::1] mv
-        cdef cnp.ndarray temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
-        mv = temp_c
-        with nogil:
-            cy_fill_vector(mv, vtemp)
-            self._cooling_ptr.get().calc_cooling_vectorize_temperature(vtemp, base, vout)
-        return cy_results_to_py(vout, (temp_c.shape[0],))
+        return cy_solve_cooling(self._cooling_ptr.get(), base, delta_temp, viscosity, True)
 
     def calc_cooling_vectorize_viscosity(
             self,
@@ -294,7 +243,7 @@ cdef class CoolingBase(PhysicsBase):
         """Cooling over a viscosity sweep; the remaining inputs are scalar constants."""
         self._check_ptr()
         cdef c_CoolingInputs base = cy_build_inputs(
-            delta_temp,
+            0.0,
             thickness,
             gravity,
             density,
@@ -302,15 +251,7 @@ cdef class CoolingBase(PhysicsBase):
             thermal_conductivity,
             thermal_diffusivity,
             thermal_expansion)
-        cdef vector[double] vvisc
-        cdef vector[c_CoolingResult] vout
-        cdef const double[::1] mv
-        cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        mv = visc_c
-        with nogil:
-            cy_fill_vector(mv, vvisc)
-            self._cooling_ptr.get().calc_cooling_vectorize_viscosity(vvisc, base, vout)
-        return cy_results_to_py(vout, (visc_c.shape[0],))
+        return cy_solve_cooling(self._cooling_ptr.get(), base, delta_temp, viscosity, True)
 
     def calc_cooling_vectorize_all(
             self,
@@ -333,20 +274,7 @@ cdef class CoolingBase(PhysicsBase):
             thermal_conductivity,
             thermal_diffusivity,
             thermal_expansion)
-        cdef vector[double] vtemp, vvisc
-        cdef vector[c_CoolingResult] vout
-        cdef const double[::1] temp_c_view
-        cdef const double[::1] visc_c_view
-        cdef cnp.ndarray temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
-        cdef cnp.ndarray visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
-        temp_c_view = temp_c
-        visc_c_view = visc_c
-        with nogil:
-            cy_fill_vector(temp_c_view, vtemp)
-            cy_fill_vector(visc_c_view, vvisc)
-            self._cooling_ptr.get().calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
-        return cy_results_to_py(vout, (temp_c.shape[0],))
-
+        return cy_solve_cooling(self._cooling_ptr.get(), base, delta_temp, viscosity, True)
 
 
 cdef class OffCooling(CoolingBase):
@@ -354,9 +282,8 @@ cdef class OffCooling(CoolingBase):
 
     def __init__(self):
         cdef c_CoolingConfig config
-        cdef unique_ptr[c_CoolingBase] ptr = c_find_cooling(c_CoolingModel.Off, config)
-        self._cooling_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._cooling_ptr.get()
+        cdef unique_ptr[c_CoolingBase] model = c_find_cooling(c_CoolingModel.Off, config)
+        self._adopt(model)
 
 
 cdef class ConductiveCooling(CoolingBase):
@@ -364,9 +291,8 @@ cdef class ConductiveCooling(CoolingBase):
 
     def __init__(self):
         cdef c_CoolingConfig config
-        cdef unique_ptr[c_CoolingBase] ptr = c_find_cooling(c_CoolingModel.Conduction, config)
-        self._cooling_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._cooling_ptr.get()
+        cdef unique_ptr[c_CoolingBase] model = c_find_cooling(c_CoolingModel.Conduction, config)
+        self._adopt(model)
 
 
 cdef class ConvectiveCooling(CoolingBase):
@@ -382,9 +308,6 @@ cdef class ConvectiveCooling(CoolingBase):
         Critical Rayleigh number. Default ``1100.0``.
     """
 
-    def __cinit__(self, *args, **kwargs):
-        self._convective_ptr = NULL
-
     def __init__(self,
             double convection_alpha=1.0,
             double convection_beta=0.3333333333333333,
@@ -393,40 +316,41 @@ cdef class ConvectiveCooling(CoolingBase):
         config.convection_alpha  = convection_alpha
         config.convection_beta   = convection_beta
         config.critical_rayleigh = critical_rayleigh
-        cdef unique_ptr[c_CoolingBase] ptr = c_find_cooling(c_CoolingModel.Convection, config)
-        self._convective_ptr = <c_ConvectiveCooling*>ptr.get()
-        self._cooling_ptr = move(ptr)
-        self._ptr = <c_TidalPyBaseClass*>self._cooling_ptr.get()
-
-    def __dealloc__(self):
-        self._convective_ptr = NULL  # CoolingBase._cooling_ptr owns the object
+        cdef unique_ptr[c_CoolingBase] model = c_find_cooling(c_CoolingModel.Convection, config)
+        self._adopt(model)
 
     @property
     def convection_alpha(self) -> float:
         """Nusselt scaling prefactor [dimensionless]."""
         self._check_ptr()
-        return self._convective_ptr.get_convection_alpha()
+        return (<c_ConvectiveCooling*>self._cooling_ptr.get()).get_convection_alpha()
 
     @property
     def convection_beta(self) -> float:
         """Convection exponent [dimensionless]."""
         self._check_ptr()
-        return self._convective_ptr.get_convection_beta()
+        return (<c_ConvectiveCooling*>self._cooling_ptr.get()).get_convection_beta()
 
     @property
     def critical_rayleigh(self) -> float:
         """Critical Rayleigh number [dimensionless]."""
         self._check_ptr()
-        return self._convective_ptr.get_critical_rayleigh()
+        return (<c_ConvectiveCooling*>self._cooling_ptr.get()).get_critical_rayleigh()
 
 
 # Every config key any cooling model reads; make_cooling rejects anything else.
 COOLING_CONFIG_KEYS = frozenset({"convection_alpha", "convection_beta", "critical_rayleigh"})
 
 
+# The wrapper class of each c_CoolingModel, in enum order.
+_COOLING_CLASSES = (OffCooling, ConvectiveCooling, ConductiveCooling)
+
+
 def _same_model(str table_name, str model_name) -> bool:
     """Whether two names (aliases included) resolve to the same model."""
-    return c_cooling_model_from_name(table_name.lower().encode("utf-8")) == c_cooling_model_from_name(model_name.lower().encode("utf-8"))
+    return (
+        c_cooling_model_from_name(table_name.encode("utf-8"))
+        == c_cooling_model_from_name(model_name.encode("utf-8")))
 
 
 def make_cooling(str model_name, dict config=None):
@@ -451,46 +375,21 @@ def make_cooling(str model_name, dict config=None):
     ValueError
         If the model name is not recognized, or if ``config`` holds a key that no cooling model reads.
     """
-    if config is None:
-        # Fall back to the same defaults the world-attached path uses.
-        config = factory_defaults("cooling", COOLING_CONFIG_KEYS, model_name, _same_model)
-    check_config_keys(config, COOLING_CONFIG_KEYS, "cooling")
-    if config is None:
-        config = {}
+    # None falls back to the same defaults the world-attached path uses.
+    config = cy_resolve_factory_config(config, "cooling", COOLING_CONFIG_KEYS, model_name, _same_model, "cooling")
 
     # The default-constructed config carries the C++ defaults, so only override what the caller gave.
     cdef c_CoolingConfig cfg
-    if "convection_alpha" in config:
-        cfg.convection_alpha = config["convection_alpha"]
-    if "convection_beta" in config:
-        cfg.convection_beta = config["convection_beta"]
-    if "critical_rayleigh" in config:
-        cfg.critical_rayleigh = config["critical_rayleigh"]
+    cfg.convection_alpha  = config.get("convection_alpha", cfg.convection_alpha)
+    cfg.convection_beta   = config.get("convection_beta", cfg.convection_beta)
+    cfg.critical_rayleigh = config.get("critical_rayleigh", cfg.critical_rayleigh)
 
     cdef c_CoolingModel model = c_cooling_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_CoolingBase] ptr = c_find_cooling(model, cfg)
-
-    # Adopt the owning unique_ptr into the matching Python wrapper.
-    cdef OffCooling        o
-    cdef ConvectiveCooling cv
-    cdef ConductiveCooling cd
-
-    if model == c_CoolingModel.Off:
-        o = OffCooling.__new__(OffCooling)
-        o._cooling_ptr = move(ptr)
-        o._ptr = <c_TidalPyBaseClass*>o._cooling_ptr.get()
-        return o
-    elif model == c_CoolingModel.Convection:
-        cv = ConvectiveCooling.__new__(ConvectiveCooling)
-        cv._convective_ptr = <c_ConvectiveCooling*>ptr.get()
-        cv._cooling_ptr    = move(ptr)
-        cv._ptr            = <c_TidalPyBaseClass*>cv._convective_ptr
-        return cv
-    else:  # c_CoolingModel.Conduction
-        cd = ConductiveCooling.__new__(ConductiveCooling)
-        cd._cooling_ptr = move(ptr)
-        cd._ptr = <c_TidalPyBaseClass*>cd._cooling_ptr.get()
-        return cd
+    wrapper_class = _COOLING_CLASSES[<int>model]
+    cdef CoolingBase wrapper = wrapper_class.__new__(wrapper_class)
+    wrapper._adopt(ptr)
+    return wrapper
 
 
 # Convenience functions. Each builds a stack-allocated C++ model that dies with the call. ``delta_temp``
@@ -501,7 +400,7 @@ def cooling_off(delta_temp, double thickness):
     cdef c_CoolingConfig cfg
     cdef c_OffCooling model = c_OffCooling(cfg)
     cdef c_CoolingInputs base = cy_build_inputs(0.0, thickness, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0)
+    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0, False)
 
 
 def conductive(
@@ -520,7 +419,7 @@ def conductive(
         thermal_conductivity,
         0.0,
         0.0)
-    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0)
+    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0, False)
 
 
 def convective(
@@ -550,4 +449,4 @@ def convective(
         thermal_conductivity,
         thermal_diffusivity,
         thermal_expansion)
-    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, viscosity)
+    return cy_solve_cooling(<c_CoolingBase*>&model, base, delta_temp, viscosity, False)

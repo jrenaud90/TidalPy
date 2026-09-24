@@ -55,10 +55,11 @@ cdef extern from "luminosity_.hpp" namespace "tidalpy" nogil:
 
 cdef class LuminosityBase(PhysicsBase):
     cdef unique_ptr[c_LuminosityBase] _luminosity_ptr   # owns the most-derived C++ model object
+    cdef void _adopt(self, unique_ptr[c_LuminosityBase]& model) noexcept
 
 
 cdef class FixedLuminosity(LuminosityBase):
-    cdef c_FixedLuminosity* _fixed_ptr   # non-owning; ownership via LuminosityBase._luminosity_ptr
+    pass
 
 
 cdef class MassToLuminosity(LuminosityBase):
@@ -66,4 +67,4 @@ cdef class MassToLuminosity(LuminosityBase):
 
 
 cdef class PowerLawLuminosity(LuminosityBase):
-    cdef c_PowerLawLuminosity* _power_law_ptr   # non-owning; ownership via LuminosityBase._luminosity_ptr
+    pass

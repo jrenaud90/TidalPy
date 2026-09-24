@@ -2,76 +2,15 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Common unit and orbital-element conversions.
 
-The ``cy_*`` forms are nogil C-level functions for other Cython/C++ code; the plain-named forms are the
-Python API.
+The Kepler conversions are the C++ ``c_semi_a2orbital_motion`` and ``c_orbital_motion2semi_a`` (``conversions_.hpp``),
+which C++ callers use directly; these functions check the inputs and form the gravitational parameter.
 """
-
-from libc.math cimport sqrt, cbrt
 
 from TidalPy.constants cimport (
     d_PI, d_SECONDS_PER_MYR, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr)
 
 # Wire this DLL's shared pointer to the process-wide TidalPy config singleton.
 set_tidalpy_config_ptr(get_shared_config_address())
-
-
-cdef inline double cy_m2Au(double meters) noexcept nogil:
-
-    return meters / tidalpy_config_ptr.d_AU
-
-cdef inline double cy_Au2m(double astronomical_units) noexcept nogil:
-
-    return astronomical_units * tidalpy_config_ptr.d_AU
-
-cdef inline double cy_rads2days(double radians_per_second) noexcept nogil:
-
-    return (2. * d_PI / radians_per_second) / 86400.
-
-cdef inline double cy_days2rads(double days) noexcept nogil:
-
-    return 2. * d_PI / (days * 86400.)
-
-cdef inline double cy_sec2myr(double seconds) noexcept nogil:
-
-    return seconds / d_SECONDS_PER_MYR
-
-cdef inline double cy_myr2sec(double myrs) noexcept nogil:
-
-    return myrs * d_SECONDS_PER_MYR
-
-cdef inline double cy_orbital_motion2semi_a(
-        double orbital_motion,
-        double host_mass,
-        double target_mass = 0.0,
-        double G_to_use = -1.0) noexcept nogil:
-    """Semi-major axis [m] from a mean motion [rad s-1] by Kepler's third law, without input checks.
-
-    A negative ``G_to_use`` (the default) reads the gravitational constant from the TidalPy config at call time.
-
-    Assumptions
-    -----------
-    Two-body Keplerian orbit. The caller supplies a positive frequency and masses; nothing is validated.
-    """
-    if G_to_use < 0.0:
-        G_to_use = tidalpy_config_ptr.d_G
-    return cbrt(G_to_use * (host_mass + target_mass) / (orbital_motion * orbital_motion))
-
-cdef inline double cy_semi_a2orbital_motion(
-        double semi_major_axis,
-        double host_mass,
-        double target_mass = 0.0,
-        double G_to_use = -1.0) noexcept nogil:
-    """Mean motion [rad s-1] from a semi-major axis [m] by Kepler's third law, without input checks.
-
-    A negative ``G_to_use`` (the default) reads the gravitational constant from the TidalPy config at call time.
-
-    Assumptions
-    -----------
-    Two-body Keplerian orbit. The caller supplies a positive semi-major axis and masses; nothing is validated.
-    """
-    if G_to_use < 0.0:
-        G_to_use = tidalpy_config_ptr.d_G
-    return sqrt(G_to_use * (host_mass + target_mass) / (semi_major_axis * semi_major_axis * semi_major_axis))
 
 
 def m2Au(double meters):
@@ -88,7 +27,7 @@ def m2Au(double meters):
         Distance in [Au]
     """
 
-    return cy_m2Au(meters)
+    return meters / tidalpy_config_ptr.d_AU
 
 def Au2m(double astronomical_units):
     """ Convert Astronomical Units to Meters
@@ -104,7 +43,7 @@ def Au2m(double astronomical_units):
         Distance in [m]
     """
 
-    return cy_Au2m(astronomical_units)
+    return astronomical_units * tidalpy_config_ptr.d_AU
 
 def rads2days(double radians_per_second):
     """ Convert from frequency [rads s-1] to period [days]
@@ -120,7 +59,7 @@ def rads2days(double radians_per_second):
         Period in [days]
     """
 
-    return cy_rads2days(radians_per_second)
+    return (2. * d_PI / radians_per_second) / 86400.
 
 def days2rads(double days):
     """ Convert from period [days] to frequency [rads s-1]
@@ -136,7 +75,7 @@ def days2rads(double days):
         Frequency in [rads s-1]
     """
 
-    return cy_days2rads(days)
+    return 2. * d_PI / (days * 86400.)
 
 def sec2myr(double seconds):
     """ Convert time from seconds to millions of Julian years (365.25 days each)
@@ -152,7 +91,7 @@ def sec2myr(double seconds):
         Time in [Myr]
     """
 
-    return cy_sec2myr(seconds)
+    return seconds / d_SECONDS_PER_MYR
 
 def myr2sec(double myrs):
     """ Convert time from millions of Julian years (365.25 days each) to seconds
@@ -168,7 +107,7 @@ def myr2sec(double myrs):
         Time in [sec]
     """
 
-    return cy_myr2sec(myrs)
+    return myrs * d_SECONDS_PER_MYR
 
 def orbital_motion2semi_a(
         double orbital_motion,
@@ -218,7 +157,7 @@ def orbital_motion2semi_a(
     if not (G_value > 0.):
         raise ValueError(f'G_to_use must be greater than zero; got {G_value}.')
 
-    return cy_orbital_motion2semi_a(orbital_motion, host_mass, target_mass, G_value)
+    return c_orbital_motion2semi_a(orbital_motion, G_value * (host_mass + target_mass))
 
 def semi_a2orbital_motion(
         double semi_major_axis,
@@ -268,4 +207,4 @@ def semi_a2orbital_motion(
     if not (G_value > 0.):
         raise ValueError(f'G_to_use must be greater than zero; got {G_value}.')
 
-    return cy_semi_a2orbital_motion(semi_major_axis, host_mass, target_mass, G_value)
+    return c_semi_a2orbital_motion(semi_major_axis, G_value * (host_mass + target_mass))

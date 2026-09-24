@@ -13,17 +13,7 @@ cdef extern from "rheology_base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_RheologyBase(c_PhysicsBase):
         cpp_complex[double] calc_complex_modulus(
             double modulus, double viscosity, double frequency) const
-        void calc_complex_modulus_vectorize_modulus(
-            const vector[double]& modulus,
-            const vector[double]& viscosity,
-            double frequency,
-            vector[cpp_complex[double]]& out_complex_modulus) except +
-        void calc_complex_modulus_vectorize_frequency(
-            double modulus,
-            double viscosity,
-            const vector[double]& frequency,
-            vector[cpp_complex[double]]& out_complex_modulus) except +
-        void calc_complex_modulus_vectorize_all(
+        void calc_complex_modulus_vectorize(
             const vector[double]& modulus,
             const vector[double]& viscosity,
             const vector[double]& frequency,
@@ -94,6 +84,7 @@ cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
 
 cdef class RheologyBase(PhysicsBase):
     cdef unique_ptr[c_RheologyBase] _rheology_ptr   # owns the most-derived C++ model object
+    cdef void _adopt(self, unique_ptr[c_RheologyBase]& model) noexcept
 
 
 cdef class Elastic(RheologyBase):
@@ -109,16 +100,16 @@ cdef class Maxwell(RheologyBase):
 
 
 cdef class Voigt(RheologyBase):
-    cdef c_Voigt* _voigt_ptr   # non-owning; ownership via RheologyBase._rheology_ptr
+    pass
 
 
 cdef class Burgers(RheologyBase):
-    cdef c_Burgers* _burgers_ptr   # non-owning; ownership via RheologyBase._rheology_ptr
+    pass
 
 
 cdef class Andrade(RheologyBase):
-    cdef c_Andrade* _andrade_ptr   # non-owning; ownership via RheologyBase._rheology_ptr
+    pass
 
 
 cdef class Sundberg(RheologyBase):
-    cdef c_Sundberg* _sundberg_ptr   # non-owning; ownership via RheologyBase._rheology_ptr
+    pass

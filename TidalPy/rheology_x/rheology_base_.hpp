@@ -2,10 +2,10 @@
 /* Abstract base for TidalPy rheology models. Concrete models live in rheology_.hpp. */
 
 #include <complex>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "broadcast_.hpp"
 #include "physics_base_.hpp"
 
 namespace tidalpy {
@@ -34,56 +34,22 @@ public:
             double viscosity,
             double frequency) const = 0;
 
-    // Element-wise over (modulus, viscosity) at one frequency.
-    void calc_complex_modulus_vectorize_modulus(
-            const std::vector<double>& modulus,
-            const std::vector<double>& viscosity,
-            double frequency,
-            std::vector<c_ComplexModulus>& out_complex_modulus) const {
-        if (viscosity.size() != modulus.size()) {
-            throw std::invalid_argument(
-                "TidalPy::calc_complex_modulus_vectorize_modulus: Viscosity and "
-                "modulus vectors must have the same length");
-        }
-        const std::size_t n = modulus.size();
-        out_complex_modulus.resize(n);
-        for (std::size_t i = 0; i < n; ++i) {
-            out_complex_modulus[i] =
-                this->calc_complex_modulus(modulus[i], viscosity[i], frequency);
-        }
-    }
-
-    // Over frequency at constant modulus and viscosity.
-    void calc_complex_modulus_vectorize_frequency(
-            double modulus,    
-            double viscosity,
-            const std::vector<double>& frequency,
-            std::vector<c_ComplexModulus>& out_complex_modulus) const {
-        const std::size_t n = frequency.size();
-        out_complex_modulus.resize(n);
-        for (std::size_t i = 0; i < n; ++i) {
-            out_complex_modulus[i] =
-                this->calc_complex_modulus(modulus, viscosity, frequency[i]);
-        }
-    }
-
-    // Element-wise over all three.
-    void calc_complex_modulus_vectorize_all(
+    // Element-wise over modulus, viscosity, and frequency. Each input holds one value per point or a single value used
+    // at every point, so a frequency sweep at fixed material passes one modulus and one viscosity.
+    void calc_complex_modulus_vectorize(
             const std::vector<double>& modulus,
             const std::vector<double>& viscosity,
             const std::vector<double>& frequency,
             std::vector<c_ComplexModulus>& out_complex_modulus) const {
-        if (viscosity.size() != modulus.size() ||
-            viscosity.size() != frequency.size()) {
-            throw std::invalid_argument(
-                "TidalPy::calc_complex_modulus_vectorize_all: viscosity, modulus, "
-                "and frequency vectors must all have the same length");
-        }
-        const std::size_t n = modulus.size();
-        out_complex_modulus.resize(n);
-        for (std::size_t i = 0; i < n; ++i) {
-            out_complex_modulus[i] =
-                this->calc_complex_modulus(modulus[i], viscosity[i], frequency[i]);
+        const std::size_t num_points = c_broadcast_length(
+            {modulus.size(), viscosity.size(), frequency.size()}, "calc_complex_modulus_vectorize");
+        const std::size_t modulus_stride   = c_broadcast_stride(modulus.size());
+        const std::size_t viscosity_stride = c_broadcast_stride(viscosity.size());
+        const std::size_t frequency_stride = c_broadcast_stride(frequency.size());
+        out_complex_modulus.resize(num_points);
+        for (std::size_t i = 0; i < num_points; ++i) {
+            out_complex_modulus[i] = this->calc_complex_modulus(
+                modulus[i * modulus_stride], viscosity[i * viscosity_stride], frequency[i * frequency_stride]);
         }
     }
 };

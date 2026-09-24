@@ -58,7 +58,6 @@ cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_PhysicsBase(c_TidalPyBaseClass):
         c_PhysicsBase(const string& model_name) except +
         const string& get_model_name() const
-        void set_model_name(const string& name)
         vector[c_ConfigEntry] get_config_entries() const
 
 
@@ -66,6 +65,11 @@ cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
 # raw pointers.
 cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries)
 cdef dict cy_physics_model_config(const c_PhysicsBase* model_ptr)
+
+# The config a family's make_* factory builds from: the caller's, or the world builder's defaults when it gave none,
+# after the family's key check.
+cdef dict cy_resolve_factory_config(
+    dict config, str section, object accepted_keys, str model_name, object same_model, str family)
 
 
 cdef class TidalPyBaseClass:

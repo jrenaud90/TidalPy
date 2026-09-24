@@ -46,7 +46,7 @@ public:
     // Surface gravitational acceleration [m/s^2]
     double calc_surface_gravity(double mass, double radius) const noexcept {
         if (radius == 0.0) return 0.0;
-        return tidalpy_config_ptr->d_G * mass / (radius * radius);
+        return c_get_G() * mass / (radius * radius);
     }
 
     // Mean density [kg/m^3]
@@ -58,7 +58,7 @@ public:
     // Escape velocity [m/s]
     double calc_escape_velocity(double mass, double radius) const noexcept {
         if (radius == 0.0) return 0.0;
-        return std::sqrt(2.0 * tidalpy_config_ptr->d_G * mass / radius);
+        return std::sqrt(2.0 * c_get_G() * mass / radius);
     }
 
     void write_binary(std::ostream& out) const override {

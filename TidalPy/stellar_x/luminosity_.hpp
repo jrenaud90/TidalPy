@@ -10,8 +10,6 @@
  * layer observer pointer is not serialized.
  */
 
-#include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <istream>
@@ -23,10 +21,11 @@
 
 #include "luminosity_base_.hpp"
 #include "constants_.hpp"
+#include "model_names_.hpp"
 
 namespace tidalpy {
 
-// Combined construction parameters; each model reads only the fields it needs.
+// Combined construction parameters; each model reads only the fields it needs. Its defaults are the models' defaults.
 struct c_LuminosityConfig {
     double luminosity = 0.0;                  // [W]; Fixed model
 
@@ -81,16 +80,10 @@ inline double lum_from_power_law(double mass, double coeff, double exponent) noe
     return luminosity_solar * coeff * std::pow(mass / mass_solar, exponent);
 }
 
-inline std::string lum_to_lower(std::string text) {
-    std::transform(text.begin(), text.end(), text.begin(),
-                   [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-    return text;
-}
-
 // Luminosity supplied directly, independent of mass (alias "constant").
-class c_FixedLuminosity : public c_LuminosityBase {
+class c_FixedLuminosity final : public c_LuminosityBase {
 public:
-    c_FixedLuminosity() : c_LuminosityBase("fixed") {}
+    c_FixedLuminosity() : c_FixedLuminosity(c_LuminosityConfig{}) {}
     explicit c_FixedLuminosity(const c_LuminosityConfig& config)
         : c_LuminosityBase("fixed"),
           p_luminosity(config.luminosity) {}
@@ -107,9 +100,12 @@ public:
         return lum_from_fixed(mass, this->p_luminosity);
     }
 
+    uint32_t get_binary_class_id() const override {
+        return static_cast<uint32_t>(BinaryClassID::FixedLuminosity);
+    }
+
     void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, static_cast<uint32_t>(BinaryClassID::FixedLuminosity), {this->p_luminosity});
+        this->write_physics_binary(out, this->get_binary_class_id(), {this->p_luminosity});
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 1);
@@ -117,13 +113,13 @@ public:
     }
 
 protected:
-    double p_luminosity = 0.0;
+    double p_luminosity;
 };
 
 // Piecewise main-sequence L(M) (aliases "cuntz_wang", "cw").
-class c_MassToLuminosity : public c_LuminosityBase {
+class c_MassToLuminosity final : public c_LuminosityBase {
 public:
-    c_MassToLuminosity() : c_LuminosityBase("mass_to_luminosity") {}
+    c_MassToLuminosity() : c_MassToLuminosity(c_LuminosityConfig{}) {}
     explicit c_MassToLuminosity(const c_LuminosityConfig& /*config*/)
         : c_LuminosityBase("mass_to_luminosity") {}
     ~c_MassToLuminosity() override = default;
@@ -132,8 +128,12 @@ public:
         return lum_from_mass(mass);
     }
 
+    uint32_t get_binary_class_id() const override {
+        return static_cast<uint32_t>(BinaryClassID::MassToLuminosity);
+    }
+
     void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::MassToLuminosity));
+        this->write_physics_binary(out, this->get_binary_class_id());
     }
     void read_binary(std::istream& in, bool force = false) override {
         this->read_physics_binary(in, force, 0);
@@ -141,9 +141,9 @@ public:
 };
 
 // Single power law L = Lsun * coeff * (M/Msun)^p (alias "power_law").
-class c_PowerLawLuminosity : public c_LuminosityBase {
+class c_PowerLawLuminosity final : public c_LuminosityBase {
 public:
-    c_PowerLawLuminosity() : c_LuminosityBase("power_law") {}
+    c_PowerLawLuminosity() : c_PowerLawLuminosity(c_LuminosityConfig{}) {}
     explicit c_PowerLawLuminosity(const c_LuminosityConfig& config)
         : c_LuminosityBase("power_law"),
           p_coeff(config.power_law_coeff),
@@ -163,10 +163,12 @@ public:
         return lum_from_power_law(mass, this->p_coeff, this->p_exponent);
     }
 
+    uint32_t get_binary_class_id() const override {
+        return static_cast<uint32_t>(BinaryClassID::PowerLawLuminosity);
+    }
+
     void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, static_cast<uint32_t>(BinaryClassID::PowerLawLuminosity),
-            {this->p_coeff, this->p_exponent});
+        this->write_physics_binary(out, this->get_binary_class_id(), {this->p_coeff, this->p_exponent});
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 2);
@@ -175,8 +177,8 @@ public:
     }
 
 protected:
-    double p_coeff    = 1.0;
-    double p_exponent = 3.5;
+    double p_coeff;
+    double p_exponent;
 };
 
 // One value per model, so c_find_luminosity dispatches without string comparisons.
@@ -188,7 +190,7 @@ enum class c_LuminosityModel : uint8_t {
 
 // Model names are matched case-insensitively.
 inline c_LuminosityModel c_luminosity_model_from_name(const std::string& model_name) {
-    const std::string name = lum_to_lower(model_name);
+    const std::string name = c_to_lower(model_name);
 
     if (name == "fixed" || name == "constant") { return c_LuminosityModel::Fixed; }
     if (name == "mass_to_luminosity" || name == "cuntz_wang" || name == "cw") {
@@ -199,7 +201,8 @@ inline c_LuminosityModel c_luminosity_model_from_name(const std::string& model_n
     throw std::invalid_argument("TidalPy: unknown luminosity model name '" + model_name + "'");
 }
 
-// The canonical C++ factory: worlds, binary reconstruction, and the Cython wrapper all route here.
+// Builds a model from its enum value and parameters; the Cython wrappers construct through it. A saved record is
+// restored by c_luminosity_from_binary instead.
 inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(
         c_LuminosityModel model, const c_LuminosityConfig& config) {
     switch (model) {
@@ -217,9 +220,7 @@ inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(
 
 // The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_LuminosityBase> c_luminosity_from_binary(std::istream& in, bool force = false) {
-    const std::streampos start = in.tellg();
-    const c_BinaryHeader header = read_binary_header(in);
-    in.seekg(start);
+    const c_BinaryHeader header = c_peek_binary_header(in);
 
     std::unique_ptr<c_LuminosityBase> model;
     switch (static_cast<BinaryClassID>(header.class_id)) {

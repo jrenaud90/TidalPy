@@ -7,21 +7,19 @@
 #include <cmath>
 #include "../../constants_.hpp"
 
+// Every scale is NaN until built from a planet's radius and density. Copyable and assignable.
 class c_NonDimensionalScales
 {
 public:
-    double second2_conversion;
-    double second_conversion;
-    double length_conversion;
-    double length3_conversion;
-    double density_conversion;
-    double mass_conversion;
-    double pascal_conversion;
+    double second2_conversion = TidalPyConstants::d_NAN;
+    double second_conversion  = TidalPyConstants::d_NAN;
+    double length_conversion  = TidalPyConstants::d_NAN;
+    double length3_conversion = TidalPyConstants::d_NAN;
+    double density_conversion = TidalPyConstants::d_NAN;
+    double mass_conversion    = TidalPyConstants::d_NAN;
+    double pascal_conversion  = TidalPyConstants::d_NAN;
 
     c_NonDimensionalScales() = default;
-    ~c_NonDimensionalScales() = default;
-    c_NonDimensionalScales(const c_NonDimensionalScales&) = default;
-    c_NonDimensionalScales(c_NonDimensionalScales&&) = default;
     c_NonDimensionalScales(
         double mean_radius,
         double bulk_density

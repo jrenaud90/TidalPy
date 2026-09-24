@@ -3,7 +3,7 @@
  *
  * A luminosity model is world-level (a star), so its inherited layer observer pointer stays null. The
  * base carries the model-independent Stefan-Boltzmann conversions between effective surface temperature
- * and luminosity; a null config pointer or a non-positive input yields NaN.
+ * and luminosity (the c_stefan_boltzmann_* functions); a null config pointer or a non-positive input yields NaN.
  */
 
 #include <cmath>
@@ -15,6 +15,25 @@
 #include "constants_.hpp"
 
 namespace tidalpy {
+
+// 4 pi R^2 sigma [W K^-4]: the luminosity per T^4 of a sphere of radius R [m] radiating as an ideal gray body, with
+// sigma the config's Stefan-Boltzmann constant. NaN when the config pointer is unwired.
+inline double c_stefan_boltzmann_factor(double radius) noexcept {
+    const double sigma = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_SBC : TidalPyConstants::d_NAN;
+    return 4.0 * TidalPyConstants::d_PI * radius * radius * sigma;
+}
+
+// Stefan-Boltzmann luminosity L = 4 pi R^2 sigma T^4 [W] from the effective temperature [K] and radius [m]. No input
+// checks: each caller chooses its own result for a non-positive input.
+inline double c_stefan_boltzmann_luminosity(double temperature, double radius) noexcept {
+    return c_stefan_boltzmann_factor(radius) * temperature * temperature * temperature * temperature;
+}
+
+// Effective temperature T = (L / (4 pi R^2 sigma))^(1/4) [K] from the luminosity [W] and radius [m], the inverse of
+// c_stefan_boltzmann_luminosity. No input checks, as there.
+inline double c_stefan_boltzmann_temperature(double luminosity, double radius) noexcept {
+    return std::pow(luminosity / c_stefan_boltzmann_factor(radius), 0.25);
+}
 
 class c_LuminosityBase : public c_PhysicsBase {
 public:
@@ -32,8 +51,7 @@ public:
         if (temperature <= 0.0 || radius <= 0.0 || tidalpy_config_ptr == nullptr) {
             return TidalPyConstants::d_NAN;
         }
-        const double area  = 4.0 * TidalPyConstants::d_PI * radius * radius;
-        return area * tidalpy_config_ptr->d_SBC * temperature * temperature * temperature * temperature;
+        return c_stefan_boltzmann_luminosity(temperature, radius);
     }
 
     // T = (L / (4 pi R^2 sigma))^(1/4).
@@ -41,12 +59,10 @@ public:
         if (luminosity <= 0.0 || radius <= 0.0 || tidalpy_config_ptr == nullptr) {
             return TidalPyConstants::d_NAN;
         }
-        const double area  = 4.0 * TidalPyConstants::d_PI * radius * radius;
-        const double denom = area * tidalpy_config_ptr->d_SBC;
-        if (std::abs(denom) <= TidalPyConstants::d_EPS) {
+        if (std::abs(c_stefan_boltzmann_factor(radius)) <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_NAN;
         }
-        return std::pow(luminosity / denom, 0.25);
+        return c_stefan_boltzmann_temperature(luminosity, radius);
     }
 
     // mass -> L -> T.
