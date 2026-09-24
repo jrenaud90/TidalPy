@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import platform
+import sysconfig
 
 import numpy as np
 import Cython
@@ -37,6 +38,15 @@ else:
     if install_platform == 'darwin':
         # Cython-generated code trips this warning, which recent Apple clang treats as an error.
         extra_compile_args.append('-Wno-error=incompatible-function-pointer-types')
+        # The binary save and load use std::filesystem, which libc++ provides from macOS 10.15. A source build takes
+        # its deployment target from the Python it runs under, and python.org's universal2 builds target 10.13, where
+        # clang rejects std::filesystem as unavailable. Raise the target to 10.15 when it is lower; wheels target
+        # 12.0 through the cibuildwheel settings in pyproject.toml.
+        macos_target = (os.environ.get('MACOSX_DEPLOYMENT_TARGET')
+                        or sysconfig.get_config_var('MACOSX_DEPLOYMENT_TARGET') or '')
+        macos_target_parts = tuple(int(part) for part in str(macos_target).split('.')[:2] if part.isdigit())
+        if (not macos_target_parts) or (macos_target_parts < (10, 15)):
+            os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.15'
     elif install_platform == 'linux':
         # The 3D tidal grids run on std::thread, which needs -pthread to compile and link against older glibc.
         extra_compile_args.append('-pthread')
