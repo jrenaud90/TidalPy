@@ -21,8 +21,14 @@
 /// Solve the equation of state for a layered planet.
 ///
 /// Integrates gravity, pressure, mass, and moment of inertia from center to surface in the caller's units.
-/// The central pressure comes from a secant iteration on the surface-pressure mismatch; the first update
-/// assumes a unit slope, exact for an incompressible planet, and later ones use the measured slope.
+/// The central pressure comes from a safeguarded secant iteration on the surface-pressure mismatch. The first
+/// update assumes a unit slope, exact for an incompressible planet, and later ones use the measured slope. Where
+/// that slope is not positive (the surface pressure of a compressible planet can fall as the central pressure
+/// first rises), the step grows geometrically in the unit-slope direction until the mismatch changes sign, and
+/// until then no secant step may grow more than fourfold over the one before. Once
+/// it has, the root is bracketed: a secant step that would leave the bracket is replaced by an Illinois
+/// false-position step inside it, and any step not under half the one two passes back by a bisection (Brent's
+/// safeguard), so a mismatch with a near-jump cannot stall the iteration.
 ///
 /// Only the pass that converges needs its dense output, and capturing it roughly doubles the cost of a
 /// pass, so it is switched on for the first pass of a warm start (which usually converges there) and for
@@ -62,9 +68,9 @@
 /// Assumptions
 /// -----------
 /// - Spherical symmetry and hydrostatic equilibrium.
-/// - The secant iteration on the central pressure expects the surface pressure to rise with it near the root.
-///   Where the measured slope is not positive it steps by the residual itself, which converges slowly. A
-///   structure still off its target surface pressure at `max_iters` is reported as a failure.
+/// - The surface pressure rises with the central pressure near the root, and the unit-slope direction leads
+///   toward it: too high a surface pressure lowers the central pressure. A structure still off its target surface
+///   pressure at `max_iters` is reported as a failure.
 inline void c_solve_eos(
         c_EOSSolution* eos_solution_ptr,
         std::vector<PreEvalFunc>& eos_function_bylayer_ptr_vec,
@@ -144,6 +150,20 @@ inline void c_solve_eos(
     double previous_central       = TidalPyConstants::d_NAN;
     double previous_diff          = TidalPyConstants::d_NAN;
     double oldest_diff            = TidalPyConstants::d_NAN;
+    // The latest central pressure on each side of the root, with its mismatch; the root lies between them once
+    // both are known. `last_replaced` is the side the last pass replaced (-1 below, +1 above, 0 none), and
+    // `last_bracket_step` whether the step to it replaced a secant step inside the bracket (false position or
+    // bisection), for the Illinois halving of an end kept twice.
+    double below_central          = TidalPyConstants::d_NAN;   // mismatch < 0 there
+    double below_diff             = TidalPyConstants::d_NAN;
+    double above_central          = TidalPyConstants::d_NAN;   // mismatch >= 0 there
+    double above_diff             = TidalPyConstants::d_NAN;
+    int    last_replaced          = 0;
+    bool   last_bracket_step      = false;
+    // Sizes of the last two steps: a run of unusable slopes doubles the last, and the one before it bounds a
+    // bracketed step (Brent's safeguard).
+    double last_step_abs          = 0.0;
+    double step_two_ago_abs       = TidalPyConstants::d_INF;
 
     // Only the four structure variables are integrated; density, moduli, and viscosities follow from the
     // retained dense output, so the interpolant stays a plain polynomial evaluation.
@@ -337,15 +357,74 @@ inline void c_solve_eos(
             }
             else
             {
-                // The unit slope is the fallback when the measured slope is unusable.
-                double step = -pressure_diff;
+                // Record which side of the root this pass landed on. Two false-position passes in a row on one side
+                // leave the other end stale, so its mismatch is halved (Illinois), which keeps the step moving.
+                const double current_central = y0[1];
+                if (pressure_diff < 0.0)
+                {
+                    if (last_bracket_step && (last_replaced == -1)) { above_diff *= 0.5; }
+                    below_central = current_central;
+                    below_diff    = pressure_diff;
+                    last_replaced = -1;
+                }
+                else
+                {
+                    if (last_bracket_step && (last_replaced == +1)) { below_diff *= 0.5; }
+                    above_central = current_central;
+                    above_diff    = pressure_diff;
+                    last_replaced = +1;
+                }
+                const bool bracketed = std::isfinite(below_central) && std::isfinite(above_central);
+
+                // The secant step on the measured slope when it is positive (and, once bracketed, stays inside
+                // the bracket). Otherwise a false-position step inside the bracket, or before there is one, a
+                // unit-slope step that doubles on every pass the slope stays unusable, so a mismatch that first
+                // moves the wrong way costs a few passes rather than one per residual's worth of pressure.
+                double step      = TidalPyConstants::d_NAN;
+                bool   secant_ok = false;
+                last_bracket_step = false;
                 if (std::isfinite(previous_central))
                 {
-                    const double slope = (pressure_diff - previous_diff) / (y0[1] - previous_central);
+                    const double slope = (pressure_diff - previous_diff) / (current_central - previous_central);
                     if (std::isfinite(slope) && (slope > 0.0))
                     {
-                        step = -pressure_diff / slope;
+                        step      = -pressure_diff / slope;
+                        secant_ok = std::isfinite(step);
                     }
+                }
+                if (bracketed)
+                {
+                    const double bracket_lo = std::min(below_central, above_central);
+                    const double bracket_hi = std::max(below_central, above_central);
+                    double next_central = current_central + step;
+                    if (!(secant_ok && (next_central > bracket_lo) && (next_central < bracket_hi)))
+                    {
+                        next_central = above_central
+                            - above_diff * (above_central - below_central) / (above_diff - below_diff);
+                        last_bracket_step = true;
+                    }
+                    // A converging step is under half the one two passes back. One that is not (a mismatch with a
+                    // near-jump, from an EOS at the end of its range, stalls both the secant and false position)
+                    // is replaced by a bisection, which shrinks the bracket steadily.
+                    const bool stalled = std::fabs(next_central - current_central) > 0.5 * step_two_ago_abs;
+                    if (stalled || !(std::isfinite(next_central) && (next_central > bracket_lo)
+                                     && (next_central < bracket_hi)))
+                    {
+                        next_central      = 0.5 * (bracket_lo + bracket_hi);
+                        last_bracket_step = true;
+                    }
+                    step = next_central - current_central;
+                }
+                else if (!secant_ok)
+                {
+                    const double direction = (pressure_diff > 0.0) ? -1.0 : 1.0;
+                    step = direction * std::max(std::fabs(pressure_diff), 2.0 * last_step_abs);
+                }
+                else if ((last_step_abs > 0.0) && (std::fabs(step) > 4.0 * last_step_abs))
+                {
+                    // Before the root is bracketed a nearly flat mismatch can send the secant orders of magnitude
+                    // past it; growing at most fourfold per pass still reaches a distant root geometrically.
+                    step = std::copysign(4.0 * last_step_abs, step);
                 }
                 // The secant error model e[k+1] = M e[k] e[k-1], with M measured from the residuals in
                 // hand, says whether the next pass should converge and so whether to capture its dense
@@ -376,6 +455,9 @@ inline void c_solve_eos(
                     step        *= 0.5;
                     next_central = y0[1] + step;
                 }
+                // Before a second step there is no step two passes back to bound the next one.
+                step_two_ago_abs = (last_step_abs > 0.0) ? last_step_abs : TidalPyConstants::d_INF;
+                last_step_abs    = std::fabs(step);
                 y0[1] = next_central;
             }
         }
@@ -399,7 +481,23 @@ inline void c_solve_eos(
     if (failed)
     {
         eos_solution_ptr->success = false;
-        eos_solution_ptr->message = std::string("Warning in `c_solve_eos`: Integrator failed at iteration ") + std::to_string(iterations);
+        if (iterations > 1)
+        {
+            // A later pass fails where the search for the central pressure has taken it, usually far past any
+            // structure the layers can hold.
+            eos_solution_ptr->message =
+                std::string("`c_solve_eos` found no hydrostatic structure: the structure integration failed at "
+                            "iteration ") + std::to_string(iterations) + std::string(", at a central pressure of ") +
+                std::to_string(y0[1]) + std::string(" (") + std::to_string(y0[1] / pressure_scale) +
+                std::string(" times the uniform-sphere estimate), while searching for the central pressure that "
+                            "meets the target surface pressure. The layers' equations of state may have no "
+                            "hydrostatic solution at this radius and mass");
+        }
+        else
+        {
+            eos_solution_ptr->message =
+                std::string("Warning in `c_solve_eos`: Integrator failed at iteration ") + std::to_string(iterations);
+        }
         if (!integrator_failure_message.empty())
         {
             eos_solution_ptr->message += std::string(". Message: ") + integrator_failure_message;

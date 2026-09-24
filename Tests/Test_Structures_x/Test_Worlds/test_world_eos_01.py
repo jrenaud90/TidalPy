@@ -386,6 +386,33 @@ def test_secant_iteration_converges_on_a_compressible_planet():
     assert abs(result["surface_pressure"]) < 1.0e-8 * world.central_pressure
 
 
+def _one_layer_bm_world(radius, reference_density, bulk_modulus):
+    from TidalPy.structures_x import build_world
+    return build_world({
+        "schema_version": "0.2.0", "name": "bm1", "type": "terrestrial", "radius_m": radius, "mass_kg": 6.0e24,
+        "layers": {"mantle": {"class": "physics", "type": "mantle_rock", "layer_index": 0, "radius_fraction": 1.0,
+                               "material": {"model": "birch_murnaghan",
+                                            "reference_density_kg_m3": reference_density,
+                                            "reference_bulk_modulus_pa": bulk_modulus,
+                                            "bulk_modulus_derivative": 4.0}}}})
+
+
+@pytest.mark.parametrize("radius, reference_density, bulk_modulus, max_passes", [
+    (2.0e7, 3300.0, 1.3e11, 16),   # 21 passes when the step crawled by the residual
+    (6.4e6, 5000.0, 1.0e10, 30),   # 274 passes
+    (1.2e7, 3000.0, 5.0e9, 60),    # stopped at the 300-pass cap
+])
+def test_secant_iteration_does_not_crawl_where_the_surface_pressure_first_falls(
+        radius, reference_density, bulk_modulus, max_passes):
+    """Where the surface pressure first falls as the central pressure rises, the step grows geometrically until the
+    mismatch changes sign, then the root is bracketed, instead of stepping one residual's worth of pressure per pass."""
+    world = _one_layer_bm_world(radius, reference_density, bulk_modulus)
+    result = world.solve_eos(G_to_use=G, max_iters=300)
+    assert result["success"] is True, result["message"]
+    assert result["iterations"] <= max_passes
+    assert abs(result["surface_pressure"]) < 1.0e-7 * world.central_pressure
+
+
 def test_max_iters_hit_is_reported():
     """Stopping at the iteration cap off the target surface pressure is a failure: the structure is not
     hydrostatic, so the world stays unsolved and the message says why."""

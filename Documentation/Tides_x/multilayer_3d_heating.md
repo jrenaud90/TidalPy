@@ -21,7 +21,7 @@ where $n$ is the mean motion, $\dot{\theta}$ the spin rate, and $\mathcal{T}_{lm
 > [!WARNING]
 > This assumes no periapse or node precession. It also assumes that the change in the mean anomaly can be approximated by the mean motion.
 
-The user selects the truncation via three knobs (on the world's `[tides]` config): `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). A nonzero obliquity truncation turns on the odd-`m` (`P_21`, ...) harmonics automatically. A mode whose $|\omega|$ does not exceed `min_spin_orbit_diff` is switched off later.
+The user selects the truncation via three knobs (on the world's `[tides]` config): `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). A nonzero obliquity truncation turns on the odd-`m` (`P_21`, ...) harmonics automatically. A mode whose $|\omega|$ does not exceed `[numerical] minimum_frequency` (1e-14 rad/s, `TidalPy.constants.min_frequency`) is switched off later, the same floor the 1D `calc_tides` path uses. (`[numerical] min_spin_orbit_diff` belongs to the classic backend; the new backend does not read it.)
 
 ### Displacement, Strain, and Stress
 
@@ -322,14 +322,14 @@ The first two take one row from `tidal_potential_3d_modes` together with the rad
 The pointwise secular density of `calc_3d_tides` can be rebuilt this way:
 
 ```python
-from TidalPy.constants import min_spin_orbit_diff
+from TidalPy.constants import min_frequency
 from TidalPy.Tides_x.multilayer.stress_strain import strain_stress_heating_point, volumetric_heating
 
 radius = 0.9 * world.radius
 frequency_totals = dict()   # |omega| in units of the mean motion -> [|omega|, summed strain, summed stress]
 for degree_l, frequency, row in zip(degrees, freqs, pots):
     magnitude = abs(frequency)
-    if magnitude <= min_spin_orbit_diff:
+    if magnitude <= min_frequency:
         continue   # A static mode does not dissipate
 
     # Radial functions and moduli at this mode's degree and |omega|

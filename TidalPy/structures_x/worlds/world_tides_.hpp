@@ -97,10 +97,15 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
 
         // Once per unique (degree_l, frequency) pair, so modes sharing a degree and frequency reuse one solve; each
         // active mode's Love numbers are then recorded by its (l, m, p, q). The quasi-homogeneous methods also keep
-        // each tidal layer's scaled Love numbers per solve, in the fixed layer order of the averages cache.
+        // each tidal layer's scaled Love numbers per solve, in the fixed layer order of the averages cache. When the
+        // per-layer heating integral will follow, each solve gets a workspace of its own and is kept for it: the
+        // integral needs the radial solution of exactly these (degree, |omega|) groups.
         c_LoveWorkspace workspace;
         c_LoveSolveConfig love_cfg = this->make_love_solve_config();
         const bool quasi_homogeneous = c_love_method_is_homogeneous(c_love_method_from_int(love_cfg.love_method));
+        const bool retain_radial_solves = !quasi_homogeneous && tcfg.layer_tidal_heating;
+        std::vector<std::unique_ptr<c_LoveWorkspace>> retained_workspaces;
+        std::vector<c_RetainedRadialSolve> retained_solves;
         c_HomogeneousLoveCache homogeneous_cache;
         c_IntMap<c_Key2, std::size_t> solve_by_l_freq;
         std::vector<tidalpy::c_LoveNumbers> world_love_by_solve;
@@ -125,14 +130,23 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
             if (!cached) {
                 love_cfg.degree_l  = degree_l;
                 love_cfg.frequency = frequency;
-                this->solve_love_numbers(love_cfg, &homogeneous_cache, workspace);
-                if (!workspace.get_success()) {
+                c_LoveWorkspace* solve_workspace = &workspace;
+                if (retain_radial_solves) {
+                    retained_workspaces.push_back(std::make_unique<c_LoveWorkspace>());
+                    solve_workspace = retained_workspaces.back().get();
+                }
+                this->solve_love_numbers(love_cfg, &homogeneous_cache, *solve_workspace);
+                if (!solve_workspace->get_success()) {
                     this->p_tides_solved = false;
                     throw std::runtime_error(
-                        "TidalPy: Love-number solve failed during calc_tides: " + workspace.get_message());
+                        "TidalPy: Love-number solve failed during calc_tides: " + solve_workspace->get_message());
                 }
                 solve_index = world_love_by_solve.size();
-                world_love_by_solve.push_back(workspace.get_love(0));
+                world_love_by_solve.push_back(solve_workspace->get_love(0));
+                if (retain_radial_solves) {
+                    retained_solves.push_back(
+                        c_RetainedRadialSolve{degree_l, frequency, solve_workspace->get_storage()});
+                }
                 if (quasi_homogeneous) {
                     std::vector<tidalpy::c_LoveNumbers> scaled_parts;
                     scaled_parts.reserve(workspace.analytic_layers.size());
@@ -166,7 +180,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
                     c_collapse_global_tides(potential, *this->p_tide, &part_love).tidal_heating;
             }
         } else if (tcfg.layer_tidal_heating) {
-            this->calc_layer_tidal_heating_radial(state, tide_result.tidal_heating, layer_heating);
+            this->calc_layer_tidal_heating_radial(state, tide_result.tidal_heating, layer_heating, &retained_solves);
         }
     } else {
         // The analytic models need no Love solve. They fix the whole body's heating, so each tidal layer takes the
@@ -200,10 +214,13 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
 // inside each layer (the same integral as calc_3d_tides with every axis summed). The layers are scaled so they sum
 // to `total_heating`, the 1D global result, which removes the small radial-quadrature residual between the two. A
 // liquid layer carries no shear dissipation and takes 0; with no usable integral every layer is NaN.
+// `retained_solves`, when given, are the radial solves the 1D pass already ran; the integral reuses them instead of
+// solving its (degree, |omega|) groups again, which would double the cost of calc_tides.
 inline void c_LayeredWorld::calc_layer_tidal_heating_radial(
         const c_TideSolveConfig& state,
         double total_heating,
-        std::vector<double>& out) {
+        std::vector<double>& out,
+        const std::vector<c_RetainedRadialSolve>* retained_solves) {
     const std::size_t n_layers = this->p_layers.size();
     out.assign(n_layers, TidalPyConstants::d_NAN);
     c_Heating3DCollapseConfig cfg;
@@ -211,6 +228,13 @@ inline void c_LayeredWorld::calc_layer_tidal_heating_radial(
     cfg.latitude_summed  = true;
     cfg.longitude_summed = true;
     cfg.radial_summed    = true;
+    // Lent for this call only; the call lock is held throughout, so no other call sees them.
+    struct c_RetainedSolvesLoan {
+        const std::vector<c_RetainedRadialSolve>*& slot;
+        c_RetainedSolvesLoan(const std::vector<c_RetainedRadialSolve>*& slot_in,
+                             const std::vector<c_RetainedRadialSolve>* loan) : slot(slot_in) { slot = loan; }
+        ~c_RetainedSolvesLoan() { slot = nullptr; }
+    } loan(this->p_retained_radial_solves, retained_solves);
     const c_Heating3DCollapsed integrated = this->calc_3d_tides(
         state,
         nullptr,
@@ -434,9 +458,22 @@ inline c_RadialCoefficients3D c_radial_coefficients_3d(
     std::vector<size_t> radius_missing(num_radii, 0);
     c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
     c_LoveWorkspace workspace;
+    const std::vector<c_RetainedRadialSolve>* retained = world.get_retained_radial_solves();
     for (size_t g = 0; g < num_groups; ++g) {
-        const ::c_RadialSolutionStorage* storage =
-            c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], what, workspace);
+        // A solve calc_tides already ran for this group (same degree and |omega|) is used as it is.
+        const ::c_RadialSolutionStorage* storage = nullptr;
+        if (retained != nullptr) {
+            for (const c_RetainedRadialSolve& solve : *retained) {
+                if (solve.storage != nullptr && solve.degree_l == set.radial_groups[g].degree_l
+                    && c_tidal_wave_same_frequency(solve.frequency, set.radial_groups[g].frequency)) {
+                    storage = solve.storage;
+                    break;
+                }
+            }
+        }
+        if (storage == nullptr) {
+            storage = c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], what, workspace);
+        }
         for (size_t ir = 0; ir < num_radii; ++ir) {
             if (!c_strain_coeffs_at_radius_3d(
                 world,

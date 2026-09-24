@@ -265,6 +265,14 @@ struct c_EOSSolveState {
     c_Heating                                       heating;
 };
 
+// A radial solve calc_tides has already run for one (degree, |omega|) group of its tidal modes. It lends these to the
+// per-layer heating integral, which needs the same solves, so they are not run twice. Non-owning.
+struct c_RetainedRadialSolve {
+    int                              degree_l  = 0;
+    double                           frequency = 0.0;       // |omega| [rad s-1]
+    const ::c_RadialSolutionStorage* storage   = nullptr;
+};
+
 // One tidal layer's part of a quasi-homogeneous Love solve (the homogeneous, cpl, and ctl methods): the Love numbers
 // of a homogeneous planet made of the layer's averaged material, and the tidal scale the world weighs them by.
 struct c_LayerLove {
@@ -2139,7 +2147,14 @@ public:
     void calc_layer_tidal_heating_radial(
             const c_TideSolveConfig& state,
             double total_heating,
-            std::vector<double>& out);
+            std::vector<double>& out,
+            const std::vector<c_RetainedRadialSolve>* retained_solves = nullptr);
+
+    // The radial solves calc_tides lends its per-layer heating integral; null outside that call (see
+    // c_RetainedRadialSolve). The 3D radial-group solve takes a matching one instead of solving again.
+    const std::vector<c_RetainedRadialSolve>* get_retained_radial_solves() const noexcept {
+        return this->p_retained_radial_solves;
+    }
 
     // The tidal scale of each layer in the quasi-homogeneous Love methods (c_BaseLayer::calc_tidal_scale).
     double get_layer_tidal_scale(std::size_t index) const {
@@ -2393,6 +2408,8 @@ protected:
     c_LoveWorkspace p_love;
     // Taken by the calls c_WorldCallLock lists; held through a pointer so the world stays movable.
     std::unique_ptr<std::recursive_mutex> p_call_mutex = std::make_unique<std::recursive_mutex>();
+    // Set only inside calc_layer_tidal_heating_radial, under the call lock (get_retained_radial_solves).
+    const std::vector<c_RetainedRadialSolve>* p_retained_radial_solves = nullptr;
     // The stretches of the last successful EOS solve (update_radial_segments).
     std::vector<c_RadialSegment> p_radial_segments;
 

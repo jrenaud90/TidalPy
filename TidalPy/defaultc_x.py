@@ -94,8 +94,10 @@ schema_version = "{SCHEMA_VERSION_X}"
     # Forcing-frequency handling: |w| <= minimum_frequency is treated as zero.
     minimum_frequency = 1.0e-14
     maximum_frequency = 1.0e8
+    # Read only by the classic backend's tidal potentials; the new backend's zero-frequency floor is
+    # minimum_frequency.
     min_spin_orbit_diff = 1.0e-10
-    # Material floors.
+    # Material floors. minimum_viscosity is read only by the classic backend.
     minimum_viscosity = 100.0
     minimum_modulus = 1.0e-3
     # A layer with a partial-melt model is solved by the radial solver as a static liquid wherever its post-melt

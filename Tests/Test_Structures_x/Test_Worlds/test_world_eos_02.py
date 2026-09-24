@@ -78,7 +78,8 @@ def test_layer_read_past_its_own_top(solved_world):
 
 @pytest.mark.parametrize("bulk_modulus, radius", ((1.0e11, 1.5e7), (1.0e10, 6.4e6)))
 def test_no_hydrostatic_solution_is_a_failure(bulk_modulus, radius):
-    """A Vinet sphere this large has no hydrostatic solution; the capped solve must say so, not succeed."""
+    """A Vinet sphere this large has no hydrostatic solution; the solve must say so, not succeed. The central-pressure
+    search either reaches the iteration cap or takes the structure where its integration fails; both are reported."""
     world = LayeredWorld("unsolvable", radius, 1.0e24)
     layer = PhysicsLayer("L", 0, 0.0, radius, 0.0)
     layer.set_eos(make_material_eos("vinet", {
@@ -88,7 +89,6 @@ def test_no_hydrostatic_solution_is_a_failure(bulk_modulus, radius):
     world.add_layer(layer)
     result = world.solve_eos()
     assert result["success"] is False
-    assert result["max_iters_hit"] is True
     assert "no hydrostatic structure" in result["message"]
     assert world.eos_solved is False
 
