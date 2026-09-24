@@ -26,6 +26,12 @@ inline bool c_isclose(
         return true;
     }
 
+    // Unequal values where one is infinite are never close (rtol * inf would accept any finite partner).
+    if (std::isinf(value_a) || std::isinf(value_b))
+    {
+        return false;
+    }
+
     const double lhs = std::abs(value_a - value_b);
     const double rhs = std::max(rtol * std::max(std::abs(value_a), std::abs(value_b)), atol);
 
