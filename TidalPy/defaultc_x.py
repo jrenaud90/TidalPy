@@ -249,6 +249,15 @@ schema_version = "{SCHEMA_VERSION_X}"
         terrestrial = "rheology"
         layered = "rheology"
 
+    # Per-world-family values that replace the lists above for that family (a world's own [tides] still wins).
+    # Stars: the fluid Love numbers of an n = 3 polytrope, a Sun-like, centrally condensed star (k2 = 0.0289;
+    # a fully convective M dwarf is closer to n = 1.5, k2 = 0.287), and Q = 1.93e4, a modified quality factor
+    # Q' = 3 Q / (2 k2) = 1e6, the usual assumption for stellar tides (constraints span about 1e5 to 1e7).
+    # The planet lists above would make a star about a thousand times more dissipative than that.
+    [tides.star]
+        fixed_k = [0.0289, 0.0074, 0.00282, 0.00131, 0.000694, 0.000401, 0.000248, 0.000162, 0.00011]
+        fixed_q = [1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4]
+
 
 # =====================================================================================================================
 # Warnings

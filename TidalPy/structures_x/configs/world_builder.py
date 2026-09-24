@@ -968,9 +968,10 @@ def _attach_tides(world, config: dict) -> None:
 
     Attaches a tide dissipation model (``set_tide_model``) and the truncation and degree
     configuration (``set_tide_config``). Values resolve through the world's ``[tides]`` table, then
-    the ``[tides]`` defaults of ``TidalPy_Configs_x.toml``, then a built-in fallback. The default
-    dissipation model is per world family (``[tides.default_model][<world_type>]``); the per-degree
-    analytic parameters (``fixed_k``/``fixed_q``/``fixed_dt_s``) are forwarded to the model.
+    the world family's ``[tides.<world_type>]`` table of ``TidalPy_Configs_x.toml`` (stars carry one),
+    then that file's ``[tides]`` defaults, then a built-in fallback. The default dissipation model is
+    per world family (``[tides.default_model][<world_type>]``); the per-degree analytic parameters
+    (``fixed_k``/``fixed_q``/``fixed_dt_s``) are forwarded to the model.
 
     Parameters
     ----------
@@ -986,10 +987,14 @@ def _attach_tides(world, config: dict) -> None:
     defaults = _normalize_truncation_aliases(
         _tides_config_x(), "The [tides] block of TidalPy_Configs_x.toml")
 
-    # The default-model map is the one config_x key that is per-world-type; everything else merges the
-    # config_x [tides] defaults underneath the world's own [tides] overrides.
+    # The default-model map and the [tides.<world_type>] tables are per world family; the rest of the config_x
+    # [tides] defaults sit underneath the family's table, and the world's own [tides] overrides both.
     default_model_map = defaults.get("default_model", {}) or {}
-    merged = {key: value for key, value in defaults.items() if key != "default_model"}
+    merged = {key: value for key, value in defaults.items()
+              if key != "default_model" and key not in _DEFAULT_TIDE_MODEL_FALLBACK}
+    family_defaults = defaults.get(world_type, {})
+    if isinstance(family_defaults, dict):
+        merged.update(family_defaults)
     merged.update(tides_cfg)
 
     model_name = merged.get(

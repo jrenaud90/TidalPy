@@ -6,3 +6,11 @@ type = "star"
 radius_m = 695700000.0
 mass_kg = 1.988435e30
 effective_temperature_k = 5772.0
+
+# The Sun's tide: the fluid Love numbers of an n = 3 polytrope (k2 = 0.0289; the standard solar model is close to
+# n = 3) and a modified tidal quality factor Q' = 3 Q / (2 k2) = 1e6, the usual assumption for Sun-like stars
+# (observational constraints span about 1e5 to 1e7).
+[tides]
+global_tidal_model = "fixed_q"
+fixed_k = [0.0289, 0.0074, 0.00282, 0.00131, 0.000694, 0.000401, 0.000248, 0.000162, 0.00011]
+fixed_q = [1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4, 1.93e4]

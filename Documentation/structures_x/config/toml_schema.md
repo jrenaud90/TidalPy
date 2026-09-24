@@ -179,7 +179,9 @@ reference_viscosity_pas = 3.0e21      # one key of a nested default table
 
 ## Tidal Dissipation (`[tides]`)
 
-An optional world-level `[tides]` table sets how the world dissipates tidal energy. It applies to every world family, stars and gas giants included, and every key is optional: what the table omits falls back to the `[tides]` block of `TidalPy_Configs_x.toml`, and what that omits falls back to a built-in default. A world with no `[tides]` table is still given a dissipation model.
+An optional world-level `[tides]` table sets how the world dissipates tidal energy. It applies to every world family, stars and gas giants included, and every key is optional: what the table omits falls back to the world family's `[tides.<type>]` table of `TidalPy_Configs_x.toml` when there is one, then to that file's `[tides]` block, and what that omits falls back to a built-in default. A world with no `[tides]` table is still given a dissipation model.
+
+The per-degree lists of the `[tides]` block (`fixed_k = 0.3`, `fixed_q = 100` at degree 2) describe a planet. Stars get their own, from `[tides.star]`: the fluid Love numbers of an $n = 3$ polytrope ($k_2 = 0.0289$, a Sun-like star) with $Q = 1.93 \times 10^4$, a modified quality factor $Q' = 3Q / (2k_2) = 10^6$, the usual assumption for stellar tides. The bundled `sol` and `trappist1` files state their tides explicitly (TRAPPIST-1, being fully convective, uses $n = 1.5$ values, $k_2 = 0.287$, at the same $Q'$).
 
 | Key | Applies to | Description |
 |-----|------------|-------------|

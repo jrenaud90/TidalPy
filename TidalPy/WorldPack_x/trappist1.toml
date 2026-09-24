@@ -17,3 +17,11 @@ radius_m = 82927440.0
 mass_kg = 1.785615e29
 effective_temperature_k = 2566.0
 luminosity_w = 2.095447e23
+
+# The star's tide: TRAPPIST-1 is fully convective, so its structure is close to an n = 1.5 polytrope, whose fluid
+# Love numbers are these (k2 = 0.287), with a modified tidal quality factor Q' = 3 Q / (2 k2) = 1e6, the usual
+# assumption for stellar tides (M-dwarf values are poorly constrained, roughly 1e5 to 1e7).
+[tides]
+global_tidal_model = "fixed_q"
+fixed_k = [0.287, 0.106, 0.0548, 0.0331, 0.022, 0.0155, 0.0114, 0.00872, 0.00684]
+fixed_q = [1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5]

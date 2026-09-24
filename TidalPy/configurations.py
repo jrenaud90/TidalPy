@@ -189,7 +189,8 @@ def find_unknown_config_x_keys(overrides: dict, packaged: dict) -> list:
     block may be a material type of the user's own, and is checked against the layer schema instead (its scalar
     keys and model-table names; what a model table holds is the model factory's business, which rejects an unknown
     key when the layer is built); the per-type ``[worlds.<type>]`` tables are checked against the world schema; and
-    ``[tides.default_model]`` names world types.
+    ``[tides.default_model]`` names world types, as do the per-type ``[tides.<type>]`` tables, which take the
+    ``[tides]`` keys.
 
     Parameters
     ----------
@@ -248,6 +249,9 @@ def find_unknown_config_x_keys(overrides: dict, packaged: dict) -> list:
             for key, value in table.items():
                 if key == "default_model" and isinstance(value, dict):
                     unknown.extend(f"tides.default_model.{name}" for name in value if name not in WORLD_TYPES)
+                elif key in WORLD_TYPES and isinstance(value, dict):
+                    unknown.extend(f"tides.{key}.{name}" for name in value
+                                   if name not in packaged["tides"] or name == "default_model" or name in WORLD_TYPES)
                 elif key not in packaged["tides"]:
                     unknown.append(f"tides.{key}")
         else:
