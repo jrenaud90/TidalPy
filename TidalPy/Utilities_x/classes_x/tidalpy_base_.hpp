@@ -4,10 +4,12 @@
  * Include chain: tidalpy_base_.hpp -> binary_.hpp -> logger_.hpp -> spdlog
  */
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 
 #include "binary_.hpp"
 
@@ -45,30 +47,53 @@ public:
     // Each concrete subclass writes {header, payload}, starting with write_binary_header.
     virtual void write_binary(std::ostream& out) const = 0;
 
-    // Reads the header and validates the schema version. Subclasses call this first, then read their
+    // Reads the header and validates it (c_read_binary_record_header). Subclasses call this first, then read their
     // own payload.
     virtual void read_binary(std::istream& in, bool force = false) {
-        c_BinaryHeader header = read_binary_header(in);
-        if (!check_binary_schema_version(header, force)) {
-            throw std::runtime_error(
-                "TidalPy: cannot load binary: incompatible schema version "
-                "(pass force=true to attempt loading anyway)");
-        }
+        c_read_binary_record_header(in, force);
     }
 
+    // Writes to a temporary sibling of the target and renames it over the target only once the whole record is
+    // written and the file closed, so a failed save leaves any previous file at the path intact. The rename relies on
+    // std::filesystem::rename replacing an existing file, which the standard requires (POSIX rename semantics). On
+    // Windows, MSVC's library implements it with MoveFileExW and MOVEFILE_REPLACE_EXISTING, so it replaces the target
+    // there too; it fails, and the save raises, while another handle holds the target open without delete sharing.
+    // The saved file gets the directory's default permissions, and a target that is a symbolic link is replaced by
+    // the file rather than written through.
     void save_binary(const std::string& path) const {
-        std::ofstream out(c_utf8_path(path), std::ios::binary | std::ios::trunc);
-        if (!out.is_open()) {
-            throw std::runtime_error(
-                "TidalPy: cannot open file for writing: " + path);
+        const std::filesystem::path target_path    = c_utf8_path(path);
+        const std::filesystem::path temporary_path = c_binary_temporary_path(target_path);
+        try {
+            std::ofstream out(temporary_path, std::ios::binary | std::ios::trunc);
+            if (!out.is_open()) {
+                throw std::runtime_error(
+                    "TidalPy: cannot open file for writing: " + path);
+            }
+            this->write_binary(out);
+            out.close();
+            if (out.fail()) {
+                throw std::runtime_error("TidalPy: failed to finish writing binary file: " + path);
+            }
+            std::error_code rename_error;
+            std::filesystem::rename(temporary_path, target_path, rename_error);
+            if (rename_error) {
+                throw std::runtime_error(
+                    "TidalPy: cannot replace " + path + " with the newly written file: " + rename_error.message());
+            }
         }
-        write_binary(out);
+        catch (...) {
+            std::error_code ignored_error;
+            std::filesystem::remove(temporary_path, ignored_error);
+            throw;
+        }
     }
 
     // Loads into this object. The file must hold a record of this object's own class: a record of another class
     // would be read field by field into the wrong layout (a Sundberg model into a Maxwell one keeps computing
     // Maxwell; a physics layer's file into a base layer drops its models), so it is refused before anything is
-    // read. force relaxes only the schema-version check.
+    // read. force relaxes only the schema-version check. The record must end exactly at the end of the file: bytes
+    // left over mean the reader and the writer disagree about the layout, or the file is corrupt, so the load raises.
+    // That check can only run after the record is read, so an object that raises it holds an unreliable load.
     void load_binary(const std::string& path, bool force = false) {
         std::ifstream in(c_utf8_path(path), std::ios::binary);
         if (!in.is_open()) {
@@ -85,15 +110,28 @@ public:
                 + std::to_string(file_header.class_id) + ", not this object's class id "
                 + std::to_string(own_class_id) + "; load it into an object of the class that saved it");
         }
-        read_binary(in, force);
+        this->read_binary(in, force);
+        if (in.fail()) {
+            throw std::runtime_error(
+                "TidalPy: corrupt or truncated binary data: reading " + path + " ran past the end of the file");
+        }
+        if (in.peek() != std::char_traits<char>::eof()) {
+            const uint64_t num_trailing = binary_bytes_remaining(in);
+            throw std::runtime_error(
+                "TidalPy: corrupt binary data: " + path + " holds " + std::to_string(num_trailing)
+                + " bytes after the end of its record, so it was written with a layout this TidalPy build does not "
+                "read, or it is corrupt. The object now holds an unreliable load; reload it from a good file");
+        }
     }
 
-    // The class id this object writes in its binary header.
+    // The class id this object writes in its binary header. It runs a full write into a buffer that keeps only the
+    // header bytes, so it costs the time of a save but no memory for the record.
     uint32_t get_binary_class_id() const {
-        std::stringstream probe(std::ios::in | std::ios::out | std::ios::binary);
+        c_BinaryHeaderCaptureBuffer header_capture;
+        std::ostream probe(&header_capture);
         this->write_binary(probe);
-        probe.seekg(0);
-        return read_binary_header(probe).class_id;
+        std::istringstream header_stream(header_capture.get_captured_bytes(), std::ios::in | std::ios::binary);
+        return read_binary_header(header_stream).class_id;
     }
 
 protected:

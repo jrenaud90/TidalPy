@@ -41,9 +41,27 @@ cdef class TidalPyBaseClass:
         return self._ptr.get_schema_version_str().decode("utf-8")
 
     def save_binary(self, str path):
-        """Serialize this object to a TidalPy binary file."""
+        """Serialize this object to a TidalPy binary file.
+
+        The record is written to a temporary file beside ``path`` and renamed over ``path`` only once it is complete,
+        so a failed save leaves any previous file at ``path`` unchanged.
+
+        Parameters
+        ----------
+        path : str
+            Destination file path.
+
+        Raises
+        ------
+        IOError
+            The file cannot be written, or the finished file cannot replace an existing one at ``path`` (for example
+            while another program holds it open on Windows).
+        """
         self._check_ptr()
-        self._ptr.save_binary(path.encode("utf-8"))
+        try:
+            self._ptr.save_binary(path.encode("utf-8"))
+        except RuntimeError as exc:
+            raise IOError(str(exc)) from exc
 
     def load_binary(self, str path, cpp_bool force=False):
         """Load this object's state from a TidalPy binary file.
@@ -54,6 +72,16 @@ cdef class TidalPyBaseClass:
             Source file path.
         force : bool, optional
             Attempt the load even on a schema version mismatch.
+
+        Raises
+        ------
+        FileNotFoundError
+            ``path`` does not exist.
+        IOError
+            The file holds a record of another class, has an incompatible schema version, was written in another byte
+            order, or is corrupt: a record size disagrees with what this build reads, or bytes are left over after the
+            record. Bytes left over are only found once the record is read, so the object then holds an unreliable
+            load and should be reloaded from a good file.
         """
         self._check_ptr()
         if not _os.path.isfile(path):

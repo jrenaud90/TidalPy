@@ -8,22 +8,27 @@
  *   4       1     schema_major
  *   5       1     schema_minor
  *   6       1     schema_patch
- *   7       1     reserved (0)
- *   8       4     class_id  (uint32_t, host byte order)
- *   12      8     payload_size (uint64_t, host byte order)
+ *   7       1     byte_order (0 little-endian, 1 big-endian)
+ *   8       4     class_id  (uint32_t, writer's byte order)
+ *   12      8     payload_size (uint64_t, writer's byte order)
  *   Total: 20 bytes
  *
  * Fields are written individually (no implicit struct padding), so the byte layout is identical on
- * every platform. Files use host byte order; every supported TidalPy platform (Windows, Linux, macOS on
- * x64 and ARM64) is little-endian, so files are portable across them in practice.
+ * every platform. Files use the writer's byte order, recorded in byte 7; a reader refuses a file of the other byte
+ * order instead of misreading it. Every supported TidalPy platform (Windows, Linux, macOS on x64 and ARM64) is
+ * little-endian, so files are portable across them.
  */
 
+#include <bit>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <random>
+#include <sstream>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
 
 #include "logger_.hpp"
@@ -38,6 +43,19 @@ inline constexpr uint8_t TIDALPY_SCHEMA_PATCH = 0;
 inline constexpr char TIDALPY_BINARY_MAGIC[4] = {'T', 'P', 'Y', 'B'};
 
 inline constexpr std::size_t TIDALPY_BINARY_HEADER_BYTES = 20;
+
+// Values of the header's byte_order field.
+inline constexpr uint8_t TIDALPY_BINARY_LITTLE_ENDIAN = 0;
+inline constexpr uint8_t TIDALPY_BINARY_BIG_ENDIAN    = 1;
+
+static_assert(
+    (std::endian::native == std::endian::little) || (std::endian::native == std::endian::big),
+    "TidalPy binary files support little-endian and big-endian hosts only");
+
+// The byte_order value this host writes.
+inline constexpr uint8_t c_host_binary_byte_order() noexcept {
+    return (std::endian::native == std::endian::big) ? TIDALPY_BINARY_BIG_ENDIAN : TIDALPY_BINARY_LITTLE_ENDIAN;
+}
 
 // One id per serializable class, stored in c_BinaryHeader.class_id.
 enum class BinaryClassID : uint32_t {
@@ -113,7 +131,7 @@ struct c_BinaryHeader {
     uint8_t  schema_major;
     uint8_t  schema_minor;
     uint8_t  schema_patch;
-    uint8_t  reserved;      // always 0
+    uint8_t  byte_order;    // TIDALPY_BINARY_LITTLE_ENDIAN or TIDALPY_BINARY_BIG_ENDIAN
     uint32_t class_id;      // cast from BinaryClassID
     uint64_t payload_size;  // bytes of payload after this header
 };
@@ -126,8 +144,8 @@ inline void write_binary_header(
     out.write(reinterpret_cast<const char*>(&TIDALPY_SCHEMA_MAJOR), 1);
     out.write(reinterpret_cast<const char*>(&TIDALPY_SCHEMA_MINOR), 1);
     out.write(reinterpret_cast<const char*>(&TIDALPY_SCHEMA_PATCH), 1);
-    const uint8_t reserved = 0;
-    out.write(reinterpret_cast<const char*>(&reserved), 1);
+    const uint8_t byte_order = c_host_binary_byte_order();
+    out.write(reinterpret_cast<const char*>(&byte_order), 1);
     out.write(reinterpret_cast<const char*>(&class_id), 4);
     out.write(reinterpret_cast<const char*>(&payload_size), 8);
     if (!out) {
@@ -141,7 +159,7 @@ inline c_BinaryHeader read_binary_header(std::istream& in) {
     in.read(reinterpret_cast<char*>(&h.schema_major), 1);
     in.read(reinterpret_cast<char*>(&h.schema_minor), 1);
     in.read(reinterpret_cast<char*>(&h.schema_patch), 1);
-    in.read(reinterpret_cast<char*>(&h.reserved), 1);
+    in.read(reinterpret_cast<char*>(&h.byte_order), 1);
     in.read(reinterpret_cast<char*>(&h.class_id), 4);
     in.read(reinterpret_cast<char*>(&h.payload_size), 8);
     if (!in) {
@@ -152,6 +170,17 @@ inline c_BinaryHeader read_binary_header(std::istream& in) {
         h.magic[2] != 'Y' || h.magic[3] != 'B') {
         throw std::runtime_error(
             "TidalPy: not a TidalPy binary file (invalid magic bytes)");
+    }
+    // The class id and payload size are only meaningful in the writer's byte order.
+    if (h.byte_order != c_host_binary_byte_order()) {
+        const char* host_order = (c_host_binary_byte_order() == TIDALPY_BINARY_BIG_ENDIAN) ? "big" : "little";
+        const std::string file_order =
+            (h.byte_order == TIDALPY_BINARY_BIG_ENDIAN) ? "a big-endian"
+            : (h.byte_order == TIDALPY_BINARY_LITTLE_ENDIAN) ? "a little-endian"
+            : "an unknown (" + std::to_string(static_cast<int>(h.byte_order)) + ")";
+        throw std::runtime_error(
+            "TidalPy: the binary file was written in " + file_order + " byte order and this machine is "
+            + host_order + "-endian; TidalPy binary files are not converted between byte orders");
     }
     return h;
 }
@@ -218,6 +247,69 @@ inline void check_binary_count(std::istream& in, uint64_t count, uint64_t elemen
             std::string("TidalPy: corrupt or truncated binary data: the ") + what
             + " count is larger than what is left in the file");
     }
+}
+
+// Reads the header of a record about to be loaded. It validates the magic bytes, the byte order, and the schema
+// version (force relaxes only the version), then refuses a payload larger than what is left in the stream, so a
+// corrupt size is caught before the record is read.
+inline c_BinaryHeader c_read_binary_record_header(std::istream& in, bool force) {
+    const c_BinaryHeader header = read_binary_header(in);
+    if (!check_binary_schema_version(header, force)) {
+        throw std::runtime_error(
+            "TidalPy: cannot load binary: incompatible schema version "
+            "(pass force=true to attempt loading anyway)");
+    }
+    const uint64_t bytes_remaining = binary_bytes_remaining(in);
+    if (header.payload_size > bytes_remaining) {
+        throw std::runtime_error(
+            "TidalPy: corrupt or truncated binary data: a record of class id " + std::to_string(header.class_id)
+            + " claims " + std::to_string(header.payload_size) + " payload bytes, but only "
+            + std::to_string(bytes_remaining) + " bytes are left in the file");
+    }
+    return header;
+}
+
+// An output buffer that keeps the first TIDALPY_BINARY_HEADER_BYTES bytes written to it and discards the rest, so the
+// header of a record can be read back from a full write without holding the record in memory.
+class c_BinaryHeaderCaptureBuffer : public std::streambuf {
+public:
+    std::string get_captured_bytes() const { return std::string(this->p_bytes, this->p_num_captured); }
+
+protected:
+    std::streamsize xsputn(const char* source, std::streamsize count) override {
+        const auto room = static_cast<std::streamsize>(TIDALPY_BINARY_HEADER_BYTES - this->p_num_captured);
+        const std::streamsize num_kept = (count < room) ? count : room;
+        for (std::streamsize i = 0; i < num_kept; ++i) {
+            this->p_bytes[this->p_num_captured] = source[i];
+            ++this->p_num_captured;
+        }
+        // Report every byte as written so the stream stays good while the rest is discarded.
+        return count;
+    }
+
+    int_type overflow(int_type character) override {
+        if (!traits_type::eq_int_type(character, traits_type::eof())) {
+            const char byte = traits_type::to_char_type(character);
+            this->xsputn(&byte, 1);
+        }
+        return traits_type::not_eof(character);
+    }
+
+private:
+    char        p_bytes[TIDALPY_BINARY_HEADER_BYTES] = {};
+    std::size_t p_num_captured = 0;
+};
+
+// A sibling of target_path, in the same directory, that a save writes first and then renames over the target, so a
+// failed save never truncates the target. The random suffix keeps concurrent saves to one target apart.
+inline std::filesystem::path c_binary_temporary_path(const std::filesystem::path& target_path) {
+    std::random_device entropy;
+    const uint64_t token = (static_cast<uint64_t>(entropy()) << 32) ^ static_cast<uint64_t>(entropy());
+    std::ostringstream suffix;
+    suffix << '.' << std::hex << token << ".partial";
+    std::filesystem::path temporary_path = target_path;
+    temporary_path += suffix.str();
+    return temporary_path;
 }
 
 // Strings are a uint32_t length then the raw UTF-8 bytes. Shared by every serializable class so the

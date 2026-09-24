@@ -18,9 +18,9 @@ cdef extern from "binary_.hpp" namespace "tidalpy" nogil:
         uint8_t  schema_major
         uint8_t  schema_minor
         uint8_t  schema_patch
-        uint8_t  reserved
+        uint8_t  byte_order
         uint32_t class_id
         uint64_t payload_size
 
-    # Raises on an I/O error or invalid magic bytes.
+    # Raises on an I/O error, invalid magic bytes, or a byte order other than this machine's.
     c_BinaryHeader read_binary_header_from_file(const string& path) except +

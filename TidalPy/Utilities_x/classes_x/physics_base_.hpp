@@ -4,12 +4,13 @@
  * Holds a model name and a non-owning observer pointer to the owning layer, which the layer sets after
  * construction. The name-based factory lives in each concrete physics subhierarchy, not here.
  *
- * Binary payload: the model name.
+ * Binary payload: the model name, then the model's scalar parameters (write_physics_binary).
  */
 
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "config_entry_.hpp"
@@ -64,11 +65,24 @@ public:
         }
     }
 
-    // Returns the n_params scalars in the order they were written.
+    // Returns the n_params scalars in the order they were written. The header's payload size must be exactly the
+    // model name plus n_params scalars, the payload write_physics_binary writes; any other size means the record was
+    // written with a different parameter list (or is corrupt), and reading on would misalign every record after it,
+    // so it raises even with force, which relaxes only the schema-version check. Bytes a subclass writes after this
+    // payload are not covered by the check.
     std::vector<double> read_physics_binary(
             std::istream& in, bool force, std::size_t n_params) {
-        c_TidalPyBaseClass::read_binary(in, force);
-        this->p_model_name = read_binary_string(in);
+        const c_BinaryHeader header = c_read_binary_record_header(in, force);
+        std::string model_name = read_binary_string(in);
+        const uint64_t expected_payload = binary_string_bytes(model_name) + n_params * sizeof(double);
+        if (header.payload_size != expected_payload) {
+            throw std::runtime_error(
+                "TidalPy: corrupt binary data: the physics model record of class id "
+                + std::to_string(header.class_id) + " holds " + std::to_string(header.payload_size)
+                + " payload bytes, but this TidalPy build reads " + std::to_string(expected_payload)
+                + " (the model name and " + std::to_string(n_params)
+                + " parameters), so it was written with a different layout or is corrupt");
+        }
         std::vector<double> params(n_params);
         for (std::size_t i = 0; i < n_params; ++i) {
             in.read(reinterpret_cast<char*>(&params[i]), sizeof(double));
@@ -76,6 +90,7 @@ public:
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read physics model binary data");
         }
+        this->p_model_name = std::move(model_name);
         return params;
     }
 

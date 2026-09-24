@@ -38,7 +38,8 @@ def check_binary_file(path: str) -> dict:
     Raises
     ------
     IOError
-        The file cannot be opened, is shorter than 20 bytes, or has invalid magic bytes.
+        The file cannot be opened, is shorter than 20 bytes, has invalid magic bytes, or was written in a byte order
+        other than this machine's.
     """
     cdef c_BinaryHeader header
 

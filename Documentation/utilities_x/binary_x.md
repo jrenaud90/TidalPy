@@ -1,6 +1,6 @@
 # Binary Serialization (`Utilities_x.binary_x`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-23_
 
 TidalPy writes worlds, layers, systems, and physics models to a compact binary format. A TOML configuration is the readable, editable way to describe a world; the binary format saves and restores an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
 
@@ -14,11 +14,13 @@ Every file starts with a fixed 20-byte header naming the format version, the cla
 | 4 | 1 | `schema_major` | Schema major version. |
 | 5 | 1 | `schema_minor` | Schema minor version. |
 | 6 | 1 | `schema_patch` | Schema patch version. |
-| 7 | 1 | `reserved` | Always zero. |
-| 8 | 4 | `class_id` | Class type id, `uint32_t` in host byte order. |
-| 12 | 8 | `payload_size` | Payload bytes following the header, `uint64_t` in host byte order. |
+| 7 | 1 | `byte_order` | The writer's byte order: `0` little-endian, `1` big-endian. |
+| 8 | 4 | `class_id` | Class type id, `uint32_t` in the writer's byte order. |
+| 12 | 8 | `payload_size` | Payload bytes of this record, `uint64_t` in the writer's byte order. |
 
-Fields are written one at a time with explicit stream writes rather than as a packed struct, so compiler padding never affects the layout. The byte order is the host's. Every platform TidalPy supports, Windows, Linux, and macOS on x64 and ARM64, is little-endian, so files move between them in practice, but the format does not promise it.
+Fields are written one at a time with explicit stream writes rather than as a packed struct, so compiler padding never affects the layout. Multi-byte fields use the writer's byte order, which the header records. A reader on a machine of the other byte order refuses the file instead of converting it. Every platform TidalPy supports (Windows, Linux, and macOS on x64 and ARM64) is little-endian, so files move freely between them.
+
+A record's payload size counts only the record's own fields and presence flags. Nested sub-object records follow it as separate records with their own headers (see [Nested and Recursive Serialization](#nested-and-recursive-serialization)).
 
 ## Schema Version
 
@@ -29,7 +31,25 @@ The current schema version is `0.2.0`.
 | Same major and minor, any patch | Compatible. A differing patch produces an informational log line. |
 | Different major or minor | Incompatible. Reading raises unless `force=True` is given. |
 
-A minor version bump can change a class's member layout, and reading an old payload into a new layout produces an object that looks valid and is not. `force=True` is for the case where the layout is known not to have changed, and it still warns.
+A minor version bump can change a class's member layout, and reading an old payload into a new layout produces an object that looks valid and is not. `force=True` is for the case where the layout is known not to have changed, and it still warns. It relaxes only the version check, never the integrity checks below.
+
+## Integrity Checks
+
+`load_binary` refuses a file, raising `IOError`, when:
+
+- The root record's class id is not the class id of the object being loaded into.
+- The magic bytes are wrong, or the byte order is not this machine's.
+- The schema version is incompatible and `force=True` was not given.
+- Any record's header claims a payload larger than what is left in the file. This runs before the record is read, so a corrupt size never leads to a huge read or allocation.
+- A physics model's payload size is not the model name plus the parameters this build reads. A record written with a different parameter list would otherwise misalign every record after it.
+- A count read from the file (a string length, a table length, a number of layers or worlds) is larger than what is left in the file.
+- Bytes are left over after the root record. The file was written with a layout this build does not read, or it is corrupt.
+
+The first five checks run before anything is read into the object. The count checks run while the record is read, and the left-over check can only run after the whole record is read, so an object that raises either one may hold a partial or unreliable load. Reload it from a good file or rebuild it.
+
+## Saving
+
+`save_binary` writes the record to a temporary file beside the target (`<target>.<random>.partial`) and renames it over the target only after the whole record is written and the file is closed. A save that fails, whether the disk fills, the object cannot be written, or the target cannot be replaced, raises `IOError`, removes the temporary file, and leaves any previous file at the target unchanged. On Windows, a target that another program holds open cannot be replaced, so the save raises until the program closes it. The saved file takes the directory's default permissions, and a target that is a symbolic link is replaced by the new file rather than written through.
 
 ## Python API
 
@@ -43,7 +63,7 @@ info = check_binary_file("world.tpyb")
 get_current_schema_version()   # '0.2.0'
 ```
 
-`check_binary_file(path)` reads only the header, so it is cheap and safe on a file of unknown provenance. It raises `FileNotFoundError` if the path does not exist and `IOError` if the magic bytes are wrong or the file is shorter than the header.
+`check_binary_file(path)` reads only the header, so it is cheap and safe on a file of unknown provenance. It raises `FileNotFoundError` if the path does not exist and `IOError` if the magic bytes are wrong, the byte order is not this machine's, or the file is shorter than the header. It does not compare the payload size with the file; `load_binary` does.
 
 `get_current_schema_version()` returns the version compiled into this build, which is what a file would be written with now.
 
@@ -62,20 +82,25 @@ tidalpy::write_binary_header(
     payload_size);
 // ... payload bytes ...
 
-// Reading.
+// Reading: validates the magic bytes, byte order, schema version, and payload size, and throws on any failure.
 std::ifstream in("world.tpyb", std::ios::binary);
-const tidalpy::c_BinaryHeader header = tidalpy::read_binary_header(in);
-if (!tidalpy::check_binary_schema_version(header)) {
-    throw std::runtime_error("Incompatible binary schema version");
-}
+const tidalpy::c_BinaryHeader header = tidalpy::c_read_binary_record_header(
+    in,
+    false);  // force: relax only the schema-version check
 ```
 
 | Function | Description |
 |---|---|
 | `write_binary_header(out, class_id, payload_size)` | Write the 20-byte header. |
-| `read_binary_header(in)` | Read the 20-byte header. |
+| `read_binary_header(in)` | Read the 20-byte header, validating the magic bytes and byte order. |
 | `read_binary_header_from_file(path)` | Open a path and read its header. |
 | `check_binary_schema_version(header, force)` | Validate the version, logging a warning on mismatch. |
+| `c_read_binary_record_header(in, force)` | Read a header before loading its record: validates the magic bytes, byte order, and schema version, and refuses a payload larger than the rest of the stream. Every `read_binary` starts with it. |
+| `binary_bytes_remaining(in)` | The bytes left in a seekable stream after its read position. |
+| `check_binary_count(in, count, element_bytes, what)` | Throw when a count read from a file needs more bytes than are left. |
+| `c_host_binary_byte_order()` | The `byte_order` value this machine writes. |
+| `c_BinaryHeaderCaptureBuffer` | An output buffer that keeps only a record's header bytes, used to read an object's class id without holding its record. |
+| `c_binary_temporary_path(target)` | The temporary sibling path `save_binary` writes before renaming over the target. |
 | `write_binary_string(out, text)` and `read_binary_string(in)` | Length-prefixed string input and output. |
 | `binary_string_bytes(text)` | The payload bytes a length-prefixed string contributes, for sizing a header. |
 | `write_optional_binary(out, unique_ptr)` | Write an optional owned sub-object: a presence flag, then its record if present. |
@@ -87,6 +112,7 @@ if (!tidalpy::check_binary_schema_version(header)) {
 | `TIDALPY_SCHEMA_MAJOR`, `TIDALPY_SCHEMA_MINOR`, `TIDALPY_SCHEMA_PATCH` | `0`, `2`, `0` |
 | `TIDALPY_BINARY_MAGIC` | `"TPYB"` |
 | `TIDALPY_BINARY_HEADER_BYTES` | `20` |
+| `TIDALPY_BINARY_LITTLE_ENDIAN`, `TIDALPY_BINARY_BIG_ENDIAN` | `0`, `1` |
 
 ## Variable-length Strings
 

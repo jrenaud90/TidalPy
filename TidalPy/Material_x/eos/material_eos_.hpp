@@ -549,26 +549,23 @@ protected:
         return c_safe_exp(-this->p_thermal_expansion * this->p_temperature_offset(temperature));
     }
 
-    // The section every model appends after its own binary record: nine doubles, then a presence flag and
-    // nested record for each of the three optional models.
-    void write_material_binary(std::ostream& out) const {
-        const double values[9] = {
+    // The nine material scalars every model stores beside its own law parameters. They are part of each record's
+    // counted payload; the three optional models follow the record as nested records, each behind a presence flag.
+    static constexpr std::size_t C_MATERIAL_BINARY_SCALARS = 9;
+
+    // `law_params` with the material scalars appended, the parameter list a model's record writes.
+    std::vector<double> p_with_material_scalars(std::vector<double> law_params) const {
+        law_params.insert(law_params.end(), {
             this->p_shear_modulus_static, this->p_bulk_modulus_static,
             this->p_shear_viscosity_static, this->p_bulk_viscosity_static,
             this->p_shear_modulus_pressure_derivative, this->p_shear_modulus_temperature_derivative,
             this->p_shear_modulus_reference_temperature,
-            this->p_thermal_conductivity, this->p_heat_capacity};
-        out.write(reinterpret_cast<const char*>(values), sizeof(values));
-        if (!out) { throw std::runtime_error("TidalPy: failed to write material EOS binary data"); }
-        write_optional_binary(out, this->p_shear_viscosity_model);
-        write_optional_binary(out, this->p_bulk_viscosity_model);
-        write_optional_binary(out, this->p_partial_melt_model);
+            this->p_thermal_conductivity, this->p_heat_capacity});
+        return law_params;
     }
 
-    void read_material_binary(std::istream& in, bool force) {
-        double values[9];
-        in.read(reinterpret_cast<char*>(values), sizeof(values));
-        if (!in) { throw std::runtime_error("TidalPy: failed to read material EOS binary data"); }
+    // Restore the material scalars from `values`, which holds C_MATERIAL_BINARY_SCALARS doubles.
+    void p_set_material_scalars(const double* values) noexcept {
         this->p_shear_modulus_static                 = values[0];
         this->p_bulk_modulus_static                  = values[1];
         this->p_shear_viscosity_static               = values[2];
@@ -578,6 +575,15 @@ protected:
         this->p_shear_modulus_reference_temperature  = values[6];
         this->p_thermal_conductivity                 = values[7];
         this->p_heat_capacity                        = values[8];
+    }
+
+    void write_material_submodels(std::ostream& out) const {
+        write_optional_binary(out, this->p_shear_viscosity_model);
+        write_optional_binary(out, this->p_bulk_viscosity_model);
+        write_optional_binary(out, this->p_partial_melt_model);
+    }
+
+    void read_material_submodels(std::istream& in, bool force) {
         this->p_shear_viscosity_model = read_optional_binary<c_ViscosityBase>(in, force, c_viscosity_from_binary);
         this->p_bulk_viscosity_model  = read_optional_binary<c_ViscosityBase>(in, force, c_viscosity_from_binary);
         this->p_partial_melt_model    = read_optional_binary<c_PartialMeltBase>(in, force, c_partial_melt_from_binary);
@@ -636,15 +642,17 @@ public:
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
             out, static_cast<uint32_t>(BinaryClassID::ConstantDensityEOS),
-            {this->p_reference_density, this->p_thermal_expansion, this->p_reference_temperature});
-        this->write_material_binary(out);
+            this->p_with_material_scalars(
+                {this->p_reference_density, this->p_thermal_expansion, this->p_reference_temperature}));
+        this->write_material_submodels(out);
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 3);
+        const std::vector<double> params = this->read_physics_binary(in, force, 3 + C_MATERIAL_BINARY_SCALARS);
         this->p_reference_density     = params[0];
         this->p_thermal_expansion     = params[1];
         this->p_reference_temperature = params[2];
-        this->read_material_binary(in, force);
+        this->p_set_material_scalars(&params[3]);
+        this->read_material_submodels(in, force);
     }
 
 protected:
@@ -706,14 +714,15 @@ public:
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
             out, static_cast<uint32_t>(BinaryClassID::BirchMurnaghanEOS),
-            {this->p_reference_density, this->p_reference_bulk_modulus,
-             this->p_bulk_modulus_derivative, this->p_invert_rtol,
-             static_cast<double>(this->p_invert_max_iters),
-             this->p_thermal_expansion, this->p_reference_temperature});
-        this->write_material_binary(out);
+            this->p_with_material_scalars(
+                {this->p_reference_density, this->p_reference_bulk_modulus,
+                 this->p_bulk_modulus_derivative, this->p_invert_rtol,
+                 static_cast<double>(this->p_invert_max_iters),
+                 this->p_thermal_expansion, this->p_reference_temperature}));
+        this->write_material_submodels(out);
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 7);
+        const std::vector<double> params = this->read_physics_binary(in, force, 7 + C_MATERIAL_BINARY_SCALARS);
         this->p_reference_density        = params[0];
         this->p_reference_bulk_modulus   = params[1];
         this->p_bulk_modulus_derivative  = params[2];
@@ -721,7 +730,8 @@ public:
         this->p_invert_max_iters         = static_cast<int>(params[4]);
         this->p_thermal_expansion        = params[5];
         this->p_reference_temperature    = params[6];
-        this->read_material_binary(in, force);
+        this->p_set_material_scalars(&params[7]);
+        this->read_material_submodels(in, force);
         this->update_law_range();
     }
 
@@ -818,14 +828,15 @@ public:
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
             out, static_cast<uint32_t>(BinaryClassID::VinetEOS),
-            {this->p_reference_density, this->p_reference_bulk_modulus,
-             this->p_bulk_modulus_derivative, this->p_invert_rtol,
-             static_cast<double>(this->p_invert_max_iters),
-             this->p_thermal_expansion, this->p_reference_temperature});
-        this->write_material_binary(out);
+            this->p_with_material_scalars(
+                {this->p_reference_density, this->p_reference_bulk_modulus,
+                 this->p_bulk_modulus_derivative, this->p_invert_rtol,
+                 static_cast<double>(this->p_invert_max_iters),
+                 this->p_thermal_expansion, this->p_reference_temperature}));
+        this->write_material_submodels(out);
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 7);
+        const std::vector<double> params = this->read_physics_binary(in, force, 7 + C_MATERIAL_BINARY_SCALARS);
         this->p_reference_density        = params[0];
         this->p_reference_bulk_modulus   = params[1];
         this->p_bulk_modulus_derivative  = params[2];
@@ -833,7 +844,8 @@ public:
         this->p_invert_max_iters         = static_cast<int>(params[4]);
         this->p_thermal_expansion        = params[5];
         this->p_reference_temperature    = params[6];
-        this->read_material_binary(in, force);
+        this->p_set_material_scalars(&params[7]);
+        this->read_material_submodels(in, force);
         this->update_law_range();
     }
 
@@ -956,7 +968,8 @@ public:
             + n * 2 * sizeof(double)                 // radius + density
             + 4 * sizeof(uint8_t)                    // 4 optional-array presence flags
             + optional_count * n * sizeof(double)    // present optional arrays
-            + 2 * sizeof(double);                    // thermal expansivity + reference temperature
+            + 2 * sizeof(double)                     // thermal expansivity + reference temperature
+            + C_MATERIAL_BINARY_SCALARS * sizeof(double);
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::InterpolatedEOS), payload);
         write_binary_string(out, this->p_model_name);
         out.write(reinterpret_cast<const char*>(&n), sizeof(uint64_t));
@@ -970,10 +983,13 @@ public:
         this->p_write_optional_array(out, this->p_bulk_viscosity);
         out.write(reinterpret_cast<const char*>(&this->p_thermal_expansion),     sizeof(double));
         out.write(reinterpret_cast<const char*>(&this->p_reference_temperature), sizeof(double));
+        const std::vector<double> material_scalars = this->p_with_material_scalars({});
+        out.write(reinterpret_cast<const char*>(material_scalars.data()),
+                  static_cast<std::streamsize>(material_scalars.size() * sizeof(double)));
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write interpolated EOS binary data");
         }
-        this->write_material_binary(out);
+        this->write_material_submodels(out);
     }
     void read_binary(std::istream& in, bool force = false) override {
         c_TidalPyBaseClass::read_binary(in, force);
@@ -995,10 +1011,13 @@ public:
         this->p_update_table_flags();
         in.read(reinterpret_cast<char*>(&this->p_thermal_expansion),     sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_reference_temperature), sizeof(double));
+        double material_scalars[C_MATERIAL_BINARY_SCALARS];
+        in.read(reinterpret_cast<char*>(material_scalars), sizeof(material_scalars));
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read interpolated EOS binary data");
         }
-        this->read_material_binary(in, force);
+        this->p_set_material_scalars(material_scalars);
+        this->read_material_submodels(in, force);
     }
 
 protected:
