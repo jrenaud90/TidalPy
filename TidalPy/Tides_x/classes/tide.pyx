@@ -69,6 +69,11 @@ cdef class TideBase(PhysicsBase):
         self._tide_ptr.reset()
         self._ptr = NULL
 
+    cdef void _adopt(self, unique_ptr[c_TideBase]& ptr) noexcept:
+        """Take ownership of a built C++ model; `ptr` is left empty."""
+        self._tide_ptr = move(ptr)
+        self._ptr      = <c_TidalPyBaseClass*>self._tide_ptr.get()
+
     def calc_love_numbers(self, int degree_l, double frequency, LoveNumbers solver_love=None) -> LoveNumbers:
         """Full complex Love-number suite (k, h, l) at the tidal frequency [rad s-1].
 
@@ -103,83 +108,56 @@ cdef class TideBase(PhysicsBase):
 cdef class RheologyTide(TideBase):
     """Rheology-based tide: k_l comes from the radial solver (frequency dependent)."""
 
-    def __cinit__(self, *args, **kwargs):
-        self._rheology_ptr = NULL
-
     def __init__(self):
         cdef c_TideModelConfig config
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.Rheology, config)
-        self._rheology_ptr = <c_RheologyTide*>ptr.get()
-        self._tide_ptr     = move(ptr)
-        self._ptr          = <c_TidalPyBaseClass*>self._tide_ptr.get()
-
-    def __dealloc__(self):
-        self._rheology_ptr = NULL
+        self._adopt(ptr)
 
 
 cdef class FixedQTide(TideBase):
     """Constant phase lag (fixed-Q): k_l(omega) = k_l * (1 - i / Q_l)."""
-
-    def __cinit__(self, *args, **kwargs):
-        self._fixedq_ptr = NULL
 
     def __init__(self, object fixed_k=None, object fixed_q=None):
         cdef c_TideModelConfig config
         config.fixed_k = cy_to_double_vector(fixed_k)
         config.fixed_q = cy_to_double_vector(fixed_q)
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.FixedQ, config)
-        self._fixedq_ptr = <c_FixedQTide*>ptr.get()
-        self._tide_ptr   = move(ptr)
-        self._ptr        = <c_TidalPyBaseClass*>self._tide_ptr.get()
-
-    def __dealloc__(self):
-        self._fixedq_ptr = NULL
+        self._adopt(ptr)
 
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
         self._check_ptr()
-        return self._fixedq_ptr.get_fixed_k(degree_l)
+        return (<c_FixedQTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
 
     def get_fixed_q(self, int degree_l) -> float:
         """Tidal quality factor Q_l at the given degree."""
         self._check_ptr()
-        return self._fixedq_ptr.get_fixed_q(degree_l)
+        return (<c_FixedQTide*>self._tide_ptr.get()).get_fixed_q(degree_l)
 
 
 cdef class FixedLagTide(TideBase):
     """Constant time lag (CTL): k_l(omega) = k_l * (1 - i * omega * dt_l)."""
-
-    def __cinit__(self, *args, **kwargs):
-        self._fixedlag_ptr = NULL
 
     def __init__(self, object fixed_k=None, object fixed_dt=None):
         cdef c_TideModelConfig config
         config.fixed_k  = cy_to_double_vector(fixed_k)
         config.fixed_dt = cy_to_double_vector(fixed_dt)
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.FixedLag, config)
-        self._fixedlag_ptr = <c_FixedLagTide*>ptr.get()
-        self._tide_ptr     = move(ptr)
-        self._ptr          = <c_TidalPyBaseClass*>self._tide_ptr.get()
-
-    def __dealloc__(self):
-        self._fixedlag_ptr = NULL
+        self._adopt(ptr)
 
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
         self._check_ptr()
-        return self._fixedlag_ptr.get_fixed_k(degree_l)
+        return (<c_FixedLagTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
 
     def get_fixed_dt(self, int degree_l) -> float:
         """Tidal time lag dt_l [s] at the given degree."""
         self._check_ptr()
-        return self._fixedlag_ptr.get_fixed_dt(degree_l)
+        return (<c_FixedLagTide*>self._tide_ptr.get()).get_fixed_dt(degree_l)
 
 
 cdef class CTLQTide(TideBase):
     """Constant time lag with a quality factor: k_l(omega) = k_l * (1 - i * omega * dt_l / Q_l)."""
-
-    def __cinit__(self, *args, **kwargs):
-        self._ctlq_ptr = NULL
 
     def __init__(self, object fixed_k=None, object fixed_dt=None, object fixed_q=None):
         cdef c_TideModelConfig config
@@ -187,27 +165,26 @@ cdef class CTLQTide(TideBase):
         config.fixed_dt = cy_to_double_vector(fixed_dt)
         config.fixed_q  = cy_to_double_vector(fixed_q)
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.CTLQ, config)
-        self._ctlq_ptr = <c_CTLQTide*>ptr.get()
-        self._tide_ptr = move(ptr)
-        self._ptr      = <c_TidalPyBaseClass*>self._tide_ptr.get()
-
-    def __dealloc__(self):
-        self._ctlq_ptr = NULL
+        self._adopt(ptr)
 
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
         self._check_ptr()
-        return self._ctlq_ptr.get_fixed_k(degree_l)
+        return (<c_CTLQTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
 
     def get_fixed_dt(self, int degree_l) -> float:
         """Tidal time lag dt_l [s] at the given degree."""
         self._check_ptr()
-        return self._ctlq_ptr.get_fixed_dt(degree_l)
+        return (<c_CTLQTide*>self._tide_ptr.get()).get_fixed_dt(degree_l)
 
     def get_fixed_q(self, int degree_l) -> float:
         """Tidal quality factor Q_l at the given degree."""
         self._check_ptr()
-        return self._ctlq_ptr.get_fixed_q(degree_l)
+        return (<c_CTLQTide*>self._tide_ptr.get()).get_fixed_q(degree_l)
+
+
+# The wrapper class of each c_TideModel, indexed by its enum value.
+cdef tuple cy_tide_classes = (RheologyTide, FixedQTide, FixedLagTide, CTLQTide)
 
 
 # Every config key any tide model reads; make_tide rejects anything else.
@@ -252,32 +229,7 @@ def make_tide(str model_name, dict config=None) -> TideBase:
     cdef c_TideModelConfig cfg = cy_build_tide_config(config)
     cdef c_TideModel model = c_tide_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_TideBase] ptr = c_find_tide(model, cfg)
-
-    cdef RheologyTide rheology_tide
-    cdef FixedQTide   fixedq_tide
-    cdef FixedLagTide fixedlag_tide
-    cdef CTLQTide     ctlq_tide
-    if model == c_TideModel.Rheology:
-        rheology_tide = RheologyTide.__new__(RheologyTide)
-        rheology_tide._rheology_ptr = <c_RheologyTide*>ptr.get()
-        rheology_tide._tide_ptr     = move(ptr)
-        rheology_tide._ptr          = <c_TidalPyBaseClass*>rheology_tide._tide_ptr.get()
-        return rheology_tide
-    elif model == c_TideModel.FixedQ:
-        fixedq_tide = FixedQTide.__new__(FixedQTide)
-        fixedq_tide._fixedq_ptr = <c_FixedQTide*>ptr.get()
-        fixedq_tide._tide_ptr   = move(ptr)
-        fixedq_tide._ptr        = <c_TidalPyBaseClass*>fixedq_tide._tide_ptr.get()
-        return fixedq_tide
-    elif model == c_TideModel.FixedLag:
-        fixedlag_tide = FixedLagTide.__new__(FixedLagTide)
-        fixedlag_tide._fixedlag_ptr = <c_FixedLagTide*>ptr.get()
-        fixedlag_tide._tide_ptr     = move(ptr)
-        fixedlag_tide._ptr          = <c_TidalPyBaseClass*>fixedlag_tide._tide_ptr.get()
-        return fixedlag_tide
-    else:
-        ctlq_tide = CTLQTide.__new__(CTLQTide)
-        ctlq_tide._ctlq_ptr = <c_CTLQTide*>ptr.get()
-        ctlq_tide._tide_ptr = move(ptr)
-        ctlq_tide._ptr      = <c_TidalPyBaseClass*>ctlq_tide._tide_ptr.get()
-        return ctlq_tide
+    tide_class = cy_tide_classes[<int>model]
+    cdef TideBase tide = tide_class.__new__(tide_class)
+    tide._adopt(ptr)
+    return tide

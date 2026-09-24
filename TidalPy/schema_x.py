@@ -6,6 +6,10 @@ that imports nothing from TidalPy. ``Documentation/structures_x/config/toml_sche
 schema.
 """
 
+# The schema version of world, system, and configuration files. Compatibility uses the major.minor pair, patch
+# differences being allowed, mirroring the binary check.
+SCHEMA_VERSION = "0.2.0"
+
 # World ``type`` values recognized by the builder.
 WORLD_TYPES = (
     "star",

@@ -24,20 +24,10 @@
 #include <vector>
 
 #include "eccentricity_accuracy_.hpp"
+#include "eccentricity_common_.hpp"   // c_EccentricityValues
 
 // The largest mode range the exact functions build; an eccentricity that needs more (about e > 0.99) is refused.
 inline constexpr int C_ECCENTRICITY_EXACT_MAX_Q = 20000;
-
-// G_lpq for one degree: value(p, q) for 0 <= p <= l and |q| <= max_q.
-struct c_ExactEccentricityModes {
-    int degree_l = 0;
-    int max_q = 0;
-    std::vector<double> values;   // [p * (2 max_q + 1) + (q + max_q)]
-
-    double value(int p, int q) const noexcept {
-        return this->values[static_cast<size_t>(p * (2 * this->max_q + 1) + (q + this->max_q))];
-    }
-};
 
 namespace eccentricity_detail {
 
@@ -84,7 +74,7 @@ inline double c_kepler_eccentric_anomaly(double mean_anomaly, double eccentricit
 // Every G_lpq of one degree at one eccentricity, with the mode range set by `tolerance`. Throws std::invalid_argument
 // for an eccentricity outside [0, 1) or a tolerance outside (0, 1), and std::runtime_error when the eccentricity needs
 // more than C_ECCENTRICITY_EXACT_MAX_Q modes.
-inline c_ExactEccentricityModes c_exact_eccentricity_modes(double eccentricity, int degree_l, double tolerance) {
+inline c_EccentricityValues c_exact_eccentricity_modes(double eccentricity, int degree_l, double tolerance) {
     if (!((eccentricity >= 0.0) && (eccentricity < 1.0))) {
         throw std::invalid_argument(
             "TidalPy: the exact eccentricity functions need 0 <= e < 1; got " + std::to_string(eccentricity) + ".");
@@ -93,7 +83,7 @@ inline c_ExactEccentricityModes c_exact_eccentricity_modes(double eccentricity, 
         throw std::invalid_argument(
             "TidalPy: the exact eccentricity tolerance must be in (0, 1); got " + std::to_string(tolerance) + ".");
     }
-    c_ExactEccentricityModes modes;
+    c_EccentricityValues modes;
     modes.degree_l = degree_l;
     const int num_p = degree_l + 1;
 
@@ -120,15 +110,16 @@ inline c_ExactEccentricityModes c_exact_eccentricity_modes(double eccentricity, 
     size_t num_samples = 64;
     while (static_cast<double>(num_samples) < length_needed) { num_samples <<= 1; }
 
-    // (r/a) and e^{i f} at the samples.
+    // (r/a)^{-(l+1)} and e^{i f} at the samples.
     const double two_pi = 2.0 * std::acos(-1.0);
-    std::vector<double> radius_ratio(num_samples);
+    const double n_power = -static_cast<double>(degree_l + 1);
+    std::vector<double> radius_power(num_samples);
     std::vector<std::complex<double>> exp_true(num_samples);
     for (size_t j = 0; j < num_samples; ++j) {
         const double mean_anomaly = two_pi * static_cast<double>(j) / static_cast<double>(num_samples);
         const double eccentric = eccentricity_detail::c_kepler_eccentric_anomaly(mean_anomaly, eccentricity);
         const double ratio = 1.0 - eccentricity * std::cos(eccentric);
-        radius_ratio[j] = ratio;
+        radius_power[j] = std::pow(ratio, n_power);
         exp_true[j] = std::complex<double>(std::cos(eccentric) - eccentricity, root * std::sin(eccentric)) / ratio;
     }
 
@@ -136,11 +127,10 @@ inline c_ExactEccentricityModes c_exact_eccentricity_modes(double eccentricity, 
     const int width_search = 2 * q_search + 1;
     std::vector<double> search(static_cast<size_t>(num_p * width_search), 0.0);
     std::vector<std::complex<double>> samples(num_samples);
-    const double n_power = -static_cast<double>(degree_l + 1);
     for (int p = 0; p < num_p; ++p) {
         const int order_m = degree_l - 2 * p;
         for (size_t j = 0; j < num_samples; ++j) {
-            samples[j] = std::pow(radius_ratio[j], n_power) * std::pow(exp_true[j], order_m);
+            samples[j] = radius_power[j] * std::pow(exp_true[j], order_m);
         }
         eccentricity_detail::c_fft_radix2(samples);
         for (int q = -q_search; q <= q_search; ++q) {

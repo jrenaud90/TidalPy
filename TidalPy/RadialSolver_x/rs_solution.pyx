@@ -6,7 +6,8 @@ from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr
 set_tidalpy_config_ptr(get_shared_config_address())
 
 from libc.math cimport NAN
-from libcpp.memory cimport make_unique, unique_ptr
+from libc.string cimport memcpy
+from libcpp.memory cimport unique_ptr
 from libcpp.string cimport string as cpp_string
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.utility cimport move
@@ -113,36 +114,33 @@ def check_surface_solve_conditioning(
     return bool(cy_check_surface_solve_conditioning(surface_amplification, integration_rtol, surface_rcond))
 
 
+# One Love-number quantity of a solved boundary condition; `quantity` is as in RadialSolverSolution._love_values.
+cdef object cy_love_value(c_LoveNumbers love, size_t quantity):
+    if quantity == 0:
+        return love.k
+    elif quantity == 1:
+        return love.h
+    elif quantity == 2:
+        return love.l
+    elif quantity == 3:
+        return love.get_Q_k()
+    elif quantity == 4:
+        return love.get_Q_h()
+    elif quantity == 5:
+        return love.get_Q_l()
+    elif quantity == 6:
+        return love.get_lag_k()
+    elif quantity == 7:
+        return love.get_lag_h()
+    return love.get_lag_l()
+
+
 cdef class RadialSolverSolution:
 
-    def __init__(
-            self,
-            size_t num_ytypes,
-            double[::1] upper_radius_bylayer_view,
-            double[::1] radius_array_view,
-            int degree_l
-            ):
-        cdef double* upper_radius_bylayer_ptr = &upper_radius_bylayer_view[0]
-        self.num_layers                       = upper_radius_bylayer_view.size
-        cdef double* radius_array_ptr         = &radius_array_view[0]
-        cdef size_t radius_array_size         = radius_array_view.size
-
-        self.ytype_names_set = False
-        self.num_ytypes      = num_ytypes
-
-        self.solution_storage_uptr = make_unique[c_RadialSolutionStorage](
-            self.num_ytypes,
-            upper_radius_bylayer_ptr,
-            self.num_layers,
-            radius_array_ptr,
-            radius_array_size,
-            degree_l)
-        self.solution_storage_ptr = self.solution_storage_uptr.get()
-
-        if not self.solution_storage_ptr:
-            raise RuntimeError("c_RadialSolutionStorage extension class could not be initialized.")
-
-        self.change_radius_array(radius_array_ptr, radius_array_size, array_changed=False)
+    def __init__(self, *args, **kwargs):
+        raise TypeError(
+            "RadialSolverSolution is not built directly: call TidalPy.RadialSolver_x.radial_solver, or a world's "
+            "solve_love_numbers and then its release_radial_solution.")
 
     @staticmethod
     cdef RadialSolverSolution _adopt(
@@ -171,7 +169,7 @@ cdef class RadialSolverSolution:
             solution.set_model_names(solution.solution_storage_ptr.p_bc_models.data())
         
         # Wrap the storage's vectors for Python without touching the storage itself.
-        solution.change_radius_array(NULL, solution.solution_storage_ptr.num_slices, array_changed=False)
+        solution.change_radius_array(solution.solution_storage_ptr.num_slices)
         solution.finalize_python_storage()
         return solution
 
@@ -195,30 +193,13 @@ cdef class RadialSolverSolution:
                 self.solution_storage_ptr.message = cpp_string(b"ArgumentException:: Unknown boundary condition provided")
         self.ytype_names_set = True
 
-    cdef void change_radius_array(
-            self,
-            double* new_radius_array_ptr,
-            size_t new_size_radius_array,
-            cpp_bool array_changed = True) noexcept:
-
+    cdef void change_radius_array(self, size_t new_size_radius_array) noexcept:
+        # Wrap the storage's result grid, now new_size_radius_array slices long, for Python.
         self.radius_array_size = new_size_radius_array
-
-        if array_changed:
-            self.solution_storage_ptr.change_radius_array(new_radius_array_ptr, new_size_radius_array, array_changed)
 
         cdef cnp.npy_intp[2] full_solution_shape   = [self.radius_array_size, self.num_ytypes * C_MAX_NUM_Y]
         cdef cnp.npy_intp* full_solution_shape_ptr = &full_solution_shape[0]
         cdef cnp.npy_intp full_solution_shape_ndim = 2
-
-        cdef cnp.npy_intp[1] love_shape   = [self.num_ytypes * 3]
-        cdef cnp.npy_intp* love_shape_ptr = &love_shape[0]
-        cdef cnp.npy_intp love_shape_ndim = 1
-
-        cdef cnp.npy_intp[1] eos_float_shape     = [self.radius_array_size]
-        cdef cnp.npy_intp* eos_float_shape_ptr   = &eos_float_shape[0]
-        cdef cnp.npy_intp[1] eos_complex_shape   = [self.radius_array_size]
-        cdef cnp.npy_intp* eos_complex_shape_ptr = &eos_complex_shape[0]
-        cdef cnp.npy_intp eos_ndim               = 1
 
         cdef c_EOSSolution* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
 
@@ -508,8 +489,11 @@ cdef class RadialSolverSolution:
         solver), so the two pair up; otherwise ``num_points`` evenly spaced radii.
         """
         cdef const vector[double]* sampled = &self.solution_storage_ptr.get_sample_radii_si()
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] sampled_copy
         if num_points == 0 and sampled.size() == self.solution_storage_ptr.num_slices and sampled.size() > 0:
-            return np.array([sampled[0][i] for i in range(sampled.size())], dtype=np.float64)
+            sampled_copy = np.empty(sampled.size(), dtype=np.float64)
+            memcpy(&sampled_copy[0], sampled.const_data(), sampled.size() * sizeof(double))
+            return sampled_copy
         cdef size_t solved_slices = self.solution_storage_ptr.num_slices
         if num_points == 0:
             num_points = solved_slices if solved_slices > 1 else 100
@@ -683,125 +667,49 @@ cdef class RadialSolverSolution:
         else:
             return np.nan * np.ones((self.num_ytypes, 3), dtype=np.complex128)
 
-    @property
-    def k(self):
-        cdef list love_list = []
+    cdef object _love_values(self, size_t quantity):
+        """k, h, l (quantity 0-2), Q_k, Q_h, Q_l (3-5), or lag_k, lag_h, lag_l (6-8) of each solved ytype.
+
+        One ytype gives a scalar (a complex for a Love number, a float otherwise), several an array; NaN when
+        the solve failed.
+        """
+        cdef object dtype = np.complex128 if quantity < 3 else np.float64
+        cdef list values
         cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
-    
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].k
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    love_list.append(complex_love.k)
-                return np.asarray(love_list, dtype=np.complex128)
-        else:
+        if not (self.success and (self.error_code == 0)):
             if self.num_ytypes == 1:
                 return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.complex128)
+            return np.nan * np.ones(self.num_ytypes, dtype=dtype)
+        values = []
+        for sol_i in range(self.num_ytypes):
+            values.append(cy_love_value(self.solution_storage_ptr.complex_love_vec[sol_i], quantity))
+        if self.num_ytypes == 1:
+            return values[0]
+        return np.asarray(values, dtype=dtype)
+
+    @property
+    def k(self):
+        return self._love_values(0)
 
     @property
     def h(self):
-        cdef list love_list = []
-        cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
-    
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].h
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    love_list.append(complex_love.h)
-                return np.asarray(love_list, dtype=np.complex128)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.complex128)
+        return self._love_values(1)
 
     @property
     def l(self):
-        cdef list love_list = []
-        cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
-    
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].l
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    love_list.append(complex_love.l)
-                return np.asarray(love_list, dtype=np.complex128)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.complex128)
+        return self._love_values(2)
 
     @property
     def Q_k(self):
-        cdef list Q_list = []
-        cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
-
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].get_Q_k()
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    Q_list.append(complex_love.get_Q_k())
-                return np.asarray(Q_list, dtype=np.float64)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+        return self._love_values(3)
 
     @property
     def Q_h(self):
-        cdef list Q_list = []
-        cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
+        return self._love_values(4)
 
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].get_Q_h()
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    Q_list.append(complex_love.get_Q_h())
-                return np.asarray(Q_list, dtype=np.float64)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
-    
     @property
     def Q_l(self):
-        cdef list Q_list = []
-        cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
-
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].get_Q_l()
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    Q_list.append(complex_love.get_Q_l())
-                return np.asarray(Q_list, dtype=np.float64)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+        return self._love_values(5)
 
     @property
     def Q(self):
@@ -810,63 +718,15 @@ cdef class RadialSolverSolution:
 
     @property
     def lag_k(self):
-        cdef list lag_list = []
-        cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
+        return self._love_values(6)
 
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].get_lag_k()
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    lag_list.append(complex_love.get_lag_k())
-                return np.asarray(lag_list, dtype=np.float64)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
-    
     @property
     def lag_h(self):
-        cdef list lag_list = []
-        cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
+        return self._love_values(7)
 
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].get_lag_h()
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    lag_list.append(complex_love.get_lag_h())
-                return np.asarray(lag_list, dtype=np.float64)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
-    
     @property
     def lag_l(self):
-        cdef list lag_list = []
-        cdef size_t sol_i
-        cdef c_LoveNumbers complex_love
-
-        if self.success and (self.error_code == 0):
-            if self.num_ytypes == 1:
-                return self.solution_storage_uptr.get().complex_love_vec[0].get_lag_l()
-            else:
-                for sol_i in range(self.num_ytypes):
-                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
-                    lag_list.append(complex_love.get_lag_l())
-                return np.asarray(lag_list, dtype=np.float64)
-        else:
-            if self.num_ytypes == 1:
-                return np.nan
-            else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+        return self._love_values(8)
 
     @property
     def lag(self):
@@ -920,11 +780,6 @@ cdef class RadialSolverSolution:
                 raise ValueError('Unknown solution type requested.')
 
             gridded = self.result
-            if gridded is None or gridded.ndim != 2:
-                raise RuntimeError(
-                    "This solution holds no sampled y-grid, so it cannot be indexed by boundary-condition name. "
-                    "A world-attached solve evaluates its dense interpolants instead of gridding them; use "
-                    "get_radial_solution(radius) or get_radial_solution_array(radii).")
             return np.copy(gridded[C_MAX_NUM_Y * (requested_sol_num): C_MAX_NUM_Y * (requested_sol_num + 1)])
         else:
             return None

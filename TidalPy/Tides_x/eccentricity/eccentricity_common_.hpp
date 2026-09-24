@@ -23,25 +23,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <utility>
+#include <vector>
 
-#include "intmap_.hpp"
-#include "keys_.hpp"
-#include "eccentricity_accuracy_.hpp"   // C_ECCENTRICITY_EXACT
-
-typedef std::pair<c_IntMap<c_Key3, double>, c_IntMap<c_Key2, c_IntMap<c_Key1, double>>> EccentricityFuncOutput;
+#include "../mode_func_common_.hpp"               // c_ModeFuncOutput
+#include "../../Utilities_x/math_x/series_.hpp"   // Horner sums, powers, cut Cauchy products
+#include "eccentricity_accuracy_.hpp"             // C_ECCENTRICITY_EXACT
 
 // The tabulated truncation levels, the one list every entry point validates against.
 inline constexpr int C_ECCENTRICITY_TRUNCATIONS[] = {2, 4, 6, 8, 10, 20, 50};
 inline constexpr int C_NUM_ECCENTRICITY_TRUNCATIONS =
     static_cast<int>(sizeof(C_ECCENTRICITY_TRUNCATIONS) / sizeof(C_ECCENTRICITY_TRUNCATIONS[0]));
-
-inline bool c_eccentricity_truncation_tabulated(int truncation) noexcept {
-    for (int i = 0; i < C_NUM_ECCENTRICITY_TRUNCATIONS; ++i) {
-        if (C_ECCENTRICITY_TRUNCATIONS[i] == truncation) { return true; }
-    }
-    return false;
-}
 
 // One mode of a level's table: its coefficients c_j of e^(|q| + 2j) in the level's coefficient array.
 struct c_EccentricityModeSeries {
@@ -65,21 +56,19 @@ struct c_EccentricitySeriesTable {
     }
 };
 
-// sum_j c_j x^j over the first num_terms coefficients (Horner).
-inline double c_eccentricity_horner(const double* coefficients, int num_terms, double x) noexcept {
-    double total = 0.0;
-    for (int j = num_terms - 1; j >= 0; --j) {
-        total = total * x + coefficients[j];
-    }
-    return total;
-}
+// G_lpq of one degree, or its cut square, over 0 <= p <= l and |q| <= max_q; zero for every mode left out. table is the
+// (degree, truncation) table the values came from, for the cut products of two of them, and invalid for the exact
+// functions.
+struct c_EccentricityValues {
+    int degree_l = 0;
+    int max_q = 0;
+    std::vector<double> values;   // [p * (2 max_q + 1) + (q + max_q)]
+    c_EccentricitySeriesTable table;
 
-// e^power for a small non-negative integer power.
-inline double c_eccentricity_power(double eccentricity, int power) noexcept {
-    double result = 1.0;
-    for (int i = 0; i < power; ++i) { result *= eccentricity; }
-    return result;
-}
+    double value(int p, int q) const noexcept {
+        return this->values[static_cast<size_t>(p * (2 * this->max_q + 1) + (q + this->max_q))];
+    }
+};
 
 // G_lpq(e) through e^N (exact for a k = 0 mode).
 inline double c_eccentricity_mode_value(const c_EccentricitySeriesTable& table, int p, int q, double eccentricity)
@@ -87,8 +76,8 @@ inline double c_eccentricity_mode_value(const c_EccentricitySeriesTable& table, 
     const c_EccentricityModeSeries& mode = table.mode(p, q);
     if (mode.count == 0) { return 0.0; }
     const double e2 = eccentricity * eccentricity;
-    double value = c_eccentricity_power(eccentricity, std::abs(q))
-                 * c_eccentricity_horner(table.coefficients + mode.offset, mode.count, e2);
+    double value = c_series_power(eccentricity, std::abs(q))
+                 * c_series_horner(table.coefficients + mode.offset, mode.count, e2);
     if (mode.exact) {
         value *= std::pow(1.0 - e2, 0.5 - static_cast<double>(table.degree_l));
     }
@@ -132,20 +121,12 @@ inline double c_eccentricity_cut_product(
         const int count = a_exact ? mode_b.count : mode_a.count;
         const int series_lead = a_exact ? lead_b : lead_a;
         const int num_terms = (count < max_s + 1) ? count : (max_s + 1);
-        return exact_value * c_eccentricity_power(eccentricity, series_lead)
-             * c_eccentricity_horner(series, num_terms, e2);
+        return exact_value * c_series_power(eccentricity, series_lead)
+             * c_series_horner(series, num_terms, e2);
     }
 
     // Cauchy product of the two series, cut at e^(2 max_s) past the leading power, then Horner in e^2.
-    double total = 0.0;
-    for (int s = max_s; s >= 0; --s) {
-        double coefficient = 0.0;
-        const int i_min = (s - (mode_b.count - 1) > 0) ? (s - (mode_b.count - 1)) : 0;
-        const int i_max = (s < mode_a.count - 1) ? s : (mode_a.count - 1);
-        for (int i = i_min; i <= i_max; ++i) {
-            coefficient += coefficients_a[i] * coefficients_b[s - i];
-        }
-        total = total * e2 + coefficient;
-    }
-    return c_eccentricity_power(eccentricity, lead) * total;
+    const double total = c_series_cut_product(
+        c_SeriesSpan{coefficients_a, mode_a.count}, c_SeriesSpan{coefficients_b, mode_b.count}, max_s, e2);
+    return c_series_power(eccentricity, lead) * total;
 }

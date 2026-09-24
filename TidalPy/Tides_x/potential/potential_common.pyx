@@ -1,7 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 set_tidalpy_config_ptr(get_shared_config_address())
 
 cdef tuple cy_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
@@ -196,35 +196,3 @@ cdef class UniqueFrequencyMap:
             value = self._cinst.data[i].second
 
             yield ((key.a, key.b, key.c, key.d), value)
-
-
-def test_mode_map():
-
-    cdef c_ModeMap _cinst
-
-    cdef int l, m, p, q
-    cdef size_t total_size = 0
-    cdef c_Key4 key = c_Key4(0, 0, 0, 0)
-    cdef c_ModeStorage storage = c_ModeStorage(d_NAN, d_NAN, 0, 0)
-    for l in range(2, 4):
-        key.a = l
-        for m in range(0, l + 1):
-            key.b = m
-            for p in range(0, l + 1):
-                key.c = p
-                for q in range(-1, 2):
-                    key.d = q
-                    key.rebuild_reference()
-
-                    storage.mode = <double>(l - 2 * p + q) * 10.0 - <double>(m) * 5.0
-                    storage.mode_strength = <double>(l + p + q + m) - 4.5
-                    storage.n_coeff = (l - 2 * p + q)
-                    storage.o_coeff = -m
-
-                    _cinst.set(key, storage)
-                    total_size += 1
-
-    cdef ModeMap mode_map = ModeMap()
-    mode_map._cinst = _cinst
-
-    return mode_map, total_size

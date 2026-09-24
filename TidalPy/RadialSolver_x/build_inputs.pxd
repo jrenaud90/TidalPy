@@ -10,8 +10,6 @@ from TidalPy.rheology_x.rheology cimport c_RheologyBase
 
 cdef extern from "build_inputs_.hpp" namespace "tidalpy" nogil:
 
-    cdef size_t C_RS_MIN_SLICES_PER_LAYER
-
     cdef cppclass c_RadialSolverInputs:
         vector[double] radius
         vector[double] density

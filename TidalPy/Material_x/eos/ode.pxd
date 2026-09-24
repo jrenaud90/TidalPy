@@ -7,7 +7,6 @@ from CyRK cimport PreEvalFunc
 cdef extern from "ode_.hpp" nogil:
 
     const size_t C_EOS_Y_VALUES
-    const size_t C_EOS_EXTRA_VALUES
     const size_t C_EOS_DY_VALUES
     const size_t C_EOS_DENSITY_INDEX
     const size_t C_EOS_SHEAR_MODULUS_INDEX

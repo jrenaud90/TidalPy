@@ -111,6 +111,29 @@ cdef object cy_eos_fields(const void* owner, cy_eos_fields_fn fill, object radiu
     return tuple([values[field_i] for field_i in range(num_fields)])
 
 
+cdef int cy_fill_base_layer_config(
+        c_BaseLayerConfig* config,
+        str name,
+        int layer_index,
+        double radius_inner,
+        double radius_outer,
+        double mass,
+        str material_name,
+        cpp_bool is_tidal,
+        cpp_bool is_volume_fixed,
+        object tidal_scale) except -1:
+    config.name            = name.encode("utf-8")
+    config.layer_index     = layer_index
+    config.radius_inner    = radius_inner
+    config.radius_outer    = radius_outer
+    config.mass            = mass
+    config.material_name   = material_name.encode("utf-8")
+    config.is_tidal        = is_tidal
+    config.is_volume_fixed = is_volume_fixed
+    config.tidal_scale     = d_NAN if tidal_scale is None else <double>tidal_scale
+    return 0
+
+
 cdef void cy_layer_eos_fields(
         const void* owner,
         const size_t* field_indices,
@@ -192,15 +215,9 @@ cdef class BaseLayer(StructureBase):
             cpp_bool   is_volume_fixed    = True,
             tidal_scale               = None):
         cdef c_BaseLayerConfig config
-        config.name         = name.encode("utf-8")
-        config.layer_index  = layer_index
-        config.radius_inner = radius_inner
-        config.radius_outer = radius_outer
-        config.mass         = mass
-        config.material_name = material_name.encode("utf-8")
-        config.is_tidal    = is_tidal
-        config.is_volume_fixed = is_volume_fixed
-        config.tidal_scale = d_NAN if tidal_scale is None else <double>tidal_scale
+        cy_fill_base_layer_config(
+            &config, name, layer_index, radius_inner, radius_outer, mass, material_name, is_tidal, is_volume_fixed,
+            tidal_scale)
         # The owning member is this same type, so make_unique's result moves straight in.
         self._layer_ptr = make_unique[c_BaseLayer](config)
         self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()

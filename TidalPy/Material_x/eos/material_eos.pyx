@@ -22,8 +22,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport (
-    PhysicsBase, c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config)
-from TidalPy.Utilities_x.classes_x.classes import check_config_keys, factory_defaults
+    PhysicsBase, c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config, cy_resolve_factory_config)
 from TidalPy.viscosity_x.viscosity cimport ViscosityBase
 from TidalPy.partial_melt_x.partial_melt cimport PartialMeltBase
 
@@ -282,6 +281,19 @@ _MATERIAL_KWARGS = (
     "shear_modulus_pressure_derivative", "shear_modulus_temperature_derivative",
     "shear_modulus_reference_temperature", "thermal_conductivity", "heat_capacity")
 
+# The config key of each material keyword argument, as make_material_eos reads it.
+_MATERIAL_CONFIG_KEY_TO_KWARG = {
+    "shear_modulus_static_pa":                   "shear_modulus_static",
+    "bulk_modulus_static_pa":                    "bulk_modulus_static",
+    "shear_viscosity_static_pas":                "shear_viscosity_static",
+    "bulk_viscosity_static_pas":                 "bulk_viscosity_static",
+    "shear_modulus_pressure_derivative":         "shear_modulus_pressure_derivative",
+    "shear_modulus_temperature_derivative_pa_k": "shear_modulus_temperature_derivative",
+    "shear_modulus_reference_temperature_k":     "shear_modulus_reference_temperature",
+    "thermal_conductivity_w_mk":                 "thermal_conductivity",
+    "heat_capacity_j_kgk":                       "heat_capacity",
+}
+
 
 cdef int cy_fill_material_config(c_MaterialEOSConfig& config, dict material) except -1:
     for key in material:
@@ -308,11 +320,16 @@ cdef int cy_fill_material_config(c_MaterialEOSConfig& config, dict material) exc
     return 0
 
 
+# Hands a newly built C++ model to a fresh wrapper of eos_class, which then owns it.
+cdef MaterialEOSBase cy_adopt_material_eos(type eos_class, unique_ptr[c_MaterialEOSBase]& model_ptr):
+    cdef MaterialEOSBase eos = eos_class.__new__(eos_class)
+    eos._eos_ptr = move(model_ptr)
+    eos._ptr     = <c_TidalPyBaseClass*>eos._eos_ptr.get()
+    return eos
+
+
 cdef class ConstantDensityEOS(MaterialEOSBase):
     """Incompressible (uniform) density EOS."""
-
-    def __cinit__(self, *args, **kwargs):
-        self._constant_ptr = NULL
 
     def __init__(self, double reference_density=3500.0, double thermal_expansion=0.0, reference_temperature=None,
                  **material):
@@ -323,26 +340,18 @@ cdef class ConstantDensityEOS(MaterialEOSBase):
         config.thermal_expansion = thermal_expansion
         if reference_temperature is not None:
             config.reference_temperature = <double>reference_temperature
-        cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(
-            c_MaterialEOSModel.Constant, config)
-        self._constant_ptr = <c_ConstantDensityEOS*>ptr.get()
-        self._eos_ptr      = move(ptr)
-        self._ptr          = <c_TidalPyBaseClass*>self._eos_ptr.get()
-
-    def __dealloc__(self):
-        self._constant_ptr = NULL
+        cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(c_MaterialEOSModel.Constant, config)
+        self._eos_ptr = move(ptr)
+        self._ptr     = <c_TidalPyBaseClass*>self._eos_ptr.get()
 
     @property
     def reference_density(self) -> float:
         """Reference (uniform) density [kg/m^3]."""
-        return self._constant_ptr.get_reference_density()
+        return (<c_ConstantDensityEOS*>self._model()).get_reference_density()
 
 
-cdef class BirchMurnaghanEOS(MaterialEOSBase):
-    """3rd-order Birch-Murnaghan EOS; density from pressure."""
-
-    def __cinit__(self, *args, **kwargs):
-        self._bm_ptr = NULL
+cdef class _PressureLawEOS(MaterialEOSBase):
+    """The constructor and properties shared by the Birch-Murnaghan and Vinet models."""
 
     def __init__(
             self,
@@ -354,123 +363,70 @@ cdef class BirchMurnaghanEOS(MaterialEOSBase):
             double thermal_expansion=0.0,
             reference_temperature=None,
             **material):
+        if self._law_model != c_MaterialEOSModel.BirchMurnaghan and self._law_model != c_MaterialEOSModel.Vinet:
+            raise TypeError("_PressureLawEOS is abstract; instantiate BirchMurnaghanEOS or VinetEOS.")
         # None keeps the C++ default inversion settings and reference temperature.
         cdef c_MaterialEOSConfig config
         cy_fill_material_config(config, material)
-        config.reference_density   = reference_density
-        config.reference_bulk_modulus = reference_bulk_modulus
-        config.bulk_modulus_derivative   = bulk_modulus_derivative
-        config.thermal_expansion = thermal_expansion
+        config.reference_density       = reference_density
+        config.reference_bulk_modulus  = reference_bulk_modulus
+        config.bulk_modulus_derivative = bulk_modulus_derivative
+        config.thermal_expansion       = thermal_expansion
         if reference_temperature is not None:
             config.reference_temperature = <double>reference_temperature
         if invert_rtol is not None:
             config.invert_rtol = <double>invert_rtol
         if invert_max_iters is not None:
             config.invert_max_iters = <int>invert_max_iters
-        cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(
-            c_MaterialEOSModel.BirchMurnaghan, config)
-        self._bm_ptr  = <c_BirchMurnaghanEOS*>ptr.get()
+        cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(self._law_model, config)
         self._eos_ptr = move(ptr)
         self._ptr     = <c_TidalPyBaseClass*>self._eos_ptr.get()
 
-    def __dealloc__(self):
-        self._bm_ptr = NULL
+    cdef c_PressureLawEOS* _law(self) except NULL:
+        return <c_PressureLawEOS*>self._model()
 
     @property
     def reference_density(self) -> float:
         """Reference density rho0 [kg/m^3]."""
-        return self._bm_ptr.get_reference_density()
+        return self._law().get_reference_density()
 
     @property
     def reference_bulk_modulus(self) -> float:
         """Reference bulk modulus K0 [Pa]."""
-        return self._bm_ptr.get_reference_bulk_modulus()
+        return self._law().get_reference_bulk_modulus()
 
     @property
     def bulk_modulus_derivative(self) -> float:
         """Pressure derivative of the bulk modulus K0' [dimensionless]."""
-        return self._bm_ptr.get_bulk_modulus_derivative()
+        return self._law().get_bulk_modulus_derivative()
 
     @property
     def invert_rtol(self) -> float:
         """Relative convergence tolerance for the density-from-pressure inversion."""
-        return self._bm_ptr.get_invert_rtol()
+        return self._law().get_invert_rtol()
 
     @property
     def invert_max_iters(self) -> int:
         """Hard iteration cap (termination safeguard) for the inversion."""
-        return self._bm_ptr.get_invert_max_iters()
+        return self._law().get_invert_max_iters()
 
 
-cdef class VinetEOS(MaterialEOSBase):
+cdef class BirchMurnaghanEOS(_PressureLawEOS):
+    """3rd-order Birch-Murnaghan EOS; density from pressure."""
+
+    def __cinit__(self, *args, **kwargs):
+        self._law_model = c_MaterialEOSModel.BirchMurnaghan
+
+
+cdef class VinetEOS(_PressureLawEOS):
     """Vinet (universal) EOS; density from pressure."""
 
     def __cinit__(self, *args, **kwargs):
-        self._vinet_ptr = NULL
-
-    def __init__(
-            self,
-            double reference_density=3500.0,
-            double reference_bulk_modulus=1.0e11,
-            double bulk_modulus_derivative=4.0,
-            invert_rtol=None,
-            invert_max_iters=None,
-            double thermal_expansion=0.0,
-            reference_temperature=None,
-            **material):
-        # None keeps the C++ default inversion settings and reference temperature.
-        cdef c_MaterialEOSConfig config
-        cy_fill_material_config(config, material)
-        config.reference_density   = reference_density
-        config.reference_bulk_modulus = reference_bulk_modulus
-        config.bulk_modulus_derivative   = bulk_modulus_derivative
-        config.thermal_expansion = thermal_expansion
-        if reference_temperature is not None:
-            config.reference_temperature = <double>reference_temperature
-        if invert_rtol is not None:
-            config.invert_rtol = <double>invert_rtol
-        if invert_max_iters is not None:
-            config.invert_max_iters = <int>invert_max_iters
-        cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(
-            c_MaterialEOSModel.Vinet, config)
-        self._vinet_ptr = <c_VinetEOS*>ptr.get()
-        self._eos_ptr   = move(ptr)
-        self._ptr       = <c_TidalPyBaseClass*>self._eos_ptr.get()
-
-    def __dealloc__(self):
-        self._vinet_ptr = NULL
-
-    @property
-    def reference_density(self) -> float:
-        """Reference density rho0 [kg/m^3]."""
-        return self._vinet_ptr.get_reference_density()
-
-    @property
-    def reference_bulk_modulus(self) -> float:
-        """Reference bulk modulus K0 [Pa]."""
-        return self._vinet_ptr.get_reference_bulk_modulus()
-
-    @property
-    def bulk_modulus_derivative(self) -> float:
-        """Pressure derivative of the bulk modulus K0' [dimensionless]."""
-        return self._vinet_ptr.get_bulk_modulus_derivative()
-
-    @property
-    def invert_rtol(self) -> float:
-        """Relative convergence tolerance for the density-from-pressure inversion."""
-        return self._vinet_ptr.get_invert_rtol()
-
-    @property
-    def invert_max_iters(self) -> int:
-        """Hard iteration cap (termination safeguard) for the inversion."""
-        return self._vinet_ptr.get_invert_max_iters()
+        self._law_model = c_MaterialEOSModel.Vinet
 
 
 cdef class InterpolatedEOS(MaterialEOSBase):
     """density(radius) lookup table, PREM-style profiles and the like."""
-
-    def __cinit__(self, *args, **kwargs):
-        self._interp_ptr = NULL
 
     def __init__(
             self,
@@ -488,39 +444,42 @@ cdef class InterpolatedEOS(MaterialEOSBase):
         config.thermal_expansion = thermal_expansion
         if reference_temperature is not None:
             config.reference_temperature = <double>reference_temperature
-        config.radius      = <vector[double]>radius
+        config.radius  = <vector[double]>radius
         config.density = <vector[double]>density
-        if config.radius.size() != config.density.size():
-            raise ValueError("radius and density must have the same length.")
         if shear_modulus is not None:
             config.shear_modulus = <vector[double]>shear_modulus
-            if config.shear_modulus.size() != config.radius.size():
-                raise ValueError("shear_modulus must match radius in length.")
         if bulk_modulus is not None:
             config.bulk_modulus = <vector[double]>bulk_modulus
-            if config.bulk_modulus.size() != config.radius.size():
-                raise ValueError("bulk_modulus must match radius in length.")
         if shear_viscosity is not None:
             config.shear_viscosity = <vector[double]>shear_viscosity
-            if config.shear_viscosity.size() != config.radius.size():
-                raise ValueError("shear_viscosity must match radius in length.")
         if bulk_viscosity is not None:
             config.bulk_viscosity = <vector[double]>bulk_viscosity
-            if config.bulk_viscosity.size() != config.radius.size():
-                raise ValueError("bulk_viscosity must match radius in length.")
-        cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(
-            c_MaterialEOSModel.Interpolated, config)
-        self._interp_ptr = <c_InterpolatedEOS*>ptr.get()
-        self._eos_ptr    = move(ptr)
-        self._ptr        = <c_TidalPyBaseClass*>self._eos_ptr.get()
-
-    def __dealloc__(self):
-        self._interp_ptr = NULL
+        # The model checks the density and every non-empty table against radius (ValueError), but reads an empty
+        # table as one not given, so a table passed in empty is caught here.
+        for table_name, table, table_size in (
+                ("shear_modulus",   shear_modulus,   config.shear_modulus.size()),
+                ("bulk_modulus",    bulk_modulus,    config.bulk_modulus.size()),
+                ("shear_viscosity", shear_viscosity, config.shear_viscosity.size()),
+                ("bulk_viscosity",  bulk_viscosity,  config.bulk_viscosity.size())):
+            if table is not None and table_size != config.radius.size():
+                raise ValueError(f"{table_name} must match radius in length.")
+        cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(c_MaterialEOSModel.Interpolated, config)
+        self._eos_ptr = move(ptr)
+        self._ptr     = <c_TidalPyBaseClass*>self._eos_ptr.get()
 
     @property
     def num_points(self) -> int:
         """Number of (radius, density) table points."""
-        return self._interp_ptr.get_num_points()
+        return (<c_InterpolatedEOS*>self._model()).get_num_points()
+
+
+# The wrapper class of each model the factory builds.
+_EOS_CLASS_BY_MODEL = {
+    <int>c_MaterialEOSModel.Constant:       ConstantDensityEOS,
+    <int>c_MaterialEOSModel.BirchMurnaghan: BirchMurnaghanEOS,
+    <int>c_MaterialEOSModel.Vinet:          VinetEOS,
+    <int>c_MaterialEOSModel.Interpolated:   InterpolatedEOS,
+}
 
 
 # Every config key any material EOS model reads; make_material_eos rejects anything else.
@@ -564,12 +523,14 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
     ValueError
         Unknown model name, or a ``config`` key that no material EOS model reads.
     """
-    if config is None:
-        # Fall back to the same defaults the world-attached path uses.
-        config = factory_defaults("material", MATERIAL_EOS_CONFIG_KEYS, model_name, _same_model)
-    check_config_keys(config, MATERIAL_EOS_CONFIG_KEYS, "material EOS")
-    if config is None:
-        config = {}
+    # A config of None falls back to the same defaults the world-attached path uses.
+    config = cy_resolve_factory_config(
+        config,
+        "material",
+        MATERIAL_EOS_CONFIG_KEYS,
+        model_name,
+        _same_model,
+        "material EOS")
     # The default-constructed config carries the C++ defaults, so only override what the caller gave.
     cdef c_MaterialEOSConfig cfg
     if "reference_density_kg_m3" in config:
@@ -598,56 +559,12 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
         cfg.shear_viscosity = <vector[double]>config["shear_viscosity_pas"]
     if "bulk_viscosity_pas" in config:
         cfg.bulk_viscosity = <vector[double]>config["bulk_viscosity_pas"]
-    if "shear_modulus_static_pa" in config:
-        cfg.shear_modulus_static = config["shear_modulus_static_pa"]
-    if "bulk_modulus_static_pa" in config:
-        cfg.bulk_modulus_static = config["bulk_modulus_static_pa"]
-    if "shear_viscosity_static_pas" in config:
-        cfg.shear_viscosity_static = config["shear_viscosity_static_pas"]
-    if "bulk_viscosity_static_pas" in config:
-        cfg.bulk_viscosity_static = config["bulk_viscosity_static_pas"]
-    if "shear_modulus_pressure_derivative" in config:
-        cfg.shear_modulus_pressure_derivative = config["shear_modulus_pressure_derivative"]
-    if "shear_modulus_temperature_derivative_pa_k" in config:
-        cfg.shear_modulus_temperature_derivative = config["shear_modulus_temperature_derivative_pa_k"]
-    if "shear_modulus_reference_temperature_k" in config:
-        cfg.shear_modulus_reference_temperature = config["shear_modulus_reference_temperature_k"]
-    if "thermal_conductivity_w_mk" in config:
-        cfg.thermal_conductivity = config["thermal_conductivity_w_mk"]
-    if "heat_capacity_j_kgk" in config:
-        cfg.heat_capacity = config["heat_capacity_j_kgk"]
+    cy_fill_material_config(cfg, {
+        kwarg: config[key] for key, kwarg in _MATERIAL_CONFIG_KEY_TO_KWARG.items() if key in config})
 
     cdef c_MaterialEOSModel model = c_material_eos_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(model, cfg)
-
-    cdef ConstantDensityEOS constant_eos
-    cdef BirchMurnaghanEOS  bm_eos
-    cdef VinetEOS           vinet_eos
-    cdef InterpolatedEOS    interp_eos
-    if model == c_MaterialEOSModel.Constant:
-        constant_eos = ConstantDensityEOS.__new__(ConstantDensityEOS)
-        constant_eos._constant_ptr = <c_ConstantDensityEOS*>ptr.get()
-        constant_eos._eos_ptr = move(ptr)
-        constant_eos._ptr = <c_TidalPyBaseClass*>constant_eos._eos_ptr.get()
-        return _attach_material_models(constant_eos, config)
-    elif model == c_MaterialEOSModel.BirchMurnaghan:
-        bm_eos = BirchMurnaghanEOS.__new__(BirchMurnaghanEOS)
-        bm_eos._bm_ptr = <c_BirchMurnaghanEOS*>ptr.get()
-        bm_eos._eos_ptr = move(ptr)
-        bm_eos._ptr = <c_TidalPyBaseClass*>bm_eos._eos_ptr.get()
-        return _attach_material_models(bm_eos, config)
-    elif model == c_MaterialEOSModel.Vinet:
-        vinet_eos = VinetEOS.__new__(VinetEOS)
-        vinet_eos._vinet_ptr = <c_VinetEOS*>ptr.get()
-        vinet_eos._eos_ptr = move(ptr)
-        vinet_eos._ptr = <c_TidalPyBaseClass*>vinet_eos._eos_ptr.get()
-        return _attach_material_models(vinet_eos, config)
-    else:
-        interp_eos = InterpolatedEOS.__new__(InterpolatedEOS)
-        interp_eos._interp_ptr = <c_InterpolatedEOS*>ptr.get()
-        interp_eos._eos_ptr = move(ptr)
-        interp_eos._ptr = <c_TidalPyBaseClass*>interp_eos._eos_ptr.get()
-        return _attach_material_models(interp_eos, config)
+    return _attach_material_models(cy_adopt_material_eos(_EOS_CLASS_BY_MODEL[<int>model], ptr), config)
 
 
 def _attach_material_models(MaterialEOSBase eos, dict config) -> MaterialEOSBase:

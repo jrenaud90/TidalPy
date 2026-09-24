@@ -6,7 +6,6 @@ SolidLiquidLayer extends PhysicsLayer with optional cooling and radiogenics sub-
 adiabatic calculations that need the layer's geometry or solved profile.
 """
 
-from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
 from libcpp.memory cimport make_unique
@@ -15,11 +14,10 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
-from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
-from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, cy_fill_base_layer_config
+from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer, cy_fill_physics_config
 from TidalPy.cooling_x.cooling cimport CoolingBase
 from TidalPy.radiogenics_x.radiogenics cimport RadiogenicsBase
 
@@ -108,25 +106,12 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             cpp_bool use_thermal_eos     = False,
             cpp_bool use_heating         = False):
         cdef c_SolidLiquidConfig config
-        config.name                 = name.encode("utf-8")
-        config.layer_index          = layer_index
-        config.radius_inner         = radius_inner
-        config.radius_outer         = radius_outer
-        config.mass                 = mass
-        config.material_name        = material_name.encode("utf-8")
-        config.is_tidal             = is_tidal
-        config.is_volume_fixed      = is_volume_fixed
-        config.tidal_scale          = d_NAN if tidal_scale is None else <double>tidal_scale
-        config.love_numbers = c_LoveNumbers(
-            cpp_complex[double](love_number_k.real, love_number_k.imag),
-            cpp_complex[double](love_number_h.real, love_number_h.imag),
-            cpp_complex[double](love_number_l.real, love_number_l.imag))
-        config.is_solid             = is_solid
-        config.is_static            = is_static
-        config.is_incompressible    = is_incompressible
-        config.temperature       = temperature
-        config.use_thermal_eos   = use_thermal_eos
-        config.use_heating       = use_heating
+        cy_fill_base_layer_config(
+            &config, name, layer_index, radius_inner, radius_outer, mass, material_name, is_tidal, is_volume_fixed,
+            tidal_scale)
+        cy_fill_physics_config(
+            &config, love_number_k, love_number_h, love_number_l, is_solid, is_static, is_incompressible,
+            temperature, use_thermal_eos, use_heating)
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_SolidLiquidLayer] built = make_unique[c_SolidLiquidLayer](config)
@@ -223,12 +208,12 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         radiogenics._ptr = NULL
 
     def calc_thermal_conductivity(self, double temperature) -> float:
-        """Thermal conductivity [W/(m·K)]: the reference value, with no temperature dependence modeled.
+        """Thermal conductivity [W/(m·K)]: the material's constant value, with no temperature dependence modeled.
 
         Parameters
         ----------
         temperature : float
-            Temperature [K].
+            Temperature [K]. Currently unused.
 
         Returns
         -------
@@ -239,12 +224,15 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         return self._solidliquid_ptr.calc_thermal_conductivity(temperature)
 
     def calc_thermal_diffusivity(self, double temperature) -> float:
-        """Thermal diffusivity [m²/s] = k / (ρ_ref · c_p).
+        """Thermal diffusivity [m²/s] = k / (ρ_bulk · c_p).
+
+        The material's constant conductivity and heat capacity at the layer's bulk density (its mass over its
+        volume); NaN when no EOS model is attached.
 
         Parameters
         ----------
         temperature : float
-            Temperature [K].
+            Temperature [K]. Currently unused.
 
         Returns
         -------
@@ -258,14 +246,15 @@ cdef class SolidLiquidLayer(PhysicsLayer):
                                             double pressure = 0.0) -> float:
         """Adiabatic temperature gradient [K/m] = α · T · g / c_p.
 
-        Gravity comes from the EOS profile at the outer boundary; 0.0 when that profile is unpopulated.
+        α and c_p are the material's constants, so only ``temperature`` varies the result. Gravity comes from the
+        EOS profile at the outer boundary; 0.0 when that profile is unpopulated or ``temperature`` is not positive.
 
         Parameters
         ----------
         temperature : float
             Temperature [K].
         pressure : float, optional
-            Pressure [Pa]. Not used. Default ``0.0``.
+            Pressure [Pa]. Currently unused. Default ``0.0``.
 
         Returns
         -------

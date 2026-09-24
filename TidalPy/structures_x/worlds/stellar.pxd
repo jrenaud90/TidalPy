@@ -2,26 +2,15 @@
 """Cython declarations for TidalPy's star world class."""
 
 from libcpp cimport bool as cpp_bool
-from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr, shared_ptr
 
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
+from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.stellar_x.luminosity cimport LuminosityBase, c_LuminosityBase
 
 
 cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
-    cdef cppclass c_StarConfig:
-        # Inherited from c_WorldConfig:
-        string   name
-        string   world_type_str
-        double   radius
-        double   mass
-        double   albedo
-        double   emissivity
-        double   obliquity
-        double   spin_frequency
-        # StarWorld additions:
+    cdef cppclass c_StarConfig(c_WorldConfig):
         double   effective_temperature
         double   luminosity
 
@@ -44,6 +33,7 @@ cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
 
 cdef class StarWorld(BaseWorld):
     cdef c_StarWorld* _star_ptr   # non-owning; ownership via BaseWorld._world_ptr
+    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr)
     cpdef dict get_config_dict(self)
     @staticmethod
     cdef StarWorld _wrap(shared_ptr[c_BaseWorld] ptr)

@@ -13,12 +13,14 @@ cdef extern from "global_.hpp" nogil:
         double dU_dO
         double E_dot
         double dU_dM_minus_dw
+        size_t frequency_index
         c_GlobalPotentialResultAtMode(
             double dU_dM_,
             double dU_dw_,
             double dU_dO_,
             double E_dot_,
-            double dU_dM_minus_dw_)
+            double dU_dM_minus_dw_,
+            size_t frequency_index_)
 
 
     struct c_GlobalPotentialStorage:

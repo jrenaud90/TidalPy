@@ -13,8 +13,7 @@
  * Standard-library only, so any extension can include it.
  */
 
-#include <cmath>
-#include <limits>
+#include "../truncation_accuracy_.hpp"
 
 // The truncation code of the exact eccentricity functions: Hansen coefficients from the exact Kepler orbit, the mode
 // range chosen by a heating tolerance (eccentricity_exact_.hpp).
@@ -24,18 +23,7 @@ inline constexpr int C_ECCENTRICITY_EXACT = -1;
 // eccentricity_exact_tolerance supplies the value a built world uses.
 inline constexpr double C_ECCENTRICITY_EXACT_TOLERANCE = 1.0e-4;
 
-inline constexpr int C_ECCENTRICITY_ACCURACY_NUM_TOLERANCES = 6;
-inline constexpr double C_ECCENTRICITY_ACCURACY_TOLERANCES[C_ECCENTRICITY_ACCURACY_NUM_TOLERANCES] = {
-    1.0e-8, 1.0e-6, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1};
-
-struct c_EccentricityAccuracyRow {
-    int truncation;
-    double degree_two[C_ECCENTRICITY_ACCURACY_NUM_TOLERANCES];     // limits for max_degree_l == 2
-    double degree_three[C_ECCENTRICITY_ACCURACY_NUM_TOLERANCES];   // limits for max_degree_l >= 3
-};
-
-inline constexpr int C_ECCENTRICITY_ACCURACY_NUM_LEVELS = 7;
-inline constexpr c_EccentricityAccuracyRow C_ECCENTRICITY_ACCURACY[C_ECCENTRICITY_ACCURACY_NUM_LEVELS] = {
+inline constexpr c_TruncationAccuracyRow C_ECCENTRICITY_ACCURACY[7] = {
     { 2, {0.0,   0.0,   0.0,   0.005, 0.02,  0.075}, {0.0,   0.0,   0.0,   0.005, 0.015, 0.06 }},
     { 4, {0.0,   0.005, 0.03,  0.05,  0.095, 0.19 }, {0.0,   0.005, 0.02,  0.04,  0.08,  0.155}},
     { 6, {0.015, 0.035, 0.075, 0.115, 0.175, 0.285}, {0.01,  0.025, 0.06,  0.095, 0.145, 0.24 }},
@@ -49,17 +37,7 @@ inline constexpr c_EccentricityAccuracyRow C_ECCENTRICITY_ACCURACY[C_ECCENTRICIT
 // tabulated tolerance at or below the requested one (so the answer never promises more than was measured); 0.0 for
 // a tolerance below the smallest tabulated one, and NaN for an untabulated level (the exact option has no such limit).
 inline double c_eccentricity_accuracy_limit(int eccentricity_truncation, double tolerance, int max_degree_l) noexcept {
-    int column = -1;
-    for (int i = 0; i < C_ECCENTRICITY_ACCURACY_NUM_TOLERANCES; ++i) {
-        if (C_ECCENTRICITY_ACCURACY_TOLERANCES[i] <= tolerance) { column = i; }
-    }
-    for (int level = 0; level < C_ECCENTRICITY_ACCURACY_NUM_LEVELS; ++level) {
-        const c_EccentricityAccuracyRow& row = C_ECCENTRICITY_ACCURACY[level];
-        if (row.truncation != eccentricity_truncation) { continue; }
-        if (column < 0) { return 0.0; }
-        return (max_degree_l <= 2) ? row.degree_two[column] : row.degree_three[column];
-    }
-    return std::numeric_limits<double>::quiet_NaN();
+    return c_truncation_accuracy_limit(C_ECCENTRICITY_ACCURACY, eccentricity_truncation, tolerance, max_degree_l);
 }
 
 // The eccentricity above which a level's heating can be 10% or more below the exact value; the solve warns past it.
@@ -70,11 +48,5 @@ inline double c_eccentricity_truncation_limit(int eccentricity_truncation, int m
 // The lowest tabulated level whose heating stays within `tolerance` at `eccentricity`, or C_ECCENTRICITY_EXACT when
 // none does (e past about 0.75, or a tolerance too tight for the tables).
 inline int c_recommend_eccentricity_truncation(double eccentricity, double tolerance, int max_degree_l) noexcept {
-    for (int level = 0; level < C_ECCENTRICITY_ACCURACY_NUM_LEVELS; ++level) {
-        const int truncation = C_ECCENTRICITY_ACCURACY[level].truncation;
-        if (eccentricity <= c_eccentricity_accuracy_limit(truncation, tolerance, max_degree_l)) {
-            return truncation;
-        }
-    }
-    return C_ECCENTRICITY_EXACT;
+    return c_recommend_truncation(C_ECCENTRICITY_ACCURACY, eccentricity, tolerance, max_degree_l, C_ECCENTRICITY_EXACT);
 }

@@ -70,7 +70,7 @@ cdef class BaseWorld(StructureBase):
     """
 
     def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr<c_BaseWorld> auto-inits to nullptr; _ptr set in __init__
+        pass  # the shared_ptr starts empty; __init__ or _wrap binds it
 
     def __init__(
             self,
@@ -83,28 +83,32 @@ cdef class BaseWorld(StructureBase):
             double obliquity  = 0.0,
             double spin_frequency = 0.0):
         cdef c_WorldConfig config
-        config.name           = name.encode("utf-8")
-        config.world_type_str = world_type.encode("utf-8")
-        config.radius     = radius
-        config.mass       = mass
-        config.albedo     = albedo
-        config.emissivity = emissivity
-        config.obliquity  = obliquity
-        config.spin_frequency = spin_frequency
+        cy_fill_world_config(
+            &config,
+            name,
+            radius,
+            mass,
+            world_type,
+            albedo,
+            emissivity,
+            obliquity,
+            spin_frequency)
         # _world_ptr is a shared_ptr (a System co-owns the world), so build it with make_shared.
-        self._world_ptr = make_shared[c_BaseWorld](config)
-        self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
+        self._bind(make_shared[c_BaseWorld](config))
 
     def __dealloc__(self):
         self._world_ptr.reset()
         self._ptr = NULL
 
+    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr):
+        self._world_ptr = ptr
+        self._ptr = <c_TidalPyBaseClass*>ptr.get()
+
     @staticmethod
     cdef BaseWorld _wrap(shared_ptr[c_BaseWorld] ptr):
         """Wrap an already-constructed C++ base world (no new C++ object is built)."""
         cdef BaseWorld world = BaseWorld.__new__(BaseWorld)
-        world._world_ptr = ptr
-        world._ptr = <c_TidalPyBaseClass*>ptr.get()
+        world._bind(ptr)
         return world
 
     @property
@@ -311,14 +315,15 @@ cdef class BaseWorld(StructureBase):
             If no tide model is attached, the rheology model is selected on a non-layered world, or the global
             potential solve fails.
         """
-        cdef c_TideSolveConfig state
-        state.orbital_frequency = orbital_frequency
-        state.spin_frequency    = spin_frequency
-        state.eccentricity      = eccentricity
-        state.obliquity         = obliquity
-        state.semi_major_axis   = semi_major_axis
-        state.host_mass         = host_mass
-        self._world_ptr.get().calc_tides(state)
+        cdef c_TideSolveConfig state = cy_tide_state(
+            orbital_frequency,
+            spin_frequency,
+            eccentricity,
+            obliquity,
+            semi_major_axis,
+            host_mass)
+        with nogil:
+            self._world_ptr.get().calc_tides(state)
 
     def get_tide_state(self):
         """The orbital state this world's tides are raised in, as the system it belongs to sees it.
@@ -404,8 +409,8 @@ cdef class BaseWorld(StructureBase):
         # importing them at module load would be circular.
         import os
         from TidalPy.structures_x.configs.world_builder import (
-            _resolve_source,
-            construct_world)
+            _construct_owned_world,
+            _resolve_source)
         from TidalPy.structures_x.configs.toml_loader import (
             load_toml,
             merge_with_defaults,
@@ -423,12 +428,13 @@ cdef class BaseWorld(StructureBase):
         validate_schema_version(config, force=force)
         config = merge_with_defaults(config)
         # Resolve a companion data file (e.g. a PREM profile) relative to the world
-        # file's directory so construct_world can open it directly.
+        # file's directory so the builder can open it directly.
         if "data_file" in config:
             given_data_file = config["data_file"]
             base_dir = os.path.dirname(resolved) if isinstance(resolved, str) else None
             config["data_file"] = resolve_data_file(config["data_file"], base_dir)
-        world = construct_world(config)
+        # load_toml made this config a private copy, so the world keeps it without copying again.
+        world = _construct_owned_world(config)
         if given_data_file is not None and world.portable_config is not None:
             # A saved copy names the file as this one did, not the path it resolved to on this machine.
             world.portable_config["data_file"] = given_data_file

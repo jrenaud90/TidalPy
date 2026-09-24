@@ -208,9 +208,15 @@ inline void c_stretch_heating(
     drop_out = 0.0;
     if (!(radius_upper > radius_lower)) { return; }
 
-    std::vector<double> nodes;
-    std::vector<double> weights;
-    c_gauss_legendre_nodes(d_HEATING_QUADRATURE_NODES, nodes, weights);
+    // The rule is the same on every call, so it is built once (thread-safe static initialization).
+    struct c_HeatingRule {
+        std::vector<double> nodes;
+        std::vector<double> weights;
+        c_HeatingRule() { c_gauss_legendre_nodes(d_HEATING_QUADRATURE_NODES, this->nodes, this->weights); }
+    };
+    static const c_HeatingRule rule;
+    const std::vector<double>& nodes   = rule.nodes;
+    const std::vector<double>& weights = rule.weights;
     const double half_width = 0.5 * (radius_upper - radius_lower);
     const double midpoint   = 0.5 * (radius_upper + radius_lower);
     const bool conducts     = (conductivity > TidalPyConstants::d_EPS);
@@ -271,8 +277,8 @@ inline double c_update_layer_thermal(
         // flow, so the innermost layer has only the upper drop.
         double structure[C_EOS_Y_VALUES];
         solution.call_y_si(layer_i, radius_mid, structure);
-        const double gravity  = structure[0];
-        const double pressure = structure[1];
+        const double gravity  = structure[C_EOS_GRAVITY_INDEX];
+        const double pressure = structure[C_EOS_PRESSURE_INDEX];
 
         const auto* solidliquid_layer = dynamic_cast<const c_SolidLiquidLayer*>(layer);
         const c_CoolingBase* cooling_model = solidliquid_layer->get_cooling_model();

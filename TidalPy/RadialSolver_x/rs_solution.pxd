@@ -44,10 +44,6 @@ cdef extern from "rs_solution_.hpp" nogil:
         cpp_bool p_eos_is_nondim
 
         c_EOSSolution* get_eos_solution_ptr()
-        void change_radius_array(
-            double* new_radius_array_ptr,
-            size_t new_size_radius_array,
-            cpp_bool array_changed)
         cpp_bool get_radial_solution(
             double radius_si,
             size_t ytype_i,
@@ -107,11 +103,10 @@ cdef class RadialSolverSolution:
         self,
         int* bc_models_ptr) noexcept nogil
 
-    cdef void change_radius_array(
-        self,
-        double* new_radius_array_ptr,
-        size_t new_size_radius_array,
-        cpp_bool array_changed = *) noexcept
+    cdef void change_radius_array(self, size_t new_size_radius_array) noexcept
+
+    # One Love-number quantity for every ytype (see the .pyx).
+    cdef object _love_values(self, size_t quantity)
 
 
 # Warn when the surface boundary condition solve is poorly conditioned. Returns True when it warned. Holds

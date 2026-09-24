@@ -14,7 +14,8 @@
  */
 
 #include <cmath>
-#include <limits>
+
+#include "../truncation_accuracy_.hpp"
 
 // Obliquity off: the functions at I = 0 (level 0 of the tables).
 inline constexpr int C_OBLIQUITY_OFF = 0;
@@ -22,18 +23,8 @@ inline constexpr int C_OBLIQUITY_OFF = 0;
 // The truncation code of the general obliquity functions: the exact half-angle form, any obliquity.
 inline constexpr int C_OBLIQUITY_GENERAL = -1;
 
-inline constexpr int C_OBLIQUITY_ACCURACY_NUM_TOLERANCES = 6;
-inline constexpr double C_OBLIQUITY_ACCURACY_TOLERANCES[C_OBLIQUITY_ACCURACY_NUM_TOLERANCES] = {
-    1.0e-8, 1.0e-6, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1};
-
-struct c_ObliquityAccuracyRow {
-    int truncation;
-    double degree_two[C_OBLIQUITY_ACCURACY_NUM_TOLERANCES];     // limits [rad] for max_degree_l == 2
-    double degree_three[C_OBLIQUITY_ACCURACY_NUM_TOLERANCES];   // limits [rad] for max_degree_l >= 3
-};
-
-inline constexpr int C_OBLIQUITY_ACCURACY_NUM_LEVELS = 3;
-inline constexpr c_ObliquityAccuracyRow C_OBLIQUITY_ACCURACY[C_OBLIQUITY_ACCURACY_NUM_LEVELS] = {
+// Limits [rad].
+inline constexpr c_TruncationAccuracyRow C_OBLIQUITY_ACCURACY[3] = {
     {0, {0.0,   0.0,   0.0,   0.0,   0.0,   0.0  }, {0.0,   0.0,   0.0,   0.0,   0.0,   0.0  }},
     {2, {0.0,   0.0,   0.01,  0.045, 0.145, 0.465}, {0.0,   0.0,   0.005, 0.03,  0.095, 0.31 }},
     {4, {0.015, 0.045, 0.15,  0.265, 0.47,  0.83 }, {0.01,  0.03,  0.1,   0.18,  0.32,  0.565}},
@@ -44,17 +35,7 @@ inline constexpr c_ObliquityAccuracyRow C_OBLIQUITY_ACCURACY[C_OBLIQUITY_ACCURAC
 // a tolerance below the smallest tabulated one, and NaN for an untabulated level (the general functions have no such
 // limit).
 inline double c_obliquity_accuracy_limit(int obliquity_truncation, double tolerance, int max_degree_l) noexcept {
-    int column = -1;
-    for (int i = 0; i < C_OBLIQUITY_ACCURACY_NUM_TOLERANCES; ++i) {
-        if (C_OBLIQUITY_ACCURACY_TOLERANCES[i] <= tolerance) { column = i; }
-    }
-    for (int level = 0; level < C_OBLIQUITY_ACCURACY_NUM_LEVELS; ++level) {
-        const c_ObliquityAccuracyRow& row = C_OBLIQUITY_ACCURACY[level];
-        if (row.truncation != obliquity_truncation) { continue; }
-        if (column < 0) { return 0.0; }
-        return (max_degree_l <= 2) ? row.degree_two[column] : row.degree_three[column];
-    }
-    return std::numeric_limits<double>::quiet_NaN();
+    return c_truncation_accuracy_limit(C_OBLIQUITY_ACCURACY, obliquity_truncation, tolerance, max_degree_l);
 }
 
 // The obliquity [rad] above which a level's heating can be 10% or more off the general value; the solve warns past it.
@@ -65,12 +46,6 @@ inline double c_obliquity_truncation_limit(int obliquity_truncation, int max_deg
 // The lowest level whose heating stays within `tolerance` at `obliquity` [rad] (off only at zero obliquity), or
 // C_OBLIQUITY_GENERAL when none does.
 inline int c_recommend_obliquity_truncation(double obliquity, double tolerance, int max_degree_l) noexcept {
-    const double magnitude = std::abs(obliquity);
-    for (int level = 0; level < C_OBLIQUITY_ACCURACY_NUM_LEVELS; ++level) {
-        const int truncation = C_OBLIQUITY_ACCURACY[level].truncation;
-        if (magnitude <= c_obliquity_accuracy_limit(truncation, tolerance, max_degree_l)) {
-            return truncation;
-        }
-    }
-    return C_OBLIQUITY_GENERAL;
+    return c_recommend_truncation(
+        C_OBLIQUITY_ACCURACY, std::abs(obliquity), tolerance, max_degree_l, C_OBLIQUITY_GENERAL);
 }

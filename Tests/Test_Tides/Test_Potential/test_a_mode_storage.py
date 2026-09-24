@@ -4,10 +4,16 @@ import math
 def test_mode_map():
     """Tests `ModeMap` a Cython wrapper of `c_ModeMap`."""
     from TidalPy.Tides_x.potential import ModeMap
-    # A debug helper of the extension module, deliberately not part of the package's exports.
-    from TidalPy.Tides_x.potential.potential_common import test_mode_map
 
-    mode_map, total_size = test_mode_map()
+    mode_map = ModeMap()
+    total_size = 0
+    for l in range(2, 4):
+        for m in range(0, l + 1):
+            for p in range(0, l + 1):
+                for q in range(-1, 2):
+                    mode_map[(l, m, p, q)] = (
+                        float((l - 2 * p + q) * 10.0 - m * 5.0), float(l + p + q + m - 4.5), l - 2 * p + q, -m)
+                    total_size += 1
     assert isinstance(mode_map, ModeMap)
     assert mode_map.size() == total_size
     assert len(mode_map) == total_size

@@ -1,8 +1,9 @@
 #pragma once
 
+#include <cmath>
 #include <complex>
-#include "constants_.hpp"       // RadialSolver_x: C_MAX_NUM_Y, etc.
-#include "../constants_.hpp"    // TidalPy: TidalPyConstants (d_INF, d_PI)
+
+#include "../constants_.hpp"    // TidalPyConstants (d_INF, d_PI)
 
 
 struct c_LoveNumbers
@@ -32,108 +33,49 @@ struct c_LoveNumbers
     {
     }
 
-    double get_Q_k() const
-    {
-        const double k_abs  = std::abs(this->k);
-        const double k_imag = std::imag(this->k);
+    double get_Q_k() const { return c_LoveNumbers::p_quality_factor(this->k); }
+    double get_Q_h() const { return c_LoveNumbers::p_quality_factor(this->h); }
+    double get_Q_l() const { return c_LoveNumbers::p_quality_factor(this->l); }
 
-        if (k_imag == 0.0) [[unlikely]]
+    double get_lag_k() const { return c_LoveNumbers::p_lag(this->k); }
+    double get_lag_h() const { return c_LoveNumbers::p_lag(this->h); }
+    double get_lag_l() const { return c_LoveNumbers::p_lag(this->l); }
+
+private:
+    // Quality factor -|n| / Im(n) of a complex Love number n; infinite for a purely elastic response.
+    static double p_quality_factor(const std::complex<double>& love_number)
+    {
+        const double love_abs  = std::abs(love_number);
+        const double love_imag = std::imag(love_number);
+
+        if (love_imag == 0.0) [[unlikely]]
         {
             return TidalPyConstants::d_INF;
         }
         else
         {
-            return -k_abs / k_imag;
+            return -love_abs / love_imag;
         }
     }
 
-    double get_Q_h() const
+    // Phase lag arctan(-Im(n) / Re(n)) of a complex Love number n.
+    static double p_lag(const std::complex<double>& love_number)
     {
-        const double h_abs  = std::abs(this->h);
-        const double h_imag = std::imag(this->h);
+        const double love_real = std::real(love_number);
+        const double love_imag = std::imag(love_number);
 
-        if (h_imag == 0.0) [[unlikely]]
-        {
-            return TidalPyConstants::d_INF;
-        }
-        else
-        {
-            return -h_abs / h_imag;
-        }
-    }
-
-    double get_Q_l() const
-    {
-        const double l_abs  = std::abs(this->l);
-        const double l_imag = std::imag(this->l);
-
-        if (l_imag == 0.0) [[unlikely]]
-        {
-            return TidalPyConstants::d_INF;
-        }
-        else
-        {
-            return -l_abs / l_imag;
-        }
-    }
-
-    double get_lag_k() const
-    {
-        const double k_real = std::real(this->k);
-        const double k_imag = std::imag(this->k);
-        
-        if (k_imag == 0.0)
+        if (love_imag == 0.0)
         {
             return 0.0;
         }
-        else if (k_real == 0.0) [[unlikely]]
+        else if (love_real == 0.0) [[unlikely]]
         {
             // Limit of arctan(inf)
             return TidalPyConstants::d_PI / 2.0;
         }
         else
         {
-            return std::atan(-k_imag / k_real);
-        }
-    }
-
-    double get_lag_h() const
-    {
-        const double h_real = std::real(this->h);
-        const double h_imag = std::imag(this->h);
-        
-        if (h_imag == 0.0)
-        {
-            return 0.0;
-        }
-        else if (h_real == 0.0) [[unlikely]]
-        {
-            // Limit of arctan(inf)
-            return TidalPyConstants::d_PI / 2.0;
-        }
-        else
-        {
-            return std::atan(-h_imag / h_real);
-        }
-    }
-
-    double get_lag_l() const
-    {
-        const double l_real = std::real(this->l);
-        const double l_imag = std::imag(this->l);
-        
-        if (l_imag == 0.0)
-        {
-            return 0.0;
-        }
-        else if (l_real == 0.0) [[unlikely]]
-        {
-            // Limit of arctan(inf)
-            return TidalPyConstants::d_PI / 2.0;
-        }
-        else
-        {
-            return std::atan(-l_imag / l_real);
+            return std::atan(-love_imag / love_real);
         }
     }
 };

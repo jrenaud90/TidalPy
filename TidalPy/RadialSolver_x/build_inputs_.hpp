@@ -15,15 +15,13 @@
 #include <string>
 #include <vector>
 
-#include "constants_.hpp"
+#include "../constants_.hpp"
 #include "logger_.hpp"
 #include "numerics_.hpp"
 #include "rheology_base_.hpp"
+#include "rs_constants_.hpp"   // C_RS_MIN_SLICES_PER_LAYER
 
 namespace tidalpy {
-
-// Minimum number of radial slices a layer must have for the shooting method's starting conditions.
-inline constexpr std::size_t C_RS_MIN_SLICES_PER_LAYER = 5;
 
 // Output of both builders; the bulk density is the mass-weighted mean of the assembled structure.
 struct c_RadialSolverInputs {
@@ -72,16 +70,26 @@ inline void c_check_rheology_vector(
     }
 }
 
-// Fill slices [first, first + count) of `out` with the layer's complex modulus.
+// Fill slices [first, first + count) of `out` with the layer's complex modulus. static_modulus and viscosity are
+// indexed by slice, or for a homogeneous layer point at the layer's single value, whose modulus is computed once.
 inline void c_fill_layer_complex_modulus(
         const c_RheologyBase& model,
-        const std::vector<double>& static_modulus,
-        const std::vector<double>& viscosity,
+        const double* static_modulus,
+        const double* viscosity,
+        bool homogeneous,
         double frequency,
         std::size_t first,
         std::size_t count,
         std::vector<std::complex<double>>& out)
 {
+    if (homogeneous) {
+        const std::complex<double> layer_modulus = model.calc_complex_modulus(
+            static_modulus[0], viscosity[0], frequency);
+        for (std::size_t slice_i = first; slice_i < first + count; ++slice_i) {
+            out[slice_i] = layer_modulus;
+        }
+        return;
+    }
     for (std::size_t slice_i = first; slice_i < first + count; ++slice_i) {
         out[slice_i] = model.calc_complex_modulus(
             static_modulus[slice_i], viscosity[slice_i], frequency);
@@ -206,10 +214,6 @@ inline void c_build_rs_input_homogeneous_layers(
     out.upper_radius_bylayer.resize(num_layers);
     out.slices_bylayer = slices_bylayer;
     out.forcing_frequency = forcing_frequency;
-    std::vector<double> static_shear(total_slices);
-    std::vector<double> static_bulk(total_slices);
-    std::vector<double> shear_viscosity(total_slices);
-    std::vector<double> bulk_viscosity(total_slices);
 
     const double planet_radius3 = planet_radius * planet_radius * planet_radius;
     double planet_bulk_density = 0.0;
@@ -239,24 +243,22 @@ inline void c_build_rs_input_homogeneous_layers(
                 out.radius[full_index] = last_layer_radius + static_cast<double>(slice_i) * dr;
             }
             out.density[full_index] = layer_density;
-            static_shear[full_index] = static_shear_modulus_bylayer[layer_i];
-            static_bulk[full_index] = static_bulk_modulus_bylayer[layer_i];
-            shear_viscosity[full_index] = shear_viscosity_bylayer[layer_i];
-            bulk_viscosity[full_index] = bulk_viscosity_bylayer[layer_i];
         }
 
         detail::c_fill_layer_complex_modulus(
             *shear_rheology_bylayer[layer_i],
-            static_shear,
-            shear_viscosity,
+            &static_shear_modulus_bylayer[layer_i],
+            &shear_viscosity_bylayer[layer_i],
+            true,
             forcing_frequency,
             first_slice_in_layer,
             layer_slices,
             out.complex_shear_modulus);
         detail::c_fill_layer_complex_modulus(
             *bulk_rheology_bylayer[layer_i],
-            static_bulk,
-            bulk_viscosity,
+            &static_bulk_modulus_bylayer[layer_i],
+            &bulk_viscosity_bylayer[layer_i],
+            true,
             forcing_frequency,
             first_slice_in_layer,
             layer_slices,
@@ -442,16 +444,18 @@ inline void c_build_rs_input_from_data(
         const std::size_t layer_slices = out.slices_bylayer[layer_i];
         detail::c_fill_layer_complex_modulus(
             *shear_rheology_bylayer[layer_i],
-            shear_use,
-            shear_visc_use,
+            shear_use.data(),
+            shear_visc_use.data(),
+            false,
             forcing_frequency,
             first_slice_in_layer,
             layer_slices,
             out.complex_shear_modulus);
         detail::c_fill_layer_complex_modulus(
             *bulk_rheology_bylayer[layer_i],
-            bulk_use,
-            bulk_visc_use,
+            bulk_use.data(),
+            bulk_visc_use.data(),
+            false,
             forcing_frequency,
             first_slice_in_layer,
             layer_slices,

@@ -26,7 +26,7 @@
  * the surface radius R; the depth dependence is carried by the radial-solver y-functions in the kernel.
  *
  * All quantities MKS; frequencies rad s-1; angles radians. The (l-m)!/(l+m)!(2-d_m0) factor comes from
- * c_get_lm_coeff_map() (potential_common_.hpp).
+ * c_lm_coeff (potential_common_.hpp).
  */
 
 #include <algorithm>
@@ -35,9 +35,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "obliquity_driver_.hpp"        // c_obliquity_func, ObliquityFuncOutput
-#include "eccentricity_driver_.hpp"     // c_eccentricity_func, EccentricityFuncOutput
-#include "potential_common_.hpp"        // c_get_lm_coeff_map, keys
+#include "obliquity_driver_.hpp"        // c_obliquity_values
+#include "eccentricity_driver_.hpp"     // c_eccentricity_values
+#include "potential_common_.hpp"        // c_lm_coeff, c_FrequencyTolerance, c_ToleranceIndex
 #include "potential_point_.hpp"         // tidalpy::c_PotentialPointC
 #include "legendre_driver_.hpp"         // tidalpy::c_legendre
 #include "constants_.hpp"               // TidalPyConstants
@@ -71,6 +71,25 @@ struct c_TidalPotential3DModeCoeff {
     c_ObliquitySeriesTable obliquity_series;         // the degree's table, for those products (invalid when general)
 };
 
+// U_c = phasor * P_lm(cos theta) and its theta and phi derivatives, for a phasor whose longitude dependence is
+// e^{i mu phi}: theta derivatives act on P_lm, phi derivatives bring a factor i*mu.
+inline c_PotentialPointC c_potential_point_from_phasor(
+        const std::complex<double>& phasor,
+        const c_LegendreValue& legendre,
+        double mu)
+{
+    const std::complex<double> i_mu(0.0, mu);
+
+    return c_PotentialPointC {
+        phasor * legendre.p,                     // U_c
+        phasor * legendre.dp_dtheta,             // dU/dtheta
+        phasor * (i_mu * legendre.p),            // dU/dphi
+        phasor * legendre.d2p_dtheta2,           // d2U/dtheta2
+        phasor * (-mu * mu * legendre.p),        // d2U/dphi2
+        phasor * (i_mu * legendre.dp_dtheta)     // d2U/dtheta_dphi
+    };
+}
+
 // Evaluate a mode's complex potential angular factor U_c and its theta and phi derivatives at a point:
 //   even parity ((l-m) even): U_c = amplitude * P_lm(cos theta) * e^{-i m phi}
 //   odd parity  ((l-m) odd):  U_c = -i * amplitude * P_lm(cos theta) * e^{-i m phi}
@@ -88,16 +107,7 @@ inline c_PotentialPointC c_eval_potential_point_3d(
         : std::complex<double>(0.0, -1.0);
     const std::complex<double> e_imphi(std::cos(m_d * longitude), -std::sin(m_d * longitude));
     const std::complex<double> phasor = coeff.amplitude * base * e_imphi;
-    const std::complex<double> im(0.0, -m_d);   // d/dphi -> factor -i*m
-
-    return c_PotentialPointC {
-        phasor * legendre.p,                     // U_c
-        phasor * legendre.dp_dtheta,             // dU/dtheta
-        phasor * (im * legendre.p),              // dU/dphi
-        phasor * legendre.d2p_dtheta2,           // d2U/dtheta2
-        phasor * (-m_d * m_d * legendre.p),      // d2U/dphi2
-        phasor * (im * legendre.dp_dtheta)       // d2U/dtheta_dphi
-    };
+    return c_potential_point_from_phasor(phasor, legendre, -m_d);
 }
 
 // The same mode-discovery loop as the global (1D) engine, but linear in F_lmp and G_lpq, since the
@@ -125,9 +135,6 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
     const double R_a  = planet_radius / semi_major_axis;
     double ra_l_coeff = std::pow(R_a, static_cast<double>(min_degree_l)) * (G_to_use * host_mass / semi_major_axis);
 
-    auto& lm_coeff_map = c_get_lm_coeff_map();
-    c_Key2 lm_key;
-
     for (int degree_l = min_degree_l; degree_l <= max_degree_l; ++degree_l)
     {
         if (degree_l > min_degree_l)
@@ -135,75 +142,51 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
             ra_l_coeff *= R_a;
         }
 
-        ObliquityFuncOutput obliquity_funcs =
-            c_obliquity_func(error_code, obliquity, degree_l, obliquity_truncation);
+        // Each carries the table it came from for the cut products; the general and exact functions have none, and
+        // their products are plain products.
+        const c_ObliquityValues obliquity_values =
+            c_obliquity_values(error_code, obliquity, degree_l, obliquity_truncation);
         if (error_code[0] != 0) { return coeffs; }
-        // The general functions have no table: their products are plain products.
-        c_ObliquitySeriesTable obliquity_series;
-        if (obliquity_truncation != C_OBLIQUITY_GENERAL) {
-            obliquity_series = c_obliquity_series_table(error_code, degree_l, obliquity_truncation);
-            if (error_code[0] != 0) { return coeffs; }
-        }
-
-        EccentricityFuncOutput eccentricity_funcs = c_eccentricity_func(
+        const c_EccentricityValues eccentricity_values = c_eccentricity_values(
             error_code, eccentricity, degree_l, eccentricity_truncation, eccentricity_exact_tolerance);
         if (error_code[0] != 0) { return coeffs; }
-        // The exact functions have no table: their products are plain products.
-        c_EccentricitySeriesTable eccentricity_series;
-        if (eccentricity_truncation != C_ECCENTRICITY_EXACT) {
-            eccentricity_series = c_eccentricity_series_table(error_code, degree_l, eccentricity_truncation);
-            if (error_code[0] != 0) { return coeffs; }
-        }
+        const int max_q = eccentricity_values.max_q;
 
-        lm_key.a = degree_l;
-        lm_key.b = -1;
-        double lm_coeff = TidalPyConstants::d_NAN;
-
-        for (const auto& [lmp_key, F_lmp] : obliquity_funcs.first)
+        // A zero F_lmp or G_lpq (a function the truncation leaves out, or one that vanishes) adds no mode.
+        for (int order_m = 0; order_m <= degree_l; ++order_m)
         {
-            if (F_lmp == 0.0) { continue; }
-
-            const int order_m = lmp_key.b;
-            if (order_m != lm_key.b)
-            {
-                lm_key.b = order_m;
-                lm_key.rebuild_reference();
-                bool found = false;
-                lm_coeff = lm_coeff_map.get(found, lm_key);
-                if (!found) { error_code[0] = -20; return coeffs; }
-            }
-
             const int parity = (degree_l - order_m) & 1;
-            const double lm_amplitude = ra_l_coeff * lm_coeff;
+            const double lm_amplitude = ra_l_coeff * c_lm_coeff(degree_l, order_m);
 
-            bool found = false;
-            const c_IntMap<c_Key1, double>* ecc_by_q =
-                eccentricity_funcs.second.get_ptr(found, c_Key2(lmp_key.a, lmp_key.c));
-            if (!found) { continue; }
-
-            for (const auto& [q_key, G_lpq] : *ecc_by_q)
+            for (int p = 0; p <= degree_l; ++p)
             {
-                if (G_lpq == 0.0) { continue; }
+                const double F_lmp = obliquity_values.value(order_m, p);
+                if (F_lmp == 0.0) { continue; }
 
-                const int q = q_key.a;
-                const double mode =
-                    static_cast<double>(degree_l - 2 * lmp_key.c + q) * orbital_frequency
-                    - static_cast<double>(order_m) * spin_frequency;
+                for (int q = -max_q; q <= max_q; ++q)
+                {
+                    const double G_lpq = eccentricity_values.value(p, q);
+                    if (G_lpq == 0.0) { continue; }
 
-                c_TidalPotential3DModeCoeff out;
-                out.degree_l = degree_l;
-                out.order_m = order_m;
-                out.p = lmp_key.c;
-                out.q = q;
-                out.parity = parity;
-                out.mode_frequency = mode;
-                out.amplitude_factor = ((order_m & 1) ? -1.0 : 1.0) * lm_amplitude;
-                out.amplitude = out.amplitude_factor * F_lmp * G_lpq;
-                out.eccentricity_value = G_lpq;
-                out.obliquity_value = F_lmp;
-                out.eccentricity_series = eccentricity_series;
-                out.obliquity_series = obliquity_series;
-                coeffs.push_back(out);
+                    const double mode =
+                        static_cast<double>(degree_l - 2 * p + q) * orbital_frequency
+                        - static_cast<double>(order_m) * spin_frequency;
+
+                    c_TidalPotential3DModeCoeff out;
+                    out.degree_l = degree_l;
+                    out.order_m = order_m;
+                    out.p = p;
+                    out.q = q;
+                    out.parity = parity;
+                    out.mode_frequency = mode;
+                    out.amplitude_factor = ((order_m & 1) ? -1.0 : 1.0) * lm_amplitude;
+                    out.amplitude = out.amplitude_factor * F_lmp * G_lpq;
+                    out.eccentricity_value = G_lpq;
+                    out.obliquity_value = F_lmp;
+                    out.eccentricity_series = eccentricity_values.table;
+                    out.obliquity_series = obliquity_values.table;
+                    coeffs.push_back(out);
+                }
             }
         }
     }
@@ -349,24 +332,36 @@ inline std::complex<double> c_wave_pair_power_3d(
     return total;
 }
 
-// Integer combinations of n and the spin rate that agree mathematically can still differ at the last bit; the
-// tolerance is the 1D path's (c_frequency_match_rtol, [numerical] frequency_match_rtol).
-inline bool c_tidal_wave_same_frequency(double frequency_a, double frequency_b) {
-    return std::abs(frequency_a - frequency_b)
-        <= c_frequency_match_rtol() * std::max(std::abs(frequency_a), std::abs(frequency_b));
+// Integer combinations of n and the spin rate that agree mathematically can still differ at the last bit, so two wave
+// frequencies are one when they agree to the 1D path's tolerance (c_frequency_match_rtol, [numerical]
+// frequency_match_rtol), read once per call into rtol.
+struct c_WaveFrequencyMatch {
+    double rtol;
+    bool operator()(double frequency_a, double frequency_b) const noexcept {
+        return std::abs(frequency_a - frequency_b)
+            <= this->rtol * std::max(std::abs(frequency_a), std::abs(frequency_b));
+    }
+};
+
+typedef c_ToleranceIndex<c_WaveFrequencyMatch> c_WaveFrequencyIndex;
+
+inline c_WaveFrequencyIndex c_wave_frequency_index(double match_rtol) {
+    return c_WaveFrequencyIndex(match_rtol, c_WaveFrequencyMatch{match_rtol});
 }
 
-// Drops modes at or below min_frequency, which dissipate nothing, and waves whose merged amplitude cancels.
+// Drops modes at or below the tolerance's min_frequency, which dissipate nothing, and waves whose merged amplitude
+// cancels. A mode merges into the first wave of its (l, m, azimuthal sign) whose frequency it matches.
 inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
         const std::vector<c_TidalPotential3DModeCoeff>& modes,
-        double min_frequency)
+        const c_FrequencyTolerance& tolerance)
 {
     std::vector<c_TidalWave3D> waves;
     waves.reserve(modes.size());
+    c_WaveFrequencyIndex wave_index = c_wave_frequency_index(tolerance.match_rtol);
     for (const c_TidalPotential3DModeCoeff& mode : modes)
     {
         const double frequency = std::abs(mode.mode_frequency);
-        if (frequency <= min_frequency) {
+        if (frequency <= tolerance.min_frequency) {
             continue;
         }
 
@@ -387,36 +382,33 @@ inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
         member.q = mode.q;
         member.factor = mode.amplitude_factor * phase;
 
-        bool merged = false;
-        for (c_TidalWave3D& wave : waves)
+        const std::int64_t tag =
+            (static_cast<std::int64_t>(mode.degree_l) * 1024 + mode.order_m) * 4 + (azimuthal_sign + 1);
+        const std::ptrdiff_t merged = wave_index.find(tag, frequency);
+        if (merged >= 0)
         {
-            if (wave.degree_l == mode.degree_l && wave.order_m == mode.order_m
-                && wave.azimuthal_sign == azimuthal_sign
-                && c_tidal_wave_same_frequency(wave.frequency, frequency))
-            {
-                wave.amplitude += amplitude;
-                wave.members.push_back(member);
-                merged = true;
-                break;
-            }
+            c_TidalWave3D& wave = waves[static_cast<size_t>(merged)];
+            wave.amplitude += amplitude;
+            wave.members.push_back(std::move(member));
         }
-        if (!merged)
+        else
         {
+            wave_index.insert(tag, frequency);
             c_TidalWave3D wave;
             wave.degree_l       = mode.degree_l;
             wave.order_m        = mode.order_m;
             wave.azimuthal_sign = azimuthal_sign;
             wave.frequency      = frequency;
             wave.amplitude      = amplitude;
-            wave.members.push_back(member);
-            waves.push_back(wave);
+            wave.members.push_back(std::move(member));
+            waves.push_back(std::move(wave));
         }
     }
     std::vector<c_TidalWave3D> active;
     active.reserve(waves.size());
-    for (const c_TidalWave3D& wave : waves)
+    for (c_TidalWave3D& wave : waves)
     {
-        if (std::abs(wave.amplitude) > 0.0) { active.push_back(wave); }
+        if (std::abs(wave.amplitude) > 0.0) { active.push_back(std::move(wave)); }
     }
     return active;
 }
@@ -439,31 +431,7 @@ inline c_PotentialPointC c_wave_point_from_parts(
         const std::complex<double>& amplitude)
 {
     const double mu = static_cast<double>(wave.azimuthal_sign) * static_cast<double>(wave.order_m);
-    const std::complex<double> phasor = amplitude * e_imuphi;
-    const std::complex<double> i_mu(0.0, mu);
-
-    return c_PotentialPointC {
-        phasor * legendre.p,                     // U_c
-        phasor * legendre.dp_dtheta,             // dU/dtheta
-        phasor * (i_mu * legendre.p),            // dU/dphi
-        phasor * legendre.d2p_dtheta2,           // d2U/dtheta2
-        phasor * (-mu * mu * legendre.p),        // d2U/dphi2
-        phasor * (i_mu * legendre.dp_dtheta)     // d2U/dtheta_dphi
-    };
-}
-
-// Evaluate a coherent wave's complex potential angular factor U_c and its theta/phi derivatives at a point.
-inline c_PotentialPointC c_eval_wave_point_3d(
-        const c_TidalWave3D& wave,
-        double colatitude,
-        double longitude)
-{
-    const double mu = static_cast<double>(wave.azimuthal_sign) * static_cast<double>(wave.order_m);
-    return c_wave_point_from_parts(
-        wave,
-        c_legendre(wave.degree_l, wave.order_m, colatitude),
-        c_azimuthal_phasor(mu, longitude),
-        wave.amplitude);
+    return c_potential_point_from_phasor(amplitude * e_imuphi, legendre, mu);
 }
 
 } // namespace tidalpy

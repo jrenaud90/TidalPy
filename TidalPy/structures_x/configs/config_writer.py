@@ -21,6 +21,24 @@ def _write_toml(out_config: dict, file_path: str, title: str) -> None:
         toml.dump(plain_config(out_config), toml_file)
 
 
+def _save_config(config: dict, file_path: str, overwrite: bool, kind: str) -> str:
+    """Check the destination, stamp a copy of ``config`` with ``SCHEMA_VERSION``, and write it.
+
+    ``kind`` (``"world"`` or ``"system"``) names the configuration in the errors and the file header.
+    """
+    if not file_path.endswith(".toml"):
+        raise ValueError(
+            f"{kind.capitalize()} configurations must be saved with a .toml extension: {file_path}")
+    if os.path.isfile(file_path) and not overwrite:
+        raise FileExistsError(
+            f"{kind.capitalize()} configuration file already exists (overwrite=False): {file_path}")
+
+    out_config = dict(config)
+    out_config["schema_version"] = SCHEMA_VERSION
+    _write_toml(out_config, file_path, f"TidalPy {kind} configuration: {out_config.get('name', 'unnamed')}")
+    return file_path
+
+
 def save_world_to_toml(config: dict, file_path: str, overwrite: bool = True) -> str:
     """Serialize a world configuration dictionary to a TOML file.
 
@@ -48,17 +66,7 @@ def save_world_to_toml(config: dict, file_path: str, overwrite: bool = True) -> 
     FileExistsError
         If the file exists and ``overwrite`` is False.
     """
-    if not file_path.endswith(".toml"):
-        raise ValueError(
-            f"World configurations must be saved with a .toml extension: {file_path}")
-    if os.path.isfile(file_path) and not overwrite:
-        raise FileExistsError(
-            f"World configuration file already exists (overwrite=False): {file_path}")
-
-    out_config = dict(config)
-    out_config["schema_version"] = SCHEMA_VERSION
-    _write_toml(out_config, file_path, f"TidalPy world configuration: {out_config.get('name', 'unnamed')}")
-    return file_path
+    return _save_config(config, file_path, overwrite, "world")
 
 
 def save_system_to_toml(config: dict, file_path: str, overwrite: bool = True) -> str:
@@ -88,14 +96,4 @@ def save_system_to_toml(config: dict, file_path: str, overwrite: bool = True) ->
     FileExistsError
         If the file exists and ``overwrite`` is False.
     """
-    if not file_path.endswith(".toml"):
-        raise ValueError(
-            f"System configurations must be saved with a .toml extension: {file_path}")
-    if os.path.isfile(file_path) and not overwrite:
-        raise FileExistsError(
-            f"System configuration file already exists (overwrite=False): {file_path}")
-
-    out_config = dict(config)
-    out_config["schema_version"] = SCHEMA_VERSION
-    _write_toml(out_config, file_path, f"TidalPy system configuration: {out_config.get('name', 'unnamed')}")
-    return file_path
+    return _save_config(config, file_path, overwrite, "system")

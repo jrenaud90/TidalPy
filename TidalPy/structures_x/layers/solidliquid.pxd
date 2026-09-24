@@ -7,33 +7,16 @@ from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
 
-from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer, c_BaseLayer
-from TidalPy.Tides_x.love.love cimport c_LoveNumbers
+from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer, c_PhysicsConfig, c_BaseLayer
 from TidalPy.cooling_x.cooling cimport c_CoolingBase
 from TidalPy.radiogenics_x.radiogenics cimport c_RadiogenicsBase
 
 
 cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
 
-    cdef cppclass c_SolidLiquidConfig:
-        # Inherited from c_BaseLayerConfig:
-        string              name
-        int                 layer_index
-        double              radius_inner
-        double              radius_outer
-        double              mass
-        string              material_name
-        cpp_bool            is_tidal
-        cpp_bool            is_volume_fixed
-        double              tidal_scale
-        # From c_PhysicsConfig:
-        c_LoveNumbers       love_numbers
-        cpp_bool            is_solid
-        cpp_bool            is_static
-        cpp_bool            is_incompressible
-        double              temperature
-        cpp_bool            use_thermal_eos
-        cpp_bool            use_heating
+    # Adds no fields to c_PhysicsConfig.
+    cdef cppclass c_SolidLiquidConfig(c_PhysicsConfig):
+        pass
 
     cdef cppclass c_SolidLiquidLayer(c_PhysicsLayer):
         c_SolidLiquidLayer() except +

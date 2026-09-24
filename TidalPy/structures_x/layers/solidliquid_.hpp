@@ -19,8 +19,8 @@
  *     radiogenics     presence flag (uint8_t, 1) + (if present) its binary record
  *   The attached material EOS (which carries its own viscosity and partial-melt models), rheology, cooling, and
  *   radiogenics models are serialized recursively: the five presence flags belong to this payload and each
- *   nested model follows as its own
- *   record. The EOS profile data is not serialized; re-run the world EOS solve after loading.
+ *   nested model follows as its own record. The EOS profile data is not serialized; re-run the world EOS solve
+ *   after loading.
  */
 
 #include <algorithm>
@@ -44,7 +44,6 @@ struct c_SolidLiquidConfig : public c_PhysicsConfig {};
 
 class c_SolidLiquidLayer : public c_PhysicsLayer {
 public:
-    // Construction
     c_SolidLiquidLayer() = default;
 
     explicit c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg)
@@ -80,27 +79,34 @@ public:
         return static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer);
     }
 
-    // Thermal transport (const, MKS). Each reads the material's constants; what the layer adds is its geometry
-    // and its solved profile.
+    // Thermal transport (const, MKS). Each reads the material's constants, which do not vary with temperature or
+    // pressure; what the layer adds is its geometry and its solved profile. The temperature and pressure arguments
+    // are accepted but currently unused.
+
+    // The material's constant thermal conductivity k [W/(m K)]; the temperature is unused.
     double calc_thermal_conductivity(double /*temperature*/) const noexcept {
         return this->get_thermal_conductivity();
     }
 
-    // kappa = k / (rho c_p)  [m^2/s], at the layer's bulk density (its mass over its volume).
+    // kappa = k / (rho c_p)  [m^2/s] from the material's constants at the layer's bulk density (its mass over its
+    // volume); the temperature is unused.
     double calc_thermal_diffusivity(double /*temperature*/) const noexcept {
         return this->p_eos ? this->p_eos->calc_thermal_diffusivity(this->get_density_bulk())
                            : TidalPyConstants::d_NAN;
     }
 
-    // Adiabatic temperature gradient [K/m]: dT/dr = alpha T g / c_p. Gravity comes from the EOS profile at the
-    // layer's outer boundary, read under the owning world's call lock; 0.0 when that profile is unpopulated.
+    // Adiabatic temperature gradient [K/m]: dT/dr = alpha T g / c_p, with the material's constant alpha and c_p at
+    // the given temperature; the pressure is unused. Gravity comes from the EOS profile at the layer's outer
+    // boundary, read under the owning world's call lock; 0.0 when that profile is unpopulated.
     double calc_adiabatic_temperature_gradient(double temperature,
                                                double /*pressure*/) const noexcept {
         double g = 0.0;
         {
             const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
             if (this->p_eos_data.is_populated()) {
-                g = this->p_eos_data.get_gravity(this->p_radius);
+                double state[C_EOS_DY_VALUES];
+                this->p_eos_data.evaluate(this->p_radius, state);
+                g = state[C_EOS_GRAVITY_INDEX];
             }
         }
         if (g <= 0.0 || temperature <= 0.0) { return 0.0; }
@@ -140,136 +146,33 @@ public:
     c_CoolingBase*     get_cooling_model()     const noexcept { return this->p_cooling.get(); }
     c_RadiogenicsBase* get_radiogenics_model() const noexcept { return this->p_radiogenics.get(); }
 
-    // Binary I/O
     void write_binary(std::ostream& out) const override {
-        const auto     name_len = static_cast<uint32_t>(this->p_name.size());
-        const auto     mat_len  = static_cast<uint32_t>(this->p_material_name.size());
-        const uint64_t payload  =
-            sizeof(double)   * 2 +           // p_radius, p_mass
-            sizeof(uint32_t) + name_len +    // name length + bytes
-            sizeof(int32_t)  +               // layer_index
-            sizeof(double)   +               // radius_inner
-            sizeof(uint32_t) + mat_len +     // material_name length + bytes
-            sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
-            sizeof(double)   +               // tidal_scale
-            sizeof(double)   * 6 +           // love_numbers k/h/l re+im
-            sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
-            material_law_bytes() +           // temperature, use_thermal_eos, use_heating
-            optional_binary_flag_bytes() +             // material EOS model presence flag
-            this->physics_models_presence_bytes() +    // shear and bulk rheology presence flags
-            2 * optional_binary_flag_bytes();    // cooling + radiogenics presence flags
-
-        write_binary_header(out, static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer), payload);
-
-        // c_BaseLayer fields
-        out.write(reinterpret_cast<const char*>(&this->p_radius), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_mass),   sizeof(double));
-        out.write(reinterpret_cast<const char*>(&name_len),       sizeof(uint32_t));
-        if (name_len > 0) { out.write(this->p_name.data(), name_len); }
-        const int32_t idx = static_cast<int32_t>(this->p_layer_index);
-        out.write(reinterpret_cast<const char*>(&idx),                  sizeof(int32_t));
-        out.write(reinterpret_cast<const char*>(&this->p_radius_inner), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&mat_len),              sizeof(uint32_t));
-        if (mat_len > 0) { out.write(this->p_material_name.data(), mat_len); }
-        const uint8_t is_tidal_byte = static_cast<uint8_t>(this->p_is_tidal);
-        const uint8_t is_volume_fixed_byte = static_cast<uint8_t>(this->p_is_volume_fixed);
-        out.write(reinterpret_cast<const char*>(&is_tidal_byte),        sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_volume_fixed_byte), sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
-
-        // c_PhysicsLayer fields
-        auto write_complex = [&](const std::complex<double>& c) {
-            const double re = c.real(), im = c.imag();
-            out.write(reinterpret_cast<const char*>(&re), sizeof(double));
-            out.write(reinterpret_cast<const char*>(&im), sizeof(double));
-        };
-        write_complex(this->p_love_numbers.k);
-        write_complex(this->p_love_numbers.h);
-        write_complex(this->p_love_numbers.l);
-
-        // Radial-solver layer classification flags (mirrors c_PhysicsLayer's layout).
-        const uint8_t is_solid_byte          = static_cast<uint8_t>(this->p_is_solid);
-        const uint8_t is_static_byte         = static_cast<uint8_t>(this->p_is_static);
-        const uint8_t is_incompressible_byte = static_cast<uint8_t>(this->p_is_incompressible);
-        out.write(reinterpret_cast<const char*>(&is_solid_byte),          sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_static_byte),         sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_incompressible_byte), sizeof(uint8_t));
-        this->write_material_law_binary(out);
-
-        // c_SolidLiquidLayer fields
-
+        write_binary_header(
+            out, static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer),
+            this->p_base_fields_bytes() + this->p_physics_fields_bytes()
+                + optional_binary_flag_bytes()             // material EOS model presence flag
+                + this->physics_models_presence_bytes()    // shear and bulk rheology presence flags
+                + 2 * optional_binary_flag_bytes());       // cooling and radiogenics presence flags
+        this->p_write_base_fields(out);
+        this->p_write_physics_fields(out);
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write SolidLiquidLayer binary data");
         }
-
-        this->write_eos_model_binary(out);         // inherited from c_BaseLayer
-        this->write_physics_models_binary(out);    // inherited from c_PhysicsLayer
-        this->write_submodels_binary(out);   // cooling + radiogenics
+        this->write_eos_model_binary(out);
+        this->write_physics_models_binary(out);
+        this->write_submodels_binary(out);
     }
 
     void read_binary(std::istream& in, bool force = false) override {
-        c_TidalPyBaseClass::read_binary(in, force);
-        // A loaded layer carries no solved profile or heating until its world solves again.
-        this->clear_eos_data();
-        this->p_tidal_heating = TidalPyConstants::d_NAN;
-
-        // c_BaseLayer fields
-        in.read(reinterpret_cast<char*>(&this->p_radius), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_mass),   sizeof(double));
-
-        this->p_name = read_binary_string(in);
-
-        int32_t idx = 0;
-        in.read(reinterpret_cast<char*>(&idx), sizeof(int32_t));
-        this->p_layer_index = static_cast<int>(idx);
-
-        in.read(reinterpret_cast<char*>(&this->p_radius_inner), sizeof(double));
-
-        this->p_material_name = read_binary_string(in);
-
-        uint8_t is_tidal_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_tidal_byte), sizeof(uint8_t));
-        this->p_is_tidal = static_cast<bool>(is_tidal_byte);
-        uint8_t is_volume_fixed_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_volume_fixed_byte), sizeof(uint8_t));
-        this->p_is_volume_fixed = static_cast<bool>(is_volume_fixed_byte);
-
-        in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
-
-
-        // c_PhysicsLayer fields
-        auto read_complex = [&](std::complex<double>& c) {
-            double re = 0.0, im = 0.0;
-            in.read(reinterpret_cast<char*>(&re), sizeof(double));
-            in.read(reinterpret_cast<char*>(&im), sizeof(double));
-            c = std::complex<double>(re, im);
-        };
-        read_complex(this->p_love_numbers.k);
-        read_complex(this->p_love_numbers.h);
-        read_complex(this->p_love_numbers.l);
-
-        // Radial-solver layer classification flags (mirrors c_PhysicsLayer's layout).
-        uint8_t is_solid_byte = 0;
-        uint8_t is_static_byte = 0;
-        uint8_t is_incompressible_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_solid_byte),          sizeof(uint8_t));
-        in.read(reinterpret_cast<char*>(&is_static_byte),         sizeof(uint8_t));
-        in.read(reinterpret_cast<char*>(&is_incompressible_byte), sizeof(uint8_t));
-        this->p_is_solid          = static_cast<bool>(is_solid_byte);
-        this->p_is_static         = static_cast<bool>(is_static_byte);
-        this->p_is_incompressible = static_cast<bool>(is_incompressible_byte);
-        this->read_material_law_binary(in);
-
-        // c_SolidLiquidLayer fields
-
+        this->p_begin_read_binary(in, force);
+        this->p_read_base_fields(in);
+        this->p_read_physics_fields(in);
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read SolidLiquidLayer binary data");
         }
-
-        this->read_eos_model_binary(in, force);         // inherited from c_BaseLayer
-        this->read_physics_models_binary(in, force);    // inherited from c_PhysicsLayer
-        this->read_submodels_binary(in, force);   // cooling + radiogenics
-
+        this->read_eos_model_binary(in, force);
+        this->read_physics_models_binary(in, force);
+        this->read_submodels_binary(in, force);
         this->update_physicals();
     }
 
@@ -291,7 +194,6 @@ protected:
             read_optional_binary<c_RadiogenicsBase>(in, force, c_radiogenics_from_binary);
         if (this->p_radiogenics) { this->p_radiogenics->set_layer_ptr(this); }
     }
-
 
     std::unique_ptr<c_CoolingBase>      p_cooling;
     std::unique_ptr<c_RadiogenicsBase>  p_radiogenics;

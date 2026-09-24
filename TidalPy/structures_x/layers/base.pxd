@@ -20,9 +20,6 @@ cdef extern from "eos_data_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_LayerEOSData:
         c_LayerEOSData()
         cpp_bool is_populated() const
-        double   get_density(double radius) const
-        double   get_gravity(double radius) const
-        double   get_pressure(double radius) const
         void populate(
             const vector[double]& radius,
             const vector[double]& density_kgm3,
@@ -67,19 +64,12 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         uint32_t get_layer_class_id()          const
         double   get_tidal_heating()           const
         cpp_bool get_eos_data_populated()      const
-        double   get_density(double radius)  const
-        double   get_gravity(double radius)  const
-        double   get_pressure(double radius) const
         void     update_eos_data(const c_LayerEOSData& data)
         void     set_eos(unique_ptr[c_MaterialEOSBase] eos)
         c_MaterialEOSBase* get_eos() const
         cpp_bool get_eos_set() const
         cpp_bool get_viscoelastic_populated() const
         double   get_shear_modulus(double radius) const
-        double   get_bulk_modulus(double radius) const
-        double   get_shear_viscosity(double radius) const
-        double   get_bulk_viscosity(double radius) const
-        double   get_melt_fraction(double radius) const
         void     get_eos_state(double radius, double* y_out) const
         # Vectorized profile read; takes the owning world's call lock once for the whole array.
         void     get_eos_fields(
@@ -117,6 +107,19 @@ ctypedef void (*cy_eos_fields_fn)(
 
 cdef object cy_eos_field(const void* owner, cy_eos_fields_fn fill, object radius, size_t field_index)
 cdef object cy_eos_fields(const void* owner, cy_eos_fields_fn fill, object radius, tuple indices)
+
+# Fills the c_BaseLayerConfig fields shared by every layer constructor; a layer subclass passes its own config.
+cdef int cy_fill_base_layer_config(
+    c_BaseLayerConfig* config,
+    str name,
+    int layer_index,
+    double radius_inner,
+    double radius_outer,
+    double mass,
+    str material_name,
+    cpp_bool is_tidal,
+    cpp_bool is_volume_fixed,
+    object tidal_scale) except -1
 
 
 cdef class BaseLayer(StructureBase):

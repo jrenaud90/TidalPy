@@ -7,7 +7,7 @@ from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
 
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_BaseLayerConfig
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 from TidalPy.rheology_x.rheology cimport c_RheologyBase
 from TidalPy.viscosity_x.viscosity cimport c_ViscosityBase
@@ -16,18 +16,7 @@ from TidalPy.partial_melt_x.partial_melt cimport c_PartialMeltBase
 
 cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
 
-    cdef cppclass c_PhysicsConfig:
-        # Inherited from c_BaseLayerConfig:
-        string              name
-        int                 layer_index
-        double              radius_inner
-        double              radius_outer
-        double              mass
-        string              material_name
-        cpp_bool            is_tidal
-        cpp_bool            is_volume_fixed
-        double              tidal_scale
-        # PhysicsLayer additions:
+    cdef cppclass c_PhysicsConfig(c_BaseLayerConfig):
         c_LoveNumbers       love_numbers
         # Radial-solver layer classification flags:
         cpp_bool            is_solid
@@ -86,6 +75,20 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         void                set_use_thermal_eos(cpp_bool)
         cpp_bool            get_use_heating()                          const
         void                set_use_heating(cpp_bool)
+
+
+# Fills the c_PhysicsConfig fields shared by the physics, solid/liquid, and gas layer constructors.
+cdef int cy_fill_physics_config(
+    c_PhysicsConfig* config,
+    complex love_number_k,
+    complex love_number_h,
+    complex love_number_l,
+    cpp_bool is_solid,
+    cpp_bool is_static,
+    cpp_bool is_incompressible,
+    double temperature,
+    cpp_bool use_thermal_eos,
+    cpp_bool use_heating) except -1
 
 
 cdef class PhysicsLayer(BaseLayer):

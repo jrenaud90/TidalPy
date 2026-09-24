@@ -37,6 +37,7 @@
 #include <vector>
 
 #include "physics_base_.hpp"
+#include "model_names_.hpp"   // c_to_lower
 #include "interp_.hpp"
 #include "binary_.hpp"
 #include "../../viscosity_x/viscosity_.hpp"
@@ -287,12 +288,6 @@ inline double eos_invert_eta(
     return eta;  // cap reached without full convergence; best estimate
 }
 
-inline std::string eos_to_lower(std::string text) {
-    std::transform(text.begin(), text.end(), text.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return text;
-}
-
 // The frequency-independent properties of a material at one point: what calc_material_state fills and what
 // the solved EOS reports at a radius. The moduli and viscosities are post-partial-melt; a complex modulus
 // is for the rheology to compute from them.
@@ -489,9 +484,11 @@ public:
                     * (temperature - this->p_shear_modulus_reference_temperature);
             }
         }
-        // Floored so a steep temperature derivative cannot drive the shear law negative.
-        const double min_modulus = tidalpy_config_ptr->d_MIN_MODULUS;
-        if (shear < min_modulus) { shear = min_modulus; }
+        // Floored so a steep temperature derivative cannot drive the shear law negative. A model evaluated before
+        // the config is loaded has no floor to apply, as with an unset (NaN) one.
+        if (tidalpy_config_ptr != nullptr && shear < tidalpy_config_ptr->d_MIN_MODULUS) {
+            shear = tidalpy_config_ptr->d_MIN_MODULUS;
+        }
 
         /* Viscosities */
         double shear_viscosity = this->p_has_shear_viscosity_table
@@ -659,29 +656,27 @@ protected:
     double p_reference_density = 3500.0;
 };
 
-// 3rd-order Birch-Murnaghan, density from pressure.
-class c_BirchMurnaghanEOS : public c_MaterialEOSBase {
+// The pressure laws a c_PressureLawEOS inverts for its density.
+enum class c_PressureLaw : uint8_t {
+    BirchMurnaghan = 0,
+    Vinet          = 1,
+};
+
+// Density from pressure through an analytic pressure law (c_PressureLaw); c_BirchMurnaghanEOS and c_VinetEOS name
+// the two laws. The law is fixed at construction, and each law keeps its own class id and config name.
+class c_PressureLawEOS : public c_MaterialEOSBase {
 public:
-    c_BirchMurnaghanEOS() : c_MaterialEOSBase("birch_murnaghan") { this->update_law_range(); }
-    explicit c_BirchMurnaghanEOS(const c_MaterialEOSConfig& cfg)
-        : c_MaterialEOSBase("birch_murnaghan", cfg),
-          p_reference_density(cfg.reference_density),
-          p_reference_bulk_modulus(cfg.reference_bulk_modulus),
-          p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
-          p_invert_rtol(c_resolve_eos_invert_rtol(cfg.invert_rtol)),
-          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) {
-        c_require_positive_finite("birch_murnaghan", "reference density", cfg.reference_density);
-        c_require_positive_finite("birch_murnaghan", "reference bulk modulus", cfg.reference_bulk_modulus);
-        c_require_finite("birch_murnaghan", "bulk modulus derivative", cfg.bulk_modulus_derivative);
-        this->update_law_range();
-    }
-    ~c_BirchMurnaghanEOS() override = default;
+    ~c_PressureLawEOS() override = default;
+
+    c_PressureLaw get_pressure_law() const noexcept { return this->p_law; }
 
     double get_reference_density()       const noexcept { return this->p_reference_density; }
     double get_reference_bulk_modulus()  const noexcept { return this->p_reference_bulk_modulus; }
     double get_bulk_modulus_derivative() const noexcept { return this->p_bulk_modulus_derivative; }
     double get_invert_rtol()             const noexcept { return this->p_invert_rtol; }
     int    get_invert_max_iters()        const noexcept { return this->p_invert_max_iters; }
+
+    double get_max_pressure() const noexcept override { return this->p_law_range.pressure_max; }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_MaterialEOSBase::append_config_entries(out);
@@ -706,14 +701,25 @@ public:
             double& density,
             double& bulk_modulus) const override {
         const double eta = this->p_calc_compression(pressure, temperature);
-        density      = this->p_reference_density * eta;
-        bulk_modulus = eos_bm_bulk_modulus(
-            eta, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative);
+        density = this->p_reference_density * eta;
+        switch (this->p_law) {
+            case c_PressureLaw::BirchMurnaghan:
+                bulk_modulus = eos_bm_bulk_modulus(
+                    eta, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative);
+                return;
+            case c_PressureLaw::Vinet:
+                bulk_modulus = eos_vinet_bulk_modulus(
+                    eta, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative);
+                return;
+        }
+        bulk_modulus = TidalPyConstants::d_NAN;
     }
 
     void write_binary(std::ostream& out) const override {
+        const BinaryClassID class_id = (this->p_law == c_PressureLaw::Vinet)
+            ? BinaryClassID::VinetEOS : BinaryClassID::BirchMurnaghanEOS;
         this->write_physics_binary(
-            out, static_cast<uint32_t>(BinaryClassID::BirchMurnaghanEOS),
+            out, static_cast<uint32_t>(class_id),
             this->p_with_material_scalars(
                 {this->p_reference_density, this->p_reference_bulk_modulus,
                  this->p_bulk_modulus_derivative, this->p_invert_rtol,
@@ -736,36 +742,78 @@ public:
     }
 
 protected:
+    c_PressureLawEOS(c_PressureLaw law, const std::string& model_name)
+        : c_MaterialEOSBase(model_name),
+          p_law(law) {
+        this->update_law_range();
+    }
+
+    c_PressureLawEOS(c_PressureLaw law, const std::string& model_name, const c_MaterialEOSConfig& cfg)
+        : c_MaterialEOSBase(model_name, cfg),
+          p_law(law),
+          p_reference_density(cfg.reference_density),
+          p_reference_bulk_modulus(cfg.reference_bulk_modulus),
+          p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
+          p_invert_rtol(c_resolve_eos_invert_rtol(cfg.invert_rtol)),
+          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) {
+        c_require_positive_finite(model_name, "reference density", cfg.reference_density);
+        c_require_positive_finite(model_name, "reference bulk modulus", cfg.reference_bulk_modulus);
+        c_require_finite(model_name, "bulk modulus derivative", cfg.bulk_modulus_derivative);
+        this->update_law_range();
+    }
+
     // Compression eta = rho/rho0: the cold pressure law inverted at the pressure less the thermal pressure
-    // alpha0 K0 (T - T_ref).
+    // alpha0 K0 (T - T_ref). The law is chosen once, outside the inversion, so its Newton loop calls one law
+    // directly instead of dispatching on every step.
     double p_calc_compression(double pressure, double temperature) const noexcept {
         const double thermal_pressure = this->p_thermal_expansion * this->p_reference_bulk_modulus
             * this->p_temperature_offset(temperature);
-        return eos_invert_eta(
-            pressure - thermal_pressure,
-            this->p_reference_bulk_modulus,
-            this->p_bulk_modulus_derivative,
-            eos_bm_pressure_and_bulk_modulus,
-            this->p_law_range,
-            this->p_invert_rtol,
-            this->p_invert_max_iters);
+        switch (this->p_law) {
+            case c_PressureLaw::BirchMurnaghan:
+                return eos_invert_eta(
+                    pressure - thermal_pressure,
+                    this->p_reference_bulk_modulus,
+                    this->p_bulk_modulus_derivative,
+                    eos_bm_pressure_and_bulk_modulus,
+                    this->p_law_range,
+                    this->p_invert_rtol,
+                    this->p_invert_max_iters);
+            case c_PressureLaw::Vinet:
+                return eos_invert_eta(
+                    pressure - thermal_pressure,
+                    this->p_reference_bulk_modulus,
+                    this->p_bulk_modulus_derivative,
+                    eos_vinet_pressure_and_bulk_modulus,
+                    this->p_law_range,
+                    this->p_invert_rtol,
+                    this->p_invert_max_iters);
+        }
+        return TidalPyConstants::d_NAN;
     }
 
     // The law's monotonic range follows from K0 and K0' alone; found again whenever they change.
     void update_law_range() noexcept {
-        this->p_law_range = eos_find_monotonic_range(
-            this->p_reference_bulk_modulus,
-            this->p_bulk_modulus_derivative,
-            eos_bm_pressure_and_bulk_modulus,
-            this->p_invert_rtol);
+        switch (this->p_law) {
+            case c_PressureLaw::BirchMurnaghan:
+                this->p_law_range = eos_find_monotonic_range(
+                    this->p_reference_bulk_modulus,
+                    this->p_bulk_modulus_derivative,
+                    eos_bm_pressure_and_bulk_modulus,
+                    this->p_invert_rtol);
+                return;
+            case c_PressureLaw::Vinet:
+                this->p_law_range = eos_find_monotonic_range(
+                    this->p_reference_bulk_modulus,
+                    this->p_bulk_modulus_derivative,
+                    eos_vinet_pressure_and_bulk_modulus,
+                    this->p_invert_rtol);
+                return;
+        }
     }
 
+    c_PressureLaw      p_law;
     c_PressureLawRange p_law_range;
 
-public:
-    double get_max_pressure() const noexcept override { return this->p_law_range.pressure_max; }
-
-protected:
     double p_reference_density       = 3500.0;
     double p_reference_bulk_modulus  = 1.0e11;
     double p_bulk_modulus_derivative = 4.0;
@@ -773,118 +821,20 @@ protected:
     int    p_invert_max_iters        = c_resolve_eos_invert_max_iters(-1);
 };
 
+// 3rd-order Birch-Murnaghan, density from pressure.
+class c_BirchMurnaghanEOS : public c_PressureLawEOS {
+public:
+    c_BirchMurnaghanEOS() : c_PressureLawEOS(c_PressureLaw::BirchMurnaghan, "birch_murnaghan") {}
+    explicit c_BirchMurnaghanEOS(const c_MaterialEOSConfig& cfg)
+        : c_PressureLawEOS(c_PressureLaw::BirchMurnaghan, "birch_murnaghan", cfg) {}
+};
+
 // Vinet (universal) EOS, density from pressure.
-class c_VinetEOS : public c_MaterialEOSBase {
+class c_VinetEOS : public c_PressureLawEOS {
 public:
-    c_VinetEOS() : c_MaterialEOSBase("vinet") { this->update_law_range(); }
+    c_VinetEOS() : c_PressureLawEOS(c_PressureLaw::Vinet, "vinet") {}
     explicit c_VinetEOS(const c_MaterialEOSConfig& cfg)
-        : c_MaterialEOSBase("vinet", cfg),
-          p_reference_density(cfg.reference_density),
-          p_reference_bulk_modulus(cfg.reference_bulk_modulus),
-          p_bulk_modulus_derivative(cfg.bulk_modulus_derivative),
-          p_invert_rtol(c_resolve_eos_invert_rtol(cfg.invert_rtol)),
-          p_invert_max_iters(c_resolve_eos_invert_max_iters(cfg.invert_max_iters)) {
-        c_require_positive_finite("vinet", "reference density", cfg.reference_density);
-        c_require_positive_finite("vinet", "reference bulk modulus", cfg.reference_bulk_modulus);
-        c_require_finite("vinet", "bulk modulus derivative", cfg.bulk_modulus_derivative);
-        this->update_law_range();
-    }
-    ~c_VinetEOS() override = default;
-
-    double get_reference_density()       const noexcept { return this->p_reference_density; }
-    double get_reference_bulk_modulus()  const noexcept { return this->p_reference_bulk_modulus; }
-    double get_bulk_modulus_derivative() const noexcept { return this->p_bulk_modulus_derivative; }
-    double get_invert_rtol()             const noexcept { return this->p_invert_rtol; }
-    int    get_invert_max_iters()        const noexcept { return this->p_invert_max_iters; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_MaterialEOSBase::append_config_entries(out);
-        out.push_back(c_config_double("reference_density_kg_m3", this->p_reference_density));
-        out.push_back(c_config_double("reference_bulk_modulus_pa", this->p_reference_bulk_modulus));
-        out.push_back(c_config_double("bulk_modulus_derivative", this->p_bulk_modulus_derivative));
-        out.push_back(c_config_double("invert_rtol", this->p_invert_rtol));
-        out.push_back(c_config_int("invert_max_iters", this->p_invert_max_iters));
-    }
-
-    double calc_density(
-            double pressure,
-            double temperature,
-            double /*radius*/) const override {
-        return this->p_reference_density * this->p_calc_compression(pressure, temperature);
-    }
-
-    void calc_density_and_bulk_modulus(
-            double pressure,
-            double temperature,
-            double /*radius*/,
-            double& density,
-            double& bulk_modulus) const override {
-        const double eta = this->p_calc_compression(pressure, temperature);
-        density      = this->p_reference_density * eta;
-        bulk_modulus = eos_vinet_bulk_modulus(
-            eta, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative);
-    }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, static_cast<uint32_t>(BinaryClassID::VinetEOS),
-            this->p_with_material_scalars(
-                {this->p_reference_density, this->p_reference_bulk_modulus,
-                 this->p_bulk_modulus_derivative, this->p_invert_rtol,
-                 static_cast<double>(this->p_invert_max_iters),
-                 this->p_thermal_expansion, this->p_reference_temperature}));
-        this->write_material_submodels(out);
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 7 + C_MATERIAL_BINARY_SCALARS);
-        this->p_reference_density        = params[0];
-        this->p_reference_bulk_modulus   = params[1];
-        this->p_bulk_modulus_derivative  = params[2];
-        this->p_invert_rtol              = params[3];
-        this->p_invert_max_iters         = static_cast<int>(params[4]);
-        this->p_thermal_expansion        = params[5];
-        this->p_reference_temperature    = params[6];
-        this->p_set_material_scalars(&params[7]);
-        this->read_material_submodels(in, force);
-        this->update_law_range();
-    }
-
-protected:
-    // Compression eta = rho/rho0: the cold pressure law inverted at the pressure less the thermal pressure
-    // alpha0 K0 (T - T_ref).
-    double p_calc_compression(double pressure, double temperature) const noexcept {
-        const double thermal_pressure = this->p_thermal_expansion * this->p_reference_bulk_modulus
-            * this->p_temperature_offset(temperature);
-        return eos_invert_eta(
-            pressure - thermal_pressure,
-            this->p_reference_bulk_modulus,
-            this->p_bulk_modulus_derivative,
-            eos_vinet_pressure_and_bulk_modulus,
-            this->p_law_range,
-            this->p_invert_rtol,
-            this->p_invert_max_iters);
-    }
-
-    // The law's monotonic range follows from K0 and K0' alone; found again whenever they change.
-    void update_law_range() noexcept {
-        this->p_law_range = eos_find_monotonic_range(
-            this->p_reference_bulk_modulus,
-            this->p_bulk_modulus_derivative,
-            eos_vinet_pressure_and_bulk_modulus,
-            this->p_invert_rtol);
-    }
-
-    c_PressureLawRange p_law_range;
-
-public:
-    double get_max_pressure() const noexcept override { return this->p_law_range.pressure_max; }
-
-protected:
-    double p_reference_density       = 3500.0;
-    double p_reference_bulk_modulus  = 1.0e11;
-    double p_bulk_modulus_derivative = 4.0;
-    double p_invert_rtol             = c_resolve_eos_invert_rtol(std::numeric_limits<double>::quiet_NaN());
-    int    p_invert_max_iters        = c_resolve_eos_invert_max_iters(-1);
+        : c_PressureLawEOS(c_PressureLaw::Vinet, "vinet", cfg) {}
 };
 
 // density(radius) lookup table (PREM-style profiles); linear in radius, clamped at the ends.
@@ -1120,7 +1070,7 @@ enum class c_MaterialEOSModel : uint8_t {
 
 // Model names are matched case-insensitively.
 inline c_MaterialEOSModel c_material_eos_model_from_name(const std::string& model_name) {
-    const std::string name = eos_to_lower(model_name);
+    const std::string name = c_to_lower(model_name);
     if (name == "constant" || name == "uniform" ||
         name == "constant_density")                  { return c_MaterialEOSModel::Constant; }
     if (name == "bm" || name == "birch_murnaghan" ||
@@ -1149,9 +1099,7 @@ inline std::unique_ptr<c_MaterialEOSBase> c_find_material_eos(
 
 // The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_MaterialEOSBase> c_material_eos_from_binary(std::istream& in, bool force = false) {
-    const std::streampos start = in.tellg();
-    const c_BinaryHeader header = read_binary_header(in);
-    in.seekg(start);
+    const c_BinaryHeader header = c_peek_binary_header(in);
 
     std::unique_ptr<c_MaterialEOSBase> model;
     switch (static_cast<BinaryClassID>(header.class_id)) {

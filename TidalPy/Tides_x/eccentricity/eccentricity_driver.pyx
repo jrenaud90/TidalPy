@@ -1,16 +1,13 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libcpp.pair cimport pair
-
-from TidalPy.Utilities_x.lookups cimport IntMap1, IntMap3, c_Key2, c_Key1, c_IntMap
+from TidalPy.Tides_x.mode_func_common cimport (
+    c_ModeFuncOutput, cy_check_error, cy_config_value, cy_mode_func_output, cy_validate_truncation)
 from TidalPy.Tides_x.eccentricity.eccentricity_common cimport (
-    EccentricityFuncOutput, C_ECCENTRICITY_TRUNCATIONS, C_NUM_ECCENTRICITY_TRUNCATIONS, C_ECCENTRICITY_EXACT,
-    C_ECCENTRICITY_EXACT_TOLERANCE, c_eccentricity_accuracy_limit, c_recommend_eccentricity_truncation)
+    C_ECCENTRICITY_TRUNCATIONS, C_NUM_ECCENTRICITY_TRUNCATIONS, C_ECCENTRICITY_EXACT, C_ECCENTRICITY_EXACT_TOLERANCE,
+    c_eccentricity_accuracy_limit, c_recommend_eccentricity_truncation)
 
 import warnings
-
-import TidalPy
 
 # The tabulated eccentricity truncation levels (the C++ list): level N keeps every product of two eccentricity
 # functions through e^N.
@@ -24,10 +21,7 @@ ECCENTRICITY_TRUNCATIONS = tuple(cy_truncations)
 # chosen by the exact tolerance); ``"exact"`` wherever a truncation is given by name.
 ECCENTRICITY_EXACT = C_ECCENTRICITY_EXACT
 
-
-cdef object cy_config_tides(str key, object fallback):
-    """A ``[tides]`` value of the TidalPy configuration."""
-    return ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(key, fallback)
+cdef dict cy_names = {"exact": C_ECCENTRICITY_EXACT}
 
 
 def validate_eccentricity_exact_tolerance(object tolerance=None) -> float:
@@ -41,7 +35,7 @@ def validate_eccentricity_exact_tolerance(object tolerance=None) -> float:
         For a tolerance outside (0, 1).
     """
     if tolerance is None:
-        tolerance = cy_config_tides("eccentricity_exact_tolerance", C_ECCENTRICITY_EXACT_TOLERANCE)
+        tolerance = cy_config_value("tides", "eccentricity_exact_tolerance", C_ECCENTRICITY_EXACT_TOLERANCE)
     if isinstance(tolerance, bool):
         raise ValueError("The exact eccentricity tolerance is a number in (0, 1), not a bool.")
     value = float(tolerance)
@@ -84,8 +78,7 @@ def promote_eccentricity_truncation(object level, set warned_levels=None, object
     if warned_levels is None:
         warned_levels = _WARNED_PROMOTIONS
     if warn is None:
-        warn = bool(((getattr(TidalPy, "config_x", None) or {}).get("warnings", {}) or {}).get(
-            "truncation_promotion", True))
+        warn = bool(cy_config_value("warnings", "truncation_promotion", True))
     for supported in ECCENTRICITY_TRUNCATIONS:
         if supported > level:
             if warn and level not in warned_levels:
@@ -116,33 +109,8 @@ def validate_eccentricity_truncation(object truncation=None) -> int:
         For a level passed directly that is not tabulated (see ``ECCENTRICITY_TRUNCATIONS``).
     """
     if truncation is None:
-        return promote_eccentricity_truncation(cy_config_tides("eccentricity_trunc_lvl", 10))
-    if isinstance(truncation, bool):
-        raise TypeError("An eccentricity truncation is an integer level, not a bool.")
-    if isinstance(truncation, str) and truncation.strip().lower() == "exact":
-        return C_ECCENTRICITY_EXACT
-    if isinstance(truncation, str):
-        try:
-            truncation = int(truncation)
-        except ValueError:
-            raise NotImplementedError(
-                f"Eccentricity truncation {truncation!r} is not tabulated. "
-                f"Tabulated levels: {ECCENTRICITY_TRUNCATIONS}.")
-    elif isinstance(truncation, float) and truncation.is_integer():
-        truncation = int(truncation)
-    try:
-        level = int(truncation)
-    except (TypeError, ValueError):
-        raise TypeError(f"Unexpected eccentricity truncation {truncation!r}.")
-    if level != truncation:
-        raise TypeError(f"Unexpected eccentricity truncation {truncation!r}.")
-    if level == C_ECCENTRICITY_EXACT:
-        return level
-    if level not in ECCENTRICITY_TRUNCATIONS:
-        raise NotImplementedError(
-            f"Eccentricity truncation {level} is not tabulated. Tabulated levels: {ECCENTRICITY_TRUNCATIONS}, "
-            "or 'exact'.")
-    return level
+        return promote_eccentricity_truncation(cy_config_value("tides", "eccentricity_trunc_lvl", 10))
+    return cy_validate_truncation(truncation, "eccentricity", ECCENTRICITY_TRUNCATIONS, cy_names, ", or 'exact'")
 
 
 def eccentricity_truncation_name(int truncation):
@@ -193,40 +161,6 @@ def recommend_eccentricity_truncation(double eccentricity, double tolerance=0.01
     return eccentricity_truncation_name(c_recommend_eccentricity_truncation(eccentricity, tolerance, max_degree_l))
 
 
-cdef tuple cy_eccentricity_output(EccentricityFuncOutput& result_pair):
-    """Convert the C++ maps into an IntMap3 by (l, p, q) and a dict of IntMap1 by (q,) for each (l, p)."""
-    cdef IntMap3 result_by_lpq = IntMap3()
-    result_by_lpq.intmap_cinst = result_pair.first
-    # The Python-accessible `IntMap` does not support non-numeric keys, so the results by (l, p) go into a
-    # plain dict of inner IntMap1's.
-    cdef dict results_by_lp = dict()
-    cdef size_t i
-    cdef pair[c_Key2, c_IntMap[c_Key1, double]] c_key_value
-    cdef IntMap1 tmp_map
-    for i in range(result_pair.second.size()):
-        c_key_value = result_pair.second.data[i]
-        tmp_map = IntMap1()
-        tmp_map.intmap_cinst = c_key_value.second
-        results_by_lp[(c_key_value.first.a, c_key_value.first.b)] = tmp_map
-    return result_by_lpq, results_by_lp
-
-
-cdef void cy_check_degree(int degree_l) except *:
-    if degree_l not in (2, 3, 4, 5, 6, 7, 8, 9, 10):
-        raise NotImplementedError(
-            f"Degree l = {degree_l} is not currently supported for eccentricity function calculations. "
-            "Supported degrees: l = 2 through 10.")
-
-
-cdef void cy_check_error(int error_code) except *:
-    if error_code == -1:
-        raise NotImplementedError("Eccentricity function error code -1: the truncation level is not tabulated.")
-    elif error_code == -2:
-        raise NotImplementedError("Eccentricity function error code -2: the degree l is not supported.")
-    elif error_code != 0:
-        raise RuntimeError(f"Unknown eccentricity function error code: {error_code}.")
-
-
 def eccentricity_func(
         double eccentricity,
         int degree_l,
@@ -248,7 +182,8 @@ def eccentricity_func(
         None takes the ``[tides]`` ``eccentricity_trunc_lvl`` of the TidalPy configuration.
     exact_tolerance : float, optional
         For ``"exact"``: the modes kept are those whose q^2-weighted squares leave a tail below this fraction of the
-        total (so it bounds the relative error of the synchronous constant-time-lag heating). None takes the ``[tides]`` ``eccentricity_exact_tolerance`` (1e-4 by default).
+        total (so it bounds the relative error of the synchronous constant-time-lag heating). None takes the
+        ``[tides]`` ``eccentricity_exact_tolerance`` (1e-4 by default).
 
     Returns
     -------
@@ -259,11 +194,10 @@ def eccentricity_func(
     """
     cdef int level = validate_eccentricity_truncation(truncation)
     cdef double tolerance = validate_eccentricity_exact_tolerance(exact_tolerance)
-    cy_check_degree(degree_l)
     cdef int error_code = 0
-    cdef EccentricityFuncOutput result_pair = c_eccentricity_func(&error_code, eccentricity, degree_l, level, tolerance)
-    cy_check_error(error_code)
-    return cy_eccentricity_output(result_pair)
+    cdef c_ModeFuncOutput result_pair = c_eccentricity_func(&error_code, eccentricity, degree_l, level, tolerance)
+    cy_check_error(error_code, "Eccentricity")
+    return cy_mode_func_output(result_pair)
 
 
 def eccentricity_squared_func(
@@ -298,8 +232,8 @@ def eccentricity_squared_func(
     """
     cdef int level = validate_eccentricity_truncation(truncation)
     cdef double tolerance = validate_eccentricity_exact_tolerance(exact_tolerance)
-    cy_check_degree(degree_l)
     cdef int error_code = 0
-    cdef EccentricityFuncOutput result_pair = c_eccentricity_squared_func(&error_code, eccentricity, degree_l, level, tolerance)
-    cy_check_error(error_code)
-    return cy_eccentricity_output(result_pair)
+    cdef c_ModeFuncOutput result_pair = c_eccentricity_squared_func(
+        &error_code, eccentricity, degree_l, level, tolerance)
+    cy_check_error(error_code, "Eccentricity")
+    return cy_mode_func_output(result_pair)

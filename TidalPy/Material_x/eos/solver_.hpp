@@ -14,7 +14,7 @@
 
 #include "constants_.hpp"  // TidalPy: TidalPyConstants, d_PI, d_INF, d_EPS_100
 
-#include "ode_.hpp"            // c_eos_diffeq, c_EOS_ODEInput, C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES
+#include "ode_.hpp"            // c_eos_diffeq, c_EOS_ODEInput, C_EOS_Y_VALUES
 #include "eos_solution_.hpp"   // c_EOSSolution
 
 

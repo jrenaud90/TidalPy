@@ -1,16 +1,13 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libcpp.pair cimport pair
-
-from TidalPy.Utilities_x.lookups cimport IntMap1, IntMap3, c_Key2, c_Key1, c_IntMap
+from TidalPy.Tides_x.mode_func_common cimport (
+    c_ModeFuncOutput, cy_check_error, cy_config_value, cy_mode_func_output, cy_validate_truncation)
 from TidalPy.Tides_x.obliquity.obliquity_common cimport (
-    ObliquityFuncOutput, C_OBLIQUITY_TRUNCATIONS, C_NUM_OBLIQUITY_TRUNCATIONS, C_OBLIQUITY_OFF, C_OBLIQUITY_GENERAL,
+    C_OBLIQUITY_TRUNCATIONS, C_NUM_OBLIQUITY_TRUNCATIONS, C_OBLIQUITY_OFF, C_OBLIQUITY_GENERAL,
     c_obliquity_accuracy_limit, c_recommend_obliquity_truncation)
 
 import warnings
-
-import TidalPy
 
 # The tabulated obliquity truncation levels (the C++ list): level N keeps every product of two obliquity functions
 # through I^N; level 0 is the obliquity off.
@@ -81,8 +78,7 @@ def promote_obliquity_truncation(object level, set warned_levels=None, object wa
     if warned_levels is None:
         warned_levels = _WARNED_PROMOTIONS
     if warn is None:
-        warn = bool(((getattr(TidalPy, "config_x", None) or {}).get("warnings", {}) or {}).get(
-            "truncation_promotion", True))
+        warn = bool(cy_config_value("warnings", "truncation_promotion", True))
     if warn and level not in warned_levels:
         warned_levels.add(level)
         warnings.warn(
@@ -110,35 +106,8 @@ def validate_obliquity_truncation(object truncation=None) -> int:
         For a level passed directly that is not tabulated (see ``OBLIQUITY_TRUNCATIONS``).
     """
     if truncation is None:
-        return promote_obliquity_truncation(
-            ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get("obliquity_trunc_lvl", "off"))
-    if isinstance(truncation, bool):
-        raise TypeError("An obliquity truncation is an integer level or a name, not a bool.")
-    if isinstance(truncation, str):
-        text = truncation.strip().lower()
-        if text in cy_names:
-            return cy_names[text]
-        try:
-            truncation = int(text)
-        except ValueError:
-            raise NotImplementedError(
-                f"Obliquity truncation {truncation!r} is not tabulated. Tabulated levels: {OBLIQUITY_TRUNCATIONS}, "
-                "'off', or 'gen'.")
-    elif isinstance(truncation, float) and truncation.is_integer():
-        truncation = int(truncation)
-    try:
-        level = int(truncation)
-    except (TypeError, ValueError):
-        raise TypeError(f"Unexpected obliquity truncation {truncation!r}.")
-    if level != truncation:
-        raise TypeError(f"Unexpected obliquity truncation {truncation!r}.")
-    if level == C_OBLIQUITY_GENERAL:
-        return level
-    if level not in OBLIQUITY_TRUNCATIONS:
-        raise NotImplementedError(
-            f"Obliquity truncation {level} is not tabulated. Tabulated levels: {OBLIQUITY_TRUNCATIONS} (0 is off), or "
-            "'gen' for the general functions.")
-    return level
+        return promote_obliquity_truncation(cy_config_value("tides", "obliquity_trunc_lvl", "off"))
+    return cy_validate_truncation(truncation, "obliquity", OBLIQUITY_TRUNCATIONS, cy_names, ", 'off', or 'gen'")
 
 
 def obliquity_truncation_name(int truncation):
@@ -187,40 +156,6 @@ def recommend_obliquity_truncation(double obliquity, double tolerance=0.01, int 
     return obliquity_truncation_name(c_recommend_obliquity_truncation(obliquity, tolerance, max_degree_l))
 
 
-cdef tuple cy_obliquity_output(ObliquityFuncOutput& result_pair):
-    """Convert the C++ maps into an IntMap3 by (l, m, p) and a dict of IntMap1 by (p,) for each (l, m)."""
-    cdef IntMap3 result_by_lmp = IntMap3()
-    result_by_lmp.intmap_cinst = result_pair.first
-    # The Python-accessible `IntMap` does not support non-numeric keys, so the results by (l, m) go into a
-    # plain dict of inner IntMap1's.
-    cdef dict results_by_lm = dict()
-    cdef size_t i
-    cdef pair[c_Key2, c_IntMap[c_Key1, double]] c_key_value
-    cdef IntMap1 tmp_map
-    for i in range(result_pair.second.size()):
-        c_key_value = result_pair.second.data[i]
-        tmp_map = IntMap1()
-        tmp_map.intmap_cinst = c_key_value.second
-        results_by_lm[(c_key_value.first.a, c_key_value.first.b)] = tmp_map
-    return result_by_lmp, results_by_lm
-
-
-cdef void cy_check_degree(int degree_l) except *:
-    if degree_l not in (2, 3, 4, 5, 6, 7, 8, 9, 10):
-        raise NotImplementedError(
-            f"Degree l = {degree_l} is not currently supported for obliquity function calculations. "
-            "Supported degrees: l = 2 through 10.")
-
-
-cdef void cy_check_error(int error_code) except *:
-    if error_code == -1:
-        raise NotImplementedError("Obliquity function error code -1: the truncation level is not tabulated.")
-    elif error_code == -2:
-        raise NotImplementedError("Obliquity function error code -2: the degree l is not supported.")
-    elif error_code != 0:
-        raise RuntimeError(f"Unknown obliquity function error code: {error_code}.")
-
-
 def obliquity_func(
         double obliquity,
         int degree_l,
@@ -248,11 +183,10 @@ def obliquity_func(
         The same values as an ``IntMap1`` of F by (p,) for each (l, m).
     """
     cdef int level = validate_obliquity_truncation(truncation)
-    cy_check_degree(degree_l)
     cdef int error_code = 0
-    cdef ObliquityFuncOutput result_pair = c_obliquity_func(&error_code, obliquity, degree_l, level)
-    cy_check_error(error_code)
-    return cy_obliquity_output(result_pair)
+    cdef c_ModeFuncOutput result_pair = c_obliquity_func(&error_code, obliquity, degree_l, level)
+    cy_check_error(error_code, "Obliquity")
+    return cy_mode_func_output(result_pair)
 
 
 def obliquity_squared_func(
@@ -282,8 +216,7 @@ def obliquity_squared_func(
         The same values as an ``IntMap1`` by (p,) for each (l, m).
     """
     cdef int level = validate_obliquity_truncation(truncation)
-    cy_check_degree(degree_l)
     cdef int error_code = 0
-    cdef ObliquityFuncOutput result_pair = c_obliquity_squared_func(&error_code, obliquity, degree_l, level)
-    cy_check_error(error_code)
-    return cy_obliquity_output(result_pair)
+    cdef c_ModeFuncOutput result_pair = c_obliquity_squared_func(&error_code, obliquity, degree_l, level)
+    cy_check_error(error_code, "Obliquity")
+    return cy_mode_func_output(result_pair)

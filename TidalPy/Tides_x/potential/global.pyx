@@ -69,11 +69,7 @@ def global_potential(
     )
 
     if c_result.error_code != 0:
-        if c_result.error_code == -20:
-            raise NotImplementedError(
-                f"Global potential error code -20: Could not find l,m coefficient "
-                f"(working on degree l={c_result.working_on_l}). Perhaps unsupported degree l.")
-        elif c_result.error_code == -1:
+        if c_result.error_code == -1:
             raise NotImplementedError(
                 f"Global potential error code -1: Unsupported obliquity truncation "
                 f"(working on degree l={c_result.working_on_l}).")

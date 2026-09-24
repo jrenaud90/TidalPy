@@ -21,9 +21,9 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, cy_fill_base_layer_config
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 from TidalPy.rheology_x.rheology cimport RheologyBase
 from TidalPy.viscosity_x.viscosity cimport ViscosityBase
@@ -32,6 +32,30 @@ from TidalPy.partial_melt_x.partial_melt cimport PartialMeltBase
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
+
+
+cdef int cy_fill_physics_config(
+        c_PhysicsConfig* config,
+        complex love_number_k,
+        complex love_number_h,
+        complex love_number_l,
+        cpp_bool is_solid,
+        cpp_bool is_static,
+        cpp_bool is_incompressible,
+        double temperature,
+        cpp_bool use_thermal_eos,
+        cpp_bool use_heating) except -1:
+    config.love_numbers = c_LoveNumbers(
+        cpp_complex[double](love_number_k.real, love_number_k.imag),
+        cpp_complex[double](love_number_h.real, love_number_h.imag),
+        cpp_complex[double](love_number_l.real, love_number_l.imag))
+    config.is_solid          = is_solid
+    config.is_static         = is_static
+    config.is_incompressible = is_incompressible
+    config.temperature       = temperature
+    config.use_thermal_eos   = use_thermal_eos
+    config.use_heating       = use_heating
+    return 0
 
 
 cdef class PhysicsLayer(BaseLayer):
@@ -113,25 +137,12 @@ cdef class PhysicsLayer(BaseLayer):
             cpp_bool use_thermal_eos = False,
             cpp_bool use_heating     = False):
         cdef c_PhysicsConfig config
-        config.name               = name.encode("utf-8")
-        config.layer_index        = layer_index
-        config.radius_inner       = radius_inner
-        config.radius_outer       = radius_outer
-        config.mass               = mass
-        config.material_name      = material_name.encode("utf-8")
-        config.is_tidal           = is_tidal
-        config.is_volume_fixed    = is_volume_fixed
-        config.tidal_scale        = d_NAN if tidal_scale is None else <double>tidal_scale
-        config.love_numbers = c_LoveNumbers(
-            cpp_complex[double](love_number_k.real, love_number_k.imag),
-            cpp_complex[double](love_number_h.real, love_number_h.imag),
-            cpp_complex[double](love_number_l.real, love_number_l.imag))
-        config.is_solid          = is_solid
-        config.is_static         = is_static
-        config.is_incompressible = is_incompressible
-        config.temperature       = temperature
-        config.use_thermal_eos   = use_thermal_eos
-        config.use_heating       = use_heating
+        cy_fill_base_layer_config(
+            &config, name, layer_index, radius_inner, radius_outer, mass, material_name, is_tidal, is_volume_fixed,
+            tidal_scale)
+        cy_fill_physics_config(
+            &config, love_number_k, love_number_h, love_number_l, is_solid, is_static, is_incompressible,
+            temperature, use_thermal_eos, use_heating)
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_PhysicsLayer] built = make_unique[c_PhysicsLayer](config)

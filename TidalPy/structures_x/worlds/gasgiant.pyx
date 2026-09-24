@@ -12,9 +12,9 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.worlds.base cimport c_BaseWorld, c_WorldConfig
+from TidalPy.structures_x.worlds.base cimport c_BaseWorld, c_WorldConfig, cy_fill_world_config
 from TidalPy.structures_x.worlds.layered cimport LayeredWorld, c_LayeredWorld
-from libcpp.memory cimport unique_ptr, make_unique
+from libcpp.memory cimport make_shared, shared_ptr, static_pointer_cast
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -42,38 +42,33 @@ cdef class GasGiantWorld(LayeredWorld):
             double obliquity  = 0.0,
             double spin_frequency = 0.0):
         cdef c_WorldConfig config
-        config.name           = name.encode("utf-8")
-        config.world_type_str = world_type.encode("utf-8")
-        config.radius     = radius
-        config.mass       = mass
-        config.albedo     = albedo
-        config.emissivity = emissivity
-        config.obliquity  = obliquity
-        config.spin_frequency = spin_frequency
-        # make_unique owns the allocation; ownership then moves into the base-typed member
-        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
-        cdef unique_ptr[c_GasGiantWorld] built = make_unique[c_GasGiantWorld](config)
-        self._gasgiant_ptr = built.get()
-        self._layered_ptr  = <c_LayeredWorld*>self._gasgiant_ptr
-        self._world_ptr.reset(<c_BaseWorld*>built.release())
-        self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
+        cy_fill_world_config(
+            &config,
+            name,
+            radius,
+            mass,
+            world_type,
+            albedo,
+            emissivity,
+            obliquity,
+            spin_frequency)
+        self._bind(static_pointer_cast[c_BaseWorld, c_GasGiantWorld](make_shared[c_GasGiantWorld](config)))
 
     def family_world_type(self) -> str:
         """Builder world ``type`` for gas giants."""
         return "gasgiant"
 
     def __dealloc__(self):
-        self._gasgiant_ptr = NULL  # base's unique_ptr owns the C++ object
+        self._gasgiant_ptr = NULL  # BaseWorld._world_ptr owns the C++ object
         self._layered_ptr  = NULL
+
+    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr):
+        LayeredWorld._bind(self, ptr)
+        self._gasgiant_ptr = <c_GasGiantWorld*>ptr.get()
 
     @staticmethod
     cdef GasGiantWorld _wrap(shared_ptr[c_BaseWorld] ptr):
         """Wrap an already-constructed C++ gas-giant world (no new C++ object is built)."""
         cdef GasGiantWorld world = GasGiantWorld.__new__(GasGiantWorld)
-        world._world_ptr = ptr
-        world._ptr = <c_TidalPyBaseClass*>ptr.get()
-        world._layered_ptr = <c_LayeredWorld*>ptr.get()
-        world._gasgiant_ptr = <c_GasGiantWorld*>ptr.get()
-        world._layer_views = None
-        world._layer_view_by_name = None
+        world._bind(ptr)
         return world

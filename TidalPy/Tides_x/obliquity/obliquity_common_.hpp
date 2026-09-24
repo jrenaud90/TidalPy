@@ -23,27 +23,19 @@
  */
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <utility>
+#include <vector>
 
-#include "intmap_.hpp"
-#include "keys_.hpp"
-#include "obliquity_accuracy_.hpp"   // C_OBLIQUITY_OFF, C_OBLIQUITY_GENERAL
-
-typedef std::pair<c_IntMap<c_Key3, double>, c_IntMap<c_Key2, c_IntMap<c_Key1, double>>> ObliquityFuncOutput;
+#include "../mode_func_common_.hpp"               // c_ModeFuncOutput
+#include "../../Utilities_x/math_x/series_.hpp"   // Horner sums, powers, cut Cauchy products
+#include "obliquity_accuracy_.hpp"                // C_OBLIQUITY_OFF, C_OBLIQUITY_GENERAL
 
 // The tabulated truncation levels, the one list every entry point validates against (C_OBLIQUITY_GENERAL aside).
 inline constexpr int C_OBLIQUITY_TRUNCATIONS[] = {0, 2, 4};
 inline constexpr int C_NUM_OBLIQUITY_TRUNCATIONS =
     static_cast<int>(sizeof(C_OBLIQUITY_TRUNCATIONS) / sizeof(C_OBLIQUITY_TRUNCATIONS[0]));
-
-inline bool c_obliquity_truncation_tabulated(int truncation) noexcept {
-    for (int i = 0; i < C_NUM_OBLIQUITY_TRUNCATIONS; ++i) {
-        if (C_OBLIQUITY_TRUNCATIONS[i] == truncation) { return true; }
-    }
-    return false;
-}
 
 // One function of a table: its coefficients (or half-angle terms) in the table's array.
 struct c_ObliquityModeSeries {
@@ -86,25 +78,22 @@ struct c_ObliquityGeneralTable {
     }
 };
 
+// F_lmp of one degree, or its cut square, over 0 <= m, p <= l; zero for every function left out. table is the
+// (degree, truncation) table the values came from, for the cut products of two of them, and invalid for the general
+// functions.
+struct c_ObliquityValues {
+    int degree_l = 0;
+    std::vector<double> values;   // [m * (l + 1) + p]
+    c_ObliquitySeriesTable table;
+
+    double value(int order_m, int p) const noexcept {
+        return this->values[static_cast<size_t>(order_m * (this->degree_l + 1) + p)];
+    }
+};
+
 // The lead power of F_lmp's Taylor series.
 inline int c_obliquity_lead_power(int degree_l, int order_m, int p) noexcept {
     return std::abs(degree_l - order_m - 2 * p);
-}
-
-// sum_j c_j x^j over the first num_terms coefficients (Horner).
-inline double c_obliquity_horner(const double* coefficients, int num_terms, double x) noexcept {
-    double total = 0.0;
-    for (int j = num_terms - 1; j >= 0; --j) {
-        total = total * x + coefficients[j];
-    }
-    return total;
-}
-
-// x^power for a small non-negative integer power.
-inline double c_obliquity_power(double x, int power) noexcept {
-    double result = 1.0;
-    for (int i = 0; i < power; ++i) { result *= x; }
-    return result;
 }
 
 // F_lmp(I) through I^N.
@@ -112,8 +101,8 @@ inline double c_obliquity_mode_value(const c_ObliquitySeriesTable& table, int or
         noexcept {
     const c_ObliquityModeSeries& mode = table.mode(order_m, p);
     if (mode.count == 0) { return 0.0; }
-    return c_obliquity_power(obliquity, c_obliquity_lead_power(table.degree_l, order_m, p))
-         * c_obliquity_horner(table.coefficients + mode.offset, mode.count, obliquity * obliquity);
+    return c_series_power(obliquity, c_obliquity_lead_power(table.degree_l, order_m, p))
+         * c_series_horner(table.coefficients + mode.offset, mode.count, obliquity * obliquity);
 }
 
 // The product F_a F_b cut at I^N, N the (common) truncation of the two tables. Zero when the product's leading power
@@ -138,17 +127,9 @@ inline double c_obliquity_cut_product(
     // Cauchy product of the two series, cut at I^(2 max_s) past the leading power, then Horner in I^2.
     const int max_s = (truncation - lead) / 2;
     const double obliquity_2 = obliquity * obliquity;
-    double total = 0.0;
-    for (int s = max_s; s >= 0; --s) {
-        double coefficient = 0.0;
-        const int i_min = (s - (mode_b.count - 1) > 0) ? (s - (mode_b.count - 1)) : 0;
-        const int i_max = (s < mode_a.count - 1) ? s : (mode_a.count - 1);
-        for (int i = i_min; i <= i_max; ++i) {
-            coefficient += coefficients_a[i] * coefficients_b[s - i];
-        }
-        total = total * obliquity_2 + coefficient;
-    }
-    return c_obliquity_power(obliquity, lead) * total;
+    const double total = c_series_cut_product(
+        c_SeriesSpan{coefficients_a, mode_a.count}, c_SeriesSpan{coefficients_b, mode_b.count}, max_s, obliquity_2);
+    return c_series_power(obliquity, lead) * total;
 }
 
 // The half-angle powers the general functions of one degree need: cos(I/2)^k and sin(I/2)^k for 0 <= k <= 3l.

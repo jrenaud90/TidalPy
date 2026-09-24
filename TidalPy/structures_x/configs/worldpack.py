@@ -21,6 +21,7 @@ import toml
 
 import TidalPy
 from TidalPy.paths import get_worlds_x_dir as _paths_get_worlds_x_dir
+from TidalPy.structures_x.configs.toml_loader import warning_enabled
 
 
 # The packaged WorldPack_x directory (read-only source of the example worlds), found
@@ -137,10 +138,8 @@ def warn_if_stale_copy(data_path: str) -> bool:
     if not differs:
         return False
 
-    config_x = getattr(TidalPy, "config_x", None) or {}
-    enabled = (config_x.get("warnings", {}) or {}).get("stale_worldpack_copy", True)
     key = os.path.normcase(os.path.abspath(data_path))
-    if enabled and key not in _WARNED_STALE_COPIES:
+    if warning_enabled("stale_worldpack_copy") and key not in _WARNED_STALE_COPIES:
         _WARNED_STALE_COPIES.add(key)
         warnings.warn(
             f"The copy of '{os.path.basename(data_path)}' in the TidalPy data directory differs from the one "
@@ -242,6 +241,46 @@ def resolve_world_path(name: str) -> str:
         f"({PACKAGED_WORLDPACK_DIR}).")
 
 
+def resolve_source(source, kind: str):
+    """Resolve a world or system source to a file path or a configuration dict.
+
+    A ``dict`` is returned unchanged. A string (or path-like object) is a file path when it ends in ``.toml`` or
+    names an existing file; otherwise it is looked up as a bundled name in the shared pack (data directory
+    preferred over the packaged copy, see :func:`resolve_world_path`). Worlds and systems live side by side
+    there, told apart by content.
+
+    Parameters
+    ----------
+    source : str, os.PathLike, or dict
+        A bundled name, a path to a ``.toml`` file, or a configuration dict.
+    kind : str
+        :data:`WORLD_CONFIG` or :data:`SYSTEM_CONFIG`, named in the error for an unsupported source.
+
+    Returns
+    -------
+    str or dict
+        A resolved file path, or the passed-through dict.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a bundled-name lookup fails.
+    TypeError
+        If ``source`` is neither a ``str``, a path-like object, nor a ``dict``.
+    """
+    if isinstance(source, dict):
+        return source
+    if isinstance(source, os.PathLike):
+        source = os.fspath(source)
+    if isinstance(source, str):
+        if source.endswith(".toml") or os.path.isfile(source):
+            return source
+        return resolve_world_path(source)
+    raise TypeError(
+        f"Unsupported {kind} source type: {type(source)}. Provide a bundled {kind} "
+        "name, a path to a .toml file, or a configuration dict.")
+
+
 def config_kind(source) -> str:
     """Classify a bundled configuration as a world or a system.
 
@@ -270,12 +309,20 @@ def config_kind(source) -> str:
     return SYSTEM_CONFIG if config.get("worlds", None) else WORLD_CONFIG
 
 
+# A system names its members under a ``worlds`` key, which TOML spells either with that word or, inside a quoted
+# key, with unicode escapes. A file whose text has neither is not a system, whatever else it holds.
+def _may_be_system(text: str) -> bool:
+    return ("worlds" in text) or ("\\u" in text) or ("\\U" in text)
+
+
 def _available_configs(kind: str) -> list:
     """Return the sorted names of the bundled configurations of one kind.
 
     Combines the data directory with the packaged directory (the data directory takes
     precedence when a name exists in both). A file that does not parse as TOML is skipped
-    rather than breaking the listing; it will report its own error when it is built.
+    rather than breaking the listing; it will report its own error when it is built. Listing
+    systems skips the parse of a file that cannot be one; listing worlds parses every file,
+    since only the parse tells a world from a file that is not valid TOML.
 
     Parameters
     ----------
@@ -300,7 +347,12 @@ def _available_configs(kind: str) -> list:
             if name in names:
                 continue
             try:
-                names[name] = config_kind(os.path.join(directory, entry))
+                with open(os.path.join(directory, entry), "r", encoding="utf-8") as file:
+                    text = file.read()
+                if (kind == SYSTEM_CONFIG) and not _may_be_system(text):
+                    names[name] = None
+                    continue
+                names[name] = config_kind(toml.loads(text))
             except (toml.TomlDecodeError, OSError, UnicodeDecodeError):
                 names[name] = None
     return sorted(name for name, found in names.items() if found == kind)

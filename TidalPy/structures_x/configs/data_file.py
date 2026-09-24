@@ -149,6 +149,12 @@ def _detect_delimiter(line: str) -> Optional[str]:
     return None
 
 
+def _split_fields(line: str, delimiter: Optional[str]) -> list:
+    """The non-empty fields of a line, split at ``delimiter`` (whitespace when None) and stripped."""
+    fields = [field.strip() for field in (line.split(delimiter) if delimiter else line.split())]
+    return [field for field in fields if field]
+
+
 def _read_table(file_path: str):
     """Read a delimited data file, returning ``(data, header)``: a 2-D float array and its column names or None.
 
@@ -171,8 +177,7 @@ def _read_table(file_path: str):
                 continue
             if delimiter is None and not rows and header is None:
                 delimiter = _detect_delimiter(line)
-            fields = [field.strip() for field in (line.split(delimiter) if delimiter else line.split())]
-            fields = [field for field in fields if field]
+            fields = _split_fields(line, delimiter)
             if not fields:
                 continue
             try:
@@ -198,8 +203,7 @@ def _read_table(file_path: str):
         # column and every one of them names a quantity. Prose about the data often has the right
         # number of commas and a word or two in common with it, which is not the same thing.
         for comment in reversed(comments):
-            fields = [field.strip() for field in (comment.split(delimiter) if delimiter else comment.split())]
-            fields = [field for field in fields if field]
+            fields = _split_fields(comment, delimiter)
             if len(fields) == data.shape[1] and all(_match_quantity(field)[0] for field in fields):
                 header = fields
                 break
@@ -208,22 +212,37 @@ def _read_table(file_path: str):
     return data, header
 
 
+def _columns_from_named(items, where: str):
+    """Match named columns to quantities: ``({quantity: (values, unit_factor)}, unmatched_names)``.
+
+    ``items`` yields ``(name, values)`` pairs; a matched column's values become a contiguous ``float64`` array,
+    and an unmatched column's are left unread. ``where`` names the source in the error.
+
+    Raises
+    ------
+    ValueError
+        Two columns name the same quantity, or a name carries a unit this reader does not know.
+    """
+    columns = {}
+    unmatched = []
+    for name, values in items:
+        quantity, factor = _match_quantity(name)
+        if quantity is None:
+            unmatched.append(str(name))
+            continue
+        if quantity in columns:
+            raise ValueError(
+                f"Radial data{where} names the {quantity} column more than once (one of them is '{name}').")
+        columns[quantity] = (np.ascontiguousarray(values, dtype=np.float64).ravel(), factor)
+    return columns, unmatched
+
+
 def _columns_from_file(file_path: str) -> dict:
     """Read a delimited file into ``{quantity: (values, unit_factor)}``, by column name or by position."""
     data, header = _read_table(file_path)
-    columns = {}
     if header is not None:
-        unmatched = []
-        for index, name in enumerate(header):
-            quantity, factor = _match_quantity(name)
-            if quantity is None:
-                unmatched.append(name)
-                continue
-            if quantity in columns:
-                raise ValueError(
-                    f"Radial data file '{file_path}' names the {quantity} column more than once "
-                    f"(one of them is '{name}').")
-            columns[quantity] = (data[:, index], factor)
+        columns, unmatched = _columns_from_named(
+            ((name, data[:, index]) for index, name in enumerate(header)), f" file '{file_path}'")
         if not columns:
             raise ValueError(
                 f"Radial data file '{file_path}' has a header naming nothing this reader knows "
@@ -246,17 +265,7 @@ def _columns_from_file(file_path: str) -> dict:
 
 def _columns_from_mapping(mapping) -> dict:
     """Read a mapping of arrays into ``{quantity: (values, unit_factor)}``, keyed as a file header is."""
-    columns = {}
-    unmatched = []
-    for name, values in mapping.items():
-        quantity, factor = _match_quantity(name)
-        if quantity is None:
-            unmatched.append(str(name))
-            continue
-        if quantity in columns:
-            raise ValueError(f"Radial data names the {quantity} column more than once (one of them is '{name}').")
-        array = np.ascontiguousarray(values, dtype=np.float64).ravel()
-        columns[quantity] = (array, factor)
+    columns, unmatched = _columns_from_named(mapping.items(), "")
     if not columns:
         raise ValueError(
             "Radial data names nothing this reader knows "
@@ -329,8 +338,8 @@ def load_radial_data(source: Union[str, dict], surface_radius: Optional[float] =
     vp = None
     vs = None
     if "vp" in columns and "vs" in columns:
-        vp = _velocity(columns["vp"])
-        vs = _velocity(columns["vs"])
+        vp = _scaled(columns["vp"])
+        vs = _scaled(columns["vs"])
         shear_modulus = density * vs * vs
         bulk_modulus  = density * (vp * vp - (4.0 / 3.0) * vs * vs)
     elif "shear_modulus" in columns and "bulk_modulus" in columns:
@@ -387,12 +396,6 @@ def _check_units(arrays: dict, where: str) -> None:
             raise ValueError(
                 f"Radial data{where} has seismic velocities below {_MIN_PLAUSIBLE_VELOCITY:g} m/s; if the columns "
                 "are in km/s, name them with their unit (for example 'vp_km_s').")
-
-
-def _velocity(column) -> np.ndarray:
-    """Convert a seismic velocity column to m/s; one with no stated unit is already MKS."""
-    values, factor = column
-    return values if factor is None else values * factor
 
 
 def _scaled(column) -> np.ndarray:

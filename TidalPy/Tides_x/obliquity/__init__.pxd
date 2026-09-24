@@ -1,5 +1,5 @@
-from TidalPy.Tides_x.obliquity.obliquity_common cimport (
-    ObliquityFuncOutput, c_ObliquitySeriesTable, c_ObliquityGeneralTable)
+from TidalPy.Tides_x.mode_func_common cimport c_ModeFuncOutput
+from TidalPy.Tides_x.obliquity.obliquity_common cimport c_ObliquitySeriesTable, c_ObliquityGeneralTable
 from TidalPy.Tides_x.obliquity.obliquity_func_l2 cimport c_obliquity_series_l2, c_obliquity_general_l2
 from TidalPy.Tides_x.obliquity.obliquity_func_l3 cimport c_obliquity_series_l3, c_obliquity_general_l3
 from TidalPy.Tides_x.obliquity.obliquity_func_l4 cimport c_obliquity_series_l4, c_obliquity_general_l4

@@ -1,13 +1,14 @@
 #pragma once
 
 #include <algorithm>
-#include <stdexcept>
-#include <cstdio>
-#include <cstring>
 #include <cmath>
-#include <vector>
+#include <complex>
+#include <cstring>
+#include <functional>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "cysolution.hpp"  // CyRK: CySolverResult
 
@@ -15,7 +16,6 @@
 #include "constants_.hpp"
 
 #include "ode_.hpp"
-#include "../../utilities/arrays/interp_.hpp"
 #include "../../Utilities_x/math_x/numerics_.hpp"
 #include "../../Utilities_x/arrays/layer_partition_.hpp"  // c_partition_radius_by_layer
 
@@ -183,21 +183,7 @@ protected:
 
 public:
 
-    virtual ~c_EOSSolution()
-    {
-        this->clear_segments();
-        this->upper_radius_bylayer_vec.clear();
-        this->radius_array_vec.clear();
-        this->gravity_array_vec.clear();
-        this->pressure_array_vec.clear();
-        this->mass_array_vec.clear();
-        this->moi_array_vec.clear();
-        this->density_array_vec.clear();
-        this->complex_shear_array_vec.clear();
-        this->complex_bulk_array_vec.clear();
-        this->shear_viscosity_array_vec.clear();
-        this->bulk_viscosity_array_vec.clear();
-    }
+    ~c_EOSSolution() = default;
 
     c_EOSSolution()
     {
@@ -336,8 +322,6 @@ public:
     }
 
 
-
-
     /// The retained integrators live in the units the solve ran in, so a re-dimensionalized solution
     /// converts an SI query back before evaluating them.
     double convert_radius_si_to_solve(const double radius_si) const noexcept
@@ -464,9 +448,38 @@ protected:
         }
     }
 
+    /// The arrays interpolate_full_planet fills, one entry per radius slice.
+    void p_clear_arrays() noexcept
+    {
+        this->gravity_array_vec.clear();
+        this->pressure_array_vec.clear();
+        this->mass_array_vec.clear();
+        this->moi_array_vec.clear();
+        this->density_array_vec.clear();
+        this->complex_shear_array_vec.clear();
+        this->complex_bulk_array_vec.clear();
+        this->shear_viscosity_array_vec.clear();
+        this->bulk_viscosity_array_vec.clear();
+        this->temperature_array_vec.clear();
+        this->heat_flow_array_vec.clear();
+    }
+
+    void p_reserve_arrays(const size_t num_slices)
+    {
+        this->gravity_array_vec.reserve(num_slices);
+        this->pressure_array_vec.reserve(num_slices);
+        this->mass_array_vec.reserve(num_slices);
+        this->moi_array_vec.reserve(num_slices);
+        this->density_array_vec.reserve(num_slices);
+        this->complex_shear_array_vec.reserve(num_slices);
+        this->complex_bulk_array_vec.reserve(num_slices);
+        this->shear_viscosity_array_vec.reserve(num_slices);
+        this->bulk_viscosity_array_vec.reserve(num_slices);
+        this->temperature_array_vec.reserve(num_slices);
+        this->heat_flow_array_vec.reserve(num_slices);
+    }
+
 public:
-
-
 
 
     /// Every EOS output at one radius in solve units, in the evaluation layout of eos_layout_.hpp. A
@@ -545,13 +558,6 @@ public:
     }
 
 
-    /// `call_material` for an SI radius [m].
-    void call_material_si(const size_t layer_index, const double radius_si, c_EOSMaterialState& out) const
-    {
-        this->call_material(layer_index, this->convert_radius_si_to_solve(radius_si), out);
-    }
-
-
     /// The four structure variables alone, without evaluating the layer's EOS function.
     void call_y(
         const size_t layer_index,
@@ -598,24 +604,6 @@ public:
     }
 
 
-    /// The innermost layer whose upper radius reaches it. An interface radius belongs to the lower layer,
-    /// matching the convention the rest of this solution uses.
-    size_t layer_at_radius_si(const double radius_si) const noexcept
-    {
-        const double radius_solve = this->convert_radius_si_to_solve(radius_si);
-        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
-        {
-            if (radius_solve <= this->upper_radius_bylayer_vec[layer_i])
-            {
-                return layer_i;
-            }
-        }
-        return (this->num_layers > 0) ? (this->num_layers - 1) : 0;
-    }
-
-
-
-
     void change_radius_array(
         double* new_radius_ptr,
         size_t new_radius_size)
@@ -624,32 +612,13 @@ public:
         if (this->radius_array_set)
         {
             this->radius_array_vec.clear();
-            this->gravity_array_vec.clear();
-            this->pressure_array_vec.clear();
-            this->mass_array_vec.clear();
-            this->moi_array_vec.clear();
-            this->density_array_vec.clear();
-            this->complex_shear_array_vec.clear();
-            this->complex_bulk_array_vec.clear();
-            this->shear_viscosity_array_vec.clear();
-            this->bulk_viscosity_array_vec.clear();
-            this->temperature_array_vec.clear();
-            this->heat_flow_array_vec.clear();
+            this->p_clear_arrays();
             this->clear_segments();
             this->current_layers_saved = 0;
             this->other_vecs_set = false;
         }
         this->radius_array_set = true;
-
-        this->gravity_array_vec.reserve(this->radius_array_size);
-        this->pressure_array_vec.reserve(this->radius_array_size);
-        this->mass_array_vec.reserve(this->radius_array_size);
-        this->moi_array_vec.reserve(this->radius_array_size);
-        this->density_array_vec.reserve(this->radius_array_size);
-        this->complex_shear_array_vec.reserve(this->radius_array_size);
-        this->complex_bulk_array_vec.reserve(this->radius_array_size);
-        this->shear_viscosity_array_vec.reserve(this->radius_array_size);
-        this->bulk_viscosity_array_vec.reserve(this->radius_array_size);
+        this->p_reserve_arrays(this->radius_array_size);
 
         this->radius_array_vec.resize(this->radius_array_size);
         std::memcpy(this->radius_array_vec.data(), new_radius_ptr, new_radius_size * sizeof(double));
@@ -751,7 +720,6 @@ public:
     }
 
 
-
     /// The viscosity arrays are SI in every state and are left alone.
     void dimensionalize_data(
         c_NonDimensionalScales* nondim_scales,
@@ -782,25 +750,16 @@ public:
             throw std::runtime_error("Unsupported dimensionalization encountered.");
         }
 
-        if (redimensionalize)
-        {
-            this->pressure_error *= this->redim_pascal_scale;
-        }
-        else
-        {
-            this->pressure_error /= this->redim_pascal_scale;
-        }
+        // Every value converts the same way: multiplied by its scale to re-dimensionalize, divided to
+        // non-dimensionalize.
+        const auto convert = [redimensionalize](auto& value, double scale) {
+            if (redimensionalize) { value *= scale; } else { value /= scale; }
+        };
 
+        convert(this->pressure_error, this->redim_pascal_scale);
         for (size_t layer_i = 0; layer_i < this->num_layers; layer_i++)
         {
-            if (redimensionalize)
-            {
-                this->upper_radius_bylayer_vec[layer_i] *= this->redim_length_scale;
-            }
-            else
-            {
-                this->upper_radius_bylayer_vec[layer_i] /= this->redim_length_scale;
-            }
+            convert(this->upper_radius_bylayer_vec[layer_i], this->redim_length_scale);
         }
 
         // A solution may carry its scalars without the sampled arrays (a radial solver's stand-in for a world EOS),
@@ -813,28 +772,14 @@ public:
         {
             for (size_t slice_i = 0; slice_i < num_slices; slice_i++)
             {
-                if (redimensionalize)
-                {
-                    this->radius_array_vec[slice_i]        *= this->redim_length_scale;
-                    this->gravity_array_vec[slice_i]       *= this->redim_gravity_scale;
-                    this->pressure_array_vec[slice_i]      *= this->redim_pascal_scale;
-                    this->mass_array_vec[slice_i]          *= this->redim_mass_scale;
-                    this->moi_array_vec[slice_i]           *= this->redim_moi_scale;
-                    this->density_array_vec[slice_i]       *= this->redim_density_scale;
-                    this->complex_shear_array_vec[slice_i] *= this->redim_pascal_scale;
-                    this->complex_bulk_array_vec[slice_i]  *= this->redim_pascal_scale;
-                }
-                else
-                {
-                    this->radius_array_vec[slice_i]        /= this->redim_length_scale;
-                    this->gravity_array_vec[slice_i]       /= this->redim_gravity_scale;
-                    this->pressure_array_vec[slice_i]      /= this->redim_pascal_scale;
-                    this->mass_array_vec[slice_i]          /= this->redim_mass_scale;
-                    this->moi_array_vec[slice_i]           /= this->redim_moi_scale;
-                    this->density_array_vec[slice_i]       /= this->redim_density_scale;
-                    this->complex_shear_array_vec[slice_i] /= this->redim_pascal_scale;
-                    this->complex_bulk_array_vec[slice_i]  /= this->redim_pascal_scale;
-                }
+                convert(this->radius_array_vec[slice_i],        this->redim_length_scale);
+                convert(this->gravity_array_vec[slice_i],       this->redim_gravity_scale);
+                convert(this->pressure_array_vec[slice_i],      this->redim_pascal_scale);
+                convert(this->mass_array_vec[slice_i],          this->redim_mass_scale);
+                convert(this->moi_array_vec[slice_i],           this->redim_moi_scale);
+                convert(this->density_array_vec[slice_i],       this->redim_density_scale);
+                convert(this->complex_shear_array_vec[slice_i], this->redim_pascal_scale);
+                convert(this->complex_bulk_array_vec[slice_i],  this->redim_pascal_scale);
             }
 
             this->radius           = this->radius_array_vec[num_slices - 1];
@@ -847,9 +792,6 @@ public:
         else
         {
             // No arrays to read the scalars back from: convert them in place.
-            const auto convert = [redimensionalize](double& value, double scale) {
-                value = redimensionalize ? value * scale : value / scale;
-            };
             convert(this->radius,           this->redim_length_scale);
             convert(this->surface_gravity,  this->redim_gravity_scale);
             convert(this->surface_pressure, this->redim_pascal_scale);

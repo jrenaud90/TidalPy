@@ -1,17 +1,18 @@
-from TidalPy.Tides_x.eccentricity.eccentricity_common cimport EccentricityFuncOutput, c_EccentricitySeriesTable
+from TidalPy.Tides_x.mode_func_common cimport c_ModeFuncOutput
+from TidalPy.Tides_x.eccentricity.eccentricity_common cimport c_EccentricitySeriesTable
 
 cdef extern from "eccentricity_driver_.hpp" nogil:
     c_EccentricitySeriesTable c_eccentricity_series_table(
         int* error_code_ptr,
         int degree_l,
         int truncation)
-    EccentricityFuncOutput c_eccentricity_func(
+    c_ModeFuncOutput c_eccentricity_func(
         int* error_code_ptr,
         double eccentricity,
         int degree_l,
         int truncation,
         double exact_tolerance) except +
-    EccentricityFuncOutput c_eccentricity_squared_func(
+    c_ModeFuncOutput c_eccentricity_squared_func(
         int* error_code_ptr,
         double eccentricity,
         int degree_l,

@@ -175,28 +175,5 @@ inline double c_theta_integrated_heating_pair(
     return total;
 }
 
-// Colatitude integral of one (l, m) wave's secular heating angular factor on its own (unit amplitude, positive
-// azimuthal sign): sum_k w_k sum_ij Im(Cs[k][i] conj(Ce[k][j])) G_ij(l, m). The caller multiplies by
-// 0.5*|omega|*|amplitude|^2 (and r^2, 2*pi). NaN if (l, m) is out of table range. Kept for single-wave use; the
-// coherent collapse goes through c_theta_integrated_heating_pair.
-inline double c_theta_integrated_heating(
-        const c_StrainRadialCoeffs& radial,
-        int degree_l,
-        int order_m) noexcept
-{
-    double gram[6][6];
-    if (!c_angular_gram(degree_l, order_m, gram))
-    {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-    return c_theta_integrated_heating_pair(
-            radial,
-            radial,
-            order_m,
-            1,
-            std::complex<double>(1.0, 0.0),
-            gram);
-}
-
 }  // namespace tides
 }  // namespace tidalpy

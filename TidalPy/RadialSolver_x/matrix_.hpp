@@ -18,10 +18,27 @@
 
 #include "../constants_.hpp"
 #include "../Material_x/eos/eos_solution_.hpp"
-#include "../constants_.hpp"
+#include "rs_constants_.hpp"
 #include "rs_solution_.hpp"
 #include "boundaries/surface_bc_.hpp"
 #include "matrix_types/solid_matrix_.hpp"
+
+
+// Propagation-matrix-method inputs (only valid for a single solid, static, incompressible layer).
+struct c_MatrixInputs {
+    size_t num_layers          = 1;
+    // Slices c_matrix_propagate lays down in each layer. The method propagates from one slice to the next, so it
+    // is discretized by construction; this is the only grid left in the radial solver.
+    size_t slices_per_layer    = 0;
+    // Boundary condition models, in order (free = 0, tidal = 1, loading = 2).
+    std::vector<int> bc_models = {1};
+    double planet_bulk_density = 0.0;
+    double G                   = 0.0;   // gravitational constant in solve units
+    int    degree_l            = 2;
+    double starting_radius     = 0.0;   // non-dim; 0 selects the automatic choice governed by start_radius_tol
+    double start_radius_tol    = 1.0e-4;
+    int    core_model          = 0;     // core starting condition (0 to 4)
+};
 
 
 /// Propagation matrix solver for radial tidal solutions; solid, static, incompressible layers only.
@@ -30,23 +47,10 @@
 /// ----------
 /// solution_storage_ptr : c_RadialSolutionStorage*
 ///     Holds the EOS data and receives the gridded solution.
+/// inputs : c_MatrixInputs
+///     Structure, boundary conditions, and method settings.
 /// frequency : double
 ///     Forcing frequency [rad s-1].
-/// planet_bulk_density : double
-///     [kg m-3].
-/// slices_per_layer : size_t
-///     Slices this call lays down in each layer. The method propagates from one slice to the next, so it is
-///     discretized by construction; this is the only grid left in the radial solver.
-/// num_bc_models, bc_models_ptr
-///     Boundary condition models (free = 0, tidal = 1, loading = 2).
-/// G_to_use : double
-///     Gravitational constant in solve units.
-/// degree_l : int
-///     Harmonic degree.
-/// starting_radius : double
-///     0 selects the automatic choice governed by start_radius_tolerance.
-/// core_model : int
-///     Core starting condition (0 to 4).
 /// verbose : bool
 ///     Print status messages.
 ///
@@ -56,18 +60,17 @@
 ///     Error code, 0 on success.
 inline int c_matrix_propagate(
     c_RadialSolutionStorage* solution_storage_ptr,
+    const c_MatrixInputs& inputs,
     double frequency,
-    double planet_bulk_density,
-    size_t slices_per_layer,
-    size_t num_bc_models,
-    int* bc_models_ptr,
-    double G_to_use,
-    int degree_l,
-    double starting_radius,
-    double start_radius_tolerance,
-    int core_model,
     bool verbose) noexcept
 {
+    const size_t slices_per_layer = inputs.slices_per_layer;
+    const size_t num_bc_models    = inputs.bc_models.size();
+    const int*   bc_models_ptr    = inputs.bc_models.data();
+    const double G_to_use         = inputs.G;
+    const int    degree_l         = inputs.degree_l;
+    const int    core_model       = inputs.core_model;
+
     const std::complex<double> cmplx_zero(0.0, 0.0);
     const std::complex<double> cmplx_one(1.0, 0.0);
     const std::complex<double> cmplx_NAN(
@@ -86,9 +89,11 @@ inline int c_matrix_propagate(
     const size_t total_slices   = num_layers * slices_per_layer;
     const size_t top_slice_i    = total_slices - 1;
 
-    if (num_layers == 0 || slices_per_layer < 5)
+    if (num_layers == 0 || slices_per_layer < C_RS_MIN_SLICES_PER_LAYER)
     {
-        solution_storage_ptr->message = "RadialSolver.PropMatrixMethod:: at least 5 slices per layer are required.";
+        solution_storage_ptr->message =
+            "RadialSolver.PropMatrixMethod:: at least " + std::to_string(C_RS_MIN_SLICES_PER_LAYER) +
+            " slices per layer are required.";
         solution_storage_ptr->error_code = -5;
         solution_storage_ptr->success    = false;
         return solution_storage_ptr->error_code;
@@ -147,44 +152,42 @@ inline int c_matrix_propagate(
     // 15 = 5 (max solve_for entries) * 3 (surface conditions)
     double boundary_conditions[15];
     double* bc_pointer = &boundary_conditions[0];
-    int bc_error = c_get_surface_bc(
+    const int surface_bc_code = c_get_surface_bc(
         bc_pointer,
         bc_models_ptr,
         num_ytypes,
         planet_radius,
-        planet_bulk_density,
+        inputs.planet_bulk_density,
         degree_l_dbl);
 
-    if (bc_error != 0)
+    if (surface_bc_code != 0)
     {
-        solution_storage_ptr->message = "RadialSolver.PropMatrixMethod:: Error computing surface boundary conditions.";
-        solution_storage_ptr->error_code = bc_error;
+        solution_storage_ptr->message =
+            "RadialSolver.PropMatrixMethod:: Invalid surface boundary conditions (code " +
+            std::to_string(surface_bc_code) +
+            "): between 1 and 5 models are allowed, each free (0), tidal (1), or loading (2).\n";
+        solution_storage_ptr->error_code = -14;
         solution_storage_ptr->success = false;
-        return bc_error;
+        if (verbose)
+            std::printf("%s", solution_storage_ptr->message.c_str());
+        return solution_storage_ptr->error_code;
     }
 
     // TS72 to SVC16 sign convention: the last component flips for the tidal and loading cases (SVC16
     // Eq. 1.127); a free surface needs no change.
     for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
     {
-        const size_t full_shift = 3 * ytype_i;
-        if (bc_models_ptr[ytype_i] == 0)
+        if ((bc_models_ptr[ytype_i] == 1) || (bc_models_ptr[ytype_i] == 2))
         {
-        }
-        else if (bc_models_ptr[ytype_i] == 1)
-        {
-            bc_pointer[full_shift + 2] *= -1.0;
-        }
-        else if (bc_models_ptr[ytype_i] == 2)
-        {
-            bc_pointer[full_shift + 2] *= -1.0;
+            bc_pointer[3 * ytype_i + 2] *= -1.0;
         }
     }
 
     // Automatic starting radius after Martens' thesis and the LoadDef manual, capped by the config.
+    double starting_radius = inputs.starting_radius;
     if (starting_radius == 0.0)
     {
-        starting_radius = planet_radius * std::pow(start_radius_tolerance, 1.0 / degree_l_dbl);
+        starting_radius = planet_radius * std::pow(inputs.start_radius_tol, 1.0 / degree_l_dbl);
         starting_radius = std::fmin(
             starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
     }
@@ -242,16 +245,13 @@ inline int c_matrix_propagate(
     const size_t prop_mat_size = 6 * 3 * total_slices;
 
     std::vector<std::complex<double>> fundamental_mtx_vec(matrix_size);
-    std::vector<std::complex<double>> inverse_fundamental_mtx_vec(matrix_size);
-    std::vector<std::complex<double>> derivative_mtx_vec(matrix_size);
     std::vector<std::complex<double>> propagation_mtx_vec(prop_mat_size);
 
     std::complex<double>* fundamental_mtx_ptr         = fundamental_mtx_vec.data();
-    std::complex<double>* inverse_fundamental_mtx_ptr = inverse_fundamental_mtx_vec.data();
-    std::complex<double>* derivative_mtx_ptr          = derivative_mtx_vec.data();
     std::complex<double>* propagation_mtx_ptr         = propagation_mtx_vec.data();
 
-    // Matrices are filled from first_slice_index - 1 upward. TODO: only solid, static, incompressible layers.
+    // Matrices are filled from first_slice_index - 1 upward; only Y itself is read at a slice's own radius.
+    // TODO: only solid, static, incompressible layers.
     c_fundamental_matrix(
         first_slice_index - 1,
         total_slices,
@@ -260,8 +260,8 @@ inline int c_matrix_propagate(
         gravity_array_ptr,
         complex_shear_array_ptr,
         fundamental_mtx_ptr,
-        inverse_fundamental_mtx_ptr,
-        derivative_mtx_ptr,
+        nullptr,
+        nullptr,
         degree_l,
         G_to_use);
 
@@ -276,7 +276,6 @@ inline int c_matrix_propagate(
         radius_lower_grid[slice_i]  = radius_array_ptr[slice_i - 1];
         gravity_lower_grid[slice_i] = gravity_array_ptr[slice_i - 1];
     }
-    std::vector<std::complex<double>> fundamental_lower_mtx_vec(matrix_size);
     std::vector<std::complex<double>> inverse_lower_mtx_vec(matrix_size);
     c_fundamental_matrix(
         first_slice_index,
@@ -285,9 +284,9 @@ inline int c_matrix_propagate(
         density_array_ptr,
         gravity_lower_grid.data(),
         complex_shear_array_ptr,
-        fundamental_lower_mtx_vec.data(),
+        nullptr,
         inverse_lower_mtx_vec.data(),
-        derivative_mtx_ptr,
+        nullptr,
         degree_l,
         G_to_use);
     const std::complex<double>* inverse_lower_mtx_ptr = inverse_lower_mtx_vec.data();
@@ -297,99 +296,56 @@ inline int c_matrix_propagate(
     size_t index_shift_18 = (first_slice_index - 1) * 18;
     size_t index_shift_36 = (first_slice_index - 1) * 36;
 
+    // The 6 x 3 seed, row-major, at the slice below the start.
+    std::complex<double>* seed_ptr = &propagation_mtx_ptr[index_shift_18];
     if (core_model == 0)
     {
         // Henning & Hurford (2014): seed matrix from first three columns of Y at base layer
         for (size_t j = 0; j < 6; ++j)
         {
-            const size_t row_shift_index = index_shift_18 + (j * 3);
             for (size_t k = 0; k < 3; ++k)
-                propagation_mtx_ptr[row_shift_index + k] = fundamental_mtx_ptr[index_shift_36 + j * 6 + k];
+                seed_ptr[j * 3 + k] = fundamental_mtx_ptr[index_shift_36 + j * 6 + k];
         }
     }
-    else if (core_model == 1)
+    else if ((core_model >= 1) && (core_model <= 4))
     {
-        // Roberts & Nimmo (2008): liquid innermost zone
-        for (size_t j = 0; j < 6; ++j)
+        for (size_t i = 0; i < 18; ++i)
+            seed_ptr[i] = cmplx_zero;
+
+        if (core_model == 1)
         {
-            const size_t row_shift_index = index_shift_18 + (j * 3);
-            for (size_t k = 0; k < 3; ++k)
-            {
-                if ((j == 2) && (k == 0))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else if ((j == 3) && (k == 1))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else if ((j == 5) && (k == 2))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_zero;
-            }
+            // Roberts & Nimmo (2008): liquid innermost zone
+            seed_ptr[2 * 3 + 0] = cmplx_one;
+            seed_ptr[3 * 3 + 1] = cmplx_one;
+            seed_ptr[5 * 3 + 2] = cmplx_one;
         }
-    }
-    else if (core_model == 2)
-    {
-        // Solid Inner Core (Based on Henning & Hurford 2014)
-        for (size_t j = 0; j < 6; ++j)
+        else if (core_model == 2)
         {
-            const size_t row_shift_index = index_shift_18 + (j * 3);
-            for (size_t k = 0; k < 3; ++k)
-            {
-                if ((j == 0) && (k == 0))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else if ((j == 1) && (k == 1))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else if ((j == 2) && (k == 2))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_zero;
-            }
+            // Solid Inner Core (Based on Henning & Hurford 2014)
+            seed_ptr[0 * 3 + 0] = cmplx_one;
+            seed_ptr[1 * 3 + 1] = cmplx_one;
+            seed_ptr[2 * 3 + 2] = cmplx_one;
         }
-    }
-    else if (core_model == 3)
-    {
-        // Liquid Inner Core (based on Tobie+2005; as determined by Marc Neveu for IcyDwarf)
-        for (size_t j = 0; j < 6; ++j)
+        else if (core_model == 3)
         {
-            const size_t row_shift_index = index_shift_18 + (j * 3);
-            for (size_t k = 0; k < 3; ++k)
-            {
-                if ((j == 0) && (k == 0))
-                    propagation_mtx_ptr[row_shift_index + k] = std::complex<double>(0.05, 0.0);
-                else if ((j == 1) && (k == 1))
-                    propagation_mtx_ptr[row_shift_index + k] = std::complex<double>(0.01, 0.0);
-                else if ((j == 5) && (k == 2))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_zero;
-            }
+            // Liquid Inner Core (based on Tobie+2005; as determined by Marc Neveu for IcyDwarf)
+            seed_ptr[0 * 3 + 0] = std::complex<double>(0.05, 0.0);
+            seed_ptr[1 * 3 + 1] = std::complex<double>(0.01, 0.0);
+            seed_ptr[5 * 3 + 2] = cmplx_one;
         }
-    }
-    else if (core_model == 4)
-    {
-        // Interface matrix from SVC Eq. 1.150
-        const double grav_constant = (4.0 / 3.0) * TidalPyConstants::d_PI * G_to_use * density_array_ptr[first_slice_index - 1];
-        for (size_t j = 0; j < 6; ++j)
+        else
         {
-            const size_t row_shift_index = index_shift_18 + (j * 3);
-            for (size_t k = 0; k < 3; ++k)
-            {
-                if ((j == 0) && (k == 0))
-                    propagation_mtx_ptr[row_shift_index + k] = -std::pow(radius_array_ptr[first_slice_index - 1], degree_l - 1) / grav_constant;
-                else if ((j == 0) && (k == 2))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else if ((j == 1) && (k == 1))
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one;
-                else if ((j == 2) && (k == 2))
-                    propagation_mtx_ptr[row_shift_index + k] = density_array_ptr[first_slice_index - 1] * grav_constant * radius_array_ptr[first_slice_index - 1];
-                else if ((j == 4) && (k == 0))
-                    propagation_mtx_ptr[row_shift_index + k] = std::pow(radius_array_ptr[first_slice_index - 1], degree_l);
-                else if ((j == 5) && (k == 0))
-                    propagation_mtx_ptr[row_shift_index + k] = 2.0 * (degree_l - 1) * std::pow(radius_array_ptr[first_slice_index - 1], degree_l - 1);
-                else if ((j == 5) && (k == 2))
-                    propagation_mtx_ptr[row_shift_index + k] = 3.0 * grav_constant;
-                else
-                    propagation_mtx_ptr[row_shift_index + k] = cmplx_zero;
-            }
+            // Interface matrix from SVC Eq. 1.150
+            const double seed_radius  = radius_array_ptr[first_slice_index - 1];
+            const double seed_density = density_array_ptr[first_slice_index - 1];
+            const double grav_constant = (4.0 / 3.0) * TidalPyConstants::d_PI * G_to_use * seed_density;
+            seed_ptr[0 * 3 + 0] = -std::pow(seed_radius, degree_l - 1) / grav_constant;
+            seed_ptr[0 * 3 + 2] = cmplx_one;
+            seed_ptr[1 * 3 + 1] = cmplx_one;
+            seed_ptr[2 * 3 + 2] = seed_density * grav_constant * seed_radius;
+            seed_ptr[4 * 3 + 0] = std::pow(seed_radius, degree_l);
+            seed_ptr[5 * 3 + 0] = 2.0 * (degree_l - 1) * std::pow(seed_radius, degree_l - 1);
+            seed_ptr[5 * 3 + 2] = 3.0 * grav_constant;
         }
     }
     else
@@ -484,28 +440,25 @@ inline int c_matrix_propagate(
     double* solution_dbl_ptr = solution_storage_ptr->full_solution_vec.data();
     std::complex<double>* solution_ptr = reinterpret_cast<std::complex<double>*>(solution_dbl_ptr);
 
-    size_t ytype_i = 0;
-    while (solution_storage_ptr->error_code == 0)
+    // Solve U = S^-1 B for each ytype. The surface matrix is the same for all of them, so it is factored once. A
+    // solve is judged by whether its answer is finite, as the shooting method's surface solve is: an invertibility
+    // test with a relative threshold calls a badly scaled SI matrix singular.
+    const Eigen::PartialPivLU<Eigen::Matrix3cd> lu(surface_matrix);
+    for (size_t ytype_i = 0; ytype_i < num_bc_models; ++ytype_i)
     {
-        if (ytype_i == num_bc_models)
-            break;
-
         Eigen::Vector3cd B_vec;
         for (size_t i = 0; i < 3; ++i)
         {
             B_vec(i) = std::complex<double>(bc_pointer[ytype_i * 3 + i], 0.0);
         }
 
-        // Solve U = S^-1 B. FullPivLU::isInvertible's relative threshold called a badly scaled SI matrix singular,
-        // so a solve is judged by whether its answer is finite, as the shooting method's surface solve does.
-        Eigen::PartialPivLU<Eigen::Matrix3cd> lu(surface_matrix);
         Eigen::Vector3cd X = lu.solve(B_vec);
 
         if (!X.allFinite())
         {
             solution_storage_ptr->message =
                 "RadialSolver.PropMatrixMethod:: Error encountered while applying surface boundary condition.\n"
-                "Eigen FullPivLU: Surface matrix is singular or poorly conditioned.\n"
+                "Eigen PartialPivLU: Surface matrix is singular or poorly conditioned.\n"
                 "The solutions may not be valid at the surface.\n";
             solution_storage_ptr->error_code = -21;
             solution_storage_ptr->success = false;
@@ -557,8 +510,6 @@ inline int c_matrix_propagate(
                     solution_ptr[full_shift + i] = ts_conversion[i];
             }
         }
-
-        ++ytype_i;
     }
 
     if (solution_storage_ptr->error_code != 0)

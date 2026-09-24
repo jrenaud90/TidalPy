@@ -5,7 +5,7 @@
 
 #include "c_common.hpp"        // CyRK: DiffeqFuncType, PreEvalFunc
 #include "eos_solution_.hpp"   // TidalPy: c_EOSSolution
-#include "../constants_.hpp"   // RadialSolver_x: C_MAX_NUM_Y, etc.
+#include "../../constants_.hpp"
 
 
 /// Arguments passed to each radial solver ODE function via the char* args_ptr.
@@ -139,12 +139,119 @@ static inline void c_write_dy2(
 }
 
 // ============================================================================
-//  Solid Dynamic Compressible
+//  Solid Compressible (static and dynamic)
 // ============================================================================
 
-/// Radial derivative equations for a solid, dynamic, compressible layer.
+/// Radial derivative equations for a solid, compressible layer. The static form drops the inertial term, which
+/// appears only in dy2 and dy4.
 ///
 /// References: TS72 Eq. 82, KMN15 Eqs. 4--9, B15 Eqs. 13--18
+template <bool dynamic>
+inline void c_solid_compressible_body(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr
+        ) noexcept
+{
+    c_RadialSolverArgs* rs_args_ptr = reinterpret_cast<c_RadialSolverArgs*>(args_ptr);
+
+    double gravity, density;
+    std::complex<double> shear_modulus, bulk_modulus;
+    c_read_eos(rs_args_ptr, radius, gravity, density, shear_modulus, bulk_modulus);
+
+    std::complex<double> y1, y2, y3, y4, y5, y6;
+    c_read_y6(y_ptr, y1, y2, y3, y4, y5, y6);
+
+    const std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
+
+    const double r_inverse       = 1.0 / radius;
+    const double density_gravity = density * gravity;
+    const double grav_term       = rs_args_ptr->grav_coeff * density;
+
+    const std::complex<double> lame_2mu         = lame + 2.0 * shear_modulus;
+    const std::complex<double> lame_2mu_inverse = 1.0 / lame_2mu;
+    const std::complex<double> two_shear_r_inv  = 2.0 * shear_modulus * r_inverse;
+    const std::complex<double> y1_y3_term       = 2.0 * y1 - rs_args_ptr->llp1 * y3;
+
+    const std::complex<double> dy1 =
+        lame_2mu_inverse * (
+            y1_y3_term * -lame * r_inverse +
+            y2
+        );
+
+    std::complex<double> dy2;
+    std::complex<double> dy4;
+    if constexpr (dynamic)
+    {
+        const double dynamic_term = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
+
+        dy2 =
+            r_inverse * (
+                y1 * (dynamic_term - 2.0 * density_gravity) +
+                y2 * -2.0 +
+                y4 * rs_args_ptr->llp1 +
+                y5 * density * rs_args_ptr->lp1 +
+                y6 * -density * radius +
+                dy1 * 2.0 * lame +
+                y1_y3_term * (2.0 * (lame + shear_modulus) * r_inverse - density_gravity)
+            );
+
+        dy4 =
+            r_inverse * (
+                y1 * (density_gravity + two_shear_r_inv) +
+                y3 * (dynamic_term - two_shear_r_inv) +
+                y4 * -3.0 +
+                y5 * -density +
+                dy1 * -lame +
+                y1_y3_term * -lame_2mu * r_inverse
+            );
+    }
+    else
+    {
+        dy2 =
+            r_inverse * (
+                y1 * -2.0 * density_gravity +
+                y2 * -2.0 +
+                y4 * rs_args_ptr->llp1 +
+                y5 * density * rs_args_ptr->lp1 +
+                y6 * -density * radius +
+                dy1 * 2.0 * lame +
+                y1_y3_term * (2.0 * (lame + shear_modulus) * r_inverse - density_gravity)
+            );
+
+        dy4 =
+            r_inverse * (
+                y1 * (density_gravity + two_shear_r_inv) +
+                y3 * -two_shear_r_inv +
+                y4 * -3.0 +
+                y5 * -density +
+                dy1 * -lame +
+                y1_y3_term * -lame_2mu * r_inverse
+            );
+    }
+
+    const std::complex<double> dy3 =
+        y1 * -r_inverse +
+        y3 * r_inverse +
+        y4 * (1.0 / shear_modulus);
+
+    const std::complex<double> dy5 =
+        y1 * grav_term +
+        y5 * -rs_args_ptr->lp1 * r_inverse +
+        y6;
+
+    const std::complex<double> dy6 =
+        r_inverse * (
+            y1 * grav_term * rs_args_ptr->lm1 +
+            y6 * rs_args_ptr->lm1 +
+            y1_y3_term * grav_term
+        );
+
+    c_write_dy6(dy_ptr, dy1, dy2, dy3, dy4, dy5, dy6);
+}
+
+/// Radial derivative equations for a solid, dynamic, compressible layer.
 inline void c_solid_dynamic_compressible(
         double* dy_ptr,
         double radius,
@@ -153,156 +260,10 @@ inline void c_solid_dynamic_compressible(
         PreEvalFunc unused
         ) noexcept
 {
-    c_RadialSolverArgs* rs_args_ptr = reinterpret_cast<c_RadialSolverArgs*>(args_ptr);
-
-    double gravity, density;
-    std::complex<double> shear_modulus, bulk_modulus;
-    c_read_eos(rs_args_ptr, radius, gravity, density, shear_modulus, bulk_modulus);
-
-    std::complex<double> y1, y2, y3, y4, y5, y6;
-    c_read_y6(y_ptr, y1, y2, y3, y4, y5, y6);
-
-    const std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
-
-    const double r_inverse       = 1.0 / radius;
-    const double density_gravity = density * gravity;
-    const double dynamic_term    = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
-    const double grav_term       = rs_args_ptr->grav_coeff * density;
-
-    const std::complex<double> lame_2mu         = lame + 2.0 * shear_modulus;
-    const std::complex<double> lame_2mu_inverse = 1.0 / lame_2mu;
-    const std::complex<double> two_shear_r_inv  = 2.0 * shear_modulus * r_inverse;
-    const std::complex<double> y1_y3_term       = 2.0 * y1 - rs_args_ptr->llp1 * y3;
-
-    const std::complex<double> dy1 =
-        lame_2mu_inverse * (
-            y1_y3_term * -lame * r_inverse +
-            y2
-        );
-
-    const std::complex<double> dy2 =
-        r_inverse * (
-            y1 * (dynamic_term - 2.0 * density_gravity) +
-            y2 * -2.0 +
-            y4 * rs_args_ptr->llp1 +
-            y5 * density * rs_args_ptr->lp1 +
-            y6 * -density * radius +
-            dy1 * 2.0 * lame +
-            y1_y3_term * (2.0 * (lame + shear_modulus) * r_inverse - density_gravity)
-        );
-
-    const std::complex<double> dy3 =
-        y1 * -r_inverse +
-        y3 * r_inverse +
-        y4 * (1.0 / shear_modulus);
-
-    const std::complex<double> dy4 =
-        r_inverse * (
-            y1 * (density_gravity + two_shear_r_inv) +
-            y3 * (dynamic_term - two_shear_r_inv) +
-            y4 * -3.0 +
-            y5 * -density +
-            dy1 * -lame +
-            y1_y3_term * -lame_2mu * r_inverse
-        );
-
-    const std::complex<double> dy5 =
-        y1 * grav_term +
-        y5 * -rs_args_ptr->lp1 * r_inverse +
-        y6;
-
-    const std::complex<double> dy6 =
-        r_inverse * (
-            y1 * grav_term * rs_args_ptr->lm1 +
-            y6 * rs_args_ptr->lm1 +
-            y1_y3_term * grav_term
-        );
-
-    c_write_dy6(dy_ptr, dy1, dy2, dy3, dy4, dy5, dy6);
+    c_solid_compressible_body<true>(dy_ptr, radius, y_ptr, args_ptr);
 }
-
-
-// ============================================================================
-//  Solid Dynamic Incompressible
-// ============================================================================
-
-/// Radial derivative equations for a solid, dynamic, incompressible layer.
-///
-/// References: TS72 Eq. 82, KMN15 Eqs. 4--9, B15 Eqs. 13--18
-inline void c_solid_dynamic_incompressible(
-        double* dy_ptr,
-        double radius,
-        double* y_ptr,
-        char* args_ptr,
-        PreEvalFunc unused
-        ) noexcept
-{
-    c_RadialSolverArgs* rs_args_ptr = reinterpret_cast<c_RadialSolverArgs*>(args_ptr);
-
-    double gravity, density;
-    std::complex<double> shear_modulus, bulk_modulus;
-    c_read_eos(rs_args_ptr, radius, gravity, density, shear_modulus, bulk_modulus);
-
-    std::complex<double> y1, y2, y3, y4, y5, y6;
-    c_read_y6(y_ptr, y1, y2, y3, y4, y5, y6);
-
-    const double r_inverse       = 1.0 / radius;
-    const double density_gravity = density * gravity;
-    const double dynamic_term    = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
-    const double grav_term       = rs_args_ptr->grav_coeff * density;
-    const std::complex<double> two_shear_r_inv = 2.0 * shear_modulus * r_inverse;
-    const std::complex<double> y1_y3_term      = 2.0 * y1 - rs_args_ptr->llp1 * y3;
-
-    const std::complex<double> dy1 =
-        y1_y3_term * -1.0 * r_inverse;
-
-    const std::complex<double> dy2 =
-        r_inverse * (
-            y1 * (dynamic_term + 12.0 * shear_modulus * r_inverse - 4.0 * density_gravity) +
-            y3 * rs_args_ptr->llp1 * (density_gravity - 6.0 * shear_modulus * r_inverse) +
-            y4 * rs_args_ptr->llp1 +
-            y5 * density * rs_args_ptr->lp1 +
-            y6 * -density * radius
-        );
-
-    const std::complex<double> dy3 =
-        y1 * -r_inverse +
-        y3 * r_inverse +
-        y4 * (1.0 / shear_modulus);
-
-    const std::complex<double> dy4 =
-        r_inverse * (
-            y1 * (density_gravity - 3.0 * two_shear_r_inv) +
-            y2 * -1.0 +
-            y3 * (dynamic_term + two_shear_r_inv * (2.0 * rs_args_ptr->llp1 - 1.0)) +
-            y4 * -3.0 +
-            y5 * -density
-        );
-
-    const std::complex<double> dy5 =
-        y1 * grav_term +
-        y5 * -rs_args_ptr->lp1 * r_inverse +
-        y6;
-
-    const std::complex<double> dy6 =
-        r_inverse * (
-            y1 * grav_term * rs_args_ptr->lm1 +
-            y6 * rs_args_ptr->lm1 +
-            y1_y3_term * grav_term
-        );
-
-    c_write_dy6(dy_ptr, dy1, dy2, dy3, dy4, dy5, dy6);
-}
-
-
-// ============================================================================
-//  Solid Static Compressible
-// ============================================================================
 
 /// Radial derivative equations for a solid, static, compressible layer.
-/// The static case sets all frequency dependence to zero.
-///
-/// References: TS72 Eq. 82, KMN15 Eqs. 4--9, B15 Eqs. 13--18
 inline void c_solid_static_compressible(
         double* dy_ptr,
         double radius,
@@ -311,87 +272,24 @@ inline void c_solid_static_compressible(
         PreEvalFunc unused
         ) noexcept
 {
-    c_RadialSolverArgs* rs_args_ptr = reinterpret_cast<c_RadialSolverArgs*>(args_ptr);
-
-    double gravity, density;
-    std::complex<double> shear_modulus, bulk_modulus;
-    c_read_eos(rs_args_ptr, radius, gravity, density, shear_modulus, bulk_modulus);
-
-    std::complex<double> y1, y2, y3, y4, y5, y6;
-    c_read_y6(y_ptr, y1, y2, y3, y4, y5, y6);
-
-    const std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
-
-    const double r_inverse       = 1.0 / radius;
-    const double density_gravity = density * gravity;
-    const double grav_term       = rs_args_ptr->grav_coeff * density;
-
-    const std::complex<double> lame_2mu         = lame + 2.0 * shear_modulus;
-    const std::complex<double> lame_2mu_inverse = 1.0 / lame_2mu;
-    const std::complex<double> two_shear_r_inv  = 2.0 * shear_modulus * r_inverse;
-    const std::complex<double> y1_y3_term       = 2.0 * y1 - rs_args_ptr->llp1 * y3;
-
-    const std::complex<double> dy1 =
-        lame_2mu_inverse * (
-            y1_y3_term * -lame * r_inverse +
-            y2
-        );
-
-    const std::complex<double> dy2 =
-        r_inverse * (
-            y1 * -2.0 * density_gravity +
-            y2 * -2.0 +
-            y4 * rs_args_ptr->llp1 +
-            y5 * density * rs_args_ptr->lp1 +
-            y6 * -density * radius +
-            dy1 * 2.0 * lame +
-            y1_y3_term * (2.0 * (lame + shear_modulus) * r_inverse - density_gravity)
-        );
-
-    const std::complex<double> dy3 =
-        y1 * -r_inverse +
-        y3 * r_inverse +
-        y4 * (1.0 / shear_modulus);
-
-    const std::complex<double> dy4 =
-        r_inverse * (
-            y1 * (density_gravity + two_shear_r_inv) +
-            y3 * -two_shear_r_inv +
-            y4 * -3.0 +
-            y5 * -density +
-            dy1 * -lame +
-            y1_y3_term * -lame_2mu * r_inverse
-        );
-
-    const std::complex<double> dy5 =
-        y1 * grav_term +
-        y5 * -rs_args_ptr->lp1 * r_inverse +
-        y6;
-
-    const std::complex<double> dy6 =
-        r_inverse * (
-            y1 * grav_term * rs_args_ptr->lm1 +
-            y6 * rs_args_ptr->lm1 +
-            y1_y3_term * grav_term
-        );
-
-    c_write_dy6(dy_ptr, dy1, dy2, dy3, dy4, dy5, dy6);
+    c_solid_compressible_body<false>(dy_ptr, radius, y_ptr, args_ptr);
 }
 
 
 // ============================================================================
-//  Solid Static Incompressible
+//  Solid Incompressible (static and dynamic)
 // ============================================================================
 
-/// Radial derivative equations for a solid, static, incompressible layer.
+/// Radial derivative equations for a solid, incompressible layer. The static form drops the inertial term, which
+/// appears only in dy2 and dy4.
 ///
 /// References: TS72 Eq. 82, KMN15 Eqs. 4--9, B15 Eqs. 13--18
-inline void c_solid_static_incompressible(
+template <bool dynamic>
+inline void c_solid_incompressible_body(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        char* args_ptr,
-        PreEvalFunc unused
+        char* args_ptr
         ) noexcept
 {
     c_RadialSolverArgs* rs_args_ptr = reinterpret_cast<c_RadialSolverArgs*>(args_ptr);
@@ -410,30 +308,57 @@ inline void c_solid_static_incompressible(
     const std::complex<double> y1_y3_term      = 2.0 * y1 - rs_args_ptr->llp1 * y3;
 
     const std::complex<double> dy1 =
-        -1.0 * y1_y3_term * r_inverse;
+        y1_y3_term * -1.0 * r_inverse;
 
-    const std::complex<double> dy2 =
-        r_inverse * (
-            y1 * (12.0 * shear_modulus * r_inverse - 4.0 * density_gravity) +
-            y3 * rs_args_ptr->llp1 * (density_gravity - 6.0 * shear_modulus * r_inverse) +
-            y4 * rs_args_ptr->llp1 +
-            y5 * density * rs_args_ptr->lp1 +
-            y6 * -density * radius
-        );
+    std::complex<double> dy2;
+    std::complex<double> dy4;
+    if constexpr (dynamic)
+    {
+        const double dynamic_term = -rs_args_ptr->frequency * rs_args_ptr->frequency * density * radius;
+
+        dy2 =
+            r_inverse * (
+                y1 * (dynamic_term + 12.0 * shear_modulus * r_inverse - 4.0 * density_gravity) +
+                y3 * rs_args_ptr->llp1 * (density_gravity - 6.0 * shear_modulus * r_inverse) +
+                y4 * rs_args_ptr->llp1 +
+                y5 * density * rs_args_ptr->lp1 +
+                y6 * -density * radius
+            );
+
+        dy4 =
+            r_inverse * (
+                y1 * (density_gravity - 3.0 * two_shear_r_inv) +
+                y2 * -1.0 +
+                y3 * (dynamic_term + two_shear_r_inv * (2.0 * rs_args_ptr->llp1 - 1.0)) +
+                y4 * -3.0 +
+                y5 * -density
+            );
+    }
+    else
+    {
+        dy2 =
+            r_inverse * (
+                y1 * (12.0 * shear_modulus * r_inverse - 4.0 * density_gravity) +
+                y3 * rs_args_ptr->llp1 * (density_gravity - 6.0 * shear_modulus * r_inverse) +
+                y4 * rs_args_ptr->llp1 +
+                y5 * density * rs_args_ptr->lp1 +
+                y6 * -density * radius
+            );
+
+        dy4 =
+            r_inverse * (
+                y1 * (density_gravity - 3.0 * two_shear_r_inv) +
+                y2 * -1.0 +
+                y3 * (two_shear_r_inv * (2.0 * rs_args_ptr->llp1 - 1.0)) +
+                y4 * -3.0 +
+                y5 * -density
+            );
+    }
 
     const std::complex<double> dy3 =
         y1 * -r_inverse +
         y3 * r_inverse +
         y4 * (1.0 / shear_modulus);
-
-    const std::complex<double> dy4 =
-        r_inverse * (
-            y1 * (density_gravity - 3.0 * two_shear_r_inv) +
-            y2 * -1.0 +
-            y3 * (two_shear_r_inv * (2.0 * rs_args_ptr->llp1 - 1.0)) +
-            y4 * -3.0 +
-            y5 * -density
-        );
 
     const std::complex<double> dy5 =
         y1 * grav_term +
@@ -448,6 +373,30 @@ inline void c_solid_static_incompressible(
         );
 
     c_write_dy6(dy_ptr, dy1, dy2, dy3, dy4, dy5, dy6);
+}
+
+/// Radial derivative equations for a solid, dynamic, incompressible layer.
+inline void c_solid_dynamic_incompressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused
+        ) noexcept
+{
+    c_solid_incompressible_body<true>(dy_ptr, radius, y_ptr, args_ptr);
+}
+
+/// Radial derivative equations for a solid, static, incompressible layer.
+inline void c_solid_static_incompressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused
+        ) noexcept
+{
+    c_solid_incompressible_body<false>(dy_ptr, radius, y_ptr, args_ptr);
 }
 
 

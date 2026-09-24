@@ -3,7 +3,7 @@ from libc.stdint cimport int16_t
 from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
 
-from TidalPy.Utilities_x.lookups cimport c_IntMap, c_Key2, c_Key4
+from TidalPy.Utilities_x.lookups cimport c_IntMap, c_Key4
 
 
 cdef extern from "potential_common_.hpp" nogil:
@@ -21,13 +21,12 @@ cdef extern from "potential_common_.hpp" nogil:
         int o_coeff
         c_ModeStorage() except +
         c_ModeStorage(double mode, double mode_strength, int n_coeff, int o_coeff) except +
-        c_ModeStorage(int n_coeff, int o_coeff) except +
     
     ctypedef c_IntMap[c_Key4, c_ModeStorage] c_ModeMap
     ctypedef c_IntMap[c_Key4, size_t] c_UniqueFreqIndexMap
     ctypedef vector[c_FrequencyStorage] c_UniqueFreqMap
 
-    inline c_IntMap[c_Key2, double]& c_get_lm_coeff_map()
+    double c_lm_coeff(int degree_l, int order_m)
 
 
 cdef class ModeMap:

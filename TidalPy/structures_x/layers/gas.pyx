@@ -7,7 +7,6 @@ state), stored and serialized for a future gas description; nothing reads them y
 from its material's law. It has no phase changes and no cooling or radiogenics sub-models.
 """
 
-from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport unique_ptr, make_unique
 
@@ -15,11 +14,10 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
-from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
-from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, cy_fill_base_layer_config
+from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer, cy_fill_physics_config
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -117,25 +115,12 @@ cdef class GasLayer(PhysicsLayer):
             cpp_bool use_thermal_eos = False,
             cpp_bool use_heating     = False):
         cdef c_GasConfig config
-        config.name                 = name.encode("utf-8")
-        config.layer_index          = layer_index
-        config.radius_inner         = radius_inner
-        config.radius_outer         = radius_outer
-        config.mass                 = mass
-        config.material_name        = material_name.encode("utf-8")
-        config.is_tidal             = is_tidal
-        config.is_volume_fixed      = is_volume_fixed
-        config.tidal_scale          = d_NAN if tidal_scale is None else <double>tidal_scale
-        config.love_numbers = c_LoveNumbers(
-            cpp_complex[double](love_number_k.real, love_number_k.imag),
-            cpp_complex[double](love_number_h.real, love_number_h.imag),
-            cpp_complex[double](love_number_l.real, love_number_l.imag))
-        config.is_solid              = is_solid
-        config.is_static             = is_static
-        config.is_incompressible     = is_incompressible
-        config.temperature       = temperature
-        config.use_thermal_eos   = use_thermal_eos
-        config.use_heating       = use_heating
+        cy_fill_base_layer_config(
+            &config, name, layer_index, radius_inner, radius_outer, mass, material_name, is_tidal, is_volume_fixed,
+            tidal_scale)
+        cy_fill_physics_config(
+            &config, love_number_k, love_number_h, love_number_l, is_solid, is_static, is_incompressible,
+            temperature, use_thermal_eos, use_heating)
         config.mean_molecular_weight = mean_molecular_weight
         config.adiabatic_index       = adiabatic_index
         config.reference_temperature = reference_temperature

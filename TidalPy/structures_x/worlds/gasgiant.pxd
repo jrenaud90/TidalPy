@@ -16,5 +16,6 @@ cdef extern from "gasgiant_.hpp" namespace "tidalpy" nogil:
 
 cdef class GasGiantWorld(LayeredWorld):
     cdef c_GasGiantWorld* _gasgiant_ptr   # non-owning; ownership via BaseWorld._world_ptr
+    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr)
     @staticmethod
     cdef GasGiantWorld _wrap(shared_ptr[c_BaseWorld] ptr)

@@ -32,244 +32,155 @@ inline void c_find_starting_conditions(
         std::complex<double>* starting_conditions_ptr,
         const bool run_y_checks = true) noexcept
 {
-    size_t num_ys_for_assumption;
-
     *success_ptr = true;
 
-    if ((layer_type != 0) && is_static)
-    {
-        if (run_y_checks)
-        {
-            num_ys_for_assumption = 2;
-            if (num_ys_for_assumption != num_ys)
-            {
-                *success_ptr = false;
-                message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-            }
-        }
-        if (*success_ptr)
-        {
-            c_saito_liquid_static_incompressible(
-                radius, degree_l, num_ys, starting_conditions_ptr
-                );
-        }
+    const bool is_liquid = (layer_type != 0);
 
-    } else if (use_kamata)
+    // Saito (1974) covers every static liquid, so only the other layers can ask for a combination with no
+    // starting conditions.
+    if (!(is_liquid && is_static))
     {
-        if (layer_type == 0) {
-            if (is_static && is_incompressible)
-            {
-                *success_ptr = false;
-                message = "RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for Kamata starting conditions for static-solid layers.\nRecommend using dynamic-incompressible instead.";
-            } else if (is_static && (!is_incompressible))
-            {
-                if (run_y_checks)
-                {
-                    num_ys_for_assumption = 6;
-                    if (num_ys_for_assumption != num_ys)
-                    {
-                        *success_ptr = false;
-                        message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-                    }
-                }
-                if (*success_ptr)
-                {
-                    c_kamata_solid_static_compressible(
-                        radius,
-                        density,
-                        bulk_modulus,
-                        shear_modulus,
-                        degree_l,
-                        G_to_use,
-                        num_ys,
-                        starting_conditions_ptr);
-                }
-            } else if ((!is_static) && is_incompressible)
-            {
-                if (run_y_checks)
-                {
-                    num_ys_for_assumption = 6;
-                    if (num_ys_for_assumption != num_ys)
-                    {
-                        *success_ptr = false;
-                        message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-                    }
-                }
-                if (*success_ptr)
-                {
-                    c_kamata_solid_dynamic_incompressible(
-                        frequency,
-                        radius,
-                        density,
-                        shear_modulus,
-                        degree_l,
-                        G_to_use,
-                        num_ys,
-                        starting_conditions_ptr);
-                }
-            } else
-            {
-                if (run_y_checks)
-                {
-                    num_ys_for_assumption = 6;
-                    if (num_ys_for_assumption != num_ys)
-                    {
-                        *success_ptr = false;
-                        message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-                    }
-                }
-                if (*success_ptr)
-                {
-                    c_kamata_solid_dynamic_compressible(
-                        frequency,
-                        radius,
-                        density,
-                        bulk_modulus,
-                        shear_modulus,
-                        degree_l,
-                        G_to_use,
-                        num_ys,
-                        starting_conditions_ptr);
-                }
-            }
-        } else
+        if (use_kamata && !is_liquid && is_static && is_incompressible)
+        {
+            *success_ptr = false;
+            message = "RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for "
+                "Kamata starting conditions for static-solid layers.\nRecommend using dynamic-incompressible "
+                "instead.";
+            return;
+        }
+        if (!use_kamata && is_incompressible)
+        {
+            *success_ptr = false;
+            message = "RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for "
+                "most of the Takeuchi starting conditions. \nRecommend using Kamata (set use_kamata=True) "
+                "instead.";
+            return;
+        }
+    }
+
+    if (run_y_checks)
+    {
+        // Two ys for a static liquid, four for a dynamic one, six for a solid.
+        const size_t num_ys_for_assumption = is_liquid ? (is_static ? 2 : 4) : 6;
+        if (num_ys_for_assumption != num_ys)
+        {
+            *success_ptr = false;
+            message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting "
+                "condition assumptions.";
+            return;
+        }
+    }
+
+    if (is_liquid && is_static)
+    {
+        c_saito_liquid_static_incompressible(
+            radius, degree_l, num_ys, starting_conditions_ptr
+            );
+    }
+    else if (use_kamata)
+    {
+        if (!is_liquid)
         {
             if (is_static)
             {
-                // Covered by Saito above.
-            } else if ((!is_static) && is_incompressible)
+                c_kamata_solid_static_compressible(
+                    radius,
+                    density,
+                    bulk_modulus,
+                    shear_modulus,
+                    degree_l,
+                    G_to_use,
+                    num_ys,
+                    starting_conditions_ptr);
+            }
+            else if (is_incompressible)
             {
-                if (run_y_checks)
-                {
-                    num_ys_for_assumption = 4;
-                    if (num_ys_for_assumption != num_ys)
-                    {
-                        *success_ptr = false;
-                        message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-                    }
-                }
-                if (*success_ptr)
-                {
-                    c_kamata_liquid_dynamic_incompressible(
-                        frequency,
-                        radius,
-                        density,
-                        degree_l,
-                        G_to_use,
-                        num_ys,
-                        starting_conditions_ptr);
-                }
-            } else
+                c_kamata_solid_dynamic_incompressible(
+                    frequency,
+                    radius,
+                    density,
+                    shear_modulus,
+                    degree_l,
+                    G_to_use,
+                    num_ys,
+                    starting_conditions_ptr);
+            }
+            else
             {
-                if (run_y_checks)
-                {
-                    num_ys_for_assumption = 4;
-                    if (num_ys_for_assumption != num_ys)
-                    {
-                        *success_ptr = false;
-                        message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-                    }
-                }
-                if (*success_ptr)
-                {
-                    c_kamata_liquid_dynamic_compressible(
-                        frequency,
-                        radius,
-                        density,
-                        bulk_modulus,
-                        degree_l,
-                        G_to_use,
-                        num_ys,
-                        starting_conditions_ptr);
-                }
+                c_kamata_solid_dynamic_compressible(
+                    frequency,
+                    radius,
+                    density,
+                    bulk_modulus,
+                    shear_modulus,
+                    degree_l,
+                    G_to_use,
+                    num_ys,
+                    starting_conditions_ptr);
             }
         }
-
-    } else
-    {
-        if (is_incompressible)
+        else if (is_incompressible)
         {
-            *success_ptr = false;
-            message = "RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nRecommend using Kamata (set use_kamata=True) instead.";
-        } else {
-            if (layer_type == 0)
-            {
-                if (is_static) {
-                    if (run_y_checks) {
-                        num_ys_for_assumption = 6;
-                        if (num_ys_for_assumption != num_ys)
-                        {
-                            *success_ptr = false;
-                            message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-                        }
-                    }
-                    if (*success_ptr)
-                    {
-                        c_takeuchi_solid_static_compressible(
-                            radius,
-                            density,
-                            bulk_modulus,
-                            shear_modulus,
-                            degree_l,
-                            G_to_use,
-                            num_ys,
-                            starting_conditions_ptr);
-                    }
-                } else
-                {
-                    if (run_y_checks)
-                    {
-                        num_ys_for_assumption = 6;
-                        if (num_ys_for_assumption != num_ys)
-                        {
-                            *success_ptr = false;
-                            message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-                        }
-                    }
-                    if (*success_ptr)
-                    {
-                        c_takeuchi_solid_dynamic_compressible(
-                            frequency,
-                            radius,
-                            density,
-                            bulk_modulus,
-                            shear_modulus,
-                            degree_l,
-                            G_to_use,
-                            num_ys,
-                            starting_conditions_ptr);
-                    }
-                }
-            } else
-            {
-                if (is_static)
-                {
-                    // Covered by Saito above.
-                } else
-                {
-                    if (run_y_checks)
-                    {
-                        num_ys_for_assumption = 4;
-                        if (num_ys_for_assumption != num_ys)
-                        {
-                            *success_ptr = false;
-                            message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
-                        }
-                    }
-                    if (*success_ptr)
-                    {
-                        c_takeuchi_liquid_dynamic_compressible(
-                            frequency,
-                            radius,
-                            density,
-                            bulk_modulus,
-                            degree_l,
-                            G_to_use,
-                            num_ys,
-                            starting_conditions_ptr);
-                    }
-                }
-            }
+            c_kamata_liquid_dynamic_incompressible(
+                frequency,
+                radius,
+                density,
+                degree_l,
+                G_to_use,
+                num_ys,
+                starting_conditions_ptr);
         }
+        else
+        {
+            c_kamata_liquid_dynamic_compressible(
+                frequency,
+                radius,
+                density,
+                bulk_modulus,
+                degree_l,
+                G_to_use,
+                num_ys,
+                starting_conditions_ptr);
+        }
+    }
+    else if (!is_liquid)
+    {
+        if (is_static)
+        {
+            c_takeuchi_solid_static_compressible(
+                radius,
+                density,
+                bulk_modulus,
+                shear_modulus,
+                degree_l,
+                G_to_use,
+                num_ys,
+                starting_conditions_ptr);
+        }
+        else
+        {
+            c_takeuchi_solid_dynamic_compressible(
+                frequency,
+                radius,
+                density,
+                bulk_modulus,
+                shear_modulus,
+                degree_l,
+                G_to_use,
+                num_ys,
+                starting_conditions_ptr);
+        }
+    }
+    else
+    {
+        c_takeuchi_liquid_dynamic_compressible(
+            frequency,
+            radius,
+            density,
+            bulk_modulus,
+            degree_l,
+            G_to_use,
+            num_ys,
+            starting_conditions_ptr);
     }
 }

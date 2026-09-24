@@ -59,17 +59,13 @@ public:
     // Both return 0.0 when the config pointer is null or the input is non-positive.
     double calc_luminosity_from_temperature(double temperature) const noexcept {
         if (temperature <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
-        const double sigma = tidalpy_config_ptr->d_SBC;
-        const double area  = this->calc_surface_area(this->p_radius);
-        return area * sigma * temperature * temperature * temperature * temperature;
+        return c_stefan_boltzmann_luminosity(temperature, this->p_radius);
     }
 
     double calc_temperature_from_luminosity(double luminosity) const noexcept {
         if (luminosity <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
-        const double sigma = tidalpy_config_ptr->d_SBC;
-        const double area  = this->calc_surface_area(this->p_radius);
-        if (area <= 0.0 || sigma <= 0.0) { return 0.0; }
-        return std::pow(luminosity / (area * sigma), 0.25);
+        if (this->calc_surface_area(this->p_radius) <= 0.0 || tidalpy_config_ptr->d_SBC <= 0.0) { return 0.0; }
+        return c_stefan_boltzmann_temperature(luminosity, this->p_radius);
     }
 
     // Mutators (keep T and L consistent via Stefan-Boltzmann)

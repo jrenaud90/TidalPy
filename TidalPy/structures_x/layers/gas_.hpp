@@ -84,142 +84,39 @@ public:
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
     double get_reference_density()     const noexcept { return this->p_reference_density; }
 
-    // Binary I/O
     void write_binary(std::ostream& out) const override {
-        const auto     name_len = static_cast<uint32_t>(this->p_name.size());
-        const auto     mat_len  = static_cast<uint32_t>(this->p_material_name.size());
-        const uint64_t payload  =
-            sizeof(double)   * 2 +           // p_radius, p_mass
-            sizeof(uint32_t) + name_len +    // name length + bytes
-            sizeof(int32_t)  +               // layer_index
-            sizeof(double)   +               // radius_inner
-            sizeof(uint32_t) + mat_len +     // material_name length + bytes
-            sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
-            sizeof(double)   +               // tidal_scale
-            sizeof(double)   * 6 +           // love_numbers k/h/l re+im
-            sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
-            material_law_bytes() +           // temperature, use_thermal_eos, use_heating
-            sizeof(double)   * 4 +           // GasLayer fields
-            optional_binary_flag_bytes() +         // material EOS model presence flag
-            this->physics_models_presence_bytes(); // shear and bulk rheology presence flags
-
-        write_binary_header(out, static_cast<uint32_t>(BinaryClassID::GasLayer), payload);
-
-        // c_BaseLayer fields
-        out.write(reinterpret_cast<const char*>(&this->p_radius), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_mass),   sizeof(double));
-        out.write(reinterpret_cast<const char*>(&name_len),       sizeof(uint32_t));
-        if (name_len > 0) { out.write(this->p_name.data(), name_len); }
-        const int32_t idx = static_cast<int32_t>(this->p_layer_index);
-        out.write(reinterpret_cast<const char*>(&idx),                  sizeof(int32_t));
-        out.write(reinterpret_cast<const char*>(&this->p_radius_inner), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&mat_len),              sizeof(uint32_t));
-        if (mat_len > 0) { out.write(this->p_material_name.data(), mat_len); }
-        const uint8_t is_tidal_byte = static_cast<uint8_t>(this->p_is_tidal);
-        const uint8_t is_volume_fixed_byte = static_cast<uint8_t>(this->p_is_volume_fixed);
-        out.write(reinterpret_cast<const char*>(&is_tidal_byte),        sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_volume_fixed_byte), sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
-
-        // c_PhysicsLayer fields
-        auto write_complex = [&](const std::complex<double>& c) {
-            const double re = c.real(), im = c.imag();
-            out.write(reinterpret_cast<const char*>(&re), sizeof(double));
-            out.write(reinterpret_cast<const char*>(&im), sizeof(double));
-        };
-        write_complex(this->p_love_numbers.k);
-        write_complex(this->p_love_numbers.h);
-        write_complex(this->p_love_numbers.l);
-
-        // Radial-solver layer classification flags (mirrors c_PhysicsLayer's layout).
-        const uint8_t is_solid_byte          = static_cast<uint8_t>(this->p_is_solid);
-        const uint8_t is_static_byte         = static_cast<uint8_t>(this->p_is_static);
-        const uint8_t is_incompressible_byte = static_cast<uint8_t>(this->p_is_incompressible);
-        out.write(reinterpret_cast<const char*>(&is_solid_byte),          sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_static_byte),         sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_incompressible_byte), sizeof(uint8_t));
-        this->write_material_law_binary(out);
-
-        // c_GasLayer fields
+        write_binary_header(
+            out, static_cast<uint32_t>(BinaryClassID::GasLayer),
+            this->p_base_fields_bytes() + this->p_physics_fields_bytes()
+                + sizeof(double) * 4                       // the ideal-gas fields
+                + optional_binary_flag_bytes()             // material EOS model presence flag
+                + this->physics_models_presence_bytes());  // shear and bulk rheology presence flags
+        this->p_write_base_fields(out);
+        this->p_write_physics_fields(out);
         out.write(reinterpret_cast<const char*>(&this->p_mean_molecular_weight), sizeof(double));
         out.write(reinterpret_cast<const char*>(&this->p_adiabatic_index),       sizeof(double));
         out.write(reinterpret_cast<const char*>(&this->p_reference_temperature), sizeof(double));
         out.write(reinterpret_cast<const char*>(&this->p_reference_density),     sizeof(double));
-
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write GasLayer binary data");
         }
-
         this->write_eos_model_binary(out);
         this->write_physics_models_binary(out);
     }
 
     void read_binary(std::istream& in, bool force = false) override {
-        c_TidalPyBaseClass::read_binary(in, force);
-        // A loaded layer carries no solved profile or heating until its world solves again.
-        this->clear_eos_data();
-        this->p_tidal_heating = TidalPyConstants::d_NAN;
-
-        // c_BaseLayer fields
-        in.read(reinterpret_cast<char*>(&this->p_radius), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_mass),   sizeof(double));
-
-        this->p_name = read_binary_string(in);
-
-        int32_t idx = 0;
-        in.read(reinterpret_cast<char*>(&idx), sizeof(int32_t));
-        this->p_layer_index = static_cast<int>(idx);
-
-        in.read(reinterpret_cast<char*>(&this->p_radius_inner), sizeof(double));
-
-        this->p_material_name = read_binary_string(in);
-
-        uint8_t is_tidal_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_tidal_byte), sizeof(uint8_t));
-        this->p_is_tidal = static_cast<bool>(is_tidal_byte);
-        uint8_t is_volume_fixed_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_volume_fixed_byte), sizeof(uint8_t));
-        this->p_is_volume_fixed = static_cast<bool>(is_volume_fixed_byte);
-
-        in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
-
-
-        // c_PhysicsLayer fields
-        auto read_complex = [&](std::complex<double>& c) {
-            double re = 0.0, im = 0.0;
-            in.read(reinterpret_cast<char*>(&re), sizeof(double));
-            in.read(reinterpret_cast<char*>(&im), sizeof(double));
-            c = std::complex<double>(re, im);
-        };
-        read_complex(this->p_love_numbers.k);
-        read_complex(this->p_love_numbers.h);
-        read_complex(this->p_love_numbers.l);
-
-        // Radial-solver layer classification flags (mirrors c_PhysicsLayer's layout).
-        uint8_t is_solid_byte = 0;
-        uint8_t is_static_byte = 0;
-        uint8_t is_incompressible_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_solid_byte),          sizeof(uint8_t));
-        in.read(reinterpret_cast<char*>(&is_static_byte),         sizeof(uint8_t));
-        in.read(reinterpret_cast<char*>(&is_incompressible_byte), sizeof(uint8_t));
-        this->p_is_solid          = static_cast<bool>(is_solid_byte);
-        this->p_is_static         = static_cast<bool>(is_static_byte);
-        this->p_is_incompressible = static_cast<bool>(is_incompressible_byte);
-        this->read_material_law_binary(in);
-
-        // c_GasLayer fields
+        this->p_begin_read_binary(in, force);
+        this->p_read_base_fields(in);
+        this->p_read_physics_fields(in);
         in.read(reinterpret_cast<char*>(&this->p_mean_molecular_weight), sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_adiabatic_index),       sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_reference_temperature), sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_reference_density),     sizeof(double));
-
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read GasLayer binary data");
         }
-
         this->read_eos_model_binary(in, force);
         this->read_physics_models_binary(in, force);
-
         this->update_physicals();
     }
 

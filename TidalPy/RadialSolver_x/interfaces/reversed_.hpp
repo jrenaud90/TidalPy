@@ -11,6 +11,7 @@
 #include <limits>
 
 #include "../../constants_.hpp"
+#include "interfaces_.hpp"
 
 
 inline void c_top_to_bottom_interface_bc(
@@ -33,25 +34,16 @@ inline void c_top_to_bottom_interface_bc(
     const double nan_val = std::numeric_limits<double>::quiet_NaN();
     const std::complex<double> cmplx_NAN(nan_val, nan_val);
 
-    // Interfaces are defined at the bottom of a layer, but this function works downward and handles the
-    // transition at the top of each layer, so the interface values are those of the layer above.
-    const double interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity);
-    double liquid_density_at_interface = nan_val;
+    // This function works downward and handles the transition at the top of each layer: this layer is the lower
+    // side of the interface and the layer above the upper side.
+    const c_InterfaceValues interface_values = c_interface_values(
+        c_InterfaceSide{layer_type, layer_is_static, gravity_upper, density_upper},
+        c_InterfaceSide{layer_above_type, layer_above_is_static, layer_above_lower_gravity, layer_above_lower_density});
+    const double interface_gravity           = interface_values.gravity;
+    const double liquid_density_at_interface = interface_values.liquid_density;
 
     const bool layer_is_solid = (layer_type == 0);
     const bool layer_above_is_solid = (layer_above_type == 0);
-
-    if (!layer_is_solid) {
-        if (layer_is_static) {
-            liquid_density_at_interface = density_upper;
-        } else if (!layer_above_is_solid && layer_above_is_static) {
-            liquid_density_at_interface = layer_above_lower_density;
-        } else {
-            liquid_density_at_interface = density_upper;
-        }
-    } else if (!layer_above_is_solid) {
-        liquid_density_at_interface = layer_above_lower_density;
-    }
 
     std::complex<double> y4_frac_1  = cmplx_NAN;
     std::complex<double> y4_frac_2  = cmplx_NAN;

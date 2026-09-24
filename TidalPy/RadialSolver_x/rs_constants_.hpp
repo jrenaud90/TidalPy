@@ -14,3 +14,6 @@ constexpr size_t C_MAX_NUM_SOL = 3;
 
 /// Maximum number of surface boundary conditions ("ytypes") one solve may produce
 constexpr size_t C_MAX_NUM_YTYPES = 5;
+
+/// Fewest radial slices a layer may have: the shooting method needs five to place its output.
+constexpr size_t C_RS_MIN_SLICES_PER_LAYER = 5;

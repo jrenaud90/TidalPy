@@ -7,10 +7,10 @@
  * 2021) for the world's tide config and the supplied orbital and spin state, then collapses the per-mode terms
  * with the attached analytic tide model (cpl, ctl, ctl_q) into the total tidal heating and the three orbital
  * potential derivatives. The rheology model needs the radial solver, so c_LayeredWorld::calc_tides
- * (world_tides_.hpp) hides this one.
+ * (world_tides_.hpp) hides this one; it runs the engine through the same c_world_global_potential.
  *
  * This header pulls in the heavy global-potential tables; force-include it in the base-world extension only
- * (other extensions reach c_BaseWorld::calc_tides through inheritance).
+ * (other extensions reach c_BaseWorld::calc_tides through inheritance, and world_tides_.hpp includes it).
  */
 
 #include <stdexcept>
@@ -20,23 +20,16 @@
 
 namespace tidalpy {
 
-inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
-    if (!this->p_tide) {
-        throw std::runtime_error(
-            "TidalPy: no tide model attached to the world: call set_tide_model() first");
-    }
-
-    // The rheology model needs the world radial solver, which only a layered world has.
-    if (this->p_tide->needs_radial_solve()) {
-        throw std::runtime_error(
-            "TidalPy: the rheology tide model is only supported on a layered world (it needs "
-            "the radial solver); use an analytic model (cpl/ctl/ctl_q) on this world type");
-    }
-
-    this->p_check_tide_state(state);
-    const double planet_radius = this->get_radius();
+// The global potential of a world's tide config at an orbital state. On failure the world's tide state, passed in as
+// tides_solved and tide_result, is marked unsolved with the engine's error code, and std::runtime_error is thrown.
+inline c_GlobalPotentialStorage c_world_global_potential(
+        const c_BaseWorld& world,
+        const c_TideSolveConfig& state,
+        bool& tides_solved,
+        c_GlobalTideResult& tide_result) {
+    const double planet_radius = world.get_radius();
     const double G_to_use = c_get_G();
-    const c_TideConfig& tcfg = this->p_tide_config;
+    const c_TideConfig& tcfg = world.get_tide_config();
 
     c_GlobalPotentialStorage potential = c_global_potential(
         planet_radius,
@@ -55,11 +48,30 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     );
 
     if (potential.error_code != 0) {
-        this->p_tides_solved           = false;
-        this->p_tide_result            = c_GlobalTideResult();
-        this->p_tide_result.error_code = potential.error_code;
+        tides_solved           = false;
+        tide_result            = c_GlobalTideResult();
+        tide_result.error_code = potential.error_code;
         throw std::runtime_error("TidalPy: global potential failed during calc_tides");
     }
+    return potential;
+}
+
+inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
+    if (!this->p_tide) {
+        throw std::runtime_error(
+            "TidalPy: no tide model attached to the world: call set_tide_model() first");
+    }
+
+    // The rheology model needs the world radial solver, which only a layered world has.
+    if (this->p_tide->needs_radial_solve()) {
+        throw std::runtime_error(
+            "TidalPy: the rheology tide model is only supported on a layered world (it needs "
+            "the radial solver); use an analytic model (cpl/ctl/ctl_q) on this world type");
+    }
+
+    this->p_check_tide_state(state);
+    const c_GlobalPotentialStorage potential =
+        c_world_global_potential(*this, state, this->p_tides_solved, this->p_tide_result);
 
     this->p_tide_solver_love.clear();
     this->p_tide_result  = c_collapse_global_tides(potential, *this->p_tide, nullptr);

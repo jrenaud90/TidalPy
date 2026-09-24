@@ -39,19 +39,12 @@ inline c_GlobalTideResult c_collapse_global_tides(
         return result;
     }
 
-    bool found = false;
+    // Every mode of the potential map has a nonzero frequency.
     for (const auto& mode_entry : potential.potential_map) {
         const c_Key4& lmpq_key                       = mode_entry.first;
         const c_GlobalPotentialResultAtMode& terms   = mode_entry.second;
         const int degree_l                           = static_cast<int>(lmpq_key.a);
-
-        found = false;
-        const size_t freq_index = potential.unique_freq_index_map.get(found, lmpq_key);
-        if (!found) {
-            // Mode had no recorded (nonzero) frequency; it contributes nothing.
-            continue;
-        }
-        const double frequency = potential.unique_freq_map[freq_index].frequency;
+        const double frequency = potential.unique_freq_map[terms.frequency_index].frequency;
 
         tidalpy::c_LoveNumbers solver_love;
         if (solver_love_by_lmpq != nullptr) {

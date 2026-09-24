@@ -1,6 +1,6 @@
 # Material EOS Models (`Material_x.eos`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four are evaluated through the same call, `calc_density(pressure, temperature=None, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
 
@@ -14,10 +14,11 @@ An EOS model is the layer's **material**. It owns every frequency-independent pr
 c_TidalPyBaseClass
   └── c_PhysicsBase
         └── c_MaterialEOSBase  (abstract)
-              ├── c_ConstantDensityEOS  aliases "constant", "uniform", "constant_density"
-              ├── c_BirchMurnaghanEOS   aliases "bm", "birch_murnaghan", "birch-murnaghan"
-              ├── c_VinetEOS            alias "vinet"
-              └── c_InterpolatedEOS     aliases "interp", "interpolate", "interpolated"
+              ├── c_ConstantDensityEOS      aliases "constant", "uniform", "constant_density"
+              ├── c_PressureLawEOS          (shared by the two analytic pressure laws)
+              │     ├── c_BirchMurnaghanEOS aliases "bm", "birch_murnaghan", "birch-murnaghan"
+              │     └── c_VinetEOS          alias "vinet"
+              └── c_InterpolatedEOS         aliases "interp", "interpolate", "interpolated"
 ```
 
 The base declares `calc_density(pressure, temperature, radius)` pure virtual, holds the two thermal parameters, provides `calc_bulk_modulus(pressure, temperature, radius)`, and adds four optional radius-varying getters, described below. The Cython classes mirror the hierarchy: `MaterialEOSBase`, `ConstantDensityEOS`, `BirchMurnaghanEOS`, `VinetEOS`, `InterpolatedEOS`.

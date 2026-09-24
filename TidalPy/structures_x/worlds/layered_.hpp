@@ -30,7 +30,7 @@
 
 #include "constants_.hpp"
 #include "../../dynamics_x/spin_.hpp"
-#include "solver_.hpp"
+#include "../../Material_x/eos/solver_.hpp"
 #include "material_.hpp"
 #include "thermal_layout_.hpp"
 
@@ -38,7 +38,7 @@
 // the extension that owns the CySolverResult objects, with no cross-extension call().
 #include "../../Utilities_x/math_x/numerics_.hpp"
 #include "../../Utilities_x/dimensions/nondimensional_.hpp"
-#include "../../utilities/arrays/interp_.hpp"
+#include "../../Utilities_x/arrays/interp_.hpp"
 #include "../../RadialSolver_x/rs_constants_.hpp"
 #include "../../RadialSolver_x/rs_solution_.hpp"
 #include "../../RadialSolver_x/love_.hpp"
@@ -447,11 +447,6 @@ public:
         this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;   // a different planet now
     }
 
-    // Whether `layer` would continue the stack, so a caller can check before transferring ownership.
-    bool accepts_layer(const c_BaseLayer& layer) const {
-        return this->layer_rejection_reason(layer).empty();
-    }
-
     // Why add_layer would refuse `layer`, or an empty string when it would take it: the layer must continue the
     // stack (its inner radius at the previous layer's outer radius), stay inside the world radius, and carry a
     // name no other layer has, since layers are reached by name.
@@ -567,11 +562,6 @@ public:
     size_t get_thermal_passes()    const noexcept { return this->p_thermal_passes; }
     bool   get_geometry_converged() const noexcept { return this->p_geometry_converged; }
     bool   get_thermal_converged() const noexcept { return this->p_thermal_converged; }
-
-    // The world's heat sources, as the last successful solve prepared them; none before one.
-    const c_Heating& get_heating() const noexcept {
-        return this->p_solve_state ? this->p_solve_state->heating : this->p_no_heating;
-    }
 
     // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
     //   M c_p dT/dt = L_in - L_out + H.
@@ -1185,6 +1175,7 @@ public:
         this->p_reset_solved_state();
     }
 
+protected:
     // Forget everything solved: the EOS solution, the layer profiles, the thermal state, and every result built
     // on them. Called when the layers no longer match what was solved (a layer added, a binary load) and when a
     // solve throws, so no reader can mistake an old structure for the current one.
@@ -1200,6 +1191,7 @@ public:
         for (const auto& layer_uptr : this->p_layers) { layer_uptr->clear_eos_data(); }
     }
 
+public:
     // Solve the EOS and copy its result out before any other thread can start a solve on this world.
     c_WorldEOSReport solve_eos_report(const c_WorldEOSSolveConfig& cfg) {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
@@ -1358,7 +1350,7 @@ public:
             // A stretch takes its share of the layer's slices, at least as many as the shooting method needs.
             const double share = (layer_thickness > 0.0) ? (radius_outer - radius_inner) / layer_thickness : 1.0;
             const std::size_t count = std::max(
-                C_MIN_SLICES_PER_LAYER, static_cast<std::size_t>(std::ceil(share * static_cast<double>(slices))));
+                C_RS_MIN_SLICES_PER_LAYER, static_cast<std::size_t>(std::ceil(share * static_cast<double>(slices))));
             for (std::size_t slice_i = 0; slice_i < count; ++slice_i) {
                 const double fraction = static_cast<double>(slice_i) / static_cast<double>(count - 1);
                 radius_grid.push_back((slice_i + 1 == count)
@@ -1450,7 +1442,6 @@ public:
         rt.max_ram_MB         = cfg.max_ram_MB;
         rt.max_step           = cfg.max_step;
         rt.verbose            = cfg.verbose;
-        rt.warnings           = cfg.warnings;
         return rt;
     }
 
@@ -1525,13 +1516,6 @@ public:
         bool built = false;
         std::vector<c_HomogeneousLayer> layers;
     };
-
-    // The world's own solve with reusable averages for many frequencies in a row. The quasi-homogeneous methods use
-    // them; the radial-solver methods ignore them.
-    void solve_love_numbers(const c_LoveSolveConfig& cfg, c_HomogeneousLoveCache* cache) {
-        const c_WorldCallLock call_lock(this->p_call_mutex.get());
-        this->solve_love_numbers(cfg, cache, this->p_love);
-    }
 
     // A Love-number solve into `workspace`, which holds everything it produces. Nothing on the world changes, so the
     // tide paths solve into workspaces of their own without touching the world's last solve.
@@ -1917,11 +1901,13 @@ public:
         workspace.solved = true;
     }
 
+protected:
     // The [eos_solver] and [radial_solver] settings this world's file pinned. Every solve starts from the
     // TidalPy configuration with these applied on top.
     c_EOSSolverOverrides    p_eos_solver_overrides;
     c_RadialSolverOverrides p_radial_solver_overrides;
 
+public:
     void set_eos_solver_overrides(const c_EOSSolverOverrides& overrides) noexcept {
         this->p_eos_solver_overrides = overrides;
     }
@@ -1968,7 +1954,6 @@ public:
         return cfg;
     }
 
-    bool love_is_analytic() const noexcept { return this->p_love.is_analytic(); }
     int  get_love_method_last_int() const noexcept { return static_cast<int>(this->p_love.method_last); }
 
     // Diagnostics of the last quasi-homogeneous solve, NaN after a radial-solver solve: the tidal-scale-weighted mean
@@ -1991,9 +1976,6 @@ public:
     }
     // Each tidal layer's part of the last quasi-homogeneous solve; empty otherwise.
     const std::vector<c_LayerLove>& get_love_layer_parts() const noexcept { return this->p_love.analytic_layers; }
-
-    // Non-owning; the cached radial solver owns it, and it is null until solve_love_numbers builds the cache.
-    const ::c_RadialSolutionStorage* get_love_storage() const noexcept { return this->p_love.get_storage(); }
 
     // The Love results read the solver storage that solve_eos and the Love solves replace, so each read holds the
     // call lock; the message is returned as a copy for the same reason.
@@ -2215,31 +2197,39 @@ public:
 
     void read_binary(std::istream& in, bool force = false) override {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
-        c_TidalPyBaseClass::read_binary(in, force);
-        this->read_world_fields(in);
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read LayeredWorld binary data");
-        }
-        this->read_tide_section(in, force);
-        uint64_t n_layers = 0;
-        in.read(reinterpret_cast<char*>(&n_layers), sizeof(uint64_t));
-        c_SpinConfig spin_config;
-        in.read(reinterpret_cast<char*>(&spin_config.moment_of_inertia_factor), sizeof(double));
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read LayeredWorld binary data");
-        }
         try {
-            this->p_spin = c_Spin(spin_config);
-        } catch (const std::invalid_argument& error) {
-            throw std::runtime_error(std::string("TidalPy: corrupt LayeredWorld binary data: ") + error.what());
-        }
-        this->read_solver_overrides(in);
-        check_binary_count(in, n_layers, sizeof(c_BinaryHeader), "layer");
-        this->p_layers.clear();
-        this->p_layers.reserve(n_layers);
-        for (uint64_t i = 0; i < n_layers; ++i) {
-            this->p_layers.push_back(c_layer_from_binary(in, force));
-            this->p_layers.back()->set_owner_call_mutex(this->p_call_mutex.get());
+            c_TidalPyBaseClass::read_binary(in, force);
+            this->read_world_fields(in);
+            if (!in) {
+                throw std::runtime_error("TidalPy: failed to read LayeredWorld binary data");
+            }
+            this->read_tide_section(in, force);
+            uint64_t n_layers = 0;
+            in.read(reinterpret_cast<char*>(&n_layers), sizeof(uint64_t));
+            c_SpinConfig spin_config;
+            in.read(reinterpret_cast<char*>(&spin_config.moment_of_inertia_factor), sizeof(double));
+            if (!in) {
+                throw std::runtime_error("TidalPy: failed to read LayeredWorld binary data");
+            }
+            try {
+                this->p_spin = c_Spin(spin_config);
+            } catch (const std::invalid_argument& error) {
+                throw std::runtime_error(std::string("TidalPy: corrupt LayeredWorld binary data: ") + error.what());
+            }
+            this->read_solver_overrides(in);
+            check_binary_count(in, n_layers, TIDALPY_BINARY_HEADER_BYTES, "layer");
+            // Read every layer before replacing the old ones, so a corrupt record leaves the stack whole.
+            std::vector<std::unique_ptr<c_BaseLayer>> loaded_layers;
+            loaded_layers.reserve(n_layers);
+            for (uint64_t i = 0; i < n_layers; ++i) {
+                loaded_layers.push_back(c_layer_from_binary(in, force));
+                loaded_layers.back()->set_owner_call_mutex(this->p_call_mutex.get());
+            }
+            this->p_layers = std::move(loaded_layers);
+        } catch (...) {
+            // The world fields may already hold the new record's values, so nothing solved describes this world.
+            this->p_reset_solved_state();
+            throw;
         }
         // Nothing solved describes the loaded layers, and the masses floating layers held belong to the old ones.
         this->p_reference_mass.clear();
@@ -2348,10 +2338,6 @@ protected:
         this->p_radial_solver_overrides = radial;
     }
 
-    // Store a layer's frequency-independent viscoelastic state over its radial slice: the pre-melt static
-    // moduli and viscosities, then the post-melt versions, which equal the pre-melt ones without a melt
-    // model. A no-op for a geometry-only layer.
-    //
     // Steps every floating layer toward the mass it holds and carries the layers above it, returning the
     // largest relative radius change, which is what the solve watches to stop.
     //
@@ -2380,10 +2366,10 @@ protected:
                 // far away it starts, where a step in radius would crawl as the cube root.
                 double state[C_EOS_DY_VALUES];
                 solution.call_si(layer_i, radius_outer, state);
-                const double mass_outer    = state[2];
-                const double density_outer = state[4];
+                const double mass_outer    = state[C_EOS_MASS_INDEX];
+                const double density_outer = state[C_EOS_DENSITY_INDEX];
                 solution.call_si(layer_i, radius_inner, state);
-                const double mass_inner = state[2];
+                const double mass_inner = state[C_EOS_MASS_INDEX];
                 // A layer whose reference mass is still unset adopts what it holds inside the boundaries it
                 // was given, so it stays put until something else moves.
                 if (!std::isfinite(this->p_reference_mass[layer_i])) {
@@ -2497,8 +2483,6 @@ protected:
     std::shared_ptr<c_EOSSolution> p_eos_solution;  // retained full-planet solution (co-owned by layer dense evaluators)
     // The materials, inputs, and heat sources of the last successful solve, co-owned by its solution.
     std::shared_ptr<c_EOSSolveState> p_solve_state;
-    // What get_heating reports before a successful solve.
-    c_Heating p_no_heating;
     // Thermal description of every layer from the last successful solve, and how the thermal passes ended.
     std::vector<c_LayerThermal> p_layer_thermal;
     // The mass each floating layer holds on to [kg]; NaN for a layer that holds its volume instead.

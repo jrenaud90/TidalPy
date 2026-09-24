@@ -30,6 +30,7 @@
 #include <string>
 
 #include "love_.hpp"
+#include "../../Utilities_x/classes_x/model_names_.hpp"   // c_to_lower
 
 namespace tidalpy {
 
@@ -59,9 +60,7 @@ inline const char* c_love_method_name(c_LoveMethod method) noexcept
 // Parse a method name or alias (case-insensitive). Throws std::invalid_argument for unknown names.
 inline c_LoveMethod c_parse_love_method(const std::string& name)
 {
-    std::string key = name;
-    std::transform(key.begin(), key.end(), key.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::string key = c_to_lower(name);
     if (key == "radial_solver" || key == "shooting" || key == "rs") {
         return c_LoveMethod::RadialSolver;
     }

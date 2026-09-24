@@ -13,6 +13,53 @@
 #include "../../constants_.hpp"
 
 
+// One side of a layer interface: its layer's type and assumptions and its material at the interface radius.
+struct c_InterfaceSide {
+    int    layer_type;   // 0 = solid, 1 = liquid
+    bool   is_static;
+    double gravity;
+    double density;
+};
+
+// The material an interface condition reads.
+struct c_InterfaceValues {
+    double gravity;
+    double liquid_density;
+};
+
+// Gravity at an interface is the mean of the two sides. The liquid density is the liquid side of a solid-liquid
+// pair and the static side of a static-dynamic liquid pair; NaN where neither interface condition reads it (a
+// solid-solid pair, and liquid pairs of the same kind, which pass their solutions through). The upward shooting
+// integration and the downward collapse both take their interface values from here.
+inline c_InterfaceValues c_interface_values(const c_InterfaceSide& lower, const c_InterfaceSide& upper) noexcept
+{
+    const bool lower_solid = (lower.layer_type == 0);
+    const bool upper_solid = (upper.layer_type == 0);
+
+    double liquid_density = TidalPyConstants::d_NAN;
+    if (lower_solid && !upper_solid)
+    {
+        liquid_density = upper.density;
+    }
+    else if (!lower_solid && upper_solid)
+    {
+        liquid_density = lower.density;
+    }
+    else if (!lower_solid && !upper_solid)
+    {
+        if (upper.is_static && !lower.is_static)
+        {
+            liquid_density = upper.density;
+        }
+        else if (lower.is_static && !upper.is_static)
+        {
+            liquid_density = lower.density;
+        }
+    }
+    return c_InterfaceValues{0.5 * (upper.gravity + lower.gravity), liquid_density};
+}
+
+
 // Starting y of the upper layer's solutions from the top-of-lower-layer y, by layer type and static/dynamic
 // pairing (TS72 Eqs. 140-149; S74 Eqs. 20-21). Unused entries are NaN.
 inline void c_solve_upper_y_at_interface(
@@ -70,9 +117,9 @@ inline void c_solve_upper_y_at_interface(
         upper_layer_y_ptr[yi_upper] = cmplx_NAN;
     }
 
-    if (solid_solid)
+    // Solid-solid passes every y through, static or dynamic, and so does a liquid pair of the same kind.
+    if (solid_solid || (liquid_liquid && (static_static || dynamic_dynamic)))
     {
-        // Solid-solid passes every y through, static or dynamic.
         for (size_t yi_lower = 0; yi_lower < max_num_y; ++yi_lower)
         {
             size_t yi_upper = yi_lower;
@@ -85,19 +132,7 @@ inline void c_solve_upper_y_at_interface(
         }
     } else if (liquid_liquid)
     {
-        if (static_static || dynamic_dynamic)
-        {
-            for (size_t yi_lower = 0; yi_lower < max_num_y; ++yi_lower)
-            {
-                size_t yi_upper = yi_lower;
-                for (size_t soli_lower = 0; soli_lower < num_sols_lower; ++soli_lower)
-                {
-                    size_t soli_upper = soli_lower;
-                    upper_layer_y_ptr[soli_upper * max_num_y + yi_upper] =
-                        lower_layer_y_ptr[soli_lower * max_num_y + yi_lower];
-                }
-            }
-        } else if (static_dynamic)
+        if (static_dynamic)
         {
             // Solution 1
             upper_layer_y_ptr[0] = cmplx_zero;

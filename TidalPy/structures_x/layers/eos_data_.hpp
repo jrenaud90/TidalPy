@@ -31,14 +31,6 @@ public:
     // Type-erased so the layer stays CyRK-free.
     using DenseEval = std::function<void(double radius, double* y_out)>;
 
-    // Evaluation layout (see Material_x/eos/eos_layout_.hpp):
-    //   0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia, 4 density,
-    //   5 shear modulus, 6 bulk modulus, 7 shear visc, 8 bulk visc,
-    //   9 temperature, 10 heat flow, 11 melt fraction.
-    static constexpr std::size_t EOS_INDEX_GRAVITY  = 0;
-    static constexpr std::size_t EOS_INDEX_PRESSURE = 1;
-    static constexpr std::size_t EOS_INDEX_DENSITY  = 4;
-
     c_LayerEOSData()  = default;
     ~c_LayerEOSData() = default;
 
@@ -48,19 +40,8 @@ public:
     // True once a world EOS solve installed its dense evaluator, which is what carries the material state.
     bool has_dense_eval() const noexcept { return static_cast<bool>(this->p_dense_eval); }
 
-    // Structure getters: CyRK dense output when available, else the linear fallback.
-    double get_density(double radius) const noexcept {
-        return this->dense_or_interp(radius, EOS_INDEX_DENSITY, this->p_density_kgm3);
-    }
-    double get_gravity(double radius) const noexcept {
-        return this->dense_or_interp(radius, EOS_INDEX_GRAVITY, this->p_gravity_ms2);
-    }
-    double get_pressure(double radius) const noexcept {
-        return this->dense_or_interp(radius, EOS_INDEX_PRESSURE, this->p_pressure);
-    }
-
-    // The whole evaluation layout at a radius, for a caller that needs more than one value and does not want to
-    // pay for a dense call each. Fills C_EOS_DY_VALUES doubles. Without the dense evaluator only the three
+    // The whole evaluation layout at a radius (Material_x/eos/eos_layout_.hpp): CyRK dense output when available,
+    // else the linear fallback. Fills C_EOS_DY_VALUES doubles. Without the dense evaluator only the three
     // interpolated structure variables are filled and the rest are NaN.
     void evaluate(double radius, double* y_out) const noexcept {
         if (this->p_dense_eval) {
@@ -71,9 +52,9 @@ public:
             y_out[value_i] = TidalPyConstants::d_NAN;
         }
         if (this->p_radius.empty()) { return; }
-        y_out[EOS_INDEX_GRAVITY]  = this->interp_fallback(radius, this->p_gravity_ms2);
-        y_out[EOS_INDEX_PRESSURE] = this->interp_fallback(radius, this->p_pressure);
-        y_out[EOS_INDEX_DENSITY]  = this->interp_fallback(radius, this->p_density_kgm3);
+        y_out[C_EOS_GRAVITY_INDEX]  = this->interp_fallback(radius, this->p_gravity_ms2);
+        y_out[C_EOS_PRESSURE_INDEX] = this->interp_fallback(radius, this->p_pressure);
+        y_out[C_EOS_DENSITY_INDEX]  = this->interp_fallback(radius, this->p_density_kgm3);
     }
 
     // Install the CyRK dense evaluator (set by the world EOS solve). The callable co-owns the solution, so the
@@ -112,19 +93,6 @@ private:
     std::vector<double> p_density_kgm3;  // [kg/m^3]   linear fallback
     std::vector<double> p_gravity_ms2;   // [m/s^2]    linear fallback
     std::vector<double> p_pressure;   // [Pa]       linear fallback
-
-    // Prefers the CyRK dense output; otherwise linear-interpolates the slice array. NaN when neither is available.
-    double dense_or_interp(
-            double radius, std::size_t dense_index,
-            const std::vector<double>& fallback_values) const noexcept {
-        if (this->p_dense_eval) {
-            double dense_output[C_EOS_DY_VALUES] = {0.0};
-            this->p_dense_eval(radius, dense_output);
-            return dense_output[dense_index];
-        }
-        if (this->p_radius.empty()) { return TidalPyConstants::d_NAN; }
-        return c_interp(radius, this->p_radius.data(), fallback_values.data(), this->p_radius.size());
-    }
 
     double interp_fallback(double radius, const std::vector<double>& values) const noexcept {
         if (values.size() != this->p_radius.size()) { return TidalPyConstants::d_NAN; }

@@ -28,11 +28,12 @@
 #include <vector>
 
 #include "layered_.hpp"
+#include "world_tides_base_.hpp"                         // c_world_global_potential
 #include "../../Tides_x/classes/tide_collapse_.hpp"      // c_global_potential, c_collapse_global_tides
 #include "../../Tides_x/classes/tide_.hpp"               // c_RheologyTide (3D orchestration target)
 #include "../../Tides_x/potential/potential_3d_.hpp"     // c_tidal_potential_3d_modes (dynamic Kaula engine)
 #include "../../Tides_x/multilayer/kernel_.hpp"          // strain/stress/heating kernel + c_StrainRadialCoeffs
-#include "../../Tides_x/multilayer/angular_collapse_.hpp" // c_theta_integrated_heating (analytic colatitude collapse)
+#include "../../Tides_x/multilayer/angular_collapse_.hpp" // c_theta_integrated_heating_pair (analytic collapse)
 
 namespace tidalpy {
 
@@ -55,33 +56,12 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     const double planet_radius = this->get_radius();
     const double planet_volume =
         (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
-    const double G_to_use = c_get_G();
     const c_TideConfig& tcfg = this->p_tide_config;
     const std::size_t n_layers = this->p_layers.size();
 
     // Model-independent per-mode terms, plus the unique-frequency maps.
-    c_GlobalPotentialStorage potential = c_global_potential(
-        planet_radius,
-        state.semi_major_axis,
-        state.orbital_frequency,
-        state.spin_frequency,
-        state.obliquity,
-        state.eccentricity,
-        state.host_mass,
-        G_to_use,
-        tcfg.min_degree_l,
-        tcfg.max_degree_l,
-        tcfg.obliquity_truncation,
-        tcfg.eccentricity_truncation,
-        tcfg.eccentricity_exact_tolerance
-    );
-
-    if (potential.error_code != 0) {
-        this->p_tides_solved           = false;
-        this->p_tide_result            = c_GlobalTideResult();
-        this->p_tide_result.error_code = potential.error_code;
-        throw std::runtime_error("TidalPy: global potential failed during calc_tides");
-    }
+    const c_GlobalPotentialStorage potential =
+        c_world_global_potential(*this, state, this->p_tides_solved, this->p_tide_result);
 
     // Everything is gathered here and committed to the world at the end.
     c_GlobalTideResult tide_result;
@@ -116,13 +96,8 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         for (const auto& mode_entry : potential.potential_map) {
             const c_Key4& lmpq_key = mode_entry.first;
             const int degree_l     = static_cast<int>(lmpq_key.a);
-
-            bool found = false;
-            const std::size_t freq_index = potential.unique_freq_index_map.get(found, lmpq_key);
-            if (!found) {
-                // A zero-frequency mode is inactive and contributes nothing.
-                continue;
-            }
+            // Every mode of the potential map has a nonzero frequency.
+            const std::size_t freq_index = mode_entry.second.frequency_index;
             const double frequency = potential.unique_freq_map[freq_index].frequency;
 
             c_Key2 lf_key(static_cast<int16_t>(degree_l), static_cast<int16_t>(freq_index));
@@ -278,92 +253,118 @@ struct c_WaveSet3D {
     std::vector<int> wave_radial_group;           // per wave, index into radial_groups
     std::vector<double> frequencies;              // unique |omega|: waves sharing one combine coherently
     std::vector<int> wave_frequency_group;        // per wave, index into frequencies
+    std::vector<int> wave_frequency_slot;         // per wave, its place among its frequency's waves, in wave order
+    std::vector<size_t> frequency_num_waves;      // per frequency, its number of waves
     std::vector<std::array<int, 2>> angular_pairs; // unique (degree l, order m): one Legendre evaluation each
     std::vector<int> wave_angular_pair;           // per wave, index into angular_pairs
     std::vector<int> azimuthal_orders;            // unique signed azimuthal wavenumber mu = azimuthal_sign * m
     std::vector<int> wave_azimuthal_order;        // per wave, index into azimuthal_orders
-    // A secular set's cut amplitude products [a * num_waves + b] (c_wave_pair_power_3d) for waves of one frequency,
-    // which the secular heating takes in place of amplitude_a * conj(amplitude_b); empty for an instantaneous set,
-    // whose fields are linear in the unsquared amplitudes.
+    // The frequency match tolerance the set was built with, which later matches of its frequencies use too.
+    double frequency_match_rtol = 0.0;
+    // A secular set's cut amplitude products (c_wave_pair_power_3d) of the ordered pairs of waves of one frequency,
+    // which the secular heating takes in place of amplitude_a * conj(amplitude_b): frequency f's block starts at
+    // pair_power_offset[f] and holds its waves' pairs row-major by wave_frequency_slot. Empty for an instantaneous
+    // set, whose fields are linear in the unsquared amplitudes.
     bool secular = false;
     std::vector<std::complex<double>> pair_power;
+    std::vector<size_t> pair_power_offset;
+
+    // The cut product of waves a and b of one frequency.
+    const std::complex<double>& pair_power_of(size_t a, size_t b) const noexcept {
+        const size_t f = static_cast<size_t>(this->wave_frequency_group[a]);
+        return this->pair_power[this->pair_power_offset[f]
+            + static_cast<size_t>(this->wave_frequency_slot[a]) * this->frequency_num_waves[f]
+            + static_cast<size_t>(this->wave_frequency_slot[b])];
+    }
 };
+
+// The nonzero cut products of a secular set's waves before the filter: row a holds (b, product) for each wave b >= a
+// whose frequency a's matches, sorted by b.
+typedef std::vector<std::vector<std::pair<size_t, std::complex<double>>>> c_PairPowerRows3D;
+
+// The product of waves a and b from their rows: row a's entry for a < b, and otherwise the conjugate of row b's entry
+// for a (a wave's product with itself is conjugated too); zero for a pair with no entry.
+inline std::complex<double> c_pair_power_from_rows_3d(const c_PairPowerRows3D& rows, size_t a, size_t b) {
+    const bool direct = a < b;
+    const std::vector<std::pair<size_t, std::complex<double>>>& row = rows[direct ? a : b];
+    const size_t partner = direct ? b : a;
+    const auto found = std::lower_bound(
+        row.begin(), row.end(), partner,
+        [](const std::pair<size_t, std::complex<double>>& entry, size_t index) { return entry.first < index; });
+    if ((found == row.end()) || (found->first != partner)) { return std::complex<double>(0.0, 0.0); }
+    return direct ? found->second : std::conj(found->second);
+}
 
 // A secular set keeps only the waves with a non-zero cut product with some wave of their frequency (at zero obliquity,
 // the modes with |q| <= N / 2), so the radial solves cover exactly what the heating uses.
 inline c_WaveSet3D c_build_wave_set_3d(
         const std::vector<c_TidalPotential3DModeCoeff>& modes,
-        double min_frequency,
+        const c_FrequencyTolerance& tolerance,
         double eccentricity,
         double obliquity,
         bool secular) {
     c_WaveSet3D set;
     set.secular = secular;
-    set.waves = c_coherent_tidal_waves_3d(modes, min_frequency);
+    set.frequency_match_rtol = tolerance.match_rtol;
+    set.waves = c_coherent_tidal_waves_3d(modes, tolerance);
+    c_PairPowerRows3D pair_rows;
+    std::vector<size_t> kept;   // per kept wave, its index before the filter
     if (secular) {
         const size_t num_all = set.waves.size();
-        std::vector<std::complex<double>> all_power(num_all * num_all, std::complex<double>(0.0, 0.0));
+        c_WaveFrequencyIndex all_frequencies = c_wave_frequency_index(tolerance.match_rtol);
+        for (size_t a = 0; a < num_all; ++a) { all_frequencies.insert(0, set.waves[a].frequency); }
+        pair_rows.resize(num_all);
         std::vector<unsigned char> keep(num_all, 0);
+        std::vector<size_t> partners;
         for (size_t a = 0; a < num_all; ++a) {
-            for (size_t b = a; b < num_all; ++b) {
-                if (!c_tidal_wave_same_frequency(set.waves[a].frequency, set.waves[b].frequency)) { continue; }
+            partners.clear();
+            all_frequencies.for_each_match(0, set.waves[a].frequency, [&](size_t b) {
+                if (b >= a) { partners.push_back(b); }
+            });
+            std::sort(partners.begin(), partners.end());
+            for (const size_t b : partners) {
                 const std::complex<double> power =
                     c_wave_pair_power_3d(set.waves[a], set.waves[b], eccentricity, obliquity);
                 if (std::abs(power) == 0.0) { continue; }
-                all_power[a * num_all + b] = power;
-                all_power[b * num_all + a] = std::conj(power);
+                pair_rows[a].emplace_back(b, power);
                 keep[a] = 1;
                 keep[b] = 1;
             }
         }
-        std::vector<size_t> kept;
-        for (size_t a = 0; a < num_all; ++a) {
-            if (keep[a]) { kept.push_back(a); }
-        }
         std::vector<c_TidalWave3D> kept_waves;
-        kept_waves.reserve(kept.size());
-        set.pair_power.assign(kept.size() * kept.size(), std::complex<double>(0.0, 0.0));
-        for (size_t i = 0; i < kept.size(); ++i) {
-            kept_waves.push_back(set.waves[kept[i]]);
-            for (size_t j = 0; j < kept.size(); ++j) {
-                set.pair_power[i * kept.size() + j] = all_power[kept[i] * num_all + kept[j]];
-            }
+        for (size_t a = 0; a < num_all; ++a) {
+            if (!keep[a]) { continue; }
+            kept.push_back(a);
+            kept_waves.push_back(std::move(set.waves[a]));
         }
         set.waves = std::move(kept_waves);
     }
     const size_t num_waves = set.waves.size();
     set.wave_radial_group.assign(num_waves, -1);
     set.wave_frequency_group.assign(num_waves, -1);
+    set.wave_frequency_slot.assign(num_waves, -1);
     set.wave_angular_pair.assign(num_waves, -1);
     set.wave_azimuthal_order.assign(num_waves, -1);
+    // Each wave joins the first group whose frequency it matches, as a scan of the groups in order would find.
+    c_WaveFrequencyIndex radial_index = c_wave_frequency_index(tolerance.match_rtol);
+    c_WaveFrequencyIndex frequency_index = c_wave_frequency_index(tolerance.match_rtol);
     for (size_t w = 0; w < num_waves; ++w) {
         const c_TidalWave3D& wave = set.waves[w];
-        int radial_group = -1;
-        for (size_t g = 0; g < set.radial_groups.size(); ++g) {
-            if (set.radial_groups[g].degree_l == wave.degree_l
-                && c_tidal_wave_same_frequency(set.radial_groups[g].frequency, wave.frequency)) {
-                radial_group = static_cast<int>(g);
-                break;
-            }
-        }
+        std::ptrdiff_t radial_group = radial_index.find(wave.degree_l, wave.frequency);
         if (radial_group < 0) {
-            radial_group = static_cast<int>(set.radial_groups.size());
+            radial_group = static_cast<std::ptrdiff_t>(radial_index.insert(wave.degree_l, wave.frequency));
             set.radial_groups.push_back(c_RadialGroup3D{wave.degree_l, wave.frequency});
         }
-        set.wave_radial_group[w] = radial_group;
+        set.wave_radial_group[w] = static_cast<int>(radial_group);
 
-        int frequency_group = -1;
-        for (size_t f = 0; f < set.frequencies.size(); ++f) {
-            if (c_tidal_wave_same_frequency(set.frequencies[f], wave.frequency)) {
-                frequency_group = static_cast<int>(f);
-                break;
-            }
-        }
+        std::ptrdiff_t frequency_group = frequency_index.find(0, wave.frequency);
         if (frequency_group < 0) {
-            frequency_group = static_cast<int>(set.frequencies.size());
+            frequency_group = static_cast<std::ptrdiff_t>(frequency_index.insert(0, wave.frequency));
             set.frequencies.push_back(wave.frequency);
+            set.frequency_num_waves.push_back(0);
         }
-        set.wave_frequency_group[w] = frequency_group;
+        set.wave_frequency_group[w] = static_cast<int>(frequency_group);
+        set.wave_frequency_slot[w] = static_cast<int>(set.frequency_num_waves[static_cast<size_t>(frequency_group)]++);
 
         // Waves of one (l, m) share their Legendre values, and waves of one mu their e^{i mu phi}.
         const std::array<int, 2> pair{wave.degree_l, wave.order_m};
@@ -374,6 +375,31 @@ inline c_WaveSet3D c_build_wave_set_3d(
         const auto mu_found = std::find(set.azimuthal_orders.begin(), set.azimuthal_orders.end(), mu);
         set.wave_azimuthal_order[w] = static_cast<int>(mu_found - set.azimuthal_orders.begin());
         if (mu_found == set.azimuthal_orders.end()) { set.azimuthal_orders.push_back(mu); }
+    }
+    if (secular) {
+        // Only pairs within one frequency are ever read, so each frequency keeps a block of its own.
+        const size_t num_frequencies = set.frequencies.size();
+        std::vector<std::vector<size_t>> frequency_waves(num_frequencies);
+        for (size_t w = 0; w < num_waves; ++w) {
+            frequency_waves[static_cast<size_t>(set.wave_frequency_group[w])].push_back(w);
+        }
+        set.pair_power_offset.assign(num_frequencies, 0);
+        size_t num_pairs = 0;
+        for (size_t f = 0; f < num_frequencies; ++f) {
+            set.pair_power_offset[f] = num_pairs;
+            num_pairs += set.frequency_num_waves[f] * set.frequency_num_waves[f];
+        }
+        set.pair_power.assign(num_pairs, std::complex<double>(0.0, 0.0));
+        for (size_t f = 0; f < num_frequencies; ++f) {
+            const std::vector<size_t>& members = frequency_waves[f];
+            const size_t block = members.size();
+            for (size_t i = 0; i < block; ++i) {
+                for (size_t j = 0; j < block; ++j) {
+                    set.pair_power[set.pair_power_offset[f] + i * block + j] =
+                        c_pair_power_from_rows_3d(pair_rows, kept[members[i]], kept[members[j]]);
+                }
+            }
+        }
     }
     return set;
 }
@@ -406,10 +432,9 @@ inline c_WaveSet3D c_world_wave_set_3d(
             std::string("TidalPy: tidal potential engine failed during ") + what + " (error "
             + std::to_string(engine_error) + "); check degree/truncation levels");
     }
-    // The floor below which a mode is inactive is the 1D path's (record_unique_frequencies), so both paths keep the
+    // The floor below which a mode is inactive is the 1D path's (c_record_unique_frequencies), so both paths keep the
     // same modes; a slow mode near a Maxwell peak otherwise went missing from the 3D heating alone.
-    const double min_freq = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_FREQUENCY : 0.0;
-    return c_build_wave_set_3d(modes, min_freq, state.eccentricity, state.obliquity, secular);
+    return c_build_wave_set_3d(modes, c_read_frequency_tolerance(), state.eccentricity, state.obliquity, secular);
 }
 
 // Run the world radial solve for one radial group into `workspace` and return its solution storage, which lives
@@ -434,19 +459,32 @@ inline const ::c_RadialSolutionStorage* c_solve_radial_group_3d(
     return storage;
 }
 
+// The layer at a radius as the strain there needs it, looked up once per radius.
+struct c_RadiusLayer3D {
+    const c_PhysicsLayer* physics_layer = nullptr;   // null for a geometry-only layer
+    // A liquid layer, or a molten stretch the radial solver treats as a static liquid.
+    bool liquid = false;
+};
+
+inline c_RadiusLayer3D c_radius_layer_3d(const c_LayeredWorld& world, double radius) {
+    c_RadiusLayer3D layer;
+    layer.physics_layer = dynamic_cast<const c_PhysicsLayer*>(world.find_layer_for_radius(radius));
+    layer.liquid = ((layer.physics_layer != nullptr) && !layer.physics_layer->get_is_solid())
+        || world.get_is_molten_at(radius);
+    return layer;
+}
+
 // Strain radial coefficients of one radial group at one radius. False where there is no depth-resolved strain
 // solution (the center, below the solver start), where a point-wise quantity is NaN and a radial sum takes it as
-// zero. A liquid point (a liquid layer, or a molten stretch the radial solver treats as a static liquid) is not
-// missing: it has no shear kernel, so its coefficients are invalid and it contributes no heating (0) while its
-// stress and strain are NaN.
+// zero. A liquid point is not missing: it has no shear kernel, so its coefficients are invalid and it contributes no
+// heating (0) while its stress and strain are NaN. A geometry-only layer has NaN moduli.
 inline bool c_strain_coeffs_at_radius_3d(
-        c_LayeredWorld& world,
+        const c_RadiusLayer3D& layer,
         const ::c_RadialSolutionStorage* storage,
         double radius,
         const c_RadialGroup3D& group,
         tides::c_StrainRadialCoeffs& out) {
-    const auto* point_layer = dynamic_cast<const c_PhysicsLayer*>(world.find_layer_for_radius(radius));
-    if (((point_layer != nullptr) && !point_layer->get_is_solid()) || world.get_is_molten_at(radius)) {
+    if (layer.liquid) {
         out = tides::c_StrainRadialCoeffs();
         out.valid = false;
         return true;
@@ -460,13 +498,14 @@ inline bool c_strain_coeffs_at_radius_3d(
     }
     bool is_solid = true;
     bool is_incompressible = false;
-    const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(world.find_layer_for_radius(radius));
-    if (physics_layer != nullptr) {
-        is_solid = physics_layer->get_is_solid();
-        is_incompressible = physics_layer->get_is_incompressible();
+    std::complex<double> shear(TidalPyConstants::d_NAN, 0.0);
+    std::complex<double> bulk(TidalPyConstants::d_NAN, 0.0);
+    if (layer.physics_layer != nullptr) {
+        is_solid = layer.physics_layer->get_is_solid();
+        is_incompressible = layer.physics_layer->get_is_incompressible();
+        shear = layer.physics_layer->calc_complex_shear_modulus(radius, group.frequency);
+        bulk  = layer.physics_layer->calc_complex_bulk_modulus(radius, group.frequency);
     }
-    const std::complex<double> shear = world.calc_complex_shear_modulus(radius, group.frequency);
-    const std::complex<double> bulk  = world.calc_complex_bulk_modulus(radius, group.frequency);
     out = tides::c_compute_strain_radial_coeffs(
         y_at_r[0],
         y_at_r[1],
@@ -503,25 +542,30 @@ inline c_RadialCoefficients3D c_radial_coefficients_3d(
     std::vector<size_t> radius_missing(num_radii, 0);
     c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
     c_LoveWorkspace workspace;
+    // A solve calc_tides already ran for a group (same degree and |omega|) is used as it is: the first such solve.
+    c_WaveFrequencyIndex retained_index = c_wave_frequency_index(set.frequency_match_rtol);
+    std::vector<const ::c_RadialSolutionStorage*> retained_storage;
     const std::vector<c_RetainedRadialSolve>* retained = world.get_retained_radial_solves();
+    if (retained != nullptr) {
+        for (const c_RetainedRadialSolve& solve : *retained) {
+            if (solve.storage == nullptr) { continue; }
+            retained_index.insert(solve.degree_l, solve.frequency);
+            retained_storage.push_back(solve.storage);
+        }
+    }
+    std::vector<c_RadiusLayer3D> radius_layers(num_radii);
+    for (size_t ir = 0; ir < num_radii; ++ir) {
+        radius_layers[ir] = c_radius_layer_3d(world, radii[ir]);
+    }
     for (size_t g = 0; g < num_groups; ++g) {
-        // A solve calc_tides already ran for this group (same degree and |omega|) is used as it is.
-        const ::c_RadialSolutionStorage* storage = nullptr;
-        if (retained != nullptr) {
-            for (const c_RetainedRadialSolve& solve : *retained) {
-                if (solve.storage != nullptr && solve.degree_l == set.radial_groups[g].degree_l
-                    && c_tidal_wave_same_frequency(solve.frequency, set.radial_groups[g].frequency)) {
-                    storage = solve.storage;
-                    break;
-                }
-            }
-        }
-        if (storage == nullptr) {
-            storage = c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], what, workspace);
-        }
+        const std::ptrdiff_t retained_solve =
+            retained_index.find(set.radial_groups[g].degree_l, set.radial_groups[g].frequency);
+        const ::c_RadialSolutionStorage* storage = (retained_solve >= 0)
+            ? retained_storage[static_cast<size_t>(retained_solve)]
+            : c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], what, workspace);
         for (size_t ir = 0; ir < num_radii; ++ir) {
             if (!c_strain_coeffs_at_radius_3d(
-                world,
+                radius_layers[ir],
                 storage,
                 radii[ir],
                 set.radial_groups[g],
@@ -710,7 +754,6 @@ inline double c_secular_density_3d(
     if (!set.secular) {
         throw std::logic_error("TidalPy: the secular 3D heating needs a secular wave set (cut pair products)");
     }
-    const size_t num_waves = set.waves.size();
     std::vector<tides::c_Tensor6>& stress = angular.unit_stress;
     std::vector<tides::c_Tensor6>& strain = angular.unit_strain;
     std::vector<unsigned char>& valid = angular.unit_valid;
@@ -728,7 +771,7 @@ inline double c_secular_density_3d(
             if (!valid[a]) { continue; }
             for (const size_t b : group.waves) {
                 if (!valid[b]) { continue; }
-                const std::complex<double> power = set.pair_power[a * num_waves + b];
+                const std::complex<double>& power = set.pair_power_of(a, b);
                 if (std::abs(power) == 0.0) { continue; }
                 double pair_heating = 0.0;
                 for (size_t k = 0; k < 6; ++k) {
@@ -914,74 +957,54 @@ inline size_t c_collapse_size_3d(const c_Heating3DCollapsed& layout) {
     return size;
 }
 
-typedef std::map<std::array<int, 3>, std::array<double, 36>> c_GramCache3D;
+// The angular Gram matrices of (l_a, l_b, m), computed once each.
+struct c_GramMatrix3D {
+    double values[6][6];
+};
+typedef std::map<std::array<int, 3>, c_GramMatrix3D> c_GramCache3D;
 
-// Analytic colatitude integral of the longitude-mean secular density at one radius: over (|omega|, mu)
-// groups and ordered wave pairs (a, b) within a group, (|omega|/2) int Im(c_a conj(c_b) sigma~_a :
-// conj(eps~_b)) sin(theta) dtheta, the angular part coming from the Gram matrices. Times 2*pi*r^2 this is
+// Analytic colatitude integral of the longitude-mean secular density at one radius: over the (|omega|, mu) groups
+// (c_secular_groups_3d split by mu) and the ordered wave pairs (a, b) within a group, (|omega|/2) int Im(c_a conj(c_b)
+// sigma~_a : conj(eps~_b)) sin(theta) dtheta, the angular part coming from the Gram matrices. Times 2*pi*r^2 this is
 // the radial power density dP/dr.
 inline double c_secular_theta_integral_3d(
         const c_WaveSet3D& set,
+        const std::vector<c_SecularGroup3D>& groups,
         const std::vector<tides::c_StrainRadialCoeffs>& coeffs_by_group,
         c_GramCache3D& gram_cache) {
     if (!set.secular) {
         throw std::logic_error("TidalPy: the secular 3D heating needs a secular wave set (cut pair products)");
     }
     double total = 0.0;
-    const size_t num_waves = set.waves.size();
-    std::vector<unsigned char> done(num_waves, 0);
-    std::vector<size_t> members;
-    for (size_t a0 = 0; a0 < num_waves; ++a0) {
-        if (done[a0]) {
-            continue;
-        }
-
-        const int frequency_group = set.wave_frequency_group[a0];
-        const int mu0 = c_wave_mu(set.waves[a0]);
-        members.clear();
-        for (size_t w = a0; w < num_waves; ++w) {
-            if (done[w] || set.wave_frequency_group[w] != frequency_group || c_wave_mu(set.waves[w]) != mu0) {
-                continue;
-            }
-            done[w] = 1;
-            members.push_back(w);
-        }
-        const double frequency = set.frequencies[frequency_group];
-        for (const size_t a : members) {
+    for (const c_SecularGroup3D& group : groups) {
+        const double frequency = set.frequencies[group.frequency_group];
+        for (const size_t a : group.waves) {
             const tides::c_StrainRadialCoeffs& radial_a = coeffs_by_group[set.wave_radial_group[a]];
             if (!radial_a.valid) { continue; }
             const c_TidalWave3D& wave_a = set.waves[a];
-            for (const size_t b : members) {
+            for (const size_t b : group.waves) {
                 const tides::c_StrainRadialCoeffs& radial_b = coeffs_by_group[set.wave_radial_group[b]];
                 if (!radial_b.valid) { continue; }
+                const std::complex<double>& c_pair = set.pair_power_of(a, b);
+                if (std::abs(c_pair) == 0.0) { continue; }
                 const c_TidalWave3D& wave_b = set.waves[b];
                 const std::array<int, 3> key{wave_a.degree_l, wave_b.degree_l, wave_a.order_m};
                 auto found = gram_cache.find(key);
                 if (found == gram_cache.end()) {
-                    double gram[6][6];
-                    if (!tides::c_angular_gram_pair(wave_a.degree_l, wave_b.degree_l, wave_a.order_m, gram)) {
+                    c_GramMatrix3D gram;
+                    if (!tides::c_angular_gram_pair(wave_a.degree_l, wave_b.degree_l, wave_a.order_m, gram.values)) {
                         throw std::runtime_error(
                             "TidalPy: angular Gram matrix out of range during the analytic 3D heating collapse");
                     }
-                    std::array<double, 36> flat;
-                    for (int i = 0; i < 6; ++i) {
-                        for (int j = 0; j < 6; ++j) { flat[static_cast<size_t>(i * 6 + j)] = gram[i][j]; }
-                    }
-                    found = gram_cache.emplace(key, flat).first;
+                    found = gram_cache.emplace(key, gram).first;
                 }
-                double gram[6][6];
-                for (int i = 0; i < 6; ++i) {
-                    for (int j = 0; j < 6; ++j) { gram[i][j] = found->second[static_cast<size_t>(i * 6 + j)]; }
-                }
-                const std::complex<double> c_pair = set.pair_power[a * num_waves + b];
-                if (std::abs(c_pair) == 0.0) { continue; }
                 total += 0.5 * frequency * tides::c_theta_integrated_heating_pair(
                     radial_a,
                     radial_b,
                     wave_a.order_m,
                     wave_a.azimuthal_sign,
                     c_pair,
-                    gram);
+                    found->second.values);
             }
         }
     }
@@ -1006,6 +1029,30 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
     return heating;
 }
 
+namespace tides3d {
+
+// The rheology tide model a world's 3D path `what` runs on, once the world is checked to have one attached and its
+// EOS solved; `plural` says whether `what` takes a plural verb.
+inline const c_RheologyTide& c_require_3d_rheology(const c_LayeredWorld& world, const char* what, bool plural) {
+    if (!world.get_tide_model_set()) {
+        throw std::runtime_error("TidalPy: no tide model attached to the world. Call set_tide_model() first");
+    }
+    const auto* rheology = dynamic_cast<const c_RheologyTide*>(world.get_tide_model());
+    if (rheology == nullptr) {
+        throw std::runtime_error(
+            std::string("TidalPy: ") + what + (plural ? " require" : " requires")
+            + " the rheology tide model (the analytic cpl/ctl/ctl_q models have no depth-resolved radial solution)");
+    }
+    if (!world.get_eos_solved() || (world.get_eos_solution() == nullptr)) {
+        throw std::runtime_error(
+            std::string("TidalPy: ") + what + (plural ? " need" : " needs")
+            + " the EOS solved first. Call solve_eos()");
+    }
+    return *rheology;
+}
+
+}  // namespace tides3d
+
 // World delegation: validate preconditions, map the solve state into the potential's state struct, and
 // hand off to the rheology tide model's 3D orchestration.
 inline double c_LayeredWorld::get_3d_tidal_heating(
@@ -1013,21 +1060,8 @@ inline double c_LayeredWorld::get_3d_tidal_heating(
         double radius,
         double colatitude) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
-    if (!this->p_tide) {
-        throw std::runtime_error(
-            "TidalPy: no tide model attached to the world. Call set_tide_model() first");
-    }
-    auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
-    if (rheology == nullptr) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal heating requires the rheology tide model (the analytic cpl/ctl/ctl_q "
-            "models have no depth-resolved radial solution)");
-    }
-    if (!this->p_eos_solved || !this->p_eos_solution) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal heating needs the EOS solved first. Call solve_eos()");
-    }
-    return rheology->calc_3d_tidal_heating(*this, state, radius, colatitude);
+    const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal heating", false);
+    return rheology.calc_3d_tidal_heating(*this, state, radius, colatitude);
 }
 
 // World delegation for the batch path: same preconditions as the scalar get_3d_tidal_heating.
@@ -1039,21 +1073,8 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
         double* out_heating,
         int num_threads) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
-    if (!this->p_tide) {
-        throw std::runtime_error(
-            "TidalPy: no tide model attached to the world. Call set_tide_model() first");
-    }
-    auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
-    if (rheology == nullptr) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal heating requires the rheology tide model (the analytic cpl/ctl/ctl_q "
-            "models have no depth-resolved radial solution)");
-    }
-    if (!this->p_eos_solved || !this->p_eos_solution) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal heating needs the EOS solved first. Call solve_eos()");
-    }
-    rheology->calc_3d_tidal_heating_batch(
+    const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal heating", false);
+    rheology.calc_3d_tidal_heating_batch(
         *this,
         state,
         radii,
@@ -1070,21 +1091,8 @@ inline void c_LayeredWorld::get_3d_displacements_grid(
         double* out_disp,
         int num_threads) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
-    if (!this->p_tide) {
-        throw std::runtime_error(
-            "TidalPy: no tide model attached to the world. Call set_tide_model() first");
-    }
-    auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
-    if (rheology == nullptr) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal displacements require the rheology tide model (the analytic cpl/ctl/ctl_q "
-            "models have no depth-resolved radial solution)");
-    }
-    if (!this->p_eos_solved || !this->p_eos_solution) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal displacements need the EOS solved first. Call solve_eos()");
-    }
-    rheology->calc_3d_displacements_grid(
+    const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal displacements", true);
+    rheology.calc_3d_displacements_grid(
         *this,
         state,
         axes,
@@ -1273,19 +1281,8 @@ inline void c_LayeredWorld::get_3d_stress_strain_grid(
         double* out_strain,
         int num_threads) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
-    if (!this->p_tide) {
-        throw std::runtime_error("TidalPy: no tide model attached to the world: call set_tide_model() first");
-    }
-    auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
-    if (rheology == nullptr) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal stress and strain require the rheology tide model (the analytic cpl/ctl/ctl_q "
-            "models have no depth-resolved radial solution)");
-    }
-    if (!this->p_eos_solved || !this->p_eos_solution) {
-        throw std::runtime_error("TidalPy: 3D tidal stress and strain need the EOS solved first: call solve_eos()");
-    }
-    rheology->calc_3d_stress_strain_grid(*this, state, axes, out_stress, out_strain, num_threads);
+    const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal stress and strain", true);
+    rheology.calc_3d_stress_strain_grid(*this, state, axes, out_stress, out_strain, num_threads);
 }
 
 // Batch form of the secular 3D heating: the longitude-mean density at paired (radius, colatitude) points.
@@ -1455,6 +1452,12 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
     const std::vector<std::vector<tides::c_StrainRadialCoeffs>>& coeffs = radial_coefficients.by_radius;
     const std::vector<unsigned char>& radius_solve_failed = radial_coefficients.radius_failed;
     const double nan_v = TidalPyConstants::d_NAN;
+    // Secular: each frequency's waves summed coherently, split by mu for the longitude mean, which the
+    // single phi node then carries exactly, then (|omega|/2) Im(sigma_c : conj(eps_c)).
+    const bool longitude_averaged = cfg.longitude_summed;
+    const std::vector<tides3d::c_SecularGroup3D> groups = instantaneous
+        ? std::vector<tides3d::c_SecularGroup3D>()
+        : tides3d::c_secular_groups_3d(set, longitude_averaged);
 
     // The Gram path integrates the longitude-mean density, so it serves only a call that also sums longitude; a
     // call that keeps longitudes takes the Gauss-Legendre colatitude quadrature below.
@@ -1467,7 +1470,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
         for (size_t ir = 0; ir < nr; ++ir) {
             double theta_integral = 0.0;
             if (!radius_solve_failed[ir]) {
-                theta_integral = tides3d::c_secular_theta_integral_3d(set, coeffs[ir], gram_cache);
+                theta_integral = tides3d::c_secular_theta_integral_3d(set, groups, coeffs[ir], gram_cache);
             }
             // theta is already integrated, the Gram absorbing sin theta, so only radius and longitude remain.
             const double radial_factor = cfg.radial_summed ? grids.r_wsum[ir] : (grids.r_grid[ir] * grids.r_grid[ir]);
@@ -1490,14 +1493,8 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
     std::vector<std::vector<double>> row_values(rows_share_cells ? nth : 0);
     std::vector<std::vector<double>> row_layer_totals(totals ? nth : 0);
     const size_t num_frequencies = set.frequencies.size();
-    // Secular: each frequency's waves summed coherently, split by mu for the longitude mean, which the
-    // single phi node then carries exactly, then (|omega|/2) Im(sigma_c : conj(eps_c)). Instantaneous: every
-    // wave's complex amplitude added into its frequency's total, each frequency evolved as
+    // Instantaneous: every wave's complex amplitude added into its frequency's total, each frequency evolved as
     // Re[. e^{i |omega| t}] with the phase factors tabulated once, and the real fields summed.
-    const bool longitude_averaged = cfg.longitude_summed;
-    const std::vector<tides3d::c_SecularGroup3D> groups = instantaneous
-        ? std::vector<tides3d::c_SecularGroup3D>()
-        : tides3d::c_secular_groups_3d(set, longitude_averaged);
     const tides3d::c_PhaseTable3D phase =
         tides3d::c_phase_table_3d(set.frequencies, grids.t_grid.data(), instantaneous ? nt : 0);
 
@@ -1645,21 +1642,8 @@ inline void c_LayeredWorld::calc_3d_tides_into(
         double* out_values,
         double* out_layer_totals) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
-    if (!this->p_tide) {
-        throw std::runtime_error(
-            "TidalPy: no tide model attached to the world. Call set_tide_model() first");
-    }
-    auto* rheology = dynamic_cast<c_RheologyTide*>(this->p_tide.get());
-    if (rheology == nullptr) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal heating requires the rheology tide model (the analytic cpl/ctl/ctl_q "
-            "models have no depth-resolved radial solution)");
-    }
-    if (!this->p_eos_solved || !this->p_eos_solution) {
-        throw std::runtime_error(
-            "TidalPy: 3D tidal heating needs the EOS solved first. Call solve_eos()");
-    }
-    rheology->calc_3d_tidal_heating_collapsed(
+    const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal heating", false);
+    rheology.calc_3d_tidal_heating_collapsed(
         *this,
         state,
         radii,

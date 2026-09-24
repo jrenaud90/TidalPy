@@ -1,7 +1,4 @@
 from libcpp cimport bool as cpp_bool
-from libcpp.pair cimport pair
-
-from TidalPy.Utilities_x.lookups cimport c_IntMap, c_Key1, c_Key2, c_Key3
 
 
 cdef extern from "obliquity_accuracy_.hpp" nogil:
@@ -13,11 +10,8 @@ cdef extern from "obliquity_accuracy_.hpp" nogil:
 
 
 cdef extern from "obliquity_common_.hpp" nogil:
-    ctypedef pair[c_IntMap[c_Key3, double], c_IntMap[c_Key2, c_IntMap[c_Key1, double]]] ObliquityFuncOutput
-
     const int C_NUM_OBLIQUITY_TRUNCATIONS
     const int* C_OBLIQUITY_TRUNCATIONS
-    cpp_bool c_obliquity_truncation_tabulated(int truncation)
 
     cdef cppclass c_ObliquitySeriesTable:
         int degree_l

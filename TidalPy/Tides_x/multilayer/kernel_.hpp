@@ -162,25 +162,8 @@ inline double c_volumetric_heating(const c_Tensor6& stress, const c_Tensor6& str
         h += (k < 3) ? term : 2.0 * term;
     }
     // The weighted sum is real. For the summed amplitudes of one frequency it is non-negative for dissipative
-    // moduli, so there the magnitude equals the signed form below (Europa book Eq. 42).
+    // moduli, so there the magnitude equals the signed sum (Europa book Eq. 42).
     return std::abs(h);
-}
-
-// Signed form of c_volumetric_heating: sum_k w_k Im(sigma_k conj(eps_k)) with no abs(). The secular
-// (cycle or orbit-averaged) heating calls it with the total complex-phasor stress and strain at one
-// frequency (every wave at that |omega| summed first, since same-frequency cross terms survive the
-// average); that frequency's volumetric heating is (|omega|/2) times this, and the frequencies add
-// (distinct-frequency cross terms average to zero, so they are omitted).
-inline double c_volumetric_heating_signed(const c_Tensor6& stress, const c_Tensor6& strain) noexcept
-{
-    double h = 0.0;
-    for (size_t k = 0; k < 6; ++k)
-    {
-        const double term = stress.c[k].imag() * strain.c[k].real()
-                          - stress.c[k].real() * strain.c[k].imag();
-        h += (k < 3) ? term : 2.0 * term;
-    }
-    return h;
 }
 
 // The 3 complex displacement components at a point: [0]=radial u_r, [1]=polar u_theta, [2]=azimuthal u_phi.

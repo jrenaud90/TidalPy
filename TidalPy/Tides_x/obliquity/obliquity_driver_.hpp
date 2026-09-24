@@ -2,10 +2,12 @@
 /*
  * obliquity_driver_.hpp - obliquity functions F_lmp(I) by degree and truncation level.
  *
- * c_obliquity_func returns the unsquared functions through I^N (every function starting at or below I^N), the form a
- * tidal potential uses. c_obliquity_squared_func returns each F_lmp^2 cut at I^N (every function starting at or below
- * I^(N / 2)), the form the global heating uses. See obliquity_common_.hpp for the truncation rule and the table
- * format. The truncation C_OBLIQUITY_GENERAL takes the exact half-angle form instead, with plain squares.
+ * c_obliquity_values returns the unsquared functions through I^N (every function starting at or below I^N), the form
+ * a tidal potential uses. c_obliquity_squared_values returns each F_lmp^2 cut at I^N (every function starting at or
+ * below I^(N / 2)), the form the global heating uses. Both are dense over (m, p); c_obliquity_func and
+ * c_obliquity_squared_func give the same numbers as lookup maps of the non-zero functions. See obliquity_common_.hpp
+ * for the truncation rule and the table format. The truncation C_OBLIQUITY_GENERAL takes the exact half-angle form
+ * instead, with plain squares.
  */
 
 #include "obliquity_common_.hpp"
@@ -68,39 +70,30 @@ inline c_ObliquityGeneralTable c_obliquity_general_table(int* error_code_ptr, in
 
 namespace obliquity_detail {
 
-// Fill the (l, m, p) and (l, m) -> (p) maps from function_value(m, p) over the functions `include(m, p)` admits,
-// keeping non-zero values.
+// function_value(m, p) over the functions `include(m, p)` admits; zero for the rest.
 template <typename Include, typename FunctionValue>
-inline ObliquityFuncOutput c_fill_obliquity_maps(
+inline c_ObliquityValues c_fill_obliquity_values(
         int degree_l,
         const Include& include,
         const FunctionValue& function_value) {
-    ObliquityFuncOutput output;
-    output.first.reserve(static_cast<size_t>((degree_l + 1) * (degree_l + 1)));
-    output.second.reserve(static_cast<size_t>(degree_l + 1));
-    c_IntMap<c_Key1, double> by_p(static_cast<size_t>(degree_l + 1));
+    c_ObliquityValues values;
+    values.degree_l = degree_l;
+    values.values.assign(static_cast<size_t>((degree_l + 1) * (degree_l + 1)), 0.0);
     for (int order_m = 0; order_m <= degree_l; ++order_m) {
-        by_p.clear();
         for (int p = 0; p <= degree_l; ++p) {
             if (!include(order_m, p)) { continue; }
-            const double value = function_value(order_m, p);
-            if (value == 0.0) { continue; }
-            output.first.set(c_Key3(degree_l, order_m, p), value);
-            by_p.set(c_Key1(p), value);
-        }
-        if (by_p.size() > 0) {
-            output.second.set(c_Key2(degree_l, order_m), by_p);
+            values.values[static_cast<size_t>(order_m * (degree_l + 1) + p)] = function_value(order_m, p);
         }
     }
-    return output;
+    return values;
 }
 
-inline ObliquityFuncOutput c_general_obliquity_maps(
+inline c_ObliquityValues c_general_obliquity_values(
         int* error_code_ptr, double obliquity, int degree_l, bool squared) {
     const c_ObliquityGeneralTable table = c_obliquity_general_table(error_code_ptr, degree_l);
-    if (error_code_ptr[0] != 0) { return ObliquityFuncOutput(); }
+    if (error_code_ptr[0] != 0) { return c_ObliquityValues(); }
     const c_ObliquityHalfAnglePowers powers(obliquity);
-    return c_fill_obliquity_maps(
+    return c_fill_obliquity_values(
         degree_l,
         [&](int order_m, int p) { return table.mode(order_m, p).count > 0; },
         [&](int order_m, int p) {
@@ -109,39 +102,48 @@ inline ObliquityFuncOutput c_general_obliquity_maps(
         });
 }
 
+// The non-zero functions of dense values as the (l, m, p) and (l, m) -> (p) maps.
+inline c_ModeFuncOutput c_obliquity_maps(const c_ObliquityValues& values) {
+    return c_fill_mode_func_maps(
+        values.degree_l, values.degree_l + 1, 0, values.degree_l,
+        [&](int order_m, int p) { return values.value(order_m, p); });
+}
+
 }  // namespace obliquity_detail
 
-// Unsquared F_lmp(I) through I^N for every non-zero function starting at or below I^N; for C_OBLIQUITY_GENERAL, the
-// exact functions. Error codes as c_obliquity_series_table.
-inline ObliquityFuncOutput c_obliquity_func(
+// Unsquared F_lmp(I) through I^N for every function starting at or below I^N; for C_OBLIQUITY_GENERAL, the exact
+// functions. Error codes as c_obliquity_series_table.
+inline c_ObliquityValues c_obliquity_values(
         int* error_code_ptr,
         double obliquity,
         int degree_l,
         int truncation) {
     if (truncation == C_OBLIQUITY_GENERAL) {
-        return obliquity_detail::c_general_obliquity_maps(error_code_ptr, obliquity, degree_l, false);
+        return obliquity_detail::c_general_obliquity_values(error_code_ptr, obliquity, degree_l, false);
     }
     const c_ObliquitySeriesTable table = c_obliquity_series_table(error_code_ptr, degree_l, truncation);
-    if (error_code_ptr[0] != 0) { return ObliquityFuncOutput(); }
-    return obliquity_detail::c_fill_obliquity_maps(
+    if (error_code_ptr[0] != 0) { return c_ObliquityValues(); }
+    c_ObliquityValues values = obliquity_detail::c_fill_obliquity_values(
         degree_l,
         [&](int order_m, int p) { return table.mode(order_m, p).count > 0; },
         [&](int order_m, int p) { return c_obliquity_mode_value(table, order_m, p, obliquity); });
+    values.table = table;
+    return values;
 }
 
-// F_lmp(I)^2 cut at I^N for every non-zero function starting at or below I^(N / 2); the sum over modes is the Taylor
-// series of the heating through I^N. For C_OBLIQUITY_GENERAL, the plain squares of the exact functions.
-inline ObliquityFuncOutput c_obliquity_squared_func(
+// F_lmp(I)^2 cut at I^N for every function starting at or below I^(N / 2); the sum over modes is the Taylor series of
+// the heating through I^N. For C_OBLIQUITY_GENERAL, the plain squares of the exact functions.
+inline c_ObliquityValues c_obliquity_squared_values(
         int* error_code_ptr,
         double obliquity,
         int degree_l,
         int truncation) {
     if (truncation == C_OBLIQUITY_GENERAL) {
-        return obliquity_detail::c_general_obliquity_maps(error_code_ptr, obliquity, degree_l, true);
+        return obliquity_detail::c_general_obliquity_values(error_code_ptr, obliquity, degree_l, true);
     }
     const c_ObliquitySeriesTable table = c_obliquity_series_table(error_code_ptr, degree_l, truncation);
-    if (error_code_ptr[0] != 0) { return ObliquityFuncOutput(); }
-    return obliquity_detail::c_fill_obliquity_maps(
+    if (error_code_ptr[0] != 0) { return c_ObliquityValues(); }
+    c_ObliquityValues values = obliquity_detail::c_fill_obliquity_values(
         degree_l,
         [&](int order_m, int p) {
             return (table.mode(order_m, p).count > 0)
@@ -150,4 +152,28 @@ inline ObliquityFuncOutput c_obliquity_squared_func(
         [&](int order_m, int p) {
             return c_obliquity_cut_product(table, order_m, p, table, order_m, p, obliquity);
         });
+    values.table = table;
+    return values;
+}
+
+// c_obliquity_values as lookup maps of the non-zero functions.
+inline c_ModeFuncOutput c_obliquity_func(
+        int* error_code_ptr,
+        double obliquity,
+        int degree_l,
+        int truncation) {
+    const c_ObliquityValues values = c_obliquity_values(error_code_ptr, obliquity, degree_l, truncation);
+    if (error_code_ptr[0] != 0) { return c_ModeFuncOutput(); }
+    return obliquity_detail::c_obliquity_maps(values);
+}
+
+// c_obliquity_squared_values as lookup maps of the non-zero functions.
+inline c_ModeFuncOutput c_obliquity_squared_func(
+        int* error_code_ptr,
+        double obliquity,
+        int degree_l,
+        int truncation) {
+    const c_ObliquityValues values = c_obliquity_squared_values(error_code_ptr, obliquity, degree_l, truncation);
+    if (error_code_ptr[0] != 0) { return c_ModeFuncOutput(); }
+    return obliquity_detail::c_obliquity_maps(values);
 }

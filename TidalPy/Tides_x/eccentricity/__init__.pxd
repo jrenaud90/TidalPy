@@ -1,4 +1,5 @@
-from TidalPy.Tides_x.eccentricity.eccentricity_common cimport EccentricityFuncOutput, c_EccentricitySeriesTable
+from TidalPy.Tides_x.mode_func_common cimport c_ModeFuncOutput
+from TidalPy.Tides_x.eccentricity.eccentricity_common cimport c_EccentricitySeriesTable
 from TidalPy.Tides_x.eccentricity.eccentricity_func_l2 cimport c_eccentricity_series_l2
 from TidalPy.Tides_x.eccentricity.eccentricity_func_l3 cimport c_eccentricity_series_l3
 from TidalPy.Tides_x.eccentricity.eccentricity_func_l4 cimport c_eccentricity_series_l4

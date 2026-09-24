@@ -36,6 +36,7 @@
 #include "../worlds/factory_.hpp"             // c_world_from_binary (world binary-dispatch factory)
 #include "../../dynamics_x/orbit_solver_.hpp" // c_OrbitSolver / c_OrbitState (orbital rate engine)
 #include "../../Utilities_x/math_x/numerics_.hpp"  // c_isclose
+#include "../../Utilities_x/conversions/conversions_.hpp"  // c_semi_a2orbital_motion, c_orbital_motion2semi_a
 #include "constants_.hpp"                     // TidalPyConstants::d_EPS / d_NAN / d_PI, tidalpy_config_ptr->d_G
 
 namespace tidalpy {
@@ -317,6 +318,15 @@ public:
         if (this->is_hosted_by_star(index)) { this->p_stellar_orbits[index].eccentricity = eccentricity; }
     }
 
+protected:
+    // Mean motion n = sqrt(mu / a^3) [rad s-1]; NaN for a non-finite mu or a non-positive semi-major axis.
+    static double p_mean_motion(double mu, double semi_major_axis) {
+        if (!std::isfinite(mu) || !std::isfinite(semi_major_axis) || semi_major_axis <= TidalPyConstants::d_EPS) {
+            return TidalPyConstants::d_NAN;
+        }
+        return c_semi_a2orbital_motion(semi_major_axis, mu);
+    }
+
     // A world whose tidal host is the star has one orbit, stored in both element sets. When it becomes star-hosted
     // after its elements were set (a builder sets them before the roles), the set that has a semi-major axis fills
     // the one that does not; two different orbits throw std::invalid_argument rather than one being dropped.
@@ -341,6 +351,7 @@ public:
         }
     }
 
+public:
     // True when the world's tidal host is the star: the two orbits are then one, and the stellar elements are its
     // tidal elements.
     bool is_hosted_by_star(std::size_t index) const {
@@ -396,12 +407,7 @@ public:
     // Mean motion n = sqrt(mu / a^3) [rad s-1] for the world's two-body orbit about its tidal host.
     // Returns NaN for a non-positive/degenerate semi-major axis or a world with no tidal host.
     double calc_orbital_frequency(std::size_t index) const {
-        const double mu = this->calc_gravitational_parameter(index);
-        const double semi_major_axis = this->get_host_orbit(index).semi_major_axis;
-        if (!std::isfinite(mu) || !std::isfinite(semi_major_axis) || semi_major_axis <= TidalPyConstants::d_EPS) {
-            return TidalPyConstants::d_NAN;
-        }
-        return std::sqrt(mu / (semi_major_axis * semi_major_axis * semi_major_axis));
+        return p_mean_motion(this->calc_gravitational_parameter(index), this->get_host_orbit(index).semi_major_axis);
     }
 
     // Semi-major axis a = (mu / n^2)^(1/3) [m] from a mean motion (the inverse of calc_orbital_frequency).
@@ -411,7 +417,7 @@ public:
         if (!std::isfinite(mu) || orbital_frequency <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_NAN;
         }
-        return std::cbrt(mu / (orbital_frequency * orbital_frequency));
+        return c_orbital_motion2semi_a(orbital_frequency, mu);
     }
 
     // Orbital elements about the star (per world, by index; the source of insolation)
@@ -459,12 +465,8 @@ public:
 
     // n = sqrt(mu / a^3) for the world's orbit about the star.
     double calc_stellar_orbital_frequency(std::size_t index) const {
-        const double mu = this->calc_stellar_gravitational_parameter(index);
-        const double semi_major_axis = this->get_stellar_orbit(index).semi_major_axis;
-        if (!std::isfinite(mu) || !std::isfinite(semi_major_axis) || semi_major_axis <= TidalPyConstants::d_EPS) {
-            return TidalPyConstants::d_NAN;
-        }
-        return std::sqrt(mu / (semi_major_axis * semi_major_axis * semi_major_axis));
+        return p_mean_motion(
+            this->calc_stellar_gravitational_parameter(index), this->get_stellar_orbit(index).semi_major_axis);
     }
 
     // Orbit-averaged incident stellar flux [W m-2], F = L_star / (4 pi a^2 sqrt(1-e^2)), with a and e the

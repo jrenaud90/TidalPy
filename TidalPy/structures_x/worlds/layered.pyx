@@ -14,11 +14,10 @@ import weakref
 
 import numpy as np
 
-from libc.stdint cimport uint32_t
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
-from libcpp.memory cimport make_unique, static_pointer_cast
+from libcpp.memory cimport make_shared, static_pointer_cast
 from libcpp.vector cimport vector
 from cython.operator cimport dereference as deref
 
@@ -26,9 +25,15 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_PI, d_NAN
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_PI
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
+from TidalPy.structures_x.worlds.base cimport (
+    BaseWorld,
+    c_BaseWorld,
+    c_WorldConfig,
+    cy_fill_world_config,
+    cy_tide_state,
+)
 from TidalPy.structures_x.layers.base cimport (
     BaseLayer, c_BaseLayer, c_layer_class_name, cy_eos_field, cy_eos_fields, C_EOS_DENSITY_INDEX,
     C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
@@ -44,6 +49,7 @@ from TidalPy.RadialSolver_x.rs_solution cimport cy_check_surface_solve_condition
 from TidalPy.Tides_x.love.love cimport (
     c_parse_love_method_int, c_love_method_name_int, c_love_method_uses_radial_solver_int)
 from TidalPy.Utilities_x.logging_x.logger import log_warning
+from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name
 
 
 # Build the matching layer wrapper as a non-owning view onto a layer the world owns, dispatched by the C++
@@ -65,20 +71,6 @@ cdef extern from "world_tides_.hpp" nogil:
 
 # Component order of the stress and strain grids returned by LayeredWorld.calc_3d_stress_strain.
 STRESS_STRAIN_COMPONENTS = ("rr", "theta_theta", "phi_phi", "r_theta", "r_phi", "theta_phi")
-
-
-# Copy the first `n` values of a C++ vector[double] into a typed view, NaN-filling any tail. A solution's
-# profile vectors are filled point by point by interpolate_full_planet and can stop short of the radius array,
-# so the copy is bounded by both lengths.
-cdef void cy_fill_from_vec(double[::1] out, const vector[double]& source, Py_ssize_t n) noexcept nogil:
-    cdef Py_ssize_t i
-    cdef Py_ssize_t m = <Py_ssize_t>source.size()
-    if m > n:
-        m = n
-    for i in range(m):
-        out[i] = source[i]
-    for i in range(m, n):
-        out[i] = d_NAN
 
 
 # Copy a C++ vector[double] into a new 1D float64 ndarray.
@@ -256,48 +248,43 @@ def build_layered_world_from_profile(
     return LayeredWorld._wrap(static_pointer_cast[c_BaseWorld, c_LayeredWorld](world_sptr))
 
 
+# One 3D grid axis as a contiguous 1-D float64 array (a scalar becomes one value), with its data pointer and
+# length written out; the caller keeps the array alive for as long as the pointer is used.
+cdef cnp.ndarray cy_grid_axis(object values, const double** data_out, size_t* num_out):
+    cdef cnp.ndarray axis = np.ascontiguousarray(np.atleast_1d(values), dtype=np.float64).ravel()
+    num_out[0] = <size_t>axis.shape[0]
+    data_out[0] = <const double*>cnp.PyArray_DATA(axis) if num_out[0] > 0 else NULL
+    return axis
+
+
+# The four axes of an instantaneous 3D grid, each holding at least one value, as arrays and as `axes`.
+cdef tuple cy_grid_axes(object radii, object colatitudes, object longitudes, object times, c_Grid3DAxes* axes):
+    cdef cnp.ndarray radii_arr = cy_grid_axis(radii, &axes.radii, &axes.num_radii)
+    cdef cnp.ndarray colat_arr = cy_grid_axis(colatitudes, &axes.colatitudes, &axes.num_colatitudes)
+    cdef cnp.ndarray lon_arr   = cy_grid_axis(longitudes, &axes.longitudes, &axes.num_longitudes)
+    cdef cnp.ndarray time_arr  = cy_grid_axis(times, &axes.times, &axes.num_times)
+    if axes.num_radii == 0 or axes.num_colatitudes == 0 or axes.num_longitudes == 0 or axes.num_times == 0:
+        raise ValueError("radii, colatitudes, longitudes, and times must each hold at least one value")
+    return radii_arr, colat_arr, lon_arr, time_arr
+
+
 cdef int cy_check_num_threads(int num_threads) except -1:
     """Raise ValueError unless ``num_threads`` is at least 1."""
     if num_threads < 1:
         raise ValueError(f"num_threads must be at least 1; got {num_threads}")
     return 0
 
-# Translate an integration-method name to the CyRK enum (string handling stays at the Cython boundary).
-# Case-insensitive; covers the explicit Runge-Kutta methods and the implicit, stiff ones.
+# Integration-method names are resolved at the Cython boundary through the shared tables in TidalPy.constants.
 cdef str cy_integration_method_name(ODEMethod method):
     """The configuration spelling of a CyRK integration method."""
-    if method == ODEMethod.DOP853:
-        return "DOP853"
-    elif method == ODEMethod.RK45:
-        return "RK45"
-    elif method == ODEMethod.RK23:
-        return "RK23"
-    elif method == ODEMethod.BDF:
-        return "BDF"
-    elif method == ODEMethod.LSODA:
-        return "LSODA"
-    elif method == ODEMethod.RADAU:
-        return "Radau"
-    raise ValueError(f"Unsupported integration method code: {<int>method}.")
+    try:
+        return ODE_METHOD_NAMES[<int>method]
+    except KeyError:
+        raise ValueError(f"Unsupported integration method code: {<int>method}.") from None
 
 
 cdef ODEMethod cy_resolve_integration_method(str integration_method) except *:
-    cdef str method_upper = integration_method.upper()
-    if method_upper == 'DOP853':
-        return ODEMethod.DOP853
-    elif method_upper == 'RK45':
-        return ODEMethod.RK45
-    elif method_upper == 'RK23':
-        return ODEMethod.RK23
-    elif method_upper == 'BDF':
-        return ODEMethod.BDF
-    elif method_upper == 'LSODA':
-        return ODEMethod.LSODA
-    elif method_upper == 'RADAU':
-        return ODEMethod.RADAU
-    raise ValueError(
-        f"Unsupported integration method: {integration_method}. "
-        "Supported: RK23, RK45, DOP853, BDF, LSODA, Radau.")
+    return <ODEMethod><int>ode_method_from_name(integration_method)
 
 
 cdef void cy_apply_love_solve_overrides(
@@ -436,33 +423,32 @@ cdef class LayeredWorld(BaseWorld):
             double obliquity  = 0.0,
             double spin_frequency = 0.0):
         cdef c_WorldConfig config
-        config.name           = name.encode("utf-8")
-        config.world_type_str = world_type.encode("utf-8")
-        config.radius     = radius
-        config.mass       = mass
-        config.albedo     = albedo
-        config.emissivity = emissivity
-        config.obliquity  = obliquity
-        config.spin_frequency = spin_frequency
-        # make_unique owns the allocation; ownership then moves into the base-typed member
-        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
-        cdef unique_ptr[c_LayeredWorld] built = make_unique[c_LayeredWorld](config)
-        self._layered_ptr = built.get()
-        self._world_ptr.reset(<c_BaseWorld*>built.release())
-        self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
+        cy_fill_world_config(
+            &config,
+            name,
+            radius,
+            mass,
+            world_type,
+            albedo,
+            emissivity,
+            obliquity,
+            spin_frequency)
+        self._bind(static_pointer_cast[c_BaseWorld, c_LayeredWorld](make_shared[c_LayeredWorld](config)))
 
     def __dealloc__(self):
-        self._layered_ptr = NULL  # base's unique_ptr owns the C++ object
+        self._layered_ptr = NULL  # BaseWorld._world_ptr owns the C++ object
+
+    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr):
+        BaseWorld._bind(self, ptr)
+        self._layered_ptr = <c_LayeredWorld*>ptr.get()
+        self._layer_views = None
+        self._layer_view_by_name = None
 
     @staticmethod
     cdef LayeredWorld _wrap(shared_ptr[c_BaseWorld] ptr):
         """Wrap an already-constructed C++ layered world (no new C++ object is built)."""
         cdef LayeredWorld world = LayeredWorld.__new__(LayeredWorld)
-        world._world_ptr = ptr
-        world._ptr = <c_TidalPyBaseClass*>ptr.get()
-        world._layered_ptr = <c_LayeredWorld*>ptr.get()
-        world._layer_views = None
-        world._layer_view_by_name = None
+        world._bind(ptr)
         return world
 
     def add_layer(self, BaseLayer layer not None):
@@ -1481,13 +1467,13 @@ cdef class LayeredWorld(BaseWorld):
             not been solved, a radial-solver Love-number solve fails, or the global
             potential solve fails.
         """
-        cdef c_TideSolveConfig state
-        state.orbital_frequency = orbital_frequency
-        state.spin_frequency    = spin_frequency
-        state.eccentricity      = eccentricity
-        state.obliquity         = obliquity
-        state.semi_major_axis   = semi_major_axis
-        state.host_mass         = host_mass
+        cdef c_TideSolveConfig state = cy_tide_state(
+            orbital_frequency,
+            spin_frequency,
+            eccentricity,
+            obliquity,
+            semi_major_axis,
+            host_mass)
         with nogil:
             self._layered_ptr.calc_tides(state)
 
@@ -1536,13 +1522,13 @@ cdef class LayeredWorld(BaseWorld):
         Each call solves every radial response again, which costs about as much as the whole of
         :meth:`get_3d_tidal_heating_array` over hundreds of points; for more than one point, use that.
         """
-        cdef c_TideSolveConfig state
-        state.orbital_frequency = orbital_frequency
-        state.spin_frequency    = spin_frequency
-        state.eccentricity      = eccentricity
-        state.obliquity         = obliquity
-        state.semi_major_axis   = semi_major_axis
-        state.host_mass         = host_mass
+        cdef c_TideSolveConfig state = cy_tide_state(
+            orbital_frequency,
+            spin_frequency,
+            eccentricity,
+            obliquity,
+            semi_major_axis,
+            host_mass)
         cdef double heating
         with nogil:
             heating = self._layered_ptr.get_3d_tidal_heating(state, radius, colatitude)
@@ -1586,13 +1572,13 @@ cdef class LayeredWorld(BaseWorld):
         cdef double[::1] colat_view = colat_arr
         cdef double[::1] out_view   = out_arr
 
-        cdef c_TideSolveConfig state
-        state.orbital_frequency = orbital_frequency
-        state.spin_frequency    = spin_frequency
-        state.eccentricity      = eccentricity
-        state.obliquity         = obliquity
-        state.semi_major_axis   = semi_major_axis
-        state.host_mass         = host_mass
+        cdef c_TideSolveConfig state = cy_tide_state(
+            orbital_frequency,
+            spin_frequency,
+            eccentricity,
+            obliquity,
+            semi_major_axis,
+            host_mass)
 
         with nogil:
             self._layered_ptr.get_3d_tidal_heating_array(
@@ -1650,38 +1636,18 @@ cdef class LayeredWorld(BaseWorld):
           and y3 (tangential) of each mode's radial solution.
         """
         cy_check_num_threads(num_threads)
-        cdef cnp.ndarray radii_arr = np.ascontiguousarray(np.atleast_1d(radii), dtype=np.float64).ravel()
-        cdef cnp.ndarray colat_arr = np.ascontiguousarray(np.atleast_1d(colatitudes), dtype=np.float64).ravel()
-        cdef cnp.ndarray lon_arr   = np.ascontiguousarray(np.atleast_1d(longitudes), dtype=np.float64).ravel()
-        cdef cnp.ndarray time_arr  = np.ascontiguousarray(np.atleast_1d(times), dtype=np.float64).ravel()
-        cdef size_t nr = radii_arr.shape[0]
-        cdef size_t nth = colat_arr.shape[0]
-        cdef size_t nph = lon_arr.shape[0]
-        cdef size_t nt = time_arr.shape[0]
-        if nr == 0 or nth == 0 or nph == 0 or nt == 0:
-            raise ValueError("radii, colatitudes, longitudes, and times must each hold at least one value")
-        cdef cnp.ndarray out_arr = np.empty((nr, nth, nph, nt, 3), dtype=np.float64)
-        cdef double[::1] radii_view = radii_arr
-        cdef double[::1] colat_view = colat_arr
-        cdef double[::1] lon_view   = lon_arr
-        cdef double[::1] time_view  = time_arr
-        cdef double[:, :, :, :, ::1] out_view = out_arr
         cdef c_Grid3DAxes axes
-        axes.radii           = &radii_view[0]
-        axes.num_radii       = nr
-        axes.colatitudes     = &colat_view[0]
-        axes.num_colatitudes = nth
-        axes.longitudes      = &lon_view[0]
-        axes.num_longitudes  = nph
-        axes.times           = &time_view[0]
-        axes.num_times       = nt
-        cdef c_TideSolveConfig state
-        state.orbital_frequency = orbital_frequency
-        state.spin_frequency    = spin_frequency
-        state.eccentricity      = eccentricity
-        state.obliquity         = obliquity
-        state.semi_major_axis   = semi_major_axis
-        state.host_mass         = host_mass
+        radii_arr, colat_arr, lon_arr, time_arr = cy_grid_axes(radii, colatitudes, longitudes, times, &axes)
+        cdef cnp.ndarray out_arr = np.empty(
+            (axes.num_radii, axes.num_colatitudes, axes.num_longitudes, axes.num_times, 3), dtype=np.float64)
+        cdef double[:, :, :, :, ::1] out_view = out_arr
+        cdef c_TideSolveConfig state = cy_tide_state(
+            orbital_frequency,
+            spin_frequency,
+            eccentricity,
+            obliquity,
+            semi_major_axis,
+            host_mass)
         with nogil:
             self._layered_ptr.get_3d_displacements_grid(
                 state,
@@ -1762,29 +1728,9 @@ cdef class LayeredWorld(BaseWorld):
         if not (return_stress or return_strain):
             raise ValueError("At least one of return_stress and return_strain must be True.")
         cy_check_num_threads(num_threads)
-        cdef cnp.ndarray radii_arr = np.ascontiguousarray(np.atleast_1d(radii), dtype=np.float64).ravel()
-        cdef cnp.ndarray colat_arr = np.ascontiguousarray(np.atleast_1d(colatitudes), dtype=np.float64).ravel()
-        cdef cnp.ndarray lon_arr   = np.ascontiguousarray(np.atleast_1d(longitudes), dtype=np.float64).ravel()
-        cdef cnp.ndarray time_arr  = np.ascontiguousarray(np.atleast_1d(times), dtype=np.float64).ravel()
-        cdef size_t nr = radii_arr.shape[0]
-        cdef size_t nth = colat_arr.shape[0]
-        cdef size_t nph = lon_arr.shape[0]
-        cdef size_t nt = time_arr.shape[0]
-        if nr == 0 or nth == 0 or nph == 0 or nt == 0:
-            raise ValueError("radii, colatitudes, longitudes, and times must each hold at least one value")
-        cdef double[::1] radii_view = radii_arr
-        cdef double[::1] colat_view = colat_arr
-        cdef double[::1] lon_view   = lon_arr
-        cdef double[::1] time_view  = time_arr
         cdef c_Grid3DAxes axes
-        axes.radii           = &radii_view[0]
-        axes.num_radii       = nr
-        axes.colatitudes     = &colat_view[0]
-        axes.num_colatitudes = nth
-        axes.longitudes      = &lon_view[0]
-        axes.num_longitudes  = nph
-        axes.times           = &time_view[0]
-        axes.num_times       = nt
+        radii_arr, colat_arr, lon_arr, time_arr = cy_grid_axes(radii, colatitudes, longitudes, times, &axes)
+        cdef tuple tensor_shape = (axes.num_radii, axes.num_colatitudes, axes.num_longitudes, axes.num_times, 6)
 
         # Output buffers are owned by numpy; a skipped tensor passes a null pointer.
         cdef cnp.ndarray stress_arr = None
@@ -1794,21 +1740,21 @@ cdef class LayeredWorld(BaseWorld):
         cdef double* stress_ptr = NULL
         cdef double* strain_ptr = NULL
         if return_stress:
-            stress_arr = np.empty((nr, nth, nph, nt, 6), dtype=np.float64)
+            stress_arr = np.empty(tensor_shape, dtype=np.float64)
             stress_view = stress_arr
             stress_ptr = &stress_view[0, 0, 0, 0, 0]
         if return_strain:
-            strain_arr = np.empty((nr, nth, nph, nt, 6), dtype=np.float64)
+            strain_arr = np.empty(tensor_shape, dtype=np.float64)
             strain_view = strain_arr
             strain_ptr = &strain_view[0, 0, 0, 0, 0]
 
-        cdef c_TideSolveConfig state
-        state.orbital_frequency = orbital_frequency
-        state.spin_frequency    = spin_frequency
-        state.eccentricity      = eccentricity
-        state.obliquity         = obliquity
-        state.semi_major_axis   = semi_major_axis
-        state.host_mass         = host_mass
+        cdef c_TideSolveConfig state = cy_tide_state(
+            orbital_frequency,
+            spin_frequency,
+            eccentricity,
+            obliquity,
+            semi_major_axis,
+            host_mass)
         with nogil:
             self._layered_ptr.get_3d_stress_strain_grid(
                 state,
@@ -1916,65 +1862,39 @@ cdef class LayeredWorld(BaseWorld):
         if cfg.colatitude_max > d_PI:
             cfg.colatitude_max = d_PI
 
-        cdef cnp.ndarray radii_arr
-        cdef double[::1] radii_view
+        # A summed axis is not supplied: it passes a null pointer and no values. The arrays stay alive to the end.
         cdef const double* radii_ptr = NULL
+        cdef const double* colat_ptr = NULL
+        cdef const double* lon_ptr = NULL
+        cdef const double* time_ptr = NULL
         cdef size_t num_radii = 0
+        cdef size_t num_colat = 0
+        cdef size_t num_lon = 0
+        cdef size_t num_time = 0
         if not radial_summed:
             if radii is None:
                 raise ValueError("radii must be provided when radial_summed is False")
-            radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
-            num_radii = <size_t>radii_arr.shape[0]
-            if num_radii > 0:
-                radii_view = radii_arr
-                radii_ptr = &radii_view[0]
-
-        cdef cnp.ndarray colat_arr
-        cdef double[::1] colat_view
-        cdef const double* colat_ptr = NULL
-        cdef size_t num_colat = 0
+            radii_arr = cy_grid_axis(radii, &radii_ptr, &num_radii)
         if not latitude_summed:
             if colatitudes is None:
                 raise ValueError("colatitudes must be provided when latitude_summed is False")
-            colat_arr = np.ascontiguousarray(colatitudes, dtype=np.float64)
-            num_colat = <size_t>colat_arr.shape[0]
-            if num_colat > 0:
-                colat_view = colat_arr
-                colat_ptr = &colat_view[0]
-
-        cdef cnp.ndarray lon_arr
-        cdef double[::1] lon_view
-        cdef const double* lon_ptr = NULL
-        cdef size_t num_lon = 0
+            colat_arr = cy_grid_axis(colatitudes, &colat_ptr, &num_colat)
         if not longitude_summed:
             if longitudes is None:
                 raise ValueError("longitudes must be provided when longitude_summed is False")
-            lon_arr = np.ascontiguousarray(longitudes, dtype=np.float64)
-            num_lon = <size_t>lon_arr.shape[0]
-            if num_lon > 0:
-                lon_view = lon_arr
-                lon_ptr = &lon_view[0]
-
-        cdef cnp.ndarray time_arr
-        cdef double[::1] time_view
-        cdef const double* time_ptr = NULL
-        cdef size_t num_time = 0
+            lon_arr = cy_grid_axis(longitudes, &lon_ptr, &num_lon)
         if instantaneous:
             if times is None:
                 raise ValueError("times must be provided when orbit_averaged is False")
-            time_arr = np.ascontiguousarray(times, dtype=np.float64)
-            num_time = <size_t>time_arr.shape[0]
-            if num_time > 0:
-                time_view = time_arr
-                time_ptr = &time_view[0]
+            time_arr = cy_grid_axis(times, &time_ptr, &num_time)
 
-        cdef c_TideSolveConfig state
-        state.orbital_frequency = orbital_frequency
-        state.spin_frequency    = spin_frequency
-        state.eccentricity      = eccentricity
-        state.obliquity         = obliquity
-        state.semi_major_axis   = semi_major_axis
-        state.host_mass         = host_mass
+        cdef c_TideSolveConfig state = cy_tide_state(
+            orbital_frequency,
+            spin_frequency,
+            eccentricity,
+            obliquity,
+            semi_major_axis,
+            host_mass)
 
         # The layout gives the output shape, so the heating can be written straight into numpy-owned buffers.
         cdef c_Heating3DCollapsed layout

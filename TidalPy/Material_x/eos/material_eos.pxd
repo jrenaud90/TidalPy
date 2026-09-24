@@ -83,23 +83,21 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         c_ConstantDensityEOS(const c_MaterialEOSConfig& cfg) except +
         double get_reference_density() const
 
-    cdef cppclass c_BirchMurnaghanEOS(c_MaterialEOSBase):
-        c_BirchMurnaghanEOS() except +
-        c_BirchMurnaghanEOS(const c_MaterialEOSConfig& cfg) except +
+    # The shared base of the Birch-Murnaghan and Vinet models.
+    cdef cppclass c_PressureLawEOS(c_MaterialEOSBase):
         double get_reference_density()       const
         double get_reference_bulk_modulus()  const
         double get_bulk_modulus_derivative() const
         double get_invert_rtol()             const
         int    get_invert_max_iters()        const
 
-    cdef cppclass c_VinetEOS(c_MaterialEOSBase):
+    cdef cppclass c_BirchMurnaghanEOS(c_PressureLawEOS):
+        c_BirchMurnaghanEOS() except +
+        c_BirchMurnaghanEOS(const c_MaterialEOSConfig& cfg) except +
+
+    cdef cppclass c_VinetEOS(c_PressureLawEOS):
         c_VinetEOS() except +
         c_VinetEOS(const c_MaterialEOSConfig& cfg) except +
-        double get_reference_density()       const
-        double get_reference_bulk_modulus()  const
-        double get_bulk_modulus_derivative() const
-        double get_invert_rtol()             const
-        int    get_invert_max_iters()        const
 
     cdef cppclass c_InterpolatedEOS(c_MaterialEOSBase):
         c_InterpolatedEOS() except +
@@ -129,22 +127,31 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
 cdef dict cy_material_config(const c_MaterialEOSBase* eos_ptr)
 
 
+# A subclass reads its own model through a cast of _model(), never a stored typed pointer: attaching the model to
+# a layer moves it out of the wrapper, so only _eos_ptr knows whether the wrapper still holds one.
 cdef class MaterialEOSBase(PhysicsBase):
-    cdef unique_ptr[c_MaterialEOSBase] _eos_ptr   # owns the most-derived C++ model; the typed pointers below do not
+    cdef unique_ptr[c_MaterialEOSBase] _eos_ptr   # owns the most-derived C++ model
     cdef c_MaterialEOSBase* _model(self) except NULL
 
 
 cdef class ConstantDensityEOS(MaterialEOSBase):
-    cdef c_ConstantDensityEOS* _constant_ptr
+    pass
 
 
-cdef class BirchMurnaghanEOS(MaterialEOSBase):
-    cdef c_BirchMurnaghanEOS* _bm_ptr
+# The shared constructor and properties of the Birch-Murnaghan and Vinet wrappers; each subclass sets the model
+# its constructor builds.
+cdef class _PressureLawEOS(MaterialEOSBase):
+    cdef c_MaterialEOSModel _law_model
+    cdef c_PressureLawEOS* _law(self) except NULL
 
 
-cdef class VinetEOS(MaterialEOSBase):
-    cdef c_VinetEOS* _vinet_ptr
+cdef class BirchMurnaghanEOS(_PressureLawEOS):
+    pass
+
+
+cdef class VinetEOS(_PressureLawEOS):
+    pass
 
 
 cdef class InterpolatedEOS(MaterialEOSBase):
-    cdef c_InterpolatedEOS* _interp_ptr
+    pass

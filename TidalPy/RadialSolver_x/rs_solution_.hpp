@@ -14,9 +14,8 @@
 #include "love_.hpp"
 #include "rs_constants_.hpp"
 #include "../Material_x/eos/eos_solution_.hpp"   // also provides CyRK's CySolverResult (complete type)
-#include "../../constants_.hpp"
+#include "../constants_.hpp"
 #include "../Utilities_x/dimensions/nondimensional_.hpp"
-#include "../utilities/arrays/interp_.hpp"        // c_interp / c_binary_search_with_guess (shared array-interp)
 
 
 // Error Codes:
@@ -31,11 +30,11 @@
 // -12 : The surface boundary condition solve returned non-finite constants
 // -13 : The surface boundary condition system is singular to working precision (surface_rcond below
 //       [numerical] minimum_surface_rcond)
-// -14 : Unknown surface boundary condition model, or an unsupported number of them
+// -14 : Unknown surface boundary condition model, or an unsupported number of them (both methods)
 //
 // -2X : Error in propagation matrix method
 // -20 : Unknown core starting conditions
-// -21 : Error using ZGESV solver with boundary condition
+// -21 : The surface boundary condition solve returned non-finite constants
 
 class c_RadialSolutionStorage
 {
@@ -121,7 +120,6 @@ public:
     // Per-layer metadata for the collapse. char rather than bool for a stable data().
     std::vector<int>    p_layer_types        = std::vector<int>();
     std::vector<char>   p_layer_is_static    = std::vector<char>();
-    std::vector<char>   p_layer_is_incomp    = std::vector<char>();
     std::vector<size_t> p_num_sols_by_layer  = std::vector<size_t>();
     std::vector<double> p_upper_radii_solve  = std::vector<double>();   // layer upper radii (solve units)
     std::vector<double> p_sample_radius_si   = std::vector<double>();   // radii the result grid is sampled on [m]
@@ -130,16 +128,13 @@ public:
     double p_frequency_solve        = 0.0;   // forcing frequency (solve units) for y3 reconstruction
 
     // radius_solve = r_si / p_length_conv, and the scales re-dimensionalize a solve-unit y to SI. Identity
-    // when the solve ran in SI.
+    // when the solve ran in SI. Set once per solve by set_dimensional_context.
     double p_length_conv  = 1.0;
     double p_disp_scale   = 1.0;   // y1, y3
     double p_stress_scale = 1.0;   // y2, y4
     double p_pot_scale    = 1.0;   // y6   (y5 is unitless)
-    // Whether the EOS arrays are still non-dim. Once re-dimensionalized, the gravity and density read during
-    // the dynamic-liquid y3 reconstruction are divided back into solve units.
+    // Whether the EOS arrays are still non-dim.
     bool   p_eos_is_nondim = false;
-    double p_grav_conv     = 1.0;
-    double p_dens_conv     = 1.0;
 
     c_RadialSolutionStorage() = default;
 
@@ -164,22 +159,14 @@ public:
             this->num_slices
             );
 
-        // Up to 3 solutions per layer.
+        // Up to 3 solutions per layer, zero until a shooting solve counts them.
         this->shooting_method_steps_taken_vec.resize(3 * this->num_layers);
-        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
-        {
-            this->shooting_method_steps_taken_vec[3 * layer_i]     = 0;
-            this->shooting_method_steps_taken_vec[3 * layer_i + 1] = 0;
-            this->shooting_method_steps_taken_vec[3 * layer_i + 2] = 0;
-        }
 
         if (this->eos_solution_uptr.get())
         {
-            this->change_radius_array(
-                radius_array_ptr,
-                size_radius_array,
-                false  // not an array change
-                );
+            this->total_size = static_cast<size_t>(C_MAX_NUM_Y_REAL) * this->num_slices * this->num_ytypes;
+            this->full_solution_vec.resize(this->total_size);
+            this->complex_love_vec.resize(this->num_ytypes);
 
             this->message = "Radial solution storage initialized successfully.";
         }
@@ -190,40 +177,11 @@ public:
         }
     }
 
-    virtual ~c_RadialSolutionStorage()
-    {
-        this->eos_solution_uptr.reset();
-    }
+    ~c_RadialSolutionStorage() = default;
 
     c_EOSSolution* get_eos_solution_ptr()
     {
         return this->eos_solution_uptr.get();
-    }
-
-    void change_radius_array(
-        double* new_radius_array_ptr,
-        size_t new_size_radius_array,
-        bool array_changed)
-    {
-        if (this->error_code == 0)
-        {
-            if (array_changed)
-            {
-                if (this->eos_solution_uptr.get())
-                {
-                    this->eos_solution_uptr->change_radius_array(new_radius_array_ptr, new_size_radius_array);
-                }
-
-                this->message = "Radius array changed. Radial solution reset.";
-                this->success = false;
-            }
-
-            this->num_slices = new_size_radius_array;
-            this->total_size = static_cast<size_t>(C_MAX_NUM_Y_REAL) * this->num_slices * this->num_ytypes;
-
-            this->full_solution_vec.resize(this->total_size);
-            this->complex_love_vec.resize(this->num_ytypes);
-        }
     }
 
     void find_love()
@@ -242,9 +200,11 @@ public:
         {
             const double surface_r_solve =
                 this->p_upper_radii_solve.empty() ? 0.0 : this->p_upper_radii_solve.back();
+            c_RadialBasis basis;
+            const bool basis_found = this->p_evaluate_basis(surface_r_solve, false, basis);
             for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ++ytype_i)
             {
-                this->get_radial_solution_nondim(surface_r_solve, ytype_i, surface_solutions);
+                this->p_collapse_basis(basis, basis_found, ytype_i, surface_r_solve, surface_solutions);
                 this->complex_love_vec[ytype_i] =
                     c_find_love(surface_solutions, this->eos_solution_uptr->surface_gravity);
                 this->cache_surface_y(ytype_i, surface_solutions);
@@ -295,15 +255,16 @@ public:
         bool redimensionalize,
         bool include_eos = true)
     {
-        // include_eos = false leaves the EOS arrays non-dim for reuse across frequency solves.
+        // include_eos = false leaves the EOS arrays non-dim for reuse across frequency solves. The solution
+        // itself takes the scales set_dimensional_context stored for this solve.
         double* full_solution_ptr       = this->full_solution_vec.data();
         c_EOSSolution* eos_solution_ptr = this->get_eos_solution_ptr();
         if (include_eos)
             eos_solution_ptr->dimensionalize_data(nondim_scales, redimensionalize);
 
-        const double displacement_scale = (nondim_scales->second2_conversion / nondim_scales->length_conversion);
-        const double stress_scale       = (nondim_scales->mass_conversion / nondim_scales->length3_conversion);
-        const double potential_scale    = (1.0 / nondim_scales->length_conversion);
+        const double displacement_scale = this->p_disp_scale;
+        const double stress_scale       = this->p_stress_scale;
+        const double potential_scale    = this->p_pot_scale;
 
         // The shooting grid is unfilled, re-dimensionalized on the fly, so it must not be scaled.
         if (this->success && !this->p_uses_interpolants)
@@ -343,7 +304,6 @@ public:
         this->p_constants_by_ytype_layer.clear();
         this->p_layer_types.clear();
         this->p_layer_is_static.clear();
-        this->p_layer_is_incomp.clear();
         this->p_num_sols_by_layer.clear();
         this->p_upper_radii_solve.clear();
         this->p_start_layer_i         = 0;
@@ -351,41 +311,50 @@ public:
         this->p_frequency_solve       = 0.0;
     }
 
-    void set_dimensional_context(
-            double length_conv,
-            double disp_scale,
-            double stress_scale,
-            double pot_scale,
-            bool eos_is_nondim,
-            double grav_conv,
-            double dens_conv) noexcept
+    // The scales that re-dimensionalize this solve's y to SI, from the non-dimensional scales it ran in; null for a
+    // solve that ran in SI. A non-dim solve leaves the EOS arrays non-dim until an export converts them.
+    void set_dimensional_context(const c_NonDimensionalScales* nondim_scales) noexcept
     {
-        this->p_length_conv   = length_conv;
-        this->p_disp_scale    = disp_scale;
-        this->p_stress_scale  = stress_scale;
-        this->p_pot_scale     = pot_scale;
-        this->p_eos_is_nondim = eos_is_nondim;
-        this->p_grav_conv     = grav_conv;
-        this->p_dens_conv     = dens_conv;
+        if (nondim_scales)
+        {
+            this->p_length_conv   = nondim_scales->length_conversion;
+            this->p_disp_scale    = nondim_scales->second2_conversion / nondim_scales->length_conversion;
+            this->p_stress_scale  = nondim_scales->mass_conversion / nondim_scales->length3_conversion;
+            this->p_pot_scale     = 1.0 / nondim_scales->length_conversion;
+            this->p_eos_is_nondim = true;
+        }
+        else
+        {
+            this->p_length_conv   = 1.0;
+            this->p_disp_scale    = 1.0;
+            this->p_stress_scale  = 1.0;
+            this->p_pot_scale     = 1.0;
+            this->p_eos_is_nondim = false;
+        }
     }
 
-    // Collapsed y1..y6 in solve units, shooting path only. False and NaN-filled when unsolved, below the
-    // starting radius, or out of range. get_radial_solution is the SI form.
-    //
+    // The independent solutions of the layer that owns a radius, evaluated there once so every ytype can be
+    // collapsed from them.
+    struct c_RadialBasis
+    {
+        size_t layer_i    = 0;
+        size_t num_sols   = 0;
+        int    layer_type = 0;
+        bool   is_static  = false;
+        // [solution][y], in the layer's own y storage order; CyRK writes two reals per complex y.
+        std::complex<double> ysol[3][C_MAX_NUM_Y];
+        // Material at the radius, read only for a dynamic liquid's y3 reconstruction.
+        double gravity = TidalPyConstants::d_NAN;
+        double density = TidalPyConstants::d_NAN;
+    };
+
+    // Evaluate the basis at a solve-unit radius; false when unsolved, below the starting radius, or out of range.
     // A radius on a layer interface belongs to the lower layer, unless `upper_at_interface`, which takes the layer
     // above: the second copy of an interface radius in a layered radius array. A radius above the surface has no
     // solution.
-    bool get_radial_solution_nondim(
-            double radius_solve,
-            size_t ytype_i,
-            std::complex<double>* out6,
-            bool upper_at_interface = false) const
+    bool p_evaluate_basis(double radius_solve, bool upper_at_interface, c_RadialBasis& basis) const
     {
-        const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
-        for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
-
         if (!this->p_uses_interpolants || !this->success) return false;
-        if (ytype_i >= this->num_ytypes) return false;
         if (!(radius_solve >= this->p_starting_radius_solve)) return false;   // also rejects NaN
 
         // Upper radii ascend and an interface radius belongs to the lower layer, so the first layer whose
@@ -409,38 +378,63 @@ public:
             target_layer_i = this->num_layers - 1;
         }
 
-        const size_t num_sols = this->p_num_sols_by_layer[target_layer_i];
-        const int  layer_type = this->p_layer_types[target_layer_i];
-        const bool is_static  = this->p_layer_is_static[target_layer_i] != 0;
-        if (num_sols == 0 || num_sols > 3) return false;
+        basis.layer_i    = target_layer_i;
+        basis.num_sols   = this->p_num_sols_by_layer[target_layer_i];
+        basis.layer_type = this->p_layer_types[target_layer_i];
+        basis.is_static  = this->p_layer_is_static[target_layer_i] != 0;
+        if (basis.num_sols == 0 || basis.num_sols > 3) return false;
 
-        // CyRK writes two reals per complex y.
-        const size_t num_ys = 2 * num_sols;
-        std::complex<double> ysol[3][C_MAX_NUM_Y];
+        const size_t num_ys = 2 * basis.num_sols;
         double real_out[2 * C_MAX_NUM_Y] = {};
-        for (size_t sol_i = 0; sol_i < num_sols; ++sol_i)
+        for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
         {
             // CySolverResult::call is non-const, so get() is used to escape this method's constness.
             CySolverResult* interp = this->p_interp_by_layer_sol[target_layer_i][sol_i].get();
             if (!c_call_dense_checked(interp, radius_solve, real_out, 2 * num_ys)) return false;
             for (size_t y_i = 0; y_i < num_ys; ++y_i)
-                ysol[sol_i][y_i] = std::complex<double>(real_out[2 * y_i], real_out[2 * y_i + 1]);
+                basis.ysol[sol_i][y_i] = std::complex<double>(real_out[2 * y_i], real_out[2 * y_i + 1]);
         }
 
-        const std::array<std::complex<double>, 3>& constants =
-            this->p_constants_by_ytype_layer[ytype_i][target_layer_i];
+        if ((basis.layer_type != 0) && (!basis.is_static))
+        {
+            // Gravity and density are asked of the layer that owns this radius, so an interface takes this layer's
+            // density, not the neighbor's. This goes through call_material rather than the stored slice arrays
+            // because a world-attached solve grids nothing: those arrays are empty there, and reading them gave an
+            // uninitialized density that sent y3 to infinity through a whole dynamic liquid layer.
+            c_EOSMaterialState material_state;
+            this->eos_solution_uptr->call_material(target_layer_i, radius_solve, material_state);
+            basis.gravity = material_state.gravity;
+            basis.density = material_state.density;
+        }
+        return true;
+    }
 
-        // out6[y] = sum_sol const[sol] * ysol[sol][mapped_y]. The y-index mapping mirrors
-        // c_collapse_layer_solution, since liquid layers store fewer ys; undefined ys stay NaN.
-        const bool calculate_y3 = (layer_type != 0) && (!is_static);   // dynamic liquid reconstructs y3 below
+    // Collapse an evaluated basis into y1..y6 (solve units) for one ytype; NaN-filled when the basis was not found or
+    // the ytype is out of range. Liquid layers store fewer ys, so undefined ys stay NaN.
+    bool p_collapse_basis(
+            const c_RadialBasis& basis,
+            bool basis_found,
+            size_t ytype_i,
+            double radius_solve,
+            std::complex<double>* out6) const
+    {
+        const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
+        for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
+        if (!basis_found || (ytype_i >= this->num_ytypes)) return false;
+
+        const std::array<std::complex<double>, 3>& constants =
+            this->p_constants_by_ytype_layer[ytype_i][basis.layer_i];
+
+        // out6[y] = sum_sol const[sol] * ysol[sol][mapped_y].
+        const bool calculate_y3 = (basis.layer_type != 0) && (!basis.is_static);   // dynamic liquid, below
         for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i)
         {
             size_t y_rhs_i;
-            if (layer_type == 0)
+            if (basis.layer_type == 0)
             {
                 y_rhs_i = y_i;          // solid: all 6 ys
             }
-            else if (is_static)
+            else if (basis.is_static)
             {
                 if (y_i == 4)
                 {
@@ -461,25 +455,34 @@ public:
                 else continue;          // y3 reconstructed, y4 undefined
             }
             std::complex<double> acc(0.0, 0.0);
-            for (size_t sol_i = 0; sol_i < num_sols; ++sol_i)
-                acc += constants[sol_i] * ysol[sol_i][y_rhs_i];
+            for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
+                acc += constants[sol_i] * basis.ysol[sol_i][y_rhs_i];
             out6[y_i] = acc;
         }
 
         if (calculate_y3)
         {
-            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units. Gravity and density are asked of the
-            // layer that owns this radius, so an interface takes this layer's density, not the neighbor's.
-            // This goes through call_material rather than the stored slice arrays because a world-attached
-            // solve grids nothing: those arrays are empty there, and reading them gave an uninitialized
-            // density that sent y3 to infinity through a whole dynamic liquid layer.
-            c_EOSMaterialState material_state;
-            this->eos_solution_uptr->call_material(target_layer_i, radius_solve, material_state);
+            // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5) in solve units.
             const double w = this->p_frequency_solve;
             out6[2] = (1.0 / (w * w * radius_solve))
-                * (out6[0] * material_state.gravity - out6[1] / material_state.density - out6[4]);
+                * (out6[0] * basis.gravity - out6[1] / basis.density - out6[4]);
         }
         return true;
+    }
+
+    // Collapsed y1..y6 in solve units, shooting path only. False and NaN-filled when unsolved, below the
+    // starting radius, or out of range. get_radial_solution is the SI form. `upper_at_interface` is as in
+    // p_evaluate_basis.
+    bool get_radial_solution_nondim(
+            double radius_solve,
+            size_t ytype_i,
+            std::complex<double>* out6,
+            bool upper_at_interface = false) const
+    {
+        c_RadialBasis basis;
+        const bool basis_found =
+            (ytype_i < this->num_ytypes) && this->p_evaluate_basis(radius_solve, upper_at_interface, basis);
+        return this->p_collapse_basis(basis, basis_found, ytype_i, radius_solve, out6);
     }
 
     // Collapsed y1..y6 (SI) for one ytype: the shooting path evaluates the dense interpolants, the matrix
@@ -617,12 +620,16 @@ public:
         this->p_sample_radius_si.assign(radius_si, radius_si + n);
         const size_t num_output_ys = C_MAX_NUM_Y_REAL * this->num_ytypes;
         std::complex<double> out6[C_MAX_NUM_Y];
+        c_RadialBasis basis;
         for (size_t slice_i = 0; slice_i < n; ++slice_i)
         {
             const bool upper_copy = (slice_i > 0) && (radius_si[slice_i] == radius_si[slice_i - 1]);
+            const double radius_solve = radius_si[slice_i] / this->p_length_conv;
+            const bool basis_found = this->p_evaluate_basis(radius_solve, upper_copy, basis);
             for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ++ytype_i)
             {
-                this->get_radial_solution(radius_si[slice_i], ytype_i, out6, upper_copy);
+                if (this->p_collapse_basis(basis, basis_found, ytype_i, radius_solve, out6))
+                    this->apply_redimensionalization(out6);
                 for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i)
                 {
                     const size_t base = slice_i * num_output_ys + ytype_i * C_MAX_NUM_Y_REAL + y_i * 2;

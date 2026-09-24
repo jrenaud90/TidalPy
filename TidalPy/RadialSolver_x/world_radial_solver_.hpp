@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "constants_.hpp"                                   // TidalPyConstants
+#include "../constants_.hpp"                                // TidalPyConstants
 #include "../Utilities_x/math_x/numerics_.hpp"                  // c_isclose
 #include "../Utilities_x/arrays/layer_partition_.hpp"           // c_partition_radius_by_layer
 #include "../Utilities_x/dimensions/nondimensional_.hpp"    // c_NonDimensionalScales
@@ -22,112 +22,6 @@
 #include "love_.hpp"
 #include "shooting_.hpp"
 #include "matrix_.hpp"
-
-
-// The fewest radial slices a layer's run may have: the shooting method needs five to place its output.
-inline constexpr size_t C_MIN_SLICES_PER_LAYER = 5;
-
-// Per-solver input structs, built once by build_cache; each solve updates only the per-call knobs.
-
-struct c_ShootingInputs {
-    // layer_types: 0 = solid, 1 = liquid. bool[] because std::vector<bool> is bit-packed and the solver
-    // wants a bool*.
-    std::vector<int>        layer_types;
-    std::unique_ptr<bool[]> is_static;
-    std::unique_ptr<bool[]> is_incompressible;
-    size_t                  num_layers = 0;
-
-    // Per-layer slice partitioning over the (non-dim) radius grid.
-    std::vector<size_t> first_slice_index_by_layer;
-    std::vector<size_t> num_slices_by_layer;
-
-    // Surface boundary conditions to solve for, in order; one block of radial functions per entry. The
-    // independent solutions do not depend on the boundary condition, so n conditions cost one integration
-    // and n surface solves rather than n integrations.
-    std::vector<int> bc_models = {1};
-
-    // Non-dim planet scalars.
-    double planet_bulk_density = 0.0;
-    double G                   = 0.0;
-    int    degree_l            = 2;
-
-    // Shooting-method knobs (per-call, set from the runtime config).
-    bool      use_kamata          = false;
-    double    starting_radius     = 0.0;          // non-dim
-    double    start_radius_tol    = 1.0e-4;
-    ODEMethod integration_method  = ODEMethod::DOP853;
-    double    integration_rtol    = 1.0e-5;
-    double    integration_atol    = 1.0e-7;
-    bool      scale_rtols         = true;
-    size_t    max_num_steps       = 500000;
-    size_t    expected_size       = 500;
-    size_t    max_ram_MB          = 500;
-    double    max_step            = 0.0;
-    bool      warnings            = true;
-};
-
-// Propagation-matrix-method inputs (only valid for a single solid, static, incompressible layer).
-struct c_MatrixInputs {
-    size_t num_layers          = 1;
-    // The method lays its own grid down inside c_matrix_propagate, so this is all it needs.
-    size_t slices_per_layer    = 0;
-    std::vector<int> bc_models = {1};
-    double planet_bulk_density = 0.0;
-    double G                   = 0.0;
-    int    degree_l            = 2;
-    double starting_radius     = 0.0;   // non-dim
-    double start_radius_tol    = 1.0e-4;
-    int    core_model          = 0;
-};
-
-// Struct-based wrappers around the positional solvers.
-inline int c_shooting_solve(
-        c_RadialSolutionStorage* storage, c_ShootingInputs& in, double frequency, bool verbose) noexcept {
-    return c_shooting_solver(
-            storage,
-            frequency,
-            in.planet_bulk_density,
-            in.layer_types.data(),
-            in.is_static.get(),
-            in.is_incompressible.get(),
-            in.first_slice_index_by_layer,
-            in.num_slices_by_layer,
-            in.bc_models.size(),
-            in.bc_models.data(),
-            in.G,
-            in.degree_l,
-            in.use_kamata,
-            in.starting_radius,
-            in.start_radius_tol,
-            in.integration_method,
-            in.integration_rtol,
-            in.integration_atol,
-            in.scale_rtols,
-            in.max_num_steps,
-            in.expected_size,
-            in.max_ram_MB,
-            in.max_step,
-            verbose,
-            in.warnings);
-}
-
-inline int c_matrix_solve(
-        c_RadialSolutionStorage* storage, c_MatrixInputs& in, double frequency, bool verbose) noexcept {
-    return c_matrix_propagate(
-        storage,
-        frequency,
-        in.planet_bulk_density,
-        in.slices_per_layer,
-        in.bc_models.size(),
-        in.bc_models.data(),
-        in.G,
-        in.degree_l,
-        in.starting_radius,
-        in.start_radius_tol,
-        in.core_model,
-        verbose
-    );
-}
 
 
 struct c_LoveSolveRuntimeConfig {
@@ -147,7 +41,6 @@ struct c_LoveSolveRuntimeConfig {
     size_t    max_ram_MB         = 500;
     double    max_step           = 0.0;
     bool      verbose            = false;
-    bool      warnings           = true;              // enables the surface conditioning diagnostic
     bool      redim_eos_arrays   = false;             // export mode: also redimensionalize the EOS arrays
     // Export mode: the radii [m] the returned solution's result grid is sampled on, the caller's own; null samples
     // the EOS grid.
@@ -315,9 +208,10 @@ public:
             first_slice_idx,
             num_slices);
         for (size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-            if (num_slices[layer_i] < C_MIN_SLICES_PER_LAYER) {
+            if (num_slices[layer_i] < C_RS_MIN_SLICES_PER_LAYER) {
                 this->p_storage->error_code = -5;
-                this->p_storage->message    = "TidalPy: at least 5 slices per layer required";
+                this->p_storage->message    =
+                    "TidalPy: at least " + std::to_string(C_RS_MIN_SLICES_PER_LAYER) + " slices per layer required";
                 this->p_storage->success    = false;
                 this->p_cache_valid         = false;
                 return false;
@@ -457,7 +351,7 @@ public:
             mat.starting_radius  = start_r;
             mat.start_radius_tol = rt.start_radius_tol;
             mat.core_model       = rt.core_model;
-            c_matrix_solve(storage, mat, freq_nd, rt.verbose);
+            c_matrix_propagate(storage, mat, freq_nd, rt.verbose);
         } else {
             c_ShootingInputs& shoot = this->p_shooting_inputs;
             shoot.bc_models          = rt.bc_models;
@@ -472,39 +366,12 @@ public:
             shoot.expected_size      = rt.expected_size;
             shoot.max_ram_MB         = rt.max_ram_MB;
             shoot.max_step           = max_step_solve;
-            shoot.warnings           = rt.warnings;
-            c_shooting_solve(storage, shoot, freq_nd, rt.verbose);
+            c_shooting_solver(storage, shoot, freq_nd, rt.verbose);
         }
 
         // Dimensional context for get_radial_solution; the EOS arrays are still non-dim here.
         if (storage->success) {
-            if (this->p_nondim) {
-                const double length_conv  = this->p_non_dim_uptr->length_conversion;
-                const double sec2_conv    = this->p_non_dim_uptr->second2_conversion;
-                const double disp_scale   = sec2_conv / length_conv;
-                const double stress_scale =
-                    this->p_non_dim_uptr->mass_conversion / this->p_non_dim_uptr->length3_conversion;
-                const double pot_scale    = 1.0 / length_conv;
-                const double grav_conv    = length_conv / sec2_conv;
-                const double dens_conv    = this->p_non_dim_uptr->density_conversion;
-                storage->set_dimensional_context(
-                    length_conv,
-                    disp_scale,
-                    stress_scale,
-                    pot_scale,
-                    /*eos_is_nondim=*/true,
-                    grav_conv,
-                    dens_conv);
-            } else {
-                storage->set_dimensional_context(
-                    1.0,
-                    1.0,
-                    1.0,
-                    1.0,
-                    /*eos_is_nondim=*/false,
-                    1.0,
-                    1.0);
-            }
+            storage->set_dimensional_context(this->p_nondim ? this->p_non_dim_uptr.get() : nullptr);
         }
 
         // From the non-dim solution: k = y5 - 1, h = y1 g, l = y3 g, with the displacement and gravity

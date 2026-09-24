@@ -79,10 +79,11 @@ cdef extern from "profile_world_.hpp" namespace "tidalpy":
     ) except +
 
 cdef extern from "solver_.hpp":
+    ODEMethod c_parse_ode_method(const cpp_string& method_name, const cpp_string& method_label) except +
+
     void c_validate_and_prep_radial_inputs(
         size_t total_slices,
         const double* radius_array,
-        const double* density_array,
         double frequency,
         size_t num_layers,
         const vector[cpp_string]& layer_types,
@@ -92,14 +93,9 @@ cdef extern from "solver_.hpp":
         cpp_bool use_prop_matrix,
         double starting_radius,
         const vector[cpp_string]& solve_for,
-        const cpp_string& integration_method,
         const vector[cpp_string]& eos_method_bylayer,
-        const cpp_string& eos_integration_method,
         cpp_bool warnings,
         int* layer_types_out_ptr,
         int* bc_models_out_ptr,
-        size_t& num_bc_models_out,
-        ODEMethod& integration_method_out,
-        vector[int]& eos_integration_method_int_bylayer_out,
-        ODEMethod& eos_integration_method_out
+        size_t& num_bc_models_out
     ) except +

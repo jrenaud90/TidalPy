@@ -111,11 +111,52 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double]  get_tidal_love_k(int degree_l, int m, int p, int q) const
 
 
+# The orbital state of one tide solve, from the arguments of calc_tides in their order.
+cdef inline c_TideSolveConfig cy_tide_state(
+        double orbital_frequency,
+        double spin_frequency,
+        double eccentricity,
+        double obliquity,
+        double semi_major_axis,
+        double host_mass) noexcept nogil:
+    cdef c_TideSolveConfig state
+    state.orbital_frequency = orbital_frequency
+    state.spin_frequency    = spin_frequency
+    state.eccentricity      = eccentricity
+    state.obliquity         = obliquity
+    state.semi_major_axis   = semi_major_axis
+    state.host_mass         = host_mass
+    return state
+
+
+# Fill the fields every world config shares from the constructor arguments.
+cdef inline void cy_fill_world_config(
+        c_WorldConfig* config,
+        str name,
+        double radius,
+        double mass,
+        str world_type,
+        double albedo,
+        double emissivity,
+        double obliquity,
+        double spin_frequency):
+    config.name           = name.encode("utf-8")
+    config.world_type_str = world_type.encode("utf-8")
+    config.radius         = radius
+    config.mass           = mass
+    config.albedo         = albedo
+    config.emissivity     = emissivity
+    config.obliquity      = obliquity
+    config.spin_frequency = spin_frequency
+
+
 cdef class BaseWorld(StructureBase):
     cdef shared_ptr[c_BaseWorld] _world_ptr   # owns the most-derived C++ world object (shared so a System can co-own it)
     cdef public dict source_config            # normalized config the world was built from (or None)
     cdef public dict portable_config          # a data-file world's config as given, for save_to_toml (or None)
     cpdef dict get_config_dict(self)
+    # Point this wrapper at a C++ world; each subclass also sets its own typed pointer.
+    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr)
     # Wrap an already-constructed C++ world without building a new one; each subclass returns its own type.
     @staticmethod
     cdef BaseWorld _wrap(shared_ptr[c_BaseWorld] ptr)

@@ -13,12 +13,9 @@ the layer's material ``type``; only if that is also absent does the constructor 
 """
 
 import copy
-import os
 import re
 import warnings
 from typing import Optional, Union, Callable
-
-import TidalPy
 
 from TidalPy.structures_x.layers.base import BaseLayer
 from TidalPy.structures_x.layers.physics import PhysicsLayer
@@ -48,7 +45,9 @@ from TidalPy.structures_x.configs.toml_loader import (
     ALLOWED_LAYER_SCALAR_KEYS,
     ALLOWED_MODEL_SECTIONS,
     LAYER_GEOMETRY_SPEC_KEYS,
-    SCHEMA_VERSION,
+    _config_x_section,
+    ordered_layers,
+    outer_radius_from_spec,
     validate_layer_config,
     validate_world_config,
     warning_enabled,
@@ -112,7 +111,6 @@ _CONFIG_KEY_TO_ARGUMENT = {
     "radius_inner_m":               "radius_inner",
     "radius_outer_m":               "radius_outer",
     "temperature_k":                "temperature",
-    "reference_density_kg_m3":      "reference_density",
     "reference_temperature_k":      "reference_temperature",
     "mean_molecular_weight_kg_mol": "mean_molecular_weight",
 }
@@ -193,8 +191,7 @@ def _material_type_defaults(material_type: Optional[str], layer_class_name: str)
     if material_type == NO_MATERIAL_TYPE:
         return {}
 
-    config_x = getattr(TidalPy, "config_x", None) or {}
-    type_block = config_x.get("layers", {}).get(material_type, {})
+    type_block = _config_x_section("layers").get(material_type, {})
     if not type_block:
         return {}
 
@@ -565,10 +562,12 @@ def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float
     sub-tables, ...) override the detected values, ``type`` among them: naming a material type brings
     that block's defaults back to a layer the profile otherwise leaves bare.
     """
-    import copy
     import math
 
-    merged = copy.deepcopy(auto_cfg)
+    # Both copies are shallow: the detected layer is left as it was, and every table or array changed below
+    # is replaced rather than edited.
+    merged = dict(auto_cfg)
+    merged["material"] = dict(auto_cfg["material"])
     auto_outer = auto_cfg["radius_outer_m"]
 
     # Cross-check the user's outer radius against the detected boundary.
@@ -706,8 +705,7 @@ def _world_type_defaults(world_type: str) -> dict:
     dict
         The flattened defaults for that world type (empty when the ``_x`` config has no ``[worlds]``).
     """
-    config_x = getattr(TidalPy, "config_x", None) or {}
-    worlds_block = config_x.get("worlds", {}) or {}
+    worlds_block = _config_x_section("worlds")
     defaults = {key: value for key, value in worlds_block.items() if not isinstance(value, dict)}
     type_block = worlds_block.get(world_type, {}) or {}
     if isinstance(type_block, dict):
@@ -729,7 +727,7 @@ def construct_world(config: dict):
     Parameters
     ----------
     config : dict
-        The world configuration dictionary.
+        The world configuration dictionary. It is not modified, and the world keeps a copy of its own.
 
     Returns
     -------
@@ -743,6 +741,17 @@ def construct_world(config: dict):
     ------
     ValueError
         If the configuration fails structural validation.
+    """
+    # Copied so that editing the caller's dict afterwards (a parameter sweep, say) leaves the world's record of
+    # what it was built from as it was.
+    return _construct_owned_world(copy.deepcopy(config))
+
+
+def _construct_owned_world(config: dict):
+    """:func:`construct_world` for a configuration the caller hands over, which the world keeps as it is.
+
+    A caller that already holds a private copy of the configuration (:meth:`BaseWorld.build` makes one while
+    loading it) uses this to avoid a second copy.
     """
     given = config
     config = _expand_radial_data(config)
@@ -849,8 +858,7 @@ def _resolve_obliquity_truncation(value) -> int:
 
 def _tides_config_x() -> dict:
     """The ``[tides]`` defaults block from the ``_x`` config; empty when absent."""
-    config_x = getattr(TidalPy, "config_x", None) or {}
-    return config_x.get("tides", {}) or {}
+    return _config_x_section("tides")
 
 
 def _resolve_eccentricity_truncation(value) -> int:
@@ -999,49 +1007,6 @@ def _attach_tides(world, config: dict) -> None:
     )
 
 
-def _resolve_outer_radius(
-        layer_name: str,
-        layer_cfg: dict,
-        radius_inner: float,
-        world_radius: float) -> float:
-    """Resolve a layer's outer radius [m] from its outer-radius specifier.
-
-    Exactly one of the specifiers is present (enforced by validation):
-
-    * ``radius_outer`` : the outer radius directly.
-    * ``radius_fraction`` : ``radius_fraction * world_radius``.
-    * ``volume_fraction`` : the layer's shell volume is ``volume_fraction`` of the
-      whole-world volume, so ``r_out = (r_in^3 + volume_fraction * R_world^3)^(1/3)``.
-
-    Parameters
-    ----------
-    layer_name : str
-        The layer's name (for error messages).
-    layer_cfg : dict
-        The layer's configuration sub-dictionary.
-    radius_inner : float
-        The layer's inner radius [m] (the previous layer's outer radius).
-    world_radius : float
-        The world's radius [m].
-
-    Returns
-    -------
-    float
-        The layer's outer radius [m].
-    """
-    if "radius_outer_m" in layer_cfg:
-        return float(layer_cfg["radius_outer_m"])
-    if "radius_fraction" in layer_cfg:
-        return float(layer_cfg["radius_fraction"]) * world_radius
-    if "volume_fraction" in layer_cfg:
-        volume_fraction = float(layer_cfg["volume_fraction"])
-        return (radius_inner ** 3 + volume_fraction * world_radius ** 3) ** (1.0 / 3.0)
-    # Validation guarantees one specifier; this guards a direct caller.
-    raise ValueError(
-        f"Layer '{layer_name}' has no outer-radius specifier "
-        f"(one of {LAYER_GEOMETRY_SPEC_KEYS} is required).")
-
-
 def _add_layers(world, layers_cfg: dict, world_radius: float) -> None:
     """Build and add layers to a layered world in inner-to-outer order.
 
@@ -1057,15 +1022,9 @@ def _add_layers(world, layers_cfg: dict, world_radius: float) -> None:
     world_radius : float
         The world's radius [m], used to resolve fractional outer-radius specifiers.
     """
-    resolved = []
-    for order_index, (layer_name, layer_cfg) in enumerate(layers_cfg.items()):
-        index = int(layer_cfg.get("layer_index", order_index))
-        resolved.append((index, layer_name, layer_cfg))
-    resolved.sort(key=lambda item: item[0])
-
     radius_inner = 0.0
-    for index, layer_name, layer_cfg in resolved:
-        radius_outer = _resolve_outer_radius(layer_name, layer_cfg, radius_inner, world_radius)
+    for index, layer_name, layer_cfg in ordered_layers(layers_cfg):
+        radius_outer = outer_radius_from_spec(layer_name, layer_cfg, radius_inner, world_radius)
         layer = construct_layer(layer_name, layer_cfg, layer_index=index,
                                 radius_inner=radius_inner, radius_outer=radius_outer)
         world.add_layer(layer)
@@ -1073,41 +1032,8 @@ def _add_layers(world, layers_cfg: dict, world_radius: float) -> None:
 
 
 def _resolve_source(source: Union[str, dict]) -> Union[str, dict]:
-    """Resolve a world source to a file path or a configuration dict.
-
-    A ``dict`` is returned unchanged. A string is treated as a file path when it
-    ends in ``.toml`` or names an existing file; otherwise it is looked up as a
-    bundled ``WorldPack_x`` world name (data directory preferred over the packaged
-    copy, see :mod:`TidalPy.structures_x.configs.worldpack`).
-
-    Parameters
-    ----------
-    source : str or dict
-        A bundled world name, a path to a ``.toml`` file, or a config dict.
-
-    Returns
-    -------
-    str or dict
-        A resolved file path, or the passed-through dict.
-
-    Raises
-    ------
-    FileNotFoundError
-        If a bundled-name lookup fails.
-    TypeError
-        If ``source`` is neither a ``str``, a path-like object, nor a ``dict``.
-    """
-    if isinstance(source, dict):
-        return source
-    if isinstance(source, os.PathLike):
-        source = os.fspath(source)
-    if isinstance(source, str):
-        if source.endswith(".toml") or os.path.isfile(source):
-            return source
-        return worldpack.resolve_world_path(source)
-    raise TypeError(
-        f"Unsupported world source type: {type(source)}. Provide a bundled world "
-        "name, a path to a .toml file, or a configuration dict.")
+    """Resolve a world source to a file path or a configuration dict (see :func:`worldpack.resolve_source`)."""
+    return worldpack.resolve_source(source, worldpack.WORLD_CONFIG)
 
 
 def build_world(source: Union[str, dict], force: bool = False):
@@ -1163,7 +1089,8 @@ def build_world_from_dict(config: dict, force: bool = False):
         raise TypeError(
             f"build_world_from_dict needs a configuration dict, not {type(config)}. "
             "Use build_world for a bundled world name or a file path.")
-    return BaseWorld.build(copy.deepcopy(config), force=force)
+    # BaseWorld.build copies a dict source before using it, so the caller's dict is neither kept nor edited.
+    return BaseWorld.build(config, force=force)
 
 
 def available_worlds() -> list:

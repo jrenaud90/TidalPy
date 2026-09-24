@@ -13,7 +13,6 @@ insolation (``stellar_semi_major_axis_m``, ``stellar_eccentricity``). The star n
 world's tidal host; for an exoplanet the two orbits coincide.
 """
 
-import copy
 import os
 from typing import Union
 
@@ -99,40 +98,8 @@ def construct_system(config: dict, force: bool = False, base_dir: str = None):
 # Source resolution + high-level wrapper
 # =====================================================================================================================
 def _resolve_source(source: Union[str, dict]) -> Union[str, dict]:
-    """Resolve a system source to a file path or a configuration dict.
-
-    A ``dict`` is returned unchanged. A string ending in ``.toml`` (or naming an existing file) is a
-    file path; otherwise it is looked up as a bundled system name in the shared ``WorldPack_x`` pack
-    (systems and worlds live side by side there, distinguished by content).
-
-    Parameters
-    ----------
-    source : str or dict
-        A bundled system name, a path to a ``.toml`` file, or a config dict.
-
-    Returns
-    -------
-    str or dict
-        A resolved file path, or the passed-through dict.
-
-    Raises
-    ------
-    FileNotFoundError
-        If a bundled-name lookup fails.
-    TypeError
-        If ``source`` is neither a ``str``, a path-like object, nor a ``dict``.
-    """
-    if isinstance(source, dict):
-        return source
-    if isinstance(source, os.PathLike):
-        source = os.fspath(source)
-    if isinstance(source, str):
-        if source.endswith(".toml") or os.path.isfile(source):
-            return source
-        return worldpack.resolve_world_path(source)
-    raise TypeError(
-        f"Unsupported system source type: {type(source)}. Provide a bundled system name, a path to a "
-        ".toml file, or a configuration dict.")
+    """Resolve a system source to a file path or a configuration dict (see :func:`worldpack.resolve_source`)."""
+    return worldpack.resolve_source(source, worldpack.SYSTEM_CONFIG)
 
 
 def build_system(source: Union[str, dict], force: bool = False):
@@ -186,7 +153,8 @@ def build_system_from_dict(config: dict, force: bool = False):
         raise TypeError(
             f"build_system_from_dict needs a configuration dict, not {type(config)}. "
             "Use build_system for a bundled system name or a file path.")
-    return System.build(copy.deepcopy(config), force=force)
+    # System.build copies a dict source before using it, so the caller's dict is neither kept nor edited.
+    return System.build(config, force=force)
 
 
 def available_systems() -> list:

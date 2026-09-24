@@ -60,21 +60,27 @@ cdef extern from "tide_.hpp" namespace "tidalpy" nogil:
     unique_ptr[c_TideBase] c_find_tide(c_TideModel model, const c_TideModelConfig& cfg) except +
 
 
+cdef c_TideModelConfig cy_build_tide_config(dict config) except *
+
+
 cdef class TideBase(PhysicsBase):
     cdef unique_ptr[c_TideBase] _tide_ptr   # owns the most-derived C++ model object
 
+    cdef void _adopt(self, unique_ptr[c_TideBase]& ptr) noexcept
 
+
+# The subclasses reach their model through TideBase._tide_ptr, cast to the class they wrap.
 cdef class RheologyTide(TideBase):
-    cdef c_RheologyTide* _rheology_ptr       # non-owning; ownership via TideBase._tide_ptr
+    pass
 
 
 cdef class FixedQTide(TideBase):
-    cdef c_FixedQTide* _fixedq_ptr           # non-owning; ownership via TideBase._tide_ptr
+    pass
 
 
 cdef class FixedLagTide(TideBase):
-    cdef c_FixedLagTide* _fixedlag_ptr       # non-owning; ownership via TideBase._tide_ptr
+    pass
 
 
 cdef class CTLQTide(TideBase):
-    cdef c_CTLQTide* _ctlq_ptr               # non-owning; ownership via TideBase._tide_ptr
+    pass

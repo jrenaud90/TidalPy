@@ -8,7 +8,7 @@ derives both from the star's mass.
 """
 
 from libcpp.utility cimport move
-from libcpp.memory cimport make_unique
+from libcpp.memory cimport make_shared, shared_ptr, static_pointer_cast
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -16,7 +16,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
-from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
+from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, cy_fill_world_config
 from TidalPy.stellar_x.luminosity cimport LuminosityBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
@@ -62,33 +62,32 @@ cdef class StarWorld(BaseWorld):
             double obliquity  = 0.0,
             double spin_frequency = 0.0):
         cdef c_StarConfig config
-        config.name           = name.encode("utf-8")
-        config.world_type_str = world_type.encode("utf-8")
-        config.radius     = radius
-        config.mass       = mass
-        config.albedo     = albedo
-        config.emissivity = emissivity
-        config.obliquity  = obliquity
-        config.spin_frequency = spin_frequency
+        cy_fill_world_config(
+            &config,
+            name,
+            radius,
+            mass,
+            world_type,
+            albedo,
+            emissivity,
+            obliquity,
+            spin_frequency)
         config.effective_temperature = effective_temperature
         config.luminosity            = luminosity
-        # make_unique owns the allocation; ownership then moves into the base-typed member
-        # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
-        cdef unique_ptr[c_StarWorld] built = make_unique[c_StarWorld](config)
-        self._star_ptr = built.get()
-        self._world_ptr.reset(<c_BaseWorld*>built.release())
-        self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
+        self._bind(static_pointer_cast[c_BaseWorld, c_StarWorld](make_shared[c_StarWorld](config)))
 
     def __dealloc__(self):
-        self._star_ptr = NULL  # base's unique_ptr owns the C++ object
+        self._star_ptr = NULL  # BaseWorld._world_ptr owns the C++ object
+
+    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr):
+        BaseWorld._bind(self, ptr)
+        self._star_ptr = <c_StarWorld*>ptr.get()
 
     @staticmethod
     cdef StarWorld _wrap(shared_ptr[c_BaseWorld] ptr):
         """Wrap an already-constructed C++ star world (no new C++ object is built)."""
         cdef StarWorld world = StarWorld.__new__(StarWorld)
-        world._world_ptr = ptr
-        world._ptr = <c_TidalPyBaseClass*>ptr.get()
-        world._star_ptr = <c_StarWorld*>ptr.get()
+        world._bind(ptr)
         return world
 
     @property

@@ -30,6 +30,7 @@
 
 #include <complex>
 #include <cstdint>
+#include <initializer_list>
 #include <istream>
 #include <memory>
 #include <ostream>
@@ -245,127 +246,29 @@ public:
     }
 
     void write_binary(std::ostream& out) const override {
-        const auto     name_len = static_cast<uint32_t>(this->p_name.size());
-        const auto     mat_len  = static_cast<uint32_t>(this->p_material_name.size());
-        const uint64_t payload  =
-            sizeof(double)   * 2 +           // p_radius, p_mass
-            sizeof(uint32_t) + name_len +    // name length + bytes
-            sizeof(int32_t)  +               // layer_index
-            sizeof(double)   +               // radius_inner
-            sizeof(uint32_t) + mat_len +     // material_name length + bytes
-            sizeof(uint8_t)  * 2 +           // is_tidal, is_volume_fixed
-            sizeof(double)   +               // tidal_scale
-            sizeof(double)   * 6 +           // love_number k, h, l (each: re + im)
-            sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
-            material_law_bytes() +           // temperature, use_thermal_eos, use_heating
-            optional_binary_flag_bytes() +         // material EOS model presence flag
-            this->physics_models_presence_bytes(); // shear and bulk rheology presence flags
-
-        write_binary_header(out, static_cast<uint32_t>(BinaryClassID::PhysicsLayer), payload);
-
-        // Same layout as the c_BaseLayer::write_binary payload.
-        out.write(reinterpret_cast<const char*>(&this->p_radius), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_mass),   sizeof(double));
-        out.write(reinterpret_cast<const char*>(&name_len),       sizeof(uint32_t));
-        if (name_len > 0) { out.write(this->p_name.data(), name_len); }
-        const int32_t idx = static_cast<int32_t>(this->p_layer_index);
-        out.write(reinterpret_cast<const char*>(&idx),                  sizeof(int32_t));
-        out.write(reinterpret_cast<const char*>(&this->p_radius_inner), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&mat_len),              sizeof(uint32_t));
-        if (mat_len > 0) { out.write(this->p_material_name.data(), mat_len); }
-        const uint8_t is_tidal_byte = static_cast<uint8_t>(this->p_is_tidal);
-        const uint8_t is_volume_fixed_byte = static_cast<uint8_t>(this->p_is_volume_fixed);
-        out.write(reinterpret_cast<const char*>(&is_tidal_byte),       sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_volume_fixed_byte), sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&this->p_tidal_scale), sizeof(double));
-
-        // Love numbers k, h, l
-        auto write_complex = [&](const std::complex<double>& c) {
-            const double re = c.real(), im = c.imag();
-            out.write(reinterpret_cast<const char*>(&re), sizeof(double));
-            out.write(reinterpret_cast<const char*>(&im), sizeof(double));
-        };
-        write_complex(this->p_love_numbers.k);
-        write_complex(this->p_love_numbers.h);
-        write_complex(this->p_love_numbers.l);
-
-        // Radial-solver layer classification flags.
-        const uint8_t is_solid_byte          = static_cast<uint8_t>(this->p_is_solid);
-        const uint8_t is_static_byte         = static_cast<uint8_t>(this->p_is_static);
-        const uint8_t is_incompressible_byte = static_cast<uint8_t>(this->p_is_incompressible);
-        out.write(reinterpret_cast<const char*>(&is_solid_byte),          sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_static_byte),         sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_incompressible_byte), sizeof(uint8_t));
-        this->write_material_law_binary(out);
-
+        write_binary_header(
+            out, static_cast<uint32_t>(BinaryClassID::PhysicsLayer),
+            this->p_base_fields_bytes() + this->p_physics_fields_bytes()
+                + optional_binary_flag_bytes()             // material EOS model presence flag
+                + this->physics_models_presence_bytes());  // shear and bulk rheology presence flags
+        this->p_write_base_fields(out);
+        this->p_write_physics_fields(out);
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write PhysicsLayer binary data");
         }
-
         this->write_eos_model_binary(out);
         this->write_physics_models_binary(out);
     }
 
     void read_binary(std::istream& in, bool force = false) override {
-        c_TidalPyBaseClass::read_binary(in, force);
-        // A loaded layer carries no solved profile or heating until its world solves again.
-        this->clear_eos_data();
-        this->p_tidal_heating = TidalPyConstants::d_NAN;
-
-        // c_BaseLayer fields
-        in.read(reinterpret_cast<char*>(&this->p_radius), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_mass),   sizeof(double));
-
-        this->p_name = read_binary_string(in);
-
-        int32_t idx = 0;
-        in.read(reinterpret_cast<char*>(&idx), sizeof(int32_t));
-        this->p_layer_index = static_cast<int>(idx);
-
-        in.read(reinterpret_cast<char*>(&this->p_radius_inner), sizeof(double));
-
-        this->p_material_name = read_binary_string(in);
-
-        uint8_t is_tidal_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_tidal_byte), sizeof(uint8_t));
-        this->p_is_tidal = static_cast<bool>(is_tidal_byte);
-        uint8_t is_volume_fixed_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_volume_fixed_byte), sizeof(uint8_t));
-        this->p_is_volume_fixed = static_cast<bool>(is_volume_fixed_byte);
-
-        in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
-
-
-        // Love numbers k, h, l
-        auto read_complex = [&](std::complex<double>& c) {
-            double re = 0.0, im = 0.0;
-            in.read(reinterpret_cast<char*>(&re), sizeof(double));
-            in.read(reinterpret_cast<char*>(&im), sizeof(double));
-            c = std::complex<double>(re, im);
-        };
-        read_complex(this->p_love_numbers.k);
-        read_complex(this->p_love_numbers.h);
-        read_complex(this->p_love_numbers.l);
-
-        // Radial-solver layer classification flags.
-        uint8_t is_solid_byte = 0;
-        uint8_t is_static_byte = 0;
-        uint8_t is_incompressible_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_solid_byte),          sizeof(uint8_t));
-        in.read(reinterpret_cast<char*>(&is_static_byte),         sizeof(uint8_t));
-        in.read(reinterpret_cast<char*>(&is_incompressible_byte), sizeof(uint8_t));
-        this->p_is_solid          = static_cast<bool>(is_solid_byte);
-        this->p_is_static         = static_cast<bool>(is_static_byte);
-        this->p_is_incompressible = static_cast<bool>(is_incompressible_byte);
-        this->read_material_law_binary(in);
-
+        this->p_begin_read_binary(in, force);
+        this->p_read_base_fields(in);
+        this->p_read_physics_fields(in);
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read PhysicsLayer binary data");
         }
-
         this->read_eos_model_binary(in, force);
         this->read_physics_models_binary(in, force);
-
         this->update_physicals();
     }
 
@@ -411,26 +314,47 @@ protected:
         if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
     }
 
-    // The layer-state scalars (temperature, use_thermal_eos, use_heating), shared with the subclasses so the
-    // three layer records keep one byte layout for them.
-    static constexpr uint64_t material_law_bytes() { return sizeof(double) + 2 * sizeof(uint8_t); }
-
-    void write_material_law_binary(std::ostream& out) const {
-        out.write(reinterpret_cast<const char*>(&this->p_temperature), sizeof(double));
-        const uint8_t use_thermal_eos_byte = static_cast<uint8_t>(this->p_use_thermal_eos);
-        out.write(reinterpret_cast<const char*>(&use_thermal_eos_byte), sizeof(uint8_t));
-        const uint8_t use_heating_byte = static_cast<uint8_t>(this->p_use_heating);
-        out.write(reinterpret_cast<const char*>(&use_heating_byte), sizeof(uint8_t));
+    // The c_PhysicsLayer fields, which follow the c_BaseLayer fields in the payload of this record and of every
+    // subclass record: the Love numbers k, h, l (real then imaginary part each), the radial-solver classification
+    // flags, and the layer state (temperature, use_thermal_eos, use_heating).
+    static constexpr uint64_t p_physics_fields_bytes() {
+        return sizeof(double) * 6 + sizeof(uint8_t) * 3 + sizeof(double) + sizeof(uint8_t) * 2;
     }
 
-    void read_material_law_binary(std::istream& in) {
+    void p_write_physics_fields(std::ostream& out) const {
+        for (const std::complex<double>& love_number :
+                {this->p_love_numbers.k, this->p_love_numbers.h, this->p_love_numbers.l}) {
+            const double parts[2] = {love_number.real(), love_number.imag()};
+            out.write(reinterpret_cast<const char*>(parts), sizeof(parts));
+        }
+        const uint8_t flag_bytes[3] = {
+            static_cast<uint8_t>(this->p_is_solid),
+            static_cast<uint8_t>(this->p_is_static),
+            static_cast<uint8_t>(this->p_is_incompressible)};
+        out.write(reinterpret_cast<const char*>(flag_bytes), sizeof(flag_bytes));
+        out.write(reinterpret_cast<const char*>(&this->p_temperature), sizeof(double));
+        const uint8_t state_bytes[2] = {
+            static_cast<uint8_t>(this->p_use_thermal_eos), static_cast<uint8_t>(this->p_use_heating)};
+        out.write(reinterpret_cast<const char*>(state_bytes), sizeof(state_bytes));
+    }
+
+    void p_read_physics_fields(std::istream& in) {
+        for (std::complex<double>* love_number :
+                {&this->p_love_numbers.k, &this->p_love_numbers.h, &this->p_love_numbers.l}) {
+            double parts[2] = {0.0, 0.0};
+            in.read(reinterpret_cast<char*>(parts), sizeof(parts));
+            *love_number = std::complex<double>(parts[0], parts[1]);
+        }
+        uint8_t flag_bytes[3] = {0, 0, 0};
+        in.read(reinterpret_cast<char*>(flag_bytes), sizeof(flag_bytes));
+        this->p_is_solid          = static_cast<bool>(flag_bytes[0]);
+        this->p_is_static         = static_cast<bool>(flag_bytes[1]);
+        this->p_is_incompressible = static_cast<bool>(flag_bytes[2]);
         in.read(reinterpret_cast<char*>(&this->p_temperature), sizeof(double));
-        uint8_t use_thermal_eos_byte = 0;
-        in.read(reinterpret_cast<char*>(&use_thermal_eos_byte), sizeof(uint8_t));
-        this->p_use_thermal_eos = static_cast<bool>(use_thermal_eos_byte);
-        uint8_t use_heating_byte = 0;
-        in.read(reinterpret_cast<char*>(&use_heating_byte), sizeof(uint8_t));
-        this->p_use_heating = static_cast<bool>(use_heating_byte);
+        uint8_t state_bytes[2] = {0, 0};
+        in.read(reinterpret_cast<char*>(state_bytes), sizeof(state_bytes));
+        this->p_use_thermal_eos = static_cast<bool>(state_bytes[0]);
+        this->p_use_heating     = static_cast<bool>(state_bytes[1]);
     }
 
     // Payload bytes contributed by the two rheology presence flags (the nested records follow the payload).

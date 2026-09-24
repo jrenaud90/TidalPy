@@ -154,17 +154,17 @@ def update_constants():
     yr = year
 
 
-# CyRK integration method names accepted by the new-backend solvers (case-insensitive), as CyRK's ``ODEMethod``
-# enum values, and the canonical name of each value.
-ODE_METHOD_INTS = {
-    'rk23':   <int>ODEMethod.RK23,
-    'rk45':   <int>ODEMethod.RK45,
-    'dop853': <int>ODEMethod.DOP853,
-    'bdf':    <int>ODEMethod.BDF,
-    'lsoda':  <int>ODEMethod.LSODA,
-    'radau':  <int>ODEMethod.RADAU,
+# The canonical (saved-config) name of each CyRK ``ODEMethod`` value the new-backend solvers accept, and the
+# lowercase names they accept (case-insensitive) mapped back to the enum values.
+ODE_METHOD_NAMES = {
+    <int>ODEMethod.RK23:   'RK23',
+    <int>ODEMethod.RK45:   'RK45',
+    <int>ODEMethod.DOP853: 'DOP853',
+    <int>ODEMethod.BDF:    'BDF',
+    <int>ODEMethod.LSODA:  'LSODA',
+    <int>ODEMethod.RADAU:  'Radau',
 }
-ODE_METHOD_NAMES = {value: name for name, value in ODE_METHOD_INTS.items()}
+ODE_METHOD_INTS = {name.lower(): value for value, name in ODE_METHOD_NAMES.items()}
 
 
 def ode_method_from_name(name: str) -> int:

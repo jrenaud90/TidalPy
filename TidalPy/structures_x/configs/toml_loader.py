@@ -26,8 +26,9 @@ import toml
 
 import TidalPy
 
-# The schema's key sets, re-exported: this loader is where callers look for them.
+# The schema's version and key sets, re-exported: this loader is where callers look for them.
 from TidalPy.schema_x import (
+    SCHEMA_VERSION,
     WORLD_TYPES,
     LAYER_CLASSES,
     DEFAULT_MATERIAL_TYPE,
@@ -56,9 +57,6 @@ from TidalPy.schema_x import (
     _SOLVER_KEY_RULES,
     _REQUIRED_WORLD_KEYS,
 )
-
-# Compatibility uses the major.minor pair, patch differences being allowed, mirroring the binary check.
-SCHEMA_VERSION = "0.2.0"
 
 
 def validate_solver_table(section: str, table, where: str) -> None:
@@ -108,10 +106,15 @@ def validate_solver_table(section: str, table, where: str) -> None:
 # =====================================================================================================================
 # TOML / source loading
 # =====================================================================================================================
+def _config_x_section(name: str) -> dict:
+    """The ``[name]`` table of ``TidalPy_Configs_x.toml``; empty when the table or the whole config is absent."""
+    config_x = getattr(TidalPy, "config_x", None) or {}
+    return config_x.get(name, {}) or {}
+
+
 def warning_enabled(name: str) -> bool:
     """Whether the ``[warnings]`` switch ``name`` is on; on when the config is absent."""
-    config_x = getattr(TidalPy, "config_x", None) or {}
-    return bool((config_x.get("warnings", {}) or {}).get(name, True))
+    return bool(_config_x_section("warnings").get(name, True))
 
 
 # Parsed configuration files by path, with the text each was parsed from. A file read again with the same text (a
@@ -341,6 +344,92 @@ def validate_world_config(config: dict) -> None:
 # a paper may carry only a few digits.
 _GEOMETRY_RTOL = 1.0e-6
 
+# The range each outer-radius specifier may take.
+_GEOMETRY_SPEC_BOUNDS = {
+    "radius_outer_m":  {"minimum": 0.0, "minimum_open": True},
+    "radius_fraction": {"minimum": 0.0, "maximum": 1.0 + _GEOMETRY_RTOL, "minimum_open": True},
+    "volume_fraction": {"minimum": 0.0, "maximum": 1.0 + _GEOMETRY_RTOL, "minimum_open": True},
+}
+
+
+def ordered_layers(layers: dict) -> list:
+    """A world's layers in the order they are stacked, from the center outward.
+
+    A layer is placed by its ``layer_index``, or by its position in the table when it gives none.
+
+    Parameters
+    ----------
+    layers : dict
+        The ``layers`` table mapping layer name to layer configuration.
+
+    Returns
+    -------
+    list of (int, str, dict)
+        ``(layer_index, layer_name, layer_config)`` for each layer, innermost first.
+
+    Raises
+    ------
+    ValueError
+        If a ``layer_index`` is not a non-negative integer, or two layers resolve to the same one.
+    """
+    ordered = []
+    seen_indices = {}
+    for order_index, (layer_name, layer_cfg) in enumerate(layers.items()):
+        index = layer_cfg.get("layer_index", order_index)
+        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+            raise ValueError(f"Layer '{layer_name}': 'layer_index' must be a non-negative integer, not {index!r}.")
+        if index in seen_indices:
+            raise ValueError(
+                f"Layers '{seen_indices[index]}' and '{layer_name}' both resolve to layer_index {index} "
+                "(a layer with no 'layer_index' takes its position in the file). Give each layer its own.")
+        seen_indices[index] = layer_name
+        ordered.append((index, layer_name, layer_cfg))
+    ordered.sort(key=lambda item: item[0])
+    return ordered
+
+
+def outer_radius_from_spec(layer_name: str, layer_cfg: dict, radius_inner: float, world_radius: float) -> float:
+    """A layer's outer radius [m] from its outer-radius specifier.
+
+    One of the specifiers is present (validation enforces exactly one):
+
+    * ``radius_outer_m`` : the outer radius directly.
+    * ``radius_fraction`` : ``radius_fraction * world_radius``.
+    * ``volume_fraction`` : the layer's shell volume is ``volume_fraction`` of the
+      whole-world volume, so ``r_out = (r_in^3 + volume_fraction * R_world^3)^(1/3)``.
+
+    Parameters
+    ----------
+    layer_name : str
+        The layer's name (for error messages).
+    layer_cfg : dict
+        The layer's configuration sub-dictionary.
+    radius_inner : float
+        The layer's inner radius [m] (the previous layer's outer radius).
+    world_radius : float
+        The world's radius [m].
+
+    Returns
+    -------
+    float
+        The layer's outer radius [m].
+
+    Raises
+    ------
+    ValueError
+        If the layer has no outer-radius specifier.
+    """
+    if "radius_outer_m" in layer_cfg:
+        return float(layer_cfg["radius_outer_m"])
+    if "radius_fraction" in layer_cfg:
+        return float(layer_cfg["radius_fraction"]) * world_radius
+    if "volume_fraction" in layer_cfg:
+        volume_fraction = float(layer_cfg["volume_fraction"])
+        return (radius_inner ** 3 + volume_fraction * world_radius ** 3) ** (1.0 / 3.0)
+    raise ValueError(
+        f"Layer '{layer_name}' has no outer-radius specifier "
+        f"(one of {LAYER_GEOMETRY_SPEC_KEYS} is required).")
+
 
 # Schema keys that are switches. TOML writes them as true or false; a string or a number in their place is a
 # mistake that bool() would hide, since bool("false") is True.
@@ -412,35 +501,16 @@ def validate_physical_values(config: dict) -> None:
 
     # The builder stacks the layers by index, declaration order where none is given, each starting where the
     # one below ends, so the geometry is checked in that same order.
-    ordered = []
-    seen_indices = {}
-    for order_index, (layer_name, layer_cfg) in enumerate(layers.items()):
-        index = layer_cfg.get("layer_index", order_index)
-        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
-            raise ValueError(f"Layer '{layer_name}': 'layer_index' must be a non-negative integer, not {index!r}.")
-        if index in seen_indices:
-            raise ValueError(
-                f"Layers '{seen_indices[index]}' and '{layer_name}' both resolve to layer_index {index} "
-                "(a layer with no 'layer_index' takes its position in the file). Give each layer its own.")
-        seen_indices[index] = layer_name
-        ordered.append((index, layer_name, layer_cfg))
-    ordered.sort(key=lambda item: item[0])
+    ordered = ordered_layers(layers)
 
     radius_inner = 0.0
     for _, layer_name, layer_cfg in ordered:
         layer_where = f"Layer '{layer_name}'"
-        if "radius_outer_m" in layer_cfg:
-            radius_outer = _require_number(
-                layer_where, "radius_outer_m", layer_cfg["radius_outer_m"], minimum=0.0, minimum_open=True)
-        elif "radius_fraction" in layer_cfg:
-            radius_outer = world_radius * _require_number(
-                layer_where, "radius_fraction", layer_cfg["radius_fraction"],
-                minimum=0.0, maximum=1.0 + _GEOMETRY_RTOL, minimum_open=True)
-        else:
-            volume_fraction = _require_number(
-                layer_where, "volume_fraction", layer_cfg["volume_fraction"],
-                minimum=0.0, maximum=1.0 + _GEOMETRY_RTOL, minimum_open=True)
-            radius_outer = (radius_inner ** 3 + volume_fraction * world_radius ** 3) ** (1.0 / 3.0)
+        # The structural check leaves exactly one specifier; with none, outer_radius_from_spec says so.
+        spec_key = next((key for key in LAYER_GEOMETRY_SPEC_KEYS if key in layer_cfg), None)
+        if spec_key is not None:
+            _require_number(layer_where, spec_key, layer_cfg[spec_key], **_GEOMETRY_SPEC_BOUNDS[spec_key])
+        radius_outer = outer_radius_from_spec(layer_name, layer_cfg, radius_inner, world_radius)
         if radius_outer <= radius_inner:
             raise ValueError(
                 f"{layer_where} ends at {radius_outer} m, which is not above where it starts ({radius_inner} m, the "

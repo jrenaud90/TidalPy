@@ -20,9 +20,7 @@ namespace tidalpy {
 // Peeks the upcoming record's BinaryClassID without consuming it, builds the matching layer, then lets that layer
 // read the full record. Throws std::runtime_error when the class id is not a known layer type.
 inline std::unique_ptr<c_BaseLayer> c_layer_from_binary(std::istream& in, bool force = false) {
-    const std::streampos start = in.tellg();
-    const c_BinaryHeader header = read_binary_header(in);
-    in.seekg(start);
+    const c_BinaryHeader header = c_peek_binary_header(in);
 
     std::unique_ptr<c_BaseLayer> layer;
     switch (static_cast<BinaryClassID>(header.class_id)) {

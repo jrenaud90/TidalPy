@@ -32,7 +32,7 @@
 // int : 0=success, -1=num_bcs>5, -2=num_bcs<=0, -3=unknown model.
 inline int c_get_surface_bc(
         double* boundary_conditions_ptr,
-        int* bc_model_ptr,
+        const int* bc_model_ptr,
         size_t num_bcs,
         double radius_to_use,
         double bulk_density_to_use,

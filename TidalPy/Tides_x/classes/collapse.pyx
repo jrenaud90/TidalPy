@@ -22,7 +22,7 @@ from TidalPy.Tides_x.eccentricity.eccentricity_driver import (
     validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
 from TidalPy.Tides_x.obliquity.obliquity_driver import validate_obliquity_truncation
 from TidalPy.Tides_x.classes.tide cimport (
-    c_TideBase, c_TideModel, c_TideModelConfig, c_tide_model_from_name, c_find_tide,
+    c_TideBase, c_TideModel, c_TideModelConfig, c_tide_model_from_name, c_find_tide, cy_build_tide_config,
 )
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
@@ -69,25 +69,6 @@ cdef extern from "tide_collapse_.hpp" nogil:
     c_GlobalTideResult c_collapse_global_tides(
         const c_GlobalPotentialStorage& potential,
         const c_TideBase& tide_model) except +
-
-
-
-
-cdef c_TideModelConfig cy_build_tide_config(dict config) except *:
-    """Build a c_TideModelConfig from the optional per-degree list keys, indexed from l = 2."""
-    cdef c_TideModelConfig cfg
-    if config is None:
-        return cfg
-    if "fixed_k" in config:
-        for value in config["fixed_k"]:
-            cfg.fixed_k.push_back(<double>value)
-    if "fixed_q" in config:
-        for value in config["fixed_q"]:
-            cfg.fixed_q.push_back(<double>value)
-    if "fixed_dt_s" in config:
-        for value in config["fixed_dt_s"]:
-            cfg.fixed_dt.push_back(<double>value)
-    return cfg
 
 
 def collapse_global_tides(

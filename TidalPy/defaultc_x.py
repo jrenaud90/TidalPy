@@ -10,10 +10,7 @@ Every new ``_x`` default belongs here rather than in the legacy ``defaultc.py``.
 """
 
 from TidalPy import version
-
-# Schema version for the _x configuration / world format. Kept in sync with
-# TidalPy.structures_x.configs.toml_loader.SCHEMA_VERSION.
-SCHEMA_VERSION_X = "0.2.0"
+from TidalPy.schema_x import SCHEMA_VERSION
 
 
 def _rock_layer_block(section: str) -> str:
@@ -85,7 +82,7 @@ def _rock_layer_block(section: str) -> str:
 
 
 default_config_x_str = f"""
-schema_version = "{SCHEMA_VERSION_X}"
+schema_version = "{SCHEMA_VERSION}"
 
 # =====================================================================================================================
 # Numerical settings (consumed by the C++ config singleton for _x code)

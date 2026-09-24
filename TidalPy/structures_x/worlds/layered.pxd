@@ -158,7 +158,6 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         c_LayeredWorld()
         c_LayeredWorld(const c_WorldConfig& cfg) except +
         void         add_layer(unique_ptr[c_BaseLayer] layer) except +
-        cpp_bool     accepts_layer(const c_BaseLayer& layer) except +
         string       layer_rejection_reason(const c_BaseLayer& layer) except +
         c_BaseLayer* get_layer(size_t index) except +
         void         update_after_layer_geometry_change() except +
@@ -336,6 +335,7 @@ cdef extern from "profile_world_.hpp" namespace "tidalpy" nogil:
 
 cdef class LayeredWorld(BaseWorld):
     cdef c_LayeredWorld* _layered_ptr   # non-owning; ownership via BaseWorld._world_ptr
+    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr)
     @staticmethod
     cdef LayeredWorld _wrap(shared_ptr[c_BaseWorld] ptr)
     # Cached non-owning layer views, built once (lazily) and invalidated by add_layer so the

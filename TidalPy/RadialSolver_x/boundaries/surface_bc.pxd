@@ -2,7 +2,7 @@ cdef extern from "surface_bc_.hpp" nogil:
 
     cdef int c_get_surface_bc(
         double* boundary_conditions_ptr,
-        int* bc_model_ptr,
+        const int* bc_model_ptr,
         size_t num_bcs,
         double radius_to_use,
         double bulk_density_to_use,
