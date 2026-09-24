@@ -26,6 +26,7 @@ cdef extern from "tide_result_.hpp" nogil:
         int min_degree_l
         int max_degree_l
         int eccentricity_truncation
+        double eccentricity_exact_tolerance
         int obliquity_truncation
         cpp_bool layer_tidal_heating
         int love_method

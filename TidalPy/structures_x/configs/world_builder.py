@@ -1014,6 +1014,7 @@ def _attach_tides(world, config: dict) -> None:
             merged.get("eccentricity_trunc_lvl", 10)),
         obliquity_truncation=_resolve_obliquity_truncation(
             merged.get("obliquity_trunc_lvl", "off")),
+        eccentricity_exact_tolerance=merged.get("eccentricity_exact_tolerance"),
         layer_tidal_heating=bool(merged.get("layer_tidal_heating", True)),
         love_method=str(merged.get("love_method", "radial_solver")),
         love_fixed_q=merged.get("love_fixed_q"),

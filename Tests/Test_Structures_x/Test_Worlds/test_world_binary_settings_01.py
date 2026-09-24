@@ -102,3 +102,12 @@ def test_loaded_world_reproduces_its_tidal_heating_without_reattaching(tmp_path)
     loaded.solve_eos()
     loaded.calc_tides(**_IO_ORBIT)
     assert loaded.get_tidal_heating() == pytest.approx(reference, rel=1e-12)
+
+
+def test_exact_eccentricity_settings_survive_the_round_trip(tmp_path):
+    world = build_world("io")
+    world.set_tide_config(eccentricity_truncation="exact", eccentricity_exact_tolerance=1.0e-6)
+    loaded = _round_trip(world, LayeredWorld("placeholder", 1.0, 1.0), tmp_path)
+    config = loaded.get_tide_config()
+    assert config["eccentricity_trunc_lvl"] == "exact"
+    assert config["eccentricity_exact_tolerance"] == 1.0e-6

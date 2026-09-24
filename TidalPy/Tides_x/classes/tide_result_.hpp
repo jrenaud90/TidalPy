@@ -16,13 +16,17 @@
 #include <vector>
 
 #include "constants_.hpp"   // TidalPyConstants::d_PI (colatitude band default)
+#include "../eccentricity/eccentricity_accuracy_.hpp"   // level limits, C_ECCENTRICITY_EXACT
 
 // c_TideConfig: the world's stored [tides] configuration. The dissipation model itself is held
 // separately on the world (c_TideBase).
 struct c_TideConfig {
     int min_degree_l            = 2;    // lowest tidal harmonic degree (>= 2)
     int max_degree_l            = 2;    // highest tidal harmonic degree (<= 10)
-    int eccentricity_truncation = 10;   // eccentricity truncation level N (every product of two G through e^N)
+    int eccentricity_truncation = 10;   // eccentricity truncation level N (every product of two G through e^N), or
+                                        // C_ECCENTRICITY_EXACT for the functions from the exact orbit
+    // Heating tail tolerance of the exact eccentricity functions (ignored by the tabulated levels).
+    double eccentricity_exact_tolerance = C_ECCENTRICITY_EXACT_TOLERANCE;
     int obliquity_truncation    = 0;    // obliquity-function truncation (0=off, 1, 2 (F through I^n), 10=general)
     // Whether calc_tides also resolves the heating of each layer. With a radial-solver Love method that is the
     // volume integral of the radial solution's heating density over each layer, which costs about as much as the
@@ -36,27 +40,6 @@ struct c_TideConfig {
     double love_fixed_q  = std::numeric_limits<double>::quiet_NaN();
     double love_fixed_dt = std::numeric_limits<double>::quiet_NaN();
 };
-
-// The eccentricity from which an eccentricity truncation level's tidal heating can be 10% or more below the exact
-// value, measured against the exact eccentricity functions for constant-phase-lag, constant-time-lag, and Maxwell tides
-// at spin rates of 0.5, 1, and 2.3 times the mean motion (Documentation/Tides_x/eccentricity.md). Degree 3 loses
-// accuracy at a lower eccentricity than degree 2, so a solve that includes degree 3 or higher uses the degree-3 limits.
-// Every level errs low below its limit. Level 50 is limited by cancellation rather than truncation: its mode sum cancels
-// by about 5e5 at e = 0.8 (degree 2; ten times more at degree 3), which multiplies any error in the Love numbers. NaN
-// for an untabulated level.
-inline double c_eccentricity_truncation_limit(int eccentricity_truncation, int max_degree_l) noexcept {
-    const bool degree_two_only = (max_degree_l <= 2);
-    switch (eccentricity_truncation) {
-        case 2:  return degree_two_only ? 0.07 : 0.06;
-        case 4:  return degree_two_only ? 0.19 : 0.15;
-        case 6:  return degree_two_only ? 0.28 : 0.24;
-        case 8:  return degree_two_only ? 0.36 : 0.31;
-        case 10: return degree_two_only ? 0.40 : 0.36;
-        case 20: return degree_two_only ? 0.59 : 0.53;
-        case 50: return degree_two_only ? 0.78 : 0.75;
-        default: return std::numeric_limits<double>::quiet_NaN();
-    }
-}
 
 // c_TideSolveConfig: the per-call orbital and spin state for calc_tides. The world stays stateless
 // with respect to the orbit.

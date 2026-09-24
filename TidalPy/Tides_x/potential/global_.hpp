@@ -69,14 +69,16 @@ inline c_GlobalPotentialStorage c_global_potential(
         int min_degree_l,
         int max_degree_l,
         int obliquity_truncation,
-        int eccentricity_truncation
+        int eccentricity_truncation,
+        double eccentricity_exact_tolerance
     )
 {
     c_GlobalPotentialStorage result;
     result.error_code = 0;
 
     // Only degrees 2 to 10 are tabulated; checked before anything is sized from them.
-    if ((min_degree_l < 2) || (max_degree_l > 10) || (min_degree_l > max_degree_l) || (eccentricity_truncation < 0))
+    if ((min_degree_l < 2) || (max_degree_l > 10) || (min_degree_l > max_degree_l)
+        || ((eccentricity_truncation < 0) && (eccentricity_truncation != C_ECCENTRICITY_EXACT)))
     {
         result.error_code   = -2;
         result.working_on_l = (min_degree_l < 2) ? min_degree_l : max_degree_l;
@@ -89,8 +91,9 @@ inline c_GlobalPotentialStorage c_global_potential(
     {
         target_size += static_cast<size_t>((degree_l + 1) * (degree_l + 1));
     }
-    // Modes with |q| <= N / 2 enter the heating.
-    target_size *= static_cast<size_t>(2 * (eccentricity_truncation / 2) + 1);
+    // Modes with |q| <= N / 2 enter the heating; the exact functions' range depends on e, so this is a first guess.
+    const int reserve_q = (eccentricity_truncation == C_ECCENTRICITY_EXACT) ? 10 : (eccentricity_truncation / 2);
+    target_size *= static_cast<size_t>(2 * reserve_q + 1);
     result.mode_map.reserve(target_size);
     result.unique_freq_index_map.reserve(target_size);
     result.unique_freq_map.reserve(target_size);
@@ -149,7 +152,8 @@ inline c_GlobalPotentialStorage c_global_potential(
             &result.error_code,
             eccentricity,
             degree_l,
-            eccentricity_truncation
+            eccentricity_truncation,
+            eccentricity_exact_tolerance
         );
         if (result.error_code != 0)
         {

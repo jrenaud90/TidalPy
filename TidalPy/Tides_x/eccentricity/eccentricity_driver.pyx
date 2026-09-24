@@ -5,7 +5,8 @@ from libcpp.pair cimport pair
 
 from TidalPy.Utilities_x.lookups cimport IntMap1, IntMap3, c_Key2, c_Key1, c_IntMap
 from TidalPy.Tides_x.eccentricity.eccentricity_common cimport (
-    EccentricityFuncOutput, C_ECCENTRICITY_TRUNCATIONS, C_NUM_ECCENTRICITY_TRUNCATIONS)
+    EccentricityFuncOutput, C_ECCENTRICITY_TRUNCATIONS, C_NUM_ECCENTRICITY_TRUNCATIONS, C_ECCENTRICITY_EXACT,
+    C_ECCENTRICITY_EXACT_TOLERANCE, c_eccentricity_accuracy_limit, c_recommend_eccentricity_truncation)
 
 import warnings
 
@@ -18,6 +19,35 @@ cdef int cy_level_i
 for cy_level_i in range(C_NUM_ECCENTRICITY_TRUNCATIONS):
     cy_truncations.append(C_ECCENTRICITY_TRUNCATIONS[cy_level_i])
 ECCENTRICITY_TRUNCATIONS = tuple(cy_truncations)
+
+# The truncation code of the exact eccentricity functions (Hansen coefficients from the exact Kepler orbit, the modes
+# chosen by the exact tolerance); ``"exact"`` wherever a truncation is given by name.
+ECCENTRICITY_EXACT = C_ECCENTRICITY_EXACT
+
+
+cdef object cy_config_tides(str key, object fallback):
+    """A ``[tides]`` value of the TidalPy configuration."""
+    return ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get(key, fallback)
+
+
+def validate_eccentricity_exact_tolerance(object tolerance=None) -> float:
+    """Return the heating tail tolerance of the exact eccentricity functions, in (0, 1).
+
+    None takes the ``[tides]`` ``eccentricity_exact_tolerance`` of the TidalPy configuration.
+
+    Raises
+    ------
+    ValueError
+        For a tolerance outside (0, 1).
+    """
+    if tolerance is None:
+        tolerance = cy_config_tides("eccentricity_exact_tolerance", C_ECCENTRICITY_EXACT_TOLERANCE)
+    if isinstance(tolerance, bool):
+        raise ValueError("The exact eccentricity tolerance is a number in (0, 1), not a bool.")
+    value = float(tolerance)
+    if not (0.0 < value < 1.0):
+        raise ValueError(f"The exact eccentricity tolerance must be in (0, 1); got {tolerance!r}.")
+    return value
 
 
 # Untabulated configured levels already warned about, so a stale configuration file warns once per session per level.
@@ -46,8 +76,10 @@ def promote_eccentricity_truncation(object level, set warned_levels=None, object
     ValueError
         For a level above every tabulated one.
     """
+    if isinstance(level, str) and level.strip().lower() == "exact":
+        return C_ECCENTRICITY_EXACT
     level = int(level)
-    if level in ECCENTRICITY_TRUNCATIONS:
+    if level in ECCENTRICITY_TRUNCATIONS or level == C_ECCENTRICITY_EXACT:
         return level
     if warned_levels is None:
         warned_levels = _WARNED_PROMOTIONS
@@ -72,9 +104,9 @@ def validate_eccentricity_truncation(object truncation=None) -> int:
     Parameters
     ----------
     truncation : int, str, or None, optional
-        A level (an int or a numeric string such as ``"10"``). None takes the ``[tides]`` ``eccentricity_trunc_lvl``
-        of the TidalPy configuration, promoted to the next tabulated level when the configuration holds an untabulated
-        one (``promote_eccentricity_truncation``).
+        A level (an int or a numeric string such as ``"10"``) or ``"exact"`` (``ECCENTRICITY_EXACT``). None takes the
+        ``[tides]`` ``eccentricity_trunc_lvl`` of the TidalPy configuration, promoted to the next tabulated level when
+        the configuration holds an untabulated one (``promote_eccentricity_truncation``).
 
     Raises
     ------
@@ -84,10 +116,11 @@ def validate_eccentricity_truncation(object truncation=None) -> int:
         For a level passed directly that is not tabulated (see ``ECCENTRICITY_TRUNCATIONS``).
     """
     if truncation is None:
-        return promote_eccentricity_truncation(
-            ((getattr(TidalPy, "config_x", None) or {}).get("tides", {}) or {}).get("eccentricity_trunc_lvl", 10))
+        return promote_eccentricity_truncation(cy_config_tides("eccentricity_trunc_lvl", 10))
     if isinstance(truncation, bool):
         raise TypeError("An eccentricity truncation is an integer level, not a bool.")
+    if isinstance(truncation, str) and truncation.strip().lower() == "exact":
+        return C_ECCENTRICITY_EXACT
     if isinstance(truncation, str):
         try:
             truncation = int(truncation)
@@ -103,10 +136,61 @@ def validate_eccentricity_truncation(object truncation=None) -> int:
         raise TypeError(f"Unexpected eccentricity truncation {truncation!r}.")
     if level != truncation:
         raise TypeError(f"Unexpected eccentricity truncation {truncation!r}.")
+    if level == C_ECCENTRICITY_EXACT:
+        return level
     if level not in ECCENTRICITY_TRUNCATIONS:
         raise NotImplementedError(
-            f"Eccentricity truncation {level} is not tabulated. Tabulated levels: {ECCENTRICITY_TRUNCATIONS}.")
+            f"Eccentricity truncation {level} is not tabulated. Tabulated levels: {ECCENTRICITY_TRUNCATIONS}, "
+            "or 'exact'.")
     return level
+
+
+def eccentricity_truncation_name(int truncation):
+    """The level as written in a configuration: the int, or ``"exact"`` for ``ECCENTRICITY_EXACT``."""
+    return "exact" if truncation == C_ECCENTRICITY_EXACT else truncation
+
+
+def eccentricity_accuracy_limit(object truncation, double tolerance=0.01, int max_degree_l=2) -> float:
+    """The largest eccentricity at which a truncation level's heating stays within ``tolerance`` of the exact value.
+
+    Measured against the exact heating, worst case over constant-phase-lag, constant-time-lag, and Maxwell tides at spin
+    rates of 0.5, 1, and 2.3 times the mean motion, for degree 2 (``max_degree_l == 2``) or degree 3 (any higher
+    ``max_degree_l``). The tabulated tolerances are 1e-8, 1e-6, 1e-4, 1e-3, 1e-2, and 1e-1; a tolerance in between
+    uses the next smaller one. NaN for ``"exact"``, which has no such limit.
+    """
+    cdef int level = validate_eccentricity_truncation(truncation)
+    return c_eccentricity_accuracy_limit(level, tolerance, max_degree_l)
+
+
+def recommend_eccentricity_truncation(double eccentricity, double tolerance=0.01, int max_degree_l=2):
+    """The lowest eccentricity truncation level that keeps the heating within ``tolerance`` at ``eccentricity``.
+
+    Parameters
+    ----------
+    eccentricity : float
+        Orbital eccentricity, 0 <= e < 1.
+    tolerance : float, optional
+        Largest acceptable relative error in the heating (default 1%).
+    max_degree_l : int, optional
+        Highest tidal degree of the solve; degree 3 and higher lose accuracy at a lower eccentricity than degree 2.
+
+    Returns
+    -------
+    int or str
+        A tabulated level, or ``"exact"`` when no level holds the tolerance there (eccentricities past about 0.75, or a
+        tolerance tighter than the tables were measured to). The limits hold for any spin rate measured; they barely
+        depend on it.
+
+    Raises
+    ------
+    ValueError
+        For an eccentricity outside [0, 1) or a tolerance that is not positive.
+    """
+    if not (0.0 <= eccentricity < 1.0):
+        raise ValueError(f"The eccentricity must be in [0, 1); got {eccentricity}.")
+    if not (tolerance > 0.0):
+        raise ValueError(f"The tolerance must be positive; got {tolerance}.")
+    return eccentricity_truncation_name(c_recommend_eccentricity_truncation(eccentricity, tolerance, max_degree_l))
 
 
 cdef tuple cy_eccentricity_output(EccentricityFuncOutput& result_pair):
@@ -146,7 +230,8 @@ cdef void cy_check_error(int error_code) except *:
 def eccentricity_func(
         double eccentricity,
         int degree_l,
-        object truncation = None):
+        object truncation = None,
+        object exact_tolerance = None):
     """Eccentricity functions G_lpq(e) of one degree at one eccentricity, unsquared.
 
     Truncation level N keeps every mode with |q| <= N, each G_lpq through e^N, so a tidal potential built from them is
@@ -159,8 +244,11 @@ def eccentricity_func(
     degree_l : int
         Tidal harmonic degree, 2 to 10.
     truncation : int or str, optional
-        Truncation level N, one of ``ECCENTRICITY_TRUNCATIONS``. None takes the ``[tides]`` ``eccentricity_trunc_lvl``
-        of the TidalPy configuration.
+        Truncation level N, one of ``ECCENTRICITY_TRUNCATIONS``, or ``"exact"`` for the functions from the exact orbit.
+        None takes the ``[tides]`` ``eccentricity_trunc_lvl`` of the TidalPy configuration.
+    exact_tolerance : float, optional
+        For ``"exact"``: the modes kept are those whose q^2-weighted squares leave a tail below this fraction of the
+        total (so it bounds the relative error of the synchronous constant-time-lag heating). None takes the ``[tides]`` ``eccentricity_exact_tolerance`` (1e-4 by default).
 
     Returns
     -------
@@ -170,9 +258,10 @@ def eccentricity_func(
         The same values as an ``IntMap1`` of G by (q,) for each (l, p).
     """
     cdef int level = validate_eccentricity_truncation(truncation)
+    cdef double tolerance = validate_eccentricity_exact_tolerance(exact_tolerance)
     cy_check_degree(degree_l)
     cdef int error_code = 0
-    cdef EccentricityFuncOutput result_pair = c_eccentricity_func(&error_code, eccentricity, degree_l, level)
+    cdef EccentricityFuncOutput result_pair = c_eccentricity_func(&error_code, eccentricity, degree_l, level, tolerance)
     cy_check_error(error_code)
     return cy_eccentricity_output(result_pair)
 
@@ -180,7 +269,8 @@ def eccentricity_func(
 def eccentricity_squared_func(
         double eccentricity,
         int degree_l,
-        object truncation = None):
+        object truncation = None,
+        object exact_tolerance = None):
     """Squared eccentricity functions G_lpq(e)^2 of one degree at one eccentricity, cut at e^N.
 
     These are what the global (1D) heating uses: every mode with |q| <= N / 2, each square through e^N, so the sum
@@ -194,8 +284,10 @@ def eccentricity_squared_func(
     degree_l : int
         Tidal harmonic degree, 2 to 10.
     truncation : int or str, optional
-        Truncation level N, one of ``ECCENTRICITY_TRUNCATIONS``. None takes the ``[tides]`` ``eccentricity_trunc_lvl``
-        of the TidalPy configuration.
+        Truncation level N, one of ``ECCENTRICITY_TRUNCATIONS``, or ``"exact"`` for the plain squares of the functions
+        from the exact orbit. None takes the ``[tides]`` ``eccentricity_trunc_lvl`` of the TidalPy configuration.
+    exact_tolerance : float, optional
+        For ``"exact"``, as in ``eccentricity_func``.
 
     Returns
     -------
@@ -205,8 +297,9 @@ def eccentricity_squared_func(
         The same values as an ``IntMap1`` by (q,) for each (l, p).
     """
     cdef int level = validate_eccentricity_truncation(truncation)
+    cdef double tolerance = validate_eccentricity_exact_tolerance(exact_tolerance)
     cy_check_degree(degree_l)
     cdef int error_code = 0
-    cdef EccentricityFuncOutput result_pair = c_eccentricity_squared_func(&error_code, eccentricity, degree_l, level)
+    cdef EccentricityFuncOutput result_pair = c_eccentricity_squared_func(&error_code, eccentricity, degree_l, level, tolerance)
     cy_check_error(error_code)
     return cy_eccentricity_output(result_pair)

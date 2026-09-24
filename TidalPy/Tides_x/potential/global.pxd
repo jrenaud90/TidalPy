@@ -41,5 +41,6 @@ cdef extern from "global_.hpp" nogil:
         int min_degree_l,
         int max_degree_l,
         int obliquity_truncation,
-        int eccentricity_truncation
-    )
+        int eccentricity_truncation,
+        double eccentricity_exact_tolerance
+    ) except +

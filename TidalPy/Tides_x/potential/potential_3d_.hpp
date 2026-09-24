@@ -65,7 +65,8 @@ struct c_TidalPotential3DModeCoeff {
     double mode_frequency = 0.0;      // signed omega_lmpq [rad s-1]
     double amplitude = 0.0;           // (-1)^m G_lpq F_lmp (R/a)^l (G M_host / a) (l-m)!/(l+m)! (2-d_m0)
     double amplitude_factor = 0.0;    // the amplitude without G_lpq, so products of G can be cut at e^N
-    c_EccentricitySeriesTable eccentricity_series;   // the degree's eccentricity table, for those products
+    double eccentricity_value = 0.0;  // G_lpq
+    c_EccentricitySeriesTable eccentricity_series;   // the degree's table, for those products (invalid when exact)
 };
 
 // Evaluate a mode's complex potential angular factor U_c and its theta and phi derivatives at a point:
@@ -113,6 +114,7 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
         int max_degree_l,
         int obliquity_truncation,
         int eccentricity_truncation,
+        double eccentricity_exact_tolerance,
         int* error_code)
 {
     error_code[0] = 0;
@@ -135,12 +137,15 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
             c_obliquity_func(error_code, obliquity, degree_l, obliquity_truncation);
         if (error_code[0] != 0) { return coeffs; }
 
-        EccentricityFuncOutput eccentricity_funcs =
-            c_eccentricity_func(error_code, eccentricity, degree_l, eccentricity_truncation);
+        EccentricityFuncOutput eccentricity_funcs = c_eccentricity_func(
+            error_code, eccentricity, degree_l, eccentricity_truncation, eccentricity_exact_tolerance);
         if (error_code[0] != 0) { return coeffs; }
-        const c_EccentricitySeriesTable eccentricity_series =
-            c_eccentricity_series_table(error_code, degree_l, eccentricity_truncation);
-        if (error_code[0] != 0) { return coeffs; }
+        // The exact functions have no table: their products are plain products.
+        c_EccentricitySeriesTable eccentricity_series;
+        if (eccentricity_truncation != C_ECCENTRICITY_EXACT) {
+            eccentricity_series = c_eccentricity_series_table(error_code, degree_l, eccentricity_truncation);
+            if (error_code[0] != 0) { return coeffs; }
+        }
 
         lm_key.a = degree_l;
         lm_key.b = -1;
@@ -186,6 +191,7 @@ inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs
                 out.mode_frequency = mode;
                 out.amplitude_factor = ((order_m & 1) ? -1.0 : 1.0) * lmp_coeff;
                 out.amplitude = out.amplitude_factor * G_lpq;
+                out.eccentricity_value = G_lpq;
                 out.eccentricity_series = eccentricity_series;
                 coeffs.push_back(out);
             }
@@ -210,6 +216,7 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
         int max_degree_l,
         int obliquity_truncation,
         int eccentricity_truncation,
+        double eccentricity_exact_tolerance,
         double colatitude,
         double longitude,
         int* error_code)
@@ -227,6 +234,7 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
         max_degree_l,
         obliquity_truncation,
         eccentricity_truncation,
+        eccentricity_exact_tolerance,
         error_code);
 
     std::vector<c_TidalPotential3DMode> modes;
@@ -266,7 +274,8 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
 // in the amplitudes: products of two eccentricity functions are cut at e^N (c_wave_pair_power_3d), as in the global
 // (1D) path, while the instantaneous fields use the unsquared amplitude.
 struct c_WaveMember3D {
-    c_EccentricitySeriesTable eccentricity_series;
+    c_EccentricitySeriesTable eccentricity_series;   // invalid for the exact functions
+    double eccentricity_value = 0.0;                 // G_lpq
     int p = 0;
     int q = 0;
     std::complex<double> factor {0.0, 0.0};   // amplitude without G_lpq (parity phase and conjugation applied)
@@ -282,7 +291,8 @@ struct c_TidalWave3D {
 };
 
 // The product amplitude_a * conj(amplitude_b) of two waves with every product of two eccentricity functions cut at
-// e^N, which is what the secular heating takes in place of the plain product.
+// e^N, which is what the secular heating takes in place of the plain product. The exact eccentricity functions carry
+// no table and are multiplied as they are.
 inline std::complex<double> c_wave_pair_power_3d(
         const c_TidalWave3D& wave_a,
         const c_TidalWave3D& wave_b,
@@ -293,14 +303,17 @@ inline std::complex<double> c_wave_pair_power_3d(
     {
         for (const c_WaveMember3D& member_b : wave_b.members)
         {
-            const double product = c_eccentricity_cut_product(
-                member_a.eccentricity_series,
-                member_a.p,
-                member_a.q,
-                member_b.eccentricity_series,
-                member_b.p,
-                member_b.q,
-                eccentricity);
+            const bool exact = !member_a.eccentricity_series.valid() || !member_b.eccentricity_series.valid();
+            const double product = exact
+                ? member_a.eccentricity_value * member_b.eccentricity_value
+                : c_eccentricity_cut_product(
+                      member_a.eccentricity_series,
+                      member_a.p,
+                      member_a.q,
+                      member_b.eccentricity_series,
+                      member_b.p,
+                      member_b.q,
+                      eccentricity);
             if (product != 0.0)
             {
                 total += member_a.factor * std::conj(member_b.factor) * product;
@@ -340,6 +353,7 @@ inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
         const std::complex<double> amplitude = mode.amplitude * phase;
         c_WaveMember3D member;
         member.eccentricity_series = mode.eccentricity_series;
+        member.eccentricity_value = mode.eccentricity_value;
         member.p = mode.p;
         member.q = mode.q;
         member.factor = mode.amplitude_factor * phase;

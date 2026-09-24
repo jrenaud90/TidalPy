@@ -101,11 +101,12 @@ def test_scalar_is_a_pure_function():
     assert h0 > 0.0
 
 
-@pytest.mark.parametrize("truncation, eccentricity", [(20, 0.4), (50, 0.6)])
+@pytest.mark.parametrize("truncation, eccentricity", [(20, 0.4), (50, 0.6), ("exact", 0.8)])
 @pytest.mark.parametrize("spin_factor", [1.0, 1.37])
 def test_3d_total_matches_1d_at_high_eccentricity(truncation, eccentricity, spin_factor):
-    """Both paths cut every product of two eccentricity functions at e^N, so the collapsed 3D total equals the 1D
-    heating at any eccentricity; uncut 3D products would carry terms past e^N that the 1D sum does not."""
+    """Both paths cut every product of two eccentricity functions at e^N (or, for "exact", multiply the exact
+    functions of the same modes), so the collapsed 3D total equals the 1D heating at any eccentricity; uncut 3D products
+    would carry terms past e^N that the 1D sum does not."""
     sma = orbital_motion2semi_a(_N, _HOST, _MASS)
     spin = spin_factor * _N
     world = _build_world()

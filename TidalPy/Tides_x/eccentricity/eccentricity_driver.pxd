@@ -9,9 +9,11 @@ cdef extern from "eccentricity_driver_.hpp" nogil:
         int* error_code_ptr,
         double eccentricity,
         int degree_l,
-        int truncation)
+        int truncation,
+        double exact_tolerance) except +
     EccentricityFuncOutput c_eccentricity_squared_func(
         int* error_code_ptr,
         double eccentricity,
         int degree_l,
-        int truncation)
+        int truncation,
+        double exact_tolerance) except +

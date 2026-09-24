@@ -20,7 +20,7 @@
  *   then the tide section, which every world class writes right after these fields:
  *     min_degree_l, max_degree_l, eccentricity_truncation, obliquity_truncation, love_method (int32_t, 4 each)
  *     layer_tidal_heating      (uint8_t, 1)
- *     love_fixed_q, love_fixed_dt (double, 8 each)
+ *     love_fixed_q, love_fixed_dt, eccentricity_exact_tolerance (double, 8 each)
  *     tide model presence flag (uint8_t, 1), followed when set by the tide model's own complete record
  */
 
@@ -141,8 +141,9 @@ public:
     bool get_tide_model_set() const noexcept { return this->p_tide != nullptr; }
     const c_TideBase* get_tide_model() const noexcept { return this->p_tide.get(); }
 
-    // Throws std::invalid_argument for a degree range outside 2 <= min <= max <= 10 (the tabulated degrees) or a
-    // non-positive Love-method Q or negative time lag (NaN leaves either unset).
+    // Throws std::invalid_argument for a degree range outside 2 <= min <= max <= 10 (the tabulated degrees), a
+    // non-positive Love-method Q or negative time lag (NaN leaves either unset), or an exact eccentricity tolerance
+    // outside (0, 1).
     void set_tide_config(const c_TideConfig& cfg) {
         validate_tide_config(cfg);
         this->p_tide_config  = cfg;
@@ -159,6 +160,9 @@ public:
         }
         if (cfg.love_fixed_dt < 0.0) {
             throw std::invalid_argument("TidalPy: love_fixed_dt must not be negative (NaN leaves it unset).");
+        }
+        if (!((cfg.eccentricity_exact_tolerance > 0.0) && (cfg.eccentricity_exact_tolerance < 1.0))) {
+            throw std::invalid_argument("TidalPy: eccentricity_exact_tolerance must be in (0, 1).");
         }
     }
     const c_TideConfig& get_tide_config() const noexcept { return this->p_tide_config; }
@@ -240,7 +244,7 @@ protected:
     // world dissipates as the saved one did. The payload counts the configuration and the presence flag; the
     // model's own record follows as a separate appended record. Tide results are not saved (recompute them).
     static constexpr uint64_t tide_section_payload_bytes() noexcept {
-        return 5 * sizeof(int32_t) + sizeof(uint8_t) + 2 * sizeof(double) + optional_binary_flag_bytes();
+        return 5 * sizeof(int32_t) + sizeof(uint8_t) + 3 * sizeof(double) + optional_binary_flag_bytes();
     }
 
     void write_tide_section(std::ostream& out) const {
@@ -253,6 +257,7 @@ protected:
         out.write(reinterpret_cast<const char*>(&layer_heating_byte), sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&cfg.love_fixed_q),  sizeof(double));
         out.write(reinterpret_cast<const char*>(&cfg.love_fixed_dt), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&cfg.eccentricity_exact_tolerance), sizeof(double));
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write world tide configuration binary data");
         }
@@ -275,6 +280,7 @@ protected:
         cfg.layer_tidal_heating     = (layer_heating_byte != 0);
         in.read(reinterpret_cast<char*>(&cfg.love_fixed_q),  sizeof(double));
         in.read(reinterpret_cast<char*>(&cfg.love_fixed_dt), sizeof(double));
+        in.read(reinterpret_cast<char*>(&cfg.eccentricity_exact_tolerance), sizeof(double));
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read world tide configuration binary data");
         }
@@ -352,13 +358,13 @@ protected:
         const int eccentricity_truncation = this->p_tide_config.eccentricity_truncation;
         const double eccentricity_limit   =
             c_eccentricity_truncation_limit(eccentricity_truncation, this->p_tide_config.max_degree_l);
-        if ((state.eccentricity >= eccentricity_limit) && !this->p_eccentricity_range_warned) {
+        if ((state.eccentricity > eccentricity_limit) && !this->p_eccentricity_range_warned) {
             this->p_eccentricity_range_warned = true;
             TIDALPY_LOG_WARN(
-                "TidalPy: world '{}' has an eccentricity of {:.3f}, past {:.2f}, where its eccentricity truncation "
+                "TidalPy: world '{}' has an eccentricity of {:.3f}, past {:.3f}, where its eccentricity truncation "
                 "(level {}) can underestimate the tides by 10% or more. Raise eccentricity_trunc_lvl in its [tides] "
-                "table or set_tide_config (level 50 holds to about {:.2f}, past which no tabulated level is "
-                "reliable). Shown once per world.",
+                "table or set_tide_config (recommend_eccentricity_truncation picks a level for a tolerance); past "
+                "about {:.2f} use 'exact'. Shown once per world.",
                 this->get_name(), state.eccentricity, eccentricity_limit, eccentricity_truncation,
                 c_eccentricity_truncation_limit(50, this->p_tide_config.max_degree_l));
         }

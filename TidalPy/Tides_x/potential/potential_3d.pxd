@@ -36,6 +36,7 @@ cdef extern from "potential_3d_.hpp" namespace "tidalpy" nogil:
         int max_degree_l,
         int obliquity_truncation,
         int eccentricity_truncation,
+        double eccentricity_exact_tolerance,
         double colatitude,
         double longitude,
         int* error_code) except +

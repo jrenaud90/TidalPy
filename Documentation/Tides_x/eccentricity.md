@@ -61,25 +61,45 @@ The generated coefficients match the exact Taylor coefficients of the Hansen int
 
 ### High Eccentricity
 
-The series of the highest-$\lvert q \rvert$ modes converge slowly at large $e$, and their cut squares alternate in sign. The heating is then a sum of large terms of both signs, which cancel. At level 50 and degree 2 the terms are about $10^4$ times the total at $e = 0.7$ and $5 \times 10^5$ times at $e = 0.8$, and about ten times more at degree 3. Rounding and any error in the Love numbers are multiplied by that factor, so no tabulated level is reliable past about $e \approx 0.78$ (0.75 at degree 3), even where the truncation alone would allow it (level 50 stays within 10% to $e = 0.80$).
+The series of the highest-$\lvert q \rvert$ modes converge slowly at large $e$, and their cut squares alternate in sign. The heating is then a sum of large terms of both signs, which cancel. At level 50 and degree 2 the terms are about $10^4$ times the total at $e = 0.7$ and $5 \times 10^5$ times at $e = 0.8$, and about ten times more at degree 3. Rounding and any error in the Love numbers are multiplied by that factor, so no tabulated level is reliable past about $e \approx 0.78$ (0.75 at degree 3), even where the truncation alone would allow it (level 50 stays within 10% to $e = 0.80$). The exact functions below have no such limit.
+
+## Exact Functions
+
+`eccentricity_trunc_lvl = "exact"` (in Python `truncation="exact"`, or `ECCENTRICITY_EXACT`) takes the eccentricity functions from the exact Kepler orbit instead of a table. $G_{lpq}$ is the $k$-th Fourier coefficient in mean anomaly of $(r/a)^{-(l+1)} e^{imf}$, so sampling that function (Kepler's equation solved at each sample) and taking one fast Fourier transform per $(l, p)$ gives every mode at once. Nothing is truncated in $e$, and a product of two functions is the plain product, so the result holds at any $e < 1$ with no cancellation between modes.
+
+The mode range follows from the tolerance `eccentricity_exact_tolerance` (`[tides]`, default $10^{-4}$): the modes kept are those whose $q^2$-weighted squares leave a tail below that fraction of the whole. That weight is the synchronous constant-time-lag heating's, the most demanding of the tide models measured, so the tolerance bounds its relative error; against Hut (1981) the heating is within the tolerance from $e = 0.1$ to $0.9$. The price is modes: at $10^{-4}$ it keeps about $\lvert q \rvert \le 55$ at $e = 0.7$, 105 at 0.8, and 320 at 0.9, against 25 for level 50. Each distinct forcing frequency needs its own Love number solve, so at $e = 0.9$ a rheology tide solves a few hundred of them per call. The transform itself costs about 0.1 ms per degree at small $e$ and 2 ms at $e = 0.9$ (7 ms at degree 10).
+
+Past about $e = 0.99$ the functions would need more than 20000 modes and are refused.
 
 ## Choosing a Truncation
 
 The accuracy columns give the largest eccentricity at which the degree-2 heating stays within the stated relative error of the exact value. They are the worst case over constant-phase-lag, constant-time-lag, and Maxwell tides at spin rates of 0.5, 1, and 2.3 times the mean motion. Every level errs low. The modes are those that enter the heating at degree 2 ($\lvert q \rvert \le N/2$); higher degrees activate more.
 
-| Truncation | Heating modes at $l=2$ | Error below $10^{-6}$ to | Error below 1% to | Warning from ($l = 2$ / $l \ge 3$) |
+| Truncation | Heating modes at $l=2$ | Error below $10^{-6}$ to | Error below 1% to | Warning above ($l = 2$ / $l \ge 3$) |
 |---|---|---|---|---|
-| 2 | 9 | below 0.005 | 0.02 | 0.07 / 0.06 |
-| 4 | 13 | 0.005 | 0.09 | 0.19 / 0.15 |
-| 6 | 19 | 0.03 | 0.17 | 0.28 / 0.24 |
-| 8 | 25 | 0.07 | 0.24 | 0.36 / 0.31 |
-| 10 | 31 | 0.11 | 0.31 | 0.40 / 0.36 |
-| 20 | 61 | 0.29 | 0.49 | 0.59 / 0.53 |
-| 50 | 151 | 0.58 | 0.74 | 0.78 / 0.75 |
+| 2 | 9 | below 0.005 | 0.02 | 0.075 / 0.06 |
+| 4 | 13 | 0.005 | 0.095 | 0.19 / 0.155 |
+| 6 | 19 | 0.035 | 0.175 | 0.285 / 0.24 |
+| 8 | 25 | 0.07 | 0.245 | 0.36 / 0.31 |
+| 10 | 31 | 0.11 | 0.31 | 0.405 / 0.36 |
+| 20 | 61 | 0.295 | 0.49 | 0.595 / 0.535 |
+| 50 | 151 | 0.58 | 0.745 | 0.78 / 0.75 |
+| `"exact"` | depends on $e$ | any $e < 0.99$, to the tolerance | | never |
 
 Level 10 is TidalPy's default. Level 2 is the traditional $e^2$ theory: its synchronous heating is exactly $(21/2)(k_2/Q) G M^2 R^5 n e^2 / a^6$.
 
-A world's `calc_tides` logs a warning, once per world, when its eccentricity reaches the last column (the 3D calls do not check it): the point where that level's heating can be 10% or more below the exact value. Degree 3 loses accuracy at a lower eccentricity than degree 2, so a world whose tides include degree 3 or higher uses the second value, measured at degree 3.
+`recommend_eccentricity_truncation(eccentricity, tolerance=0.01, max_degree_l=2)` returns the lowest level that holds a tolerance at an eccentricity, or `"exact"` when none does, and `eccentricity_accuracy_limit(level, tolerance, max_degree_l)` the largest eccentricity a level holds a tolerance to. Both read the measurements behind the table, at tolerances of $10^{-8}$, $10^{-6}$, $10^{-4}$, $10^{-3}$, $10^{-2}$, and $10^{-1}$; a tolerance in between uses the next smaller one. The limits barely depend on the spin rate, so the helper takes none:
+
+```python
+from TidalPy.Tides_x.eccentricity import recommend_eccentricity_truncation
+
+recommend_eccentricity_truncation(0.3)                    # 10: heating within 1% at e = 0.3
+recommend_eccentricity_truncation(0.3, max_degree_l=3)    # 20: degree 3 needs more
+recommend_eccentricity_truncation(0.3, tolerance=1e-6)    # 50
+recommend_eccentricity_truncation(0.85)                   # 'exact'
+```
+
+A world's `calc_tides` logs a warning, once per world, when its eccentricity is past the last column (the 3D calls do not check it): the point where that level's heating can be 10% or more below the exact value. Degree 3 loses accuracy at a lower eccentricity than degree 2, so a world whose tides include degree 3 or higher uses the second value, measured at degree 3.
 
 The cost is worse than linear. Each new truncation activates new tidal modes, and new modes can introduce new unique forcing frequencies, each of which needs its own Love number solve. Doubling the mode count more than doubles the work, and the effect compounds at $l > 2$ because higher degrees activate more modes of their own. We recommend the lowest truncation that covers your eccentricity values. In a numerical integration where eccentricity may be driven higher (_e.g._, in a mean motion resonance), a truncation adequate for the initial eccentricity may become inaccurate as the eccentricity rises; the warning above flags it.
 
@@ -106,7 +126,7 @@ print(len(squares_by_lpq))                 # 13 modes enter the heating, |q| <= 
 
 Degrees $l = 2$ through $10$ are supported. Higher degrees require generating and compiling more terms; open a GitHub issue if you need them.
 
-Both functions return a pair of lookup objects holding the same numbers two ways: `modes_by_lpq` is keyed by the full `(l, p, q)` mode, and `modes_by_lp` is a dict keyed by `(l, p)` whose values iterate as `((q,), value)` pairs, which is the convenient form when you want every $q$ at a given $(l, p)$. Only non-zero modes appear in either. `truncation` defaults to the `[tides]` `eccentricity_trunc_lvl` of the TidalPy configuration; `validate_eccentricity_truncation` checks a level, and `promote_eccentricity_truncation` resolves an untabulated configured level to the next tabulated one with a warning, as the world builder does.
+Both functions return a pair of lookup objects holding the same numbers two ways: `modes_by_lpq` is keyed by the full `(l, p, q)` mode, and `modes_by_lp` is a dict keyed by `(l, p)` whose values iterate as `((q,), value)` pairs, which is the convenient form when you want every $q$ at a given $(l, p)$. Only non-zero modes appear in either. `truncation` defaults to the `[tides]` `eccentricity_trunc_lvl` of the TidalPy configuration; `exact_tolerance` sets the mode range of `"exact"` (default: the `[tides]` `eccentricity_exact_tolerance`). `validate_eccentricity_truncation` checks a level, and `promote_eccentricity_truncation` resolves an untabulated configured level to the next tabulated one with a warning, as the world builder does.
 
 The same functions exist in C++ and Cython for callers who need them: `Tides_x/eccentricity/eccentricity_common` carries the table format and its evaluation, `eccentricity_driver` dispatches on degree and truncation, and the remaining files hold the generated tables.
 

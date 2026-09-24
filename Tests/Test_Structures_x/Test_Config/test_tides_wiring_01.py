@@ -179,3 +179,17 @@ def test_set_tide_config_changes_only_the_given_settings():
     assert "love_fixed_q" not in world.get_tide_config()
     with pytest.raises(NotImplementedError):
         world.set_tide_config(eccentricity_truncation=7)
+
+
+def test_exact_eccentricity_from_a_tides_table():
+    """A [tides] table can ask for the exact eccentricity functions and their tolerance, and the world writes them back."""
+    world = build_world(_config("terrestrial", {"eccentricity_trunc_lvl": "exact",
+                                                "eccentricity_exact_tolerance": 1.0e-5}))
+    tides = world.get_tide_config()
+    assert tides["eccentricity_trunc_lvl"] == "exact"
+    assert tides["eccentricity_exact_tolerance"] == 1.0e-5
+    rebuilt = build_world(world.get_config_dict()).get_tide_config()
+    assert rebuilt["eccentricity_trunc_lvl"] == "exact"
+    assert rebuilt["eccentricity_exact_tolerance"] == 1.0e-5
+    with pytest.raises(ValueError):
+        build_world(_config("terrestrial", {"eccentricity_trunc_lvl": "exact", "eccentricity_exact_tolerance": 1.5}))

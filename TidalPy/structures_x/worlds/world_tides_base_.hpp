@@ -50,7 +50,8 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
         tcfg.min_degree_l,
         tcfg.max_degree_l,
         tcfg.obliquity_truncation,
-        tcfg.eccentricity_truncation
+        tcfg.eccentricity_truncation,
+        tcfg.eccentricity_exact_tolerance
     );
 
     if (potential.error_code != 0) {

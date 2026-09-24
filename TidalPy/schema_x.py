@@ -186,6 +186,7 @@ ALLOWED_TIDES_KEYS = frozenset((
     "max_degree_l",
     "eccentricity_trunc_lvl",
     "eccentricity_truncation",
+    "eccentricity_exact_tolerance",
     "obliquity_trunc_lvl",
     "obliquity_truncation",
     "layer_tidal_heating",
