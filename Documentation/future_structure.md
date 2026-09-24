@@ -1,6 +1,6 @@
 # The Future TidalPy Structure
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-24_
 
 TidalPy's internals were rewritten in C++ for v0.8.0. The new implementation lives in modules that carry a `_x` suffix (`structures_x`, `Tides_x`, `RadialSolver_x`, `rheology_x`, and so on) and lives side by side with the classic modules today. In a future major release the `_x` modules become the only TidalPy: the classic modules are removed and the new ones drop their suffix. Nothing about the classic API changes until then, but all new development to TidalPy will happen to `_x` modules, and the classic modules will only receive bug fixes. New projects should start with the `_x` modules, and existing ones should plan to switch. Support for the old modules will end no later than 2026-12-31.
 
@@ -24,26 +24,27 @@ warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
 
 Performance tests were run with the classic and the new backend. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
 
-The new backend is much faster where the classic path called out to BurnMan or paid a numba compile, 4 to 11 times faster on 3D heating maps, two to three times faster on array work, 1.6 to 2.4 times faster on global tidal heating, and slower on the standalone radial solver, which now runs through the world path, and on two scalar calls; all are listed with their causes.
+The new backend is much faster where the classic path called out to BurnMan or paid a numba compile, 2.5 to 6.5 times faster on 3D heating maps, about three times faster on vectorized rheology and world building, 2.3 to 2.7 times faster on global tidal heating, and slower on the standalone radial solver at tight tolerances, which now runs through the world path, on two vectorized sweeps, and on scalar rheology calls; all are listed with their causes.
 
 ### Where It Is Faster
 
 | Task | Classic | New | Change |
 |---|---|---|---|
-| Build a planet with its interior (Io, 3 layers) | 189 ms | 1.8 ms | **103x faster** |
-| Orbit-averaged 3D heating map (50 x 16 x 32) | 13.3 ms | 1.24 ms | **10.7x faster** |
-| Radiogenic heating, one evaluation | 0.29 us | 0.031 us | **9.5x faster** |
-| Radiogenic heating, 10k times | 0.088 ms | 0.020 ms | **4.5x faster** |
-| Instantaneous 3D heating map (50 x 16 x 32 x 8 times) | 13.3 ms | 3.1 ms | **4.2x faster** |
-| Rheology, 10k complex moduli | 0.176 ms | 0.056 ms | **3.2x faster** |
-| Homogeneous Love numbers (closed form) | 0.15 us | 0.064 us | **2.4x faster** |
-| Global tidal heating, e^2 truncation | 0.020 ms | 0.0084 ms | **2.4x faster** |
-| Build a world from config (2 layers, no interior solve) | 1.48 ms | 0.64 ms | **2.3x faster** |
-| Global tidal heating, degrees 2 to 4, e^10 | 0.048 ms | 0.023 ms | **2.1x faster** |
-| Global tidal heating, e^4 truncation | 0.021 ms | 0.010 ms | **2.0x faster** |
-| Global tidal heating, e^10 truncation | 0.025 ms | 0.016 ms | **1.6x faster** |
+| Build a planet with its interior (Io, 3 layers) | 180 ms | 0.72 ms | **250x faster** |
+| Radiogenic heating, one evaluation | 0.30 us | 0.045 us | **6.8x faster** |
+| Orbit-averaged 3D heating map (50 x 16 x 32) | 13.2 ms | 2.05 ms | **6.5x faster** |
+| Build a world from config (2 layers, no interior solve) | 1.38 ms | 0.43 ms | **3.2x faster** |
+| Rheology, 10k complex moduli | 0.174 ms | 0.054 ms | **3.2x faster** |
+| Global tidal heating, e^2 truncation | 0.020 ms | 0.0075 ms | **2.7x faster** |
+| Global tidal heating, e^4 truncation | 0.021 ms | 0.0082 ms | **2.6x faster** |
+| Instantaneous 3D heating map (50 x 16 x 32 x 8 times) | 13.1 ms | 5.2 ms | **2.5x faster** |
+| Global tidal heating, e^10 truncation | 0.026 ms | 0.011 ms | **2.4x faster** |
+| Homogeneous Love numbers (closed form) | 0.16 us | 0.068 us | **2.4x faster** |
+| Global tidal heating, degrees 2 to 4, e^10 | 0.048 ms | 0.021 ms | **2.3x faster** |
 
 The planet-building row is the largest change. The classic path handed the interior to BurnMan, which does mineral-physics lookups and its own root finding: the new path integrates the equation of state in C++.
+
+The 3D maps are timed at eccentricity truncation level 2 on both sides. Since the new backend's level n keeps every term of the unsquared eccentricity functions through $e^n$ (see below), its level 2 sums more modes than the classic level 2; at level 1, which holds the same modes as the classic level 2, the two maps take 1.23 ms and 3.1 ms, 10.7 and 4.2 times faster than the classic ones.
 
 The global tidal heating rows use the homogeneous Love method, which solves the same problem as the classic `quick_tidal_dissipation`, at eccentricity truncations both backends tabulate. At level n both keep the eccentricity terms through $e^n$: the classic tables hold the squared $G^2$, the new ones every term of the unsquared $G$, so the new side sums more modes at the same level. The new backend accepts e^1 through e^5, e^10, e^15, and e^20 and promotes any other requested level to the next tabulated one, so a request for e^6 or e^8 runs at e^10. Its cost follows the number of distinct forcing frequencies rather than the number of modes: Love numbers are solved once per frequency and degree, and the layer-averaged shear modulus the homogeneous methods need is formed once per frequency and shared by every degree, so adding degrees adds little. With the `radial_solver` Love method each frequency and degree is a full radial solve instead, and that solve dominates.
 
@@ -51,24 +52,25 @@ The global tidal heating rows use the homogeneous Love method, which solves the 
 
 | Task | Classic | New | Change |
 |---|---|---|---|
-| Convective cooling, one evaluation | 0.16 us | 0.16 us | 1.0x, even |
+| Convective cooling, one evaluation | 0.16 us | 0.17 us | 0.97x, even |
 
 ### Where It Is Slower
 
 | Task | Classic | New | Change |
 |---|---|---|---|
-| `radial_solver`, 1 layer, 10 slices | 0.30 ms | 0.51 ms | 0.59x, 1.7x slower |
-| `radial_solver`, 1 layer, 200 slices | 0.45 ms | 0.59 ms | 0.77x, 1.3x slower |
-| `radial_solver`, 3 layers (static liquid core), 300 slices | 0.44 ms | 0.65 ms | 0.68x, 1.5x slower |
-| `radial_solver`, propagation matrix, 200 slices | 0.11 ms | 0.19 ms | 0.56x, 1.8x slower |
-| Convective cooling, 10k evaluations | 0.160 ms | 0.208 ms | 0.77x, 1.3x slower |
-| Rheology, one complex modulus | 0.057 us | 0.077 us | 0.75x, 1.3x slower |
+| `radial_solver`, 1 layer, 10 slices | 0.30 ms | 0.45 ms | 0.66x, 1.5x slower |
+| `radial_solver`, 1 layer, 200 slices | 0.45 ms | 0.50 ms | 0.89x, 1.1x slower |
+| `radial_solver`, 3 layers (static liquid core), 300 slices | 0.45 ms | 0.54 ms | 0.82x, 1.2x slower |
+| `radial_solver`, propagation matrix, 200 slices | 0.11 ms | 0.14 ms | 0.80x, 1.25x slower |
+| Radiogenic heating, 10k times | 0.087 ms | 0.099 ms | 0.88x, 1.1x slower |
+| Convective cooling, 10k evaluations | 0.157 ms | 0.204 ms | 0.77x, 1.3x slower |
+| Rheology, one complex modulus | 0.056 us | 0.076 us | 0.73x, 1.4x slower |
 
 The standalone radial solver was about even with the classic one until it became a wrapper over the world path (one code path for both entry points). It now builds a temporary world from the supplied arrays, solves that world's equation of state, and integrates the Love-number equations against the same dense structure the world path uses. The two solvers take identical integration steps on these problems (71, 68, and 90 for the three independent solutions of the one-layer body), so the whole gap is the cost of each right-hand-side read: the new path evaluates the equation-of-state interpolant for gravity, the interpolated material for density and both static moduli, and the two supplied complex-modulus arrays, where the classic path did four linear interpolations of its input arrays. The equation-of-state solve itself is a tenth of the time, the temporary world a twentieth, and the Python-side handling about the same as the world build. What the dense read buys is accuracy: against the closed-form homogeneous sphere the new solver's degree-2 k2 is 2.6 times closer (6.8e-5 against 1.8e-4), and the two solvers agree to 1e-15 on the one-layer rows and 6e-10 on the three-layer one at the tolerances timed here (`integration_rtol` 1e-8, `integration_atol` 1e-12, both solvers).
 
-The knobs that move it, in order. `integration_rtol` and `integration_atol` set the step count and so the read count: at the `[radial_solver]` defaults (1e-6 and 1e-10, looser than the rows above) the new solver takes 0.31, 0.39, and 0.49 ms on the three shooting rows, even with or faster than the classic solver at its tighter setting, with k2 moving by 4e-9. The equation-of-state settings (`eos_rtol`, `eos_atol`, `eos_integration_method`) change the total by under 10 percent, and the slice count matters little once the searches are seeded. `RK45` for the Love integration is slower than `DOP853`, which reaches the tolerance in fewer steps. For repeated solves of one body, build a `LayeredWorld` instead: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes, which is where the new backend's time went.
+The knobs that move it, in order. `integration_rtol` and `integration_atol` set the step count and so the read count: at the `[radial_solver]` defaults (1e-6 and 1e-10, looser than the rows above) the new solver takes 0.25, 0.30, and 0.36 ms on the three shooting rows, faster than the classic solver at its tighter setting, with k2 moving by 4e-9. The equation-of-state settings (`eos_rtol`, `eos_atol`, `eos_integration_method`) change the total by under 10 percent, and the slice count matters little once the searches are seeded. `RK45` for the Love integration is slower than `DOP853`, which reaches the tolerance in fewer steps. For repeated solves of one body, build a `LayeredWorld` instead: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes, which is where the new backend's time went.
 
-The two scalar rows have a known cause. A single scalar rheology call is dominated by the Python-to-C++ boundary rather than by the arithmetic, and the numba path crosses a cheaper boundary. Use the vectorized calls, where the new backend is about 3x faster, whenever there is more than a handful of values. The vectorized convective cooling gap has not been investigated.
+The scalar rheology row has a known cause. A single scalar rheology call is dominated by the Python-to-C++ boundary rather than by the arithmetic, and the numba path crosses a cheaper boundary. Use the vectorized calls, where the new backend is about 3x faster, whenever there is more than a handful of values. The radiogenic sweep evaluates one exponential per isotope and time on both sides; numba vectorizes those exponentials and the C++ loop does not. The vectorized convective cooling gap has not been investigated.
 
 ### First Call
 
@@ -76,13 +78,13 @@ Steady-state timings leave out the startup cost. The classic backend compiles it
 
 | First call | Classic, first session after installing | Classic, later sessions | New |
 |---|---|---|---|
-| Tidal heating, degrees 2 to 4, e^10 | 7.1 s | 1.2 s | 0.12 ms |
-| 3D heating map (50 x 16 x 32 x 8 times) | 4.7 s | 1.0 s | 3.6 ms |
-| Build a planet with its interior (Io) | not measured | 1.4 s | 2.8 ms |
+| Tidal heating, degrees 2 to 4, e^10 | 6.5 s | 1.1 s | 0.13 ms |
+| 3D heating map (50 x 16 x 32 x 8 times) | 4.4 s | 0.93 s | 5.5 ms |
+| Build a planet with its interior (Io) | not measured | 1.4 s | 2.1 ms |
 | Dual-body dissipation rates | not measured | 1.1 s | no single-call equivalent |
-| Build a world from config | not measured | 0.24 s | 1.3 ms |
+| Build a world from config | not measured | 0.21 s | 2.1 ms |
 
-A script that computes one 3D map and exits spends about a second in the classic backend once its cache is warm, nearly five seconds the first time after installing, and about four milliseconds in the new one.
+A script that computes one 3D map and exits spends about a second in the classic backend once its cache is warm, more than four seconds the first time after installing, and about six milliseconds in the new one.
 
 ### Threads for 3D Grids
 
@@ -90,11 +92,11 @@ The 3D grid methods, `calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displace
 
 | Grid | 1 thread | 16 threads | Change |
 |---|---|---|---|
-| Secular heating map | 166 ms | 40 ms | **4.1x faster** |
-| Stress and strain, 4 times | 261 ms | 57 ms | **4.5x faster** |
-| Displacements, 24 times | 291 ms | 69 ms | **4.2x faster** |
+| Secular heating map | 169 ms | 42 ms | **4.0x faster** |
+| Stress and strain, 4 times | 265 ms | 57 ms | **4.7x faster** |
+| Displacements, 24 times | 298 ms | 72 ms | **4.1x faster** |
 
-The gain stops well short of the thread count because the radial solves, about 20 ms of each call here, always run on one thread. The work after them grows with the grid while the solves do not, so larger grids gain more.
+The gain stops well short of the thread count because the radial solves, about 22 ms of each call here, always run on one thread. The work after them grows with the grid while the solves do not, so larger grids gain more.
 
 ## Module Map
 
