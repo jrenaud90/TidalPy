@@ -73,13 +73,15 @@ from scipy.constants import G as G_
 from scipy.constants import au as au_
 from scipy.constants import Stefan_Boltzmann
 from scipy.constants import R as R_
+from scipy.constants import k as k_
+from scipy.constants import Julian_year
 
 # Sun
 cdef double d_mass_solar       = 1.988435e30  # [kg]
 mass_solar = d_mass_solar
 cdef double d_radius_solar     = 6.957e8  # [m]
 radius_solar = d_radius_solar
-cdef double d_luminosity_solar = 3.848e26  # [Watts]
+cdef double d_luminosity_solar = 3.828e26  # IAU 2015 nominal [Watts]
 luminosity_solar = d_luminosity_solar
 
 # TRAPPIST-1
@@ -97,9 +99,9 @@ cdef double d_radius_earth = 6.371008e6  # [m]
 radius_earth = d_radius_earth
 
 # Jupiter
-cdef double d_mass_jupiter   = 1.89813e27  # [kg]
+cdef double d_mass_jupiter   = 1.898125e27  # [kg]
 mass_jupiter = d_mass_jupiter
-cdef double d_radius_jupiter = 6.9911e7  # [m]
+cdef double d_radius_jupiter = 6.9911e7  # IAU nominal mean radius [m]
 radius_jupiter = d_radius_jupiter
 
 # Pluto
@@ -128,6 +130,13 @@ cdef double d_SBC = sbc
 SBC = d_SBC
 cdef double d_newtons_constant = G
 newtons_constant = d_newtons_constant
+
+# Boltzmann's constant [J K-1]
+k_boltzmann = k_
+
+# Julian year [s]
+year = Julian_year
+yr   = year
 
 cdef double d_M_sol   = mass_solar
 M_sol = d_M_sol

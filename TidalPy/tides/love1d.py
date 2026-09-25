@@ -154,6 +154,6 @@ def effective_rigidity_general(
         l-th order Effective Rigidity
     """
 
-    eff_rigid = (2. * order_l**2 + 4. * order_l + 3. / order_l) * shear_modulus / (gravity * radius * density)
+    eff_rigid = ((2. * order_l**2 + 4. * order_l + 3.) / order_l) * shear_modulus / (gravity * radius * density)
 
     return eff_rigid
