@@ -2,7 +2,7 @@
 
 ## Version 0.7.X
 
-### Version 0.7.6 (2026-NNN)
+### Version 0.7.6 (2026-09-25)
 
 **TidalPy's backend and many function signatures will soon be changed!** TidalPy 0.8.0 replaces it with a new C++ backend. The current modules (`structures`, `tides`, `RadialSolver`, `rheology`, ...) are removed in 0.8.0 and module, class, and function names and signatures change, so code written for 0.7.X will need to be updated. Pin `TidalPy<0.8` to keep using the current API. Importing TidalPy now warns once per session through the new `TidalPy.exceptions.TidalPyDeprecationWarning` category (a `FutureWarning` subclass, so it is visible by default but can be silenced with a `warnings.filterwarnings` call).
 
