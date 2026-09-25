@@ -2,6 +2,55 @@
 
 ## Version 0.7.X
 
+### Version 0.7.6 (2026-09-25)
+
+**TidalPy's backend and many function signatures will soon be changed!** TidalPy 0.8.0 replaces it with a new C++ backend. The current modules (`structures`, `tides`, `RadialSolver`, `rheology`, ...) are removed in 0.8.0 and module, class, and function names and signatures change, so code written for 0.7.X will need to be updated. Pin `TidalPy<0.8` to keep using the current API. Importing TidalPy now warns once per session through the new `TidalPy.exceptions.TidalPyDeprecationWarning` category (a `FutureWarning` subclass, so it is visible by default but can be silenced with a `warnings.filterwarnings` call).
+
+This release backports the fixes to this backend that were found while developing 0.8.0.
+
+#### Fixes
+* `TidalPy.RadialSolver`: `radial_solver` wrote one boundary-condition model per `solve_for` entry into a fixed 5-slot buffer without a length check, so a `solve_for` tuple with more than 5 entries overflowed the stack. It now rejects more than 5 entries with a clear error.
+* `TidalPy.RadialSolver`: With `perform_checks=False`, `radial_solver` did not validate that the density and complex modulus arrays match the radius array's length (or that the per-layer tuples agree with the layer count). A shorter density array was written past its end during non-dimensionalization, corrupting the heap. Every input length is now validated up front, whatever `perform_checks` is set to.
+* `TidalPy.tides.love1d`: `effective_rigidity_general` misplaced a parenthesis, multiplying `mu / (rho g R)` by `2 l^2 + 4 l + 3 / l` instead of `(2 l^2 + 4 l + 3) / l`. Every degree was wrong: at degree 2 it gave 17.5 instead of 19/2, disagreeing with the degree-2 `effective_rigidity`. The error reached everything that computes Love numbers from a rheology through the homogeneous tides modules, including `toolbox.quick_tidal_dissipation`, `toolbox.quick_dual_body_tidal_dissipation`, and the homogeneous `global_approx` tides, which returned about 55 percent of the correct tidal heating for an Io-like homogeneous body. Models that take the Love number from a fixed Q or time lag (`cpl`, `ctl`) were not affected, and neither were Love numbers calculated through `RadialSolver` (shooting method or propagation matrix).
+* `TidalPy.radiogenics`: The `LLRI_and_SLRI` isotope dataset of the default config (Castillo-Rogez et al. 2007) multiplied the paper's isotope concentrations by the isotopic abundances a second time, referenced its formation-epoch abundances to 4600 Myr so that they applied today, and held 60Fe at 100 ppb, a misreading of the 60Fe/56Fe ratio.
+* `TidalPy.utilities.arrays`: Fixed several bugs in the C++ interpolation helpers (`interp_.hpp` and `interp_.cpp`, which TidalPy's own extensions do not use but dependent packages can reach through the new `TidalPy.get_include`): the provided index guess was used without a search (an unsigned `>= 0` check that is always true), so a stale index selected the wrong segment; the complex interpolation wrote its imaginary part over its real part at exact grid points; an unsigned-underflow out-of-bounds read in `cf_binary_search_with_guess` for short domains; a cache-window read past the end for arrays shorter than 9; missing length 0 to 2 guards; and a mismatched `cf_binary_search_with_guess` declaration in `interp.pxd`. The helpers are now header-only (`interp_.hpp`; `interp_.cpp` is removed) with `inline` definitions, and the header no longer defines a global `EPS` constant.
+* `TidalPy.constants`: The solar luminosity is now the IAU 2015 nominal value as is Jupiter's mass. `luminosity_trap1` and the `TidalPy.stellar` mass-luminosity relations scale with the solar luminosity.
+* `TidalPy`: `TIDALPY_TEST_MODE` turned test mode on for any non-empty value, including `0` and `false`. Only `1`, `true`, `yes`, or `on` (any case).
+* `TidalPy.configurations`: Configuration files are read and written as UTF-8 on every platform, rather than in the system's locale encoding.
+* `TidalPy.RadialSolver`: The solver's own check for fewer than 5 slices in a layer compared the error code (`==`) instead of setting it, so with `perform_checks=False` the solve carried on with too few slices. It now fails with the "At least five layer slices" message.
+* `TidalPy.radiogenics`: A layer's `isotopes` dataset name was checked in lower case but looked up as given, so a mixed-case dataset such as `LLRI_and_SLRI` could never be selected (it raised `UnknownModelError`, and `llri_and_slri` raised `KeyError`). Dataset names now match case-insensitively, and an unknown name lists the known datasets.
+* `TidalPy.cooling`: At exactly `MIN_THICKNESS`, the convection model kept the layer's Rayleigh number (a `>=` guard) while setting its Nusselt number and boundary layer thickness to their thin-layer values (`>` guards). The layer is now too thin for every output.
+
+#### New Features
+
+##### RadialSolver
+* `TidalPy.RadialSolver.radial_solver` now accepts CyRK's implicit (stiff) integration methods `BDF`, `LSODA`, and `Radau` alongside the explicit `RK23`/`RK45`/`DOP853`, for both `integration_method` and `eos_integration_method`. Method names are case-insensitive, and an unknown name lists the supported set. One caveat: the whole-planet EOS integration starts at the planet's singular center, where LSODA's startup can fail to take its first step (a clean failure). BDF and Radau handle the singular start.
+* The shooting method now measures how strongly its surface boundary-condition solve amplifies error (deep starting radii and high harmonic degrees can make the collapse constants grow enormous and cancel, amplifying integration error into the Love numbers). The factor is recorded on the returned solution (`surface_solve_amplification`) and a warning is logged when the resulting roundoff floor exceeds the requested `integration_rtol` (computed only when the solve runs with `warnings` enabled). The check is also available as `TidalPy.RadialSolver.solver.check_surface_solve_conditioning`.
+* Numerical note on manual starting radii deep in the planet: starting the shooting integration essentially at the center (_e.g._, `starting_radius=0.1` m on a 6000 km planet) at degree 3 with a dynamic incompressible layer leaves the surface solve so ill-conditioned that the solver can report success with a badly wrong Love number. This is inherent conditioning, present in all versions. Prefer the automatic starting radius (`starting_radius=0`). If a deep manual start is required, tighten `integration_rtol` and take heed of the new conditioning warning.
+* Numerical note on dynamic liquid layers and long forcing periods: a dynamic liquid layer sandwiched between solids is well-conditioned only at short forcing periods. At long periods the `1/omega^2` terms make the solve unstable. Use the static liquid assumption for long-period forcing.
+
+##### Package
+* Added `TidalPy.get_include`, which returns the paths to TidalPy's C++ source files (and CyRK's) so dependent packages can include them in their builds (similar to `numpy.get_include`).
+* `TidalPy.constants` now exposes `k_boltzmann` (Boltzmann's constant) and `year` (the Julian year in seconds), with the alias `yr`, all from SciPy.
+* The TidalPy data/config directories are now scoped to the package's `<major>.<minor>.X` version (_e.g._, `.../TidalPy/0.7.X/`) instead of the full patch version, so user configs and downloaded data are not duplicated (or lost) on each bugfix release. New helper `TidalPy.paths.get_data_version()` returns the scoped label. Upgrading from 0.7.5 starts a fresh `0.7.X` directory: copy any edited `Config/TidalPy_Configs.toml` or `Worlds/` files over from the `0.7.5` directory.
+
+#### Tests
+* New tests for the fixes above: `radial_solver` input validation, the implicit integrators, the surface conditioning diagnostic, `effective_rigidity_general` and the quick tidal dissipation it feeds, the `LLRI_and_SLRI` dataset, the new constants, `get_include`, the data-directory scoping, and the import-time deprecation notice.
+* A root `conftest.py` drops the repository root from `sys.path` so tests import the installed, compiled package rather than the source tree.
+* `pytest` now reports the 25 slowest tests of every run.
+
+#### Repository
+* The three per-OS test workflows are replaced by one `tests.yml`: a reduced suite (the latest two CPythons on all three operating systems) for pull requests and certain admin pushes.
+* The PyPI workflow compiles the sdist and imports the result before anything uploads, uploads with PyPI trusted publishing (the `pypi` environment) instead of a stored API token, and no longer cancels a release build part way through.
+* The Linux wheels pass `TIDALPY_TEST_MODE` into the manylinux container, and each wheel's import check is split into one command per group of compiled modules.
+* The version-sync workflow checks out the pushed branch (it previously landed on a detached HEAD and failed to push), fails loudly when a version pattern stops matching (the README badge had sat on a stale version), and handles pre-release version strings.
+* The JOSS paper workflow only commits the built PDF back on pushes, not on pull requests.
+* Package now enforces LF line endings (`.gitattributes`) and marks binary files; updated the files that had CRLF line endings.
+* Fixed an incorrect license URL and the Python requirement in `codemeta.json`.
+
+#### Documentation
+* The Read the Docs build no longer installs TidalPy: it installs `Documentation/requirements.txt`, renders the notebooks from their stored outputs, and no longer runs Doxygen or an autogenerated API reference (the hand-written module guides are the reference). GitHub-style alerts (`> [!NOTE]`) render as admonitions, and math renders through MathJax. The `docs` extra no longer includes `breathe` or `sphinx-autodoc-typehints`.
+
 ### Version 0.7.5 (2026-09-08)
 
 #### Fixes

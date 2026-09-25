@@ -1,36 +1,25 @@
-import sys
 import os
 import shutil
 import toml
-import subprocess
 import re
 from pathlib import Path
 
 FILE_PATH = os.path.dirname(__file__)
 
-# Auto generate API documentation
-def generate_api_docs():
-    src_path = os.path.join(FILE_PATH, os.pardir, "TidalPy")
-    out_path = os.path.join('API', 'generated')
-    Path(out_path).mkdir(parents=True, exist_ok=True)
+# Every path below is taken from this file's own directory, so the build gives the same result from any working
+# directory (Read the Docs, a local `sphinx-build` from the repository root, or one from inside Documentation/).
+REPO_PATH = os.path.abspath(os.path.join(FILE_PATH, os.pardir))
 
-    subprocess.call([
-        "sphinx-apidoc",
-        "-o", str(out_path),
-        str(src_path),
-        "--force",
-        "--implicit-namespaces",
-        "--module-first",
-        "--no-toc"
-    ])
-generate_api_docs()
+# This build never imports TidalPy. The package is not installed on Read the Docs, because compiling its C++
+# extension modules takes most of the build time limit and nothing here needs them, so there is no `sys.path`
+# entry for it and no autodoc or autosummary pass. Everything rendered here is either hand written, a notebook
+# shown from its stored outputs, or read out of pyproject.toml below.
 
 # Basic configurations
-sys.path.insert(0, os.path.abspath('../TidalPy'))
 html_static_path = ["_static"]
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_logo = "_static/images/2025-11-28_Logo_2-4.svg"
-pyproject_path = os.path.abspath(os.path.join(FILE_PATH, '..', 'pyproject.toml'))
+pyproject_path = os.path.join(REPO_PATH, 'pyproject.toml')
 with open(pyproject_path, 'r') as f:
     pyproject = toml.load(f)
 
@@ -40,11 +29,11 @@ author = 'Joe P. Renaud'
 
 
 # Make a copy of the current change log and move it into docs so it can be included in the documentation.
-src = os.path.abspath(os.path.join("..", "CHANGES.md"))
+src = os.path.join(REPO_PATH, "CHANGES.md")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Changes.md"))
 shutil.copyfile(src, dst)
 
-src = os.path.abspath(os.path.join("..", "README.md"))
+src = os.path.join(REPO_PATH, "README.md")
 readme_file = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Readme.md"))
 shutil.copyfile(src, readme_file)
 readme_file_nochanges = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Readme_raw.md"))
@@ -73,19 +62,19 @@ content = re.sub(r'^(#{2,})( .*)$', reduce_header_level, content, flags=re.MULTI
 with open(readme_file, 'w', encoding='utf-8') as f:
     f.write(content)
 
-src = os.path.abspath(os.path.join("..", "LICENSE.md"))
+src = os.path.join(REPO_PATH, "LICENSE.md")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "License.md"))
 shutil.copyfile(src, dst)
 
-src = os.path.abspath(os.path.join("..", "CONTRIBUTING.md"))
+src = os.path.join(REPO_PATH, "CONTRIBUTING.md")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Contributing.md"))
 shutil.copyfile(src, dst)
 
-src = os.path.abspath(os.path.join("..", "CODE_OF_CONDUCT.md"))
+src = os.path.join(REPO_PATH, "CODE_OF_CONDUCT.md")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "CoC.md"))
 shutil.copyfile(src, dst)
 
-src = os.path.abspath(os.path.join("..", "NOTICE"))
+src = os.path.join(REPO_PATH, "NOTICE")
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Notice.md"))
 shutil.copyfile(src, dst)
 
@@ -109,37 +98,27 @@ source_suffix = {
     '.md': 'markdown',
 }
 myst_enable_extensions = [
+    "amsmath",          # LaTeX environments such as \begin{aligned} in math blocks
     "colon_fence",      # ::: fenced directives
     "deflist",          # definition lists
+    "dollarmath",       # $inline$ and $$display$$ math, rendered by MathJax
     "linkify",          # auto-detect URLs
     "smartquotes",      # nicer quotes
 ]
+# Make anchors for headings down to the third level, so a link such as `worlds.md#equation-of-state` resolves at
+# build time and does not raise a "local id not found" warning.
+myst_heading_anchors = 3
 
-# Autodoc settings
-extensions.append('sphinx.ext.autodoc')
-extensions.append('sphinx.ext.viewcode')
-extensions.append('sphinx.ext.autosummary')
-autosummary_generate = True
-autosummary_imported_members = True
-autosummary_generate_recursive = True
-autosummary_ignore_top = False
-autodoc_default_options = {
-    "members": True,
-    "undoc-members": False,
-    "private-members": False,
-    "show-inheritance": True,
-}
-napoleon_google_docstring = True
-napoleon_numpy_docstring = True
-# Support C++ autodocs
-extensions.append('breathe')
-breathe_default_project = "TidalPy"
+# There is no API reference, generated or otherwise: the module guides are the reference. So no autodoc,
+# autosummary, viewcode or napoleon, which only do anything against an imported package and TidalPy is not
+# installed for this build, and no breathe, which would need a Doxygen pass this build does not run.
 
 # Jupyter notebook rendering
 extensions.append('nbsphinx')
-extensions.append('sphinx.ext.napoleon')
 nbsphinx_allow_errors = True  # set True if you want docs to build even if notebooks fail
-nbsphinx_execute = "auto"  # or "always"
+# The notebooks are committed with their outputs, and several take minutes or need optional packages, so the
+# documentation build shows the stored outputs and never runs a notebook.
+nbsphinx_execute = "never"
 
 # Copy code QOL button
 extensions.append('sphinx_copybutton')
@@ -159,6 +138,65 @@ html_theme_options = {
 
 
 
-# Add custom CSS
+# GitHub-style alerts. The guides mark advice with GitHub's alert syntax (`> [!NOTE]`, `> [!TIP]`, ...), which GitHub
+# renders as a colored box but myst-parser reads as a plain blockquote. Before a Markdown page is parsed, each alert
+# is rewritten as the matching MyST admonition, so the source still renders on GitHub and becomes a box here.
+GITHUB_ALERT_DIRECTIVES = {
+    "NOTE": "note",
+    "TIP": "tip",
+    "IMPORTANT": "important",
+    "WARNING": "warning",
+    "CAUTION": "caution",
+}
+GITHUB_ALERT_START = re.compile(r"^(\s*)>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$")
+CODE_FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+
+
+def convert_github_alerts(text):
+    """Rewrite the GitHub alert blockquotes of a Markdown page as MyST colon-fence admonitions.
+
+    An alert is the `> [!KIND]` line and every following line that continues its blockquote at the same indent.
+    Lines inside fenced code blocks are left alone, so a code example may show the alert syntax itself.
+    """
+    lines = text.split("\n")
+    converted = []
+    open_fence = None
+    line_index = 0
+    while line_index < len(lines):
+        line = lines[line_index]
+        line_index += 1
+        fence = CODE_FENCE.match(line)
+        if open_fence is not None:
+            # A fence closes on the same character repeated at least as many times as it opened with.
+            if fence and fence.group(1)[0] == open_fence[0] and len(fence.group(1)) >= len(open_fence) \
+                    and not line.strip().strip(open_fence[0]):
+                open_fence = None
+            converted.append(line)
+            continue
+        if fence:
+            open_fence = fence.group(1)
+            converted.append(line)
+            continue
+        alert = GITHUB_ALERT_START.match(line)
+        if alert is None:
+            converted.append(line)
+            continue
+        indent, kind = alert.groups()
+        quote_prefix = re.compile(rf"^{re.escape(indent)}>\s?")
+        converted.append(f"{indent}:::{{{GITHUB_ALERT_DIRECTIVES[kind]}}}")
+        while line_index < len(lines) and quote_prefix.match(lines[line_index]):
+            converted.append(indent + quote_prefix.sub("", lines[line_index], count=1))
+            line_index += 1
+        converted.append(f"{indent}:::")
+    return "\n".join(converted)
+
+
+def convert_github_alerts_on_read(app, docname, source):
+    """Sphinx `source-read` hook: convert the alerts of Markdown pages; notebooks are rendered by nbsphinx."""
+    if str(app.env.doc2path(docname)).endswith(".md"):
+        source[0] = convert_github_alerts(source[0])
+
+
 def setup(app):
     app.add_css_file("custom.css")
+    app.connect("source-read", convert_github_alerts_on_read)

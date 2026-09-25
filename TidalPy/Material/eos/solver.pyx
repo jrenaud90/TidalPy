@@ -175,7 +175,7 @@ cdef void solve_eos(
                 max_step,          # Maximum step size [double]
                 first_step,        # Initial step size (0 = find good value) [double]
                 True,              # Force retain solver
-                NULL               # Analytic Jacobian (only used by implicit methods) [JacobianFuncType]
+                NULL               # Analytic Jacobian (null = numerical; used by implicit methods) [JacobianFuncType]
                 )
             #########################################################
             last_solution_size = integration_result_ptr.size

@@ -19,7 +19,6 @@ global-include *.pyx
 include cython_extensions.json
 
 # Include required hpp and cpp files
-include TidalPy/utilities/arrays/interp_.cpp
 include TidalPy/utilities/arrays/interp_.hpp
 include TidalPy/RadialSolver/love_.cpp
 include TidalPy/RadialSolver/love_.hpp
