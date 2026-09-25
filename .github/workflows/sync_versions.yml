@@ -1,10 +1,28 @@
+# Copies the version in pyproject.toml into every other file that repeats it, then commits the result back to
+# the branch that was pushed.
+#
+# The commit is made with GITHUB_TOKEN, and pushes made with that token do not trigger workflows, so this cannot
+# loop. Every substitution is checked: a pattern that stops matching is an error rather than a silent no-op,
+# which is how the README badge sat on a stale version for several releases.
+
 name: Sync Version Numbers
 
 on:
   push:
+    # Branches only. A tag push would check out the tag, leaving a detached HEAD with nothing to push back to.
+    branches:
+      - '**'
     paths:
       - 'pyproject.toml'
   workflow_dispatch:
+
+# The job commits back to the repository.
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-versions-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   sync-version:
@@ -13,9 +31,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Check out the branch itself, not the commit. github.head_ref is only set for pull request events, so
+          # on this push-triggered workflow it expanded to an empty string and the checkout landed on a detached
+          # HEAD, which is why the final push failed with "You are not currently on a branch".
+          ref: ${{ github.ref }}
           fetch-depth: 0  # Fetch full history to get commit hash
-          ref: ${{ github.head_ref }}   # ensures a proper branch instead of detached HEAD
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -23,40 +43,49 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install toml pyyaml
+        run: pip install pyyaml
 
       - name: Update version in files
         run: |
           python - <<'EOF'
-          import toml
-          import yaml
           import json
+          import os
           import re
+          import tomllib
           from datetime import date
 
+          import yaml
+
           # Read version from pyproject.toml
-          with open('pyproject.toml', 'r') as f:
-              pyproject = toml.load(f)
+          with open('pyproject.toml', 'rb') as f:
+              pyproject = tomllib.load(f)
           version = pyproject['project']['version']
           print(f"Version from pyproject.toml: {version}")
 
-          # Get current date and commit hash from environment
-          import os
           current_date = date.today().strftime('%Y-%m-%d')
           commit_hash = os.environ.get('GITHUB_SHA', 'unknown')[:7]  # Short hash
-          
+
           print(f"Date: {current_date}")
           print(f"Commit: {commit_hash}")
+
+          def substitute(content, pattern, replacement, description):
+              """Apply one substitution and refuse to continue if it matched nothing."""
+              content, count = re.subn(pattern, replacement, content)
+              if count == 0:
+                  raise SystemExit(f"Pattern for {description} matched nothing; the file or the version format "
+                                   f"changed and this workflow needs updating.")
+              print(f"  {description}: {count} substitution(s)")
+              return content
 
           # Update citation.cff
           try:
               with open('citation.cff', 'r') as f:
                   citation = yaml.safe_load(f)
-              
+
               citation['version'] = version
               citation['date-released'] = current_date
               citation['commit'] = commit_hash
-              
+
               with open('citation.cff', 'w') as f:
                   yaml.dump(citation, f, sort_keys=False, default_flow_style=False)
               print("Updated citation.cff")
@@ -67,11 +96,11 @@ jobs:
           try:
               with open('codemeta.json', 'r') as f:
                   codemeta = json.load(f)
-              
+
               codemeta['version'] = version
               codemeta['datePublished'] = current_date
               codemeta['dateModified'] = current_date
-              
+
               with open('codemeta.json', 'w') as f:
                   json.dump(codemeta, f, indent=2, ensure_ascii=False)
                   f.write('\n')  # Add trailing newline
@@ -79,40 +108,32 @@ jobs:
           except FileNotFoundError:
               print("codemeta.json not found, skipping")
 
-          # Update meta.yaml
+          # Update meta.yaml, which carries the version as a jinja assignment: {% set version = "x.y.z" %}
           try:
               with open('meta.yaml', 'r') as f:
                   content = f.read()
-              # Replace version in meta.yaml (handles both {% set version = "x.x.x" %} and version: x.x.x formats)
-              content = re.sub(r'(version\s*[=]\s*["\']?)[^"\'}\n]+(["\']?)', rf'\g<1>{version}\g<2>', content)
+              content = substitute(content, r'(\{%\s*set\s+version\s*=\s*")[^"]+(")',
+                                   rf'\g<1>{version}\g<2>', 'meta.yaml jinja version')
               with open('meta.yaml', 'w') as f:
                   f.write(content)
               print("Updated meta.yaml")
           except FileNotFoundError:
               print("meta.yaml not found, skipping")
-          # Update README.md badge
-          # Update README.md badge
+
+          # Update the README.md version badge. The version is a PEP 440 string and is regularly a pre-release
+          # (0.8.0a1.dev2), so these patterns must not assume digits and dots.
           try:
               with open('README.md', 'r') as f:
                   content = f.read()
 
-              # Update shield image URL version
-              content = re.sub(
-                r'(TidalPy-)([\d\.]+)(-orange)',
-                rf'\g<1>{version}\g<3>',
-                content
-              )
-
-              # Update alt text version
-              content = re.sub(
-                r'(alt="TidalPy Version )([\d\.]+)(")',
-                rf'\g<1>{version}\g<3>',
-                content
-              )
+              content = substitute(content, r'(badge/TidalPy-)([^-]+)(-orange)',
+                                   rf'\g<1>{version}\g<3>', 'README badge URL')
+              content = substitute(content, r'(alt="TidalPy Version )([^"]+)(")',
+                                   rf'\g<1>{version}\g<3>', 'README badge alt text')
 
               with open('README.md', 'w') as f:
                   f.write(content)
-              
+
               print("Updated README.md")
           except FileNotFoundError:
               print("README.md not found, skipping")
@@ -121,7 +142,13 @@ jobs:
       - name: Check for changes
         id: check_changes
         run: |
-          git diff --quiet citation.cff codemeta.json meta.yaml README.md || echo "changed=true" >> $GITHUB_OUTPUT
+          if git diff --quiet -- citation.cff codemeta.json meta.yaml README.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Version numbers are already in sync."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- citation.cff codemeta.json meta.yaml README.md
+          fi
 
       - name: Commit and push changes
         if: steps.check_changes.outputs.changed == 'true'
@@ -130,5 +157,5 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add citation.cff codemeta.json meta.yaml README.md
           git commit -m "chore: sync version numbers from pyproject.toml"
-
-          git push
+          # Name the target branch explicitly so the push does not depend on how the checkout left HEAD.
+          git push origin HEAD:${{ github.ref_name }}
