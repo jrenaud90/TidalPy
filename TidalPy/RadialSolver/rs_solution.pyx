@@ -567,6 +567,20 @@ cdef class RadialSolverSolution:
         """ Number of integration steps by layer and solution. """
         return np.copy(self.shooting_method_steps_taken_array)
 
+    @property
+    def surface_solve_amplification(self):
+        """Worst-case error amplification of the surface boundary condition solve (shooting method).
+
+        The collapsed surface solution combines the independent solutions with constants that can grow large
+        and cancel (deep starting radii, high harmonic degrees). Roundoff and integration error are amplified
+        into the surface solution, and the Love numbers derived from it, by up to this factor; the achievable
+        relative accuracy is floor limited to about this value times machine epsilon regardless of the
+        integration tolerance. Values near 1 indicate a well conditioned solve. Only recorded when the solve
+        runs with ``warnings`` enabled, and stays 0 for the propagation matrix method, which does not use the
+        shooting surface collapse.
+        """
+        return self.solution_storage_ptr.surface_amplification
+
     def get_result_by_ytype_name(self, str ytype_name):
         """Get a specific solution type array."""
         cdef char ytype_i

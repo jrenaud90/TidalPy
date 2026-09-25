@@ -47,6 +47,7 @@ cdef extern from "rs_solution_.cpp" nogil:
         vector[double] full_solution_vec
         vector[double] complex_love_vec
         vector[size_t] shooting_method_steps_taken_vec
+        double surface_amplification
 
         EOSSolutionCC* get_eos_solution_ptr()
         void change_radius_array(

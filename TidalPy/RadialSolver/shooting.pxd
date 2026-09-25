@@ -38,5 +38,6 @@ cdef int cf_shooting_solver(
     size_t expected_size,
     size_t max_ram_MB,
     double max_step,
-    cpp_bool verbose
+    cpp_bool verbose,
+    cpp_bool warnings
     ) noexcept nogil
