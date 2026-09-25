@@ -185,6 +185,51 @@ def test_interpolated_length_mismatch_raises():
         _import_eos().InterpolatedEOS([0.0, 1.0e6], [5000.0])
 
 
+def test_interpolated_reads_match_numpy_on_an_uneven_table():
+    """A PREM-like table: uneven rows, a radius repeated at a discontinuity, and rows packed toward the top. Every
+    table reads as numpy.interp does at nodes, on either side of the discontinuity, between rows, and outside the
+    table, and again after a binary round trip (which rebuilds the search seeds)."""
+    np = pytest.importorskip("numpy")
+    mod = _import_eos()
+    radius = np.concatenate([np.linspace(0.0, 3.0e6, 7), [3.0e6], np.linspace(3.2e6, 6.0e6, 9),
+                             6.0e6 + np.cumsum(np.geomspace(1.0e5, 2.0e3, 40))])
+    radius = np.sort(radius)
+    rows = np.arange(radius.size, dtype=float)
+    tables = {"density": 1.0e4 - 10.0 * rows, "shear_modulus": 5.0e10 + 1.0e8 * rows ** 1.5,
+              "bulk_modulus": 1.0e11 + 3.0e8 * rows, "shear_viscosity": 10.0 ** (18.0 + 0.05 * rows),
+              "bulk_viscosity": 10.0 ** (20.0 - 0.02 * rows)}
+    # Distinct values across the discontinuity, so reading the wrong side of it would show.
+    discontinuity = int(np.flatnonzero(np.diff(radius) == 0.0)[0])
+    for values in tables.values():
+        values[discontinuity + 1:] *= 0.7
+    eos = mod.InterpolatedEOS(radius, **tables)
+
+    queries = np.concatenate([radius, radius[:-1] + 0.5 * np.diff(radius), np.nextafter(radius, -np.inf),
+                              np.linspace(-1.0e6, radius[-1] + 1.0e6, 3001)])
+    readers = {"density": lambda m, r: m.calc_density(0.0, None, r),
+               "shear_modulus": lambda m, r: m.get_tabulated_shear_modulus(r),
+               "bulk_modulus": lambda m, r: m.get_tabulated_bulk_modulus(r),
+               "shear_viscosity": lambda m, r: m.get_tabulated_shear_viscosity(r),
+               "bulk_viscosity": lambda m, r: m.get_tabulated_bulk_viscosity(r)}
+
+    def check(model):
+        for name, read in readers.items():
+            expected = np.interp(queries, radius, tables[name])
+            got = np.array([read(model, r) for r in queries])
+            np.testing.assert_allclose(got, expected, rtol=1.0e-14, atol=0.0, err_msg=name)
+
+    check(eos)
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        eos.save_binary(path)
+        reloaded = mod.make_material_eos(eos.model_name)
+        reloaded.load_binary(path)
+        check(reloaded)
+    finally:
+        os.unlink(path)
+
+
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================

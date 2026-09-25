@@ -867,7 +867,7 @@ public:
     {
         // A table longer than the radius table would otherwise read past the end of the radius array.
         this->p_validate_tables();
-        this->p_update_table_flags();
+        this->p_update_table_cache();
     }
     ~c_InterpolatedEOS() override = default;
 
@@ -973,7 +973,7 @@ public:
         this->p_read_optional_array(in, this->p_bulk_modulus, n);
         this->p_read_optional_array(in, this->p_shear_viscosity, n);
         this->p_read_optional_array(in, this->p_bulk_viscosity, n);
-        this->p_update_table_flags();
+        this->p_update_table_cache();
         in.read(reinterpret_cast<char*>(&this->p_thermal_expansion),     sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_reference_temperature), sizeof(double));
         double material_scalars[C_MATERIAL_BINARY_SCALARS];
@@ -986,11 +986,27 @@ public:
     }
 
 protected:
-    void p_update_table_flags() noexcept {
+    // What the reads derive from the tables: which ones exist, and the search seeds.
+    void p_update_table_cache() {
         this->p_has_shear_modulus_table   = this->has_shear_modulus();
         this->p_has_bulk_modulus_table    = this->has_bulk_modulus();
         this->p_has_shear_viscosity_table = this->has_shear_viscosity();
         this->p_has_bulk_viscosity_table  = this->has_bulk_viscosity();
+        this->p_bucket_seed.clear();
+        this->p_buckets_per_radius = 0.0;
+        const std::size_t n = this->p_radius.size();
+        if (n < 3) { return; }
+        const double span = this->p_radius[n - 1] - this->p_radius[0];
+        if (!(span > 0.0)) { return; }
+        const std::size_t num_buckets = std::min<std::size_t>(4 * (n - 1), std::size_t{1} << 16);
+        this->p_bucket_seed.resize(num_buckets);
+        this->p_buckets_per_radius = static_cast<double>(num_buckets) / span;
+        std::size_t row = 0;
+        for (std::size_t bucket_i = 0; bucket_i < num_buckets; ++bucket_i) {
+            const double edge = this->p_radius[0] + static_cast<double>(bucket_i) / this->p_buckets_per_radius;
+            while ((row + 2 < n) && (this->p_radius[row + 1] <= edge)) { ++row; }
+            this->p_bucket_seed[bucket_i] = static_cast<uint32_t>(row);
+        }
     }
 
     void p_validate_tables() const {
@@ -1036,15 +1052,14 @@ protected:
         return c_interp(radius, this->p_radius.data(), values.data(), values.size(), this->p_search_seed(radius));
     }
 
-    // Where a radius would sit if the table were uniform, which a profile usually is. The seed turns the
-    // guessed binary search into a few comparisons on every read of every table.
+    // The row to start the search from. Only the cost of a read depends on it: the search finds the same row
+    // from any seed.
     std::size_t p_search_seed(double radius) const noexcept {
-        const std::size_t n = this->p_radius.size();
-        if (n < 3) { return 0; }
-        const double span = this->p_radius[n - 1] - this->p_radius[0];
-        if (!(span > 0.0) || !(radius > this->p_radius[0])) { return 0; }
-        const double fraction = (radius - this->p_radius[0]) / span;
-        return (fraction >= 1.0) ? n - 2 : static_cast<std::size_t>(fraction * static_cast<double>(n - 1));
+        if (this->p_bucket_seed.empty() || !(radius > this->p_radius[0])) { return 0; }
+        const double position = (radius - this->p_radius[0]) * this->p_buckets_per_radius;
+        const std::size_t last_bucket = this->p_bucket_seed.size() - 1;
+        return this->p_bucket_seed[
+            (position >= static_cast<double>(last_bucket)) ? last_bucket : static_cast<std::size_t>(position)];
     }
     void p_write_optional_array(std::ostream& out, const std::vector<double>& values) const {
         const uint8_t present = values.empty() ? 0u : 1u;
@@ -1074,6 +1089,10 @@ protected:
     std::vector<double> p_bulk_modulus;
     std::vector<double> p_shear_viscosity;
     std::vector<double> p_bulk_viscosity;
+
+    // Built from p_radius by p_update_table_cache; never serialized.
+    std::vector<uint32_t> p_bucket_seed;
+    double p_buckets_per_radius = 0.0;
 };
 
 enum class c_MaterialEOSModel : uint8_t {
