@@ -1,0 +1,99 @@
+# distutils: language = c++
+"""Cython declarations for TidalPy's physics layer: c_PhysicsConfig, c_PhysicsLayer, and the Python wrapper
+PhysicsLayer."""
+
+from libcpp cimport bool as cpp_bool
+from libcpp.string cimport string
+from libcpp.memory cimport unique_ptr
+from libcpp.complex cimport complex as cpp_complex
+
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_BaseLayerConfig
+from TidalPy.Tides_x.love.love cimport c_LoveNumbers
+from TidalPy.rheology_x.rheology cimport c_RheologyBase
+from TidalPy.viscosity_x.viscosity cimport c_ViscosityBase
+from TidalPy.partial_melt_x.partial_melt cimport c_PartialMeltBase
+
+
+cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
+
+    cdef cppclass c_PhysicsConfig(c_BaseLayerConfig):
+        c_LoveNumbers       love_numbers
+        # Radial-solver layer classification flags:
+        cpp_bool            is_solid
+        cpp_bool            is_static
+        cpp_bool            is_incompressible
+        double              temperature
+        cpp_bool            use_thermal_eos
+        cpp_bool            use_heating
+
+    cdef cppclass c_PhysicsLayer(c_BaseLayer):
+        c_PhysicsLayer() except +
+        c_PhysicsLayer(const c_PhysicsConfig& cfg) except +
+        double              get_shear_modulus_static()               const
+        double              get_bulk_modulus_static()                const
+        double              get_shear_viscosity_static()             const
+        double              get_bulk_viscosity_static()              const
+        c_LoveNumbers       get_love_numbers()                       const
+        cpp_complex[double] get_love_number_k()                      const
+        cpp_complex[double] get_love_number_h()                      const
+        cpp_complex[double] get_love_number_l()                      const
+        cpp_complex[double] calc_complex_shear_modulus(double freq)  const
+        cpp_complex[double] calc_complex_bulk_modulus(double freq)   const
+        cpp_complex[double] calc_complex_shear_modulus(double radius, double freq) const
+        cpp_complex[double] calc_complex_bulk_modulus(double radius, double freq)  const
+        # Vectorized radius-resolved form; takes the owning world's call lock once for the whole array.
+        void                calc_complex_moduli(
+                                cpp_bool is_shear,
+                                const double* radii,
+                                size_t num_radii,
+                                double frequency,
+                                cpp_complex[double]* moduli_out) const
+        cpp_bool            get_shear_rheology_set()                 const
+        c_RheologyBase*     get_shear_rheology_model()               const
+        c_RheologyBase*     get_bulk_rheology_model()                const
+        c_ViscosityBase*    get_shear_viscosity_model()              const
+        c_ViscosityBase*    get_bulk_viscosity_model()               const
+        c_PartialMeltBase*  get_partial_melt_model()                 const
+        cpp_bool            get_bulk_rheology_set()                  const
+        void                set_shear_rheology(unique_ptr[c_RheologyBase] shear)
+        void                set_bulk_rheology(unique_ptr[c_RheologyBase] bulk)
+        void                set_shear_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
+        void                set_bulk_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
+        void                set_partial_melt(unique_ptr[c_PartialMeltBase] partial_melt) except +
+        cpp_bool            get_shear_viscosity_set()                const
+        cpp_bool            get_bulk_viscosity_set()                 const
+        cpp_bool            get_partial_melt_set()                   const
+        cpp_bool            get_is_solid()                           const
+        cpp_bool            get_is_static()                          const
+        cpp_bool            get_is_incompressible()                  const
+        void                set_is_solid(cpp_bool)
+        void                set_is_static(cpp_bool)
+        void                set_is_incompressible(cpp_bool)
+        double              get_temperature()                          const
+        cpp_bool            get_use_thermal_eos()                      const
+        void                set_temperature(double)
+        void                set_use_thermal_eos(cpp_bool)
+        cpp_bool            get_use_heating()                          const
+        void                set_use_heating(cpp_bool)
+
+
+# Fills the c_PhysicsConfig fields shared by the physics, solid/liquid, and gas layer constructors.
+cdef int cy_fill_physics_config(
+    c_PhysicsConfig* config,
+    complex love_number_k,
+    complex love_number_h,
+    complex love_number_l,
+    cpp_bool is_solid,
+    cpp_bool is_static,
+    cpp_bool is_incompressible,
+    double temperature,
+    cpp_bool use_thermal_eos,
+    cpp_bool use_heating) except -1
+
+
+cdef class PhysicsLayer(BaseLayer):
+    cdef c_PhysicsLayer* _physics_ptr   # non-owning; ownership via BaseLayer._layer_ptr
+    cpdef dict get_config_dict(self)
+    
+    @staticmethod
+    cdef PhysicsLayer _view(c_PhysicsLayer* ptr, object world)

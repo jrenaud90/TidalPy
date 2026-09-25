@@ -10,7 +10,9 @@ from libcpp.memory cimport make_unique
 from CyRK cimport CySolverResult, DiffeqFuncType, Event
 from CyRK.cy.cysolver_api cimport baseline_cysolve_ivp_noreturn
 
-from TidalPy.constants cimport d_G, d_PI, d_INF, d_EPS_100
+from TidalPy.constants cimport d_PI, d_INF, d_EPS_100, TidalPyConfig, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
+
 from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES
 from TidalPy.Material.eos.ode cimport eos_diffeq
 
@@ -21,7 +23,7 @@ cdef void solve_eos(
         vector[EOS_ODEInput] eos_input_bylayer_vec,
         double planet_bulk_density,
         double surface_pressure = 0.0,
-        double G_to_use = d_G,
+        double G_to_use = tidalpy_config_ptr.d_G,
         ODEMethod integration_method = ODEMethod.DOP853,
         double rtol = 1.0e-6,
         double atol = 1.0e-10,
@@ -175,7 +177,7 @@ cdef void solve_eos(
                 max_step,          # Maximum step size [double]
                 first_step,        # Initial step size (0 = find good value) [double]
                 True,              # Force retain solver
-                NULL               # Analytic Jacobian (only used by implicit methods) [JacobianFuncType]
+                NULL               # Analytic jacobian (null = numerical; used by implicit methods) [JacobianFuncType]
                 )
             #########################################################
             last_solution_size = integration_result_ptr.size

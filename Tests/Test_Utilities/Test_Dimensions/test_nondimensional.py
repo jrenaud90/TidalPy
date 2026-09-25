@@ -3,7 +3,7 @@ import numpy as np
 
 from math import isnan, isclose
 
-from TidalPy.constants import G, PI_DBL
+from TidalPy.constants import G, pi
 from TidalPy.utilities.dimensions.nondimensional import NonDimensionalScalesClass, build_nondimensional_scales
 
 
@@ -42,7 +42,7 @@ def test_build_nondimensional_scales():
     assert not isnan(test_struct.pascal_conversion)
 
     # Check that they are the correct values.
-    second2_conv = 1. / (PI_DBL * G * bulk_density)
+    second2_conv = 1. / (pi * G * bulk_density)
     assert isclose(test_struct.second2_conversion, second2_conv)
     assert isclose(test_struct.second_conversion, np.sqrt(second2_conv))
     assert isclose(test_struct.length_conversion, mean_radius)

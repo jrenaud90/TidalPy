@@ -21,7 +21,9 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
-from TidalPy.constants cimport d_G, d_PI
+from TidalPy.constants cimport TidalPyConfig, d_PI, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
+
 from TidalPy.utilities.math.complex cimport cf_cinv
 
 
@@ -36,7 +38,7 @@ cdef void cf_fundamental_matrix(
         double complex* inverse_fundamental_mtx_ptr,
         double complex* derivative_mtx_ptr,
         int degree_l = 2,
-        double G_to_use = d_G
+        double G_to_use = tidalpy_config_ptr.d_G
         ) noexcept nogil:
     """ Construct the fundamental matrix and its inverse for a generic order-l
 
@@ -72,7 +74,7 @@ cdef void cf_fundamental_matrix(
         The matrix, A, that satisfies the equation dy/dr = A * y
     degree_l : unsigned char, default=2
         Harmonic degree.
-    G_to_use : double, default=d_G
+    G_to_use : double, default=tidalpy_config_ptr.d_G
         Gravitational constant used in calculations. Can be provided for non-dimensionalized solutions.
     """
 
@@ -304,7 +306,7 @@ def fundamental_matrix(
         double[::1] gravity_array_view,
         double complex[::1] complex_shear_array_view,
         int degree_l = 2,
-        double G_to_use = d_G,
+        double G_to_use = tidalpy_config_ptr.d_G,
         cpp_bool perform_checks = True
         ):
     """ Construct the fundamental matrix and its inverse using harmonic degree l.
@@ -327,7 +329,7 @@ def fundamental_matrix(
         Pointer to array of Complex shear modulus at each radius [Pa]
     degree_l : int, default=2
         Harmonic degree.
-    G_to_use : double, default=d_G
+    G_to_use : double, default=tidalpy_config_ptr.d_G
         Gravitational constant used in calculations. Can be provided for non-dimensionalized solutions.
     perform_checks : bool, default=True
         If True, then checks will be performed on the input arguments to check for issues.

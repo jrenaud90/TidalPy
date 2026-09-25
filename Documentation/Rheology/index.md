@@ -2,11 +2,7 @@
 
 **TidalPy's Rheology Module**
 
-[Auto Generated API](https://tidalpy.readthedocs.io/en/latest/API/generated/TidalPy.rheology.html)
-
-TidalPy's Rheology Module handles converting from static viscosities and moduli to a complex moduli based on a 
-the requested rheology. These complex moduli can then be used to find Love numbers.
-found below.
+`TidalPy.rheology` converts static viscosities and moduli into complex moduli using the requested rheology. Those complex moduli are then used to find Love numbers.
 
 ```{toctree}
 :maxdepth: 2

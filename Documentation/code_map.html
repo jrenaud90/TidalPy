@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TidalPy Code Map</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ink: #1f2a44;
+    --muted: #5b6577;
+    --line: #d5dae3;
+    --call: #1f5fbf;
+    --make: #7b3fa0;
+    --py: #d9f2d9;    --py-stroke: #2e7d32;
+    --cydef: #fff1ad; --cydef-stroke: #b58900;
+    --cycdef: #ffd6a3; --cycdef-stroke: #d9730d;
+    --cpp: #f9c6c0;   --cpp-stroke: #c62828;
+    --flow-build: #2e7d32; --flow-eos: #6a1b9a; --flow-love: #1565c0; --flow-tides1d: #ef6c00;
+    --flow-tides3d: #ad1457; --flow-system: #00838f;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0 12px 0 0; white-space: nowrap; }
+  header .hint { color: var(--muted); font-size: 12.5px; flex-basis: 100%; }
+  .flows { display: flex; flex-wrap: wrap; gap: 6px; }
+  .flows button, .tools button {
+    border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 6px;
+    padding: 4px 10px; font-size: 12.5px; cursor: pointer;
+  }
+  .flows button { border-left-width: 5px; }
+  .flows button.active, .flows button:hover { background: #eef2f8; }
+  .flows button[data-flow="build"] { border-left-color: var(--flow-build); }
+  .flows button[data-flow="eos"] { border-left-color: var(--flow-eos); }
+  .flows button[data-flow="love"] { border-left-color: var(--flow-love); }
+  .flows button[data-flow="tides1d"] { border-left-color: var(--flow-tides1d); }
+  .flows button[data-flow="tides3d"] { border-left-color: var(--flow-tides3d); }
+  .flows button[data-flow="system"] { border-left-color: var(--flow-system); }
+  .tools { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+  .tools input {
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; width: 170px;
+  }
+  main { display: flex; flex: 1; min-height: 0; }
+  #canvas-wrap { flex: 1; min-width: 0; position: relative; }
+  svg#canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+  svg#canvas.dragging { cursor: grabbing; }
+  aside {
+    width: 370px; flex: none; background: var(--panel); border-left: 1px solid var(--line);
+    overflow-y: auto; padding: 14px 16px 24px;
+  }
+  aside h2 { font-size: 15px; margin: 0 0 4px; }
+  aside h3 {
+    font-size: 12.5px; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  aside .badge {
+    display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11.5px; margin-right: 6px;
+    border: 1px solid;
+  }
+  aside .file {
+    font-family: Consolas, "Courier New", monospace; font-size: 12px; color: var(--muted); margin: 6px 0 10px;
+  }
+  aside .call { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13px; }
+  aside .call .to { font-weight: 600; cursor: pointer; }
+  aside .call .to:hover { text-decoration: underline; }
+  aside .call .io { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  aside .call .io b { color: var(--ink); font-weight: 600; }
+  aside .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  aside .dot.call { background: var(--call); }
+  aside .dot.make { background: var(--make); }
+  aside p { margin: 6px 0; }
+  .legend { margin-top: 18px; font-size: 12.5px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .legend .swatch { width: 30px; height: 18px; border: 1.5px solid; flex: none; }
+  .legend .swatch.round { border-radius: 8px; }
+  .legend svg { flex: none; }
+  #tooltip {
+    position: absolute; pointer-events: none; background: #1f2a44; color: #fff; padding: 7px 10px;
+    border-radius: 6px; font-size: 12.5px; max-width: 340px; display: none; z-index: 5; line-height: 1.4;
+  }
+  #tooltip b { color: #8ee2f2; }
+  .node { cursor: pointer; }
+  .node rect { stroke-width: 1.6; }
+  .node text { font-size: 12.5px; fill: var(--ink); pointer-events: none; }
+  .node text.sub { font-size: 10.5px; fill: var(--muted); font-family: Consolas, "Courier New", monospace; }
+  .node.faded { opacity: 0.18; }
+  .node.focus rect { stroke-width: 3; }
+  .node.match rect { stroke-width: 3; stroke: #0a7ea4; }
+  .edge { fill: none; stroke-width: 1.5; opacity: 0.5; stroke-linejoin: round; }
+  .edge.call { stroke: var(--call); }
+  .edge.make { stroke: var(--make); }
+  .edge.member { stroke: #8a93a6; stroke-dasharray: 5 4; opacity: 0.45; }
+  .edge.faded { opacity: 0.05; }
+  .edge.on { opacity: 1; stroke-width: 2.8; }
+  .edge-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+  .lane-title { font-size: 13.5px; font-weight: 600; fill: var(--ink); }
+  .lane-box { fill: #ffffff; stroke: var(--line); }
+  .star { font-size: 15px; fill: #f9a825; stroke: #b58900; stroke-width: 0.6; pointer-events: none; }
+  @media (max-width: 900px) {
+    main { flex-direction: column; }
+    aside { width: auto; border-left: none; border-top: 1px solid var(--line); max-height: 45vh; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>TidalPy code map (new backend)</h1>
+  <div class="flows" id="flows">
+    <button data-flow="build">World building</button>
+    <button data-flow="eos">Equation of state</button>
+    <button data-flow="love">Love numbers</button>
+    <button data-flow="tides1d">Tides 1D</button>
+    <button data-flow="tides3d">Tides 3D</button>
+    <button data-flow="system">System evolution</button>
+  </div>
+  <div class="tools">
+    <input id="search" type="search" placeholder="Find a box" aria-label="Find a box">
+    <button id="fit">Fit</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div class="hint">
+    Click a box to show what it calls and what calls it (everything else fades); click it again or the background to
+    release it. Hover an arrow for the purpose of that call with its inputs and outputs. Blue arrows are calls,
+    purple arrows build, fill, or return something. The flow buttons trace one entry point end to end. Drag to pan,
+    scroll to zoom.
+  </div>
+</header>
+<main>
+  <div id="canvas-wrap">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="tooltip"></div>
+  </div>
+  <aside id="panel"></aside>
+</main>
+<script>
+// ====================================================================================================================
+// Map data. Hand curated: the big-picture components of the new backend and the calls between them.
+// kind: py (Python), cydef (Cython def), cycdef (Cython cdef class), cpp (C++). shape: class or func.
+// Edge type: call (the source invokes the target) or make (the source builds, fills, or returns the target).
+// ====================================================================================================================
+const LANES = [
+  { id: 'config', title: 'Configuration and building' },
+  { id: 'structures', title: 'Worlds and layers' },
+  { id: 'eos', title: 'Equation of state' },
+  { id: 'radial', title: 'Radial solver (Love numbers)' },
+  { id: 'tides', title: 'Tides' },
+  { id: 'system', title: 'System and dynamics' },
+];
+
+const FLOWS = {
+  build: {
+    name: 'World building', color: 'var(--flow-build)',
+    text: 'A bundled name, a TOML path, or a dict is validated against the schema, filled from the configuration ' +
+      'defaults (the world file always wins), and turned into Cython layer and world objects that own C++ objects. ' +
+      'Every physics model comes from a make_<model> factory. A system file repeats this per world and adds the ' +
+      'orbits.',
+  },
+  eos: {
+    name: 'Equation of state', color: 'var(--flow-eos)',
+    text: 'solve_eos integrates gravity, pressure, enclosed mass, and moment of inertia from the center to the ' +
+      'surface in non-dimensional units, iterating the central pressure until the surface pressure matches. Each ' +
+      'layer keeps the dense solution, so density, gravity, and pressure are available at any radius afterwards.',
+  },
+  love: {
+    name: 'Love numbers', color: 'var(--flow-love)',
+    text: 'Two entry points share one shooting solver. The world path reuses the solved EOS and only refreshes the ' +
+      'complex moduli at the forcing frequency; the standalone radial_solver takes arrays and solves its own EOS ' +
+      'first. Both integrate the radial equations layer by layer with dense output, apply the surface boundary ' +
+      'condition, and read k, h, l from the surface solution.',
+  },
+  tides1d: {
+    name: 'Tides 1D', color: 'var(--flow-tides1d)',
+    text: 'calc_tides enumerates the tidal modes for an orbital state, asks the tide model for -Im k_l at each ' +
+      'unique (degree, frequency) pair (a rheology tide model runs the world Love solve), and collapses the modes ' +
+      'into heating and the potential derivatives that drive the orbit and spin.',
+  },
+  tides3d: {
+    name: 'Tides 3D', color: 'var(--flow-tides3d)',
+    text: 'The 3D path merges the modes into coherent waves, solves the radial problem once per ' +
+      '(degree, |frequency|), and evaluates the strain and stress kernel at every grid point from the dense radial ' +
+      'solution and the complex moduli, summing the secular heating over frequencies. Its volume integral equals ' +
+      'the 1D heating.',
+  },
+  system: {
+    name: 'System evolution', color: 'var(--flow-system)',
+    text: 'A System holds worlds with their orbital elements. calc_world_evolution builds the tidal state for one ' +
+      'world, runs its calc_tides, and converts the potential derivatives into da/dt, de/dt, dn/dt, and dspin/dt ' +
+      'with an energy-balance check. Users integrate these rates with an integrator of their choice.',
+  },
+};
+
+const NODES = [
+  // ---- Configuration and building ----
+  { id: 'build_world', lane: 'config', kind: 'py', shape: 'func', star: true,
+    label: 'build_world(source)', file: 'structures_x/configs/world_builder.py',
+    purpose: 'Entry point for worlds: a bundled name, a .toml path, or a dict becomes a LayeredWorld, ' +
+      'GasGiantWorld, or StarWorld with every layer and physics model attached. build_world_from_dict and ' +
+      'build_layer_from_dict rebuild an object from the dict its get_config_dict returns. A bundled name that ' +
+      'resolves to a data-directory copy differing from the packaged file is reported once (worldpack.py).',
+    inputs: 'bundled world name, TOML path, or config dict', outputs: 'world object with source_config retained' },
+  { id: 'build_system', lane: 'config', kind: 'py', shape: 'func', star: true,
+    label: 'build_system(source)', file: 'structures_x/configs/system_builder.py',
+    purpose: 'Entry point for systems: a system TOML names its worlds (bundled, path, or inline), the tidal host ' +
+      'of each, and their orbits about that host and the star. build_system_from_dict rebuilds a system from ' +
+      'the dict its get_config_dict returns, worlds included.',
+    inputs: 'system name, TOML path, or dict', outputs: 'System holding the built worlds' },
+  { id: 'toml_loader', lane: 'config', kind: 'py', shape: 'func',
+    label: 'validate_world_config', sub: 'toml_loader.py', file: 'structures_x/configs/toml_loader.py',
+    purpose: 'The schema gate: loads TOML, grades the schema version, rejects unknown keys, models on the wrong ' +
+      'layer class, and untabulated truncations, then validate_physical_values checks the numbers (positive ' +
+      'radius and mass, fractions in range, layers that stack and fill the world, unique indices) and ' +
+      'validate_solver_table the [eos_solver] and [radial_solver] tables of a world file. Also ' +
+      'validate_system_config and validate_layer_config. The key sets live in TidalPy/schema_x.py, a module ' +
+      'with no TidalPy imports, and are re-exported here.',
+    inputs: 'raw config dict', outputs: 'validated config (raises ValueError otherwise)' },
+  { id: 'construct_world', lane: 'config', kind: 'py', shape: 'func',
+    label: 'construct_world and construct_layer', file: 'structures_x/configs/world_builder.py',
+    purpose: 'Builds the world type named by `type` and its layers inner to outer. Every omitted value comes ' +
+      'from the configuration defaults, then the constructor default; PREM data files are expanded into layers ' +
+      '(the given form is kept on portable_config for saving, and such a world pins RK45 for its EOS solve). A ' +
+      'solver tables of a world file are pinned on the world (set_solver_defaults), and a per-degree tide list ' +
+      'that stops short of max_degree_l is warned about.',
+    inputs: 'validated config', outputs: 'world with layers, models, the [tides] table, and the solver tables wired' },
+  { id: 'config_x', lane: 'config', kind: 'py', shape: 'func',
+    label: 'TidalPy.config_x', sub: 'defaultc_x.py, configurations.py', file: 'TidalPy/defaultc_x.py',
+    purpose: 'The new-backend configuration: [numerical] floors and the 3D quadrature defaults, [eos_solver] and ' +
+      '[radial_solver] defaults, [tides] and [worlds] defaults, [warnings] switches, [graphics.interior], and ' +
+      'the per-material [layers.<type>] blocks. The user file is merged over the packaged defaults and any key ' +
+      'nothing reads is reported by its path; reinit(provided_config_x=...) and save_config_x reproduce a run.',
+    inputs: 'TidalPy_Configs_x.toml and any provided overrides', outputs: 'config_x dict' },
+  { id: 'factories', lane: 'config', kind: 'cydef', shape: 'func', star: true,
+    label: 'make_<model>(name, config)', sub: 'rheology, viscosity, melt, cooling, ...',
+    file: 'rheology_x/rheology.pyx and the other model modules',
+    purpose: 'One factory per physics family (rheology, viscosity, partial melt, cooling, radiogenics, material ' +
+      'EOS, tide, luminosity): a model name plus a config dict gives a Cython model object. Unknown keys are ' +
+      'rejected with the closest accepted key.',
+    inputs: 'model name (alias-aware), config dict', outputs: 'Cython model wrapper owning the C++ model' },
+  { id: 'tidalpy_config', lane: 'config', kind: 'cpp', shape: 'class',
+    label: 'TidalPyConfig singleton', sub: 'constants_.hpp', file: 'TidalPy/constants_.hpp',
+    purpose: 'One process-wide struct every _x extension observes: G and the other physical constants from ' +
+      'SciPy, the numerical floors, and the EOS and radial solver defaults. Filled by update_constants_x.',
+    inputs: 'update_constants_x at import and reinit', outputs: 'd_G, floors, solver defaults read by C++' },
+
+  // ---- Worlds and layers ----
+  { id: 'LayeredWorld', lane: 'structures', kind: 'cycdef', shape: 'class',
+    label: 'LayeredWorld', sub: 'GasGiantWorld, StarWorld', file: 'structures_x/worlds/layered.pyx',
+    purpose: 'The Python face of a world: its layers, tide model, and spin; solve_eos, solve_love_numbers, ' +
+      'calc_tides, and the 3D tide methods; get_config_dict, save_to_toml, and binary save and load.',
+    inputs: 'name, radius, mass, world scalars', outputs: 'a world that owns its C++ object' },
+  { id: 'PhysicsLayer', lane: 'structures', kind: 'cycdef', shape: 'class',
+    label: 'PhysicsLayer', sub: 'SolidLiquidLayer, GasLayer', file: 'structures_x/layers/physics.pyx',
+    purpose: 'A layer with static moduli, the solver flags is_solid, is_static, is_incompressible, and slots for ' +
+      'its physics models (set_eos, set_shear_rheology, set_shear_viscosity, set_partial_melt, set_cooling, ' +
+      'set_radiogenics).',
+    inputs: 'name, index, inner and outer radius, mass, moduli', outputs: 'a layer ready for add_layer' },
+  { id: 'c_LayeredWorld', lane: 'structures', kind: 'cpp', shape: 'class',
+    label: 'c_LayeredWorld', sub: 'layered_.hpp', file: 'structures_x/worlds/layered_.hpp',
+    purpose: 'Owns its layers (unique_ptr, inner to outer), the retained EOS solution, the cached radial solver, ' +
+      'the tide model, and the spin model; runs the whole-planet solves; serializes the layer stack. solve_eos ' +
+      'calls mark_structure_dirty first, so the Love numbers, the tidal result, and the heating of every layer that ' +
+      'were solved on the old structure read as unsolved until their next solve.',
+    inputs: 'c_WorldConfig, layers moved in by add_layer', outputs: 'profile getters, Love numbers, tidal results' },
+  { id: 'c_build_world_from_layered_profile', lane: 'structures', kind: 'cpp', shape: 'func',
+    label: 'c_build_world_from_layered_profile', sub: 'profile_world_.hpp',
+    file: 'structures_x/worlds/profile_world_.hpp',
+    purpose: 'Builds a layered world from a radial profile entirely in C++: each layer takes an interpolated ' +
+      'material EOS over its own slice (partitioned by c_partition_radius_by_layer), is_tidal follows is_solid, ' +
+      'and no per-material defaults are pulled in. Backs the standalone radial_solver and ' +
+      'build_layered_world_from_profile, so the two build the same world.',
+    inputs: 'radius, density, static moduli, layer radii, layer types and flags, bulk density',
+    outputs: 'shared_ptr<c_LayeredWorld>' },
+  { id: 'c_PhysicsLayer', lane: 'structures', kind: 'cpp', shape: 'class',
+    label: 'c_PhysicsLayer', sub: 'c_SolidLiquidLayer, c_GasLayer', file: 'structures_x/layers/physics_.hpp',
+    purpose: 'Holds its models (unique_ptr; the models observe the layer through raw pointers), the EOS profile ' +
+      '(c_LayerEOSData with the dense evaluator), and the pre- and post-melt viscoelastic arrays. ' +
+      'calc_complex_shear_modulus(r, w) applies the rheology to the local modulus and viscosity.',
+    inputs: 'radius, frequency', outputs: 'density, gravity, pressure, static and complex moduli at a radius' },
+  { id: 'models', lane: 'structures', kind: 'cpp', shape: 'class',
+    label: 'Physics model families', sub: 'c_RheologyBase, c_MaterialEOSBase, c_TideBase, ...',
+    file: 'rheology_x/rheology_.hpp, Material_x/eos/material_eos_.hpp, cooling_x/..., Tides_x/classes/tide_.hpp',
+    purpose: 'c_RheologyBase, c_ViscosityBase, c_PartialMeltBase, c_CoolingBase, c_RadiogenicsBase, ' +
+      'c_MaterialEOSBase, c_TideBase, c_LuminosityBase: each family has an enum, a name factory, vectorized ' +
+      'calc_* methods, config entries, and a binary id. All of them are pure functions of their inputs.',
+    inputs: 'family-specific state (modulus, viscosity, frequency; pressure; temperature; ...)',
+    outputs: 'complex modulus, viscosity, melt fraction, cooling flux, heating rate, density, Love numbers' },
+
+  // ---- Equation of state ----
+  { id: 'solve_eos', lane: 'eos', kind: 'cydef', shape: 'func', star: true,
+    label: 'LayeredWorld.solve_eos(...)', file: 'structures_x/worlds/layered.pyx',
+    purpose: 'Solves the whole-planet structure, and with it the temperature and heat flow when the layers differ ' +
+      'in temperature or are heated. Every solver setting left as None takes the [eos_solver] value of the ' +
+      'configuration.',
+    inputs: 'surface pressure, slices per layer, method, rtol, atol, pressure_tol, temperatures, time',
+    outputs: 'dict: success, iterations, profiles, mass, moment of inertia, central pressure, per-layer heat ' +
+      'flows, heating, and temperature rates' },
+  { id: 'c_solve_eos_world', lane: 'eos', kind: 'cpp', shape: 'func',
+    label: 'c_LayeredWorld::solve_eos', file: 'structures_x/worlds/layered_.hpp',
+    purpose: 'Converts to non-dimensional units, prepares the heat sources, lays out the thermal segments ' +
+      '(thermal_layout_.hpp), and runs the solver once per thermal pass, relaxing the boundary layers, interface ' +
+      'temperatures, heat flows, and floating layer radii between passes. Starts each solve from the last ' +
+      'converged central pressure.',
+    inputs: 'c_WorldEOSSolveConfig',
+    outputs: 'retained c_EOSSolution; layers populated; molten stretches found; radial cache invalidated' },
+  { id: 'c_solve_eos', lane: 'eos', kind: 'cpp', shape: 'func',
+    label: 'c_solve_eos', sub: 'Material_x/eos/solver_.hpp', file: 'Material_x/eos/solver_.hpp',
+    purpose: 'Integrates gravity, pressure, enclosed mass, and moment of inertia (plus temperature and heat flow ' +
+      'in a thermal solve) from the center, segment by segment, inside a secant iteration on the central ' +
+      'pressure. Dense output is captured on a warm start and on the pass the secant error model expects to ' +
+      'converge, so the converged pass is usually kept instead of repeated.',
+    inputs: 'per-layer EOS functions and inputs, segments, bulk density, surface pressure, tolerances, a central ' +
+      'pressure guess',
+    outputs: 'c_EOSSolution with dense output per segment, iterations, pressure error' },
+  { id: 'c_Heating', lane: 'eos', kind: 'cpp', shape: 'class',
+    label: 'c_Heating', sub: 'heating_.hpp', file: 'structures_x/worlds/heating_.hpp',
+    purpose: 'The world heat sources, summed into a volumetric heating h(r) for the layers with use_heating. The ' +
+      'radiogenic source is each layer radiogenics model as a specific rate times the local density. The ' +
+      'thermal ODE integrates dL/dr = 4 pi r^2 h from it, and the thermal layout uses it for the heating inside ' +
+      'each conducting stretch.',
+    inputs: 'c_WorldState (time, layers); layer index, radius, density', outputs: 'heating [W m-3]' },
+  { id: 'c_EOSSolution', lane: 'eos', kind: 'cpp', shape: 'class',
+    label: 'c_EOSSolution', sub: 'eos_solution_.hpp', file: 'Material_x/eos/eos_solution_.hpp',
+    purpose: 'The structure solution: the retained CyRK integrators per segment and the layer EOS functions. ' +
+      'call and call_si evaluate the twelve frequency-independent outputs at any radius from the dense output; ' +
+      'call_material is the radial solver read (gravity, density, complex moduli). The solution a Love solve ' +
+      'holds stores no structure of its own and answers through a state provider the world installs.',
+    inputs: 'layer index, radius',
+    outputs: 'gravity, pressure, mass, moment of inertia, density, static moduli, viscosities, temperature, ' +
+      'heat flow, melt fraction' },
+  { id: 'cyrk', lane: 'eos', kind: 'cpp', shape: 'func',
+    label: 'CyRK baseline_cysolve_ivp', sub: 'external: CyRK cysolve.hpp', file: 'CyRK (dependency), cysolve.hpp',
+    purpose: 'The ODE integrator (DOP853 by default; RK23, RK45, BDF, LSODA, Radau available) compiled into each ' +
+      'TidalPy extension, with retained dense output that the solvers evaluate afterwards.',
+    inputs: 'diffeq, y0, span, rtol, atol, pre-eval function and arguments', outputs: 'CySolverResult (steps, dense)' },
+
+  // ---- Radial solver ----
+  { id: 'radial_solver', lane: 'radial', kind: 'cydef', shape: 'func', star: true,
+    label: 'radial_solver(...)', sub: 'standalone array API', file: 'RadialSolver_x/solver.pyx',
+    purpose: 'Standalone entry point: arrays of radius, density, and complex moduli plus per-layer flags to Love ' +
+      'numbers and radial functions. It builds a temporary world from the arrays (an interpolated material per ' +
+      'layer) and solves it the way a built world is solved, handing the complex moduli to the solve. Defaults ' +
+      'from [radial_solver] and [eos_solver].',
+    inputs: 'radius, density, complex bulk and shear arrays, frequency, layer types and flags, degree, solve_for',
+    outputs: 'RadialSolverSolution' },
+  { id: 'solve_love_numbers', lane: 'radial', kind: 'cydef', shape: 'func', star: true,
+    label: 'LayeredWorld.solve_love_numbers(...)', file: 'structures_x/worlds/layered.pyx',
+    purpose: 'World entry point: Love numbers at one frequency and degree from the solved EOS and the layer ' +
+      'rheologies. love_method left unset follows the world [tides] setting (radial_solver, propagation_matrix, ' +
+      'homogeneous, cpl, ctl).',
+    inputs: 'frequency, degree, solve_for, love_method, solver settings', outputs: 'k, h, l; success, message' },
+  { id: 'RadialSolverSolution', lane: 'radial', kind: 'cycdef', shape: 'class',
+    label: 'RadialSolverSolution', file: 'RadialSolver_x/rs_solution.pyx',
+    purpose: 'The exported result of a radial solve: k, h, l with quality factors and lags, the ' +
+      'surface-conditioning diagnostic, dense get_radial_solution(r), the interior getters, and the plotting ' +
+      'helpers. It holds the world it came from, which its interior getters read.',
+    inputs: 'the solution storage', outputs: 'Love numbers, radial functions at any radius, diagnostics' },
+  { id: 'c_solve_love_world', lane: 'radial', kind: 'cpp', shape: 'func',
+    label: 'c_LayeredWorld::solve_love_numbers', file: 'structures_x/worlds/layered_.hpp',
+    purpose: 'Ensures the radial cache matches the EOS and layer flags, installs a state provider (one dense EOS ' +
+      'read plus each layer rheology at the frequency, or the supplied moduli profile), and solves; the analytic ' +
+      'methods take the volume-averaged modulus instead.',
+    inputs: 'c_LoveSolveConfig', outputs: 'Love numbers and the dense radial solution on the storage' },
+  { id: 'c_WorldRadialSolver', lane: 'radial', kind: 'cpp', shape: 'class',
+    label: 'c_WorldRadialSolver', sub: 'world_radial_solver_.hpp', file: 'RadialSolver_x/world_radial_solver_.hpp',
+    purpose: 'The world cache: non-dimensional scales, the layer partition and flags, and a reusable storage built ' +
+      'once per EOS solve. It stores no structure arrays: every integration radius is read through the provider.',
+    inputs: 'layer radii and flags, degree, boundary conditions', outputs: 'per-solve Love numbers' },
+  { id: 'c_shooting_solver', lane: 'radial', kind: 'cpp', shape: 'func',
+    label: 'c_shooting_solver', sub: 'shooting_.hpp', file: 'RadialSolver_x/shooting_.hpp',
+    purpose: 'Layer by layer: starting conditions (Kamata or Takeuchi and Saito), independent solutions ' +
+      'integrated with dense output, interface conditions to the next layer, then the surface boundary condition ' +
+      '(Eigen LU) and the collapse constants from the top down. Records the surface amplification.',
+    inputs: 'c_ShootingInputs, frequency, tolerances', outputs: 'interpolants and constants on the storage' },
+  { id: 'c_RadialSolutionStorage', lane: 'radial', kind: 'cpp', shape: 'class',
+    label: 'c_RadialSolutionStorage', sub: 'rs_solution_.hpp', file: 'RadialSolver_x/rs_solution_.hpp',
+    purpose: 'Owns the EOS solution and the dense interpolants plus collapse constants; get_radial_solution(r) ' +
+      'collapses y1..y6 at any radius on demand; get_surface_y and get_eos_si.',
+    inputs: 'radius, boundary-condition index', outputs: 'y1..y6 (SI), EOS values (SI)' },
+  { id: 'c_find_love', lane: 'radial', kind: 'cpp', shape: 'func',
+    label: 'c_find_love', sub: 'love_.hpp, love_method_.hpp', file: 'RadialSolver_x/love_.hpp',
+    purpose: 'k = y5 - 1, h = y1 g, l = y3 g from the surface solution (scale invariant). The homogeneous, cpl, and ' +
+      'ctl closed forms and the effective rigidity live beside it in Tides_x/love.',
+    inputs: 'surface y1..y6, surface gravity', outputs: 'c_LoveNumbers (k, h, l)' },
+
+  // ---- Tides ----
+  { id: 'calc_tides', lane: 'tides', kind: 'cydef', shape: 'func', star: true,
+    label: 'LayeredWorld.calc_tides(...)', file: 'structures_x/worlds/layered.pyx',
+    purpose: 'Global 1D tidal dissipation for one orbital state. The [tides] config sets the degrees, truncations, ' +
+      'and Love method; the attached tide model sets how -Im k_l is obtained.',
+    inputs: 'orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis, host mass',
+    outputs: 'tidal heating, dU/dM, dU/dw, dU/dOmega, per-layer heating, per-mode Love numbers' },
+  { id: 'calc_3d_tides', lane: 'tides', kind: 'cydef', shape: 'func', star: true,
+    label: 'LayeredWorld.calc_3d_tides(...)', sub: 'get_3d_tidal_heating, calc_3d_displacements',
+    file: 'structures_x/worlds/layered.pyx',
+    purpose: '3D stress, strain, displacements, and heating on radius, colatitude, longitude, and time grids, or ' +
+      'collapsed totals and profiles. Needs the rheology tide model and a solved EOS.',
+    inputs: 'orbital state, grid axes, collapse flags, threads', outputs: 'heating density grids, profiles, totals' },
+  { id: 'c_calc_tides', lane: 'tides', kind: 'cpp', shape: 'func',
+    label: 'c_LayeredWorld::calc_tides', sub: 'world_tides_.hpp', file: 'structures_x/worlds/world_tides_.hpp',
+    purpose: 'Runs the potential engine, solves the Love numbers once per unique (degree, |frequency|), collapses ' +
+      'the modes, stores the result, and distributes the heating to the tidal layers.',
+    inputs: 'c_TideSolveConfig', outputs: 'c_GlobalTideResult on the world' },
+  { id: 'c_global_potential', lane: 'tides', kind: 'cpp', shape: 'func',
+    label: 'c_global_potential', sub: 'Tides_x/potential/global_.hpp', file: 'Tides_x/potential/global_.hpp',
+    purpose: 'Enumerates the active Kaula modes (l, m, p, q) with the eccentricity and obliquity function tables ' +
+      'for the configured truncations; each mode carries its coefficient and signed frequency.',
+    inputs: 'orbital state, degree range, truncation levels', outputs: 'per-mode terms, unique-frequency map' },
+  { id: 'tide_models', lane: 'tides', kind: 'cpp', shape: 'class',
+    label: 'Tide models', sub: 'c_RheologyTide, c_FixedQTide, c_FixedLagTide, c_CTLQTide',
+    file: 'Tides_x/classes/tide_.hpp',
+    purpose: 'The dissipation multiplier per mode: c_RheologyTide takes -Im k_l from the world radial solve, ' +
+      'c_FixedQTide uses k/Q, c_FixedLagTide k w dt, c_CTLQTide k w dt / Q. c_RheologyTide also orchestrates the ' +
+      '3D paths.',
+    inputs: 'degree, |frequency|', outputs: 'complex Love numbers per mode' },
+  { id: 'c_collapse_global_tides', lane: 'tides', kind: 'cpp', shape: 'func',
+    label: 'c_collapse_global_tides', sub: 'tide_collapse_.hpp', file: 'Tides_x/classes/tide_collapse_.hpp',
+    purpose: 'Sums the mode terms weighted by the dissipation multipliers into the global result.',
+    inputs: 'potential storage, Love numbers per mode', outputs: 'heating [W], dU/dM, dU/dw, dU/dOmega' },
+  { id: 'c_calc_3d', lane: 'tides', kind: 'cpp', shape: 'func',
+    label: 'c_RheologyTide::calc_3d_*', sub: 'world_tides_.hpp', file: 'structures_x/worlds/world_tides_.hpp',
+    purpose: 'The 3D orchestration: build the wave set, solve each radial group, evaluate the kernel per grid point ' +
+      'on threads, and collapse over colatitude (analytic Gram basis), radius (trapezoid), and longitude (2 pi).',
+    inputs: 'orbital state, grid axes, collapse config',
+    outputs: 'c_Heating3DCollapsed, displacement and stress grids' },
+  { id: 'c_build_wave_set_3d', lane: 'tides', kind: 'cpp', shape: 'func',
+    label: 'c_build_wave_set_3d', sub: 'potential_3d_.hpp', file: 'Tides_x/potential/potential_3d_.hpp',
+    purpose: 'Merges the modes into coherent waves keyed by (l, m, |frequency|, sign) so the m = 0 pairs at plus ' +
+      'and minus frequency are one sinusoid; one radial group per unique (l, |frequency|).',
+    inputs: 'the enumerated modes', outputs: 'waves, frequencies, radial groups' },
+  { id: 'kernel', lane: 'tides', kind: 'cpp', shape: 'func',
+    label: 'Stress and strain kernel', sub: 'kernel_.hpp, strain_radial_.hpp',
+    file: 'Tides_x/multilayer/kernel_.hpp, strain_radial_.hpp, angular_collapse_.hpp',
+    purpose: 'At one point: the radial strain multipliers from y1..y4 and the layer type, the Legendre angular ' +
+      'factors, the complex moduli at the wave frequency, then the strain and stress tensors, displacements, and ' +
+      'the secular heating |w|/2 Im(sigma : conj eps) summed over frequencies.',
+    inputs: 'y1..y4 at the radius, complex moduli, colatitude, longitude, wave amplitudes',
+    outputs: 'heating density [W m-3], displacements [m], stress [Pa], strain' },
+
+  // ---- System and dynamics ----
+  { id: 'System', lane: 'system', kind: 'cycdef', shape: 'class',
+    label: 'System', file: 'structures_x/system/system.pyx',
+    purpose: 'Worlds, each with its own tidal host and its orbital elements about that host and about the star; ' +
+      'iteration and name access hand back the original world wrappers.',
+    inputs: 'worlds, tidal_host per world, is_star, semi-major axes, eccentricities',
+    outputs: 'a system that co-owns its worlds' },
+  { id: 'calc_world_evolution', lane: 'system', kind: 'cydef', shape: 'func', star: true,
+    label: 'System.calc_world_evolution(i)', sub: 'calc_pair_evolution, calc_system_evolution',
+    file: 'structures_x/system/system.pyx',
+    purpose: 'Entry point for evolution: the tidal rates of one world (or a host and satellite pair, or every ' +
+      'world) for the current orbit and spin. TidalPy holds no integrator; the caller integrates the rates.',
+    inputs: 'world index', outputs: 'da/dt, de/dt, dn/dt, dspin/dt, heating, energy terms and residual' },
+  { id: 'c_System', lane: 'system', kind: 'cpp', shape: 'class',
+    label: 'c_System', sub: 'system_.hpp', file: 'structures_x/system/system_.hpp',
+    purpose: 'shared_ptr worlds, parallel orbital elements, a tidal host index per world, the star index, and a ' +
+      'stateless c_OrbitSolver; Kepler helpers, insolation flux (orbit averaged), equilibrium temperature. It is ' +
+      'the tide-state provider of its worlds: a world can ask it for the orbital state its tides are raised in.',
+    inputs: 'worlds, their hosts, and orbits', outputs: 'orbital frequencies, insolation, evolution results, tide states' },
+  { id: 'c_calc_world_evolution', lane: 'system', kind: 'cpp', shape: 'func',
+    label: 'c_System::calc_world_evolution', file: 'structures_x/system/system_.hpp',
+    purpose: 'Builds the tidal state from the orbit and the world spin, runs the world tidal solve, converts the ' +
+      'potential derivatives into rates, and checks heating = -(dE_orbit/dt + dE_spin/dt).',
+    inputs: 'world index', outputs: 'c_WorldEvolution' },
+  { id: 'dynamics', lane: 'system', kind: 'cpp', shape: 'class',
+    label: 'c_OrbitSolver and c_Spin', sub: 'dynamics_x', file: 'dynamics_x/orbit_solver_.hpp, spin_.hpp',
+    purpose: 'c_OrbitSolver: da/dt = (2/(n a)) dR/dM, de/dt, dn/dt = -(3/2)(n/a) da/dt from the potential ' +
+      'derivatives. c_Spin (world attached): the moment of inertia and dspin/dt = M_host dU/dOmega / I.',
+    inputs: 'orbit state, dU/dM, dU/dw, dU/dOmega, moment of inertia', outputs: 'orbital and spin rates' },
+];
+
+// Calls between boxes. kind 'member' marks a method drawn under its class (dashed, no purpose).
+const EDGES = [
+  // Membership (dashed).
+  { from: 'LayeredWorld', to: 'solve_eos', kind: 'member' },
+  { from: 'LayeredWorld', to: 'solve_love_numbers', kind: 'member' },
+  { from: 'LayeredWorld', to: 'calc_tides', kind: 'member' },
+  { from: 'LayeredWorld', to: 'calc_3d_tides', kind: 'member' },
+  { from: 'c_LayeredWorld', to: 'c_solve_eos_world', kind: 'member' },
+  { from: 'c_LayeredWorld', to: 'c_solve_love_world', kind: 'member' },
+  { from: 'c_LayeredWorld', to: 'c_calc_tides', kind: 'member' },
+  { from: 'tide_models', to: 'c_calc_3d', kind: 'member' },
+  { from: 'System', to: 'calc_world_evolution', kind: 'member' },
+  { from: 'c_System', to: 'c_calc_world_evolution', kind: 'member' },
+
+  // World building.
+  { from: 'build_world', to: 'toml_loader', flow: 'build', type: 'call',
+    purpose: 'Load and validate the source before anything is constructed.',
+    inputs: 'bundled name, .toml path, or dict', outputs: 'normalized, schema-checked config dict' },
+  { from: 'build_world', to: 'construct_world', flow: 'build', type: 'call',
+    purpose: 'Construct the world named by `type` and add its layers inner to outer.',
+    inputs: 'validated config', outputs: 'LayeredWorld, GasGiantWorld, or StarWorld' },
+  { from: 'construct_world', to: 'config_x', flow: 'build', type: 'call',
+    purpose: 'Resolve every omitted value from the [layers.<type>] (or [layers.default]), [worlds], and [tides] ' +
+      'sections; the world file always wins.',
+    inputs: 'layer material type, world type', outputs: 'filled per-layer and per-world defaults' },
+  { from: 'construct_world', to: 'factories', flow: 'build', type: 'call',
+    purpose: 'Attach each [layers.<name>.<section>] model table through its family factory.',
+    inputs: 'section name, model name, parameter dict', outputs: 'Cython model wrapper' },
+  { from: 'construct_world', to: 'PhysicsLayer', flow: 'build', type: 'make',
+    purpose: 'Build each layer from its scalars, with the inner radius taken from the previous layer.',
+    inputs: 'constructor keywords (radius_outer, mass, moduli, flags)', outputs: 'layer wrapper with models attached' },
+  { from: 'construct_world', to: 'LayeredWorld', flow: 'build', type: 'make',
+    purpose: 'Create the world, add the layers, and wire the [tides] table and tide model (rheology, fixed_q, ' +
+      'fixed_dt, ctl_q).',
+    inputs: 'name, radius, mass, world scalars, layers', outputs: 'world wrapper with source_config' },
+  { from: 'factories', to: 'models', flow: 'build', type: 'make',
+    purpose: 'Each make_<model> calls the C++ factory c_find_<module>(enum, config) and adopts the pointer into the ' +
+      'matching rich subclass.',
+    inputs: 'model enum, C++ config struct', outputs: 'unique_ptr to the C++ model' },
+  { from: 'PhysicsLayer', to: 'c_PhysicsLayer', flow: 'build', type: 'make',
+    purpose: 'The wrapper owns the C++ layer and moves each model into it (set_eos, set_shear_rheology, ...).',
+    inputs: 'unique_ptr models', outputs: 'a C++ layer holding its models' },
+  { from: 'LayeredWorld', to: 'c_LayeredWorld', flow: 'build', type: 'make',
+    purpose: 'add_layer validates continuity and moves the layer in; the wrapper keeps a non-owning view of it.',
+    inputs: 'unique_ptr<c_BaseLayer>', outputs: 'the layer stack (world.<layer_name>, for layer in world)' },
+  { from: 'c_PhysicsLayer', to: 'models', flow: 'build', type: 'call',
+    purpose: 'The layer asks its models for the EOS density, viscosity at (T, P), melt weakening, cooling, ' +
+      'radiogenic heating, and the complex modulus from its rheology.',
+    inputs: 'the local state', outputs: 'model values at that state' },
+  { from: 'config_x', to: 'tidalpy_config', flow: 'build', type: 'make',
+    purpose: 'update_constants_x copies [numerical], [eos_solver], and [radial_solver] into the process-wide ' +
+      'singleton at import and on reinit; update_constants sets G and the other constants from SciPy.',
+    inputs: 'config_x dict', outputs: 'singleton fields read by every C++ solve' },
+  { from: 'build_system', to: 'build_world', flow: 'build', type: 'call',
+    purpose: 'Build each [worlds.<key>] member (bundled name, path, or inline table); the key becomes its name.',
+    inputs: 'world source', outputs: 'world wrapper' },
+  { from: 'build_system', to: 'System', flow: 'build', type: 'make',
+    purpose: 'add_world with is_star and the orbital elements about the tidal host and the star, then ' +
+      'set_tidal_host for every world that names one.',
+    inputs: 'worlds, semi-major axes, eccentricities', outputs: 'System' },
+  { from: 'System', to: 'c_System', flow: 'build', type: 'make',
+    purpose: 'The wrapper and the C++ system co-own each world through a shared_ptr.',
+    inputs: 'world pointers, orbital elements', outputs: 'c_System' },
+
+  // Equation of state.
+  { from: 'solve_eos', to: 'c_solve_eos_world', flow: 'eos', type: 'call',
+    purpose: 'Fill c_WorldEOSSolveConfig from [eos_solver] and the arguments given, release the GIL, then build ' +
+      'the result dict from the retained solution.',
+    inputs: 'surface pressure, slices, method, tolerances, temperature, surface temperature, time',
+    outputs: 'profiles, scalars, per-layer thermal results, success, max_iters_hit' },
+  { from: 'c_solve_eos_world', to: 'c_Heating', flow: 'eos', type: 'call',
+    purpose: 'Prepare every heat source for this solve (the radiogenic specific rates at the solve time) and ' +
+      'integrate the heating over each conducting stretch for the thermal resistance chain.',
+    inputs: 'c_WorldState, the unit scales of the solve', outputs: 'heating [W m-3]; heat and temperature drop per stretch' },
+  { from: 'c_solve_eos_world', to: 'c_solve_eos', flow: 'eos', type: 'call',
+    purpose: 'Integrate the structure in non-dimensional units (radius, bulk density, 1/sqrt(pi G rho)) with each ' +
+      'layer EOS model as the density source, once per thermal pass, from the last central pressure.',
+    inputs: 'per-layer pre-eval functions and inputs, segments, bulk density guess, surface pressure, tolerances',
+    outputs: 'c_EOSSolution in solve units, later returned to SI' },
+  { from: 'c_solve_eos', to: 'cyrk', flow: 'eos', type: 'call',
+    purpose: 'One integration per segment per central-pressure iteration; dense output only on the pass expected ' +
+      'to converge.',
+    inputs: 'c_eos_diffeq or c_eos_diffeq_thermal, y0 = (g, P_center, M, I[, T, L]), rtol, atol, max step',
+    outputs: 'CySolverResult' },
+  { from: 'c_solve_eos', to: 'models', flow: 'eos', type: 'call',
+    purpose: 'c_preeval_material_eos asks the layer c_MaterialEOSBase for the density at (P, T, r) on every ' +
+      'right-hand side, and for the whole material state when the finished solution is read.',
+    inputs: 'pressure, temperature, radius (SI)', outputs: 'density; static moduli, viscosities, melt fraction' },
+  { from: 'c_solve_eos', to: 'c_Heating', flow: 'eos', type: 'call',
+    purpose: 'The thermal right-hand side reads dL/dr = 4 pi r^2 h at the local density through c_EOSHeatingBase.',
+    inputs: 'layer index, radius, density (solve units)', outputs: 'dL/dr' },
+  { from: 'c_solve_eos', to: 'c_EOSSolution', flow: 'eos', type: 'make',
+    purpose: 'Keep the retained integrators and the layer EOS functions, then sample the whole planet onto the ' +
+      'output slices.',
+    inputs: 'CySolverResult per segment, EOS functions', outputs: 'slice arrays and scalars (mass, MOI, gravity)' },
+  { from: 'c_solve_eos_world', to: 'c_PhysicsLayer', flow: 'eos', type: 'make',
+    purpose: 'Populate each layer: its mass, its radii when it holds its mass, and c_LayerEOSData with a dense ' +
+      'evaluator onto the solution.',
+    inputs: 'the layer slice of the solution', outputs: 'get_density(r), get_shear_modulus(r), get_temperature(r), ...' },
+
+  // Love numbers.
+  { from: 'solve_love_numbers', to: 'c_solve_love_world', flow: 'love', type: 'call',
+    purpose: 'Start from make_love_solve_config (the world [tides] Love method and [radial_solver] defaults), ' +
+      'override with the arguments given, release the GIL.',
+    inputs: 'frequency, degree, solve_for, method, tolerances', outputs: 'k, h, l; success; error code' },
+  { from: 'c_solve_love_world', to: 'c_PhysicsLayer', flow: 'love', type: 'call',
+    purpose: 'The state provider shares each layer rheology and applies it to the static modulus and viscosity ' +
+      'the solved EOS reports at the radius asked for.',
+    inputs: 'static modulus, viscosity, frequency', outputs: 'complex moduli [Pa]' },
+  { from: 'c_solve_love_world', to: 'c_WorldRadialSolver', flow: 'love', type: 'call',
+    purpose: 'ensure_radial_cache builds the frequency-independent setup once per EOS solve, splitting a solid ' +
+      'layer at the edges of its molten stretches and solving each as a static liquid; each solve installs its ' +
+      'provider, which maps the solver layers back to the world layers, and calls solve.',
+    inputs: 'layer radii and flags, degree, boundary conditions, the provider', outputs: 'Love numbers, dense y(r)' },
+  { from: 'c_WorldRadialSolver', to: 'c_shooting_solver', flow: 'love', type: 'call',
+    purpose: 'Shoot on the cached non-dimensional inputs (c_matrix_propagate instead for one solid, static, ' +
+      'incompressible layer).',
+    inputs: 'c_ShootingInputs, frequency, tolerances', outputs: 'interpolants, constants, error code' },
+  { from: 'c_WorldRadialSolver', to: 'c_RadialSolutionStorage', flow: 'love', type: 'make',
+    purpose: 'Owns the reusable storage and records the solved frequency and boundary conditions; find_love ' +
+      'afterwards.',
+    inputs: 'the solve', outputs: 'storage ready for the solve' },
+  { from: 'c_shooting_solver', to: 'cyrk', flow: 'love', type: 'call',
+    purpose: 'Integrate each independent solution of each layer from the starting radius to the layer top with ' +
+      'dense output (3 solutions for a solid layer, 2 for a dynamic liquid, 1 for a static liquid).',
+    inputs: 'the layer ODE from odes_.hpp, initial y, rtol, atol', outputs: 'CySolverResult per solution' },
+  { from: 'c_shooting_solver', to: 'c_EOSSolution', flow: 'love', type: 'call',
+    purpose: 'Every right-hand side reads gravity, density, and the complex moduli at the integration radius ' +
+      'through call_material: one provider call, one dense read of the world EOS, inside the calling layer.',
+    inputs: 'layer index, radius', outputs: 'gravity, density, complex shear and bulk moduli' },
+  { from: 'c_shooting_solver', to: 'c_RadialSolutionStorage', flow: 'love', type: 'make',
+    purpose: 'Keep the dense interpolants and the per-layer collapse constants from the surface boundary condition; ' +
+      'record the surface amplification diagnostic.',
+    inputs: 'CySolverResults, constants', outputs: 'storage that can evaluate y(r)' },
+  { from: 'c_RadialSolutionStorage', to: 'c_find_love', flow: 'love', type: 'call',
+    purpose: 'find_love evaluates the collapsed surface solution and forms the Love numbers per boundary condition.',
+    inputs: 'surface y1..y6, surface gravity', outputs: 'c_LoveNumbers (k, h, l)' },
+  { from: 'c_RadialSolutionStorage', to: 'c_EOSSolution', flow: 'love', type: 'make',
+    purpose: 'Owns the EOS solution the solve reads through: it holds the world scalars and the state provider, ' +
+      'which stays installed so y3 of a dynamic liquid and the interior getters answer after the solve.',
+    inputs: 'radius', outputs: 'structure and moduli at the radius' },
+  { from: 'radial_solver', to: 'c_build_world_from_layered_profile', flow: 'love', type: 'call',
+    purpose: 'Validate the arrays and flags, resolve every None argument from [radial_solver] and [eos_solver], ' +
+      'then build a temporary world from the profile in C++: an interpolated material per layer. The same ' +
+      'routine backs build_world_from_layered_profile, so neither can drift from the other.',
+    inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary c_LayeredWorld' },
+  { from: 'c_build_world_from_layered_profile', to: 'c_LayeredWorld', flow: 'love', type: 'make',
+    purpose: 'Create the world and add each interpolated-EOS layer inner to outer.',
+    inputs: 'one c_PhysicsLayer per profile layer', outputs: 'the layered world, ready for solve_eos' },
+  { from: 'radial_solver', to: 'solve_eos', flow: 'love', type: 'call',
+    purpose: 'Solve the temporary world structure with the EOS settings given.',
+    inputs: 'surface pressure, EOS settings', outputs: 'a solved world' },
+  { from: 'radial_solver', to: 'c_solve_love_world', flow: 'love', type: 'call',
+    purpose: 'solve_love_numbers_supplied: the world path, with the supplied complex moduli interpolated inside ' +
+      'each layer in place of a rheology.',
+    inputs: 'complex moduli and their radii, frequency, degree, solve_for, settings', outputs: 'a solved storage' },
+  { from: 'radial_solver', to: 'RadialSolverSolution', flow: 'love', type: 'make',
+    purpose: 'release_radial_solution moves the storage out of the world and wraps it for Python: k, h, l with Q ' +
+      'and lag, get_radial_solution(r), the interior getters, plots, diagnostics; warn when the surface solve is ' +
+      'poorly conditioned.',
+    inputs: 'solution storage', outputs: 'RadialSolverSolution' },
+
+  // Tides 1D.
+  { from: 'calc_tides', to: 'c_calc_tides', flow: 'tides1d', type: 'call',
+    purpose: 'Pack the orbital state into c_TideSolveConfig and run the solve without the GIL.',
+    inputs: 'orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis, host mass',
+    outputs: 'heating, potential derivatives, per-layer heating' },
+  { from: 'c_calc_tides', to: 'c_global_potential', flow: 'tides1d', type: 'call',
+    purpose: 'Enumerate the active modes for the configured degrees and truncations.',
+    inputs: 'state, degree range, eccentricity and obliquity truncation', outputs: 'per-mode terms, frequency map' },
+  { from: 'c_calc_tides', to: 'tide_models', flow: 'tides1d', type: 'call',
+    purpose: 'The attached tide model supplies -Im k_l for every unique (degree, |frequency|) pair.',
+    inputs: 'degree, |frequency|', outputs: 'complex Love numbers per mode' },
+  { from: 'tide_models', to: 'c_solve_love_world', flow: 'tides1d', type: 'call',
+    purpose: 'c_RheologyTide runs the world Love solve once per unique (degree, |frequency|) through the cached ' +
+      'radial solver; the analytic models use k/Q or k w dt instead.',
+    inputs: 'make_love_solve_config, degree, frequency', outputs: 'k, h, l' },
+  { from: 'c_calc_tides', to: 'c_collapse_global_tides', flow: 'tides1d', type: 'call',
+    purpose: 'Sum the mode terms with the dissipation multipliers.',
+    inputs: 'potential storage, Love numbers per mode', outputs: 'c_GlobalTideResult' },
+  { from: 'c_calc_tides', to: 'c_PhysicsLayer', flow: 'tides1d', type: 'make',
+    purpose: 'Resolve the heating of each layer: the volume integral of the radial solution for the radial methods ' +
+      '(the 3D engine with every axis summed), the scaled Love numbers of each layer for the quasi-homogeneous ' +
+      'methods, or the total times the layer tidal scale for an analytic tide model.',
+    inputs: 'world heating, radial solutions or layer Love numbers, tidal scales', outputs: 'per-layer heating [W]' },
+
+  // Tides 3D.
+  { from: 'calc_3d_tides', to: 'c_calc_3d', flow: 'tides3d', type: 'call',
+    purpose: 'Hand the grids and collapse flags to the rheology tide model, which needs a solved EOS and a ' +
+      'radial-solver Love method.',
+    inputs: 'orbital state, radii, colatitudes, longitudes, times, flags, threads',
+    outputs: 'heating grids and totals; displacement, stress, and strain grids' },
+  { from: 'c_calc_3d', to: 'c_global_potential', flow: 'tides3d', type: 'call',
+    purpose: 'The same mode enumeration as the 1D path.',
+    inputs: 'state, degree range, truncations', outputs: 'modes with coefficients and signed frequencies' },
+  { from: 'c_calc_3d', to: 'c_build_wave_set_3d', flow: 'tides3d', type: 'call',
+    purpose: 'Merge the modes into coherent waves and radial groups.',
+    inputs: 'modes', outputs: 'waves, frequencies, one radial group per unique (l, |frequency|)' },
+  { from: 'c_calc_3d', to: 'c_solve_love_world', flow: 'tides3d', type: 'call',
+    purpose: 'One radial solve per radial group (make_radial_love_solve_config rejects the analytic methods).',
+    inputs: 'degree, frequency', outputs: 'a c_RadialSolutionStorage to evaluate y(r)' },
+  { from: 'c_calc_3d', to: 'kernel', flow: 'tides3d', type: 'call',
+    purpose: 'At every grid point: strain and stress from y1..y4 and the complex moduli at the wave frequency; ' +
+      'the secular density sums over frequencies; collapse over colatitude, radius, and longitude when asked.',
+    inputs: 'y(r), moduli, angular factors, wave amplitudes',
+    outputs: 'heating density, displacements, stress, strain' },
+  { from: 'kernel', to: 'c_RadialSolutionStorage', flow: 'tides3d', type: 'call',
+    purpose: 'get_radial_solution(r) evaluates the dense interpolants and collapse constants at the point radius.',
+    inputs: 'SI radius', outputs: 'y1..y6 (SI)' },
+  { from: 'c_calc_3d', to: 'c_PhysicsLayer', flow: 'tides3d', type: 'call',
+    purpose: 'Complex moduli at the wave frequency and the layer solid and incompressible flags at each radius.',
+    inputs: 'radius, frequency', outputs: 'complex moduli, layer type' },
+
+  // System evolution.
+  { from: 'calc_world_evolution', to: 'c_calc_world_evolution', flow: 'system', type: 'call',
+    purpose: 'Rates for world i (calc_pair_evolution sums a host and satellite; calc_system_evolution runs every ' +
+      'world).',
+    inputs: 'world index', outputs: 'c_WorldEvolution as a dict' },
+  { from: 'c_calc_world_evolution', to: 'c_calc_tides', flow: 'system', type: 'call',
+    purpose: 'Fill c_TideSolveConfig from the system orbital elements and the world spin, then run the tidal solve.',
+    inputs: 'orbital frequency, spin, eccentricity, obliquity, semi-major axis, host mass',
+    outputs: 'heating, dU/dM, dU/dw, dU/dOmega' },
+  { from: 'c_calc_world_evolution', to: 'dynamics', flow: 'system', type: 'call',
+    purpose: 'c_OrbitSolver turns dU/dM and dU/dw into da/dt, de/dt, dn/dt; c_Spin turns dU/dOmega into dspin/dt ' +
+      'with the EOS moment of inertia. The energy residual checks heating = -(dE_orbit/dt + dE_spin/dt).',
+    inputs: 'orbit state, potential derivatives, moment of inertia', outputs: 'orbital and spin rates' },
+  { from: 'c_System', to: 'c_LayeredWorld', flow: 'system', type: 'call',
+    purpose: 'Insolation flux, equilibrium temperature, and the Kepler helpers read the worlds masses, radii, ' +
+      'albedo, emissivity, and the star luminosity model.',
+    inputs: 'world index', outputs: 'flux [W m-2], temperature [K], orbital frequency' },
+];
+
+// ====================================================================================================================
+// Layout: one column per lane, boxes stacked in the order listed above, sized to their wrapped labels.
+// ====================================================================================================================
+const NODE_W = 236, LANE_PAD = 14, LANE_BOX_W = NODE_W + 2 * LANE_PAD, GUTTER = 100;
+const LANE_PITCH = LANE_BOX_W + GUTTER, LEFT = 20, TOP = 64, GAP_Y = 38;
+const MIN_H = 62, LINE_H = 17, SUB_LINE_H = 14, PAD_Y = 13, LABEL_CHARS = 31, SUB_CHARS = 35;
+
+const nodeById = Object.fromEntries(NODES.map(n => [n.id, n]));
+// An edge naming a box that does not exist would stop the whole map from drawing: report it and leave it out.
+for (let i = EDGES.length - 1; i >= 0; i--) {
+  const edge = EDGES[i];
+  if (!nodeById[edge.from] || !nodeById[edge.to]) {
+    console.error(`code map: edge ${edge.from} -> ${edge.to} names a box that is not in NODES; skipped.`);
+    EDGES.splice(i, 1);
+  }
+}
+const laneIndex = Object.fromEntries(LANES.map((l, i) => [l.id, i]));
+
+// Wrap a label at maxChars; a word longer than that breaks after a dot or an opening parenthesis.
+function wrap(text, maxChars) {
+  const lines = [];
+  let line = '';
+  const push = word => {
+    if (!line) line = word;
+    else if ((line + ' ' + word).length <= maxChars) line += ' ' + word;
+    else { lines.push(line); line = word; }
+  };
+  text.split(' ').forEach(word => {
+    if (word.length <= maxChars) { push(word); return; }
+    let chunk = '';
+    word.split(/(?<=[.(])/).forEach(piece => {
+      if ((chunk + piece).length <= maxChars) chunk += piece;
+      else { if (chunk) push(chunk); chunk = piece; }
+    });
+    if (chunk) push(chunk);
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+
+NODES.forEach(n => {
+  n.lines = wrap(n.label, LABEL_CHARS);
+  n.subLines = n.sub ? wrap(n.sub, SUB_CHARS) : [];
+  const textHeight = n.lines.length * LINE_H + (n.subLines.length ? n.subLines.length * SUB_LINE_H + 4 : 0);
+  n.h = Math.max(MIN_H, 2 * PAD_Y + textHeight);
+});
+let worldHeight = 0;
+LANES.forEach((lane, li) => {
+  let y = TOP;
+  NODES.filter(n => n.lane === lane.id).forEach((n, row) => {
+    n.laneIndex = li; n.row = row;
+    n.x = LEFT + li * LANE_PITCH + LANE_PAD;
+    n.y = y;
+    y += n.h + GAP_Y;
+  });
+  worldHeight = Math.max(worldHeight, y - GAP_Y);
+});
+const WORLD_W = LEFT * 2 + LANES.length * LANE_PITCH - GUTTER;
+const WORLD_H = worldHeight + 24;
+
+const KIND_NAMES = { py: 'Python', cydef: 'Cython def', cycdef: 'Cython cdef class', cpp: 'C++' };
+const FILLS = { py: 'var(--py)', cydef: 'var(--cydef)', cycdef: 'var(--cycdef)', cpp: 'var(--cpp)' };
+const STROKES = { py: 'var(--py-stroke)', cydef: 'var(--cydef-stroke)', cycdef: 'var(--cycdef-stroke)',
+                  cpp: 'var(--cpp-stroke)' };
+const TYPE_NAMES = { call: 'calls', make: 'builds or returns' };
+
+// ====================================================================================================================
+// Edge routing: orthogonal paths. Same lane, adjacent rows: straight down (or up). Same lane, further apart: out of
+// the right side, along the lane's gutter, back into the right side. Different lanes: out of the facing side, along
+// the gutter next to the target lane, into the target. Each box hands out evenly spaced ports per side.
+// ====================================================================================================================
+function gutterLeft(g) { return LEFT + g * LANE_PITCH + LANE_BOX_W; }
+
+EDGES.forEach((edge, i) => {
+  edge.index = i;
+  const a = nodeById[edge.from], b = nodeById[edge.to];
+  if (a.laneIndex === b.laneIndex) {
+    if (b.row === a.row + 1) { edge.route = 'down'; edge.aSide = 'bottom'; edge.bSide = 'top'; }
+    else if (a.row === b.row + 1) { edge.route = 'up'; edge.aSide = 'top'; edge.bSide = 'bottom'; }
+    else { edge.route = 'side'; edge.aSide = 'right'; edge.bSide = 'right'; edge.gutter = a.laneIndex; }
+  } else if (b.laneIndex > a.laneIndex) {
+    edge.route = 'cross'; edge.aSide = 'right'; edge.bSide = 'left'; edge.gutter = b.laneIndex - 1;
+  } else {
+    edge.route = 'cross'; edge.aSide = 'left'; edge.bSide = 'right'; edge.gutter = b.laneIndex;
+  }
+});
+
+// Ports: for every box side, spread its edges evenly, ordered by where the other end sits.
+const portLists = {};
+function portKey(id, side) { return id + '|' + side; }
+EDGES.forEach(edge => {
+  const a = nodeById[edge.from], b = nodeById[edge.to];
+  (portLists[portKey(a.id, edge.aSide)] ||= []).push({ edge, end: 'a', other: b });
+  (portLists[portKey(b.id, edge.bSide)] ||= []).push({ edge, end: 'b', other: a });
+});
+Object.entries(portLists).forEach(([key, list]) => {
+  const [id, side] = key.split('|');
+  const n = nodeById[id];
+  const vertical = (side === 'left' || side === 'right');
+  list.sort((p, q) => vertical ? (p.other.y - q.other.y) : (p.other.x - q.other.x));
+  list.forEach((entry, i) => {
+    const frac = (i + 1) / (list.length + 1);
+    let x, y;
+    if (side === 'left') { x = n.x; y = n.y + 10 + frac * (n.h - 20); }
+    else if (side === 'right') { x = n.x + NODE_W; y = n.y + 10 + frac * (n.h - 20); }
+    else if (side === 'top') { x = n.x + 20 + frac * (NODE_W - 40); y = n.y; }
+    else { x = n.x + 20 + frac * (NODE_W - 40); y = n.y + n.h; }
+    if (entry.end === 'a') { entry.edge.ax = x; entry.edge.ay = y; } else { entry.edge.bx = x; entry.edge.by = y; }
+  });
+});
+
+// Gutter lanes: edges sharing a gutter get their own vertical track.
+const gutterLists = {};
+EDGES.forEach(edge => { if (edge.gutter !== undefined) (gutterLists[edge.gutter] ||= []).push(edge); });
+Object.entries(gutterLists).forEach(([g, list]) => {
+  list.sort((p, q) => Math.min(p.ay, p.by) - Math.min(q.ay, q.by));
+  const step = list.length > 1 ? Math.min(14, (GUTTER - 28) / (list.length - 1)) : 0;
+  const start = gutterLeft(Number(g)) + 14 + (GUTTER - 28 - step * (list.length - 1)) / 2;
+  list.forEach((edge, i) => { edge.gx = start + i * step; });
+});
+
+function pathFor(edge) {
+  const { ax, ay, bx, by, gx } = edge;
+  if (edge.route === 'down' || edge.route === 'up') {
+    if (Math.abs(ax - bx) < 0.5) return `M ${ax} ${ay} L ${bx} ${by}`;
+    const my = (ay + by) / 2;
+    return `M ${ax} ${ay} L ${ax} ${my} L ${bx} ${my} L ${bx} ${by}`;
+  }
+  return `M ${ax} ${ay} L ${gx} ${ay} L ${gx} ${by} L ${bx} ${by}`;
+}
+
+// ====================================================================================================================
+// Rendering
+// ====================================================================================================================
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('canvas');
+const panel = document.getElementById('panel');
+const tooltip = document.getElementById('tooltip');
+
+function el(name, attrs, parent) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs || {})) node.setAttribute(key, value);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+// Fixed-size arrowheads whose tip sits exactly at the end of the path (the box edge).
+const defs = el('defs', {}, svg);
+function marker(id, color) {
+  const m = el('marker', { id, viewBox: '0 0 10 10', refX: 10, refY: 5, markerWidth: 11, markerHeight: 11,
+                           markerUnits: 'userSpaceOnUse', orient: 'auto' }, defs);
+  el('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: color }, m);
+}
+marker('arrow-call', '#1f5fbf');
+marker('arrow-make', '#7b3fa0');
+
+const root = el('g', { id: 'root' }, svg);
+
+// Lane backgrounds and titles.
+LANES.forEach((lane, i) => {
+  const x = LEFT + i * LANE_PITCH;
+  el('rect', { class: 'lane-box', x, y: 16, width: LANE_BOX_W, height: WORLD_H - 28, rx: 10 }, root);
+  const t = el('text', { class: 'lane-title', x: x + LANE_BOX_W / 2, y: 42, 'text-anchor': 'middle' }, root);
+  t.textContent = lane.title;
+});
+
+const edgeLayer = el('g', { id: 'edges' }, root);
+EDGES.forEach(edge => {
+  const d = pathFor(edge);
+  const isMember = edge.kind === 'member';
+  const cls = 'edge ' + (isMember ? 'member' : edge.type);
+  edge.path = el('path', { class: cls, d, 'data-index': edge.index }, edgeLayer);
+  if (!isMember) {
+    edge.path.setAttribute('marker-end', `url(#arrow-${edge.type})`);
+    edge.hit = el('path', { class: 'edge-hit', d, 'data-index': edge.index }, edgeLayer);
+    edge.hit.addEventListener('mousemove', evt => showEdgeTooltip(edge, evt));
+    edge.hit.addEventListener('mouseleave', hideTooltip);
+  }
+});
+
+const nodeLayer = el('g', { id: 'nodes' }, root);
+NODES.forEach(n => {
+  const g = el('g', { class: 'node', 'data-id': n.id, transform: `translate(${n.x}, ${n.y})` }, nodeLayer);
+  n.g = g;
+  el('rect', { width: NODE_W, height: n.h, rx: n.shape === 'class' ? 16 : 0, fill: FILLS[n.kind],
+               stroke: STROKES[n.kind] }, g);
+  const textHeight = n.lines.length * LINE_H + (n.subLines.length ? n.subLines.length * SUB_LINE_H + 4 : 0);
+  let y = (n.h - textHeight) / 2 + 13;
+  n.lines.forEach(line => {
+    const t = el('text', { x: NODE_W / 2, y, 'text-anchor': 'middle' }, g);
+    t.textContent = line;
+    y += LINE_H;
+  });
+  y += 2;
+  n.subLines.forEach(line => {
+    const t = el('text', { class: 'sub', x: NODE_W / 2, y, 'text-anchor': 'middle' }, g);
+    t.textContent = line;
+    y += SUB_LINE_H;
+  });
+  if (n.star) {
+    const star = el('text', { class: 'star', x: 6, y: 17 }, g);
+    star.textContent = '★';
+  }
+  g.addEventListener('click', evt => { evt.stopPropagation(); toggleFocus(n.id); });
+  g.addEventListener('mousemove', evt => showNodeTooltip(n, evt));
+  g.addEventListener('mouseleave', hideTooltip);
+});
+
+// ====================================================================================================================
+// Interaction: focus a box, trace a flow, search, tooltips, pan and zoom.
+// ====================================================================================================================
+let focusId = null, activeFlow = null;
+
+function edgesOf(id) { return EDGES.filter(e => e.from === id || e.to === id); }
+
+function applyState() {
+  const highlightNodes = new Set(), highlightEdges = new Set();
+  if (focusId) {
+    highlightNodes.add(focusId);
+    edgesOf(focusId).forEach(e => {
+      highlightEdges.add(e.index); highlightNodes.add(e.from); highlightNodes.add(e.to);
+    });
+  } else if (activeFlow) {
+    EDGES.filter(e => e.flow === activeFlow).forEach(e => {
+      highlightEdges.add(e.index); highlightNodes.add(e.from); highlightNodes.add(e.to);
+    });
+  }
+  const dim = highlightNodes.size > 0;
+  NODES.forEach(n => {
+    n.g.classList.toggle('faded', dim && !highlightNodes.has(n.id));
+    n.g.classList.toggle('focus', n.id === focusId);
+  });
+  EDGES.forEach(e => {
+    const on = highlightEdges.has(e.index);
+    e.path.classList.toggle('on', on);
+    e.path.classList.toggle('faded', dim && !on);
+  });
+  document.querySelectorAll('#flows button').forEach(b => b.classList.toggle('active', b.dataset.flow === activeFlow));
+}
+
+function toggleFocus(id) {
+  focusId = (focusId === id) ? null : id;
+  activeFlow = null;
+  applyState();
+  if (focusId) showNodePanel(nodeById[focusId]); else showIntroPanel();
+}
+
+function setFlow(flow) {
+  activeFlow = (activeFlow === flow) ? null : flow;
+  focusId = null;
+  applyState();
+  if (activeFlow) showFlowPanel(activeFlow); else showIntroPanel();
+}
+
+function clearAll() {
+  focusId = null; activeFlow = null;
+  document.getElementById('search').value = '';
+  NODES.forEach(n => n.g.classList.remove('match'));
+  applyState();
+  showIntroPanel();
+}
+
+svg.addEventListener('click', () => { if (focusId || activeFlow) clearAll(); });
+document.querySelectorAll('#flows button').forEach(b => b.addEventListener('click', () => setFlow(b.dataset.flow)));
+document.getElementById('reset').addEventListener('click', () => { clearAll(); fit(); });
+document.getElementById('fit').addEventListener('click', fit);
+document.getElementById('search').addEventListener('input', evt => {
+  const text = evt.target.value.trim().toLowerCase();
+  NODES.forEach(n => {
+    const hay = (n.label + ' ' + (n.sub || '') + ' ' + n.file).toLowerCase();
+    n.g.classList.toggle('match', text.length > 0 && hay.includes(text));
+  });
+});
+
+// Side panel.
+function escapeHtml(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function badge(n) {
+  return `<span class="badge" style="background:${FILLS[n.kind]};border-color:${STROKES[n.kind]}">` +
+    `${KIND_NAMES[n.kind]} ${n.shape === 'class' ? 'class' : 'function'}</span>` +
+    (n.star ? '<span class="badge" style="border-color:#b58900;background:#fff7d6">entry point</span>' : '');
+}
+function callHtml(edge, otherId, verb) {
+  const other = nodeById[otherId];
+  return `<div class="call"><span class="dot ${edge.type}"></span>${verb} ` +
+    `<span class="to" data-jump="${other.id}">${escapeHtml(other.label)}</span>` +
+    `<div>${escapeHtml(edge.purpose)}</div>` +
+    `<div class="io"><b>In:</b> ${escapeHtml(edge.inputs)}<br><b>Out:</b> ${escapeHtml(edge.outputs)}</div></div>`;
+}
+function bindJumps() {
+  panel.querySelectorAll('[data-jump]').forEach(elm => elm.addEventListener('click', () => {
+    focusId = null; toggleFocus(elm.dataset.jump);
+  }));
+}
+function showNodePanel(n) {
+  const outgoing = EDGES.filter(e => e.from === n.id && e.kind !== 'member');
+  const incoming = EDGES.filter(e => e.to === n.id && e.kind !== 'member');
+  const owner = EDGES.find(e => e.to === n.id && e.kind === 'member');
+  const members = EDGES.filter(e => e.from === n.id && e.kind === 'member');
+  let html = `<h2>${n.star ? '★ ' : ''}${escapeHtml(n.label)}</h2>${badge(n)}` +
+    `<div class="file">${escapeHtml(n.file)}</div><p>${escapeHtml(n.purpose)}</p>` +
+    `<p class="io"><b>Inputs:</b> ${escapeHtml(n.inputs)}<br><b>Outputs:</b> ${escapeHtml(n.outputs)}</p>`;
+  if (owner) html += `<p>Method of <span class="to" data-jump="${owner.from}" style="cursor:pointer;` +
+    `text-decoration:underline">${escapeHtml(nodeById[owner.from].label)}</span>.</p>`;
+  if (members.length) html += '<h3>Methods drawn on the map</h3>' + members.map(e =>
+    `<div class="call"><span class="to" data-jump="${e.to}">${escapeHtml(nodeById[e.to].label)}</span></div>`).join('');
+  html += `<h3>Outgoing (${outgoing.length})</h3>` +
+    (outgoing.map(e => callHtml(e, e.to, TYPE_NAMES[e.type])).join('') || '<p>None drawn.</p>');
+  html += `<h3>Incoming (${incoming.length})</h3>` +
+    (incoming.map(e => callHtml(e, e.from, e.type === 'call' ? 'called by' : 'built or filled by')).join('') ||
+     '<p>None drawn.</p>');
+  panel.innerHTML = html + legendHtml();
+  bindJumps();
+}
+function showFlowPanel(flow) {
+  const f = FLOWS[flow];
+  const chain = EDGES.filter(e => e.flow === flow);
+  let html = `<h2 style="color:${f.color}">${escapeHtml(f.name)}</h2><p>${escapeHtml(f.text)}</p>` +
+    `<h3>Steps in this flow (${chain.length})</h3>`;
+  html += chain.map(e =>
+    `<div class="call"><span class="dot ${e.type}"></span>` +
+    `<span class="to" data-jump="${e.from}">${escapeHtml(nodeById[e.from].label)}</span>` +
+    ` &rarr; <span class="to" data-jump="${e.to}">${escapeHtml(nodeById[e.to].label)}</span>` +
+    `<div>${escapeHtml(e.purpose)}</div></div>`).join('');
+  panel.innerHTML = html + legendHtml();
+  bindJumps();
+}
+function showIntroPanel() {
+  const stars = NODES.filter(n => n.star);
+  panel.innerHTML = '<h2>How to read the map</h2>' +
+    '<p>Each column is one part of the new backend; boxes are stacked from the Python entry points at the top ' +
+    'to the C++ core at the bottom. Blue arrows point from a caller to what it calls; purple arrows point from a ' +
+    'builder to what it builds, fills, or returns. Dashed lines connect a class to the methods drawn separately. ' +
+    'Only the big-picture components are shown; helpers and per-model classes are folded into one box each.</p>' +
+    '<h3>Entry points</h3>' + stars.map(n =>
+      `<div class="call"><span class="to" data-jump="${n.id}">★ ${escapeHtml(n.label)}</span>` +
+      `<div class="io">${escapeHtml(n.purpose)}</div></div>`).join('') + legendHtml();
+  bindJumps();
+}
+function legendHtml() {
+  const swatch = (kind, round, text) =>
+    `<div class="row"><span class="swatch${round ? ' round' : ''}" style="background:${FILLS[kind]};` +
+    `border-color:${STROKES[kind]}"></span>${text}</div>`;
+  const arrow = (color, dash, text) =>
+    `<div class="row"><svg width="34" height="12"><line x1="0" y1="6" x2="26" y2="6" stroke="${color}" ` +
+    `stroke-width="2"${dash ? ' stroke-dasharray="5 4"' : ''}/>` +
+    (dash ? '' : `<path d="M 24 1 L 34 6 L 24 11 z" fill="${color}"/>`) + `</svg>${text}</div>`;
+  return '<div class="legend"><h3>Legend</h3>' +
+    swatch('py', false, 'Python') + swatch('cydef', false, 'Cython def (Python-callable)') +
+    swatch('cycdef', true, 'Cython cdef class') + swatch('cpp', true, 'C++ (rounded: class, sharp: function)') +
+    '<div class="row"><span style="color:#f9a825;font-size:18px;width:30px;text-align:center">★</span>' +
+    'entry point</div>' +
+    arrow('#1f5fbf', false, 'calls (hover for purpose, inputs, outputs)') +
+    arrow('#7b3fa0', false, 'builds, fills, or returns') +
+    arrow('#8a93a6', true, 'method of this class') + '</div>';
+}
+
+// Tooltips.
+function place(evt) {
+  const wrapBox = document.getElementById('canvas-wrap').getBoundingClientRect();
+  let x = evt.clientX - wrapBox.left + 14, y = evt.clientY - wrapBox.top + 14;
+  if (x + 350 > wrapBox.width) x = Math.max(4, evt.clientX - wrapBox.left - 350);
+  if (y + 140 > wrapBox.height) y = Math.max(4, evt.clientY - wrapBox.top - 120);
+  tooltip.style.left = x + 'px'; tooltip.style.top = y + 'px'; tooltip.style.display = 'block';
+}
+function showNodeTooltip(n, evt) {
+  tooltip.innerHTML = `<b>${escapeHtml(n.label)}</b><br>${escapeHtml(n.purpose)}`;
+  place(evt);
+}
+function showEdgeTooltip(edge, evt) {
+  tooltip.innerHTML = `<b>${escapeHtml(nodeById[edge.from].label)} ${TYPE_NAMES[edge.type]} ` +
+    `${escapeHtml(nodeById[edge.to].label)}</b><br>${escapeHtml(edge.purpose)}<br><b>In:</b> ` +
+    `${escapeHtml(edge.inputs)}<br><b>Out:</b> ${escapeHtml(edge.outputs)}`;
+  place(evt);
+}
+function hideTooltip() { tooltip.style.display = 'none'; }
+
+// Pan and zoom through the viewBox.
+let view = { x: 0, y: 0, w: WORLD_W, h: WORLD_H };
+function setView() { svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`); }
+function fit() {
+  const box = svg.getBoundingClientRect();
+  const aspect = box.width / Math.max(box.height, 1);
+  let w = WORLD_W, h = WORLD_W / aspect;
+  if (h < WORLD_H) { h = WORLD_H; w = WORLD_H * aspect; }
+  view = { x: (WORLD_W - w) / 2, y: (WORLD_H - h) / 2, w, h };
+  setView();
+}
+svg.addEventListener('wheel', evt => {
+  evt.preventDefault();
+  const box = svg.getBoundingClientRect();
+  const px = view.x + (evt.clientX - box.left) / box.width * view.w;
+  const py = view.y + (evt.clientY - box.top) / box.height * view.h;
+  const factor = evt.deltaY > 0 ? 1.12 : 1 / 1.12;
+  const w = Math.min(Math.max(view.w * factor, WORLD_W / 6), WORLD_W * 3);
+  const h = view.h * (w / view.w);
+  view = { x: px - (px - view.x) * (w / view.w), y: py - (py - view.y) * (h / view.h), w, h };
+  setView();
+}, { passive: false });
+let drag = null;
+svg.addEventListener('mousedown', evt => {
+  drag = { x: evt.clientX, y: evt.clientY, vx: view.x, vy: view.y, moved: false };
+  svg.classList.add('dragging');
+});
+window.addEventListener('mousemove', evt => {
+  if (!drag) return;
+  const box = svg.getBoundingClientRect();
+  const dx = (evt.clientX - drag.x) / box.width * view.w, dy = (evt.clientY - drag.y) / box.height * view.h;
+  if (Math.abs(evt.clientX - drag.x) + Math.abs(evt.clientY - drag.y) > 3) drag.moved = true;
+  view.x = drag.vx - dx; view.y = drag.vy - dy; setView();
+});
+window.addEventListener('mouseup', () => { if (drag) { svg.classList.remove('dragging'); drag = null; } });
+// A drag must not count as a background click.
+svg.addEventListener('click', evt => { if (drag && drag.moved) evt.stopImmediatePropagation(); }, true);
+window.addEventListener('resize', fit);
+
+fit();
+showIntroPanel();
+</script>
+</body>
+</html>

@@ -19,7 +19,9 @@ cimport numpy as cnp
 cnp.import_array()
 
 from TidalPy.exceptions import ArgumentException
-from TidalPy.constants cimport d_G, d_NAN
+from TidalPy.constants cimport d_NAN, TidalPyConfig, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
+
 from TidalPy.RadialSolver cimport RadialSolverSolution
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.tides.multilayer.sensitivity cimport cf_calc_sensitivity_to_shear, cf_calc_sensitivity_to_bulk
@@ -104,7 +106,7 @@ def calc_radial_volumetric_tidal_heating(
         double[::1] radial_sensitivity_to_bulk_arr,
         double complex[::1] complex_bulk_modulus_arr,
         int degree_l = 2,
-        double G_to_use = d_G,
+        double G_to_use = tidalpy_config_ptr.d_G,
         cpp_bool perform_checks = True
         ):
 
@@ -231,7 +233,7 @@ def calc_radial_volumetric_tidal_heating_from_rs_solution(
         radial_sensitivity_to_bulk_ptr,
         bulk_modulus_array_ptr,
         degree_l,
-        d_G
+        tidalpy_config_ptr.d_G
         )
     
     return radial_volumetric_tidal_heating_arr

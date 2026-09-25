@@ -1,0 +1,111 @@
+# Io, the most tidally heated body known, as the asthenosphere end-member of Segatz et al. (1988):
+# an Fe-FeS core, a warm solid silicate mantle, and a thin melt-weakened asthenosphere in which almost
+# all of the dissipation happens.
+#
+# Structure. The asthenosphere is 100 km thick, consistent with the melt layer of at least 50 km and at
+# least 20% melt that Khurana et al. (2011) inferred from Galileo magnetometer data. With the core
+# density fixed at the 5150 kg/m3 of the Fe-FeS core in the standard interior models (Anderson et al.
+# 2001) and the asthenosphere at 3200 kg/m3 for partially molten silicate, the mantle's Birch-Murnaghan
+# reference density is whatever reproduces the published mass: 3344.887 kg/m3. That gives a surface
+# gravity of 1.7964 m/s2 (observed 1.796) and a central pressure of 7.34 GPa. The core is left
+# incompressible because its composition is the least constrained part of the model (the classic file
+# used a half-pyrite, half-iron mix), so a bulk modulus for it would be invented precision. The
+# moment-of-inertia factor comes out at C/MR2 = 0.3832 against the measured 0.37685 (Anderson et al.
+# 2001), 1.7 percent high; the core radius is the lever if that matters for your work.
+#
+# Temperatures and viscosities
+# Every layer carries a temperature (`temperature_k`) and every solid layer a reference-law viscosity,
+# eta = eta_ref exp[(E/R)(1/T - 1/T_ref)] with E = 300 kJ/mol, whose reference temperature is the
+# layer's own, so the reference viscosity is the viscosity the layer has now and the law says how it
+# changes when the temperature does. The core is solid iron at 1900 K and 1e20 Pa s (it dissipates
+# 6e-6 of the total). The mantle is warm solid silicate at 1600 K and 1e19 Pa s. The asthenosphere
+# sits at the 1600 K solidus of its default partial-melt model, so no melt acts on it; its weakening
+# is in its static shear modulus, 1e9 Pa against 6e10 Pa for the solid mantle.
+#
+# Tides
+# The asthenosphere viscosity is the one fitted number: 3.5362e12 Pa s gives a total tidal heating of
+# 9.330e13 W with Jupiter's mass and Io's orbit (a = 4.217e8 m, e = 0.0041, synchronous rotation),
+# the astrometric value of Lainey et al. (2009), (9.33 +/- 1.83)e13 W, or about 2.2 W/m2 at the
+# surface. calc_tides splits that total between the layers by the depth-resolved heating of the radial
+# solution: core 6.4e-6, mantle 0.0408747, asthenosphere 0.9591189.
+#
+# Orbital state is not a world property in this schema; add Io to a System to give it an orbit. The
+# spin frequency is the synchronous rate from the classic file's 1.769 day spin period, which differs
+# from a System's Kepler mean motion by about 2e-4; the slow 2(n - spin) tide at that difference then
+# dominates the heating. In a System, keep Io synchronous with
+# world.set_spin_frequency(system.calc_orbital_frequency(world)).
+schema_version = "0.2.0"
+name = "Io"
+type = "terrestrial"
+radius_m = 1821490.0
+mass_kg = 8.9298e22
+spin_frequency_rad_s = 4.110913e-05
+albedo = 0.63
+
+# The layer temperatures below are prescribed, not solved: the fits hold at exactly these values, so the
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
+[layers.core]
+class = "solidliquid"
+type = "iron"
+layer_index = 0
+radius_outer_m = 810000.0
+is_tidal = true
+temperature_k = 1900.0
+
+[layers.core.material]
+model = "constant"
+reference_density_kg_m3 = 5150.0
+
+[layers.core.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e20        # solid iron core
+reference_temperature_k = 1900.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 1
+radius_outer_m = 1721490.0
+is_tidal = true
+temperature_k = 1600.0
+
+[layers.mantle.material]
+model = "bm"
+shear_modulus_static_pa = 6.0e10
+reference_density_kg_m3 = 3344.8870
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+
+[layers.mantle.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e19        # warm solid silicate
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.asthenosphere]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 2
+radius_fraction = 1.0
+is_tidal = true
+temperature_k = 1600.0                  # at the solidus of the default partial-melt model
+
+[layers.asthenosphere.material]
+model = "bm"
+shear_modulus_static_pa = 1.0e9       # melt-weakened, against 6e10 Pa for the solid mantle
+reference_density_kg_m3 = 3200.0      # partially molten silicate
+reference_bulk_modulus_pa = 1.28e11
+bulk_modulus_derivative = 4.2
+
+[layers.asthenosphere.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 3.5362e12     # fitted to Io's observed heat output
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0

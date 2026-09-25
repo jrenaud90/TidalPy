@@ -1,0 +1,32 @@
+# Example-Star: a star, which has no layers and no equation of state, showing the two stellar scalars, the
+# world-level [luminosity] model table (stars only), and the cpl tide model a star dissipates with.
+#
+# A star's own tides are analytic (cpl, ctl, or ctl_q); its role in a System is the insolation source, and its
+# luminosity comes from `luminosity_w` when set, otherwise from the [luminosity] model, otherwise from the
+# effective temperature by Stefan-Boltzmann.
+
+schema_version = "0.2.0"
+name = "Example-Star"
+type = "star"
+radius_m = 6.957e8
+mass_kg = 1.989e30
+albedo = 0.0
+emissivity = 1.0
+obliquity_rad = 0.0
+spin_frequency_rad_s = 2.9e-6
+effective_temperature_k = 5772.0    # the photospheric temperature
+luminosity_w = 3.828e26             # a fixed luminosity; zero leaves it to the model or to the temperature
+
+[luminosity]
+model = "power_law"                 # fixed (constant; takes luminosity_w) | mass_to_luminosity (cuntz_wang) | power_law
+power_law_coeff = 3.828e26          # L = coeff (M / M_sun)^exponent; the coefficient's units follow the exponent
+power_law_exponent = 3.5
+
+[tides]
+global_tidal_model = "cpl"          # constant phase lag: k_l (1 - i / Q_l)
+fixed_k = [0.03, 0.01]
+fixed_q = [1.0e6, 1.0e6]
+min_degree_l = 2
+max_degree_l = 3
+eccentricity_trunc_lvl = 2
+obliquity_trunc_lvl = "off"

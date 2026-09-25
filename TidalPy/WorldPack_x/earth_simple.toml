@@ -1,0 +1,102 @@
+# Earth-Simple: a three-layer Earth for the structures_x world builder, and the worked example of its
+# schema. A solid inner core and a static liquid outer core under a tidally active rocky mantle, with the
+# published mass, moment of inertia, and degree-2 Love number reproduced; earth_prem is the seismic
+# profile for work that needs one.
+#
+# Each layer names a `class` (which layer class to build) and a material `type`; the per-material
+# parameter defaults (EOS, rheology, viscosity, melt, cooling, radiogenics) are pulled from the matching
+# [layers.<type>] block of TidalPy_Configs_x.toml. Any of those can be overridden here by adding the
+# corresponding key or [..] sub-table, as the viscosity laws below are. Layers are built inner-to-outer:
+# the inner radius is derived from the previous layer (0 for the innermost), and each layer's outer
+# radius is set by exactly one of radius_outer_m, radius_fraction (* world radius), or volume_fraction
+# (* world volume).
+#
+# Structure
+# The core boundaries are PREM's: 1221.5 km for the inner core and 3480 km for the core-mantle boundary.
+# The inner core is fixed at 12900 kg/m3 (PREM's inner core runs 12.76 to 13.09), and two numbers are
+# fitted to two observables: the outer core's uniform density, 11384.6 kg/m3 (PREM averages 10.9), gives
+# with the mantle's Birch-Murnaghan reference density, 3516.322 kg/m3, the published mass of 5.972e24 kg
+# and a moment-of-inertia factor of C/MR2 = 0.3307 (Williams 1994). Surface gravity is 9.820 m/s2 and the
+# central pressure 365 GPa against PREM's 364.
+#
+# Temperatures and viscosities
+# Every layer carries a temperature and every solid layer a reference-law viscosity whose reference
+# temperature is the layer's own (see io.toml; E = 300 kJ/mol): the inner core at 5500 K and 1e20 Pa s,
+# the outer core at 4500 K, and the mantle at 1600 K and 1e21 Pa s with the Andrade rheology of the
+# silicate defaults.
+#
+# Tides
+# With the liquid outer core, the mantle's shear modulus is the one number fitted to a tidal observable:
+# 2.211e11 Pa gives k2 = 0.300 at the 12.4206 hour semidiurnal (M2) period, the solid-Earth value
+# (Wahr 1981; a uniform elastic mantle over a liquid core needs a higher rigidity than the real Earth's
+# average to be this stiff). The mantle's Q at that period is 246, near the 280 of the solid Earth, which
+# was not fitted. The mantle dissipates all but 6e-9 of the tidal heat (the inner core the rest), as
+# calc_tides reports per layer; with the Moon's mass and the lunar orbit (a = 3.844e8 m, e = 0.0549) and
+# Earth's rotation the total is 1.5e11 W.
+#
+# Orbital state is not a world property in this schema; add Earth to a System to give it an orbit.
+schema_version = "0.2.0"
+name = "Earth-Simple"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+
+# The layer temperatures below are prescribed, not solved: the fits hold at exactly these values, so the
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
+[layers.inner_core]
+class = "solidliquid"
+type = "iron"
+layer_index = 0
+radius_outer_m = 1221500.0            # PREM inner-core boundary
+is_tidal = true
+temperature_k = 5500.0
+
+[layers.inner_core.material]
+model = "constant"
+reference_density_kg_m3 = 12900.0     # PREM inner core, 12.76 to 13.09
+
+[layers.inner_core.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e20
+reference_temperature_k = 5500.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.outer_core]
+class = "solidliquid"
+type = "iron"
+layer_index = 1
+radius_outer_m = 3480000.0            # PREM core-mantle boundary
+is_tidal = false
+is_solid = false                      # fluid outer core, solved as a static liquid
+temperature_k = 4500.0
+
+[layers.outer_core.material]
+model = "constant"
+reference_density_kg_m3 = 11384.6     # fitted, with the mantle density, to the mass and C/MR2
+
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 2
+radius_fraction = 1.0                 # outer radius = full world radius
+is_tidal = true
+temperature_k = 1600.0
+
+[layers.mantle.material]
+model = "bm"
+shear_modulus_static_pa = 2.211e11    # fitted to k2 = 0.30 at the M2 period with the liquid outer core
+reference_density_kg_m3 = 3516.322    # fitted, with the outer core density, to the mass and C/MR2
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+
+[layers.mantle.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e21
+reference_temperature_k = 1600.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0

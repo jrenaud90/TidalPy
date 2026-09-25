@@ -1,0 +1,27 @@
+# TRAPPIST-1: the M8V host of the seven-planet system, as a star world for the structures_x world builder.
+# Stars carry no layers and no equation of state.
+#
+# Mass and radius are the values in TidalPy's constants_.hpp, 0.0898 solar masses and 0.1192 solar radii.
+# The mass is Agol et al. (2021), who take it from the Mann et al. (2019) calibration with the Gaia
+# parallax. The radius is Delrez et al. (2018); Agol's own stellar density, 53.22 solar densities with the
+# inclination prior, implies 0.11905 solar radii with that mass, 0.1 percent smaller.
+#
+# The luminosity is Agol et al. (2021), 5.474e-4 solar luminosities, and is stated rather than derived:
+# Stefan-Boltzmann with the radius and effective temperature above gives 5.55e-4, 1.4 percent higher, so
+# the three published values are not exactly consistent with one another and the measured luminosity is
+# the one to keep. The effective temperature is 2566 K.
+schema_version = "0.2.0"
+name = "TRAPPIST-1"
+type = "star"
+radius_m = 82927440.0
+mass_kg = 1.785615e29
+effective_temperature_k = 2566.0
+luminosity_w = 2.095447e23
+
+# The star's tide: TRAPPIST-1 is fully convective, so its structure is close to an n = 1.5 polytrope, whose fluid
+# Love numbers are these (k2 = 0.287), with a modified tidal quality factor Q' = 3 Q / (2 k2) = 1e6, the usual
+# assumption for stellar tides (M-dwarf values are poorly constrained, roughly 1e5 to 1e7).
+[tides]
+global_tidal_model = "fixed_q"
+fixed_k = [0.287, 0.106, 0.0548, 0.0331, 0.022, 0.0155, 0.0114, 0.00872, 0.00684]
+fixed_q = [1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5, 1.91e5]

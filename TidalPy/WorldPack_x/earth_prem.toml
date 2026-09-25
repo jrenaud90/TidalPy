@@ -1,0 +1,34 @@
+# PREM Earth for the structures_x world builder, built from a radial data file.
+#
+# `data_file` points to a delimited radial profile giving radius, density, Vp, and Vs
+# (and, optionally, a shear and a bulk viscosity). Columns are found by name, so their
+# order does not matter and they may state their units. On build the profile is split
+# into layers by shear modulus (Vs = 0 -> liquid; each solid<->liquid transition starts
+# a new layer, named layer_0, layer_1, ... from the center outward), and each layer's
+# slice of the profile becomes its material: an interpolated EOS carrying that layer's
+# density and static shear/bulk moduli. A liquid layer is flagged `is_solid = false`.
+# The bundled PREM.csv replaces PREM's 3 km surface ocean with the upper crust, so it
+# gives three layers: inner core (solid), outer core (liquid), and mantle plus crust
+# (solid). It names no viscosity, so the body is elastic and its degree-2 Love number
+# k2 is about 0.30, purely real.
+#
+# A profile holds no complex moduli, so a rheology is still named in a layer table, as
+# are a cooling model and radiogenics. Add a [layers.<name>] table with a `layer_index`
+# saying which detected layer it refines (or call it layer_N); only the layers you are
+# refining need one, and a provided outer radius must match the detected boundary. A
+# viscoelastic rheology also needs a viscosity, which this profile does not carry, for
+# example:
+#   [layers.mantle]
+#   layer_index = 2
+#   [layers.mantle.shear_rheology]
+#   model = "maxwell"
+#   [layers.mantle.material]
+#   shear_viscosity_static_pas = 1.0e21
+# See Documentation/structures_x/config/toml_schema.md.
+schema_version = "0.2.0"
+name = "Earth-PREM"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+data_file = "PREM.csv"

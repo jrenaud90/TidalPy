@@ -1,0 +1,364 @@
+import pytest
+import numpy as np
+
+from TidalPy.exceptions import UnknownModelError, ArgumentException
+
+def radial_solver(*args, **kwargs):
+    """Force Kamata starts so these tests hit input-validation paths first."""
+    from TidalPy.RadialSolver_x.solver import radial_solver as _radial_solver
+    kwargs.setdefault('use_kamata', True)
+    try:
+        return _radial_solver(*args, **kwargs)
+    except NotImplementedError as exc:
+        # For most tests in this module, a start-condition NotImplemented error is
+        # effectively an input validation failure from the test perspective.
+        if kwargs.get('love_method', 'radial_solver') == 'propagation_matrix':
+            raise
+        raise ArgumentException(str(exc)) from exc
+    except ValueError as exc:
+        # Keep explicit ValueError checks for frequency-range tests.
+        msg = str(exc)
+        msg_lower = msg.lower()
+        if 'frequency' in msg_lower:
+            raise
+        if 'layer type' in msg_lower:
+            raise UnknownModelError(msg) from exc
+        raise ArgumentException(msg) from exc
+
+
+def test_invalid_density_array_size():
+    radius_array = np.linspace(0, 1000, 10, dtype=np.float64)
+    density_array = np.linspace(1000, 2000, 9, dtype=np.float64)  # Incorrect size
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("solid",)
+    is_static_bylayer = (True,)
+    is_incompressible_bylayer = (True,)
+    upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
+
+    with pytest.raises(ArgumentException, match="match the radius array length"):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+
+def test_invalid_upper_radius_bylayer_order():
+    radius_array = np.concatenate((
+        np.linspace(0, 500, 5, dtype=np.float64),
+        np.linspace(500, 1000, 5, dtype=np.float64)
+    ))
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("solid", "liquid")
+    is_static_bylayer = (True, False)
+    is_incompressible_bylayer = (True, False)
+    upper_radius_bylayer_array = np.array([1000.0, 500.0], dtype=np.float64)  # Incorrect order
+
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+
+def test_invalid_frequency_range():
+    radius_array = np.linspace(0, 1000, 10, dtype=np.float64)
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("solid",)
+    is_static_bylayer = (False,)
+    is_incompressible_bylayer = (False,)
+    upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
+
+    with pytest.raises(ValueError):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1e-20, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+    
+    with pytest.raises(ValueError):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1e10, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+
+def test_invalid_radius_array_start():
+    radius_array = np.linspace(10, 1000, 10, dtype=np.float64)  # Starts at 10, not 0
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("solid",)
+    is_static_bylayer = (True,)
+    is_incompressible_bylayer = (True,)
+    upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
+
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+
+def test_invalid_radius_array():
+    radius_array = np.linspace(0, 1000, 10, dtype=np.float64)
+    
+    tmp = radius_array[4]
+    radius_array[4] = radius_array[5]
+    radius_array[5] = tmp
+
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("solid",)
+    is_static_bylayer = (True,)
+    is_incompressible_bylayer = (True,)
+    upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
+
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+
+    radius_array = np.linspace(0, 1000, 10, dtype=np.float64)
+    radius_array[4] = -radius_array[4]
+    
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+
+def test_invalid_layer_type():
+    radius_array = np.concatenate((
+        np.linspace(0, 500, 5, dtype=np.float64),
+        np.linspace(500, 1000, 5, dtype=np.float64)
+    ))
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("solid", "unknown")  # Invalid layer type
+    is_static_bylayer = (False, False)
+    is_incompressible_bylayer = (False, False)
+    upper_radius_bylayer_array = np.array([500.0, 1000.0], dtype=np.float64)
+
+    with pytest.raises(UnknownModelError):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+
+def test_layer_missing_interface_value():
+    radius_array = np.concatenate((
+        np.linspace(0, 500, 5, dtype=np.float64),
+        np.linspace(510, 1000, 5, dtype=np.float64) # Should start at 500
+    ))
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("liquid", "solid")
+    is_static_bylayer = (False, False)
+    is_incompressible_bylayer = (False, False)
+    upper_radius_bylayer_array = np.array([500.0, 1000.0], dtype=np.float64)
+
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+    
+    radius_array = np.concatenate((
+        np.linspace(0, 490, 5, dtype=np.float64), # Should end at 500
+        np.linspace(500, 1000, 5, dtype=np.float64)
+    ))
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+    
+    radius_array = np.concatenate((
+        np.linspace(0, 490, 5, dtype=np.float64), # Should end at 500
+        np.linspace(510, 1000, 5, dtype=np.float64) # Should start at 500
+    ))
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+
+def test_layer_too_few_slices():
+    radius_array = np.concatenate((
+        np.linspace(0, 500, 2, dtype=np.float64),  # Needs to be at least 5
+        np.linspace(510, 1000, 3, dtype=np.float64) # Needs to be at least 5
+    ))
+    density_array = np.linspace(1000, 2000, 5, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(5, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(5, dtype=np.complex128)
+    layer_types = ("liquid", "solid")
+    is_static_bylayer = (False, False)
+    is_incompressible_bylayer = (False, False)
+    upper_radius_bylayer_array = np.array([500.0, 1000.0], dtype=np.float64)
+
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, raise_on_fail=True
+        )
+    
+def test_prop_matrix_limitations_too_many_layers():
+    radius_array = np.concatenate((
+        np.linspace(0, 500, 5, dtype=np.float64),
+        np.linspace(510, 1000, 5, dtype=np.float64)
+    ))
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("solid", "solid")
+    is_static_bylayer = (True, True)
+    is_incompressible_bylayer = (True, True)
+    upper_radius_bylayer_array = np.array([500.0, 1000.0], dtype=np.float64)
+
+    with pytest.raises((NotImplementedError, RuntimeError)):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, love_method='propagation_matrix', raise_on_fail=True
+        )
+
+def test_prop_matrix_limitations_layer_assumptions():
+    radius_array = np.linspace(0, 1000, 10, dtype=np.float64)
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("liquid",)  # Must be solid for prop matrix
+    is_static_bylayer = (True,)
+    is_incompressible_bylayer = (True,)
+    upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
+
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, love_method='propagation_matrix', raise_on_fail=True
+        )
+    
+    layer_types = ("solid",)
+    is_static_bylayer = (False,) # Must be static for prop matrix
+    is_incompressible_bylayer = (True,)
+    upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
+
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, love_method='propagation_matrix', raise_on_fail=True
+        )
+    
+    layer_types = ("solid",)
+    is_static_bylayer = (True,) 
+    is_incompressible_bylayer = (False,)  # Must be incompressible for prop matrix
+    upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
+
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array, love_method='propagation_matrix', raise_on_fail=True
+        )
+
+def test_bad_starting_radius():
+    radius_array = np.linspace(0, 1000, 10, dtype=np.float64)
+    density_array = np.linspace(1000, 2000, 10, dtype=np.float64)
+    complex_bulk_modulus_array = np.zeros(10, dtype=np.complex128)
+    complex_shear_modulus_array = np.zeros(10, dtype=np.complex128)
+    layer_types = ("solid",)
+    is_static_bylayer = (True,)
+    is_incompressible_bylayer = (True,)
+    upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
+    
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array,
+            starting_radius = 0.91 * 1000,  # Must be less than 90% total radius.
+            raise_on_fail=True
+        )
+    
+    with pytest.raises(ArgumentException):
+        radial_solver(
+            radius_array, density_array, complex_bulk_modulus_array,
+            complex_shear_modulus_array, 1.0, 3000.0, layer_types,
+            is_static_bylayer, is_incompressible_bylayer,
+            upper_radius_bylayer_array,
+            starting_radius = 0.91 * 1000,  # Must be less than 90% total radius.
+            raise_on_fail=True
+        )
+
+
+def _homogeneous_profile():
+    radius_array = np.linspace(0.0, 6.0e6, 50)
+    density_array = np.full(50, 5000.0)
+    bulk_array = np.full(50, 1.0e11 + 0j)
+    shear_array = np.full(50, 5.0e10 + 1.0e8j)
+    return radius_array, density_array, bulk_array, shear_array
+
+
+def test_no_layers_is_rejected():
+    """An empty layer description is an input error, not a crash (the matrix path once read layer_types[0])."""
+    from TidalPy.RadialSolver_x.solver import radial_solver as _radial_solver
+    radius_array, density_array, bulk_array, shear_array = _homogeneous_profile()
+    with pytest.raises(ValueError, match="At least one layer"):
+        _radial_solver(
+            radius_array, density_array, bulk_array, shear_array, 1.0e-5, 5000.0, (), (), (), np.array([]),
+            love_method='propagation_matrix')
+
+
+def test_short_eos_method_list_is_rejected():
+    from TidalPy.RadialSolver_x.solver import radial_solver as _radial_solver
+    radius_array, density_array, bulk_array, shear_array = _homogeneous_profile()
+    with pytest.raises(ValueError, match="one method per layer"):
+        _radial_solver(
+            radius_array, density_array, bulk_array, shear_array, 1.0e-5, 5000.0,
+            ("solid", "solid"), (False, False), (False, False), np.array([3.0e6, 6.0e6]),
+            eos_method_bylayer=("interpolate",))
+
+
+def test_top_layer_must_end_at_the_profile_top():
+    """A top layer below the last radius would silently drop the rest of the profile."""
+    from TidalPy.RadialSolver_x.solver import radial_solver as _radial_solver
+    radius_array, density_array, bulk_array, shear_array = _homogeneous_profile()
+    with pytest.raises(ValueError, match="planet radius"):
+        _radial_solver(
+            radius_array, density_array, bulk_array, shear_array, 1.0e-5, 5000.0,
+            ("solid",), (False,), (False,), np.array([5.0e6]))

@@ -1,0 +1,110 @@
+# Pluto: a rock core, a subsurface ocean, and a water-ice shell, the larger half of a mutually synchronous
+# binary.
+#
+# Radius is 1188.3 km (Nimmo et al. 2017) and the mass follows from GM = 869.3 km3/s2 (Brozovic and Jacobson
+# 2024), giving 1.3024587e22 kg and a mean density of 1853 kg/m3, which matches the 1853 +/- 4 kg/m3 of the
+# same paper. The core radius, 910.903 km, is carried over from the classic BurnMan-based WorldPack
+# pluto.toml; nothing here constrains it independently.
+#
+# Structure
+# The ice shell is 165 km thick, the mean global depth to the top of the ocean that Nimmo et al. (2016)
+# derive from the reorientation of Sputnik Planitia. That leaves 112.4 km of ocean above the core, which
+# lands inside the 50 to 150 km that thermal evolution models give, so the classic core radius, the
+# published mass, and the observed shell thickness are consistent with one another without being tuned to
+# be. Published shell thicknesses range from 65 to 260 km and ocean thicknesses from 50 to 283 km, so the
+# split is the best current estimate rather than a measurement.
+#
+# Ice I is fixed at 917 kg/m3 and the ocean at 1000 kg/m3 (fresh water; a briny ocean would reach 1200 and
+# lower the fitted core density), so the rock core's Birch-Murnaghan reference density is the one number
+# fitted to the published mass: 2943.7302 kg/m3, a hydrated silicate rather than an anhydrous one, which is
+# what a body this cold and this ice-rich is expected to hold. The core carries 71.9 percent of the mass,
+# the ocean 10.2 percent, and the shell 18.0 percent. Surface gravity comes out at 0.6156 m/s2 and the
+# central pressure at 1.20 GPa. C/MR2 is 0.31855; Pluto has no measured moment of inertia, so that is a
+# model output and not a check on the interior.
+#
+# Tides
+# The ocean is a static liquid layer, which decouples the shell from the core and is worth a factor of 31 in
+# the degree-2 Love number: k2 = 0.1458 at the 6.3872 day period against 0.00468 for the same body with the
+# ocean frozen into the shell. Nothing is fitted to that, since Pluto has no measured k2, but it is the
+# largest single consequence of the ocean and a test pins both numbers.
+#
+# Pluto and Charon are mutually synchronous on a nearly circular orbit, so the present tide is small. At the
+# mutual period the ocean pushes almost all of the heating into the shell (each layer's share of the radial
+# solution's heating, as calc_tides reports it), unchanged to four digits between eccentricities of 0.001 and
+# 0.01. A liquid layer contributes no shear dissipation, so the ocean takes none of the heat.
+#
+# Temperatures and viscosities
+# Every layer carries a temperature and every solid layer a reference-law viscosity at it (see io.toml): the
+# core at 300 K and 1e22 Pa s with the 300 kJ/mol silicate activation energy, the ocean at 260 K, and the
+# shell at 200 K and 1e15 Pa s with the 59.4 kJ/mol activation energy of ice. None is calibrated to an
+# observation; override them to model a warmer or colder interior.
+#
+# Orbital state is not a world property in this schema; add Pluto to a System to give it an orbit. The spin
+# frequency is the synchronous rate of the 6.3872304 day mutual period.
+schema_version = "0.2.0"
+name = "Pluto"
+type = "terrestrial"
+radius_m = 1188300.0
+mass_kg = 1.3024587e22
+spin_frequency_rad_s = 1.1385538e-05
+albedo = 0.72
+
+# The layer temperatures below are prescribed, not solved: the fit holds at exactly these values, so the
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
+[layers.core]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 0
+radius_outer_m = 910903.0             # classic WorldPack pluto.toml
+is_tidal = true
+temperature_k = 300.0
+
+[layers.core.material]
+model = "bm"
+reference_density_kg_m3 = 2943.7302   # fitted to the published mass
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+
+[layers.core.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e22
+reference_temperature_k = 300.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.ocean]
+class = "solidliquid"
+type = "ice"
+layer_index = 1
+radius_outer_m = 1023300.0            # 165 km below the surface, Nimmo et al. (2016)
+is_tidal = false
+is_solid = false                      # subsurface ocean, solved as a static liquid
+temperature_k = 260.0
+
+[layers.ocean.material]
+model = "constant"
+reference_density_kg_m3 = 1000.0      # fresh water; a briny ocean would be denser
+
+[layers.ice_shell]
+class = "solidliquid"
+type = "ice"
+layer_index = 2
+radius_fraction = 1.0
+is_tidal = true
+temperature_k = 200.0
+
+[layers.ice_shell.material]
+model = "bm"
+reference_density_kg_m3 = 917.0
+reference_bulk_modulus_pa = 9.6e9     # ice I
+bulk_modulus_derivative = 5.5
+
+[layers.ice_shell.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e15
+reference_temperature_k = 200.0
+molar_activation_energy_j_mol = 59.4e3
+molar_activation_volume_m3_mol = 0.0

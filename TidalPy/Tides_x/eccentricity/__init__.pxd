@@ -1,0 +1,14 @@
+from TidalPy.Tides_x.mode_func_common cimport c_ModeFuncOutput
+from TidalPy.Tides_x.eccentricity.eccentricity_common cimport c_EccentricitySeriesTable
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l2 cimport c_eccentricity_series_l2
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l3 cimport c_eccentricity_series_l3
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l4 cimport c_eccentricity_series_l4
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l5 cimport c_eccentricity_series_l5
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l6 cimport c_eccentricity_series_l6
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l7 cimport c_eccentricity_series_l7
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l8 cimport c_eccentricity_series_l8
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l9 cimport c_eccentricity_series_l9
+from TidalPy.Tides_x.eccentricity.eccentricity_func_l10 cimport c_eccentricity_series_l10
+
+from TidalPy.Tides_x.eccentricity.eccentricity_driver cimport (
+    c_eccentricity_series_table, c_eccentricity_func, c_eccentricity_squared_func)

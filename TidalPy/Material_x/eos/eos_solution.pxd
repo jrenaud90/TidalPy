@@ -1,0 +1,104 @@
+from libcpp cimport bool as cpp_bool
+from libcpp.vector cimport vector
+from libcpp.memory cimport unique_ptr
+from libcpp.string cimport string as cpp_string
+from libcpp.complex cimport complex as cpp_complex
+
+cimport numpy as cnp
+cnp.import_array()
+
+from CyRK cimport CySolverResult
+
+from TidalPy.Utilities_x.dimensions.nondimensional cimport c_NonDimensionalScales
+
+cdef extern from "../../Utilities_x/dimensions/nondimensional_.hpp" nogil:
+    pass
+
+cdef extern from "eos_solution_.hpp" nogil:
+
+    cdef cppclass c_EOSSolution:
+        int error_code
+        int iterations
+        int nondim_status
+        int solution_nondim_status
+        cpp_bool success
+        cpp_bool max_iters_hit
+        cpp_bool radius_array_set
+        cpp_bool other_vecs_set
+
+        cpp_string message
+
+        size_t current_layers_saved
+        size_t num_layers
+        size_t radius_array_size
+        size_t num_cysolver_calls
+
+        double pressure_error
+        double surface_gravity
+        double surface_pressure
+        double central_pressure
+        double radius
+        double mass
+        double moi
+
+        double redim_length_scale
+        double redim_gravity_scale
+        double redim_mass_scale
+        double redim_density_scale
+        double redim_moi_scale
+        double redim_pascal_scale
+
+        vector[double] upper_radius_bylayer_vec
+        vector[unique_ptr[CySolverResult]] cysolver_results_uptr_vec
+        vector[size_t] steps_taken_vec
+
+        vector[double] radius_array_vec
+        vector[double] gravity_array_vec
+        vector[double] pressure_array_vec
+        vector[double] mass_array_vec
+        vector[double] moi_array_vec
+        vector[double] density_array_vec
+        vector[double] temperature_array_vec
+        vector[double] heat_flow_array_vec
+        vector[cpp_complex[double]] complex_shear_array_vec
+        vector[cpp_complex[double]] complex_bulk_array_vec
+
+        c_EOSSolution()
+        c_EOSSolution(
+                double* upper_radius_bylayer_ptr,
+                size_t num_layers,
+                double* radius_array_ptr,
+                size_t radius_array_size
+            )
+
+        void save_cyresult(unique_ptr[CySolverResult] new_cysolver_result_uptr)
+        void save_steps_taken(size_t steps_taken)
+
+        void call_nondim(
+            const size_t layer_index,
+            const double radius,
+            double* y_interp_ptr) except +
+        void call_y(
+            const size_t layer_index,
+            const double radius,
+            double* y_interp_ptr) except +
+        void call_si(
+            const size_t layer_index,
+            const double radius_si,
+            double* y_interp_ptr) except +
+        void call_y_si(
+            const size_t layer_index,
+            const double radius_si,
+            double* y_interp_ptr) except +
+        void update_slice_partition()
+        double convert_radius_si_to_solve(const double radius_si)
+
+        void change_radius_array(
+            double* new_radius_ptr,
+            size_t new_radius_size)
+
+        void interpolate_full_planet()
+
+        void dimensionalize_data(
+            c_NonDimensionalScales* nondim_scales,
+            cpp_bool redimensionalize)

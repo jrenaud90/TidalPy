@@ -5,7 +5,7 @@ import numpy as np
 from TidalPy.constants import G
 from TidalPy.utilities.performance import bool_, njit
 
-from TidalPy.constants import MIN_SPIN_ORBITAL_DIFF
+from TidalPy.constants import min_spin_orbit_diff
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray
@@ -266,7 +266,7 @@ def tidal_potential(
         if not use_static:
             # Use static is False (default). Switches depend on the value of n and o
             # The orbital motion only nodes will always be on (unless n = 0 but that is not really possible).
-            mode_switch *= freq > MIN_SPIN_ORBITAL_DIFF
+            mode_switch *= freq > min_spin_orbit_diff
 
         # Combine the mode switch with this mode's coefficient
         switch_coeff = mode_switch * mode_coeffs[mode_i]

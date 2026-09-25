@@ -1,6 +1,6 @@
 from typing import Tuple, TYPE_CHECKING
 
-from TidalPy.constants import MIN_THICKNESS, MIN_VISCOSITY
+from TidalPy.constants import min_thickness
 from TidalPy.utilities.types import float_eps
 from TidalPy.utilities.performance.numba import njit
 
@@ -112,14 +112,14 @@ def convection(
     # Calculate the Rayleigh number and then check for over/under shoots
     rayleigh = parcel_rise_rate / rate_heat_loss
     rayleigh = (delta_temp_shape > float_eps) * rayleigh
-    rayleigh = (layer_thickness_shape >= MIN_THICKNESS) * rayleigh
+    rayleigh = (layer_thickness_shape >= min_thickness) * rayleigh
 
     # Calculate the Nusselt number and then check for over/under shoots (minimum nusselt = 2.)
     nusselt = convection_alpha * (rayleigh / critical_rayleigh)**convection_beta
     nusselt = (delta_temp_shape > float_eps) * nusselt + \
               (delta_temp_shape <= float_eps) * 2.
-    nusselt = (layer_thickness_shape > MIN_THICKNESS) * nusselt + \
-              (layer_thickness_shape <= MIN_THICKNESS) * 2.
+    nusselt = (layer_thickness_shape > min_thickness) * nusselt + \
+              (layer_thickness_shape <= min_thickness) * 2.
     nusselt = (nusselt > 2.) * nusselt + \
               (nusselt <= 2.) * 2.
 
@@ -127,8 +127,8 @@ def convection(
     boundary_layer_thickness = layer_thickness / nusselt
     boundary_layer_thickness = (delta_temp_shape > float_eps) * boundary_layer_thickness + \
                                (delta_temp_shape <= float_eps) * 1.
-    boundary_layer_thickness = (layer_thickness_shape > MIN_THICKNESS) * boundary_layer_thickness + \
-                               (layer_thickness_shape <= MIN_THICKNESS) * layer_thickness
+    boundary_layer_thickness = (layer_thickness_shape > min_thickness) * boundary_layer_thickness + \
+                               (layer_thickness_shape <= min_thickness) * layer_thickness
 
     # Calculate the parameterized heat flux through the convective layer
     cooling_flux = thermal_conductivity * delta_temp / boundary_layer_thickness

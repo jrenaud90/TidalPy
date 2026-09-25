@@ -1,0 +1,14 @@
+# End-to-end fixture: a single-layer gas giant world.
+schema_version = "0.2.0"
+name = "E2E-GasGiant"
+type = "gasgiant"
+radius_m = 6.0e7
+mass_kg = 6.0e26
+spin_frequency_rad_s = 1.0e-4
+
+[layers.envelope]
+class = "gas"
+type = "gas"
+layer_index = 0
+radius_fraction = 1.0
+is_tidal = true

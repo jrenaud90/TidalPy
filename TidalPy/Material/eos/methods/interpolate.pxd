@@ -2,7 +2,7 @@ from libcpp cimport bool as cpp_bool
 
 from TidalPy.Material.eos.ode cimport EOS_ODEInput
 
-cdef int EOS_INTERPOLATE_METHOD_INT = 0
+cdef const int EOS_INTERPOLATE_METHOD_INT = 0
 
 cdef struct InterpolateEOSInput:
     size_t num_slices

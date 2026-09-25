@@ -4,14 +4,18 @@
 # This avoids shipping already cythonized c files that need to be cythonized locally.
 exclude **/*.c
 exclude **/*.cpp
-exclude **/*.h
-exclude **/*.hpp
 
 # Include data files used for plotting and benchmarking
 include TidalPy/utilities/graphics/multilayer/*.csv
+include TidalPy/Utilities_x/graphics_x/data/*.csv
 
 # Include World Configuration Files
 include TidalPy/WorldPack/*.zip
+
+# Include structures_x bundled v0.2.0 example world configs (WorldPack_x) and their
+# companion data files (e.g. PREM-like radial profiles).
+include TidalPy/WorldPack_x/*.toml
+include TidalPy/WorldPack_x/*.csv
 
 # Include Cython pyx and pxd files
 global-include *.pxd
@@ -19,7 +23,9 @@ global-include *.pyx
 include cython_extensions.json
 
 # Include required hpp and cpp files
-include TidalPy/utilities/arrays/interp_.cpp
+global-include *.hpp
+global-include *.h
+
 include TidalPy/utilities/arrays/interp_.hpp
 include TidalPy/RadialSolver/love_.cpp
 include TidalPy/RadialSolver/love_.hpp
@@ -29,14 +35,19 @@ include TidalPy/Material/eos/eos_solution_.cpp
 include TidalPy/Material/eos/eos_solution_.hpp
 include TidalPy/utilities/dimensions/nondimensional_.hpp
 
-# Exclude the whole Tests folder and the other developer-only directories. Third-party checkouts under
-# Dependencies/ are never part of the distribution.
-prune Dependencies
+# Include submodules
+recursive-include Dependencies/xsf/include/xsf *.h
+recursive-include Dependencies/eigen/Eigen *
+recursive-include Dependencies/eigen/unsupported *
+
+# Exclude the whole Tests / Docs folder
 prune .vscode
 prune .idea
 prune .github
 prune Tests
 prune Papers
 prune Demos
+prune Demos_x
 prune Documentation
 prune Benchmarks
+prune Benchmarks_x

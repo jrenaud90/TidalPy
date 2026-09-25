@@ -12,15 +12,17 @@ Martens16 : H. Martens, PhD Thesis (CalTech), 2016, DOI: 10.7907/Z9N29TX7
 
 from libc.math cimport sqrt
 
-from TidalPy.constants cimport d_G, d_PI, d_NAN
+from TidalPy.constants cimport TidalPyConfig, d_PI, d_NAN, get_shared_config_address, tidalpy_config_ptr, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
 
 cdef class NonDimensionalScalesClass:
     """ Python wrapper for the `NonDimensionalScales` struct. """
 
-    cdef NonDimensionalScalesCC nondim_scales
+    cdef c_NonDimensionalScales nondim_scales
 
     def __init__(self):
+
         # Initialize everything to nan
         self.nondim_scales.second2_conversion = d_NAN
         self.nondim_scales.second_conversion  = d_NAN
@@ -60,13 +62,13 @@ cdef class NonDimensionalScalesClass:
 
 
 cdef void cf_build_nondimensional_scales(
-        NonDimensionalScalesCC* non_dim_scales_ptr,
+        c_NonDimensionalScales* non_dim_scales_ptr,
         double frequency,
         double mean_radius,
         double bulk_density
         ) noexcept nogil:
 
-    non_dim_scales_ptr.second2_conversion = 1. / (d_PI * d_G * bulk_density)
+    non_dim_scales_ptr.second2_conversion = 1. / (d_PI * tidalpy_config_ptr.d_G * bulk_density)
     non_dim_scales_ptr.second_conversion  = sqrt(non_dim_scales_ptr.second2_conversion)
     non_dim_scales_ptr.length_conversion  = mean_radius
     non_dim_scales_ptr.length3_conversion = mean_radius * mean_radius * mean_radius

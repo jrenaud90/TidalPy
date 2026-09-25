@@ -168,14 +168,15 @@ def calculate_tidal_heating(body, orbit, rheology = Maxwell):
 ### Running Tests
 
 TidalPy has lots of tests! It is highly recommended you install `pip install pytest-xdist` and use multiple cores
-with `pytest -n auto Tests/`
+with `pytest -n logical Tests/`. Prefer `-n logical` over `-n auto`: when `psutil` is installed, `auto` counts
+only physical cores, which is half the workers on a machine with hyper-threading.
 
 ```bash
 # Run all tests
-pytest Tests/  # Or with the added `-n auto` flag.
+pytest Tests/  # Or with the added `-n logical` flag.
 
 # Run specific test file
-pytest Tests/test_rheology.py
+pytest Tests/Test_Rheology_x/test_rheology_01.py
 ```
 
 _Note that multiple warnings may show while you are running tests. These are likely normal warnings and are 

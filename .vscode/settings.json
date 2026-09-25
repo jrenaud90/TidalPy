@@ -6,7 +6,8 @@
     "python.testing.pytestEnabled": true,
     "cSpell.words": [
         "andrade",
-        "colatitudes"
+        "colatitudes",
+        "elif"
     ],
     "files.associations": {
         "complex": "cpp",

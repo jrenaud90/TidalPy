@@ -1,0 +1,27 @@
+# Simple single-layer gas-giant world for the structures_x world builder, and the minimal example of the
+# schema: one gas-class layer of material type "gas" spanning the whole planet, with its rheology, cooling,
+# and other parameter defaults taken from the [layers.gas] block of TidalPy_Configs_x.toml.
+#
+# The layer density is stated here rather than left to those defaults, because the packaged default is a
+# round 1000 kg/m3 that has nothing to do with Jupiter: at the mean density below the solved equation of
+# state reproduces the stated mass, as every other bundled world does. One uniform layer still gives
+# C/MR2 = 0.4, the uniform-sphere value, against Jupiter's 0.264, and a Love number of 1.5, the fluid-sphere
+# limit, against the measured 0.590. See jupiter.toml for the three-layer version that reproduces both.
+schema_version = "0.2.0"
+name = "Jupiter-Simple"
+type = "gasgiant"
+radius_m = 69911000.0
+mass_kg = 1.898e27
+spin_frequency_rad_s = 1.7585e-4
+
+[layers.envelope]
+class = "gas"
+type = "gas"
+layer_index = 0
+radius_fraction = 1.0   # single layer spanning the whole world
+is_tidal = true
+temperature_k = 165.0
+
+[layers.envelope.material]
+model = "constant"
+reference_density_kg_m3 = 1326.0841   # the mean density, so the solved mass matches the stated one

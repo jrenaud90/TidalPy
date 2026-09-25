@@ -1,10 +1,9 @@
 
 # RadialSolver Solution: `RadialSolverSolution` Class
-`TidalPy.RadialSolver.radial_solver` functions stores the viscoelastic-gravitational solution, results of solving a 
-planet's equation of state, and other parameters and meta data in a cythonized python class `TidalPy.RadialSolver.rs_solution.RadialSolverSolution`. This document details how to access this API from both Python and Cython.
+`TidalPy.RadialSolver.radial_solver` stores the viscoelastic-gravitational solution, the results of solving a planet's equation of state, and other parameters and metadata in a cythonized python class, `TidalPy.RadialSolver.rs_solution.RadialSolverSolution`. This page covers how to reach that API from both Python and Cython.
 
 ## Python API
-The example below outlines which parameters are available via Python from the `RadialSolverSolution` class instance.
+The example below lists the parameters available from a `RadialSolverSolution` instance in Python.
 
 ```python
 
@@ -135,10 +134,8 @@ eos_result_array = rs_solution.eos_call(radius=1.5e6)
 #                      bulk modulus (real), bulk modulus (imag)]        
 ```
 
-**Performance Note**
-
-There is a minor overhead when accessing any of the Solver's attributes (e.g., `.result; .love; .k; .h; .l`).
-If you have a code that accesses these numbers often (more than once) it is better to store them in a local variable.
+> [!NOTE]
+> Accessing any of the solution's attributes (`.result`, `.love`, `.k`, `.h`, `.l`) carries a minor overhead. Code that reads them more than once should store them in a local variable.
 
 ```python
 k_local = solution.k  # Performs a background lookup and np.ndarray operation to produce an array for all k Love numbers.
@@ -148,7 +145,7 @@ k_local = solution.k  # Performs a background lookup and np.ndarray operation to
 
 ## Cython API
 
-The radial solver class can have much of its data accessed or modified via Cython. Below is a list of available attributes and methods.
+Much of the class's data can be accessed or modified from Cython. The available attributes and methods:
 
 ```cython
 rs_solution = radial_solver(...)
@@ -188,7 +185,7 @@ void set_model_names(int* bc_models_ptr)
 void change_radius_array(double* new_radius_array_ptr, size_t new_size_radius_array, cpp_bool array_changed)
 ```
 
-The majority of the data is stored in the C++ class `RadialSolutionStorageCC` which has the following attributes available via Cython.
+Most of the data is stored in the C++ class `RadialSolutionStorageCC`, which exposes the following attributes to Cython.
 
 ```cython
 RadialSolutionStorageCC* rs_solution_cc = rs_solution.solution_storage_ptr
@@ -209,5 +206,5 @@ vector[size_t] shooting_method_steps_taken_vec
 EOSSolutionCC* get_eos_solution_ptr()
 void change_radius_array(double* new_radius_array_ptr, size_t new_size_radius_array, cpp_bool array_changed)
 void find_love()
-void dimensionalize_data(NonDimensionalScalesCC* nondim_scales, cpp_bool redimensionalize)
+void dimensionalize_data(c_NonDimensionalScales* nondim_scales, cpp_bool redimensionalize)
 ```

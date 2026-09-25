@@ -1,0 +1,198 @@
+# distutils: language = c++
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
+
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+set_tidalpy_config_ptr(get_shared_config_address())
+
+cdef tuple cy_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
+    """Converts C++ struct `c_ModeStorage` to Python type."""
+
+    cdef double mode = mode_storage_inst.mode
+    cdef double mode_strength = mode_storage_inst.mode_strength
+    cdef int n_coeff = mode_storage_inst.n_coeff
+    cdef int o_coeff = mode_storage_inst.o_coeff
+    cdef tuple result = (mode, mode_strength, n_coeff, o_coeff)
+    return result
+
+cdef c_ModeStorage cy_convert_to_mode_storage(tuple mode_storage_tuple):
+    """Converts Python tuple to C++ struct `c_ModeStorage`."""
+
+    if len(mode_storage_tuple) != 4:
+        raise ValueError("`mode_storage_tuple` must be a tuple of 4 values: (double, double, int, int).")
+    if not isinstance(mode_storage_tuple[0], float):
+        raise TypeError("`mode_storage_tuple[0] must be a floating point value (the 'mode').")
+    if not isinstance(mode_storage_tuple[1], float):
+        raise TypeError("`mode_storage_tuple[1] must be a floating point value (the 'mode strength').")
+    if not isinstance(mode_storage_tuple[2], int):
+        raise TypeError("`mode_storage_tuple[2] must be a integer value (the 'n coefficient').")
+    if not isinstance(mode_storage_tuple[3], int):
+        raise TypeError("`mode_storage_tuple[3] must be a integer value (the 'O coefficient').")
+    cdef double mode = mode_storage_tuple[0]
+    cdef double mode_strength = mode_storage_tuple[1]
+    cdef int n_coeff = mode_storage_tuple[2]
+    cdef int o_coeff = mode_storage_tuple[3]
+    return c_ModeStorage(mode, mode_strength, n_coeff, o_coeff)
+
+
+cdef class ModeMap:
+    
+    cdef void c_reserve(self, size_t n) noexcept nogil:
+        self._cinst.reserve(n)
+
+    cdef void c_clear(self) noexcept nogil:
+        self._cinst.clear()
+
+    cdef void c_set(self, c_Key4& key, c_ModeStorage& value) noexcept nogil:
+        self._cinst.set(key, value)
+
+    cdef size_t c_size(self) noexcept nogil:
+        return self._cinst.size()
+    
+    cdef cpp_bool c_get(self, c_ModeStorage& result, c_Key4& key) noexcept nogil:
+        cdef cpp_bool found = False
+        result = self._cinst.get(found, key)
+        return found
+    
+    ## Python wrappers
+    def reserve(self, size_t n):
+        self.c_reserve(n)
+    
+    def clear(self):
+        self.c_clear()
+    
+    def size(self):
+        return self.c_size()
+    
+    def set(self, tuple key, tuple mode_storage_tuple):
+        if len(key) != 4:
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
+
+        cdef int16_t l = key[0]
+        cdef int16_t m = key[1]
+        cdef int16_t p = key[2]
+        cdef int16_t q = key[3]
+        cdef c_Key4 c_key = c_Key4(l, m, p, q)
+
+        cdef c_ModeStorage mode_storage = cy_convert_to_mode_storage(mode_storage_tuple)
+
+        self.c_set(c_key, mode_storage)
+    
+    def get(self, tuple key):
+        if len(key) != 4:
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
+
+        cdef int16_t l = key[0]
+        cdef int16_t m = key[1]
+        cdef int16_t p = key[2]
+        cdef int16_t q = key[3]
+        cdef c_Key4 c_key = c_Key4(l, m, p, q)
+
+        cdef c_ModeStorage result_cinst
+        cdef cpp_bool found = self.c_get(result_cinst, c_key)
+        if not found:
+            raise KeyError(f"Can not find entry for key: ({key}).")
+        
+        return cy_convert_from_mode_storage(result_cinst)
+
+    def __setitem__(self, tuple key, tuple value):
+        self.set(key, value)
+
+    def __getitem__(self, tuple key):
+        return self.get(key)
+    
+    def __len__(self):
+        return self._cinst.size()
+
+    def __iter__(self):
+        """Yield ((l, m, p, q), mode-storage tuple) pairs."""
+
+        cdef size_t i
+        cdef c_Key4 key
+        cdef c_ModeStorage value
+
+        for i in range(self._cinst.size()):
+            key = self._cinst.data[i].first
+            value = self._cinst.data[i].second
+
+            yield ((key.a, key.b, key.c, key.d), cy_convert_from_mode_storage(value))
+
+
+cdef class UniqueFrequencyMap:
+    
+    cdef void c_reserve(self, size_t n) noexcept nogil:
+        self._cinst.reserve(n)
+
+    cdef void c_clear(self) noexcept nogil:
+        self._cinst.clear()
+
+    cdef void c_set(self, c_Key4& key, size_t& value) noexcept nogil:
+        self._cinst.set(key, value)
+
+    cdef size_t c_size(self) noexcept nogil:
+        return self._cinst.size()
+    
+    cdef cpp_bool c_get(self, size_t& result, c_Key4& key) noexcept nogil:
+        cdef cpp_bool found = False
+        result = self._cinst.get(found, key)
+        return found
+    
+    ## Python wrappers
+    def reserve(self, size_t n):
+        self.c_reserve(n)
+    
+    def clear(self):
+        self.c_clear()
+    
+    def size(self):
+        return self.c_size()
+    
+    def set(self, tuple key, size_t value):
+        if len(key) != 4:
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
+
+        cdef int16_t l = key[0]
+        cdef int16_t m = key[1]
+        cdef int16_t p = key[2]
+        cdef int16_t q = key[3]
+        cdef c_Key4 c_key = c_Key4(l, m, p, q)
+
+        self.c_set(c_key, value)
+    
+    def get(self, tuple key):
+        if len(key) != 4:
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
+
+        cdef int16_t l = key[0]
+        cdef int16_t m = key[1]
+        cdef int16_t p = key[2]
+        cdef int16_t q = key[3]
+        cdef c_Key4 c_key = c_Key4(l, m, p, q)
+
+        cdef size_t result
+        cdef cpp_bool found = self.c_get(result, c_key)
+        if not found:
+            raise KeyError(f"Can not find entry for key: ({key}).")
+        
+        return result
+
+    def __setitem__(self, tuple key, size_t value):
+        self.set(key, value)
+
+    def __getitem__(self, tuple key):
+        return self.get(key)
+    
+    def __len__(self):
+        return self._cinst.size()
+
+    def __iter__(self):
+        """Yield ((l, m, p, q), unique-frequency index) pairs."""
+
+        cdef size_t i
+        cdef c_Key4 key
+        cdef size_t value
+
+        for i in range(self._cinst.size()):
+            key = self._cinst.data[i].first
+            value = self._cinst.data[i].second
+
+            yield ((key.a, key.b, key.c, key.d), value)

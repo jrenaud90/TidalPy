@@ -138,7 +138,7 @@ void RadialSolutionStorageCC::find_love()
 }
 
 void RadialSolutionStorageCC::dimensionalize_data(
-            NonDimensionalScalesCC* nondim_scales,
+            c_NonDimensionalScales* nondim_scales,
             bool redimensionalize)
 {
 

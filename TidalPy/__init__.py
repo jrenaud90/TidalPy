@@ -7,9 +7,8 @@ version = __version__
 _test_mode = False
 
 import os
-if 'TIDALPY_TEST_MODE' in os.environ:
-    if os.environ['TIDALPY_TEST_MODE']:
-        _test_mode = True
+if os.environ.get('TIDALPY_TEST_MODE', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+    _test_mode = True
 
 import time
 
@@ -21,9 +20,13 @@ _tidalpy_init = False
 _in_jupyter = False
 _output_dir = None
 _config_path = None
+_config_x_path = None
 
 # TidalPy configurations
 config = None
+
+# Configuration for the new `_x` class system (loaded from TidalPy_Configs_x.toml).
+config_x = None
 
 # World configuration directory
 world_config_dir = None
@@ -42,6 +45,48 @@ reinit()
 from .cache import clear_cache as clear_cache
 from .cache import clear_data as clear_data
 
+# Save the effective new-backend configuration, headed by the package versions that produced it.
+from .configurations import save_config_x as save_config_x
+
+# Announce the backend transition once per session, the first time a classic module (no `_x` suffix) is imported.
+# The classic modules are deprecated in favor of the new C++ backend (`structures_x`, `Tides_x`, `RadialSolver_x`,
+# ...), which will become the only TidalPy in a future major release; code that uses only the new backend and the
+# shared top-level modules is not warned.
+import importlib.abc as _importlib_abc
+import sys as _sys
+import warnings as _warnings
+from TidalPy.exceptions import TidalPyDeprecationWarning
+
+_CLASSIC_PACKAGES = frozenset({
+    "structures", "tides", "RadialSolver", "Material", "rheology", "cooling", "radiogenics", "dynamics", "stellar",
+    "orbit", "Extending", "WorldPack", "numba_scipy", "toolbox", "utilities", "output"})
+
+
+class _ClassicBackendNotice(_importlib_abc.MetaPathFinder):
+    """Warns the first time a classic TidalPy module is imported; it never finds a module itself."""
+
+    def __init__(self):
+        self.warned = False
+
+    def find_spec(self, fullname, path=None, target=None):
+        if not self.warned:
+            parts = fullname.split(".", 2)
+            if (len(parts) > 1) and (parts[0] == "TidalPy") and (parts[1] in _CLASSIC_PACKAGES):
+                self.warned = True
+                _warnings.warn(
+                    "TidalPy's backend is changing: the classic modules (structures, tides, RadialSolver, rheology, "
+                    "...) are deprecated and will be replaced by the new C++ backend (structures_x, Tides_x, "
+                    "RadialSolver_x, rheology_x, ...) in a future major release. New development happens in the `_x` "
+                    "modules. See the porting guide at https://tidalpy.readthedocs.io/en/latest/future_structure.html. "
+                    "Silence this message with "
+                    "warnings.filterwarnings('ignore', category=TidalPy.exceptions.TidalPyDeprecationWarning).",
+                    TidalPyDeprecationWarning,
+                    stacklevel=2)
+        return None
+
+
+_sys.meta_path.insert(0, _ClassicBackendNotice())
+
 def test_mode():
     """ Turn on test mode and reinitialize TidalPy """
     global _test_mode
@@ -58,3 +103,29 @@ def log_to_file():
     if not config['logging']['write_log_to_disk']:
         config['logging']['write_log_to_disk'] = True
         reinit()
+
+# Helper function that provides directories to CyRK c++ headers
+def get_include():
+    import os
+    # Since we depend on CyRK to build TidalPy; we likely want to include its headers as well.
+    import CyRK
+    tidalpy_dirs = CyRK.get_include()
+
+    import TidalPy
+    tidalpy_dir = os.path.dirname(TidalPy.__file__)
+
+    # Utilities
+    tidalpy_dirs += [
+        # Utilities
+        os.path.join(tidalpy_dir, 'utilities', 'lookups'),
+        os.path.join(tidalpy_dir, 'utilities', 'arrays'),
+        os.path.join(tidalpy_dir, 'utilities', 'dimensions'),
+
+        # RadialSolver
+        os.path.join(tidalpy_dir, 'RadialSolver'),
+
+        # Material
+        os.path.join(tidalpy_dir, 'Material', 'eos')
+    ]
+
+    return tidalpy_dirs

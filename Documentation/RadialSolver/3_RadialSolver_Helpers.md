@@ -1,21 +1,17 @@
 
 # RadialSolver Helper Functions
 
-TidalPy's radial solver function is particular on the format of its inputs. It can be easy to make a mistake which leads to solution failures, exceptions, or crashes[^1].
-The helper functions described here are designed to give users an easy interface to provide data that is then translated into the inputs required by the `radial_solver` function.
+TidalPy's radial solver is particular about the format of its inputs, and a mistake there leads to solution failures, exceptions, or crashes[^1]. The helper functions described here take data in a simpler form and translate it into the inputs `radial_solver` requires.
 
-These functions are not designed to be particularly efficient. So it is recommended to use them until you get comfortable with the kind of inputs `radial_solver` requires.
-At that point it would be more efficient to make the inputs correctly from the beginning and forego using these functions.
-That being said, benchmarking shows that they only add about a 2% -- 10% overhead depending on the layer structure.
+These functions are not optimized for speed, so once you are comfortable with the inputs `radial_solver` expects it is faster to build them directly. Benchmarking shows the helpers add about 2% to 10% overhead depending on the layer structure.
 
-[^1]: If a crash does occur, please report it on TidalPy's GitHub issues page. Please include the exact inputs used.
+[^1]: If a crash does occur, please report it on TidalPy's GitHub issues page and include the exact inputs used.
 
-## Planet with homogeneous layers: `build_planet_constant_layers`
+## Planet with homogeneous layers: `build_rs_input_homogeneous_layers`
 
 Import with `from TidalPy.RadialSolver import build_rs_input_homogeneous_layers`
 
-Creates radial solver inputs based on user provided parameters for a planet with homogeneous layers (each layer has a constant density, viscosity, shear, etc.).
-Checks will be performed to ensure that the inputs are valid.
+Creates radial solver inputs for a planet with homogeneous layers, meaning each layer has a constant density, viscosity, shear modulus, and so on. The inputs are checked for validity.
 
 Arguments and use case:
 ```python
@@ -34,8 +30,7 @@ layer_type_tuple              = ('solid', 'liquid', 'solid')  # Is a layer solid
 layer_is_static_tuple         = (False, True, False)          # Does a layer use the static assumption (vs. dynamic tides)
 layer_is_incompressible_tuple = (False, False, False)         # Does a layer use the incompressible assumption (bulk compressibility)
 
-# The inputs to this method are pretty self explanatory except for the rheology model inputs.
-# These are provided as _instantiated_ rheology classes like so:
+# The rheology model inputs are provided as _instantiated_ rheology classes:
 from TidalPy.rheology import Maxwell, Elastic, Andrade
 # Some rheologies have other properties that can be changed when they are created.
 andrade_alpha = 0.25
@@ -95,8 +90,7 @@ rs_inputs.is_static_bylayer
 rs_inputs.is_incompressible_bylayer
 rs_inputs.upper_radius_bylayer_array
 
-# These are all of the required positional arguments of TidalPy's `radial_solver` function. 
-# They can be easily passed to the solver
+# These are all of the required positional arguments of TidalPy's `radial_solver` function and can be passed straight to the solver.
 solution = radial_solver(
     *rs_inputs,
     # Any changes to keyword arguments here....
@@ -105,8 +99,7 @@ solution = radial_solver(
 
 ## Planet with inhomogeneous layers: `build_rs_input_from_data`
 
-If your planet has an interior structure already defined by data arrays (these could be from the literature or from a much more robust equation of state than TidalPy has built in) then it is usually still a good idea to parse these arrays to ensure they are properly formatted to work with `radial_solver`.
-That is where the `build_rs_input_from_data` helper function comes in.
+If your planet's interior structure is already defined by data arrays, from the literature or from a more robust equation of state than TidalPy has built in, `build_rs_input_from_data` parses those arrays into the format `radial_solver` requires.
 
 ```python
 from TidalPy.RadialSolver import build_rs_input_from_data
@@ -127,14 +120,13 @@ shear_viscosity_array      = vulcan_data[:, 4]
 # I still need to provide an array though.
 bulk_viscosity_array = np.zeros_like(radius_array)
 
-# The other inputs are pretty much the same as the example above.
+# The other inputs are the same as in the example above.
 forcing_frequency = 2.0 * 3.14 / (86400.0 * 2.0)
 layer_type_tuple              = ('solid', 'liquid', 'solid')
 layer_is_static_tuple         = (False, True, False)
 layer_is_incompressible_tuple = (False, False, False)
 
-# The inputs to this method are pretty self explanatory except for the rheology model inputs.
-# These are provided as _instantiated_ rheology classes like so:
+# The rheology model inputs are provided as _instantiated_ rheology classes:
 from TidalPy.rheology import Maxwell, Elastic, Andrade
 # Some rheologies have other properties that can be changed when they are created.
 andrade_alpha = 0.25
@@ -162,9 +154,8 @@ rs_inputs = build_rs_input_from_data(
     warnings = True                  # (optional, default=True) Flag to tell function to raise warnings if it has to make corrections to input arrays. (boolean)
 )
 
-# Let's assume in this example my radius array did not start at r=0.0.
-# It also did not have layer 1's lower radius value listed twice at the interface between layer 0 and 1.
-# These are both required and would break `radial_solver`. However, since we used this helper function it will automatically fix these problems for us.
+# Suppose the radius array did not start at r=0.0 and did not list layer 1's lower radius twice at the interface
+# between layers 0 and 1. Both are required by `radial_solver`, and the helper function corrects them automatically.
 
 # Just as with the previous helper, the output is a named tuple with the following attributes:
 rs_inputs.radius_array
@@ -178,8 +169,7 @@ rs_inputs.is_static_bylayer
 rs_inputs.is_incompressible_bylayer
 rs_inputs.upper_radius_bylayer_array
 
-# These are all of the required positional arguments of TidalPy's `radial_solver` function. 
-# They can be easily passed to the solver
+# These are all of the required positional arguments of TidalPy's `radial_solver` function and can be passed straight to the solver.
 solution = radial_solver(
     *rs_inputs,
     # Any changes to keyword arguments here....

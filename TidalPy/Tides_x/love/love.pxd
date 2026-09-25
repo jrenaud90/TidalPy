@@ -1,0 +1,59 @@
+# distutils: language = c++
+"""Cython declarations for TidalPy's Love numbers container, the Love-number method names, and the
+homogeneous-sphere formulas.
+"""
+
+from libcpp cimport bool as cpp_bool
+from libcpp.complex cimport complex as cpp_complex
+from libcpp.string cimport string
+
+
+# =====================================================================================================================
+# C++ struct declaration
+# =====================================================================================================================
+cdef extern from "love_.hpp" namespace "tidalpy" nogil:
+
+    cdef cppclass c_LoveNumbers:
+        cpp_complex[double] k   # potential Love number           [dimensionless]
+        cpp_complex[double] h   # radial displacement Love number [dimensionless]
+        cpp_complex[double] l   # tangential displacement Love number [dimensionless]
+        c_LoveNumbers() except +
+        c_LoveNumbers(cpp_complex[double], cpp_complex[double], cpp_complex[double]) except +
+
+
+# =====================================================================================================================
+# Love-number methods and the homogeneous-sphere formulas (love_method_.hpp)
+# =====================================================================================================================
+cdef extern from "love_method_.hpp" namespace "tidalpy" nogil:
+
+    # Method names <-> c_LoveMethod index (0 radial_solver, 1 propagation_matrix, 2 homogeneous, 3 cpl, 4 ctl,
+    # 5 laterally_inhomogeneous). Unknown names / indices throw std::invalid_argument (ValueError).
+    int    c_parse_love_method_int(const string& name) except +
+    string c_love_method_name_int(int value) except +
+    cpp_bool c_love_method_uses_radial_solver_int(int value)
+
+    double c_calc_effective_rigidity_real(
+            double shear_modulus,
+            double density,
+            double gravity,
+            double radius,
+            int degree_l) except +
+    cpp_complex[double] c_calc_effective_rigidity_complex(
+            cpp_complex[double] shear_modulus,
+            double density,
+            double gravity,
+            double radius,
+            int degree_l) except +
+    c_LoveNumbers c_calc_homogeneous_love_numbers(
+            cpp_complex[double] complex_shear_modulus,
+            double density,
+            double gravity,
+            double radius,
+            int degree_l) except +
+    c_LoveNumbers c_apply_fixed_q(const c_LoveNumbers& love, double fixed_q) except +
+    c_LoveNumbers c_apply_fixed_dt(const c_LoveNumbers& love, double frequency, double fixed_dt) except +
+
+
+cdef class LoveNumbers:
+    cdef c_LoveNumbers _love
+    cpdef dict to_dict(self)

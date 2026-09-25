@@ -13,6 +13,9 @@ default_config_str = """
     extensive_logging = true
     # Additional numerical sanity checks will be performed. There could be a performance penalty in using this.
     extensive_checks = false
+    # The constant below is used to check if tidalpy's constant manager is properly loading and reinitializing constants
+    #  We use this separate parameter so that the tests do not interfere with actual TidalPy functionality.
+    test_constant = 42.0
 
 [logging]
     # Are TidalPy logs are stored to the current working directory or the default TidalPy data path.
@@ -74,7 +77,7 @@ default_config_str = """
         # Assume max frequency is for a forcing period of 1 micro-second
         maximum_frequency = 1.0e8
         # Minimum difference between spin and orbital frequency before it is treated as zero.
-        min_spin_orbital_diff = 1.0e-10
+        min_spin_orbit_diff = 1.0e-10
     
     [tides.models]
         [tides.models.base]
@@ -110,6 +113,9 @@ default_config_str = """
             multiply_modes_by_sign = true
 
 [layers]
+    # General parameters
+    # Minimum layer thickness before layer is removed or assumed to not contribute to any problem.
+    minimum_layer_thickness = 0.1
 
     # Known layer types
     [layers.ice]
@@ -398,6 +404,12 @@ default_config_str = """
             slices = 40
 
 [physics]
+    [physics.materials]
+        # Minimum allowed viscosity
+        minimum_viscosity = 100.0
+        # Minimum modulus (shear or bulk) before set to zero.
+        minimum_modulus = 1.0e-3
+
     [physics.radiogenics]
         [physics.radiogenics.known_isotope_data]
             [physics.radiogenics.known_isotope_data.modern_day_chondritic]
@@ -426,42 +438,49 @@ default_config_str = """
                     element_concentration = 840.0e-6
             
             [physics.radiogenics.known_isotope_data.LLRI_and_SLRI]
-                ref_time = 4600.0
+                # Formation (CAI) abundances, so time is measured from formation.
+                ref_time = 0.0
 
-                # Based off Castillo-Rogez et al 2007
+                # Castillo-Rogez et al. (2007). Table 3 quotes each long-lived isotope's own concentration at
+                # formation (the Table 4 isotopic abundances are present-day values), so those carry a mass
+                # fraction of 1. The short-lived isotopes carry the Table 5 initial ratio of the element
+                # concentration that reproduces Table 3 (60Fe at the 1e-6 of the paper's SLRI models). The decay data
+                # are corrected from the paper, whose values disagree with the decay energies: K40 half life 1248 Myr;
+                # Al26 0.355 W/kg at 0.717 Myr (Lebrun et al. 2013); Fe60 0.0366 W/kg at 2.62 Myr (Rugel et al.
+                # 2009); Mn53 5.8e-5 W/kg (electron capture deposits only its X-ray and Auger energy).
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.U238]
-                    iso_mass_fraction = 0.9928
+                    iso_mass_fraction = 1.0
                     hpr = 9.465e-5
                     half_life = 4468.0
-                    element_concentration = 0.026e-6
+                    element_concentration = 26.2e-9
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.U235]
-                    iso_mass_fraction = 0.0071
+                    iso_mass_fraction = 1.0
                     hpr = 5.687e-4
                     half_life = 703.81
-                    element_concentration = 0.0082e-6
+                    element_concentration = 8.2e-9
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.Th232]
                     iso_mass_fraction = 1.0
                     hpr = 2.638e-5
-                    half_life = 14025.0
-                    element_concentration = 0.0538e-6
+                    half_life = 14030.0
+                    element_concentration = 53.8e-9
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.K40]
-                    iso_mass_fraction = 1.176e-4
+                    iso_mass_fraction = 1.0
                     hpr = 2.917e-5
-                    half_life = 1277.0
-                    element_concentration = 1.104e-6
+                    half_life = 1248.0
+                    element_concentration = 1104.0e-9
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.Mn53]
-                    iso_mass_fraction = 2.0e-5
-                    hpr = 0.027
+                    iso_mass_fraction = 1.0e-5
+                    hpr = 5.8e-5
                     half_life = 3.7
-                    element_concentration = 0.0257e-6
+                    element_concentration = 2.57e-3
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.Fe60]
                     iso_mass_fraction = 1.0e-6
-                    hpr = 0.07
-                    half_life = 1.5
-                    element_concentration = 0.1e-6
+                    hpr = 0.0366
+                    half_life = 2.62
+                    element_concentration = 0.225
                 [physics.radiogenics.known_isotope_data.LLRI_and_SLRI.Al26]
                     iso_mass_fraction = 5.0e-5
-                    hpr = 0.146
-                    half_life = 0.72
-                    element_concentration = 0.6e-6
+                    hpr = 0.355
+                    half_life = 0.717
+                    element_concentration = 1.2e-2
 """

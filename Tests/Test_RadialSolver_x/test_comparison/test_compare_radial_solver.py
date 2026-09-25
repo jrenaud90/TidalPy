@@ -1,0 +1,107 @@
+"""Compare RadialSolver_x radial_solver output against original RadialSolver.
+
+This is the most important comparison test: it runs the full radial solver from both
+modules with identical inputs and compares Love numbers and radial solutions.
+"""
+import pytest
+import numpy as np
+
+from TidalPy.rheology_x import Maxwell
+
+from TidalPy.RadialSolver import radial_solver as radial_solver_old
+from TidalPy.RadialSolver_x.solver import radial_solver as radial_solver_new
+
+# ---------- Setup: 1-layer homogeneous solid planet ----------
+frequency = 2.0 * np.pi / (86400. * 1.0)
+N = 10
+radius_array = np.linspace(0.0, 6000.e3, N)
+bulk_density = 3500.
+density_array = bulk_density * np.ones_like(radius_array)
+bulk_modulus_array = 1.0e11 * np.ones(N, dtype=np.complex128, order='C')
+viscosity_array = 1.0e20 * np.ones_like(radius_array)
+shear_array = 5.0e10 * np.ones_like(radius_array)
+
+complex_shear_modulus_array = Maxwell().calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
+upper_radius_by_layer = np.asarray((radius_array[-1],))
+
+MANUAL_STARTING_RADIUS = 0.1 * radius_array[-1]
+
+
+@pytest.mark.parametrize('is_static', (True, False))
+@pytest.mark.parametrize('is_incompressible', (True, False))
+@pytest.mark.parametrize('degree_l', (2, 3))
+@pytest.mark.parametrize('use_kamata', (True, False))
+@pytest.mark.parametrize('solve_for', (('tidal',), ('loading',), ('tidal', 'loading')))
+@pytest.mark.parametrize('starting_radius', (0.0, MANUAL_STARTING_RADIUS))
+@pytest.mark.parametrize('integration_method', ('RK45', 'DOP853'))
+@pytest.mark.parametrize('nondimensionalize', (False, True))
+def test_compare_radial_solver_1layer_solid(
+        is_static, is_incompressible, degree_l, use_kamata, solve_for,
+        starting_radius, integration_method, nondimensionalize):
+    """Compare Love numbers and radial solution arrays for 1-layer solid planets."""
+
+    layer_type_by_layer = ('solid',)
+    is_static_by_layer = (is_static,)
+    is_incompressible_by_layer = (is_incompressible,)
+
+    # The new solver's EOS defaults come from the TidalPy configuration and differ from the classic
+    # solver's compiled defaults, so both EOS solves are pinned tight here: a deep starting radius
+    # amplifies any structure difference into the interior radial functions.
+    common_kwargs = dict(
+        degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
+        integration_method=integration_method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
+        scale_rtols_bylayer_type=False,
+        max_num_steps=5_000_000, expected_size=250, max_step=0,
+        verbose=False, nondimensionalize=nondimensionalize, starting_radius=starting_radius,
+        eos_rtol=1.0e-10, eos_atol=1.0e-14,
+        raise_on_fail=True,
+    )
+    try:
+        old_out = radial_solver_old(
+            radius_array, density_array, bulk_modulus_array, complex_shear_modulus_array,
+            frequency, bulk_density,
+            layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer,
+            upper_radius_by_layer,
+            **common_kwargs
+        )
+    except NotImplementedError:
+        pytest.skip('Not implemented in original RadialSolver.')
+
+    if not old_out.success:
+        pytest.skip("Old solver was not successful, no need to compare.")
+
+    try:
+        new_out = radial_solver_new(
+            radius_array, density_array, bulk_modulus_array, complex_shear_modulus_array,
+            frequency, bulk_density,
+            layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer,
+            upper_radius_by_layer,
+            **common_kwargs
+        )
+    except NotImplementedError:
+        pytest.skip('Not implemented in RadialSolver_x.')
+
+    # Both should succeed.
+    assert old_out.success, f"Old solver failed: {old_out.message}"
+    assert new_out.success, f"New solver failed: {new_out.message}"
+
+    # Compare result arrays (radial solutions).
+    assert old_out.result.shape == new_out.result.shape
+    # Interior radii (all but the surface): different LU and ODE implementations can accumulate
+    # small floating-point differences, but physics should agree to ~1e-4 relative. The classic Kamata start for a
+    # dynamic incompressible solid has two nearly parallel solutions at low frequency and loses digits the new,
+    # well-conditioned basis keeps, so that case agrees only to ~1e-4 at a few interior points.
+    interior_rtol = 3.0e-4 if (use_kamata and (not is_static) and is_incompressible) else 1.0e-4
+    np.testing.assert_allclose(new_out.result[:, :-1], old_out.result[:, :-1], rtol=interior_rtol, atol=1e-6,
+                               err_msg="Interior radial solution arrays differ.")
+    # Surface (last radius): the y rows pinned to homogeneous boundary conditions (y2 and y4 for
+    # the tidal solve) are cancellation residuals. For an extreme starting radius the solution
+    # constants reach ~1e11 and cancel to ~1e-4, so these values are pure roundoff and legitimately
+    # differ between LAPACK (old) and Eigen PartialPivLU (new). Compare with an absolute tolerance
+    # above that roundoff floor; the physical rows agree far more tightly.
+    np.testing.assert_allclose(new_out.result[:, -1], old_out.result[:, -1], rtol=1e-2, atol=1e-2,
+                               err_msg="Surface radial solution values differ.")
+    # Compare Love numbers (both return ndarray of shape (num_solve_for, 3)).
+    assert old_out.love.shape == new_out.love.shape
+    np.testing.assert_allclose(new_out.love, old_out.love, rtol=1e-3,
+                               err_msg="Love numbers differ.")

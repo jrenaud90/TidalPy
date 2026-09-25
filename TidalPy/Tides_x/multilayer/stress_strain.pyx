@@ -1,0 +1,254 @@
+# distutils: language = c++
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
+"""Point-wise 3D tidal strain, stress, heating, and displacement kernels.
+
+A thin Cython layer over the same C++ kernel the world's 3D methods use. These are point evaluations and
+materialize no grids: the caller supplies the radial functions and complex moduli at the point, from a Love
+solve at the mode's degree and ``|frequency|``, plus one tidal mode's potential row.
+
+Potential rows are complex phasor amplitudes ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2,
+d2U/dtheta_dphi)`` with ``U(t) = Re[U_c e^{i omega t}]``; a real row is a phasor with zero phase, and the
+returned strains, stresses, and displacements follow the same convention. To assemble several modes:
+evaluate the moduli and radial functions at ``|frequency|``, conjugate the row of any mode whose frequency
+is negative, sum the strain and stress amplitudes of every mode sharing ``|frequency|``, and hand the sums
+and the frequency to :func:`volumetric_heating` for that frequency's cycle-averaged heating [W m-3]. The
+heating of different frequencies adds, and a field at time ``t`` is ``Re[amplitude e^{i |frequency| t}]``
+summed over the modes.
+"""
+import numpy as np
+from libcpp cimport bool as cpp_bool
+cimport numpy as cnp
+cnp.import_array()
+
+
+cdef int cy_potential_row_to_flat(object potential6, double* potential12) except -1:
+    """Copy one mode's potential row ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)``
+    into the 12-double buffer ``potential12`` (real, imaginary per entry).
+
+    Raises
+    ------
+    ValueError
+        If the row does not hold exactly 6 values.
+    """
+    cdef cnp.ndarray row = np.asarray(potential6, dtype=np.complex128)
+    if row.ndim != 1 or row.shape[0] != 6:
+        # `np.shape(row)`, not `row.shape`: on a typed ndarray the latter is a C `npy_intp*`, which would
+        # format as a pointer in this message.
+        raise ValueError(
+            f"potential6 must hold 6 values (U and its five angular derivatives); got shape {np.shape(row)}.")
+    cdef double complex[::1] row_view = np.ascontiguousarray(row)
+    cdef Py_ssize_t k
+    for k in range(6):
+        potential12[2 * k] = row_view[k].real
+        potential12[2 * k + 1] = row_view[k].imag
+    return 0
+
+
+def volumetric_heating(double complex[::1] stress not None, double complex[::1] strain not None, double frequency):
+    """Cycle-averaged volumetric heating [W m-3] of 6 complex stress and 6 complex strain amplitudes at one frequency.
+
+    Parameters
+    ----------
+    stress : numpy.ndarray of complex128, shape (6,)
+        Stress amplitudes [Pa] ordered rr, theta-theta, phi-phi, r-theta, r-phi, theta-phi.
+    strain : numpy.ndarray of complex128, shape (6,)
+        Strain amplitudes in the same order.
+    frequency : float
+        Forcing frequency [rad s-1] the amplitudes are at; only its magnitude is used.
+
+    Returns
+    -------
+    float
+        ``(|frequency| / 2) |sum_k w_k Im(stress_k conj(strain_k))|`` [W m-3] with ``w_k = 2`` on the three
+        off-diagonal components (Europa book Eq. 42), the same factor the world path applies. Pass the summed
+        amplitudes of every mode at one forcing frequency; the heating of different frequencies adds.
+
+    Raises
+    ------
+    ValueError
+        If either array does not hold exactly 6 components.
+    """
+    if stress.shape[0] != 6 or strain.shape[0] != 6:
+        raise ValueError(
+            f"stress and strain must each hold 6 components; got {stress.shape[0]} and {strain.shape[0]}.")
+    cdef double[12] stress12
+    cdef double[12] strain12
+    cdef Py_ssize_t k
+    for k in range(6):
+        stress12[2 * k] = stress[k].real
+        stress12[2 * k + 1] = stress[k].imag
+        strain12[2 * k] = strain[k].real
+        strain12[2 * k + 1] = strain[k].imag
+    return c_volumetric_heating_flat(&stress12[0], &strain12[0], frequency)
+
+
+def angular_gram(int degree_l, int order_m):
+    """The symmetric 6x6 angular Gram matrix ``G_ij(l, m) = int_0^pi f_i f_j sin(theta) dtheta``.
+
+    The bounded 6-function angular basis is ``f1=P_lm, f2=dP/dtheta, f3=d2P/dtheta2, f4=P/sin,
+    f5=-m^2 P/sin^2 + cot dP, f6=(dP - cot P)/sin``. This is the precomputed table backing the analytic
+    colatitude collapse (:meth:`LayeredWorld.calc_3d_tides`). Returns a ``(6, 6)`` float64 array; raises
+    ``ValueError`` if ``(l, m)`` is outside the tabulated range (``l = 2..10``, ``m = 0..l``).
+    """
+    cdef double[36] gram36
+    if c_angular_gram_flat(degree_l, order_m, &gram36[0]) == 0:
+        raise ValueError(f"angular Gram table has no entry for l={degree_l}, m={order_m} "
+                         "(supported l=2..10, m=0..l)")
+    cdef cnp.ndarray[cnp.float64_t, ndim=2] gram = np.empty((6, 6), dtype=np.float64)
+    cdef Py_ssize_t i, j
+    for i in range(6):
+        for j in range(6):
+            gram[i, j] = gram36[i * 6 + j]
+    return gram
+
+
+def strain_stress_heating_point(
+        double complex[::1] y not None,
+        double complex shear,
+        double complex bulk,
+        double radius,
+        double degree_l,
+        double frequency,
+        cpp_bool is_solid,
+        cpp_bool is_incompressible,
+        potential6,
+        double colatitude):
+    """Complex strain and stress amplitudes, and their heating, at one point for one tidal mode.
+
+    Parameters
+    ----------
+    y : numpy.ndarray of complex128
+        Radial functions y1 to y6 [SI] at ``radius`` from a radial-solver Love solve at the mode's degree and
+        ``|frequency|``. Only y1 to y4 are used; a shorter array is zero-padded.
+    shear, bulk : complex
+        Complex shear and bulk moduli [Pa] at ``radius`` and ``|frequency|``.
+    radius : float
+        Radius [m].
+    degree_l : float
+        Harmonic degree of the mode.
+    frequency : float
+        Forcing frequency of the mode [rad s-1]; only its magnitude is used, for the heating.
+    is_solid, is_incompressible : bool
+        Assumptions of the layer containing ``radius``; they select dy1/dr. A liquid point returns NaN.
+    potential6 : array-like of complex or float
+        One mode's potential row ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi)`` as returned
+        by ``tidal_potential_3d_modes`` [m2 s-2, per radian for each angular derivative]. Pass the conjugated row
+        for a mode with a negative frequency so the amplitudes are at ``+|frequency|``.
+    colatitude : float
+        Colatitude [rad].
+
+    Returns
+    -------
+    strain : numpy.ndarray of complex128, shape (6,)
+        Strain amplitudes ordered rr, theta-theta, phi-phi, r-theta, r-phi, theta-phi.
+    stress : numpy.ndarray of complex128, shape (6,)
+        Stress amplitudes [Pa] in the same order.
+    heating : float
+        The cycle-averaged volumetric heating [W m-3] of this mode alone, as :func:`volumetric_heating` of its
+        amplitudes at ``frequency``. Modes sharing a frequency interfere, so sum their amplitudes and call
+        :func:`volumetric_heating` on the sums instead of adding this value across them.
+
+    Raises
+    ------
+    ValueError
+        If ``potential6`` does not hold exactly 6 values.
+
+    Assumptions
+    -----------
+    - Isotropic linear viscoelasticity, ``sigma = 2 mu eps + lambda tr(eps) delta``, with the Kervazo et al. (2021)
+      correction to the Tobie et al. (2005) theta-phi and phi-phi strain forms. Solid layers only.
+    - The potential's r^2 factor is taken at the surface radius; the depth dependence is carried by y.
+    """
+    cdef double[12] y_ri
+    cdef Py_ssize_t k
+    for k in range(6):
+        if k < y.shape[0]:
+            y_ri[2 * k]     = y[k].real
+            y_ri[2 * k + 1] = y[k].imag
+        else:
+            y_ri[2 * k] = 0.0
+            y_ri[2 * k + 1] = 0.0
+    cdef double[12] potential12
+    cy_potential_row_to_flat(potential6, &potential12[0])
+    cdef double[12] strain12
+    cdef double[12] stress12
+    cdef double heating = 0.0
+    c_strain_stress_heating(
+        &y_ri[0],
+        shear.real,
+        shear.imag,
+        bulk.real,
+        bulk.imag,
+        radius,
+        degree_l,
+        frequency,
+        1 if is_solid else 0,
+        1 if is_incompressible else 0,
+        &potential12[0],
+        colatitude,
+        &strain12[0],
+        &stress12[0],
+        &heating)
+
+    cdef cnp.ndarray strain = np.empty(6, dtype=np.complex128)
+    cdef cnp.ndarray stress = np.empty(6, dtype=np.complex128)
+    cdef double complex[::1] strain_mv = strain
+    cdef double complex[::1] stress_mv = stress
+    # C stores into the buffers; the previous form built two Python complex objects per component.
+    with nogil:
+        for k in range(6):
+            strain_mv[k] = strain12[2 * k] + 1j * strain12[2 * k + 1]
+            stress_mv[k] = stress12[2 * k] + 1j * stress12[2 * k + 1]
+    return strain, stress, heating
+
+
+def displacement_point(
+        double complex[::1] y not None,
+        potential6,
+        double colatitude):
+    """Complex tidal displacement amplitudes (radial, polar, azimuthal) [m] at one point for one tidal mode.
+
+    Parameters
+    ----------
+    y : numpy.ndarray of complex128
+        Radial functions [SI] at the point's radius from a radial-solver Love solve at the mode's degree and
+        ``|frequency|``. Only y1 and y3 are used; a shorter array is zero-padded.
+    potential6 : array-like of complex or float
+        One mode's potential row as for :func:`strain_stress_heating_point`, conjugated for a negative frequency.
+    colatitude : float
+        Colatitude [rad].
+
+    Returns
+    -------
+    numpy.ndarray of complex128, shape (3,)
+        ``u_r = y1 U``, ``u_theta = y3 dU/dtheta``, ``u_phi = y3 dU/dphi / sin(colatitude)`` [m]. The displacement at
+        time ``t`` is ``Re[u e^{i |frequency| t}]``. At a pole ``u_phi`` is 0 when ``dU/dphi`` is 0 and NaN otherwise.
+
+    Raises
+    ------
+    ValueError
+        If ``potential6`` does not hold exactly 6 values.
+
+    Assumptions
+    -----------
+    - The radial functions and the potential are in SI (y1 and y3 in s2 m-1, U in m2 s-2).
+    """
+    cdef double[12] y_ri
+    cdef Py_ssize_t k
+    for k in range(6):
+        if k < y.shape[0]:
+            y_ri[2 * k]     = y[k].real
+            y_ri[2 * k + 1] = y[k].imag
+        else:
+            y_ri[2 * k] = 0.0
+            y_ri[2 * k + 1] = 0.0
+    cdef double[12] potential12
+    cy_potential_row_to_flat(potential6, &potential12[0])
+    cdef double[6] disp6
+    c_displacements_flat(&y_ri[0], &potential12[0], colatitude, &disp6[0])
+    cdef cnp.ndarray displacement = np.empty(3, dtype=np.complex128)
+    cdef double complex[::1] displacement_mv = displacement
+    with nogil:
+        for k in range(3):
+            displacement_mv[k] = disp6[2 * k] + 1j * disp6[2 * k + 1]
+    return displacement

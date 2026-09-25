@@ -13,7 +13,7 @@ Modified from https://github.com/numpy/numpy/blob/main/numpy/core/src/npymath/np
 from libc.math cimport isfinite, isinf, isnan, copysign, \
     sqrt, fabs, signbit, exp, cos, sin, log, log1p, ldexp, atan2, frexp, ceil
 
-cdef int DBL_MANT_DIG_INT = <int>d_DBL_MANT_DIG
+cdef int DBL_MANT_DIG_INT = <int>d_DBL_MANT_DIGITS
 
 SQRT2 = 1.414213562373095048801688724209698079  # sqrt 2
 LOGE2 = 0.693147180559945309417232121458176568  # log_e 2
@@ -280,7 +280,7 @@ cdef double complex cf_clog(const double complex z) noexcept nogil:
             r_real = log(cf_hypot(
                 ldexp(z_real_abs, DBL_MANT_DIG_INT),
                 ldexp(z_imag_abs, DBL_MANT_DIG_INT)
-                )) - d_DBL_MANT_DIG * LOGE2
+                )) - d_DBL_MANT_DIGITS * LOGE2
         else:
             # log(+/-0 +/- 0i)
             # raise divide-by-zero floating point exception

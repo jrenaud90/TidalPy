@@ -1,6 +1,6 @@
 
 cdef extern from "nondimensional_.hpp" nogil:
-    cdef cppclass NonDimensionalScalesCC:
+    cdef cppclass c_NonDimensionalScales:
         double second2_conversion
         double second_conversion
         double length_conversion
@@ -9,9 +9,16 @@ cdef extern from "nondimensional_.hpp" nogil:
         double mass_conversion
         double pascal_conversion
 
+        c_NonDimensionalScales() except +
+        c_NonDimensionalScales(
+            double frequency,
+            double mean_radius,
+            double bulk_density
+        )
+
 
 cdef void cf_build_nondimensional_scales(
-    NonDimensionalScalesCC* non_dim_scales_ptr,
+    c_NonDimensionalScales* non_dim_scales_ptr,
     double frequency,
     double mean_radius,
     double bulk_density

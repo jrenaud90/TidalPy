@@ -1,0 +1,87 @@
+# Charon: a rock core under a water-ice shell, the smaller half of a mutually synchronous binary.
+#
+# Rebuilt from the classic BurnMan-based WorldPack charon.toml, which supplied the core radius of
+# 437.3748 km. Radius is 606.0 km (Nimmo et al. 2017) and the mass follows from GM = 106.1 km3/s2
+# (Brozovic and Jacobson 2024), giving 1.5896798e21 kg and a mean density of 1705 kg/m3, which matches the
+# 1705 +/- 6 kg/m3 of the same paper.
+#
+# Structure
+# The recipe is Pluto's, so the two bodies can be compared. Ice I is fixed at 917 kg/m3 and the rock core's
+# Birch-Murnaghan reference density is fitted to the published mass, giving 3007.0339 kg/m3, within
+# 3 percent of the 2943.7302 kg/m3 Pluto's mass asks for. Two independent masses and two independent core
+# radii landing on the same rock density is the one piece of evidence here that the classic file's
+# geometry is about right. The result is a 168.6 km ice shell over a core carrying 66.4 percent of the
+# mass, a surface gravity of 0.2889 m/s2, and a central pressure of 0.29 GPa. C/MR2 comes out at 0.31156;
+# Charon has no measured moment of inertia, so that is a model output and not a check.
+#
+# Charon is less rocky than Pluto, 66.4 percent against 71.9 percent by mass, which is the expected
+# signature of a giant-impact origin that put a larger ice fraction in the secondary. Charon has no ocean
+# here: its tectonics point to one that has since refrozen, and nothing in its bulk properties requires
+# a present-day one. To model it, split the shell and set is_solid = false on the lower part.
+#
+# Temperatures and viscosities
+# Every layer carries a temperature and a reference-law viscosity at it (see io.toml): the core at 300 K
+# and 1e22 Pa s, the shell at 40 K and 1e15 Pa s with the 59.4 kJ/mol activation energy of ice. Neither is
+# calibrated to an observation.
+#
+# Tides
+# Pluto and Charon are mutually synchronous on a circular orbit, so the present tide is negligible. At the
+# 6.3872 day mutual period calc_tides puts 97.9 percent of the heating in the ice shell (each layer's share of
+# the radial solution's heating), unchanged to four digits between eccentricities of 0.001 and 0.01.
+#
+# Orbital state is not a world property in this schema; add Charon to a System to give it an orbit. The
+# spin frequency is the synchronous rate of the classic file's 6.3872304 day period.
+schema_version = "0.2.0"
+name = "Charon"
+type = "terrestrial"
+radius_m = 606000.0
+mass_kg = 1.5896798e21
+spin_frequency_rad_s = 1.1385538e-05
+albedo = 0.29
+
+# The layer temperatures below are prescribed, not solved: the fit holds at exactly these values, so the
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
+[layers.core]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 0
+radius_outer_m = 437374.8067          # classic WorldPack charon.toml
+is_tidal = true
+temperature_k = 300.0
+
+[layers.core.material]
+model = "bm"
+reference_density_kg_m3 = 3007.0339   # fitted to the published mass
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+
+[layers.core.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e22
+reference_temperature_k = 300.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.ice_shell]
+class = "solidliquid"
+type = "ice"
+layer_index = 1
+radius_fraction = 1.0
+is_tidal = true
+temperature_k = 40.0
+
+[layers.ice_shell.material]
+model = "bm"
+reference_density_kg_m3 = 917.0
+reference_bulk_modulus_pa = 9.6e9     # ice I
+bulk_modulus_derivative = 5.5
+
+[layers.ice_shell.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e15
+reference_temperature_k = 40.0
+molar_activation_energy_j_mol = 59.4e3
+molar_activation_volume_m3_mol = 0.0

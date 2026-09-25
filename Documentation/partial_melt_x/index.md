@@ -1,0 +1,33 @@
+# Partial Melting (`partial_melt_x`)
+
+_Updated: 2026-09-23_
+
+`TidalPy.partial_melt_x` has functionality to modify planetary material's strength once it begins to experience partial melt. Each model takes the pre-melt (solid) viscosity and shear modulus at a point, together with the temperature, and returns the post-melt values plus the volumetric melt fraction.
+
+Melt weakening is the feedback that makes solid-body tidal heating self-limiting. Heating raises the temperature, the temperature raises the melt fraction, the melt fraction drops the viscosity and shear modulus by orders of magnitude, and a weaker body deforms more but has weaker dissipation (less friction). Whether a body runs away to a magma ocean or settles into a warm steady state is largely decided by the shape of the weakening curve near the critical melt fraction, which is why the models differ most sharply right there.
+
+| Page | Covers |
+|---|---|
+| [Partial-Melt Models](partial_melt_models.md) | The melt-fraction definition, the three models, their parameters, the Python and C++ surfaces, and how to add a model. |
+
+```{toctree}
+:maxdepth: 1
+
+Partial-Melt Models <partial_melt_models.md>
+```
+
+## Where Partial Melt is Used
+
+A partial-melt model is attached to a layer's material (its EOS model) with `set_partial_melt`, on the EOS model or through the layer's helper of the same name, and applied during the whole-planet equation-of-state solve. At each radial slice the [viscosity model](../viscosity_x/index.md) supplies the pre-melt viscosity and the equation of state supplies the pre-melt moduli; the melt model then rewrites the shear modulus and viscosity and, only when its `bulk_melt_weakening` switch is on, the bulk modulus (by a separate, much weaker law). The post-melt values are what [`rheology_x`](../rheology_x/index.md) turns into a complex modulus, and a layer keeps both sets so you can compare them (`get_premelt_shear_viscosity` against `get_shear_viscosity`).
+
+Like viscosity, melt weakening is frequency-independent and therefore resolved once per equation-of-state solve rather than once per tidal mode.
+
+## Examples
+
+`Demos_x/Physics/10_thermal_eos.ipynb` attaches a Henning melt model to a mantle and sweeps its temperature through the melting range.
+
+## References
+
+- Fischer, H.-J., and Spohn, T. (1990). Thermal-orbital histories of viscoelastic models of Io. *Icarus*, 83(1), 39-65.
+- Henning, W. G., O'Connell, R. J., and Sasselov, D. D. (2009). Tidally heated terrestrial exoplanets: Viscoelastic response models. *The Astrophysical Journal*, 707(2), 1000-1015.
+- Renaud, J. P., and Henning, W. G. (2018). Increased tidal dissipation using advanced rheological models: Implications for Io and tidally active exoplanets. *The Astrophysical Journal*, 857(2), 98.

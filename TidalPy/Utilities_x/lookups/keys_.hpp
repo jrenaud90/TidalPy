@@ -1,0 +1,149 @@
+#pragma once
+
+#include <cstdint>
+
+typedef uint64_t RefKeyType;
+
+// Shifts a signed int16 into the unsigned range; int32_t so the addition cannot overflow.
+const int32_t OFFSET = 32768;
+
+// Pack signed 16-bit key components into one 64-bit lookup reference.
+inline RefKeyType convert_4key(int16_t a, int16_t b, int16_t c, int16_t d)
+{
+    return (static_cast<RefKeyType>(a + OFFSET) << 48) | 
+           (static_cast<RefKeyType>(b + OFFSET) << 32) | 
+           (static_cast<RefKeyType>(c + OFFSET) << 16) | 
+           static_cast<RefKeyType>(d + OFFSET);
+};
+
+inline RefKeyType convert_3key(int16_t a, int16_t b, int16_t c)
+{
+    return (static_cast<RefKeyType>(a + OFFSET) << 32) | 
+           (static_cast<RefKeyType>(b + OFFSET) << 16) | 
+           static_cast<RefKeyType>(c + OFFSET);
+};
+
+inline RefKeyType convert_2key(int16_t a, int16_t b)
+{
+    return (static_cast<RefKeyType>(a + OFFSET) << 16) | 
+           static_cast<RefKeyType>(b + OFFSET);
+};
+
+inline RefKeyType convert_1key(int16_t a)
+{
+    return static_cast<RefKeyType>(a + OFFSET);
+};
+
+class c_Key4
+{
+public:
+    int16_t a;
+    int16_t b;
+    int16_t c;
+    int16_t d;
+    RefKeyType reference;
+
+    c_Key4() :
+        a(0),
+        b(0),
+        c(0),
+        d(0),
+        reference(0)
+    {
+    }
+
+    c_Key4(int16_t a_, int16_t b_, int16_t c_, int16_t d_) : 
+        a(a_),
+        b(b_),
+        c(c_),
+        d(d_),
+        reference(convert_4key(a_, b_, c_, d_))
+    {
+    }
+
+    void rebuild_reference()
+    {
+        this->reference = convert_4key(this->a, this->b, this->c, this->d);
+    }
+};
+
+class c_Key3
+{
+public:
+    int16_t a;
+    int16_t b;
+    int16_t c;
+    RefKeyType reference;
+
+    c_Key3() :
+        a(0),
+        b(0),
+        c(0),
+        reference(0)
+    {
+    }
+
+    c_Key3(int16_t a_, int16_t b_, int16_t c_) : 
+        a(a_),
+        b(b_),
+        c(c_),
+        reference(convert_3key(a_, b_, c_))
+    {
+    }
+
+    void rebuild_reference()
+    {
+        this->reference = convert_3key(this->a, this->b, this->c);
+    }
+};
+
+class c_Key2
+{
+public:
+    int16_t a;
+    int16_t b;
+    RefKeyType reference;
+
+    c_Key2() :
+        a(0),
+        b(0),
+        reference(0)
+    {
+    }
+
+    c_Key2(int16_t a_, int16_t b_) : 
+        a(a_),
+        b(b_),
+        reference(convert_2key(a_, b_))
+    {
+    }
+    
+    void rebuild_reference()
+    {
+        this->reference = convert_2key(this->a, this->b);
+    }
+};
+
+class c_Key1
+{
+public:
+    int16_t a;
+    RefKeyType reference;
+
+    c_Key1() :
+        a(0),
+        reference(0)
+    {
+    }
+
+    c_Key1(int16_t a_) : 
+        a(a_),
+        reference(convert_1key(a_))
+    {
+    }
+
+    void rebuild_reference()
+    {
+        this->reference = convert_1key(this->a);
+    }
+};

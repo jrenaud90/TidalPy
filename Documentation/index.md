@@ -5,24 +5,26 @@
 :end-before: Overview
 ```
 
-Please click on a page below to learn more about the package. 
+The pages below cover the package. The source is on [GitHub](https://github.com/jrenaud90/TidalPy).
 
-Also check out the GitHub page to see the code.
-[GitHub](https://github.com/jrenaud90/TidalPy)
+The <a href="code_map.html">interactive code map</a> shows the main components of the new backend, which functions call which, and why.
 
 ```{toctree}
 :maxdepth: 2
 :caption: TidalPy
 
 Overview <Overview/index.md>
+Style Guide <Overview/style.md>
 ```
 
 ```{toctree}
 :maxdepth: 2
 :caption: Modules
 
+Utilities <Utilities/index.md>
 Rheology <Rheology/index.md>
 RadialSolver (Love Number Calculator) <RadialSolver/index.md>
+Tides <Tides/index.md>
 Exoplanets <Exoplanets.md>
 Dynamics <Dynamics/index.md>
 ```
@@ -39,13 +41,63 @@ Demos/5 - Rheology Exploration <Demos/5_-_Rheology_Exploration.ipynb>
 Demos/6 - Multilayer Heating <Demos/6_-_Multilayer_Heating.ipynb>
 Demos/7 - Comparison of Tidal Modes <Demos/7_-_Comparison_of_Tidal_Modes.ipynb>
 Demos/8 - Love Number Sensitivity <Demos/8_-_Love_Number_Sensitivity.ipynb>
+Demos/Graphics - Grid Plots <Demos/Graphics--GridPlots.ipynb>
+Demos/Graphics - Map Projections <Demos/Graphics--MapProjections.ipynb>
 ```
 
 ```{toctree}
 :maxdepth: 2
-:caption: Auto Generated API
+:caption: Future Structure
 
-TidalPy API <API/index.md>
+Overview and Porting Guide <future_structure.md>
+Structures <structures_x/index.md>
+Material and EOS <material_x/index.md>
+Rheology <rheology_x/index.md>
+Viscosity <viscosity_x/index.md>
+Partial Melting <partial_melt_x/index.md>
+Cooling <cooling_x/index.md>
+Radiogenics <radiogenics_x/index.md>
+Tides <Tides_x/index.md>
+RadialSolver (Love Numbers) <RadialSolver_x/index.md>
+Dynamics <dynamics_x/index.md>
+Stellar <stellar_x/index.md>
+Utilities <utilities_x/index.md>
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Future Structure Demos
+
+Demos_x/Basics/01_config.ipynb
+Demos_x/Basics/02_world_building.ipynb
+Demos_x/Basics/03_save_load.ipynb
+Demos_x/Physics/04_orbits_insolation.ipynb
+Demos_x/Physics/05_tidal_basics.ipynb
+Demos_x/Physics/06_rheology_io.ipynb
+Demos_x/Physics/07_gasgiant_fixedQ_dt.ipynb
+Demos_x/Physics/08_love_numbers_1d.ipynb
+Demos_x/Physics/09_tidal_heating_3d.ipynb
+Demos_x/Physics/10_thermal_eos.ipynb
+Demos_x/Systems/11_multi_world.ipynb
+Demos_x/Systems/12_thermal_orbital_evolution.ipynb
+Demos_x/Physics/13_tidal_maps_3d.ipynb
+Demos_x/Physics/14_bundled_worlds.ipynb
+Demos_x/Physics/15_thermal_interior.ipynb
+Demos_x/Systems/16_earth_moon_sun.ipynb
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Future Structure Benchmarks
+
+Benchmarks_x/RadialSolver/Earth_Love_Numbers.ipynb
+Benchmarks_x/RadialSolver/Enceladus_Tobie_Roberts.ipynb
+Benchmarks_x/RadialSolver/Homogeneous_Viscoelastic_Love_Numbers.ipynb
+Benchmarks_x/EOS/EOS_vs_BurnMan.ipynb
+Benchmarks_x/Tides/Renaud2021_Dual_Body_Eccentric.ipynb
+Benchmarks_x/Tides/Hut1981_Constant_Time_Lag.ipynb
+Benchmarks_x/Tides/Exact_Orbit_Tidal_Heating.ipynb
+Benchmarks_x/Performance/Perf_Trends.ipynb
 ```
 
 ```{toctree}

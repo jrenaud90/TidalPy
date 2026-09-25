@@ -301,7 +301,7 @@ void EOSSolutionCC::interpolate_full_planet()
     this->other_vecs_set = true;
 }
 
-void EOSSolutionCC::dimensionalize_data(NonDimensionalScalesCC* nondim_scales, bool redimensionalize)
+void EOSSolutionCC::dimensionalize_data(c_NonDimensionalScales* nondim_scales, bool redimensionalize)
 {   
     // Save scalers
     this->redim_length_scale  = nondim_scales->length_conversion;
