@@ -1,20 +1,24 @@
 # Migrating from TidalPy 0.7.X
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-28_
 
 TidalPy 0.8.0 replaced the Python, Cython, and numba code of TidalPy 0.7.X and earlier with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed with it, so scripts written for 0.7.X need to be updated. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> draws the main classes and functions of 0.8.0, the calls between them, and the purpose, inputs, and outputs of each call.
 
-TidalPy 0.7.6 is the last release with the 0.7.X API, and 0.7.X receives no further development. If you need the 0.7.X API, pin the version:
+TidalPy 0.7.X API will not receive new features but will still get bug fixes until apporx. the end of 2026. However, the TidalPy developers strongly encourage folks to switch to the new 0.8.0 API. If you need the 0.7.X API, pin the version:
 
 ```bash
 pip install "TidalPy<0.8"
 ```
 
-or, with conda, `conda install -c conda-forge "tidalpy<0.8"`.
+or, with conda, 
+
+```bash
+conda install -c conda-forge "tidalpy<0.8"
+```
 
 ## What Changed
 
-- The physics runs in C++ (with the Eigen linear algebra library and CyRK integrators), wrapped by thin Cython layers. There is no numba, so there is no compile step the first time a function runs.
+- The physics runs in C++, wrapped by thin Cython layers. There is no numba, so no compile step the first time a function runs.
 - Classes store configuration and return results from explicit `solve_*`, `get_*`, and `calc_*` calls. Changing an attribute no longer triggers a cascade of updates through the world, its layers, and its orbit.
 - Orbital state no longer lives on a world. A `System` holds the orbits and passes them to each tidal calculation.
 - Worlds and systems are described by TOML files that carry a `schema_version`, or by the equivalent Python dict.
@@ -177,11 +181,11 @@ from TidalPy.Structures import build_system, build_world
 from TidalPy.Structures.system import System
 
 io = build_world("io")
-io.solve_eos()                                        # Needed by the rheology tide model
+io.solve_eos()   # Needed by the rheology tide model
 jupiter = build_world("jupiter_simple")
 
 system = System("jovian")
-system.add_world(jupiter)                             # Jupiter raises Io's tides and is treated as a point mass
+system.add_world(jupiter)   # Jupiter raises Io's tides and is treated as a point mass
 system.add_world(
     io,
     tidal_host=jupiter,
@@ -190,12 +194,12 @@ system.add_world(
 io.set_spin_frequency(system.calc_orbital_frequency(io))   # Synchronous rotation
 
 rates = system.calc_world_evolution(io)
-print(rates["tidal_heating"])                         # [W]
+print(rates["tidal_heating"])   # [W]
 print(rates["da_dt"], rates["de_dt"], rates["dspin_dt"])
 
 # Systems can also be built from TOML; this one is bundled
 sol_system = build_system("sol_system")
-print(sol_system.calc_insolation_flux("earth"))       # [W m-2], about 1361
+print(sol_system.calc_insolation_flux("earth"))   # [W m-2], about 1361
 ```
 
 ## Quick Tidal Dissipation
@@ -422,57 +426,50 @@ print(effective_rigidity, love.k)
 
 ## Performance
 
-Performance tests were run with TidalPy 0.7.X and 0.8.0. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
+Performance tests were run with TidalPy 0.7.6 and 0.8.0 on one otherwise idle desktop, each figure the fastest of three fresh processes. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
 
-0.8.0 is much faster where 0.7.X called out to BurnMan or paid a numba compile, 2.5 to 7.3 times faster on 3D heating maps, about three times faster on vectorized rheology and world building, and 3.2 to 3.5 times faster on global tidal heating. It is slower on the standalone radial solver at tight tolerances, on two vectorized sweeps, and on scalar rheology calls; all are listed with their causes.
+0.8.0 is much faster where 0.7.X called out to BurnMan or paid a numba compile, 2.5 to 6.1 times faster on 3D heating maps, about three times faster on vectorized rheology and world building, and 3.0 to 3.9 times faster on global tidal heating. It is slower on the standalone radial solver at tight tolerances, on two vectorized sweeps, and on scalar rheology calls; all are listed with their causes.
 
 ### Where It Is Faster
 
 | Task | 0.7.X | 0.8.0 | Change |
 |---|---|---|---|
-| Build a planet with its interior (Io, 3 layers) | 180 ms | 0.72 ms | 250x faster |
-| Orbit-averaged 3D heating map (50 x 16 x 32) | 27.1 ms | 3.69 ms | 7.3x faster |
-| Radiogenic heating, one evaluation | 0.30 us | 0.045 us | 6.8x faster |
-| Global tidal heating, degrees 2 to 4, e^10 | 0.142 ms | 0.040 ms | 3.5x faster |
-| Global tidal heating, e^2 truncation | 0.061 ms | 0.018 ms | 3.4x faster |
-| Global tidal heating, e^4 truncation | 0.063 ms | 0.019 ms | 3.3x faster |
-| Global tidal heating, e^10 truncation | 0.074 ms | 0.023 ms | 3.2x faster |
-| Build a world from config (2 layers, no interior solve) | 1.38 ms | 0.43 ms | 3.2x faster |
-| Rheology, 10k complex moduli | 0.174 ms | 0.054 ms | 3.2x faster |
-| Instantaneous 3D heating map (50 x 16 x 32 x 8 times) | 26.8 ms | 10.6 ms | 2.5x faster |
-| Homogeneous Love numbers (closed form) | 0.16 us | 0.068 us | 2.4x faster |
+| Build a planet with its interior (Io, 3 layers) | 178 ms | 0.73 ms | 245x faster |
+| Radiogenic heating, one evaluation | 0.29 us | 0.046 us | 6.4x faster |
+| Orbit-averaged 3D heating map (50 x 16 x 32) | 13.0 ms | 2.12 ms | 6.1x faster |
+| Global tidal heating, degrees 2 to 4, e^10 | 0.050 ms | 0.013 ms | 3.9x faster |
+| Rheology, 10k complex moduli | 0.175 ms | 0.055 ms | 3.2x faster |
+| Build a world from config (2 layers, no interior solve) | 1.38 ms | 0.44 ms | 3.1x faster |
+| Global tidal heating, e^10 truncation | 0.026 ms | 0.0084 ms | 3.1x faster |
+| Global tidal heating, e^4 truncation | 0.021 ms | 0.0071 ms | 3.0x faster |
+| Global tidal heating, e^2 truncation | 0.020 ms | 0.0069 ms | 3.0x faster |
+| Instantaneous 3D heating map (50 x 16 x 32 x 8 times) | 12.9 ms | 5.23 ms | 2.5x faster |
+| Homogeneous Love numbers (closed form) | 0.15 us | 0.063 us | 2.4x faster |
+| Convective cooling, one evaluation | 0.16 us | 0.14 us | 1.2x faster |
 
 The planet-building row is the largest change. 0.7.X handed the interior to BurnMan, which does mineral-physics lookups and its own root finding; 0.8.0 integrates the equation of state in C++.
 
 The 3D maps are timed at eccentricity truncation level 2 in both versions, where both keep the same heating terms.
 
-The global tidal heating and 3D map rows were timed on a busier machine that ran both versions about two to three times slower than for the other rows: compare their ratios, not their times, with the rest of the table.
-
 The global tidal heating rows use the homogeneous Love method, which solves the same problem as the 0.7.X `quick_tidal_dissipation`, at eccentricity truncations both versions tabulate. At level $n$ both keep every term of the heating through $e^n$: the 0.7.X tables hold the squared $G^2$ cut at $e^n$, and the 0.8.0 ones the unsquared $G$, whose products the tide engines cut at $e^n$, so both sum the same heating terms. The cost in 0.8.0 follows the number of distinct forcing frequencies rather than the number of modes: Love numbers are solved once per frequency and degree, and the layer-averaged shear modulus the homogeneous methods need is formed once per frequency and shared by every degree, so adding degrees adds little. With the `radial_solver` Love method each frequency and degree is a full radial solve instead, and that solve dominates.
-
-### Where It Is About Even
-
-| Task | 0.7.X | 0.8.0 | Change |
-|---|---|---|---|
-| Convective cooling, one evaluation | 0.16 us | 0.17 us | 0.97x, even |
 
 ### Where It Is Slower
 
 | Task | 0.7.X | 0.8.0 | Change |
 |---|---|---|---|
-| `radial_solver`, 1 layer, 10 slices | 0.30 ms | 0.45 ms | 0.66x, 1.5x slower |
-| `radial_solver`, 1 layer, 200 slices | 0.45 ms | 0.50 ms | 0.89x, 1.1x slower |
-| `radial_solver`, 3 layers (static liquid core), 300 slices | 0.45 ms | 0.54 ms | 0.82x, 1.2x slower |
-| `radial_solver`, propagation matrix, 200 slices | 0.11 ms | 0.14 ms | 0.80x, 1.25x slower |
-| Radiogenic heating, 10k times | 0.087 ms | 0.099 ms | 0.88x, 1.1x slower |
-| Convective cooling, 10k evaluations | 0.157 ms | 0.204 ms | 0.77x, 1.3x slower |
-| Rheology, one complex modulus | 0.056 us | 0.076 us | 0.73x, 1.4x slower |
+| `radial_solver`, 1 layer, 10 slices | 0.30 ms | 0.45 ms | 0.68x, 1.5x slower |
+| Rheology, one complex modulus | 0.060 us | 0.081 us | 0.74x, 1.4x slower |
+| Radiogenic heating, 10k times | 0.085 ms | 0.109 ms | 0.78x, 1.3x slower |
+| Convective cooling, 10k evaluations | 0.160 ms | 0.205 ms | 0.78x, 1.3x slower |
+| `radial_solver`, 3 layers (static liquid core), 300 slices | 0.44 ms | 0.51 ms | 0.87x, 1.15x slower |
+| `radial_solver`, 1 layer, 200 slices | 0.45 ms | 0.50 ms | 0.90x, 1.1x slower |
+| `radial_solver`, propagation matrix, 200 slices | 0.109 ms | 0.118 ms | 0.92x, 1.1x slower |
 
 The 0.8.0 standalone radial solver is a wrapper over the world path, so both entry points share one code path. It builds a temporary world from the supplied arrays, solves that world's equation of state, and integrates the Love-number equations against the same dense structure the world path uses. The two versions take identical integration steps on these problems (71, 68, and 90 for the three independent solutions of the one-layer body), so the whole gap is the cost of each right-hand-side read: 0.8.0 evaluates the equation-of-state interpolant for gravity, the interpolated material for density and both static moduli, and the two supplied complex-modulus arrays, where 0.7.X did four linear interpolations of its input arrays. The equation-of-state solve itself is a tenth of the time, the temporary world a twentieth, and the Python-side handling about the same as the world build. The dense read buys accuracy: against the closed-form homogeneous sphere the 0.8.0 degree-2 k2 is 2.6 times closer (6.8e-5 against 1.8e-4), and the two versions agree to 1e-15 on the one-layer rows and 6e-10 on the three-layer one at the tolerances timed here (`integration_rtol` 1e-8, `integration_atol` 1e-12, both versions).
 
 These settings recover the time:
 
-- `integration_rtol` and `integration_atol` set the step count and so the read count. At the `[radial_solver]` defaults (1e-6 and 1e-10, looser than the rows above) the 0.8.0 solver takes 0.25, 0.30, and 0.36 ms on the three shooting rows, faster than 0.7.X at its tighter setting, with k2 moving by 4e-9.
+- `integration_rtol` and `integration_atol` set the step count and so the read count. At the `[radial_solver]` defaults (1e-6 and 1e-10, looser than the rows above) the 0.8.0 solver takes 0.25, 0.30, and 0.35 ms on the three shooting rows, faster than 0.7.X at its tighter setting, with k2 moving by 4e-9 to 6e-9.
 - The equation-of-state settings (`eos_rtol`, `eos_atol`, `eos_integration_method`) change the total by under 10 percent, and the slice count matters little once the searches are seeded.
 - `RK45` for the Love integration is slower than `DOP853`, which reaches the tolerance in fewer steps.
 - For repeated solves of one body, build a `LayeredWorld` instead: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes.
@@ -485,13 +482,13 @@ Steady-state timings leave out the startup cost. 0.7.X compiles its numba kernel
 
 | First call | 0.7.X, first session after installing | 0.7.X, later sessions | 0.8.0 |
 |---|---|---|---|
-| Tidal heating, degrees 2 to 4, e^10 | 6.5 s | 1.1 s | 0.13 ms |
-| 3D heating map (50 x 16 x 32 x 8 times) | 4.4 s | 0.93 s | 5.5 ms |
-| Build a planet with its interior (Io) | not measured | 1.4 s | 2.1 ms |
-| Dual-body dissipation rates | not measured | 1.1 s | no single-call equivalent |
-| Build a world from config | not measured | 0.21 s | 2.1 ms |
+| Tidal heating, degrees 2 to 4, e^10 | 6.2 s | 1.0 s | 0.07 ms |
+| 3D heating map (50 x 16 x 32 x 8 times) | 4.2 s | 0.88 s | 5.4 ms |
+| Build a planet with its interior (Io) | not measured | 1.3 s | 1.8 ms |
+| Dual-body dissipation rates | not measured | 1.0 s | no single-call equivalent |
+| Build a world from config | not measured | 0.14 s | 1.9 ms |
 
-A script that computes one 3D map and exits spends about a second in 0.7.X once its cache is warm, more than four seconds the first time after installing, and about six milliseconds in 0.8.0.
+A script that computes one 3D map and exits spends almost a second in 0.7.X once its cache is warm, more than four seconds the first time after installing, and about five milliseconds in 0.8.0.
 
 ### Threads for 3D Grids
 
@@ -499,11 +496,11 @@ The 3D grid methods, `calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displace
 
 | Grid | 1 thread | 16 threads | Change |
 |---|---|---|---|
-| Secular heating map | 169 ms | 42 ms | 4.0x faster |
-| Stress and strain, 4 times | 265 ms | 57 ms | 4.7x faster |
-| Displacements, 24 times | 298 ms | 72 ms | 4.1x faster |
+| Secular heating map | 149 ms | 31 ms | 4.7x faster |
+| Stress and strain, 4 times | 264 ms | 57 ms | 4.7x faster |
+| Displacements, 24 times | 297 ms | 69 ms | 4.3x faster |
 
-The gain stops well short of the thread count because the radial solves, about 22 ms of each call here, always run on one thread. The work after them grows with the grid while the solves do not, so larger grids gain more.
+The gain stops well short of the thread count because the radial solves, about 12 ms of each call here, always run on one thread. The work after them grows with the grid while the solves do not, so larger grids gain more.
 
 ## Learning TidalPy 0.8
 
