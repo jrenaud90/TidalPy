@@ -1,36 +1,36 @@
 """Tests for the dynamically loaded third-party constants in TidalPy.constants."""
 import math
 
+import pytest
+
 from TidalPy.constants import (
     G, au, k, k_boltzman, k_boltzmann, luminosity_solar, radius_jupiter, seconds_per_myr, year, yr)
 
 
-def test_year_is_julian_year():
-    """The year constant is the Julian year in seconds, with a matching yr alias."""
-    assert math.isclose(year, 31_557_600.0, rel_tol=1e-12)
+@pytest.mark.parametrize(
+    "value, expected, rel_tol",
+    [
+        (year, 31_557_600.0, 1e-12),
+        (G, 6.6743e-11, 1e-3),
+        (au, 1.495978707e11, 1e-6),
+        (luminosity_solar, 3.828e26, 1e-12),
+        (radius_jupiter, 6.9911e7, 1e-12),
+        (k_boltzmann, 1.380649e-23, 1e-9),
+    ],
+    ids=["year_julian", "G", "au", "luminosity_solar_iau2015", "radius_jupiter_iau2015", "k_boltzmann"])
+def test_constant_value(value, expected, rel_tol):
+    """Each SciPy-sourced or reference-body constant is populated with its expected value."""
+    assert math.isclose(value, expected, rel_tol=rel_tol)
+
+
+def test_constant_aliases():
+    """Aliases (yr, k, k_boltzman) equal their primary constants."""
     assert yr == year
+    assert k == k_boltzmann
+    assert k_boltzman == k_boltzmann
 
 
 def test_seconds_per_myr_is_exact_julian():
     """The compile-time mega-year equals one million of SciPy's Julian years, exactly."""
     assert seconds_per_myr == 3.15576e13
     assert math.isclose(seconds_per_myr, 1.0e6 * year, rel_tol=1e-15)
-
-
-def test_third_party_constants_populated():
-    """The SciPy-sourced constants are populated (not NaN) after initialization."""
-    assert math.isclose(G, 6.6743e-11, rel_tol=1e-3)
-    assert math.isclose(au, 1.495978707e11, rel_tol=1e-6)
-
-
-def test_reference_body_constants():
-    """The bundled reference-body constants carry the IAU 2015 nominal values."""
-    assert math.isclose(luminosity_solar, 3.828e26, rel_tol=1e-12)
-    assert math.isclose(radius_jupiter, 6.9911e7, rel_tol=1e-12)
-
-
-def test_boltzmann_constant_names():
-    """Boltzmann's constant is exposed as k_boltzmann, the short alias k, and the earlier spelling."""
-    assert math.isclose(k_boltzmann, 1.380649e-23, rel_tol=1e-9)
-    assert k == k_boltzmann
-    assert k_boltzman == k_boltzmann

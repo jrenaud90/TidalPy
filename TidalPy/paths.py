@@ -43,29 +43,22 @@ def get_log_dir() -> str:
     return log_dir
 
 def get_worlds_dir() -> str:
-    """ TidalPy directory containing configurations for various pre-built worlds. """
-    worlds_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Worlds')
-    Path(worlds_dir).mkdir(parents=True, exist_ok=True)
-    return worlds_dir
+    """ TidalPy directory containing world and system configurations.
 
-def get_worlds_x_dir() -> str:
-    """ TidalPy directory containing structures_x world configurations.
-
-    This is the user-editable home for the ``WorldPack_x`` example worlds. The
+    This is the user-editable home for the ``WorldPack`` example worlds. The
     packaged worlds are copied here on first use; the world builder then prefers
     this directory over the packaged copies, so edits made here take effect
     without modifying the installed package.
     """
-    worlds_x_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Worlds_x')
-    Path(worlds_x_dir).mkdir(parents=True, exist_ok=True)
-    return worlds_x_dir
+    worlds_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Worlds')
+    Path(worlds_dir).mkdir(parents=True, exist_ok=True)
+    return worlds_dir
 
 def create_data_dirs():
     """ Creates TidalPy data directories if not already present. """
     get_config_dir()
     get_log_dir()
     get_worlds_dir()
-    get_worlds_x_dir()
 
 def timestamped_str(
     string_to_stamp: str = '',

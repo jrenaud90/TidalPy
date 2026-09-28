@@ -1,23 +1,68 @@
-from .love1d import complex_love
-from .love1d import complex_love_general
-from .love1d import effective_rigidity
-from .love1d import effective_rigidity_general
-from .love1d import static_love
-from .love1d import static_love_general
+"""Global (1D) tide models, Love-number helpers, tidal potentials, and the point-wise 3D stress, strain,
+heating, and displacement kernels.
 
-from .methods import TidesBase as TidesBase
-from .methods import GlobalApproxTides as GlobalApproxTides
-from .methods import LayeredTides as LayeredTides
+The world's ``calc_tides`` and ``calc_3d_tides`` drive these internally; this package exposes the pieces for
+direct use. Each name is also importable from its own subpackage.
+"""
+from TidalPy.Tides.classes import (
+    TideBase,
+    RheologyTide,
+    FixedQTide,
+    FixedLagTide,
+    CTLQTide,
+    make_tide,
+    collapse_global_tides,
+)
+from TidalPy.Tides.love import (
+    LoveNumbers,
+    apply_fixed_dt,
+    apply_fixed_q,
+    calc_effective_rigidity,
+    calc_homogeneous_love_numbers,
+    love_method_name,
+)
+from TidalPy.Tides.potential import (
+    ModeMap,
+    UniqueFrequencyMap,
+    tidal_potential_3d_modes,
+    global_potential,
+)
+from TidalPy.Tides.multilayer import (
+    angular_gram,
+    displacement_point,
+    strain_stress_heating_point,
+    volumetric_heating,
+)
+from TidalPy.Tides.eccentricity import eccentricity_func
+from TidalPy.Tides.obliquity import obliquity_func
 
-from .dissipation import calc_tidal_susceptibility as calc_tidal_susceptibility
-from .dissipation import calc_tidal_susceptibility_reduced as calc_tidal_susceptibility_reduced
-
-from .heating import calculate_volumetric_heating as calculate_volumetric_heating
-# Alias functions
-
-calc_complex_love         = complex_love
-calc_complex_love_general = complex_love_general
-calc_effective_rigidity   = effective_rigidity
-calc_static_love          = static_love
-calc_static_love_general  = static_love_general
-calc_effective_rigidity_general = effective_rigidity_general
+__all__ = [
+    # Global tide models
+    "TideBase",
+    "RheologyTide",
+    "FixedQTide",
+    "FixedLagTide",
+    "CTLQTide",
+    "make_tide",
+    "collapse_global_tides",
+    # Love numbers
+    "LoveNumbers",
+    "apply_fixed_dt",
+    "apply_fixed_q",
+    "calc_effective_rigidity",
+    "calc_homogeneous_love_numbers",
+    "love_method_name",
+    # Tidal potentials
+    "ModeMap",
+    "UniqueFrequencyMap",
+    "tidal_potential_3d_modes",
+    "global_potential",
+    # Point-wise 3D kernels
+    "angular_gram",
+    "displacement_point",
+    "strain_stress_heating_point",
+    "volumetric_heating",
+    # Eccentricity and obliquity functions
+    "eccentricity_func",
+    "obliquity_func",
+]

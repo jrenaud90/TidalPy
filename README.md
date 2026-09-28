@@ -49,7 +49,7 @@ or
 We recommend using a virtual environments (via a manager like [uv](https://docs.astral.sh/uv/pip/environments/) or [miniforge](https://conda-forge.org/download/)) when installing TidalPy.
 
 ### Accessing Jupyter Notebooks
-There are several demos provided with TidalPy that make use of [Jupyter notebooks](https://jupyter.org/) found in the /Demos/ folder of TidalPy's[repository](https://github.com/jrenaud90/TidalPy). In order to access these you will need to make sure you install Jupyter and a few related packages:
+There are several demos provided with TidalPy that make use of [Jupyter notebooks](https://jupyter.org/) found in the /Demos/ folder of TidalPy's [repository](https://github.com/jrenaud90/TidalPy). In order to access these you will need to make sure you install Jupyter and a few related packages:
 
 `pip install ipympl ipython ipywidgets jupyter`
 
@@ -92,7 +92,7 @@ python -m pip install TidalPy -v --no-binary TidalPy
 #### GitHub Repo
 Alternatively you can clone the latest version of the GitHub repo and build locally,
 ```bash
-git clone https://www.GitHub.com/jrenaud90/TidalPy.git
+git clone --recursive https://www.GitHub.com/jrenaud90/TidalPy.git  # --recursive fetches the C++ library submodules
 python -m pip install . -v --no-binary TidalPy  # The . assumes you have navigated to the directory with `pyproject.toml`
 ```
 
@@ -104,15 +104,15 @@ TidalPy v0.7.5 and later (and CyRK v0.19.0 and later) compile with Apple's defau
 #### Including TidalPy C++ Files
 TidalPy includes several C++ source files (header-only ".hpp" files). You may find some of the code in them useful and want to include the source files to build a separate C++ or Cython-based projects. To help with this, TidalPy offers a helper function to provide all source file directories so they can be quickly and accurately included.
 
-After installing TidalPy you can access a Python list of strings for each include directory with:
+After installing TidalPy you can access a Python list of strings for each include directory (CyRK's include directories followed by every TidalPy directory that holds a header) with:
 ```python
 import TidalPy
 tidalpy_includes = TidalPy.get_include()
 ```
 
-This functions similarly to NumPy's `numpy.get_include` which can be used during cythonization:
+The headers also need the header-only libraries TidalPy builds with ([Eigen](https://eigen.tuxfamily.org), [xsf](https://github.com/scipy/xsf), and [spdlog](https://github.com/gabime/spdlog)), which are not installed with TidalPy. The function works similarly to NumPy's `numpy.get_include`, which can be used during cythonization:
 ```python
-include_dirs=[[np.get_include()] + TidalPy.get_include()]
+include_dirs=[np.get_include()] + TidalPy.get_include()
 ```
 
 ### TidalPy Versioning
@@ -120,7 +120,7 @@ TidalPy uses the major.minor.bugfix versioning scheme. In TidalPy's current stat
 
 In the future we hope to support multiple minor versions of TidalPy. At that time, all supported versions will be listed in this section.
 
-As of 2026-09: TidalPy 0.8.0 shipped two backends, the original that has been used since at least 0.4.0 and a new more efficient version. TidalPy 0.9.0 will remove the old backend, however we will still support bug fixes to 0.8.X until at least the end of 2026. We encourage all users to read [how to convert](https://tidalpy.readthedocs.io/en/latest/future_structure.html) their scripts to the new backend in the mean time.
+TidalPy 0.8.0 replaced the Python, Cython, and numba backend used through 0.7.X with a C++ + Cython backend, and its API changed with it. Scripts written for 0.7.X need to be updated: the [migration guide](https://tidalpy.readthedocs.io/en/latest/future_structure.html) maps the old modules, functions, and settings onto the new ones. TidalPy 0.7.6 is the last release with the 0.7.X API, and 0.7.X receives no further development. If you need that API, pin the version with `pip install "TidalPy<0.8"`.
 
 ## Using TidalPy
 
@@ -128,7 +128,7 @@ Check out the [Getting Started](https://tidalpy.readthedocs.io/en/latest/Overvie
 
 ### Contribute to TidalPy
 
-TidalPy is still in active development and there are lots of areas where it can improve! If you are interested in helping out, please check out the information in `Documentation\Contribute.md`.
+TidalPy is still in active development and there are lots of areas where it can improve! If you are interested in helping out, please check out the [contributing guide](https://tidalpy.readthedocs.io/en/latest/Overview/Contributing.html) (`CONTRIBUTING.md` in the repository).
 
 **Found a bug or have an idea for a new feature?**
 
@@ -171,12 +171,12 @@ The science used in TidalPy is described in the following papers and software (w
   * [Constraining the Venus Interior Structure](https://ui.adsabs.harvard.edu/abs/2023PSJ.....4...65C).
   * [Seismic Surface Waves](https://www.doi.org/10.1016/B978-0-12-460811-5.50010-6)
 * Third Party Software:
-  * *Interior Model*: [BurnMan](https://github.com/geodynamics/burnman)
   * *Integration Routines*: [CyRK](https://zenodo.org/records/8329446)
+  * *C++ Libraries*: [Eigen](https://eigen.tuxfamily.org), [xsf](https://github.com/scipy/xsf), [spdlog](https://github.com/gabime/spdlog)
   * *Graphics*: [Scientific Color Maps](https://doi.org/10.5281/zenodo.1243862), [Cartopy](https://scitools.org.uk/cartopy/docs/latest/), [Matplotlib](https://www.doi.org/10.1109/MCSE.2007.55)
-  * *Exoplanet data*: [Astroquery](https://github.com/astropy/astroquery/blob/main/astroquery/CITATION), [AstroPy](https://www.astropy.org/acknowledging.html)
   * *Scientific Python*: [NumPy](https://doi.org/10.1038/s41586-020-2649-2), [SciPy](https://doi.org/10.1038/s41592-019-0686-2)
-  * *Performance*: [Numba](https://doi.org/10.1145/2833157.2833162), [Cython](https://www.doi.org/10.1109/MCSE.2010.118)
+  * *Performance*: [Cython](https://www.doi.org/10.1109/MCSE.2010.118)
+  * *Equation of State Comparison*: [BurnMan](https://github.com/geodynamics/burnman)
 
 # Acknowledgements
 TidalPy was partially developed with support from NASA Goddard Space Flight Center's  Sellers Exoplanet Environments Collaboration (SEEC) and Planetary Geodesy ISFMs. TidalPy is partially based upon work supported by NASA under award number 80GSFC21M0002 and the Center for Research and Exploration in Space Science & Technology II (CRESST II) administered at the University of Maryland, College Park.

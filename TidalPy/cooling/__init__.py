@@ -1,19 +1,26 @@
-from TidalPy.utilities.classes.model.model_utils import build_model_default_inputs, find_all_models
+"""C++ cooling (heat-transport) models and their name-based factory."""
 
-import TidalPy
-from . import cooling_models
+from TidalPy.Cooling.cooling import (
+    CoolingResult,
+    CoolingBase,
+    OffCooling,
+    ConvectiveCooling,
+    ConductiveCooling,
+    make_cooling,
+    cooling_off,
+    convective,
+    conductive,
+)
 
-
-parameter_info_loc = ('cooling',)
-
-known_models, known_model_const_args, known_model_live_args = find_all_models(cooling_models)
-
-
-def get_cooling_model_default_inputs(layer_type: str):
-    return build_model_default_inputs(known_model_const_args,
-                                      TidalPy.config['layers'],
-                                      inner_keys=(layer_type, 'cooling'))
-
-
-from .cooling import CoolingModel as CoolingModel
-from .cooling_models import CoolingOutputType as CoolingOutputType
+__all__ = [
+    "CoolingResult",
+    "CoolingBase",
+    "OffCooling",
+    "ConvectiveCooling",
+    "ConductiveCooling",
+    "make_cooling",
+    # Direct functions; each accepts floats or ndarrays.
+    "cooling_off",
+    "convective",
+    "conductive",
+]

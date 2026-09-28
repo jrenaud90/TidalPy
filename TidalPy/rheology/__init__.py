@@ -1,14 +1,42 @@
-# Rheology Imports
-from .rheology import Rheology as Rheology
+"""C++ rheology models and their name-based factory. Each returns a complex modulus (shear or bulk) [Pa]."""
 
-from TidalPy.rheology.models import find_rheology as find_rheology
-from TidalPy.rheology.models import Elastic as Elastic
-from TidalPy.rheology.models import Newton as Newton
-from TidalPy.rheology.models import Maxwell as Maxwell
-from TidalPy.rheology.models import Voigt as Voigt
-from TidalPy.rheology.models import Burgers as Burgers
-from TidalPy.rheology.models import Andrade as Andrade
-from TidalPy.rheology.models import SundbergCooper as SundbergCooper
+from TidalPy.Rheology.rheology import (
+    RheologyBase,
+    Elastic,
+    Viscous,
+    Voigt,
+    Maxwell,
+    Burgers,
+    Andrade,
+    Sundberg,
+    make_rheology,
+    elastic,
+    viscous,
+    voigt,
+    maxwell,
+    burgers,
+    andrade,
+    sundberg,
+)
 
-# Alias rheologies
-Sundberg = SundbergCooper
+__all__ = [
+    # Model classes
+    "RheologyBase",
+    "Elastic",
+    "Viscous",
+    "Voigt",
+    "Maxwell",
+    "Burgers",
+    "Andrade",
+    "Sundberg",
+    # Factory
+    "make_rheology",
+    # Direct complex-modulus convenience functions (float or np.ndarray inputs)
+    "elastic",
+    "viscous",
+    "voigt",
+    "maxwell",
+    "burgers",
+    "andrade",
+    "sundberg",
+]

@@ -1,7 +1,15 @@
-from .displacements import calculate_displacements as calculate_displacements
-from TidalPy.tides.multilayer.heating import calc_radial_volumetric_tidal_heating_from_rs_solution as calc_radial_volumetric_tidal_heating_from_rs_solution
-from TidalPy.tides.multilayer.heating import calc_radial_volumetric_tidal_heating as calc_radial_volumetric_tidal_heating
+"""On-demand 3D tidal stress, strain, heating, and displacement at a point, from the compiled kernel the world's 3D
+methods use (see :mod:`TidalPy.Tides.multilayer.stress_strain` for the assembly rules)."""
+from TidalPy.Tides.multilayer.stress_strain import (
+    angular_gram,
+    displacement_point,
+    strain_stress_heating_point,
+    volumetric_heating,
+)
 
-from .stress_strain import calculate_strain_stress as calculate_strain_stress
-from TidalPy.tides.multilayer.sensitivity import calc_sensitivity_to_bulk as calc_sensitivity_to_bulk
-from TidalPy.tides.multilayer.sensitivity import calc_sensitivity_to_shear as calc_sensitivity_to_shear
+__all__ = [
+    "angular_gram",
+    "displacement_point",
+    "strain_stress_heating_point",
+    "volumetric_heating",
+]

@@ -17,7 +17,7 @@ Thank you for your interest in contributing to TidalPy! We welcome contributions
 
 ## Code of Conduct
 
-This project adheres to a [code of conduct](https://tidalpy.readthedocs.io/en/latest/CodeOfConduct.html). By participating, you are expected to uphold this code. Please be respectful and constructive in all interactions.
+This project adheres to a [code of conduct](https://tidalpy.readthedocs.io/en/latest/Overview/CoC.html). By participating, you are expected to uphold this code. Please be respectful and constructive in all interactions.
 
 ## How Can I Contribute?
 
@@ -54,17 +54,19 @@ Please feel free to make pull requests! Also don't hesitate to make draft PRs so
 
 ### Prerequisites
 
-- Python >= 3.8
+- Python >= 3.9
+- A C and C++ compiler that supports C++20 (MSVC on Windows, GCC on Linux, Apple's clang on MacOS)
 - Git
 - A GitHub account
 
 ### Setting Up Your Development Environment
 
-1. **Fork and clone the repository:**
+1. **Fork and clone the repository** (with its submodules, the header-only C++ libraries in `Dependencies/`):
    ```bash
-   git clone https://github.com/YOUR-USERNAME/TidalPy.git
+   git clone --recursive https://github.com/YOUR-USERNAME/TidalPy.git
    cd TidalPy
    ```
+   For a clone made without `--recursive`, run `git submodule update --init`.
 
 2. **Create a virtual environment:**
    ```bash
@@ -72,10 +74,11 @@ Please feel free to make pull requests! Also don't hesitate to make draft PRs so
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. **Install development dependencies:**
+3. **Build and install TidalPy with its development dependencies:**
    ```bash
-   pip install -e ".[dev]"
+   pip install -v ".[dev]"
    ```
+   Reinstall after every change: a change to a `.pyx`, `.pxd`, or `.hpp` file needs the extensions recompiled, which the reinstall does.
 
 4. **Create a new branch for your feature:**
    ```bash
@@ -108,6 +111,15 @@ Add rheological model for Maxwell material
 Fixes #123
 ```
 
+## Repository Layout
+
+- `TidalPy/<Module>/`: the source of each module (`Structures`, `Material`, `Rheology`, `Viscosity`, `PartialMelt`, `Cooling`, `Radiogenics`, `RadialSolver`, `Tides`, `Dynamics`, `Stellar`, `Utilities`). C++ headers (`*_.hpp`) hold the physics; Cython files (`*.pyx`, `*.pxd`) wrap them; Python holds configuration, file I/O, and plotting. `TidalPy/WorldPack/` holds the bundled world and system TOML files, and `TidalPy/defaultc.py` the default configuration.
+- `Tests/Test_<Module>/`: the tests of each module, plus `Tests/Test_E2E/` (configuration-to-physics runs) and `Tests/Test_Package/` (import, configuration, and logging).
+- `Documentation/`: the Sphinx (myst-parser) pages, one folder per module.
+- `Demos/` and `Benchmarks/`: tutorial notebooks and validation or performance notebooks.
+- `Dependencies/`: git submodules for the header-only C++ libraries (Eigen, xsf, spdlog).
+- `setup.py` and `cython_extensions.json`: the build script and the list of compiled extensions.
+
 ## Coding Standards
 
 ### Python Style Guide
@@ -138,27 +150,29 @@ ruff check .
 
 Example:
 ```python
-def calculate_tidal_heating(body, orbit, rheology = Maxwell):
+def calc_tidal_heating(world, orbital_frequency, eccentricity, host_mass):
     """
-    Calculate tidal heating for a planetary body.
+    Calculate the tidal heating of a world on a synchronous orbit.
 
     Parameters
     ----------
-    body : Body
-        The planetary body object
-    orbit : Orbit
-        The orbital parameters
-    rheology : Rheology, default = Maxwell
-        The rheological model to use
+    world : LayeredWorld
+        The world, with its equation of state solved.
+    orbital_frequency : float
+        Orbital mean motion [rad s-1].
+    eccentricity : float
+        Orbital eccentricity.
+    host_mass : float
+        Mass of the tidal host [kg].
 
     Returns
     -------
     float
-        Tidal heating in Watts
+        Tidal heating [W].
 
     Examples
     --------
-    >>> heating = calculate_tidal_heating(europa, orbit, maxwell)
+    >>> heating = calc_tidal_heating(europa, orbital_frequency, 0.009, mass_jupiter)
     >>> print(f"Heating: {heating:.2e} W")
     """
 ```
@@ -167,36 +181,37 @@ def calculate_tidal_heating(body, orbit, rheology = Maxwell):
 
 ### Running Tests
 
-TidalPy has lots of tests! It is highly recommended you install `pip install pytest-xdist` and use multiple cores
-with `pytest -n logical Tests/`. Prefer `-n logical` over `-n auto`: when `psutil` is installed, `auto` counts
-only physical cores, which is half the workers on a machine with hyper-threading.
+TidalPy has lots of tests! It is highly recommended you install `pip install pytest-xdist` and use multiple cores with `pytest -n logical Tests/`. Prefer `-n logical` over `-n auto`. When `psutil` is installed, `auto` counts only physical cores, which is half the workers on a machine with hyper-threading, `-n logical` overcomes this limitation.
+
+The tests import the installed TidalPy, not the source tree: the repository's `conftest.py` removes the repository root from the import path. Run `pytest` from the repository root after reinstalling.
 
 ```bash
 # Run all tests
 pytest Tests/  # Or with the added `-n logical` flag.
 
 # Run specific test file
-pytest Tests/Test_Rheology_x/test_rheology_01.py
+pytest Tests/Test_Rheology/test_rheology_01.py
 ```
 
-_Note that multiple warnings may show while you are running tests. These are likely normal warnings and are 
-expected. TidalPy will try to raise an `Exception` (which `pytest` should catch automatically) when there is
-a serious problem._
+_Note that multiple warnings may show while you are running tests. These are likely normal warnings and are expected. TidalPy will try to raise an `Exception` (which `pytest` should catch automatically) when there is a serious problem._
 
 ### Writing Tests
 
 - Write unit tests for new functions and classes
 - Include edge cases and error conditions
 - Use descriptive test names that explain what is being tested
-- Place tests in the `Tests/` directory
+- Place tests in the `Tests/Test_<Module>/` directory of the module they test
 
 Example:
 ```python
-def test_maxwell_rheology_zero_frequency():
-    """Test that Maxwell rheology returns correct value at zero frequency."""
-    model = MaxwellRheology(viscosity=1e21, shear_modulus=5e10)
-    result = model.compliance(frequency=0)
-    assert result > 0
+from TidalPy.Rheology import Maxwell
+
+
+def test_maxwell_zero_frequency():
+    """The Maxwell complex modulus vanishes at zero forcing frequency."""
+    model = Maxwell()
+    complex_modulus = model.calc_complex_modulus(5.0e10, 1.0e21, 0.0)  # (modulus [Pa], viscosity [Pa s], frequency [rad s-1])
+    assert abs(complex_modulus) < 1.0e-6 * 5.0e10
 ```
 
 ## Documentation
@@ -205,9 +220,10 @@ Documentation is built using Sphinx and hosted at [https://tidalpy.readthedocs.i
 
 ### Adding Documentation
 
-- Update relevant `.rst` or `.md` files in the `Documentation/` directory
+- Update the relevant `.md` pages in the `Documentation/<Module>/` folder, and the toctree in that folder's `index.md` when adding a page
+- Run every code example you add or change against an installed build, and check that every relative link resolves
 - Include docstrings in your code
-- Add examples and tutorials for new features
+- Add examples and tutorials for new features; notebooks in `Demos/` and `Benchmarks/` are copied into the documentation build and shown with their stored outputs
 
 ## Submitting Changes
 

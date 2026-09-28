@@ -1,11 +1,31 @@
-from TidalPy.utilities.classes.model.model_utils import build_model_default_inputs, find_all_models
+"""C++ radiogenic heating models and their name-based factory."""
 
-from . import radiogenic_models
+from TidalPy.Radiogenics.radiogenics import (
+    RadiogenicsBase,
+    OffRadiogenics,
+    IsotopeRadiogenics,
+    FixedRadiogenics,
+    make_radiogenics,
+    available_isotope_datasets,
+    isotope_dataset,
+    off,
+    isotope,
+    fixed,
+)
 
-known_models, known_model_const_args, known_model_live_args = find_all_models(radiogenic_models)
-
-
-def get_radiogenic_model_default_inputs(layer_type: str):
-    return build_model_default_inputs(known_model_const_args, radiogenic_models, inner_keys=layer_type)
-
-from .radiogenics import Radiogenics as Radiogenics
+__all__ = [
+    # Model classes
+    "RadiogenicsBase",
+    "OffRadiogenics",
+    "IsotopeRadiogenics",
+    "FixedRadiogenics",
+    # Factory
+    "make_radiogenics",
+    # Built-in literature isotope datasets
+    "available_isotope_datasets",
+    "isotope_dataset",
+    # Direct heating convenience functions (float or np.ndarray inputs)
+    "off",
+    "isotope",
+    "fixed",
+]

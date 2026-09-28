@@ -4,7 +4,7 @@ import shutil
 from TidalPy.paths import get_config_dir, get_log_dir, get_worlds_dir
 
 def clear_cache(verbose: bool = True):
-    """ Clears TidalPy's cached functions (python cache and cached numba functions).
+    """ Clears TidalPy's Python bytecode caches (the ``__pycache__`` directories of the installed package).
 
     Parameters
     ----------
@@ -17,7 +17,7 @@ def clear_cache(verbose: bool = True):
     """
 
     # Get install directory for TidalPy
-    tidalpy_loc = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
+    tidalpy_loc = os.path.dirname(os.path.realpath(__file__))
 
     if verbose:
         print('TidalPy Directory:', tidalpy_loc)
@@ -25,7 +25,6 @@ def clear_cache(verbose: bool = True):
 
     for subdir, dirs, files in os.walk(tidalpy_loc):
 
-        # Python and Numba caches save to the __pycache__ dir
         if '__pycache__' in dirs:
             cache_dir = os.path.join(subdir, '__pycache__')
             if verbose:

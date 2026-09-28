@@ -13,13 +13,6 @@ a_scratch*
 *_api.h
 # End Cython
 
-# But do track some custom c/cpp files
-!TidalPy/utilities/arrays/interp_.cpp
-!TidalPy/RadialSolver/love_.cpp
-!TidalPy/RadialSolver/rs_solution_.cpp
-!TidalPy/Material/eos/eos_solution_.cpp
-!TidalPy/RadialSolver_x/lapack_.cpp
-
 # End TidalPy
 
 # Byte-compiled / optimized / DLL files
@@ -100,8 +93,8 @@ Documentation/Overview/Contributing.md
 Documentation/Overview/CoC.md
 Documentation/Overview/Notice.md
 Documentation/Demos/
-Documentation/Demos_x/
-Documentation/Benchmarks_x/
+Documentation/Demos/
+Documentation/Benchmarks/
 
 # PyBuilder
 target/

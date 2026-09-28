@@ -1,108 +1,111 @@
-"""The obliquity functions F_lmp(I): levels off (0), 2, 4 and the general functions, their cut squares, the level
-language (level N keeps every product of two obliquity functions through I^N), and the truncation helper.
-"""
+"""Obliquity functions F_lmp(I): each truncation level, their cut squares, and the truncation helpers."""
 from math import isclose
 import warnings
 
 import pytest
 import numpy as np
 
-from TidalPy.Tides_x.obliquity import (
+from TidalPy.Tides.obliquity import (
     OBLIQUITY_GENERAL, OBLIQUITY_TRUNCATIONS, obliquity_accuracy_limit, obliquity_func, obliquity_squared_func,
     obliquity_truncation_name, promote_obliquity_truncation, recommend_obliquity_truncation,
     validate_obliquity_truncation)
-from TidalPy.Tides_x.classes.collapse import collapse_global_tides
-from TidalPy.Utilities_x.lookups import IntMap3
+from TidalPy.Tides.classes.collapse import collapse_global_tides
+from TidalPy.Utilities.lookups import IntMap3
+
+DEGREES = (2, 3, 4, 5, 6, 7, 8, 9, 10)
+OBLIQUITY = 0.5
+_HALF_SIN = np.sin(OBLIQUITY / 2)
+_HALF_COS = np.cos(OBLIQUITY / 2)
+
+# Degree-2 values at I = 0.5: total (l, m, p) count, (l, m, p) values, (l, m) count, (l, m) sizes, (l, m) values.
+_DEGREE_TWO_SPOT_CHECKS = {
+    'off': (
+        2,
+        {(2, 0, 1): -0.5, (2, 2, 0): 3.0},
+        2,
+        {(2, 0): 1, (2, 2): 1},
+        {(2, 0, 1): -0.5, (2, 2, 0): 3.0}),
+    2: (
+        7,
+        {(2, 0, 1): 0.75 * OBLIQUITY**2 - 0.5, (2, 1, 0): 1.5 * OBLIQUITY},
+        3,
+        {(2, 1): 2, (2, 2): 2},
+        {(2, 1, 0): 1.5 * OBLIQUITY, (2, 1, 1): -1.5 * OBLIQUITY, (2, 2, 0): 3.0 - 1.5 * OBLIQUITY**2}),
+    4: (
+        9,
+        {(2, 0, 1): -0.5 + 0.75 * OBLIQUITY**2 - 0.25 * OBLIQUITY**4,
+         (2, 2, 0): 3.0 - 1.5 * OBLIQUITY**2 + 0.3125 * OBLIQUITY**4,
+         (2, 2, 2): 0.1875 * OBLIQUITY**4},
+        None,
+        {},
+        {}),
+    'gen': (
+        9,
+        {(2, 0, 1): -_HALF_SIN**4 + _HALF_SIN**2 + 0.5 * np.sin(OBLIQUITY)**2 - 0.5,
+         (2, 1, 0): 3.0 * _HALF_SIN * _HALF_COS**3},
+        3,
+        {(2, 1): 3, (2, 2): 3},
+        {(2, 2, 0): 3.0 * _HALF_COS**4, (2, 2, 2): 3.0 * _HALF_SIN**4}),
+}
 
 
-@pytest.mark.parametrize('degree_l', (1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
-@pytest.mark.parametrize('truncation', ('gen', 2, 4, 'off', 1, 3, 10))
-def test_obliquity_funcs(degree_l, truncation):
-    """Tests TidalPy's obliquity functions for various degree_ls and various truncation levels."""
+@pytest.mark.parametrize('degree_l, truncation', [(1, truncation) for truncation in ('gen', 2, 4, 'off', 1, 3, 10)]
+                         + [(degree_l, truncation) for degree_l in DEGREES for truncation in (1, 3, 10)])
+def test_obliquity_func_unsupported_raises(degree_l, truncation):
+    """Degree 1 and untabulated levels (the old 1 and 10 among them) raise."""
+    with pytest.raises(NotImplementedError):
+        obliquity_func(OBLIQUITY, degree_l, truncation)
 
-    obliquity = 0.5
 
-    if degree_l == 1:
-        # Degree l is currently not supported, check that it raises an error.
-        with pytest.raises(NotImplementedError):
-            ob_results_by_lmp, ob_results_by_lm = obliquity_func(obliquity, degree_l, truncation)
-    elif truncation in (1, 3, 10):
-        # Untabulated levels (the old 1 and 10 among them) raise when passed directly.
-        with pytest.raises(NotImplementedError):
-            ob_results_by_lmp, ob_results_by_lm = obliquity_func(obliquity, degree_l, truncation)
-    else:
-        ob_results_by_lmp, ob_results_by_lm = obliquity_func(obliquity, degree_l, truncation)
+@pytest.mark.parametrize('degree_l', DEGREES)
+@pytest.mark.parametrize('truncation', ('gen', 2, 4, 'off'))
+def test_obliquity_func_structure(degree_l, truncation):
+    """Both return maps hold int keys within the degree and float values."""
+    by_lmp, by_lm = obliquity_func(OBLIQUITY, degree_l, truncation)
+    assert isinstance(by_lmp, IntMap3)
+    assert isinstance(by_lm, dict)
 
-        # Check return types
-        assert isinstance(ob_results_by_lmp, IntMap3)
-        assert isinstance(ob_results_by_lm, dict)
+    assert len(by_lmp) > 0
+    for (l, m, p), value in by_lmp:
+        assert isinstance(l, int)
+        assert isinstance(m, int)
+        assert isinstance(p, int)
+        assert l == degree_l
+        assert m <= l
+        assert p <= l
+        assert isinstance(value, float)
 
-        # No matter the assumptions, these should have some size to them.
-        assert len(ob_results_by_lmp) > 0
-        for (l, m, p), ob_result in ob_results_by_lmp:
-            assert isinstance(l, int)
-            assert isinstance(m, int)
+    for (l, m), by_p in by_lm.items():
+        assert isinstance(l, int)
+        assert isinstance(m, int)
+        assert l == degree_l
+        assert m <= l
+        for (p,), value in by_p:
             assert isinstance(p, int)
-            assert l == degree_l
-            assert m <= l
-            assert p <= l
-            assert isinstance(ob_result, float)
-
-        for (l, m), ob_results_by_p in ob_results_by_lm.items():
-            assert isinstance(l, int)
-            assert isinstance(m, int)
-            assert l == degree_l
-            assert m <= l
-            for (p,), ob_result in ob_results_by_p:
-                assert isinstance(p, int)
-                assert isinstance(ob_result, float)
-                assert p <= degree_l
-
-        # Spot checks
-        if degree_l == 2:
-            if truncation == 'off':
-                assert len(ob_results_by_lmp) == 2
-                assert isclose(ob_results_by_lmp[(2, 0, 1)], -0.5)
-                assert isclose(ob_results_by_lmp[(2, 2, 0)], 3.0)
-                assert len(ob_results_by_lm) == 2
-                assert len(ob_results_by_lm[(2, 0)]) == 1
-                assert isclose(ob_results_by_lm[(2, 0)][(1,)], -0.5)
-                assert len(ob_results_by_lm[(2, 2)]) == 1
-                assert isclose(ob_results_by_lm[(2, 2)][(0,)], 3.0)
-            elif truncation == 2:
-                assert len(ob_results_by_lmp) == 7
-                assert isclose(ob_results_by_lmp[(2, 0, 1)], 0.75*obliquity**2 - 0.5)
-                assert isclose(ob_results_by_lmp[(2, 1, 0)], 1.5 * obliquity)
-                assert len(ob_results_by_lm) == 3
-                assert len(ob_results_by_lm[(2, 1)]) == 2
-                assert isclose(ob_results_by_lm[(2, 1)][(0,)], 1.5 * obliquity)
-                assert isclose(ob_results_by_lm[(2, 1)][(1,)], -1.5 * obliquity)
-                assert len(ob_results_by_lm[(2, 2)]) == 2
-                assert isclose(ob_results_by_lm[(2, 2)][(0,)], 3.0 - 1.5*obliquity**2)
-            elif truncation == 4:
-                assert len(ob_results_by_lmp) == 9
-                assert isclose(ob_results_by_lmp[(2, 0, 1)], -0.5 + 0.75*obliquity**2 - 0.25*obliquity**4)
-                assert isclose(ob_results_by_lmp[(2, 2, 0)], 3.0 - 1.5*obliquity**2 + 0.3125*obliquity**4)
-                assert isclose(ob_results_by_lmp[(2, 2, 2)], 0.1875*obliquity**4)
-            elif truncation == 'gen':
-                assert len(ob_results_by_lmp) == 9
-                assert isclose(ob_results_by_lmp[(2, 0, 1)], -np.sin(obliquity/2)**4 + np.sin(obliquity/2)**2 + 0.5*np.sin(obliquity)**2 - 0.5)
-                assert isclose(ob_results_by_lmp[(2, 1, 0)], 3.0*np.sin(obliquity/2)*np.cos(obliquity/2)**3)
-                assert len(ob_results_by_lm) == 3
-                assert len(ob_results_by_lm[(2, 1)]) == 3
-                assert len(ob_results_by_lm[(2, 2)]) == 3
-                assert isclose(ob_results_by_lm[(2, 2)][(0,)], 3.0*np.cos(obliquity/2)**4)
-                assert isclose(ob_results_by_lm[(2, 2)][(2,)], 3.0*np.sin(obliquity/2)**4)
+            assert isinstance(value, float)
+            assert p <= degree_l
 
 
-@pytest.mark.parametrize('degree_l', (2, 3, 4, 5, 6, 7, 8, 9, 10))
+@pytest.mark.parametrize('truncation', tuple(_DEGREE_TWO_SPOT_CHECKS))
+def test_obliquity_func_degree_two_values(truncation):
+    """Degree-2 mode counts and values at each level."""
+    num_lmp, lmp_values, num_lm, lm_sizes, lm_values = _DEGREE_TWO_SPOT_CHECKS[truncation]
+    by_lmp, by_lm = obliquity_func(OBLIQUITY, 2, truncation)
+    assert len(by_lmp) == num_lmp
+    for key, expected in lmp_values.items():
+        assert isclose(by_lmp[key], expected), key
+    if num_lm is not None:
+        assert len(by_lm) == num_lm
+    for key, size in lm_sizes.items():
+        assert len(by_lm[key]) == size, key
+    for (l, m, p), expected in lm_values.items():
+        assert isclose(by_lm[(l, m)][(p,)], expected), (l, m, p)
+
+
+@pytest.mark.parametrize('degree_l', DEGREES)
 @pytest.mark.parametrize('truncation', (2, 4))
 def test_obliquity_truncation_order(degree_l, truncation):
-    """Level N keeps every term of F through I^N: halving I shrinks the gap to the exact form by at least 2^(N+1).
-
-    Modes the truncation drops count with a value of zero.
-    """
-
+    """Level N carries F through I^N: halving I shrinks the gap to the general form by at least 2^(N+1)."""
     large_obliquity = 0.02
     small_obliquity = 0.01
     gaps = dict()
@@ -110,11 +113,12 @@ def test_obliquity_truncation_order(degree_l, truncation):
         exact = dict(obliquity_func(obliquity, degree_l, 'gen')[0])
         truncated = dict(obliquity_func(obliquity, degree_l, truncation)[0])
         assert set(truncated) <= set(exact)
+        # A mode the truncation drops counts as zero.
         gaps[obliquity] = {key: abs(truncated.get(key, 0.0) - value) for key, value in exact.items()}
 
     num_checked = 0
     for key, gap_small in gaps[small_obliquity].items():
-        # Skip gaps at round-off, where the ratio carries no information.
+        # Gaps at round-off carry no ratio information.
         if gap_small < 1.0e-12 * max(1.0, abs(dict(obliquity_func(small_obliquity, degree_l, 'gen')[0])[key])):
             continue
         num_checked += 1
@@ -122,11 +126,11 @@ def test_obliquity_truncation_order(degree_l, truncation):
     assert num_checked > 0
 
 
-@pytest.mark.parametrize('degree_l', (2, 3, 4, 5, 6, 7, 8, 9, 10))
+@pytest.mark.parametrize('degree_l', DEGREES)
 @pytest.mark.parametrize('truncation', (0, 2, 4))
 def test_obliquity_squares_are_cut_at_the_level(degree_l, truncation):
-    """F^2 cut at I^N: only functions starting at or below I^(N/2) enter, and the gap to the exact square shrinks by
-    at least 2^(N+1) when I halves (exactly F(0)^2 at level 0)."""
+    """F^2 cut at I^N keeps only modes starting at or below I^(N/2) and converges at 2^(N+1); general squares are
+    plain squares."""
     squares = {obliquity: dict(obliquity_squared_func(obliquity, degree_l, truncation)[0])
                for obliquity in (0.02, 0.01)}
     for (l, m, p) in squares[0.01]:
@@ -142,13 +146,13 @@ def test_obliquity_squares_are_cut_at_the_level(degree_l, truncation):
         gap_large = abs(squares[0.02].get(key, 0.0) - exact[0.02][key])
         assert gap_large / gap_small > 0.9 * 2**(truncation + 1), key
     assert num_checked > 0
-    # The general squares are the plain squares.
     general = dict(obliquity_squared_func(0.4, degree_l, 'gen')[0])
     for key, value in obliquity_func(0.4, degree_l, 'gen')[0]:
         assert isclose(general[key], value**2, rel_tol=1.0e-14)
 
 
 def test_level_two_squares_at_degree_two():
+    """Level-2 degree-2 squares hold the expected modes and values."""
     obliquity = 0.2
     squares = dict(obliquity_squared_func(obliquity, 2, 2)[0])
     assert set(squares) == {(2, 0, 1), (2, 1, 0), (2, 1, 1), (2, 2, 0)}
@@ -158,6 +162,7 @@ def test_level_two_squares_at_degree_two():
 
 
 def test_truncation_names_and_promotion():
+    """Truncation validation, naming, and promotion of old configured levels."""
     assert OBLIQUITY_TRUNCATIONS == (0, 2, 4)
     assert validate_obliquity_truncation("off") == 0
     assert validate_obliquity_truncation("gen") == OBLIQUITY_GENERAL
@@ -173,7 +178,7 @@ def test_truncation_names_and_promotion():
             validate_obliquity_truncation(bad)
     assert obliquity_truncation_name(OBLIQUITY_GENERAL) == "gen"
     assert obliquity_truncation_name(2) == 2
-    # A configured old level is promoted with a warning; the old general code 10 becomes the general functions.
+    # The old general code 10 becomes the general functions.
     for level, promoted in ((1, 2), (3, 4), (10, OBLIQUITY_GENERAL)):
         with pytest.warns(UserWarning):
             assert promote_obliquity_truncation(level, warned_levels=set(), warn=True) == promoted
@@ -186,6 +191,7 @@ def test_truncation_names_and_promotion():
 
 
 def test_recommend_obliquity_truncation():
+    """The recommended level and accuracy limit for a few obliquities and tolerances."""
     assert recommend_obliquity_truncation(0.0) == 0
     assert recommend_obliquity_truncation(0.1) == 2
     assert recommend_obliquity_truncation(-0.1) == 2
@@ -215,8 +221,13 @@ def test_levels_hold_their_tolerance(level, tide_model, config, spin_ratio):
 
     def heating(truncation):
         return collapse_global_tides(
-            **_BODY, spin_frequency=spin_ratio * _BODY["orbital_frequency"], eccentricity=0.0, obliquity=limit,
-            tide_model=tide_model, tide_config=config, eccentricity_truncation=2,
+            **_BODY,
+            spin_frequency=spin_ratio * _BODY["orbital_frequency"],
+            eccentricity=0.0,
+            obliquity=limit,
+            tide_model=tide_model,
+            tide_config=config,
+            eccentricity_truncation=2,
             obliquity_truncation=truncation)["tidal_heating"]
 
     assert abs(heating(level) / heating("gen") - 1.0) < 1.0e-2

@@ -1,60 +1,29 @@
-import pathlib
+"""Tests for overriding TidalPy's configuration through ``TidalPy.reinit``."""
+import pytest
+
+import TidalPy
 
 
-def test_override_config_from_file():
-    """ Tests that we can override TidalPy's configurations by providing a new config file. """
-    import TidalPy
+def _write_config_file(tmp_path):
+    config_path = tmp_path / "new_config.toml"
+    config_path.write_text('[logging]\nfile_level = "INFO"\n')
+    return str(config_path)
 
-    # Reset to default in case it was already overridden this session
+
+@pytest.mark.parametrize(
+    "make_override",
+    [_write_config_file, lambda tmp_path: {"logging": {"file_level": "INFO"}}],
+    ids=["file", "dict"])
+def test_override_config(make_override, tmp_path):
+    """An override changes only the keys it provides."""
+    # Reset in case another test already overrode the configuration this session.
     TidalPy.reinit('default')
 
     original_file_level    = TidalPy.config['logging']['file_level']
     original_console_level = TidalPy.config['logging']['console_level']
 
-    # Make a new config file that changes one of the above.
-    config_path = "new_config.toml"
-    with open("new_config.toml", "w") as config_file:
-        config_file.write("[logging]\n")
-        config_file.write('file_level = "INFO"\n')
-    
-    # Tell TidalPy to override the configs
-    TidalPy.reinit(config_path)
+    TidalPy.reinit(make_override(tmp_path))
 
-    # Check that the config was updated
     assert TidalPy.config['logging']['file_level'] != original_file_level
     assert TidalPy.config['logging']['file_level'] == "INFO"
-
-    # Check that the other config was unaffected.
-    assert TidalPy.config['logging']['console_level'] == original_console_level
-
-    # Delete the temp file
-    fp = pathlib.Path(config_path)
-    fp.unlink()
-
-
-def test_override_config_from_dict():
-    """ Tests that we can override TidalPy's configurations by providing a new config dict. """
-    import TidalPy
-
-    # Reset to default in case it was already overridden this session
-    TidalPy.reinit('default')
-
-    original_file_level    = TidalPy.config['logging']['file_level']
-    original_console_level = TidalPy.config['logging']['console_level']
-
-    # Make a new config file that changes one of the above.
-    new_config = dict(
-        logging = dict(
-            file_level = "INFO"
-        )
-    )
-    
-    # Tell TidalPy to override the configs
-    TidalPy.reinit(new_config)
-
-    # Check that the config was updated
-    assert TidalPy.config['logging']['file_level'] != original_file_level
-    assert TidalPy.config['logging']['file_level'] == "INFO"
-
-    # Check that the other config was unaffected.
     assert TidalPy.config['logging']['console_level'] == original_console_level

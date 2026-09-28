@@ -1,50 +1,57 @@
-# Lookup Structures
-Several parts of TidalPy need efficient lookup arrays (_e.g._, eccentricity and obliquity function results) in C++, where a Python dictionary is not available. The structures below fill that role, and most are wrapped in Cython so they can also be used from Cython or Python.
+# Lookup Structures (`Utilities.lookups`)
 
-These structures live in `TidalPy.Utilities_x.lookups`.
+_Updated: 2026-09-16_
+
+Several parts of TidalPy produce quantities indexed by small integers rather than by position. The eccentricity and obliquity functions are keyed by the Kaula mode numbers $(l, m, p, q)$; per-degree Love numbers are keyed by $l$. Most of the code that needs the lookup runs in C++ with the interpreter lock released, where a Python dictionary is not available; `IntMap` fills that gap.
 
 ## `IntMap`
-`IntMap` is a lookup array, built on C++ vectors, that takes 1 to 4 integers (`l,m,p,q`; each count has its own class, `IntMap1`, `IntMap2`, and so on) and stores a double or a double complex. The C++ versions store an arbitrary data structure; only doubles and double complex numbers are exposed to Python and Cython.
 
-These are not hash tables. The N integers, assumed to fit in 16 bits (-32768 to +32767), are packed into a single 64-bit integer, which is the key that maps to the stored value.
-- The key layout for `IntMap4` is: [16 bits `l` | 16 bits `m` | 16 bits `p` | 16 bits `q`].
-- Data is stored contiguously as a C++ `pair`: `pair.first` = Packed Key object, `pair.second` = Value.
+An `IntMap` maps one to four small integers onto a stored value. There are separate classes per key count, `IntMap1` through `IntMap4`, and a complex-valued variant of each, `IntMap1Complex` through `IntMap4Complex`. The C++ templates can store any type; the Cython layer exposes only `double` and `double complex`.
 
-Example usage in Python:
+These are not hash tables. Each key integer is assumed to fit in 16 bits, from -32768 to +32767, and the key components are packed into a single 64-bit integer that indexes the stored value. For `IntMap4` the layout is 16 bits of $l$, then $m$, then $p$, then $q$. The data sits contiguously as a vector of pairs, with the packed key first and the value second.
+
+Lookup and insertion are cheap and allocation-free once the vector has capacity, so the structure is usable inside a mode loop. Keys outside the 16-bit range silently collide, so it is not a general-purpose map.
+
+## Python API
+
 ```python
-from TidalPy.Utilities_x.lookups.intmap import IntMap3, IntMap3Complex
+from TidalPy.Utilities.lookups.intmap import IntMap3, IntMap3Complex
 
-my_map = IntMap3()
+modes = IntMap3()
 
-# When using the python setter/getter you provide the key in a tuple
-# Try setting
-my_map[(1,2,3)] = 70.0
+# Subscript access takes the key as a tuple.
+modes[(1, 2, 3)] = 70.0
+modes[(1, -2, 3)] = 170.0       # negative key components are fine
 
-# They can be negative
-my_map[(1,-2,3)] = 170.0
+modes[(1, 2, 3)]                # 70.0
+len(modes)                      # 2
 
-# Try getting
-print(my_map[(1,2,3)])
-print(my_map[(1,-2,3)])
+for key, value in modes:        # iteration yields (key_tuple, value)
+    print(key, value)
 
-# Check other methods
-my_map.clear()
-print(my_map.size())
-my_map.reserve(10)  # Reserves memory so that memory allocation can happen on your terms.
+# The explicit methods take the same tuple key.
+modes.set((1, 1, 2), 45.4)
+modes.get((1, 1, 2))            # 45.4
 
-# The set and get methods take the key as a tuple too.
-my_map.set((1, 1, 2), 45.4)
-print(my_map.get((1, 1, 2)))
+modes.reserve(10)               # pre-allocate, so growth happens on your terms
+modes.size()                    # same as len()
+modes.clear()
 
-my_complex_map = IntMap3Complex()
-my_complex_map[(1, 2, 3)] = 90 - 3.5j
-print(my_complex_map[(1, 2, 3)])
-
+# The complex variants behave identically and store complex values.
+amplitudes = IntMap3Complex()
+amplitudes[(1, 2, 3)] = 90.0 - 3.5j
 ```
 
-`IntMapN` behaves much like a Python dictionary. It supports:
-- Setting and getting with `my_map[...]`
-- The number of items with `len(my_map)`
-- Iteration (`iter`, or `for x in my_map`) with the signature `key_tuple, value in my_map`
+The map is dictionary-like: subscript get and set, `len`, and iteration all work as expected. Iteration yields `(key_tuple, value)` pairs in storage order, which is insertion order rather than sorted key order.
 
-See the .pyx, .cpp, and .hpp files for use in C++ or Cython.
+`reserve(n)` is the one method with no dictionary analogue. Calling it before a loop that inserts a known number of entries avoids repeated reallocation, which matters when the loop is the inner loop of a mode sum.
+
+## C++ and Cython
+
+The templates live in `intmap_.hpp`, with the key-packing helpers in `keys_.hpp`. Because the C++ side is templated on the stored type, it is not restricted to the two types the Python layer exposes: a map of structs or of complex vectors is equally valid, and is how some internal mode bookkeeping is done. The Cython declarations in `intmap.pxd` are what a `cdef` function should cimport when it needs a map without going through Python objects.
+
+See `intmap_.hpp` and `intmap.pxd` for the template signatures.
+
+## Where Lookups are Used
+
+The eccentricity and obliquity function results are the original consumers; see [Eccentricity Functions](../Tides/eccentricity.md) and [Obliquity Functions](../Tides/obliquity.md). The tidal mode collapse uses the same structures to carry per-mode quantities through the sum: a truncation-20 solve at degree 10 touches thousands of modes per evaluation.

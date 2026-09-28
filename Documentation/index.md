@@ -7,7 +7,9 @@
 
 The pages below cover the package. The source is on [GitHub](https://github.com/jrenaud90/TidalPy).
 
-The <a href="code_map.html">interactive code map</a> shows the main components of the new backend, which functions call which, and why.
+TidalPy 0.8.0 replaced the Python, Cython, and numba code of TidalPy 0.7.X and earlier with a C++ backend. Users coming from 0.7.X should read the [migration guide](future_structure.md).
+
+The <a href="code_map.html">interactive code map</a> shows the main components of TidalPy, which functions call which, and why.
 
 ```{toctree}
 :maxdepth: 2
@@ -15,89 +17,62 @@ The <a href="code_map.html">interactive code map</a> shows the main components o
 
 Overview <Overview/index.md>
 Style Guide <Overview/style.md>
+Migrating from 0.7.X <future_structure.md>
 ```
 
 ```{toctree}
 :maxdepth: 2
 :caption: Modules
 
-Utilities <Utilities/index.md>
+Structures <Structures/index.md>
+Material and EOS <Material/index.md>
 Rheology <Rheology/index.md>
-RadialSolver (Love Number Calculator) <RadialSolver/index.md>
+Viscosity <Viscosity/index.md>
+Partial Melting <PartialMelt/index.md>
+Cooling <Cooling/index.md>
+Radiogenics <Radiogenics/index.md>
+RadialSolver (Love Numbers) <RadialSolver/index.md>
 Tides <Tides/index.md>
-Exoplanets <Exoplanets.md>
 Dynamics <Dynamics/index.md>
+Stellar <Stellar/index.md>
+Utilities <Utilities/index.md>
 ```
 
 ```{toctree}
 :maxdepth: 2
 :caption: Demos
 
-Demos/1 - Build Planets <Demos/1_-_Build_Planets.ipynb>
-Demos/2 - Thermal Exploration <Demos/2_-_Thermal_Exploration.ipynb>
-Demos/3 - Calculating Love Numbers <Demos/3_-_Calculating_Love_Numbers.ipynb>
-Demos/4 - Eccentricity Truncations <Demos/4_-_Eccentricity_Truncations.ipynb>
-Demos/5 - Rheology Exploration <Demos/5_-_Rheology_Exploration.ipynb>
-Demos/6 - Multilayer Heating <Demos/6_-_Multilayer_Heating.ipynb>
-Demos/7 - Comparison of Tidal Modes <Demos/7_-_Comparison_of_Tidal_Modes.ipynb>
-Demos/8 - Love Number Sensitivity <Demos/8_-_Love_Number_Sensitivity.ipynb>
-Demos/Graphics - Grid Plots <Demos/Graphics--GridPlots.ipynb>
-Demos/Graphics - Map Projections <Demos/Graphics--MapProjections.ipynb>
+Demos/Basics/01_config.ipynb
+Demos/Basics/02_world_building.ipynb
+Demos/Basics/03_save_load.ipynb
+Demos/Physics/04_orbits_insolation.ipynb
+Demos/Physics/05_tidal_basics.ipynb
+Demos/Physics/06_rheology_io.ipynb
+Demos/Physics/07_gasgiant_fixedQ_dt.ipynb
+Demos/Physics/08_love_numbers_1d.ipynb
+Demos/Physics/09_tidal_heating_3d.ipynb
+Demos/Physics/10_thermal_eos.ipynb
+Demos/Systems/11_multi_world.ipynb
+Demos/Systems/12_thermal_orbital_evolution.ipynb
+Demos/Physics/13_tidal_maps_3d.ipynb
+Demos/Physics/14_bundled_worlds.ipynb
+Demos/Physics/15_thermal_interior.ipynb
+Demos/Systems/16_earth_moon_sun.ipynb
+Demos/Physics/17_tidal_truncations.ipynb
 ```
 
 ```{toctree}
 :maxdepth: 2
-:caption: Future Structure
+:caption: Benchmarks
 
-Overview and Porting Guide <future_structure.md>
-Structures <structures_x/index.md>
-Material and EOS <material_x/index.md>
-Rheology <rheology_x/index.md>
-Viscosity <viscosity_x/index.md>
-Partial Melting <partial_melt_x/index.md>
-Cooling <cooling_x/index.md>
-Radiogenics <radiogenics_x/index.md>
-Tides <Tides_x/index.md>
-RadialSolver (Love Numbers) <RadialSolver_x/index.md>
-Dynamics <dynamics_x/index.md>
-Stellar <stellar_x/index.md>
-Utilities <utilities_x/index.md>
-```
-
-```{toctree}
-:maxdepth: 2
-:caption: Future Structure Demos
-
-Demos_x/Basics/01_config.ipynb
-Demos_x/Basics/02_world_building.ipynb
-Demos_x/Basics/03_save_load.ipynb
-Demos_x/Physics/04_orbits_insolation.ipynb
-Demos_x/Physics/05_tidal_basics.ipynb
-Demos_x/Physics/06_rheology_io.ipynb
-Demos_x/Physics/07_gasgiant_fixedQ_dt.ipynb
-Demos_x/Physics/08_love_numbers_1d.ipynb
-Demos_x/Physics/09_tidal_heating_3d.ipynb
-Demos_x/Physics/10_thermal_eos.ipynb
-Demos_x/Systems/11_multi_world.ipynb
-Demos_x/Systems/12_thermal_orbital_evolution.ipynb
-Demos_x/Physics/13_tidal_maps_3d.ipynb
-Demos_x/Physics/14_bundled_worlds.ipynb
-Demos_x/Physics/15_thermal_interior.ipynb
-Demos_x/Systems/16_earth_moon_sun.ipynb
-```
-
-```{toctree}
-:maxdepth: 2
-:caption: Future Structure Benchmarks
-
-Benchmarks_x/RadialSolver/Earth_Love_Numbers.ipynb
-Benchmarks_x/RadialSolver/Enceladus_Tobie_Roberts.ipynb
-Benchmarks_x/RadialSolver/Homogeneous_Viscoelastic_Love_Numbers.ipynb
-Benchmarks_x/EOS/EOS_vs_BurnMan.ipynb
-Benchmarks_x/Tides/Renaud2021_Dual_Body_Eccentric.ipynb
-Benchmarks_x/Tides/Hut1981_Constant_Time_Lag.ipynb
-Benchmarks_x/Tides/Exact_Orbit_Tidal_Heating.ipynb
-Benchmarks_x/Performance/Perf_Trends.ipynb
+Benchmarks/RadialSolver/Earth_Love_Numbers.ipynb
+Benchmarks/RadialSolver/Enceladus_Tobie_Roberts.ipynb
+Benchmarks/RadialSolver/Homogeneous_Viscoelastic_Love_Numbers.ipynb
+Benchmarks/EOS/EOS_vs_BurnMan.ipynb
+Benchmarks/Tides/Renaud2021_Dual_Body_Eccentric.ipynb
+Benchmarks/Tides/Hut1981_Constant_Time_Lag.ipynb
+Benchmarks/Tides/Exact_Orbit_Tidal_Heating.ipynb
+Benchmarks/Performance/Perf_Trends.ipynb
 ```
 
 ```{toctree}

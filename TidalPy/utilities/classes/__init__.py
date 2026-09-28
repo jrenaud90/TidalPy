@@ -1,8 +1,17 @@
-from .base import TidalPyClass as TidalPyClass
+"""TidalPy base class hierarchy (C++ wrappers)."""
 
-from .config import ConfigHolder as ConfigHolder
-from .config import LayerConfigHolder as LayerConfigHolder
-from .config import WorldConfigHolder as WorldConfigHolder
+from TidalPy.Utilities.classes.classes import (
+    TidalPyBaseClass,
+    StructureBase,
+    PhysicsBase,
+    check_config_keys,
+    factory_defaults,
+)
 
-from .model import LayerModelHolder as LayerModelHolder
-from .model import ModelHolder as ModelHolder
+__all__ = [
+    "TidalPyBaseClass",
+    "StructureBase",
+    "PhysicsBase",
+    "check_config_keys",
+    "factory_defaults"
+]

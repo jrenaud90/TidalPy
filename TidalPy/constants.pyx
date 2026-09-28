@@ -72,8 +72,6 @@ R_pluto = radius_pluto
 # Dynamic parameters -- From TidalPy Configs
 min_frequency = d_NAN
 max_frequency =  d_NAN
-min_spin_orbit_diff = d_NAN
-min_viscosity = d_NAN
 min_modulus = d_NAN
 minimum_solid_rigidity = d_NAN
 min_thickness = d_NAN
@@ -109,53 +107,7 @@ newtons_constant = G
 yr = year
 
 
-def update_constants():
-    """Use the current TidalPy configurations to load in certain parameters/constants that are not Read-Only."""
-    global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness, test_constant
-    global G, au, sbc, R, k_boltzmann, k_boltzman, year, SBC, Au, k, newtons_constant, yr
-
-    # Update dynamic properties from TidalPy
-    tidalpy_config_ptr.d_MIN_FREQUENCY = TidalPy.config['tides']['modes']['minimum_frequency']
-    tidalpy_config_ptr.d_MAX_FREQUENCY = TidalPy.config['tides']['modes']['maximum_frequency']
-    tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF = TidalPy.config['tides']['modes']['min_spin_orbit_diff']
-    tidalpy_config_ptr.d_MIN_VISCOSITY = TidalPy.config['physics']['materials']['minimum_viscosity']
-    tidalpy_config_ptr.d_MIN_MODULUS = TidalPy.config['physics']['materials']['minimum_modulus']
-    tidalpy_config_ptr.d_MIN_THICKNESS = TidalPy.config['layers']['minimum_layer_thickness']
-    tidalpy_config_ptr.d_TEST_CONST = TidalPy.config['debug']['test_constant']
-
-    # Update globals/aliases for the dynamic TidalPy parameters
-    min_frequency = tidalpy_config_ptr.d_MIN_FREQUENCY
-    max_frequency =  tidalpy_config_ptr.d_MAX_FREQUENCY
-    min_spin_orbit_diff = tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF
-    min_viscosity = tidalpy_config_ptr.d_MIN_VISCOSITY
-    min_modulus = tidalpy_config_ptr.d_MIN_MODULUS
-    min_thickness = tidalpy_config_ptr.d_MIN_THICKNESS
-
-    test_constant = tidalpy_config_ptr.d_TEST_CONST
-
-    # Update dynamic properties from 3rd party packages
-    tidalpy_config_ptr.d_G = scipy.constants.G
-    tidalpy_config_ptr.d_AU = scipy.constants.au
-    tidalpy_config_ptr.d_SBC = scipy.constants.Stefan_Boltzmann
-    tidalpy_config_ptr.d_R = scipy.constants.R
-    tidalpy_config_ptr.d_K_BOLTZMANN = scipy.constants.k
-
-    # Update globals/aliases for the dynamic TidalPy parameters
-    G = tidalpy_config_ptr.d_G
-    au = tidalpy_config_ptr.d_AU
-    sbc = tidalpy_config_ptr.d_SBC
-    R = tidalpy_config_ptr.d_R
-    k_boltzmann = tidalpy_config_ptr.d_K_BOLTZMANN
-    year = scipy.constants.Julian_year
-    SBC = sbc
-    Au = au
-    k = k_boltzmann
-    k_boltzman = k_boltzmann
-    newtons_constant = G
-    yr = year
-
-
-# The canonical (saved-config) name of each CyRK ``ODEMethod`` value the new-backend solvers accept, and the
+# The canonical (saved-config) name of each CyRK ``ODEMethod`` value the solvers accept, and the
 # lowercase names they accept (case-insensitive) mapped back to the enum values.
 ODE_METHOD_NAMES = {
     <int>ODEMethod.RK23:   'RK23',
@@ -193,26 +145,24 @@ def ode_method_from_name(name: str) -> int:
             f'Unsupported integration method "{name}". Supported: {sorted(ODE_METHOD_INTS)}.') from None
 
 
-def update_constants_x():
-    """Populate the shared C++ config singleton from ``TidalPy.config_x``.
+def update_constants():
+    """Populate the shared C++ config singleton from ``TidalPy.config`` and SciPy.
 
-    Copies the ``[numerical]``, ``[eos_solver]``, and ``[radial_solver]`` sections into the
-    process-wide ``tidalpy_config_ptr`` that every `_x` C++ module observes. Runs after
-    :func:`update_constants` during initialization, so the `_x` values win for the fields both
-    configs carry; the SciPy-sourced physical constants are left untouched.
+    Copies the ``[numerical]``, ``[eos_solver]``, and ``[radial_solver]`` sections into the process-wide
+    ``tidalpy_config_ptr`` that every C++ module observes, loads the physical constants TidalPy takes from SciPy,
+    and refreshes this module's Python mirrors of both. Runs on every (re)initialization and configuration change.
     """
-    global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
+    global min_frequency, max_frequency, min_modulus, min_thickness, test_constant
+    global G, au, sbc, R, k_boltzmann, k_boltzman, year, SBC, Au, k, newtons_constant, yr
     global numerical_floor, layer_continuity_rtol, max_start_radius_fraction, frequency_match_rtol, minimum_nusselt
     global maximum_eos_mass_ratio
     global eos_invert_rtol, eos_invert_max_iters, minimum_solid_rigidity, minimum_surface_rcond
     global tides_3d_latitude_nodes, tides_3d_longitude_nodes, tides_3d_radial_slices
 
-    numerical = TidalPy.config_x['numerical']
+    numerical = TidalPy.config['numerical']
 
     tidalpy_config_ptr.d_MIN_FREQUENCY = numerical['minimum_frequency']
     tidalpy_config_ptr.d_MAX_FREQUENCY = numerical['maximum_frequency']
-    tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF = numerical['min_spin_orbit_diff']
-    tidalpy_config_ptr.d_MIN_VISCOSITY = numerical['minimum_viscosity']
     tidalpy_config_ptr.d_MIN_MODULUS = numerical['minimum_modulus']
     tidalpy_config_ptr.d_MIN_SOLID_RIGIDITY = numerical['minimum_solid_rigidity']
     tidalpy_config_ptr.d_MIN_THICKNESS = numerical['minimum_layer_thickness']
@@ -228,9 +178,10 @@ def update_constants_x():
     tidalpy_config_ptr.d_TIDES_3D_LATITUDE_NODES = int(numerical['tides_3d_latitude_nodes'])
     tidalpy_config_ptr.d_TIDES_3D_LONGITUDE_NODES = int(numerical['tides_3d_longitude_nodes'])
     tidalpy_config_ptr.d_TIDES_3D_RADIAL_SLICES = int(numerical['tides_3d_radial_slices'])
+    tidalpy_config_ptr.d_TEST_CONST = numerical['test_constant']
 
     # Solver defaults shared by the world-attached solves, the tide paths, and the standalone radial_solver.
-    eos_solver = TidalPy.config_x['eos_solver']
+    eos_solver = TidalPy.config['eos_solver']
     tidalpy_config_ptr.d_EOS_SOLVER_METHOD = ode_method_from_name(eos_solver['integration_method'])
     tidalpy_config_ptr.d_EOS_SOLVER_RTOL = eos_solver['rtol']
     tidalpy_config_ptr.d_EOS_SOLVER_ATOL = eos_solver['atol']
@@ -240,7 +191,7 @@ def update_constants_x():
     tidalpy_config_ptr.d_EOS_SOLVER_NONDIMENSIONALIZE = bool(eos_solver['nondimensionalize'])
     tidalpy_config_ptr.d_EOS_SOLVER_SOLVE_TEMPERATURE = bool(eos_solver['solve_temperature'])
 
-    radial_solver = TidalPy.config_x['radial_solver']
+    radial_solver = TidalPy.config['radial_solver']
     tidalpy_config_ptr.d_RADIAL_SOLVER_METHOD = ode_method_from_name(radial_solver['integration_method'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_RTOL = radial_solver['rtol']
     tidalpy_config_ptr.d_RADIAL_SOLVER_ATOL = radial_solver['atol']
@@ -251,15 +202,16 @@ def update_constants_x():
     tidalpy_config_ptr.d_RADIAL_SOLVER_EXPECTED_SIZE = int(radial_solver['expected_size'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_MAX_RAM_MB = int(radial_solver['max_ram_mb'])
     tidalpy_config_ptr.d_RADIAL_SOLVER_NONDIMENSIONALIZE = bool(radial_solver['nondimensionalize'])
-    # test_constant is deliberately left alone: its user-facing override is the legacy config's
-    # `debug.test_constant`, applied by update_constants just before this. Re-reading it from
-    # config_x would clobber an override supplied through reinit().
+    # Physical constants from SciPy.
+    tidalpy_config_ptr.d_G = scipy.constants.G
+    tidalpy_config_ptr.d_AU = scipy.constants.au
+    tidalpy_config_ptr.d_SBC = scipy.constants.Stefan_Boltzmann
+    tidalpy_config_ptr.d_R = scipy.constants.R
+    tidalpy_config_ptr.d_K_BOLTZMANN = scipy.constants.k
 
     # Update the module-level mirrors of these dynamic parameters.
     min_frequency = tidalpy_config_ptr.d_MIN_FREQUENCY
     max_frequency = tidalpy_config_ptr.d_MAX_FREQUENCY
-    min_spin_orbit_diff = tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF
-    min_viscosity = tidalpy_config_ptr.d_MIN_VISCOSITY
     min_modulus = tidalpy_config_ptr.d_MIN_MODULUS
     min_thickness = tidalpy_config_ptr.d_MIN_THICKNESS
     numerical_floor = tidalpy_config_ptr.d_NUMERICAL_FLOOR
@@ -275,3 +227,17 @@ def update_constants_x():
     tides_3d_latitude_nodes = tidalpy_config_ptr.d_TIDES_3D_LATITUDE_NODES
     tides_3d_longitude_nodes = tidalpy_config_ptr.d_TIDES_3D_LONGITUDE_NODES
     tides_3d_radial_slices = tidalpy_config_ptr.d_TIDES_3D_RADIAL_SLICES
+    test_constant = tidalpy_config_ptr.d_TEST_CONST
+
+    G = tidalpy_config_ptr.d_G
+    au = tidalpy_config_ptr.d_AU
+    sbc = tidalpy_config_ptr.d_SBC
+    R = tidalpy_config_ptr.d_R
+    k_boltzmann = tidalpy_config_ptr.d_K_BOLTZMANN
+    year = scipy.constants.Julian_year
+    SBC = sbc
+    Au = au
+    k = k_boltzmann
+    k_boltzman = k_boltzmann
+    newtons_constant = G
+    yr = year

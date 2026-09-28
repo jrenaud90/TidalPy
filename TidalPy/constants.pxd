@@ -42,8 +42,6 @@ cdef extern from "constants_.hpp" nogil:
     cdef cppclass TidalPyConfig:
         double   d_MIN_FREQUENCY
         double   d_MAX_FREQUENCY
-        double   d_MIN_SPIN_ORBIT_DIFF
-        double   d_MIN_VISCOSITY
         double   d_MIN_MODULUS
         double   d_MIN_SOLID_RIGIDITY
         double   d_MIN_THICKNESS

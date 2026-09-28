@@ -1,18 +1,8 @@
-from typing import Union
+"""TidalPy Structures.layers: the C++ layer class hierarchy."""
 
-from .basic import LayerBase
-from .gas import GasLayer
-from .physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
+from TidalPy.Structures.layers.gas import GasLayer
 
-LayerType = Union[PhysicsLayer, LayerBase, GasLayer]
-PhysicalLayerType = PhysicsLayer
-
-known_layer_classes = {
-    'gas'    : GasLayer,
-    'physics': PhysicsLayer
-    }
-
-layers_class_by_world_class = {
-    'layered'          : PhysicsLayer,
-    'gas_giant_layered': GasLayer,
-    }
+__all__ = ["BaseLayer", "PhysicsLayer", "SolidLiquidLayer", "GasLayer"]

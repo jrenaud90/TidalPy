@@ -1,14 +1,13 @@
 [project]
 name='TidalPy'
 version = '0.8.0'
-description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
+description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in C++, Cython, and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
     ]
 requires-python = ">=3.9,<3.15"
 dependencies = [
     # Scientific and computing resources
-    "numba>=0.54.1",
     'numpy >= 1.22, <2.6',
     "scipy>=1.9.3",
     # Plotting
@@ -16,15 +15,8 @@ dependencies = [
     # Configuration file resources
     "platformdirs>=3.11.0",
     "toml>=0.10.2",
-    # Additional multiprocessing support resources
-    "dill>=0.3.2",
-    "psutil>=5.8.0",
-    "pathos>=0.2.0",
     # Install CyRK requirements
-    "cyrk>=0.19.0,<0.20.0",
-    # Exoplanet data archive
-    "astropy",
-    "astroquery"
+    "cyrk>=0.19.0,<0.20.0"
 ]
 license = "Apache-2.0"
 license-files = ["LICEN[CS]E*"]
@@ -79,6 +71,8 @@ classifiers = [
 dev = [
     "jupyter",
     "pytest",
+    # The performance-benchmark harness and its trend views (Benchmarks/Performance).
+    "psutil>=5.8.0",
     "pandas>=1.5",
     "cmcrameri>=1.4, <2.0",
     "palettable>=3.3.0",
@@ -113,17 +107,6 @@ graphics = [
     "cartopy>=0.22.0"
 ]
 
-# Extending installs
-burnman = [
-    "autograd",
-    "burnman>=2.1.0, <3"
-]
-
-julia = [
-    "julia>=0.5.7",
-    "diffeqpy>=1.2.0"
-]
-
 # The extension modules are declared in setup.py (setuptools has no pyproject.toml equivalent for them).
 [build-system]
 requires = [
@@ -155,10 +138,6 @@ exclude = [
     "Documentation*"
 ]
 
-# TODO: Get rid of the below once the numba-scipy package is updated. See the note in the module's folder.
-[project.entry-points.numba_extensions]
-init = "TidalPy.numba_scipy:_init_extension"
-
 [tool.pytest.ini_options]
 minversion = "6.0"
 # --durations names the slowest tests in every run, so a CI log says where its time went without a rerun.
@@ -171,21 +150,18 @@ testpaths = [
 # delvewheel, or delocate bundle any non-system libraries it links to), and then tested in a fresh environment.
 [tool.cibuildwheel]
 build = "*"
-# No PyPy or musl wheels. Free-threaded CPython (the "t" builds) is skipped because numba, a hard dependency, does
-# not ship free-threaded wheels.
+# No PyPy, musl, or free-threaded CPython (the "t" builds) wheels.
 skip = ["pp*", "*musl*", "cp3??t-*"]
 # Having issues with SciPy install during wheel build on 32-bit systems.
 archs = ["auto64"]
 # Import the installed wheel, one command per group of compiled modules so a load failure names the module family
-# it came from. The classic RadialSolver line is the one that failed to load from the v0.7.4 macOS wheels; the _x
-# lines cover the C++ extensions that are new in 0.8.0 and are the ones a broken wheel would break now.
+# it came from.
 test-command = [
     'python -c "import TidalPy; print(TidalPy.__version__)"',
     'python -c "from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layers"',
-    'python -c "from TidalPy.rheology import Maxwell; from TidalPy.structures import build_world"',
-    'python -c "from TidalPy.RadialSolver_x import radial_solver; from TidalPy.rheology_x import make_rheology"',
-    'python -c "from TidalPy.structures_x.configs import build_world, build_system"',
-    'python -c "from TidalPy.Tides_x.love import calc_effective_rigidity"',
+    'python -c "from TidalPy.Rheology import Maxwell, make_rheology"',
+    'python -c "from TidalPy.Structures.configs import build_world, build_system"',
+    'python -c "from TidalPy.Tides.love import calc_effective_rigidity"',
 ]
 
 [tool.cibuildwheel.linux]
@@ -194,5 +170,5 @@ test-command = [
 environment-pass = ["TIDALPY_TEST_MODE"]
 
 [tool.cibuildwheel.macos]
-# The oldest macOS supported by numba's and scipy's arm64 wheels; also what the previous TidalPy wheels targeted.
+# The oldest macOS supported by scipy's arm64 wheels; also what the previous TidalPy wheels targeted.
 environment = { MACOSX_DEPLOYMENT_TARGET = "12.0" }

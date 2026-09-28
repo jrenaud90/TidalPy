@@ -20,22 +20,11 @@ _tidalpy_init = False
 _in_jupyter = False
 _output_dir = None
 _config_path = None
-_config_x_path = None
 
-# TidalPy configurations
+# TidalPy configurations (loaded from TidalPy_Configs.toml)
 config = None
 
-# Configuration for the new `_x` class system (loaded from TidalPy_Configs_x.toml).
-config_x = None
-
-# World configuration directory
-world_config_dir = None
-
-# Public properties that can be changed by user
-extensive_logging = False
-extensive_checks = False
-
-# Load the TidalPy initializer and run it (user can run it later so load it with the handle `reinitialize`)
+# Load the TidalPy initializer and run it (user can run it later so load it with the handle `reinit`)
 from TidalPy.initialize import initialize as reinit
 
 # Call reinit for the first initialization
@@ -45,58 +34,18 @@ reinit()
 from .cache import clear_cache as clear_cache
 from .cache import clear_data as clear_data
 
-# Save the effective new-backend configuration, headed by the package versions that produced it.
-from .configurations import save_config_x as save_config_x
+# Save the effective configuration, headed by the package versions that produced it.
+from .configurations import save_config as save_config
 
-# Announce the backend transition once per session, the first time a classic module (no `_x` suffix) is imported.
-# The classic modules are deprecated in favor of the new C++ backend (`structures_x`, `Tides_x`, `RadialSolver_x`,
-# ...), which will become the only TidalPy in a future major release; code that uses only the new backend and the
-# shared top-level modules is not warned.
-import importlib.abc as _importlib_abc
-import sys as _sys
-import warnings as _warnings
-from TidalPy.exceptions import TidalPyDeprecationWarning
-
-_CLASSIC_PACKAGES = frozenset({
-    "structures", "tides", "RadialSolver", "Material", "rheology", "cooling", "radiogenics", "dynamics", "stellar",
-    "orbit", "Extending", "WorldPack", "numba_scipy", "toolbox", "utilities", "output"})
-
-
-class _ClassicBackendNotice(_importlib_abc.MetaPathFinder):
-    """Warns the first time a classic TidalPy module is imported; it never finds a module itself."""
-
-    def __init__(self):
-        self.warned = False
-
-    def find_spec(self, fullname, path=None, target=None):
-        if not self.warned:
-            parts = fullname.split(".", 2)
-            if (len(parts) > 1) and (parts[0] == "TidalPy") and (parts[1] in _CLASSIC_PACKAGES):
-                self.warned = True
-                _warnings.warn(
-                    "TidalPy's backend is changing: the classic modules (structures, tides, RadialSolver, rheology, "
-                    "...) are deprecated and will be replaced by the new C++ backend (structures_x, Tides_x, "
-                    "RadialSolver_x, rheology_x, ...) in a future major release. New development happens in the `_x` "
-                    "modules. See the porting guide at https://tidalpy.readthedocs.io/en/latest/future_structure.html. "
-                    "Silence this message with "
-                    "warnings.filterwarnings('ignore', category=TidalPy.exceptions.TidalPyDeprecationWarning).",
-                    TidalPyDeprecationWarning,
-                    stacklevel=2)
-        return None
-
-
-_sys.meta_path.insert(0, _ClassicBackendNotice())
 
 def test_mode():
     """ Turn on test mode and reinitialize TidalPy """
     global _test_mode
 
-    if _test_mode:
-        # Don't need to do anything.
-        pass
-    else:
+    if not _test_mode:
         _test_mode = True
         reinit()
+
 
 def log_to_file():
     """ Quick switch to turn on saving logs to file """
@@ -104,28 +53,26 @@ def log_to_file():
         config['logging']['write_log_to_disk'] = True
         reinit()
 
-# Helper function that provides directories to CyRK c++ headers
-def get_include():
-    import os
-    # Since we depend on CyRK to build TidalPy; we likely want to include its headers as well.
+
+def get_include() -> list:
+    """ Directories holding TidalPy's C++ headers, and CyRK's, for packages that compile against them.
+
+    Similar to ``numpy.get_include``. The headers include one another both by relative path and by bare file name,
+    so every TidalPy directory that holds a header is listed, starting with the package root (``constants_.hpp``).
+    The headers also need the header-only libraries TidalPy builds with (Eigen, xsf, and spdlog), which are not
+    installed with TidalPy.
+
+    Returns
+    -------
+    list of str
+        CyRK's include directories followed by TidalPy's.
+    """
     import CyRK
-    tidalpy_dirs = CyRK.get_include()
 
-    import TidalPy
-    tidalpy_dir = os.path.dirname(TidalPy.__file__)
-
-    # Utilities
-    tidalpy_dirs += [
-        # Utilities
-        os.path.join(tidalpy_dir, 'utilities', 'lookups'),
-        os.path.join(tidalpy_dir, 'utilities', 'arrays'),
-        os.path.join(tidalpy_dir, 'utilities', 'dimensions'),
-
-        # RadialSolver
-        os.path.join(tidalpy_dir, 'RadialSolver'),
-
-        # Material
-        os.path.join(tidalpy_dir, 'Material', 'eos')
-    ]
-
-    return tidalpy_dirs
+    include_dirs = list(CyRK.get_include())
+    tidalpy_dir = os.path.dirname(os.path.abspath(__file__))
+    for directory, sub_directories, file_names in os.walk(tidalpy_dir):
+        sub_directories[:] = sorted(name for name in sub_directories if name != '__pycache__')
+        if any(file_name.endswith('.hpp') for file_name in file_names):
+            include_dirs.append(directory)
+    return include_dirs

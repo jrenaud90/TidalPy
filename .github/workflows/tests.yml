@@ -53,10 +53,6 @@ permissions:
 
 env:
   TIDALPY_TEST_MODE: 1
-  # The Python versions that install the optional burnman extra. Comparing the matrix value numerically does
-  # not work: "3.9" parses as 3.9, which is greater than 3.13, so a numeric test silently drops 3.9. Note that
-  # the reduced suite runs no version on this list, so burnman is exercised only by the full suite.
-  BURNMAN_PYTHONS: '["3.9", "3.10", "3.11", "3.12"]'
   FULL_PYTHONS: '["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]'
   REDUCED_PYTHONS: '["3.13", "3.14"]'
   # Accounts allowed to start a manual run, separated by spaces. See `authorize-dispatch`.
@@ -293,17 +289,12 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      # sympy backs Test_Tides_x's independent check of the multilayer angular integrals; without it that
+      # sympy backs Test_Tides's independent check of the multilayer angular integrals; without it that
       # file skips itself and the check never runs anywhere.
       - name: Install Test Dependencies
         run: python -m pip install pytest pytest-xdist sympy
 
-      - name: Install Package with Burnman
-        if: ${{ contains(fromJSON(env.BURNMAN_PYTHONS), matrix.python-version) }}
-        run: python -m pip install -v .[burnman]
-
-      - name: Install Package (No Burnman)
-        if: ${{ !contains(fromJSON(env.BURNMAN_PYTHONS), matrix.python-version) }}
+      - name: Install Package
         run: python -m pip install -v .
 
       # --capture=sys leaves file-descriptor output alone, so the spdlog messages from the C++ backend still

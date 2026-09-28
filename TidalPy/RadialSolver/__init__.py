@@ -1,4 +1,12 @@
 from TidalPy.RadialSolver.solver import radial_solver as radial_solver
+from TidalPy.RadialSolver.helpers import homogeneous_love_numbers as homogeneous_love_numbers
 
-from TidalPy.RadialSolver.helpers import build_rs_input_homogeneous_layers as build_rs_input_homogeneous_layers
-from TidalPy.RadialSolver.helpers import build_rs_input_from_data as build_rs_input_from_data
+# Native input builders (Rheology models); the output feeds either radial solver positionally.
+from TidalPy.RadialSolver.build_inputs import PlanetBuildData as PlanetBuildData
+from TidalPy.RadialSolver.build_inputs import build_rs_input_homogeneous_layers as build_rs_input_homogeneous_layers
+from TidalPy.RadialSolver.build_inputs import build_rs_input_from_data as build_rs_input_from_data
+
+# The solution class the solvers return, its conditioning check, and the field names of its eos_call.
+from TidalPy.RadialSolver.rs_solution import RadialSolverSolution as RadialSolverSolution
+from TidalPy.RadialSolver.rs_solution import check_surface_solve_conditioning as check_surface_solve_conditioning
+from TidalPy.RadialSolver.rs_solution import EOS_CALL_FIELDS as EOS_CALL_FIELDS

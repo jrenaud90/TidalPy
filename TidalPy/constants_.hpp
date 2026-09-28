@@ -64,58 +64,56 @@ struct TidalPyConstants
 struct TidalPyConfig
 {
     // Forcing Frequency Extremes
-    double d_MIN_FREQUENCY; // Updated from TidalPy.config['tides']['modes']['minimum_frequency']
-    double d_MAX_FREQUENCY; // Updated from TidalPy.config['tides']['modes']['maximum_frequency']
-    double d_MIN_SPIN_ORBIT_DIFF;// Updated from TidalPy.config['tides']['modes']['min_spin_orbit_diff']
+    double d_MIN_FREQUENCY; // Updated from TidalPy.config['numerical']['minimum_frequency']
+    double d_MAX_FREQUENCY; // Updated from TidalPy.config['numerical']['maximum_frequency']
 
-    // Material Extremes    
-    double d_MIN_VISCOSITY;// Updated from TidalPy.config['physics']['materials']['minimum_viscosity']
-    double d_MIN_MODULUS;// Updated from TidalPy.config['physics']['materials']['minimum_modulus']
+    // Material Extremes
+    double d_MIN_MODULUS; // Updated from TidalPy.config['numerical']['minimum_modulus']
     // Rigidity mu / (rho g R) below which a melt-weakened solid is solved as a static liquid.
-    double d_MIN_SOLID_RIGIDITY; // Updated from TidalPy.config_x['numerical']['minimum_solid_rigidity']
+    double d_MIN_SOLID_RIGIDITY; // Updated from TidalPy.config['numerical']['minimum_solid_rigidity']
 
     // Planet Extremes
-    double d_MIN_THICKNESS; // Updated from TidalPy.config['layers']['minimum_layer_thickness']
+    double d_MIN_THICKNESS; // Updated from TidalPy.config['numerical']['minimum_layer_thickness']
 
     // Smallest magnitude a denominator may take before a guard substitutes it, shared by every module
     // that divides by a quantity which can reach zero (rheology, cooling, radiogenics).
-    double d_NUMERICAL_FLOOR; // Updated from TidalPy.config_x['numerical']['numerical_floor']
+    double d_NUMERICAL_FLOOR; // Updated from TidalPy.config['numerical']['numerical_floor']
 
     // Relative tolerance on layer-boundary continuity: how far a layer's inner radius may sit from the
     // previous layer's outer radius before the geometry is rejected.
-    double d_LAYER_CONTINUITY_RTOL; // Updated from TidalPy.config_x['numerical']['layer_continuity_rtol']
+    double d_LAYER_CONTINUITY_RTOL; // Updated from TidalPy.config['numerical']['layer_continuity_rtol']
 
     // Largest fraction of the planet radius a radial-solver integration may start from. Caps the
     // solver's own automatic choice and rejects a caller's starting radius above it.
-    double d_MAX_START_RADIUS_FRAC; // Updated from TidalPy.config_x['numerical']['max_start_radius_fraction']
+    double d_MAX_START_RADIUS_FRAC; // Updated from TidalPy.config['numerical']['max_start_radius_fraction']
 
     // Smallest equilibrated reciprocal condition number the radial solver's surface boundary-condition system
     // may have; below it the system is singular to working precision and the solve fails.
-    double d_MIN_SURFACE_RCOND; // Updated from TidalPy.config_x['numerical']['minimum_surface_rcond']
+    double d_MIN_SURFACE_RCOND; // Updated from TidalPy.config['numerical']['minimum_surface_rcond']
 
     // Relative tolerance within which two tidal-mode frequencies are the same one, and a frequency is zero.
-    double d_FREQUENCY_MATCH_RTOL; // Updated from TidalPy.config_x['numerical']['frequency_match_rtol']
+    double d_FREQUENCY_MATCH_RTOL; // Updated from TidalPy.config['numerical']['frequency_match_rtol']
 
     // Smallest Nusselt number the convection cooling model reports.
-    double d_MIN_NUSSELT; // Updated from TidalPy.config_x['numerical']['minimum_nusselt']
+    double d_MIN_NUSSELT; // Updated from TidalPy.config['numerical']['minimum_nusselt']
 
     // Largest factor by which a solved world's enclosed mass may differ from its stated mass before the EOS solve
     // fails as having no hydrostatic structure near that mass.
-    double d_MAX_EOS_MASS_RATIO; // Updated from TidalPy.config_x['numerical']['maximum_eos_mass_ratio']
+    double d_MAX_EOS_MASS_RATIO; // Updated from TidalPy.config['numerical']['maximum_eos_mass_ratio']
 
     // Density-from-pressure inversion of the compressible material EOS models (Birch-Murnaghan, Vinet): the
     // relative convergence tolerance and the iteration cap. Read when a model is built without its own values.
-    double d_EOS_INVERT_RTOL;      // Updated from TidalPy.config_x['numerical']['eos_invert_rtol']
-    int    d_EOS_INVERT_MAX_ITERS; // Updated from TidalPy.config_x['numerical']['eos_invert_max_iters']
+    double d_EOS_INVERT_RTOL;      // Updated from TidalPy.config['numerical']['eos_invert_rtol']
+    int    d_EOS_INVERT_MAX_ITERS; // Updated from TidalPy.config['numerical']['eos_invert_max_iters']
 
     // Quadrature resolutions of the 3D tidal heating integrals (calc_3d_tides), -1 until the config is loaded:
     // the Gauss-Legendre order of the colatitude integral, the trapezoid nodes of the instantaneous longitude
     // integral, and the Gauss-Legendre nodes per layer of the radial integral.
-    int d_TIDES_3D_LATITUDE_NODES;  // Updated from TidalPy.config_x['numerical']['tides_3d_latitude_nodes']
-    int d_TIDES_3D_LONGITUDE_NODES; // Updated from TidalPy.config_x['numerical']['tides_3d_longitude_nodes']
-    int d_TIDES_3D_RADIAL_SLICES;   // Updated from TidalPy.config_x['numerical']['tides_3d_radial_slices']
+    int d_TIDES_3D_LATITUDE_NODES;  // Updated from TidalPy.config['numerical']['tides_3d_latitude_nodes']
+    int d_TIDES_3D_LONGITUDE_NODES; // Updated from TidalPy.config['numerical']['tides_3d_longitude_nodes']
+    int d_TIDES_3D_RADIAL_SLICES;   // Updated from TidalPy.config['numerical']['tides_3d_radial_slices']
 
-    // Whole-planet EOS solve defaults, from TidalPy.config_x['eos_solver']. Read by every EOS solve that is
+    // Whole-planet EOS solve defaults, from TidalPy.config['eos_solver']. Read by every EOS solve that is
     // not handed an explicit value. The method is CyRK's ODEMethod enum as an int (-1 until the config is
     // loaded).
     int    d_EOS_SOLVER_METHOD;
@@ -125,9 +123,9 @@ struct TidalPyConfig
     int    d_EOS_SOLVER_MAX_ITERS;
     int    d_EOS_SOLVER_SLICES_PER_LAYER;
     bool   d_EOS_SOLVER_NONDIMENSIONALIZE;
-    bool   d_EOS_SOLVER_SOLVE_TEMPERATURE;// Updated from config_x['eos_solver']['solve_temperature']
+    bool   d_EOS_SOLVER_SOLVE_TEMPERATURE;// Updated from config['eos_solver']['solve_temperature']
 
-    // Radial (Love number) solve defaults, from TidalPy.config_x['radial_solver']. Read by the world Love
+    // Radial (Love number) solve defaults, from TidalPy.config['radial_solver']. Read by the world Love
     // solves, the tide paths that build their own, and the standalone radial_solver.
     int    d_RADIAL_SOLVER_METHOD;
     double d_RADIAL_SOLVER_RTOL;
@@ -154,8 +152,6 @@ struct TidalPyConfig
         double nan = std::numeric_limits<double>::quiet_NaN();
         d_MIN_FREQUENCY = nan;
         d_MAX_FREQUENCY = nan;
-        d_MIN_SPIN_ORBIT_DIFF = nan;
-        d_MIN_VISCOSITY = nan;
         d_MIN_MODULUS = nan;
         d_MIN_SOLID_RIGIDITY = nan;
         d_MIN_THICKNESS = nan;

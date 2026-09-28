@@ -1,18 +1,15 @@
-from typing import Dict, Tuple, TYPE_CHECKING
+import importlib as _importlib
 
+from TidalPy.Tides.potential.potential_common import ModeMap, UniqueFrequencyMap
+from TidalPy.Tides.potential.potential_3d import tidal_potential_3d_modes
 
-from .synchronous_low_e import tidal_potential as tidal_potential_simple
-from .nsr_modes_med_eccen_no_obliquity import tidal_potential as tidal_potential_nsr_modes
-from .nsr_med_eccen_no_obliquity import tidal_potential as tidal_potential_nsr
-from .nsr_med_eccen_med_obliquity import tidal_potential as tidal_potential_obliquity_nsr
-from .nsr_med_eccen_gen_obliquity import tidal_potential as tidal_potential_gen_obliquity_nsr
-from .nsr_modes_med_eccen_med_obliquity import tidal_potential as tidal_potential_obliquity_nsr_modes
-from .nsr_modes_med_eccen_gen_obliquity import tidal_potential as tidal_potential_gen_obliquity_nsr_modes
-from .nsr_modes_low_eccen_gen_obliquity import tidal_potential as tidal_potential_gen_obliquity_low_e_nsr_modes
+# `global` is a Python reserved keyword, so we use importlib to import it.
+_global_mod = _importlib.import_module('TidalPy.Tides.potential.global')
+global_potential = _global_mod.global_potential
 
-if TYPE_CHECKING:
-    from TidalPy.utilities.types import FloatArray
-
-TidalPotentialOutput = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']
-PotentialTupleModeOutput = Dict[str, Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']]
-TidalPotentialModeOutput = Tuple[Dict[str, 'FloatArray'], Dict[str, 'FloatArray'], PotentialTupleModeOutput]
+__all__ = [
+    "ModeMap",
+    "UniqueFrequencyMap",
+    "tidal_potential_3d_modes",
+    "global_potential",
+]

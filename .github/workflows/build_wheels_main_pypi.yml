@@ -68,12 +68,11 @@ jobs:
       - name: Install from the SDist
         run: python -m pip install -v dist/*.tar.gz
 
-      - name: Import both backends
+      - name: Import the compiled modules
         run: |
           python -c "import TidalPy; print(TidalPy.__version__)"
           python -c "from TidalPy.RadialSolver import radial_solver"
-          python -c "from TidalPy.RadialSolver_x import radial_solver"
-          python -c "from TidalPy.structures_x.configs import build_world, build_system"
+          python -c "from TidalPy.Structures.configs import build_world, build_system"
 
   build_wheels:
     name: Build ${{ matrix.platform }} wheels

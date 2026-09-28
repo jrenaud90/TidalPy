@@ -1,7 +1,7 @@
-"""Helper functions for loading TidalPy's configurations.
+"""Loading, merging, checking, and saving TidalPy's configuration (``TidalPy.config``).
 
-It is recommended that you only change these once you have some experience with the package
-You can check their default values by examining the same file at https://github.com/jrenaud90/TidalPy/TidalPy/defaultc.py
+The packaged defaults live in :mod:`TidalPy.defaultc`. The user's ``TidalPy_Configs.toml`` in the TidalPy data
+directory is merged over them on every load, and ``TidalPy.reinit(provided_config=...)`` merges further overrides.
 """
 
 import copy
@@ -17,21 +17,9 @@ import toml
 import TidalPy
 from TidalPy import version
 from TidalPy.exceptions import ConfigurationException, InitializationError
-from TidalPy.paths import get_config_dir, get_worlds_dir, unique_path
+from TidalPy.paths import get_config_dir, unique_path
 from TidalPy.defaultc import default_config_str
 
-
-def dict_replace_value(d_old: dict, d_new: dict) -> dict:
-    merged_dict = {}
-    for k, v in d_old.items():
-        if isinstance(v, dict):
-            if k in d_new:
-                v = dict_replace_value(v, d_new[k])
-        else:
-            if k in d_new:
-                v = d_new[k]
-        merged_dict[k] = v
-    return merged_dict
 
 def merge_configs(base: dict, overrides: dict) -> dict:
     """Return ``base`` with ``overrides`` merged over it, leaving both inputs untouched.
@@ -132,21 +120,21 @@ def keep_on_model_change(table_name: str, base_table: dict) -> dict:
     return kept
 
 
-# Model-table keys a 0.8.0 pre-release wrote into TidalPy_Configs_x.toml that no model reads any more, with the reason.
+# Model-table keys a 0.8.0 pre-release wrote into TidalPy_Configs.toml that no model reads any more, with the reason.
 # A loaded file has them dropped, with one warning, so an existing file keeps building worlds.
-RETIRED_CONFIG_X_MODEL_KEYS = {
+RETIRED_CONFIG_MODEL_KEYS = {
     "hn_shear_param_2": "the Henning shear law is anchored at the solidus, exp[b1 (1/T - 1/T_sol)], so it has no "
                         "separate offset (the old default 25 is 40000 / 1600)",
 }
 
 
-def drop_retired_config_x_keys(config: dict, source: str) -> list:
-    """Remove the retired model keys (``RETIRED_CONFIG_X_MODEL_KEYS``) from a loaded configuration, in place.
+def drop_retired_config_keys(config: dict, source: str) -> list:
+    """Remove the retired model keys (``RETIRED_CONFIG_MODEL_KEYS``) from a loaded configuration, in place.
 
     Parameters
     ----------
     config : dict
-        A ``TidalPy_Configs_x.toml`` or override dict; nested tables are searched.
+        A ``TidalPy_Configs.toml`` or override dict; nested tables are searched.
     source : str
         What ``config`` is, for the warning.
 
@@ -163,18 +151,18 @@ def drop_retired_config_x_keys(config: dict, source: str) -> list:
             here = f"{path}.{key}" if path else key
             if isinstance(table[key], dict):
                 walk(table[key], here)
-            elif key in RETIRED_CONFIG_X_MODEL_KEYS:
+            elif key in RETIRED_CONFIG_MODEL_KEYS:
                 del table[key]
                 removed.append(here)
 
     walk(config, "")
     if removed:
         # The file's own switch wins, then the configuration already loaded.
-        loaded = TidalPy.config_x if isinstance(TidalPy.config_x, dict) else {}
+        loaded = TidalPy.config if isinstance(TidalPy.config, dict) else {}
         switch = (loaded.get("warnings", {}) or {}).get("unknown_config_key", True)
         switch = (config.get("warnings", {}) or {}).get("unknown_config_key", switch)
         if switch:
-            reasons = "; ".join(f"{key}: {why}" for key, why in RETIRED_CONFIG_X_MODEL_KEYS.items()
+            reasons = "; ".join(f"{key}: {why}" for key, why in RETIRED_CONFIG_MODEL_KEYS.items()
                                 if any(path.split(".")[-1] == key for path in removed))
             warnings.warn(
                 f"{source} sets {len(removed)} key(s) no longer read, which are ignored: {', '.join(removed)} "
@@ -182,29 +170,29 @@ def drop_retired_config_x_keys(config: dict, source: str) -> list:
     return removed
 
 
-def find_unknown_config_x_keys(overrides: dict, packaged: dict) -> list:
-    """The keys of a ``TidalPy_Configs_x.toml`` (or an override dict) that nothing in TidalPy reads.
+def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
+    """The keys of a ``TidalPy_Configs.toml`` (or an override dict) that nothing in TidalPy reads.
 
     A key is known when the packaged defaults hold it at the same place, with these exceptions: a ``[layers.<type>]``
     block may be a material type of the user's own, and is checked against the layer schema instead (its scalar
     keys and model-table names; what a model table holds is the model factory's business, which rejects an unknown
-    key when the layer is built); the per-type ``[worlds.<type>]`` tables are checked against the world schema; and
+    key when the layer is built); the per-type ``[worlds.<type>]`` tables are checked against the world schema;
     ``[tides.default_model]`` names world types, as do the per-type ``[tides.<type>]`` tables, which take the
-    ``[tides]`` keys.
+    ``[tides]`` keys; and the datasets in ``[radiogenics.known_isotope_data]`` are named by the user.
 
     Parameters
     ----------
     overrides : dict
         The user's file or override dict.
     packaged : dict
-        The packaged defaults (:func:`get_packaged_config_x`).
+        The packaged defaults (:func:`get_packaged_config`).
 
     Returns
     -------
     list of str
         The unknown keys as dotted paths (``numerical.min_viscosty``), in file order; empty when every key is known.
     """
-    from TidalPy.schema_x import (
+    from TidalPy.schema import (
         ALLOWED_LAYER_SCALAR_KEYS, ALLOWED_WORLD_SCALAR_KEYS, LAYER_MODEL_SECTIONS, WORLD_TYPES)
 
     layer_keys = set(LAYER_MODEL_SECTIONS)
@@ -254,25 +242,27 @@ def find_unknown_config_x_keys(overrides: dict, packaged: dict) -> list:
                                    if name not in packaged["tides"] or name == "default_model" or name in WORLD_TYPES)
                 elif key not in packaged["tides"]:
                     unknown.append(f"tides.{key}")
+        elif section == "radiogenics":
+            unknown.extend(f"radiogenics.{key}" for key in table if key not in packaged["radiogenics"])
         else:
             walk(table, packaged[section], section)
     return unknown
 
 
-def warn_unknown_config_x_keys(overrides: dict, packaged: dict, source: str) -> list:
-    """Warn once, naming every key of ``overrides`` that nothing reads (see :func:`find_unknown_config_x_keys`).
+def warn_unknown_config_keys(overrides: dict, packaged: dict, source: str) -> list:
+    """Warn once, naming every key of ``overrides`` that nothing reads (see :func:`find_unknown_config_keys`).
 
     The ``[warnings] unknown_config_key`` switch of the merged configuration turns the warning off; the keys are
     returned either way.
     """
-    unknown = find_unknown_config_x_keys(overrides, packaged)
+    unknown = find_unknown_config_keys(overrides, packaged)
     if unknown:
         switch = (overrides.get("warnings", {}) or {}).get(
             "unknown_config_key", (packaged.get("warnings", {}) or {}).get("unknown_config_key", True))
         if switch:
             warnings.warn(
                 f"{source} sets {len(unknown)} key(s) TidalPy does not read: {', '.join(unknown)}. A misspelled or "
-                "outdated key has no effect; the packaged defaults (TidalPy.defaultc_x) list every key that does. "
+                "outdated key has no effect; the packaged defaults (TidalPy.defaultc) list every key that does. "
                 "[warnings] unknown_config_key turns this warning off.")
     return unknown
 
@@ -398,103 +388,71 @@ def check_config_version(
 
     return compatible
 
-def get_default_config() -> dict:
-    """ Loads TidalPy configurations that are found on the local disk.
-    If no configuration file is found (likely when TidalPy is used for the first time) then default configurations
-    will be saved to disk first.
-    """
-
-    config_dir = get_config_dir()
-    config_path = os.path.join(config_dir, 'TidalPy_Configs.toml')
-    # Check if TidalPy's config file is not present.
-    if not os.path.isfile(config_path):
-        # Create toml file with default configurations.
-        with open(config_path, 'w', encoding='utf-8') as config_file:
-            config_file.write('#===========================================================#\n')
-            config_file.write(f'#    TidalPy Default Configurations for Version: {version}\n')
-            config_file.write('#===========================================================#\n\n')
-            config_file.write(default_config_str)
-    else:
-        # Check if configuration file is for the correct version of TidalPy.
-        check_config_version(config_path)
-            
-    # Load configurations (these may have been changed by the user) to dict
-    config_dict = toml.load(config_path)
-
-    # Update path
-    TidalPy._config_path = config_path
-
-    return config_dict
-
-def get_packaged_config_x() -> dict:
-    """ Return the packaged new-backend defaults from :mod:`TidalPy.defaultc_x`, parsed into a dict.
+def get_packaged_config() -> dict:
+    """ Return the packaged defaults from :mod:`TidalPy.defaultc`, parsed into a dict.
 
     Returns
     -------
     dict
-        The packaged ``_x`` configuration defaults.
+        The packaged configuration defaults.
     """
-    from TidalPy.defaultc_x import default_config_x_str
-
-    return toml.loads(default_config_x_str)
+    return toml.loads(default_config_str)
 
 
-def get_default_config_x() -> dict:
-    """ Loads the new ``_x`` TidalPy configuration: the packaged defaults with the user's file merged over them.
+def get_default_config() -> dict:
+    """ Loads TidalPy's configuration: the packaged defaults with the user's file merged over them.
 
-    The user's ``TidalPy_Configs_x.toml`` lives next to the legacy ``TidalPy_Configs.toml`` in the TidalPy Config
-    directory. It is written with the full packaged defaults (from :mod:`TidalPy.defaultc_x`) when it is missing and is
-    user-editable after that. Only the values it sets override the packaged defaults (see :func:`merge_configs`), so a
-    partial file works and a default added later reaches an existing file without regenerating it. The returned
-    dictionary is also stored on ``TidalPy.config_x``.
+    The user's ``TidalPy_Configs.toml`` lives in the TidalPy data directory's ``Config`` folder. It is written with
+    the full packaged defaults (from :mod:`TidalPy.defaultc`) when it is missing and is user-editable after that.
+    Only the values it sets override the packaged defaults (see :func:`merge_configs`), so a partial file works and a
+    default added later reaches an existing file without regenerating it. The returned dictionary is also stored on
+    ``TidalPy.config``.
 
     Returns
     -------
-    config_x_dict : dict
-        The ``_x`` configuration dictionary.
+    config_dict : dict
+        The configuration dictionary.
     """
-    from TidalPy.defaultc_x import default_config_x_str
-
     config_dir = get_config_dir()
-    config_x_path = os.path.join(config_dir, 'TidalPy_Configs_x.toml')
-    # Write the default _x config if it is not already present.
-    if not os.path.isfile(config_x_path):
-        with open(config_x_path, 'w', encoding='utf-8') as config_file:
-            config_file.write(config_version_header('TidalPy _x Default Configurations'))
-            config_file.write(default_config_x_str)
+    config_path = os.path.join(config_dir, 'TidalPy_Configs.toml')
+    # Write the default config if it is not already present.
+    if not os.path.isfile(config_path):
+        with open(config_path, 'w', encoding='utf-8', newline='\n') as config_file:
+            config_file.write(config_version_header('TidalPy Default Configurations'))
+            config_file.write(default_config_str)
     else:
-        # Reuse the legacy version check (it scans the header for a 'version:' line).
-        check_config_version(config_x_path)
+        # Scans the header for a 'version:' line.
+        check_config_version(config_path)
 
-    packaged = get_packaged_config_x()
-    user_config = toml.load(config_x_path)
-    drop_retired_config_x_keys(user_config, f"The configuration file {config_x_path}")
-    warn_unknown_config_x_keys(user_config, packaged, f"The configuration file {config_x_path}")
-    config_x_dict = merge_configs(packaged, user_config)
+    packaged = get_packaged_config()
+    user_config = toml.load(config_path)
+    drop_retired_config_keys(user_config, f"The configuration file {config_path}")
+    warn_unknown_config_keys(user_config, packaged, f"The configuration file {config_path}")
+    config_dict = merge_configs(packaged, user_config)
 
     # Update path and store on the package.
-    TidalPy._config_x_path = config_x_path
-    TidalPy.config_x = config_x_dict
+    TidalPy._config_path = config_path
+    TidalPy.config = config_dict
 
-    return config_x_dict
+    return config_dict
 
 
-def set_config_x(new_config: Union[str, dict]) -> dict:
-    """ Merge a new-backend configuration over ``TidalPy.config_x`` and apply its numerical settings.
+def set_config(new_config: Union[str, dict]) -> dict:
+    """ Merge a configuration over ``TidalPy.config`` and apply its numerical settings.
 
-    Usually reached through ``TidalPy.reinit(provided_config_x=...)``.
+    Usually reached through ``TidalPy.reinit(provided_config=...)``.
 
     Parameters
     ----------
     new_config : str or dict
         A path to a TOML configuration file, a configuration dict, or ``"default"`` to reload the packaged defaults
-        merged with the user's ``TidalPy_Configs_x.toml`` (discarding earlier overrides). A file or dict only needs the
+        merged with the user's ``TidalPy_Configs.toml`` (discarding earlier overrides). A file or dict only needs the
         values it changes (see :func:`merge_configs`). The version header of a saved file is not checked.
 
     Returns
     -------
     dict
-        The updated ``TidalPy.config_x``.
+        The updated ``TidalPy.config``.
 
     Raises
     ------
@@ -503,40 +461,40 @@ def set_config_x(new_config: Union[str, dict]) -> dict:
     TypeError
         If ``new_config`` is neither a string nor a dict.
     """
-    from TidalPy.constants import update_constants_x
+    from TidalPy.constants import update_constants
 
     if isinstance(new_config, str):
         if new_config.lower() == 'default':
-            get_default_config_x()
-            update_constants_x()
-            return TidalPy.config_x
+            get_default_config()
+            update_constants()
+            return TidalPy.config
         if not os.path.isfile(new_config):
             raise InitializationError(f'Provided configuration path is not a file: {new_config}.')
         overrides = toml.load(new_config)
     elif isinstance(new_config, dict):
         overrides = new_config
     else:
-        raise TypeError('Expected a new-backend configuration file path (str) or configuration dict.')
+        raise TypeError('Expected a configuration file path (str) or configuration dict.')
 
-    if TidalPy.config_x is None:
-        get_default_config_x()
+    if TidalPy.config is None:
+        get_default_config()
     source = f"The configuration file {new_config}" if isinstance(new_config, str) else "The configuration override"
     overrides = copy.deepcopy(overrides)
-    drop_retired_config_x_keys(overrides, source)
-    warn_unknown_config_x_keys(
-        overrides, get_packaged_config_x(),
+    drop_retired_config_keys(overrides, source)
+    warn_unknown_config_keys(
+        overrides, get_packaged_config(),
         f"The configuration file {new_config}" if isinstance(new_config, str) else "The configuration override")
-    TidalPy.config_x = merge_configs(TidalPy.config_x, overrides)
-    update_constants_x()
-    return TidalPy.config_x
+    TidalPy.config = merge_configs(TidalPy.config, overrides)
+    update_constants()
+    return TidalPy.config
 
 
-def save_config_x(file_path: str, overwrite: bool = True) -> str:
-    """ Save the effective new-backend configuration (``TidalPy.config_x``) to a TOML file.
+def save_config(file_path: str, overwrite: bool = True) -> str:
+    """ Save the effective configuration (``TidalPy.config``) to a TOML file.
 
     The file starts with a comment header recording the TidalPy, SciPy, and CyRK versions in use (see
     :func:`config_version_header`). Together with a world or system TOML it reproduces a run on another machine with
-    the same TidalPy version: load it there with ``TidalPy.reinit(provided_config_x=file_path)``.
+    the same TidalPy version: load it there with ``TidalPy.reinit(provided_config=file_path)``.
 
     Parameters
     ----------
@@ -558,109 +516,11 @@ def save_config_x(file_path: str, overwrite: bool = True) -> str:
     file_path = str(file_path)
     if not file_path.endswith('.toml'):
         raise ValueError('Please provide a toml file path (include the ".toml" extension).')
-    if TidalPy.config_x is None:
-        get_default_config_x()
+    if TidalPy.config is None:
+        get_default_config()
     if os.path.isfile(file_path) and not overwrite:
         file_path = unique_path(file_path, is_dir=False, make_dir=False)
     with open(file_path, 'w', encoding='utf-8', newline='\n') as config_file:
-        config_file.write(config_version_header('TidalPy _x Configurations'))
-        toml.dump(plain_config(TidalPy.config_x), config_file)
+        config_file.write(config_version_header('TidalPy Configurations'))
+        toml.dump(plain_config(TidalPy.config), config_file)
     return file_path
-
-
-def set_config(new_config_path: Union[str, dict]) -> dict:
-    """Sets TidalPy's configuration based on a provided configuration file path.
-    
-    Parameters
-    ----------
-    config_path : str
-        Path to the configuration file the user wishes to use. 
-        if set to "default" then the default config will be used.
-    """
-    
-    new_config_name = 'unknown'
-    if isinstance(new_config_path, dict):
-        new_config = new_config_path
-        new_config_name = 'User-provided dict'
-    elif isinstance(new_config_path, str):
-        new_config_name = f'{new_config_path}'
-        if new_config_path.lower() == 'default':
-            # Use default path.
-            new_config = get_default_config()
-        else:
-            # Check if file exists
-            if not os.path.isfile(new_config_path):
-                raise InitializationError(f'Provided configuration path is not a file: {new_config_path}.')
-        
-            # Check if the provided configuration file is for the correct version of TidalPy.
-            check_config_version(new_config_path, warn_on_false=True, raise_on_false=False)
-
-            # Update path
-            TidalPy._config_path = new_config_path
-            
-            # Load configurations (these may have been changed by the user) to dict
-            new_config = toml.load(new_config_path)
-    else:
-        raise TypeError("Unexpected type found for TidalPy config replacement. Expected configuration file filepath (str) or config (dict).")
-
-    # Set or override configurations with this new config file.
-    if TidalPy.config is None:
-        # No config has been loaded. Use this as the base config.
-        TidalPy.config = new_config
-    else:
-        # A base config has already been loaded, override the base with any items from this new config.
-        TidalPy.config = dict_replace_value(TidalPy.config, new_config)
-        if TidalPy._tidalpy_init:
-            from TidalPy.logger import get_logger
-            log = get_logger('TidalPy')
-            log.debug(f"TidalPy Configs overridden by {new_config_name}.")
-
-def get_default_world_dir() -> str:
-    """ Find the directory containing TidalPy's world configuration files.
-    If no directory is found (likely when TidalPy is used for the first time) then default configurations
-    will be saved to disk first.
-    """
-
-    worlds_dir = get_worlds_dir()
-
-    install_worlds = True
-    # Use a test world file to check that the default worlds are installed.
-    # TODO: Update extension if/when converting world configs to toml.
-    io_config = os.path.join(worlds_dir, 'io.toml')
-    if os.path.isfile(io_config):
-        # TODO: Have a check here to see if world config version matches tidalpy and rebuild if it doesn't?
-        install_worlds = False
-    
-    if install_worlds:
-        # Install worlds to world config.
-        tpy_path = os.path.dirname(os.path.realpath(__file__))
-        world_config_zip = os.path.join(tpy_path, 'WorldPack', 'WorldPack.zip')
-        if not os.path.isfile(world_config_zip):
-            raise InitializationError("Can not find TidalPy's WorldPack. " + \
-                                      "There may have been an issue during TidalPy's installation.")
-        import zipfile
-        with zipfile.ZipFile(world_config_zip, 'r') as zip_ref:
-            zip_ref.extractall(worlds_dir)
-        
-        # Re-perform Io test.
-        if not os.path.isfile(io_config):
-            raise InitializationError("Can not find Io configuration after WorldPack installation.")
-    
-    return worlds_dir
-
-def set_world_dir(world_dir_path: str):
-    """Sets TidalPy's worlds config file directory based on a provided directory path.
-    
-    Parameters
-    ----------
-    world_dir_path : str
-        Path to the worlds directory the user wishes to use. 
-        if set to "default" then the default directory will be used.
-    """
-
-    if world_dir_path.lower() == 'default':
-        # Use default path.
-        TidalPy.world_config_dir = get_default_world_dir()
-    else:
-        # TODO: Check if the provided directory has files compatible with the correct version of TidalPy.
-        TidalPy.world_config_dir = world_dir_path
