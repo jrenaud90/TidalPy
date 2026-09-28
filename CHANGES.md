@@ -2,11 +2,11 @@
 
 ## Version 0.7.X
 
-### Version 0.7.6 (2026-09-25)
+### Version 0.7.6 (2026-09-28)
 
-**TidalPy's backend and many function signatures will soon be changed!** TidalPy 0.8.0 replaces it with a new C++ backend. The current modules (`structures`, `tides`, `RadialSolver`, `rheology`, ...) are removed in 0.8.0 and module, class, and function names and signatures change, so code written for 0.7.X will need to be updated. Pin `TidalPy<0.8` to keep using the current API. Importing TidalPy now warns once per session through the new `TidalPy.exceptions.TidalPyDeprecationWarning` category (a `FutureWarning` subclass, so it is visible by default but can be silenced with a `warnings.filterwarnings` call).
+**TidalPy's backend and many function signatures will soon change!** TidalPy 0.8.0 replaces it with a new C++ backend. The current modules (`structures`, `tides`, `RadialSolver`, `rheology`, ...) are removed in 0.8.0 and module, class, and function names and signatures change, so code written for 0.7.X will need to be updated. Pin `TidalPy<0.8` to keep using the current API. Importing TidalPy now warns once per session through the new `TidalPy.exceptions.TidalPyDeprecationWarning` category (a `FutureWarning` subclass, so it is visible by default but can be silenced with a `warnings.filterwarnings` call).
 
-This release backports the fixes to this backend that were found while developing 0.8.0.
+This release backports the fixes to this backend that were found while developing 0.8.0. The version 0.7.X track will continue to get bug fix updates through the end of the year. But we strongly encourage users to move over to the new API. In 0.8.0's version branch you will find a migration guide in the documentation to help with the transition. 
 
 #### Fixes
 * `TidalPy.RadialSolver`: `radial_solver` wrote one boundary-condition model per `solve_for` entry into a fixed 5-slot buffer without a length check, so a `solve_for` tuple with more than 5 entries overflowed the stack. It now rejects more than 5 entries with a clear error.
