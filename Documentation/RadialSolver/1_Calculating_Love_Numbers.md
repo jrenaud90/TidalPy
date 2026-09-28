@@ -1,21 +1,12 @@
 # Calculating Love Numbers using TidalPy's RadialSolver
-_In addition to the documentation in this file, there is a demo notebook "3 - Calculate Love Numbers.ipynb" in the Demos folder. As well as notebooks in "Benchmarks / Radial Solver" folder that may be helpful._
+_See also the demo notebook "3 - Calculate Love Numbers.ipynb" in the Demos folder and the notebooks in the "Benchmarks / Radial Solver" folder._
 
-TidalPy's `RadialSolver` package allows users to estimate a planet's global, viscoelastic
-[Love numbers](https://en.wikipedia.org/wiki/Love_number). These numbers can then be used to determine the magnitude of
-tidal dissipation, speed of rotational/orbital changes, and provide predictions for gravity or displacement
-measurements. 
+TidalPy's `RadialSolver` package estimates a planet's global, viscoelastic [Love numbers](https://en.wikipedia.org/wiki/Love_number). These set the magnitude of tidal dissipation and the speed of rotational and orbital changes, and give predictions for gravity or displacement measurements.
 
-TidalPy allows for both the use of a numerical shooting method and a propagation matrix technique. However, the 
-shooting method is much further developed within TidalPy, has more options and control, and is the default method.
-This method integrates a set of 3x6 viscoelastic-gravitational ordinary differential equations
-from the core of the planet to its surface. The solution is calculated up to layer interfaces (layers are defined by
-phase changes within the planet) and then new ODEs are solved within the next layer, repeating up to the planet's
-surface. The final result is a super position of the different solutions in each layer, where each
-solutions' coefficients are determined by boundary conditions at the surface of the planet. 
+Two methods are available: a numerical shooting method and a propagation matrix technique. The shooting method is further developed within TidalPy, has more options and control, and is the default. It integrates a set of 3x6 viscoelastic-gravitational ordinary differential equations from the core of the planet to its surface. The solution is calculated up to a layer interface (layers are defined by phase changes within the planet), then new ODEs are solved within the next layer, repeating up to the planet's surface. The final result is a superposition of the solutions in each layer, with each solution's coefficients determined by boundary conditions at the surface of the planet.
 
 ## References
-To learn more about TidalPy's underlying methods please review these references.
+These references cover the underlying methods.
 
 **Numerical Shooting Method**:
 - Takeuchi, H., & Saito, M. (1972). Seismic Surface Waves. In Methods in Computational Physics: Advances in Research and Applications (Vol. 11, pp. 217–295). Elsevier. https://doi.org/10.1016/B978-0-12-460811-5.50010-6
@@ -28,29 +19,28 @@ To learn more about TidalPy's underlying methods please review these references.
 
 **Starting Conditions**:
 - Kamata, S., Matsuyama, I., & Nimmo, F. (2015). Tidal resonance in icy satellites with subsurface oceans. Journal of Geophysical Research (Planets), 120, 1528–1542. https://doi.org/10.1002/2015JE004821
-- Martens, H. R. (2016). USING EARTH DEFORMATION CAUSED BY SURFACE MASS LOADING TO CONSTRAIN THE ELASTIC STRUCTURE OF THE CRUST AND MANTLE. CalTech, PHD Thesis.
+- Martens, H. R. (2016). Using Earth deformation caused by surface mass loading to constrain the elastic structure of the crust and mantle. CalTech, PhD thesis.
 
 **Propagation Matrix Method**:
 - Sabadini, R., & Vermeersen, B. (2004). Global dynamics of the earth: Applications of normal mode relaxation theory to solid-earth geophysics. Kluwer Academic Publishers.
 - Roberts, J. H., & Nimmo, F. (2008). Tidal heating and the long-term stability of a subsurface ocean on Enceladus. Icarus, 194(2), 675–689. https://doi.org/10.1016/j.icarus.2007.11.010
-- Henning, W. G., & Hurford, T. (2014). TIDAL HEATING IN MULTILAYERED TERRESTRIAL EXOPLANETS. The Astrophysical Journal, 789(1), 30. https://doi.org/10.1088/0004-637X/789/1/30
+- Henning, W. G., & Hurford, T. (2014). Tidal heating in multilayered terrestrial exoplanets. The Astrophysical Journal, 789(1), 30. https://doi.org/10.1088/0004-637X/789/1/30
 - [Sabadini, Vermeersen, & Cambiotti (2016)](https://www.barnesandnoble.com/w/global-dynamics-of-the-earth-roberto-sabadini/1123259823).
 
 ## Radial Solver Function `TidalPy.RadialSolver.radial_solver`
-The `radial_solver` function, contained in the `TidalPy.RadialSolver` module is the main way to solve the radial 
-functions from Python. There are also cython hooks for faster performance (See [Cython API](https://tidalpy.readthedocs.io/en/latest/RadialSolver/4_RadialSolver_Cython_API.html)).
+The `radial_solver` function in the `TidalPy.RadialSolver` module is the main way to solve the radial functions from Python. Cython hooks are also available for faster performance (see [Cython API](https://tidalpy.readthedocs.io/en/latest/RadialSolver/4_RadialSolver_Cython_API.html)).
 
 Notes:
 - All arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays). If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to TidalPy.
-- At least 5 slices per layer is required (so total size of arrays must be at least 5x num_layers).
-- RadialSolver will solve an equation of state to determine various other required properties (such as gravity)
-    - Currently, only an interpolation EOS is implemented, meaning that if properties change with radius (e.g., density(r)) within layers then the arrays must be robust enough to capture those changes.
-    - For example, for a planet with homogeneous layers then 5 slices per layer is plenty because density does not change within the layer.
-    - On the other hand, if density(r) != constant within the layer then you need to ensure there are enough slices to capture these changes. This is even more important for parameters that change faster, like viscosity.
-- The radius array (and all properties that change with radius) must follow this format:
+- At least 5 slices per layer are required, so the total array size must be at least 5x num_layers.
+- RadialSolver solves an equation of state to determine other required properties such as gravity.
+    - Only an interpolation EOS is implemented, so if a property changes with radius within a layer (e.g., density(r)) the arrays must be dense enough to capture that change.
+    - For a planet with homogeneous layers, 5 slices per layer is plenty because density does not change within a layer.
+    - If density(r) is not constant within a layer, add enough slices to capture the variation. This matters more for parameters that change faster, such as viscosity.
+- The radius array, and every property that changes with radius, must follow this format:
     - Starts at r=0.0
-    - Has r values at the top and bottom of each interface. Meaning if there are 2+ layers then the interface radius value will be in the radius array _twice_.
-- TidalPy provides helper functions to easily create or modify arrays that follow RadialSolver's requirements. Please see "3 - Radial Solver Helpers.md" documentation for more details.
+    - Has r values at the top and bottom of each interface, so with 2 or more layers the interface radius appears in the radius array _twice_.
+- Helper functions create or modify arrays that follow these requirements. See "3 - Radial Solver Helpers.md".
 
 ```python
 from TidalPy.RadialSolver import radial_solver
@@ -132,6 +122,11 @@ rs_solution = radial_solver(
     # Some problems are more stable if the starting radius is higher in the planet. This tends to be the case 
     # when degree_l >> 2. If set to 0.0, the default, then TidalPy will use Martens (2016) technique to determine 
     # a good starting radius depending on the degree_l and the tolerance set in the next variable.
+    # Warning: starting very deep (near the center) at degree_l > 2 can make the surface boundary condition
+    # solve ill conditioned: the solution constants grow enormous and cancel, amplifying integration error and
+    # roundoff into the Love numbers. When `warnings=True` (the default), the shooting method measures this
+    # amplification (see `solution.surface_solve_amplification`) and logs a warning when the achievable accuracy
+    # falls below the requested tolerance. Prefer the automatic starting radius when that warning appears.
 
     start_radius_tolerance = 1.0e-5
     # Starting radius tolerance (type: scalar double)
@@ -158,6 +153,9 @@ rs_solution = radial_solver(
     #  - 'RK23'    Explicit Runge-Kutta method of order 3(2)
     #  - 'RK45'    Explicit Runge-Kutta method of order 5(4)
     #  - 'DOP853'  Explicit Runge-Kutta method of order 8
+    #  - 'BDF'     Implicit multi-step method (good for stiff problems)
+    #  - 'LSODA'   Adams/BDF method with automatic stiffness detection
+    #  - 'Radau'   Implicit Runge-Kutta method of the Radau IIA family, order 5
     
     integration_rtol = 1.0e-5,
     # Integration relative tolerance
@@ -258,50 +256,48 @@ rs_solution = radial_solver(
 ```
 
 ## Troubleshooting
-_Don't see your issue addressed here? Make an issue on TidalPy's [GitHub](https://github.com/jrenaud90/TidalPy/issues) so we can try to fix it or at least document it here!_
+_If your issue is not covered here, please open an issue on TidalPy's [GitHub](https://github.com/jrenaud90/TidalPy/issues) so it can be fixed or at least documented here._
 
 ### Shooting Method
 
-Below are a list of common problems that lead to integration failure. These are grouped by message codes which can be
-accessed via `rs_solution.message`.
+Common problems that lead to integration failure, grouped by the message codes available through `rs_solution.message`.
 
 #### "Error in step size calculation:\n\tRequired step size is less than spacing between numbers."
 
-This message indicates that the integrator could not solve the problem. 
+The integrator could not solve the problem.
 
-Possible causes (these are similar to "unstable solutions" discussed below):
-- `integration_rtol` or `integration_atol` is too small. Or, counterintuitively, is too large and led to compounding errors.
-- If there is a liquid layer and it is not static (via the `is_static_bylayer` variable) but is compressible (via the `is_incompressible_bylayer`) then the integrator likely ran into an unstable solution. This is particularly common if the planet's forcing frequency is too small (forcing periods >~ 3 days can cause this). Suggest decreasing forcing period or change the liquid layer to be static and/or incompressible.
+Possible causes, similar to the "unstable solutions" discussed below:
+- `integration_rtol` or `integration_atol` is too small. Or, counterintuitively, too large, which lets errors compound.
+- A liquid layer that is not static (via `is_static_bylayer`) but is compressible (via `is_incompressible_bylayer`) likely ran the integrator into an unstable solution. This is common when the planet's forcing frequency is small: forcing periods longer than about 3 days can cause it. Try decreasing the forcing period, or make the liquid layer static and/or incompressible.
 
 #### "Maximum number of steps (set by user) exceeded during integration."
-This message indicates that the integrator hit the `max_num_steps` parameter during integration. You can try to increase this value but this is a good indication that the integrator is having difficulty solving the problem. Increasing the max number of steps will likely lead to a very slow integration or raise one of the other problems listed here.
+The integrator hit the `max_num_steps` parameter. You can increase this value, but hitting it indicates the integrator is having difficulty with the problem, and a larger limit will likely give a very slow integration or one of the other problems listed here.
 
-Note that if you are having this issue you likely have an unstable solution (see below).
+This usually means the solution is unstable (see below).
 
 #### "Maximum number of steps (set by system architecture) exceeded during integration."
-This message indicates that the integrator's solution arrays exceeded the `max_ram_MB` size during integration. You can try to increase this value but this is a good indication that the integrator is having difficulty solving the problem. Increasing the max number of ram will likely lead to a very slow integration or raise one of the other problems listed here.
+The integrator's solution arrays exceeded the `max_ram_MB` size. You can increase this value, but hitting it indicates the integrator is having difficulty with the problem, and more memory will likely give a very slow integration or one of the other problems listed here.
 
-Note that if you are having this issue you likely have an unstable solution (see below).
+This usually means the solution is unstable (see below).
 
 #### Unstable Solutions (slow integration or many steps required)
 
-If radial solver takes a long time to complete integration, requiring a lot of integration steps (which can be checked with `rs_solution.steps_taken`), then the solution is likely unstable. Even if `rs_solution.success` is true there may be instability issues.
-We recommend checking the result plots via `rs_solution.plot_ys()` and check for instabilities (very large jumps, many squiggly lines, sudden discontinuities within a layer, etc.). If you find these then you will need to adjust the inputs to find a stable solution. Depending on the specific situation this could be achieved by (in no particular order):
-- Lowering your integration rtol or atol. 
-- Changing integration method.
+A long integration requiring many steps, which you can check with `rs_solution.steps_taken`, usually means the solution is unstable. Instability is possible even when `rs_solution.success` is true. We recommend inspecting the result plots with `rs_solution.plot_ys()` for very large jumps, many squiggly lines, or sudden discontinuities within a layer. If you find them, adjust the inputs to find a stable solution. Depending on the situation, that could mean (in no particular order):
+- Lowering the integration rtol or atol.
+- Changing the integration method.
 - Changing the starting condition (via `use_kamata`).
-- Lower the `degree_l` if it is very high.
-- Start the integration higher in the planet (via `starting_radius`).
-- Change layer assumptions (particularly for dynamic-compressible liquid layers).
-- Add a small, central solid core where there was a purely liquid core.
-- Increase the number of slices in the input arrays.
+- Lowering `degree_l` if it is very high.
+- Starting the integration higher in the planet (via `starting_radius`).
+- Changing layer assumptions, particularly for dynamic-compressible liquid layers.
+- Adding a small, central solid core where there was a purely liquid core.
+- Increasing the number of slices in the input arrays.
 
 #### Crash
-In the unlikely scenario where the integration crashes with no warnings or exceptions please try the following:
-- Rerun the code to see if the crash occurs again using the same inputs
-    - During the rerun, keep an eye on system memory usage to ensure it is not being used at 100%.
-- If crash does reoccur:
-    - Please record all inputs and make a [report](https://github.com/jrenaud90/TidalPy/issues).
+If the integration crashes with no warnings or exceptions:
+- Rerun the code with the same inputs to see if the crash occurs again.
+    - During the rerun, watch system memory usage to ensure it is not at 100%.
+- If the crash reoccurs:
+    - Record all inputs and file a [report](https://github.com/jrenaud90/TidalPy/issues).
 
 #### NaNs are returned
-Sometimes the integration is successful but returns NaN results for all the Love Numbers. Usually this occurs because the problem is unstable. Try plotting the radial solutions (via `rs_solution.plot_ys()`) to look for instabilities then follow the recommendations discussed above.
+The integration can succeed but return NaN for all the Love numbers. This usually means the problem is unstable. Plot the radial solutions with `rs_solution.plot_ys()` to look for instabilities, then follow the recommendations above.

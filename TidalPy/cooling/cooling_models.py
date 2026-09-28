@@ -112,7 +112,7 @@ def convection(
     # Calculate the Rayleigh number and then check for over/under shoots
     rayleigh = parcel_rise_rate / rate_heat_loss
     rayleigh = (delta_temp_shape > float_eps) * rayleigh
-    rayleigh = (layer_thickness_shape >= MIN_THICKNESS) * rayleigh
+    rayleigh = (layer_thickness_shape > MIN_THICKNESS) * rayleigh
 
     # Calculate the Nusselt number and then check for over/under shoots (minimum nusselt = 2.)
     nusselt = convection_alpha * (rayleigh / critical_rayleigh)**convection_beta

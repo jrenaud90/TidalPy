@@ -1,0 +1,20 @@
+# Every text file is stored and checked out with LF line endings on every platform.
+* text=auto eol=lf
+
+# Windows batch files require CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files: no line-ending conversion, no text diff or merge.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.npy binary
+*.npz binary
+*.zip binary
+*.xlsx binary
+
+# Classic-Mac (CR-only) data table read by the multilayer plot helpers: keep its bytes exactly as committed.
+T05-Data.csv -text

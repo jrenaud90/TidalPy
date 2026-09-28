@@ -50,3 +50,8 @@
 .rst-content ol li {
     margin-bottom: 0 !important;
 }
+
+/* Let the main body fill the window beside the sidebar; the theme caps it at 800px. */
+.wy-nav-content {
+    max-width: none;
+}

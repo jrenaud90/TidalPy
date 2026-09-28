@@ -1,0 +1,19 @@
+# Documentation-only dependencies for the Read the Docs build.
+#
+# The documentation does not import TidalPy: every module guide is hand written, the notebooks are rendered
+# from their stored outputs (`nbsphinx_execute = "never"`), and `conf.py` reads the version out of
+# pyproject.toml rather than the package. Installing TidalPy here would compile its C++20 extension modules,
+# which takes most of Read the Docs' 15 minute build limit, so the build installs these and nothing else.
+#
+# The `docs` extra in pyproject.toml stays as it is, for anyone who wants a local build against an installed
+# TidalPy. If a dependency is added there and the docs need it, add it here too.
+
+sphinx
+myst-parser
+linkify-it-py
+sphinx_rtd_theme
+sphinx-copybutton
+nbsphinx
+nbconvert
+nbformat
+toml

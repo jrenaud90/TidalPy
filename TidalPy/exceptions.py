@@ -228,3 +228,16 @@ class IntegrationTimeOut(TidalPyIntegrationException):
 
 class IntegrationFailed(TidalPyIntegrationException):
     default_message = 'Integration was not successful'
+
+
+# TidalPy Warnings
+class TidalPyDeprecationWarning(FutureWarning):
+    """Warning category for TidalPy deprecation notices, such as the backend change coming in TidalPy 0.8.0.
+
+    Inherits from ``FutureWarning`` so the notice is visible by default. Silence it with::
+
+        import warnings
+        from TidalPy.exceptions import TidalPyDeprecationWarning
+        warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
+    """
+    default_message = 'A TidalPy feature is deprecated and will be removed in a future release.'

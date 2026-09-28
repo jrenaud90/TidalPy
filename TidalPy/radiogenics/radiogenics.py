@@ -104,9 +104,13 @@ class Radiogenics(LayerModelHolder):
             #  pre-built TidalPy isotope lists.
             isotopes = self.config['isotopes']
             if type(isotopes) is str:
-                if isotopes.lower() not in TidalPy.config['physics']['radiogenics']['known_isotope_data']:
-                    raise UnknownModelError
-                iso_datas = TidalPy.config['physics']['radiogenics']['known_isotope_data'][isotopes]
+                # Dataset names are matched case-insensitively (e.g., "llri_and_slri" selects "LLRI_and_SLRI").
+                known_isotope_data = TidalPy.config['physics']['radiogenics']['known_isotope_data']
+                dataset_names = {name.lower(): name for name in known_isotope_data}
+                if isotopes.lower() not in dataset_names:
+                    raise UnknownModelError(
+                        f'Unknown isotope dataset "{isotopes}". Known datasets: {", ".join(known_isotope_data)}.')
+                iso_datas = known_isotope_data[dataset_names[isotopes.lower()]]
             else:
                 iso_datas = isotopes
 
