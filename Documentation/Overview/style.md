@@ -15,6 +15,10 @@ Docstrings should largely follow [numpy](https://numpydoc.readthedocs.io/en/late
     - `double* x_ptr` correct
     - `double *x_ptr` incorrect
     - `double* x` incorrect
+- Smart pointers should carry different suffixes:
+    - `std::unique_ptr<> x_uptr`
+    - `std::shared_ptr<> x_sptr`
+    - `std::weak_ptr<> x_wptr`
 
 ## Other
 - No line should end in whitespace.
