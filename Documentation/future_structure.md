@@ -204,7 +204,36 @@ print(sol_system.calc_insolation_flux("earth"))   # [W m-2], about 1361
 
 ## Quick Tidal Dissipation
 
-`TidalPy.toolbox` (`quick_tidal_dissipation` and `quick_dual_body_tidal_dissipation`) was removed and has no replacement yet. The same quantities come from a one-layer world in a `System`: the tidal heating, the potential derivatives, and the orbit and spin rates. The world below is the homogeneous Maxwell body that `quick_tidal_dissipation` used by default, at its default degree 2 and eccentricity truncation 2, and the result matches the homogeneous-sphere closed form to machine precision:
+`TidalPy.toolbox` (`quick_tidal_dissipation` and `quick_dual_body_tidal_dissipation`) was removed and has no replacement yet. The same quantities, the tidal heating, the potential derivatives, and the orbit and spin rates, come from any world in a `System` through `calc_world_evolution`. The world's `love_method` sets how its Love numbers are found: `"radial_solver"` (the shooting method, and the default) integrates the radial equations through every layer, and `"homogeneous"` treats each tidal layer as a homogeneous sphere of its averaged material, with no radial solve, as `quick_tidal_dissipation` did. The bundled Io has a core, a mantle, and a thin asthenosphere that does almost all of the dissipating, and both methods give its heating and rates:
+
+```python
+from TidalPy.Structures import build_world
+from TidalPy.Structures.system import System
+
+io = build_world("io")                                # Core, mantle, and a dissipating asthenosphere
+io.solve_eos()                                        # Interior structure, used by both Love methods
+jupiter = build_world("jupiter_simple")               # The host acts as a point mass
+
+system = System("jovian")
+system.add_world(jupiter)
+system.add_world(
+    io,
+    tidal_host=jupiter,
+    semi_major_axis=4.217e8,
+    eccentricity=0.0041)
+io.set_spin_frequency(system.calc_orbital_frequency(io))   # Synchronous rotation
+
+for love_method in ("radial_solver", "homogeneous"):
+    io.set_tide_config(love_method=love_method)
+    rates = system.calc_world_evolution(io)
+    print(love_method, rates["tidal_heating"])       # [W]: 9.33e13 (radial solver), 1.37e14 (homogeneous)
+    print(rates["dU_dM"], rates["dU_dw"], rates["dU_dO"])
+    print(rates["da_dt"], rates["de_dt"], rates["dspin_dt"])   # [m s-1], [s-1], [rad s-2]
+```
+
+The radial solver resolves the layering and reproduces the 9.33e13 W that the bundled Io is calibrated to (Lainey et al. 2009), in about 2 ms per call. The homogeneous method treats each layer as a whole planet of that layer's averaged material and weights the layers by volume, which only approximates how a thin weak layer deforms inside a stiffer planet; here it overestimates the heating and every rate by 47 percent, but takes under 0.1 ms. Use it for fast sweeps and first estimates, and the radial solver when the interior structure matters. See [Love numbers](Tides/love/love_numbers.md) for the other methods.
+
+A one-layer world built from bare numbers reproduces `quick_tidal_dissipation` itself. The world below is the homogeneous Maxwell body it used by default, at its default degree 2 and eccentricity truncation 2, and the result matches the homogeneous-sphere closed form.
 
 ```python
 import numpy as np
@@ -224,8 +253,8 @@ target = build_world({
     "radius_m": radius,
     "mass_kg": mass,
     "tides": {
-        "global_tidal_model": "rheology",             # Dissipation from the layer's complex modulus
-        "love_method": "homogeneous",                 # Homogeneous-sphere Love numbers, no radial solve
+        "global_tidal_model": "rheology",   # Dissipation from the layer's complex modulus
+        "love_method": "homogeneous",       # Homogeneous-sphere Love numbers, no radial solve
         "max_degree_l": 2,
         "eccentricity_trunc_lvl": 2,
         "obliquity_trunc_lvl": "off"},
@@ -245,9 +274,9 @@ target = build_world({
                     "model": "off"}},
             "shear_rheology": {
                 "model": "maxwell"}}}})
-target.solve_eos()                                    # Surface gravity and moment of inertia
+target.solve_eos()                     # Surface gravity and moment of inertia
 
-host = build_world("jupiter_simple")                  # Any world can be the host; it acts as a point mass
+host = build_world("jupiter_simple")   # Any world can be the host; it acts as a point mass
 system = System("pair")
 system.add_world(host)
 system.add_world(
@@ -265,13 +294,13 @@ print(result["da_dt"], result["de_dt"], result["dspin_dt"])
 # A constant phase lag (fixed-Q) body, like rheology="fixed_q" in quick_tidal_dissipation
 target.set_tide_model(make_tide(
     "fixed_q",
-    {"fixed_k": [0.3],                               # k2
-     "fixed_q": [100.0]}))                           # Q2
+    {"fixed_k": [0.3],          # k_2
+     "fixed_q": [100.0]}))      # Q_2
 result = system.calc_world_evolution(target)
-print(result["tidal_heating"])                        # [W], equals (21/2)(k2/Q) G M^2 R^5 n e^2 / a^6
+print(result["tidal_heating"])  # [W], equals (21/2)(k_2/Q_2) G M^2 R^5 n e^2 / a^6
 ```
 
-For both bodies of a pair dissipating at once, as in `quick_dual_body_tidal_dissipation`, make each body the other's tidal host with `system.set_tidal_host(host, target)` and call `system.calc_pair_evolution(target)`; each body dissipates through its own tide model (a gas giant built from a file carries a `fixed_dt` model by default). The per-degree Love numbers that `quick_tidal_dissipation` returned are available from `target.get_tidal_love_k(l, m, p, q)` after a `calc_tides` call, or from the closed-form functions in `TidalPy.Tides.love`.
+For daul-body dissipation, as in `quick_dual_body_tidal_dissipation`, make each body the other's tidal host with `system.set_tidal_host(host, target)` and call `system.calc_pair_evolution(target)`; each body dissipates through its own tide model (a gas giant built from a file carries a `fixed_dt` model by default). The per-degree Love numbers that `quick_tidal_dissipation` returned are available from `target.get_tidal_love_k(l, m, p, q)` after a `calc_tides` call, or from the closed-form functions in `TidalPy.Tides.love`.
 
 ## Radial Solver
 
@@ -279,10 +308,10 @@ For both bodies of a pair dissipating at once, as in `quick_dual_body_tidal_diss
 
 - `use_prop_matrix=True` is now `love_method="propagation_matrix"`.
 - The solver settings (`integration_method`, `integration_rtol`, `integration_atol`, `expected_size`, the `eos_*` arguments, and the rest) default to `None`, which takes the `[radial_solver]` and `[eos_solver]` sections of the configuration. The packaged tolerances are tighter than the 0.7.X defaults (for example `integration_rtol` 1e-6 and `integration_atol` 1e-10, against 1e-5 and 1e-8).
-- `solve_for` is case-insensitive. It is still a tuple.
+- `solve_for` is a tuple of case-insensitive strings (e.g., `("tidal", "loading)`).
 - Invalid inputs raise `ValueError` instead of `ArgumentException` or `UnknownModelError`.
 - When several boundary conditions are solved for, `k`, `h`, and `l` are complex128 arrays; after a failed solve they are complex128 NaN arrays (float64 in 0.7.X).
-- `moi_factor` is now the conventional $C/(M R^2)$, 0.4 for a uniform sphere. The 0.7.X value, $C/(0.4 M R^2)$, is `moi_sphere_ratio`. Code that reads `moi_factor` gets a value 2.5 times smaller with no error.
+- `moi_factor` is now the conventional $C/(M R^2)$, 0.4 for a uniform sphere. The 0.7.X value, $C/(0.4 M R^2)$, is now the new `moi_sphere_ratio`. Code that reads `moi_factor` gets a value 2.5 times smaller.
 - The solution answers at any radius through dense output (`get_radial_solution(radius)`), and `plot_ys` and `plot_interior` take `show_plot` and plotting keywords.
 - The input builders `build_rs_input_homogeneous_layers` and `build_rs_input_from_data` keep their argument names. Their rheology arguments take `TidalPy.Rheology` models or model names, and one model can stand in for every layer. `perform_checks` is accepted and ignored: inputs are always validated.
 
@@ -312,8 +341,8 @@ build_data = build_rs_input_homogeneous_layers(
 solution = radial_solver(
     *build_data,
     degree_l=2,
-    solve_for=("tidal", "loading"))                   # Both boundary conditions in one solve
-print(solution.k)                                     # One complex k per boundary condition
+    solve_for=("tidal", "loading"))                     # Both boundary conditions in one solve
+print(solution.k)                                       # One complex k per boundary condition
 print(solution.moi_factor, solution.moi_sphere_ratio)   # C/(M R^2) and the 0.7.X moi_factor
 ```
 
@@ -348,18 +377,20 @@ rheology = make_rheology(
     "andrade",
     {"alpha": 0.25,
      "zeta": 1.0})
-complex_modulus = rheology.calc_complex_modulus(6.0e10, 1.0e19, 2.0e-5)   # (modulus [Pa], viscosity [Pa s], frequency [rad s-1])
+# Arguments are modulus [Pa], viscosity [Pa s], frequency [rad s-1]
+complex_modulus = rheology.calc_complex_modulus(6.0e10, 1.0e19, 2.0e-5)
 complex_moduli = rheology.calc_complex_modulus_vectorize_frequency(
     6.0e10,
     1.0e19,
-    np.logspace(-8, -3, 50))                          # A frequency sweep [rad s-1]
+    np.logspace(-8, -3, 50)   # A frequency sweep [rad s-1]
+)
 
 viscosity = make_viscosity(
     "reference",
     {"reference_viscosity_pas": 1.0e21,
      "reference_temperature_k": 1600.0,
      "molar_activation_energy_j_mol": 3.0e5})
-print(viscosity.calc_viscosity(1500.0, 1.0e9))        # [Pa s] at 1500 K and 1 GPa
+print(viscosity.calc_viscosity(1500.0, 1.0e9))  # [Pa s] at 1500 K and 1 GPa
 
 radiogenics = make_radiogenics(
     "isotope",
@@ -426,7 +457,7 @@ print(effective_rigidity, love.k)
 
 ## Performance
 
-Performance tests were run with TidalPy 0.7.6 and 0.8.0 on one otherwise idle desktop, each figure the fastest of three fresh processes. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
+Performance tests were run with TidalPy 0.7.6 and 0.8.0. Ratios move with the machine and the problem size, so read them as rough magnitudes and measure your own workload before relying on any of them.
 
 0.8.0 is much faster where 0.7.X called out to BurnMan or paid a numba compile, 2.5 to 6.1 times faster on 3D heating maps, about three times faster on vectorized rheology and world building, and 3.0 to 3.9 times faster on global tidal heating. It is slower on the standalone radial solver at tight tolerances, on two vectorized sweeps, and on scalar rheology calls; all are listed with their causes.
 
@@ -465,11 +496,13 @@ The global tidal heating rows use the homogeneous Love method, which solves the 
 | `radial_solver`, 1 layer, 200 slices | 0.45 ms | 0.50 ms | 0.90x, 1.1x slower |
 | `radial_solver`, propagation matrix, 200 slices | 0.109 ms | 0.118 ms | 0.92x, 1.1x slower |
 
-The 0.8.0 standalone radial solver is a wrapper over the world path, so both entry points share one code path. It builds a temporary world from the supplied arrays, solves that world's equation of state, and integrates the Love-number equations against the same dense structure the world path uses. The two versions take identical integration steps on these problems (71, 68, and 90 for the three independent solutions of the one-layer body), so the whole gap is the cost of each right-hand-side read: 0.8.0 evaluates the equation-of-state interpolant for gravity, the interpolated material for density and both static moduli, and the two supplied complex-modulus arrays, where 0.7.X did four linear interpolations of its input arrays. The equation-of-state solve itself is a tenth of the time, the temporary world a twentieth, and the Python-side handling about the same as the world build. The dense read buys accuracy: against the closed-form homogeneous sphere the 0.8.0 degree-2 k2 is 2.6 times closer (6.8e-5 against 1.8e-4), and the two versions agree to 1e-15 on the one-layer rows and 6e-10 on the three-layer one at the tolerances timed here (`integration_rtol` 1e-8, `integration_atol` 1e-12, both versions).
+The 0.8.0 standalone radial solver is a wrapper over the world path, so both entry points share one code path. It builds a temporary world from the supplied arrays, solves that world's equation of state, and integrates the Love-number equations against the same dense structure the world path uses. **We therefore advise using the new world-based approach it is just as performant and reusing an already constructed world is much faster then making multiple calls to the standalone radial solver!**
+
+The two versions take identical integration steps on these problems, so the whole gap is the cost of each right-hand-side read: 0.8.0 evaluates the equation-of-state interpolant for gravity, the interpolated material for density and both static moduli, and the two supplied complex-modulus arrays, where 0.7.X did four linear interpolations of its input arrays. The equation-of-state solve itself is a tenth of the time, the temporary world a twentieth, and the Python-side handling about the same as the world build. The dense read buys accuracy: against the closed-form homogeneous sphere the 0.8.0 degree-2 k2 is 2.6 times closer (6.8e-5 against 1.8e-4), and the two versions agree to 1e-15 on the one-layer worlds and 6e-10 on the three-layer one at the tolerances timed here (`integration_rtol` 1e-8, `integration_atol` 1e-12, both versions).
 
 These settings recover the time:
 
-- `integration_rtol` and `integration_atol` set the step count and so the read count. At the `[radial_solver]` defaults (1e-6 and 1e-10, looser than the rows above) the 0.8.0 solver takes 0.25, 0.30, and 0.35 ms on the three shooting rows, faster than 0.7.X at its tighter setting, with k2 moving by 4e-9 to 6e-9.
+- `integration_rtol` and `integration_atol` set the step count. At the `[radial_solver]` defaults (1e-6 and 1e-10, looser than the rows above) the 0.8.0 solver takes 0.25, 0.30, and 0.35 ms on the three shooting rows, faster than 0.7.X at its tighter setting, with k2 moving by 4e-9 to 6e-9.
 - The equation-of-state settings (`eos_rtol`, `eos_atol`, `eos_integration_method`) change the total by under 10 percent, and the slice count matters little once the searches are seeded.
 - `RK45` for the Love integration is slower than `DOP853`, which reaches the tolerance in fewer steps.
 - For repeated solves of one body, build a `LayeredWorld` instead: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes.
@@ -478,15 +511,13 @@ A single scalar rheology call is dominated by the Python-to-C++ boundary rather 
 
 ### First Call
 
-Steady-state timings leave out the startup cost. 0.7.X compiles its numba kernels the first time they run and caches the machine code on disk, so the first session after installing or upgrading pays the full compile and every later session still pays to load and dispatch the cached kernels. 0.8.0 has nothing to compile. Each figure below is the median first call in a fresh process:
+Steady-state timings leave out the startup cost. 0.7.X compiles its numba kernels the first time they run and caches the machine code on disk, so the first session after installing or upgrading pays the full compile and every later session still pays to load and dispatch the cached kernels. 0.8.0 has nothing to compile.
 
 | First call | 0.7.X, first session after installing | 0.7.X, later sessions | 0.8.0 |
 |---|---|---|---|
 | Tidal heating, degrees 2 to 4, e^10 | 6.2 s | 1.0 s | 0.07 ms |
 | 3D heating map (50 x 16 x 32 x 8 times) | 4.2 s | 0.88 s | 5.4 ms |
 | Build a planet with its interior (Io) | not measured | 1.3 s | 1.8 ms |
-| Dual-body dissipation rates | not measured | 1.0 s | no single-call equivalent |
-| Build a world from config | not measured | 0.14 s | 1.9 ms |
 
 A script that computes one 3D map and exits spends almost a second in 0.7.X once its cache is warm, more than four seconds the first time after installing, and about five milliseconds in 0.8.0.
 
@@ -502,6 +533,6 @@ The 3D grid methods, `calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displace
 
 The gain stops well short of the thread count because the radial solves, about 12 ms of each call here, always run on one thread. The work after them grows with the grid while the solves do not, so larger grids gain more.
 
-## Learning TidalPy 0.8
+## Learning TidalPy 0.8.0
 
 Start with the [Getting Started](Overview/1_Getting_Started.md) page and the notebooks in the Demos section of the navigation: the `Basics` notebooks (configuration, world building, save and load), the `Physics` notebooks (orbits, tides, rheology, Love numbers, 3D heating, thermal interiors, truncation levels), and the `Systems` notebooks (multi-world systems, coupled thermal-orbital evolution, the Earth-Moon-Sun system). The Benchmarks section validates TidalPy against published results and tracks its performance.
