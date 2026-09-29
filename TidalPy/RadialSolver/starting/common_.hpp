@@ -31,9 +31,9 @@ inline std::complex<double> c_z_calc(
         const std::complex<double>& x_squared,
         const int degree_l) noexcept
 {
-    // QUESTION: (Issue #42) The recursion formula shown in TS72 and KMN15 (See TS72 Eq. 97) does not reproduce
-    // the full version of this function (TS72 Eq. 96). Off by ~30% at l=2, improves to ~10% at l=10.
-    // We do not use the recursive formula here.
+    // The recursion of TS72 Eq. 97, z_l = x^2 / (2l + 3 - z_{l+1}), is the spherical Bessel recurrence for this same
+    // ratio and agrees with it to about 1e-13 (checked for l = 2..10, real and complex x^2 up to 30; Issue #42).
+    // The direct ratio is used because it needs no truncation depth.
 
     // Taylor expansion works well when x_squared is small and is faster.
     const double l_dbl = static_cast<double>(degree_l);
@@ -75,6 +75,12 @@ inline std::complex<double> c_z_calc(
 
 // Calculate phi, phi_{l+1}, and psi functions used to find initial conditions for shooting method.
 //
+// TS72 Eq. 103 defines phi_l(x) = (2l + 1)!! j_l(x) / x^l and psi_l(x) = 2 (2l + 3) (1 - phi_l(x)) / x^2, with
+// z2 = x^2. psi's 1 - phi_l cancels as z2 -> 0, so small |z2| uses a series (Issue #41). The series is exact to
+// rounding below |z2| ~ 0.3, but its truncation error grows quickly beyond (1e-11 at 1, 2e-5 at 10, useless past
+// ~30), and |z2| reaches those values at high degree, at short periods, and in dynamic liquids at tidal periods.
+// Above |z2| = 0.5 the definitions are used instead, which hold about 1e-13 from there up.
+//
 // References
 // ----------
 // TS72 Eq. 103
@@ -95,8 +101,21 @@ inline void c_takeuchi_phi_psi(
         std::complex<double>* phi_lplus1_ptr,
         std::complex<double>* psi_ptr) noexcept
 {
-    // Floating point errors prevent us from using the exact definition of these functions (Issue #41),
-    // so the limiting (series) version is used instead.
+    if (std::abs(z2) > 0.5)
+    {
+        const std::complex<double> x = std::sqrt(z2);
+        // (2l + 1)!! / x^l, built one factor at a time so neither part overflows at high degree.
+        std::complex<double> dfact_over_xl(1.0, 0.0);
+        for (int k = 1; k <= degree_l; ++k)
+        {
+            dfact_over_xl *= (2.0 * static_cast<double>(k) + 1.0) / x;
+        }
+        const double dlp3 = 2.0 * static_cast<double>(degree_l) + 3.0;
+        phi_ptr[0]        = dfact_over_xl * xsf::sph_bessel_j(degree_l, x);
+        phi_lplus1_ptr[0] = dfact_over_xl * (dlp3 / x) * xsf::sph_bessel_j(degree_l + 1, x);
+        psi_ptr[0]        = 2.0 * dlp3 * (1.0 - phi_ptr[0]) / z2;
+        return;
+    }
 
     const std::complex<double> z4   = z2 * z2;
     const std::complex<double> z6   = z4 * z2;
@@ -134,7 +153,7 @@ inline void c_takeuchi_phi_psi(
     psi_ptr[0] = (
          1.0 +
         -z2  / (4.0     * l_5) +
-        // NOTE: Error? TS72 quotes the next term as z4 / (12. * (5. + 2. * l) * (7 + 2. * l)); factor of 2 off in denom.
+        // TS72 prints this term with 12 in place of 24; the definition of psi above gives 24.
          z4  / (24.0    * l_5 * l_7) +
         -z6  / (192.0   * l_5 * l_7 * l_9) +
          z8  / (1920.0  * l_5 * l_7 * l_9 * l_11) +

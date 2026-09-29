@@ -63,8 +63,17 @@ inline void c_takeuchi_solid_dynamic_compressible(
     const std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
     const std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
 
-    const std::complex<double> f_pos = (beta2 * k2_pos - dynamic_term) / gamma;
-    const std::complex<double> f_neg = (beta2 * k2_neg - dynamic_term) / gamma;
+    // f(k2) = (beta2 k2 - w^2) / gamma cancels for k2_pos when w^2 >> gamma. As in
+    // c_kamata_solid_dynamic_compressible, with N = k2_quad_neg and D = k2_quad_sqrt,
+    // f_pos = beta2 (D - N) / (2 gamma) and f_neg = -beta2 (D + N) / (2 gamma); whichever of D -+ N cancels is
+    // rewritten with D^2 - N^2 = 4 l (l + 1) gamma^2 / (alpha2 beta2).
+    const std::complex<double> d_plus_n  = k2_quad_sqrt + k2_quad_neg;
+    const std::complex<double> d_minus_n = k2_quad_sqrt - k2_quad_neg;
+    const std::complex<double> f_scale   = beta2 / (2.0 * gamma);
+    const std::complex<double> f_product = (2.0 * llp1 * gamma) / alpha2;  // f_scale (D^2 - N^2)
+    const bool plus_is_larger = std::abs(d_plus_n) >= std::abs(d_minus_n);
+    const std::complex<double> f_pos = plus_is_larger ? f_product / d_plus_n : f_scale * d_minus_n;
+    const std::complex<double> f_neg = plus_is_larger ? -f_scale * d_plus_n : -f_product / d_minus_n;
 
     const std::complex<double> h_pos = f_pos - lp1;
     const std::complex<double> h_neg = f_neg - lp1;
