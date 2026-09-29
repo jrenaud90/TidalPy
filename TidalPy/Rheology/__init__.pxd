@@ -10,6 +10,7 @@ from TidalPy.Rheology.rheology cimport (
     Burgers,
     Andrade,
     Sundberg,
+    Zener,
     c_RheologyBase,
     c_RheologyConfig,
     c_RheologyModel,
@@ -20,6 +21,7 @@ from TidalPy.Rheology.rheology cimport (
     c_Burgers,
     c_Andrade,
     c_Sundberg,
+    c_Zener,
     c_find_rheology,
     c_rheology_model_from_name,
 )

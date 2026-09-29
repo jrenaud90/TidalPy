@@ -9,6 +9,7 @@ from TidalPy.Rheology.rheology import (
     Burgers,
     Andrade,
     Sundberg,
+    Zener,
     make_rheology,
     elastic,
     viscous,
@@ -17,6 +18,7 @@ from TidalPy.Rheology.rheology import (
     burgers,
     andrade,
     sundberg,
+    zener,
 )
 
 __all__ = [
@@ -29,6 +31,7 @@ __all__ = [
     "Burgers",
     "Andrade",
     "Sundberg",
+    "Zener",
     # Factory
     "make_rheology",
     # Direct complex-modulus convenience functions (float or np.ndarray inputs)
@@ -39,4 +42,5 @@ __all__ = [
     "burgers",
     "andrade",
     "sundberg",
+    "zener",
 ]

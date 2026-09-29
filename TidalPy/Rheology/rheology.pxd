@@ -27,6 +27,7 @@ cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
         double zeta
         double voigt_modulus_frac
         double voigt_viscosity_frac
+        double relaxed_modulus_frac
 
     cdef cppclass c_Elastic(c_RheologyBase):
         c_Elastic() except +
@@ -66,6 +67,11 @@ cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
         double get_voigt_modulus_frac()   const
         double get_voigt_viscosity_frac() const
 
+    cdef cppclass c_Zener(c_RheologyBase):
+        c_Zener() except +
+        c_Zener(const c_RheologyConfig& cfg) except +
+        double get_relaxed_modulus_frac() const
+
     cdef enum class c_RheologyModel:
         Elastic
         Viscous
@@ -74,6 +80,7 @@ cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
         Burgers
         Andrade
         Sundberg
+        Zener
 
     # Raises ValueError on an unknown name.
     c_RheologyModel c_rheology_model_from_name(const string& model_name) except +
@@ -112,4 +119,8 @@ cdef class Andrade(RheologyBase):
 
 
 cdef class Sundberg(RheologyBase):
+    pass
+
+
+cdef class Zener(RheologyBase):
     pass

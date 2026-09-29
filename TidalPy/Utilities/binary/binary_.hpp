@@ -86,6 +86,7 @@ enum class BinaryClassID : uint32_t {
     Burgers          = 305,
     Andrade          = 306,
     Sundberg         = 307,
+    Zener            = 308,
     // 4XX: Thermodynamic cooling models
     CoolingBase        = 400,
     OffCooling         = 401,

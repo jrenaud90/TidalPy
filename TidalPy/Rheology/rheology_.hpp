@@ -7,6 +7,8 @@
  *   (Maxwell, Voigt-Kelvin, Burgers).
  * - Efroimsky (2012), ApJ, DOI: 10.1088/0004-637X/746/2/150 (complex compliances and Love numbers).
  * - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784 (Andrade and Sundberg-Cooper).
+ * - Zener (1948), Elasticity and Anelasticity of Metals; Nowick and Berry (1972), Anelastic Relaxation in
+ *   Crystalline Solids (the standard linear solid).
  *
  * Binary payload: model name then the model's doubles. The layer observer pointer is not serialized.
  */
@@ -33,6 +35,7 @@ struct c_RheologyConfig {
     double zeta                 = 1.0;     // Andrade timescale ratio    [dimensionless]
     double voigt_modulus_frac   = 5.0;     // Voigt modulus fraction     [dimensionless]
     double voigt_viscosity_frac = 0.02;    // Voigt viscosity fraction   [dimensionless]
+    double relaxed_modulus_frac = 0.5;     // Zener relaxed modulus as a fraction of the unrelaxed one
 };
 
 // The factors of the Andrade transient that depend on alpha alone: Gamma(1 + alpha) and the cosine and sine of
@@ -254,6 +257,35 @@ inline c_ComplexModulus rheo_modulus_sundberg(
     return rheo_modulus_sundberg(
         modulus, viscosity, frequency, alpha, zeta, voigt_modulus_frac, voigt_viscosity_frac,
         c_AndradeFactors(alpha));
+}
+
+// Zener (standard linear solid): a spring of the relaxed modulus r * modulus in parallel with a Maxwell arm whose
+// spring is the rest, (1 - r) * modulus, and whose dashpot is the viscosity. With tau = viscosity / ((1 - r) modulus),
+//     mu* = r modulus + (1 - r) modulus * i omega tau / (1 + i omega tau).
+// The unrelaxed modulus (high frequency, or a locked dashpot) is the modulus; the relaxed one (zero frequency) is
+// r * modulus, where a Maxwell body relaxes to zero. r = 0 is exactly Maxwell and r = 1 is elastic. The loss peaks at
+// omega tau = 1. The forms in x = omega tau and in 1 / x keep either extreme free of inf / inf.
+inline c_ComplexModulus rheo_modulus_zener(
+        double modulus,
+        double viscosity,
+        double frequency,
+        double relaxed_modulus_frac) noexcept {
+    const double relaxed = relaxed_modulus_frac * modulus;
+    const double arm     = modulus - relaxed;
+    if (arm == 0.0 || std::isinf(viscosity)) {
+        return c_ComplexModulus(modulus, 0.0);
+    }
+    if (frequency == 0.0) {
+        return c_ComplexModulus(relaxed, 0.0);
+    }
+    const double x = viscosity * frequency / arm;
+    if (std::abs(x) >= 1.0) {
+        const double s = 1.0 / x;
+        const double denom = 1.0 + s * s;
+        return c_ComplexModulus(relaxed + arm / denom, arm * s / denom);
+    }
+    const double denom = 1.0 + x * x;
+    return c_ComplexModulus(relaxed + arm * x * x / denom, arm * x / denom);
 }
 
 // Each model supplies only its BinaryClassID (get_binary_class_id) and its scalar params; c_PhysicsBase handles the
@@ -552,6 +584,60 @@ protected:
     c_AndradeFactors p_andrade_factors{this->p_alpha};
 };
 
+// Zener, the standard linear solid (aliases "sls", "standard_linear_solid"). Unlike Maxwell it relaxes to a finite
+// modulus, which suits a bulk response: melt-driven compaction relaxes a partially molten rock's bulk modulus toward
+// its drained value, not to zero.
+class c_Zener final : public c_RheologyBase {
+public:
+    c_Zener() : c_Zener(c_RheologyConfig{}) {}
+    explicit c_Zener(const c_RheologyConfig& cfg)
+        : c_RheologyBase("zener"),
+          p_relaxed_modulus_frac(cfg.relaxed_modulus_frac) {
+        c_check_relaxed_modulus_frac(this->p_relaxed_modulus_frac);
+    }
+    ~c_Zener() override = default;
+
+    double get_relaxed_modulus_frac() const noexcept { return this->p_relaxed_modulus_frac; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_RheologyBase::append_config_entries(out);
+        out.push_back(c_config_double("relaxed_modulus_frac", this->p_relaxed_modulus_frac));
+    }
+
+    c_ComplexModulus calc_complex_modulus(
+            double modulus,
+            double viscosity,
+            double frequency) const override {
+        return rheo_modulus_zener(
+            modulus,
+            viscosity,
+            frequency,
+            this->p_relaxed_modulus_frac);
+    }
+
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Zener); }
+
+    void write_binary(std::ostream& out) const override {
+        this->write_physics_binary(out, this->get_binary_class_id(), {this->p_relaxed_modulus_frac});
+    }
+    void read_binary(std::istream& in, bool force = false) override {
+        const std::vector<double> params = this->read_physics_binary(in, force, 1);
+        c_check_relaxed_modulus_frac(params[0]);
+        this->p_relaxed_modulus_frac = params[0];
+    }
+
+protected:
+    double p_relaxed_modulus_frac;
+
+    // A fraction outside [0, 1] would give a negative spring.
+    static void c_check_relaxed_modulus_frac(double value) {
+        if (!(value >= 0.0 && value <= 1.0)) {
+            throw std::invalid_argument(
+                "TidalPy: the Zener relaxed_modulus_frac must lie in [0, 1], got " + std::to_string(value));
+        }
+    }
+};
+
 // One value per model, so c_find_rheology dispatches without string comparisons.
 enum class c_RheologyModel : uint8_t {
     Elastic  = 0,
@@ -561,6 +647,7 @@ enum class c_RheologyModel : uint8_t {
     Burgers  = 4,
     Andrade  = 5,
     Sundberg = 6,
+    Zener    = 7,
 };
 
 // Model names are matched case-insensitively.
@@ -577,6 +664,8 @@ inline c_RheologyModel c_rheology_model_from_name(const std::string& model_name)
     if (name == "sundberg"
              || name == "sundberg-cooper"
              || name == "sundberg_cooper")           { return c_RheologyModel::Sundberg; }
+    if (name == "zener"    || name == "sls"
+             || name == "standard_linear_solid")     { return c_RheologyModel::Zener; }
 
     throw std::invalid_argument("TidalPy: unknown rheology model name '" + model_name + "'");
 }
@@ -593,6 +682,7 @@ inline std::unique_ptr<c_RheologyBase> c_find_rheology(
         case c_RheologyModel::Burgers:  return std::make_unique<c_Burgers>(cfg);
         case c_RheologyModel::Andrade:  return std::make_unique<c_Andrade>(cfg);
         case c_RheologyModel::Sundberg: return std::make_unique<c_Sundberg>(cfg);
+        case c_RheologyModel::Zener:    return std::make_unique<c_Zener>(cfg);
     }
     throw std::invalid_argument("TidalPy: unrecognised c_RheologyModel enum value");
 }
@@ -616,6 +706,7 @@ inline std::unique_ptr<c_RheologyBase> c_rheology_from_binary(std::istream& in, 
         case BinaryClassID::Burgers:  model = std::make_unique<c_Burgers>();  break;
         case BinaryClassID::Andrade:  model = std::make_unique<c_Andrade>();  break;
         case BinaryClassID::Sundberg: model = std::make_unique<c_Sundberg>(); break;
+        case BinaryClassID::Zener:    model = std::make_unique<c_Zener>();    break;
         default:
             throw std::runtime_error("TidalPy: unknown rheology class id in binary stream");
     }

@@ -1,6 +1,6 @@
 # Rheology Models (`Rheology`)
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-29_
 
 A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss modulus, the part in quadrature, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$.
 
@@ -36,6 +36,12 @@ With the unrelaxed compliance $J = 1/\mu$ and the Maxwell time $\tau_{M} = \eta/
 
   where $\Gamma$ is the gamma function.
 
+- Zener, the standard linear solid: a spring of the relaxed modulus $r\mu$ in parallel with a Maxwell element whose spring is the rest, $(1-r)\mu$, set by `relaxed_modulus_frac` ($r$). With $\tau = \eta/((1-r)\mu)$ (Nowick and Berry 1972):
+
+  $$\mu^{*}_\mathrm{zener} = r\mu + (1-r)\mu\,\frac{i\omega\tau}{1 + i\omega\tau}.$$
+
+  It is $\mu$ at high frequency and relaxes to $r\mu$, not to zero, at low frequency; its loss peaks at $\omega\tau = 1$ with $\mathrm{Im}[\mu^{*}] = (1-r)\mu/2$. $r = 0$ is Maxwell and $r = 1$ is elastic.
+
 Elements in series add their compliances: Burgers is Maxwell plus Voigt-Kelvin, and Sundberg-Cooper is Andrade plus Voigt-Kelvin (Sundberg and Cooper 2010). The single-element limits are the elastic spring, $\mu^{*} = \mu$, and the Newtonian dashpot, $\mu^{*} = i\eta\omega$. The loss tangent is $\mathrm{Im}[\mu^{*}]/\mathrm{Re}[\mu^{*}] = 1/Q$.
 
 ## Inheritance
@@ -50,14 +56,15 @@ c_TidalPyBaseClass
               ├── c_Maxwell
               ├── c_Burgers
               ├── c_Andrade
-              └── c_Sundberg  aliases "sundberg-cooper", "sundberg_cooper"
+              ├── c_Sundberg  aliases "sundberg-cooper", "sundberg_cooper"
+              └── c_Zener     aliases "sls", "standard_linear_solid"
 ```
 
-`c_RheologyBase` declares `calc_complex_modulus` pure virtual and supplies the vectorized loops, the configuration export, and the binary encoding that every model inherits. The Python classes (`Elastic`, `Viscous`, `Voigt`, `Maxwell`, `Burgers`, `Andrade`, `Sundberg`) are thin Cython wrappers holding a pointer to the C++ object, and `RheologyBase` is their shared Python base.
+`c_RheologyBase` declares `calc_complex_modulus` pure virtual and supplies the vectorized loops, the configuration export, and the binary encoding that every model inherits. The Python classes (`Elastic`, `Viscous`, `Voigt`, `Maxwell`, `Burgers`, `Andrade`, `Sundberg`, `Zener`) are thin Cython wrappers holding a pointer to the C++ object, and `RheologyBase` is their shared Python base.
 
 ## Models
 
-Simple models (Elastic, Viscous, Maxwell, Voigt) are evaluated in closed form. The composites (Burgers, Andrade, Sundberg) place elements in series, so their compliances add and the modulus is the reciprocal of the sum, $\mu^* = 1 / \sum_i J_i$. Those element compliances are internal intermediates and are not exposed.
+Simple models (Elastic, Viscous, Maxwell, Voigt, Zener) are evaluated in closed form. The composites (Burgers, Andrade, Sundberg) place elements in series, so their compliances add and the modulus is the reciprocal of the sum, $\mu^* = 1 / \sum_i J_i$. Those element compliances are internal intermediates and are not exposed.
 
 | Model | Complex modulus $\mu^*$ [Pa] | Parameters | Character |
 |---|---|---|---|
@@ -68,8 +75,9 @@ Simple models (Elastic, Viscous, Maxwell, Voigt) are evaluated in closed form. T
 | `Burgers` | $1 / (J_\mathrm{maxwell} + J_\mathrm{voigt})$ | `voigt_modulus_frac`, `voigt_viscosity_frac` | Maxwell plus a secondary peak from the Voigt arm. |
 | `Andrade` | $1 / J_\mathrm{andrade}$ | `alpha`, `zeta` | Maxwell plus a transient term; loss falls only as $\omega^{-\alpha}$. |
 | `Sundberg` (`sundberg-cooper`) | $1 / (J_\mathrm{andrade} + J_\mathrm{voigt})$ | `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac` | Andrade's high-frequency tail plus Burgers' secondary peak. |
+| `Zener` (`sls`) | $\mu^{*}_\mathrm{zener}$ | `relaxed_modulus_frac` | One relaxation peak like Maxwell, but relaxes to $r\mu$ instead of zero. |
 
-The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm{andrade}$ are defined in the Physics section above.
+The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm{andrade}$ and the Zener modulus are defined in the Physics section above.
 
 | Parameter | Default | Meaning |
 |---|---|---|
@@ -77,15 +85,16 @@ The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm
 | `zeta` | 1.0 | Ratio of the Andrade timescale to the Maxwell time. Larger values push the transient term down. |
 | `voigt_modulus_frac` | 5.0 | Stiffness of the Voigt arm's spring relative to the main spring. The arm's compliance is the material compliance divided by this value. |
 | `voigt_viscosity_frac` | 0.02 | Viscosity of the Voigt arm's dashpot as a fraction of the material viscosity. |
+| `relaxed_modulus_frac` | 0.5 | Zener relaxed modulus as a fraction of the unrelaxed one, in \[0, 1\]; a value outside raises `ValueError`. |
 
 > [!WARNING]
 > Rheologies and their parameters are a very active area of research. The properties can vary greatly for different material and even for the same material that has had different histories (previous cracking, is porous, is hydrated or desiccated, etc.). TidalPy's defaults are roughly those applicable to Earth's upper mantle, but the uncertainties are large. We highly encourage users to read up on the latest research for the material under investigation or treat these as free parameters rather than stick with TidalPy's defaults.
 
 ### Behavior at the Limits
 
-At zero frequency Maxwell, Burgers, Andrade, and Sundberg return effectively zero: with unlimited time to flow, a viscoelastic body supports no static rigidity. Elastic returns $\mu$, Viscous returns zero, and Voigt returns $\mu f_J$.
+At zero frequency Maxwell, Burgers, Andrade, and Sundberg return effectively zero: with unlimited time to flow, a viscoelastic body supports no static rigidity. Elastic returns $\mu$, Viscous returns zero, Voigt returns $\mu f_J$, and Zener returns $r\mu$.
 
-At negative frequency Elastic, Viscous, Voigt, Maxwell, and Burgers mirror the imaginary part, but Andrade and Sundberg return `NaN`: their transient term raises a negative quantity to a fractional power. Always pass the absolute value of the forcing frequency. TidalPy's own tidal solvers do this; a direct call does not.
+At negative frequency Elastic, Viscous, Voigt, Maxwell, Burgers, and Zener mirror the imaginary part, but Andrade and Sundberg return `NaN`: their transient term raises a negative quantity to a fractional power. Always pass the absolute value of the forcing frequency. TidalPy's own tidal solvers do this; a direct call does not.
 
 ### Choosing a Model
 
@@ -94,6 +103,8 @@ At negative frequency Elastic, Viscous, Voigt, Maxwell, and Burgers mirror the i
 `Maxwell` is the traditional rheology used in tidal studies. It is a good choice when comparing against published Love numbers, since most of the literature uses it. Its weakness is the high-frequency tail: dissipation falls as $\omega^{-1}$, which underestimates the dissipation response of real silicates to fast forcing.
 
 `Andrade` and `Sundberg` are the models to use when the forcing is fast compared with the Maxwell time, which is the usual situation for a cool, stiff, or rapidly forced body. Their loss falls only as $\omega^{-\alpha}$, and for tidal problems that difference can be orders of magnitude in the heating rate.
+
+`Zener` suits a response that relaxes only partway. A Maxwell bulk rheology lets a layer's bulk modulus relax to zero at long periods, which no rock does; a Zener bulk rheology relaxes it to $r K$. Melt-driven compaction is the usual case: a partially molten rock's bulk modulus relaxes from its unrelaxed (undrained) value toward its drained one as melt moves, and the partial-melt model can supply the bulk viscosity that sets the rate (see [Partial Melt Models](../PartialMelt/partial_melt_models.md)). Pick $r$ as the drained-to-unrelaxed ratio; for melt in isolated pockets it is near 0.9 at 10% melt, and melt films lower it.
 
 `Burgers` and `Voigt` are mainly useful for reproducing published work that used them, or for deliberately placing a secondary relaxation peak at a chosen frequency. `Viscous` exists for completeness and for the fluid limit.
 
@@ -111,7 +122,7 @@ andrade_model = Andrade(alpha=0.25, zeta=2.0)
 sundberg_model = make_rheology("Sundberg-Cooper", {"alpha": 0.4, "zeta": 2.0})
 ```
 
-`make_rheology(model_name, config=None)` recognizes every name and alias in the inheritance tree above and reads the keys `alpha`, `zeta`, `voigt_modulus_frac`, and `voigt_viscosity_frac` from `config`. Keys another rheology model uses are ignored and absent keys fall back to the model's default. An unrecognized model name raises `ValueError`, and so does a key that no rheology model reads, with the closest accepted key named in the message.
+`make_rheology(model_name, config=None)` recognizes every name and alias in the inheritance tree above and reads the keys `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac`, and `relaxed_modulus_frac` from `config`. Keys another rheology model uses are ignored and absent keys fall back to the model's default. An unrecognized model name raises `ValueError`, and so does a key that no rheology model reads, with the closest accepted key named in the message.
 
 Model parameters are fixed at construction and exposed as read-only properties (`andrade_model.alpha`, `sundberg_model.voigt_viscosity_frac`). To change one, build a new model.
 
@@ -172,7 +183,7 @@ profile = maxwell(np.array([1.0e10, 5.0e10]), np.array([1.0e19, 1.0e20]), 1.0e-5
 sweep   = andrade(50.0e9, 1.0e20, np.logspace(-7, -4, 50), alpha=0.3, zeta=1.0)
 ```
 
-The signatures follow the classes: `elastic/viscous/maxwell(modulus, viscosity, frequency)`, `voigt/burgers(modulus, viscosity, frequency, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`, `andrade(modulus, viscosity, frequency, alpha=0.3, zeta=1.0)`, and `sundberg(modulus, viscosity, frequency, alpha=0.3, zeta=1.0, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`. The model parameters are always scalars; `modulus`, `viscosity`, and `frequency` may each be a float or an array and are broadcast together, with the most specific vectorized routine chosen for the pattern supplied.
+The signatures follow the classes: `elastic/viscous/maxwell(modulus, viscosity, frequency)`, `voigt/burgers(modulus, viscosity, frequency, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`, `andrade(modulus, viscosity, frequency, alpha=0.3, zeta=1.0)`, `sundberg(modulus, viscosity, frequency, alpha=0.3, zeta=1.0, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`, and `zener(modulus, viscosity, frequency, relaxed_modulus_frac=0.5)`. The model parameters are always scalars; `modulus`, `viscosity`, and `frequency` may each be a float or an array and are broadcast together, with the most specific vectorized routine chosen for the pattern supplied.
 
 ### Attaching a Rheology to a `Layer`
 
@@ -245,4 +256,5 @@ No build-system change is needed; `Rheology.rheology` is already registered in `
 - Henning, W. G., O'Connell, R. J., and Sasselov, D. D. (2009). Tidally heated terrestrial exoplanets: Viscoelastic response models. *The Astrophysical Journal*, 707(2), 1000-1015. [DOI](https://doi.org/10.1088/0004-637X/707/2/1000). Maxwell, Voigt-Kelvin, and Burgers.
 - Efroimsky, M. (2012). Tidal dissipation compared to seismic dissipation: In small bodies, Earths, and super-Earths. *The Astrophysical Journal*, 746(2), 150. [DOI](https://doi.org/10.1088/0004-637X/746/2/150). Complex compliances and Love numbers.
 - Renaud, J. P., and Henning, W. G. (2018). Increased tidal dissipation using advanced rheological models: Implications for Io and tidally active exoplanets. *The Astrophysical Journal*, 857(2), 98. [DOI](https://doi.org/10.3847/1538-4357/aab784). Andrade and Sundberg-Cooper.
+- Nowick, A. S., and Berry, B. S. (1972). *Anelastic Relaxation in Crystalline Solids*. Academic Press. The standard linear solid (Zener model).
 - Sundberg, M., and Cooper, R. F. (2010). A composite viscoelastic model for incorporating grain boundary sliding and transient diffusion creep; correlating creep and attenuation responses for materials with a fine grain size. *Philosophical Magazine*, 90. The Sundberg-Cooper composite.

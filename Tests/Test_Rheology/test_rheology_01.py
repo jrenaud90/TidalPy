@@ -20,6 +20,7 @@ _MODEL_CLASSES = [
     ("burgers",  "Burgers"),
     ("andrade",  "Andrade"),
     ("sundberg", "Sundberg"),
+    ("zener",    "Zener"),
 ]
 _MODEL_NAMES = [name for name, _ in _MODEL_CLASSES]
 
@@ -45,6 +46,13 @@ def _andrade_compliance(alpha=0.3, zeta=1.0):
     return _maxwell_compliance() + andrade
 
 
+def _zener_modulus(relaxed_frac=0.5, frequency=_OMEGA):
+    """Standard linear solid: relaxed spring in parallel with a Maxwell arm (Nowick and Berry 1972)."""
+    arm = (1.0 - relaxed_frac) * _MU
+    iwt = 1j * frequency * _ETA / arm
+    return relaxed_frac * _MU + arm * iwt / (1.0 + iwt)
+
+
 _REF_COMPLIANCE = {
     "elastic":  lambda: complex(1.0 / _MU, 0.0),
     "viscous":  lambda: complex(0.0, -1.0 / (_ETA * _OMEGA)),
@@ -53,6 +61,7 @@ _REF_COMPLIANCE = {
     "burgers":  lambda: _maxwell_compliance() + _voigt_compliance(),
     "andrade":  _andrade_compliance,
     "sundberg": lambda: _andrade_compliance() + _voigt_compliance(),
+    "zener":    lambda: 1.0 / _zener_modulus(),
 }
 
 
@@ -156,7 +165,7 @@ def test_viscous_modulus_purely_dissipative():
 
 
 @pytest.mark.parametrize("frequency", [_OMEGA, 0.0])
-@pytest.mark.parametrize("name", ["maxwell", "burgers", "andrade", "sundberg"])
+@pytest.mark.parametrize("name", ["maxwell", "burgers", "andrade", "sundberg", "zener"])
 def test_infinite_viscosity_is_elastic(name, frequency):
     """An infinite viscosity (the cold limit) locks every dashpot, so the series models are elastic."""
     # Also at zero frequency, where the viscous term would otherwise be inf * 0.
@@ -182,6 +191,7 @@ def test_infinite_viscosity_voigt_is_rigid():
     ("Voigt", {"voigt_modulus_frac": 0.3, "voigt_viscosity_frac": 0.05}),
     ("Andrade", {"alpha": 0.25, "zeta": 2.0}),
     ("Sundberg", {"alpha": 0.4, "zeta": 3.0, "voigt_modulus_frac": 0.15, "voigt_viscosity_frac": 0.03}),
+    ("Zener", {"relaxed_modulus_frac": 0.8}),
 ])
 def test_positional_parameters(cls_name, params):
     model = getattr(Rheology, cls_name)(*params.values())
@@ -208,6 +218,9 @@ def test_andrade_parameters_affect_modulus():
     ("andrade",         "andrade"),
     ("Sundberg-Cooper", "sundberg"),
     ("sundberg_cooper", "sundberg"),
+    ("Zener",           "zener"),
+    ("sls",             "zener"),
+    ("Standard_Linear_Solid", "zener"),
 ])
 def test_make_rheology_aliases(alias, canonical):
     assert Rheology.make_rheology(alias).model_name == canonical
@@ -244,6 +257,7 @@ def test_make_rheology_adopted_object_is_usable(tmp_path):
     ("Voigt", {"model", "voigt_modulus_frac", "voigt_viscosity_frac"}),
     ("Andrade", {"model", "alpha", "zeta"}),
     ("Sundberg", {"model", "alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac"}),
+    ("Zener", {"model", "relaxed_modulus_frac"}),
 ])
 def test_config_dict_keys(cls_name, keys):
     assert set(getattr(Rheology, cls_name)().get_config_dict()) == keys
@@ -261,7 +275,7 @@ def test_save_config_writes_toml(tmp_path):
 
 # Non-default constructor arguments for the models that take any.
 _NON_DEFAULT_ARGS = {"voigt": (0.33, 0.07), "burgers": (0.33, 0.07), "andrade": (0.42, 1.7),
-                     "sundberg": (0.42, 1.7, 0.33, 0.07)}
+                     "sundberg": (0.42, 1.7, 0.33, 0.07), "zener": (0.23,)}
 
 
 @pytest.mark.parametrize("name,cls", _MODEL_CLASSES)
@@ -369,3 +383,51 @@ def test_read_only_inputs_are_accepted():
     direct = Rheology.maxwell(modulus, viscosity, frequency)
     method = Rheology.Maxwell().calc_complex_modulus_vectorize_all(modulus, viscosity, frequency)
     assert np.allclose(direct, method)
+
+
+# =====================================================================================================================
+# Zener (standard linear solid)
+# =====================================================================================================================
+@pytest.mark.parametrize("frequency", [1.0e-9, _OMEGA, 1.0e-2])
+def test_zener_with_no_relaxed_spring_is_maxwell(frequency):
+    _assert_complex_close(Rheology.Zener(0.0).calc_complex_modulus(_MU, _ETA, frequency),
+                          Rheology.Maxwell().calc_complex_modulus(_MU, _ETA, frequency))
+
+
+def test_zener_with_a_fully_relaxed_spring_is_elastic():
+    assert Rheology.Zener(1.0).calc_complex_modulus(_MU, _ETA, _OMEGA) == complex(_MU, 0.0)
+
+
+@pytest.mark.parametrize("relaxed_frac", [0.0, 0.3, 0.9])
+def test_zener_limits_and_loss_peak(relaxed_frac):
+    """It relaxes to r M at zero frequency, stays at M at high frequency, and peaks at omega tau = 1."""
+    zener = Rheology.Zener(relaxed_frac)
+    assert zener.calc_complex_modulus(_MU, _ETA, 0.0) == complex(relaxed_frac * _MU, 0.0)
+    fast = zener.calc_complex_modulus(_MU, _ETA, 1.0e10)
+    assert fast.real == pytest.approx(_MU, rel=1.0e-12)
+    peak_frequency = (1.0 - relaxed_frac) * _MU / _ETA
+    peak = zener.calc_complex_modulus(_MU, _ETA, peak_frequency)
+    assert peak.real == pytest.approx(0.5 * (1.0 + relaxed_frac) * _MU, rel=1.0e-12)
+    assert peak.imag == pytest.approx(0.5 * (1.0 - relaxed_frac) * _MU, rel=1.0e-12)
+    for factor in (0.5, 2.0):
+        assert zener.calc_complex_modulus(_MU, _ETA, factor * peak_frequency).imag < peak.imag
+
+
+@pytest.mark.parametrize("frequency", [1.0e-300, 1.0e300])
+def test_zener_extreme_frequencies_are_finite(frequency):
+    modulus = Rheology.Zener(0.4).calc_complex_modulus(_MU, _ETA, frequency)
+    assert math.isfinite(modulus.real) and math.isfinite(modulus.imag)
+    assert modulus.imag >= 0.0
+
+
+def test_zener_matches_reference_at_other_fractions():
+    _assert_complex_close(Rheology.Zener(0.85).calc_complex_modulus(_MU, _ETA, _OMEGA), _zener_modulus(0.85))
+    _assert_complex_close(Rheology.zener(_MU, _ETA, _OMEGA, relaxed_modulus_frac=0.85), _zener_modulus(0.85))
+
+
+@pytest.mark.parametrize("relaxed_frac", [-0.1, 1.5, math.nan])
+def test_zener_rejects_a_fraction_outside_zero_to_one(relaxed_frac):
+    with pytest.raises(ValueError, match="relaxed_modulus_frac"):
+        Rheology.Zener(relaxed_frac)
+    with pytest.raises(ValueError, match="relaxed_modulus_frac"):
+        Rheology.make_rheology("zener", {"relaxed_modulus_frac": relaxed_frac})
