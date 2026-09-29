@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`Structures.configs`)
 
-_Updated: 2026-09-28_
+_Updated: 2026-09-29_
 
 Schema version `0.2.0`.
 
@@ -245,7 +245,7 @@ rtol = 1.0e-8
 use_kamata = true
 ```
 
-`world.set_solver_defaults(eos_solver=..., radial_solver=...)` pins the same keys on a built world. `world.get_solver_defaults()` returns the pinned tables. `get_config_dict()` carries them, so they survive a save and rebuild. The tables hold no physical parameters: they change how a result is computed, not what is computed. No bundled world uses them.
+`world.set_solver_defaults(eos_solver=..., radial_solver=...)` pins the same keys on a built world. `world.get_solver_defaults()` returns the pinned tables. `get_config_dict()` carries them, so they survive a save and rebuild. The tables hold no physical parameters: they change how a result is computed, not what is computed. The one bundled world that uses them is `luna_dynamic`, which pins `rtol = 1.0e-8` so that its dynamic liquid core keeps its yearly Love number.
 
 ## Default Configuration Resolution
 

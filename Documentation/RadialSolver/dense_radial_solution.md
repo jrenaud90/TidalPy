@@ -1,6 +1,6 @@
 # Dense Radial Solutions
 
-_Updated: 2026-09-21_
+_Updated: 2026-09-29_
 
 `TidalPy.RadialSolver` computes the viscoelastic-gravitational radial functions `y1..y6` with either a shooting method or a propagation matrix, and from them the one-dimensional tidal or loading Love numbers. This page describes how the shooting method retains its solution and evaluates it at any radius.
 
@@ -69,9 +69,17 @@ At the C++ level the same is available on `c_RadialSolutionStorage` (`get_radial
 
 ## Dynamic Liquid Layers at Long Forcing Periods
 
-A dynamic liquid layer carries inertial ($1/\omega^2$) terms that are only significant at short forcing periods. When a dynamic liquid layer is sandwiched between solid layers and forced at a long period (low frequency), those terms make the layer's independent solutions grow exponentially through the liquid, so by the surface they are nearly linearly dependent and the surface boundary-condition matrix becomes near-singular. The solve is then unstable: small numerical differences (integration tolerance, grid-vs-dense sampling, the linear-solver implementation) change the result, and at sufficiently long periods the solve fails outright. This is inherent to the dynamic-liquid assumption.
+The dynamic liquid equations carry no density-gradient term, so a liquid layer's stratification comes from how its density, gravity, and bulk modulus vary with radius. A liquid whose density follows its bulk modulus, $d\rho/dr = -\rho^2 g / K$, is neutral ($N^2 = 0$). A constant-density liquid with a finite bulk modulus is not: $N^2 = -\rho g^2 / K < 0$, which is unstable stratification. Its solutions then grow as $e^E$ through the layer, with
+
+$$E = \frac{\sqrt{\ell(\ell+1)}}{\omega} \int \frac{\sqrt{-N^2}}{r}\, dr,$$
+
+which rises with the forcing period. Once $e^E$ amplifies the integration tolerance to order one, the independent solutions are nearly dependent by the surface and the solve is wrong or fails. Every bundled liquid except PREM's is a constant-density liquid: solved dynamically, Earth-Simple's core breaks down by half a day, Mercury's by 3.5 days, the Moon's and PREM's by 10 days, and Pluto's ocean by 30 days.
+
+Before every radial Love solve (`solve_love_numbers`, `calc_tides`, the 3D calls, and `radial_solver`), TidalPy estimates the error each dynamic liquid layer brings, $\mathrm{rtol}\, e^E$, from the layer's profile, and logs one warning per world when it passes 1%. It names the layer, the period, and $E$.
 
 Guidance:
 
-* Use a dynamic liquid layer only for short-period forcing, where it is well-conditioned.
-* Use a static liquid layer for long-period forcing; it is stable and consistent across all periods.
+* Use a static liquid layer for long-period forcing. It is stable and accurate at every period for any density profile.
+* To keep a constant-density liquid dynamic, make it incompressible (`is_incompressible = True`). An incompressible liquid of constant density is neutral: in the bundled worlds its dynamic solve stays within 1e-3 of the static one out to 100 days, except Earth-Simple's large core, which drifts to 6% there.
+* To keep it dynamic and compressible, give it a pressure-dependent law (Birch-Murnaghan or Vinet), which keeps it neutral. The `luna_dynamic`, `mercury_dynamic`, `pluto_dynamic`, and `europa_dynamic` bundled worlds are built this way. A neutral compressible liquid still loses some accuracy at long periods in a large core (`luna_dynamic`'s yearly $k_2$ is 0.8% off at the default `rtol = 1e-6`, 3e-4 at `1e-8`), since the equations recover its tangential displacement through a division by $\omega^2$. Thin oceans are unaffected.
+* The dynamic liquids demo (`Demos/Physics/18_dynamic_liquids.ipynb`) works through each case.

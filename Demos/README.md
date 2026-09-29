@@ -23,6 +23,7 @@ These demos use the Python API. TidalPy's C++ API is exposed via headers that ca
 14. `14_bundled_worlds`: a tour of the bundled worlds, checking each solved interior's mass, moment of inertia, and Love number against the observations it was fitted to or predicts; Jupiter's layered interior, Pluto's ocean, Io's heat budget, and the TRAPPIST-1 planets.
 15. `15_thermal_interior`: the cooling and radiogenic model families, the temperature and heat-flow profile carried through the equation-of-state solve, tidal heating by layer, and a simple heat budget.
 17. `17_tidal_truncations`: the eccentricity and obliquity truncation levels; heating and $\dot{e}$ against eccentricity at each level and with the exact eccentricity functions, and the error of each; how many modes the exact functions need; the cost of each level with closed-form and radial-solver Love numbers; and the helpers that pick a level.
+18. `18_dynamic_liquids`: static and dynamic liquid layers across forcing periods; why a constant-density liquid's dynamic solve breaks down at long periods (its stratification) and the warning TidalPy logs; incompressible liquids and the `_dynamic` bundled worlds, whose liquids follow a pressure-dependent law; and the tolerance a large dynamic core needs at long periods.
 
 ### Systems
 11. `11_multi_world`: constructing systems of multiple worlds, changing tidal hosts, adding planets and dropping one by rebuilding the system, saving and loading systems, and the instantaneous spin, semi-major axis, and eccentricity derivatives.

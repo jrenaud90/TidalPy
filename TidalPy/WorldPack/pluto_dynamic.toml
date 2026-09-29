@@ -1,0 +1,103 @@
+# Pluto-Dynamic: pluto.toml with its subsurface ocean solved as a dynamic, compressible liquid.
+#
+# The bundled pluto.toml solves its ocean as a static liquid of constant density. This file keeps every other
+# layer, temperature, viscosity, and rheology of that model and changes only the ocean and the one number
+# refitted after it. Made dynamic with its constant density, pluto.toml's ocean breaks down by a 30 day
+# forcing period.
+#
+# Why the equation of state matters
+# A dynamic liquid whose density does not follow its bulk modulus is unstably stratified: a constant-density
+# liquid with a finite bulk modulus has N^2 = -rho g^2 / K < 0, and its solutions grow as exp(E), with E rising
+# with the forcing period, until the integration fails. A pressure-dependent law keeps the density on
+# d rho / dr = -rho^2 g / K, which is neutral (N^2 = 0), so a dynamic liquid stays well behaved at tidal periods.
+# The dynamic liquids demo (Demos/Physics/18_dynamic_liquids.ipynb) works through the difference.
+#
+# Ocean
+# Birch-Murnaghan for liquid water at 273.15 K, fitted to the IAPWS-95 equation of state from 0 to 0.2 GPa:
+# rho0 = 999.84 kg/m3, K_T0 = 1.937 GPa, K0' = 6.84, with a largest density misfit of 0.014 percent. pluto.toml's
+# ocean is fresh water at a constant 1000 kg/m3; compressed, this one runs from 1044 kg/m3 at its top (0.098 GPa)
+# to 1076 at its base (0.183 GPa), a mean of 1061. The layer temperature stays at pluto.toml's 260 K, which the
+# isothermal law does not read.
+#
+# Fit
+# The rock core's reference density, 2918.9293 kg/m3 (pluto.toml: 2943.7302), gives the published mass: the
+# denser ocean takes mass from the core. C/MR2 = 0.31979 is a model output, since Pluto has no measured moment of
+# inertia. Surface gravity is 0.6156 m/s2 and the central pressure 1.18 GPa.
+#
+# Tides
+# k2 = 0.1556 at the 6.3872 day mutual period, against 0.1458 for pluto.toml. The same ocean solved as a static
+# liquid gives the same k2 to 1.4e-4, so the difference comes from the denser, compressible ocean rather than
+# from its dynamics. At the default solver tolerance k2 holds to 2e-7 out to 1000 days.
+#
+# The temperatures, viscosities, and orbit are as documented in pluto.toml.
+schema_version = "0.2.0"
+name = "Pluto-Dynamic"
+type = "terrestrial"
+radius_m = 1188300.0
+mass_kg = 1.3024587e22
+spin_frequency_rad_s = 1.1385538e-05
+albedo = 0.72
+
+# The layer temperatures below are prescribed, not solved: the fit holds at exactly these values, so the
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
+[layers.core]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 0
+radius_outer_m = 910903.0             # TidalPy 0.7 pluto.toml
+is_tidal = true
+temperature_k = 300.0
+
+[layers.core.material]
+model = "bm"
+reference_density_kg_m3 = 2918.9293   # fitted to the published mass
+reference_bulk_modulus_pa = 1.28e11   # forsterite-like
+bulk_modulus_derivative = 4.2
+
+[layers.core.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e22
+reference_temperature_k = 300.0
+molar_activation_energy_j_mol = 3.0e5
+molar_activation_volume_m3_mol = 0.0
+
+[layers.ocean]
+class = "solidliquid"
+type = "ice"
+layer_index = 1
+radius_outer_m = 1023300.0            # 165 km below the surface, Nimmo et al. (2016)
+is_tidal = false
+is_solid = false
+is_static = false                     # subsurface ocean, solved with the dynamic equations
+is_incompressible = false
+temperature_k = 260.0
+
+[layers.ocean.material]
+model = "bm"
+reference_density_kg_m3 = 999.84      # liquid water at 273.15 K, fitted to IAPWS-95 to 0.2 GPa
+reference_bulk_modulus_pa = 1.937e9
+bulk_modulus_derivative = 6.84
+
+[layers.ice_shell]
+class = "solidliquid"
+type = "ice"
+layer_index = 2
+radius_fraction = 1.0
+is_tidal = true
+temperature_k = 200.0
+
+[layers.ice_shell.material]
+model = "bm"
+reference_density_kg_m3 = 917.0
+reference_bulk_modulus_pa = 9.6e9     # ice I
+bulk_modulus_derivative = 5.5
+
+[layers.ice_shell.material.shear_viscosity]
+model = "reference"
+reference_viscosity_pas = 1.0e15
+reference_temperature_k = 200.0
+molar_activation_energy_j_mol = 59.4e3
+molar_activation_volume_m3_mol = 0.0
