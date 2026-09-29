@@ -2,26 +2,31 @@
 
 _Updated: 2026-09-28_
 
-This module computes the depth- and direction-resolved tidal response (the complex strain and stress tensors and the volumetric heating) of a layered world. The response is evaluated at a single point on demand, so a map is built only when the caller evaluates a set of points.
+`TidalPy.Tides.multilayer` calculates the depth- and direction-resolved tidal response of a layered world: the complex strain and stress tensors and the volumetric heating. The response is evaluated point by point.
 
 ## Physics
 
-The response at a point $(r, \theta, \phi, t)$ factorizes into a radial part as well as an angular and time part. The radial part is the set of viscoelastic-gravitational functions $y_1 \dots y_6$ from the radial solver (Takeuchi and Saito 1972), evaluated at $r$ through the dense calling system (`RadialSolverSolution.get_radial_solution`), together with the complex shear and bulk moduli $\mu^{*}$ and $K^{*}$ at $r$, read at the solved frequency through the dense material path (`c_EOSSolution::call_material`, exposed in Python as `RadialSolverSolution.get_complex_shear_modulus`). The angular and time part is the tidal potential $W(\theta, \phi, t)$ and its first and second $\theta$ and $\phi$ derivatives. The radial problem depends on the degree $l$ and the frequency $|\omega|$ only, not on $m$, so it is solved once per $(l, |\omega|)$.
+The response at a point $(r, \theta, \phi, t)$ factorizes into a radial part and an angular and time part. The radial part is:
+
+- The viscoelastic-gravitational functions $y_1 \dots y_6$ from the radial solver (Takeuchi and Saito 1972), evaluated at $r$ through the dense calling system (`RadialSolverSolution.get_radial_solution`).
+- The complex shear and bulk moduli $\mu^{*}$ and $K^{*}$ at $r$, read at the solved frequency through the dense material path (`c_EOSSolution::call_material`, exposed in Python as `RadialSolverSolution.get_complex_shear_modulus`).
+
+The angular and time part is the tidal potential $W(\theta, \phi, t)$ and its first and second $\theta$ and $\phi$ derivatives. The radial problem depends only on the degree $l$ and the frequency $|\omega|$, not on $m$, so it is solved once per $(l, |\omega|)$.
 
 ### Tidal Potential
 
-The potential is the Kaula expansion of the [global tides](global_tides.md) page (Kaula 1964; Efroimsky and Williams 2009, Eq. 18), evaluated at the surface radius $R$ and kept linear in $F_{lmp}$, $G_{lpq}$, and $P_{lm}$; the global path squares $F$ and $G$ because global heating goes as the potential squared. The engine (`c_tidal_potential_3d_modes`, wrapped as `TidalPy.Tides.potential.tidal_potential_3d_modes`) enumerates the active modes and returns, for each, the degree $l$, the signed forcing frequency, and the complex amplitude of $W$ and its derivatives, with $W(t) = \mathrm{Re}[W_c\,e^{i\omega t}]$:
+The potential is the Kaula expansion of the [global tides](global_tides.md) page (Kaula 1964; Efroimsky and Williams 2009, Eq. 18), evaluated at the surface radius $R$. It is linear in $F_{lmp}$, $G_{lpq}$, and $P_{lm}$. The global path squares $F$ and $G$ because global heating scales with the potential squared. The engine (`c_tidal_potential_3d_modes`, wrapped as `TidalPy.Tides.potential.tidal_potential_3d_modes`) returns, for each active mode, the degree $l$, the signed forcing frequency, and the complex amplitude of $W$ and its derivatives, with $W(t) = \mathrm{Re}[W_c\,e^{i\omega t}]$:
 
 $$W(\theta, \phi, t) = \sum_{l,m,p,q} A_{lmpq}\,P_{lm}(\cos\theta)\,\mathcal{T}_{lm}\!\left(\omega_{lmpq}t - m\phi\right), \qquad A_{lmpq} = \frac{G M_h}{a}\left(\frac{R}{a}\right)^{l}\frac{(l-m)!}{(l+m)!}\left(2-\delta_{0m}\right)F_{lmp}(I)\,G_{lpq}(e),$$
 
 $$\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta},$$
 
-where $n$ is the mean motion, $\dot{\theta}$ the spin rate, and $\mathcal{T}_{lm}$ is $\cos$ for even $l - m$ and $\sin$ for odd $l - m$. Longitude $\phi$ is the body-fixed east longitude, increasing in the direction of rotation, and $\phi = 0$ is the host's meridian at $t = 0$, when the host is at its ascending node and at periapse. $P_{lm}$ carries no Condon-Shortley phase, as in Kaula; TidalPy's Legendre tables (`TidalPy.Utilities.legendre`) include it, so each amplitude carries $(-1)^{m}$ to cancel it. All radial dependence is carried by $y(r)$.
+where $n$ is the mean motion, $\dot{\theta}$ the spin rate, and $\mathcal{T}_{lm}$ is $\cos$ for even $l - m$ and $\sin$ for odd $l - m$. Longitude $\phi$ is the body-fixed east longitude, increasing in the direction of rotation. $\phi = 0$ is the host's meridian at $t = 0$, when the host is at its ascending node and at periapse. As in Kaula, $P_{lm}$ carries no Condon-Shortley phase. TidalPy's Legendre tables (`TidalPy.Utilities.legendre`) include it, so each amplitude carries a factor $(-1)^{m}$ that cancels it. All radial dependence is in $y(r)$.
 
 > [!WARNING]
 > This assumes no periapse or node precession. It also assumes that the change in the mean anomaly can be approximated by the mean motion.
 
-The user selects the truncation via three knobs (on the world's `[tides]` config): `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). Eccentricity level $N$ keeps the potential through $e^N$ and cuts every product of two eccentricity functions that the secular heating forms at $e^N$, as the 1D path does, so the volume integral of the secular heating equals the 1D heating at any eccentricity (see [Eccentricity Functions](eccentricity.md)). Obliquity level $N$ does the same in $I$: the potential through $I^N$, and every product of two obliquity functions cut at $I^N$ (see [Obliquity Functions](obliquity.md)). The instantaneous fields (displacements, stress, strain, and the instantaneous power) are linear in the potential and use the unsquared functions. A nonzero obliquity truncation turns on the odd-`m` (`P_21`, ...) harmonics automatically. A mode whose $|\omega|$ does not exceed `[numerical] minimum_frequency` (1e-14 rad/s, `TidalPy.constants.min_frequency`) is switched off later, the same floor the 1D `calc_tides` path uses.
+Three settings in the world's `[tides]` config set the truncation: `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). Eccentricity level $N$ keeps the potential through $e^N$. As in the 1D path, it cuts every product of two eccentricity functions in the secular heating at $e^N$, so the volume integral of the secular heating equals the 1D heating at any eccentricity (see [Eccentricity Functions](eccentricity.md)). Obliquity level $N$ does the same in $I$: the potential through $I^N$, and every product of two obliquity functions cut at $I^N$ (see [Obliquity Functions](obliquity.md)). The instantaneous fields (displacements, stress, strain, and power) are linear in the potential and use the unsquared functions. A nonzero obliquity truncation turns on the odd-`m` harmonics (`P_21`, ...). A mode with $|\omega|$ at or below `[numerical] minimum_frequency` (1e-14 rad/s, `TidalPy.constants.min_frequency`) is later switched off, the same floor the 1D `calc_tides` path uses.
 
 ### Displacement, Strain, and Stress
 
@@ -47,17 +52,17 @@ $$\sigma_{ij} = 2\mu^{*}\varepsilon_{ij} + \lambda^{*}\varepsilon_{kk}\,\delta_{
 with both moduli taken at $r$ and at the mode's frequency.
 
 > [!NOTE]
-> In a layer the radial solver treats as incompressible, the strain has no trace, so this law drops the pressure: the normal stresses ($\sigma_{rr}$, $\sigma_{\theta\theta}$, $\sigma_{\phi\phi}$) miss their isotropic part, and $\sigma_{rr}$ came out about 13 percent below that of a nearly incompressible compressible twin in a test. The deviatoric stress, the strain, and so the heating are unaffected (the 1D and 3D heating of such a layer agree to about 1e-4). Solve the layer as compressible when its normal stresses matter; carrying the pressure from $y_{2}$ is planned.
+> In a layer the radial solver treats as incompressible, the strain is traceless, so this law drops the pressure. The normal stresses ($\sigma_{rr}$, $\sigma_{\theta\theta}$, $\sigma_{\phi\phi}$) miss their isotropic part. In a test, $\sigma_{rr}$ was about 13 percent below that of a nearly incompressible compressible twin. The deviatoric stress, the strain, and the heating are unaffected (the 1D and 3D heating of such a layer agree to about 1e-4). Solve the layer as compressible when its normal stresses matter. Carrying the pressure from $y_{2}$ is planned.
 
-The kernel is a solid-layer computation: a liquid (a liquid layer, or a molten stretch of a solid layer that the radial solver treats as a static liquid) contributes no shear dissipation, so its heating is 0 while its stress and strain are NaN. The poles themselves ($\sin\theta$ within machine epsilon of 0, at both $0$ and $\pi$) are singular points of the angular terms, so point-wise values there are NaN; use colatitudes inside $(0, \pi)$, as the Gauss-Legendre nodes of the summed paths do.
+The kernel applies to solid layers only. A liquid (a liquid layer, or a molten stretch of a solid layer that the radial solver treats as a static liquid) contributes no shear dissipation: its heating is 0 and its stress and strain are NaN. The poles ($\sin\theta$ within machine epsilon of 0, at $0$ and $\pi$) are singular points of the angular terms, so point-wise values there are NaN. Use colatitudes inside $(0, \pi)$, as the Gauss-Legendre nodes of the summed paths do.
 
 ### Coherent Waves
 
-The heating paths do not consume the raw $(l, m, p, q)$ modes one at a time. Each mode is first mapped onto its non-negative frequency (a mode with $\omega < 0$ contributes the complex conjugate of its phasor at $|\omega|$, since $\mathrm{Re}[W_c e^{i\omega t}] = \mathrm{Re}[\overline{W_c}\,e^{-i\omega t}]$) and merged with every other mode that shares its real spatial function: the same degree $l$, order $m$, $|\omega|$, and azimuthal sign ($e^{-im\phi}$ against $e^{+im\phi}$; irrelevant for $m = 0$). The result is the list of coherent waves the kernel works with.
+Before the heating is formed, each raw $(l, m, p, q)$ mode is mapped onto its non-negative frequency: a mode with $\omega < 0$ contributes the complex conjugate of its phasor at $|\omega|$, since $\mathrm{Re}[W_c e^{i\omega t}] = \mathrm{Re}[\overline{W_c}\,e^{-i\omega t}]$. It is then merged with every other mode that shares its real spatial function: the same degree $l$, order $m$, $|\omega|$, and azimuthal sign ($e^{-im\phi}$ or $e^{+im\phi}$, irrelevant for $m = 0$). The kernel works with the resulting coherent waves.
 
-The merge matters because the $m = 0$ modes always come in pairs, $(l, 0, p, q)$ at $+\omega$ and $(l, 0, l-p, -q)$ at $-\omega$, that carry equal amplitudes ($F_{l0p} = \pm F_{l0,l-p}$ with the parity sign, $G_{lpq} = G_{l,l-p,-q}$) and are the same function of time, since $\cos(-x) = \cos x$. They are one real sinusoid of twice the amplitude, and the heating goes as the amplitude squared, so summing their cycle-averaged powers separately loses half of the zonal heating. For a homogeneous degree-2 body at zero obliquity the zonal terms are 9/84 of the total, so the loss is 4.5/84 = 5.36% of the heating of a synchronously rotating body, where only the eccentricity modes survive. The 1D formula counts the same pair through its $(2 - \delta_{0m})$ weighting, which is why it needs no merge.
+The $m = 0$ modes always come in pairs: $(l, 0, p, q)$ at $+\omega$ and $(l, 0, l-p, -q)$ at $-\omega$. The two carry equal amplitudes ($F_{l0p} = \pm F_{l0,l-p}$ with the parity sign, $G_{lpq} = G_{l,l-p,-q}$) and are the same function of time, since $\cos(-x) = \cos x$. Together they are one real sinusoid of twice the amplitude. Heating scales with the amplitude squared, so summing their cycle-averaged powers separately loses half of the zonal heating. For a homogeneous degree-2 body at zero obliquity the zonal terms are 9/84 of the total, so the loss is 4.5/84 = 5.36% of the heating of a synchronously rotating body, where only the eccentricity modes survive. The 1D formula counts the same pair through its $(2 - \delta_{0m})$ weighting, so it needs no merge.
 
-At nonzero obliquity, modes of the same $(l, m)$ with different $(p, q)$ can also share a signed frequency. Their relative phase is set by the argument of periapse, which the engine takes as zero (no precession), so they too combine coherently. The 1D formula averages over the argument of periapsis $\omega$, so it drops these cross terms; the 3D path, whose engine takes $\omega = 0$ (periapse at the ascending node), keeps them, and its total differs from the 1D heating by a term proportional to $e^2 I^2 \cos 2\omega$. The difference is largest in synchronous rotation, where the semidiurnal tide is static: for a homogeneous Maxwell body at $e = 0.05$ it is -5.8e-4 of the heating at $I = 0.05$ rad and -3.8e-3 at $I = 0.3$ rad (+5.8e-4 and +3.8e-3 with $\omega = \pi/2$), and below 1e-5 away from synchronous rotation. For a body whose periapsis precesses, the 1D value is the secular heating.
+At nonzero obliquity, modes of the same $(l, m)$ with different $(p, q)$ can also share a signed frequency. Their relative phase is set by the argument of periapsis $\omega$, which the engine takes as zero, so they also combine coherently. The 1D formula averages over $\omega$ and drops these cross terms. The 3D path keeps them, so its total differs from the 1D heating by a term proportional to $e^2 I^2 \cos 2\omega$. The difference is largest in synchronous rotation, where the semidiurnal tide is static. For a homogeneous Maxwell body at $e = 0.05$ it is -5.8e-4 of the heating at $I = 0.05$ rad and -3.8e-3 at $I = 0.3$ rad (+5.8e-4 and +3.8e-3 with $\omega = \pi/2$). Away from synchronous rotation it is below 1e-5. For a body whose periapsis precesses, the 1D value is the secular heating.
 
 ### Secular Heating
 
@@ -65,12 +70,7 @@ The secular (cycle- or orbit-averaged) volumetric heating \[W m$^{-3}$\] is buil
 
 $$\bar{h}(r, \theta, \phi) = \sum_{\chi}\frac{\chi}{2}\sum_{k} w_{k}\,\mathrm{Im}\!\left(\sigma_{k}^{(\chi)}\,\overline{\varepsilon_{k}^{(\chi)}}\right), \qquad w_{k} = \begin{cases} 1, & k \in \{rr, \theta\theta, \phi\phi\}, \\ 2, & k \in \{r\theta, r\phi, \theta\phi\}, \end{cases}$$
 
-where $\sigma_{k}^{(\chi)}$ and $\varepsilon_{k}^{(\chi)}$ are the total complex stress and strain amplitudes at the frequency $\chi = |\omega|$, every wave at that frequency summed before the bilinear form. The form is non-negative for a dissipative material. Cross terms between waves at different frequencies average to zero over the orbit and are dropped; cross terms between waves at the same frequency survive the average and are kept. When the waves at one frequency have different longitude structure, as the zonal and sectoral waves of a synchronously rotating body do (every active mode then sits at a multiple of $n$), those cross terms make $\bar{h}$ depend on longitude: the familiar $\cos 2\phi$ and $\cos 4\phi$ patterns of a synchronous heating map, symmetric about the sub-host meridian. Away from such frequency coincidences (a generic non-synchronous spin) every frequency carries one wave and $\bar{h}$ is a function of $r$ and $\theta$ only.
-
-At each point the machinery:
-- Builds the active modes from the truncation config and merges them into coherent waves
-- Solves the world radial response once per $(l, |\omega|)$
-- Sums each frequency's waves into a total complex stress and strain, and accumulates $(\chi/2)\,\mathrm{Im}(\sigma : \overline{\varepsilon})$ per frequency.
+where $\sigma_{k}^{(\chi)}$ and $\varepsilon_{k}^{(\chi)}$ are the total complex stress and strain amplitudes at the frequency $\chi = |\omega|$, summed over every wave at that frequency before the bilinear form. The form is non-negative for a dissipative material. Cross terms between waves at different frequencies average to zero over the orbit and are dropped, while those at the same frequency survive and are kept. When the waves at one frequency have different longitude structure, these cross terms make $\bar{h}$ depend on longitude. The zonal and sectoral waves of a synchronously rotating body, where every active mode sits at a multiple of $n$, produce the $\cos 2\phi$ and $\cos 4\phi$ patterns of a synchronous heating map, symmetric about the sub-host meridian. For a generic non-synchronous spin, every frequency carries one wave and $\bar{h}$ is a function of $r$ and $\theta$ only.
 
 ### Volume Integral and Collapse
 
@@ -80,7 +80,7 @@ $$\dot{E} = \int_{0}^{R}\int_{0}^{\pi}\int_{0}^{2\pi}\bar{h}\,r^{2}\sin\theta\;d
 
 which `calc_3d_tides` evaluates with its summed arguments, one axis at a time:
 
-- Longitude: waves with different signed azimuthal wavenumbers $\mu = \pm m$ integrate to zero over longitude, so the integral is $2\pi$ times the sum over $(\chi, \mu)$ groups evaluated at $\phi = 0$. This is also the longitude mean that `get_3d_tidal_heating(radius, colatitude)` and its batch form return.
+- Longitude: waves with different signed azimuthal wavenumbers $\mu = \pm m$ integrate to zero over longitude, so the integral is $2\pi$ times the sum over $(\chi, \mu)$ groups evaluated at $\phi = 0$.
 - Colatitude: every strain and stress component of a wave is a combination, with complex radial coefficients, of six real functions of $\theta$ for its $(l, m)$,
 
   $$f_{1} = P_{lm}, \quad f_{2} = \frac{dP_{lm}}{d\theta}, \quad f_{3} = \frac{d^{2}P_{lm}}{d\theta^{2}}, \quad f_{4} = \frac{P_{lm}}{\sin\theta}, \quad f_{5} = -\frac{m^{2}P_{lm}}{\sin^{2}\theta} + \cot\theta\,\frac{dP_{lm}}{d\theta}, \quad f_{6} = \frac{1}{\sin\theta}\left(\frac{dP_{lm}}{d\theta} - \cot\theta\,P_{lm}\right),$$
@@ -89,16 +89,16 @@ which `calc_3d_tides` evaluates with its summed arguments, one axis at a time:
 
   $$\mathcal{G}_{ij}(l_{a}, l_{b}, m) = \int_{0}^{\pi} f_{i}^{(l_{a})}\,f_{j}^{(l_{b})}\,\sin\theta\;d\theta.$$
 
-  They are tabulated for equal degrees and computed with 32-node Gauss-Legendre quadrature in $\cos\theta$ for different degrees, which is exact because the integrands are polynomials in $\cos\theta$ of degree at most $l_{a} + l_{b} + 2 \le 22$. With `latitude_analytic=False` the integral is taken numerically on `latitude_nodes` Gauss-Legendre nodes instead.
+  They are tabulated for equal degrees and computed with 32-node Gauss-Legendre quadrature in $\cos\theta$ for different degrees, which is exact because the integrands are polynomials in $\cos\theta$ of degree at most $l_{a} + l_{b} + 2 \le 22$.
 - Radius: Gauss-Legendre quadrature inside each layer with `radial_slices` nodes (default 16) and weight $r^{2}$; no node sits on a layer boundary.
 
-The volume integral equals the 1D global tidal heating (`get_tidal_heating`): both describe the same total power. For a homogeneous body at zero obliquity the two agree to the radial quadrature error at every spin rate, synchronous rotation included; for the homogeneous Io of demo notebook 09 that is below 1e-7 with the default 16 nodes per layer. The benchmark tests are `Tests/Test_Structures/Test_Worlds/test_world_1d_vs_3d_tides_01.py` and `test_world_3d_tides_coherent_01.py`.
+The volume integral equals the 1D global tidal heating (`get_tidal_heating`). For a homogeneous body at zero obliquity the two agree to the radial quadrature error at every spin rate, including synchronous rotation. For the homogeneous Io of demo notebook 09 that error is below 1e-7 with the default 16 nodes per layer. The benchmark tests are `Tests/Test_Structures/Test_Worlds/test_world_1d_vs_3d_tides_01.py` and `test_world_3d_tides_coherent_01.py`.
 
 ## Python API
 
 ### World Method
 
-For a built world, the API lives on the rheology tide model (`c_RheologyTide`); the world delegates to it and everything runs in C++ (the tide model calls the world's radial-solver and EOS members directly).
+A built world delegates these methods to its rheology tide model (`c_RheologyTide`), which runs in C++ and calls the world's radial-solver and EOS members directly.
 
 ```python
 import numpy as np
@@ -140,11 +140,11 @@ h_bar = world.get_3d_tidal_heating(
     semi_major_axis, host_mass, 0.9 * world.radius, 0.8)   # [W m-3], secular
 ```
 
-Requires the rheology tide model and a solved EOS (the analytic tide models like fixed-Q are rejected as they have no depth-resolved solution). When a world is built from a TOML/dict config, the truncation levels flow automatically from the `[tides]` table (`max_degree_l`, `eccentricity_trunc_lvl`, `obliquity_trunc_lvl`). The radial solver's starting radius grows with degree, so with several degrees active the innermost region carries only the degrees that have a solution there; a radius is NaN only where no degree does.
+This requires the rheology tide model and a solved EOS. Analytic tide models such as fixed-Q have no depth-resolved solution and are rejected. The radial solver's starting radius grows with degree, so with several degrees active the innermost region carries only the degrees that have a solution there. A radius is NaN only where no degree has a solution.
 
 #### Building the Map
 
-Evaluating a heating map point by point through `get_3d_tidal_heating` re-solves the world radial response at every point, although the radial (Love-number) solve depends only on the tidal mode's `(degree l, frequency)` and not on the query position. `get_3d_tidal_heating_array` takes paired, equal-length `(radius, colatitude)` arrays, builds the position-independent tidal-mode list once, and solves the radial response once per unique `(l, frequency)`, reusing it across all points. It returns a same-shape array (NaN where a radius has no depth-resolved solution) and is the efficient way to build a map:
+`get_3d_tidal_heating` re-solves the world radial (Love-number) response at every point. `get_3d_tidal_heating_array` takes paired, equal-length `(radius, colatitude)` arrays. It builds the position-independent mode list once, solves the radial response once per unique `(l, frequency)`, and reuses it across all points. It returns an array of the same shape, NaN where a radius has no depth-resolved solution:
 
 ```python
 radii = np.linspace(0.01 * world.radius, 0.999 * world.radius, 40)
@@ -155,20 +155,29 @@ hbar = world.get_3d_tidal_heating_array(
     radius_grid.ravel(), colatitude_grid.ravel()).reshape(radius_grid.shape)   # [W m-3], secular
 ```
 
-It reproduces the scalar `get_3d_tidal_heating` point-for-point (to machine precision): the scalar path is the batch path with one point. Both return the longitude mean of the secular density, so this is the efficient way to build a zonal-mean map; for a longitude-resolved map use `calc_3d_tides` with a longitude grid.
+It matches the scalar `get_3d_tidal_heating` point for point to machine precision, since the scalar path is the batch path with one point. Both return the longitude mean of the secular density, so `get_3d_tidal_heating_array` is the efficient way to build a zonal-mean map. For a longitude-resolved map, use `calc_3d_tides` with a longitude grid.
 
 #### Full Grid and Collapsed Forms: `calc_3d_tides`
 
-`calc_3d_tides` produces the 3D heating as a full grid over `(radius, colatitude, longitude[, time])` or reduced along any spatial dimension. Two quantities:
+`calc_3d_tides` returns the 3D heating on a full grid over `(radius, colatitude, longitude[, time])` or reduced along any spatial dimension. It computes one of two quantities:
 
-* `orbit_averaged=True` (default): the secular heating density `h_bar` [W m-3], the time average of the instantaneous power at each point. It depends on longitude wherever waves at one frequency have different longitude structure (synchronous rotation above all) and is constant along longitude otherwise.
-* `orbit_averaged=False`: the instantaneous mechanical power density `sigma_ij(t) * eps_dot_ij(t)` [W m-3] at each supplied time (a 4th axis). It depends on longitude and time and time-averages to `h_bar` at the same point (every wave is a real field at `+|omega|`, so every cross term is present) through the truncation level's $e^N$: `h_bar` cuts every product of two eccentricity functions at $e^N$, while the instantaneous power is formed from the unsquared potential and keeps the partial terms past it, so the two differ at large eccentricity and a low level.
+* `orbit_averaged=True` (default): the secular heating density `h_bar` [W m-3], the time average of the instantaneous power at each point. Its longitude dependence is described in Secular Heating.
+* `orbit_averaged=False`: the instantaneous mechanical power density `sigma_ij(t) * eps_dot_ij(t)` [W m-3] at each supplied time, on a 4th axis. It depends on longitude and time. Every wave is a real field at `+|omega|`, so every cross term is present and the time average equals `h_bar` at the same point through the truncation level's $e^N$. Past $e^N$, the instantaneous power, formed from the unsquared potential, keeps partial terms that `h_bar` cuts, so the two differ at large eccentricity and a low level.
 
-Non-summed spatial axes take user arrays (`radii`, `colatitudes`, `longitudes`); the `times` array is required when `orbit_averaged=False`. Reduction convention: if any spatial axis is summed, the surviving spatial axes carry their Jacobian (`r^2`, `sin theta`, `1`) so a plain integral over them recovers the total; if none is summed the output is the raw density (its longitude mean matches the scalar `get_3d_tidal_heating`). The colatitude integral (secular, `latitude_summed`) is done analytically by default: the six angular functions the strain/stress needs form a bounded basis whose sphere integrals are precomputed once into a per-`(l, m)` Gram table (`Tides.multilayer.stress_strain.angular_gram`), and the cross terms between coherent waves of different degree at one frequency use a cross-degree Gram matrix integrated by Gauss-Legendre quadrature (exact, the integrands being polynomials in `cos theta`), so no colatitude grid is needed on the collapse. This is exact and, for a large radius grid (a radial profile or map), a few times faster than the numerical quadrature (the Love-number solves otherwise dominate). The analytic integral is of the longitude mean, so it is used only when longitude is summed too; a call that keeps its longitudes uses the Gauss-Legendre colatitude grid (`latitude_nodes`) whatever `latitude_analytic` says. Pass `latitude_analytic=False` to use that grid for a longitude-summed call as well; the two agree to machine precision there. The radial integral uses `radial_slices` Gauss-Legendre nodes inside each layer, none on a layer boundary, and the longitude integral the analytic `2*pi` times the longitude mean when averaged or a `longitude_nodes` trapezoid when instantaneous.
+Non-summed spatial axes take user arrays (`radii`, `colatitudes`, `longitudes`). The `times` array is required when `orbit_averaged=False`. If any spatial axis is summed, the surviving spatial axes carry their Jacobian (`r^2`, `sin theta`, `1`), so a plain integral over them recovers the total. If none is summed, the output is the raw density, whose longitude mean matches the scalar `get_3d_tidal_heating`.
 
-The colatitude integral can also be restricted to a latitude band: with `latitude_summed`, pass `colatitude_min` / `colatitude_max` [rad] (defaults 0 and pi) to integrate only `colatitude_min <= theta <= colatitude_max`. Complementary bands add up to the full-sphere result, so zonal heating budgets (polar caps vs an equatorial belt, say) come from a few banded calls. A band narrower than the full sphere always uses the Gauss-Legendre quadrature (the analytic Gram table is full-sphere only); the band has no effect when colatitude is not summed.
+The secular colatitude integral (`latitude_summed`) is analytic by default. It uses the Gram matrices of Volume Integral and Collapse, with the per-`(l, m)` table in `Tides.multilayer.stress_strain.angular_gram`, so no colatitude grid is needed. For a large radius grid (a radial profile or map), this is a few times faster than the numerical quadrature. Otherwise the Love-number solves dominate.
 
-The returned dict carries the surviving axes plus either `heating` (the grid over the surviving axes, in the order radius, colatitude, longitude, time) or, when all three spatial axes are summed, `total` [W] and `per_layer` [W]. The C++ code writes the heating straight into the returned arrays:
+The analytic integral is of the longitude mean, so it is used only when longitude is summed too. A call that keeps its longitudes uses the Gauss-Legendre colatitude grid (`latitude_nodes`) whatever `latitude_analytic` says. Pass `latitude_analytic=False` to use that grid for a longitude-summed call as well. The two agree to machine precision. The longitude integral is the analytic `2*pi` times the longitude mean when averaged, or a `longitude_nodes` trapezoid when instantaneous.
+
+With `latitude_summed`, `colatitude_min` and `colatitude_max` [rad] (defaults 0 and pi) restrict the colatitude integral to `colatitude_min <= theta <= colatitude_max`. Complementary bands add up to the full-sphere result, so zonal heating budgets (polar caps against an equatorial belt, for example) take a few banded calls. A band narrower than the full sphere always uses Gauss-Legendre quadrature, because the analytic Gram table covers the full sphere only. The band has no effect when colatitude is not summed.
+
+The returned dict carries the surviving axes plus one of:
+
+- `heating`: the grid over the surviving axes, in the order radius, colatitude, longitude, time.
+- `total` [W] and `per_layer` [W], when all three spatial axes are summed.
+
+The C++ code writes the heating directly into the returned arrays:
 
 ```python
 longitudes = np.linspace(0.0, 2.0 * np.pi, 60)
@@ -230,11 +239,11 @@ res = world.calc_3d_tides(
 res['heating']   # shape (nr, ncolat, nlon, ntime)
 ```
 
-The fully collapsed `total` equals the 1D global `get_tidal_heating`; per-layer totals sum to it (they replace the `tidal_scale` distribution for the depth-resolved rheology path); the radial and colatitude profiles integrate to it. The secular colatitude collapse is analytic (the angular Gram table), and the fallback `latitude_nodes` (16) adds margin over the ~4 colatitude nodes a homogeneous degree-2 body needs. The radial collapse keeps its `radial_slices` nodes (16 per layer by default) strictly inside each layer. A node on a layer boundary would read the modulus and radial solution of the layer below, so a layer sitting on a stiffer one would lose part of its own heating. With the nodes inside, the collapsed total matches the 1D heating to better than 1e-4 from 4 nodes per layer, for a homogeneous body and for the bundled Io, whose thin asthenosphere has a sixtieth of the shear modulus of the mantle beneath it. The default adds margin for higher degree l.
+The per-layer totals replace the `tidal_scale` distribution for the depth-resolved rheology path. The radial and colatitude profiles integrate to the total. The fallback `latitude_nodes` (16) adds margin over the ~4 colatitude nodes a homogeneous degree-2 body needs. The `radial_slices` nodes sit strictly inside each layer because a node on a layer boundary would read the modulus and radial solution of the layer below, so a layer sitting on a stiffer one would lose part of its own heating. With the nodes inside, the collapsed total matches the 1D heating to better than 1e-4 from 4 nodes per layer, for a homogeneous body and for the bundled Io, whose thin asthenosphere has a sixtieth of the shear modulus of the mantle beneath it. The default adds margin for higher degree l.
 
 #### Displacements: `calc_3d_displacements`
 
-The same machinery gives the instantaneous tidal displacements. For each coherent wave the radial functions $y_1$ (radial displacement) and $y_3$ (tangential displacement) of the wave's radial solution set the complex displacement amplitude at a point, $\mathbf{u} = \left(y_1 U,\; y_3\, \partial U / \partial\theta,\; y_3\, (\partial U / \partial\phi) / \sin\theta\right)$ (TB05 Eq. 9), which is evolved in time as $\mathrm{Re}\left[\mathbf{u}\, e^{i|\omega| t}\right]$ and summed over the waves (the phasor convention of the instantaneous heating). The world method returns the three components on the full `(radius, colatitude, longitude, time)` grid in metres:
+For each coherent wave, the radial functions $y_1$ (radial displacement) and $y_3$ (tangential displacement) set the complex displacement amplitude at a point, $\mathbf{u} = \left(y_1 U,\; y_3\, \partial U / \partial\theta,\; y_3\, (\partial U / \partial\phi) / \sin\theta\right)$ (Tobie et al. 2005, Eq. 9). The amplitude evolves in time as $\mathrm{Re}\left[\mathbf{u}\, e^{i|\omega| t}\right]$ and is summed over the waves. `calc_3d_displacements` returns the three instantaneous displacement components on the full `(radius, colatitude, longitude, time)` grid [m]:
 
 ```python
 out = world.calc_3d_displacements(
@@ -244,11 +253,11 @@ out = world.calc_3d_displacements(
 out["radial"].shape        # (2, 30, 60, 12)   u_r [m]; also out["polar"], out["azimuthal"]
 ```
 
-At the surface $y_1 = h / g$ and $y_3 = l / g$, so the surface radial displacement is $h U / g$ for a single mode. It requires the rheology tide model, a solved EOS, and a radial-solver Love-number method (the analytic `homogeneous`/`cpl`/`ctl` methods have no radial functions). A radius without a depth-resolved solution (the center, below the solver start) is NaN. The radial functions themselves are available at any radius through `world.get_love_radial_y(radius, ytype_idx, y_idx)` after a radial-solver Love solve.
+At the surface $y_1 = h / g$ and $y_3 = l / g$, so the surface radial displacement is $h U / g$ for a single mode. `calc_3d_displacements` requires the rheology tide model, a solved EOS, and a radial-solver Love-number method (the analytic `homogeneous`/`cpl`/`ctl` methods have no radial functions). A radius without a depth-resolved solution (the center, below the solver start) is NaN. The radial functions themselves are available at any radius through `world.get_love_radial_y(radius, ytype_idx, y_idx)` after a radial-solver Love solve.
 
 #### Stress and Strain: `calc_3d_stress_strain`
 
-The same waves give the instantaneous stress and strain tensors. At each point every wave's complex stress and strain amplitude is added into the total of its frequency, and each component at time $t$ is the sum over frequencies of $\mathrm{Re}\left[A\, e^{i|\omega| t}\right]$ for the complex amplitude $A$, the convention of the displacements and the instantaneous heating. The world method returns both tensors on the full `(radius, colatitude, longitude, time)` grid with the six components on the last axis, ordered `rr`, `theta_theta`, `phi_phi`, `r_theta`, `r_phi`, `theta_phi` (also returned as `components`). The strain is the symmetric gradient of the displacement field of `calc_3d_displacements`.
+At each point, every wave's complex stress and strain amplitudes are added into the total of its frequency. Each component at time $t$ is the sum over frequencies of $\mathrm{Re}\left[A\, e^{i|\omega| t}\right]$, with $A$ the complex amplitude. `calc_3d_stress_strain` returns both instantaneous tensors on the full `(radius, colatitude, longitude, time)` grid with the six components on the last axis, ordered `rr`, `theta_theta`, `phi_phi`, `r_theta`, `r_phi`, `theta_phi` (also returned as `components`). The strain is the symmetric gradient of the displacement field of `calc_3d_displacements`.
 
 ```python
 tensors = world.calc_3d_stress_strain(
@@ -267,13 +276,19 @@ radial_stress = tensors['stress'][..., 0]   # The rr component
 peak_stress = np.abs(tensors['stress']).max(axis=3)   # Largest magnitude of each component over the times
 ```
 
-Each tensor takes 48 bytes per grid point and time, and either can be skipped with `return_stress=False` or `return_strain=False`. The C++ code writes directly into the returned arrays. The kernel applies to solid layers only, so a point in a liquid layer, or at a radius without a depth-resolved solution, is NaN. Like the displacement grid, the stress and strain grids carry the time-varying tide only: modes at zero forcing frequency, the permanent tide, are not included. Over a common period of the modes each component therefore averages to zero, even in a strongly dissipative body. Dissipation shows up instead as a lag of the strain behind the stress and as the positive mean power that `calc_3d_tides` returns.
+Each tensor takes 48 bytes per grid point and time, and either can be skipped with `return_stress=False` or `return_strain=False`. The C++ code writes directly into the returned arrays. A point in a liquid layer, or at a radius without a depth-resolved solution, is NaN. Like the displacement grid, the stress and strain grids carry the time-varying tide only: modes at zero forcing frequency, the permanent tide, are not included. Over a common period of the modes, each component therefore averages to zero, even in a strongly dissipative body. Dissipation appears instead as a lag of the strain behind the stress and as the positive mean power that `calc_3d_tides` returns.
 
 #### Threads
 
-Every grid method, `get_3d_tidal_heating_array`, `calc_3d_tides`, `calc_3d_displacements`, and `calc_3d_stress_strain`, takes `num_threads`, default 0, which uses the logical processors less 4 (at least 1). The radial solves, one per degree and frequency, run first on up to `num_threads` threads once there are at least `[numerical]` `love_solve_min_parallel` of them (default 3). The per-point evaluation after them runs over colatitude rows on up to `num_threads` threads, and rows that add into the same cells, as when colatitude is summed, are combined in row order. The analytic colatitude collapse of `calc_3d_tides`, the default when the secular heating is summed over colatitude, has no per-point grid and spreads its radii over the threads instead, at least `[numerical]` `tides_3d_min_radii_per_thread` (default 8) to a thread. The result is identical for any thread count.
+Every grid method (`get_3d_tidal_heating_array`, `calc_3d_tides`, `calc_3d_displacements`, and `calc_3d_stress_strain`) takes `num_threads`. The default, 0, uses the logical processors less 4, with a minimum of 1. The work is split as follows:
 
-The default leaves part of the machine free for other work. Inside a process or thread pool whose workers already occupy the machine, pass `num_threads=1`. Notebook 13 times three grids on one thread and on every core.
+- The radial solves, one per degree and frequency, run first. They use up to `num_threads` threads once there are at least `[numerical]` `love_solve_min_parallel` of them (default 3).
+- The per-point evaluation then runs over colatitude rows on up to `num_threads` threads. Rows that add into the same cells, as when colatitude is summed, are combined in row order.
+- The analytic colatitude collapse of `calc_3d_tides`, the default when the secular heating is summed over colatitude, has no per-point grid. It spreads its radii over the threads instead, at least `[numerical]` `tides_3d_min_radii_per_thread` (default 8) to a thread.
+
+The result is identical for any thread count.
+
+Inside a process or thread pool whose workers already occupy the machine, pass `num_threads=1`. Notebook 13 times three grids on one thread and on every core.
 
 ```python
 import os
@@ -293,7 +308,7 @@ grid = world.calc_3d_tides(
 
 ### Engine and Kernel Access
 
-The potential engine is exposed directly for callers building their own pipelines. It returns each raw mode's degree, signed frequency, and the complex angular-factor amplitudes (one entry per `(l, m, p, q)`, before the coherent merge; a caller summing heating from these must combine the modes at each frequency first):
+`tidal_potential_3d_modes` exposes the potential engine for custom pipelines. It returns one entry per raw `(l, m, p, q)` mode, before the coherent merge:
 
 ```python
 from TidalPy.constants import G
@@ -307,13 +322,13 @@ degrees, freqs, pots = tidal_potential_3d_modes(
 # pots[i] = complex (U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi) for mode i
 ```
 
-The compiled kernel the world methods use is also callable point by point from `Tides.multilayer.stress_strain`:
+`Tides.multilayer.stress_strain` exposes the compiled kernel of the world methods point by point:
 
 - `strain_stress_heating_point` returns the six complex strain and six complex stress amplitudes at a point for one mode, and that mode's own heating [W m-3] at the frequency given.
 - `displacement_point` returns the complex displacement amplitudes $u_r = y_1 U$, $u_\theta = y_3\, \partial U / \partial\theta$, and $u_\phi = y_3\, (\partial U / \partial\phi) / \sin\theta$ [m].
 - `volumetric_heating(stress, strain, frequency)` returns the cycle-averaged heating `(|omega| / 2) |sum_k w_k Im(sigma_k conj(eps_k))|` [W m-3] of amplitudes at the frequency `omega`, with `w_k = 2` on the three off-diagonal components, the same factor the world path applies.
 
-The first two take one row from `tidal_potential_3d_modes` together with the radial functions and complex moduli at the point, which the world provides after a radial-solver Love solve. A real row is also accepted and is treated as a phasor with zero phase. Assembling several modes follows the rules the world methods use:
+The first two take one row from `tidal_potential_3d_modes` together with the radial functions and complex moduli at the point, which the world provides after a radial-solver Love solve. A real row is treated as a phasor with zero phase. Assembling several modes follows the rules of the world methods:
 
 - Solve the radial problem and evaluate the moduli at each mode's degree and `|omega|`, and conjugate the row of a mode with `omega < 0` so that its amplitudes sit at `+|omega|`.
 - Sum the strain and stress amplitudes of every mode that shares one `|omega|` before forming the heating. `volumetric_heating` of those sums at `|omega|` is the secular heating at that frequency [W m-3], and the frequencies add.
