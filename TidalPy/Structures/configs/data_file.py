@@ -23,6 +23,11 @@ the static moduli follow
 A profile may instead give those moduli directly, and may add a shear and a bulk viscosity. Without
 viscosities the layers are elastic: nothing dissipates, and no viscosity or partial-melt model is built.
 
+A seismic profile usually gives quality factors instead of viscosities: Q_mu (``q_mu``) and Q_kappa
+(``q_kappa``). They are read whenever the columns are present, and used only when the world sets
+``q_provided = true``, when each solid layer takes the ``seismic_q`` rheology and the factors ride in its
+viscosity arrays (see the world builder).
+
 Columns are found by name, so their order does not matter and they may state their units; a name whose
 unit is not one this reader converts is taken to be MKS already. A file with no header is read
 positionally in the canonical order. :func:`detect_layer_boundaries` then splits the profile at every
@@ -55,6 +60,9 @@ _COLUMN_ALIASES = {
     "bulk_modulus":    ("bulk_modulus", "k", "bulk", "incompressibility"),
     # An alternative to the radius, converted with the world's surface radius.
     "depth":           ("depth", "z"),
+    # Quality factors, Q_mu (= Q_S) and Q_kappa; dimensionless, so they take no unit.
+    "shear_q":         ("q_mu", "qmu", "q_shear", "q_s", "qs", "q_beta", "qbeta"),
+    "bulk_q":          ("q_kappa", "qkappa", "q_bulk", "q_k", "qk"),
 }
 
 # The order a headerless file must list its columns in. The last two are optional.
@@ -295,8 +303,9 @@ def load_radial_data(source: Union[str, dict], surface_radius: Optional[float] =
     dict
         ``radius_m``, ``density_kg_m3``, ``shear_modulus_pa``, and ``bulk_modulus_pa`` always;
         ``vp_m_s`` / ``vs_m_s`` when the profile gave velocities and ``shear_viscosity_pas`` /
-        ``bulk_viscosity_pas`` when it gave viscosities (``None`` otherwise). Every array is
-        contiguous ``float64``, sorted ascending in radius.
+        ``bulk_viscosity_pas`` when it gave viscosities, and ``shear_q`` / ``bulk_q`` when it gave
+        quality factors (``None`` otherwise). Every array is contiguous ``float64``, sorted ascending in
+        radius.
 
     Raises
     ------
@@ -359,6 +368,8 @@ def load_radial_data(source: Union[str, dict], surface_radius: Optional[float] =
         "bulk_modulus_pa":     bulk_modulus,
         "shear_viscosity_pas": _scaled(columns["shear_viscosity"]) if "shear_viscosity" in columns else None,
         "bulk_viscosity_pas":  _scaled(columns["bulk_viscosity"]) if "bulk_viscosity" in columns else None,
+        "shear_q":             columns["shear_q"][0] if "shear_q" in columns else None,
+        "bulk_q":              columns["bulk_q"][0] if "bulk_q" in columns else None,
     }
     if radius.size < 2:
         raise ValueError(f"Radial data{where} has {radius.size} row(s); a profile needs at least 2.")
@@ -424,6 +435,11 @@ def _validate_profile(arrays: dict, where: str) -> None:
     for key in ("shear_viscosity_pas", "bulk_viscosity_pas"):
         if arrays[key] is not None and np.any(arrays[key] <= 0.0):
             raise ValueError(f"Radial data{where} has a non-positive {key[:-4].replace('_', ' ')}.")
+    # A liquid's Q_mu is conventionally 0, so zero is allowed here; the world builder requires a positive Q in
+    # the solid layers that use it.
+    for key in ("shear_q", "bulk_q"):
+        if arrays[key] is not None and np.any(arrays[key] < 0.0):
+            raise ValueError(f"Radial data{where} has a negative {key.replace('_', ' ')} (quality factor).")
 
 
 # =====================================================================================================================

@@ -11,6 +11,7 @@ from TidalPy.Rheology.rheology cimport (
     Andrade,
     Sundberg,
     Zener,
+    SeismicQ,
     c_RheologyBase,
     c_RheologyConfig,
     c_RheologyModel,
@@ -22,6 +23,7 @@ from TidalPy.Rheology.rheology cimport (
     c_Andrade,
     c_Sundberg,
     c_Zener,
+    c_SeismicQ,
     c_find_rheology,
     c_rheology_model_from_name,
 )

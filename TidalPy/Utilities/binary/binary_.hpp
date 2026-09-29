@@ -87,6 +87,7 @@ enum class BinaryClassID : uint32_t {
     Andrade          = 306,
     Sundberg         = 307,
     Zener            = 308,
+    SeismicQ         = 309,
     // 4XX: Thermodynamic cooling models
     CoolingBase        = 400,
     OffCooling         = 401,

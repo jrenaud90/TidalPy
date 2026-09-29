@@ -363,8 +363,10 @@ A profile is a delimited table (comma, semicolon, tab, or whitespace; `#` commen
 | bulk modulus | `bulk_modulus`, `k`, `incompressibility` | Pa | instead of the velocities |
 | shear viscosity | `shear_viscosity`, `eta`, `viscosity` | Pa s | no |
 | bulk viscosity | `bulk_viscosity`, `eta_bulk`, `zeta` | Pa s | no |
+| shear quality factor $Q_\mu$ | `q_mu`, `qmu`, `q_shear`, `q_s`, `q_beta` | none | no; used only with `q_provided = true` |
+| bulk quality factor $Q_\kappa$ | `q_kappa`, `qkappa`, `q_bulk`, `q_k` | none | no; used only with `q_provided = true` |
 
-Names are matched ignoring case and punctuation, so `Vp`, `V_P`, and `vp` are one name. A name may state its unit: `radius_km`, `Vp [km/s]`, `rho_kg_m3`. A unit the reader does not convert is taken to be MKS. Columns are found by name, so their order does not matter. The names come from a header row or from the last `#` comment line before the data. That comment line must name every column, so prose about the data is not mistaken for a header. A file with no header is read positionally as radius, density, `Vp`, `Vs`, shear viscosity, bulk viscosity.
+Names are matched ignoring case and punctuation, so `Vp`, `V_P`, and `vp` are one name. A name may state its unit: `radius_km`, `Vp [km/s]`, `rho_kg_m3`. A unit the reader does not convert is taken to be MKS. Columns are found by name, so their order does not matter. The names come from a header row or from the last `#` comment line before the data. That comment line must name every column, so prose about the data is not mistaken for a header. A file with no header is read positionally as radius, density, `Vp`, `Vs`, shear viscosity, bulk viscosity, so quality factors need a header.
 
 A radius or depth with no stated unit is read as kilometers below 100 km and as meters above it. The file may be ordered surface-first or center-first (it is sorted internally). Where the velocities are given, the static moduli are derived per row: shear $\mu = \rho V_s^2$, bulk $K = \rho \left(V_p^2 - \tfrac{4}{3} V_s^2\right)$.
 
@@ -385,6 +387,7 @@ A table picks the detected layer it refines with `layer_index`, or by being name
 - An index outside the detected range raises an error.
 - A constant modulus or viscosity (_e.g._, `bulk_modulus_static_pa = 1.0e11`) replaces that layer's array with the constant: TOML overrides the data file.
 - Other keys (`class`, `type`, the model sub-tables, …) override the detected values. Naming a `type` brings that material block's defaults back.
+- In a world that sets `q_provided = true`, a table may not give a viscosity or a `type`, and names no rheology but `seismic_q` (or `elastic` for the bulk); see below.
 
 ```toml
 [layers.mantle]             # refines the outermost detected layer; the other two need no table
@@ -394,6 +397,31 @@ model = "maxwell"
 [layers.mantle.material]
 shear_viscosity_static_pas = 1.0e21   # the profile named no viscosity, so give one here
 ```
+
+### Quality Factors in Place of Viscosities
+
+Seismic profiles give quality factors, not viscosities: PREM tabulates $Q_\mu$ and $Q_\kappa$ at its 1 s reference period. Setting `q_provided = true` builds each solid layer's loss from them with the [`seismic_q` rheology](../../Rheology/rheology_models.md), with no viscosity involved. The complex modulus is the profile's static modulus with $Q(\omega) = Q_\mathrm{ref}(\omega/\omega_\mathrm{ref})^{a}$ and the dispersion that loss implies.
+
+```toml
+data_file = "PREM.csv"                             # carries q_mu and q_kappa columns
+q_provided = true                                  # default false: the Q columns are read but not used
+q_reference_frequency_rad_s = 6.283185307179586    # where the Q and the moduli were measured; default 2 pi (1 s)
+q_frequency_exponent = 0.0                         # a in Q ~ omega^a, in [0, 1); default 0
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `q_provided` | `false` | Use the profile's quality factors. The profile must then give `q_mu` and must not give viscosities. |
+| `q_reference_frequency_rad_s` | $2\pi$ | Frequency \[rad s⁻¹\] at which the profile's $Q$ and moduli were measured. |
+| `q_frequency_exponent` | 0.0 | Exponent $a$ of $Q \propto \omega^{a}$. $a = 0$ keeps the seismic $Q$ at tidal periods; $a > 0$ lowers it there. |
+
+These keys belong only to a world with a profile. The last two require `q_provided = true`, so a setting cannot be silently ignored.
+
+- **Solid layers.** Each gets `shear_rheology = {model = "seismic_q", ...}` with the world's two settings, and a `bulk_rheology` of the same kind when the profile gives `q_kappa`. The quality factors ride in the layer's viscosity arrays, which is where `seismic_q` reads them. They must be positive in every solid row.
+- **Liquid layers.** These (a liquid's $Q_\mu$ is conventionally 0) take no quality factor and no rheology.
+- **Refinement tables.** A `[layers.<name>]` table may name `seismic_q` with its own `reference_frequency_rad_s` or `q_frequency_exponent` to override the world's for that layer, or set an `elastic` bulk rheology to ignore $Q_\kappa$. It may not name another rheology, give a viscosity, or name a material `type`: each would put a viscosity where `seismic_q` reads a quality factor.
+
+The bundled `earth_prem_q` world is PREM with its own quality factors. At 1 s its $k_2$ equals the elastic PREM's. At the M2 tide the dispersion raises it from 0.298 to 0.302, with $|k_2|/|\mathrm{Im}\,k_2| \approx 500$; with `q_frequency_exponent = 0.15` that ratio falls to about 100. See [`example_profile_q_world.toml`](examples/example_profile_q_world.toml).
 
 The `data_file` path is resolved relative to the world TOML's directory, then the worlds data directory, then the packaged `WorldPack` (see [`worldpack.md`](worldpack.md)). A world built this way pins `integration_method = "RK45"` in its `[eos_solver]` table unless the file sets that key, and `get_solver_defaults()` reports it. On an interpolated profile RK45 is about 2.8 times faster than DOP853 at equal accuracy, because the profile's kinks defeat the higher order.
 

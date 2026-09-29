@@ -10,6 +10,7 @@ Five files under `Documentation/Structures/config/examples/` use, between them, 
 | `example_gasgiant.toml` | A gas giant: the gas-layer scalars, the per-degree lists of an analytic tide model (`ctl_q`), the long spellings of the truncation keys, and the `ctl` Love method with its stored lag. |
 | `example_star.toml` | A star: the two stellar scalars, the `[luminosity]` model table, and the `cpl` tide model. |
 | `example_profile_world.toml` | A world built from a radial data file: `data_file`, the two ways a table refines a detected layer, and a file overriding the RK45 default such worlds pin. |
+| `example_profile_q_world.toml` | A world whose radial data file's quality factors set the loss: `q_provided`, its two settings, and a layer overriding them with its own `seismic_q` table. |
 | `example_system.toml` | A system: the star flag, tidal hosts, both orbits, and a member from a bundled name, a member from a file path, and a member given inline. |
 
 Build any of them with `build_world(path)` or `build_system(path)`; the system's file-path member resolves against the working directory, so build it from the `examples` directory or edit the path.
@@ -35,6 +36,12 @@ Build any of them with `build_world(path)` or `build_system(path)`; the system's
 ## A World From a Radial Profile
 
 ```{literalinclude} examples/example_profile_world.toml
+:language: toml
+```
+
+## A World From a Radial Profile's Quality Factors
+
+```{literalinclude} examples/example_profile_q_world.toml
 :language: toml
 ```
 

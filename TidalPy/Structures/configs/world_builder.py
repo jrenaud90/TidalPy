@@ -13,6 +13,7 @@ the layer's material ``type``; only if that is also absent does the constructor 
 """
 
 import copy
+import math
 import re
 import warnings
 from typing import Optional, Union, Callable
@@ -46,6 +47,7 @@ from TidalPy.Structures.configs.toml_loader import (
     ALLOWED_MODEL_SECTIONS,
     LAYER_GEOMETRY_SPEC_KEYS,
     _config_section,
+    _require_number,
     ordered_layers,
     outer_radius_from_spec,
     validate_layer_config,
@@ -356,7 +358,7 @@ def build_layer_from_dict(config: dict):
 
 
 # Radial data expansion: a PREM-like profile describing the world's geometry and materials.
-def _layers_from_radial_data(arrays: dict) -> list:
+def _layers_from_radial_data(arrays: dict, liquid_loss: bool = True) -> list:
     """Split a normalized radial profile into layers and give each one an interpolated material.
 
     The profile is split at every solid/liquid transition (see
@@ -370,6 +372,9 @@ def _layers_from_radial_data(arrays: dict) -> list:
     ----------
     arrays : dict
         The MKS arrays from :func:`data_file.load_radial_data`.
+    liquid_loss : bool, optional
+        Whether liquid layers take the viscosity arrays too. Off when those arrays hold quality factors, which
+        a liquid does not have (a seismic table gives it Q_mu = 0).
 
     Returns
     -------
@@ -387,6 +392,7 @@ def _layers_from_radial_data(arrays: dict) -> list:
     auto_layers = []
     for index, (start, end, is_solid) in enumerate(data_file.detect_layer_boundaries(radius, shear)):
         stop = end + 1
+        with_loss = bool(is_solid) or liquid_loss
         layer_cfg = _interpolated_layer_config(
             index          = index,
             radius         = radius[start:stop],
@@ -396,8 +402,8 @@ def _layers_from_radial_data(arrays: dict) -> list:
             is_solid       = bool(is_solid),
             # A layer with zero shear velocity is liquid, and is solved as a static liquid.
             is_static      = True,
-            shear_viscosity = None if shear_visc is None else shear_visc[start:stop],
-            bulk_viscosity  = None if bulk_visc is None else bulk_visc[start:stop],
+            shear_viscosity = None if (shear_visc is None or not with_loss) else shear_visc[start:stop],
+            bulk_viscosity  = None if (bulk_visc is None or not with_loss) else bulk_visc[start:stop],
         )
         auto_layers.append((f"layer_{index}", layer_cfg))
     if not auto_layers:
@@ -625,6 +631,147 @@ def _user_layer_index(layer_name: str, user_cfg: dict, num_detected: int, world_
     return index
 
 
+# The world keys that say a radial profile's quality factors carry its loss, and how. q_provided switches it on; the
+# other two seed each solid layer's seismic_q rheology, whose own table may still override them. The reference
+# frequency defaults to PREM's (a 1 s period) and the exponent to a Q that does not change with frequency.
+Q_PROFILE_KEYS = ("q_provided", "q_reference_frequency_rad_s", "q_frequency_exponent")
+_Q_PROFILE_DEFAULTS = {"reference_frequency_rad_s": 2.0 * math.pi, "q_frequency_exponent": 0.0}
+_SEISMIC_Q_MODEL = "seismic_q"
+
+
+def _pop_q_settings(config: dict, world_name) -> Optional[dict]:
+    """Remove the quality-factor keys from a profile world's config; the seismic_q settings, or None when unused.
+
+    Raises
+    ------
+    ValueError
+        ``q_provided`` is not a boolean, a setting is out of range, or a setting is given without ``q_provided``.
+    """
+    import numpy as np
+
+    where = f"World '{world_name}'"
+    given = {key: config.pop(key) for key in Q_PROFILE_KEYS if key in config}
+    q_provided = given.pop("q_provided", False)
+    if not isinstance(q_provided, (bool, np.bool_)):
+        raise ValueError(f"{where}: 'q_provided' must be true or false, not {q_provided!r}.")
+    if not q_provided:
+        if given:
+            raise ValueError(
+                f"{where}: sets {sorted(given)} but not 'q_provided = true', so the profile's quality factors "
+                "would not be used.")
+        return None
+    settings = dict(_Q_PROFILE_DEFAULTS)
+    if "q_reference_frequency_rad_s" in given:
+        settings["reference_frequency_rad_s"] = _require_number(
+            where, "q_reference_frequency_rad_s", given["q_reference_frequency_rad_s"], minimum=0.0,
+            minimum_open=True)
+    if "q_frequency_exponent" in given:
+        settings["q_frequency_exponent"] = _require_number(
+            where, "q_frequency_exponent", given["q_frequency_exponent"], minimum=0.0, maximum=1.0,
+            maximum_open=True)
+    return settings
+
+
+def _quality_factors_as_loss(arrays: dict, world_name, source) -> dict:
+    """Put a profile's quality factors where its viscosities would go, which is where seismic_q reads them.
+
+    Raises
+    ------
+    ValueError
+        The profile gives no Q_mu, or gives viscosities as well (the two would claim the same arrays).
+    """
+    where = f"World '{world_name}'"
+    if arrays["shear_q"] is None:
+        # A data file copied into the TidalPy data directory by an older install is used ahead of the packaged
+        # one, and may predate its quality-factor columns.
+        stale_hint = (
+            f" The file used was '{source}'; if an older install copied it into the TidalPy data directory, "
+            "delete that copy or call TidalPy.Structures.install_worldpack(force=True)."
+            if isinstance(source, str) else "")
+        raise ValueError(
+            f"{where}: sets 'q_provided = true' but its radial profile has no Q_mu column (name it q_mu)."
+            + stale_hint)
+    if arrays["shear_viscosity_pas"] is not None or arrays["bulk_viscosity_pas"] is not None:
+        raise ValueError(
+            f"{where}: sets 'q_provided = true' but its radial profile gives viscosities too. A layer takes its "
+            "loss from one or the other; drop the viscosity columns or set 'q_provided = false'.")
+    arrays = dict(arrays)
+    arrays["shear_viscosity_pas"] = arrays["shear_q"]
+    arrays["bulk_viscosity_pas"] = arrays["bulk_q"]
+    return arrays
+
+
+def _check_q_layer_table(user_cfg: dict, layer_name: str, world_name) -> None:
+    """Refuse a layer table that would put something other than the profile's quality factors in its loss arrays.
+
+    A viscosity given as a constant would replace them, and a material ``type`` brings viscosity models that
+    would overwrite them; seismic_q would then read a viscosity as a quality factor.
+    """
+    where = f"World '{world_name}', layer '{layer_name}'"
+    user_material = user_cfg.get("material", {}) or {}
+    for key in ("shear_viscosity_static_pas", "bulk_viscosity_static_pas", "shear_viscosity_pas",
+                "bulk_viscosity_pas", "shear_viscosity", "bulk_viscosity"):
+        if key in user_material:
+            raise ValueError(
+                f"{where}: sets the material's '{key}', but with 'q_provided = true' the layer's loss comes from "
+                "the profile's quality factors, not a viscosity.")
+    if user_cfg.get("type", NO_MATERIAL_TYPE) != NO_MATERIAL_TYPE:
+        raise ValueError(
+            f"{where}: names the material type '{user_cfg['type']}', whose viscosity models would replace the "
+            "profile's quality factors (the world sets 'q_provided = true'). Leave 'type' unset.")
+
+
+def _seismic_q_table(table, settings: dict, where: str, allow_elastic: bool):
+    """A rheology table completed as seismic_q with the world's settings under its own; None for an allowed elastic.
+
+    Raises
+    ------
+    ValueError
+        The table names a rheology that would read the quality factors as viscosities.
+    """
+    if table is None:
+        return {"model": _SEISMIC_Q_MODEL, **settings}
+    model = str(table.get("model", _SEISMIC_Q_MODEL))
+    if _same_rheology_model(model, _SEISMIC_Q_MODEL):
+        return {**settings, **table, "model": model}
+    if allow_elastic and _same_rheology_model(model, "elastic"):
+        return None
+    raise ValueError(
+        f"{where} names the '{model}' rheology, but with 'q_provided = true' the layer's loss arrays hold quality "
+        f"factors, which only the '{_SEISMIC_Q_MODEL}' rheology reads"
+        + (" (or 'elastic', which ignores them)." if allow_elastic else "."))
+
+
+def _attach_seismic_q(layer_cfg: dict, layer_name: str, world_name, settings: dict, has_bulk_q: bool) -> dict:
+    """Give a solid profile layer the seismic_q rheology that reads its quality factors.
+
+    Its shear rheology becomes seismic_q (a layer table naming seismic_q keeps its own settings over the world's).
+    Its bulk rheology does too when the profile gave Q_kappa, unless the layer table asks for an elastic bulk.
+
+    Raises
+    ------
+    ValueError
+        A quality factor in the layer is not positive, or the layer table names another rheology.
+    """
+    where = f"World '{world_name}', layer '{layer_name}'"
+    layer_cfg = dict(layer_cfg)
+    material = layer_cfg["material"]
+    for key, label in (("shear_viscosity_pas", "Q_mu"), ("bulk_viscosity_pas", "Q_kappa")):
+        values = material.get(key)
+        if values is not None and min(values) <= 0.0:
+            raise ValueError(
+                f"{where}: is solid but its profile gives a {label} of {min(values):g}; a solid layer's quality "
+                "factors must be positive.")
+    layer_cfg["shear_rheology"] = _seismic_q_table(
+        layer_cfg.get("shear_rheology"), settings, f"{where}: its shear_rheology", allow_elastic=False)
+    if has_bulk_q:
+        bulk = _seismic_q_table(
+            layer_cfg.get("bulk_rheology"), settings, f"{where}: its bulk_rheology", allow_elastic=True)
+        if bulk is not None:
+            layer_cfg["bulk_rheology"] = bulk
+    return layer_cfg
+
+
 def _expand_radial_data(config: dict) -> dict:
     """Expand a world config that gives a radial profile in place of its layer geometry and materials.
 
@@ -638,12 +785,20 @@ def _expand_radial_data(config: dict) -> dict:
     being refined need one. Returns a copy of ``config`` whose ``layers`` table is the detected
     layers with those refinements merged in; a config with neither profile key is returned
     unchanged.
+
+    A profile giving quality factors in place of viscosities is used that way when the world sets
+    ``q_provided = true``; see :func:`_attach_seismic_q`.
     """
     from TidalPy.Structures.configs import data_file
 
     has_file = "data_file" in config
     has_data = "data" in config
     if not (has_file or has_data):
+        given_q_keys = sorted(key for key in Q_PROFILE_KEYS if key in config)
+        if given_q_keys:
+            raise ValueError(
+                f"World '{config.get('name')}' sets {given_q_keys}, which describe the quality factors of a "
+                "radial profile, but gives no profile ('data_file' or 'data').")
         return config
     if has_file and has_data:
         raise ValueError(
@@ -657,12 +812,17 @@ def _expand_radial_data(config: dict) -> dict:
             "'radius_m' key.")
     world_radius = config["radius_m"]
     world_name = config.get("name")
+    # Spent here: once expanded, each layer carries its rheology and its quality factors itself.
+    q_settings = _pop_q_settings(config, world_name)
 
     if has_file:
         source = worldpack.resolve_data_file(config["data_file"])
     else:
         source = config.pop("data")     # the arrays live on in each layer's material
-    auto_layers = _layers_from_radial_data(data_file.load_radial_data(source, surface_radius=world_radius))
+    arrays = data_file.load_radial_data(source, surface_radius=world_radius)
+    if q_settings is not None:
+        arrays = _quality_factors_as_loss(arrays, world_name, source)
+    auto_layers = _layers_from_radial_data(arrays, liquid_loss=(q_settings is None))
 
     # Each user table refines one detected layer, and lends it its own name.
     names = [name for name, _ in auto_layers]
@@ -676,7 +836,15 @@ def _expand_radial_data(config: dict) -> dict:
                 f"refine detected layer {index}.")
         claimed[index] = layer_name
         names[index] = layer_name
+        if q_settings is not None:
+            _check_q_layer_table(user_cfg, layer_name, world_name)
         merged[index] = _merge_radial_data_layer(merged[index], user_cfg, world_radius, layer_name)
+
+    if q_settings is not None:
+        for index, layer_cfg in enumerate(merged):
+            if auto_layers[index][1]["is_solid"]:
+                merged[index] = _attach_seismic_q(
+                    layer_cfg, names[index], world_name, q_settings, arrays["bulk_viscosity_pas"] is not None)
 
     # A table named after a layer it does not refine would otherwise silently take that layer's place.
     duplicates = {name for name in names if names.count(name) > 1}

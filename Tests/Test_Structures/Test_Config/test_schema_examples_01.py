@@ -20,7 +20,8 @@ from TidalPy.Viscosity.viscosity import VISCOSITY_CONFIG_KEYS
 
 EXAMPLES = os.path.normpath(os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "Documentation", "Structures", "config", "examples"))
-WORLD_FILES = ("example_world", "example_gasgiant", "example_star", "example_profile_world")
+WORLD_FILES = ("example_world", "example_gasgiant", "example_star", "example_profile_world",
+               "example_profile_q_world")
 ALL_FILES = WORLD_FILES + ("example_system",)
 
 
@@ -52,7 +53,8 @@ def test_example_world_builds_and_round_trips(name):
         assert rebuilt.get_solver_defaults() == world.get_solver_defaults()
 
 
-@pytest.mark.parametrize("name", ("example_world", "example_gasgiant", "example_profile_world"))
+@pytest.mark.parametrize(
+    "name", ("example_world", "example_gasgiant", "example_profile_world", "example_profile_q_world"))
 def test_example_world_solves(name):
     world = build_world(_path(name))
     result = world.solve_eos(G_to_use=G)

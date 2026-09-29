@@ -21,6 +21,7 @@ _MODEL_CLASSES = [
     ("andrade",  "Andrade"),
     ("sundberg", "Sundberg"),
     ("zener",    "Zener"),
+    ("seismic_q", "SeismicQ"),
 ]
 _MODEL_NAMES = [name for name, _ in _MODEL_CLASSES]
 
@@ -53,6 +54,20 @@ def _zener_modulus(relaxed_frac=0.5, frequency=_OMEGA):
     return relaxed_frac * _MU + arm * iwt / (1.0 + iwt)
 
 
+_SEISMIC_REFERENCE = 2.0 * math.pi   # rad/s, a 1 s period
+
+
+def _seismic_q_modulus(quality_factor, frequency=_OMEGA, exponent=0.0, reference=_SEISMIC_REFERENCE):
+    """Q(omega) = Q s^-a and Re mu* = mu / (1 + D / Q), D = cot(a pi / 2)(s^a - 1) or (2 / pi) ln s."""
+    s = reference / abs(frequency)
+    if exponent == 0.0:
+        dispersion = (2.0 / math.pi) * math.log(s)
+    else:
+        dispersion = (s ** exponent - 1.0) / math.tan(0.5 * exponent * math.pi)
+    storage = _MU / (1.0 + dispersion / quality_factor)
+    return complex(storage, math.copysign(storage * s ** exponent / quality_factor, frequency))
+
+
 _REF_COMPLIANCE = {
     "elastic":  lambda: complex(1.0 / _MU, 0.0),
     "viscous":  lambda: complex(0.0, -1.0 / (_ETA * _OMEGA)),
@@ -62,6 +77,8 @@ _REF_COMPLIANCE = {
     "andrade":  _andrade_compliance,
     "sundberg": lambda: _andrade_compliance() + _voigt_compliance(),
     "zener":    lambda: 1.0 / _zener_modulus(),
+    # The viscosity input is read as the quality factor.
+    "seismic_q": lambda: 1.0 / _seismic_q_modulus(_ETA),
 }
 
 
@@ -192,6 +209,7 @@ def test_infinite_viscosity_voigt_is_rigid():
     ("Andrade", {"alpha": 0.25, "zeta": 2.0}),
     ("Sundberg", {"alpha": 0.4, "zeta": 3.0, "voigt_modulus_frac": 0.15, "voigt_viscosity_frac": 0.03}),
     ("Zener", {"relaxed_modulus_frac": 0.8}),
+    ("SeismicQ", {"reference_frequency_rad_s": 0.5, "q_frequency_exponent": 0.2}),
 ])
 def test_positional_parameters(cls_name, params):
     model = getattr(Rheology, cls_name)(*params.values())
@@ -221,6 +239,9 @@ def test_andrade_parameters_affect_modulus():
     ("Zener",           "zener"),
     ("sls",             "zener"),
     ("Standard_Linear_Solid", "zener"),
+    ("Seismic_Q",       "seismic_q"),
+    ("constant_q",      "seismic_q"),
+    ("power_law_q",     "seismic_q"),
 ])
 def test_make_rheology_aliases(alias, canonical):
     assert Rheology.make_rheology(alias).model_name == canonical
@@ -258,6 +279,7 @@ def test_make_rheology_adopted_object_is_usable(tmp_path):
     ("Andrade", {"model", "alpha", "zeta"}),
     ("Sundberg", {"model", "alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac"}),
     ("Zener", {"model", "relaxed_modulus_frac"}),
+    ("SeismicQ", {"model", "reference_frequency_rad_s", "q_frequency_exponent"}),
 ])
 def test_config_dict_keys(cls_name, keys):
     assert set(getattr(Rheology, cls_name)().get_config_dict()) == keys
@@ -275,7 +297,7 @@ def test_save_config_writes_toml(tmp_path):
 
 # Non-default constructor arguments for the models that take any.
 _NON_DEFAULT_ARGS = {"voigt": (0.33, 0.07), "burgers": (0.33, 0.07), "andrade": (0.42, 1.7),
-                     "sundberg": (0.42, 1.7, 0.33, 0.07), "zener": (0.23,)}
+                     "sundberg": (0.42, 1.7, 0.33, 0.07), "zener": (0.23,), "seismic_q": (0.5, 0.2)}
 
 
 @pytest.mark.parametrize("name,cls", _MODEL_CLASSES)
@@ -431,3 +453,91 @@ def test_zener_rejects_a_fraction_outside_zero_to_one(relaxed_frac):
         Rheology.Zener(relaxed_frac)
     with pytest.raises(ValueError, match="relaxed_modulus_frac"):
         Rheology.make_rheology("zener", {"relaxed_modulus_frac": relaxed_frac})
+
+
+# =====================================================================================================================
+# Seismic Q
+# =====================================================================================================================
+_Q_REF = 143.0      # PREM's upper-mantle Q_mu
+
+
+@pytest.mark.parametrize("exponent", [0.0, 0.15, 0.3])
+@pytest.mark.parametrize("frequency", [1.4e-4, _OMEGA, 1.0e-8, 20.0])
+def test_seismic_q_matches_reference(exponent, frequency):
+    model = Rheology.SeismicQ(_SEISMIC_REFERENCE, exponent)
+    expected = _seismic_q_modulus(_Q_REF, frequency, exponent)
+    _assert_complex_close(model.calc_complex_modulus(_MU, _Q_REF, frequency), expected)
+    _assert_complex_close(
+        Rheology.seismic_q(_MU, _Q_REF, frequency, q_frequency_exponent=exponent), expected)
+
+
+@pytest.mark.parametrize("exponent", [0.0, 0.2])
+def test_seismic_q_is_the_given_modulus_and_q_at_the_reference_frequency(exponent):
+    modulus = Rheology.SeismicQ(3.0, exponent).calc_complex_modulus(_MU, _Q_REF, 3.0)
+    assert modulus.real == pytest.approx(_MU, rel=1.0e-14)
+    assert modulus.imag == pytest.approx(_MU / _Q_REF, rel=1.0e-14)
+
+
+@pytest.mark.parametrize("exponent", [0.0, 0.1, 0.3])
+def test_seismic_q_follows_the_power_law(exponent):
+    """Q(omega) = Q_ref (omega / omega_ref)^a exactly, at every frequency."""
+    model = Rheology.SeismicQ(_SEISMIC_REFERENCE, exponent)
+    for frequency in (1.0e-7, 1.4e-4, 1.0):
+        modulus = model.calc_complex_modulus(_MU, _Q_REF, frequency)
+        expected_q = _Q_REF * (frequency / _SEISMIC_REFERENCE) ** exponent
+        assert modulus.real / modulus.imag == pytest.approx(expected_q, rel=1.0e-12)
+
+
+def test_seismic_q_disperses_as_kanamori_anderson():
+    """At a = 0 the storage modulus softens as 1 - (2 / pi Q) ln(omega_ref / omega), to first order in 1 / Q."""
+    tidal = 1.4e-4
+    got = Rheology.SeismicQ().calc_complex_modulus(_MU, _Q_REF, tidal).real
+    first_order = _MU * (1.0 - (2.0 / (math.pi * _Q_REF)) * math.log(_SEISMIC_REFERENCE / tidal))
+    assert got == pytest.approx(first_order, rel=5.0e-3)
+    assert got < _MU
+
+
+def test_seismic_q_exponent_is_continuous_at_zero():
+    at_zero = Rheology.SeismicQ(_SEISMIC_REFERENCE, 0.0).calc_complex_modulus(_MU, _Q_REF, 1.4e-4)
+    near_zero = Rheology.SeismicQ(_SEISMIC_REFERENCE, 1.0e-9).calc_complex_modulus(_MU, _Q_REF, 1.4e-4)
+    # Q itself moves by s^a = 1 + 1.1e-8 at this exponent.
+    assert near_zero.real == pytest.approx(at_zero.real, rel=1.0e-7)
+    assert near_zero.imag == pytest.approx(at_zero.imag, rel=1.0e-7)
+
+
+def test_seismic_q_loss_is_odd_in_frequency():
+    model = Rheology.SeismicQ(_SEISMIC_REFERENCE, 0.2)
+    positive = model.calc_complex_modulus(_MU, _Q_REF, 1.0e-4)
+    negative = model.calc_complex_modulus(_MU, _Q_REF, -1.0e-4)
+    assert negative.real == positive.real
+    assert negative.imag == -positive.imag
+
+
+@pytest.mark.parametrize("quality_factor,frequency", [(_Q_REF, 0.0), (math.inf, _OMEGA)])
+def test_seismic_q_unforced_or_lossless_is_the_modulus(quality_factor, frequency):
+    assert Rheology.SeismicQ().calc_complex_modulus(_MU, quality_factor, frequency) == complex(_MU, 0.0)
+
+
+@pytest.mark.parametrize("quality_factor", [0.0, -5.0, math.nan])
+def test_seismic_q_without_a_positive_q_is_nan(quality_factor):
+    modulus = Rheology.SeismicQ().calc_complex_modulus(_MU, quality_factor, _OMEGA)
+    assert math.isnan(modulus.real) and math.isnan(modulus.imag)
+
+
+def test_seismic_q_dispersion_through_zero_is_nan():
+    """Far enough above the reference frequency a low Q with a small exponent would drive the modulus negative."""
+    modulus = Rheology.SeismicQ(1.0e-3, 0.05).calc_complex_modulus(_MU, 2.0, 1.0e30)
+    assert math.isnan(modulus.real)
+
+
+@pytest.mark.parametrize("params,match", [
+    ({"reference_frequency_rad_s": 0.0}, "reference_frequency_rad_s"),
+    ({"reference_frequency_rad_s": math.inf}, "reference_frequency_rad_s"),
+    ({"q_frequency_exponent": -0.1}, "q_frequency_exponent"),
+    ({"q_frequency_exponent": 1.0}, "q_frequency_exponent"),
+])
+def test_seismic_q_rejects_bad_parameters(params, match):
+    with pytest.raises(ValueError, match=match):
+        Rheology.SeismicQ(**params)
+    with pytest.raises(ValueError, match=match):
+        Rheology.make_rheology("seismic_q", params)

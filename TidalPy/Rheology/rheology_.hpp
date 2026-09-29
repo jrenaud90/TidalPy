@@ -9,6 +9,8 @@
  * - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784 (Andrade and Sundberg-Cooper).
  * - Zener (1948), Elasticity and Anelasticity of Metals; Nowick and Berry (1972), Anelastic Relaxation in
  *   Crystalline Solids (the standard linear solid).
+ * - Kanamori and Anderson (1977), Rev. Geophys., DOI: 10.1029/RG015i001p00105; Wahr and Bergen (1986), GJRAS,
+ *   DOI: 10.1111/j.1365-246X.1986.tb06642.x (a seismic Q and the dispersion it carries to tidal frequencies).
  *
  * Binary payload: model name then the model's doubles. The layer observer pointer is not serialized.
  */
@@ -36,6 +38,8 @@ struct c_RheologyConfig {
     double voigt_modulus_frac   = 5.0;     // Voigt modulus fraction     [dimensionless]
     double voigt_viscosity_frac = 0.02;    // Voigt viscosity fraction   [dimensionless]
     double relaxed_modulus_frac = 0.5;     // Zener relaxed modulus as a fraction of the unrelaxed one
+    double reference_frequency  = 2.0 * TidalPyConstants::d_PI;  // Seismic Q reference frequency [rad s-1]; 1 s
+    double q_frequency_exponent = 0.0;     // Seismic Q grows as frequency^exponent [dimensionless]
 };
 
 // The factors of the Andrade transient that depend on alpha alone: Gamma(1 + alpha) and the cosine and sine of
@@ -286,6 +290,47 @@ inline c_ComplexModulus rheo_modulus_zener(
     }
     const double denom = 1.0 + x * x;
     return c_ComplexModulus(relaxed + arm * x * x / denom, arm * x / denom);
+}
+
+// Seismic Q: the complex modulus from a quality factor measured at a reference frequency, with no viscosity. This
+// model reads its viscosity input as that quality factor, Q_ref. With s = reference_frequency / |frequency| and the
+// exponent a in [0, 1),
+//     Q(omega) = Q_ref s^-a                                   (a = 0: one Q at every frequency)
+//     Re mu*   = modulus / (1 + D(s) / Q_ref),   D(s) = cot(a pi / 2) (s^a - 1)   (a = 0: D = (2 / pi) ln s)
+//     Im mu*   = Re mu* / Q(omega)
+// D is the dispersion causality ties to that loss (Kramers-Kronig, first order in 1 / Q): even a constant Q softens
+// the modulus logarithmically toward low frequency. The modulus is the one at the reference frequency, so a seismic
+// profile's moduli go in as given. Written as a compliance the storage modulus stays positive; to first order in
+// 1 / Q it is the Kanamori-Anderson (a = 0) and Wahr-Bergen (a > 0) form. dispersion_coefficient must be
+// cot(a pi / 2), or 2 / pi at a = 0. Zero frequency or an infinite Q is unforced: the modulus, with no loss. A Q that
+// is not positive, or a frequency so far above the reference that the dispersion drives the modulus through zero,
+// gives NaN.
+inline c_ComplexModulus rheo_modulus_seismic_q(
+        double modulus,
+        double quality_factor,
+        double frequency,
+        double reference_frequency,
+        double q_frequency_exponent,
+        double dispersion_coefficient) noexcept {
+    if (frequency == 0.0 || std::isinf(quality_factor)) {
+        return c_ComplexModulus(modulus, 0.0);
+    }
+    if (!(quality_factor > 0.0)) {
+        return c_ComplexModulus(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
+    }
+    const double log_s = std::log(reference_frequency / std::abs(frequency));
+    // expm1 keeps D continuous as the exponent goes to zero, where cot(a pi / 2) (s^a - 1) -> (2 / pi) ln s.
+    const double dispersion = (q_frequency_exponent == 0.0)
+        ? dispersion_coefficient * log_s
+        : dispersion_coefficient * std::expm1(q_frequency_exponent * log_s);
+    const double denom = 1.0 + dispersion / quality_factor;
+    if (!(denom > 0.0)) {
+        return c_ComplexModulus(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
+    }
+    const double storage = modulus / denom;
+    const double loss_over_q = std::exp(q_frequency_exponent * log_s) / quality_factor;
+    // Odd in frequency, like the viscous models: the loss changes sign with the forcing.
+    return c_ComplexModulus(storage, std::copysign(storage * loss_over_q, frequency));
 }
 
 // Each model supplies only its BinaryClassID (get_binary_class_id) and its scalar params; c_PhysicsBase handles the
@@ -638,6 +683,85 @@ protected:
     }
 };
 
+// Seismic Q (aliases "constant_q", "power_law_q"): the loss comes from a quality factor rather than a viscosity. Its
+// viscosity input is read as Q at the reference frequency, which is how a seismic profile's Q(r) reaches the Love
+// solve; see rheo_modulus_seismic_q.
+class c_SeismicQ final : public c_RheologyBase {
+public:
+    c_SeismicQ() : c_SeismicQ(c_RheologyConfig{}) {}
+    explicit c_SeismicQ(const c_RheologyConfig& cfg)
+        : c_RheologyBase("seismic_q"),
+          p_reference_frequency(cfg.reference_frequency),
+          p_q_frequency_exponent(cfg.q_frequency_exponent) {
+        c_check_params(this->p_reference_frequency, this->p_q_frequency_exponent);
+        this->p_set_dispersion_coefficient();
+    }
+    ~c_SeismicQ() override = default;
+
+    double get_reference_frequency()  const noexcept { return this->p_reference_frequency; }
+    double get_q_frequency_exponent() const noexcept { return this->p_q_frequency_exponent; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_RheologyBase::append_config_entries(out);
+        out.push_back(c_config_double("reference_frequency_rad_s", this->p_reference_frequency));
+        out.push_back(c_config_double("q_frequency_exponent", this->p_q_frequency_exponent));
+    }
+
+    c_ComplexModulus calc_complex_modulus(
+            double modulus,
+            double viscosity,
+            double frequency) const override {
+        return rheo_modulus_seismic_q(
+            modulus,
+            viscosity,
+            frequency,
+            this->p_reference_frequency,
+            this->p_q_frequency_exponent,
+            this->p_dispersion_coefficient);
+    }
+
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::SeismicQ); }
+
+    void write_binary(std::ostream& out) const override {
+        this->write_physics_binary(out, this->get_binary_class_id(),
+                                   {this->p_reference_frequency, this->p_q_frequency_exponent});
+    }
+    void read_binary(std::istream& in, bool force = false) override {
+        const std::vector<double> params = this->read_physics_binary(in, force, 2);
+        c_check_params(params[0], params[1]);
+        this->p_reference_frequency  = params[0];
+        this->p_q_frequency_exponent = params[1];
+        this->p_set_dispersion_coefficient();
+    }
+
+protected:
+    double p_reference_frequency;
+    double p_q_frequency_exponent;
+    double p_dispersion_coefficient = 0.0;
+
+    // cot(a pi / 2), or its a -> 0 limit taken with ln s in place of s^a - 1.
+    void p_set_dispersion_coefficient() noexcept {
+        this->p_dispersion_coefficient = (this->p_q_frequency_exponent == 0.0)
+            ? 2.0 / TidalPyConstants::d_PI
+            : 1.0 / std::tan(0.5 * this->p_q_frequency_exponent * TidalPyConstants::d_PI);
+    }
+
+    // An exponent of 1 or more has no finite dispersion (cot(a pi / 2) <= 0), and a negative one a Q that falls with
+    // frequency, which no absorption band gives.
+    static void c_check_params(double reference_frequency, double q_frequency_exponent) {
+        if (!(reference_frequency > 0.0) || std::isinf(reference_frequency)) {
+            throw std::invalid_argument(
+                "TidalPy: the seismic Q reference_frequency_rad_s must be positive and finite, got "
+                + std::to_string(reference_frequency));
+        }
+        if (!(q_frequency_exponent >= 0.0 && q_frequency_exponent < 1.0)) {
+            throw std::invalid_argument(
+                "TidalPy: the seismic Q q_frequency_exponent must lie in [0, 1), got "
+                + std::to_string(q_frequency_exponent));
+        }
+    }
+};
+
 // One value per model, so c_find_rheology dispatches without string comparisons.
 enum class c_RheologyModel : uint8_t {
     Elastic  = 0,
@@ -648,6 +772,7 @@ enum class c_RheologyModel : uint8_t {
     Andrade  = 5,
     Sundberg = 6,
     Zener    = 7,
+    SeismicQ = 8,
 };
 
 // Model names are matched case-insensitively.
@@ -666,6 +791,8 @@ inline c_RheologyModel c_rheology_model_from_name(const std::string& model_name)
              || name == "sundberg_cooper")           { return c_RheologyModel::Sundberg; }
     if (name == "zener"    || name == "sls"
              || name == "standard_linear_solid")     { return c_RheologyModel::Zener; }
+    if (name == "seismic_q" || name == "constant_q"
+             || name == "power_law_q")               { return c_RheologyModel::SeismicQ; }
 
     throw std::invalid_argument("TidalPy: unknown rheology model name '" + model_name + "'");
 }
@@ -683,6 +810,7 @@ inline std::unique_ptr<c_RheologyBase> c_find_rheology(
         case c_RheologyModel::Andrade:  return std::make_unique<c_Andrade>(cfg);
         case c_RheologyModel::Sundberg: return std::make_unique<c_Sundberg>(cfg);
         case c_RheologyModel::Zener:    return std::make_unique<c_Zener>(cfg);
+        case c_RheologyModel::SeismicQ: return std::make_unique<c_SeismicQ>(cfg);
     }
     throw std::invalid_argument("TidalPy: unrecognised c_RheologyModel enum value");
 }
@@ -707,6 +835,7 @@ inline std::unique_ptr<c_RheologyBase> c_rheology_from_binary(std::istream& in, 
         case BinaryClassID::Andrade:  model = std::make_unique<c_Andrade>();  break;
         case BinaryClassID::Sundberg: model = std::make_unique<c_Sundberg>(); break;
         case BinaryClassID::Zener:    model = std::make_unique<c_Zener>();    break;
+        case BinaryClassID::SeismicQ: model = std::make_unique<c_SeismicQ>(); break;
         default:
             throw std::runtime_error("TidalPy: unknown rheology class id in binary stream");
     }

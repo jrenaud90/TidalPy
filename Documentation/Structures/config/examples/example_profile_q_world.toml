@@ -1,0 +1,41 @@
+# Example-Profile-Q: a world built from a radial data file whose quality factors, not a viscosity, set the loss.
+#
+# A seismic profile gives Q_mu and Q_kappa (columns q_mu and q_kappa) rather than viscosities. With `q_provided = true`
+# every solid layer takes the `seismic_q` rheology, which builds its complex moduli from the profile's moduli and
+# quality factors, both measured at the reference frequency: Q(omega) = Q_ref (omega / omega_ref)^a, with the storage
+# modulus softened by the dispersion causality ties to that loss. The two world keys below seed every layer's
+# seismic_q table; a layer table naming seismic_q overrides them for that layer. A liquid layer takes no quality
+# factor. A layer table here may not give a viscosity or a material type, and names no rheology other than seismic_q
+# (or elastic, for the bulk).
+#
+# The bundled PREM.csv carries PREM's quality factors at its 1 s reference period; earth_prem_q.toml in the WorldPack
+# is this world without the refinement.
+
+schema_version = "0.2.0"
+name = "Example-Profile-Q"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+data_file = "PREM.csv"
+
+q_provided = true                                  # use the profile's q_mu and q_kappa columns (default false)
+q_reference_frequency_rad_s = 6.283185307179586    # where the profile's Q and moduli were measured (PREM: 1 s)
+q_frequency_exponent = 0.0                         # a in Q ~ omega^a; 0 keeps the seismic Q at every frequency
+
+[tides]
+global_tidal_model = "rheology"
+love_method = "radial_solver"
+
+# The mantle keeps the world's reference frequency but lets its Q fall toward tidal periods, as an absorption band
+# does; its bulk response stays elastic, ignoring PREM's Q_kappa.
+[layers.mantle]
+layer_index = 2
+
+[layers.mantle.shear_rheology]
+model = "seismic_q"
+reference_frequency_rad_s = 6.283185307179586
+q_frequency_exponent = 0.15
+
+[layers.mantle.bulk_rheology]
+model = "elastic"

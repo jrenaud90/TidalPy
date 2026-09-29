@@ -60,7 +60,9 @@ def test_prem_boundary_rows_keep_the_lower_layer_first():
 
 def test_prem_center_first_copy_loads_identically(tmp_path):
     arrays = data_file.load_radial_data(_prem_path())
-    center_first = np.loadtxt(_prem_path(), delimiter=",", comments="#")[::-1]
+    # Radius, density, and the velocities: a headerless file reads its columns by position, and the fifth and sixth
+    # positions are viscosities, not the quality factors PREM.csv adds.
+    center_first = np.loadtxt(_prem_path(), delimiter=",", comments="#", usecols=range(4))[::-1]
     path = str(tmp_path / "center_first.csv")
     np.savetxt(path, center_first, delimiter=",")
     reloaded = data_file.load_radial_data(path)

@@ -8,6 +8,8 @@ References
 - Efroimsky (2012), ApJ, DOI: 10.1088/0004-637X/746/2/150
 - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784
 - Nowick and Berry (1972), Anelastic Relaxation in Crystalline Solids (the Zener standard linear solid)
+- Kanamori and Anderson (1977), Rev. Geophys., DOI: 10.1029/RG015i001p00105; Wahr and Bergen (1986), GJRAS,
+  DOI: 10.1111/j.1365-246X.1986.tb06642.x (the seismic Q model's dispersion)
 """
 
 from libcpp cimport bool as cpp_bool
@@ -56,7 +58,7 @@ cdef class RheologyBase(PhysicsBase):
     def __init__(self, *args, **kwargs):
         raise TypeError(
             "RheologyBase is abstract; instantiate a concrete model "
-            "(Elastic, Viscous, Voigt, Maxwell, Burgers, Andrade, Sundberg, Zener)."
+            "(Elastic, Viscous, Voigt, Maxwell, Burgers, Andrade, Sundberg, Zener, SeismicQ)."
         )
 
     def __dealloc__(self):
@@ -78,7 +80,7 @@ cdef class RheologyBase(PhysicsBase):
         modulus : float
             Unrelaxed (static) modulus [Pa].
         viscosity : float
-            Reference dynamic viscosity [Pa·s].
+            Reference dynamic viscosity [Pa·s]; for ``SeismicQ``, the quality factor at its reference frequency.
         frequency : float
             Tidal forcing frequency [rad s-1].
 
@@ -316,13 +318,53 @@ cdef class Zener(RheologyBase):
         return (<c_Zener*>self._rheology_ptr.get()).get_relaxed_modulus_frac()
 
 
+cdef class SeismicQ(RheologyBase):
+    """Seismic Q: the loss comes from a quality factor measured at a reference frequency, not from a viscosity.
+
+    The model reads its viscosity input as that quality factor Q_ref. With s = omega_ref / |omega| and the exponent a,
+
+        Q(omega) = Q_ref s^-a,    Re mu* = M / (1 + D(s) / Q_ref),    Im mu* = Re mu* / Q(omega),
+
+    where M is the modulus at the reference frequency and D(s) = cot(a pi / 2) (s^a - 1), or (2 / pi) ln s at a = 0,
+    is the dispersion causality ties to that loss (to first order in 1 / Q). ``a = 0`` keeps one Q at every frequency;
+    ``a > 0`` lets it fall toward low frequency as an absorption band does. Zero frequency is unforced: M, no loss.
+
+    Parameters
+    ----------
+    reference_frequency_rad_s : float, optional
+        Frequency at which Q_ref and M were measured [rad s-1]. Default ``2 pi`` (a 1 s period, PREM's).
+    q_frequency_exponent : float, optional
+        Exponent a in [0, 1) of Q ~ omega^a [dimensionless]. Default ``0.0``.
+    """
+
+    def __init__(self, double reference_frequency_rad_s=6.283185307179586, double q_frequency_exponent=0.0):
+        cdef c_RheologyConfig config
+        config.reference_frequency  = reference_frequency_rad_s
+        config.q_frequency_exponent = q_frequency_exponent
+        cdef unique_ptr[c_RheologyBase] model = c_find_rheology(c_RheologyModel.SeismicQ, config)
+        self._adopt(model)
+
+    @property
+    def reference_frequency_rad_s(self) -> float:
+        """Frequency at which the quality factor is given [rad s-1]."""
+        self._check_ptr()
+        return (<c_SeismicQ*>self._rheology_ptr.get()).get_reference_frequency()
+
+    @property
+    def q_frequency_exponent(self) -> float:
+        """Exponent a of Q ~ omega^a [dimensionless]."""
+        self._check_ptr()
+        return (<c_SeismicQ*>self._rheology_ptr.get()).get_q_frequency_exponent()
+
+
 # Every config key any rheology model reads; make_rheology rejects anything else.
 RHEOLOGY_CONFIG_KEYS = frozenset(
-    {"alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac", "relaxed_modulus_frac"})
+    {"alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac", "relaxed_modulus_frac",
+     "reference_frequency_rad_s", "q_frequency_exponent"})
 
 
 # The wrapper class of each c_RheologyModel, in enum order.
-_RHEOLOGY_CLASSES = (Elastic, Viscous, Voigt, Maxwell, Burgers, Andrade, Sundberg, Zener)
+_RHEOLOGY_CLASSES = (Elastic, Viscous, Voigt, Maxwell, Burgers, Andrade, Sundberg, Zener, SeismicQ)
 
 
 def _same_model(str table_name, str model_name) -> bool:
@@ -340,7 +382,7 @@ def make_rheology(str model_name, dict config=None):
     model_name : str
         Model name or alias: ``elastic`` (``off``), ``viscous`` (``newton``), ``voigt``
         (``voigt-kelvin``), ``maxwell``, ``burgers``, ``andrade``, ``sundberg`` (``sundberg-cooper``),
-        ``zener`` (``sls``, ``standard_linear_solid``).
+        ``zener`` (``sls``, ``standard_linear_solid``), ``seismic_q`` (``constant_q``, ``power_law_q``).
     config : dict, optional
         Model parameters (see ``RHEOLOGY_CONFIG_KEYS``); missing keys fall back to the model defaults.
         ``None`` takes ``[layers.default.shear_rheology]`` from ``TidalPy_Configs.toml`` when that table
@@ -367,6 +409,8 @@ def make_rheology(str model_name, dict config=None):
     cfg.voigt_modulus_frac   = config.get("voigt_modulus_frac", cfg.voigt_modulus_frac)
     cfg.voigt_viscosity_frac = config.get("voigt_viscosity_frac", cfg.voigt_viscosity_frac)
     cfg.relaxed_modulus_frac = config.get("relaxed_modulus_frac", cfg.relaxed_modulus_frac)
+    cfg.reference_frequency  = config.get("reference_frequency_rad_s", cfg.reference_frequency)
+    cfg.q_frequency_exponent = config.get("q_frequency_exponent", cfg.q_frequency_exponent)
 
     cdef c_RheologyModel model = c_rheology_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_RheologyBase] ptr = c_find_rheology(model, cfg)
@@ -471,3 +515,17 @@ def zener(
     cfg.relaxed_modulus_frac = relaxed_modulus_frac
     cdef c_Zener model = c_Zener(cfg)
     return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency, False)
+
+
+def seismic_q(
+        modulus,
+        quality_factor,
+        frequency,
+        double reference_frequency_rad_s=6.283185307179586,
+        double q_frequency_exponent=0.0):
+    """Complex shear/bulk modulus for the seismic Q model [Pa]; ``quality_factor`` is Q at the reference frequency."""
+    cdef c_RheologyConfig cfg
+    cfg.reference_frequency  = reference_frequency_rad_s
+    cfg.q_frequency_exponent = q_frequency_exponent
+    cdef c_SeismicQ model = c_SeismicQ(cfg)
+    return cy_solve_complex_modulus(<c_RheologyBase*>&model, modulus, quality_factor, frequency, False)

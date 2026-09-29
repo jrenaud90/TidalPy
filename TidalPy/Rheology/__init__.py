@@ -10,6 +10,7 @@ from TidalPy.Rheology.rheology import (
     Andrade,
     Sundberg,
     Zener,
+    SeismicQ,
     make_rheology,
     elastic,
     viscous,
@@ -19,6 +20,7 @@ from TidalPy.Rheology.rheology import (
     andrade,
     sundberg,
     zener,
+    seismic_q,
 )
 
 __all__ = [
@@ -32,6 +34,7 @@ __all__ = [
     "Andrade",
     "Sundberg",
     "Zener",
+    "SeismicQ",
     # Factory
     "make_rheology",
     # Direct complex-modulus convenience functions (float or np.ndarray inputs)
@@ -43,4 +46,5 @@ __all__ = [
     "andrade",
     "sundberg",
     "zener",
+    "seismic_q",
 ]

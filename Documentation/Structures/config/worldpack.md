@@ -86,6 +86,7 @@ in `TidalPy_Configs.toml`. `warn_if_stale_copy(path)` runs the same comparison o
 | `neptune` | gas giant | Rock core, hot dense ices, and a hydrogen and helium envelope, all fluid, fitted to the mass and C/MR2. |
 | `earth_simple` | terrestrial | Three-layer Earth with a static liquid outer core, reproducing the mass, C/MR2, and k2. |
 | `earth_prem` | terrestrial | The PREM seismic profile, read from the companion `PREM.csv`. |
+| `earth_prem_q` | terrestrial | `earth_prem` with PREM's own quality factors setting the loss (`q_provided`, the `seismic_q` rheology), at PREM's 1 s reference period. |
 | `io` | terrestrial | The Segatz et al. (1988) asthenosphere end-member, with its viscosity fitted to Io's measured heat output. |
 | `europa` | terrestrial | Iron core, silicate mantle, and a solid ice shell. There is no ocean. |
 | `luna` | terrestrial | Five-layer Moon reproducing C/MR2, k2, and Q at the month and the year. |

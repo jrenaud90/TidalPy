@@ -42,7 +42,15 @@ With the unrelaxed compliance $J = 1/\mu$ and the Maxwell time $\tau_{M} = \eta/
 
   It is $\mu$ at high frequency and relaxes to $r\mu$, not to zero, at low frequency; its loss peaks at $\omega\tau = 1$ with $\mathrm{Im}[\mu^{*}] = (1-r)\mu/2$. $r = 0$ is Maxwell and $r = 1$ is elastic.
 
-Elements in series add their compliances: Burgers is Maxwell plus Voigt-Kelvin, and Sundberg-Cooper is Andrade plus Voigt-Kelvin (Sundberg and Cooper 2010). The single-element limits are the elastic spring, $\mu^{*} = \mu$, and the Newtonian dashpot, $\mu^{*} = i\eta\omega$. The loss tangent is $\mathrm{Im}[\mu^{*}]/\mathrm{Re}[\mu^{*}] = 1/Q$.
+- Seismic Q, which takes its loss from a quality factor rather than a viscosity. It reads its viscosity input as $Q_\mathrm{ref}$, the quality factor measured at a reference frequency $\omega_\mathrm{ref}$ (`reference_frequency_rad_s`), and $\mu$ is the modulus measured there too. With $s = \omega_\mathrm{ref}/|\omega|$ and the exponent $a$ (`q_frequency_exponent`, in $[0, 1)$):
+
+  $$Q(\omega) = Q_\mathrm{ref}\,s^{-a}, \qquad \mathrm{Re}[\mu^{*}_\mathrm{sq}] = \frac{\mu}{1 + D(s)/Q_\mathrm{ref}}, \qquad \mathrm{Im}[\mu^{*}_\mathrm{sq}] = \frac{\mathrm{Re}[\mu^{*}_\mathrm{sq}]}{Q(\omega)},$$
+
+  $$D(s) = \cot\frac{\pi a}{2}\left(s^{a} - 1\right), \qquad D(s) \to \frac{2}{\pi}\ln s \quad (a = 0).$$
+
+  $D$ is the dispersion that causality (Kramers-Kronig) requires of a loss with that frequency dependence: even a $Q$ that never changes softens the modulus logarithmically toward low frequency, by about 5% from 1 s to a semidiurnal tide at $Q = 143$. To first order in $1/Q$ this is the form of Kanamori and Anderson (1977) for $a = 0$ and of Wahr and Bergen (1986) for $a > 0$; written as a compliance, the storage modulus stays positive. At $\omega = \omega_\mathrm{ref}$ it returns $\mu(1 + i/Q_\mathrm{ref})$ exactly.
+
+Elements in series add their compliances: Burgers is Maxwell plus Voigt-Kelvin, and Sundberg-Cooper is Andrade plus Voigt-Kelvin (Sundberg and Cooper 2010). The single-element limits are the elastic spring, $\mu^{*} = \mu$, and the Newtonian dashpot, $\mu^{*} = i\eta\omega$. The loss tangent is $\mathrm{Im}[\mu^{*}]/\mathrm{Re}[\mu^{*}] = 1/Q$; seismic Q specifies it directly.
 
 ## Inheritance
 
@@ -57,14 +65,15 @@ c_TidalPyBaseClass
               ├── c_Burgers
               ├── c_Andrade
               ├── c_Sundberg  aliases "sundberg-cooper", "sundberg_cooper"
-              └── c_Zener     aliases "sls", "standard_linear_solid"
+              ├── c_Zener     aliases "sls", "standard_linear_solid"
+              └── c_SeismicQ  aliases "constant_q", "power_law_q"; name "seismic_q"
 ```
 
-`c_RheologyBase` declares `calc_complex_modulus` pure virtual and supplies the vectorized loops, the configuration export, and the binary encoding that every model inherits. The Python classes (`Elastic`, `Viscous`, `Voigt`, `Maxwell`, `Burgers`, `Andrade`, `Sundberg`, `Zener`) are thin Cython wrappers holding a pointer to the C++ object, and `RheologyBase` is their shared Python base.
+`c_RheologyBase` declares `calc_complex_modulus` pure virtual and supplies the vectorized loops, the configuration export, and the binary encoding that every model inherits. The Python classes (`Elastic`, `Viscous`, `Voigt`, `Maxwell`, `Burgers`, `Andrade`, `Sundberg`, `Zener`, `SeismicQ`) are thin Cython wrappers holding a pointer to the C++ object, and `RheologyBase` is their shared Python base.
 
 ## Models
 
-Simple models (Elastic, Viscous, Maxwell, Voigt, Zener) are evaluated in closed form. The composites (Burgers, Andrade, Sundberg) place elements in series, so their compliances add and the modulus is the reciprocal of the sum, $\mu^* = 1 / \sum_i J_i$. Those element compliances are internal intermediates and are not exposed.
+Simple models (Elastic, Viscous, Maxwell, Voigt, Zener, SeismicQ) are evaluated in closed form. The composites (Burgers, Andrade, Sundberg) place elements in series, so their compliances add and the modulus is the reciprocal of the sum, $\mu^* = 1 / \sum_i J_i$. Those element compliances are internal intermediates and are not exposed.
 
 | Model | Complex modulus $\mu^*$ [Pa] | Parameters | Character |
 |---|---|---|---|
@@ -76,8 +85,9 @@ Simple models (Elastic, Viscous, Maxwell, Voigt, Zener) are evaluated in closed 
 | `Andrade` | $1 / J_\mathrm{andrade}$ | `alpha`, `zeta` | Maxwell plus a transient term; loss falls only as $\omega^{-\alpha}$. |
 | `Sundberg` (`sundberg-cooper`) | $1 / (J_\mathrm{andrade} + J_\mathrm{voigt})$ | `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac` | Andrade's high-frequency tail plus Burgers' secondary peak. |
 | `Zener` (`sls`) | $\mu^{*}_\mathrm{zener}$ | `relaxed_modulus_frac` | One relaxation peak like Maxwell, but relaxes to $r\mu$ instead of zero. |
+| `SeismicQ` (`seismic_q`, `constant_q`) | $\mu^{*}_\mathrm{sq}$ | `reference_frequency_rad_s`, `q_frequency_exponent` | Its viscosity input is a quality factor. A set $Q$ at every frequency ($a = 0$), or one falling toward low frequency as $\omega^{a}$. |
 
-The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm{andrade}$ and the Zener modulus are defined in the Physics section above.
+The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm{andrade}$ and the Zener and seismic Q moduli are defined in the Physics section above.
 
 | Parameter | Default | Meaning |
 |---|---|---|
@@ -86,15 +96,17 @@ The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm
 | `voigt_modulus_frac` | 5.0 | Stiffness of the Voigt arm's spring relative to the main spring. The arm's compliance is the material compliance divided by this value. |
 | `voigt_viscosity_frac` | 0.02 | Viscosity of the Voigt arm's dashpot as a fraction of the material viscosity. |
 | `relaxed_modulus_frac` | 0.5 | Zener relaxed modulus as a fraction of the unrelaxed one, in \[0, 1\]; a value outside raises `ValueError`. |
+| `reference_frequency_rad_s` | $2\pi$ | Seismic Q: the frequency \[rad s⁻¹\] at which its quality factor and modulus were measured. The default is a 1 s period, PREM's. Must be positive and finite. |
+| `q_frequency_exponent` | 0.0 | Seismic Q: the exponent $a$ of $Q \propto \omega^{a}$, in \[0, 1). Values near 0.1 to 0.3 describe Earth's mantle between seismic and tidal periods. |
 
 > [!WARNING]
 > Rheologies and their parameters are a very active area of research. The properties can vary greatly for different material and even for the same material that has had different histories (previous cracking, is porous, is hydrated or desiccated, etc.). TidalPy's defaults are roughly those applicable to Earth's upper mantle, but the uncertainties are large. We highly encourage users to read up on the latest research for the material under investigation or treat these as free parameters rather than stick with TidalPy's defaults.
 
 ### Behavior at the Limits
 
-At zero frequency Maxwell, Burgers, Andrade, and Sundberg return effectively zero: with unlimited time to flow, a viscoelastic body supports no static rigidity. Elastic returns $\mu$, Viscous returns zero, Voigt returns $\mu f_J$, and Zener returns $r\mu$.
+At zero frequency Maxwell, Burgers, Andrade, and Sundberg return effectively zero: with unlimited time to flow, a viscoelastic body supports no static rigidity. Elastic returns $\mu$, Viscous returns zero, Voigt returns $\mu f_J$, and Zener returns $r\mu$. Seismic Q treats zero frequency as no forcing and returns $\mu$ with no loss, as it does for an infinite $Q$; a $Q$ that is not positive returns `NaN`.
 
-At negative frequency Elastic, Viscous, Voigt, Maxwell, Burgers, and Zener mirror the imaginary part, but Andrade and Sundberg return `NaN`: their transient term raises a negative quantity to a fractional power. Always pass the absolute value of the forcing frequency. TidalPy's own tidal solvers do this; a direct call does not.
+At negative frequency Elastic, Viscous, Voigt, Maxwell, Burgers, Zener, and SeismicQ mirror the imaginary part, but Andrade and Sundberg return `NaN`: their transient term raises a negative quantity to a fractional power. Always pass the absolute value of the forcing frequency. TidalPy's own tidal solvers do this; a direct call does not.
 
 ### Choosing a Model
 
@@ -105,6 +117,8 @@ At negative frequency Elastic, Viscous, Voigt, Maxwell, Burgers, and Zener mirro
 `Andrade` and `Sundberg` are the models to use when the forcing is fast compared with the Maxwell time, which is the usual situation for a cool, stiff, or rapidly forced body. Their loss falls only as $\omega^{-\alpha}$, and for tidal problems that difference can be orders of magnitude in the heating rate.
 
 `Zener` suits a response that relaxes only partway. A Maxwell bulk rheology lets a layer's bulk modulus relax to zero at long periods, which no rock does; a Zener bulk rheology relaxes it to $r K$. Melt-driven compaction is the usual case: a partially molten rock's bulk modulus relaxes from its unrelaxed (undrained) value toward its drained one as melt moves, and the partial-melt model can supply the bulk viscosity that sets the rate (see [Partial Melt Models](../PartialMelt/partial_melt_models.md)). Pick $r$ as the drained-to-unrelaxed ratio; for melt in isolated pockets it is near 0.9 at 10% melt, and melt films lower it.
+
+`SeismicQ` takes the loss straight from a measured quality factor, with no viscosity and no model of the relaxation behind it. It is what a seismic profile such as PREM supports, and a world built from a radial data file gives it to every solid layer when the world sets `q_provided = true` (see the [TOML schema](../Structures/config/toml_schema.md)). What it assumes is how $Q$ changes between the reference frequency and the forcing frequency: $a = 0$ keeps the seismic $Q$, while laboratory and geodetic constraints put Earth's mantle nearer $a = 0.1$ to $0.3$, so a tidal $Q$ several times lower than the seismic one. That choice, not the rest of the model, sets the tidal dissipation. Because its viscosity input is a quality factor, pair it only with a material whose viscosity slot holds one; a layer whose material carries a viscosity model would have that viscosity read as $Q$.
 
 `Burgers` and `Voigt` are mainly useful for reproducing published work that used them, or for deliberately placing a secondary relaxation peak at a chosen frequency. `Viscous` exists for completeness and for the fluid limit.
 
@@ -122,7 +136,7 @@ andrade_model = Andrade(alpha=0.25, zeta=2.0)
 sundberg_model = make_rheology("Sundberg-Cooper", {"alpha": 0.4, "zeta": 2.0})
 ```
 
-`make_rheology(model_name, config=None)` recognizes every name and alias in the inheritance tree above and reads the keys `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac`, and `relaxed_modulus_frac` from `config`. Keys another rheology model uses are ignored and absent keys fall back to the model's default. An unrecognized model name raises `ValueError`, and so does a key that no rheology model reads, with the closest accepted key named in the message.
+`make_rheology(model_name, config=None)` recognizes every name and alias in the inheritance tree above and reads the keys `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac`, `relaxed_modulus_frac`, `reference_frequency_rad_s`, and `q_frequency_exponent` from `config`. Keys another rheology model uses are ignored and absent keys fall back to the model's default. An unrecognized model name raises `ValueError`, and so does a key that no rheology model reads, with the closest accepted key named in the message.
 
 Model parameters are fixed at construction and exposed as read-only properties (`andrade_model.alpha`, `sundberg_model.voigt_viscosity_frac`). To change one, build a new model.
 
@@ -183,7 +197,7 @@ profile = maxwell(np.array([1.0e10, 5.0e10]), np.array([1.0e19, 1.0e20]), 1.0e-5
 sweep   = andrade(50.0e9, 1.0e20, np.logspace(-7, -4, 50), alpha=0.3, zeta=1.0)
 ```
 
-The signatures follow the classes: `elastic/viscous/maxwell(modulus, viscosity, frequency)`, `voigt/burgers(modulus, viscosity, frequency, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`, `andrade(modulus, viscosity, frequency, alpha=0.3, zeta=1.0)`, `sundberg(modulus, viscosity, frequency, alpha=0.3, zeta=1.0, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`, and `zener(modulus, viscosity, frequency, relaxed_modulus_frac=0.5)`. The model parameters are always scalars; `modulus`, `viscosity`, and `frequency` may each be a float or an array and are broadcast together, with the most specific vectorized routine chosen for the pattern supplied.
+The signatures follow the classes: `elastic/viscous/maxwell(modulus, viscosity, frequency)`, `voigt/burgers(modulus, viscosity, frequency, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`, `andrade(modulus, viscosity, frequency, alpha=0.3, zeta=1.0)`, `sundberg(modulus, viscosity, frequency, alpha=0.3, zeta=1.0, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`, `zener(modulus, viscosity, frequency, relaxed_modulus_frac=0.5)`, and `seismic_q(modulus, quality_factor, frequency, reference_frequency_rad_s=2π, q_frequency_exponent=0.0)`. The model parameters are always scalars; `modulus`, `viscosity`, and `frequency` may each be a float or an array and are broadcast together, with the most specific vectorized routine chosen for the pattern supplied.
 
 ### Attaching a Rheology to a `Layer`
 
@@ -257,4 +271,6 @@ No build-system change is needed; `Rheology.rheology` is already registered in `
 - Efroimsky, M. (2012). Tidal dissipation compared to seismic dissipation: In small bodies, Earths, and super-Earths. *The Astrophysical Journal*, 746(2), 150. [DOI](https://doi.org/10.1088/0004-637X/746/2/150). Complex compliances and Love numbers.
 - Renaud, J. P., and Henning, W. G. (2018). Increased tidal dissipation using advanced rheological models: Implications for Io and tidally active exoplanets. *The Astrophysical Journal*, 857(2), 98. [DOI](https://doi.org/10.3847/1538-4357/aab784). Andrade and Sundberg-Cooper.
 - Nowick, A. S., and Berry, B. S. (1972). *Anelastic Relaxation in Crystalline Solids*. Academic Press. The standard linear solid (Zener model).
+- Kanamori, H., and Anderson, D. L. (1977). Importance of physical dispersion in surface wave and free oscillation problems: Review. *Reviews of Geophysics*, 15(1), 105-112. [DOI](https://doi.org/10.1029/RG015i001p00105). The dispersion of a constant $Q$.
+- Wahr, J., and Bergen, Z. (1986). The effects of mantle anelasticity on nutations, earth tides, and tidal variations in rotation rate. *Geophysical Journal of the Royal Astronomical Society*, 87(2), 633-668. [DOI](https://doi.org/10.1111/j.1365-246X.1986.tb06642.x). A power-law $Q$ and its dispersion carried from seismic to tidal frequencies.
 - Sundberg, M., and Cooper, R. F. (2010). A composite viscoelastic model for incorporating grain boundary sliding and transient diffusion creep; correlating creep and attenuation responses for materials with a fine grain size. *Philosophical Magazine*, 90. The Sundberg-Cooper composite.
