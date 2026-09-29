@@ -58,12 +58,15 @@ inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
 //   Ra = expansion * density * gravity * delta_temp * thickness^3 / (viscosity * diffusivity)
 //   Nu = max(alpha * (Ra / Ra_crit)^beta, Nu_min)
 //   boundary layer = thickness / Nu
-//   flux = k * delta_temp / boundary_layer
+//   flux = k * delta_temp / boundary_layer = Nu * k * delta_temp / thickness
 //
-// Nu_min defaults to 2: Nu = 1 is conduction across the whole layer, so the floor keeps a barely convecting
-// layer losing heat through a boundary layer half the layer thick. Degenerate inputs (no temperature
-// contrast, or a vanishingly thin layer) collapse to Ra = 0 and Nu = Nu_min. Each test is made once so that
-// Ra, Nu, and the boundary layer stay consistent with one another.
+// delta_temp is the whole drop across the layer (the sum of its boundary layers' drops), and Nu is the flux over
+// that of conduction across the whole layer (Turcotte and Schubert 2002), so Nu = 1 is conduction. The boundary
+// layer is the conducting thickness that carries the flux across the whole drop: a layer with a boundary layer at
+// its base and its top splits the drop between them at that flux, so each is half this thick. Nu_min is the
+// [numerical] minimum_nusselt setting; at its default of 1 a sub-critical or rigid layer conducts. Degenerate
+// inputs (no temperature contrast, or a vanishingly thin layer) collapse to Ra = 0 and Nu = Nu_min. Each test is
+// made once so that Ra, Nu, and the boundary layer stay consistent with one another.
 inline c_CoolingResult cool_convection(
         const c_CoolingInputs& in, const c_CoolingConfig& cfg) noexcept {
     const double eps = TidalPyConstants::d_EPS;

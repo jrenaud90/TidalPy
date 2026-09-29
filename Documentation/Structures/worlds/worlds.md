@@ -175,11 +175,11 @@ Each cooling model sets its layer's profile as follows:
 |---|---|---|
 | `off` | Isothermal: one temperature throughout, and no modeled gradient, so the layer conducts perfectly. | Everywhere |
 | `conduction` | Two conducting halves, $T = T_0 - (L / 4 \pi k)(1/r_0 - 1/r)$. | The mid-radius |
-| `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. | The base of the interior |
+| `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. A layer whose base carries no heat (the innermost layer, or one above a layer outside the network) has no boundary layer at its base. | The base of the interior |
 
 A layer with no temperature of its own takes no part in the network. This is a geometry-only `BaseLayer` or a layer whose temperature is not a positive number (the 0 K default, say). Its interfaces carry no heat, so it is neither a heat sink nor a source, and a neighbor keeps its own temperature at the shared interface. The layer is isothermal at its placeholder temperature, and `layer_in_thermal_network` reports it `False`. The `temperature` argument overrides every layer's temperature with one number, geometry-only layers included.
 
-A convecting layer's Rayleigh number uses the temperature drop across both of its boundary layers: from the top of the layer below (the end of its adiabat, when that layer convects) to the layer's own temperature, plus from that temperature to the layer above or to `surface_temperature`. The innermost layer has only the upper drop. Both boundary layers take the one thickness the resulting Nusselt number gives, at most 40 percent of the layer each. A mantle at the temperature of the layer above it therefore still convects when the core below it is hotter. A cooling model that gives no usable thickness (usually from a NaN viscosity at the layer's temperature) leaves each boundary layer at 40 percent, and the solve logs a warning naming the layer.
+A convecting layer's Rayleigh number uses the temperature drop across both of its boundary layers: from the top of the layer below (the end of its adiabat, when that layer convects) to the layer's own temperature, plus from that temperature to the layer above or to `surface_temperature`. A mantle at the temperature of the layer above it therefore still convects when the core below it is hotter. The innermost layer, and a layer above one outside the network, has only the upper drop and only the upper boundary layer, since no heat crosses its base. The cooling model's boundary-layer thickness $d / \mathrm{Nu}$ carries its flux across the whole drop, so a layer with two boundary layers gives each half of it and a layer with one gives it the whole, at most 40 percent of the layer each. The flux through the top of a layer whose two drops are equal is then the cooling model's `cooling_flux`, and the boundary layers of a sub-critical layer ($\mathrm{Nu} = 1$) are close to the two conducting halves of a `conduction` layer. A cooling model that gives no usable thickness (usually from a NaN viscosity at the layer's temperature) leaves each boundary layer at 40 percent, and the solve logs a warning naming the layer.
 
 The layers form a chain of thermal resistances. A conducting spherical shell between $r_a$ and $r_b$ has
 
@@ -190,6 +190,8 @@ and the heat flow through an interface is $L = \Delta T / R$ across the two resi
 $$M c_p \frac{dT}{dt} = L_\mathrm{in} - L_\mathrm{out} + H$$
 
 with $H$ \[W\] the heat generated inside the layer (`layer_heating`), zero unless the layer is heated.
+
+Where neither side of an interface has a resistance (an `off` layer under another `off` layer, or an `off` outermost layer under the surface), nothing holds a temperature contrast across it. The lower layer then stores no heat: it passes on the heat entering it plus the heat it generates, and the interface keeps its temperature. An `off` outermost layer therefore loses all of that heat through the surface, its `layer_temperature_rate` is zero, and its profile ends at its own temperature rather than at `surface_temperature`.
 
 **Internal heating**
 

@@ -115,14 +115,14 @@ inline void c_compute_strain_stress_from_factors(
     strain_out.c[4] = R.y4_over_2mu * A.s4_t0;               // eps_rph
     strain_out.c[5] = R.y3_over_2r * A.s5_t0;                // eps_thph  (Kervazo-corrected)
 
-    // Stress (isotropic, Takeuchi & Saito): sigma = 2 mu eps + lame tr(eps) delta.
-    const std::complex<double> trace = strain_out.c[0] + strain_out.c[1] + strain_out.c[2];
-    const std::complex<double> trace_lame = R.lame * trace;
+    // Stress (isotropic, Takeuchi & Saito): sigma = 2 mu eps + lame tr(eps) delta, with lame tr(eps) taken from the
+    // radial stress (R.isotropic, strain_radial_.hpp), so an incompressible layer keeps its pressure.
+    const std::complex<double> isotropic = R.isotropic * A.U;
     const std::complex<double> two_mu = 2.0 * R.shear;
     for (size_t k = 0; k < 6; ++k)
     {
         stress_out.c[k] = two_mu * strain_out.c[k];
-        if (k < 3) stress_out.c[k] += trace_lame;
+        if (k < 3) stress_out.c[k] += isotropic;
     }
 }
 

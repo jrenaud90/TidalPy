@@ -35,7 +35,7 @@ The surface solution (and the Love numbers derived from it) is always required, 
 
 ## Propagation Matrix Method
 
-The propagation-matrix method does not use a shooting integration and has no dense interpolant: it builds its solution on the provided grid and can only represent it there. For consistency it exposes the same `get_radial_solution(r)` entry point, but for the matrix method that call performs a linear interpolation of its constructed grid. The two methods therefore differ: the shooting method serves a dense evaluation, the matrix method a linear interpolation of its grid.
+The propagation-matrix method does not use a shooting integration: it builds its solution on a grid by propagating the fundamental matrix of each slice's material from one slice radius to the next. It exposes the same `get_radial_solution(r)` entry point, and that call continues the propagation to the radius asked for: inside a slice the solution is the slice's fundamental matrix at `r` applied to the coefficients the propagation carried into that slice, which reproduces the grid values at both ends of the slice and is exact between them for a uniform layer. Below the first propagated slice the regular solution of the innermost material continues the solution to the center, so `get_radial_solution` and the `result` grid are defined down to `r = 0`. With a `core_model` other than `0` the seed is not the regular solution and the solution stays NaN below the starting radius.
 
 ## Python API
 

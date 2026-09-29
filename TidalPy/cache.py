@@ -46,10 +46,8 @@ def clear_data(verbose: bool = True):
     success: bool
     """
 
-    dirs_to_del = list()
-    dirs_to_del.append(get_config_dir())
-    dirs_to_del.append(get_log_dir())
-    dirs_to_del.append(get_worlds_dir())
+    # A directory that could not be created (read-only home, for one) is None and has nothing to delete.
+    dirs_to_del = [path for path in (get_config_dir(), get_log_dir(), get_worlds_dir()) if path is not None]
     dir_str = '\n\t'.join(dirs_to_del)
 
     confirmation = input("Confirm that you would like to delete TidalPy's data directories? " + \

@@ -13,6 +13,7 @@
 
 #include "love_.hpp"
 #include "rs_constants_.hpp"
+#include "matrix_types/solid_matrix_.hpp"      // c_fundamental_matrix, to continue a propagation-matrix solution
 #include "../Material/eos/eos_solution_.hpp"   // also provides CyRK's CySolverResult (complete type)
 #include "../constants_.hpp"
 #include "../Utilities/dimensions/nondimensional_.hpp"
@@ -29,12 +30,15 @@
 // -11 : Numerical integration failed
 // -12 : The surface boundary condition solve returned non-finite constants
 // -13 : The surface boundary condition system is singular to working precision (surface_rcond below
-//       [numerical] minimum_surface_rcond)
+//       [numerical] minimum_surface_rcond), or singular by construction: degree 1 with every integrated layer
+//       static, where a rigid translation meets every surface condition (both methods)
 // -14 : Unknown surface boundary condition model, or an unsupported number of them (both methods)
+// -15 : A compressible layer that reads the bulk modulus has a non-positive one
 //
 // -2X : Error in propagation matrix method
 // -20 : Unknown core starting conditions
 // -21 : The surface boundary condition solve returned non-finite constants
+// -22 : A core starting condition other than the regular solution (core_model 1 to 4) with a manual starting radius
 
 class c_RadialSolutionStorage
 {
@@ -77,12 +81,33 @@ public:
 
     // When true, get_radial_solution evaluates the per-(layer, solution) dense CyRK interpolants at any
     // radius and collapses them with the constants below. The matrix method leaves it false and fills
-    // full_solution_vec, which get_radial_solution then interpolates linearly.
+    // full_solution_vec on its grid, and get_radial_solution continues its propagation to the radius asked for.
     bool p_uses_interpolants = false;
 
-    // The propagation matrix's own radius grid, kept only because full_solution_vec is interpolated against
-    // it. Empty after a shooting solve, which grids nothing.
+    // The propagation matrix's own radius grid (solve units). Empty after a shooting solve, which grids nothing.
     std::vector<double> p_matrix_radius_solve = std::vector<double>();
+
+    // What the propagation matrix needs to continue its solution to any radius, so get_radial_solution evaluates
+    // the propagation itself rather than interpolating between grid radii (solve units, SVC16 y order and signs).
+    // Slice i is the shell (r_{i-1}, r_i] of slice i's material, and inside it y(r) = Y_i(r) B_i c, with Y_i the
+    // fundamental matrix of that material, B_i = Y_i(r_{i-1})^-1 P_{i-1} the 6 x 3 block laid out
+    // [slice * 18 + row * 3 + column], and c the surface constants of a ytype, [ytype * 3 + column]. Below the seed
+    // radius, one slice under the first propagated one, a regular seed continues as y(r) = Y_seed(r)[:, 0:3] c.
+    std::vector<std::complex<double>> p_matrix_shell_coeffs = std::vector<std::complex<double>>();
+    std::vector<std::complex<double>> p_matrix_constants    = std::vector<std::complex<double>>();
+    std::vector<double>               p_matrix_density      = std::vector<double>();
+    std::vector<double>               p_matrix_gravity      = std::vector<double>();
+    std::vector<std::complex<double>> p_matrix_shear        = std::vector<std::complex<double>>();
+    size_t p_matrix_first_slice   = 0;       // first propagated slice; at least 2
+    bool   p_matrix_regular_core  = false;   // the seed is the regular solution, so it continues to r = 0
+    double p_matrix_G             = 0.0;     // gravitational constant (solve units)
+    int    p_matrix_degree_l      = 0;
+
+    // A static liquid surface layer: the surface y2 of each ytype (its boundary condition) and the liquid's
+    // density and gravity there, which give the surface y1 = (y2 / rho + y5) / g (solve units). Empty otherwise.
+    std::vector<std::complex<double>> p_static_surface_y2 = std::vector<std::complex<double>>();
+    double p_static_surface_density = TidalPyConstants::d_NAN;
+    double p_static_surface_gravity = TidalPyConstants::d_NAN;
 
     // Forcing frequency [rad s-1] of the last solve; NaN before one.
     double p_love_frequency_si = TidalPyConstants::d_NAN;
@@ -309,6 +334,14 @@ public:
         this->p_start_layer_i         = 0;
         this->p_starting_radius_solve = 0.0;
         this->p_frequency_solve       = 0.0;
+        this->p_static_surface_y2.clear();
+        this->p_matrix_shell_coeffs.clear();
+        this->p_matrix_constants.clear();
+        this->p_matrix_density.clear();
+        this->p_matrix_gravity.clear();
+        this->p_matrix_shear.clear();
+        this->p_matrix_first_slice  = 0;
+        this->p_matrix_regular_core = false;
     }
 
     // The scales that re-dimensionalize this solve's y to SI, from the non-dimensional scales it ran in; null for a
@@ -467,6 +500,17 @@ public:
             out6[2] = (1.0 / (w * w * radius_solve))
                 * (out6[0] * basis.gravity - out6[1] / basis.density - out6[4]);
         }
+        else if ((basis.layer_type != 0) && basis.is_static && (basis.layer_i + 1 == this->num_layers) &&
+                 (ytype_i < this->p_static_surface_y2.size()) && !this->p_upper_radii_solve.empty())
+        {
+            // The free surface of a static liquid top layer: y2 is the boundary condition and y2 = rho (g y1 - y5).
+            const double interface_rtol = 1.0e-12;
+            if (radius_solve >= this->p_upper_radii_solve.back() * (1.0 - interface_rtol))
+            {
+                out6[1] = this->p_static_surface_y2[ytype_i];
+                out6[0] = (out6[1] / this->p_static_surface_density + out6[4]) / this->p_static_surface_gravity;
+            }
+        }
         return true;
     }
 
@@ -507,35 +551,114 @@ public:
             return true;
         }
 
-        // Matrix path: full_solution_vec is already SI.
-        for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
-        if (!this->success || ytype_i >= this->num_ytypes || this->num_slices < 2) return false;
-
-        // The matrix method's grid
-        const std::vector<double>& rad = this->p_matrix_radius_solve;
-        // The grid stays in solve units, even after an export makes the EOS arrays SI.
-        const double eos_r = radius_si / this->p_length_conv;
-        const size_t n = this->num_slices;
-        if (n == 0 || rad.size() < n) return false;
-        if (eos_r < rad[0] || eos_r > rad[n - 1]) return false;
-
-        // Locate bracketing slices [j, j+1].
-        size_t j = 0;
-        while (j + 1 < n && rad[j + 1] < eos_r) ++j;
-        if (j + 1 >= n) j = n - 2;
-        const double r0 = rad[j], r1 = rad[j + 1];
-        const double frac = (r1 > r0) ? (eos_r - r0) / (r1 - r0) : 0.0;
-
-        const size_t num_output_ys = C_MAX_NUM_Y_REAL * this->num_ytypes;   // doubles per slice
-        const double* fv = this->full_solution_vec.data();
-        for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i)
+        // Matrix path: the propagation continued to the radius, which the grid stays in solve units for.
+        if (!this->success || !this->p_matrix_y_solve(radius_si / this->p_length_conv, ytype_i, out6))
         {
-            const size_t off0 = j * num_output_ys + ytype_i * C_MAX_NUM_Y_REAL + y_i * 2;
-            const size_t off1 = off0 + num_output_ys;
-            const std::complex<double> v0(fv[off0], fv[off0 + 1]);
-            const std::complex<double> v1(fv[off1], fv[off1 + 1]);
-            out6[y_i] = v0 + (v1 - v0) * frac;
+            for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
+            return false;
         }
+        this->apply_redimensionalization(out6);
+        return true;
+    }
+
+    // The propagation-matrix solution y1..y6 (solve units, TS72 convention) at a solve-unit radius, from the
+    // propagation itself: inside slice i, y(r) = Y_i(r) B_i c (see p_matrix_shell_coeffs), which reproduces the grid
+    // at both ends of the slice, and below the seed radius the regular solution of the seed's material. Gravity
+    // inside a slice is linear between its end radii, and inside the seed radius it is that of a uniform sphere,
+    // g r / r_seed, as the regular seed assumes. False and NaN-filled where there is no solution: outside the body,
+    // before a solve, or below the seed radius when the core seed is not the regular solution.
+    bool p_matrix_y_solve(double radius_solve, size_t ytype_i, std::complex<double>* out6) const
+    {
+        const std::complex<double> cNAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
+        for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i) out6[y_i] = cNAN;
+
+        const std::vector<double>& rad = this->p_matrix_radius_solve;
+        const size_t n = rad.size();
+        if ((n < 2) || (this->p_matrix_first_slice < 1) || (this->p_matrix_first_slice >= n) ||
+            (ytype_i >= this->num_ytypes) || (this->p_matrix_constants.size() < 3 * (ytype_i + 1)) ||
+            (this->p_matrix_shell_coeffs.size() < 18 * n) || (this->p_matrix_density.size() < n) ||
+            (this->p_matrix_gravity.size() < n) || (this->p_matrix_shear.size() < n))
+        {
+            return false;
+        }
+        const size_t seed_i = this->p_matrix_first_slice - 1;
+        // Also rejects NaN; a rounding step above the surface is the surface.
+        const double surface = rad[n - 1];
+        if (!(radius_solve >= 0.0) || !(radius_solve <= surface * (1.0 + 1.0e-12) + 1.0e-300)) return false;
+        double radius_here = std::fmin(radius_solve, surface);
+
+        const std::complex<double>* constants = &this->p_matrix_constants[3 * ytype_i];
+        size_t material_i     = seed_i;
+        double gravity_here   = TidalPyConstants::d_NAN;
+        std::complex<double> column_weights[6];
+        if (radius_here <= rad[seed_i])
+        {
+            if (!this->p_matrix_regular_core) return false;
+            // y = Y_seed(r)[:, 0:3] c; the other columns are singular at the center and weigh nothing.
+            gravity_here = (rad[seed_i] > 0.0) ? this->p_matrix_gravity[seed_i] * radius_here / rad[seed_i] : 0.0;
+            for (size_t column_i = 0; column_i < 6; ++column_i)
+                column_weights[column_i] = (column_i < 3) ? constants[column_i] : std::complex<double>(0.0, 0.0);
+        }
+        else
+        {
+            // The slice whose shell (r_{i-1}, r_i] holds the radius.
+            size_t slice_i = seed_i + 1;
+            while ((slice_i + 1 < n) && (rad[slice_i] < radius_here)) ++slice_i;
+            material_i = slice_i;
+            const double radius_lower = rad[slice_i - 1];
+            const double radius_upper = rad[slice_i];
+            const double fraction =
+                (radius_upper > radius_lower) ? (radius_here - radius_lower) / (radius_upper - radius_lower) : 1.0;
+            gravity_here = this->p_matrix_gravity[slice_i - 1] +
+                fraction * (this->p_matrix_gravity[slice_i] - this->p_matrix_gravity[slice_i - 1]);
+            // B_i c
+            const std::complex<double>* shell_coeffs = &this->p_matrix_shell_coeffs[18 * slice_i];
+            for (size_t row_i = 0; row_i < 6; ++row_i)
+            {
+                std::complex<double> weight(0.0, 0.0);
+                for (size_t column_i = 0; column_i < 3; ++column_i)
+                    weight += shell_coeffs[row_i * 3 + column_i] * constants[column_i];
+                column_weights[row_i] = weight;
+            }
+        }
+
+        // The fundamental matrix of the shell's material at this radius.
+        double density_here = this->p_matrix_density[material_i];
+        std::complex<double> shear_here = this->p_matrix_shear[material_i];
+        std::complex<double> fundamental[36];
+        c_fundamental_matrix(
+            0,
+            1,
+            &radius_here,
+            &density_here,
+            &gravity_here,
+            &shear_here,
+            fundamental,
+            nullptr,
+            nullptr,
+            this->p_matrix_degree_l,
+            this->p_matrix_G);
+
+        std::complex<double> y_svc[6];
+        for (size_t row_i = 0; row_i < 6; ++row_i)
+        {
+            std::complex<double> value(0.0, 0.0);
+            for (size_t column_i = 0; column_i < 6; ++column_i)
+            {
+                // Skipped, not multiplied, so an infinite irregular column at the center cannot give 0 * inf.
+                if (column_weights[column_i] == std::complex<double>(0.0, 0.0)) continue;
+                value += fundamental[row_i * 6 + column_i] * column_weights[column_i];
+            }
+            y_svc[row_i] = value;
+        }
+
+        // SVC16 to TS72 convention (B13 Eq. 7): swap y2 and y3, negate y5 and y6.
+        out6[0] = y_svc[0];
+        out6[1] = y_svc[2];
+        out6[2] = y_svc[1];
+        out6[3] = y_svc[3];
+        out6[4] = -y_svc[4];
+        out6[5] = -y_svc[5];
         return true;
     }
 

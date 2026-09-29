@@ -1,6 +1,6 @@
 # Calculating Love Numbers
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-29_
 
 `TidalPy.RadialSolver.radial_solver` is the array-based entry point to the viscoelastic-gravitational solve. You hand it a radial grid with density and complex moduli on it, a forcing frequency, and a description of the layers; it returns a [`RadialSolverSolution`](solution_class.md) carrying the radial functions and the Love numbers. If you already have a built world, prefer `LayeredWorld.solve_love_numbers`, which fills these arrays from the layer rheologies for you.
 
@@ -87,7 +87,7 @@ Every solver setting whose default is `None` takes its value from the TidalPy co
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `core_model` | `0` | Inner-core starting condition. `0` Henning and Hurford (2014) seed matrix, `1` Roberts and Nimmo (2008) very small liquid core, `2` Henning and Hurford (2014) solid inner core, `3` Tobie et al. (2005) liquid inner core, `4` Sabadini and Vermeersen (2004) interface matrix. The choice matters more the higher you start. |
+| `core_model` | `0` | Inner-core starting condition. `0` Henning and Hurford (2014) seed matrix, `1` Roberts and Nimmo (2008) very small liquid core, `2` Henning and Hurford (2014) solid inner core, `3` Tobie et al. (2005) liquid inner core, `4` Sabadini and Vermeersen (2004) interface matrix. Only `0` is the regular solution of the modeled layer; the others change k2 of a uniform body by about 3 (r_start / R)^3, a few 1e-6 at the automatic starting radius, so they require the automatic starting radius and a manual `starting_radius` fails the solve (error code -22). |
 
 **Equation of state**
 
@@ -126,7 +126,11 @@ Start with `solution.message`, then `solution.steps_taken`, then plot. The messa
 
 **NaN Love numbers from a successful solve.** The surface boundary condition solve was ill-conditioned. Check `solution.surface_solve_amplification`: values far above one mean the solution constants are cancelling catastrophically. Raise the starting radius, or let the solver choose it.
 
-**"The surface boundary condition system is singular to working precision" (error code -13).** The reciprocal condition number of the surface system, `solution.surface_solve_rcond`, fell below `[numerical] minimum_surface_rcond` (default `1e-14`), so no set of solution constants is determined by the surface conditions. A degree-1 solve for a static body always lands here: a rigid translation of the body meets every surface condition, so the degree-1 response depends on the choice of reference frame, which the solver does not make. Otherwise the independent solutions have become numerically dependent; start higher in the planet or use the automatic starting radius. A value between the threshold and the integration `rtol` is solved but logged as poorly conditioned, since the constants then carry the integration error divided by roughly `surface_solve_rcond`.
+**"The surface boundary condition system is singular to working precision" (error code -13).** The reciprocal condition number of the surface system, `solution.surface_solve_rcond`, fell below `[numerical] minimum_surface_rcond` (default `1e-14`), so no set of solution constants is determined by the surface conditions. The independent solutions have become numerically dependent; start higher in the planet or use the automatic starting radius.
+
+**"A degree-1 solve in which every integrated layer is static is singular" (error code -13).** At degree 1 a rigid translation of the body satisfies the static equations and every surface condition, so when no integrated layer carries inertia the degree-1 Love numbers depend on the choice of reference frame (Farrell 1972; Blewitt 2003), which the solver does not make. Integration error keeps `surface_solve_rcond` above machine precision in such a solve, so the solver decides this from the layer flags rather than from the condition number. A translation shifts k', h', and l' by the same amount; in the frame of the body's own center of mass k' = 0. With at least one dynamic layer (`is_static` False) inertia removes the translation and the solve is determined: the Guo et al. (2004) Earth with dynamic solid layers gives h' = -0.2873 and k' = -0.0017 at a one-day period, close to the center-of-mass frame values h' = -0.2856 and k' = 0. That solution tends to the center-of-mass frame as the frequency falls, while `surface_solve_rcond` falls as the frequency squared (about 6e-6 at one day and 4e-9 at 30 days for that Earth), so check it against the integration `rtol` at long periods. The propagation matrix, whose layer is always static, refuses degree 1 for the same reason.
+
+**"Layer ... is compressible but its bulk modulus is not positive" (error code -15).** A compressible solid or dynamic liquid layer needs a positive bulk modulus. A material that names none carries zero (the default of a constant-density EOS and of an interpolated EOS given no bulk modulus), which with a shear modulus is a Poisson ratio of -1 and gives wrong Love numbers without any other sign of trouble. Give the material a bulk modulus, or mark the layer incompressible. A value between the threshold and the integration `rtol` is solved but logged as poorly conditioned, since the constants then carry the integration error divided by roughly `surface_solve_rcond`.
 
 **"The starting radius ... is not inside the planet" or "No radial slice ... lies above the starting radius" (error code -5).** A manual starting radius must lie inside the planet with at least one radial slice above it in its layer. A starting radius exactly on an interface begins in the layer above it.
 

@@ -405,6 +405,30 @@ inline int c_shooting_solver(
         layer_inputs.gravity_upper = eos_material_state.gravity;
         layer_inputs.density_upper = eos_material_state.density;
 
+        // A compressible solid or dynamic liquid reads the bulk modulus, and a non-positive one (a Poisson ratio of
+        // -1 or below with shear, an infinite compressibility without) solves without complaint to wrong Love
+        // numbers. A zero is what a material that names no bulk modulus carries, so it is refused at both ends of
+        // the layer. A static liquid never reads it.
+        const bool layer_reads_bulk = (!layer_is_incomp) && ((layer_type == 0) || !layer_is_static);
+        if (layer_reads_bulk &&
+            (!(std::real(bulk_lower) > 0.0) || !(std::real(eos_material_state.bulk_modulus) > 0.0)))
+        {
+            solution_storage_ptr->error_code = -15;
+            solution_storage_ptr->success    = false;
+            solution_storage_ptr->message    =
+                std::string("RadialSolver.ShootingMethod:: Layer ") + std::to_string(current_layer_i) +
+                std::string(" is compressible but its bulk modulus is not positive (real part ") +
+                c_format_scientific(std::real(bulk_lower)) + std::string(" at its base, ") +
+                c_format_scientific(std::real(eos_material_state.bulk_modulus)) +
+                std::string(" at its top, in solve units). Give the layer's material a bulk modulus, or mark ") +
+                std::string("the layer incompressible (is_incompressible True).\n");
+            if (verbose)
+            {
+                printf("%s", solution_storage_ptr->message.c_str());
+            }
+            return solution_storage_ptr->error_code;
+        }
+
         if (max_step_from_arrays)
         {
             max_step_to_use = std::abs(0.33 * (radius_upper - radius_lower));
@@ -637,6 +661,45 @@ inline int c_shooting_solver(
         surface_layer.layer_type,
         surface_layer.is_static);
     solution_storage_ptr->surface_rcond = surface_rcond;
+
+    // A rigid translation of the whole body (y1 = y3 = u, y2 = y4 = 0, y5 = g u, y6 = 0) solves the static
+    // equations at degree 1 for any structure and meets every surface condition, so when no integrated layer
+    // carries inertia the surface system is singular in exact arithmetic and the degree-1 Love numbers are fixed
+    // only once a reference frame is chosen (Farrell 1972; Blewitt 2003). Integration error can hold the computed
+    // rcond far above machine precision (1e-11 at rtol 1e-6 below a static liquid core), so this is decided from
+    // the structure rather than from the rcond threshold below. Inertia in a dynamic layer removes the mode, and
+    // the solution then tends to the frame of the body's own center of mass (k' = 0) as the frequency falls, with
+    // conditioning that degrades as frequency squared.
+    if (degree_l == 1)
+    {
+        bool all_layers_static = true;
+        for (size_t current_layer_i = start_layer_i; current_layer_i < num_layers; ++current_layer_i)
+        {
+            if (!is_static_by_layer_ptr[current_layer_i])
+            {
+                all_layers_static = false;
+                break;
+            }
+        }
+        if (all_layers_static)
+        {
+            solution_storage_ptr->error_code = -13;
+            solution_storage_ptr->success    = false;
+            solution_storage_ptr->message    =
+                std::string("RadialSolver.ShootingMethod:: A degree-1 solve in which every integrated layer is ") +
+                std::string("static is singular: a rigid translation of the body satisfies the equations and every ") +
+                std::string("surface condition, so the Love numbers depend on a choice of reference frame and are ") +
+                std::string("not determined. Make at least one layer dynamic (is_static False) so inertia fixes ") +
+                std::string("the frame; in the frame of the body's center of mass k' = 0, and h' and l' shift ") +
+                std::string("together with k' between frames.\n");
+            if (verbose)
+            {
+                printf("%s", solution_storage_ptr->message.c_str());
+            }
+            return solution_storage_ptr->error_code;
+        }
+    }
+
     const double minimum_surface_rcond = tidalpy_config_ptr->d_MIN_SURFACE_RCOND;
     // The negated comparison also fails a NaN rcond; a NaN threshold (config unloaded) never fails.
     if (!(surface_rcond >= minimum_surface_rcond) && !std::isnan(minimum_surface_rcond))
@@ -648,14 +711,28 @@ inline int c_shooting_solver(
             std::string("singular to working precision (reciprocal condition number ") +
             c_format_scientific(surface_rcond) + std::string(" < [numerical] ") +
             std::string("minimum_surface_rcond ") + c_format_scientific(minimum_surface_rcond) +
-            std::string("), so its solution constants are undetermined. A degree-1 solve for a ") +
-            std::string("static body has a rigid-translation mode that no surface condition fixes; ") +
-            std::string("otherwise try a larger or the automatic starting radius.\n");
+            std::string("), so its solution constants are undetermined. Try a larger or the automatic ") +
+            std::string("starting radius.\n");
         if (verbose)
         {
             printf("%s", solution_storage_ptr->message.c_str());
         }
         return solution_storage_ptr->error_code;
+    }
+
+    // A static liquid surface layer integrates only y5 and y7, but at the free surface y2 is the boundary
+    // condition and y2 = rho (g y1 - y5) (S74 Eq. 20), so y1, and with it h, is defined there; y3, and l, are not.
+    solution_storage_ptr->p_static_surface_y2.clear();
+    if ((surface_layer.layer_type != 0) && surface_layer.is_static)
+    {
+        solution_storage_ptr->p_static_surface_density = surface_layer.density_upper;
+        solution_storage_ptr->p_static_surface_gravity = surface_gravity;
+        solution_storage_ptr->p_static_surface_y2.resize(num_ytypes);
+        for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
+        {
+            solution_storage_ptr->p_static_surface_y2[ytype_i] =
+                std::complex<double>(bc_pointer[ytype_i * 3 + 0], 0.0);
+        }
     }
 
     for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)

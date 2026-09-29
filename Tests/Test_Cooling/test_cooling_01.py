@@ -94,8 +94,8 @@ def test_off_cooling():
 @pytest.mark.parametrize("key,cls_name,overrides", [
     ("conduction", "ConductiveCooling", {}),
     ("convection_high_rayleigh", "ConvectiveCooling", {}),
-    # High viscosity and a thin layer: sub-critical, so Nu is floored at 2.
-    ("convection_low_rayleigh", "ConvectiveCooling", {"delta_temp": 100.0, "viscosity": 1.0e24, "thickness": 1.0e4}),
+    # The legacy sub-critical case is not compared: the legacy model floored Nu at 2, which reported twice the
+    # conductive flux; the floor is now 1, so a sub-critical layer conducts (test_cooling_fixes_01).
 ])
 def test_matches_legacy(key, cls_name, overrides):
     """All four outputs match the legacy cooling model."""
@@ -113,12 +113,12 @@ def test_conduction_is_the_closed_form():
 
 
 def test_convection_regimes():
-    """The reference mantle convects (Nu > 2, Ra > Ra_cr); the stiff thin layer is floored at Nu = 2."""
+    """The reference mantle convects (Nu > 2, Ra > Ra_cr); the stiff thin layer is floored at Nu = 1."""
     active = Cooling.ConvectiveCooling().calc_cooling(*_inputs())
     assert active.nusselt > 2.0
     assert active.rayleigh > _RACR
     floored = Cooling.ConvectiveCooling().calc_cooling(*_inputs(delta_temp=100.0, viscosity=1.0e24, thickness=1.0e4))
-    assert floored.nusselt == pytest.approx(2.0)
+    assert floored.nusselt == pytest.approx(1.0)
 
 
 def test_convection_guards_agree_at_the_minimum_thickness():
@@ -128,7 +128,7 @@ def test_convection_guards_agree_at_the_minimum_thickness():
     # A viscosity low enough that the layer would convect hard if its thickness were accepted.
     result = Cooling.ConvectiveCooling().calc_cooling(*_inputs(thickness=thickness, viscosity=1.0e-6))
     assert result.rayleigh == 0.0
-    assert result.nusselt == 2.0
+    assert result.nusselt == 1.0
     assert result.boundary_layer_thickness == thickness
     result = Cooling.ConvectiveCooling().calc_cooling(*_inputs(thickness=2.0 * thickness, viscosity=1.0e-6))
     assert result.rayleigh > 0.0
@@ -142,8 +142,8 @@ def test_convection_without_contrast_keeps_the_floored_boundary_layer():
     result = Cooling.ConvectiveCooling().calc_cooling(*_inputs(delta_temp=0.0, thickness=5.0e5))
     assert result.cooling_flux == 0.0
     assert result.rayleigh == 0.0
-    assert result.nusselt == 2.0
-    assert result.boundary_layer_thickness == pytest.approx(0.5 * 5.0e5)
+    assert result.nusselt == 1.0
+    assert result.boundary_layer_thickness == pytest.approx(5.0e5)
 
 
 def test_convection_parameters_affect_result():

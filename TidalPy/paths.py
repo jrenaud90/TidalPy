@@ -1,10 +1,19 @@
 import os
+import warnings
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from platformdirs import user_documents_dir
 
 from . import version
+
+# Environment variable naming the directory that holds TidalPy's data directories, in place of
+# ``<user documents>/TidalPy``. Useful where the home directory is read-only (HPC nodes, containers, sandboxed CI).
+DATA_DIR_ENVIRONMENT_VARIABLE = "TIDALPY_DATA_DIR"
+
+# Data directories already reported as unusable, so each is warned about once per session.
+_WARNED_UNUSABLE_DATA_DIRS: set = set()
 
 
 def get_data_version() -> str:
@@ -28,31 +37,72 @@ def get_data_version() -> str:
     return f"{major or '0'}.{minor or '0'}.X"
 
 
+def get_data_dir() -> str:
+    """ The version-scoped TidalPy data directory, which holds ``Config``, ``Logs``, and ``Worlds``.
+
+    ``<TIDALPY_DATA_DIR>/<data version>`` when the ``TIDALPY_DATA_DIR`` environment variable is set, otherwise
+    ``<user documents>/TidalPy/<data version>``. The directory is not created here.
+
+    Returns
+    -------
+    str
+        The data directory's path.
+    """
+    base_dir = os.environ.get(DATA_DIR_ENVIRONMENT_VARIABLE, "").strip()
+    if not base_dir:
+        base_dir = os.path.join(user_documents_dir(), "TidalPy")
+    return os.path.join(os.path.expanduser(base_dir), get_data_version())
+
+
+def warn_unusable_data_dir(reason) -> None:
+    """ Warn, once per session and data directory, that TidalPy runs without its data directory.
+
+    Parameters
+    ----------
+    reason : object
+        Why the directory cannot be used (usually the ``OSError`` raised), quoted in the warning.
+    """
+    data_dir = get_data_dir()
+    if data_dir in _WARNED_UNUSABLE_DATA_DIRS:
+        return
+    _WARNED_UNUSABLE_DATA_DIRS.add(data_dir)
+    warnings.warn(
+        f"TidalPy cannot use its data directory {data_dir} ({reason}), so it runs without one: the packaged default "
+        "configuration is used in place of TidalPy_Configs.toml, no log file is written there, and the bundled "
+        f"worlds are read from the package. Set the {DATA_DIR_ENVIRONMENT_VARIABLE} environment variable to a "
+        "writable directory to keep a data directory.",
+        stacklevel=2)
+
+
+def _data_sub_dir(name: str) -> Optional[str]:
+    """ ``<data directory>/<name>``, created if absent; None, with a one-time warning, when it cannot be created. """
+    directory = os.path.join(get_data_dir(), name)
+    try:
+        Path(directory).mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        warn_unusable_data_dir(error)
+        return None
+    return directory
+
+
 # TidalPy directories
-def get_config_dir() -> str:
-    """ TidalPy directory containing global configurations. """
-    config_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Config')
-    # Create directory if it does not exist
-    Path(config_dir).mkdir(parents=True, exist_ok=True)
-    return config_dir
+def get_config_dir() -> Optional[str]:
+    """ TidalPy directory containing global configurations; None when it cannot be created. """
+    return _data_sub_dir('Config')
 
-def get_log_dir() -> str:
-    """ TidalPy directory containing log files. """
-    log_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Logs')
-    Path(log_dir).mkdir(parents=True, exist_ok=True)
-    return log_dir
+def get_log_dir() -> Optional[str]:
+    """ TidalPy directory containing log files; None when it cannot be created. """
+    return _data_sub_dir('Logs')
 
-def get_worlds_dir() -> str:
-    """ TidalPy directory containing world and system configurations.
+def get_worlds_dir() -> Optional[str]:
+    """ TidalPy directory containing world and system configurations; None when it cannot be created.
 
     This is the user-editable home for the ``WorldPack`` example worlds. The
     packaged worlds are copied here on first use; the world builder then prefers
     this directory over the packaged copies, so edits made here take effect
     without modifying the installed package.
     """
-    worlds_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Worlds')
-    Path(worlds_dir).mkdir(parents=True, exist_ok=True)
-    return worlds_dir
+    return _data_sub_dir('Worlds')
 
 def create_data_dirs():
     """ Creates TidalPy data directories if not already present. """

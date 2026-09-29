@@ -20,7 +20,7 @@ def build_logging_config() -> dict:
     The console and file levels carry over; the console is silenced in a notebook unless ``print_log_notebook`` is
     set; and the file sink is enabled only when ``write_log_to_disk`` is set (and ``write_log_notebook`` in a
     notebook) outside test mode. The log file is timestamped and lives in the run output directory (``use_cwd``) or
-    the TidalPy data directory's ``Logs`` folder.
+    the TidalPy data directory's ``Logs`` folder; without a usable data directory that second choice writes none.
 
     Returns
     -------
@@ -47,12 +47,16 @@ def build_logging_config() -> dict:
     if log_to_file:
         if logging_config['use_cwd']:
             log_dir = os.path.join(TidalPy._output_dir, 'Logs')
+            Path(log_dir).mkdir(parents=True, exist_ok=True)
         else:
+            # None when the data directory cannot be created (already warned about).
             log_dir = get_log_dir()
-        Path(log_dir).mkdir(parents=True, exist_ok=True)
-        log_name = timestamped_str('TidalPy', date=True, time=True, second=True, millisecond=False,
-                                   preappend=False) + '.log'
-        log_file_path = os.path.join(log_dir, log_name)
+        if log_dir is None:
+            log_to_file = False
+        else:
+            log_name = timestamped_str('TidalPy', date=True, time=True, second=True, millisecond=False,
+                                       preappend=False) + '.log'
+            log_file_path = os.path.join(log_dir, log_name)
 
     return {
         'console_level': console_level,
@@ -66,8 +70,9 @@ def initialize(provided_config=None):
     """ Initialize (or reinitialize) TidalPy from its configuration, ``TidalPy.config``.
 
     Loads the configuration when none is loaded yet (the packaged defaults with the user's ``TidalPy_Configs.toml``
-    merged over them), merges any override, sets up the run output directory and the logger, and pushes the
-    numerical settings into the C++ config singleton. ``TidalPy.reinit`` is this function.
+    merged over them), merges a ``TidalPy_Configs.toml`` found in the working directory when ``[configs]
+    use_cwd_for_config`` is set, merges any override, sets up the run output directory and the logger, and pushes
+    the numerical settings into the C++ config singleton. ``TidalPy.reinit`` is this function.
 
     Parameters
     ----------
@@ -88,9 +93,11 @@ def initialize(provided_config=None):
     if TidalPy.config is None:
         get_default_config()
 
-    # Merge a configuration found in the working directory, then one provided directly.
-    if TidalPy.config['configs']['use_cwd_for_config']:
-        set_config(os.path.join(os.getcwd(), 'TidalPy_Configs.toml'))
+    # Merge a configuration found in the working directory, then one provided directly. A working directory without
+    # one leaves the configuration as loaded.
+    cwd_config_path = os.path.join(os.getcwd(), 'TidalPy_Configs.toml')
+    if TidalPy.config['configs']['use_cwd_for_config'] and os.path.isfile(cwd_config_path):
+        set_config(cwd_config_path)
     if provided_config is not None:
         set_config(provided_config)
 

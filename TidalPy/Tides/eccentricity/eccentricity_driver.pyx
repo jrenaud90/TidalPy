@@ -121,10 +121,11 @@ def eccentricity_truncation_name(int truncation):
 def eccentricity_accuracy_limit(object truncation, double tolerance=0.01, int max_degree_l=2) -> float:
     """The largest eccentricity at which a truncation level's heating stays within ``tolerance`` of the exact value.
 
-    Measured against the exact heating, worst case over constant-phase-lag, constant-time-lag, and Maxwell tides at spin
-    rates of 0.5, 1, and 2.3 times the mean motion, for degree 2 (``max_degree_l == 2``) or degree 3 (any higher
-    ``max_degree_l``). The tabulated tolerances are 1e-8, 1e-6, 1e-4, 1e-3, 1e-2, and 1e-1; a tolerance in between
-    uses the next smaller one. NaN for ``"exact"``, which has no such limit.
+    Measured against the exact heating for each degree on its own, worst case over constant-phase-lag,
+    constant-time-lag, and Maxwell tides at spin rates of 0.5, 1, and 2.3 times the mean motion. A solve through
+    ``max_degree_l`` takes the tightest limit of degrees 2 to ``max_degree_l``. The tabulated tolerances are 1e-8,
+    1e-6, 1e-4, 1e-3, 1e-2, and 1e-1; a tolerance in between uses the next smaller one. NaN for ``"exact"``, which has
+    no such limit.
     """
     cdef int level = validate_eccentricity_truncation(truncation)
     return c_eccentricity_accuracy_limit(level, tolerance, max_degree_l)
@@ -140,14 +141,15 @@ def recommend_eccentricity_truncation(double eccentricity, double tolerance=0.01
     tolerance : float, optional
         Largest acceptable relative error in the heating (default 1%).
     max_degree_l : int, optional
-        Highest tidal degree of the solve; degree 3 and higher lose accuracy at a lower eccentricity than degree 2.
+        Highest tidal degree of the solve; each higher degree loses accuracy at a lower eccentricity, so the level
+        must hold at every degree from 2 to ``max_degree_l``.
 
     Returns
     -------
     int or str
-        A tabulated level, or ``"exact"`` when no level holds the tolerance there (eccentricities past about 0.75, or a
-        tolerance tighter than the tables were measured to). The limits hold for any spin rate measured; they barely
-        depend on it.
+        A tabulated level, or ``"exact"`` when no level holds the tolerance there (eccentricities past about 0.75 at
+        degree 3 and lower at higher degrees, or a tolerance tighter than the tables were measured to). The limits
+        hold for any spin rate measured; they barely depend on it.
 
     Raises
     ------

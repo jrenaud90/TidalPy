@@ -1,6 +1,6 @@
 # Obliquity Functions
 
-_Updated: 2026-09-24_
+_Updated: 2026-09-29_
 
 The obliquity functions $F_{l,m,p}(I)$ are the other forcing component of the tidal potential, alongside the [eccentricity functions](eccentricity.md); see $F_{lmp}(I)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). The potential built from them gives tidal strain, heating, and spin-orbit evolution.
 
@@ -39,16 +39,16 @@ Unlike the eccentricity series, these series converge at every obliquity, and th
 
 The accuracy columns give the largest obliquity at which the degree-2 heating stays within the stated relative error of the general functions' heating. They are the worst case over constant-phase-lag, constant-time-lag, and Maxwell tides at spin rates of 0.5, 1, and 2.3 times the mean motion, and eccentricities of 0 and 0.2. The mode counts are those that enter the heating at degree 2.
 
-| Truncation | Aliases | Heating modes at $l=2$ | Error below $10^{-4}$ to | Error below 1% to | Warning above ($l = 2$ / $l \ge 3$) |
+| Truncation | Aliases | Heating modes at $l=2$ | Error below $10^{-4}$ to | Error below 1% to | Warning above (max $l$ = 2 / 3 / 10) |
 |---|---|---|---|---|---|
 | `0` | `"off"` | 2 | $I = 0$ only | $I = 0$ only | any nonzero $I$ |
-| `2` | | 4 | 0.010 rad (0.6°) | 0.145 rad (8.3°) | 0.465 / 0.31 rad (27° / 18°) |
-| `4` | | 7 | 0.15 rad (8.6°) | 0.47 rad (27°) | 0.83 / 0.565 rad (48° / 32°) |
+| `2` | | 4 | 0.010 rad (0.6°) | 0.145 rad (8.3°) | 0.465 / 0.31 / 0.095 rad (27° / 18° / 5.4°) |
+| `4` | | 7 | 0.15 rad (8.6°) | 0.47 rad (27°) | 0.83 / 0.565 / 0.18 rad (48° / 32° / 10°) |
 | `"gen"` | `"general"` | 9 | exact | exact | never |
 
 At zero obliquity with truncation `0`, the two surviving degree-2 terms are $F_{2,0,1} = -1/2$ and $F_{2,2,0} = 3$.
 
-`recommend_obliquity_truncation(obliquity, tolerance=0.01, max_degree_l=2)` returns the lowest level that holds a tolerance at an obliquity (0 at zero obliquity), or `"gen"` when no level does, and `obliquity_accuracy_limit(level, tolerance, max_degree_l)` returns the largest obliquity a level holds a tolerance to. Both read the measurements behind the table, at tolerances of $10^{-8}$, $10^{-6}$, $10^{-4}$, $10^{-3}$, $10^{-2}$, and $10^{-1}$; a tolerance in between uses the next smaller one.
+`recommend_obliquity_truncation(obliquity, tolerance=0.01, max_degree_l=2)` returns the lowest level that holds a tolerance at an obliquity (0 at zero obliquity), or `"gen"` when no level does, and `obliquity_accuracy_limit(level, tolerance, max_degree_l)` returns the largest obliquity a level holds a tolerance to. Both read the measurements behind the table, made for each degree from 2 to 10 at tolerances of $10^{-8}$, $10^{-6}$, $10^{-4}$, $10^{-3}$, $10^{-2}$, and $10^{-1}$; a tolerance in between uses the next smaller one. A level must hold at every degree a solve includes, so both take the tightest limit of degrees 2 to `max_degree_l`.
 
 ```python
 import numpy as np
@@ -56,11 +56,12 @@ from TidalPy.Tides.obliquity import recommend_obliquity_truncation
 
 recommend_obliquity_truncation(np.radians(8.0))                    # 2: heating within 1% at 8 degrees
 recommend_obliquity_truncation(np.radians(8.0), max_degree_l=3)    # 4: degree 3 needs more
+recommend_obliquity_truncation(np.radians(8.0), max_degree_l=10)   # 'gen': degrees up to 10 need more still
 recommend_obliquity_truncation(np.radians(23.4))                   # 4
 recommend_obliquity_truncation(np.radians(40.0))                   # 'gen'
 ```
 
-The default everywhere is `"off"`: the `[tides]` `obliquity_trunc_lvl` of the TidalPy configuration, which a built world, a directly constructed world, and the standalone functions (`global_potential`, `collapse_global_tides`, `tidal_potential_3d_modes`) all take when no truncation is given. A world that runs `calc_tides` with a nonzero obliquity while its truncation is off logs a warning once, since its obliquity tides are then ignored. With level 2 or 4, `calc_tides` logs a warning, once per world, when the obliquity is past the level's last column, the point where its heating can be off by 10% or more; a world whose tides include degree 3 or higher uses the second value.
+The default everywhere is `"off"`: the `[tides]` `obliquity_trunc_lvl` of the TidalPy configuration, which a built world, a directly constructed world, and the standalone functions (`global_potential`, `collapse_global_tides`, `tidal_potential_3d_modes`) all take when no truncation is given. A world that runs `calc_tides` with a nonzero obliquity while its truncation is off logs a warning once, since its obliquity tides are then ignored. With level 2 or 4, `calc_tides` logs a warning, once per world, when the obliquity is past the level's last column, the point where its heating at some included degree can be off by 10% or more. A world whose tides reach degree 3 uses the second value and one whose tides reach degree 10 the third; other degree ranges use the tightest limit of the degrees included (`obliquity_accuracy_limit(level, 0.1, max_degree_l)`).
 
 A level passed directly must be tabulated. A level read from a configuration that is not tabulated (the earlier levels 1 and 10, say) is promoted to the next one with a once-per-session warning: 1 to 2, and anything past 4 to `"gen"`.
 

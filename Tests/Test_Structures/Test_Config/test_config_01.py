@@ -165,19 +165,21 @@ _CONSTANT_VISCOSITY = {"model": "constant", "reference_viscosity_pas": 1.0e14}
     pytest.param(
         _ice_viscosity(_ARRHENIUS),
         _ice_viscosity(_CONSTANT_VISCOSITY),
-        _ice_viscosity(_CONSTANT_VISCOSITY),
+        # A default key the new model does not read carries over; the model ignores it.
+        _ice_viscosity({**_ARRHENIUS, **_CONSTANT_VISCOSITY}),
         id="different-model"),
     pytest.param(
         {"radiogenics": {"model": "isotope", "isotopes": "modern_day_chondritic", "ref_time_s": 1.4e17}},
         {"radiogenics": {"model": "fixed", "fixed_heat_production_w_kg": 1.0e-11}},
-        {"radiogenics": {"model": "fixed", "fixed_heat_production_w_kg": 1.0e-11}},
+        # The dataset's reference time is not the fixed rate's, so it is dropped; the dataset name is ignored.
+        {"radiogenics": {"model": "fixed", "isotopes": "modern_day_chondritic", "fixed_heat_production_w_kg": 1.0e-11}},
         id="radiogenics-different-model"),
     pytest.param(
         {"radiogenics": {"model": "isotope", "isotopes": "modern_day_chondritic"}},
         {"radiogenics": {"model": "isotope", "ref_time_s": 0.0}},
         {"radiogenics": {"model": "isotope", "isotopes": "modern_day_chondritic", "ref_time_s": 0.0}},
         id="radiogenics-same-model"),
-    # Law-independent material properties and nested tables survive a change of EOS model.
+    # Material properties and nested tables survive a change of EOS model.
     pytest.param(
         {"material": {"model": "constant", "reference_density_kg_m3": 917.0, "shear_modulus_static_pa": 3.3e9,
                       "shear_viscosity": {"model": "arrhenius", "reference_viscosity_pas": 1.0e14}}},
@@ -187,7 +189,7 @@ _CONSTANT_VISCOSITY = {"model": "constant", "reference_viscosity_pas": 1.0e14}
                       "reference_bulk_modulus_pa": 1.0e10}},
         id="material-model-change"),
 ])
-def test_merge_configs_replaces_a_model_table_only_when_the_model_changes(base, override, expected):
+def test_merge_configs_merges_model_tables_across_a_model_change(base, override, expected):
     assert merge_configs(base, override) == expected
 
 
@@ -239,7 +241,7 @@ def test_partial_user_file_is_merged_over_the_packaged_defaults(isolated_config_
     assert config["numerical"]["maximum_eos_mass_ratio"] == 25.0
     assert config["numerical"]["minimum_modulus"] == packaged["numerical"]["minimum_modulus"]
     assert config["tides"] == packaged["tides"]
-    # The ice rheology switched model, so its table is exactly the user's.
+    # The ice rheology switched model; the packaged Maxwell table has no parameter to carry over to it.
     assert config["layers"]["ice"]["shear_rheology"] == {"model": "andrade"}
     assert config["layers"]["mantle_rock"] == packaged["layers"]["mantle_rock"]
 

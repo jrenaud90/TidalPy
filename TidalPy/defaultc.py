@@ -166,9 +166,8 @@ schema_version = "{SCHEMA_VERSION}"
     # radial solve), and within which a frequency counts as zero.
     frequency_match_rtol = 1.0e-9
     # Smallest Nusselt number the convection cooling model reports. Nu = 1 is conduction across the whole
-    # layer; the floor of 2 keeps a barely convecting layer losing heat through a boundary layer half the
-    # layer thick rather than the whole of it.
-    minimum_nusselt = 2.0
+    # layer, so at the floor a sub-critical or rigid layer conducts.
+    minimum_nusselt = 1.0
     # Largest factor by which a solved world's enclosed mass may differ from the mass the world states (either way)
     # before its EOS solve fails. A structure far from its stated mass usually has no hydrostatic solution near it:
     # the only surface-pressure root lies on a collapsed branch at an absurd central pressure. Real worlds whose

@@ -1,6 +1,6 @@
 # Eccentricity Functions
 
-_Updated: 2026-09-24_
+_Updated: 2026-09-29_
 
 The eccentricity functions $G_{l,p,q}(e)$ are one of the two drivers of the tidal potential, alongside the [obliquity functions](obliquity.md); see $G_{lpq}(e)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). Unlike the obliquity functions they are defined by an infinite sum over $q$ and cannot be written down exactly, so a truncation level has to be chosen. As long as $e < 1$ that choice trades accuracy against the number of active tidal modes, and therefore against computation time.
 
@@ -61,7 +61,7 @@ The generated coefficients match the exact Taylor coefficients of the Hansen int
 
 ### High Eccentricity
 
-The series of the highest-$\lvert q \rvert$ modes converge slowly at large $e$, and their cut squares alternate in sign. The heating is then a sum of large terms of both signs, which cancel. At level 50 and degree 2 the terms are about $10^4$ times the total at $e = 0.7$ and $5 \times 10^5$ times at $e = 0.8$, and about ten times more at degree 3. Rounding and any error in the Love numbers are multiplied by that factor, so no tabulated level is reliable past about $e \approx 0.78$ (0.75 at degree 3), even where the truncation alone would allow it (level 50 stays within 10% to $e = 0.80$). The exact functions below have no such limit.
+The series of the highest-$\lvert q \rvert$ modes converge slowly at large $e$, and their cut squares alternate in sign. The heating is then a sum of large terms of both signs, which cancel. At level 50 and degree 2 the terms are about $10^4$ times the total at $e = 0.7$ and $5 \times 10^5$ times at $e = 0.8$, and about ten times more at degree 3. Rounding and any error in the Love numbers are multiplied by that factor, so no tabulated level is reliable past about $e \approx 0.78$ (0.75 at degree 3, falling to 0.555 at degree 8), even where the truncation alone would allow it (level 50 stays within 10% to $e = 0.80$ at degree 2). The exact functions below have no such limit.
 
 ## Exact Functions
 
@@ -80,31 +80,32 @@ Past about $e = 0.99$ the functions would need more than 20000 modes and are ref
 
 The accuracy columns give the largest eccentricity at which the degree-2 heating stays within the stated relative error of the exact value. They are the worst case over constant-phase-lag, constant-time-lag, and Maxwell tides at spin rates of 0.5, 1, and 2.3 times the mean motion. Every level errs low. The modes are those that enter the heating at degree 2 ($\lvert q \rvert \le N/2$); higher degrees activate more.
 
-| Truncation | Heating modes at $l=2$ | Error below $10^{-6}$ to | Error below 1% to | Warning above ($l = 2$ / $l \ge 3$) |
+| Truncation | Heating modes at $l=2$ | Error below $10^{-6}$ to | Error below 1% to | Warning above (max $l$ = 2 / 3 / 10) |
 |---|---|---|---|---|
-| 2 | 9 | below 0.005 | 0.02 | 0.075 / 0.06 |
-| 4 | 13 | 0.005 | 0.095 | 0.19 / 0.155 |
-| 6 | 19 | 0.035 | 0.175 | 0.285 / 0.24 |
-| 8 | 25 | 0.07 | 0.245 | 0.36 / 0.31 |
-| 10 | 31 | 0.11 | 0.31 | 0.405 / 0.36 |
-| 20 | 61 | 0.295 | 0.49 | 0.595 / 0.535 |
-| 50 | 151 | 0.58 | 0.745 | 0.78 / 0.75 |
+| 2 | 9 | below 0.005 | 0.02 | 0.075 / 0.06 / 0.025 |
+| 4 | 13 | 0.005 | 0.095 | 0.19 / 0.155 / 0.07 |
+| 6 | 19 | 0.035 | 0.175 | 0.285 / 0.24 / 0.115 |
+| 8 | 25 | 0.07 | 0.245 | 0.36 / 0.31 / 0.16 |
+| 10 | 31 | 0.11 | 0.31 | 0.405 / 0.36 / 0.2 |
+| 20 | 61 | 0.295 | 0.49 | 0.595 / 0.535 / 0.315 |
+| 50 | 151 | 0.58 | 0.745 | 0.78 / 0.75 / 0.42 |
 | `"exact"` | depends on $e$ | any $e < 0.99$, to the tolerance | | never |
 
 Level 10 is TidalPy's default. Level 2 is the traditional $e^2$ theory: its synchronous heating is exactly $(21/2)(k_2/Q) G M^2 R^5 n e^2 / a^6$.
 
-`recommend_eccentricity_truncation(eccentricity, tolerance=0.01, max_degree_l=2)` returns the lowest level that holds a tolerance at an eccentricity, or `"exact"` when none does, and `eccentricity_accuracy_limit(level, tolerance, max_degree_l)` the largest eccentricity a level holds a tolerance to. Both read the measurements behind the table, at tolerances of $10^{-8}$, $10^{-6}$, $10^{-4}$, $10^{-3}$, $10^{-2}$, and $10^{-1}$; a tolerance in between uses the next smaller one. The limits barely depend on the spin rate, so the helper takes none:
+`recommend_eccentricity_truncation(eccentricity, tolerance=0.01, max_degree_l=2)` returns the lowest level that holds a tolerance at an eccentricity, or `"exact"` when none does, and `eccentricity_accuracy_limit(level, tolerance, max_degree_l)` the largest eccentricity a level holds a tolerance to. Both read the measurements behind the table, made for each degree from 2 to 10 at tolerances of $10^{-8}$, $10^{-6}$, $10^{-4}$, $10^{-3}$, $10^{-2}$, and $10^{-1}$; a tolerance in between uses the next smaller one. A level must hold at every degree a solve includes, so both take the tightest limit of degrees 2 to `max_degree_l`. The limits barely depend on the spin rate, so the helper takes none:
 
 ```python
 from TidalPy.Tides.eccentricity import recommend_eccentricity_truncation
 
 recommend_eccentricity_truncation(0.3)                    # 10: heating within 1% at e = 0.3
 recommend_eccentricity_truncation(0.3, max_degree_l=3)    # 20: degree 3 needs more
+recommend_eccentricity_truncation(0.3, max_degree_l=10)   # 50: degrees up to 10 need more still
 recommend_eccentricity_truncation(0.3, tolerance=1e-6)    # 50
 recommend_eccentricity_truncation(0.85)                   # 'exact'
 ```
 
-A world's `calc_tides` logs a warning, once per world, when its eccentricity is past the last column (the 3D calls do not check it): the point where that level's heating can be 10% or more below the exact value. Degree 3 loses accuracy at a lower eccentricity than degree 2, so a world whose tides include degree 3 or higher uses the second value, measured at degree 3.
+A world's `calc_tides` logs a warning, once per world, when its eccentricity is past the last column (the 3D calls do not check it): the point where that level's heating at some included degree can be 10% or more below the exact value. Higher degrees generally lose accuracy at a lower eccentricity, so a world whose tides reach degree 3 uses the second value and one whose tides reach degree 10 the third; other degree ranges use the tightest limit of the degrees included (`eccentricity_accuracy_limit(level, 0.1, max_degree_l)`). The total heating of a solve through degree 10 is usually closer to exact than that, since the higher degrees are weaker, but its per-degree values and its 3D pattern are not.
 
 The cost is worse than linear. Each new truncation activates new tidal modes, and new modes can introduce new unique forcing frequencies, each of which needs its own Love number solve. Doubling the mode count more than doubles the work, and the effect compounds at $l > 2$ because higher degrees activate more modes of their own. We recommend the lowest truncation that covers your eccentricity values. In a numerical integration where eccentricity may be driven higher (_e.g._, in a mean motion resonance), a truncation adequate for the initial eccentricity may become inaccurate as the eccentricity rises; the warning above flags it.
 

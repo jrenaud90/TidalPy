@@ -19,13 +19,23 @@
  * trace so only the sinks filter. Each child sink has its own level (cy_set_console_level, cy_set_file_level).
  * The distribution sink's level is kept at the lowest child level so a message no child wants is dropped before
  * the mutex is taken.
+ *
+ * A log file path arrives from Python as UTF-8. On Windows spdlog opens a narrow file name in the system code page,
+ * which garbles any non-ASCII directory, so this header switches spdlog to wide file names there
+ * (SPDLOG_WCHAR_FILENAMES) and hands it the path converted from UTF-8. This header is the only one that includes
+ * spdlog, so every extension sees the same setting. On Linux and macOS spdlog opens the UTF-8 bytes as they are.
  */
 
 #include <algorithm>
+#include <filesystem>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#if defined(_WIN32) && !defined(SPDLOG_WCHAR_FILENAMES)
+#define SPDLOG_WCHAR_FILENAMES
+#endif
 
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/dist_sink.h"
@@ -132,6 +142,16 @@ inline void cy_create_default_logger() {
     tidalpy_logger_ptr = logger.get();
 }
 
+/// The UTF-8 log file path as the file name spdlog opens: UTF-16 on Windows, the same bytes elsewhere.
+inline spdlog::filename_t c_log_file_name(const std::string& utf8_path) {
+#if defined(_WIN32)
+    return std::filesystem::path(
+        std::u8string(reinterpret_cast<const char8_t*>(utf8_path.data()), utf8_path.size())).wstring();
+#else
+    return utf8_path;
+#endif
+}
+
 /** Replace the console and file sinks behind the logger and reset the logger level to trace.
  *
  * The children of the distribution sink are swapped under its mutex, so this is safe while other threads log;
@@ -154,7 +174,8 @@ inline void cy_init_logger(const c_LoggerConfig& config) {
 
     spdlog::sink_ptr file_sink = nullptr;
     if (config.log_to_file && !config.log_file_path.empty()) {
-        file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(config.log_file_path, /*truncate=*/false);
+        file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+            c_log_file_name(config.log_file_path), /*truncate=*/false);
         file_sink->set_level(static_cast<spdlog::level::level_enum>(config.file_level));
         new_sinks.push_back(file_sink);
     }
@@ -210,16 +231,16 @@ inline void cy_flush_logger() {
     if (tidalpy_logger_ptr) { tidalpy_logger_ptr->flush(); }
 }
 
-/** Flush, turn the logger off, and null this module's pointer. Every extension holds its own copy of the pointer
- * (one per DLL on Windows), so nulling this one alone would leave the others logging; the level is what they all
- * share. The logger stays in spdlog's registry so raw addresses held by other DLLs cannot dangle; it is released at
- * process exit.
+/** Flush and turn the logger off. The level is what every extension's copy of the pointer shares (one copy per DLL
+ * on Windows), so it silences all of them. The pointer itself is kept: an extension imported after this call still
+ * wires the logger's address, so the next cy_init_logger, which resets the level, reaches every extension. The
+ * logger stays in spdlog's registry so raw addresses held by other DLLs cannot dangle; it is released at process
+ * exit.
  */
 inline void cy_shutdown_logger() {
     if (tidalpy_logger_ptr) {
         tidalpy_logger_ptr->flush();
         tidalpy_logger_ptr->set_level(spdlog::level::off);
-        tidalpy_logger_ptr = nullptr;
     }
 }
 

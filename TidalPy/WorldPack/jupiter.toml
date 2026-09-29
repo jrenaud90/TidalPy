@@ -55,6 +55,12 @@ mass_kg = 1.898125e27
 spin_frequency_rad_s = 1.7585181e-04
 albedo = 0.503
 
+# The layer temperatures below are prescribed, not solved: no layer here is a rock with a thermal law worth
+# integrating, and the default thermal solve would carry rock constants through hydrogen and ices. The world
+# pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+[eos_solver]
+solve_temperature = false
+
 [tides]
 global_tidal_model = "fixed_q"
 fixed_k = [0.59, 0.295, 0.1967, 0.1475, 0.118, 0.0983, 0.0843, 0.0738, 0.0656]

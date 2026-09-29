@@ -119,9 +119,11 @@ def strain_stress_heating_point(
     ----------
     y : numpy.ndarray of complex128
         Radial functions y1 to y6 [SI] at ``radius`` from a radial-solver Love solve at the mode's degree and
-        ``|frequency|``. Only y1 to y4 are used; a shorter array is zero-padded.
+        ``|frequency|``. Only y1 to y4 are used; a shorter array is zero-padded. y2, the radial stress, sets the
+        isotropic part of the normal stresses.
     shear, bulk : complex
-        Complex shear and bulk moduli [Pa] at ``radius`` and ``|frequency|``.
+        Complex shear and bulk moduli [Pa] at ``radius`` and ``|frequency|``. The bulk modulus enters only the
+        dy1/dr of a compressible layer.
     radius : float
         Radius [m].
     degree_l : float
@@ -157,6 +159,8 @@ def strain_stress_heating_point(
     -----------
     - Isotropic linear viscoelasticity, ``sigma = 2 mu eps + lambda tr(eps) delta``, with the Kervazo et al. (2021)
       correction to the Tobie et al. (2005) theta-phi and phi-phi strain forms. Solid layers only.
+    - ``lambda tr(eps)`` is taken from the radial stress as ``(y2 - 2 mu dy1/dr) U``, which equals it in a
+      compressible layer and carries the pressure of an incompressible one, whose strain is traceless.
     - The potential's r^2 factor is taken at the surface radius; the depth dependence is carried by y.
     """
     cdef double[12] y_ri

@@ -49,10 +49,11 @@ where $dy_{1}/dr$ comes from the radial equations of the layer's type. The stres
 
 $$\sigma_{ij} = 2\mu^{*}\varepsilon_{ij} + \lambda^{*}\varepsilon_{kk}\,\delta_{ij}, \qquad \lambda^{*} = K^{*} - \tfrac{2}{3}\mu^{*},$$
 
-with both moduli taken at $r$ and at the mode's frequency.
+with both moduli taken at $r$ and at the mode's frequency. The isotropic part is taken from the radial stress $\sigma_{rr} = y_{2}\,W$:
 
-> [!NOTE]
-> In a layer the radial solver treats as incompressible, the strain is traceless, so this law drops the pressure. The normal stresses ($\sigma_{rr}$, $\sigma_{\theta\theta}$, $\sigma_{\phi\phi}$) miss their isotropic part. In a test, $\sigma_{rr}$ was about 13 percent below that of a nearly incompressible compressible twin. The deviatoric stress, the strain, and the heating are unaffected (the 1D and 3D heating of such a layer agree to about 1e-4). Solve the layer as compressible when its normal stresses matter. Carrying the pressure from $y_{2}$ is planned.
+$$\lambda^{*}\varepsilon_{kk} = \left(y_{2} - 2\mu^{*}\frac{dy_{1}}{dr}\right)W.$$
+
+In a compressible layer this is the same quantity, since $y_{2} = \lambda^{*}\left(dy_{1}/dr + (2y_{1} - l(l+1)y_{3})/r\right) + 2\mu^{*}\,dy_{1}/dr$, and it stays accurate for a very large bulk modulus, where $\lambda^{*}$ times a nearly zero trace would amplify round-off. In a layer the radial solver treats as incompressible, the strain is traceless and this term is the pressure, which only $y_{2}$ carries.
 
 The kernel applies to solid layers only. A liquid (a liquid layer, or a molten stretch of a solid layer that the radial solver treats as a static liquid) contributes no shear dissipation: its heating is 0 and its stress and strain are NaN. The poles ($\sin\theta$ within machine epsilon of 0, at $0$ and $\pi$) are singular points of the angular terms, so point-wise values there are NaN. Use colatitudes inside $(0, \pi)$, as the Gauss-Legendre nodes of the summed paths do.
 
@@ -103,7 +104,7 @@ which `calc_3d_tides` evaluates with its summed arguments, one axis at a time:
   $$\mathcal{G}_{ij}(l_{a}, l_{b}, m) = \int_{0}^{\pi} f_{i}^{(l_{a})}\,f_{j}^{(l_{b})}\,\sin\theta\;d\theta.$$
 
   They are tabulated for equal degrees and computed with 32-node Gauss-Legendre quadrature in $\cos\theta$ for different degrees, which is exact because the integrands are polynomials in $\cos\theta$ of degree at most $l_{a} + l_{b} + 2 \le 22$.
-- Radius: Gauss-Legendre quadrature inside each layer with `radial_slices` nodes (default 16) and weight $r^{2}$; no node sits on a layer boundary.
+- Radius: Gauss-Legendre quadrature inside each layer with `radial_slices` nodes (default 16) and weight $r^{2}$; no node sits on a layer boundary. A node below the radial solver's starting radius, where no degree has a solution, is left out. The automatic starting radius keeps that region small, and the integral logs a warning when the nodes left out hold more of the body's volume than the radial solver's `rtol`.
 
 At zero obliquity the volume integral equals the 1D global tidal heating (`get_tidal_heating`) to the radial quadrature error at every eccentricity and spin rate, including synchronous rotation. For the homogeneous Io of demo notebook 09 that error is below 1e-7 with the default 16 nodes per layer. With both $e$ and $I$ nonzero the two differ by the same-frequency cross terms of [Coherent Waves](#coherent-waves). The benchmark tests are `Tests/Test_Structures/Test_Worlds/test_world_1d_vs_3d_tides_01.py` and `test_world_3d_tides_coherent_01.py`.
 
@@ -153,7 +154,7 @@ h_bar = world.get_3d_tidal_heating(
     semi_major_axis, host_mass, 0.9 * world.radius, 0.8)   # [W m-3], secular
 ```
 
-This requires the rheology tide model and a solved EOS. Analytic tide models such as fixed-Q have no depth-resolved solution and are rejected. The radial solver's starting radius grows with degree, so with several degrees active the innermost region carries only the degrees that have a solution there. A radius is NaN only where no degree has a solution.
+This requires the rheology tide model and a solved EOS. Analytic tide models such as fixed-Q have no depth-resolved solution and are rejected. Every 3D method checks the orbital state as `calc_tides` does: an eccentricity outside $[0, 1)$ or a semi-major axis that is not positive raises `ValueError`, and the truncation-range warnings apply. The radial solver's starting radius grows with degree, so with several degrees active the innermost region carries only the degrees that have a solution there. A radius is NaN only where no degree has a solution. This holds for every output with a radius axis, including a radial profile summed over colatitude and longitude.
 
 #### Building the Map
 
@@ -230,10 +231,10 @@ prof = world.calc_3d_tides(
     obliquity,
     semi_major_axis,
     host_mass,
-    radii=np.linspace(1e3, world.radius, 400),
+    radii=np.linspace(0.01 * world.radius, world.radius, 400),   # A radius below the solver's start would be NaN
     latitude_summed=True,
     longitude_summed=True)
-np.trapezoid(prof['heating'], prof['radii'])   # the total
+np.trapezoid(prof['heating'], prof['radii'])   # The total, less the small share inside 0.01 R
 
 # time-resolved instantaneous power over one orbital period
 period = 2.0 * np.pi / orbital_frequency

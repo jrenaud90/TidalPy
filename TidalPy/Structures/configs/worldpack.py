@@ -6,7 +6,8 @@ version-scoped, user-editable data directory (``.../TidalPy/<version>/Worlds``, 
 world is requested by name. Installation is copy-if-absent per file, so user edits and renames are
 never clobbered while newly packaged worlds appear on the next import. The price is that a copy made by
 an older install outlives an update to the packaged file, so a copy that differs from its packaged
-counterpart is reported (once per file per session, and never overwritten).
+counterpart is reported (once per file per session, and never overwritten). Without a usable data directory
+(a read-only home directory, say) the packaged files are used directly.
 
 World configurations and system configurations share this directory and are told apart by content:
 a system names its members in a ``[worlds.<name>]`` table, a world never does. :func:`config_kind`
@@ -20,7 +21,7 @@ import warnings
 import toml
 
 import TidalPy
-from TidalPy.paths import get_worlds_dir as _paths_get_worlds_dir
+from TidalPy.paths import get_worlds_dir as _paths_get_worlds_dir, warn_unusable_data_dir
 from TidalPy.Structures.configs.toml_loader import warning_enabled
 
 
@@ -49,7 +50,7 @@ _INSTALLED_DATA_DIRS: set = set()
 _PACKAGED_CONTENTS: dict = {}
 
 
-def get_worlds_dir() -> str:
+def get_worlds_dir():
     """Return the user-editable data directory for Structures worlds.
 
     Thin indirection over :func:`TidalPy.paths.get_worlds_dir` so tests can
@@ -57,8 +58,9 @@ def get_worlds_dir() -> str:
 
     Returns
     -------
-    str
-        Absolute path to the ``Worlds`` data directory (created if absent).
+    str or None
+        Absolute path to the ``Worlds`` data directory (created if absent); None when it cannot be created, in which
+        case the packaged worlds are used directly.
     """
     return _paths_get_worlds_dir()
 
@@ -74,10 +76,18 @@ def install_worldpack(force: bool = False) -> str:
 
     Returns
     -------
-    str
-        The data directory the worlds were installed into.
+    str or None
+        The data directory the worlds were installed into; None when there is no usable data directory.
+
+    Raises
+    ------
+    OSError
+        ``force`` is set and a copy cannot be written. Without ``force`` a directory that cannot be written is
+        warned about once and left as it is, and the packaged file is used wherever the directory has no copy.
     """
     data_dir = get_worlds_dir()
+    if data_dir is None:
+        return None
     key = os.path.normcase(os.path.abspath(data_dir))
     if (not force) and (key in _INSTALLED_DATA_DIRS):
         return data_dir
@@ -88,7 +98,13 @@ def install_worldpack(force: bool = False) -> str:
             continue
         destination = os.path.join(data_dir, entry)
         if force or not os.path.isfile(destination):
-            shutil.copyfile(os.path.join(PACKAGED_WORLDPACK_DIR, entry), destination)
+            try:
+                shutil.copyfile(os.path.join(PACKAGED_WORLDPACK_DIR, entry), destination)
+            except OSError as error:
+                if force:
+                    raise
+                warn_unusable_data_dir(error)
+                break
     _INSTALLED_DATA_DIRS.add(key)
     return data_dir
 
@@ -180,20 +196,21 @@ def resolve_data_file(data_file: str, base_dir: str = None) -> str:
     """
     if os.path.isabs(data_file) and os.path.isfile(data_file):
         return data_file
-    install_worldpack()
+    worlds_dir = install_worldpack()
     candidates = []
     if base_dir is not None:
         candidates.append(os.path.join(base_dir, data_file))
-    candidates.append(os.path.join(get_worlds_dir(), data_file))
+    if worlds_dir is not None:
+        worlds_dir = os.path.abspath(worlds_dir)
+        candidates.append(os.path.join(worlds_dir, data_file))
     candidates.append(os.path.join(PACKAGED_WORLDPACK_DIR, data_file))
     candidates.append(os.path.join(os.getcwd(), data_file))
     candidates.append(data_file)
-    worlds_dir = os.path.abspath(get_worlds_dir())
     for candidate in candidates:
         if os.path.isfile(candidate):
             resolved = os.path.abspath(candidate)
             # Only the data directory holds copies of the packaged files; a user's own file elsewhere is theirs.
-            if os.path.dirname(resolved) == worlds_dir:
+            if worlds_dir is not None and os.path.dirname(resolved) == worlds_dir:
                 warn_if_stale_copy(candidate)
             return resolved
     raise FileNotFoundError(
@@ -222,14 +239,15 @@ def resolve_world_path(name: str) -> str:
     FileNotFoundError
         If no bundled world of that name exists in either location.
     """
-    install_worldpack()
+    worlds_dir = install_worldpack()
     # The bundled names are lowercase; matching them that way works the same on case-sensitive file systems.
     file_name = name.lower() + ".toml"
 
-    data_path = os.path.join(get_worlds_dir(), file_name)
-    if os.path.isfile(data_path):
-        warn_if_stale_copy(data_path)
-        return data_path
+    if worlds_dir is not None:
+        data_path = os.path.join(worlds_dir, file_name)
+        if os.path.isfile(data_path):
+            warn_if_stale_copy(data_path)
+            return data_path
 
     packaged_path = os.path.join(PACKAGED_WORLDPACK_DIR, file_name)
     if os.path.isfile(packaged_path):
@@ -237,7 +255,7 @@ def resolve_world_path(name: str) -> str:
 
     raise FileNotFoundError(
         f"No bundled WorldPack world named '{name}' was found in the data "
-        f"directory ({get_worlds_dir()}) or the packaged worlds "
+        f"directory ({worlds_dir}) or the packaged worlds "
         f"({PACKAGED_WORLDPACK_DIR}).")
 
 
@@ -334,11 +352,11 @@ def _available_configs(kind: str) -> list:
     list of str
         Configuration names, without the ``.toml`` extension.
     """
-    install_worldpack()
+    worlds_dir = install_worldpack()
     names = {}
     # The data directory is searched first so its copy of a shared name wins.
-    for directory in (get_worlds_dir(), PACKAGED_WORLDPACK_DIR):
-        if not os.path.isdir(directory):
+    for directory in (worlds_dir, PACKAGED_WORLDPACK_DIR):
+        if directory is None or not os.path.isdir(directory):
             continue
         for entry in os.listdir(directory):
             if not entry.endswith(".toml"):

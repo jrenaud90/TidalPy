@@ -159,7 +159,7 @@ See each module's documentation for the available model names and parameters.
 
 `[layers.<name>.material]` is the layer's EOS model, which is also its material. It holds:
 
-- Density law: `model` (`"constant"`, `"bm"`, `"vinet"`, `"interpolate"`) and its parameters (`reference_density_kg_m3`, `reference_bulk_modulus_pa`, `thermal_expansion_1_k`, ...).
+- Density law: `model` (`"constant"`, `"bm"`, `"vinet"`, `"interpolate"`) and its parameters (`reference_density_kg_m3`, `reference_bulk_modulus_pa`, `thermal_expansion_1_k`, ...). An `interpolate` table's `radius_m` \[m\] must span its layer to within 0.1% of the layer's outer radius at each end, or the build fails: the interpolation holds its end values beyond the table, so a table in km would otherwise build a uniform layer.
 - Static constants: `shear_modulus_static_pa`, `bulk_modulus_static_pa`, `shear_viscosity_static_pas`, and `bulk_viscosity_static_pas`. A viscosity left out is unset.
 - Thermal constants: `thermal_conductivity_w_mk` (default `4.0`), `heat_capacity_j_kgk` (default `1200.0`), and `thermal_expansion_1_k` (default `0.0`). The one expansivity sets the adiabat and convection of a cooling layer. The density law uses it only on a layer that sets `use_thermal_eos`.
 - Static shear law: $\mu = \mu_0 + \mu'_P P + \mu'_T (T - T_\mathrm{ref})$ through `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative_pa_k` \[Pa K$^{-1}$\], and `shear_modulus_reference_temperature_k` \[K\] (defaults `0.0`, `0.0`, `300.0`).
@@ -252,7 +252,7 @@ use_kamata = true
 Any layer parameter or physics-model table is resolved through three tiers, in order:
 
 1. The user world (dict or TOML): a value the user writes takes precedence over every other tier.
-2. The TidalPy configuration (`TidalPy_Configs.toml`), keyed by material `type`: the builder fills anything the user omitted from `TidalPy.config['layers'][<type>]`. Keys and model tables that the layer's `class` cannot hold are ignored (an `ice` block applied to a `physics` layer drops its cooling and radiogenics sections). A layer with no `type` takes the `[layers.default]` block, and `type = "none"` skips this tier.
+2. The TidalPy configuration (`TidalPy_Configs.toml`), keyed by material `type`: the builder fills anything the user omitted from `TidalPy.config['layers'][<type>]`. Keys and model tables that the layer's `class` cannot hold are ignored (an `ice` block applied to a `physics` layer drops its cooling and radiogenics sections). A layer with no `type` takes the `[layers.default]` block, and `type = "none"` skips this tier. A model table fills in from the type's table even when it names a different `model`: an `ice` layer that sets `[layers.<name>.material.partial_melt] model = "henning"` keeps the ice solidus, liquidus, and liquid properties of `[layers.ice.material.partial_melt]`, and a key the new model does not read is ignored by it. Only a key whose meaning depends on the model reading it (`TidalPy.configurations.MODEL_SPECIFIC_KEYS`: the radiogenics `ref_time_s`, an isotope dataset's reference time to one model and a fixed rate's to the other) is dropped from the type's table when the model changes.
 3. The constructor or factory default: anything still unset falls through to the C++ or Cython default.
 
 For example, an Andrade shear rheology's `zeta` on a `solidliquid` / `mantle_rock` layer comes from `layers.<name>.shear_rheology.zeta` in the user world, else `[layers.mantle_rock.shear_rheology].zeta` in `TidalPy_Configs.toml`, else the Cython class' factory default.
@@ -361,20 +361,20 @@ A profile is a delimited table (comma, semicolon, tab, or whitespace; `#` commen
 | S-wave velocity | `vs`, `v_s`, `shear_velocity`, … | m/s or km/s | yes, unless moduli are given |
 | shear modulus | `shear_modulus`, `mu`, `rigidity` | Pa | instead of the velocities |
 | bulk modulus | `bulk_modulus`, `k`, `incompressibility` | Pa | instead of the velocities |
-| shear viscosity | `shear_viscosity`, `eta`, `viscosity` | Pa s | no |
+| shear viscosity | `shear_viscosity`, `eta_shear`, `viscosity`, `visc` | Pa s | no |
 | bulk viscosity | `bulk_viscosity`, `eta_bulk`, `zeta` | Pa s | no |
 | shear quality factor $Q_\mu$ | `q_mu`, `qmu`, `q_shear`, `q_s`, `q_beta` | none | no; used only with `q_provided = true` |
 | bulk quality factor $Q_\kappa$ | `q_kappa`, `qkappa`, `q_bulk`, `q_k` | none | no; used only with `q_provided = true` |
 
-Names are matched ignoring case and punctuation, so `Vp`, `V_P`, and `vp` are one name. A name may state its unit: `radius_km`, `Vp [km/s]`, `rho_kg_m3`. A unit the reader does not convert is taken to be MKS. Columns are found by name, so their order does not matter. The names come from a header row or from the last `#` comment line before the data. That comment line must name every column, so prose about the data is not mistaken for a header. A file with no header is read positionally as radius, density, `Vp`, `Vs`, shear viscosity, bulk viscosity, so quality factors need a header.
+Names are matched ignoring case and punctuation, so `Vp`, `V_P`, and `vp` are one name. A name may state its unit: `radius_km`, `Vp [km/s]`, `rho_kg_m3`. A unit the reader does not convert is taken to be MKS. Columns are found by name, so their order does not matter, and a column whose name matches none of these is not read. A bare `eta` is not a viscosity: in PREM and the IRIS tables it is the dimensionless anisotropy parameter, so an `eta` column is not read. The names come from a header row or from the last `#` comment line before the data. A header row must name every column, or the file is refused. A `#` comment line is taken as the header only when it names every column, so prose about the data is not mistaken for a header. In a whitespace-delimited header a bracketed unit stays with its name (`depth (km)`). A file with no header is read positionally as radius, density, `Vp`, `Vs`, shear viscosity, bulk viscosity, so quality factors need a header.
 
-A radius or depth with no stated unit is read as kilometers below 100 km and as meters above it. The file may be ordered surface-first or center-first (it is sorted internally). Where the velocities are given, the static moduli are derived per row: shear $\mu = \rho V_s^2$, bulk $K = \rho \left(V_p^2 - \tfrac{4}{3} V_s^2\right)$.
+A radius or depth with no stated unit is read as kilometers below 100 km and as meters above it. A density below 100 kg/m³, a velocity below 100 m/s, and a bulk modulus or a solid's shear modulus below 10⁶ Pa are refused as a column in g/cm³, km/s, or GPa that did not state its unit (name it `density_g_cm3`, `vp_km_s`, or `shear_modulus_gpa`). The file may be ordered surface-first or center-first (it is sorted internally). Where the velocities are given, the static moduli are derived per row: shear $\mu = \rho V_s^2$, bulk $K = \rho \left(V_p^2 - \tfrac{4}{3} V_s^2\right)$.
 
 ### Layer Detection
 
 The profile is scanned from the center outward and split into layers by shear modulus: `Vs = 0` is liquid, non-zero is solid, and every solid-liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`, and so on, inner to outer. Duplicate-radius boundary points are absorbed, so no zero-thickness layer is produced. At a duplicated boundary radius the lower layer's row comes first, whichever way the file is ordered. A liquid layer gets `is_solid = false` and `is_static = true`, so the radial solver treats it as a static liquid. A layer table can override either flag. The bundled `PREM.csv` replaces PREM's 3 km ocean with the upper crust and yields three layers: inner core (solid), outer core (liquid), and mantle plus crust (solid).
 
-Each layer's slice of the profile becomes its material: an interpolated EOS carrying that layer's density, static shear and bulk moduli, and any viscosities the profile gave. That EOS owns those arrays and is the only place a radial grid persists. A layer built this way takes no defaults from a material type. A profile that names no viscosity therefore produces an elastic layer, with no viscosity model, no partial-melt model, and no rheology it did not ask for.
+Each layer's slice of the profile becomes its material: an interpolated EOS carrying that layer's density, static shear and bulk moduli, and any viscosities the profile gave. That EOS owns those arrays and is the only place a radial grid persists. A layer starts where the one below it ends. When the profile repeats no row at that boundary, the layer's first row is repeated at the boundary radius, so its table spans the layer. A layer built this way takes no defaults from a material type. A profile that names no viscosity therefore produces an elastic layer, with no viscosity model, no partial-melt model, and no rheology it did not ask for.
 
 ### Refining Detected Layers
 
@@ -387,7 +387,7 @@ A table picks the detected layer it refines with `layer_index`, or by being name
 - An index outside the detected range raises an error.
 - A constant modulus or viscosity (_e.g._, `bulk_modulus_static_pa = 1.0e11`) replaces that layer's array with the constant: TOML overrides the data file.
 - Other keys (`class`, `type`, the model sub-tables, …) override the detected values. Naming a `type` brings that material block's defaults back.
-- In a world that sets `q_provided = true`, a table may not give a viscosity or a `type`, and names no rheology but `seismic_q` (or `elastic` for the bulk); see below.
+- In a world that sets `q_provided = true`, a table may not give a viscosity or a `type`, and names no rheology but `seismic_q` (or `elastic` for the bulk). A solid layer's table names no partial-melt model but `off` and no `convection` cooling model. See below.
 
 ```toml
 [layers.mantle]             # refines the outermost detected layer; the other two need no table
@@ -419,7 +419,7 @@ These keys belong only to a world with a profile. The last two require `q_provid
 
 - **Solid layers.** Each gets `shear_rheology = {model = "seismic_q", ...}` with the world's two settings, and a `bulk_rheology` of the same kind when the profile gives `q_kappa`. The quality factors ride in the layer's viscosity arrays, which is where `seismic_q` reads them. They must be positive in every solid row.
 - **Liquid layers.** These (a liquid's $Q_\mu$ is conventionally 0) take no quality factor and no rheology.
-- **Refinement tables.** A `[layers.<name>]` table may name `seismic_q` with its own `reference_frequency_rad_s` or `q_frequency_exponent` to override the world's for that layer, or set an `elastic` bulk rheology to ignore $Q_\kappa$. It may not name another rheology, give a viscosity, or name a material `type`: each would put a viscosity where `seismic_q` reads a quality factor.
+- **Refinement tables.** A `[layers.<name>]` table may name `seismic_q` with its own `reference_frequency_rad_s` or `q_frequency_exponent` to override the world's for that layer, or set an `elastic` bulk rheology to ignore $Q_\kappa$. It may not name another rheology, give a viscosity, or name a material `type`: each would put a viscosity where `seismic_q` reads a quality factor. On a solid layer it may not name a partial-melt model other than `off`, or the `convection` cooling model: both read the layer's viscosity, which there holds $Q_\mu$ (Henning melt weakening at 1800 K would turn a $Q_\mu$ of 312 into 0.365).
 
 The bundled `earth_prem_q` world is PREM with its own quality factors. At 1 s its $k_2$ equals the elastic PREM's. At the M2 tide the dispersion raises it from 0.298 to 0.302, with $|k_2|/|\mathrm{Im}\,k_2| \approx 500$; with `q_frequency_exponent = 0.15` that ratio falls to about 100. See [`example_profile_q_world.toml`](examples/example_profile_q_world.toml).
 

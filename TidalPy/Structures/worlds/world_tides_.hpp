@@ -68,6 +68,15 @@ inline void c_parallel_tasks_3d(size_t num_tasks, int num_threads, const Body& b
 //   an analytic tide model            : the whole-body heating times the layer's tidal scale.
 inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
+    // The previous call's results are cleared before anything can throw, so a call that fails leaves the world and
+    // its layers unsolved (NaN heating) rather than reporting the previous orbit.
+    this->p_tides_solved = false;
+    this->p_tide_result  = c_GlobalTideResult();
+    this->p_tide_solver_love.clear();
+    this->p_layer_tidal_heating.clear();
+    for (const auto& layer_uptr : this->p_layers) {
+        layer_uptr->set_tidal_heating(TidalPyConstants::d_NAN);
+    }
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world: call set_tide_model() first");
@@ -91,7 +100,6 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     if (this->p_tide->needs_radial_solve()) {
         // The per-mode -Im[k_l(omega)] comes from the world's Love solve, which needs a solved EOS.
         if (!this->p_eos_solved || !this->p_eos_solution) {
-            this->p_tides_solved = false;
             throw std::runtime_error(
                 "TidalPy: the rheology tide model needs the EOS solved first. Call "
                 "solve_eos() before calc_tides()");
@@ -107,25 +115,30 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         const bool retain_radial_solves = !quasi_homogeneous && tcfg.layer_tidal_heating;
         std::vector<c_RetainedRadialSolve> retained_solves;
         c_HomogeneousLoveCache homogeneous_cache;
-        c_IntMap<c_Key2, std::size_t> solve_by_l_freq;
+        // The solve of each (degree_l, unique-frequency index) pair, indexed directly by
+        // [(degree_l - min_degree_l) * num_unique_frequencies + frequency index]: the frequency index runs over every
+        // degree's modes, so it can pass any fixed-width key ('exact' eccentricity reaches 1e5 unique frequencies).
+        const std::size_t num_unique_frequencies = potential.unique_freq_map.size();
+        const std::size_t num_degrees            = static_cast<std::size_t>(tcfg.max_degree_l - tcfg.min_degree_l + 1);
+        constexpr std::size_t no_solve           = std::numeric_limits<std::size_t>::max();
+        std::vector<std::size_t> solve_by_l_freq(num_degrees * num_unique_frequencies, no_solve);
         std::vector<int> solve_degree;
         std::vector<double> solve_frequency;
         std::vector<std::size_t> part_layer_index;
-        c_IntMap<c_Key4, std::size_t> solve_by_mode;
+        // Filled in the potential map's key order, so every set appends.
+        c_IntMap<c_Key4, std::size_t> solve_by_mode(potential.potential_map.size());
         for (const auto& mode_entry : potential.potential_map) {
             const c_Key4& lmpq_key = mode_entry.first;
             const int degree_l     = static_cast<int>(lmpq_key.a);
             // Every mode of the potential map has a nonzero frequency.
             const std::size_t freq_index = mode_entry.second.frequency_index;
 
-            c_Key2 lf_key(static_cast<int16_t>(degree_l), static_cast<int16_t>(freq_index));
-            bool cached = false;
-            std::size_t solve_index = solve_by_l_freq.get(cached, lf_key);
-            if (!cached) {
+            std::size_t& solve_index = solve_by_l_freq[
+                static_cast<std::size_t>(degree_l - tcfg.min_degree_l) * num_unique_frequencies + freq_index];
+            if (solve_index == no_solve) {
                 solve_index = solve_degree.size();
                 solve_degree.push_back(degree_l);
                 solve_frequency.push_back(potential.unique_freq_map[freq_index].frequency);
-                solve_by_l_freq.set(lf_key, solve_index);
             }
             solve_by_mode.set(lmpq_key, solve_index);
         }
@@ -152,33 +165,28 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         std::vector<std::unique_ptr<c_LoveWorkspace>> workspaces(retain_radial_solves ? num_solves : num_workers);
         std::vector<tidalpy::c_LoveNumbers> world_love_by_solve(num_solves);
         std::vector<std::vector<tidalpy::c_LoveNumbers>> layer_love_by_solve(num_solves);
-        try {
-            tides3d::c_parallel_tasks_3d(num_workers, static_cast<int>(num_workers), [&](std::size_t worker) {
-                for (std::size_t solve_i = worker; solve_i < num_solves; solve_i += num_workers) {
-                    std::unique_ptr<c_LoveWorkspace>& workspace_uptr =
-                        workspaces[retain_radial_solves ? solve_i : worker];
-                    if (!workspace_uptr) { workspace_uptr = std::make_unique<c_LoveWorkspace>(); }
-                    c_LoveSolveConfig solve_cfg = love_cfg;
-                    solve_cfg.degree_l  = solve_degree[solve_i];
-                    solve_cfg.frequency = solve_frequency[solve_i];
-                    this->solve_love_numbers(solve_cfg, &homogeneous_cache, *workspace_uptr);
-                    if (!workspace_uptr->get_success()) {
-                        throw std::runtime_error(
-                            "TidalPy: Love-number solve failed during calc_tides: " + workspace_uptr->get_message());
-                    }
-                    world_love_by_solve[solve_i] = workspace_uptr->get_love(0);
-                    for (const c_LayerLove& part : workspace_uptr->analytic_layers) {
-                        layer_love_by_solve[solve_i].emplace_back(
-                            part.tidal_scale * part.love.k,
-                            part.tidal_scale * part.love.h,
-                            part.tidal_scale * part.love.l);
-                    }
+        tides3d::c_parallel_tasks_3d(num_workers, static_cast<int>(num_workers), [&](std::size_t worker) {
+            for (std::size_t solve_i = worker; solve_i < num_solves; solve_i += num_workers) {
+                std::unique_ptr<c_LoveWorkspace>& workspace_uptr =
+                    workspaces[retain_radial_solves ? solve_i : worker];
+                if (!workspace_uptr) { workspace_uptr = std::make_unique<c_LoveWorkspace>(); }
+                c_LoveSolveConfig solve_cfg = love_cfg;
+                solve_cfg.degree_l  = solve_degree[solve_i];
+                solve_cfg.frequency = solve_frequency[solve_i];
+                this->solve_love_numbers(solve_cfg, &homogeneous_cache, *workspace_uptr);
+                if (!workspace_uptr->get_success()) {
+                    throw std::runtime_error(
+                        "TidalPy: Love-number solve failed during calc_tides: " + workspace_uptr->get_message());
                 }
-            });
-        } catch (...) {
-            this->p_tides_solved = false;
-            throw;
-        }
+                world_love_by_solve[solve_i] = workspace_uptr->get_love(0);
+                for (const c_LayerLove& part : workspace_uptr->analytic_layers) {
+                    layer_love_by_solve[solve_i].emplace_back(
+                        part.tidal_scale * part.love.k,
+                        part.tidal_scale * part.love.h,
+                        part.tidal_scale * part.love.l);
+                }
+            }
+        });
         if (quasi_homogeneous && !workspaces.empty() && workspaces[0]) {
             for (const c_LayerLove& part : workspaces[0]->analytic_layers) {
                 part_layer_index.push_back(part.layer_index);
@@ -1176,14 +1184,15 @@ inline const c_RheologyTide& c_require_3d_rheology(const c_LayeredWorld& world, 
 
 }  // namespace tides3d
 
-// World delegation: validate preconditions, map the solve state into the potential's state struct, and
-// hand off to the rheology tide model's 3D orchestration.
+// World delegation: validate preconditions, check the orbital state as calc_tides does (p_check_tide_state: the same
+// rejections and truncation-range warnings), and hand off to the rheology tide model's 3D orchestration.
 inline double c_LayeredWorld::get_3d_tidal_heating(
         const c_TideSolveConfig& state,
         double radius,
         double colatitude) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
     const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal heating", false);
+    this->p_check_tide_state(state);
     return rheology.calc_3d_tidal_heating(*this, state, radius, colatitude);
 }
 
@@ -1197,6 +1206,7 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
         int num_threads) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
     const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal heating", false);
+    this->p_check_tide_state(state);
     rheology.calc_3d_tidal_heating_batch(
         *this,
         state,
@@ -1215,6 +1225,7 @@ inline void c_LayeredWorld::get_3d_displacements_grid(
         int num_threads) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
     const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal displacements", true);
+    this->p_check_tide_state(state);
     rheology.calc_3d_displacements_grid(
         *this,
         state,
@@ -1408,6 +1419,7 @@ inline void c_LayeredWorld::get_3d_stress_strain_grid(
         int num_threads) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
     const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal stress and strain", true);
+    this->p_check_tide_state(state);
     rheology.calc_3d_stress_strain_grid(*this, state, axes, out_stress, out_strain, num_threads);
 }
 
@@ -1580,6 +1592,33 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
     const std::vector<std::vector<tides::c_StrainRadialCoeffs>>& coeffs = radial_coefficients.by_radius;
     const std::vector<unsigned char>& radius_solve_failed = radial_coefficients.radius_failed;
     const double nan_v = TidalPyConstants::d_NAN;
+    // A radius where no degree has a radial solution (below the radial solver's starting radius) is NaN on a radius
+    // axis. A volume integral leaves such a node out: the automatic starting radius keeps the region below it small,
+    // so the integral warns only when the nodes left out hold more of the body's volume than the radial solver's
+    // rtol.
+    if (cfg.radial_summed) {
+        size_t num_missing    = 0;
+        double missing_volume = 0.0;
+        double total_volume   = 0.0;
+        double missing_radius = 0.0;
+        for (size_t ir = 0; ir < nr; ++ir) {
+            total_volume += grids.r_wsum[ir];
+            if (radius_solve_failed[ir]) {
+                ++num_missing;
+                missing_volume += grids.r_wsum[ir];
+                missing_radius = std::max(missing_radius, grids.r_grid[ir]);
+            }
+        }
+        const c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+        if ((num_missing > 0) && love_cfg.warnings && (missing_volume > love_cfg.rtol * total_volume)) {
+            TIDALPY_LOG_WARN(
+                "TidalPy: world '{}': {} of the {} radial nodes of the 3D heating volume integral, up to r = {:.4e} m, "
+                "have no radial solution (they lie below the radial solver's starting radius) and are left out. "
+                "They hold {:.2e} of the body's volume. Lower the starting radius (start_radius_tolerance or "
+                "starting_radius) to include them.",
+                world.get_name(), num_missing, nr, missing_radius, missing_volume / total_volume);
+        }
+    }
     // Secular: each frequency's waves summed coherently, split by mu for the longitude mean, which the
     // single phi node then carries exactly, then (|omega|/2) Im(sigma_c : conj(eps_c)).
     const bool longitude_averaged = cfg.longitude_summed;
@@ -1604,7 +1643,10 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
         tides3d::c_parallel_tasks_3d(num_workers, static_cast<int>(num_workers), [&](size_t worker) {
             tides3d::c_GramCache3D gram_cache;
             for (size_t ir = worker; ir < nr; ir += num_workers) {
-                if (!radius_solve_failed[ir]) {
+                if (radius_solve_failed[ir]) {
+                    // No radial solution: NaN on a radius axis; a volume integral leaves the node out (see above).
+                    theta_integrals[ir] = surv_r ? nan_v : 0.0;
+                } else {
                     theta_integrals[ir] = tides3d::c_secular_theta_integral_3d(set, groups, coeffs[ir], gram_cache);
                 }
             }
@@ -1661,7 +1703,8 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
                 for (size_t ir = 0; ir < nr; ++ir) {
                     const size_t index = surv_index(ir, ith, iph, 0);
                     if (radius_solve_failed[ir]) {
-                        if (!any_summed) { values[index] = nan_v; }
+                        // A cell of a surviving radius holds that radius alone, so it is NaN whatever else is summed.
+                        if (surv_r) { values[index] = nan_v; }
                         continue;
                     }
                     const double density = tides3d::c_secular_density_3d(set, groups, coeffs[ir], angular);
@@ -1684,7 +1727,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
             tides3d::c_wave_angular_longitude_3d(set, grids.ph_grid[iph], true, angular);
             for (size_t ir = 0; ir < nr; ++ir) {
                 if (radius_solve_failed[ir]) {
-                    if (!any_summed) {
+                    if (surv_r) {
                         for (size_t it = 0; it < nt; ++it) {
                             values[surv_index(ir, ith, iph, it)] = nan_v;
                         }
@@ -1782,6 +1825,7 @@ inline void c_LayeredWorld::calc_3d_tides_into(
         double* out_layer_totals) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
     const c_RheologyTide& rheology = tides3d::c_require_3d_rheology(*this, "3D tidal heating", false);
+    this->p_check_tide_state(state);
     rheology.calc_3d_tidal_heating_collapsed(
         *this,
         state,

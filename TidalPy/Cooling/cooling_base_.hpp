@@ -12,7 +12,7 @@ namespace tidalpy {
 
 // Physical state passed to a cooling model.
 struct c_CoolingInputs {
-    double delta_temp           = 0.0;  // temperature drop across the layer [K]
+    double delta_temp           = 0.0;  // temperature drop across the layer, all its boundary layers [K]
     double thickness            = 0.0;  // layer (or sub-layer) thickness [m]
     double gravity              = 0.0;  // gravitational acceleration [m/s^2]
     double density              = 0.0;  // bulk density [kg/m^3]
@@ -24,7 +24,7 @@ struct c_CoolingInputs {
 
 struct c_CoolingResult {
     double cooling_flux    = 0.0;  // heat flux leaving the layer [W/m^2]
-    double blt             = 0.0;  // boundary-layer thickness [m]
+    double blt             = 0.0;  // conducting thickness carrying the flux across the whole drop [m]
     double rayleigh_number = 0.0;  // Rayleigh number [dimensionless]
     double nusselt_number  = 1.0;  // Nusselt number [dimensionless]
 };

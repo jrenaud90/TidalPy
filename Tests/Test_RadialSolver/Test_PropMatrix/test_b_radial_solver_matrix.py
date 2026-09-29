@@ -58,9 +58,10 @@ def test_radial_solver_matrix_1layer(core_model, nondimensionalize, degree_l, so
 @pytest.mark.parametrize('degree_l', (2, 3))
 def test_radial_solver_matrix_1layer_solve_for_both(core_model, degree_l):
     """Solving for tidal and loading together succeeds with a (12, N) result."""
+    # Core models other than 0 require the automatic starting radius (a manual one fails with error -22).
     _check_matrix_solve(
         ('tidal', 'loading'),
         degree_l=degree_l,
         core_model=core_model,
-        starting_radius=0.2 * radius_array[-1],
+        starting_radius=0.2 * radius_array[-1] if core_model == 0 else 0.0,
         nondimensionalize=False)

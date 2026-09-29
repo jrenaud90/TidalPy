@@ -125,17 +125,16 @@ inline void c_reduced_strain_stress_coeffs(
     strain_coeff[4][3] = imag_unit * mu * radial.y4_over_2mu;      // eps_rph  = i mu y4/2mu * f4
     strain_coeff[5][5] = 2.0 * imag_unit * mu * radial.y3_over_2r; // eps_thph = 2 i mu y3/2r * f6
 
-    // Trace coefficients T_j = Ce[0][j] + Ce[1][j] + Ce[2][j].
-    std::complex<double> trace[6];
-    for (int j = 0; j < 6; ++j) {
-        trace[j] = strain_coeff[0][j] + strain_coeff[1][j] + strain_coeff[2][j];
-    }
-    // Stress: sigma = 2 mu eps + lame tr(eps) delta -> Cs[k][j] = 2 mu Ce[k][j] + (k<3) lame T[j].
+    // Stress: sigma = 2 mu eps + lame tr(eps) delta with lame tr(eps) = isotropic * f1 (strain_radial_.hpp), so
+    // Cs[k][j] = 2 mu Ce[k][j], plus the isotropic coefficient on f1 for the three normal components.
     const std::complex<double> two_mu = 2.0 * radial.shear;
     for (int k = 0; k < 6; ++k) {
         for (int j = 0; j < 6; ++j) {
-            stress_coeff[k][j] = two_mu * strain_coeff[k][j] + ((k < 3) ? radial.lame * trace[j] : c_zero);
+            stress_coeff[k][j] = two_mu * strain_coeff[k][j];
         }
+    }
+    for (int k = 0; k < 3; ++k) {
+        stress_coeff[k][0] += radial.isotropic;
     }
 }
 

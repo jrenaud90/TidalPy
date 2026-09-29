@@ -30,9 +30,9 @@ viscosity arrays (see the world builder).
 
 Columns are found by name, so their order does not matter and they may state their units; a name whose
 unit is not one this reader converts is taken to be MKS already. A file with no header is read
-positionally in the canonical order. :func:`detect_layer_boundaries` then splits the profile at every
-solid/liquid transition, and the world builder hands each layer's slice to an interpolated EOS, which
-owns those arrays. That EOS is the only place a radial grid persists.
+positionally in the canonical order; a header row must name every column. :func:`detect_layer_boundaries`
+then splits the profile at every solid/liquid transition, and the world builder hands each layer's slice
+to an interpolated EOS, which owns those arrays. That EOS is the only place a radial grid persists.
 """
 
 import os
@@ -53,7 +53,9 @@ _COLUMN_ALIASES = {
     "density":         ("density", "rho", "dens"),
     "vp":              ("vp", "v_p", "vpv", "p_velocity", "p_wave_velocity", "compressional_velocity"),
     "vs":              ("vs", "v_s", "vsv", "s_velocity", "s_wave_velocity", "shear_velocity"),
-    "shear_viscosity": ("shear_viscosity", "viscosity", "eta", "eta_shear", "shear_eta", "visc"),
+    # Not a bare "eta": in PREM and the IRIS tables that column is the dimensionless anisotropy parameter (about
+    # 0.9), which read as a viscosity would make the mantle nearly inviscid. An "eta" column is left unread.
+    "shear_viscosity": ("shear_viscosity", "viscosity", "eta_shear", "shear_eta", "visc"),
     "bulk_viscosity":  ("bulk_viscosity", "eta_bulk", "bulk_eta", "zeta"),
     # Alternatives to the velocities: the static moduli themselves.
     "shear_modulus":   ("shear_modulus", "mu", "shear", "rigidity"),
@@ -93,6 +95,9 @@ _UNITS_BY_QUANTITY = {
 # km/s without its unit: no planetary material is that light or that slow.
 _MIN_PLAUSIBLE_DENSITY = 100.0
 _MIN_PLAUSIBLE_VELOCITY = 100.0
+# Likewise a bulk modulus, or a solid's shear modulus, below this [Pa] is almost certainly a column in GPa without its
+# unit: even loose regolith is stiffer than about 1e7 Pa.
+_MIN_PLAUSIBLE_MODULUS = 1.0e6
 
 # A radius or depth given without a unit is read as kilometers below this value [m] and as meters at
 # or above it. A planet large enough for this library is at least 100 km in radius, and no radius in
@@ -163,6 +168,24 @@ def _split_fields(line: str, delimiter: Optional[str]) -> list:
     return [field for field in fields if field]
 
 
+def _split_header(line: str, delimiter: Optional[str]) -> list:
+    """The column names of a header line, as :func:`_split_fields` splits it.
+
+    In a whitespace-delimited header a unit in brackets is a field of its own (``depth (km)``), so it is joined back
+    to the name before it.
+    """
+    fields = _split_fields(line, delimiter)
+    if delimiter is not None:
+        return fields
+    names = []
+    for field in fields:
+        if names and field[0] in "([":
+            names[-1] = f"{names[-1]} {field}"
+        else:
+            names.append(field)
+    return names
+
+
 def _read_table(file_path: str):
     """Read a delimited data file, returning ``(data, header)``: a 2-D float array and its column names or None.
 
@@ -192,7 +215,7 @@ def _read_table(file_path: str):
                 rows.append([float(field) for field in fields])
             except ValueError:
                 if header is None and not rows:
-                    header = fields         # a leading non-numeric row names the columns
+                    header = _split_header(line, delimiter)     # a leading non-numeric row names the columns
                     continue
                 raise ValueError(
                     f"Radial data file '{file_path}' line {line_number} is not numeric: {line!r}.") from None
@@ -211,12 +234,16 @@ def _read_table(file_path: str):
         # column and every one of them names a quantity. Prose about the data often has the right
         # number of commas and a word or two in common with it, which is not the same thing.
         for comment in reversed(comments):
-            fields = _split_fields(comment, delimiter)
+            fields = _split_header(comment, delimiter)
             if len(fields) == data.shape[1] and all(_match_quantity(field)[0] for field in fields):
                 header = fields
                 break
-    if header is not None and len(header) != data.shape[1]:
-        header = None
+    elif len(header) != data.shape[1]:
+        # Reading such a file by position could put any column anywhere (a depth read as a radius builds the planet
+        # inside out), so a header row that does not fit the data is an error.
+        raise ValueError(
+            f"Radial data file '{file_path}' has a header row naming {len(header)} column(s) ({', '.join(header)}) "
+            f"but data rows of {data.shape[1]}. Give one name per column.")
     return data, header
 
 
@@ -389,11 +416,11 @@ def load_radial_data(source: Union[str, dict], surface_radius: Optional[float] =
 
 
 def _check_units(arrays: dict, where: str) -> None:
-    """Catch a column in g/cm3 or km/s whose name gave no unit, and so was read as MKS.
+    """Catch a column in g/cm3, km/s, or GPa whose name gave no unit, and so was read as MKS.
 
-    A density or velocity that far below any material's would build a world a thousand times too light or too
-    soft. This runs after the profile checks, so a profile with a missing column pair or a non-positive value is
-    told that first.
+    A density, velocity, or modulus that far below any material's would build a world a thousand (or a billion)
+    times too light or too soft. A liquid's zero shear modulus is allowed. This runs after the profile checks, so a
+    profile with a missing column pair or a non-positive value is told that first.
     """
     density = arrays["density_kg_m3"]
     if np.any(density < _MIN_PLAUSIBLE_DENSITY):
@@ -407,6 +434,15 @@ def _check_units(arrays: dict, where: str) -> None:
             raise ValueError(
                 f"Radial data{where} has seismic velocities below {_MIN_PLAUSIBLE_VELOCITY:g} m/s; if the columns "
                 "are in km/s, name them with their unit (for example 'vp_km_s').")
+    else:
+        # The moduli were given outright; ones derived from plausible velocities and densities are plausible too.
+        shear, bulk = arrays["shear_modulus_pa"], arrays["bulk_modulus_pa"]
+        solid = shear > DEFAULT_SHEAR_FLOOR_PA
+        if np.any(bulk < _MIN_PLAUSIBLE_MODULUS) or np.any(shear[solid] < _MIN_PLAUSIBLE_MODULUS):
+            raise ValueError(
+                f"Radial data{where} has a bulk modulus, or a solid's shear modulus, below "
+                f"{_MIN_PLAUSIBLE_MODULUS:g} Pa; if the columns are in GPa, name them with their unit (for example "
+                "'shear_modulus_gpa' and 'bulk_modulus_gpa').")
 
 
 def _scaled(column) -> np.ndarray:

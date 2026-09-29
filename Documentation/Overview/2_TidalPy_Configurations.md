@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-09-28_
+_Updated: 2026-09-29_
 
 TidalPy's settings and parameters are read when the package is first imported. They live in one configuration file, `TidalPy_Configs.toml`, in the TidalPy data directory inside the user's documents directory, whose location varies by operating system.
 
@@ -16,7 +16,12 @@ TidalPy's settings and parameters are read when the package is first imported. T
 
 "/home/\<username\>/Documents/TidalPy/\<major.minor\>.X/Config/TidalPy_Configs.toml"
 
-The version folder holds only the major and minor version (`0.8.X` for every 0.8 release), so patch releases share one configuration. Beside `Config` it holds `Logs` (log files, when they are written there) and `Worlds` (the editable copies of the bundled worlds, see the [world pack page](../Structures/config/worldpack.md)). `TidalPy.paths.get_config_dir()`, `get_log_dir()`, and `get_worlds_dir()` return the three paths.
+The version folder holds only the major and minor version (`0.8.X` for every 0.8 release), so patch releases share one configuration. Beside `Config` it holds `Logs` (log files, when they are written there) and `Worlds` (the editable copies of the bundled worlds, see the [world pack page](../Structures/config/worldpack.md)). `TidalPy.paths.get_config_dir()`, `get_log_dir()`, and `get_worlds_dir()` return the three paths, and `get_data_dir()` the version folder.
+
+To keep the data directory somewhere else, set the `TIDALPY_DATA_DIR` environment variable before importing TidalPy. It replaces the "TidalPy" folder in the paths above, so the version folder goes inside it: `TIDALPY_DATA_DIR=/scratch/me/tidalpy` gives "/scratch/me/tidalpy/\<major.minor\>.X/Config/TidalPy_Configs.toml".
+
+> [!NOTE]
+> Where the data directory cannot be created or written (a read-only home directory on a cluster node, in a container, or on a sandboxed CI runner), TidalPy still imports. It warns once and runs without the directory: the configuration is the packaged defaults, no log file is written to `Logs`, and the bundled worlds are read from the package. Set `TIDALPY_DATA_DIR` to a writable directory to keep a configuration file there.
 
 The file holds all of TidalPy's settings, with comments giving context for each one. The loaded settings are the dictionary `TidalPy.config`. Edits to the file reach TidalPy the next time it is imported, or immediately with `TidalPy.reinit(provided_config="default")`.
 
@@ -24,7 +29,7 @@ The file holds all of TidalPy's settings, with comments giving context for each 
 
 The packaged defaults are the string in ["defaultc.py"](https://github.com/jrenaud90/TidalPy/blob/main/TidalPy/defaultc.py) (`TidalPy.configurations.get_packaged_config()` returns them as a dict). The first time TidalPy is imported it writes them, headed by a comment naming the TidalPy, SciPy, and CyRK versions, to `TidalPy_Configs.toml`. Developers who want to change or add a configuration should edit the string in `defaultc.py`.
 
-TidalPy loads the packaged defaults first and merges your file over them, so your file only needs the values you change, and a default added in a later release reaches an existing file without regenerating it. Tables merge key by key and any other value (a list included) replaces the default whole. A physics-model table that names a different `model` than the default replaces the default table instead of merging with it, so no parameter of the default model carries over to a model that does not take it.
+TidalPy loads the packaged defaults first and merges your file over them, so your file only needs the values you change, and a default added in a later release reaches an existing file without regenerating it. Tables merge key by key and any other value (a list included) replaces the default whole. A physics-model table merges the same way when it names a different `model` than the default: a key the new model does not read is ignored by it. The exception is a key whose meaning depends on the model reading it (`configurations.MODEL_SPECIFIC_KEYS`, the radiogenics `ref_time_s`), which is dropped from the default table first.
 
 The file has these sections:
 
@@ -107,7 +112,7 @@ If true, TidalPy saves a copy of the loaded configuration to the run output dire
 
 `use_cwd_for_config = false`
 
-If true, TidalPy merges a file named "TidalPy_Configs.toml" found in the current working directory over the loaded configuration at startup.
+If true, TidalPy merges a file named "TidalPy_Configs.toml" found in the current working directory over the loaded configuration at startup. A working directory without that file leaves the loaded configuration as it is.
 
 ## Solver Defaults
 

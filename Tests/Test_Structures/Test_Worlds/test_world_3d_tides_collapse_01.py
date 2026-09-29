@@ -141,7 +141,7 @@ def test_per_layer_sums_to_total():
 
 
 @pytest.mark.parametrize("axis_name, axis, summed", [
-    pytest.param("radii", np.linspace(1.0e3, _R, 400), dict(latitude_summed=True, longitude_summed=True),
+    pytest.param("radii", np.linspace(1.0e4, _R, 400), dict(latitude_summed=True, longitude_summed=True),
                  id="radial"),
     pytest.param("colatitudes", np.linspace(1e-4, np.pi - 1e-4, 400), dict(longitude_summed=True, radial_summed=True),
                  id="colatitude"),

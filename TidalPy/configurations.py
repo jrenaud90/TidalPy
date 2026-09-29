@@ -17,7 +17,7 @@ import toml
 import TidalPy
 from TidalPy import version
 from TidalPy.exceptions import ConfigurationException, InitializationError
-from TidalPy.paths import get_config_dir, unique_path
+from TidalPy.paths import get_config_dir, unique_path, warn_unusable_data_dir
 from TidalPy.defaultc import default_config_str
 
 
@@ -25,10 +25,9 @@ def merge_configs(base: dict, overrides: dict) -> dict:
     """Return ``base`` with ``overrides`` merged over it, leaving both inputs untouched.
 
     Tables merge key by key, so an override only needs the values it changes; any other value (a list included)
-    replaces the base value whole. A physics-model table (a table with a ``model`` key) is the exception: when the
-    override names a different model, the base model's own parameters are dropped before the merge
-    (``keep_on_model_change``), so none reaches a model that does not take it, while nested model tables and a
-    material's law-independent properties still merge.
+    replaces the base value whole. A physics-model table (a table with a ``model`` key) merges the same way when the
+    override names a different model, except that the base's model-specific keys (``MODEL_SPECIFIC_KEYS``) are
+    dropped first (:func:`keep_on_model_change`), so none reaches a model that would read it differently.
 
     Parameters
     ----------
@@ -56,11 +55,14 @@ def merge_configs(base: dict, overrides: dict) -> dict:
     return merged
 
 
-# Keys of a `material` table that belong to one equation-of-state law. Its other keys (density, static moduli,
-# thermal constants) and nested model tables (viscosities, partial melt) describe the material under any law.
-MATERIAL_LAW_KEYS = frozenset({
-    "reference_bulk_modulus_pa", "bulk_modulus_derivative", "invert_rtol", "invert_max_iters",
-    "radius_m", "density_kg_m3", "shear_modulus_pa", "bulk_modulus_pa", "shear_viscosity_pas", "bulk_viscosity_pas"})
+# Model-table keys whose meaning depends on the model reading them, by table name. Across a change of model a base
+# value of one of these keys is dropped rather than handed to a model that would misread it: the isotope model reads
+# `ref_time_s` as the time its dataset's abundances apply, the fixed model as the time its rate applies. Every other
+# key of a model family means the same to each model that reads it (a solidus is a solidus to Spohn and to Henning)
+# and is ignored by the models that do not, so it carries over.
+MODEL_SPECIFIC_KEYS = {
+    "radiogenics": frozenset({"ref_time_s"}),
+}
 
 
 def plain_config(value):
@@ -91,11 +93,12 @@ def plain_config(value):
 
 
 def keep_on_model_change(table_name: str, base_table: dict) -> dict:
-    """What of a base model table survives when an override names a different model.
+    """What of a base model table carries over when an override names a different model.
 
-    The base model's own parameters do not carry over: a key one model reads can mean something else to another
-    (an isotope dataset's reference time is not a fixed rate's). Nested model tables still merge, and a
-    ``material`` table keeps the properties no equation-of-state law owns.
+    Everything but the base's ``model`` and its model-specific keys (``MODEL_SPECIFIC_KEYS[table_name]``). A layer
+    of material type ``ice`` that switches its partial-melt model from ``off`` to ``henning`` so keeps the ice
+    solidus, liquidus, and liquid properties of ``[layers.ice.material.partial_melt]``, and a key the new model does
+    not read is ignored by it. Nested model tables carry over whole and merge by their own rule.
 
     Parameters
     ----------
@@ -107,17 +110,11 @@ def keep_on_model_change(table_name: str, base_table: dict) -> dict:
     Returns
     -------
     dict
-        A new table holding only what carries over.
+        A new table holding what carries over, without a ``model`` key.
     """
-    kept = {}
-    for key, value in base_table.items():
-        if key == "model":
-            continue
-        if isinstance(value, dict):
-            kept[key] = copy.deepcopy(value)
-        elif (table_name == "material") and (key not in MATERIAL_LAW_KEYS):
-            kept[key] = copy.deepcopy(value)
-    return kept
+    model_specific = MODEL_SPECIFIC_KEYS.get(table_name, frozenset())
+    return {key: copy.deepcopy(value) for key, value in base_table.items()
+            if key != "model" and key not in model_specific}
 
 
 # Model-table keys a 0.8.0 pre-release wrote into TidalPy_Configs.toml that no model reads any more, with the reason.
@@ -405,29 +402,38 @@ def get_default_config() -> dict:
     The user's ``TidalPy_Configs.toml`` lives in the TidalPy data directory's ``Config`` folder. It is written with
     the full packaged defaults (from :mod:`TidalPy.defaultc`) when it is missing and is user-editable after that.
     Only the values it sets override the packaged defaults (see :func:`merge_configs`), so a partial file works and a
-    default added later reaches an existing file without regenerating it. The returned dictionary is also stored on
-    ``TidalPy.config``.
+    default added later reaches an existing file without regenerating it. When the data directory cannot be created,
+    or the file can be neither written nor read (a read-only home directory, say), the packaged defaults are used
+    alone, with a one-time warning (see :func:`TidalPy.paths.warn_unusable_data_dir`). The returned dictionary is
+    also stored on ``TidalPy.config``.
 
     Returns
     -------
     config_dict : dict
         The configuration dictionary.
     """
-    config_dir = get_config_dir()
-    config_path = os.path.join(config_dir, 'TidalPy_Configs.toml')
-    # Write the default config if it is not already present.
-    if not os.path.isfile(config_path):
-        with open(config_path, 'w', encoding='utf-8', newline='\n') as config_file:
-            config_file.write(config_version_header('TidalPy Default Configurations'))
-            config_file.write(default_config_str)
-    else:
-        # Scans the header for a 'version:' line.
-        check_config_version(config_path)
-
     packaged = get_packaged_config()
-    user_config = toml.load(config_path)
-    drop_retired_config_keys(user_config, f"The configuration file {config_path}")
-    warn_unknown_config_keys(user_config, packaged, f"The configuration file {config_path}")
+    user_config = {}
+    config_dir = get_config_dir()
+    config_path = None if config_dir is None else os.path.join(config_dir, 'TidalPy_Configs.toml')
+    if config_path is not None:
+        try:
+            # Write the default config if it is not already present.
+            if not os.path.isfile(config_path):
+                with open(config_path, 'w', encoding='utf-8', newline='\n') as config_file:
+                    config_file.write(config_version_header('TidalPy Default Configurations') + default_config_str)
+            else:
+                # Scans the header for a 'version:' line.
+                check_config_version(config_path)
+            user_config = toml.load(config_path)
+        except OSError as error:
+            warn_unusable_data_dir(error)
+            config_path = None
+            user_config = {}
+
+    if config_path is not None:
+        drop_retired_config_keys(user_config, f"The configuration file {config_path}")
+        warn_unknown_config_keys(user_config, packaged, f"The configuration file {config_path}")
     config_dict = merge_configs(packaged, user_config)
 
     # Update path and store on the package.

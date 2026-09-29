@@ -99,6 +99,40 @@ inline int c_matrix_propagate(
         return solution_storage_ptr->error_code;
     }
 
+    // Every layer this method takes is static, and at degree 1 a rigid translation of a static body meets every
+    // surface condition, so the surface system is singular and the Love numbers depend on a choice of reference
+    // frame (see c_shooting_solver).
+    if (degree_l == 1)
+    {
+        solution_storage_ptr->message =
+            "RadialSolver.PropMatrixMethod:: A degree-1 solve of a static body is singular: a rigid translation "
+            "satisfies the equations and every surface condition, so the Love numbers depend on a choice of reference "
+            "frame and are not determined. Use the shooting method with at least one dynamic layer.\n";
+        solution_storage_ptr->error_code = -13;
+        solution_storage_ptr->success    = false;
+        if (verbose)
+            std::printf("%s", solution_storage_ptr->message.c_str());
+        return solution_storage_ptr->error_code;
+    }
+
+    // Core models 1 to 4 seed the propagation with conditions that are not the regular solution of the layer below
+    // the starting radius (they describe a core the structure does not have). For a uniform body at degree 2 they
+    // change k by about 3 (r_start / R)^3: a few 1e-6 at the automatic start, 10% at 0.3 R. The regular seed
+    // (core_model 0) is exact for a uniform center at any starting radius.
+    if ((core_model >= 1) && (core_model <= 4) && (inputs.starting_radius != 0.0))
+    {
+        solution_storage_ptr->message =
+            "RadialSolver.PropMatrixMethod:: core_model " + std::to_string(core_model) + " seeds a starting "
+            "condition that is not the regular solution of the modeled layer, so with a manual starting radius it "
+            "changes the Love numbers by an amount that grows with that radius. Use core_model 0, or the automatic "
+            "starting radius (starting_radius 0).\n";
+        solution_storage_ptr->error_code = -22;
+        solution_storage_ptr->success    = false;
+        if (verbose)
+            std::printf("%s", solution_storage_ptr->message.c_str());
+        return solution_storage_ptr->error_code;
+    }
+
     // The method propagates from one slice to the next, so it needs a grid; built here.
     std::vector<double>& radius_grid = solution_storage_ptr->p_matrix_radius_solve;
     radius_grid.assign(total_slices, 0.0);
@@ -240,6 +274,17 @@ inline int c_matrix_propagate(
     first_slice_index = last_index_before_start + 1;
     if (first_slice_index == 0 || first_slice_index == 1)
         first_slice_index = 2;
+
+    // What get_radial_solution needs to continue the propagation between and below the grid radii.
+    solution_storage_ptr->p_matrix_density      = density_grid;
+    solution_storage_ptr->p_matrix_gravity      = gravity_grid;
+    solution_storage_ptr->p_matrix_shear        = shear_grid;
+    solution_storage_ptr->p_matrix_first_slice  = first_slice_index;
+    solution_storage_ptr->p_matrix_regular_core = (core_model == 0);
+    solution_storage_ptr->p_matrix_G            = G_to_use;
+    solution_storage_ptr->p_matrix_degree_l     = degree_l;
+    solution_storage_ptr->p_matrix_shell_coeffs.assign(18 * total_slices, cmplx_zero);
+    solution_storage_ptr->p_matrix_constants.assign(3 * num_ytypes, cmplx_NAN);
 
     const size_t matrix_size   = 6 * 6 * total_slices;
     const size_t prop_mat_size = 6 * 3 * total_slices;
@@ -402,6 +447,7 @@ inline int c_matrix_propagate(
                         propagation_mtx_ptr[last_index_shift_18 + jj * 3 + k]);
                 }
                 temp_matrix[j * 3 + k] = temp_cmplx;
+                solution_storage_ptr->p_matrix_shell_coeffs[index_shift_18 + j * 3 + k] = temp_cmplx;
             }
         }
 
@@ -470,6 +516,7 @@ inline int c_matrix_propagate(
         for (size_t i = 0; i < 3; ++i)
         {
             bc_copy[i] = X(i);
+            solution_storage_ptr->p_matrix_constants[ytype_i * 3 + i] = X(i);
         }
 
         // Apply the propagation matrix to the surface solution at every slice.
@@ -481,8 +528,9 @@ inline int c_matrix_propagate(
 
             if (slice_i < first_slice_index)
             {
-                for (size_t i = 0; i < 6; ++i)
-                    solution_ptr[full_shift + i] = cmplx_NAN;
+                // Below the first propagated slice a regular seed continues to the center (already in the TS72
+                // convention); any other seed leaves NaN there.
+                solution_storage_ptr->p_matrix_y_solve(radius_array_ptr[slice_i], ytype_i, &solution_ptr[full_shift]);
             }
             else
             {

@@ -135,11 +135,13 @@ def test_strain_stress_keep_imaginary_potential():
     strain_imag, stress_imag, _ = _kernel(_ROW.imag.copy())
     strain_full, stress_full, _ = _kernel(_ROW)
     np.testing.assert_allclose(strain_full, strain_real + 1j * strain_imag, rtol=1.0e-13)
-    np.testing.assert_allclose(stress_full, stress_real + 1j * stress_imag, rtol=1.0e-13)
+    # The isotropic stress is a difference of much larger terms, so compare on the largest component's scale.
+    stress_scale = 1.0e-13 * float(np.max(np.abs(stress_full)))
+    np.testing.assert_allclose(stress_full, stress_real + 1j * stress_imag, rtol=1.0e-13, atol=stress_scale)
 
     strain_rotated, stress_rotated, heating_rotated = _kernel(1j * _ROW.real)
     np.testing.assert_allclose(strain_rotated, 1j * strain_real, rtol=1.0e-13)
-    np.testing.assert_allclose(stress_rotated, 1j * stress_real, rtol=1.0e-13)
+    np.testing.assert_allclose(stress_rotated, 1j * stress_real, rtol=1.0e-13, atol=stress_scale)
     assert math.isclose(heating_rotated, heating_real, rel_tol=1.0e-13)
 
 

@@ -147,8 +147,9 @@ def _model_changes(section_name, defaults: dict, overrides: dict) -> bool:
 def _merge_section(defaults: dict, overrides: dict, section_name=None) -> dict:
     """Overlay a model table on its defaults key by key; nested tables merge the same way.
 
-    When the override names a different model, the default model's own parameters are dropped first
-    (``keep_on_model_change``), so none of them reaches a model that would read it differently.
+    The defaults are those of the layer's effective material type, so a user key wins and every key the user left
+    out comes from that type, whether or not the override names a different model. When it does, only the default
+    keys whose meaning depends on the model (``MODEL_SPECIFIC_KEYS``) are dropped first (``keep_on_model_change``).
     """
     if _model_changes(section_name, defaults, overrides):
         defaults = keep_on_model_change(section_name or "", defaults)
@@ -159,6 +160,43 @@ def _merge_section(defaults: dict, overrides: dict, section_name=None) -> dict:
         else:
             section[key] = value
     return section
+
+
+# Relative tolerance [of the layer's outer radius] on how closely an interpolated material's radius table must reach
+# each boundary of its layer: loose enough for a boundary rounded to a few figures, far tighter than a unit mistake.
+_INTERPOLATED_COVERAGE_RTOL = 1.0e-3
+
+
+def _check_interpolated_coverage(layer_name: str, material_cfg: dict, radius_inner: float, radius_outer: float):
+    """Refuse an interpolated material whose radius table does not span its layer.
+
+    The interpolated EOS holds its end values beyond the table, so a table that misses its layer, a radius given in
+    km under ``radius_m`` say, would otherwise build a uniform layer without complaint. Each end of the table must
+    reach its layer boundary to within ``_INTERPOLATED_COVERAGE_RTOL`` of the outer radius.
+
+    Raises
+    ------
+    ValueError
+        The table stops short of the layer's inner or outer radius.
+    """
+    model = material_cfg.get("model")
+    radius_table = material_cfg.get("radius_m")
+    if model is None or radius_table is None or len(radius_table) == 0:
+        return
+    try:
+        if not _same_material_model(str(model), "interpolate"):
+            return
+    except ValueError:
+        # An unknown model name; the material factory reports it.
+        return
+    table_bottom = min(float(value) for value in radius_table)
+    table_top = max(float(value) for value in radius_table)
+    tolerance = _INTERPOLATED_COVERAGE_RTOL * abs(radius_outer)
+    if (table_bottom - radius_inner > tolerance) or (radius_outer - table_top > tolerance):
+        raise ValueError(
+            f"[layers.{layer_name}.material] the interpolated material's radius_m table spans {table_bottom:.6g} to "
+            f"{table_top:.6g} m, but the layer spans {radius_inner:.6g} to {radius_outer:.6g} m. The table must "
+            "cover its layer (radius_m is in meters).")
 
 
 def _as_constructor_kwargs(config_items) -> dict:
@@ -248,7 +286,8 @@ def construct_layer(
     Raises
     ------
     ValueError
-        If the layer class is unknown or a model name is not recognized.
+        If the layer class is unknown, a model name is not recognized, or an interpolated material's radius table
+        does not span the layer.
     """
     layer_class_name = layer_cfg["class"]
     if layer_class_name not in _LAYER_CLASSES:
@@ -283,6 +322,9 @@ def construct_layer(
     ctor_kwargs.setdefault("mass", 0.0)
     if extra_kwargs:
         ctor_kwargs.update(extra_kwargs)
+
+    if isinstance(merged.get("material"), dict):
+        _check_interpolated_coverage(layer_name, merged["material"], radius_inner, radius_outer)
 
     layer = layer_class(name=layer_name, layer_index=layer_index, **ctor_kwargs)
 
@@ -368,6 +410,10 @@ def _layers_from_radial_data(arrays: dict, liquid_loss: bool = True) -> list:
     world keeps. No viscosity or partial-melt model is built: a profile without viscosities describes
     an elastic body, and one with them has already said what they are at every radius.
 
+    A layer starts where the one below it ends. When the profile repeats no row at that boundary, the
+    layer's first row is repeated at the boundary radius, so its table spans the layer and holds its
+    first values down to the boundary, as the interpolation would.
+
     Parameters
     ----------
     arrays : dict
@@ -382,6 +428,8 @@ def _layers_from_radial_data(arrays: dict, liquid_loss: bool = True) -> list:
         ``(layer_name, layer_config)`` pairs, inner to outer. A layer detected as liquid (zero shear
         modulus) carries ``is_solid = False``, and every layer is static.
     """
+    import numpy as np
+
     from TidalPy.Structures.configs import data_file
 
     radius     = arrays["radius_m"]
@@ -390,20 +438,26 @@ def _layers_from_radial_data(arrays: dict, liquid_loss: bool = True) -> list:
     bulk_visc  = arrays["bulk_viscosity_pas"]
 
     auto_layers = []
+    boundary = None     # the outer radius of the layer below [m]
     for index, (start, end, is_solid) in enumerate(data_file.detect_layer_boundaries(radius, shear)):
-        stop = end + 1
+        rows = np.arange(start, end + 1)
+        layer_radius = radius[rows]
+        if boundary is not None and layer_radius[0] > boundary:
+            rows = np.concatenate(([start], rows))
+            layer_radius = np.concatenate(([boundary], layer_radius))
+        boundary = float(layer_radius[-1])
         with_loss = bool(is_solid) or liquid_loss
         layer_cfg = _interpolated_layer_config(
             index          = index,
-            radius         = radius[start:stop],
-            density        = arrays["density_kg_m3"][start:stop],
-            shear_modulus  = shear[start:stop],
-            bulk_modulus   = arrays["bulk_modulus_pa"][start:stop],
+            radius         = layer_radius,
+            density        = arrays["density_kg_m3"][rows],
+            shear_modulus  = shear[rows],
+            bulk_modulus   = arrays["bulk_modulus_pa"][rows],
             is_solid       = bool(is_solid),
             # A layer with zero shear velocity is liquid, and is solved as a static liquid.
             is_static      = True,
-            shear_viscosity = None if (shear_visc is None or not with_loss) else shear_visc[start:stop],
-            bulk_viscosity  = None if (bulk_visc is None or not with_loss) else bulk_visc[start:stop],
+            shear_viscosity = None if (shear_visc is None or not with_loss) else shear_visc[rows],
+            bulk_viscosity  = None if (bulk_visc is None or not with_loss) else bulk_visc[rows],
         )
         auto_layers.append((f"layer_{index}", layer_cfg))
     if not auto_layers:
@@ -701,11 +755,13 @@ def _quality_factors_as_loss(arrays: dict, world_name, source) -> dict:
     return arrays
 
 
-def _check_q_layer_table(user_cfg: dict, layer_name: str, world_name) -> None:
+def _check_q_layer_table(user_cfg: dict, layer_name: str, world_name, is_solid: bool) -> None:
     """Refuse a layer table that would put something other than the profile's quality factors in its loss arrays.
 
     A viscosity given as a constant would replace them, and a material ``type`` brings viscosity models that
-    would overwrite them; seismic_q would then read a viscosity as a quality factor.
+    would overwrite them; seismic_q would then read a viscosity as a quality factor. A solid layer's viscosity slot
+    holds its Q_mu, so a model that reads that slot as a viscosity is refused too: any partial-melt model but
+    ``off`` (Henning at 1800 K turns a Q of 312 into 0.365) and the convection cooling model (its Rayleigh number).
     """
     where = f"World '{world_name}', layer '{layer_name}'"
     user_material = user_cfg.get("material", {}) or {}
@@ -719,6 +775,20 @@ def _check_q_layer_table(user_cfg: dict, layer_name: str, world_name) -> None:
         raise ValueError(
             f"{where}: names the material type '{user_cfg['type']}', whose viscosity models would replace the "
             "profile's quality factors (the world sets 'q_provided = true'). Leave 'type' unset.")
+    if not is_solid:
+        return
+    melt_model = str((user_material.get("partial_melt", {}) or {}).get("model", "off"))
+    if not _same_partial_melt_model(melt_model, "off"):
+        raise ValueError(
+            f"{where}: names the '{melt_model}' partial-melt model, which would read the layer's viscosity, but with "
+            "'q_provided = true' a solid layer's viscosity slot holds its quality factor Q_mu. Only 'off' is "
+            "allowed.")
+    cooling_model = (user_cfg.get("cooling", {}) or {}).get("model")
+    if cooling_model is not None and _same_cooling_model(str(cooling_model), "convection"):
+        raise ValueError(
+            f"{where}: names the '{cooling_model}' cooling model, whose Rayleigh number would read the layer's "
+            "viscosity, but with 'q_provided = true' a solid layer's viscosity slot holds its quality factor Q_mu. "
+            "Use 'conduction' or 'off'.")
 
 
 def _seismic_q_table(table, settings: dict, where: str, allow_elastic: bool):
@@ -837,7 +907,7 @@ def _expand_radial_data(config: dict) -> dict:
         claimed[index] = layer_name
         names[index] = layer_name
         if q_settings is not None:
-            _check_q_layer_table(user_cfg, layer_name, world_name)
+            _check_q_layer_table(user_cfg, layer_name, world_name, auto_layers[index][1]["is_solid"])
         merged[index] = _merge_radial_data_layer(merged[index], user_cfg, world_radius, layer_name)
 
     if q_settings is not None:

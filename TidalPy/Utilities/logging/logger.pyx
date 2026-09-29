@@ -213,11 +213,11 @@ def log_critical(str message):
 
 
 def shutdown_logger():
-    """Flush pending log messages and make all TIDALPY_LOG_* macros no-ops.
+    """Flush pending log messages and turn the logger off, so no ``TIDALPY_LOG_*`` macro or ``log_*`` call writes.
 
-    Not needed at interpreter exit, where the ``atexit`` hook flushes. The logger stays in spdlog's registry so raw
-    pointers held by other DLLs cannot dangle; it is released at process exit. A later ``init_logger`` call turns it
-    back on.
+    Not needed at interpreter exit, where the ``atexit`` hook flushes. The logger stays in spdlog's registry, at the
+    same address, so raw pointers held by other DLLs cannot dangle and an extension imported while it is off still
+    reaches it. A later ``init_logger`` call (or ``set_log_level``) turns it back on for every extension.
     """
     cy_shutdown_logger()
 

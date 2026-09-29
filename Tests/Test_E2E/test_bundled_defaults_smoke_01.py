@@ -84,12 +84,11 @@ def test_solve_love_numbers_defaults(world_name):
     # A gas giant reaches the fluid limits 3/2 and 5/2 to roundoff.
     assert 0.0 < k2.real < 1.5 * (1.0 + 1.0e-6)
     assert k2.imag <= 0.0
-    # A static liquid surface has no displacement solution, so only k is set.
+    assert 0.0 < h2.real < 2.5 * (1.0 + 1.0e-6)
+    # At a static liquid surface the free-surface condition fixes the radial displacement: h = 1 + k.
     surface_layer = world[-1]
-    if surface_layer.is_solid or not surface_layer.is_static:
-        assert 0.0 < h2.real < 2.5 * (1.0 + 1.0e-6)
-    else:
-        assert math.isnan(h2.real)
+    if not (surface_layer.is_solid or not surface_layer.is_static):
+        assert h2 == pytest.approx(1.0 + k2, rel=1.0e-10)
 
 
 @pytest.mark.parametrize("world_name", _WORLD_NAMES)

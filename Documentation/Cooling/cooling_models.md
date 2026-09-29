@@ -1,6 +1,6 @@
 # Cooling Models (`Cooling`)
 
-_Updated: 2026-09-24_
+_Updated: 2026-09-29_
 
 A cooling model maps a layer's physical state onto a **cooling result**: the surface heat flux $q$ [W m$^{-2}$], the thermal boundary-layer thickness [m], and the Rayleigh and Nusselt numbers. The heat flux is what drives a layer's thermal evolution, and the boundary-layer thickness is what makes convective transport so much more effective than conduction: the same temperature drop is squeezed across a thin layer at the top instead of the whole interior.
 
@@ -25,7 +25,7 @@ A cooling evaluation depends on eight physical quantities. In C++ they are bundl
 
 | Input | Units | Meaning |
 |---|---|---|
-| `delta_temp` | K | Temperature drop across the layer. |
+| `delta_temp` | K | Temperature drop across the layer, the sum of the drops across its boundary layers. |
 | `thickness` | m | Layer or sub-layer thickness. |
 | `gravity` | m s$^{-2}$ | Gravitational acceleration. |
 | `density` | kg m$^{-3}$ | Bulk density. |
@@ -56,13 +56,13 @@ flux, boundary_layer, rayleigh, nusselt = result
 
 For convection,
 
-$$\mathrm{Ra} = \frac{\alpha_\mathrm{th} \rho g \, \Delta T \, d^3}{\eta \kappa}, \qquad \mathrm{Nu} = \max\left[ a \left( \frac{\mathrm{Ra}}{\mathrm{Ra}_\mathrm{crit}} \right)^{b},\; 2 \right], \qquad \delta = \frac{d}{\mathrm{Nu}}, \qquad q = \frac{k \, \Delta T}{\delta}$$
+$$\mathrm{Ra} = \frac{\alpha_\mathrm{th} \rho g \, \Delta T \, d^3}{\eta \kappa}, \qquad \mathrm{Nu} = \max\left[ a \left( \frac{\mathrm{Ra}}{\mathrm{Ra}_\mathrm{crit}} \right)^{b},\; \mathrm{Nu}_\mathrm{min} \right], \qquad \delta = \frac{d}{\mathrm{Nu}}, \qquad q = \frac{k \, \Delta T}{\delta} = \mathrm{Nu} \, \frac{k \, \Delta T}{d}$$
 
-with $\alpha_\mathrm{th}$ the thermal expansivity, $\kappa$ the thermal diffusivity, and the fitted constants $a$ = `convection_alpha` (default 1.0), $b$ = `convection_beta` (default 1/3), and $\mathrm{Ra}_\mathrm{crit}$ = `critical_rayleigh` (default 1100.0).
+with $\alpha_\mathrm{th}$ the thermal expansivity, $\kappa$ the thermal diffusivity, $\mathrm{Nu}_\mathrm{min}$ the `minimum_nusselt` setting of the `[numerical]` configuration (default 1), and the fitted constants $a$ = `convection_alpha` (default 1.0), $b$ = `convection_beta` (default 1/3), and $\mathrm{Ra}_\mathrm{crit}$ = `critical_rayleigh` (default 1100.0).
 
-The Rayleigh number is the ratio of the buoyancy driving a hot parcel upward to the diffusion bleeding its heat away; above the critical value convection sets in. The Nusselt number is how many times more heat that convection carries than conduction would, and the boundary layer is thinned by exactly that factor. The exponent of 1/3 is the classical boundary-layer result, which has the useful consequence that the convective flux is independent of the layer thickness.
+The Rayleigh number is the ratio of the buoyancy driving a hot parcel upward to the diffusion bleeding its heat away; above the critical value convection sets in. The Nusselt number is how many times more heat that convection carries than conduction across the whole layer would, so $\mathrm{Nu} = 1$ is conduction. The boundary layer $\delta$ is the conducting thickness that carries the flux across the whole drop $\Delta T$. A layer cooled at its top and heated at its base splits $\Delta T$ between a boundary layer at each end, which carry the same flux, so each is $\delta / 2$ thick. The exponent of 1/3 is the classical boundary-layer result, which has the useful consequence that the convective flux is independent of the layer thickness.
 
-The Nusselt number minimum is 2, which is the stagnant-lid limit: even a barely convecting layer moves about twice the conductive flux. Degenerate inputs take a defined path rather than producing a division by zero. A non-positive temperature drop, or a thickness below the shared `minimum_layer_thickness` configuration floor, sets the Rayleigh number to zero and the Nusselt number to 2, so the boundary layer is half the layer thick (the whole layer below the minimum thickness). The flux is then zero for a zero temperature drop, but the boundary layer still sets the resistance a whole-planet temperature solve places between the layer and its neighbors.
+At the default floor of 1 a sub-critical or rigid layer ($\mathrm{Ra} < \mathrm{Ra}_\mathrm{crit}$, or an infinite viscosity) returns the conductive flux $k \, \Delta T / d$, the same as `ConductiveCooling`. Degenerate inputs take a defined path rather than producing a division by zero. A non-positive temperature drop, or a thickness below the shared `minimum_layer_thickness` configuration floor, sets the Rayleigh number to zero and the Nusselt number to $\mathrm{Nu}_\mathrm{min}$, so the boundary layer is $d / \mathrm{Nu}_\mathrm{min}$ (the whole layer below the minimum thickness). The flux is then zero for a zero temperature drop, but the boundary layer still sets the resistance a whole-planet temperature solve places between the layer and its neighbors.
 
 ## Example Usage
 

@@ -42,7 +42,17 @@ struct c_LoveNumbers
     double get_lag_l() const { return c_LoveNumbers::p_lag(this->l); }
 
 private:
-    // Quality factor -|n| / Im(n) of a complex Love number n; infinite for a purely elastic response.
+    // Sign of the elastic part of a Love number: -1 for a negative real part (loading k' and h'), else +1. A
+    // response lags its forcing when its imaginary part has the opposite sign to its real part (Im k < 0 for a
+    // tidal k), so the quality factor and lag below take this sign to be positive for a dissipative response of
+    // either sign.
+    static double p_real_sign(const std::complex<double>& love_number)
+    {
+        return (std::real(love_number) < 0.0) ? -1.0 : 1.0;
+    }
+
+    // Quality factor -s |n| / Im(n) of a complex Love number n, with s the sign of Re(n); infinite for a purely
+    // elastic response.
     static double p_quality_factor(const std::complex<double>& love_number)
     {
         const double love_abs  = std::abs(love_number);
@@ -54,11 +64,12 @@ private:
         }
         else
         {
-            return -love_abs / love_imag;
+            return -c_LoveNumbers::p_real_sign(love_number) * love_abs / love_imag;
         }
     }
 
-    // Phase lag arctan(-Im(n) / Re(n)) of a complex Love number n.
+    // Phase lag arctan2(-s Im(n), |Re(n)|) of a complex Love number n, with s the sign of Re(n); in
+    // [-pi/2, pi/2], pi/2 for a purely imaginary n with Im(n) < 0.
     static double p_lag(const std::complex<double>& love_number)
     {
         const double love_real = std::real(love_number);
@@ -68,14 +79,9 @@ private:
         {
             return 0.0;
         }
-        else if (love_real == 0.0) [[unlikely]]
-        {
-            // Limit of arctan(inf)
-            return TidalPyConstants::d_PI / 2.0;
-        }
         else
         {
-            return std::atan(-love_imag / love_real);
+            return std::atan2(-c_LoveNumbers::p_real_sign(love_number) * love_imag, std::abs(love_real));
         }
     }
 };

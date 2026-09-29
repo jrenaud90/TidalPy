@@ -19,8 +19,9 @@
 namespace tidalpy {
 namespace tides {
 
-// The distinct radial multipliers the 6 strain components need (all complex), plus the complex
-// moduli (carried through so the kernel can build the isotropic stress sigma = 2 mu eps + lame tr(eps)).
+// The distinct radial multipliers the 6 strain components need (all complex), plus the complex shear
+// modulus and the isotropic stress per unit potential (carried through so the kernel can build the stress
+// sigma = 2 mu eps + lame tr(eps) delta, with lame tr(eps) = isotropic * U).
 // Mapping to the strain components (U = tidal potential angular factor; subscripts = its derivatives):
 //   eps_rr     = dy1_dr      * U
 //   eps_thth   = y3_over_r   * d2U/dtheta2           + y1_over_r * U
@@ -38,7 +39,7 @@ struct c_StrainRadialCoeffs
         std::complex<double> y4_over_2mu_,
         std::complex<double> y3_over_2r_,
         std::complex<double> shear_,
-        std::complex<double> lame_,
+        std::complex<double> isotropic_,
         bool valid_):
             dy1_dr(dy1_dr_),
             y1_over_r(y1_over_r_),
@@ -46,7 +47,7 @@ struct c_StrainRadialCoeffs
             y4_over_2mu(y4_over_2mu_),
             y3_over_2r(y3_over_2r_),
             shear(shear_),
-            lame(lame_),
+            isotropic(isotropic_),
             valid(valid_) {}
 
     std::complex<double> dy1_dr      {0.0, 0.0};   // eps_rr
@@ -55,7 +56,7 @@ struct c_StrainRadialCoeffs
     std::complex<double> y4_over_2mu {0.0, 0.0};   // eps_rtheta, eps_rphi
     std::complex<double> y3_over_2r  {0.0, 0.0};   // eps_thphi
     std::complex<double> shear       {0.0, 0.0};   // complex mu  (for the stress constitutive law)
-    std::complex<double> lame        {0.0, 0.0};   // complex lambda = kappa - 2/3 mu
+    std::complex<double> isotropic   {0.0, 0.0};   // lame tr(eps) / U = y2 - 2 mu dy1/dr (the normal stresses)
     bool valid {false};                            // false -> liquid / degenerate (no shear kernel here)
 };
 
@@ -63,12 +64,19 @@ struct c_StrainRadialCoeffs
 //
 // Inputs:
 //   y1, y2, y3, y4 : the collapsed radial-solver y-functions at this radius (complex; from the dense
-//                    calling system, evaluated at the mode's frequency). y2 is only needed for the
-//                    solid-compressible dy1/dr.
-//   shear, bulk    : complex viscoelastic moduli at this radius and the mode's frequency.
+//                    calling system, evaluated at the mode's frequency). y2, the radial stress, sets the
+//                    isotropic stress and the solid-compressible dy1/dr.
+//   shear, bulk    : complex viscoelastic moduli at this radius and the mode's frequency (the bulk modulus is
+//                    only needed for the solid-compressible dy1/dr).
 //   radius         : radius [m] (must be > 0).
 //   degree_l       : harmonic degree l (the radial problem depends on l, not on m).
 //   layer_is_solid, layer_is_incompressible : layer assumptions for the layer containing this radius.
+//
+// The isotropic stress lame tr(eps) comes from the radial stress, sigma_rr = y2 U = 2 mu eps_rr + lame tr(eps), as
+// (y2 - 2 mu dy1/dr) U. For a compressible layer this equals lame tr(eps) exactly (y2 = lame X + 2 mu dy1/dr with
+// X = dy1/dr + (2 y1 - l(l+1) y3)/r = tr(eps)/U), and it stays well conditioned as the bulk modulus grows, where
+// lame times the angular round-off of a nearly zero trace does not. An incompressible layer has tr(eps) = 0 and a
+// finite pressure, which only y2 carries.
 inline c_StrainRadialCoeffs c_compute_strain_radial_coeffs(
         const std::complex<double>& y1,
         const std::complex<double>& y2,
@@ -85,7 +93,6 @@ inline c_StrainRadialCoeffs c_compute_strain_radial_coeffs(
     const std::complex<double> c_zero(0.0, 0.0);
 
     out.shear = shear;
-    out.lame  = bulk - (2.0 / 3.0) * shear;
 
     // Solid-only shear kernel: a liquid (mu = 0) or the singular center (r = 0) has no well-defined
     // shear strain here. Mark invalid and NaN-fill the multipliers.
@@ -93,7 +100,7 @@ inline c_StrainRadialCoeffs c_compute_strain_radial_coeffs(
     {
         const double nan_val = std::numeric_limits<double>::quiet_NaN();
         const std::complex<double> c_nan(nan_val, nan_val);
-        out.dy1_dr = out.y1_over_r = out.y3_over_r = out.y4_over_2mu = out.y3_over_2r = c_nan;
+        out.dy1_dr = out.y1_over_r = out.y3_over_r = out.y4_over_2mu = out.y3_over_2r = out.isotropic = c_nan;
         out.valid = false;
         return out;
     }
@@ -111,10 +118,13 @@ inline c_StrainRadialCoeffs c_compute_strain_radial_coeffs(
     else
     {
         // Solid compressible (static & dynamic): dy1/dr = (1/(lame+2mu)) [ y2 - (lame/r)(2 y1 - l(l+1) y3) ].
-        const std::complex<double> lame_2mu = out.lame + 2.0 * shear;
-        out.dy1_dr = (1.0 / lame_2mu) * (y2 - out.lame * r_inv * y1_y3_term);
+        const std::complex<double> lame     = bulk - (2.0 / 3.0) * shear;
+        const std::complex<double> lame_2mu = lame + 2.0 * shear;
+        out.dy1_dr = (1.0 / lame_2mu) * (y2 - lame * r_inv * y1_y3_term);
     }
 
+    // lame tr(eps) per unit potential, from the radial stress (see above).
+    out.isotropic   = y2 - 2.0 * shear * out.dy1_dr;
     out.y1_over_r   = y1 * r_inv;
     out.y3_over_r   = y3 * r_inv;
     out.y4_over_2mu = y4 / (2.0 * shear);

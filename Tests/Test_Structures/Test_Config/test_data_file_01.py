@@ -128,7 +128,7 @@ def test_columns_are_found_by_name_in_any_order(tmp_path):
 def test_header_may_be_the_last_comment_line(tmp_path):
     path = _write(tmp_path, "commented.csv",
                   "# a profile of something\n"
-                  "# radius_m; rho; vp; vs; eta; eta_bulk\n"
+                  "# radius_m; rho; vp; vs; eta_shear; eta_bulk\n"
                   "0.0; 9000.0; 10000.0; 0.0; 1e19; 1e20\n"
                   "1.0e6; 8000.0; 10000.0; 3000.0; 1e19; 1e20\n"
                   "2.0e6; 7000.0; 10000.0; 3000.0; 1e19; 1e20\n")
@@ -198,7 +198,7 @@ def test_a_mapping_of_arrays_is_a_profile():
     # Vs above sqrt(3/4) Vp makes K = rho (Vp^2 - 4/3 Vs^2) negative.
     ({"radius_km": [0, 1], "density": [1000, 1000], "vp": [1e3, 1e3], "vs": [1e3, 1e3]},
      "non-positive bulk modulus"),
-    ({"radius_km": [0, 1], "density": [1000, 1000], "vp": [1e4, 1e4], "vs": [0, 0], "eta": [1e19, -1.0]},
+    ({"radius_km": [0, 1], "density": [1000, 1000], "vp": [1e4, 1e4], "vs": [0, 0], "visc": [1e19, -1.0]},
      "non-positive shear viscosity"),
     ({"radius_km": [0.0], "density": [1000.0], "vp": [1e4], "vs": [0.0]}, "at least 2"),
     ({"stuff": [0, 1], "things": [1, 1]}, "nothing this reader knows"),

@@ -48,7 +48,7 @@ def numerical_setter():
         ("tides_3d_latitude_nodes", 16),
         ("tides_3d_longitude_nodes", 64),
         ("tides_3d_radial_slices", 16),
-        ("minimum_nusselt", 2.0),
+        ("minimum_nusselt", 1.0),
         ("eos_invert_rtol", 1.0e-13),
         ("eos_invert_max_iters", 60),
     ])

@@ -1,6 +1,6 @@
 # The Solution Class
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-29_
 
 Every radial solve returns a `RadialSolverSolution`, the Cython class in `TidalPy.RadialSolver.rs_solution`. It holds the solve status, the equation-of-state result, and the radial functions and Love numbers. The same object comes back from `radial_solver`, from `homogeneous_love_numbers`, and from a world's released radial storage.
 
@@ -21,7 +21,7 @@ Check `success` before trusting anything else. A failed solve returns normally u
 | `error_code` | int | `0` when there was no error. |
 | `message` | str | Status text, and the first thing to read after a failure. See the troubleshooting section of [Calculating Love Numbers](calculating_love_numbers.md). |
 | `surface_solve_amplification` | float | Worst-case error amplification of the surface boundary-condition solve (shooting method). Near one is healthy. Large values mean the solution constants are cancelling, so roundoff and integration error are being amplified into the Love numbers, and the achievable accuracy is roughly this number times machine epsilon. It measures cancellation only and can read one for a singular system. |
-| `surface_solve_rcond` | float | Reciprocal condition number of the surface boundary-condition system (shooting method; NaN for the propagation matrix or a solve that stopped before the surface). Each radial function is scaled by its largest magnitude across the independent solutions and each solution by its largest scaled radial function first, so the value depends on neither units nor how the starting solutions were normalized. At most one; a healthy solve reads about `1e-3` to `1e-1`. The solution constants carry the integration error divided by roughly this value, so a value below the integration `rtol` is logged as poorly conditioned, and a value below `[numerical] minimum_surface_rcond` (default `1e-14`) fails the solve with error code `-13`. |
+| `surface_solve_rcond` | float | Reciprocal condition number of the surface boundary-condition system (shooting method; NaN for the propagation matrix or a solve that stopped before the surface). Each radial function is scaled by its largest magnitude across the independent solutions and each solution by its largest scaled radial function first, so the value depends on neither units nor how the starting solutions were normalized. At most one; a healthy solve reads about `1e-3` to `1e-1`. The solution constants carry the integration error divided by roughly this value, so a value below the integration `rtol` is logged as poorly conditioned, and a value below `[numerical] minimum_surface_rcond` (default `1e-14`) fails the solve with error code `-13`. A degree-1 solve with every layer static fails with the same code whatever its value, since a rigid translation makes that system singular. |
 | `steps_taken` | int array `(num_layers, 3)` | Integration steps per layer per independent solution. Solid layers use three solutions, dynamic liquid layers two, static liquid layers one; unused entries are zero. A few hundred per solution per layer is normal, a few thousand is tolerable, and ten thousand or more means the solve is likely unstable. |
 | `print_diagnostics(print_diagnostics=True, log_diagnostics=False)` | method | Assemble a readable summary of the solve. Printing it is a quick triage; logging sends the same text to TidalPy's log. |
 
@@ -50,7 +50,7 @@ The solver runs an equation of state before the deformation problem, and keeps t
 
 `result` is the raw block of radial functions, shaped `(num_ytypes * 6, num_slices)`: the six functions of the first boundary condition, then the six of the next, and so on. Index it by name instead when you have more than one. TidalPy follows the Takeuchi and Saito (1972) convention, so in a solid layer these are the familiar y1 through y6.
 
-Liquid layers do not define all six. A dynamic liquid layer has no y4 (its y3 is rebuilt from y1, y2, and y5). A static liquid layer defines only y5; its y1, y2, y3, y4, and y6 are all NaN, and the Saito (1974) variable $y_7 = y_6 + (4 \pi G / g)\, y_2$ it integrates is not stored. Undefined entries are NaN, which keeps the array shape uniform and makes an accidental use obvious.
+Liquid layers do not define all six. A dynamic liquid layer has no y4 (its y3 is rebuilt from y1, y2, and y5). A static liquid layer defines only y5; its y1, y2, y3, y4, and y6 are all NaN, and the Saito (1974) variable $y_7 = y_6 + (4 \pi G / g)\, y_2$ it integrates is not stored. The free surface of a static liquid top layer is the exception: there y2 is the surface boundary condition and $y_2 = \rho (g y_1 - y_5)$, so y1 and y2 are defined and h is finite (for a tidal solve h = 1 + k), while y3, and with it l, stays NaN. Undefined entries are NaN, which keeps the array shape uniform and makes an accidental use obvious.
 
 ```python
 solution.result                            # (num_ytypes * 6, num_slices)
@@ -70,8 +70,8 @@ The two dense getters evaluate the shooting method's per-layer interpolants, so 
 |---|---|
 | `love` | The full block, `(num_solve_for, 3)`. |
 | `k`, `h`, `l` | Potential, radial displacement, and tangential displacement Love numbers. |
-| `Q_k`, `Q_h`, `Q_l`, `Q` | Effective dissipation quality factor, defined as the magnitude of the Love number over the negative of its imaginary part, $\lvert k \rvert / (-\mathrm{Im}\, k)$; infinite when the imaginary part is zero. `Q == Q_k`. |
-| `lag_k`, `lag_h`, `lag_l`, `lag` | Phase lag \[rad\], defined as the arctangent of the negative imaginary part over the real part. `lag` follows k. |
+| `Q_k`, `Q_h`, `Q_l`, `Q` | Effective dissipation quality factor, $-s \lvert k \rvert / \mathrm{Im}\, k$ with $s$ the sign of $\mathrm{Re}\, k$, which is $\lvert k \rvert / (-\mathrm{Im}\, k)$ for a positive Love number such as the tidal k. A dissipative response has a positive quality factor for either sign of the Love number: the loading k' and h' are negative, and their imaginary part is positive when they lag. Infinite when the imaginary part is zero. `Q == Q_k`. |
+| `lag_k`, `lag_h`, `lag_l`, `lag` | Phase lag \[rad\], $\mathrm{atan2}(-s\, \mathrm{Im}\, k, \lvert \mathrm{Re}\, k \rvert)$ with $s$ as above, so a dissipative response has a positive lag for either sign of the Love number. `lag` follows k. |
 | `degree_l` | The harmonic degree that was solved. |
 
 ## Plotting

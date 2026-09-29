@@ -203,11 +203,21 @@ def test_profile_must_give_q_and_no_viscosity(mapping, match):
     ({"bulk_rheology": {"model": "andrade"}}, "or 'elastic', which ignores them"),
     ({"material": {"shear_viscosity_static_pas": 1.0e21}}, "not a viscosity"),
     ({"type": "rock"}, "Leave 'type' unset"),
+    # A solid layer's viscosity slot holds Q_mu, which a melt law or a Rayleigh number would read as a viscosity.
+    ({"material": {"partial_melt": {"model": "henning"}}}, "Only 'off' is allowed"),
+    ({"material": {"partial_melt": {"model": "spohn"}}}, "Only 'off' is allowed"),
+    ({"cooling": {"model": "convective"}}, "Use 'conduction' or 'off'"),
 ])
 def test_layer_tables_that_would_misread_q_are_refused(layer_table, match):
     config = _prem_q_config(layers={"layer_2": layer_table})
     with pytest.raises(ValueError, match=match):
         build_world(config)
+
+
+def test_models_that_do_not_read_the_viscosity_are_allowed():
+    layer_table = {"material": {"partial_melt": {"model": "off"}}, "cooling": {"model": "conduction"}}
+    world = build_world(_prem_q_config(layers={"layer_2": layer_table}))
+    assert world.layer_2.get_config_dict()["cooling"]["model"] == "conduction"
 
 
 def test_a_solid_layer_with_zero_q_is_refused():

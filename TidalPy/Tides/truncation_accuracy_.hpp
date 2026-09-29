@@ -6,22 +6,29 @@
  * Standard-library only, so any extension can include it.
  */
 
+#include <algorithm>
 #include <limits>
 
 inline constexpr int C_TRUNCATION_ACCURACY_NUM_TOLERANCES = 6;
 inline constexpr double C_TRUNCATION_ACCURACY_TOLERANCES[C_TRUNCATION_ACCURACY_NUM_TOLERANCES] = {
     1.0e-8, 1.0e-6, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1};
 
-// One truncation level's limits, one per tabulated tolerance.
+// The tabulated degrees: l = 2 to 10, each measured on its own.
+inline constexpr int C_TRUNCATION_ACCURACY_MIN_DEGREE = 2;
+inline constexpr int C_TRUNCATION_ACCURACY_MAX_DEGREE = 10;
+inline constexpr int C_TRUNCATION_ACCURACY_NUM_DEGREES =
+    C_TRUNCATION_ACCURACY_MAX_DEGREE - C_TRUNCATION_ACCURACY_MIN_DEGREE + 1;
+
+// One truncation level's limits: one row per degree (l = 2 first), one value per tabulated tolerance.
 struct c_TruncationAccuracyRow {
     int truncation;
-    double degree_two[C_TRUNCATION_ACCURACY_NUM_TOLERANCES];     // limits for max_degree_l == 2
-    double degree_three[C_TRUNCATION_ACCURACY_NUM_TOLERANCES];   // limits for max_degree_l >= 3
+    double by_degree[C_TRUNCATION_ACCURACY_NUM_DEGREES][C_TRUNCATION_ACCURACY_NUM_TOLERANCES];
 };
 
-// The limit of a level at `tolerance`, using the tabulated tolerance at or below the requested one (so the answer
-// never promises more than was measured); 0.0 for a tolerance below the smallest tabulated one, and NaN for a level
-// the table does not hold.
+// The limit of a level at `tolerance` for a solve that includes degrees 2 to `max_degree_l`: the tightest of those
+// degrees' limits (a degree past the table uses its last degree's). It uses the tabulated tolerance at or below the
+// requested one (so the answer never promises more than was measured); 0.0 for a tolerance below the smallest
+// tabulated one, and NaN for a level the table does not hold.
 template <int NumLevels>
 inline double c_truncation_accuracy_limit(
         const c_TruncationAccuracyRow (&rows)[NumLevels],
@@ -32,11 +39,17 @@ inline double c_truncation_accuracy_limit(
     for (int i = 0; i < C_TRUNCATION_ACCURACY_NUM_TOLERANCES; ++i) {
         if (C_TRUNCATION_ACCURACY_TOLERANCES[i] <= tolerance) { column = i; }
     }
+    const int last_degree =
+        std::clamp(max_degree_l, C_TRUNCATION_ACCURACY_MIN_DEGREE, C_TRUNCATION_ACCURACY_MAX_DEGREE);
     for (int level = 0; level < NumLevels; ++level) {
         const c_TruncationAccuracyRow& row = rows[level];
         if (row.truncation != truncation) { continue; }
         if (column < 0) { return 0.0; }
-        return (max_degree_l <= 2) ? row.degree_two[column] : row.degree_three[column];
+        double limit = row.by_degree[0][column];
+        for (int degree_l = C_TRUNCATION_ACCURACY_MIN_DEGREE + 1; degree_l <= last_degree; ++degree_l) {
+            limit = std::min(limit, row.by_degree[degree_l - C_TRUNCATION_ACCURACY_MIN_DEGREE][column]);
+        }
+        return limit;
     }
     return std::numeric_limits<double>::quiet_NaN();
 }

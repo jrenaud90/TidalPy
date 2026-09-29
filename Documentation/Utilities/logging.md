@@ -1,6 +1,6 @@
 # Logging (`Utilities.logging`)
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-29_
 
 TidalPy's compiled code logs through [spdlog](https://github.com/gabime/spdlog), wrapped thinly in Cython so Python can configure and write to the same logger. A single named logger, `"TidalPy"`, is created at package startup and shared by every compiled extension.
 
@@ -48,7 +48,7 @@ Initialize or reconfigure the logger. Safe to call repeatedly: each call replace
 | `console_level` | str or int | `"info"` | Level for console output. |
 | `file_level` | str or int | `"info"` | Level for file output. |
 | `log_to_file` | bool | `False` | Whether to write a log file at all. |
-| `log_file_path` | str | `""` | Absolute path to that file, UTF-8. |
+| `log_file_path` | str | `""` | Absolute path to that file. Non-ASCII paths work on every platform. |
 
 Level names are case-insensitive: `trace`, `debug`, `info`, `warning` or `warn`, `error`, `critical`, and `off`. Integers 0 through 6 are accepted in their place.
 
@@ -72,7 +72,7 @@ Warnings, errors, and critical messages are flushed to every sink as they are wr
 
 Importing the logging module registers `flush_logger` with `atexit` once per process (`TidalPy.reinit()` does not register it again), so a normal interpreter exit writes the buffered lines. A crash skips `atexit`, and buffered lines below the warning level are lost.
 
-`shutdown_logger` flushes and turns the logger off, making every `TIDALPY_LOG_*` macro a no-op. A later `init_logger` call turns it back on. It is not needed at interpreter exit.
+`shutdown_logger` flushes and turns the logger off, making every `TIDALPY_LOG_*` macro a no-op. The logger keeps its address, so an extension imported while it is off is still wired to it, and a later `init_logger` call (or `set_log_level`) turns it back on for every extension. It is not needed at interpreter exit.
 
 ## C++ API
 

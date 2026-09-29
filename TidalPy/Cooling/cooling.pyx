@@ -108,7 +108,9 @@ cdef class CoolingResult:
     cooling_flux : float or numpy.ndarray
         Heat flux leaving the layer [W/m^2].
     boundary_layer_thickness : float or numpy.ndarray
-        Thermal boundary-layer thickness [m].
+        Thermal boundary-layer thickness [m]: the conducting thickness that carries the flux across the whole
+        temperature drop (thickness / Nu for convection). A layer with a boundary layer at its base and its top
+        splits the drop between them, so each is half this thick.
     rayleigh : float or numpy.ndarray
         Rayleigh number [dimensionless] (0 for off/conduction).
     nusselt : float or numpy.ndarray
