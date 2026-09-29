@@ -57,6 +57,7 @@ cdef extern from "constants_.hpp" nogil:
         int      d_TIDES_3D_LATITUDE_NODES
         int      d_TIDES_3D_LONGITUDE_NODES
         int      d_TIDES_3D_RADIAL_SLICES
+        int      d_TIDES_3D_MIN_RADII_PER_THREAD
         int      d_LOVE_SOLVE_THREADS
         int      d_LOVE_SOLVE_MIN_PARALLEL
         int      d_EOS_SOLVER_METHOD

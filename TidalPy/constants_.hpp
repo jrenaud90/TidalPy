@@ -112,6 +112,7 @@ struct TidalPyConfig
     int d_TIDES_3D_LATITUDE_NODES;  // Updated from TidalPy.config['numerical']['tides_3d_latitude_nodes']
     int d_TIDES_3D_LONGITUDE_NODES; // Updated from TidalPy.config['numerical']['tides_3d_longitude_nodes']
     int d_TIDES_3D_RADIAL_SLICES;   // Updated from TidalPy.config['numerical']['tides_3d_radial_slices']
+    int d_TIDES_3D_MIN_RADII_PER_THREAD; // Updated from TidalPy.config['numerical']['tides_3d_min_radii_per_thread']
     int d_LOVE_SOLVE_THREADS;       // Updated from TidalPy.config['numerical']['love_solve_threads']
     int d_LOVE_SOLVE_MIN_PARALLEL;  // Updated from TidalPy.config['numerical']['love_solve_min_parallel']
 
@@ -169,6 +170,7 @@ struct TidalPyConfig
         d_TIDES_3D_LATITUDE_NODES = -1;
         d_TIDES_3D_LONGITUDE_NODES = -1;
         d_TIDES_3D_RADIAL_SLICES = -1;
+        d_TIDES_3D_MIN_RADII_PER_THREAD = -1;
         d_LOVE_SOLVE_THREADS = 1;
         d_LOVE_SOLVE_MIN_PARALLEL = -1;
         d_EOS_SOLVER_METHOD = -1;

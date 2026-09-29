@@ -1553,9 +1553,10 @@ cdef class LayeredWorld(BaseWorld):
         once per unique ``(degree l, |omega|)`` and reused across all points, so this is the efficient way to
         build a zonal-mean heating map.
 
-        ``num_threads`` spreads the per-point evaluation, which follows the radial solves on the calling thread,
-        over that many threads; the result is identical for any thread count. The default, 0, uses the logical
-        processors less 4 (at least 1). Pass 1 inside a process or thread pool that already occupies the machine.
+        ``num_threads`` spreads the radial solves (one per degree and frequency, from ``[numerical]``
+        ``love_solve_min_parallel`` of them on) and then the per-point evaluation over that many threads; the result
+        is identical for any thread count. The default, 0, uses the logical processors less 4 (at least 1). Pass 1
+        inside a process or thread pool that already occupies the machine.
         """
         cy_check_num_threads(num_threads)
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
@@ -1619,7 +1620,7 @@ cdef class LayeredWorld(BaseWorld):
         radii, colatitudes, longitudes, times : array-like of float
             Grid axes [m], [rad], [rad], [s]; scalars are accepted.
         num_threads : int, optional
-            Threads for the per-point evaluation, which follows the radial solves on the calling thread.
+            Threads for the radial solves (one per degree and frequency) and the per-point evaluation.
             Default 0, the logical processors less 4 (at least 1); pass 1 inside a process or thread pool that
             already occupies the machine. The result is identical for any thread count.
 
@@ -1697,7 +1698,7 @@ cdef class LayeredWorld(BaseWorld):
         return_stress, return_strain : bool, optional
             Which tensors to compute; each takes 48 bytes per grid point and time. Default both.
         num_threads : int, optional
-            Threads for the per-point evaluation, which follows the radial solves on the calling thread.
+            Threads for the radial solves (one per degree and frequency) and the per-point evaluation.
             Default 0, the logical processors less 4 (at least 1); pass 1 inside a process or thread pool that
             already occupies the machine. The result is identical for any thread count.
 
@@ -1833,10 +1834,11 @@ cdef class LayeredWorld(BaseWorld):
         ``colatitude_max`` [rad] (defaults 0 and pi), so complementary bands add up to the full-sphere result; a band
         narrower than the full sphere always uses the quadrature. The band has no effect when colatitude is not summed.
 
-        ``num_threads`` spreads the per-point evaluation, which follows the radial solves on the calling thread,
-        over colatitude rows; the result is identical for any thread count. The default, 0, uses the logical
-        processors less 4 (at least 1); pass 1 inside a process or thread pool that already occupies the machine.
-        The analytic colatitude collapse has no per-point grid and always runs on one thread.
+        ``num_threads`` spreads the radial solves (one per degree and frequency, from ``[numerical]``
+        ``love_solve_min_parallel`` of them on), then the per-point evaluation over colatitude rows, or for the
+        analytic colatitude collapse the radii; the result is identical for any thread count. The default, 0, uses
+        the logical processors less 4 (at least 1); pass 1 inside a process or thread pool that already occupies the
+        machine.
         """
         cy_check_num_threads(num_threads)
         if not (0.0 <= colatitude_min < colatitude_max <= np.pi + 1.0e-12):

@@ -196,20 +196,20 @@ Starting a worker, importing TidalPy, and building its world take a few hundred 
 
 ## Threads Inside `calc_tides`
 
-`calc_tides` runs one Love solve per unique (degree, frequency) pair of the tidal modes. With the radial-solver Love methods, once there are at least `love_solve_min_parallel` solves (default 3), it spreads them over `love_solve_threads` threads, both in the `[numerical]` section of the configuration (see [TidalPy Configurations](../Overview/2_TidalPy_Configurations.md)). The default, 0, uses `max(num_logical_processors - 4, 1). `love_solve_threads = 1` keeps every solve on a single thread. The results are identical for any thread count. The quasi-homogeneous Love methods take microseconds per solve and always runs on one thread.
+`calc_tides` runs one Love solve per unique (degree, frequency) pair of the tidal modes. With the radial-solver Love methods, once there are at least `love_solve_min_parallel` solves (default 3), it spreads them over `love_solve_threads` threads, both in the `[numerical]` section of the configuration (see [TidalPy Configurations](../Overview/2_TidalPy_Configurations.md)). The default, 0, uses `max(num_logical_processors - 4, 1)`. `love_solve_threads = 1` keeps every solve on a single thread. The results are identical for any thread count. The quasi-homogeneous Love methods take microseconds per solve and always runs on one thread.
 
-The table times `calc_tides` on the bundled Io at an eccentricity of 0.05 and an obliquity of 0.1 [rad], with 1 and 16 Love-solve threads. The per-layer heating (`layer_tidal_heating`, on by default) integrates the radial solutions after the solves on the calling thread, so it gains less:
+The table times `calc_tides` on the bundled Io at an eccentricity of 0.05 and an obliquity of 0.1 [rad], with 1 and 16 Love-solve threads. The per-layer heating (`layer_tidal_heating`, on by default) then integrates the radial solutions over each layer on the same threads, at least `tides_3d_min_radii_per_thread` radii (default 8) to a thread. Part of that integral runs on the calling thread, so it gains less:
 
 | Tide settings | Love solves | 1 thread | Change, 16 threads | Change without the per-layer heating |
 |---|---|---|---|---|
-| Degree 2, e^10, synchronous | 5 | 2.1 ms | 1.9x faster | 2.1x faster |
-| Degree 2, e^10, obliquity level 2, spin 1.2 n | 28 | 12.7 ms | 2.9x faster | 5.4x faster |
-| Degrees 2 to 3, e^10, obliquity level 2, spin 1.2 n | 58 | 28.4 ms | 2.8x faster | 6.9x faster |
-| Degrees 2 to 4, e^20, obliquity level 4, spin 1.2 n | 181 | 99.9 ms | 3.3x faster | 8.3x faster |
+| Degree 2, e^10, synchronous | 5 | 2.1 ms | 1.6x faster | 2.2x faster |
+| Degree 2, e^10, obliquity level 2, spin 1.2 n | 28 | 12.7 ms | 3.1x faster | 5.5x faster |
+| Degrees 2 to 3, e^10, obliquity level 2, spin 1.2 n | 58 | 28.1 ms | 3.8x faster | 7.1x faster |
+| Degrees 2 to 4, e^20, obliquity level 4, spin 1.2 n | 181 | 97.9 ms | 4.3x faster | 8.4x faster |
 
 The default value of `love_solve_min_parallel = 3` was born out of testing where two solves roughly broke even on a one-layer body (0.17 ms per solve). But 3+ had every case faster, which sets the default of `love_solve_min_parallel`.
 
-The 3D grid methods (`calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`, and `get_3d_tidal_heating_array`) spread their per-point work the same way through their `num_threads` argument, whose default of 0 means the same count (see [3D Tidal Stress, Strain, and Heating](../Tides/multilayer_3d_heating.md)).
+The 3D grid methods (`calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`, and `get_3d_tidal_heating_array`) spread their radial solves (from `love_solve_min_parallel` of them on) and their per-point work the same way through their `num_threads` argument, whose default of 0 means the same count (see [3D Tidal Stress, Strain, and Heating](../Tides/multilayer_3d_heating.md)).
 
 Inside a thread or process pool that already occupies the machine, these threads compete with the pool's workers. Set `love_solve_threads` to 1 in each worker (through the pool's `initializer`, as in the example above) and pass `num_threads=1` to the 3D methods. In a test with 16 worker processes each running `calc_tides`, leaving the automatic threads on cost about 3 percent.
 

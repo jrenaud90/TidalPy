@@ -2085,7 +2085,7 @@ public:
 
     // Batch form over paired (radii[i], colatitudes[i]) points. Same physics as the scalar form, but the
     // radial solve is amortized across the points, one per unique (l, frequency), which makes it the
-    // efficient way to build a map. num_threads applies to the per-point evaluation after the solves.
+    // efficient way to build a map. num_threads applies to the radial solves and the per-point evaluation.
     void get_3d_tidal_heating_array(
             const c_TideSolveConfig& state,
             const double* radii,
@@ -2137,8 +2137,8 @@ public:
             size_t num_times,
             const c_Heating3DCollapseConfig& cfg);
 
-    // calc_3d_tides written into caller buffers. The radial solves run on the calling thread and the
-    // per-point evaluation on up to cfg.num_threads threads; the result is identical for any thread count.
+    // calc_3d_tides written into caller buffers. The radial solves and the per-point evaluation run on up to
+    // cfg.num_threads threads; the result is identical for any thread count.
     void calc_3d_tides_into(
             const c_TideSolveConfig& state,
             const double* radii,

@@ -1,12 +1,14 @@
 """3D grid methods reproduce the one-thread result exactly (NaN cells included) for any ``num_threads``."""
 
+import copy
 import functools
 import math
 
 import numpy as np
 import pytest
 
-from TidalPy.constants import G
+import TidalPy
+from TidalPy.constants import G, update_constants
 
 
 _RADIUS          = 1.8216e6
@@ -27,6 +29,9 @@ _COLLAPSE_CASES = {
                                orbit_averaged=False),
     "secular_radial_profile_numeric": dict(radii=_RADII, latitude_summed=True, longitude_summed=True,
                                            latitude_analytic=False),
+    # The analytic colatitude collapse, which spreads its radii rather than colatitude rows over the threads.
+    "secular_radial_profile_analytic": dict(radii=_RADII, latitude_summed=True, longitude_summed=True),
+    "secular_total_analytic": dict(latitude_summed=True, longitude_summed=True, radial_summed=True),
     "secular_colatitude_profile": dict(colatitudes=_COLATITUDES, longitude_summed=True, radial_summed=True),
     "secular_total_numeric": dict(latitude_summed=True, longitude_summed=True, radial_summed=True,
                                   latitude_analytic=False),
@@ -140,3 +145,22 @@ _METHOD_CALLS = {
 def test_negative_thread_count_raises(method, num_threads):
     with pytest.raises(ValueError, match="num_threads"):
         _METHOD_CALLS[method](_world(), num_threads)
+
+
+@pytest.fixture
+def restore_config():
+    """Restore ``TidalPy.config`` and the C++ numerical settings after a test changes them."""
+    original = copy.deepcopy(TidalPy.config)
+    yield
+    TidalPy.config = original
+    update_constants()
+
+
+@pytest.mark.parametrize("method", list(_METHOD_CALLS))
+def test_failed_radial_solve_on_a_worker_thread_raises(restore_config, method):
+    """A radial solve that fails on a worker thread raises on the calling thread."""
+    # Too few integration steps to cross the first layer, so every radial solve fails.
+    TidalPy.config["radial_solver"]["max_num_steps"] = 5
+    update_constants()
+    with pytest.raises(RuntimeError, match="radial solve failed"):
+        _METHOD_CALLS[method](_world(), 16)

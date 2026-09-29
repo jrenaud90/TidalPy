@@ -176,11 +176,15 @@ schema_version = "{SCHEMA_VERSION}"
     tides_3d_latitude_nodes = 16
     tides_3d_longitude_nodes = 64
     tides_3d_radial_slices = 16
+    # Fewest radii each thread takes in the analytic colatitude integral of `calc_3d_tides` (and of the per-layer
+    # heating in `calc_tides`): one radius costs far less than starting a thread.
+    tides_3d_min_radii_per_thread = 8
     # Threads `calc_tides` spreads its Love-number solves over, one solve per unique (degree, frequency) pair, once
-    # there are at least `love_solve_min_parallel` of them; fewer run on the calling thread, where starting threads
-    # would cost more than it saves. The results are identical for any thread count. 0 uses the logical processors
-    # less 4 (at least 1), leaving part of the machine free; 1 keeps every solve on the calling thread, which suits
-    # a process or thread pool that already occupies the machine.
+    # there are at least `love_solve_min_parallel` of them, and then its per-layer heating integral; fewer solves run
+    # on the calling thread, where starting threads would cost more than it saves. The 3D methods take the same
+    # minimum for their radial solves and their thread count from `num_threads`. The results are identical for any
+    # thread count. 0 uses the logical processors less 4 (at least 1), leaving part of the machine free; 1 keeps
+    # everything on the calling thread, which suits a process or thread pool that already occupies the machine.
     love_solve_threads = 0
     love_solve_min_parallel = 3
     # Not used in any calculation: the test suite changes it to check that a reinitialization reaches the C++

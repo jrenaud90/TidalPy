@@ -247,6 +247,8 @@ inline void c_LayeredWorld::calc_layer_tidal_heating_radial(
     cfg.latitude_summed  = true;
     cfg.longitude_summed = true;
     cfg.radial_summed    = true;
+    // calc_tides' one thread setting also covers this integral's solves and radii.
+    cfg.num_threads      = tidalpy_config_ptr->d_LOVE_SOLVE_THREADS;
     // Lent for this call only; the call lock is held throughout, so no other call sees them.
     struct c_RetainedSolvesLoan {
         const std::vector<c_RetainedRadialSolve>*& slot;
@@ -517,13 +519,84 @@ inline c_RadiusLayer3D c_radius_layer_3d(const c_LayeredWorld& world, double rad
     return layer;
 }
 
-// Strain radial coefficients of one radial group at one radius. False where there is no depth-resolved strain
-// solution (the center, below the solver start), where a point-wise quantity is NaN and a radial sum takes it as
-// zero. A liquid point is not missing: it has no shear kernel, so its coefficients are invalid and it contributes no
-// heating (0) while its stress and strain are NaN. A geometry-only layer has NaN moduli.
+// y1..y4 of one radial group at one radius.
+typedef std::array<std::complex<double>, 4> c_RadialY3D;
+
+// y1..y4 of every radial group at every radius, [radius * num_groups + group], and whether the group's solution
+// reaches that radius.
+struct c_RadialValues3D {
+    std::vector<c_RadialY3D> y;
+    std::vector<unsigned char> found;
+};
+
+// Solve once per radial group (l, |omega|), or take the solve calc_tides kept for the group when `use_retained` (the
+// first such solve), and read y1..y4 at every radius. From [numerical] love_solve_min_parallel groups on, the groups
+// are spread over c_resolve_num_threads(num_threads) workers, each reusing one workspace and writing only its own
+// groups' values, so the result is identical for any thread count. Only the solves and the solution reads run on the
+// workers: the layers' getters take the world's call lock, which the calling thread holds, so their callers stay on
+// the calling thread.
+inline c_RadialValues3D c_radial_values_3d(
+        c_LayeredWorld& world,
+        const c_WaveSet3D& set,
+        const double* radii,
+        size_t num_radii,
+        const char* what,
+        bool use_retained,
+        int num_threads) {
+    const size_t num_groups = set.radial_groups.size();
+    c_RadialValues3D out;
+    out.y.resize(num_radii * num_groups);
+    out.found.assign(num_radii * num_groups, 0);
+    const c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
+    c_WaveFrequencyIndex retained_index = c_wave_frequency_index(set.frequency_match_rtol);
+    std::vector<const ::c_RadialSolutionStorage*> retained_storage;
+    const std::vector<c_RetainedRadialSolve>* retained = use_retained ? world.get_retained_radial_solves() : nullptr;
+    if (retained != nullptr) {
+        for (const c_RetainedRadialSolve& solve : *retained) {
+            if (solve.storage == nullptr) { continue; }
+            retained_index.insert(solve.degree_l, solve.frequency);
+            retained_storage.push_back(solve.storage);
+        }
+    }
+    // Reading a kept solve is cheap, so only the groups that still need a solve count toward the threshold.
+    std::vector<std::ptrdiff_t> retained_by_group(num_groups);
+    long long num_to_solve = 0;
+    for (size_t g = 0; g < num_groups; ++g) {
+        retained_by_group[g] = retained_index.find(set.radial_groups[g].degree_l, set.radial_groups[g].frequency);
+        if (retained_by_group[g] < 0) { ++num_to_solve; }
+    }
+    const bool parallel = num_to_solve >= tidalpy_config_ptr->d_LOVE_SOLVE_MIN_PARALLEL;
+    const size_t num_workers = parallel ? std::min(c_resolve_num_threads(num_threads), num_groups) : 1;
+    c_parallel_tasks_3d(num_workers, static_cast<int>(num_workers), [&](size_t worker) {
+        c_LoveSolveConfig worker_cfg = love_cfg;
+        c_LoveWorkspace workspace;
+        for (size_t g = worker; g < num_groups; g += num_workers) {
+            const std::ptrdiff_t retained_solve = retained_by_group[g];
+            const ::c_RadialSolutionStorage* storage = (retained_solve >= 0)
+                ? retained_storage[static_cast<size_t>(retained_solve)]
+                : c_solve_radial_group_3d(world, worker_cfg, set.radial_groups[g], what, workspace);
+            for (size_t ir = 0; ir < num_radii; ++ir) {
+                std::complex<double> y_at_r[C_MAX_NUM_Y];
+                const size_t slot = ir * num_groups + g;
+                if (storage->get_radial_solution(radii[ir], 0, y_at_r)) {
+                    out.found[slot] = 1;
+                    for (size_t y_i = 0; y_i < out.y[slot].size(); ++y_i) { out.y[slot][y_i] = y_at_r[y_i]; }
+                }
+            }
+        }
+    });
+    return out;
+}
+
+// Strain radial coefficients of one radial group at one radius from its y1..y4 there (`y_found` false where the
+// solution does not reach the radius). False where there is no depth-resolved strain solution (the center, below the
+// solver start), where a point-wise quantity is NaN and a radial sum takes it as zero. A liquid point is not missing:
+// it has no shear kernel, so its coefficients are invalid and it contributes no heating (0) while its stress and
+// strain are NaN. A geometry-only layer has NaN moduli.
 inline bool c_strain_coeffs_at_radius_3d(
         const c_RadiusLayer3D& layer,
-        const ::c_RadialSolutionStorage* storage,
+        const c_RadialY3D& y_at_r,
+        bool y_found,
         double radius,
         const c_RadialGroup3D& group,
         tides::c_StrainRadialCoeffs& out) {
@@ -532,8 +605,7 @@ inline bool c_strain_coeffs_at_radius_3d(
         out.valid = false;
         return true;
     }
-    std::complex<double> y_at_r[C_MAX_NUM_Y];
-    if (!storage->get_radial_solution(radius, 0, y_at_r)
+    if (!y_found
         || !std::isfinite(y_at_r[0].real()) || !std::isfinite(y_at_r[1].real())
         || !std::isfinite(y_at_r[2].real()) || !std::isfinite(y_at_r[3].real())) {
         out.valid = false;
@@ -571,45 +643,32 @@ struct c_RadialCoefficients3D {
 
 // Solve once per radial group (l, |omega|) and evaluate each group's strain radial coefficients at every
 // radius. A radius is unusable only when no group has a solution there: the solver's start radius grows
-// with l, so a higher-degree group starting further out just contributes nothing below it.
+// with l, so a higher-degree group starting further out just contributes nothing below it. The solves run on up to
+// c_resolve_num_threads(num_threads) threads (c_radial_values_3d); the coefficients read the layers on this thread.
 inline c_RadialCoefficients3D c_radial_coefficients_3d(
         c_LayeredWorld& world,
         const c_WaveSet3D& set,
         const double* radii,
         size_t num_radii,
-        const char* what) {
+        const char* what,
+        int num_threads) {
     const size_t num_groups = set.radial_groups.size();
     c_RadialCoefficients3D out;
     out.by_radius.assign(num_radii, std::vector<tides::c_StrainRadialCoeffs>(num_groups));
     out.radius_failed.assign(num_radii, 0);
     std::vector<size_t> radius_missing(num_radii, 0);
-    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
-    c_LoveWorkspace workspace;
-    // A solve calc_tides already ran for a group (same degree and |omega|) is used as it is: the first such solve.
-    c_WaveFrequencyIndex retained_index = c_wave_frequency_index(set.frequency_match_rtol);
-    std::vector<const ::c_RadialSolutionStorage*> retained_storage;
-    const std::vector<c_RetainedRadialSolve>* retained = world.get_retained_radial_solves();
-    if (retained != nullptr) {
-        for (const c_RetainedRadialSolve& solve : *retained) {
-            if (solve.storage == nullptr) { continue; }
-            retained_index.insert(solve.degree_l, solve.frequency);
-            retained_storage.push_back(solve.storage);
-        }
-    }
     std::vector<c_RadiusLayer3D> radius_layers(num_radii);
     for (size_t ir = 0; ir < num_radii; ++ir) {
         radius_layers[ir] = c_radius_layer_3d(world, radii[ir]);
     }
+    const c_RadialValues3D values = c_radial_values_3d(world, set, radii, num_radii, what, true, num_threads);
     for (size_t g = 0; g < num_groups; ++g) {
-        const std::ptrdiff_t retained_solve =
-            retained_index.find(set.radial_groups[g].degree_l, set.radial_groups[g].frequency);
-        const ::c_RadialSolutionStorage* storage = (retained_solve >= 0)
-            ? retained_storage[static_cast<size_t>(retained_solve)]
-            : c_solve_radial_group_3d(world, love_cfg, set.radial_groups[g], what, workspace);
         for (size_t ir = 0; ir < num_radii; ++ir) {
+            const size_t slot = ir * num_groups + g;
             if (!c_strain_coeffs_at_radius_3d(
                 radius_layers[ir],
-                storage,
+                values.y[slot],
+                values.found[slot] != 0,
                 radii[ir],
                 set.radial_groups[g],
                 out.by_radius[ir][g])) {
@@ -1173,16 +1232,19 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
     std::vector<std::complex<double>> y3_at(nr * num_groups);
     std::vector<unsigned char> group_missing(nr * num_groups, 0);
     std::vector<size_t> radius_missing(nr, 0);
-    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
-    c_LoveWorkspace workspace;
+    const tides3d::c_RadialValues3D values = tides3d::c_radial_values_3d(
+        world,
+        set,
+        axes.radii,
+        nr,
+        "3D tidal displacements",
+        false,
+        num_threads);
     for (size_t g = 0; g < num_groups; ++g) {
-        const ::c_RadialSolutionStorage* storage = tides3d::c_solve_radial_group_3d(
-            world, love_cfg, set.radial_groups[g], "3D tidal displacements", workspace);
         for (size_t ir = 0; ir < nr; ++ir) {
-            std::complex<double> y_at_r[C_MAX_NUM_Y];
             const size_t slot = ir * num_groups + g;
-            if (!storage->get_radial_solution(axes.radii[ir], 0, y_at_r)
-                || !std::isfinite(y_at_r[0].real()) || !std::isfinite(y_at_r[2].real())) {
+            const tides3d::c_RadialY3D& y_at_r = values.y[slot];
+            if (!values.found[slot] || !std::isfinite(y_at_r[0].real()) || !std::isfinite(y_at_r[2].real())) {
                 group_missing[slot] = 1;
                 radius_missing[ir] += 1;
                 continue;
@@ -1268,7 +1330,7 @@ inline void c_RheologyTide::calc_3d_stress_strain_grid(
     const char* what = "3D tidal stress and strain";
     const tides3d::c_WaveSet3D set = tides3d::c_world_wave_set_3d(world, state, what, false);
     const tides3d::c_RadialCoefficients3D radial_coefficients =
-        tides3d::c_radial_coefficients_3d(world, set, axes.radii, nr, what);
+        tides3d::c_radial_coefficients_3d(world, set, axes.radii, nr, what, num_threads);
     const tides3d::c_PhaseTable3D phase = tides3d::c_phase_table_3d(set.frequencies, axes.times, nt);
     const size_t num_frequencies = set.frequencies.size();
     const double nan_v = TidalPyConstants::d_NAN;
@@ -1372,7 +1434,8 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
         set,
         unique_radii.data(),
         unique_radii.size(),
-        "secular 3D tidal heating");
+        "secular 3D tidal heating",
+        num_threads);
 
     // One row per distinct finite colatitude, and one row for each point whose colatitude is not finite.
     std::vector<std::vector<size_t>> rows;
@@ -1492,7 +1555,8 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
         set,
         grids.r_grid.data(),
         nr,
-        "3D tidal heating");
+        "3D tidal heating",
+        cfg.num_threads);
     const std::vector<std::vector<tides::c_StrainRadialCoeffs>>& coeffs = radial_coefficients.by_radius;
     const std::vector<unsigned char>& radius_solve_failed = radial_coefficients.radius_failed;
     const double nan_v = TidalPyConstants::d_NAN;
@@ -1508,14 +1572,25 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
     if (!instantaneous && cfg.latitude_summed && cfg.longitude_summed && cfg.latitude_analytic
             && grids.latitude_full_sphere) {
         // Integrate the longitude-mean secular density over theta with the Gram matrices, exactly and with
-        // no theta grid. theta is summed away, so scatter over (radius, phi). With no per-point grid to
-        // spread over threads, this runs on the calling thread.
-        tides3d::c_GramCache3D gram_cache;
-        for (size_t ir = 0; ir < nr; ++ir) {
-            double theta_integral = 0.0;
-            if (!radius_solve_failed[ir]) {
-                theta_integral = tides3d::c_secular_theta_integral_3d(set, groups, coeffs[ir], gram_cache);
+        // no theta grid. theta is summed away, so scatter over (radius, phi). The radii's integrals run on up to
+        // c_resolve_num_threads(cfg.num_threads) workers with at least [numerical] tides_3d_min_radii_per_thread
+        // radii each (one radius costs far less than starting a thread), each worker with a Gram cache of its own,
+        // and are added in radius order below, so the result is identical for any thread count.
+        std::vector<double> theta_integrals(nr, 0.0);
+        const size_t radii_per_thread =
+            static_cast<size_t>(std::max(tidalpy_config_ptr->d_TIDES_3D_MIN_RADII_PER_THREAD, 1));
+        const size_t num_workers = std::min(
+            tides3d::c_resolve_num_threads(cfg.num_threads), std::max<size_t>(nr / radii_per_thread, 1));
+        tides3d::c_parallel_tasks_3d(num_workers, static_cast<int>(num_workers), [&](size_t worker) {
+            tides3d::c_GramCache3D gram_cache;
+            for (size_t ir = worker; ir < nr; ir += num_workers) {
+                if (!radius_solve_failed[ir]) {
+                    theta_integrals[ir] = tides3d::c_secular_theta_integral_3d(set, groups, coeffs[ir], gram_cache);
+                }
             }
+        });
+        for (size_t ir = 0; ir < nr; ++ir) {
+            const double theta_integral = theta_integrals[ir];
             // theta is already integrated, the Gram absorbing sin theta, so only radius and longitude remain.
             const double radial_factor = cfg.radial_summed ? grids.r_wsum[ir] : (grids.r_grid[ir] * grids.r_grid[ir]);
             for (size_t iph = 0; iph < nph; ++iph) {

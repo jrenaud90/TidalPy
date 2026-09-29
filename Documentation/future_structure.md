@@ -523,15 +523,15 @@ A script that computes one 3D map and exits spends almost a second in 0.7.X once
 
 ### Threads for 3D Grids
 
-The 3D grid methods, `calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`, and `get_3d_tidal_heating_array`, take `num_threads`, which spreads the per-point evaluation over threads. The default, 0, uses the logical processors less 4 (at least 1), and every thread count returns identical values. `calc_tides` also spreads its Love-number solves over threads (see [Parallel Love Solves](RadialSolver/parallel.md)). 0.7.X has no equivalent. The table times three grids of a homogeneous Io at degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, on 20 radii by 45 colatitudes by 90 longitudes, using the `tides_3d:*_1_thread` and `tides_3d:*_all_threads` tasks in `Benchmarks/Performance` on the same machine and its 16 hardware threads. Each figure is the lowest of three fresh processes, each taking the best of three batches.
+The 3D grid methods, `calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`, and `get_3d_tidal_heating_array`, take `num_threads`, which spreads the radial solves and the per-point evaluation over threads. The default, 0, uses the logical processors less 4 (at least 1), and every thread count returns identical values. `calc_tides` also spreads its Love-number solves over threads (see [Parallel Love Solves](RadialSolver/parallel.md)). 0.7.X has no equivalent. The table times three grids of a homogeneous Io at degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, on 20 radii by 45 colatitudes by 90 longitudes, using the `tides_3d:*_1_thread` and `tides_3d:*_all_threads` tasks in `Benchmarks/Performance` on the same machine and its 16 hardware threads. Each figure is the lowest of three fresh processes, each taking the best of three batches.
 
 | Grid | 1 thread | 16 threads | Change |
 |---|---|---|---|
-| Secular heating map | 149 ms | 31 ms | 4.7x faster |
-| Stress and strain, 4 times | 264 ms | 57 ms | 4.7x faster |
-| Displacements, 24 times | 297 ms | 69 ms | 4.3x faster |
+| Secular heating map | 149 ms | 22 ms | 6.7x faster |
+| Stress and strain, 4 times | 266 ms | 39 ms | 6.8x faster |
+| Displacements, 24 times | 302 ms | 53 ms | 5.7x faster |
 
-The gain stops well short of the thread count because the radial solves, about 12 ms of each call here, always run on one thread. The work after them grows with the grid while the solves do not, so larger grids gain more.
+Part of each call, building the waves and the strain coefficients from the radial solutions, runs on the calling thread, so the gain stays below the thread count.
 
 ## Learning TidalPy 0.8.0
 
