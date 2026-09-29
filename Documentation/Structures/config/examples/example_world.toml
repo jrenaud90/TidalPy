@@ -107,10 +107,13 @@ reference_viscosity_pas = 1.0e22
 model = "off"                       # off | spohn (fischer) | henning
 
 [layers.inner_core.shear_rheology]
-model = "maxwell"                   # elastic (off) | viscous (newton) | voigt | maxwell | burgers | andrade | sundberg
+model = "maxwell"                   # elastic (off) | viscous (newton) | voigt | maxwell | burgers | andrade |
+                                    # sundberg | zener (sls)
 
 [layers.inner_core.bulk_rheology]
-model = "elastic"
+model = "burgers"
+voigt_modulus_frac = 0.2
+voigt_viscosity_frac = 0.02
 
 # Layer 2: a static liquid outer core, a `solidliquid` layer with its cooling and radiogenics switched off. Its
 # outer radius is given by volume: the layer holds this fraction of the world's volume.
@@ -189,7 +192,14 @@ liquidus_k = 2000.0
 liquid_shear_pa = 1.0e-5            # the shear modulus of the melt
 liquid_viscosity_pas = 0.2          # the viscosity of the melt, and the floor on the post-melt viscosity
 bulk_melt_weakening = true          # also weaken the bulk modulus (a Hashin-Shtrikman bound; off by default)
-liquid_bulk_modulus_pa = 2.0e10     # the bulk modulus of the melt, used only when bulk_melt_weakening is on
+liquid_bulk_modulus_pa = 2.0e10     # the melt's Murnaghan law: zero-pressure bulk modulus, its pressure derivative,
+liquid_bulk_modulus_derivative = 5.0 # and zero-pressure density
+liquid_density_kg_m3 = 2750.0
+density_melt_mixing = false         # true mixes the melt into the density by volume; this file's mass is fitted
+                                    # without it
+bulk_viscosity_melt_weakening = true # melt sets a compaction bulk viscosity c eta / phi^n (off by default)
+melt_bulk_viscosity_coefficient = 1.0
+melt_bulk_viscosity_exponent = 1.0  # 1 is McKenzie (1984); 0 is closer to Takei and Holtzman (2009)
 fs_visc_power_slope_k = 27000.0     # the viscosity and shear-modulus power laws: slope, and log10 at the solidus
 fs_visc_log10_at_solidus = 15.875
 fs_shear_power_slope_k = 82000.0
@@ -272,9 +282,8 @@ alpha = 0.3
 zeta = 1.0
 
 [layers.upper_mantle.bulk_rheology]
-model = "burgers"
-voigt_modulus_frac = 0.2
-voigt_viscosity_frac = 0.02
+model = "zener"                     # a standard linear solid: relaxes to a finite modulus, not to zero like maxwell
+relaxed_modulus_frac = 0.9          # the relaxed modulus as a fraction of the unrelaxed one (zener)
 
 [layers.upper_mantle.cooling]
 model = "convection"                # boundary-layer convection from a Nusselt-Rayleigh law

@@ -49,9 +49,20 @@ def _rock_layer_block(section: str) -> str:
         # Molten silicate: the floor on the post-melt viscosity.
         liquid_viscosity_pas = 0.2
         # Set true to weaken the bulk modulus with melt as well (a Hashin-Shtrikman bound; far weaker than the
-        # shear weakening). The melt's bulk modulus is a silicate melt's at low pressure.
+        # shear weakening). The melt phase follows a Murnaghan law, K = K0 + K' P, with roughly an ultramafic
+        # silicate melt's zero-pressure density, bulk modulus, and K' (Rigden et al. 1984; Agee 1998).
         bulk_melt_weakening = false
         liquid_bulk_modulus_pa = 2.0e10
+        liquid_bulk_modulus_derivative = 5.0
+        liquid_density_kg_m3 = 2750.0
+        # Set true to mix the melt into the density by volume, (1 - phi) rho_solid + phi rho_melt(P).
+        density_melt_mixing = false
+        # Set true to let melt set a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in
+        # series with the pre-melt one; n = 1 is McKenzie (1984), n = 0 is closer to Takei and Holtzman (2009). It
+        # acts only through a bulk rheology that is not elastic (a zener one relaxes to a set fraction of K).
+        bulk_viscosity_melt_weakening = false
+        melt_bulk_viscosity_coefficient = 1.0
+        melt_bulk_viscosity_exponent = 1.0
         crit_melt_frac = 0.5
         crit_melt_frac_width = 0.05
         hn_visc_slope_1 = 13.5
@@ -441,10 +452,21 @@ schema_version = "{SCHEMA_VERSION}"
         model = "off"
         solidus_k = 4000.0
         liquidus_k = 5000.0
-        # Liquid iron (de Wijs et al. 1998 viscosity; bulk modulus near 1 bar).
+        # Liquid iron (de Wijs et al. 1998 viscosity; bulk modulus near 1 bar; K' of Anderson and Ahrens 1994;
+        # density at the 1 bar melting point, Assael et al. 2006).
         liquid_viscosity_pas = 1.3e-2
         bulk_melt_weakening = false
         liquid_bulk_modulus_pa = 1.1e11
+        liquid_bulk_modulus_derivative = 4.66
+        liquid_density_kg_m3 = 7019.0
+        # Set true to mix the melt into the density by volume, (1 - phi) rho_solid + phi rho_melt(P).
+        density_melt_mixing = false
+        # Set true to let melt set a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in
+        # series with the pre-melt one; n = 1 is McKenzie (1984), n = 0 is closer to Takei and Holtzman (2009). It
+        # acts only through a bulk rheology that is not elastic (a zener one relaxes to a set fraction of K).
+        bulk_viscosity_melt_weakening = false
+        melt_bulk_viscosity_coefficient = 1.0
+        melt_bulk_viscosity_exponent = 1.0
 
     [layers.iron.shear_rheology]
         model = "maxwell"
@@ -498,6 +520,17 @@ schema_version = "{SCHEMA_VERSION}"
         liquid_viscosity_pas = 8.9e-4
         bulk_melt_weakening = false
         liquid_bulk_modulus_pa = 2.2e9
+        # Water's K' and density at 273 K (IAPWS-95). Water is denser than ice I, so mixing raises the density.
+        liquid_bulk_modulus_derivative = 6.8
+        liquid_density_kg_m3 = 999.84
+        # Set true to mix the melt into the density by volume, (1 - phi) rho_solid + phi rho_melt(P).
+        density_melt_mixing = false
+        # Set true to let melt set a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in
+        # series with the pre-melt one; n = 1 is McKenzie (1984), n = 0 is closer to Takei and Holtzman (2009). It
+        # acts only through a bulk rheology that is not elastic (a zener one relaxes to a set fraction of K).
+        bulk_viscosity_melt_weakening = false
+        melt_bulk_viscosity_coefficient = 1.0
+        melt_bulk_viscosity_exponent = 1.0
 
     [layers.ice.shear_rheology]
         model = "maxwell"
@@ -549,6 +582,17 @@ schema_version = "{SCHEMA_VERSION}"
         liquid_viscosity_pas = 8.9e-4
         bulk_melt_weakening = false
         liquid_bulk_modulus_pa = 2.2e9
+        # Water's K' and density at 273 K (IAPWS-95). Water is denser than ice I, so mixing raises the density.
+        liquid_bulk_modulus_derivative = 6.8
+        liquid_density_kg_m3 = 999.84
+        # Set true to mix the melt into the density by volume, (1 - phi) rho_solid + phi rho_melt(P).
+        density_melt_mixing = false
+        # Set true to let melt set a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in
+        # series with the pre-melt one; n = 1 is McKenzie (1984), n = 0 is closer to Takei and Holtzman (2009). It
+        # acts only through a bulk rheology that is not elastic (a zener one relaxes to a set fraction of K).
+        bulk_viscosity_melt_weakening = false
+        melt_bulk_viscosity_coefficient = 1.0
+        melt_bulk_viscosity_exponent = 1.0
 
     [layers.hp_ice.shear_rheology]
         model = "andrade"

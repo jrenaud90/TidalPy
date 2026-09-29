@@ -50,10 +50,11 @@ inline void c_preeval_material_eos(
 
     if (!(ode_args->update_shear || ode_args->update_bulk))
     {
-        // The structure iteration needs the density alone, so skip the viscosity and melt models.
+        // The structure iteration needs the density alone, so skip the moduli and viscosity models; the melt
+        // enters only as calc_material_state has it enter the density.
         const double density_temperature = eos_data->thermal_density ? temperature : TidalPyConstants::d_NAN;
-        output->density = eos_model->calc_density(
-            pressure_si, density_temperature, radius_si) / eos_data->density_scale;
+        output->density = eos_model->calc_structure_density(
+            pressure_si, density_temperature, temperature, radius_si) / eos_data->density_scale;
         output->shear_modulus   = std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         output->bulk_modulus    = std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         output->shear_viscosity = TidalPyConstants::d_NAN;

@@ -184,13 +184,37 @@ def test_partial_melt_leaves_the_bulk_modulus_unless_switched_on():
     bulk_premelt = material.calc_material_state(_PRESSURE, 1500.0)["bulk_modulus"]
     assert material.calc_material_state(_PRESSURE, 1900.0)["bulk_modulus"] == bulk_premelt
 
-    weakening_config = dict(_MELT_CONFIG, bulk_melt_weakening=True, liquid_bulk_modulus_pa=2.0e10)
+    # A constant melt bulk modulus: at 20 GPa a K' of 5 would make the melt as stiff as the solid.
+    weakening_config = dict(_MELT_CONFIG, bulk_melt_weakening=True, liquid_bulk_modulus_pa=2.0e10,
+                            liquid_bulk_modulus_derivative=0.0)
     material.set_partial_melt(make_partial_melt("henning", weakening_config))
     state = material.calc_material_state(_PRESSURE, 1700.0)
     reference = make_partial_melt("henning", weakening_config)
-    expected = reference.calc_bulk_modulus_melt(1700.0, bulk_premelt, state["shear_modulus"])
+    expected = reference.calc_bulk_modulus_melt(1700.0, _PRESSURE, bulk_premelt, state["shear_modulus"])
     assert state["bulk_modulus"] == pytest.approx(expected, rel=1e-13)
     assert 2.0e10 < state["bulk_modulus"] < bulk_premelt
+
+
+def test_partial_melt_leaves_the_density_and_bulk_viscosity_unless_switched_on():
+    material = _melting_material()
+    material.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e22}))
+    cold = material.calc_material_state(_PRESSURE, 1500.0)
+    hot = material.calc_material_state(_PRESSURE, 1800.0)
+    assert hot["density"] == cold["density"] == pytest.approx(3300.0)
+    assert hot["bulk_viscosity"] == cold["bulk_viscosity"] == pytest.approx(1.0e22)
+
+    switched = dict(_MELT_CONFIG, density_melt_mixing=True, liquid_density_kg_m3=2750.0,
+                    bulk_viscosity_melt_weakening=True)
+    material.set_partial_melt(make_partial_melt("henning", switched))
+    # At 1 GPa; by 20 GPa this constant-density solid would be lighter than the compressed melt.
+    state = material.calc_material_state(1.0e9, 1800.0)
+    reference = make_partial_melt("henning", switched)
+    assert state["melt_fraction"] == pytest.approx(0.5)
+    assert state["density"] == pytest.approx(reference.calc_mixture_density(1800.0, 1.0e9, 3300.0), rel=1e-14)
+    assert state["density"] < 3300.0
+    assert state["bulk_viscosity"] == pytest.approx(
+        reference.calc_bulk_viscosity_melt(1800.0, 1.0e22, state["shear_viscosity"]), rel=1e-14)
+    assert state["bulk_viscosity"] < 1.0e22
 
 
 def test_an_attached_model_wrapper_is_an_empty_shell():
@@ -201,7 +225,7 @@ def test_an_attached_model_wrapper_is_an_empty_shell():
     material.set_partial_melt(melt)
     material.set_shear_viscosity(viscosity)
     with pytest.raises(RuntimeError):
-        melt.calc_bulk_modulus_melt(1700.0, 1.0e11, 1.0e10)
+        melt.calc_bulk_modulus_melt(1700.0, 0.0, 1.0e11, 1.0e10)
     with pytest.raises(RuntimeError):
         viscosity.calc_viscosity(1000.0, 0.0)
 

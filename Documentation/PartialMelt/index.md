@@ -1,6 +1,6 @@
 # Partial Melting (`PartialMelt`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-29_
 
 `TidalPy.PartialMelt` has functionality to modify planetary material's strength once it begins to experience partial melt. Each model takes the pre-melt (solid) viscosity and shear modulus at a point, together with the temperature, and returns the post-melt values plus the volumetric melt fraction.
 
@@ -18,7 +18,7 @@ Partial-Melt Models <partial_melt_models.md>
 
 ## Where Partial Melt is Used
 
-A partial-melt model is attached to a layer's material (its EOS model) with `set_partial_melt`, on the EOS model or through the layer's helper of the same name, and applied during the whole-planet equation-of-state solve. At each radial slice the [viscosity model](../Viscosity/index.md) supplies the pre-melt viscosity and the equation of state supplies the pre-melt moduli; the melt model then rewrites the shear modulus and viscosity and, only when its `bulk_melt_weakening` switch is on, the bulk modulus (by a separate, much weaker law). The post-melt values are what [`Rheology`](../Rheology/index.md) turns into a complex modulus, and a layer keeps both sets so you can compare them (`get_premelt_shear_viscosity` against `get_shear_viscosity`).
+A partial-melt model is attached to a layer's material (its EOS model) with `set_partial_melt`, on the EOS model or through the layer's helper of the same name, and applied during the whole-planet equation-of-state solve. At each radial slice the [viscosity model](../Viscosity/index.md) supplies the pre-melt viscosity and the equation of state supplies the pre-melt moduli; the melt model then rewrites the shear modulus and viscosity and, behind switches that are off by default, mixes the melt into the density, weakens the bulk modulus (by a separate, much weaker law), and sets a compaction bulk viscosity. The post-melt values are what [`Rheology`](../Rheology/index.md) turns into a complex modulus, and a layer keeps both sets so you can compare them (`get_premelt_shear_viscosity` against `get_shear_viscosity`).
 
 Like viscosity, melt weakening is frequency-independent and therefore resolved once per equation-of-state solve rather than once per tidal mode.
 

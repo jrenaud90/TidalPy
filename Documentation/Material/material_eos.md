@@ -105,9 +105,9 @@ The material also holds three optional models, attached with `set_shear_viscosit
 
    floored at the config's `minimum_modulus`, and the bulk modulus from `bulk_modulus_static`.
 2. The viscosities: the attached viscosity model at the temperature and pressure, else the static viscosity.
-3. The density and, where the model defines one, the bulk modulus of the density law. The law receives the temperature only when `thermal_density` is set, which a layer controls with its `use_thermal_eos` switch. The viscosity and partial-melt models always receive it.
+3. The density and, where the model defines one, the bulk modulus of the density law. The law receives the temperature only when `thermal_density` is set, which a layer controls with its `use_thermal_eos` switch. The viscosity and partial-melt models always receive it. When the partial-melt model's `density_melt_mixing` switch is on, the density becomes the solid and melt phases mixed by volume, $(1 - \phi)\rho + \phi\rho_l(P)$; the structure iteration uses the same density, so the solved structure and this state agree.
 4. A table of an interpolated model replaces the law or constant, and the bulk modulus of a Birch-Murnaghan or Vinet law replaces `bulk_modulus_static`.
-5. The partial-melt model, applied to the shear modulus and shear viscosity and, when its `bulk_melt_weakening` switch is on, to the bulk modulus. Melt does not change the bulk viscosity. Without a finite temperature this step is skipped and `melt_fraction` is NaN.
+5. The partial-melt model, applied to the shear modulus and shear viscosity and, behind their own switches, to the bulk modulus (`bulk_melt_weakening`) and the bulk viscosity (`bulk_viscosity_melt_weakening`), which come after the shear pair because they read the post-melt shear modulus and viscosity. Without a finite temperature this step is skipped, the density is the law's, and `melt_fraction` is NaN. See [Density and Bulk Response](../PartialMelt/partial_melt_models.md#density-and-bulk-response).
 
 It returns a dict of `density`, `melt_fraction`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, and `bulk_viscosity`, all after the partial-melt step.
 

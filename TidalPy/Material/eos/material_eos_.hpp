@@ -429,9 +429,22 @@ public:
     }
 
     // Analytic models use the pressure, the interpolated model the radius. A non-finite temperature gives
-    // the athermal density.
+    // the athermal density. This is the density law alone; calc_structure_density adds the melt.
     virtual double calc_density(
         double pressure, double temperature, double radius) const = 0;
+
+    // The density the structure integrates and every readout reports [kg m-3]: the density law's, mixed with the
+    // melt's when the partial-melt model's density_melt_mixing is on. density_temperature is what the density law
+    // sees (NaN for an athermal law); melt_temperature is the real temperature, which the melt model always sees.
+    double calc_structure_density(
+            double pressure,
+            double density_temperature,
+            double melt_temperature,
+            double radius) const {
+        const double density = this->calc_density(pressure, density_temperature, radius);
+        if (!this->p_partial_melt_model) { return density; }
+        return this->p_partial_melt_model->calc_mixture_density(melt_temperature, pressure, density);
+    }
 
     // Both together, so a model that inverts its pressure law does it once. The bulk modulus is NaN, and
     // the material constant applies, unless the model defines one.
@@ -476,7 +489,9 @@ public:
     // integrates. thermal_density says whether the density law sees the temperature; the viscosity and melt
     // models always do. Each property comes from exactly one source, and only that source is evaluated: a
     // table when the model carries one, else the shear law, the K of the pressure law, a viscosity model,
-    // or the constant. The partial-melt model then weakens the shear pair and the bulk pair.
+    // or the constant. The melt enters the density first, exactly as calc_structure_density does for the
+    // structure iteration, so the solved structure and this state agree; then the partial-melt model weakens
+    // the shear pair, the bulk modulus, and the bulk viscosity, each behind its own switch.
     void calc_material_state(
             double pressure,
             double temperature,
@@ -488,6 +503,9 @@ public:
         double bulk = TidalPyConstants::d_NAN;
         this->calc_density_and_bulk_modulus(pressure, density_temperature, radius, out.density, bulk);
         if (!std::isfinite(bulk)) { bulk = this->p_bulk_modulus_static; }
+        if (this->p_partial_melt_model) {
+            out.density = this->p_partial_melt_model->calc_mixture_density(temperature, pressure, out.density);
+        }
         
         /* Shear Modulus */
         double shear = this->p_has_shear_modulus_table
@@ -522,10 +540,10 @@ public:
         }
         
         /* Partial Melting */
-        // The melt model weakens the shear pair toward its liquid limits and, only when its bulk_melt_weakening
-        // switch is on, the bulk modulus by its own (much weaker) law; the bulk viscosity is not changed by melt.
-        // Without a finite temperature there is no melt state to evaluate, so the pre-melt values stand and the
-        // melt fraction is NaN.
+        // The melt model weakens the shear pair toward its liquid limits. Behind their own switches it weakens the
+        // bulk modulus (a Hashin-Shtrikman bound, much weaker than the shear weakening) and sets a compaction bulk
+        // viscosity from the post-melt shear viscosity. Without a finite temperature there is no melt state to
+        // evaluate, so the pre-melt values stand and the melt fraction is NaN.
         out.melt_fraction = 0.0;
         if (this->p_partial_melt_model) {
             if (std::isfinite(temperature)) {
@@ -537,7 +555,10 @@ public:
                 out.melt_fraction = shear_result.melt_fraction;
                 shear             = shear_result.postmelt_shear_modulus;
                 shear_viscosity   = shear_result.postmelt_viscosity;
-                bulk              = this->p_partial_melt_model->calc_bulk_modulus_melt(temperature, bulk, shear);
+                bulk              = this->p_partial_melt_model->calc_bulk_modulus_melt(
+                    temperature, pressure, bulk, shear);
+                bulk_viscosity    = this->p_partial_melt_model->calc_bulk_viscosity_melt(
+                    temperature, bulk_viscosity, shear_viscosity);
             } else {
                 out.melt_fraction = TidalPyConstants::d_NAN;
             }

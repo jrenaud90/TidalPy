@@ -1,6 +1,6 @@
 # Worlds (`Structures.worlds`)
 
-_Updated: 2026-09-28_
+_Updated: 2026-09-29_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry. A layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
 
@@ -336,7 +336,7 @@ The Love numbers therefore converge with the integration tolerance alone and are
 
 A solid layer's partial-melt model can weaken part of the layer too far for it to be solved as a solid, for example the base of a mantle over a hot core. Past the critical melt fraction, the post-melt shear modulus falls steeply to the model's `liquid_shear` floor (10$^{-5}$ Pa by default). The solid equations divide by the shear modulus and cannot be integrated through it. After every EOS solve, the world marks as molten each stretch of a layer with a partial-melt model where the modulus sits at that floor or where its rigidity $\mu / (\bar{\rho} g R)$ (planet bulk density, surface gravity, and radius) is below `[numerical] minimum_solid_rigidity` (10$^{-6}$ by default). The stretches are found on the EOS slices, and their edges are refined by bisection on the dense profile. `molten_regions` lists them, and an info-level log message names each one.
 
-The radial solver splits the layer at those edges and solves each molten stretch as a static liquid, which uses only the density and gravity. The partial-melt model does not set a liquid's bulk modulus there, which a compressible dynamic liquid would use. It changes the bulk modulus only when its `bulk_melt_weakening` switch is on. The solid parts keep the layer's own flags. Each stretch takes its share of the layer's slices, at least five, for the solution's output grid. Treating a solid of rigidity $10^{-6}$ as a liquid changes the Love numbers by about that fraction. Outside the radial solve the layer is one layer, and its 3D heating takes nothing from the molten stretch (a liquid carries no shear dissipation there). A layer declared liquid is never split.
+The radial solver splits the layer at those edges and solves each molten stretch as a static liquid, which uses only the density and gravity. The partial-melt model does not set a liquid's bulk modulus there, which a compressible dynamic liquid would use. It changes the bulk modulus only when its `bulk_melt_weakening` switch is on, and the density only when its `density_melt_mixing` switch is on. The solid parts keep the layer's own flags. Each stretch takes its share of the layer's slices, at least five, for the solution's output grid. Treating a solid of rigidity $10^{-6}$ as a liquid changes the Love numbers by about that fraction. Outside the radial solve the layer is one layer, and its 3D heating takes nothing from the molten stretch (a liquid carries no shear dissipation there). A layer declared liquid is never split.
 
 > [!NOTE]
 > Only a layer with a partial-melt model is split. A solid layer given a near-zero shear modulus some other way is solved as a solid, and the solver may fail on it or return $\mathrm{Im}[k]$ with the wrong sign and only a conditioning warning.
