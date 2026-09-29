@@ -1,12 +1,12 @@
 """Tests for the associated Legendre tables (``legendre``, l = 2..10) and recurrence (``legendre_generic``).
 
-Values and first and second colatitude derivatives are checked against ``scipy.special`` (unnormalized,
-Condon-Shortley phase, branch_cut=2), against each other, and against the hand-coded l = 2 forms.
+Values and first and second colatitude derivatives are checked against ``scipy.special.lpmv`` (unnormalized,
+Condon-Shortley phase), against each other, and against the hand-coded l = 2 forms.
 """
 import numpy as np
 import pytest
 
-from scipy.special import assoc_legendre_p
+from scipy.special import lpmv
 
 from TidalPy.Utilities.legendre import legendre, legendre_generic
 
@@ -17,13 +17,21 @@ _LM = [(l, m) for l in range(2, 11) for m in range(0, l + 1)]
 
 
 def _scipy_triple(l, m, colat):
-    """(P, dP/dtheta, d2P/dtheta2) from scipy via the chain rule x = cos(theta)."""
+    """(P, dP/dtheta, d2P/dtheta2) from scipy's lpmv.
+
+    Previously used `scipy.special.assoc_legendre_p` but that is not available in older versions of scipy.
+
+    The first derivative uses (1 - x^2) dP_l^m/dx = (l + m) P_{l-1}^m - l x P_l^m with x = cos(theta); the second
+    comes from the associated Legendre equation in colatitude.
+    """
     x = np.cos(colat)
     s = np.sin(colat)
-    p, dpdx, d2pdx2 = assoc_legendre_p(l, m, x, branch_cut=2, diff_n=2)
+    p = lpmv(m, l, x)
+    first = -((l + m) * lpmv(m, l - 1, x) - l * x * p) / s
+    second = -(x / s) * first - (l * (l + 1) - m * m / (s * s)) * p
     return (float(p),
-            float(-s * dpdx),
-            float(s * s * d2pdx2 - x * dpdx))
+            float(first),
+            float(second))
 
 
 @pytest.mark.parametrize("func", [legendre, legendre_generic], ids=["table", "generic"])
@@ -33,7 +41,10 @@ def test_matches_scipy(func, l, m):
     for colat in _COLATS:
         got = func(l, m, float(colat))
         ref = _scipy_triple(l, m, colat)
-        assert np.allclose(got, ref, rtol=1e-11, atol=1e-11), \
+        # The reference combines terms as large as the triple, so a component that is zero by parity (at the
+        # equator) carries roundoff on that scale.
+        scale = max(1.0, float(np.max(np.abs(ref))))
+        assert np.allclose(got, ref, rtol=1e-11, atol=1e-11 * scale), \
             f"{func.__name__} l={l} m={m} colat={colat}: {got} vs scipy {ref}"
 
 
@@ -73,7 +84,8 @@ def test_generic_supports_high_degree():
     for colat in _COLATS:
         got = legendre_generic(11, 4, float(colat))
         ref = _scipy_triple(11, 4, colat)
-        assert np.allclose(got, ref, rtol=1e-10, atol=1e-10)
+        scale = max(1.0, float(np.max(np.abs(ref))))
+        assert np.allclose(got, ref, rtol=1e-10, atol=1e-10 * scale)
     assert all(np.isnan(legendre(11, 4, 0.7)))
 
 
