@@ -530,7 +530,7 @@ cdef class LayeredWorld(BaseWorld):
 
     def _layer_moved(self):
         """Called by a layer view after it moved its layer's radii: the solved profile no longer lines up."""
-        self._layered_ptr.update_after_layer_geometry_change()
+        self._layered_ptr.update_after_layer_change()
 
     @property
     def num_layers(self) -> int:
@@ -1356,17 +1356,17 @@ cdef class LayeredWorld(BaseWorld):
         ``tidal_scale`` times these. Empty after a radial-solver solve.
         """
         cdef list parts = []
-        cdef const vector[c_LayerLove]* layer_parts = &self._layered_ptr.get_love_layer_parts()
+        # A copy taken under the world's call lock, so another thread's Love solve cannot change it mid-loop.
+        cdef vector[c_LayerLove] layer_parts = self._layered_ptr.get_love_layer_parts()
         cdef size_t i
         for i in range(layer_parts.size()):
             parts.append({
-                "layer":         self._layered_ptr.get_layer(layer_parts[0][i].layer_index).get_name().decode("utf-8"),
-                "tidal_scale":   layer_parts[0][i].tidal_scale,
-                "love_number_k": complex(layer_parts[0][i].love.k.real(), layer_parts[0][i].love.k.imag()),
-                "love_number_h": complex(layer_parts[0][i].love.h.real(), layer_parts[0][i].love.h.imag()),
-                "love_number_l": complex(layer_parts[0][i].love.l.real(), layer_parts[0][i].love.l.imag()),
-                "shear_modulus": complex(
-                    layer_parts[0][i].shear_modulus.real(), layer_parts[0][i].shear_modulus.imag()),
+                "layer":         self._layered_ptr.get_layer(layer_parts[i].layer_index).get_name().decode("utf-8"),
+                "tidal_scale":   layer_parts[i].tidal_scale,
+                "love_number_k": complex(layer_parts[i].love.k.real(), layer_parts[i].love.k.imag()),
+                "love_number_h": complex(layer_parts[i].love.h.real(), layer_parts[i].love.h.imag()),
+                "love_number_l": complex(layer_parts[i].love.l.real(), layer_parts[i].love.l.imag()),
+                "shear_modulus": complex(layer_parts[i].shear_modulus.real(), layer_parts[i].shear_modulus.imag()),
             })
         return parts
 

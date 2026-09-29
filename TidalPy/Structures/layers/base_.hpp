@@ -4,8 +4,9 @@
  *
  * Holds the geometry and identification set at construction plus the EOS profile (density, gravity, pressure
  * against radius) populated by the world's EOS solve. Spatial fields in meters [m], mass in kilograms [kg]. A layer
- * a world owns reads and writes that profile under the world's call lock (c_WorldCallLock, defined here), so its
- * getters take turns with the world's solves on other threads.
+ * a world owns reads and writes that profile under the world's call lock (c_WorldCallLock, call_lock_.hpp), so its
+ * getters take turns with the world's solves on other threads, and tells the world when a setting its EOS solve reads
+ * changes (c_LayerOwner), so the world forgets the structure it solved with the old setting.
  *
  * Binary format (20-byte header + variable payload):
  *   header: class_id = BinaryClassID::BaseLayer (100)
@@ -36,43 +37,43 @@
 #include <string>
 #include <vector>
 
+#include "call_lock_.hpp"      // c_WorldCallLock (the owning world's call lock, which a layer takes too)
 #include "eos_data_.hpp"
 #include "structure_base_.hpp"
 #include "material_eos_.hpp"   // c_MaterialEOSBase (per-layer density source)
 
 namespace tidalpy {
 
-// Holds a world's call lock for one call. The world takes it in the calls that change or run on its solve state (the
-// EOS solve, the Love solves, the tide and 3D calls, binary loads) and in the reads of that state (the radius
-// getters of the world and of its layers), so two threads sharing one world take turns instead of corrupting it or
-// reading a profile a solve is replacing; separate worlds run in parallel. Recursive, since calc_tides runs the 3D
-// integral, another such call, and the locked calls read the profile through the locked getters, all on the same
-// thread. A null mutex (a layer no world owns, a moved-from world) locks nothing.
-//
-// Taken only inside C++ calls, never across a return to Python, so a thread holding it never waits for the GIL.
-// Defined with the layers because a world's layers take their owner's lock too (c_BaseLayer::set_owner_call_mutex).
-class c_WorldCallLock {
+// The world that owns a layer, as the layer sees it (c_LayeredWorld). A layer tells its owner when a setting the
+// owner's EOS solve reads changes (its material and the models the material holds, its temperature and thermal
+// switches, its cooling and radiogenics, whether it holds its volume), so the owner forgets the structure it solved
+// with the old setting rather than reporting it as the current one.
+class c_LayerOwner {
 public:
-    explicit c_WorldCallLock(std::recursive_mutex* mutex_ptr) {
-        if (mutex_ptr != nullptr) { this->p_lock = std::unique_lock<std::recursive_mutex>(*mutex_ptr); }
-    }
-private:
-    std::unique_lock<std::recursive_mutex> p_lock;
+    virtual ~c_LayerOwner() = default;
+
+    // Called by the changed layer while it holds the owner's call lock.
+    virtual void update_after_layer_change() = 0;
 };
 
-// Non-owning reference to the call lock of the world that owns a layer. It names the owner of the object it sits
-// in, so neither a copy nor a move of a layer's contents carries it: a layer copied from a world's layer starts
-// unowned, and a layer assigned into keeps its own owner.
+// Non-owning reference to the world that owns a layer and to that world's call lock. It names the owner of the
+// object it sits in, so neither a copy nor a move of a layer's contents carries it: a layer copied from a world's
+// layer starts unowned, and a layer assigned into keeps its own owner.
 class c_OwnerCallMutex {
 public:
     c_OwnerCallMutex() noexcept = default;
     c_OwnerCallMutex(const c_OwnerCallMutex& /*other*/) noexcept {}
     c_OwnerCallMutex& operator=(const c_OwnerCallMutex& /*other*/) noexcept { return *this; }
 
-    void set(std::recursive_mutex* mutex_ptr) noexcept { this->p_mutex_ptr = mutex_ptr; }
+    void set(c_LayerOwner* owner_ptr, std::recursive_mutex* mutex_ptr) noexcept {
+        this->p_owner_ptr = owner_ptr;
+        this->p_mutex_ptr = mutex_ptr;
+    }
     std::recursive_mutex* get() const noexcept { return this->p_mutex_ptr; }
+    c_LayerOwner* get_owner() const noexcept { return this->p_owner_ptr; }
 
 private:
+    c_LayerOwner*         p_owner_ptr = nullptr;
     std::recursive_mutex* p_mutex_ptr = nullptr;
 };
 
@@ -174,11 +175,19 @@ public:
     const std::string& get_material_name()       const noexcept { return this->p_material_name; }
     bool               get_is_tidal()            const noexcept { return this->p_is_tidal; }
     bool               get_is_volume_fixed()     const noexcept { return this->p_is_volume_fixed; }
-    void               set_is_volume_fixed(bool value) noexcept { this->p_is_volume_fixed = value; }
+    // The EOS solve reads it, so the owning world forgets its solved structure (c_LayerOwner).
+    void set_is_volume_fixed(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_is_volume_fixed = value;
+        this->p_update_owner_after_change();
+    }
 
     // Keeps every derived geometric quantity in step. The EOS solve calls it when a layer below has grown
-    // or shrunk, or when this layer is holding its mass rather than its volume.
+    // or shrunk, or when this layer is holding its mass rather than its volume, so it leaves the owning world's
+    // solved structure alone; a caller moving a world's layer by hand tells the world itself
+    // (c_LayeredWorld::update_after_layer_change). The owner's call lock keeps a move out of a running solve.
     void set_radii(double radius_inner, double radius_outer) noexcept {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_radius_inner = radius_inner;
         this->p_radius       = radius_outer;
         this->update_physicals();
@@ -216,11 +225,14 @@ public:
         return this->p_mass / this->p_volume;
     }
 
-    // The owning world's call lock, set by the world as it takes the layer in; null for a layer no world owns. Every
-    // read and write of the solved profile below holds it, so a profile read never overlaps a world call that
-    // replaces the profile (solve_eos, load_binary). The world owns the mutex through a unique_ptr, so its address
-    // outlives any move of the world, and the world outlives its layers.
-    void set_owner_call_mutex(std::recursive_mutex* mutex_ptr) noexcept { this->p_owner_call_mutex.set(mutex_ptr); }
+    // The owning world and its call lock, set by the world as it takes the layer in; null for a layer no world owns.
+    // Every read and write of the solved profile below holds the lock, so a profile read never overlaps a world call
+    // that replaces the profile (solve_eos, load_binary), and so does every setter of what the world's solves read.
+    // The world owns the mutex through a unique_ptr, so its address outlives any move of the world, and the world
+    // outlives its layers.
+    void set_owner(c_LayerOwner* owner_ptr, std::recursive_mutex* mutex_ptr) noexcept {
+        this->p_owner_call_mutex.set(owner_ptr, mutex_ptr);
+    }
     std::recursive_mutex* get_owner_call_mutex() const noexcept { return this->p_owner_call_mutex.get(); }
 
     // The profile getters are noexcept: a lock that cannot be taken (a broken process) terminates rather than
@@ -284,10 +296,13 @@ public:
 
     // The per-layer density source of the world-level EOS solve. Ownership transfers in. The viscosity and
     // partial-melt models the layer's previous material held carry over to a new material that has none of its own.
+    // The owning world forgets the structure it solved with the old material (c_LayerOwner).
     void set_eos(std::unique_ptr<c_MaterialEOSBase> eos) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         if (eos && this->p_eos) { eos->adopt_missing_models(*this->p_eos); }
         this->p_eos = std::move(eos);
         if (this->p_eos) { this->p_eos->set_layer_ptr(this); }
+        this->p_update_owner_after_change();
     }
 
     // Non-owning; null when unset.
@@ -389,6 +404,13 @@ protected:
         this->p_eos_data.evaluate(radius, state_out);
     }
 
+    // Tells the owning world, if any, that a setting its EOS solve reads has changed; the caller holds the owner's
+    // lock.
+    void p_update_owner_after_change() {
+        c_LayerOwner* owner_ptr = this->p_owner_call_mutex.get_owner();
+        if (owner_ptr != nullptr) { owner_ptr->update_after_layer_change(); }
+    }
+
     // One entry of the evaluation layout at a radius, under the owner's lock.
     double p_eos_value(double radius, std::size_t index) const noexcept {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
@@ -427,7 +449,7 @@ protected:
     // Populated by the world-level EOS solve; not serialized. Read and written under p_owner_call_mutex.
     c_LayerEOSData p_eos_data;
 
-    // The owning world's call lock (set_owner_call_mutex); not serialized, and never copied or moved with the layer.
+    // The owning world and its call lock (set_owner); not serialized, and never copied or moved with the layer.
     c_OwnerCallMutex p_owner_call_mutex;
 
     // Attached from Python through set_eos and serialized with the layer binary record.

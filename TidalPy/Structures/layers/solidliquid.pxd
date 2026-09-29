@@ -37,8 +37,8 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         c_CoolingBase*     get_cooling_model()     const
         c_RadiogenicsBase* get_radiogenics_model() const
         # Sub-model setters (transfer ownership)
-        void     set_cooling(unique_ptr[c_CoolingBase] cooling)
-        void     set_radiogenics(unique_ptr[c_RadiogenicsBase] radiogenics)
+        void     set_cooling(unique_ptr[c_CoolingBase] cooling) except +
+        void     set_radiogenics(unique_ptr[c_RadiogenicsBase] radiogenics) except +
 
 
 cdef class SolidLiquidLayer(PhysicsLayer):

@@ -56,7 +56,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         const string& get_material_name()      const
         cpp_bool get_is_tidal()                const
         cpp_bool get_is_volume_fixed()         const
-        void     set_is_volume_fixed(cpp_bool)
+        void     set_is_volume_fixed(cpp_bool) except +
         void     set_radii(double radius_inner, double radius_outer)
         double   get_tidal_scale()             const
         void     set_tidal_scale(double tidal_scale)
@@ -65,7 +65,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_tidal_heating()           const
         cpp_bool get_eos_data_populated()      const
         void     update_eos_data(const c_LayerEOSData& data)
-        void     set_eos(unique_ptr[c_MaterialEOSBase] eos)
+        void     set_eos(unique_ptr[c_MaterialEOSBase] eos) except +
         c_MaterialEOSBase* get_eos() const
         cpp_bool get_eos_set() const
         cpp_bool get_viscoelastic_populated() const

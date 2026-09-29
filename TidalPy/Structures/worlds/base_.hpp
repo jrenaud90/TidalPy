@@ -4,7 +4,8 @@
  *
  * Holds world-level identification and the orbital and thermal scalars (albedo, emissivity, obliquity, spin
  * frequency) and provides bulk geometry and equilibrium-temperature calculations. Layer ownership and
- * whole-planet solves live in c_LayeredWorld. All MKS: radius [m], mass [kg], angles [rad], frequency [rad/s].
+ * whole-planet solves live in c_LayeredWorld. Every world owns a call lock (c_WorldCallLock) that its solves, its
+ * tide setters, and the reads of its results take. All MKS: radius [m], mass [kg], angles [rad], frequency [rad/s].
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::BaseWorld (200)
@@ -29,11 +30,13 @@
 #include <cstdint>
 #include <istream>
 #include <memory>
+#include <mutex>
 #include <ostream>
 #include <stdexcept>
 #include <string>
 
 #include "structure_base_.hpp"
+#include "../layers/call_lock_.hpp"   // c_WorldCallLock
 
 // Global (1D) tidal dissipation: the analytic tide pipeline (cpl, ctl, ctl_q) is common to every world type and
 // lives here on c_BaseWorld so even a layerless star can dissipate tidally. These headers are light (no
@@ -133,12 +136,17 @@ public:
     // call calc_tides(orbital state) to collapse the global tidal modes into the total heating and the three
     // orbital potential derivatives. The analytic models (cpl, ctl, ctl_q) work on any world; the rheology
     // model needs the radial solver, so only c_LayeredWorld supports it (hiding this calc_tides with its own).
-    // calc_tides is defined out-of-line in world_tides_base_.hpp, which carries the global-potential engine.
+    // calc_tides is defined out-of-line in world_tides_base_.hpp, which carries the global-potential engine. Both
+    // setters take the call lock, so neither frees or changes what a tidal solve on another thread is using.
     void set_tide_model(std::unique_ptr<c_TideBase> tide) noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         this->p_tide         = std::move(tide);
         this->p_tides_solved = false;
     }
-    bool get_tide_model_set() const noexcept { return this->p_tide != nullptr; }
+    bool get_tide_model_set() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_tide != nullptr;
+    }
     const c_TideBase* get_tide_model() const noexcept { return this->p_tide.get(); }
 
     // Throws std::invalid_argument for a degree range outside 2 <= min <= max <= 10 (the tabulated degrees), a
@@ -146,6 +154,7 @@ public:
     // outside (0, 1).
     void set_tide_config(const c_TideConfig& cfg) {
         validate_tide_config(cfg);
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         this->p_tide_config  = cfg;
         this->p_tides_solved = false;
     }
@@ -171,36 +180,48 @@ public:
     // the attached model needs the radial solver; c_LayeredWorld hides it.
     void calc_tides(const c_TideSolveConfig& state);
 
-    bool get_tides_solved() const noexcept { return this->p_tides_solved; }
+    // The results of the most recent calc_tides, each read under the call lock so it never mixes two solves.
+    bool get_tides_solved() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_tides_solved;
+    }
     double get_tidal_heating() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_tides_solved ? this->p_tide_result.tidal_heating : TidalPyConstants::d_NAN;
     }
     double get_tidal_dU_dM() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_tides_solved ? this->p_tide_result.dU_dM : TidalPyConstants::d_NAN;
     }
     double get_tidal_dU_dw() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_tides_solved ? this->p_tide_result.dU_dw : TidalPyConstants::d_NAN;
     }
     double get_tidal_dU_dO() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_tides_solved ? this->p_tide_result.dU_dO : TidalPyConstants::d_NAN;
     }
     // The per-mode sum of dU/dM - dU/dw, which keeps de/dt exact at small eccentricity where the two separate sums
     // nearly cancel.
     double get_tidal_dU_dM_minus_dw() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_tides_solved ? this->p_tide_result.dU_dM_minus_dw : TidalPyConstants::d_NAN;
     }
     int get_num_tidal_modes() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_tides_solved ? this->p_tide_result.num_modes : 0;
     }
 
     // The whole collapsed global tidal result (heating, the three potential derivatives, mode and error codes)
     // from the most recent calc_tides. Check get_tides_solved() first: these fields keep their unsolved
-    // defaults of zero, where the scalar getters above return NaN.
+    // defaults of zero, where the scalar getters above return NaN. The reference is read unlocked, so a caller that
+    // shares the world with other threads holds the call lock (get_call_mutex) from its calc_tides through the read.
     const c_GlobalTideResult& get_tide_result() const noexcept { return this->p_tide_result; }
 
     // Complex potential Love number k_l for the tidal mode (l, m, p, q) from the most recent
     // rheology calc_tides. NaN for the analytic models (no radial solution) or an inactive mode.
     std::complex<double> get_tidal_love_k(int degree_l, int m, int p, int q) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         bool found = false;
         c_Key4 lmpq_key(static_cast<int16_t>(degree_l), static_cast<int16_t>(m),
                         static_cast<int16_t>(p), static_cast<int16_t>(q));
@@ -217,6 +238,7 @@ public:
     }
 
     void read_binary(std::istream& in, bool force = false) override {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         c_TidalPyBaseClass::read_binary(in, force);
         this->read_world_fields(in);
         if (!in) {
@@ -230,6 +252,11 @@ public:
     std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
         return std::make_unique<c_BaseWorld>();
     }
+
+    // The world's call lock (c_WorldCallLock), for a caller that must hold it across several calls, such as a
+    // calc_tides and the read of its result (get_tide_result). Non-owning; the world owns it.
+    std::recursive_mutex* get_call_mutex() const noexcept { return this->p_call_mutex.get(); }
+
 protected:
     // Shared world binary helpers (reused by subclasses with their own class id).
     // Number of payload bytes the c_BaseWorld scalar/string fields occupy.
@@ -342,10 +369,10 @@ protected:
     double      p_spin_frequency = 0.0;   // [rad/s]
 
     // Checks the orbital state a tidal solve is about to use: throws std::invalid_argument for an eccentricity
-    // outside [0, 1) or a semi-major axis that is not positive, and warns once per world when an obliquity would be
-    // ignored because the obliquity truncation is off, when the obliquity is past the range of the obliquity
-    // truncation (c_obliquity_truncation_limit), or when the eccentricity is past the range of the eccentricity
-    // truncation (c_eccentricity_truncation_limit).
+    // outside [0, 1), a semi-major axis that is not positive, or an orbital frequency that is not finite, and warns
+    // once per world when an obliquity would be ignored because the obliquity truncation is off, when the obliquity
+    // is past the range of the obliquity truncation (c_obliquity_truncation_limit), or when the eccentricity is past
+    // the range of the eccentricity truncation (c_eccentricity_truncation_limit).
     void p_check_tide_state(const c_TideSolveConfig& state) const {
         if (!((state.eccentricity >= 0.0) && (state.eccentricity < 1.0))) {
             throw std::invalid_argument(
@@ -356,6 +383,11 @@ protected:
             throw std::invalid_argument(
                 "TidalPy: world '" + this->get_name() + "' tides need a positive semi-major axis; got " +
                 std::to_string(state.semi_major_axis) + " m.");
+        }
+        if (!std::isfinite(state.orbital_frequency)) {
+            throw std::invalid_argument(
+                "TidalPy: world '" + this->get_name() + "' tides need a finite orbital frequency; got " +
+                std::to_string(state.orbital_frequency) + " rad s-1.");
         }
         if ((state.obliquity != 0.0) && (this->p_tide_config.obliquity_truncation == 0)
                 && !this->p_obliquity_off_warned) {
@@ -407,6 +439,9 @@ protected:
     // Per-mode radial-solver Love numbers (k, h, l) keyed by the tidal mode (l, m, p, q),
     // retained from the most recent rheology calc_tides (empty for the analytic models).
     c_IntMap<c_Key4, c_LoveNumbers>      p_tide_solver_love;
+
+    // Taken by the calls c_WorldCallLock lists; held through a pointer so the world stays movable.
+    std::unique_ptr<std::recursive_mutex> p_call_mutex = std::make_unique<std::recursive_mutex>();
 };
 
 } // namespace tidalpy

@@ -57,6 +57,7 @@ inline c_GlobalPotentialStorage c_world_global_potential(
 }
 
 inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
+    const c_WorldCallLock call_lock(this->p_call_mutex.get());
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world: call set_tide_model() first");
@@ -68,6 +69,11 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
             "TidalPy: the rheology tide model is only supported on a layered world (it needs "
             "the radial solver); use an analytic model (cpl/ctl/ctl_q) on this world type");
     }
+
+    // Cleared first, so a call that raises leaves the world unsolved rather than holding the previous orbit's result.
+    this->p_tides_solved = false;
+    this->p_tide_result  = c_GlobalTideResult();
+    this->p_tide_solver_love.clear();
 
     this->p_check_tide_state(state);
     const c_GlobalPotentialStorage potential =

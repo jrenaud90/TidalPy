@@ -223,7 +223,8 @@ struct c_RadialSolverOverrides {
     }
 };
 
-// c_WorldCallLock, the world's call lock, is defined in layers/base_.hpp: a world's layers take it too.
+// c_WorldCallLock, the world's call lock, is defined in layers/call_lock_.hpp: a world's layers take it too. The mutex
+// it locks is c_BaseWorld::p_call_mutex.
 
 // A copy of everything a solve_eos result reports, taken under the world's call lock so that another thread's
 // solve_eos cannot replace the solution while it is read. The profile arrays are empty when no solve has populated
@@ -417,7 +418,7 @@ inline bool c_is_world_eos_field(std::size_t field_index) noexcept {
     return (field_index == C_EOS_TEMPERATURE_INDEX) || (field_index == C_EOS_HEAT_FLOW_INDEX);
 }
 
-class c_LayeredWorld : public c_BaseWorld {
+class c_LayeredWorld : public c_BaseWorld, public c_LayerOwner {
 public:
     // Absolute gap allowed between a layer's inner radius and the previous layer's outer radius.
     static double layer_continuity_tol(double previous_outer_radius) noexcept {
@@ -440,8 +441,8 @@ public:
         }
         const std::string rejection = this->layer_rejection_reason(*layer);
         if (!rejection.empty()) { throw std::invalid_argument(rejection); }
-        // The layer's profile reads now take turns with this world's calls.
-        layer->set_owner_call_mutex(this->p_call_mutex.get());
+        // The layer's profile reads now take turns with this world's calls, and its setters reach this world.
+        layer->set_owner(this, this->p_call_mutex.get());
         this->p_layers.push_back(std::move(layer));
         // The solved structure describes the old stack.
         this->p_reset_solved_state();
@@ -566,8 +567,10 @@ public:
 
     // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
     //   M c_p dT/dt = L_in - L_out + H.
-    // NaN for a layer with no heat capacity (one that is not a solid-liquid layer).
+    // NaN for a layer with no heat capacity (one that is not a solid-liquid layer). Read under the call lock, since
+    // solve_eos replaces the thermal state.
     double calc_layer_temperature_rate(std::size_t layer_index) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (layer_index >= this->p_layer_thermal.size()) { return TidalPyConstants::d_NAN; }
         const c_LayerThermal& thermal = this->p_layer_thermal[layer_index];
         const double mass = this->p_layers[layer_index]->get_mass();
@@ -941,6 +944,10 @@ public:
                 }
             }
         }
+        // A layer held at an end of its material's pressure law: failed in tension, warned about in compression.
+        if (solution->success) {
+            this->p_check_pressure_law_ranges(*solution, *solve_state, slices);
+        }
 
         // Store scalar results.
         this->p_eos_success          = solution->success;
@@ -999,23 +1006,6 @@ public:
                 "layer's viscosity at its temperature.",
                 this->p_layers[layer_index]->get_name(), this->get_name(),
                 this->p_layer_thermal[layer_index].rayleigh_number, d_MAX_BOUNDARY_FRACTION);
-        }
-
-        // A layer whose pressure passes what its material's pressure law represents (Birch-Murnaghan with K0' below
-        // 4 turns over at a finite compression) has its density held at the law's largest compression there, and a
-        // bulk modulus near zero; the solve still succeeds, so say so.
-        for (std::size_t layer_index = 0; layer_index < n_layers; ++layer_index) {
-            const double law_max_pressure = solve_state->materials[layer_index]->get_max_pressure();
-            const std::size_t base_slice = layer_index * slices;
-            if (!std::isfinite(law_max_pressure) || (base_slice >= solution->pressure_array_vec.size())) { continue; }
-            const double layer_max_pressure = solution->pressure_array_vec[base_slice];
-            if (layer_max_pressure > law_max_pressure) {
-                TIDALPY_LOG_WARN(
-                    "TidalPy: layer '{}' of world '{}' reaches {:.4e} Pa, past the {:.4e} Pa its material's pressure "
-                    "law represents; its density is held at the law's largest compression there. Check the law's "
-                    "bulk modulus derivative (a Birch-Murnaghan K0' below 4 turns over).",
-                    this->p_layers[layer_index]->get_name(), this->get_name(), layer_max_pressure, law_max_pressure);
-            }
         }
 
         // Populate each layer's structure and viscoelastic profile from its slice of the full arrays.
@@ -1165,8 +1155,10 @@ public:
         return false;
     }
 
-    // The molten stretches the radial solver treats as static liquids: those of the layers that are solid.
+    // The molten stretches the radial solver treats as static liquids: those of the layers that are solid. A copy
+    // taken under the call lock, since solve_eos replaces the stretches.
     std::vector<c_RadialSegment> get_molten_regions() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         std::vector<c_RadialSegment> regions;
         for (const c_RadialSegment& segment : this->p_radial_segments) {
             if (!segment.molten) { continue; }
@@ -1191,15 +1183,91 @@ public:
         this->p_radial_segments.clear();
     }
 
-    // A layer this world owns was moved through a view. The solved profile no longer lines up with the layers, so
-    // it is forgotten. A change of material leaves the solved state alone: the solve ran on copies of the
-    // materials, and it describes the world until the next solve_eos.
-    void update_after_layer_geometry_change() {
+    // A layer this world owns changed something its EOS solve reads: its radii (moved through a view), its material
+    // or a model the material holds, its temperature or thermal switches, its cooling or radiogenics, or whether it
+    // holds its volume (c_LayerOwner; the layer's setters call this). The solved structure no longer describes the
+    // world, so it is forgotten with everything built on it, as before the first solve_eos: a solve that needs the
+    // EOS raises until solve_eos runs again. The central pressure it converged to stays as the next solve's starting
+    // guess.
+    void update_after_layer_change() override {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         this->p_reset_solved_state();
     }
 
 protected:
+    // Checks each layer of a just-finished solve against the range its material's pressure law represents
+    // (c_PressureLawRange; the analytic laws of c_PressureLawEOS, the only materials with one). Past either end the
+    // law holds the density at that end with a bulk modulus near zero. The law sees the cold pressure: the pressure
+    // less the thermal pressure alpha0 K0 (T - T_ref) when the layer's density law sees its temperature
+    // (use_thermal_eos), at the layer's temperature or, in a solve that integrates temperature, the solved one.
+    //
+    // Past the tension end the material cannot hold together at its temperature and pressure, so what the layer
+    // reports there is the pinned state rather than a structure: the solve fails with a message naming the layer.
+    // Past the compression end (Birch-Murnaghan with K0' below 4 turns over at a finite compression) only the
+    // deepest slices are held, so the solve warns and stands.
+    void p_check_pressure_law_ranges(c_EOSSolution& solution, const c_EOSSolveState& solve_state, std::size_t slices) {
+        const std::size_t n_layers = std::min(this->p_layers.size(), solve_state.materials.size());
+        for (std::size_t layer_index = 0; layer_index < n_layers; ++layer_index) {
+            const auto* pressure_law = dynamic_cast<const c_PressureLawEOS*>(solve_state.materials[layer_index].get());
+            if ((pressure_law == nullptr) || (layer_index >= solve_state.inputs.size())) { continue; }
+            const double K0       = pressure_law->get_reference_bulk_modulus();
+            const double K0_prime = pressure_law->get_bulk_modulus_derivative();
+            const double rtol     = pressure_law->get_invert_rtol();
+            const c_PressureLawRange law_range = (pressure_law->get_pressure_law() == c_PressureLaw::Vinet)
+                ? eos_find_monotonic_range(K0, K0_prime, eos_vinet_pressure_and_bulk_modulus, rtol)
+                : eos_find_monotonic_range(K0, K0_prime, eos_bm_pressure_and_bulk_modulus, rtol);
+
+            // The coldest and the most compressed slice of the layer, in the pressure the law sees.
+            const c_MaterialEOSInput& input = solve_state.inputs[layer_index];
+            const double expansion          = pressure_law->get_thermal_expansion();
+            const std::size_t slice_start   = layer_index * slices;
+            const std::size_t slice_end     = std::min(slice_start + slices, solution.pressure_array_vec.size());
+            double cold_pressure_min    = TidalPyConstants::d_INF;
+            double cold_pressure_max    = -TidalPyConstants::d_INF;
+            double thermal_pressure_min = 0.0;   // at the slice of cold_pressure_min [Pa]
+            for (std::size_t slice_i = slice_start; slice_i < slice_end; ++slice_i) {
+                double thermal_pressure = 0.0;
+                if (input.thermal_density && (expansion != 0.0)) {
+                    const double temperature =
+                        (input.use_state_temperature && (slice_i < solution.temperature_array_vec.size()))
+                        ? solution.temperature_array_vec[slice_i] : input.temperature;
+                    if (std::isfinite(temperature)) {
+                        thermal_pressure = expansion * K0 * (temperature - pressure_law->get_reference_temperature());
+                    }
+                }
+                const double cold_pressure = solution.pressure_array_vec[slice_i] - thermal_pressure;
+                if (cold_pressure < cold_pressure_min) {
+                    cold_pressure_min    = cold_pressure;
+                    thermal_pressure_min = thermal_pressure;
+                }
+                cold_pressure_max = std::max(cold_pressure_max, cold_pressure);
+            }
+
+            if (cold_pressure_min < law_range.pressure_min) {
+                std::ostringstream message;
+                message << std::setprecision(4)
+                    << "TidalPy: layer '" << this->p_layers[layer_index]->get_name() << "' of world '"
+                    << this->get_name() << "' is in tension past what its material's pressure law represents: the "
+                       "pressure the law sees (the pressure less a thermal pressure alpha0 K0 (T - T_ref) of "
+                    << thermal_pressure_min << " Pa) falls to " << cold_pressure_min << " Pa, below the law's tension "
+                       "limit of " << law_range.pressure_min << " Pa, where its density is held at the law's smallest "
+                       "compression with a bulk modulus near zero. Lower the layer's temperature or its material's "
+                       "thermal expansivity, or check the law's reference bulk modulus and its derivative.";
+                solution.success = false;
+                solution.message = message.str();
+                return;
+            }
+            if (cold_pressure_max > law_range.pressure_max) {
+                TIDALPY_LOG_WARN(
+                    "TidalPy: layer '{}' of world '{}' reaches {:.4e} Pa in the pressure its material's law sees, past "
+                    "the {:.4e} Pa the law represents; its density is held at the law's largest compression there. "
+                    "Check the law's bulk modulus derivative (a Birch-Murnaghan K0' below 4 turns over).",
+                    this->p_layers[layer_index]->get_name(), this->get_name(), cold_pressure_max,
+                    law_range.pressure_max);
+            }
+        }
+    }
+
     // Forget everything solved: the EOS solution, the layer profiles, the thermal state, and every result built
     // on them. Called when the layers no longer match what was solved (a layer added, a binary load) and when a
     // solve throws, so no reader can mistake an old structure for the current one.
@@ -1289,12 +1357,17 @@ public:
     double             get_planet_moi_eos()       const noexcept { return this->p_planet_moi_eos; }
 
     // Rates only. The world drives its c_Spin model with its own EOS-based moment of inertia, so the
-    // spin-rate change uses the structure-resolved value rather than the uniform-density one.
-    void           set_spin_model(const c_Spin& spin) noexcept { this->p_spin = spin; }
+    // spin-rate change uses the structure-resolved value rather than the uniform-density one. The setter takes the
+    // call lock, so an evolution call on another thread never reads a half-replaced model.
+    void set_spin_model(const c_Spin& spin) noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        this->p_spin = spin;
+    }
     const c_Spin&  get_spin_model() const noexcept { return this->p_spin; }
 
     // The EOS-solved value once the EOS has been solved, else the spin model's factor * M R^2 estimate.
     double get_moment_of_inertia() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (this->p_eos_solved && std::isfinite(this->p_planet_moi_eos)) {
             return this->p_planet_moi_eos;
         }
@@ -1303,6 +1376,7 @@ public:
 
     // M_host * dU/dO / I, from the last calc_tides' dU/dO and the world's moment of inertia.
     double calc_spin_derivative(double host_mass) const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (!this->get_tides_solved()) {
             throw std::runtime_error(
                 "TidalPy: spin derivative needs a tidal solve first: call calc_tides()");
@@ -2026,29 +2100,38 @@ protected:
     c_RadialSolverOverrides p_radial_solver_overrides;
 
 public:
+    // The settings are read by solves on other threads (calc_tides builds its Love-solve config from them), so each
+    // setter, getter, and config builder below holds the call lock; the getters return copies.
     void set_eos_solver_overrides(const c_EOSSolverOverrides& overrides) noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         this->p_eos_solver_overrides = overrides;
     }
     void set_radial_solver_overrides(const c_RadialSolverOverrides& overrides) noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         this->p_radial_solver_overrides = overrides;
     }
-    const c_EOSSolverOverrides& get_eos_solver_overrides() const noexcept {
+    c_EOSSolverOverrides get_eos_solver_overrides() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_eos_solver_overrides;
     }
-    const c_RadialSolverOverrides& get_radial_solver_overrides() const noexcept {
+    c_RadialSolverOverrides get_radial_solver_overrides() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         return this->p_radial_solver_overrides;
     }
 
     // The [eos_solver] section of the TidalPy configuration with the world's pinned keys on top.
     c_WorldEOSSolveConfig make_eos_solve_config() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         c_WorldEOSSolveConfig cfg;
         this->p_eos_solver_overrides.apply(cfg);
         return cfg;
     }
 
     // The world's configured method and its cpl / ctl parameters from the [tides] config, plus its pinned
-    // [radial_solver] keys. The tide paths start from this, so the configured method drives every solve.
+    // [radial_solver] keys. The tide paths start from this, so the configured method drives every solve. Called on
+    // the thread that holds the call lock, never from the Love-solve workers.
     c_LoveSolveConfig make_love_solve_config() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         c_LoveSolveConfig cfg;
         this->p_radial_solver_overrides.apply(cfg);
         const c_TideConfig& tide_cfg = this->get_tide_config();
@@ -2075,8 +2158,10 @@ public:
     int  get_love_method_last_int() const noexcept { return static_cast<int>(this->p_love.method_last); }
 
     // Diagnostics of the last quasi-homogeneous solve, NaN after a radial-solver solve: the tidal-scale-weighted mean
-    // of the layers' complex shear moduli [Pa], and the volume of the layers that took part [m3].
+    // of the layers' complex shear moduli [Pa], and the volume of the layers that took part [m3]. Like the Love
+    // getters below, each holds the call lock, since the Love solves replace what they read.
     std::complex<double> get_love_analytic_shear() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (!this->p_love.analytic_success) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
         std::complex<double> weighted(0.0, 0.0);
         double scale_sum = 0.0;
@@ -2087,13 +2172,18 @@ public:
         return (scale_sum > 0.0) ? weighted / scale_sum : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
     }
     double get_love_analytic_tidal_volume() const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (!this->p_love.analytic_success) { return TidalPyConstants::d_NAN; }
         double volume = 0.0;
         for (const c_LayerLove& part : this->p_love.analytic_layers) { volume += part.volume; }
         return volume;
     }
-    // Each tidal layer's part of the last quasi-homogeneous solve; empty otherwise.
-    const std::vector<c_LayerLove>& get_love_layer_parts() const noexcept { return this->p_love.analytic_layers; }
+    // Each tidal layer's part of the last quasi-homogeneous solve; empty otherwise. A copy, so a caller can iterate
+    // it while another thread's Love solve replaces the world's own.
+    std::vector<c_LayerLove> get_love_layer_parts() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_love.analytic_layers;
+    }
 
     // The Love results read the solver storage that solve_eos and the Love solves replace, so each read holds the
     // call lock; the message is returned as a copy for the same reason.
@@ -2272,6 +2362,7 @@ public:
 
     // The heating [W] the last calc_tides put in a layer; NaN before one, or when calc_tides was not asked for it.
     double get_layer_tidal_heating(std::size_t index) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (!this->p_tides_solved || index >= this->p_layer_tidal_heating.size()) {
             return TidalPyConstants::d_NAN;
         }
@@ -2341,7 +2432,7 @@ public:
             loaded_layers.reserve(n_layers);
             for (uint64_t i = 0; i < n_layers; ++i) {
                 loaded_layers.push_back(c_layer_from_binary(in, force));
-                loaded_layers.back()->set_owner_call_mutex(this->p_call_mutex.get());
+                loaded_layers.back()->set_owner(this, this->p_call_mutex.get());
             }
             this->p_layers = std::move(loaded_layers);
         } catch (...) {
@@ -2616,10 +2707,9 @@ protected:
     bool   p_thermal_converged = true;
 
     // The world's own Love solve (solve_love_numbers): the cached radial solver, rebuilt only when the EOS grid or
-    // the layer assumptions change, or the quasi-homogeneous results. Not serialized.
+    // the layer assumptions change, or the quasi-homogeneous results. Not serialized. The call lock that guards it
+    // is c_BaseWorld::p_call_mutex.
     c_LoveWorkspace p_love;
-    // Taken by the calls c_WorldCallLock lists; held through a pointer so the world stays movable.
-    std::unique_ptr<std::recursive_mutex> p_call_mutex = std::make_unique<std::recursive_mutex>();
     // Set by warn_if_dynamic_liquid_unstable, which only the calling thread runs.
     mutable bool p_dynamic_liquid_warned = false;
     // Set only inside calc_layer_tidal_heating_radial, under the call lock (get_retained_radial_solves).

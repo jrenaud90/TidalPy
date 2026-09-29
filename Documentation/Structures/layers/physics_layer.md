@@ -1,6 +1,6 @@
 # PhysicsLayer
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-29_
 
 `TidalPy.Structures.layers.PhysicsLayer` extends `BaseLayer` with what a tidal calculation needs from the layer itself: the radial-solver assumptions, the layer temperature, the Love numbers, and the shear and bulk rheology.
 
@@ -107,9 +107,11 @@ _Read-only properties._
 | `use_thermal_eos` | - | `True` if the material's density law receives the temperature. Writable. |
 | `use_heating` | - | `True` if the world's heat sources act inside the layer during a thermal EOS solve (see [Worlds](../worlds/worlds.md)). Writable. |
 
+The EOS solve reads all three, so writing one on a layer of a solved world leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)).
+
 ### Layer Assumptions
 
-These three flags decide which equations the radial solver uses inside this layer. They are constructor arguments, layer keys in a world TOML (see [TOML schema](../config/toml_schema.md)), and writable after construction. A liquid layer is static unless `is_static` is set `False`.
+These three flags decide which equations the radial solver uses inside this layer. They are constructor arguments, layer keys in a world TOML (see [TOML schema](../config/toml_schema.md)), and writable after construction. A liquid layer is static unless `is_static` is set `False`. Every Love solve reads them afresh, so writing one keeps the world's solved structure.
 
 | Property | Meaning |
 |---|---|
@@ -135,7 +137,7 @@ mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 
 ### `set_shear_viscosity(model)` / `set_bulk_viscosity(model)` / `set_partial_melt(model)`
 
-Helpers. The material owns these models, so each call hands the model to the layer's EOS model rather than storing it on the layer; they exist so a layer can be configured in one place. Attach the EOS first (`set_eos`): with none there is no material to give the model to, and the call raises `ValueError`. The same methods are on the EOS model itself, for a material configured before it is attached.
+Helpers. The material owns these models, so each call hands the model to the layer's EOS model rather than storing it on the layer; they exist so a layer can be configured in one place. Attach the EOS first (`set_eos`): with none there is no material to give the model to, and the call raises `ValueError`. The same methods are on the EOS model itself, for a material configured before it is attached. On a layer of a solved world, each call leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)).
 
 ```python
 from TidalPy.Viscosity import make_viscosity

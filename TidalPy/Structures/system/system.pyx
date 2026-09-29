@@ -183,7 +183,7 @@ cdef class System:
             tidal_host=None,
             cpp_bool is_star=False,
             semi_major_axis=None,
-            double eccentricity=0.0):
+            eccentricity=None):
         """Add a world to the system, returning its index.
 
         Parameters
@@ -203,7 +203,9 @@ cdef class System:
             Two-body semi-major axis about the tidal host [m]. ``None`` leaves it unset. The orbit about
             the star is set separately via :meth:`set_stellar_semi_major_axis`.
         eccentricity : float, optional
-            Orbital eccentricity about the tidal host. Default ``0.0``.
+            Orbital eccentricity about the tidal host. ``None`` (default) leaves it unset: it reads as ``0.0``
+            unless an element set describing the same orbit gives it (the partner of a mutual pair, or the orbit
+            about the star when the star is the tidal host).
 
         Returns
         -------
@@ -211,13 +213,14 @@ cdef class System:
             The world's index within the system.
         """
         cdef double a = NAN if semi_major_axis is None else <double>semi_major_axis
+        cdef double e = NAN if eccentricity is None else <double>eccentricity
         # Resolved before the world is added, so a bad host leaves the system as it was.
         cdef Py_ssize_t host_index = -1 if tidal_host is None else self._resolve_index(tidal_host)
         cdef size_t index = self._system.get().add_world(
             world._world_ptr,
             is_star,
             a,
-            eccentricity)
+            e)
         self._world_wrappers.append(world)
         if host_index >= 0:
             self._system.get().set_tidal_host(index, <size_t>host_index)

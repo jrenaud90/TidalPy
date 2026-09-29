@@ -128,15 +128,20 @@ public:
         return this->p_radiogenics->calc_heating(time, mass);
     }
 
-    // Sub-model setters (transfer ownership; each registers this layer as the observer).
+    // Sub-model setters (transfer ownership; each registers this layer as the observer). A thermal EOS solve reads
+    // both, so each makes the owning world forget its solved structure (c_LayerOwner).
     void set_cooling(std::unique_ptr<c_CoolingBase> cooling) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_cooling = std::move(cooling);
         if (this->p_cooling) { this->p_cooling->set_layer_ptr(this); }
+        this->p_update_owner_after_change();
     }
 
     void set_radiogenics(std::unique_ptr<c_RadiogenicsBase> radiogenics) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_radiogenics = std::move(radiogenics);
         if (this->p_radiogenics) { this->p_radiogenics->set_layer_ptr(this); }
+        this->p_update_owner_after_change();
     }
 
     bool get_cooling_set()     const noexcept { return this->p_cooling     != nullptr; }

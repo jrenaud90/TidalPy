@@ -211,7 +211,6 @@ def test_good_binary_layout_as_expected(tmp_path):
     pytest.param("<d", _COMPANION_ORBIT_OFFSET, math.inf, "companion", id="infinite_semi_major_axis"),
     pytest.param("<d", _COMPANION_ORBIT_OFFSET + 8, 1.5, "companion", id="unbound_eccentricity"),
     pytest.param("<d", _COMPANION_ORBIT_OFFSET + 8, -0.1, "companion", id="negative_eccentricity"),
-    pytest.param("<d", _COMPANION_ORBIT_OFFSET + 8, math.nan, "companion", id="nan_eccentricity"),
 ])
 def test_corrupt_field_raises(
         tmp_path,

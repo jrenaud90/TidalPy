@@ -35,26 +35,28 @@ def test_a_released_solution_does_not_follow_a_later_solve():
     assert released.get_shear_viscosity(_MANTLE_RADIUS) == viscosity
 
 
-def test_changing_a_layer_material_after_a_solve_leaves_the_solved_state_alone():
-    """A material change is not seen by the solved profile or a Love solve until the next solve_eos."""
+def test_changing_a_layer_material_after_a_solve_unsolves_the_world():
+    """A material change clears the solved profile, so no Love solve can use the stale one."""
     world = _solved_io()
-    shear_before = world.get_shear_modulus(_MANTLE_RADIUS)
     density_before = world.get_density(_MANTLE_RADIUS)
-    k2_before = world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)["love_number_k"]
+    world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
 
-    mantle = world.mantle
-    mantle.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 2000.0}))
-    assert world.get_density(_MANTLE_RADIUS) == density_before
-    assert world.get_shear_modulus(_MANTLE_RADIUS) == shear_before
-    assert world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)["love_number_k"] == k2_before
+    world.mantle.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 2000.0}))
+    assert not world.eos_solved
+    assert math.isnan(world.get_density(_MANTLE_RADIUS))
+    with pytest.raises(ValueError):
+        world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
+    world.solve_eos()
+    assert world.get_density(_MANTLE_RADIUS) != density_before
 
 
 def test_a_new_melt_model_takes_effect_at_the_next_solve():
-    """A new partial-melt model changes the moduli only after the next solve_eos."""
+    """A new partial-melt model unsolves the world; the next solve_eos applies it."""
     world = _solved_io()
     shear_before = world.get_shear_modulus(_MANTLE_RADIUS)
     world.mantle.set_partial_melt(make_partial_melt("henning", {"solidus_k": 100.0, "liquidus_k": 200.0}))
-    assert world.get_shear_modulus(_MANTLE_RADIUS) == shear_before
+    assert not world.eos_solved
+    assert math.isnan(world.get_shear_modulus(_MANTLE_RADIUS))
     assert world.molten_regions == []
     world.solve_eos()
     assert world.get_shear_modulus(_MANTLE_RADIUS) < shear_before

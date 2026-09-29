@@ -46,13 +46,15 @@ namespace tidalpy {
 inline constexpr double d_SHARED_ORBIT_RTOL = 1.0e-12;
 
 // The two-body orbital elements of one world about another, used both for its orbit about the tidal host
-// and for its orbit about the star. The reference body's own entry is unused.
+// and for its orbit about the star. The reference body's own entry is unused. NaN leaves an element unset, so two
+// element sets that describe one orbit (a mutual pair, a world hosted by the star) can each fill what the other
+// leaves out (c_merge_orbit_elements); an eccentricity still unset reads as 0 (c_resolve_orbit_elements).
 struct c_OrbitElements {
     double semi_major_axis = TidalPyConstants::d_NAN;   // a [m]
-    double eccentricity    = 0.0;                       // e [dimensionless]
+    double eccentricity    = TidalPyConstants::d_NAN;   // e [dimensionless]
 };
 
-// A semi-major axis is positive (NaN leaves it unset) and an eccentricity lies in [0, 1): anything else is no
+// A semi-major axis is positive and an eccentricity lies in [0, 1), NaN leaving either unset: anything else is no
 // bound orbit, and would reach the rate equations as NaN or a negative square root.
 inline void c_check_orbit(double semi_major_axis, double eccentricity, const std::string& world_name) {
     if (!std::isnan(semi_major_axis) && !(std::isfinite(semi_major_axis) && (semi_major_axis > 0.0))) {
@@ -60,11 +62,41 @@ inline void c_check_orbit(double semi_major_axis, double eccentricity, const std
             "TidalPy: world '" + world_name + "' was given a semi-major axis of " + std::to_string(semi_major_axis)
             + " m; it must be positive.");
     }
-    if (!((eccentricity >= 0.0) && (eccentricity < 1.0))) {
+    if (!std::isnan(eccentricity) && !((eccentricity >= 0.0) && (eccentricity < 1.0))) {
         throw std::invalid_argument(
             "TidalPy: world '" + world_name + "' was given an eccentricity of " + std::to_string(eccentricity)
             + "; a bound orbit has 0 <= e < 1.");
     }
+}
+
+// The elements as the rate equations and insolation read them: an unset eccentricity is a circular orbit.
+inline c_OrbitElements c_resolve_orbit_elements(const c_OrbitElements& elements) noexcept {
+    c_OrbitElements resolved = elements;
+    if (std::isnan(resolved.eccentricity)) { resolved.eccentricity = 0.0; }
+    return resolved;
+}
+
+// One orbit from two element sets that both describe it, element by element: an element given by either set is
+// kept, and one given by both must agree (to d_SHARED_ORBIT_RTOL), or `conflict` is set and `first` is returned.
+inline c_OrbitElements c_merge_orbit_elements(
+        const c_OrbitElements& first,
+        const c_OrbitElements& second,
+        bool& conflict) noexcept {
+    conflict = false;
+    c_OrbitElements merged = first;
+    if (std::isnan(first.semi_major_axis)) {
+        merged.semi_major_axis = second.semi_major_axis;
+    } else if (!std::isnan(second.semi_major_axis)
+               && !c_isclose(first.semi_major_axis, second.semi_major_axis, d_SHARED_ORBIT_RTOL, 0.0)) {
+        conflict = true;
+    }
+    if (std::isnan(first.eccentricity)) {
+        merged.eccentricity = second.eccentricity;
+    } else if (!std::isnan(second.eccentricity)
+               && !c_isclose(first.eccentricity, second.eccentricity, d_SHARED_ORBIT_RTOL, d_SHARED_ORBIT_RTOL)) {
+        conflict = true;
+    }
+    return conflict ? first : merged;
 }
 
 // The tidal, orbital, and spin rates of one orbiting world for a single tidal solve, with the state used
@@ -153,12 +185,13 @@ public:
 
     // The semi_major_axis and eccentricity here describe the world's orbit about its tidal host, named
     // afterwards with set_tidal_host, since a host may be added after the worlds it hosts; its orbit about
-    // the star is set separately. The last world added with is_star is the star.
+    // the star is set separately. NaN leaves an element unset (see c_OrbitElements). The last world added with
+    // is_star is the star.
     std::size_t add_world(
             std::shared_ptr<c_BaseWorld> world,
             bool is_star = false,
             double semi_major_axis = TidalPyConstants::d_NAN,
-            double eccentricity = 0.0) {
+            double eccentricity = TidalPyConstants::d_NAN) {
         if (world == nullptr) {
             throw std::invalid_argument("TidalPy: c_System::add_world - world is null");
         }
@@ -328,27 +361,22 @@ protected:
     }
 
     // A world whose tidal host is the star has one orbit, stored in both element sets. When it becomes star-hosted
-    // after its elements were set (a builder sets them before the roles), the set that has a semi-major axis fills
-    // the one that does not; two different orbits throw std::invalid_argument rather than one being dropped.
+    // after its elements were set (a builder sets them before the roles), the two sets merge element by element, so
+    // an element given on either is kept whichever set gave the semi-major axis; an element the two give different
+    // values for throws std::invalid_argument, and nothing changes, rather than one value being dropped.
     void p_reconcile_star_hosted_orbit(std::size_t index) {
         if (!this->is_hosted_by_star(index)) { return; }
-        c_OrbitElements& tidal   = this->p_orbits[index];
-        c_OrbitElements& stellar = this->p_stellar_orbits[index];
-        const bool tidal_set   = std::isfinite(tidal.semi_major_axis);
-        const bool stellar_set = std::isfinite(stellar.semi_major_axis);
-        if (tidal_set && stellar_set) {
-            if (!c_isclose(tidal.semi_major_axis, stellar.semi_major_axis, d_SHARED_ORBIT_RTOL, 0.0)
-                    || !c_isclose(tidal.eccentricity, stellar.eccentricity, d_SHARED_ORBIT_RTOL, d_SHARED_ORBIT_RTOL)) {
-                throw std::invalid_argument(
-                    "TidalPy: c_System - world '" + this->p_worlds[index]->get_name() + "' has the star as its "
-                    "tidal host, so its orbit about the star is its tidal orbit, but the two sets of elements "
-                    "differ; give one orbit.");
-            }
-        } else if (stellar_set) {
-            tidal = stellar;
-        } else if (tidal_set) {
-            stellar = tidal;
+        bool conflict = false;
+        const c_OrbitElements merged =
+            c_merge_orbit_elements(this->p_orbits[index], this->p_stellar_orbits[index], conflict);
+        if (conflict) {
+            throw std::invalid_argument(
+                "TidalPy: c_System - world '" + this->p_worlds[index]->get_name() + "' has the star as its "
+                "tidal host, so its orbit about the star is its tidal orbit, but the two sets of elements "
+                "give different values for the same element; give one orbit.");
         }
+        this->p_orbits[index]         = merged;
+        this->p_stellar_orbits[index] = merged;
     }
 
 public:
@@ -359,36 +387,34 @@ public:
         return this->has_star() && (this->p_host_index_byworld[index] == this->p_star_index);
     }
 
-    // The world's orbit about the star, the source of its insolation.
+    // The world's orbit about the star, the source of its insolation; an unset eccentricity reads as 0.
     c_OrbitElements get_stellar_orbit(std::size_t index) const {
         this->check_index(index);
-        return this->is_hosted_by_star(index) ? this->get_host_orbit(index) : this->p_stellar_orbits[index];
+        return this->is_hosted_by_star(index)
+            ? this->get_host_orbit(index) : c_resolve_orbit_elements(this->p_stellar_orbits[index]);
     }
 
-    // The elements of the world's orbit about its tidal host. A member of a mutual pair that carries no
-    // semi-major axis of its own takes its partner's elements; when both carry one they describe the same
-    // orbit, so a disagreement throws std::invalid_argument.
+    // The elements of the world's orbit about its tidal host; an unset eccentricity reads as 0. The two members of
+    // a mutual pair describe the same orbit, so their elements merge element by element: an element either one
+    // carries is kept, and one they both carry with different values throws std::invalid_argument.
     c_OrbitElements get_host_orbit(std::size_t index) const {
         this->check_index(index);
         const c_OrbitElements& own = this->p_orbits[index];
         if (!this->is_mutual_pair(index)) {
-            return own;
+            return c_resolve_orbit_elements(own);
         }
         const c_OrbitElements& partner =
             this->p_orbits[static_cast<std::size_t>(this->p_host_index_byworld[index])];
-        if (!std::isfinite(own.semi_major_axis)) {
-            return partner;
-        }
-        if (std::isfinite(partner.semi_major_axis)
-                && (!c_isclose(own.semi_major_axis, partner.semi_major_axis, d_SHARED_ORBIT_RTOL, 0.0)
-                    || !c_isclose(own.eccentricity, partner.eccentricity, d_SHARED_ORBIT_RTOL, d_SHARED_ORBIT_RTOL))) {
+        bool conflict = false;
+        const c_OrbitElements merged = c_merge_orbit_elements(own, partner, conflict);
+        if (conflict) {
             throw std::invalid_argument(
                 "TidalPy: c_System - worlds '" + this->p_worlds[index]->get_name() + "' and '"
                 + this->get_tidal_host(index)->get_name()
                 + "' host each other, so they share one orbit, but state different orbital elements for it. "
                   "Set the semi-major axis and eccentricity on one of them, or the same values on both.");
         }
-        return own;
+        return c_resolve_orbit_elements(merged);
     }
     double get_semi_major_axis(std::size_t index) const { return this->get_host_orbit(index).semi_major_axis; }
     double get_eccentricity(std::size_t index) const { return this->get_host_orbit(index).eccentricity; }
@@ -674,6 +700,11 @@ public:
         out.world_index = dissipator_index;
 
         c_BaseWorld* world_ptr      = this->p_worlds[dissipator_index].get();
+        // The world's call lock is held from its tide solve through the reads of the result, the spin model, and the
+        // moment of inertia, so a concurrent evolution call or setter on the same world takes its turn instead of
+        // replacing the result between the solve and the read. The locked world calls below take it again, which
+        // the recursive lock allows; one world is locked at a time, so a pair never waits on itself.
+        const c_WorldCallLock call_lock(world_ptr->get_call_mutex());
         const double target_mass    = world_ptr->get_mass();
         const double spin_frequency = world_ptr->get_spin_frequency();
 
@@ -707,7 +738,7 @@ public:
             world_ptr->calc_tides(state);
         }
 
-        // calc_tides throws on failure, so the tide result is populated here.
+        // calc_tides throws on failure, so the tide result is populated here, and the call lock keeps it this solve's.
         const c_GlobalTideResult& tide = world_ptr->get_tide_result();
         out.tidal_heating = tide.tidal_heating;
         out.dU_dM         = tide.dU_dM;

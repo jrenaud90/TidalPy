@@ -79,7 +79,7 @@ def construct_system(config: dict, force: bool = False, base_dir: str = None):
             world_obj,
             is_star=bool(world_cfg.get("is_star", False)),
             semi_major_axis=world_cfg.get("semi_major_axis_m", None),
-            eccentricity=float(world_cfg.get("eccentricity", 0.0)))
+            eccentricity=world_cfg.get("eccentricity", None))
         if "stellar_semi_major_axis_m" in world_cfg:
             system.set_stellar_semi_major_axis(index, float(world_cfg["stellar_semi_major_axis_m"]))
         if "stellar_eccentricity" in world_cfg:

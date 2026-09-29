@@ -1,6 +1,6 @@
 # SolidLiquidLayer
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-29_
 
 `TidalPy.Structures.layers.SolidLiquidLayer` extends `PhysicsLayer` with optional sub-models for radiogenic heating and convective or conductive cooling, and with the thermal-transport calculations that need the layer's geometry or solved profile. It adds no parameters of its own.
 
@@ -119,7 +119,7 @@ flux = layer.calc_heat_flux_conductive(temperature_base=3500.0, temperature_top=
 
 ### `set_cooling(cooling)` / `set_radiogenics(radiogenics)`
 
-Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model. Ownership of the underlying C++ model is transferred into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (raises `ValueError` if re-attached). Shear/bulk rheology are attached via the inherited `set_shear_rheology` / `set_bulk_rheology` (see [PhysicsLayer](physics_layer.md)).
+Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model. Ownership of the underlying C++ model is transferred into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (raises `ValueError` if re-attached). Shear/bulk rheology are attached via the inherited `set_shear_rheology` / `set_bulk_rheology` (see [PhysicsLayer](physics_layer.md)). A thermal EOS solve reads both sub-models, so attaching one to a layer of a solved world leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)).
 
 ```python
 from TidalPy.Cooling import make_cooling

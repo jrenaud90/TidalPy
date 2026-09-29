@@ -123,21 +123,44 @@ public:
     bool get_is_static()         const noexcept { return this->p_is_static; }
     bool get_is_incompressible() const noexcept { return this->p_is_incompressible; }
 
-    // These control the shooting and propagation-matrix assumptions.
-    void set_is_solid(bool value)          noexcept { this->p_is_solid = value; }
-    void set_is_static(bool value)         noexcept { this->p_is_static = value; }
-    void set_is_incompressible(bool value) noexcept { this->p_is_incompressible = value; }
+    // These control the shooting and propagation-matrix assumptions. Each Love solve reads them afresh, so they
+    // leave the owning world's EOS solve standing; they take its call lock so they never change under a solve.
+    void set_is_solid(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_is_solid = value;
+    }
+    void set_is_static(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_is_static = value;
+    }
+    void set_is_incompressible(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_is_incompressible = value;
+    }
 
-    // Layer temperature [K] and whether the EOS density law sees it.
+    // Layer temperature [K] and whether the EOS density law sees it. The EOS solve reads both, so setting either
+    // makes the owning world forget its solved structure (c_LayerOwner).
     double get_temperature()     const noexcept { return this->p_temperature; }
     bool   get_use_thermal_eos() const noexcept { return this->p_use_thermal_eos; }
-    void set_temperature(double value)   noexcept { this->p_temperature = value; }
-    void set_use_thermal_eos(bool value) noexcept { this->p_use_thermal_eos = value; }
+    void set_temperature(double value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_temperature = value;
+        this->p_update_owner_after_change();
+    }
+    void set_use_thermal_eos(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_use_thermal_eos = value;
+        this->p_update_owner_after_change();
+    }
 
     // Whether the world's heat sources act inside this layer during a thermal EOS solve. Off, the layer
-    // generates no heat whatever models it carries.
+    // generates no heat whatever models it carries. Setting it makes the owning world forget its solved structure.
     bool get_use_heating() const noexcept { return this->p_use_heating; }
-    void set_use_heating(bool value) noexcept { this->p_use_heating = value; }
+    void set_use_heating(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_use_heating = value;
+        this->p_update_owner_after_change();
+    }
 
     // From the material's static constants: the rheology applied to them, or the static modulus as a purely
     // real number without one. The static viscosity is NaN until set, so a viscous rheology then returns NaN.
@@ -196,13 +219,17 @@ public:
         }
     }
 
-    // Ownership transfers in, and each registers this layer as the model's observer.
+    // Ownership transfers in, and each registers this layer as the model's observer. The EOS solve does not read
+    // the rheology (each Love solve applies it afresh), so the owning world's solved structure stands; the owner's
+    // call lock keeps the swap out of a solve that is applying the old model.
     void set_shear_rheology(std::unique_ptr<c_RheologyBase> shear) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_shear_rheology = std::move(shear);
         if (this->p_shear_rheology) { this->p_shear_rheology->set_layer_ptr(this); }
     }
 
     void set_bulk_rheology(std::unique_ptr<c_RheologyBase> bulk) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_bulk_rheology = std::move(bulk);
         if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
     }
@@ -219,15 +246,22 @@ public:
     std::shared_ptr<const c_RheologyBase> share_bulk_rheology()  const noexcept { return this->p_bulk_rheology; }
 
     // The material owns these models, so each call hands the model to the layer's EOS; they exist so a layer
-    // can be configured in one place. Attach the EOS first, or there is no material to give the model to.
+    // can be configured in one place. Attach the EOS first, or there is no material to give the model to. The EOS
+    // solve evaluates them, so each makes the owning world forget its solved structure (c_LayerOwner).
     void set_shear_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_require_eos("a shear viscosity model")->set_shear_viscosity(std::move(viscosity));
+        this->p_update_owner_after_change();
     }
     void set_bulk_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_require_eos("a bulk viscosity model")->set_bulk_viscosity(std::move(viscosity));
+        this->p_update_owner_after_change();
     }
     void set_partial_melt(std::unique_ptr<c_PartialMeltBase> partial_melt) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_require_eos("a partial-melt model")->set_partial_melt(std::move(partial_melt));
+        this->p_update_owner_after_change();
     }
 
     bool get_shear_viscosity_set() const noexcept { return this->get_shear_viscosity_model() != nullptr; }

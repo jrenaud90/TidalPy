@@ -160,7 +160,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         void         add_layer(unique_ptr[c_BaseLayer] layer) except +
         string       layer_rejection_reason(const c_BaseLayer& layer) except +
         c_BaseLayer* get_layer(size_t index) except +
-        void         update_after_layer_geometry_change() except +
+        void         update_after_layer_change() except +
         size_t       get_num_layers() const
         double       calc_total_mass() const
         double       calc_internal_heating(double time) const
@@ -212,7 +212,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_planet_mass_eos() const
         double       get_planet_moi_eos() const
         const vector[c_RadialSegment]& get_radial_segments() const
-        vector[c_RadialSegment] get_molten_regions() const
+        vector[c_RadialSegment] get_molten_regions() except +
         void         set_spin_model(const c_Spin& spin)
         const c_Spin& get_spin_model() const
         double       get_moment_of_inertia() const
@@ -248,7 +248,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         int                  get_love_method_last_int() const
         cpp_complex[double]  get_love_analytic_shear() const
         double               get_love_analytic_tidal_volume() const
-        const vector[c_LayerLove]& get_love_layer_parts() const
+        vector[c_LayerLove]  get_love_layer_parts() except +
         double               get_layer_tidal_scale(size_t index) except +
         # Global (1D) tidal dissipation: the model/config/result accessors are inherited from
         # c_BaseWorld; c_LayeredWorld only adds the rheology-capable calc_tides + layer heating.
@@ -298,19 +298,19 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
                                  const double* times,
                                  size_t num_times,
                                  const c_Heating3DCollapseConfig& cfg) except +
-        void                 calc_3d_tides_into(
-                                 const c_TideSolveConfig& state,
-                                 const double* radii,
-                                 size_t num_radii,
-                                 const double* colatitudes,
-                                 size_t num_colatitudes,
-                                 const double* longitudes,
-                                 size_t num_longitudes,
-                                 const double* times,
-                                 size_t num_times,
-                                 const c_Heating3DCollapseConfig& cfg,
-                                 double* out_values,
-                                 double* out_layer_totals) except +
+        void calc_3d_tides_into(
+            const c_TideSolveConfig& state,
+            const double* radii,
+            size_t num_radii,
+            const double* colatitudes,
+            size_t num_colatitudes,
+            const double* longitudes,
+            size_t num_longitudes,
+            const double* times,
+            size_t num_times,
+            const c_Heating3DCollapseConfig& cfg,
+            double* out_values,
+            double* out_layer_totals) except +
 
 
 cdef extern from "profile_world_.hpp" namespace "tidalpy" nogil:

@@ -55,8 +55,8 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         c_ViscosityBase*    get_bulk_viscosity_model()               const
         c_PartialMeltBase*  get_partial_melt_model()                 const
         cpp_bool            get_bulk_rheology_set()                  const
-        void                set_shear_rheology(unique_ptr[c_RheologyBase] shear)
-        void                set_bulk_rheology(unique_ptr[c_RheologyBase] bulk)
+        void                set_shear_rheology(unique_ptr[c_RheologyBase] shear) except +
+        void                set_bulk_rheology(unique_ptr[c_RheologyBase] bulk) except +
         void                set_shear_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
         void                set_bulk_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
         void                set_partial_melt(unique_ptr[c_PartialMeltBase] partial_melt) except +
@@ -66,15 +66,15 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            get_is_solid()                           const
         cpp_bool            get_is_static()                          const
         cpp_bool            get_is_incompressible()                  const
-        void                set_is_solid(cpp_bool)
-        void                set_is_static(cpp_bool)
-        void                set_is_incompressible(cpp_bool)
+        void                set_is_solid(cpp_bool) except +
+        void                set_is_static(cpp_bool) except +
+        void                set_is_incompressible(cpp_bool) except +
         double              get_temperature()                          const
         cpp_bool            get_use_thermal_eos()                      const
-        void                set_temperature(double)
-        void                set_use_thermal_eos(cpp_bool)
+        void                set_temperature(double) except +
+        void                set_use_thermal_eos(cpp_bool) except +
         cpp_bool            get_use_heating()                          const
-        void                set_use_heating(cpp_bool)
+        void                set_use_heating(cpp_bool) except +
 
 
 # Fills the c_PhysicsConfig fields shared by the physics, solid/liquid, and gas layer constructors.

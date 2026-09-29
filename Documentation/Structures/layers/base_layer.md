@@ -1,6 +1,6 @@
 # BaseLayer
 
-_Updated: 2026-09-24_
+_Updated: 2026-09-29_
 
 `TidalPy.Structures.layers.BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii \[m\], total mass \[kg\], and an optional material identifier for one spherically symmetric shell inside a planetary body. Derived geometry (thickness, volume, surface areas) is computed at construction and accessible through read-only properties.
 
@@ -77,7 +77,7 @@ Read-only properties.
 
 ### `set_eos(model)`
 
-Attach a [material EOS model](../../Material/material_eos.md) (the per-layer density source). Ownership of the C++ model transfers into the layer; the passed wrapper becomes an empty shell. The layer's viscosity and partial-melt models are held by its material, so replacing the material keeps the ones attached before unless the new model carries its own. The model is consumed by the world-level [`solve_eos`](../worlds/worlds.md#equation-of-state), which integrates the planet structure and populates this layer's EOS profile.
+Attach a [material EOS model](../../Material/material_eos.md) (the per-layer density source). Ownership of the C++ model transfers into the layer; the passed wrapper becomes an empty shell. The layer's viscosity and partial-melt models are held by its material, so replacing the material keeps the ones attached before unless the new model carries its own. The model is consumed by the world-level [`solve_eos`](../worlds/worlds.md#equation-of-state), which integrates the planet structure and populates this layer's EOS profile. On a layer of a solved world, a new material leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)); so does a new `is_volume_fixed`.
 
 ```python
 from TidalPy.Material.eos import make_material_eos
@@ -145,7 +145,7 @@ rho = mantle.get_density(radii)        # ndarray, shape (100,)
 mu, eta_mu, kk, eta_k = mantle.get_static_viscoelastics(radii)
 ```
 
-A layer that belongs to a world reads its profile under that world's call lock, so a getter on a layer view takes turns with the world's `solve_eos` on another thread, as the world's own getters do (see the threading note under [Equation of State](../worlds/worlds.md#equation-of-state)). One call reads a whole array under a single turn; in C++ that is `c_BaseLayer::get_eos_fields(field_indices, num_fields, radii, num_radii, values_out)`, and `c_PhysicsLayer::calc_complex_moduli` is the matching complex-modulus form. A standalone layer has no lock to take.
+A layer that belongs to a world reads its profile under that world's call lock, so a getter on a layer view takes turns with the world's `solve_eos` on another thread, as the world's own getters do (see the threading note under [Equation of State](../worlds/worlds.md#equation-of-state)). One call reads a whole array under a single turn; in C++ that is `c_BaseLayer::get_eos_fields(field_indices, num_fields, radii, num_radii, values_out)`, and `c_PhysicsLayer::calc_complex_moduli` is the matching complex-modulus form. The setters of what the world's solves read (`set_eos`, `is_volume_fixed`, and the model setters and flags of the subclasses) take the same turns. A standalone layer has no lock to take.
 
 ### Inherited Geometry Calculations
 
