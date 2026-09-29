@@ -446,7 +446,7 @@ print(effective_rigidity, love.k)
 - `TidalPy.toolbox`, with `quick_tidal_dissipation` and `quick_dual_body_tidal_dissipation` (see [Quick Tidal Dissipation](#quick-tidal-dissipation) for the equivalent calculation).
 - The BurnMan interior builds (`TidalPy.Extending`). BurnMan remains an optional comparison package for `Benchmarks/EOS/EOS_vs_BurnMan.ipynb` only.
 - Orbit averaging (`TidalPy.orbit.orbit_average` and its 3D and 4D forms).
-- The multiprocessing driver (`TidalPy.utilities.multiprocessing`) and the exoplanet archive download (`TidalPy.utilities.exoplanets.get_exoplanet_data`).
+- The multiprocessing driver (`TidalPy.utilities.multiprocessing`) and the exoplanet archive download (`TidalPy.utilities.exoplanets.get_exoplanet_data`). The Love solves release the interpreter lock, so standard thread and process pools run them in parallel (see [Parallel Love Solves](RadialSolver/parallel.md)).
 - numba support (`TidalPy.numba_scipy` and the `[numba]` configuration).
 - `TidalPy.output`.
 - The state graph that updated a world, its layers, and its orbit when one attribute changed.
