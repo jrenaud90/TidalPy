@@ -30,20 +30,24 @@ def config(monkeypatch):
         pytest.param(("no_such_table", ("alpha",)), {}, id="unknown_table"),
         pytest.param(("material.no_such_table", ("alpha",)), {}, id="unknown_nested_table"),
         pytest.param(("shear_rheology", ("alpha",), "Andrade"), {"alpha": 0.3}, id="named_model_any_case"),
-        pytest.param(("shear_rheology", ("alpha",), "maxwell"), {}, id="other_model"),
-        # Without the family's resolver an alias does not match; with it, it does.
-        pytest.param(("radiogenics", ("isotopes",), "isotopes"), {}, id="alias_without_resolver"),
+        # A model the table does not name takes its keys too (and ignores those it does not read).
+        pytest.param(("shear_rheology", ("alpha",), "maxwell"), {"alpha": 0.3}, id="other_model"),
+        # Without the family's resolver an alias does not match, which only matters for model-specific keys.
+        pytest.param(("radiogenics", ("isotopes",), "isotopes"), {"isotopes": "modern_day_chondritic"},
+                     id="alias_without_resolver"),
+        pytest.param(("radiogenics", ("isotopes", "ref_time_s"), "isotopes"), {"isotopes": "modern_day_chondritic"},
+                     id="model_specific_key_dropped_on_a_mismatch"),
         pytest.param(
             ("radiogenics", ("isotopes",), "isotopes", radiogenics_module._same_model),
             {"isotopes": "modern_day_chondritic"},
             id="alias_with_resolver"),
         pytest.param(
             ("radiogenics", ("isotopes",), "constant", radiogenics_module._same_model),
-            {},
+            {"isotopes": "modern_day_chondritic"},
             id="other_model_with_resolver"),
     ])
 def test_factory_defaults_reads_the_default_layer_tables(args, expected):
-    """factory_defaults returns a table's keys only when the table applies to the named model."""
+    """factory_defaults returns a table's keys, leaving out the model-specific ones when it names another model."""
     assert factory_defaults(*args) == expected
 
 
@@ -87,12 +91,12 @@ def test_every_family_takes_its_own_table(config):
     assert make_tide("fixed_q").get_config_dict()["fixed_q"][0] == 33.0
 
 
-def test_a_model_the_table_does_not_name_keeps_its_own_defaults(config):
-    """A parameter of the named model never carries over to another model of the family."""
+def test_a_model_the_table_does_not_name_takes_its_shared_defaults(config):
+    """Another model of the family takes the table's parameters, all but the model-specific ones."""
     config["layers"]["default"]["material"]["shear_viscosity"]["reference_viscosity_pas"] = 5.0e21
-    # The table names the "reference" law.
+    # The table names the "reference" law; the constant law reads the same key the same way.
     assert make_viscosity("reference").reference_viscosity == 5.0e21
-    assert make_viscosity("constant").reference_viscosity == 1.0e22
+    assert make_viscosity("constant").reference_viscosity == 5.0e21
     # The isotope table's dataset must not set a fixed model's reference time.
     fixed = make_radiogenics("fixed").get_config_dict()
     assert fixed["ref_time_s"] == 0.0

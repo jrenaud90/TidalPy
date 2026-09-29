@@ -253,10 +253,10 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
 
     The world builder resolves a model's parameters through the layer's own table and then the matching
     model table of ``[layers.default]`` in ``TidalPy_Configs.toml`` (``[tides]`` for a tide model). A
-    model built directly through its factory shares that second tier, so one file describes both. The
-    table's parameters are taken only for the model it names: a parameter of one model must not carry
-    over to another that reads the same key differently, as an isotope dataset's reference time would
-    into a fixed radiogenic rate.
+    model built directly through its factory shares that second tier, so one file describes both, and by the
+    same rule: a model the table does not name still takes its parameters, except the family's model-specific
+    keys (``configurations.MODEL_SPECIFIC_KEYS``), which another model would read differently, as a fixed
+    radiogenic rate would an isotope dataset's reference time. A key the model does not read is ignored by it.
 
     Parameters
     ----------
@@ -266,8 +266,8 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
     accepted_keys : collection of str
         The keys the family reads (the factory's ``*_CONFIG_KEYS``).
     model_name : str, optional
-        The model being built. Given, the table is taken only when its ``model`` names it; a table with no
-        ``model`` key, such as ``[tides]``, is taken as is.
+        The model being built. When the table's ``model`` names another one, its model-specific keys are left
+        out; a table with no ``model`` key, such as ``[tides]``, is taken as is.
     same_model : callable, optional
         ``same_model(table_name, model_name) -> bool``, the family's own alias-aware name test; a
         ``ValueError`` from it counts as a different model. Without it the names are compared as lower-case
@@ -276,7 +276,7 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
     Returns
     -------
     dict
-        The parameters found, empty when the config is not loaded, has no such table, or names another model.
+        The parameters found, empty when the config is not loaded or has no such table.
     """
     # Deferred: this module is imported while TidalPy initializes, before config exists.
     import TidalPy
@@ -285,7 +285,7 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
     # below turns into an empty table. `cdef dict` would raise on the assignment first.
     cdef object table
     cdef object named
-    cdef cpp_bool matches
+    cdef cpp_bool matches = True
     cdef set accepted
     cdef str part
     if section == "tides":
@@ -305,10 +305,14 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
                 matches = bool(same_model(str(named), model_name))
             except ValueError:
                 matches = False
-        if not matches:
-            return {}
     accepted = set(accepted_keys)
     accepted.discard("model")
+    if not matches:
+        # Deferred like TidalPy above: this module is imported while TidalPy initializes.
+        from TidalPy.configurations import MODEL_SPECIFIC_KEYS
+        # rpartition rather than split()[-1]: this module compiles with wraparound off, so a negative index reads
+        # out of bounds.
+        accepted -= MODEL_SPECIFIC_KEYS.get(section.rpartition(".")[2], frozenset())
     return {key: value for key, value in table.items() if key in accepted}
 
 
