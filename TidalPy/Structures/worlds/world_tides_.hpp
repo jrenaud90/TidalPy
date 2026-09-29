@@ -19,6 +19,7 @@
 #include <complex>
 #include <cstddef>
 #include <exception>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <stdexcept>
@@ -127,6 +128,14 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
                 solve_by_l_freq.set(lf_key, solve_index);
             }
             solve_by_mode.set(lmpq_key, solve_index);
+        }
+
+        // The largest degree and smallest frequency bound every solve's dynamic-liquid error estimate.
+        if (!quasi_homogeneous && love_cfg.warnings && !solve_degree.empty()) {
+            this->warn_if_dynamic_liquid_unstable(
+                *std::max_element(solve_degree.begin(), solve_degree.end()),
+                *std::min_element(solve_frequency.begin(), solve_frequency.end()),
+                love_cfg.rtol);
         }
 
         // Each solve writes only its own workspace and slots, and the world it reads cannot change while the call
@@ -567,6 +576,17 @@ inline c_RadialValues3D c_radial_values_3d(
     }
     const bool parallel = num_to_solve >= tidalpy_config_ptr->d_LOVE_SOLVE_MIN_PARALLEL;
     const size_t num_workers = parallel ? std::min(c_resolve_num_threads(num_threads), num_groups) : 1;
+    // The largest degree and smallest frequency among the groups still to solve bound their dynamic-liquid error.
+    if ((num_to_solve > 0) && love_cfg.warnings) {
+        int max_degree_l      = 0;
+        double min_frequency  = std::numeric_limits<double>::infinity();
+        for (size_t g = 0; g < num_groups; ++g) {
+            if (retained_by_group[g] >= 0) { continue; }
+            max_degree_l  = std::max(max_degree_l, set.radial_groups[g].degree_l);
+            min_frequency = std::min(min_frequency, std::abs(set.radial_groups[g].frequency));
+        }
+        world.warn_if_dynamic_liquid_unstable(max_degree_l, min_frequency, love_cfg.rtol);
+    }
     c_parallel_tasks_3d(num_workers, static_cast<int>(num_workers), [&](size_t worker) {
         c_LoveSolveConfig worker_cfg = love_cfg;
         c_LoveWorkspace workspace;

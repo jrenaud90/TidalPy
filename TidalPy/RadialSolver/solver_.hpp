@@ -54,7 +54,6 @@ inline void c_validate_and_prep_radial_inputs(
     double starting_radius,
     const std::vector<std::string>& solve_for,
     const std::vector<std::string>& eos_method_bylayer,
-    bool warnings,
     int* layer_types_out_ptr,
     int* bc_models_out_ptr,
     size_t& num_bc_models_out
@@ -163,7 +162,6 @@ inline void c_validate_and_prep_radial_inputs(
         }
     }
 
-    bool dynamic_liquid = false;
     for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
     {
         const std::string l_type = tidalpy::c_to_lower(layer_types[layer_i]);
@@ -175,21 +173,12 @@ inline void c_validate_and_prep_radial_inputs(
         else if (l_type == "liquid")
         {
             layer_types_out_ptr[layer_i] = 1;
-            if (not is_static_bylayer[layer_i])
-            {
-                dynamic_liquid = true;
-            }
         }
         else
         {
             layer_types_out_ptr[layer_i] = -1;
             throw std::invalid_argument("Layer type " + layer_types[layer_i] + " is not supported.");
         }
-    }
-
-    if (dynamic_liquid && std::abs(frequency) < 2.5e-5 && warnings)
-    {
-        printf("WARNING: Dynamic liquid layer detected in RadialSolver for a small frequency. Results may be unstable. Extra care is advised!\n");
     }
 
     // Every layer interpolates its supplied profile, the only EOS method this API offers.

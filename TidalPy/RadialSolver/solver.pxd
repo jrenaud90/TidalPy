@@ -60,6 +60,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
             const double* radius_in,
             size_t n_in) except +
         unique_ptr[c_RadialSolutionStorage] release_radial_storage()
+        void warn_if_dynamic_liquid_unstable(int degree_l, double frequency, double rtol) const
 
 
 cdef extern from "profile_world_.hpp" namespace "tidalpy":
@@ -94,7 +95,6 @@ cdef extern from "solver_.hpp":
         double starting_radius,
         const vector[cpp_string]& solve_for,
         const vector[cpp_string]& eos_method_bylayer,
-        cpp_bool warnings,
         int* layer_types_out_ptr,
         int* bc_models_out_ptr,
         size_t& num_bc_models_out

@@ -18,7 +18,14 @@ cnp.import_array()
 from CyRK cimport ODEMethod
 
 from TidalPy.Utilities.logging.logger import log_warning
+from TidalPy.Utilities.logging.logger cimport (
+    set_tidalpy_logger_ptr_void,
+    get_tidalpy_logger_address,
+)
 from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr
+# Wire this DLL's shared pointers to the process-wide TidalPy singletons, so the C++ warnings of the world this
+# module builds (its EOS and Love solves) reach the logger.
+set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 from TidalPy.exceptions import SolutionFailedError
@@ -295,7 +302,6 @@ def radial_solver(
             starting_radius,
             c_solve_for,
             c_eos_method_bylayer,
-            warnings,
             layer_types_out.data(),
             &bc_models_out[0],
             num_bc_models_out
@@ -375,6 +381,10 @@ def radial_solver(
     love_cfg.verbose            = verbose
     # This function runs its own conditioning check on the finished solution below.
     love_cfg.warnings           = False
+
+    # A dynamic liquid layer whose equations lose accuracy at this period is logged, once, before the solve.
+    if warnings and not use_prop_matrix:
+        world_ptr.warn_if_dynamic_liquid_unstable(degree_l, frequency, love_cfg.rtol)
 
     shear_ptr = <cpp_complex[double]*><void*>&complex_shear_modulus_array[0]
     bulk_ptr  = <cpp_complex[double]*><void*>&complex_bulk_modulus_array[0]
