@@ -62,4 +62,7 @@ def test_compare_interfaces(lower_layer_type, lower_is_static, upper_layer_type,
     old_no_nan = upper_y_old[~np.isnan(upper_y_old)]
     new_no_nan = upper_y_new[~np.isnan(upper_y_new)]
     assert len(old_no_nan) == len(new_no_nan)
-    np.testing.assert_allclose(new_no_nan, old_no_nan, rtol=1e-12)
+    # Y_LOWER_SOLID's second solution is minus its first, so the solid to static-liquid solution is exactly zero.
+    # Fused multiply-adds (clang's default on arm64) leave roundoff there on the scale of the lower-layer values.
+    atol = 1e-14 * np.nanmax(np.abs(lower_y))
+    np.testing.assert_allclose(new_no_nan, old_no_nan, rtol=1e-12, atol=atol)
