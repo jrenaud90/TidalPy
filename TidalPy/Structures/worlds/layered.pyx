@@ -269,9 +269,9 @@ cdef tuple cy_grid_axes(object radii, object colatitudes, object longitudes, obj
 
 
 cdef int cy_check_num_threads(int num_threads) except -1:
-    """Raise ValueError unless ``num_threads`` is at least 1."""
-    if num_threads < 1:
-        raise ValueError(f"num_threads must be at least 1; got {num_threads}")
+    """Raise ValueError unless ``num_threads`` is 0 (automatic) or a positive thread count."""
+    if num_threads < 0:
+        raise ValueError(f"num_threads must be 0 (automatic) or a positive thread count; got {num_threads}")
     return 0
 
 # Integration-method names are resolved at the Cython boundary through the shared tables in TidalPy.constants.
@@ -1544,7 +1544,7 @@ cdef class LayeredWorld(BaseWorld):
             double host_mass,
             radii,
             colatitudes,
-            int num_threads=1):
+            int num_threads=0):
         """Longitude-mean secular 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)`` points.
 
         Batch form of :meth:`get_3d_tidal_heating`: ``radii`` and ``colatitudes`` are paired, equal-length 1D
@@ -1553,9 +1553,9 @@ cdef class LayeredWorld(BaseWorld):
         once per unique ``(degree l, |omega|)`` and reused across all points, so this is the efficient way to
         build a zonal-mean heating map.
 
-        ``num_threads`` (default 1) spreads the per-point evaluation, which follows the radial solves on the
-        calling thread, over that many threads; the result is identical for any thread count. Keep the
-        default inside a process pool.
+        ``num_threads`` spreads the per-point evaluation, which follows the radial solves on the calling thread,
+        over that many threads; the result is identical for any thread count. The default, 0, uses the logical
+        processors less 4 (at least 1). Pass 1 inside a process or thread pool that already occupies the machine.
         """
         cy_check_num_threads(num_threads)
         cdef cnp.ndarray radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
@@ -1602,7 +1602,7 @@ cdef class LayeredWorld(BaseWorld):
             colatitudes,
             longitudes,
             times,
-            int num_threads=1) -> dict:
+            int num_threads=0) -> dict:
         """Instantaneous tidal displacements [m] on the grid ``(radius, colatitude, longitude, time)``.
 
         The active tidal modes are built from the world's ``[tides]`` truncation config, the world radial
@@ -1620,8 +1620,8 @@ cdef class LayeredWorld(BaseWorld):
             Grid axes [m], [rad], [rad], [s]; scalars are accepted.
         num_threads : int, optional
             Threads for the per-point evaluation, which follows the radial solves on the calling thread.
-            Default 1, which leaves parallelism to the caller, such as a process pool. The result is
-            identical for any thread count.
+            Default 0, the logical processors less 4 (at least 1); pass 1 inside a process or thread pool that
+            already occupies the machine. The result is identical for any thread count.
 
         Returns
         -------
@@ -1678,7 +1678,7 @@ cdef class LayeredWorld(BaseWorld):
             times,
             cpp_bool return_stress=True,
             cpp_bool return_strain=True,
-            int num_threads=1) -> dict:
+            int num_threads=0) -> dict:
         """Instantaneous tidal stress [Pa] and strain on the grid ``(radius, colatitude, longitude, time)``.
 
         The active tidal modes come from the world's ``[tides]`` truncation config and are merged into
@@ -1698,8 +1698,8 @@ cdef class LayeredWorld(BaseWorld):
             Which tensors to compute; each takes 48 bytes per grid point and time. Default both.
         num_threads : int, optional
             Threads for the per-point evaluation, which follows the radial solves on the calling thread.
-            Default 1, which leaves parallelism to the caller, such as a process pool. The result is
-            identical for any thread count.
+            Default 0, the logical processors less 4 (at least 1); pass 1 inside a process or thread pool that
+            already occupies the machine. The result is identical for any thread count.
 
         Returns
         -------
@@ -1712,7 +1712,7 @@ cdef class LayeredWorld(BaseWorld):
         Raises
         ------
         ValueError
-            If an axis is empty, neither tensor is requested, or ``num_threads`` is below 1.
+            If an axis is empty, neither tensor is requested, or ``num_threads`` is negative.
         RuntimeError
             If the world has no rheology tide model or no solved EOS, its Love method has no radial functions, or
             a radial solve fails.
@@ -1798,7 +1798,7 @@ cdef class LayeredWorld(BaseWorld):
             latitude_analytic=True,
             double colatitude_min=0.0,
             double colatitude_max=np.pi,
-            int num_threads=1) -> dict:
+            int num_threads=0) -> dict:
         """3D tidal heating as a grid over ``(radius, colatitude, longitude[, time])``, optionally reduced.
 
         With ``orbit_averaged=True`` (default) the quantity is the secular volumetric heating density
@@ -1833,10 +1833,10 @@ cdef class LayeredWorld(BaseWorld):
         ``colatitude_max`` [rad] (defaults 0 and pi), so complementary bands add up to the full-sphere result; a band
         narrower than the full sphere always uses the quadrature. The band has no effect when colatitude is not summed.
 
-        ``num_threads`` (default 1) spreads the per-point evaluation, which follows the radial solves on the
-        calling thread, over colatitude rows; the result is identical for any thread count. The analytic
-        colatitude collapse has no per-point grid and always runs on one thread. Keep the default inside a
-        process pool.
+        ``num_threads`` spreads the per-point evaluation, which follows the radial solves on the calling thread,
+        over colatitude rows; the result is identical for any thread count. The default, 0, uses the logical
+        processors less 4 (at least 1); pass 1 inside a process or thread pool that already occupies the machine.
+        The analytic colatitude collapse has no per-point grid and always runs on one thread.
         """
         cy_check_num_threads(num_threads)
         if not (0.0 <= colatitude_min < colatitude_max <= np.pi + 1.0e-12):

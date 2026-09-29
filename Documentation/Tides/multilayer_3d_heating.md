@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides.multilayer`)
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-28_
 
 This module computes the depth- and direction-resolved tidal response (the complex strain and stress tensors and the volumetric heating) of a layered world. The response is evaluated at a single point on demand, so a map is built only when the caller evaluates a set of points.
 
@@ -271,9 +271,9 @@ Each tensor takes 48 bytes per grid point and time, and either can be skipped wi
 
 #### Threads
 
-Every grid method, `get_3d_tidal_heating_array`, `calc_3d_tides`, `calc_3d_displacements`, and `calc_3d_stress_strain`, takes `num_threads`, default 1. The radial solves run first on the calling thread. The per-point evaluation after them runs over colatitude rows on up to `num_threads` threads, and rows that add into the same cells, as when colatitude is summed, are combined in row order, so the result is identical for any thread count. The analytic colatitude collapse of `calc_3d_tides`, the default when the secular heating is summed over colatitude, has no per-point grid and always runs on one thread.
+Every grid method, `get_3d_tidal_heating_array`, `calc_3d_tides`, `calc_3d_displacements`, and `calc_3d_stress_strain`, takes `num_threads`, default 0, which uses the logical processors less 4 (at least 1). The radial solves run first on the calling thread. The per-point evaluation after them runs over colatitude rows on up to `num_threads` threads, and rows that add into the same cells, as when colatitude is summed, are combined in row order, so the result is identical for any thread count. The analytic colatitude collapse of `calc_3d_tides`, the default when the secular heating is summed over colatitude, has no per-point grid and always runs on one thread.
 
-The default leaves parallelism to the caller: inside a process pool whose workers already occupy every core, keep `num_threads=1`. For one large grid in an interactive session, pass the number of cores. Notebook 13 times three grids both ways.
+The default leaves part of the machine free for other work. Inside a process or thread pool whose workers already occupy the machine, pass `num_threads=1`. Notebook 13 times three grids on one thread and on every core.
 
 ```python
 import os

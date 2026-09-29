@@ -37,6 +37,26 @@
 
 namespace tidalpy {
 
+namespace tides3d {
+// Logical processors an automatic thread count (num_threads = 0) leaves free for the rest of the machine.
+constexpr unsigned int C_RESERVED_LOGICAL_PROCESSORS = 4;
+
+// The thread count a num_threads setting asks for: the setting itself when positive, and for 0 the logical processors
+// less C_RESERVED_LOGICAL_PROCESSORS (at least 1). A negative setting runs on one thread.
+inline size_t c_resolve_num_threads(int num_threads) {
+    if (num_threads > 0) { return static_cast<size_t>(num_threads); }
+    if (num_threads < 0) { return 1; }
+    const unsigned int logical_processors = std::thread::hardware_concurrency();
+    return (logical_processors > C_RESERVED_LOGICAL_PROCESSORS)
+        ? static_cast<size_t>(logical_processors - C_RESERVED_LOGICAL_PROCESSORS)
+        : 1;
+}
+
+// Defined with the 3D orchestration below; calc_tides also spreads its Love-number solves with it.
+template <typename Body>
+inline void c_parallel_tasks_3d(size_t num_tasks, int num_threads, const Body& body);
+}  // namespace tides3d
+
 // The heating [W] each layer takes depends on where the Love numbers come from:
 //   radial_solver, propagation_matrix : the volume integral of the radial solution's orbit-averaged heating density
 //                                       over the layer (calc_layer_tidal_heating_radial), when the tides config's
@@ -81,16 +101,14 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         // each tidal layer's scaled Love numbers per solve, in the fixed layer order of the averages cache. When the
         // per-layer heating integral will follow, each solve gets a workspace of its own and is kept for it: the
         // integral needs the radial solution of exactly these (degree, |omega|) groups.
-        c_LoveWorkspace workspace;
         c_LoveSolveConfig love_cfg = this->make_love_solve_config();
         const bool quasi_homogeneous = c_love_method_is_homogeneous(c_love_method_from_int(love_cfg.love_method));
         const bool retain_radial_solves = !quasi_homogeneous && tcfg.layer_tidal_heating;
-        std::vector<std::unique_ptr<c_LoveWorkspace>> retained_workspaces;
         std::vector<c_RetainedRadialSolve> retained_solves;
         c_HomogeneousLoveCache homogeneous_cache;
         c_IntMap<c_Key2, std::size_t> solve_by_l_freq;
-        std::vector<tidalpy::c_LoveNumbers> world_love_by_solve;
-        std::vector<std::vector<tidalpy::c_LoveNumbers>> layer_love_by_solve;
+        std::vector<int> solve_degree;
+        std::vector<double> solve_frequency;
         std::vector<std::size_t> part_layer_index;
         c_IntMap<c_Key4, std::size_t> solve_by_mode;
         for (const auto& mode_entry : potential.potential_map) {
@@ -98,48 +116,73 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
             const int degree_l     = static_cast<int>(lmpq_key.a);
             // Every mode of the potential map has a nonzero frequency.
             const std::size_t freq_index = mode_entry.second.frequency_index;
-            const double frequency = potential.unique_freq_map[freq_index].frequency;
 
             c_Key2 lf_key(static_cast<int16_t>(degree_l), static_cast<int16_t>(freq_index));
             bool cached = false;
             std::size_t solve_index = solve_by_l_freq.get(cached, lf_key);
             if (!cached) {
-                love_cfg.degree_l  = degree_l;
-                love_cfg.frequency = frequency;
-                c_LoveWorkspace* solve_workspace = &workspace;
-                if (retain_radial_solves) {
-                    retained_workspaces.push_back(std::make_unique<c_LoveWorkspace>());
-                    solve_workspace = retained_workspaces.back().get();
-                }
-                this->solve_love_numbers(love_cfg, &homogeneous_cache, *solve_workspace);
-                if (!solve_workspace->get_success()) {
-                    this->p_tides_solved = false;
-                    throw std::runtime_error(
-                        "TidalPy: Love-number solve failed during calc_tides: " + solve_workspace->get_message());
-                }
-                solve_index = world_love_by_solve.size();
-                world_love_by_solve.push_back(solve_workspace->get_love(0));
-                if (retain_radial_solves) {
-                    retained_solves.push_back(
-                        c_RetainedRadialSolve{degree_l, frequency, solve_workspace->get_storage()});
-                }
-                if (quasi_homogeneous) {
-                    std::vector<tidalpy::c_LoveNumbers> scaled_parts;
-                    scaled_parts.reserve(workspace.analytic_layers.size());
-                    part_layer_index.clear();
-                    for (const c_LayerLove& part : workspace.analytic_layers) {
-                        scaled_parts.emplace_back(
+                solve_index = solve_degree.size();
+                solve_degree.push_back(degree_l);
+                solve_frequency.push_back(potential.unique_freq_map[freq_index].frequency);
+                solve_by_l_freq.set(lf_key, solve_index);
+            }
+            solve_by_mode.set(lmpq_key, solve_index);
+        }
+
+        // Each solve writes only its own workspace and slots, and the world it reads cannot change while the call
+        // lock is held. From [numerical] love_solve_min_parallel solves on, the solves are spread over
+        // love_solve_threads threads (c_resolve_num_threads), each worker taking every num_workers-th solve.
+        // The quasi-homogeneous solves share a lazily built averages cache and take microseconds, so they stay on
+        // the calling thread.
+        const std::size_t num_solves = solve_degree.size();
+        const std::size_t threads_wanted = tides3d::c_resolve_num_threads(tidalpy_config_ptr->d_LOVE_SOLVE_THREADS);
+        const bool parallel = !quasi_homogeneous
+            && (static_cast<long long>(num_solves) >= tidalpy_config_ptr->d_LOVE_SOLVE_MIN_PARALLEL);
+        const std::size_t num_workers = parallel ? std::min(threads_wanted, num_solves) : 1;
+        // Without the heating integral a worker reuses one workspace, so its radial setup is built once.
+        std::vector<std::unique_ptr<c_LoveWorkspace>> workspaces(retain_radial_solves ? num_solves : num_workers);
+        std::vector<tidalpy::c_LoveNumbers> world_love_by_solve(num_solves);
+        std::vector<std::vector<tidalpy::c_LoveNumbers>> layer_love_by_solve(num_solves);
+        try {
+            tides3d::c_parallel_tasks_3d(num_workers, static_cast<int>(num_workers), [&](std::size_t worker) {
+                for (std::size_t solve_i = worker; solve_i < num_solves; solve_i += num_workers) {
+                    std::unique_ptr<c_LoveWorkspace>& workspace_uptr =
+                        workspaces[retain_radial_solves ? solve_i : worker];
+                    if (!workspace_uptr) { workspace_uptr = std::make_unique<c_LoveWorkspace>(); }
+                    c_LoveSolveConfig solve_cfg = love_cfg;
+                    solve_cfg.degree_l  = solve_degree[solve_i];
+                    solve_cfg.frequency = solve_frequency[solve_i];
+                    this->solve_love_numbers(solve_cfg, &homogeneous_cache, *workspace_uptr);
+                    if (!workspace_uptr->get_success()) {
+                        throw std::runtime_error(
+                            "TidalPy: Love-number solve failed during calc_tides: " + workspace_uptr->get_message());
+                    }
+                    world_love_by_solve[solve_i] = workspace_uptr->get_love(0);
+                    for (const c_LayerLove& part : workspace_uptr->analytic_layers) {
+                        layer_love_by_solve[solve_i].emplace_back(
                             part.tidal_scale * part.love.k,
                             part.tidal_scale * part.love.h,
                             part.tidal_scale * part.love.l);
-                        part_layer_index.push_back(part.layer_index);
                     }
-                    layer_love_by_solve.push_back(std::move(scaled_parts));
                 }
-                solve_by_l_freq.set(lf_key, solve_index);
+            });
+        } catch (...) {
+            this->p_tides_solved = false;
+            throw;
+        }
+        if (quasi_homogeneous && !workspaces.empty() && workspaces[0]) {
+            for (const c_LayerLove& part : workspaces[0]->analytic_layers) {
+                part_layer_index.push_back(part.layer_index);
             }
-            tide_love.set(lmpq_key, world_love_by_solve[solve_index]);
-            solve_by_mode.set(lmpq_key, solve_index);
+        }
+        if (retain_radial_solves) {
+            for (std::size_t solve_i = 0; solve_i < num_solves; ++solve_i) {
+                retained_solves.push_back(c_RetainedRadialSolve{
+                    solve_degree[solve_i], solve_frequency[solve_i], workspaces[solve_i]->get_storage()});
+            }
+        }
+        for (const auto& mode_entry : solve_by_mode) {
+            tide_love.set(mode_entry.first, world_love_by_solve[mode_entry.second]);
         }
 
         tide_result = c_collapse_global_tides(potential, *this->p_tide, &tide_love);
@@ -786,13 +829,14 @@ inline double c_secular_density_3d(
     return heating;
 }
 
-// Run body(task) for every task in 0..num_tasks-1 on up to num_threads threads, the calling thread among them. Tasks
-// start in index order but may finish in any order, so a task must write only outputs no other task writes. The first
-// exception a task throws stops further tasks from starting and is rethrown on the calling thread once every thread
-// has finished. If the system refuses a thread, the threads already running finish the work.
+// Run body(task) for every task in 0..num_tasks-1 on up to c_resolve_num_threads(num_threads) threads, the calling
+// thread among them. Tasks start in index order but may finish in any order, so a task must write only outputs no
+// other task writes. The first exception a task throws stops further tasks from starting and is rethrown on the
+// calling thread once every thread has finished. If the system refuses a thread, the threads already running finish
+// the work.
 template <typename Body>
 inline void c_parallel_tasks_3d(size_t num_tasks, int num_threads, const Body& body) {
-    const size_t workers = std::min(num_tasks, static_cast<size_t>(std::max(num_threads, 1)));
+    const size_t workers = std::min(num_tasks, c_resolve_num_threads(num_threads));
     if (workers <= 1) {
         for (size_t task = 0; task < num_tasks; ++task) { body(task); }
         return;

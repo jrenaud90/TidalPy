@@ -87,6 +87,8 @@ eos_invert_max_iters = -1
 tides_3d_latitude_nodes = -1
 tides_3d_longitude_nodes = -1
 tides_3d_radial_slices = -1
+love_solve_threads = 1
+love_solve_min_parallel = -1
 
 test_constant = d_NAN
 
@@ -158,6 +160,7 @@ def update_constants():
     global maximum_eos_mass_ratio
     global eos_invert_rtol, eos_invert_max_iters, minimum_solid_rigidity, minimum_surface_rcond
     global tides_3d_latitude_nodes, tides_3d_longitude_nodes, tides_3d_radial_slices
+    global love_solve_threads, love_solve_min_parallel
 
     numerical = TidalPy.config['numerical']
 
@@ -178,6 +181,8 @@ def update_constants():
     tidalpy_config_ptr.d_TIDES_3D_LATITUDE_NODES = int(numerical['tides_3d_latitude_nodes'])
     tidalpy_config_ptr.d_TIDES_3D_LONGITUDE_NODES = int(numerical['tides_3d_longitude_nodes'])
     tidalpy_config_ptr.d_TIDES_3D_RADIAL_SLICES = int(numerical['tides_3d_radial_slices'])
+    tidalpy_config_ptr.d_LOVE_SOLVE_THREADS = int(numerical['love_solve_threads'])
+    tidalpy_config_ptr.d_LOVE_SOLVE_MIN_PARALLEL = int(numerical['love_solve_min_parallel'])
     tidalpy_config_ptr.d_TEST_CONST = numerical['test_constant']
 
     # Solver defaults shared by the world-attached solves, the tide paths, and the standalone radial_solver.
@@ -227,6 +232,8 @@ def update_constants():
     tides_3d_latitude_nodes = tidalpy_config_ptr.d_TIDES_3D_LATITUDE_NODES
     tides_3d_longitude_nodes = tidalpy_config_ptr.d_TIDES_3D_LONGITUDE_NODES
     tides_3d_radial_slices = tidalpy_config_ptr.d_TIDES_3D_RADIAL_SLICES
+    love_solve_threads = tidalpy_config_ptr.d_LOVE_SOLVE_THREADS
+    love_solve_min_parallel = tidalpy_config_ptr.d_LOVE_SOLVE_MIN_PARALLEL
     test_constant = tidalpy_config_ptr.d_TEST_CONST
 
     G = tidalpy_config_ptr.d_G

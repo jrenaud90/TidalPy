@@ -114,7 +114,7 @@ struct c_Heating3DCollapseConfig {
     int  latitude_nodes   = 16;     // Gauss-Legendre order for the colatitude integral
     int  longitude_nodes  = 64;     // trapezoid nodes for the instantaneous longitude integral
     int  radial_slices    = 16;     // Gauss-Legendre nodes per layer for the radial integral
-    int  num_threads      = 1;      // threads for the per-point evaluation after the radial solves
+    int  num_threads      = 0;      // threads for the per-point evaluation after the radial solves (0: automatic)
     // When latitude_summed for the secular heating, do the colatitude integral with the precomputed
     // analytic angular Gram table (exact, no theta grid) instead of the quadrature above.
     bool latitude_analytic = true;

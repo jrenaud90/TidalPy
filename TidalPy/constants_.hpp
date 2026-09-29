@@ -112,6 +112,8 @@ struct TidalPyConfig
     int d_TIDES_3D_LATITUDE_NODES;  // Updated from TidalPy.config['numerical']['tides_3d_latitude_nodes']
     int d_TIDES_3D_LONGITUDE_NODES; // Updated from TidalPy.config['numerical']['tides_3d_longitude_nodes']
     int d_TIDES_3D_RADIAL_SLICES;   // Updated from TidalPy.config['numerical']['tides_3d_radial_slices']
+    int d_LOVE_SOLVE_THREADS;       // Updated from TidalPy.config['numerical']['love_solve_threads']
+    int d_LOVE_SOLVE_MIN_PARALLEL;  // Updated from TidalPy.config['numerical']['love_solve_min_parallel']
 
     // Whole-planet EOS solve defaults, from TidalPy.config['eos_solver']. Read by every EOS solve that is
     // not handed an explicit value. The method is CyRK's ODEMethod enum as an int (-1 until the config is
@@ -167,6 +169,8 @@ struct TidalPyConfig
         d_TIDES_3D_LATITUDE_NODES = -1;
         d_TIDES_3D_LONGITUDE_NODES = -1;
         d_TIDES_3D_RADIAL_SLICES = -1;
+        d_LOVE_SOLVE_THREADS = 1;
+        d_LOVE_SOLVE_MIN_PARALLEL = -1;
         d_EOS_SOLVER_METHOD = -1;
         d_EOS_SOLVER_RTOL = nan;
         d_EOS_SOLVER_ATOL = nan;

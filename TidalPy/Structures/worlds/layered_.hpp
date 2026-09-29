@@ -2092,7 +2092,7 @@ public:
             const double* colatitudes,
             size_t num_points,
             double* out_heating,
-            int num_threads = 1);
+            int num_threads = 0);
 
     // Instantaneous tidal displacements [m] on the (radius, colatitude, longitude, time) grid; see
     // c_RheologyTide::calc_3d_displacements_grid. Same preconditions as get_3d_tidal_heating.
@@ -2100,7 +2100,7 @@ public:
             const c_TideSolveConfig& state,
             const c_Grid3DAxes& axes,
             double* out_disp,
-            int num_threads = 1);
+            int num_threads = 0);
 
     // Instantaneous stress [Pa] and strain on the same grid; see c_RheologyTide::calc_3d_stress_strain_grid.
     void get_3d_stress_strain_grid(
@@ -2108,7 +2108,7 @@ public:
             const c_Grid3DAxes& axes,
             double* out_stress,
             double* out_strain,
-            int num_threads = 1);
+            int num_threads = 0);
 
     // Collapsed secular 3D tidal heating: the radial profile, colatitude profile, per-layer totals, or
     // whole-planet total, per the flags in c_Heating3DCollapseConfig.

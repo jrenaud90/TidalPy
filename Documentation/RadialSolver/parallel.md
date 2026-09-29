@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-28_
 
-Both entry points to the radial solver, the standalone `radial_solver` and `LayeredWorld.solve_love_numbers`, release Python's interpreter lock while the solve runs, so a thread pool can run several solves at once. A process pool works as well, with the setup described below.
+Both entry points to the radial solver, the standalone `radial_solver` and `LayeredWorld.solve_love_numbers`, release Python's interpreter lock while the solve runs, so a thread pool can run several solves at once. A process pool works as well, with the setup described below. `calc_tides` and the 3D grid methods also use threads of their own, described at the end.
 
 The speedups quoted below were measured on a 16-thread desktop with 64 forcing frequencies and 16 threads. They depend on the problem size and the machine, so time your own workload.
 
@@ -108,16 +108,22 @@ for thread_index, chunk in enumerate(chunks):
     k2[thread_index::num_threads] = chunk                 # Back into the order of `frequencies`
 ```
 
-This ran 4.8 times faster than a serial loop on one world, with identical results. To copy a world that was built or edited in code rather than loaded by name, rebuild it from its configuration with `build_world(world.get_config_dict())`. The copy starts unsolved, so you need to call `solve_eos` on it again.
+This ran 6.6 times faster than a serial loop on one world, with identical results. To copy a world that was built or edited in code rather than loaded by name, rebuild it from its configuration with `build_world(world.get_config_dict())`. The copy starts unsolved, so you need to call `solve_eos` on it again.
 
 ### Sharing One World
 
-When only one world can be used, for example because it is expensive to build, hold a `threading.Lock` around each solve and every read of its result. The solves then run one at a time, so this removes the race but gives no speedup:
+A `threading.Lock` held around each solve and every read of its result also removes the race, with one world shared by every thread.
 
 ```python
+import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+
+import numpy as np
 
 from TidalPy.Structures import build_world
+
+frequencies = np.logspace(-6, -3, 64)   # [rad s-1]
 
 io = build_world("io")
 io.solve_eos()
@@ -132,7 +138,13 @@ def solve_k2_shared(frequency):
             io.radius,
             y_idx=0)   # Other reads of this solve go inside the lock too
     return result["love_number_k"], surface_y1
+
+
+with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
+    results = list(pool.map(solve_k2_shared, frequencies))   # In the order of `frequencies`
 ```
+
+The lock lets only one solve run at a time, so the threads wait on each other instead of working in parallel. These 64 solves took 25.9 ms on 16 threads against 22.5 ms for a serial loop, 15 percent slower. One world per thread took 3.4 ms. Building and solving another bundled Io took about 0.8 ms, so extra worlds are usually the better choice. The lock suits a world too expensive to copy, or code where other threads must read one world's results.
 
 ## Process Pools
 
@@ -164,7 +176,9 @@ def solve_chunk(world_source, frequency_chunk):
 
 
 if __name__ == "__main__":
-    config_overrides = {"radial_solver": {"rtol": 1.0e-8}}
+    config_overrides = {
+        "radial_solver": {"rtol": 1.0e-8},
+        "numerical": {"love_solve_threads": 1}}           # The pool's workers already occupy the machine
     TidalPy.reinit(provided_config=config_overrides)      # Applies to this process only
     world_source = build_world("io").get_config_dict()    # A bundled name or a TOML path also works
 
@@ -180,8 +194,24 @@ if __name__ == "__main__":
 
 Starting a worker, importing TidalPy, and building its world take a few hundred milliseconds, which is more than the 64 solves above take on one thread. Processes can work for long jobs, such as a parameter sweep of thousands of solves or of full thermal-orbital evolutions. Threads are better for short ones.
 
-> [!NOTE]
-> The 3D grid methods (`calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`) have their own `num_threads` argument. Inside a thread or process pool that already occupies every core, keep it at the default of 1 (see [3D Tidal Stress, Strain, and Heating](../Tides/multilayer_3d_heating.md)).
+## Threads Inside `calc_tides`
+
+`calc_tides` runs one Love solve per unique (degree, frequency) pair of the tidal modes. With the radial-solver Love methods, once there are at least `love_solve_min_parallel` solves (default 3), it spreads them over `love_solve_threads` threads, both in the `[numerical]` section of the configuration (see [TidalPy Configurations](../Overview/2_TidalPy_Configurations.md)). The default, 0, uses `max(num_logical_processors - 4, 1). `love_solve_threads = 1` keeps every solve on a single thread. The results are identical for any thread count. The quasi-homogeneous Love methods take microseconds per solve and always runs on one thread.
+
+The table times `calc_tides` on the bundled Io at an eccentricity of 0.05 and an obliquity of 0.1 [rad], with 1 and 16 Love-solve threads. The per-layer heating (`layer_tidal_heating`, on by default) integrates the radial solutions after the solves on the calling thread, so it gains less:
+
+| Tide settings | Love solves | 1 thread | Change, 16 threads | Change without the per-layer heating |
+|---|---|---|---|---|
+| Degree 2, e^10, synchronous | 5 | 2.1 ms | 1.9x faster | 2.1x faster |
+| Degree 2, e^10, obliquity level 2, spin 1.2 n | 28 | 12.7 ms | 2.9x faster | 5.4x faster |
+| Degrees 2 to 3, e^10, obliquity level 2, spin 1.2 n | 58 | 28.4 ms | 2.8x faster | 6.9x faster |
+| Degrees 2 to 4, e^20, obliquity level 4, spin 1.2 n | 181 | 99.9 ms | 3.3x faster | 8.3x faster |
+
+The default value of `love_solve_min_parallel = 3` was born out of testing where two solves roughly broke even on a one-layer body (0.17 ms per solve). But 3+ had every case faster, which sets the default of `love_solve_min_parallel`.
+
+The 3D grid methods (`calc_3d_tides`, `calc_3d_stress_strain`, `calc_3d_displacements`, and `get_3d_tidal_heating_array`) spread their per-point work the same way through their `num_threads` argument, whose default of 0 means the same count (see [3D Tidal Stress, Strain, and Heating](../Tides/multilayer_3d_heating.md)).
+
+Inside a thread or process pool that already occupies the machine, these threads compete with the pool's workers. Set `love_solve_threads` to 1 in each worker (through the pool's `initializer`, as in the example above) and pass `num_threads=1` to the 3D methods. In a test with 16 worker processes each running `calc_tides`, leaving the automatic threads on cost about 3 percent.
 
 ## Configuration and Logging
 

@@ -13,7 +13,7 @@ _RADIUS          = 1.8216e6
 _MASS            = 8.9319e22
 _HOST_MASS       = 1.898e27
 _SEMI_MAJOR_AXIS = 4.217e8
-_THREAD_COUNTS   = [3, 64]
+_THREAD_COUNTS   = [0, 3, 64]    # 0: the automatic count
 
 # The center has no depth-resolved solution, so cells at radius 0 are NaN (or skipped when an axis is summed).
 _RADII       = np.array([0.0, 0.2, 0.45, 0.7, 0.95]) * _RADIUS
@@ -75,7 +75,7 @@ def _orbit():
 
 @functools.lru_cache(maxsize=None)
 def _one_thread_collapse(case):
-    return _world().calc_3d_tides(*_orbit(), **_COLLAPSE_CASES[case])
+    return _world().calc_3d_tides(*_orbit(), num_threads=1, **_COLLAPSE_CASES[case])
 
 
 def _assert_same_outputs(threaded, serial):
@@ -106,7 +106,7 @@ def test_secular_grid_keeps_nan_at_the_center():
 @pytest.mark.parametrize("method", ["calc_3d_stress_strain", "calc_3d_displacements"])
 def test_time_grid_is_identical_for_any_thread_count(method, num_threads):
     arguments = dict(radii=_RADII, colatitudes=_COLATITUDES, longitudes=_LONGITUDES, times=_TIMES)
-    serial = getattr(_world(), method)(*_orbit(), **arguments)
+    serial = getattr(_world(), method)(*_orbit(), num_threads=1, **arguments)
     threaded = getattr(_world(), method)(*_orbit(), num_threads=num_threads, **arguments)
     _assert_same_outputs(threaded, serial)
 
@@ -117,7 +117,7 @@ def test_batch_heating_is_identical_for_any_thread_count(num_threads):
     radius_grid, colatitude_grid = np.meshgrid(_RADII, _COLATITUDES, indexing="ij")
     radii = np.append(radius_grid.ravel(), 0.5 * _RADIUS)
     colatitudes = np.append(colatitude_grid.ravel(), np.nan)
-    serial = _world().get_3d_tidal_heating_array(*_orbit(), radii, colatitudes)
+    serial = _world().get_3d_tidal_heating_array(*_orbit(), radii, colatitudes, num_threads=1)
     threaded = _world().get_3d_tidal_heating_array(*_orbit(), radii, colatitudes, num_threads=num_threads)
     np.testing.assert_array_equal(threaded, serial)
     assert np.isnan(serial[-1])
@@ -135,8 +135,8 @@ _METHOD_CALLS = {
 }
 
 
-@pytest.mark.parametrize("num_threads", [0, -2])
+@pytest.mark.parametrize("num_threads", [-1, -2])
 @pytest.mark.parametrize("method", list(_METHOD_CALLS))
-def test_thread_count_below_one_raises(method, num_threads):
+def test_negative_thread_count_raises(method, num_threads):
     with pytest.raises(ValueError, match="num_threads"):
         _METHOD_CALLS[method](_world(), num_threads)
