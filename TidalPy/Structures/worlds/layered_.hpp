@@ -1525,30 +1525,24 @@ public:
     static constexpr double dynamic_liquid_warn_error = 1.0e-2;
 
     // Largest estimated relative error that this world's dynamic liquid layers bring to a radial Love solve at
-    // (degree_l, frequency, rtol), with the layer it comes from (npos when there is none) and its two factors. A
-    // dynamic liquid loses accuracy in two ways as the frequency drops. One: the equations carry no density
-    // gradient term, so a liquid whose density does not follow its bulk modulus (d rho / dr = -rho^2 g / K; a
-    // constant-density liquid is the common case) is stratified, N^2 = -g (rho g / K + (d rho / dr) / rho), and where
-    // N^2 < 0 its solutions grow as exp(E), E = sqrt(l (l + 1)) / omega * integral of sqrt(-N^2) / r dr, amplifying
-    // the integration error. Two: the compressible equations recover y3 through 1 / omega^2 from a nearly hydrostatic
-    // difference, amplifying the error by about (g / r) / omega^2. The incompressible equations have no K term in N^2
-    // and in practice show no such cancellation loss, so both are left out for them. The estimate is
-    // rtol (exp(E) + cancellation); against static-liquid solves of the bundled worlds and of neutral and
-    // constant-density test bodies it sat at or above the measured error.
+    // (degree_l, frequency, rtol), with the layer it comes from (npos when there is none) and its growth exponent.
+    // The dynamic liquid equations carry no density-gradient term, so a liquid whose density does not follow its
+    // bulk modulus (d rho / dr = -rho^2 g / K; a constant-density liquid is the common case) is stratified,
+    // N^2 = -g (rho g / K + (d rho / dr) / rho), and where N^2 < 0 its solutions grow as exp(E), with
+    // E = sqrt(l (l + 1)) / omega * integral of sqrt(-N^2) / r dr, amplifying the integration error: the estimate is
+    // rtol exp(E). An incompressible liquid has no K term in N^2. Against static-liquid solves of the bundled worlds
+    // and of neutral and constant-density test bodies it flagged every breakdown measured and no neutral liquid.
     double estimate_dynamic_liquid_error(
             int degree_l,
             double frequency,
             double rtol,
             std::size_t& worst_layer,
-            double& worst_growth,
-            double& worst_cancellation) const {
-        worst_layer        = static_cast<std::size_t>(-1);
-        worst_growth       = 0.0;
-        worst_cancellation = 0.0;
+            double& worst_growth) const {
+        worst_layer  = static_cast<std::size_t>(-1);
+        worst_growth = 0.0;
         if (!this->p_eos_solved || !this->p_eos_solution || !(frequency > 0.0) || (degree_l < 1)) { return 0.0; }
         const double degree_l_dbl = static_cast<double>(degree_l);
         const double sqrt_llp1    = std::sqrt(degree_l_dbl * (degree_l_dbl + 1.0));
-        const double frequency2   = frequency * frequency;
         constexpr std::size_t num_samples = 256;
         std::vector<double> radius(num_samples), density(num_samples), gravity(num_samples), bulk(num_samples);
         double state[C_EOS_DY_VALUES];
@@ -1557,7 +1551,7 @@ public:
             const auto* phys = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
             if ((phys == nullptr) || phys->get_is_solid() || phys->get_is_static()) { continue; }
             const bool incompressible = phys->get_is_incompressible();
-            // Short of the centre, where g / r and 1 / r are 0 / 0.
+            // Short of the centre, where 1 / r is singular.
             const double radius_outer = phys->get_radius_outer();
             const double radius_lower = std::max(phys->get_radius_inner(), 1.0e-3 * radius_outer);
             if (!(radius_outer > radius_lower)) { continue; }
@@ -1569,9 +1563,8 @@ public:
                 gravity[i] = state[C_EOS_GRAVITY_INDEX];
                 bulk[i]    = state[C_EOS_BULK_MODULUS_INDEX];
             }
-            double integral     = 0.0;
-            double previous     = 0.0;
-            double cancellation = 0.0;
+            double integral = 0.0;
+            double previous = 0.0;
             for (std::size_t i = 0; i < num_samples; ++i) {
                 const std::size_t below = (i == 0) ? 0 : i - 1;
                 const std::size_t above = (i + 1 == num_samples) ? i : i + 1;
@@ -1582,9 +1575,6 @@ public:
                     if (!incompressible && (bulk[i] > 0.0)) {
                         minus_n2 += density[i] * gravity[i] * gravity[i] / bulk[i];
                     }
-                    if (!incompressible) {
-                        cancellation = std::max(cancellation, gravity[i] / (radius[i] * frequency2));
-                    }
                 }
                 const double integrand = (std::isfinite(minus_n2) && (minus_n2 > 0.0))
                     ? std::sqrt(minus_n2) / radius[i] : 0.0;
@@ -1592,12 +1582,11 @@ public:
                 previous = integrand;
             }
             const double growth = sqrt_llp1 * integral / frequency;
-            const double error  = rtol * (std::exp(std::min(growth, 700.0)) + cancellation);
+            const double error  = rtol * std::exp(std::min(growth, 700.0));
             if (error > worst_error) {
-                worst_error        = error;
-                worst_layer        = layer_i;
-                worst_growth       = growth;
-                worst_cancellation = cancellation;
+                worst_error  = error;
+                worst_layer  = layer_i;
+                worst_growth = growth;
             }
         }
         return worst_error;
@@ -1610,20 +1599,17 @@ public:
         if (this->p_dynamic_liquid_warned) { return; }
         std::size_t layer_i = 0;
         double growth       = 0.0;
-        double cancellation = 0.0;
-        const double error = this->estimate_dynamic_liquid_error(
-            degree_l, frequency, rtol, layer_i, growth, cancellation);
+        const double error = this->estimate_dynamic_liquid_error(degree_l, frequency, rtol, layer_i, growth);
         if (!(error > dynamic_liquid_warn_error) || (layer_i >= this->p_layers.size())) { return; }
         this->p_dynamic_liquid_warned = true;
         TIDALPY_LOG_WARN(
             "TidalPy: world '{}' solves its liquid layer '{}' with the dynamic equations at a forcing period of "
-            "{:.3g} days (degree {}), where they lose accuracy: the estimated relative error is {:.1e} at rtol "
-            "{:.0e} (growth exponent {:.1f}, cancellation factor {:.1e}). A dynamic liquid whose density does not "
-            "follow its bulk modulus, such as a constant-density one, grows unstable at long periods: make the layer "
-            "incompressible, give it a pressure-dependent EOS, treat it as static, or tighten rtol. Shown once per "
-            "world.",
+            "{:.3g} days (degree {}), where its solutions grow by about exp({:.1f}): the estimated relative error is "
+            "{:.1e} at rtol {:.0e}. A dynamic liquid whose density does not follow its bulk modulus, such as a "
+            "constant-density one, grows unstable at long periods: make the layer incompressible, give it a "
+            "pressure-dependent EOS, or treat it as static. Shown once per world.",
             this->get_name(), this->p_layers[layer_i]->get_name(),
-            2.0 * TidalPyConstants::d_PI / frequency / 86400.0, degree_l, error, rtol, growth, cancellation);
+            2.0 * TidalPyConstants::d_PI / frequency / 86400.0, degree_l, growth, error, rtol);
     }
 
     // Composite Simpson intervals per tidal layer for the quasi-homogeneous averages; even, so 129 nodes.
