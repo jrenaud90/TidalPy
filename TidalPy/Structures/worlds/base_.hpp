@@ -225,6 +225,11 @@ public:
         this->read_tide_section(in, force);
     }
 
+    // What load_binary reads a file into first, so a bad file never reaches this world
+    // (c_TidalPyBaseClass::make_binary_scratch). Each world class overrides it with its own.
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_BaseWorld>();
+    }
 protected:
     // Shared world binary helpers (reused by subclasses with their own class id).
     // Number of payload bytes the c_BaseWorld scalar/string fields occupy.

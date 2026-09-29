@@ -1,6 +1,6 @@
 # Base Classes (`Utilities.classes`)
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-29_
 
 Three C++ base classes underlie every object TidalPy builds. They give a rheology model, a cooling model, a layer, and a world the same methods for saving and restoring themselves, so a new physics model needs no serialization code of its own.
 
@@ -130,7 +130,7 @@ restored.load_binary("body.tpyb");
 | `check_schema_compatibility(major, minor) const` | Version check; logs a warning on mismatch. |
 | `write_binary(ostream&) const` | Pure virtual; every subclass implements it. |
 | `read_binary(istream&, force = false)` | Virtual; the base reads and validates the header. |
-| `save_binary(path) const` and `load_binary(path, force = false)` | Delegate to the two above. A save writes a temporary file beside the target and renames it over the target, so a failed save leaves the old file intact; a load raises if bytes remain after the root record (see [Binary Format](binary.md)). |
+| `save_binary(path) const` and `load_binary(path, force = false)` | Delegate to the two above. A save writes a temporary file beside the target and renames it over the target, so a failed save leaves the old file intact; a load raises if bytes remain after the root record, and a load that raises and error leaves the object's saved state as it was (see [Binary Format](binary.md)). |
 
 ### `config_entry_.hpp`
 

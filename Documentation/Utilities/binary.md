@@ -1,6 +1,6 @@
 # Binary Serialization (`Utilities.binary`)
 
-_Updated: 2026-09-24_
+_Updated: 2026-09-29_
 
 TidalPy writes worlds, layers, systems, and physics models to a compact binary format. A TOML configuration is the readable, editable way to describe a world; the binary format saves and restores an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
 
@@ -45,7 +45,7 @@ A minor version bump can change a class's member layout, and reading an old payl
 - A count read from the file (a string length, a table length, a number of layers or worlds) is larger than what is left in the file.
 - Bytes are left over after the root record. The file was written with a layout this build does not read, or it is corrupt.
 
-The first five checks run before anything is read into the object. The count checks run while the record is read, and the left-over check can only run after the whole record is read, so an object that raises either one may hold a partial or unreliable load. Reload it from a good file or rebuild it.
+A load that raises an error leaves every setting the object had before the call. The whole file is read into memory first, and then the initial checks are performed before anything is read into the object. For the other checks, which can only run while or after the record is read, `load_binary` keeps a copy of the object's own record in memory and reads it back into the object when a failed load is caught. A class that provides a scratch object (`make_binary_scratch` in C++) is protected more fully. The record is read into the scratch first and reaches the object only once the whole file has passed every check, so state the object does not save, such as a solved structure, survives a failed load too.
 
 ## Saving
 

@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -88,19 +89,16 @@ public:
         }
     }
 
-    // Loads into this object. The file must hold a record of this object's own class: a record of another class
-    // would be read field by field into the wrong layout (a Sundberg model into a Maxwell one keeps computing
-    // Maxwell; a physics layer's file into a base layer drops its models), so it is refused before anything is
-    // read. force relaxes only the schema-version check. The record must end exactly at the end of the file: bytes
-    // left over mean the reader and the writer disagree about the layout, or the file is corrupt, so the load raises.
-    // That check can only run after the record is read, so an object that raises it holds an unreliable load.
+    // A load that raises and error leaves the object as it was. The file must hold a
+    // record of this object's own class: a record of another class would be read field by field into the wrong layout
+    // (a Sundberg model into a Maxwell one keeps computing Maxwell; a physics layer's file into a base layer drops its
+    // models), so it is refused before anything is read. force relaxes only the schema-version check. The record must
+    // end exactly at the end of the file: bytes left over mean the reader and the writer disagree about the layout, or
+    // the file is corrupt, so the load raises.
     void load_binary(const std::string& path, bool force = false) {
-        std::ifstream in(c_utf8_path(path), std::ios::binary);
-        if (!in.is_open()) {
-            throw std::runtime_error(
-                "TidalPy: cannot open binary file: " + path);
-        }
-        const c_BinaryHeader file_header = c_peek_binary_header(in);
+        const std::string record_bytes = c_read_binary_file(path);
+        std::istringstream header_stream(record_bytes, std::ios::in | std::ios::binary);
+        const c_BinaryHeader file_header = c_peek_binary_header(header_stream);
         const uint32_t own_class_id = this->get_binary_class_id();
         if (file_header.class_id != own_class_id) {
             throw std::runtime_error(
@@ -108,18 +106,45 @@ public:
                 + std::to_string(file_header.class_id) + ", not this object's class id "
                 + std::to_string(own_class_id) + "; load it into an object of the class that saved it");
         }
-        this->read_binary(in, force);
-        if (in.fail()) {
-            throw std::runtime_error(
-                "TidalPy: corrupt or truncated binary data: reading " + path + " ran past the end of the file");
+
+        // A scratch of a parent class, from a subclass that does not override make_binary_scratch, cannot read this
+        // record, so it takes the snapshot path instead.
+        const std::unique_ptr<c_TidalPyBaseClass> scratch = this->make_binary_scratch();
+        if (scratch && (scratch->get_binary_class_id() == own_class_id)) {
+            this->p_read_whole_record(*scratch, record_bytes, path, force);
+            this->p_read_whole_record(*this, record_bytes, path, force);
+            return;
         }
-        if (in.peek() != std::char_traits<char>::eof()) {
-            const uint64_t num_trailing = binary_bytes_remaining(in);
-            throw std::runtime_error(
-                "TidalPy: corrupt binary data: " + path + " holds " + std::to_string(num_trailing)
-                + " bytes after the end of its record, so it was written with a layout this TidalPy build does not "
-                "read, or it is corrupt. The object now holds an unreliable load; reload it from a good file");
+
+        const std::string snapshot_bytes = this->p_write_binary_bytes();
+        try {
+            this->p_read_whole_record(*this, record_bytes, path, force);
         }
+        catch (const std::exception& load_error) {
+            try {
+                // Most read_binary implementations read into locals and throw before committing; restoring those
+                // would only replace this object's sub-objects with equal copies.
+                if (this->p_write_binary_bytes() != snapshot_bytes) {
+                    std::istringstream snapshot_stream(snapshot_bytes, std::ios::in | std::ios::binary);
+                    this->read_binary(snapshot_stream, true);
+                }
+            }
+            catch (const std::exception& restore_error) {
+                throw std::runtime_error(
+                    std::string(load_error.what()) + ". Restoring the object's previous state then failed ("
+                    + restore_error.what() + "), so it holds an unreliable load; reload it from a good file");
+            }
+            throw;
+        }
+    }
+
+    // A new object of this object's own concrete class in its default state, which load_binary reads a file into
+    // before this object so a corrupt file never reaches it. A concrete class overrides it with
+    // `return std::make_unique<c_ThisClass>();`. The default returns null, and load_binary then snapshots this object
+    // and restores it after a failed load. A subclass that inherits its parent's override gets a scratch of the wrong
+    // class id, which load_binary detects and treats like null.
+    virtual std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const {
+        return nullptr;
     }
 
     // The class id this object writes in its binary header. A class that writes one fixed id overrides this to return
@@ -135,6 +160,32 @@ public:
     }
 
 protected:
+    // This object's own record, written to memory.
+    std::string p_write_binary_bytes() const {
+        std::ostringstream record_stream(std::ios::out | std::ios::binary);
+        this->write_binary(record_stream);
+        return record_stream.str();
+    }
+
+    // Reads the record held in record_bytes into target, then raises unless the read stayed within the bytes and
+    // ended exactly at their end. path names the file in the error messages.
+    static void p_read_whole_record(
+            c_TidalPyBaseClass& target, const std::string& record_bytes, const std::string& path, bool force) {
+        std::istringstream in(record_bytes, std::ios::in | std::ios::binary);
+        target.read_binary(in, force);
+        if (in.fail()) {
+            throw std::runtime_error(
+                "TidalPy: corrupt or truncated binary data: reading " + path + " ran past the end of the file");
+        }
+        if (in.peek() != std::char_traits<char>::eof()) {
+            const uint64_t num_trailing = binary_bytes_remaining(in);
+            throw std::runtime_error(
+                "TidalPy: corrupt binary data: " + path + " holds " + std::to_string(num_trailing)
+                + " bytes after the end of its record, so it was written with a layout this TidalPy build does not "
+                "read, or it is corrupt");
+        }
+    }
+
     const uint8_t p_schema_version_major = TIDALPY_SCHEMA_MAJOR;
     const uint8_t p_schema_version_minor = TIDALPY_SCHEMA_MINOR;
     const uint8_t p_schema_version_patch = TIDALPY_SCHEMA_PATCH;

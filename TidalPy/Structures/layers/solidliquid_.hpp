@@ -176,6 +176,11 @@ public:
         this->update_physicals();
     }
 
+    // What load_binary reads a file into first (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_SolidLiquidLayer>();
+    }
+
 protected:
     // Recursive (de)serialization of the optional cooling and radiogenics models, mirroring
     // c_PhysicsLayer::write_physics_models_binary: a presence flag each, followed when set by the model's own

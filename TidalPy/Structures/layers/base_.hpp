@@ -323,6 +323,12 @@ public:
         this->update_physicals();
     }
 
+    // What load_binary reads a file into first, so a bad file never reaches this layer
+    // (c_TidalPyBaseClass::make_binary_scratch). Each layer class overrides it with its own.
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_BaseLayer>();
+    }
+
 protected:
     // The c_BaseLayer fields, which open the payload of every layer record in the order the header comment lists
     // them. A subclass record appends its own fields, then its presence flags, then the nested model records.

@@ -10,6 +10,7 @@
  */
 
 #include <cstdint>
+#include <memory>
 #include <ostream>
 
 #include "layered_.hpp"
@@ -33,6 +34,12 @@ public:
     }
     // read_binary is inherited from c_LayeredWorld (it consumes the header and the
     // same field layout regardless of the concrete class id).
+
+    // What load_binary reads a file into first, so a bad file never reaches this world
+    // (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_GasGiantWorld>();
+    }
 };
 
 } // namespace tidalpy

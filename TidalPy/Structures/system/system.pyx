@@ -584,8 +584,9 @@ cdef class System:
         IOError
             If the file is invalid or the schema version is incompatible, or if its roles or orbits are
             corrupt (a tidal host index that names no other world, an out-of-range star index, a duplicate
-            world name, or an orbit that is not bound). Those checks leave the system unchanged; data found after
-            the system's record, which is only detected once the worlds are read, raises with them loaded.
+            world name, or an orbit that is not bound), or it holds data after the system's record. A failed load
+            leaves the system, its worlds, and their wrappers as they were: the file is read into a new system
+            first and reaches this one only once that read succeeded.
         """
         import os as _os
         if not _os.path.isfile(path):
@@ -594,9 +595,8 @@ cdef class System:
             self._system.get().load_binary(path.encode("utf-8"), force)
         except RuntimeError as exc:
             raise IOError(str(exc)) from exc
-        finally:
-            # The wrappers follow whatever worlds the C++ system holds, including after a load that failed late.
-            self._rebuild_world_wrappers()
+        # Only a successful load replaces the worlds, so only then do the wrappers follow the new ones.
+        self._rebuild_world_wrappers()
         self.source_config = None
 
     # World identification: accept an index (int), a world name (str), or the world wrapper object.

@@ -229,7 +229,7 @@ loaded["earth"]        # comes back as a LayeredWorld (with its layers), the Sun
 
 `System` inherits the binary machinery (`save_binary`, `load_binary`, `get_schema_version_str`, `save_config`) from the shared `TidalPyBaseClass`. The binary carries the container state (name, the star role, and each world's tidal host and orbital elements about both that host and the star) and each world's complete record, with its tide model and tide configuration, spin model, pinned solver settings, and, for a star, its effective temperature and luminosity model (see [Binary Serialization](../worlds/worlds.md#binary-serialization)). A loaded system therefore evolves as the saved one did once each layered world has re-run `solve_eos`: solved state, the EOS profiles included, is not saved.
 
-`load_binary` raises `IOError` for a file whose system record is corrupt: a tidal host index that names no other world, an out-of-range star index, two worlds with one name, or an orbit that is not bound (a semi-major axis that is not positive or an eccentricity outside $[0, 1)$). The system is left unchanged.
+`load_binary` raises `IOError` for a file whose system record is corrupt: a tidal host index that names no other world, an out-of-range star index, two worlds with one name, or an orbit that is not bound (a semi-major axis that is not positive or an eccentricity outside $[0, 1)$). Any failed load, trailing data after the record included, leaves the system, its worlds, and their wrappers unchanged: the file is read into a new system first.
 
 ## C++ API
 

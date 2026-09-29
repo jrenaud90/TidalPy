@@ -8,6 +8,7 @@
  */
 
 #include <cmath>
+#include <memory>
 #include <stdexcept>
 
 #include "constants_.hpp"
@@ -73,6 +74,11 @@ public:
             throw std::runtime_error(
                 "TidalPy: failed to write StructureBase binary data");
         }
+    }
+
+    // A subclass inherits this scratch unless it overrides it; load_binary detects its class id and falls back.
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_StructureBase>();
     }
 
     void read_binary(std::istream& in, bool force = false) override {

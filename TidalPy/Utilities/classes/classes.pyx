@@ -66,6 +66,8 @@ cdef class TidalPyBaseClass:
     def load_binary(self, str path, cpp_bool force=False):
         """Load this object's state from a TidalPy binary file.
 
+        A load that raises leaves every setting the object saves as it was before the call.
+
         Parameters
         ----------
         path : str
@@ -79,9 +81,8 @@ cdef class TidalPyBaseClass:
             ``path`` does not exist.
         IOError
             The file holds a record of another class, has an incompatible schema version, was written in another byte
-            order, or is corrupt: a record size disagrees with what this build reads, or bytes are left over after the
-            record. Bytes left over are only found once the record is read, so the object then holds an unreliable
-            load and should be reloaded from a good file.
+            order, or is corrupt: it ends inside a record, a record size disagrees with what this build reads, or
+            bytes are left over after the record.
         """
         self._check_ptr()
         if not _os.path.isfile(path):

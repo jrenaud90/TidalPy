@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstdint>
 #include <istream>
+#include <memory>
 #include <ostream>
 #include <stdexcept>
 #include <string>
@@ -118,6 +119,11 @@ public:
         this->read_eos_model_binary(in, force);
         this->read_physics_models_binary(in, force);
         this->update_physicals();
+    }
+
+    // What load_binary reads a file into first (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_GasLayer>();
     }
 
 protected:

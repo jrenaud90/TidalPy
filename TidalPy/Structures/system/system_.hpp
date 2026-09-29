@@ -880,6 +880,12 @@ public:
         this->p_no_tide_model_warned.assign(this->p_worlds.size(), 0);
     }
 
+    // What load_binary reads a file into first, so a bad file never reaches this system or its worlds
+    // (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_System>();
+    }
+
 protected:
     // Bounds check shared by the index-based accessors.
     void check_index(std::size_t index) const {

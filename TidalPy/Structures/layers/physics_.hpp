@@ -272,6 +272,11 @@ public:
         this->update_physicals();
     }
 
+    // What load_binary reads a file into first (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_PhysicsLayer>();
+    }
+
 protected:
     // The shear (is_shear) or bulk rheology applied to the solved static modulus and viscosity at a radius [m];
     // the caller holds the owner's lock.

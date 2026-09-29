@@ -202,6 +202,28 @@ inline std::filesystem::path c_utf8_path(const std::string& path) {
     return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(path.data()), path.size()));
 }
 
+// The whole file at path, which a load reads before any of it reaches the object it loads into.
+inline std::string c_read_binary_file(const std::string& path) {
+    std::ifstream in(c_utf8_path(path), std::ios::binary);
+    if (!in.is_open()) {
+        throw std::runtime_error("TidalPy: cannot open binary file: " + path);
+    }
+    in.seekg(0, std::ios::end);
+    const std::streampos end = in.tellg();
+    in.seekg(0, std::ios::beg);
+    if (!in || (end == std::streampos(-1))) {
+        throw std::runtime_error("TidalPy: cannot read binary file: " + path);
+    }
+    std::string contents(static_cast<std::size_t>(end), '\0');
+    if (!contents.empty()) {
+        in.read(contents.data(), static_cast<std::streamsize>(contents.size()));
+    }
+    if (!in) {
+        throw std::runtime_error("TidalPy: cannot read binary file: " + path);
+    }
+    return contents;
+}
+
 inline c_BinaryHeader read_binary_header_from_file(const std::string& path) {
     std::ifstream in(c_utf8_path(path), std::ios::binary);
     if (!in.is_open()) {

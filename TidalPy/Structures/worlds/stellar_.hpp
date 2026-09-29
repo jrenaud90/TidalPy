@@ -147,6 +147,12 @@ public:
             read_optional_binary<c_LuminosityBase>(in, force, c_luminosity_from_binary);
     }
 
+    // What load_binary reads a file into first, so a bad file never reaches this star
+    // (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_StarWorld>();
+    }
+
 protected:
     double p_effective_temperature = 5772.0;   // [K]
     double p_luminosity            = 0.0;       // [W]

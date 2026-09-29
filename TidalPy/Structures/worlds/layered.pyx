@@ -494,8 +494,10 @@ cdef class LayeredWorld(BaseWorld):
         """Load this world's state, its layers included, from a TidalPy binary file.
 
         The load replaces the world's layers, so layer views taken from this world before it (``world.<name>``,
-        ``get_layer``, iteration) no longer refer to a layer of this world and must not be used; take new ones.
-        Nothing solved survives the load: run ``solve_eos`` again.
+        ``get_layer``, iteration) no longer refer to a layer of this world and raise if used; take new ones.
+        Nothing solved survives the load: run ``solve_eos`` again. A load that fails leaves the world as it was, its
+        layers, views, and solved state included: the file is read into a new world first and reaches this one only
+        once that read succeeded.
 
         Parameters
         ----------
@@ -504,10 +506,11 @@ cdef class LayeredWorld(BaseWorld):
         force : bool, optional
             Attempt the load even on a schema version mismatch.
         """
-        # Every view handed out points at a C++ layer the load replaces: detach them before the layers are freed,
-        # so a held view raises instead of reading freed memory.
         cdef object view_ref
         cdef BaseLayer view
+        BaseWorld.load_binary(self, path, force)
+        # Every view handed out points at a C++ layer the load replaced: detach them, so a held view raises instead
+        # of reading freed memory. The load holds the GIL, so no view is used between the load and this.
         if self._issued_views is not None:
             for view_ref in self._issued_views:
                 view = view_ref()
@@ -516,7 +519,6 @@ cdef class LayeredWorld(BaseWorld):
             self._issued_views = []
         self._layer_views = None
         self._layer_view_by_name = None
-        BaseWorld.load_binary(self, path, force)
 
     cdef void _track_view(self, BaseLayer view) except *:
         """Remember a view this world handed out (weakly), so a load that replaces the layers can detach it."""

@@ -2355,6 +2355,12 @@ public:
         this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;
     }
 
+    // What load_binary reads a file into first, so a bad file never reaches this world, its layers, or its solved
+    // state (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_LayeredWorld>();
+    }
+
 protected:
     // Shared so a subclass reuses the layout with its own BinaryClassID.
     void write_layered_binary(std::ostream& out, uint32_t class_id) const {
