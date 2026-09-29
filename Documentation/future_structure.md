@@ -1,6 +1,6 @@
 # Migrating from TidalPy 0.7.X
 
-_Updated: 2026-09-28_
+_Updated: 2026-09-29_
 
 TidalPy 0.8.0 replaced the Python, Cython, and numba code of 0.7.X and earlier with a C++ backend wrapped by Cython. The modules, classes, functions, configuration file, and logging all changed, so 0.7.X scripts need updating. This page maps the 0.7.X API onto 0.8.0 and shows how to port common workflows. The <a href="code_map.html">interactive code map</a> shows the main classes and functions of 0.8.0, the calls between them, and the purpose, inputs, and outputs of each.
 
@@ -464,7 +464,7 @@ print(effective_rigidity, love.k)
 - Mode outputs keyed by mode name, and eccentricity truncation levels 12 to 18 and 22.
 - The selectable insolation models; one orbit-averaged form remains.
 - `calculate_temperature_frommelt` and its array form, and `calculate_mass_gravity_arrays` (the EOS solve fills mass and gravity).
-- `calc_tidal_susceptibility`, `build_from_world`, and `scale_from_world`.
+- `calc_tidal_susceptibility`.
 
 ## Performance
 

@@ -1,6 +1,6 @@
 # Material EOS Models (`Material.eos`)
 
-_Updated: 2026-09-28_
+_Updated: 2026-09-29_
 
 A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models calculate it from the local pressure [Pa]. The interpolated model looks it up by radius [m]. All four use the same call, `calc_density(pressure, temperature=None, radius=0.0)`, so the whole-planet solve does not need to know which model a layer uses.
 
@@ -76,7 +76,7 @@ A model is athermal when $\alpha_0 = 0$ (the default) or when no temperature is 
 
 ### Bulk Modulus
 
-`calc_bulk_modulus(pressure, temperature=None, radius=0.0)` returns the isothermal bulk modulus $K_T = \rho \, \partial P / \partial \rho$ [Pa]. Birch-Murnaghan and Vinet evaluate the analytic derivative of their pressure law at the solved compression, so the modulus is consistent with the density and equals $K_0$ at the reference state. The interpolated model returns its bulk table at `radius`. A model with neither returns NaN, which tells a layer to use its own constant.
+`calc_bulk_modulus(pressure, temperature=None, radius=0.0)` returns the isothermal bulk modulus $K_T = \rho \, \partial P / \partial \rho$ [Pa]. Birch-Murnaghan and Vinet evaluate the analytic derivative of their pressure law at the solved compression, so the modulus is consistent with the density and equals $K_0$ at the reference state. The interpolated model returns its bulk table at `radius`. A model with neither returns NaN, and `calc_material_state` then uses the material's `bulk_modulus_static`.
 
 ### The Material
 
@@ -107,7 +107,7 @@ The material also holds three optional models, attached with `set_shear_viscosit
 2. The viscosities: the attached viscosity model at the temperature and pressure, else the static viscosity.
 3. The density and, where the model defines one, the bulk modulus of the density law. The law receives the temperature only when `thermal_density` is set, which a layer controls with its `use_thermal_eos` switch. The viscosity and partial-melt models always receive it.
 4. A table of an interpolated model replaces the law or constant, and the bulk modulus of a Birch-Murnaghan or Vinet law replaces `bulk_modulus_static`.
-5. The partial-melt model, applied to the shear modulus and viscosity and, when its `bulk_melt_weakening` switch is on, to the bulk modulus.
+5. The partial-melt model, applied to the shear modulus and shear viscosity and, when its `bulk_melt_weakening` switch is on, to the bulk modulus. Melt does not change the bulk viscosity. Without a finite temperature this step is skipped and `melt_fraction` is NaN.
 
 It returns a dict of `density`, `melt_fraction`, `shear_modulus`, `bulk_modulus`, `shear_viscosity`, and `bulk_viscosity`, all after the partial-melt step.
 

@@ -1,6 +1,6 @@
 # 3D Tidal Stress, Strain, and Heating (`Tides.multilayer`)
 
-_Updated: 2026-09-28_
+_Updated: 2026-09-29_
 
 `TidalPy.Tides.multilayer` calculates the depth- and direction-resolved tidal response of a layered world: the complex strain and stress tensors and the volumetric heating. The response is evaluated point by point.
 
@@ -26,7 +26,7 @@ where $n$ is the mean motion, $\dot{\theta}$ the spin rate, and $\mathcal{T}_{lm
 > [!WARNING]
 > This assumes no periapse or node precession. It also assumes that the change in the mean anomaly can be approximated by the mean motion.
 
-Three settings in the world's `[tides]` config set the truncation: `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). Eccentricity level $N$ keeps the potential through $e^N$. As in the 1D path, it cuts every product of two eccentricity functions in the secular heating at $e^N$, so the volume integral of the secular heating equals the 1D heating at any eccentricity (see [Eccentricity Functions](eccentricity.md)). Obliquity level $N$ does the same in $I$: the potential through $I^N$, and every product of two obliquity functions cut at $I^N$ (see [Obliquity Functions](obliquity.md)). The instantaneous fields (displacements, stress, strain, and power) are linear in the potential and use the unsquared functions. A nonzero obliquity truncation turns on the odd-`m` harmonics (`P_21`, ...). A mode with $|\omega|$ at or below `[numerical] minimum_frequency` (1e-14 rad/s, `TidalPy.constants.min_frequency`) is later switched off, the same floor the 1D `calc_tides` path uses.
+Three settings in the world's `[tides]` config set the truncation: `max_degree_l` (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). Eccentricity level $N$ keeps the potential through $e^N$. As in the 1D path, it cuts every product of two eccentricity functions in the secular heating at $e^N$, so at zero obliquity the volume integral of the secular heating equals the 1D heating at any eccentricity and spin rate (see [Eccentricity Functions](eccentricity.md)). With both $e$ and $I$ nonzero the two differ by the cross terms described in [Coherent Waves](#coherent-waves). Obliquity level $N$ does the same in $I$: the potential through $I^N$, and every product of two obliquity functions cut at $I^N$ (see [Obliquity Functions](obliquity.md)). The instantaneous fields (displacements, stress, strain, and power) are linear in the potential and use the unsquared functions. A nonzero obliquity truncation turns on the odd-`m` harmonics (`P_21`, ...). A mode with $|\omega|$ at or below `[numerical] minimum_frequency` (1e-14 rad/s, `TidalPy.constants.min_frequency`) is later switched off, the same floor the 1D `calc_tides` path uses.
 
 ### Displacement, Strain, and Stress
 
@@ -62,7 +62,20 @@ Before the heating is formed, each raw $(l, m, p, q)$ mode is mapped onto its no
 
 The $m = 0$ modes always come in pairs: $(l, 0, p, q)$ at $+\omega$ and $(l, 0, l-p, -q)$ at $-\omega$. The two carry equal amplitudes ($F_{l0p} = \pm F_{l0,l-p}$ with the parity sign, $G_{lpq} = G_{l,l-p,-q}$) and are the same function of time, since $\cos(-x) = \cos x$. Together they are one real sinusoid of twice the amplitude. Heating scales with the amplitude squared, so summing their cycle-averaged powers separately loses half of the zonal heating. For a homogeneous degree-2 body at zero obliquity the zonal terms are 9/84 of the total, so the loss is 4.5/84 = 5.36% of the heating of a synchronously rotating body, where only the eccentricity modes survive. The 1D formula counts the same pair through its $(2 - \delta_{0m})$ weighting, so it needs no merge.
 
-At nonzero obliquity, modes of the same $(l, m)$ with different $(p, q)$ can also share a signed frequency. Their relative phase is set by the argument of periapsis $\omega$, which the engine takes as zero, so they also combine coherently. The 1D formula averages over $\omega$ and drops these cross terms. The 3D path keeps them, so its total differs from the 1D heating by a term proportional to $e^2 I^2 \cos 2\omega$. The difference is largest in synchronous rotation, where the semidiurnal tide is static. For a homogeneous Maxwell body at $e = 0.05$ it is -5.8e-4 of the heating at $I = 0.05$ rad and -3.8e-3 at $I = 0.3$ rad (+5.8e-4 and +3.8e-3 with $\omega = \pi/2$). Away from synchronous rotation it is below 1e-5. For a body whose periapsis precesses, the 1D value is the secular heating.
+At nonzero obliquity, modes of the same $(l, m)$ with different $(p, q)$ can also share a signed frequency. Their relative phase is set by the argument of periapsis $\omega$, which the engine takes as zero, so they also combine coherently. The 1D formula averages over $\omega$ and drops these cross terms. The 3D path keeps them. Its total is the heating of an orbit whose periapsis stays at the ascending node, while the 1D value is the secular heating of an orbit whose periapsis precesses. The difference needs both $e$ and $I$ nonzero, varies with $\cos 2\omega$ and $\cos 4\omega$, and changes sign at $\omega = \pi/2$. A direct calculation from the host's exact Kepler position confirms both values: the 1D heating equals its average over $\omega$ to 1e-14, and the 3D total equals its $\omega = 0$ value to the radial quadrature error. The difference is largest in synchronous rotation, where the semidiurnal tide is static, and grows with $e$ and $I$ at every spin rate. The table gives the 3D total over the 1D heating, minus one, at degree 2 (measured 2026-09-29).
+
+| Body | $e$ | $I$ \[rad\] | Spin $n$ | Spin $1.5 n$ | Spin $2.5 n$ |
+|---|---|---|---|---|---|
+| Homogeneous Maxwell | 0.05 | 0.1 | -1.7e-3 | -6.9e-7 | 6.6e-8 |
+| Homogeneous Maxwell | 0.05 | 0.3 | -3.8e-3 | -5.4e-6 | 5.4e-7 |
+| Homogeneous Maxwell | 0.2 | 0.1 | -2.3e-3 | -1.7e-4 | -1.1e-6 |
+| Homogeneous Maxwell | 0.2 | 0.3 | -1.6e-2 | -1.3e-3 | -8.0e-6 |
+| Bundled Io | 0.05 | 0.1 | -1.6e-3 | 6.3e-6 | 1.4e-5 |
+| Bundled Io | 0.05 | 0.3 | -3.6e-3 | 4.9e-5 | 1.1e-4 |
+| Bundled Io | 0.2 | 0.1 | -2.2e-3 | -6.0e-5 | 1.9e-4 |
+| Bundled Io | 0.2 | 0.3 | -1.5e-2 | -4.7e-4 | 1.6e-3 |
+
+Use the 1D heating when the periapsis precesses over the time of interest.
 
 ### Secular Heating
 
@@ -92,7 +105,7 @@ which `calc_3d_tides` evaluates with its summed arguments, one axis at a time:
   They are tabulated for equal degrees and computed with 32-node Gauss-Legendre quadrature in $\cos\theta$ for different degrees, which is exact because the integrands are polynomials in $\cos\theta$ of degree at most $l_{a} + l_{b} + 2 \le 22$.
 - Radius: Gauss-Legendre quadrature inside each layer with `radial_slices` nodes (default 16) and weight $r^{2}$; no node sits on a layer boundary.
 
-The volume integral equals the 1D global tidal heating (`get_tidal_heating`). For a homogeneous body at zero obliquity the two agree to the radial quadrature error at every spin rate, including synchronous rotation. For the homogeneous Io of demo notebook 09 that error is below 1e-7 with the default 16 nodes per layer. The benchmark tests are `Tests/Test_Structures/Test_Worlds/test_world_1d_vs_3d_tides_01.py` and `test_world_3d_tides_coherent_01.py`.
+At zero obliquity the volume integral equals the 1D global tidal heating (`get_tidal_heating`) to the radial quadrature error at every eccentricity and spin rate, including synchronous rotation. For the homogeneous Io of demo notebook 09 that error is below 1e-7 with the default 16 nodes per layer. With both $e$ and $I$ nonzero the two differ by the same-frequency cross terms of [Coherent Waves](#coherent-waves). The benchmark tests are `Tests/Test_Structures/Test_Worlds/test_world_1d_vs_3d_tides_01.py` and `test_world_3d_tides_coherent_01.py`.
 
 ## Python API
 
@@ -206,7 +219,7 @@ res = world.calc_3d_tides(
     longitude_summed=True,
     radial_summed=True)
 
-res['total']      # [W], the 1D get_tidal_heating
+res['total']      # [W], equals get_tidal_heating at zero obliquity
 res['per_layer']  # [W] per layer (innermost first), sums to res['total']
 
 # radial power profile dP/dr (integrates to the total)
@@ -239,7 +252,7 @@ res = world.calc_3d_tides(
 res['heating']   # shape (nr, ncolat, nlon, ntime)
 ```
 
-The per-layer totals replace the `tidal_scale` distribution for the depth-resolved rheology path. The radial and colatitude profiles integrate to the total. The fallback `latitude_nodes` (16) adds margin over the ~4 colatitude nodes a homogeneous degree-2 body needs. The `radial_slices` nodes sit strictly inside each layer because a node on a layer boundary would read the modulus and radial solution of the layer below, so a layer sitting on a stiffer one would lose part of its own heating. With the nodes inside, the collapsed total matches the 1D heating to better than 1e-4 from 4 nodes per layer, for a homogeneous body and for the bundled Io, whose thin asthenosphere has a sixtieth of the shear modulus of the mantle beneath it. The default adds margin for higher degree l.
+The per-layer totals replace the `tidal_scale` distribution for the depth-resolved rheology path. The radial and colatitude profiles integrate to the total. The fallback `latitude_nodes` (16) adds margin over the ~4 colatitude nodes a homogeneous degree-2 body needs. The `radial_slices` nodes sit strictly inside each layer because a node on a layer boundary would read the modulus and radial solution of the layer below, so a layer sitting on a stiffer one would lose part of its own heating. With the nodes inside, the collapsed total at zero obliquity matches the 1D heating to better than 1e-4 from 4 nodes per layer, for a homogeneous body and for the bundled Io, whose thin asthenosphere has a sixtieth of the shear modulus of the mantle beneath it. The default adds margin for higher degree l.
 
 #### Displacements: `calc_3d_displacements`
 
