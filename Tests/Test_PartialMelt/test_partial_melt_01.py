@@ -1,4 +1,5 @@
-"""Partial-melt models (off, Spohn, Henning): melt fraction, weakening laws, bulk weakening, factory, and I/O."""
+"""Partial-melt models (off, Spohn, Henning): melt fraction, weakening laws, the melt phase, bulk weakening, the
+melt's density and bulk viscosity, factory, and I/O."""
 
 import math
 
@@ -180,14 +181,14 @@ def _hashin_shtrikman(phi, framework_shear):
 def test_bulk_weakening_is_off_by_default():
     model = partial_melt.make_partial_melt("henning")
     assert model.bulk_melt_weakening is False
-    assert model.calc_bulk_modulus_melt(1900.0, _PREMELT_BULK, 0.0) == _PREMELT_BULK
+    assert model.calc_bulk_modulus_melt(1900.0, 0.0, _PREMELT_BULK, 0.0) == _PREMELT_BULK
 
 
 @pytest.mark.parametrize("T", [1500.0, 1640.0, 1800.0, 2000.0, 2100.0])
 def test_bulk_weakening_follows_hashin_shtrikman(T):
     model = _model("HenningPartialMelt", bulk_melt_weakening=True, liquid_bulk_modulus=_LIQ_BULK)
     phi, _, shear = _melt(model, T)
-    bulk = model.calc_bulk_modulus_melt(T, _PREMELT_BULK, shear)
+    bulk = model.calc_bulk_modulus_melt(T, 0.0, _PREMELT_BULK, shear)
     if phi == 0.0:
         assert bulk == _PREMELT_BULK
     else:
@@ -200,13 +201,115 @@ def test_bulk_weakening_limits():
     model = _model("OffPartialMelt", bulk_melt_weakening=True, liquid_bulk_modulus=_LIQ_BULK)
     phi = 0.1
     temperature = _SOLIDUS + phi * (_LIQUIDUS - _SOLIDUS)
-    framework = model.calc_bulk_modulus_melt(temperature, _PREMELT_BULK, _PREMELT_SHEAR)
+    framework = model.calc_bulk_modulus_melt(temperature, 0.0, _PREMELT_BULK, _PREMELT_SHEAR)
     reuss = 1.0 / ((1.0 - phi) / _PREMELT_BULK + phi / _LIQ_BULK)
-    assert model.calc_bulk_modulus_melt(temperature, _PREMELT_BULK, 0.0) == pytest.approx(reuss, rel=1e-12)
+    assert model.calc_bulk_modulus_melt(temperature, 0.0, _PREMELT_BULK, 0.0) == pytest.approx(reuss, rel=1e-12)
     assert reuss < framework < _PREMELT_BULK
     # Melt weakens the bulk modulus far less than Henning weakens the shear modulus.
     assert framework / _PREMELT_BULK > 0.8
-    assert model.calc_bulk_modulus_melt(_LIQUIDUS, _PREMELT_BULK, 0.0) == pytest.approx(_LIQ_BULK, rel=1e-12)
+    assert model.calc_bulk_modulus_melt(_LIQUIDUS, 0.0, _PREMELT_BULK, 0.0) == pytest.approx(_LIQ_BULK, rel=1e-12)
+
+
+def test_bulk_weakening_reads_the_melt_bulk_modulus_at_pressure():
+    """The bound's melt end is K_l0 + K_l' P, so a fully molten point takes the melt's own modulus at its pressure."""
+    model = _model("OffPartialMelt", bulk_melt_weakening=True, liquid_bulk_modulus=_LIQ_BULK,
+                   liquid_bulk_modulus_derivative=5.0)
+    pressure = 4.0e9
+    assert model.calc_bulk_modulus_melt(_LIQUIDUS, pressure, _PREMELT_BULK, 0.0) == pytest.approx(
+        _LIQ_BULK + 5.0 * pressure, rel=1e-12)
+
+
+# =====================================================================================================================
+# The melt phase: its Murnaghan law and the mixture density
+# =====================================================================================================================
+@pytest.mark.parametrize("derivative", [0.0, 5.0])
+def test_melt_phase_follows_a_murnaghan_law(derivative):
+    """rho_l / (d rho_l / dP) is the melt's K_l0 + K_l' P, so a molten layer is neutral under that K."""
+    model = _model("OffPartialMelt", liquid_bulk_modulus=_LIQ_BULK, liquid_bulk_modulus_derivative=derivative,
+                   liquid_density=2750.0)
+    assert model.calc_liquid_density(0.0) == pytest.approx(2750.0, rel=1e-15)
+    pressure, step = 3.0e9, 1.0e5
+    slope = (model.calc_liquid_density(pressure + step) - model.calc_liquid_density(pressure - step)) / (2.0 * step)
+    bulk = model.calc_liquid_bulk_modulus(pressure)
+    assert bulk == pytest.approx(_LIQ_BULK + derivative * pressure, rel=1e-15)
+    assert model.calc_liquid_density(pressure) / slope == pytest.approx(bulk, rel=1e-8)
+
+
+def test_melt_phase_stays_finite_under_tension():
+    """A trial structure can pass through tension; there the law continues at K_l0 and joins smoothly at zero."""
+    model = _model("OffPartialMelt", liquid_bulk_modulus=_LIQ_BULK, liquid_bulk_modulus_derivative=5.0,
+                   liquid_density=2750.0)
+    for pressure in (-1.0e9, -1.0e10, -1.0e11):
+        assert math.isfinite(model.calc_liquid_density(pressure))
+        assert model.calc_liquid_bulk_modulus(pressure) == _LIQ_BULK
+    step = 1.0
+    below = (model.calc_liquid_density(0.0) - model.calc_liquid_density(-step)) / step
+    above = (model.calc_liquid_density(step) - model.calc_liquid_density(0.0)) / step
+    assert below == pytest.approx(above, rel=1e-6)
+
+
+def test_mixture_density_is_off_by_default():
+    model = partial_melt.make_partial_melt("henning")
+    assert model.density_melt_mixing is False
+    assert model.calc_mixture_density(1900.0, 1.0e9, 3300.0) == 3300.0
+
+
+@pytest.mark.parametrize("T", [1500.0, 1600.0, 1700.0, 2000.0, 2300.0])
+def test_mixture_density_mixes_the_phases_by_volume(T):
+    model = _model("HenningPartialMelt", density_melt_mixing=True, liquid_density=2750.0,
+                   liquid_bulk_modulus=_LIQ_BULK, liquid_bulk_modulus_derivative=5.0)
+    pressure, solid = 2.0e9, 3300.0
+    phi = _melt_fraction(T)
+    expected = (1.0 - phi) * solid + phi * model.calc_liquid_density(pressure)
+    assert model.calc_mixture_density(T, pressure, solid) == pytest.approx(expected, rel=1e-15)
+    assert math.isnan(model.calc_melt_fraction(math.nan))
+    assert model.calc_mixture_density(math.nan, pressure, solid) == solid
+
+
+def test_water_melt_raises_an_ice_density():
+    """Water is denser than ice I, so melting raises the mixture density; silicate melt lowers a rock's."""
+    ice = _model("OffPartialMelt", solidus=250.0, liquidus=273.15, density_melt_mixing=True, liquid_density=999.84,
+                 liquid_bulk_modulus=2.2e9, liquid_bulk_modulus_derivative=6.8)
+    assert ice.calc_mixture_density(265.0, 1.0e7, 917.0) > 917.0
+    rock = _model("OffPartialMelt", density_melt_mixing=True)
+    assert rock.calc_mixture_density(1800.0, 1.0e9, 3300.0) < 3300.0
+
+
+# =====================================================================================================================
+# Melt-driven bulk viscosity
+# =====================================================================================================================
+def test_bulk_viscosity_weakening_is_off_by_default():
+    model = partial_melt.make_partial_melt("henning")
+    assert model.bulk_viscosity_melt_weakening is False
+    assert model.calc_bulk_viscosity_melt(1900.0, 1.0e22, 1.0e15) == 1.0e22
+
+
+@pytest.mark.parametrize("coefficient,exponent", [(1.0, 1.0), (5.0 / 3.0, 0.0), (2.0, 2.0)])
+@pytest.mark.parametrize("T", [1500.0, 1650.0, 1800.0, 2100.0])
+def test_bulk_viscosity_is_the_series_of_premelt_and_compaction(T, coefficient, exponent):
+    model = _model("OffPartialMelt", bulk_viscosity_melt_weakening=True,
+                   melt_bulk_viscosity_coefficient=coefficient, melt_bulk_viscosity_exponent=exponent)
+    premelt, shear_viscosity = 1.0e22, 1.0e18
+    phi = _melt_fraction(T)
+    got = model.calc_bulk_viscosity_melt(T, premelt, shear_viscosity)
+    if phi == 0.0:
+        assert got == premelt
+    else:
+        compaction = coefficient * shear_viscosity / phi ** exponent
+        assert got == pytest.approx(1.0 / (1.0 / premelt + 1.0 / compaction), rel=1e-13)
+        assert got < min(premelt, compaction)
+
+
+def test_bulk_viscosity_is_continuous_at_the_solidus_and_set_by_melt_alone_without_a_premelt_one():
+    model = _model("OffPartialMelt", bulk_viscosity_melt_weakening=True)
+    just_above = _SOLIDUS + 1.0e-9 * (_LIQUIDUS - _SOLIDUS)
+    assert model.calc_bulk_viscosity_melt(just_above, 1.0e22, 1.0e18) == pytest.approx(1.0e22, rel=1e-3)
+    phi = 0.25
+    temperature = _SOLIDUS + phi * (_LIQUIDUS - _SOLIDUS)
+    for no_premelt in (math.inf, math.nan):
+        assert model.calc_bulk_viscosity_melt(temperature, no_premelt, 1.0e18) == pytest.approx(1.0e18 / phi)
+    # A locked matrix adds no compaction.
+    assert model.calc_bulk_viscosity_melt(temperature, 1.0e22, math.inf) == 1.0e22
 
 
 # =====================================================================================================================
@@ -238,7 +341,9 @@ def test_factory_config_override():
 def test_config_dict_keys():
     config = partial_melt.HenningPartialMelt().get_config_dict()
     assert {"model", "solidus_k", "liquidus_k", "liquid_shear_pa", "liquid_viscosity_pas", "bulk_melt_weakening",
-            "liquid_bulk_modulus_pa", "crit_melt_frac", "hn_visc_slope_1", "hn_shear_param_1_k"} <= set(config)
+            "liquid_bulk_modulus_pa", "liquid_bulk_modulus_derivative", "liquid_density_kg_m3", "density_melt_mixing",
+            "bulk_viscosity_melt_weakening", "melt_bulk_viscosity_coefficient", "melt_bulk_viscosity_exponent",
+            "crit_melt_frac", "hn_visc_slope_1", "hn_shear_param_1_k"} <= set(config)
     assert config["model"] == "henning"
 
 
@@ -271,14 +376,25 @@ def test_binary_round_trip(name, tmp_path):
     """A binary round trip keeps the config, bulk weakening, and a representative evaluation."""
     model = partial_melt.make_partial_melt(name, {"solidus_k": 1550.0, "liquidus_k": 1950.0,
                                                   "liquid_viscosity_pas": 0.7, "bulk_melt_weakening": True,
-                                                  "liquid_bulk_modulus_pa": 1.5e10})
+                                                  "liquid_bulk_modulus_pa": 1.5e10,
+                                                  "liquid_bulk_modulus_derivative": 4.2,
+                                                  "liquid_density_kg_m3": 2650.0, "density_melt_mixing": True,
+                                                  "bulk_viscosity_melt_weakening": True,
+                                                  "melt_bulk_viscosity_coefficient": 1.7,
+                                                  "melt_bulk_viscosity_exponent": 0.5})
     path = str(tmp_path / f"{name}.tpyb")
     model.save_binary(path)
     reloaded = partial_melt.make_partial_melt(name)
     reloaded.load_binary(path)
     assert reloaded.get_config_dict() == model.get_config_dict()
     assert reloaded.bulk_melt_weakening is True
-    assert reloaded.calc_bulk_modulus_melt(1700.0, 1.3e11, 1.0e9) == model.calc_bulk_modulus_melt(1700.0, 1.3e11, 1.0e9)
+    assert reloaded.density_melt_mixing is True
+    assert reloaded.bulk_viscosity_melt_weakening is True
+    assert reloaded.calc_mixture_density(1700.0, 3.0e9, 3300.0) == model.calc_mixture_density(1700.0, 3.0e9, 3300.0)
+    assert (reloaded.calc_bulk_viscosity_melt(1700.0, 1.0e22, 1.0e18)
+            == model.calc_bulk_viscosity_melt(1700.0, 1.0e22, 1.0e18))
+    assert (reloaded.calc_bulk_modulus_melt(1700.0, 2.0e9, 1.3e11, 1.0e9)
+            == model.calc_bulk_modulus_melt(1700.0, 2.0e9, 1.3e11, 1.0e9))
     assert _melt(reloaded, 1700.0) == _melt(model, 1700.0)
 
 

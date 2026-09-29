@@ -27,9 +27,21 @@ cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
         double get_liquid_viscosity() const
         cpp_bool get_bulk_melt_weakening() const
         double get_liquid_bulk_modulus() const
+        double get_liquid_bulk_modulus_derivative() const
+        double get_liquid_density() const
+        cpp_bool get_density_melt_mixing() const
+        cpp_bool get_bulk_viscosity_melt_weakening() const
+        double get_melt_bulk_viscosity_coefficient() const
+        double get_melt_bulk_viscosity_exponent() const
         double calc_melt_fraction(double temperature) const
         c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& inputs) const
-        double calc_bulk_modulus_melt(double temperature, double premelt_bulk, double framework_shear) const
+        double calc_liquid_bulk_modulus(double pressure) const
+        double calc_liquid_density(double pressure) const
+        double calc_mixture_density(double temperature, double pressure, double solid_density) const
+        double calc_bulk_modulus_melt(
+            double temperature, double pressure, double premelt_bulk, double framework_shear) const
+        double calc_bulk_viscosity_melt(
+            double temperature, double premelt_bulk_viscosity, double postmelt_shear_viscosity) const
 
 
 cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
@@ -41,6 +53,12 @@ cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
         double liquid_viscosity
         cpp_bool bulk_melt_weakening
         double liquid_bulk_modulus
+        double liquid_bulk_modulus_derivative
+        double liquid_density
+        cpp_bool density_melt_mixing
+        cpp_bool bulk_viscosity_melt_weakening
+        double melt_bulk_viscosity_coefficient
+        double melt_bulk_viscosity_exponent
         double fs_visc_power_slope
         double fs_visc_log10_at_solidus
         double fs_shear_power_slope

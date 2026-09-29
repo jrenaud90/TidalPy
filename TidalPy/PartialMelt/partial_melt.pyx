@@ -21,8 +21,31 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
+cdef void _set_melt_phase(
+        c_PartialMeltConfig& config,
+        double liquid_bulk_modulus_derivative,
+        double liquid_density,
+        cpp_bool density_melt_mixing,
+        cpp_bool bulk_viscosity_melt_weakening,
+        double melt_bulk_viscosity_coefficient,
+        double melt_bulk_viscosity_exponent) noexcept:
+    """Copy the melt-phase law and the density and bulk-viscosity switches, shared by every model, into a config."""
+    config.liquid_bulk_modulus_derivative  = liquid_bulk_modulus_derivative
+    config.liquid_density                  = liquid_density
+    config.density_melt_mixing             = density_melt_mixing
+    config.bulk_viscosity_melt_weakening   = bulk_viscosity_melt_weakening
+    config.melt_bulk_viscosity_coefficient = melt_bulk_viscosity_coefficient
+    config.melt_bulk_viscosity_exponent    = melt_bulk_viscosity_exponent
+
+
 cdef class PartialMeltBase(PhysicsBase):
-    """Abstract base for partial-melt models. Instantiate a concrete subclass."""
+    """Abstract base for partial-melt models. Instantiate a concrete subclass.
+
+    Every model shares the melt envelope, the liquid limits, the melt phase's Murnaghan law (``liquid_density``,
+    ``liquid_bulk_modulus``, ``liquid_bulk_modulus_derivative``), and three switches, all off by default:
+    ``bulk_melt_weakening`` (the bulk modulus), ``density_melt_mixing`` (the density), and
+    ``bulk_viscosity_melt_weakening`` (a compaction bulk viscosity).
+    """
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -70,9 +93,63 @@ cdef class PartialMeltBase(PhysicsBase):
 
     @property
     def liquid_bulk_modulus(self) -> float:
-        """Bulk modulus of the melt, used only when ``bulk_melt_weakening`` is on [Pa]."""
+        """Bulk modulus of the melt at zero pressure, K_l0 of its Murnaghan law [Pa]."""
         self._check_ptr()
         return self._melt_ptr.get().get_liquid_bulk_modulus()
+
+    @property
+    def liquid_bulk_modulus_derivative(self) -> float:
+        """Pressure derivative K_l' of the melt's bulk modulus, K_l = K_l0 + K_l' P [dimensionless]."""
+        self._check_ptr()
+        return self._melt_ptr.get().get_liquid_bulk_modulus_derivative()
+
+    @property
+    def liquid_density(self) -> float:
+        """Density of the melt at zero pressure [kg/m^3]."""
+        self._check_ptr()
+        return self._melt_ptr.get().get_liquid_density()
+
+    @property
+    def density_melt_mixing(self) -> bool:
+        """Whether melt enters the density (``calc_mixture_density``); off by default."""
+        self._check_ptr()
+        return self._melt_ptr.get().get_density_melt_mixing()
+
+    @property
+    def bulk_viscosity_melt_weakening(self) -> bool:
+        """Whether melt sets a compaction bulk viscosity (``calc_bulk_viscosity_melt``); off by default."""
+        self._check_ptr()
+        return self._melt_ptr.get().get_bulk_viscosity_melt_weakening()
+
+    @property
+    def melt_bulk_viscosity_coefficient(self) -> float:
+        """c in the compaction bulk viscosity c eta / phi^n [dimensionless]."""
+        self._check_ptr()
+        return self._melt_ptr.get().get_melt_bulk_viscosity_coefficient()
+
+    @property
+    def melt_bulk_viscosity_exponent(self) -> float:
+        """n in the compaction bulk viscosity c eta / phi^n [dimensionless]."""
+        self._check_ptr()
+        return self._melt_ptr.get().get_melt_bulk_viscosity_exponent()
+
+    def calc_liquid_bulk_modulus(self, double pressure) -> float:
+        """Bulk modulus of the melt at a pressure [Pa], K_l0 + K_l' P."""
+        self._check_ptr()
+        return self._melt_ptr.get().calc_liquid_bulk_modulus(pressure)
+
+    def calc_liquid_density(self, double pressure) -> float:
+        """Density of the melt at a pressure [kg/m^3], rho_l0 (1 + K_l' P / K_l0)^(1 / K_l')."""
+        self._check_ptr()
+        return self._melt_ptr.get().calc_liquid_density(pressure)
+
+    def calc_mixture_density(self, double temperature, double pressure, double solid_density) -> float:
+        """Density of the partially molten material [kg/m^3]; ``solid_density`` unless ``density_melt_mixing``.
+
+        When on, (1 - phi) solid_density + phi rho_l(P), the two phases mixed by volume at the same pressure.
+        """
+        self._check_ptr()
+        return self._melt_ptr.get().calc_mixture_density(temperature, pressure, solid_density)
 
     def calc_melt_fraction(self, double temperature) -> float:
         """Volumetric melt fraction phi in [0, 1] from temperature [K]; NaN for a non-finite temperature."""
@@ -104,17 +181,34 @@ cdef class PartialMeltBase(PhysicsBase):
     def calc_bulk_modulus_melt(
             self,
             double temperature,
+            double pressure,
             double premelt_bulk_modulus,
             double framework_shear_modulus) -> float:
-        """Post-melt bulk modulus [Pa]; the pre-melt value unless ``bulk_melt_weakening`` is on.
+        """Post-melt (unrelaxed) bulk modulus [Pa]; the pre-melt value unless ``bulk_melt_weakening`` is on.
 
-        When on, the Hashin-Shtrikman (1963) bound for the melt (``liquid_bulk_modulus``) in a solid framework,
-        evaluated with the framework's post-melt shear modulus ``framework_shear_modulus``: a weak reduction while
-        the framework holds, the Reuss average of a suspension once its shear modulus has collapsed.
+        When on, the Hashin-Shtrikman (1963) bound for the melt (its bulk modulus at ``pressure`` [Pa]) in a solid
+        framework, evaluated with the framework's post-melt shear modulus ``framework_shear_modulus``: a weak
+        reduction while the framework holds, the Reuss average of a suspension once its shear modulus has collapsed,
+        and the melt's own bulk modulus at phi = 1.
         """
         self._check_ptr()
         return self._melt_ptr.get().calc_bulk_modulus_melt(
-            temperature, premelt_bulk_modulus, framework_shear_modulus)
+            temperature, pressure, premelt_bulk_modulus, framework_shear_modulus)
+
+    def calc_bulk_viscosity_melt(
+            self,
+            double temperature,
+            double premelt_bulk_viscosity,
+            double postmelt_shear_viscosity) -> float:
+        """Post-melt bulk viscosity [Pa s]; the pre-melt value unless ``bulk_viscosity_melt_weakening`` is on.
+
+        When on, melt adds a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in series
+        with the pre-melt one: 1 / zeta = 1 / zeta_premelt + phi^n / (c eta). n = 1 is McKenzie (1984); n = 0 is
+        closer to Takei and Holtzman (2009).
+        """
+        self._check_ptr()
+        return self._melt_ptr.get().calc_bulk_viscosity_melt(
+            temperature, premelt_bulk_viscosity, postmelt_shear_viscosity)
 
 
 cdef class OffPartialMelt(PartialMeltBase):
@@ -127,7 +221,13 @@ cdef class OffPartialMelt(PartialMeltBase):
             double liquid_shear=1.0e-5,
             double liquid_viscosity=0.2,
             cpp_bool bulk_melt_weakening=False,
-            double liquid_bulk_modulus=2.0e10):
+            double liquid_bulk_modulus=2.0e10,
+            double liquid_bulk_modulus_derivative=5.0,
+            double liquid_density=2750.0,
+            cpp_bool density_melt_mixing=False,
+            cpp_bool bulk_viscosity_melt_weakening=False,
+            double melt_bulk_viscosity_coefficient=1.0,
+            double melt_bulk_viscosity_exponent=1.0):
         cdef c_PartialMeltConfig config
         config.solidus             = solidus
         config.liquidus            = liquidus
@@ -135,6 +235,8 @@ cdef class OffPartialMelt(PartialMeltBase):
         config.liquid_viscosity    = liquid_viscosity
         config.bulk_melt_weakening = bulk_melt_weakening
         config.liquid_bulk_modulus = liquid_bulk_modulus
+        _set_melt_phase(config, liquid_bulk_modulus_derivative, liquid_density, density_melt_mixing,
+                        bulk_viscosity_melt_weakening, melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent)
         cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Off, config)
         self._adopt(model)
 
@@ -158,7 +260,13 @@ cdef class SpohnPartialMelt(PartialMeltBase):
             double fs_shear_log10_at_solidus=10.65,
             double liquid_viscosity=0.2,
             cpp_bool bulk_melt_weakening=False,
-            double liquid_bulk_modulus=2.0e10):
+            double liquid_bulk_modulus=2.0e10,
+            double liquid_bulk_modulus_derivative=5.0,
+            double liquid_density=2750.0,
+            cpp_bool density_melt_mixing=False,
+            cpp_bool bulk_viscosity_melt_weakening=False,
+            double melt_bulk_viscosity_coefficient=1.0,
+            double melt_bulk_viscosity_exponent=1.0):
         cdef c_PartialMeltConfig config
         config.solidus             = solidus
         config.liquidus            = liquidus
@@ -170,6 +278,8 @@ cdef class SpohnPartialMelt(PartialMeltBase):
         config.fs_visc_log10_at_solidus  = fs_visc_log10_at_solidus
         config.fs_shear_power_slope      = fs_shear_power_slope
         config.fs_shear_log10_at_solidus = fs_shear_log10_at_solidus
+        _set_melt_phase(config, liquid_bulk_modulus_derivative, liquid_density, density_melt_mixing,
+                        bulk_viscosity_melt_weakening, melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent)
         cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Spohn, config)
         self._adopt(model)
 
@@ -219,7 +329,13 @@ cdef class HenningPartialMelt(PartialMeltBase):
             double hn_shear_falloff_slope=700.0,
             double liquid_viscosity=0.2,
             cpp_bool bulk_melt_weakening=False,
-            double liquid_bulk_modulus=2.0e10):
+            double liquid_bulk_modulus=2.0e10,
+            double liquid_bulk_modulus_derivative=5.0,
+            double liquid_density=2750.0,
+            cpp_bool density_melt_mixing=False,
+            cpp_bool bulk_viscosity_melt_weakening=False,
+            double melt_bulk_viscosity_coefficient=1.0,
+            double melt_bulk_viscosity_exponent=1.0):
         cdef c_PartialMeltConfig config
         config.solidus              = solidus
         config.liquidus             = liquidus
@@ -233,6 +349,8 @@ cdef class HenningPartialMelt(PartialMeltBase):
         config.hn_visc_falloff_slope = hn_visc_falloff_slope
         config.hn_shear_param_1 = hn_shear_param_1
         config.hn_shear_falloff_slope = hn_shear_falloff_slope
+        _set_melt_phase(config, liquid_bulk_modulus_derivative, liquid_density, density_melt_mixing,
+                        bulk_viscosity_melt_weakening, melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent)
         cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Henning, config)
         self._adopt(model)
 
@@ -276,7 +394,8 @@ cdef class HenningPartialMelt(PartialMeltBase):
 # Every config key any partial-melt model reads; make_partial_melt rejects anything else.
 PARTIAL_MELT_CONFIG_KEYS = frozenset({
     "solidus_k", "liquidus_k", "liquid_shear_pa", "liquid_viscosity_pas", "bulk_melt_weakening",
-    "liquid_bulk_modulus_pa",
+    "liquid_bulk_modulus_pa", "liquid_bulk_modulus_derivative", "liquid_density_kg_m3", "density_melt_mixing",
+    "bulk_viscosity_melt_weakening", "melt_bulk_viscosity_coefficient", "melt_bulk_viscosity_exponent",
     "fs_visc_power_slope_k", "fs_visc_log10_at_solidus", "fs_shear_power_slope_k", "fs_shear_log10_at_solidus",
     "crit_melt_frac", "crit_melt_frac_width", "hn_visc_slope_1", "hn_visc_falloff_slope",
     "hn_shear_param_1_k", "hn_shear_falloff_slope"})
@@ -345,6 +464,16 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     cfg.liquid_viscosity          = config.get("liquid_viscosity_pas", cfg.liquid_viscosity)
     cfg.bulk_melt_weakening       = bool(config.get("bulk_melt_weakening", cfg.bulk_melt_weakening))
     cfg.liquid_bulk_modulus       = config.get("liquid_bulk_modulus_pa", cfg.liquid_bulk_modulus)
+    cfg.liquid_bulk_modulus_derivative = config.get(
+        "liquid_bulk_modulus_derivative", cfg.liquid_bulk_modulus_derivative)
+    cfg.liquid_density            = config.get("liquid_density_kg_m3", cfg.liquid_density)
+    cfg.density_melt_mixing       = bool(config.get("density_melt_mixing", cfg.density_melt_mixing))
+    cfg.bulk_viscosity_melt_weakening = bool(
+        config.get("bulk_viscosity_melt_weakening", cfg.bulk_viscosity_melt_weakening))
+    cfg.melt_bulk_viscosity_coefficient = config.get(
+        "melt_bulk_viscosity_coefficient", cfg.melt_bulk_viscosity_coefficient)
+    cfg.melt_bulk_viscosity_exponent = config.get(
+        "melt_bulk_viscosity_exponent", cfg.melt_bulk_viscosity_exponent)
     cfg.fs_visc_power_slope       = config.get("fs_visc_power_slope_k", cfg.fs_visc_power_slope)
     cfg.fs_visc_log10_at_solidus  = config.get("fs_visc_log10_at_solidus", cfg.fs_visc_log10_at_solidus)
     cfg.fs_shear_power_slope      = config.get("fs_shear_power_slope_k", cfg.fs_shear_power_slope)

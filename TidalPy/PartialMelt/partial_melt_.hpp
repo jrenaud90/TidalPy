@@ -9,9 +9,11 @@
  * Both temperature laws are anchored at the model's solidus, so they carry over to materials whose solidus is not
  * the 1600 K silicate value the published fits assume (the published forms are recovered at T_sol = 1600 K).
  *
- * Binary payload: model name then the model's doubles. Every model writes the 6 shared parameters first
- * [solidus, liquidus, liquid_shear, liquid_viscosity, bulk_melt_weakening (0 or 1), liquid_bulk_modulus]; Spohn
- * appends its 4 scalars, Henning its 6. The layer observer pointer is not serialized.
+ * Binary payload: model name then the model's doubles. Every model writes the 12 shared parameters first
+ * [solidus, liquidus, liquid_shear, liquid_viscosity, bulk_melt_weakening (0 or 1), liquid_bulk_modulus,
+ * liquid_bulk_modulus_derivative, liquid_density, density_melt_mixing (0 or 1), bulk_viscosity_melt_weakening
+ * (0 or 1), melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent]; Spohn appends its 4 scalars, Henning
+ * its 6. The layer observer pointer is not serialized.
  */
 
 #include <cmath>
