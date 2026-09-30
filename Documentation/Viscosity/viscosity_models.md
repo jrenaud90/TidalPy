@@ -1,6 +1,6 @@
 # Viscosity Models (`Viscosity`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-29_
 
 A viscosity model returns a material's dynamic viscosity $\eta$ \[Pa s\] as a function of temperature \[K\] and pressure \[Pa\]. This is the pre-melt, or "solid", viscosity: the value a material would show with no melt present, which the [partial-melt](../PartialMelt/partial_melt_models.md) step then weakens. Both are frequency-independent, so both are resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 
@@ -79,7 +79,6 @@ Constructors take every parameter their model uses as a keyword with the default
 | `model_name` | `str` | The resolved model name (`arrhenius`, `reference`, `constant`). |
 | `get_config_dict()` | `dict` | `model` plus every parameter the model carries. |
 | `save_config(path)` | - | That dict written as TOML. |
-| `save_binary(path)` / `load_binary(path, force=False)` | - | TidalPy binary format; see [Binary serialization](../Utilities/binary.md). |
 
 Parameters are read-only properties under their code names: `reference_viscosity` on the constant model; `reference_viscosity`, `reference_temperature`, `molar_activation_energy`, and `molar_activation_volume` on the reference model; and every constructor keyword on the Arrhenius model: `arrhenius_coeff`, `stress`, `stress_expo`, `grain_size`, `grain_size_expo`, `molar_activation_energy`, `molar_activation_volume`, and `additional_temp_dependence`. `get_config_dict()` emits the config keys, so a dictionary read back from a model or a TOML file feeds straight into `make_viscosity`.
 
@@ -103,14 +102,14 @@ A viscosity model belongs to the layer's material, which is defined via its EOS 
 
 The C++ layer is canonical and the Cython classes are thin adapters over it.
 
-`c_ViscosityConfig` holds every parameter for every model in one struct, with the defaults listed above. `c_ViscosityBase : c_PhysicsBase` (in `viscosity_base_.hpp`) declares `calc_viscosity(double temperature, double pressure) const` pure virtual and adds `calc_viscosity_vectorize(temperature, pressure, out_viscosity)`, the radial sweep the equation-of-state solve uses. The concrete models `c_ArrheniusViscosity`, `c_ReferenceViscosity`, and `c_ConstantViscosity` live in `viscosity_.hpp`, each with a getter per parameter, and occupy binary class ids 801 through 803.
+`c_ViscosityConfig` holds every parameter for every model in one struct, with the defaults listed above. `c_ViscosityBase : c_PhysicsBase` (in `viscosity_base_.hpp`) declares `calc_viscosity(double temperature, double pressure) const` pure virtual and adds `calc_viscosity_vectorize(temperature, pressure, out_viscosity)`, the radial sweep the equation-of-state solve uses. The concrete models `c_ArrheniusViscosity`, `c_ReferenceViscosity`, and `c_ConstantViscosity` live in `viscosity_.hpp`, each with a getter per parameter.
 
 The factory mirrors the rheology one: `c_viscosity_model_from_name(name)` maps a name or alias onto the `c_ViscosityModel` enum and throws `std::invalid_argument` for an unknown name, `c_find_viscosity(model, config)` returns a `std::unique_ptr<c_ViscosityBase>` (a name overload does both steps), and `c_viscosity_from_binary(stream, force=false)` peeks the class id, builds the matching model, and calls `read_binary`.
 
 ## Adding a New Model
 
 1. Add the model's parameters to `c_ViscosityConfig` in `viscosity_.hpp`, with defaults.
-2. Add `c_<Name>Viscosity : c_ViscosityBase` implementing `calc_viscosity`, `append_config_entries`, `write_binary`, and `read_binary`.
+2. Add `c_<Name>Viscosity : c_ViscosityBase` implementing `calc_viscosity`, `append_config_entries`, and `get_binary_class_id`, and `get_binary_params` / `set_binary_params` when it has parameters ([Binary Serialization](../Utilities/binary.md)).
 3. Reserve the next free `BinaryClassID` in the 800 block in `Utilities/binary/binary_.hpp`.
 4. Register a `c_ViscosityModel::<Name>` enum value and wire it into `c_viscosity_model_from_name`, `c_find_viscosity`, and `c_viscosity_from_binary`.
 5. Add the Cython `cdef class` with its parameter properties, the adoption branch in `make_viscosity`, tests in `Tests/Test_Viscosity/`, and an entry on this page.

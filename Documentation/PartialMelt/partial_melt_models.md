@@ -189,7 +189,6 @@ where `<melt phase>` is `liquid_bulk_modulus_derivative=5.0, liquid_density=2750
 | `model_name` | `str` | The resolved model name (`off`, `spohn`, `henning`). |
 | `get_config_dict()` | `dict` | `model` plus every parameter the model carries, under the config keys from the table above. |
 | `save_config(path)` | - | That dict written as TOML. |
-| `save_binary(path)` / `load_binary(path, force=False)` | - | TidalPy binary format; see [Binary serialization](../Utilities/binary.md). |
 
 `make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively; absent keys fall back to the model defaults, and both an unrecognized name and a key that no partial-melt model reads raise `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`, `liquid_viscosity_pas`, `liquid_bulk_modulus_pa`, `liquid_density_kg_m3`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
 
@@ -212,14 +211,14 @@ A partial-melt model belongs to the layer's material, which is its EOS model: th
 
 `c_PartialMeltConfig` (in `partial_melt_base_.hpp`) carries every parameter for every model in one struct with the defaults listed above. The call passes `c_PartialMeltInputs { temperature, premelt_viscosity, premelt_shear }` and returns `c_PartialMeltResult { melt_fraction, postmelt_viscosity, postmelt_shear_modulus }`.
 
-`c_PartialMeltBase : c_PhysicsBase` (in `partial_melt_base_.hpp`) holds the envelope and liquid limits, implements `calc_melt_fraction(temperature)` and `calc_bulk_modulus_melt(temperature, premelt_bulk, framework_shear)` for every model, declares `calc_partial_melt(const c_PartialMeltInputs&) const` pure virtual, and adds `calc_partial_melt_vectorize(temperature, premelt_viscosity, premelt_shear, out_results)`, a radial sweep. Accessors `get_solidus`, `get_liquidus`, `get_liquid_shear`, `get_liquid_viscosity`, `get_bulk_melt_weakening`, and `get_liquid_bulk_modulus` are on the base, and every model's binary payload starts with those six values.
+`c_PartialMeltBase : c_PhysicsBase` (in `partial_melt_base_.hpp`) holds the envelope and liquid limits, implements `calc_melt_fraction(temperature)` and `calc_bulk_modulus_melt(temperature, premelt_bulk, framework_shear)` for every model, declares `calc_partial_melt(const c_PartialMeltInputs&) const` pure virtual, and adds `calc_partial_melt_vectorize(temperature, premelt_viscosity, premelt_shear, out_results)`, a radial sweep. Accessors `get_solidus`, `get_liquidus`, `get_liquid_shear`, `get_liquid_viscosity`, `get_bulk_melt_weakening`, and `get_liquid_bulk_modulus` are on the base.
 
-The concrete models `c_OffPartialMelt`, `c_SpohnPartialMelt`, and `c_HenningPartialMelt` live in `partial_melt_.hpp` with a getter per parameter, and occupy binary class ids 701 through 703. The factory follows the same shape as the other physics modules: `c_partial_melt_model_from_name(name)` maps onto the `c_PartialMeltModel` enum and throws `std::invalid_argument` for an unknown name, `c_find_partial_melt(model, config)` returns a `std::unique_ptr<c_PartialMeltBase>` (a name overload does both), and `c_partial_melt_from_binary(stream, force=false)` peeks the class id, builds, and reads.
+The concrete models `c_OffPartialMelt`, `c_SpohnPartialMelt`, and `c_HenningPartialMelt` live in `partial_melt_.hpp` with a getter per parameter. The factory follows the same shape as the other physics modules: `c_partial_melt_model_from_name(name)` maps onto the `c_PartialMeltModel` enum and throws `std::invalid_argument` for an unknown name, `c_find_partial_melt(model, config)` returns a `std::unique_ptr<c_PartialMeltBase>` (a name overload does both), and `c_partial_melt_from_binary(stream, force=false)` peeks the class id, builds, and reads.
 
 ## Adding a New Model
 
 1. Add the model's parameters to `c_PartialMeltConfig` in `partial_melt_base_.hpp`, with defaults.
-2. Add `c_<Name>PartialMelt : c_PartialMeltBase` implementing `calc_partial_melt`, `append_config_entries`, `write_binary`, and `read_binary`.
+2. Add `c_<Name>PartialMelt : c_PartialMeltBase` implementing `calc_partial_melt`, `append_config_entries`, `get_binary_class_id`, and `get_binary_params` / `set_binary_params` appending the model's parameters to the base's ([Binary Serialization](../Utilities/binary.md)).
 3. Reserve the next free `BinaryClassID` in the 700 block in `Utilities/binary/binary_.hpp`.
 4. Register a `c_PartialMeltModel::<Name>` enum value and wire it into `c_partial_melt_model_from_name`, `c_find_partial_melt`, and `c_partial_melt_from_binary`.
 5. Add the Cython `cdef class` with its parameter properties, the adoption branch in `make_partial_melt`, tests in `Tests/Test_PartialMelt/`, and an entry on this page.

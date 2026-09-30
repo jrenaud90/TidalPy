@@ -778,18 +778,21 @@ public:
         return out;
     }
 
-    // The container state, then every world's complete binary record; read_binary rebuilds the
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::System); }
+
+    // What load_binary reads a file into first, so a bad file never reaches this system or its worlds
+    // (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_System>();
+    }
+
+protected:
+    // The container state, then every world's complete binary record; p_read_payload rebuilds the
     // heterogeneous world list through c_world_from_binary, each world with its models and settings; only solved
     // state (the EOS profiles) is recomputed after load. c_OrbitSolver is stateless, so it needs no serialized
     // state.
-    void write_binary(std::ostream& out) const override {
+    void p_write_payload(std::ostream& out) const override {
         const auto num_worlds = static_cast<uint64_t>(this->p_worlds.size());
-        uint64_t payload =
-            binary_string_bytes(this->p_name)
-            + sizeof(int32_t)                       // star index
-            + sizeof(uint64_t)                      // world count
-            + num_worlds * (sizeof(int32_t) + 4 * sizeof(double));  // per-world host index + two orbits
-        write_binary_header(out, static_cast<uint32_t>(BinaryClassID::System), payload);
         write_binary_string(out, this->p_name);
         const int32_t star_index = this->p_star_index;
         out.write(reinterpret_cast<const char*>(&star_index), sizeof(int32_t));
@@ -819,8 +822,7 @@ public:
     // checks as add_world, set_tidal_host, and the orbit setters, so a tidal host index that names no other world,
     // an out-of-range star index, a duplicate world name, or an unbound orbit can only come from a corrupt file and
     // throws std::runtime_error rather than being dropped.
-    void read_binary(std::istream& in, bool force = false) override {
-        c_TidalPyBaseClass::read_binary(in, force);
+    void p_read_payload(std::istream& in, bool force) override {
         std::string name = read_binary_string(in);
 
         int32_t star_index = -1;
@@ -911,13 +913,6 @@ public:
         this->p_no_tide_model_warned.assign(this->p_worlds.size(), 0);
     }
 
-    // What load_binary reads a file into first, so a bad file never reaches this system or its worlds
-    // (c_TidalPyBaseClass::make_binary_scratch).
-    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
-        return std::make_unique<c_System>();
-    }
-
-protected:
     // Bounds check shared by the index-based accessors.
     void check_index(std::size_t index) const {
         if (index >= this->p_worlds.size()) {

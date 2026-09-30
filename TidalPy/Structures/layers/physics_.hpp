@@ -9,23 +9,9 @@
  * applied to the static modulus and viscosity the solved EOS reports at a radius; without a rheology it is the
  * static value as a purely real number (no dissipation). All MKS.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::PhysicsLayer (101)
- *   payload:
- *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
- *     love_number_k  re, im        (double x2, 16)
- *     love_number_h  re, im        (double x2, 16)
- *     love_number_l  re, im        (double x2, 16)
- *     is_solid, is_static, is_incompressible (uint8_t x3, 3)
- *     temperature                   (double, 8)
- *     use_thermal_eos               (uint8_t, 1)
- *     use_heating                   (uint8_t, 1)
- *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
- *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
- *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS model (which carries its own viscosity and partial-melt models) and the two
- *   rheologies are serialized recursively: the three presence flags belong to this payload and each nested model
- *   follows as its own record. The EOS profile data is not serialized; re-run the world EOS solve after loading.
+ * Binary payload: the c_BaseLayer payload, then the Love numbers k, h, l (real then imaginary part each), the three
+ * classification flags, the temperature, use_thermal_eos, and use_heating, then the shear and bulk rheologies, each
+ * behind a presence flag.
  */
 
 #include <complex>
@@ -96,7 +82,7 @@ public:
     }
     c_PhysicsLayer& operator=(c_PhysicsLayer&&) noexcept = default;
 
-    uint32_t get_layer_class_id() const noexcept override {
+    uint32_t get_binary_class_id() const override {
         return static_cast<uint32_t>(BinaryClassID::PhysicsLayer);
     }
 
@@ -279,33 +265,6 @@ public:
         return this->p_eos ? this->p_eos->get_partial_melt_model() : nullptr;
     }
 
-    void write_binary(std::ostream& out) const override {
-        write_binary_header(
-            out, static_cast<uint32_t>(BinaryClassID::PhysicsLayer),
-            this->p_base_fields_bytes() + this->p_physics_fields_bytes()
-                + optional_binary_flag_bytes()             // material EOS model presence flag
-                + this->physics_models_presence_bytes());  // shear and bulk rheology presence flags
-        this->p_write_base_fields(out);
-        this->p_write_physics_fields(out);
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write PhysicsLayer binary data");
-        }
-        this->write_eos_model_binary(out);
-        this->write_physics_models_binary(out);
-    }
-
-    void read_binary(std::istream& in, bool force = false) override {
-        this->p_begin_read_binary(in, force);
-        this->p_read_base_fields(in);
-        this->p_read_physics_fields(in);
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read PhysicsLayer binary data");
-        }
-        this->read_eos_model_binary(in, force);
-        this->read_physics_models_binary(in, force);
-        this->update_physicals();
-    }
-
     // What load_binary reads a file into first (c_TidalPyBaseClass::make_binary_scratch).
     std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
         return std::make_unique<c_PhysicsLayer>();
@@ -335,32 +294,8 @@ protected:
         return this->p_eos.get();
     }
 
-    // Recursive (de)serialization of the two optional rheology models, shared by c_PhysicsLayer and its
-    // subclasses so the section keeps one byte layout: a presence flag each, followed when set by the model's
-    // own record. On read the concrete model is rebuilt through the rheology binary-dispatch factory and
-    // re-registered as this layer's observer.
-    void write_physics_models_binary(std::ostream& out) const {
-        write_optional_binary(out, this->p_shear_rheology);
-        write_optional_binary(out, this->p_bulk_rheology);
-    }
-
-    void read_physics_models_binary(std::istream& in, bool force) {
-        this->p_shear_rheology =
-            read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
-        if (this->p_shear_rheology) { this->p_shear_rheology->set_layer_ptr(this); }
-        this->p_bulk_rheology =
-            read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
-        if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
-    }
-
-    // The c_PhysicsLayer fields, which follow the c_BaseLayer fields in the payload of this record and of every
-    // subclass record: the Love numbers k, h, l (real then imaginary part each), the radial-solver classification
-    // flags, and the layer state (temperature, use_thermal_eos, use_heating).
-    static constexpr uint64_t p_physics_fields_bytes() {
-        return sizeof(double) * 6 + sizeof(uint8_t) * 3 + sizeof(double) + sizeof(uint8_t) * 2;
-    }
-
-    void p_write_physics_fields(std::ostream& out) const {
+    void p_write_payload(std::ostream& out) const override {
+        c_BaseLayer::p_write_payload(out);
         for (const std::complex<double>& love_number :
                 {this->p_love_numbers.k, this->p_love_numbers.h, this->p_love_numbers.l}) {
             const double parts[2] = {love_number.real(), love_number.imag()};
@@ -375,9 +310,12 @@ protected:
         const uint8_t state_bytes[2] = {
             static_cast<uint8_t>(this->p_use_thermal_eos), static_cast<uint8_t>(this->p_use_heating)};
         out.write(reinterpret_cast<const char*>(state_bytes), sizeof(state_bytes));
+        write_optional_binary(out, this->p_shear_rheology);
+        write_optional_binary(out, this->p_bulk_rheology);
     }
 
-    void p_read_physics_fields(std::istream& in) {
+    void p_read_payload(std::istream& in, bool force) override {
+        c_BaseLayer::p_read_payload(in, force);
         for (std::complex<double>* love_number :
                 {&this->p_love_numbers.k, &this->p_love_numbers.h, &this->p_love_numbers.l}) {
             double parts[2] = {0.0, 0.0};
@@ -394,11 +332,10 @@ protected:
         in.read(reinterpret_cast<char*>(state_bytes), sizeof(state_bytes));
         this->p_use_thermal_eos = static_cast<bool>(state_bytes[0]);
         this->p_use_heating     = static_cast<bool>(state_bytes[1]);
-    }
-
-    // Payload bytes contributed by the two rheology presence flags (the nested records follow the payload).
-    static constexpr uint64_t physics_models_presence_bytes() {
-        return 2 * optional_binary_flag_bytes();
+        this->p_shear_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+        if (this->p_shear_rheology) { this->p_shear_rheology->set_layer_ptr(this); }
+        this->p_bulk_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+        if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
     }
 
     c_LoveNumbers p_love_numbers;
@@ -413,7 +350,7 @@ protected:
     bool   p_use_thermal_eos = false;
     bool   p_use_heating     = false;
 
-    // Optional rheology objects (serialized recursively via write_physics_models_binary).
+    // Optional rheology objects.
     // The rheology classes are shared not unique: a radial-solver solution exported to Python keeps a
     // copy of these pointers so it can reproduce the complex moduli it was solved with, at any radius, after
     // potentially after this layer is gone.

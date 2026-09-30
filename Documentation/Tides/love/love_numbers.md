@@ -1,6 +1,6 @@
 # Love Numbers (`Tides.love`)
 
-_Updated: 2026-09-24_
+_Updated: 2026-09-29_
 
 `TidalPy.Tides.love` contains the Love-number storage type, the names of the Love-number solution methods, and the closed-form homogeneous-sphere Love numbers. Solved Love numbers come from the radial solver (`RadialSolver.radial_solver` for the standalone array API, or `LayeredWorld.solve_love_numbers` on a built world), which populates the storage type after integration; `LayeredWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
 
@@ -120,10 +120,6 @@ ctl = apply_fixed_dt(static, 1.0e-5, 600.0)  # k, h, l times (1 - i omega dt)
 | `apply_fixed_q(love_numbers, fixed_q)` | Constant phase lag applied to k, h, and l. |
 | `apply_fixed_dt(love_numbers, frequency, fixed_dt)` | Constant time lag applied to k, h, and l. |
 | `love_method_name(method)` | Canonical method name for an alias. |
-
-## Serialization
-
-Love numbers are serialized in `c_PhysicsLayer::write_binary` as six consecutive `double` values (re, im for each of k, h, l), contributing `6 × 8 = 48 bytes` to the payload.
 
 ## C++ API
 

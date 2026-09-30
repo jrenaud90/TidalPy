@@ -10,7 +10,7 @@
  *   6       1     schema_patch
  *   7       1     byte_order (0 little-endian, 1 big-endian)
  *   8       4     class_id  (uint32_t, writer's byte order)
- *   12      8     payload_size (uint64_t, writer's byte order)
+ *   12      8     payload_size (uint64_t, writer's byte order): every byte of the record after the header
  *   Total: 20 bytes
  *
  * Fields are written individually (no implicit struct padding), so the byte layout is identical on
@@ -28,7 +28,6 @@
 #include <random>
 #include <sstream>
 #include <stdexcept>
-#include <streambuf>
 #include <string>
 
 #include "logger_.hpp"
@@ -135,10 +134,9 @@ struct c_BinaryHeader {
     uint8_t  schema_patch;
     uint8_t  byte_order;    // TIDALPY_BINARY_LITTLE_ENDIAN or TIDALPY_BINARY_BIG_ENDIAN
     uint32_t class_id;      // cast from BinaryClassID
-    uint64_t payload_size;  // bytes of payload after this header
+    uint64_t payload_size;  // bytes of payload after this header, nested sub-object records included
 };
 
-// payload_size may be 0 if the caller will seek back and update it.
 inline void write_binary_header(
     std::ostream& out, uint32_t class_id, uint64_t payload_size = 0)
 {
@@ -302,37 +300,6 @@ inline c_BinaryHeader c_read_binary_record_header(std::istream& in, bool force) 
     return header;
 }
 
-// An output buffer that keeps the first TIDALPY_BINARY_HEADER_BYTES bytes written to it and discards the rest, so the
-// header of a record can be read back from a full write without holding the record in memory.
-class c_BinaryHeaderCaptureBuffer : public std::streambuf {
-public:
-    std::string get_captured_bytes() const { return std::string(this->p_bytes, this->p_num_captured); }
-
-protected:
-    std::streamsize xsputn(const char* source, std::streamsize count) override {
-        const auto room = static_cast<std::streamsize>(TIDALPY_BINARY_HEADER_BYTES - this->p_num_captured);
-        const std::streamsize num_kept = (count < room) ? count : room;
-        for (std::streamsize i = 0; i < num_kept; ++i) {
-            this->p_bytes[this->p_num_captured] = source[i];
-            ++this->p_num_captured;
-        }
-        // Report every byte as written so the stream stays good while the rest is discarded.
-        return count;
-    }
-
-    int_type overflow(int_type character) override {
-        if (!traits_type::eq_int_type(character, traits_type::eof())) {
-            const char byte = traits_type::to_char_type(character);
-            this->xsputn(&byte, 1);
-        }
-        return traits_type::not_eof(character);
-    }
-
-private:
-    char        p_bytes[TIDALPY_BINARY_HEADER_BYTES] = {};
-    std::size_t p_num_captured = 0;
-};
-
 // A sibling of target_path, in the same directory, that a save writes first and then renames over the target, so a
 // failed save never truncates the target. The random suffix keeps concurrent saves to one target apart.
 inline std::filesystem::path c_binary_temporary_path(const std::filesystem::path& target_path) {
@@ -369,15 +336,9 @@ inline std::string read_binary_string(std::istream& in) {
     return text;
 }
 
-// Payload bytes a length-prefixed string occupies, for header sizing.
-inline uint64_t binary_string_bytes(const std::string& text) {
-    return sizeof(uint32_t) + static_cast<uint64_t>(text.size());
-}
-
 // An owned optional sub-object is a one-byte presence flag followed, when present, by the sub-object's
-// own complete binary record. The flag belongs to the owning record's payload; the nested record is a
-// separate self-describing record appended to the stream. This is how models held by layers, and layers
-// held by worlds, serialize recursively.
+// own complete binary record. Both are part of the owning record's payload. This is how models held by layers, and
+// layers held by worlds, serialize recursively.
 
 template <typename T>
 inline void c_write_optional_record(std::ostream& out, const T* obj) {
@@ -415,7 +376,5 @@ inline std::unique_ptr<T> read_optional_binary(std::istream& in, bool force, Fac
     }
     return std::unique_ptr<T>();
 }
-
-inline constexpr uint64_t optional_binary_flag_bytes() { return sizeof(uint8_t); }
 
 } // namespace tidalpy

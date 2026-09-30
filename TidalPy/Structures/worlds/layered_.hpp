@@ -6,8 +6,8 @@
  *
  * Binary payload: the c_BaseWorld fields and tide section (tide configuration and model), the layer count, the
  * spin model's moment-of-inertia factor, and the pinned [eos_solver] and [radial_solver] settings (each key a
- * presence flag, then its value when set), followed by each layer's own complete binary record, in index order, as
- * separate appended records. Solved state (the EOS profile, Love numbers, tide results) is not saved.
+ * presence flag, then its value when set), then each layer's own complete binary record, in index order. Solved
+ * state (the EOS profile, Love numbers, tide results) is not saved.
  */
 
 #include <algorithm>
@@ -2400,19 +2400,31 @@ public:
         return true;
     }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_layered_binary(out, static_cast<uint32_t>(BinaryClassID::LayeredWorld));
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::LayeredWorld); }
+
+    // What load_binary reads a file into first, so a bad file never reaches this world, its layers, or its solved
+    // state (c_TidalPyBaseClass::make_binary_scratch).
+    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
+        return std::make_unique<c_LayeredWorld>();
     }
 
-    void read_binary(std::istream& in, bool force = false) override {
+protected:
+    void p_write_payload(std::ostream& out) const override {
+        c_BaseWorld::p_write_payload(out);
+        const auto n_layers = static_cast<uint64_t>(this->p_layers.size());
+        out.write(reinterpret_cast<const char*>(&n_layers), sizeof(uint64_t));
+        const double moi_factor = this->p_spin.get_config().moment_of_inertia_factor;
+        out.write(reinterpret_cast<const char*>(&moi_factor), sizeof(double));
+        this->write_solver_overrides(out);
+        // Each layer writes its own complete record, its models included.
+        for (const auto& layer : this->p_layers) { layer->write_binary(out); }
+    }
+
+    // The layers are read whole before they replace the world's, so a corrupt record leaves the stack whole.
+    void p_read_payload(std::istream& in, bool force) override {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         try {
-            c_TidalPyBaseClass::read_binary(in, force);
-            this->read_world_fields(in);
-            if (!in) {
-                throw std::runtime_error("TidalPy: failed to read LayeredWorld binary data");
-            }
-            this->read_tide_section(in, force);
+            c_BaseWorld::p_read_payload(in, force);
             uint64_t n_layers = 0;
             in.read(reinterpret_cast<char*>(&n_layers), sizeof(uint64_t));
             c_SpinConfig spin_config;
@@ -2427,7 +2439,6 @@ public:
             }
             this->read_solver_overrides(in);
             check_binary_count(in, n_layers, TIDALPY_BINARY_HEADER_BYTES, "layer");
-            // Read every layer before replacing the old ones, so a corrupt record leaves the stack whole.
             std::vector<std::unique_ptr<c_BaseLayer>> loaded_layers;
             loaded_layers.reserve(n_layers);
             for (uint64_t i = 0; i < n_layers; ++i) {
@@ -2444,35 +2455,6 @@ public:
         this->p_reference_mass.clear();
         this->p_reset_solved_state();
         this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;
-    }
-
-    // What load_binary reads a file into first, so a bad file never reaches this world, its layers, or its solved
-    // state (c_TidalPyBaseClass::make_binary_scratch).
-    std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
-        return std::make_unique<c_LayeredWorld>();
-    }
-
-protected:
-    // Shared so a subclass reuses the layout with its own BinaryClassID.
-    void write_layered_binary(std::ostream& out, uint32_t class_id) const {
-        std::ostringstream overrides_stream;
-        this->write_solver_overrides(overrides_stream);
-        const std::string overrides_bytes = overrides_stream.str();
-        const uint64_t payload = this->world_payload_bytes() + tide_section_payload_bytes()
-            + sizeof(uint64_t) + sizeof(double) + static_cast<uint64_t>(overrides_bytes.size());
-        write_binary_header(out, class_id, payload);
-        this->write_world_fields(out);
-        this->write_tide_section(out);
-        const auto n_layers = static_cast<uint64_t>(this->p_layers.size());
-        out.write(reinterpret_cast<const char*>(&n_layers), sizeof(uint64_t));
-        const double moi_factor = this->p_spin.get_config().moment_of_inertia_factor;
-        out.write(reinterpret_cast<const char*>(&moi_factor), sizeof(double));
-        out.write(overrides_bytes.data(), static_cast<std::streamsize>(overrides_bytes.size()));
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write layered-world binary data");
-        }
-        // Each layer writes its own complete record, its models included.
-        for (const auto& layer : this->p_layers) { layer->write_binary(out); }
     }
 
     // One pinned solver key: a presence flag, then the value as the fixed-width Stored type when set.

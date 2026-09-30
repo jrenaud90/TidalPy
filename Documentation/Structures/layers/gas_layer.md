@@ -1,6 +1,6 @@
 # GasLayer
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-29_
 
 `TidalPy.Structures.layers.GasLayer` (`c_GasLayer` in C++) is the layer class for gas and fluid envelopes such as planetary atmospheres or gaseous mantles. It inherits `PhysicsLayer`, so its density, moduli, and viscosities come from its material exactly as for any physics layer, and it adds four ideal-gas parameters (mean molecular weight, adiabatic index, and a reference temperature and density). Those are stored and serialized, but no calculation reads them: they change no result. No phase-change, cooling, or radiogenics sub-models are available; use `SolidLiquidLayer` for those.
 
@@ -61,12 +61,6 @@ Inherits all `BaseLayer` and `PhysicsLayer` properties, plus:
 | `reference_temperature` | K | Reference temperature |
 | `reference_density` | kg/m³ | Reference density |
 
-
-## Binary Serialization
-
-`save_binary(path)` / `load_binary(path, force=False)` round-trip all configuration fields, followed by an optional sub-model section holding the material EOS model and the inherited rheology, viscosity, and partial-melt models (presence flag + recursive binary record each). The EOS profile data is never serialized; re-run the world's `solve_eos` after loading.
-
-Binary class id 103 (`BinaryClassID::GasLayer`).
 
 ## Config I/O
 

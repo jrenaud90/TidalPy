@@ -8,23 +8,10 @@
  * getters take turns with the world's solves on other threads, and tells the world when a setting its EOS solve reads
  * changes (c_LayerOwner), so the world forgets the structure it solved with the old setting.
  *
- * Binary format (20-byte header + variable payload):
- *   header: class_id = BinaryClassID::BaseLayer (100)
- *   payload layout (fixed part 47 bytes + variable string data):
- *     p_radius           (double, 8)
- *     p_mass             (double, 8)
- *     name_len           (uint32_t, 4)
- *     name               (name_len bytes, UTF-8)
- *     layer_index        (int32_t, 4)
- *     radius_inner     (double, 8)
- *     material_name_len  (uint32_t, 4)
- *     material_name      (material_name_len bytes, UTF-8)
- *     is_tidal           (uint8_t, 1)
- *     is_volume_fixed    (uint8_t, 1)
- *     tidal_scale        (double, 8; NaN when the world uses the layer's volume fraction)
- *     eos_model          presence flag (uint8_t, 1) + (if present) the model's own binary record
- *   Derived fields (thickness, volume, surface areas) are recomputed on load. The attached material EOS model is
- *   serialized; the EOS profile it produces is not and is repopulated by re-running the world EOS solve.
+ * Binary payload: radius and mass (c_StructureBase), the name, layer index, inner radius, material name, is_tidal,
+ * is_volume_fixed, and tidal_scale (NaN when the world uses the layer's volume fraction), then the material EOS model
+ * behind a presence flag. The derived geometry is recomputed on load, and the EOS profile is not serialized: re-run
+ * the world EOS solve after loading.
  */
 
 #include <cctype>
@@ -206,10 +193,9 @@ public:
         return (planet_volume > TidalPyConstants::d_EPS) ? this->get_volume() / planet_volume : 0.0;
     }
 
-    // Matches the binary class id, so a caller holding a c_BaseLayer* can build the matching wrapper.
-    virtual uint32_t get_layer_class_id() const noexcept {
-        return static_cast<uint32_t>(BinaryClassID::BaseLayer);
-    }
+    // The binary class id, so a caller holding a c_BaseLayer* can build the matching wrapper.
+    uint32_t get_layer_class_id() const noexcept { return this->get_binary_class_id(); }
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::BaseLayer); }
     // A transient result, not serialized: the heating [W] the world's last calc_tides put in this layer, and NaN
     // until then (see c_LayeredWorld::calc_tides for how each Love method distributes it).
     double get_tidal_heating()                   const noexcept { return this->p_tidal_heating; }
@@ -317,27 +303,6 @@ public:
         this->p_surface_area_outer = this->calc_surface_area(this->p_radius_outer);
     }
 
-    void write_binary(std::ostream& out) const override {
-        write_binary_header(
-            out, static_cast<uint32_t>(BinaryClassID::BaseLayer),
-            this->p_base_fields_bytes() + optional_binary_flag_bytes());   // + material EOS model presence flag
-        this->p_write_base_fields(out);
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write BaseLayer binary data");
-        }
-        this->write_eos_model_binary(out);
-    }
-
-    void read_binary(std::istream& in, bool force = false) override {
-        this->p_begin_read_binary(in, force);
-        this->p_read_base_fields(in);
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read BaseLayer binary data");
-        }
-        this->read_eos_model_binary(in, force);
-        this->update_physicals();
-    }
-
     // What load_binary reads a file into first, so a bad file never reaches this layer
     // (c_TidalPyBaseClass::make_binary_scratch). Each layer class overrides it with its own.
     std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
@@ -345,57 +310,39 @@ public:
     }
 
 protected:
-    // The c_BaseLayer fields, which open the payload of every layer record in the order the header comment lists
-    // them. A subclass record appends its own fields, then its presence flags, then the nested model records.
-    uint64_t p_base_fields_bytes() const noexcept {
-        return sizeof(double) * 2                            // p_radius, p_mass
-            + binary_string_bytes(this->p_name)
-            + sizeof(int32_t)                                // layer_index
-            + sizeof(double)                                 // radius_inner
-            + binary_string_bytes(this->p_material_name)
-            + sizeof(uint8_t) * 2                            // is_tidal, is_volume_fixed
-            + sizeof(double);                                // tidal_scale
-    }
-
-    void p_write_base_fields(std::ostream& out) const {
-        out.write(reinterpret_cast<const char*>(&this->p_radius), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_mass),   sizeof(double));
+    void p_write_payload(std::ostream& out) const override {
+        c_StructureBase::p_write_payload(out);
         write_binary_string(out, this->p_name);
         const int32_t layer_index = static_cast<int32_t>(this->p_layer_index);
         out.write(reinterpret_cast<const char*>(&layer_index),          sizeof(int32_t));
         out.write(reinterpret_cast<const char*>(&this->p_radius_inner), sizeof(double));
         write_binary_string(out, this->p_material_name);
-        const uint8_t is_tidal_byte        = static_cast<uint8_t>(this->p_is_tidal);
-        const uint8_t is_volume_fixed_byte = static_cast<uint8_t>(this->p_is_volume_fixed);
-        out.write(reinterpret_cast<const char*>(&is_tidal_byte),        sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&is_volume_fixed_byte), sizeof(uint8_t));
-        out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
+        const uint8_t flag_bytes[2] = {
+            static_cast<uint8_t>(this->p_is_tidal), static_cast<uint8_t>(this->p_is_volume_fixed)};
+        out.write(reinterpret_cast<const char*>(flag_bytes), sizeof(flag_bytes));
+        out.write(reinterpret_cast<const char*>(&this->p_tidal_scale), sizeof(double));
+        write_optional_binary(out, this->p_eos);
     }
 
-    void p_read_base_fields(std::istream& in) {
-        in.read(reinterpret_cast<char*>(&this->p_radius), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_mass),   sizeof(double));
-        this->p_name = read_binary_string(in);
-        int32_t layer_index = 0;
-        in.read(reinterpret_cast<char*>(&layer_index), sizeof(int32_t));
-        this->p_layer_index = static_cast<int>(layer_index);
-        in.read(reinterpret_cast<char*>(&this->p_radius_inner), sizeof(double));
-        this->p_material_name = read_binary_string(in);
-        uint8_t is_tidal_byte        = 0;
-        uint8_t is_volume_fixed_byte = 0;
-        in.read(reinterpret_cast<char*>(&is_tidal_byte),        sizeof(uint8_t));
-        in.read(reinterpret_cast<char*>(&is_volume_fixed_byte), sizeof(uint8_t));
-        this->p_is_tidal        = static_cast<bool>(is_tidal_byte);
-        this->p_is_volume_fixed = static_cast<bool>(is_volume_fixed_byte);
-        in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
-    }
-
-    // Opens every layer read: the record header, then the state a loaded layer starts from, which carries no
-    // solved profile or heating until its world solves again.
-    void p_begin_read_binary(std::istream& in, bool force) {
-        c_TidalPyBaseClass::read_binary(in, force);
+    // A loaded layer carries no solved profile or heating until its world solves again.
+    void p_read_payload(std::istream& in, bool force) override {
         this->clear_eos_data();
         this->p_tidal_heating = TidalPyConstants::d_NAN;
+        c_StructureBase::p_read_payload(in, force);
+        this->p_name = read_binary_string(in);
+        int32_t layer_index = 0;
+        in.read(reinterpret_cast<char*>(&layer_index),          sizeof(int32_t));
+        in.read(reinterpret_cast<char*>(&this->p_radius_inner), sizeof(double));
+        this->p_layer_index   = static_cast<int>(layer_index);
+        this->p_material_name = read_binary_string(in);
+        uint8_t flag_bytes[2] = {0, 0};
+        in.read(reinterpret_cast<char*>(flag_bytes), sizeof(flag_bytes));
+        this->p_is_tidal        = static_cast<bool>(flag_bytes[0]);
+        this->p_is_volume_fixed = static_cast<bool>(flag_bytes[1]);
+        in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
+        this->p_eos = read_optional_binary<c_MaterialEOSBase>(in, force, c_material_eos_from_binary);
+        if (this->p_eos) { this->p_eos->set_layer_ptr(this); }
+        this->update_physicals();
     }
 
     // Every solved quantity at a radius; the caller holds the owner's lock. The owning world calls it directly
@@ -417,18 +364,6 @@ protected:
         double state[C_EOS_DY_VALUES];
         this->p_eos_state(radius, state);
         return state[index];
-    }
-
-    // Shared by every layer class so the section has one byte layout: a presence flag followed, when set, by
-    // the model's own binary record. On read the concrete model is rebuilt through the binary-dispatch
-    // factory and re-registered as this layer's observer.
-    void write_eos_model_binary(std::ostream& out) const {
-        write_optional_binary(out, this->p_eos);
-    }
-
-    void read_eos_model_binary(std::istream& in, bool force) {
-        this->p_eos = read_optional_binary<c_MaterialEOSBase>(in, force, c_material_eos_from_binary);
-        if (this->p_eos) { this->p_eos->set_layer_ptr(this); }
     }
 
     // Set at construction and never modified.

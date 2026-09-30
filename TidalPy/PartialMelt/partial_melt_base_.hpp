@@ -257,9 +257,8 @@ public:
         }
     }
 
-protected:
-    // The shared parameters, in binary order, followed by each model's own.
-    std::vector<double> envelope_params() const {
+    // The shared parameters, in binary order; each model appends its own.
+    std::vector<double> get_binary_params() const override {
         return {this->p_solidus, this->p_liquidus, this->p_liquid_shear, this->p_liquid_viscosity,
                 this->p_bulk_melt_weakening ? 1.0 : 0.0, this->p_liquid_bulk_modulus,
                 this->p_liquid_bulk_modulus_derivative, this->p_liquid_density,
@@ -267,7 +266,7 @@ protected:
                 this->p_melt_bulk_viscosity_coefficient, this->p_melt_bulk_viscosity_exponent};
     }
 
-    void set_envelope_params(const std::vector<double>& params) {
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_solidus             = params[0];
         this->p_liquidus            = params[1];
         this->p_liquid_shear        = params[2];
@@ -282,6 +281,7 @@ protected:
         this->p_melt_bulk_viscosity_exponent    = params[11];
     }
 
+protected:
     // Floor a post-melt pair at the liquid limits.
     void apply_liquid_floor(double& viscosity, double& shear) const noexcept {
         if (viscosity <= this->p_liquid_viscosity) { viscosity = this->p_liquid_viscosity; }

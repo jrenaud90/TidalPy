@@ -141,20 +141,6 @@ Radiogenic heating power [W] from the attached sub-model. Returns `0.0` when no 
 
 Returns all configuration values as a Python dictionary (MKS): all `BaseLayer` + `PhysicsLayer` keys (with `class = "solidliquid"` and the attached model sub-tables), plus the `cooling` and `radiogenics` sub-tables when those models are attached. The layer adds no scalar keys: its thermal constants are `thermal_conductivity_w_mk`, `thermal_expansion_1_k`, and `heat_capacity_j_kgk` in the `material` table.
 
-## Binary Serialization
-
-`save_binary` / `load_binary` serialize fields in this order:
-
-1. All `BaseLayer` fields (name, geometry, mass).
-2. All `PhysicsLayer` fields (Love numbers re+im, the three layer-assumption flags, `temperature`, `use_thermal_eos`, `use_heating`).
-3. An optional sub-model section: presence flags + recursive binary records for the material EOS model, shear rheology, bulk rheology, cooling, and radiogenics models (in that order). The EOS record carries the whole material with it: the static and thermal constants, the shear law, and its viscosity and partial-melt models.
-
-On load, every attached sub-model is reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with all of its physics intact (verify with `eos_set`, `shear_rheology_set`, `cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and `calc_radiogenic_heating`). See [Binary serialization](../../Utilities/binary.md) for the encoding.
-
-Binary class id 102 (`BinaryClassID::SolidLiquidLayer`).
-
-The EOS profile data is not serialized; re-run the world's `solve_eos` after loading.
-
 ## Example
 
 ```python
@@ -206,9 +192,4 @@ print(f"Thermal conductivity:  {k:.2f} W/(m·K)")
 print(f"Thermal diffusivity:   {kap:.3e} m²/s")
 print(f"Conductive heat flux:  {F:.3f} W/m²")
 
-# Binary save/load
-mantle.save_binary("mantle.tpyb")
-restored = SolidLiquidLayer("placeholder", 0, 0.0, 1.0, 1.0)
-restored.load_binary("mantle.tpyb")
-assert restored.thermal_conductivity == mantle.thermal_conductivity
 ```

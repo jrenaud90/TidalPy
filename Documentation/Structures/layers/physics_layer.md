@@ -182,16 +182,6 @@ Complex bulk modulus [Pa]; both the material-constant `(frequency)` and the radi
 
 `get_config_dict()` adds the three layer-assumption flags, `temperature_k`, `use_thermal_eos`, `use_heating`, the Love-number components, and a sub-table for each attached rheology (`shear_rheology`, `bulk_rheology`), keyed by `model` exactly as the world builder reads it. The `material` table (from `BaseLayer`) carries the EOS model with its static constants, its shear law, and its own `shear_viscosity`, `bulk_viscosity`, and `partial_melt` tables.
 
-## Binary Serialization
-
-`save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by six doubles for the Love numbers (`love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im), one byte each for `is_solid`, `is_static`, and `is_incompressible`, then one double for `temperature` and one byte each for `use_thermal_eos` and `use_heating`.
-
-Following the scalar payload, an optional sub-model section is written: one-byte presence flags for the material EOS model and the shear and bulk rheology, each followed (when set) by that model's own binary record. The EOS record carries the material with it: the static constants, the shear law, and its viscosity and partial-melt models. On load, attached models are reconstructed recursively via each module's binary-dispatch factory, so a saved layer round-trips with its models intact (verify with `eos_set`, `shear_rheology_set`, `shear_viscosity_set`, and `partial_melt_set`). See [Binary serialization](../../Utilities/binary.md) for the encoding.
-
-Binary class id 101 (`BinaryClassID::PhysicsLayer`).
-
-The EOS profile data is not serialized; re-run the world's `solve_eos` after loading.
-
 ## Example
 
 ```python

@@ -62,36 +62,25 @@ public:
         return std::sqrt(2.0 * c_get_G() * mass / radius);
     }
 
-    void write_binary(std::ostream& out) const override {
-        constexpr uint64_t payload = 2 * sizeof(double);
-        write_binary_header(
-            out,
-            static_cast<uint32_t>(BinaryClassID::StructureBase),
-            payload);
-        out.write(reinterpret_cast<const char*>(&p_radius), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&p_mass),   sizeof(double));
-        if (!out) {
-            throw std::runtime_error(
-                "TidalPy: failed to write StructureBase binary data");
-        }
-    }
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::StructureBase); }
 
     // A subclass inherits this scratch unless it overrides it; load_binary detects its class id and falls back.
     std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
         return std::make_unique<c_StructureBase>();
     }
 
-    void read_binary(std::istream& in, bool force = false) override {
-        c_TidalPyBaseClass::read_binary(in, force);
-        in.read(reinterpret_cast<char*>(&p_radius), sizeof(double));
-        in.read(reinterpret_cast<char*>(&p_mass),   sizeof(double));
-        if (!in) {
-            throw std::runtime_error(
-                "TidalPy: failed to read StructureBase binary data");
-        }
+protected:
+    // Radius then mass, which open the payload of every layer and world record too.
+    void p_write_payload(std::ostream& out) const override {
+        out.write(reinterpret_cast<const char*>(&this->p_radius), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_mass),   sizeof(double));
     }
 
-protected:
+    void p_read_payload(std::istream& in, bool /*force*/) override {
+        in.read(reinterpret_cast<char*>(&this->p_radius), sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_mass),   sizeof(double));
+    }
+
     double p_radius = 0.0;  // [m]
     double p_mass   = 0.0;  // [kg]
 };

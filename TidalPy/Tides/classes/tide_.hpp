@@ -110,6 +110,8 @@ public:
 
     bool needs_radial_solve() const override { return true; }
 
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::RheologyTide); }
+
     // Secular 3D tidal volumetric heating [W m-3], averaged over longitude; the rheology model alone
     // supports the 3D path. The active modes merge into coherent waves, the radial problem is solved once
     // per (l, |omega|), and each frequency contributes (|omega|/2) Im(sigma_c : conj(eps_c)) of its summed
@@ -177,13 +179,6 @@ public:
             const c_Heating3DCollapseConfig& cfg,
             double* out_values,
             double* out_layer_totals) const;
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::RheologyTide));
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->read_physics_binary(in, force, 0);
-    }
 };
 
 // The shared part of the analytic tide models: NumSlots per-degree parameter slots, the first always k_l, each with
@@ -208,16 +203,17 @@ public:
 
     bool needs_radial_solve() const override { return false; }
 
-    void write_binary(std::ostream& out) const override {
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(this->p_class_id); }
+
+    std::vector<double> get_binary_params() const override {
         std::vector<double> params;
         params.reserve(NumSlots * C_TIDE_NUM_DEGREES);
         for (const auto& slot : this->p_slots) {
             params.insert(params.end(), slot.begin(), slot.end());
         }
-        this->write_physics_binary(out, static_cast<uint32_t>(this->p_class_id), params);
+        return params;
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, NumSlots * C_TIDE_NUM_DEGREES);
+    void set_binary_params(const std::vector<double>& params) override {
         for (std::size_t slot = 0; slot < NumSlots; ++slot) {
             for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) {
                 this->p_slots[slot][i] = params[slot * C_TIDE_NUM_DEGREES + i];

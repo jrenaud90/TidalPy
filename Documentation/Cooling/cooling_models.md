@@ -134,9 +134,6 @@ The signatures are `cooling_off(delta_temp, thickness)`, `conductive(delta_temp,
 |---|---|
 | `get_config_dict()` | `model` plus any model parameters. |
 | `save_config(path)` | That dict written as TOML. |
-| `save_binary(path)` / `load_binary(path, force=False)` | TidalPy binary format, class ids 401 through 403. Off and conduction write no parameters; convection writes its three scalars. |
-
-A cooling model attached to a layer is written as part of that layer's binary record and rebuilt recursively on load. See [Binary serialization](../Utilities/binary.md).
 
 ## Adding a New Cooling Model
 
@@ -146,7 +143,7 @@ To add a cooling model named `Foo`:
 
 1. If `Foo` needs new parameters, add them to `c_CoolingConfig` with defaults.
 2. Add a `cool_foo(const c_CoolingInputs&[, const c_CoolingConfig&])` free function implementing the heat-transport law. Guard any denominator with `c_guard_denominator` (`constants_.hpp`), the shared floor.
-3. Add the class `c_Foo : public c_CoolingBase` with constructors `c_Foo()` and `explicit c_Foo(const c_CoolingConfig&)` that pass a model-name string to the base and copy any parameters into `p_*` members, a `get_*` accessor per parameter, an override of `calc_cooling(const c_CoolingInputs&)` returning a `c_CoolingResult`, and overrides of `write_binary` / `read_binary` built on the base helpers.
+3. Add the class `c_Foo : public c_CoolingBase` with constructors `c_Foo()` and `explicit c_Foo(const c_CoolingConfig&)` that pass a model-name string to the base and copy any parameters into `p_*` members, a `get_*` accessor per parameter, an override of `calc_cooling(const c_CoolingInputs&)` returning a `c_CoolingResult`, and `get_binary_class_id`, and `get_binary_params` / `set_binary_params` when it has parameters ([Binary Serialization](../Utilities/binary.md)).
 
 **C++ (`TidalPy/Utilities/binary/binary_.hpp`)**
 

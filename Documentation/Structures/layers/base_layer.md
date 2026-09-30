@@ -160,18 +160,6 @@ layer.calc_mean_density(m, v)        # m/v [kg/m³]
 layer.calc_escape_velocity(m, r)     # √(2Gm/r) [m/s]
 ```
 
-### Binary I/O
-
-```python
-layer.save_binary("layer.tpyb")
-
-restored = BaseLayer("placeholder", 0, 0.0, 1.0, 1.0)
-restored.load_binary("layer.tpyb")
-```
-
-> [!NOTE]
-> An attached material EOS model is saved and restored with the layer, but the EOS profile data it produces is not; re-run the world's `solve_eos` after loading.
-
 ### TOML Config
 
 ```python

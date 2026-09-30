@@ -49,7 +49,6 @@ welcome_to_earth = BaseWorld(
 
 `get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`, `type` (the builder's world type, from `get_builder_world_type()`), `radius`, `mass`, `albedo`, `emissivity`, `obliquity`, `spin_frequency`, and a `tides` table when a tide model is attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`). `save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`. `save_to_toml` validates the dict against the schema before writing when no build configuration is retained.
 
-Binary class id 200 (`BinaryClassID::BaseWorld`).
 
 ## `LayeredWorld`
 
@@ -90,7 +89,6 @@ Each view is dispatched to the matching subclass (`PhysicsLayer`/`SolidLiquidLay
 
 `get_config_dict()` adds a `layers` table keyed by layer name to the `BaseWorld` keys. Each entry is the layer's own config dict (`class`, scalars, attached-model sub-tables) without the standalone-only keys the builder derives itself, so `build_world(world.get_config_dict())` rebuilds the same structure.
 
-Binary class id 201 (`BinaryClassID::LayeredWorld`). See [Binary serialization](#binary-serialization).
 
 ### Equation of State
 
@@ -498,7 +496,7 @@ Each layer also stores its own tidal heating: `layer.get_tidal_heating()` (C++ `
 
 ## `GasGiantWorld`
 
-A `LayeredWorld` whose `world_type` defaults to `"gasgiant"`, with binary class id 202 (`BinaryClassID::GasGiantWorld`). It has the same API as `LayeredWorld` and is usually populated with `GasLayer`s.
+A `LayeredWorld` whose `world_type` defaults to `"gasgiant"`. It has the same API as `LayeredWorld` and is usually populated with `GasLayer`s.
 
 ```python
 from TidalPy.Structures.worlds import GasGiantWorld
@@ -524,13 +522,10 @@ sun.set_luminosity(3.828e26)  # recomputes effective_temperature
 
 **Tides.** The analytic tide pipeline (`set_tide_model`/`set_tide_config`/`calc_tides` and the `get_tidal_*` accessors) is defined on `BaseWorld`, so a star can use the analytic tide models (`cpl`, `ctl`, `ctl_q`). The `rheology` model needs the radial solver and a layered interior, so `calc_tides` raises if it is selected on a star. A star has no per-layer heating. See [Global tidal dissipation](#global-1d-tidal-dissipation).
 
-Binary class id 203 (`BinaryClassID::StarWorld`).
 
 ## Binary Serialization
 
-A `LayeredWorld` (and `GasGiantWorld`) serializes its `BaseWorld` fields and a layer count, then each layer's own complete binary record in index order. Each layer recursively serializes its attached material EOS, rheology, viscosity, partial-melt, cooling, and radiogenics models (see [Binary serialization](../../Utilities/binary.md)). A single `save_binary` / `load_binary` therefore round-trips the entire world graph with no Python reconstruction step. On load, the layer binary-dispatch factory (`c_layer_from_binary`) rebuilds each layer as the correct concrete subclass.
-
-The record also carries every setting that changes a result, so a loaded world computes what the saved one did:
+A world's binary file ([Binary Serialization](../../Utilities/binary.md)) holds the whole world graph, every layer with its attached models, and every setting that changes a result, so a loaded world computes what the saved one did:
 
 - Every world type: the tide model and its configuration (`get_tide_config()`: degrees, truncations, Love method, `love_fixed_q`, `love_fixed_dt`, `layer_tidal_heating`).
 - `LayeredWorld` and `GasGiantWorld`: the spin model's `moment_of_inertia_factor` and the pinned solver settings (`get_solver_defaults()`).
@@ -538,12 +533,4 @@ The record also carries every setting that changes a result, so a loaded world c
 
 Solved state is not saved. The EOS profile (`c_LayerEOSData`), Love numbers, and tide results are recomputed with `solve_eos` and `calc_tides` after a load. Loading into an existing world replaces all of these, so a record saved without a tide model leaves the world without one.
 
-```python
-world.save_binary("earth.tpyb")
-reloaded = LayeredWorld("placeholder", 1.0, 1.0)
-reloaded.load_binary("earth.tpyb")
-assert reloaded.num_layers == world.num_layers
-assert reloaded.calc_internal_heating(0.0) == world.calc_internal_heating(0.0)
-```
-
-The layers' material EOS models are restored, so the EOS solve needs nothing re-attached. Layer views taken before the load (`world.<name>`, `get_layer`) refer to replaced layers, so take new ones. A file must hold a record of the class it is loaded into: a `LayeredWorld` file into a `LayeredWorld`, a `PhysicsLayer` file into a `PhysicsLayer`, a model's file into the same model. Anything else raises `IOError` before the object is touched, as does a corrupt or truncated file. A layer that belongs to a world cannot be loaded in place. Load the world, or a standalone layer.
+The layers' material EOS models are restored, so the EOS solve needs nothing re-attached. Layer views taken before the load (`world.<name>`, `get_layer`) refer to replaced layers, so take new ones. A layer that belongs to a world cannot be loaded in place. Load the world, or a standalone layer.

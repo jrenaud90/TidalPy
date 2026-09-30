@@ -4,9 +4,6 @@
  *
  * Functionally a c_LayeredWorld (it owns layers and supports the whole-planet EOS solve), distinguished by its
  * world type and a dedicated BinaryClassID so it can be rebuilt as the correct subclass.
- *
- * Binary format: identical layout to c_LayeredWorld but with
- *   header: class_id = BinaryClassID::GasGiantWorld (202)
  */
 
 #include <cstdint>
@@ -29,11 +26,7 @@ public:
 
     ~c_GasGiantWorld() override = default;
 
-    void write_binary(std::ostream& out) const override {
-        this->write_layered_binary(out, static_cast<uint32_t>(BinaryClassID::GasGiantWorld));
-    }
-    // read_binary is inherited from c_LayeredWorld (it consumes the header and the
-    // same field layout regardless of the concrete class id).
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::GasGiantWorld); }
 
     // What load_binary reads a file into first, so a bad file never reaches this world
     // (c_TidalPyBaseClass::make_binary_scratch).

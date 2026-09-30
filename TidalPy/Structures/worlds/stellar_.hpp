@@ -5,11 +5,8 @@
  * Built on c_BaseWorld. Carries scalar effective temperature and luminosity kept consistent by the
  * Stefan-Boltzmann law, plus an optional c_LuminosityBase model that derives both from the star's mass.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::StarWorld (203)
- *   payload: [all c_BaseWorld fields and its tide section] + effective_temperature (double)
- *                                                            + luminosity (double)
- *            + luminosity model presence flag (uint8_t), followed when set by the model's own complete record
+ * Binary payload: the c_BaseWorld payload, then the effective temperature and luminosity, then the luminosity model
+ * behind a presence flag.
  */
 
 #include <cmath>
@@ -116,38 +113,7 @@ public:
         this->p_effective_temperature = this->calc_temperature_from_luminosity(this->p_luminosity);
     }
 
-    // Binary I/O
-    void write_binary(std::ostream& out) const override {
-        const uint64_t payload = this->world_payload_bytes() + tide_section_payload_bytes() + sizeof(double) * 2
-            + optional_binary_flag_bytes();
-        write_binary_header(out, static_cast<uint32_t>(BinaryClassID::StarWorld), payload);
-        this->write_world_fields(out);
-        this->write_tide_section(out);
-        out.write(reinterpret_cast<const char*>(&this->p_effective_temperature), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_luminosity),            sizeof(double));
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write StarWorld binary data");
-        }
-        write_optional_binary(out, this->p_luminosity_model);
-    }
-
-    // Takes the call lock, as c_BaseWorld::read_binary does: the load replaces the tide section a calc_tides reads.
-    void read_binary(std::istream& in, bool force = false) override {
-        const c_WorldCallLock call_lock(this->p_call_mutex.get());
-        c_TidalPyBaseClass::read_binary(in, force);
-        this->read_world_fields(in);
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read StarWorld binary data");
-        }
-        this->read_tide_section(in, force);
-        in.read(reinterpret_cast<char*>(&this->p_effective_temperature), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_luminosity),            sizeof(double));
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read StarWorld binary data");
-        }
-        this->p_luminosity_model =
-            read_optional_binary<c_LuminosityBase>(in, force, c_luminosity_from_binary);
-    }
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::StarWorld); }
 
     // What load_binary reads a file into first, so a bad file never reaches this star
     // (c_TidalPyBaseClass::make_binary_scratch).
@@ -156,6 +122,21 @@ public:
     }
 
 protected:
+    void p_write_payload(std::ostream& out) const override {
+        c_BaseWorld::p_write_payload(out);
+        out.write(reinterpret_cast<const char*>(&this->p_effective_temperature), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_luminosity),            sizeof(double));
+        write_optional_binary(out, this->p_luminosity_model);
+    }
+
+    void p_read_payload(std::istream& in, bool force) override {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        c_BaseWorld::p_read_payload(in, force);
+        in.read(reinterpret_cast<char*>(&this->p_effective_temperature), sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_luminosity),            sizeof(double));
+        this->p_luminosity_model = read_optional_binary<c_LuminosityBase>(in, force, c_luminosity_from_binary);
+    }
+
     double p_effective_temperature = 5772.0;   // [K]
     double p_luminosity            = 0.0;       // [W]
     // Optional global-scale luminosity model (mass -> luminosity); serialized as an optional sub-object.

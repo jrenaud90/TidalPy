@@ -7,22 +7,10 @@
  * whole-planet solves live in c_LayeredWorld. Every world owns a call lock (c_WorldCallLock) that its solves, its
  * tide setters, and the reads of its results take. All MKS: radius [m], mass [kg], angles [rad], frequency [rad/s].
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::BaseWorld (200)
- *   payload:
- *     p_radius                 (double, 8)
- *     p_mass                   (double, 8)
- *     name_len + name          (uint32_t + bytes)
- *     world_type_len + type    (uint32_t + bytes)
- *     albedo                   (double, 8)
- *     emissivity               (double, 8)
- *     obliquity            (double, 8)
- *     spin_frequency     (double, 8)
- *   then the tide section, which every world class writes right after these fields:
- *     min_degree_l, max_degree_l, eccentricity_truncation, obliquity_truncation, love_method (int32_t, 4 each)
- *     layer_tidal_heating      (uint8_t, 1)
- *     love_fixed_q, love_fixed_dt, eccentricity_exact_tolerance (double, 8 each)
- *     tide model presence flag (uint8_t, 1), followed when set by the tide model's own complete record
+ * Binary payload: radius and mass (c_StructureBase), the name, world type, albedo, emissivity, obliquity, and spin
+ * frequency, then the tide section: min_degree_l, max_degree_l, eccentricity_truncation, obliquity_truncation, and
+ * love_method (int32_t each), layer_tidal_heating (uint8_t), love_fixed_q, love_fixed_dt, and
+ * eccentricity_exact_tolerance, and the tide model behind a presence flag. Tide results are not saved.
  */
 
 #include <cmath>
@@ -232,20 +220,7 @@ public:
         return love.k;
     }
 
-    // Binary I/O
-    void write_binary(std::ostream& out) const override {
-        this->write_world_binary(out, static_cast<uint32_t>(BinaryClassID::BaseWorld));
-    }
-
-    void read_binary(std::istream& in, bool force = false) override {
-        const c_WorldCallLock call_lock(this->p_call_mutex.get());
-        c_TidalPyBaseClass::read_binary(in, force);
-        this->read_world_fields(in);
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read BaseWorld binary data");
-        }
-        this->read_tide_section(in, force);
-    }
+    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::BaseWorld); }
 
     // What load_binary reads a file into first, so a bad file never reaches this world
     // (c_TidalPyBaseClass::make_binary_scratch). Each world class overrides it with its own.
@@ -258,32 +233,32 @@ public:
     std::recursive_mutex* get_call_mutex() const noexcept { return this->p_call_mutex.get(); }
 
 protected:
-    // Shared world binary helpers (reused by subclasses with their own class id).
-    // Number of payload bytes the c_BaseWorld scalar/string fields occupy.
-    uint64_t world_payload_bytes() const noexcept {
-        return sizeof(double) * 2                       // radius, mass
-             + binary_string_bytes(this->p_name)
-             + binary_string_bytes(this->p_world_type)
-             + sizeof(double) * 4;                      // albedo, emissivity, obliquity, spin
-    }
-
-    // Write the c_BaseWorld record (header, fields, tide section) for the given class id.
-    void write_world_binary(std::ostream& out, uint32_t class_id) const {
-        write_binary_header(out, class_id, this->world_payload_bytes() + tide_section_payload_bytes());
-        this->write_world_fields(out);
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write world binary data");
-        }
+    void p_write_payload(std::ostream& out) const override {
+        c_StructureBase::p_write_payload(out);
+        write_binary_string(out, this->p_name);
+        write_binary_string(out, this->p_world_type);
+        const double scalars[4] = {this->p_albedo, this->p_emissivity, this->p_obliquity, this->p_spin_frequency};
+        out.write(reinterpret_cast<const char*>(scalars), sizeof(scalars));
         this->write_tide_section(out);
     }
 
-    // The tide section: the [tides] configuration, then the tide model as an optional sub-object, so a loaded
-    // world dissipates as the saved one did. The payload counts the configuration and the presence flag; the
-    // model's own record follows as a separate appended record. Tide results are not saved (recompute them).
-    static constexpr uint64_t tide_section_payload_bytes() noexcept {
-        return 5 * sizeof(int32_t) + sizeof(uint8_t) + 3 * sizeof(double) + optional_binary_flag_bytes();
+    // Takes the call lock: the load replaces the tide section a calc_tides reads.
+    void p_read_payload(std::istream& in, bool force) override {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        c_StructureBase::p_read_payload(in, force);
+        this->p_name       = read_binary_string(in);
+        this->p_world_type = read_binary_string(in);
+        double scalars[4] = {0.0, 0.0, 0.0, 0.0};
+        in.read(reinterpret_cast<char*>(scalars), sizeof(scalars));
+        this->p_albedo         = scalars[0];
+        this->p_emissivity     = scalars[1];
+        this->p_obliquity      = scalars[2];
+        this->p_spin_frequency = scalars[3];
+        this->read_tide_section(in, force);
     }
 
+    // The tide section: the [tides] configuration, then the tide model behind a presence flag, so a loaded world
+    // dissipates as the saved one did.
     void write_tide_section(std::ostream& out) const {
         const c_TideConfig& cfg = this->p_tide_config;
         const int32_t ints[5] = {
@@ -295,9 +270,6 @@ protected:
         out.write(reinterpret_cast<const char*>(&cfg.love_fixed_q),  sizeof(double));
         out.write(reinterpret_cast<const char*>(&cfg.love_fixed_dt), sizeof(double));
         out.write(reinterpret_cast<const char*>(&cfg.eccentricity_exact_tolerance), sizeof(double));
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write world tide configuration binary data");
-        }
         write_optional_binary(out, this->p_tide);
     }
 
@@ -333,30 +305,6 @@ protected:
         this->p_tides_solved = false;
         this->p_tide_result  = c_GlobalTideResult();
         this->p_tide_solver_love.clear();
-    }
-
-    // Write only the c_BaseWorld fields (no header) so subclasses can append.
-    void write_world_fields(std::ostream& out) const {
-        out.write(reinterpret_cast<const char*>(&this->p_radius), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_mass),   sizeof(double));
-        write_binary_string(out, this->p_name);
-        write_binary_string(out, this->p_world_type);
-        out.write(reinterpret_cast<const char*>(&this->p_albedo),               sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_emissivity),           sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_obliquity),        sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_spin_frequency), sizeof(double));
-    }
-
-    // Read only the c_BaseWorld fields (header already consumed by caller).
-    void read_world_fields(std::istream& in) {
-        in.read(reinterpret_cast<char*>(&this->p_radius), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_mass),   sizeof(double));
-        this->p_name       = read_binary_string(in);
-        this->p_world_type = read_binary_string(in);
-        in.read(reinterpret_cast<char*>(&this->p_albedo),               sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_emissivity),           sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_obliquity),        sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_spin_frequency), sizeof(double));
     }
 
     std::string p_name;

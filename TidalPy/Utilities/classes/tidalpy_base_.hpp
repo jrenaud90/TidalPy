@@ -45,13 +45,61 @@ public:
         return false;
     }
 
-    // Each concrete subclass writes {header, payload}, starting with write_binary_header.
-    virtual void write_binary(std::ostream& out) const = 0;
+    // Writes this object's record: the header, with its class id and payload size, then the payload, which
+    // p_write_payload fills, nested records included. The payload is written to memory first, so its size is
+    // measured, never computed.
+    void write_binary(std::ostream& out) const {
+        const uint32_t class_id = this->get_binary_class_id();
+        std::ostringstream payload_stream(std::ios::out | std::ios::binary);
+        this->p_write_payload(payload_stream);
+        if (!payload_stream) {
+            throw std::runtime_error(
+                "TidalPy: failed to write the binary data of a record of class id " + std::to_string(class_id));
+        }
+        const std::string payload = std::move(payload_stream).str();
+        write_binary_header(out, class_id, static_cast<uint64_t>(payload.size()));
+        out.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+        if (!out) {
+            throw std::runtime_error(
+                "TidalPy: failed to write the binary data of a record of class id " + std::to_string(class_id));
+        }
+    }
 
-    // Reads the header and validates it (c_read_binary_record_header). Subclasses call this first, then read their
-    // own payload.
-    virtual void read_binary(std::istream& in, bool force = false) {
-        c_read_binary_record_header(in, force);
+    // Reads a record of this object's own class: validates its header (c_read_binary_record_header) and class id,
+    // then parses exactly the payload the header declares through p_read_payload. A payload that ends before its
+    // fields are read, or holds bytes after them, was written with another layout or is corrupt, so either raises,
+    // even with force, which relaxes only the schema-version check.
+    void read_binary(std::istream& in, bool force = false) {
+        const c_BinaryHeader header = c_read_binary_record_header(in, force);
+        const std::string class_id_str = std::to_string(header.class_id);
+        if (header.class_id != this->get_binary_class_id()) {
+            throw std::runtime_error(
+                "TidalPy: corrupt binary data: a record of class id " + class_id_str + " stands where a record of "
+                "class id " + std::to_string(this->get_binary_class_id()) + " belongs");
+        }
+        // c_read_binary_record_header checked that the stream holds the whole payload.
+        std::string payload(static_cast<std::size_t>(header.payload_size), '\0');
+        const std::string ends_early =
+            "TidalPy: corrupt or truncated binary data: the record of class id " + class_id_str + " ends after its "
+            + std::to_string(header.payload_size) + " payload bytes, before this TidalPy build has read its fields";
+        in.read(payload.data(), static_cast<std::streamsize>(payload.size()));
+        if (!in) { throw std::runtime_error(ends_early); }
+        std::istringstream payload_stream(std::move(payload), std::ios::in | std::ios::binary);
+        try {
+            this->p_read_payload(payload_stream, force);
+        }
+        catch (const std::runtime_error& read_error) {
+            if (payload_stream.fail()) { throw std::runtime_error(ends_early + " (" + read_error.what() + ")"); }
+            throw;
+        }
+        if (payload_stream.fail()) { throw std::runtime_error(ends_early); }
+        if (payload_stream.peek() != std::char_traits<char>::eof()) {
+            throw std::runtime_error(
+                "TidalPy: corrupt binary data: the record of class id " + class_id_str + " holds "
+                + std::to_string(header.payload_size) + " payload bytes, but this TidalPy build reads "
+                + std::to_string(static_cast<uint64_t>(payload_stream.tellg()))
+                + " of them, so it was written with a different layout or is corrupt");
+        }
     }
 
     // Writes to a temporary sibling of the target and renames it over the target only once the whole record is
@@ -147,19 +195,16 @@ public:
         return nullptr;
     }
 
-    // The class id this object writes in its binary header. A class that writes one fixed id overrides this to return
-    // it, and writes its header with that override, so the id lives in one place. This fallback, for the classes that
-    // do not, runs a full write into a buffer that keeps only the header bytes: the time of a save, but no memory for
-    // the record. A base class whose subclasses write their own ids must not override it.
-    virtual uint32_t get_binary_class_id() const {
-        c_BinaryHeaderCaptureBuffer header_capture;
-        std::ostream probe(&header_capture);
-        this->write_binary(probe);
-        std::istringstream header_stream(header_capture.get_captured_bytes(), std::ios::in | std::ios::binary);
-        return read_binary_header(header_stream).class_id;
-    }
+    // The class id (BinaryClassID) of this object's records. Every concrete class returns its own.
+    virtual uint32_t get_binary_class_id() const = 0;
 
 protected:
+    // This object's payload. A subclass writes its parent's part first (calling the parent's p_write_payload), then
+    // its own fields and the complete records of the sub-objects it owns; p_read_payload reads them back in the same
+    // order, from a stream that holds exactly this payload.
+    virtual void p_write_payload(std::ostream& out) const = 0;
+    virtual void p_read_payload(std::istream& in, bool force) = 0;
+
     // This object's own record, written to memory.
     std::string p_write_binary_bytes() const {
         std::ostringstream record_stream(std::ios::out | std::ios::binary);

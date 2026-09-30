@@ -1,6 +1,6 @@
 # Luminosity Models (`Stellar`)
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-29_
 
 A luminosity model maps a star's mass onto its luminosity $L$ \[W\]. That sets the effective temperature through the Stefan-Boltzmann law, and, once the star is placed in a `System`, the flux and equilibrium temperature of every world orbiting it.
 
@@ -137,7 +137,6 @@ Every model supports the standard interfaces inherited from the base class.
 
 - `get_config_dict()` returns the model name under the key `model` plus its parameters. The dict is accepted by `make_luminosity`, so a model round-trips through it.
 - `save_config(path)` writes the same content as TOML.
-- `save_binary(path)` and `load_binary(path, force=False)` use the TidalPy binary format. All three models serialize through the shared `c_PhysicsBase` scalar helpers, and the layer back-pointer is not written.
 
 ## C++ API
 
@@ -163,7 +162,7 @@ const double temperature = model->calc_effective_temperature(mass, radius); // [
 - `c_find_luminosity(model, config)`: heap-allocates the model as a `unique_ptr`.
 - `c_luminosity_from_binary(stream, force)`: reconstructs from a binary record.
 
-The solar anchors come from `TidalPyConstants::d_MASS_SOLAR` and `d_LUMINOSITY_SOLAR`, and the Stefan-Boltzmann constant from the shared config singleton (`tidalpy_config_ptr->d_SBC`). Binary class ids 1000 through 1003 are reserved for this module.
+The solar anchors come from `TidalPyConstants::d_MASS_SOLAR` and `d_LUMINOSITY_SOLAR`, and the Stefan-Boltzmann constant from the shared config singleton (`tidalpy_config_ptr->d_SBC`).
 
 ## Adding a New Model
 
@@ -171,7 +170,7 @@ The solar anchors come from `TidalPyConstants::d_MASS_SOLAR` and `d_LUMINOSITY_S
 
 1. Add any new parameters to `c_LuminosityConfig` with sensible defaults. The single combined config is shared by all models.
 2. Add a free function implementing the relation, returning NaN for a non-positive mass.
-3. Add the model class deriving from `c_LuminosityBase`: a default constructor and one taking the config, `get_*` accessors, the `calc_luminosity` override, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers.
+3. Add the model class deriving from `c_LuminosityBase`: a default constructor and one taking the config, `get_*` accessors, the `calc_luminosity` override, and `get_binary_class_id`, and `get_binary_params` / `set_binary_params` when it has parameters ([Binary Serialization](../Utilities/binary.md)).
 4. Add the enum value, the name and alias branch in `c_luminosity_model_from_name`, and the cases in `c_find_luminosity` and `c_luminosity_from_binary`.
 
 **C++ (`TidalPy/Utilities/binary/binary_.hpp`)**

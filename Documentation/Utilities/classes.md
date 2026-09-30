@@ -75,8 +75,6 @@ StructureBase(radius: float, mass: float)
 
 Every `calc_` method is const and takes its inputs explicitly rather than reading the object's stored radius and mass, because a layer needs the volume of a shell between two radii that are not its own and a world needs the surface area at an arbitrary radius.
 
-The binary record is 36 bytes: the 20-byte header, then the radius and mass as doubles in host byte order.
-
 ## `PhysicsBase`
 
 ```python
@@ -93,8 +91,6 @@ Every physics model's configuration comes from one place. The C++ base declares 
 The keys are exactly what the matching factory accepts, so `make_<family>(config["model"], config)` rebuilds the model, and a world's configuration round-trips: the world asks each layer, each layer asks each attached model, and every answer is valid builder input.
 
 The config entries are not part of the binary format; they are a separate, human-readable view. The layer observer pointer is a C++ only field that the owning layer sets after construction, and it is neither serialized nor exposed to Python.
-
-The binary record is 24 bytes plus the model name: the 20-byte header, the name length as a `uint32_t`, then the UTF-8 name bytes.
 
 ## Checking Physics-Model Config Keys
 
@@ -128,8 +124,7 @@ restored.load_binary("body.tpyb");
 |---|---|
 | `get_schema_version_str() const` | The schema version string. |
 | `check_schema_compatibility(major, minor) const` | Version check; logs a warning on mismatch. |
-| `write_binary(ostream&) const` | Pure virtual; every subclass implements it. |
-| `read_binary(istream&, force = false)` | Virtual; the base reads and validates the header. |
+| `write_binary(ostream&) const`, `read_binary(istream&, force = false)` | The record of this object; a subclass supplies `get_binary_class_id` and its payload (see [Binary Serialization](binary.md#c-api)). |
 | `save_binary(path) const` and `load_binary(path, force = false)` | Delegate to the two above. A save writes a temporary file beside the target and renames it over the target, so a failed save leaves the old file intact; a load raises if bytes remain after the root record, and a load that raises and error leaves the object's saved state as it was (see [Binary Format](binary.md)). |
 
 ### `config_entry_.hpp`

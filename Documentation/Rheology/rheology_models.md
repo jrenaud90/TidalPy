@@ -228,10 +228,6 @@ Every model supports the standard TidalPy interfaces.
 |---|---|
 | `get_config_dict()` | A dict of `model` plus the model's own parameters, in the same form the world builder reads. |
 | `save_config(path)` | That dict written as a TOML file. |
-| `save_binary(path)` | The TidalPy binary format, preserving the model name and parameters. |
-| `load_binary(path, force=False)` | Reads a saved model back into an existing instance. `force=True` accepts a file written by a different schema version. |
-
-A rheology attached to a layer is written as part of that layer's binary record and reconstructed recursively when the layer is loaded, so a saved planet round-trips with its rheologies intact. See [Binary serialization](../Utilities/binary.md).
 
 ## Adding a New Rheology
 
@@ -241,7 +237,7 @@ To add one named `Foo`:
 
 1. If `Foo` needs new parameters, add them to `c_RheologyConfig` with sensible defaults. The single combined config is shared by all models.
 2. If the constitutive law is a new series combination, add an internal `detail::element_compliance_*` helper. A model with a closed form can compute its modulus inline instead.
-3. Add the class `c_Foo : public c_RheologyBase` with constructors `c_Foo()` and `explicit c_Foo(const c_RheologyConfig&)` that pass a model-name string to the base and copy any parameters into `p_*` members, a `get_*` accessor per parameter, an override of `calc_complex_modulus(modulus, viscosity, frequency)` returning the complex modulus, and overrides of `write_binary` / `read_binary` built on the `c_PhysicsBase` helpers.
+3. Add the class `c_Foo : public c_RheologyBase` with constructors `c_Foo()` and `explicit c_Foo(const c_RheologyConfig&)` that pass a model-name string to the base and copy any parameters into `p_*` members, a `get_*` accessor per parameter, an override of `calc_complex_modulus(modulus, viscosity, frequency)` returning the complex modulus, and `get_binary_class_id`, and `get_binary_params` / `set_binary_params` when it has parameters ([Binary Serialization](../Utilities/binary.md)).
 
 **C++ (`TidalPy/Utilities/binary/binary_.hpp`)**
 

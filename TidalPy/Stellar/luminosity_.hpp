@@ -104,11 +104,10 @@ public:
         return static_cast<uint32_t>(BinaryClassID::FixedLuminosity);
     }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(), {this->p_luminosity});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_luminosity};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 1);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_luminosity = params[0];
     }
 
@@ -130,13 +129,6 @@ public:
 
     uint32_t get_binary_class_id() const override {
         return static_cast<uint32_t>(BinaryClassID::MassToLuminosity);
-    }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id());
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->read_physics_binary(in, force, 0);
     }
 };
 
@@ -167,11 +159,10 @@ public:
         return static_cast<uint32_t>(BinaryClassID::PowerLawLuminosity);
     }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(), {this->p_coeff, this->p_exponent});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_coeff, this->p_exponent};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 2);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_coeff    = params[0];
         this->p_exponent = params[1];
     }

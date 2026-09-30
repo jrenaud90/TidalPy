@@ -6,22 +6,8 @@
  * for a future gas description; nothing reads them yet, and the layer's density comes from its material's law. No
  * phase changes, no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::GasLayer (103)
- *   payload:
- *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
- *     [all c_PhysicsLayer additions: love_numbers k/h/l re+im (6×8), the three classification flags,
- *      temperature, use_thermal_eos, use_heating]
- *     mean_molecular_weight  (double, 8)
- *     adiabatic_index               (double, 8)
- *     reference_temperature       (double, 8)
- *     reference_density       (double, 8)
- *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
- *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
- *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS model and the two rheology models are serialized recursively: the three
- *   presence flags belong to this payload and each nested model follows as its own record. The EOS profile data
- *   is not serialized; re-run the world EOS solve after loading.
+ * Binary payload: the c_PhysicsLayer payload, then the mean molecular weight, adiabatic index, reference temperature,
+ * and reference density.
  */
 
 #include <cmath>
@@ -77,7 +63,7 @@ public:
     c_GasLayer& operator=(c_GasLayer&&) noexcept = default;
 
     // Property getters (const, MKS)
-    uint32_t get_layer_class_id() const noexcept override {
+    uint32_t get_binary_class_id() const override {
         return static_cast<uint32_t>(BinaryClassID::GasLayer);
     }
     double get_mean_molecular_weight() const noexcept { return this->p_mean_molecular_weight; }
@@ -85,48 +71,30 @@ public:
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
     double get_reference_density()     const noexcept { return this->p_reference_density; }
 
-    void write_binary(std::ostream& out) const override {
-        write_binary_header(
-            out, static_cast<uint32_t>(BinaryClassID::GasLayer),
-            this->p_base_fields_bytes() + this->p_physics_fields_bytes()
-                + sizeof(double) * 4                       // the ideal-gas fields
-                + optional_binary_flag_bytes()             // material EOS model presence flag
-                + this->physics_models_presence_bytes());  // shear and bulk rheology presence flags
-        this->p_write_base_fields(out);
-        this->p_write_physics_fields(out);
-        out.write(reinterpret_cast<const char*>(&this->p_mean_molecular_weight), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_adiabatic_index),       sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_reference_temperature), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_reference_density),     sizeof(double));
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write GasLayer binary data");
-        }
-        this->write_eos_model_binary(out);
-        this->write_physics_models_binary(out);
-    }
-
-    void read_binary(std::istream& in, bool force = false) override {
-        this->p_begin_read_binary(in, force);
-        this->p_read_base_fields(in);
-        this->p_read_physics_fields(in);
-        in.read(reinterpret_cast<char*>(&this->p_mean_molecular_weight), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_adiabatic_index),       sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_reference_temperature), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_reference_density),     sizeof(double));
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read GasLayer binary data");
-        }
-        this->read_eos_model_binary(in, force);
-        this->read_physics_models_binary(in, force);
-        this->update_physicals();
-    }
-
     // What load_binary reads a file into first (c_TidalPyBaseClass::make_binary_scratch).
     std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
         return std::make_unique<c_GasLayer>();
     }
 
 protected:
+    void p_write_payload(std::ostream& out) const override {
+        c_PhysicsLayer::p_write_payload(out);
+        const double gas_fields[4] = {
+            this->p_mean_molecular_weight, this->p_adiabatic_index, this->p_reference_temperature,
+            this->p_reference_density};
+        out.write(reinterpret_cast<const char*>(gas_fields), sizeof(gas_fields));
+    }
+
+    void p_read_payload(std::istream& in, bool force) override {
+        c_PhysicsLayer::p_read_payload(in, force);
+        double gas_fields[4] = {0.0, 0.0, 0.0, 0.0};
+        in.read(reinterpret_cast<char*>(gas_fields), sizeof(gas_fields));
+        this->p_mean_molecular_weight = gas_fields[0];
+        this->p_adiabatic_index       = gas_fields[1];
+        this->p_reference_temperature = gas_fields[2];
+        this->p_reference_density     = gas_fields[3];
+    }
+
     double p_mean_molecular_weight = 2.0e-3;   // [kg/mol]
     double p_adiabatic_index       = 1.4;       // γ = c_p/c_v [dimensionless]
     double p_reference_temperature = 300.0;     // [K]

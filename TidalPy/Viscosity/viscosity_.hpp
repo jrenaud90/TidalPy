@@ -74,11 +74,10 @@ public:
         return static_cast<uint32_t>(BinaryClassID::ConstantViscosity);
     }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(), {this->p_reference_viscosity});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_reference_viscosity};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 1);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_reference_viscosity = params[0];
     }
 
@@ -133,14 +132,11 @@ public:
         return static_cast<uint32_t>(BinaryClassID::ReferenceViscosity);
     }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, this->get_binary_class_id(),
-            {this->p_reference_viscosity, this->p_reference_temperature,
-             this->p_molar_activation_energy, this->p_molar_activation_volume});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_reference_viscosity, this->p_reference_temperature, this->p_molar_activation_energy,
+                this->p_molar_activation_volume};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 4);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_reference_viscosity     = params[0];
         this->p_reference_temperature   = params[1];
         this->p_molar_activation_energy = params[2];
@@ -215,16 +211,12 @@ public:
         return static_cast<uint32_t>(BinaryClassID::ArrheniusViscosity);
     }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, this->get_binary_class_id(),
-            {this->p_arrhenius_coeff, this->p_stress, this->p_stress_expo,
-             this->p_grain_size, this->p_grain_size_expo,
-             this->p_molar_activation_energy, this->p_molar_activation_volume,
-             this->p_additional_temp_dependence ? 1.0 : 0.0});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_arrhenius_coeff, this->p_stress, this->p_stress_expo, this->p_grain_size,
+                this->p_grain_size_expo, this->p_molar_activation_energy, this->p_molar_activation_volume,
+                this->p_additional_temp_dependence ? 1.0 : 0.0};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 8);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_arrhenius_coeff            = params[0];
         this->p_stress                     = params[1];
         this->p_stress_expo                = params[2];

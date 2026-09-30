@@ -49,13 +49,6 @@ public:
     uint32_t get_binary_class_id() const override {
         return static_cast<uint32_t>(BinaryClassID::OffPartialMelt);
     }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(), this->envelope_params());
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->set_envelope_params(this->read_physics_binary(in, force, C_NUM_ENVELOPE_PARAMS));
-    }
 };
 
 // Fischer and Spohn (1990) temperature law (aliases "fischer", "fischer_spohn"). Above the solidus the post-melt
@@ -117,15 +110,14 @@ public:
         return static_cast<uint32_t>(BinaryClassID::SpohnPartialMelt);
     }
 
-    void write_binary(std::ostream& out) const override {
-        std::vector<double> params = this->envelope_params();
+    std::vector<double> get_binary_params() const override {
+        std::vector<double> params = c_PartialMeltBase::get_binary_params();
         params.insert(params.end(), {this->p_fs_visc_power_slope, this->p_fs_visc_log10_at_solidus,
                                      this->p_fs_shear_power_slope, this->p_fs_shear_log10_at_solidus});
-        this->write_physics_binary(out, this->get_binary_class_id(), params);
+        return params;
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, C_NUM_ENVELOPE_PARAMS + 4);
-        this->set_envelope_params(params);
+    void set_binary_params(const std::vector<double>& params) override {
+        c_PartialMeltBase::set_binary_params(params);
         const std::size_t i0 = C_NUM_ENVELOPE_PARAMS;
         this->p_fs_visc_power_slope       = params[i0];
         this->p_fs_visc_log10_at_solidus  = params[i0 + 1];
@@ -224,16 +216,15 @@ public:
         return static_cast<uint32_t>(BinaryClassID::HenningPartialMelt);
     }
 
-    void write_binary(std::ostream& out) const override {
-        std::vector<double> params = this->envelope_params();
+    std::vector<double> get_binary_params() const override {
+        std::vector<double> params = c_PartialMeltBase::get_binary_params();
         params.insert(params.end(), {this->p_crit_melt_frac, this->p_crit_melt_frac_width,
                                      this->p_hn_visc_slope_1, this->p_hn_visc_falloff_slope,
                                      this->p_hn_shear_param_1, this->p_hn_shear_falloff_slope});
-        this->write_physics_binary(out, this->get_binary_class_id(), params);
+        return params;
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, C_NUM_ENVELOPE_PARAMS + 6);
-        this->set_envelope_params(params);
+    void set_binary_params(const std::vector<double>& params) override {
+        c_PartialMeltBase::set_binary_params(params);
         const std::size_t i0 = C_NUM_ENVELOPE_PARAMS;
         this->p_crit_melt_frac         = params[i0];
         this->p_crit_melt_frac_width   = params[i0 + 1];

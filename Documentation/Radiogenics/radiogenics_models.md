@@ -1,6 +1,6 @@
 # Radiogenic Models (`Radiogenics`)
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-29_
 
 A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] is returned by `calc_heating(time, mass)`.
 
@@ -206,9 +206,6 @@ Every model supports the standard interfaces inherited from the TidalPy base cla
 
 - `get_config_dict()` returns the model name under the key `model` plus its parameters, with isotope arrays as lists. The dict is accepted by `make_radiogenics`, so a model round-trips through it.
 - `save_config(path)` writes the same content as TOML.
-- `save_binary(path)` and `load_binary(path, force=False)` use the TidalPy binary format. The layer back-pointer is not serialized, so re-attach the model after loading.
-
-The Off and Fixed models write their scalars through the shared `write_physics_binary` helper. The Isotope model writes its variable-length list, each isotope's name plus its four doubles, directly after the shared header and model name, which is the one place in the module that bypasses the scalar-only helper.
 
 ## C++ API
 
@@ -235,7 +232,6 @@ const double heating = model->calc_heating(time, mass);   // [W]
 - `c_radiogenics_from_binary(stream, force)`: reconstructs from a binary record, so a model attached to a layer is restored when the layer is loaded.
 - `c_isotope_dataset_names()` and `c_get_isotope_dataset(name)`: the built-in catalog, already in MKS.
 
-Binary class ids 500 through 503 are reserved for this module.
 
 ## Adding a New Model
 
@@ -243,7 +239,7 @@ Binary class ids 500 through 503 are reserved for this module.
 
 1. Add any new parameters to `c_RadiogenicsConfig` with sensible defaults. The single combined config is shared by all models, and each reads only the fields it needs.
 2. Add a free function implementing the heating law, guarding any half-life denominator with `c_guard_denominator` (`constants_.hpp`) and any growth term with `c_safe_exp` or `c_safe_pow`, so an overflow returns NaN like the existing models.
-3. Add the model class deriving from `c_RadiogenicsBase`: a default constructor and one taking the config, `get_*` accessors, the `calc_heating` override, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers. Variable-length data is written directly after the header and model name, as `c_IsotopeRadiogenics` does.
+3. Add the model class deriving from `c_RadiogenicsBase`: a default constructor and one taking the config, `get_*` accessors, the `calc_heating` override, and `get_binary_class_id`, and `get_binary_params` / `set_binary_params` when it has parameters ([Binary Serialization](../Utilities/binary.md)).
 4. Add the enum value, the name and alias branch in `c_radiogenics_model_from_name`, and the cases in `c_find_radiogenics` and `c_radiogenics_from_binary`.
 
 **C++ (`TidalPy/Utilities/binary/binary_.hpp`)**

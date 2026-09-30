@@ -6,21 +6,7 @@
  * the layer's geometry or solved profile. The thermal constants those read (conductivity, expansivity, heat
  * capacity) belong to the material, the layer's EOS model, like every other material property. All MKS.
  *
- * Binary format (20-byte header + payload):
- *   header: class_id = BinaryClassID::SolidLiquidLayer (102)
- *   payload:
- *     [all c_BaseLayer fields: same byte layout as the BaseLayer binary payload]
- *     [all c_PhysicsLayer additions: love_numbers k/h/l re+im (6×8), the three classification flags,
- *      temperature, use_thermal_eos, use_heating]
- *     eos_model       presence flag (uint8_t, 1) + (if present) its binary record
- *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
- *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
- *     cooling         presence flag (uint8_t, 1) + (if present) its binary record
- *     radiogenics     presence flag (uint8_t, 1) + (if present) its binary record
- *   The attached material EOS (which carries its own viscosity and partial-melt models), rheology, cooling, and
- *   radiogenics models are serialized recursively: the five presence flags belong to this payload and each
- *   nested model follows as its own record. The EOS profile data is not serialized; re-run the world EOS solve
- *   after loading.
+ * Binary payload: the c_PhysicsLayer payload, then the cooling and radiogenics models, each behind a presence flag.
  */
 
 #include <algorithm>
@@ -75,7 +61,7 @@ public:
         return this->p_eos ? this->p_eos->get_heat_capacity() : TidalPyConstants::d_NAN;
     }
 
-    uint32_t get_layer_class_id() const noexcept override {
+    uint32_t get_binary_class_id() const override {
         return static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer);
     }
 
@@ -151,57 +137,23 @@ public:
     c_CoolingBase*     get_cooling_model()     const noexcept { return this->p_cooling.get(); }
     c_RadiogenicsBase* get_radiogenics_model() const noexcept { return this->p_radiogenics.get(); }
 
-    void write_binary(std::ostream& out) const override {
-        write_binary_header(
-            out, static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer),
-            this->p_base_fields_bytes() + this->p_physics_fields_bytes()
-                + optional_binary_flag_bytes()             // material EOS model presence flag
-                + this->physics_models_presence_bytes()    // shear and bulk rheology presence flags
-                + 2 * optional_binary_flag_bytes());       // cooling and radiogenics presence flags
-        this->p_write_base_fields(out);
-        this->p_write_physics_fields(out);
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write SolidLiquidLayer binary data");
-        }
-        this->write_eos_model_binary(out);
-        this->write_physics_models_binary(out);
-        this->write_submodels_binary(out);
-    }
-
-    void read_binary(std::istream& in, bool force = false) override {
-        this->p_begin_read_binary(in, force);
-        this->p_read_base_fields(in);
-        this->p_read_physics_fields(in);
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read SolidLiquidLayer binary data");
-        }
-        this->read_eos_model_binary(in, force);
-        this->read_physics_models_binary(in, force);
-        this->read_submodels_binary(in, force);
-        this->update_physicals();
-    }
-
     // What load_binary reads a file into first (c_TidalPyBaseClass::make_binary_scratch).
     std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override {
         return std::make_unique<c_SolidLiquidLayer>();
     }
 
 protected:
-    // Recursive (de)serialization of the optional cooling and radiogenics models, mirroring
-    // c_PhysicsLayer::write_physics_models_binary: a presence flag each, followed when set by the model's own
-    // record. On read the concrete model is rebuilt through the cooling and radiogenics binary-dispatch
-    // factories and re-registered as this layer's observer.
-    void write_submodels_binary(std::ostream& out) const {
+    void p_write_payload(std::ostream& out) const override {
+        c_PhysicsLayer::p_write_payload(out);
         write_optional_binary(out, this->p_cooling);
         write_optional_binary(out, this->p_radiogenics);
     }
 
-    void read_submodels_binary(std::istream& in, bool force) {
-        this->p_cooling =
-            read_optional_binary<c_CoolingBase>(in, force, c_cooling_from_binary);
+    void p_read_payload(std::istream& in, bool force) override {
+        c_PhysicsLayer::p_read_payload(in, force);
+        this->p_cooling = read_optional_binary<c_CoolingBase>(in, force, c_cooling_from_binary);
         if (this->p_cooling) { this->p_cooling->set_layer_ptr(this); }
-        this->p_radiogenics =
-            read_optional_binary<c_RadiogenicsBase>(in, force, c_radiogenics_from_binary);
+        this->p_radiogenics = read_optional_binary<c_RadiogenicsBase>(in, force, c_radiogenics_from_binary);
         if (this->p_radiogenics) { this->p_radiogenics->set_layer_ptr(this); }
     }
 

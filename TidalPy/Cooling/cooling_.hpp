@@ -117,13 +117,6 @@ public:
     c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Off; }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::OffCooling); }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id());
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->read_physics_binary(in, force, 0);
-    }
 };
 
 class c_ConductiveCooling final : public c_CoolingBase {
@@ -138,13 +131,6 @@ public:
     c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Conduction; }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::ConductiveCooling); }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id());
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->read_physics_binary(in, force, 0);
-    }
 };
 
 // Parameterized boundary-layer convection.
@@ -174,13 +160,10 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::ConvectiveCooling); }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, this->get_binary_class_id(),
-            {this->p_config.convection_alpha, this->p_config.convection_beta, this->p_config.critical_rayleigh});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_config.convection_alpha, this->p_config.convection_beta, this->p_config.critical_rayleigh};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 3);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_config.convection_alpha  = params[0];
         this->p_config.convection_beta   = params[1];
         this->p_config.critical_rayleigh = params[2];

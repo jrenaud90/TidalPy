@@ -354,13 +354,6 @@ public:
     }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Elastic); }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id());
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->read_physics_binary(in, force, 0);
-    }
 };
 
 // Purely viscous response (alias "newton").
@@ -381,13 +374,6 @@ public:
     }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Viscous); }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id());
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->read_physics_binary(in, force, 0);
-    }
 };
 
 class c_Maxwell final : public c_RheologyBase {
@@ -407,13 +393,6 @@ public:
     }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Maxwell); }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id());
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->read_physics_binary(in, force, 0);
-    }
 };
 
 // Voigt-Kelvin element (alias "voigt-kelvin").
@@ -449,12 +428,10 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Voigt); }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(),
-                                   {this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 2);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_voigt_modulus_frac   = params[0];
         this->p_voigt_viscosity_frac = params[1];
     }
@@ -497,12 +474,10 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Burgers); }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(),
-                                   {this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 2);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_voigt_modulus_frac   = params[0];
         this->p_voigt_viscosity_frac = params[1];
     }
@@ -546,12 +521,10 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Andrade); }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(),
-                                   {this->p_alpha, this->p_zeta});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_alpha, this->p_zeta};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 2);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_alpha = params[0];
         this->p_zeta  = params[1];
         this->p_andrade_factors = c_AndradeFactors(this->p_alpha);
@@ -606,13 +579,10 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Sundberg); }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, this->get_binary_class_id(),
-            {this->p_alpha, this->p_zeta, this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_alpha, this->p_zeta, this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 4);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_alpha                = params[0];
         this->p_zeta                 = params[1];
         this->p_voigt_modulus_frac   = params[2];
@@ -662,11 +632,10 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Zener); }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(), {this->p_relaxed_modulus_frac});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_relaxed_modulus_frac};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 1);
+    void set_binary_params(const std::vector<double>& params) override {
         c_check_relaxed_modulus_frac(params[0]);
         this->p_relaxed_modulus_frac = params[0];
     }
@@ -722,12 +691,10 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::SeismicQ); }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id(),
-                                   {this->p_reference_frequency, this->p_q_frequency_exponent});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_reference_frequency, this->p_q_frequency_exponent};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 2);
+    void set_binary_params(const std::vector<double>& params) override {
         c_check_params(params[0], params[1]);
         this->p_reference_frequency  = params[0];
         this->p_q_frequency_exponent = params[1];

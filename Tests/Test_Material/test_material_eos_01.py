@@ -209,12 +209,12 @@ def test_an_interpolated_table_out_of_order_is_refused_on_load(tmp_path):
 
 
 def test_an_interpolated_record_of_the_wrong_size_is_refused_on_load(tmp_path):
-    """A header payload size that disagrees with the tables fails the load, as for the other EOS models."""
+    """A header payload size that disagrees with the tables fails the load."""
     data = bytearray(_saved_interpolated_bytes(tmp_path))
     # The payload size is the header's last field: 4 magic bytes, 4 version and byte-order bytes, a 4-byte class id.
     payload_size = struct.unpack_from("<Q", data, 12)[0]
     struct.pack_into("<Q", data, 12, payload_size + 8)
-    _load_refused(data + bytes(8), tmp_path, "interpolated EOS record holds")
+    _load_refused(data + bytes(8), tmp_path, "payload bytes, but this TidalPy build reads")
 
 
 def test_config_dict_interpolated_roundtrip():

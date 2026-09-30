@@ -1,6 +1,6 @@
 # Global (1D) Tidal Dissipation (`Tides.classes`)
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-29_
 
 The global (or "1D potential") approach computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal modes `(l, m, p, q)`. Each mode carries a forcing frequency $\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta}$ and a precomputed potential weight; a tide model supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}(\omega)]$ that the collapse multiplies in and sums. Harmonic degrees `l = 2..10` are supported.
 
@@ -104,7 +104,6 @@ where each `fixed_*` is a list indexed from `l = 2`.
 | `model_name` | str | The model's registered name, for example `cpl`. |
 | `get_config_dict()` | dict | Model name plus per-degree parameters. |
 | `save_config(path)`, `get_schema_version_str()` | - | Configuration output and schema version, shared by every physics model; see [Base Classes](../Utilities/classes.md). |
-| `save_binary(path)` / `load_binary(path)` | - | Inherited from `TidalPyBaseClass`. |
 
 `make_tide(name, config=None)` returns the concrete subclass; unknown names, and config keys other than `fixed_k`, `fixed_q`, and `fixed_dt_s`, raise `ValueError`. `collapse_global_tides(...)` supports the analytic models only: the `rheology` model raises `NotImplementedError` (use the world's `calc_tides`).
 
@@ -114,13 +113,13 @@ The C++ layer is canonical; the Cython classes are thin adapters.
 
 - Config struct `tidalpy::c_TideModelConfig` (`tide_.hpp`): per-degree `std::vector<double>` `fixed_k`, `fixed_q`, `fixed_dt` (indexed from `l = 2`; entries beyond `l = 10` are ignored).
 - Base class `c_TideBase : c_PhysicsBase` (`tide_base_.hpp`): pure virtual `calc_love_numbers(int degree_l, double frequency, const c_LoveNumbers& solver_love) const` (returns the full `c_LoveNumbers` suite) and `needs_radial_solve() const`; non-virtual `calc_neg_imk(...)`, which is `−Im[calc_love_numbers(...).k]`.
-- Models (`tide_.hpp`): `c_RheologyTide`, `c_FixedQTide`, `c_FixedLagTide`, `c_CTLQTide`, each with per-degree getters. Binary class ids 901–904.
+- Models (`tide_.hpp`): `c_RheologyTide`, `c_FixedQTide`, `c_FixedLagTide`, `c_CTLQTide`, each with per-degree getters.
 - Enum factory: `c_tide_model_from_name(const std::string&)` returns a `c_TideModel` (`Rheology`, `FixedQ`, `FixedLag`, `CTLQ`) and throws `std::invalid_argument` on an unknown name; `c_find_tide(c_TideModel, const c_TideModelConfig&)` returns a `std::unique_ptr<c_TideBase>` (a name overload also exists); `c_tide_from_binary(std::istream&, bool force=false)` peeks the class id, builds the model, and calls `read_binary`.
 - Collapse (`tide_collapse_.hpp`): `c_collapse_global_tides(const c_GlobalPotentialStorage&, const c_TideBase&, const c_IntMap<c_Key4, c_LoveNumbers>* solver_love_by_lmpq = nullptr)` returns a `c_GlobalTideResult`. The `solver_love_by_lmpq` map supplies the radial-solver Love numbers (k, h, l) per mode for the `rheology` model; pass `nullptr` for the analytic models. `c_GlobalTideResult` holds `tidal_heating`, `dU_dM`, `dU_dw`, `dU_dO`, `num_modes`, and `error_code`.
 
 ## Adding a New Model
 
-1. Add a `c_<Name>Tide : c_TideBase` in `tide_.hpp` implementing `calc_love_numbers` (return a `c_LoveNumbers`; set `h, l = NaN` if no radial solution), `needs_radial_solve`, `write_binary`, `read_binary`.
+1. Add a `c_<Name>Tide : c_TideBase` in `tide_.hpp` implementing `calc_love_numbers` (return a `c_LoveNumbers`; set `h, l = NaN` if no radial solution), `needs_radial_solve`, and `get_binary_class_id` ([Binary Serialization](../Utilities/binary.md)); a model on `c_AnalyticTide` inherits its per-degree parameters' serialization.
 2. Add any new parameters to `c_TideModelConfig`.
 3. Register a `c_TideModel::<Name>` enum value and wire it into `c_tide_model_from_name`, `c_find_tide`, and `c_tide_from_binary`.
 4. Reserve a unique `BinaryClassID` (next free in the 900-block) in `Utilities/binary/binary_.hpp`.

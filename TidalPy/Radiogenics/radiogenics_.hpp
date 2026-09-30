@@ -251,13 +251,6 @@ public:
     uint32_t get_binary_class_id() const override {
         return static_cast<uint32_t>(BinaryClassID::OffRadiogenics);
     }
-
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(out, this->get_binary_class_id());
-    }
-    void read_binary(std::istream& in, bool force = false) override {
-        this->read_physics_binary(in, force, 0);
-    }
 };
 
 // Sum over individually decaying isotopes.
@@ -331,32 +324,28 @@ public:
         return static_cast<uint32_t>(BinaryClassID::IsotopeRadiogenics);
     }
 
-    void write_binary(std::ostream& out) const override {
+    // The reference time is the one scalar parameter; the isotope list follows it (p_write_payload).
+    std::vector<double> get_binary_params() const override { return {this->p_ref_time}; }
+    void set_binary_params(const std::vector<double>& params) override { this->p_ref_time = params[0]; }
+
+protected:
+    // The isotope count, then each isotope's name and four doubles.
+    void p_write_payload(std::ostream& out) const override {
+        c_RadiogenicsBase::p_write_payload(out);
         const auto n = static_cast<uint64_t>(this->p_isotopes.size());
-        write_binary_header(out, this->get_binary_class_id(), p_payload_bytes(this->p_model_name, this->p_isotopes));
-        write_binary_string(out, this->p_model_name);
-        out.write(reinterpret_cast<const char*>(&this->p_ref_time), sizeof(double));
         out.write(reinterpret_cast<const char*>(&n), sizeof(uint64_t));
         for (const c_Isotope& iso : this->p_isotopes) {
             write_binary_string(out, iso.name);
             out.write(reinterpret_cast<const char*>(&iso.heat_production), sizeof(double));
-            out.write(reinterpret_cast<const char*>(&iso.half_life),          sizeof(double));
-            out.write(reinterpret_cast<const char*>(&iso.mass_frac),            sizeof(double));
-            out.write(reinterpret_cast<const char*>(&iso.concentration),        sizeof(double));
-        }
-        if (!out) {
-            throw std::runtime_error("TidalPy: failed to write isotope radiogenics binary data");
+            out.write(reinterpret_cast<const char*>(&iso.half_life),       sizeof(double));
+            out.write(reinterpret_cast<const char*>(&iso.mass_frac),       sizeof(double));
+            out.write(reinterpret_cast<const char*>(&iso.concentration),   sizeof(double));
         }
     }
 
-    // The header's payload size must be exactly what the isotope list read from it occupies; any other size means the
-    // record was written with a different layout (or is corrupt), so it raises even with force, which relaxes only
-    // the schema-version check. The model changes only once the whole record is read and checked.
-    void read_binary(std::istream& in, bool force = false) override {
-        const c_BinaryHeader header = c_read_binary_record_header(in, force);
-        std::string model_name = read_binary_string(in);
-        double ref_time = 0.0;
-        in.read(reinterpret_cast<char*>(&ref_time), sizeof(double));
+    // The isotope list is read whole before it replaces the model's.
+    void p_read_payload(std::istream& in, bool force) override {
+        c_RadiogenicsBase::p_read_payload(in, force);
         uint64_t n = 0;
         in.read(reinterpret_cast<char*>(&n), sizeof(uint64_t));
         if (!in) { throw std::runtime_error("TidalPy: failed to read isotope radiogenics binary data"); }
@@ -367,37 +356,16 @@ public:
             c_Isotope iso;
             iso.name = read_binary_string(in);
             in.read(reinterpret_cast<char*>(&iso.heat_production), sizeof(double));
-            in.read(reinterpret_cast<char*>(&iso.half_life),          sizeof(double));
-            in.read(reinterpret_cast<char*>(&iso.mass_frac),            sizeof(double));
-            in.read(reinterpret_cast<char*>(&iso.concentration),        sizeof(double));
+            in.read(reinterpret_cast<char*>(&iso.half_life),       sizeof(double));
+            in.read(reinterpret_cast<char*>(&iso.mass_frac),       sizeof(double));
+            in.read(reinterpret_cast<char*>(&iso.concentration),   sizeof(double));
             isotopes.push_back(std::move(iso));
         }
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read isotope radiogenics binary data");
         }
-        const uint64_t expected_payload = p_payload_bytes(model_name, isotopes);
-        if (header.payload_size != expected_payload) {
-            throw std::runtime_error(
-                "TidalPy: corrupt binary data: the isotope radiogenics record holds "
-                + std::to_string(header.payload_size) + " payload bytes, but its " + std::to_string(n)
-                + " isotopes occupy " + std::to_string(expected_payload)
-                + ", so it was written with a different layout or is corrupt");
-        }
-        this->p_model_name = std::move(model_name);
-        this->p_ref_time   = ref_time;
-        this->p_isotopes   = std::move(isotopes);
+        this->p_isotopes = std::move(isotopes);
         this->p_cache_decay_terms();
-    }
-
-protected:
-    // Payload bytes of a record: the model name, the reference time, the isotope count, then each isotope's name
-    // and four doubles.
-    static uint64_t p_payload_bytes(const std::string& model_name, const std::vector<c_Isotope>& isotopes) {
-        uint64_t payload = binary_string_bytes(model_name) + sizeof(double) + sizeof(uint64_t);
-        for (const c_Isotope& iso : isotopes) {
-            payload += binary_string_bytes(iso.name) + 4 * sizeof(double);
-        }
-        return payload;
     }
 
     void p_cache_decay_terms() {
@@ -449,13 +417,10 @@ public:
         return static_cast<uint32_t>(BinaryClassID::FixedRadiogenics);
     }
 
-    void write_binary(std::ostream& out) const override {
-        this->write_physics_binary(
-            out, this->get_binary_class_id(),
-            {this->p_fixed_heat_production, this->p_average_half_life, this->p_ref_time});
+    std::vector<double> get_binary_params() const override {
+        return {this->p_fixed_heat_production, this->p_average_half_life, this->p_ref_time};
     }
-    void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params = this->read_physics_binary(in, force, 3);
+    void set_binary_params(const std::vector<double>& params) override {
         this->p_fixed_heat_production = params[0];
         this->p_average_half_life = params[1];
         this->p_ref_time          = params[2];

@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-29_
 
-TidalPy writes worlds, layers, systems, and physics models to a compact binary format. A TOML configuration is the readable, editable way to describe a world; the binary format saves and restores an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
+TidalPy writes worlds, layers, systems, and physics models to a compact binary format. This page is the one description of that format and of how a class takes part in it; the other pages only list each class's id. A TOML configuration is the readable, editable way to describe a world; the binary format saves and restores an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
 
 Every file starts with a fixed 20-byte header naming the format version, the class that wrote it, and the payload size, so a reader can identify what a file holds before deciding whether it can read it.
 
@@ -16,11 +16,11 @@ Every file starts with a fixed 20-byte header naming the format version, the cla
 | 6 | 1 | `schema_patch` | Schema patch version. |
 | 7 | 1 | `byte_order` | The writer's byte order: `0` little-endian, `1` big-endian. |
 | 8 | 4 | `class_id` | Class type id, `uint32_t` in the writer's byte order. |
-| 12 | 8 | `payload_size` | Payload bytes of this record, `uint64_t` in the writer's byte order. |
+| 12 | 8 | `payload_size` | Every byte of the record after the header, nested sub-object records included, `uint64_t` in the writer's byte order. |
 
 Fields are written one at a time with explicit stream writes rather than as a packed struct, so compiler padding never affects the layout. Multi-byte fields use the writer's byte order, which the header records. A reader on a machine of the other byte order refuses the file instead of converting it. Every platform TidalPy supports (Windows, Linux, and macOS on x64 and ARM64) is little-endian, so files move freely between them.
 
-A record's payload size counts only the record's own fields and presence flags. Nested sub-object records follow it as separate records with their own headers (see [Nested and Recursive Serialization](#nested-and-recursive-serialization)).
+A record's payload holds its own fields and the complete records of the sub-objects it owns (see [Nested and Recursive Serialization](#nested-and-recursive-serialization)), so a record spans exactly its header plus `payload_size` bytes.
 
 ## Schema Version
 
@@ -41,8 +41,9 @@ A minor version bump can change a class's member layout, and reading an old payl
 - The magic bytes are wrong, or the byte order is not this machine's.
 - The schema version is incompatible and `force=True` was not given.
 - Any record's header claims a payload larger than what is left in the file. This runs before the record is read, so a corrupt size never leads to a huge read or allocation.
-- A physics model's payload size is not the model name plus the parameters this build reads. A record written with a different parameter list would otherwise misalign every record after it.
-- A count read from the file (a string length, a table length, a number of layers or worlds) is larger than what is left in the file.
+- A nested record's class id is not the one its owner expects.
+- A record's payload ends before this build has read its fields, or bytes are left in it after them. The record was written with a different layout, which would otherwise misalign every record after it, or it is corrupt.
+- A count read from the file (a string length, a table length, a number of layers or worlds) is larger than what is left in the record.
 - Bytes are left over after the root record. The file was written with a layout this build does not read, or it is corrupt.
 
 A load that raises an error leaves every setting the object had before the call. The whole file is read into memory first, and then the initial checks are performed before anything is read into the object. For the other checks, which can only run while or after the record is read, `load_binary` keeps a copy of the object's own record in memory and reads it back into the object when a failed load is caught. A class that provides a scratch object (`make_binary_scratch` in C++) is protected more fully. The record is read into the scratch first and reaches the object only once the whole file has passed every check, so state the object does not save, such as a solved structure, survives a failed load too.
@@ -69,43 +70,47 @@ get_current_schema_version()   # '0.2.0'
 
 ## C++ API
 
-Include `binary_.hpp` in any code that reads or writes these files. It pulls in `logger_.hpp` so version-mismatch warnings go through the shared logger.
+`c_TidalPyBaseClass` (`Utilities/classes/tidalpy_base_.hpp`) holds the only `write_binary` and `read_binary` in the package, and every class takes part in the format through a few overrides:
+
+| Member | Role |
+|---|---|
+| `write_binary(out)` | Writes the class's payload to memory through `p_write_payload`, then the header, with the measured payload size, and the payload. |
+| `read_binary(in, force)` | Reads and checks the header (`c_read_binary_record_header` and the class id), then hands `p_read_payload` a stream that holds exactly the payload, and raises unless it read every byte. |
+| `get_binary_class_id()` | The `BinaryClassID` of the class's records. Every concrete class returns its own. |
+| `p_write_payload(out)`, `p_read_payload(in, force)` | The class's payload. An override calls its parent's first, then writes or reads its own fields and the records of the sub-objects it owns, so a record holds its parent's payload followed by its own additions. |
+| `make_binary_scratch()` | Optional: a new object of the class that `load_binary` reads a file into first (see [Integrity Checks](#integrity-checks)). |
+
+A physics model (`c_PhysicsBase`) writes its model name and then `get_binary_params()`, the model's scalar parameters in a fixed order, and reads them back into `set_binary_params(params)`. A model with no parameters needs only `get_binary_class_id`; a model with parameters overrides the pair; a model that also holds tables or sub-models (the isotope list, the interpolated EOS tables, the material viscosity and melt models) extends `p_write_payload` and `p_read_payload`.
 
 ```cpp
-#include "binary_.hpp"
-
-// Writing.
-std::ofstream out("world.tpyb", std::ios::binary);
-tidalpy::write_binary_header(
-    out,
-    static_cast<uint32_t>(tidalpy::BinaryClassID::LayeredWorld),
-    payload_size);
-// ... payload bytes ...
-
-// Reading: validates the magic bytes, byte order, schema version, and payload size, and throws on any failure.
-std::ifstream in("world.tpyb", std::ios::binary);
-const tidalpy::c_BinaryHeader header = tidalpy::c_read_binary_record_header(
-    in,
-    false);  // force: relax only the schema-version check
+// A rheology with two parameters.
+uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Burgers); }
+std::vector<double> get_binary_params() const override {
+    return {this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac};
+}
+void set_binary_params(const std::vector<double>& params) override {
+    this->p_voigt_modulus_frac   = params[0];
+    this->p_voigt_viscosity_frac = params[1];
+}
 ```
+
+Include `binary_.hpp` in any code that reads or writes these files directly. It pulls in `logger_.hpp` so version-mismatch warnings go through the shared logger.
 
 | Function | Description |
 |---|---|
 | `write_binary_header(out, class_id, payload_size)` | Write the 20-byte header. |
 | `read_binary_header(in)` | Read the 20-byte header, validating the magic bytes and byte order. |
 | `read_binary_header_from_file(path)` | Open a path and read its header. |
+| `c_peek_binary_header(in)` | Read the header at the read position and rewind to it, for a factory that picks the class to read the record. |
 | `check_binary_schema_version(header, force)` | Validate the version, logging a warning on mismatch. |
-| `c_read_binary_record_header(in, force)` | Read a header before loading its record: validates the magic bytes, byte order, and schema version, and refuses a payload larger than the rest of the stream. Every `read_binary` starts with it. |
+| `c_read_binary_record_header(in, force)` | Read a header before loading its record: validates the magic bytes, byte order, and schema version, and refuses a payload larger than the rest of the stream. |
 | `binary_bytes_remaining(in)` | The bytes left in a seekable stream after its read position. |
 | `check_binary_count(in, count, element_bytes, what)` | Throw when a count read from a file needs more bytes than are left. |
 | `c_host_binary_byte_order()` | The `byte_order` value this machine writes. |
-| `c_BinaryHeaderCaptureBuffer` | An output buffer that keeps only a record's header bytes, used to read an object's class id without holding its record. |
 | `c_binary_temporary_path(target)` | The temporary sibling path `save_binary` writes before renaming over the target. |
 | `write_binary_string(out, text)` and `read_binary_string(in)` | Length-prefixed string input and output. |
-| `binary_string_bytes(text)` | The payload bytes a length-prefixed string contributes, for sizing a header. |
-| `write_optional_binary(out, unique_ptr)` | Write an optional owned sub-object: a presence flag, then its record if present. |
+| `write_optional_binary(out, pointer)` | Write an optional owned sub-object: a presence flag, then its record if present. |
 | `read_optional_binary<T>(in, force, factory)` | Read an optional sub-object, rebuilding it through the given factory. |
-| `optional_binary_flag_bytes()` | The bytes one presence flag contributes, which is one. |
 
 | Constant | Value |
 |---|---|
@@ -122,13 +127,11 @@ Model names, layer names, and material names are written as a `uint32_t` length 
 [uint32_t length][length bytes of UTF-8 text]
 ```
 
-Use `binary_string_bytes(text)` when computing a record's payload size, so the header and the payload cannot disagree.
-
 ## Nested and Recursive Serialization
 
 Containers own sub-objects that have to round-trip with them: a layer owns its physics models, a world owns its layers, a system owns its worlds. The encoding is uniform at every level.
 
-An optional owned sub-object, held in a `unique_ptr`, is written as a one-byte presence flag, zero for absent and one for present. When present, the sub-object's own complete record follows immediately, header and all. The presence flag counts toward the owning record's payload size, while the nested record is a separate self-describing record appended after it, so a file is a sequence of concatenated records.
+An optional owned sub-object is written as a one-byte presence flag, zero for absent and one for present. When present, the sub-object's own complete record follows immediately, header and all. Both belong to the owning record's payload, so a file is one root record with every sub-object record nested inside it.
 
 On read, the owning class reads the flag and, when set, calls a binary-dispatch factory. The factory peeks the upcoming record's class id, default-constructs the matching concrete subclass, and delegates to its `read_binary`.
 
@@ -145,25 +148,21 @@ On read, the owning class reads the flag and, when set, calls a binary-dispatch 
 | `Structures.layers` | `c_layer_from_binary` |
 
 ```cpp
-// Writing, as c_PhysicsLayer does it.
+// Writing, in c_PhysicsLayer::p_write_payload.
 write_optional_binary(out, this->p_shear_rheology);
-write_optional_binary(out, this->p_bulk_rheology);
 
-// Reading.
-this->p_shear_rheology =
-    read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
-this->p_bulk_rheology =
-    read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+// Reading, in c_PhysicsLayer::p_read_payload.
+this->p_shear_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
 ```
 
-What each layer class carries recursively, after its own scalar payload:
+The sub-objects each layer class carries (a class's payload is its parent's payload, then its own fields and sub-objects):
 
 | Layer | Recursively serialized sub-objects |
 |---|---|
 | `c_BaseLayer` | material EOS model |
-| `c_PhysicsLayer` | material EOS model, shear rheology, bulk rheology, shear viscosity, bulk viscosity, partial melt |
-| `c_GasLayer` | the same six, inherited |
-| `c_SolidLiquidLayer` | the same six, plus cooling and radiogenics |
+| `c_PhysicsLayer` | material EOS model (with its shear and bulk viscosity and partial-melt models), shear rheology, bulk rheology |
+| `c_GasLayer` | the same, inherited |
+| `c_SolidLiquidLayer` | the same, plus cooling and radiogenics |
 
 Worlds carry their layers and world-scale models the same way:
 
@@ -185,7 +184,7 @@ Each concrete class needs a unique id so the dispatch factories can reconstruct 
 | 1-3 | Base classes | `TidalPyBase` 1, `StructureBase` 2, `PhysicsBase` 3 |
 | 100-199 | Layers | `BaseLayer` 100, `PhysicsLayer` 101, `SolidLiquidLayer` 102, `GasLayer` 103 |
 | 200-299 | Worlds and systems | `BaseWorld` 200, `LayeredWorld` 201, `GasGiantWorld` 202, `StarWorld` 203, `System` 210 |
-| 300-399 | Rheology | `RheologyBase` 300, `Elastic` 301, `Viscous` 302, `Voigt` 303, `Maxwell` 304, `Burgers` 305, `Andrade` 306, `Sundberg` 307 |
+| 300-399 | Rheology | `RheologyBase` 300, `Elastic` 301, `Viscous` 302, `Voigt` 303, `Maxwell` 304, `Burgers` 305, `Andrade` 306, `Sundberg` 307, `Zener` 308, `SeismicQ` 309 |
 | 400-499 | Cooling | `CoolingBase` 400, `OffCooling` 401, `ConvectiveCooling` 402, `ConductiveCooling` 403 |
 | 500-599 | Radiogenics | `RadiogenicsBase` 500, `OffRadiogenics` 501, `IsotopeRadiogenics` 502, `FixedRadiogenics` 503 |
 | 600-699 | Material EOS | `MaterialEOSBase` 600, `ConstantDensityEOS` 601, `BirchMurnaghanEOS` 602, `VinetEOS` 603, `InterpolatedEOS` 604 |

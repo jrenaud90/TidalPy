@@ -232,10 +232,7 @@ Every model supports the standard interfaces inherited from the base class.
 
 - `get_config_dict()` returns the model name under the key `model`, its parameters (interpolated tables as lists), the material keys (`shear_modulus_static_pa`, `bulk_modulus_static_pa`, the two `*_viscosity_static_pas` when set, and the three shear-law keys), and a sub-table for each attached model (`shear_viscosity`, `bulk_viscosity`, `partial_melt`). `make_material_eos` accepts the dict and builds and attaches the nested models, so a material round-trips through it. The dict is the `[layers.<name>.material]` table of a world TOML.
 - `save_config(path)` writes the same content as TOML.
-- A model attached to a layer is saved and restored with that layer: both the layer's binary record and its `get_config_dict()` (under `material`) include it. A world or layer round trip needs no separate handling of materials.
-- `save_binary(path)` and `load_binary(path, force=False)` use the TidalPy binary format, through the shared `c_PhysicsBase` helpers. Each model's record is followed by the material section: nine doubles (the four static constants, the three shear-law parameters, the conductivity, and the heat capacity), then a presence flag and nested record for each of the three optional models.
-
-Binary class ids: 601 constant, 602 Birch-Murnaghan, 603 Vinet, 604 interpolated.
+- A model attached to a layer is saved and restored with that layer, in its binary file and in its `get_config_dict()` (under `material`). A world or layer round trip needs no separate handling of materials.
 
 ## C++ API
 
@@ -305,8 +302,8 @@ All models derive from `c_MaterialEOSBase` and override `calc_density(pressure, 
 **C++ (`TidalPy/Material/eos/material_eos_.hpp`)**
 
 1. Add any new parameters to `c_MaterialEOSConfig` with sensible defaults.
-2. If the law is analytic, add a free function that fills the pressure and the bulk modulus $\eta \, dP/d\eta$ at a compression so the shared `eos_find_monotonic_range` and `eos_invert_eta` can be reused. Give the model an `update_law_range` called from its constructors and from `read_binary`. Otherwise, compute the density directly.
-3. Add the model class deriving from `c_MaterialEOSBase`: constructors (pass the config to the base so the thermal parameters are stored), `get_*` accessors, the `calc_density` override, a `calc_density_and_bulk_modulus` override if the law defines a bulk modulus, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers, including the two thermal parameters.
+2. If the law is analytic, add a free function that fills the pressure and the bulk modulus $\eta \, dP/d\eta$ at a compression so the shared `eos_find_monotonic_range` and `eos_invert_eta` can be reused. Give the model an `update_law_range` called from its constructors and from `set_binary_params`. Otherwise, compute the density directly.
+3. Add the model class deriving from `c_MaterialEOSBase`: constructors (pass the config to the base so the thermal parameters are stored), `get_*` accessors, the `calc_density` override, a `calc_density_and_bulk_modulus` override if the law defines a bulk modulus, `get_binary_class_id`, and `get_binary_params` / `set_binary_params` appending the law's parameters to the base's material values ([Binary Serialization](../Utilities/binary.md)).
 4. Add the enum value, the name and alias branch in `c_material_eos_model_from_name`, and the cases in `c_find_material_eos` and `c_material_eos_from_binary`.
 
 **C++ (`TidalPy/Utilities/binary/binary_.hpp`)**

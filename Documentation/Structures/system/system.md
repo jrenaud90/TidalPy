@@ -217,17 +217,7 @@ The `world` and `host` entries are each a full `calc_world_evolution`-style dict
 
 ## Serialization
 
-A system serializes to and loads from TidalPy's binary format, reconstructing its heterogeneous world list: each world's concrete type (star, layered, gas giant) is recovered from the stream.
-
-```python
-system.save_binary("system.tpyb")
-
-loaded = System()
-loaded.load_binary("system.tpyb")
-loaded["earth"]        # comes back as a LayeredWorld (with its layers), the Sun as a StarWorld, ...
-```
-
-`System` inherits the binary machinery (`save_binary`, `load_binary`, `get_schema_version_str`, `save_config`) from the shared `TidalPyBaseClass`. The binary carries the container state (name, the star role, and each world's tidal host and orbital elements about both that host and the star) and each world's complete record, with its tide model and tide configuration, spin model, pinned solver settings, and, for a star, its effective temperature and luminosity model (see [Binary Serialization](../worlds/worlds.md#binary-serialization)). A loaded system therefore evolves as the saved one did once each layered world has re-run `solve_eos`: solved state, the EOS profiles included, is not saved.
+A system's binary file ([Binary Serialization](../../Utilities/binary.md)) carries the container state (name, the star role, and each world's tidal host and orbital elements about both that host and the star) and each world's complete record, so every world comes back as its own type with its models and settings. A loaded system evolves as the saved one did once each layered world has re-run `solve_eos`: solved state, the EOS profiles included, is not saved.
 
 `load_binary` raises `IOError` for a file whose system record is corrupt: a tidal host index that names no other world, an out-of-range star index, two worlds with one name, or an orbit that is not bound (a semi-major axis that is not positive or an eccentricity outside $[0, 1)$). Any failed load, trailing data after the record included, leaves the system, its worlds, and their wrappers unchanged: the file is read into a new system first.
 
@@ -246,7 +236,7 @@ loaded["earth"]        # comes back as a LayeredWorld (with its layers), the Sun
 * `calc_insolation_flux(i)`, `calc_equilibrium_temperature(i)`.
 * `calc_world_evolution(i)` and `calc_system_evolution()`: run the world's tidal solve for the current system state and return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` struct (a layered world is resolved through `dynamic_cast` so the rheology solve runs and the spin model is reached; a layerless world uses the analytic solve and contributes no spin). `calc_orbital_energy_derivative`, `calc_spin_energy_derivative`, and `calc_energy_residual` compute the energy-balance terms. `c_WorldEvolution::has_tide_model` is false for a rigid world, which is evolved with zero rates and warned about once per world through `TIDALPY_LOG_WARN`.
 * `calc_pair_evolution(i)`: dual-body evolution returning a `c_PairEvolution` (both bodies' `c_WorldEvolution` contributions plus the combined shared-orbit rates and energy balance). Built on the shared `calc_dissipation(dissipator_i, companion_mass, n, a, e)` primitive, which computes one body's tidal solve, rate, and spin contribution (a body with no tide model is rigid and contributes zero; the primitive itself does not warn). `c_PairEvolution::has_tide_model` is true when either body carries a tide model.
-* `write_binary` and `read_binary` (the inherited `save_binary` and `load_binary` open the file). `read_binary` rebuilds the world list through `c_world_from_binary` (`Structures/worlds/factory_.hpp`), which peeks each record's `BinaryClassID` and constructs the matching world type; `c_world_kind` gives a loaded world's concrete type so the Cython layer can pick the matching wrapper. It validates the host and star indices, the world names, and every orbit (`c_check_orbit`) before committing, and throws `std::runtime_error` on corrupt data.
+* The binary record rebuilds the world list through `c_world_from_binary` (`Structures/worlds/factory_.hpp`), which peeks each record's `BinaryClassID` and constructs the matching world type; `c_world_kind` gives a loaded world's concrete type so the Cython layer can pick the matching wrapper. It validates the host and star indices, the world names, and every orbit (`c_check_orbit`) before committing, and throws `std::runtime_error` on corrupt data.
 
 ## References
 
