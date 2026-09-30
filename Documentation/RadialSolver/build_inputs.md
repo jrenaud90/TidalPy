@@ -1,8 +1,8 @@
 # Helper Functions
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-29_
 
-`TidalPy.RadialSolver.radial_solver` takes array-based inputs: a radius grid, the density and complex moduli on that grid, the planet bulk density, and a few per-layer descriptors. Two native builders assemble those inputs from a layer description so you do not have to hand-build the arrays:
+`TidalPy.RadialSolver.radial_solver` takes array-based inputs: a radius grid, the density and complex moduli on that grid, the planet bulk density, and a few per-layer assumption parameters. Two native builders assemble those inputs from a layer description so you do not have to hand-build the arrays.
 
 | Builder | Use when |
 |---|---|
@@ -15,7 +15,7 @@ The builders live in C++ (`RadialSolver/build_inputs_.hpp`) behind a thin Cython
 
 
 > [!TIP]
-> These helper functions have been built to be very efficient, however they will still cost some performance overhead when used. If calculation speed is critical, and you are rebuilding a planet many times (_e.g._, in a MCMC) it may be more performant to manually construct RadialSolver's inputs and only change what is needed rather than calling these helpers every time. Even better would be to use the world-attached radial solver so that memory allocations are greatly reduced.
+> These helper functions have been built to be very efficient, however they will still cost some performance overhead when used. If calculation speed is critical, and you are rebuilding a planet many times (_e.g._, in a MCMC) it may be more performant to manually construct RadialSolver's inputs once and only change what is needed rather than calling these helpers every time. Even better would be to use the world-attached radial solver so that memory allocations are greatly reduced.
 
 ## Rheology Arguments
 
@@ -152,11 +152,9 @@ Array arguments accept anything `numpy.asarray` understands (lists included); th
 - `TypeError`: a rheology argument is not a `Rheology` model instance or model name.
 - `ValueError`: per-layer inputs with the wrong length, fractions that do not describe the whole planet, fewer than 5 slices in a layer, more (or fewer) than one layer-size description, a non-ascending radius grid, or a last layer upper radius that is not the planet radius.
 
-`perform_checks` is accepted and ignored: the builders always validate their inputs.
-
 ## Uniform Sphere: `homogeneous_love_numbers`
 
-When the interior structure does not matter, `homogeneous_love_numbers` builds the arrays for a single uniform solid layer and runs the solve for you. It is the quickest way to find a Love number for a demo, a benchmark, or a sanity check against the closed-form result.
+When the interior structure does not matter, `homogeneous_love_numbers` builds the arrays for a single uniform solid layer and runs the solve for you. It is the quickest way to find a Love number for a demo, a benchmark, or a sanity check.
 
 ```python
 from TidalPy.RadialSolver import homogeneous_love_numbers
@@ -179,4 +177,4 @@ print(solution.k)
 | `layer_is_static`, `layer_is_incompressible` | `True`, `False` | Layer assumptions. |
 | `**radial_solver_kwargs` | | Anything else goes straight to `radial_solver`, for example `solve_for`, `love_method`, or the integration tolerances. |
 
-It returns the same [`RadialSolverSolution`](solution_class.md) as any other solve. For the closed-form answer without any integration at all, use `calc_homogeneous_love_numbers` in [`TidalPy.Tides.love`](../Tides/love/love_numbers.md); for a static incompressible sphere the two agree to machine precision (measured at a few parts in 1e15).
+It returns the same [`RadialSolverSolution`](solution_class.md) as any other solve. For an answer without any integration at all, use `calc_homogeneous_love_numbers` in [`TidalPy.Tides.love`](../Tides/love/love_numbers.md); for a static incompressible sphere the two agree during testing.

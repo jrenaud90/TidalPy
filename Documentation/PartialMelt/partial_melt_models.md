@@ -2,9 +2,7 @@
 
 _Updated: 2026-09-29_
 
-A partial-melt model maps a material's pre-melt (solid) viscosity and shear modulus, together with its temperature, onto the post-melt viscosity and shear modulus, and reports the volumetric melt fraction it used to get there. Every model can also mix the melt into the density, weaken the bulk modulus with its own, much weaker law, and let melt set a compaction bulk viscosity; each is off by default (see Density and Bulk Response).
-
-These quantities depend only on the temperature and pressure state fixed by the equation-of-state solve, not on the forcing frequency, so they are computed once per solve and cached. Only the downstream [rheology](../Rheology/index.md) step, which produces the complex modulus (frequency-dependent), is recomputed for each tidal mode.
+A partial melting, or melt weakening, maps a material's pre-melt (solid) viscosity and shear modulus, together with its temperature, onto the post-melt viscosity and shear modulus, and reports the volumetric melt fraction. Every model can also mix the melt into the density, weaken the bulk modulus with its own law, and let melt set a compaction bulk viscosity. Most of these additional features are off by default (see Density and Bulk Response).
 
 ## Melt Fraction
 
@@ -24,7 +22,7 @@ Below the solidus $\phi = 0$, above the liquidus $\phi = 1$, and a degenerate en
 
 ### Off
 
-The melt fraction is computed and returned, and the strengths pass through untouched. Use it to turn off melt weakening, or for a layer that stays below its solidus.
+The melt fraction is computed and returned, and the strengths pass through untouched. Use it to turn off partial melting, or for a layer that stays below its solidus.
 
 ### Spohn (Fischer and Spohn 1990)
 
@@ -49,7 +47,7 @@ Three regimes in the melt fraction, with a transition band running from `crit_me
 
 Here $a_\eta$ is `hn_visc_slope_1`, $b_1$ is `hn_shear_param_1`, and $f_\eta$ and $f_\mu$ are `hn_visc_falloff_slope` and `hn_shear_falloff_slope`. Every branch is floored at the liquid limits.
 
-The shear law is Henning et al. (2009) Eq. 20, $\exp(40000/T - 25)$, anchored at the solidus: their constant 25 is $40000/1600$, the silicate solidus they calibrated to, so the default 1600 K solidus reproduces it exactly. Written this way the shear modulus is continuous at any solidus, where the published constant would stiffen an icy layer by a factor of $e^{100}$ as it began to melt. Configurations from a 0.8.0 pre-release that still set `hn_shear_param_2` get a warning and the key is ignored.
+The shear law is Henning et al. (2009) Eq. 20, $\exp(40000/T - 25)$, anchored at the solidus: their constant 25 is $40000/1600$, the silicate solidus they calibrated to, so the default 1600 K solidus reproduces it exactly. Written this way the shear modulus is continuous at any solidus, where the published constant would stiffen an icy layer by a factor of $e^{100}$ as it began to melt.
 
 Below the critical melt fraction, melt sits in isolated pockets and weakens the solid framework gradually. Above it the framework loses contact and the material behaves as a crystal-laden liquid, a drop of many orders of magnitude. The breakdown band is a steep but finite bridge between the two regimes; its width is a numerical convenience that keeps the transition differentiable, not a measured quantity.
 
@@ -74,16 +72,16 @@ Each parameter carries two names: the constructor keyword, which is also the rea
 | `hn_shear_param_1` | `hn_shear_param_1_k` | 40000.0 | K | Henning |
 | `hn_shear_falloff_slope` | `hn_shear_falloff_slope` | 700.0 | - | Henning |
 
-`liquid_shear` and `liquid_viscosity` are the shear modulus and viscosity assigned to material treated as pure liquid, and they are also the floors every model applies to its post-melt shear modulus and viscosity. The shear default is small but not exactly zero. The viscosity default is a molten silicate's; the packaged configuration gives each material type its own (rock 0.2, iron 1.3e-2, ice and high-pressure ice 8.9e-4 Pa s).
+`liquid_shear` and `liquid_viscosity` are the shear modulus and viscosity assigned to material treated as pure liquid, and they are also the floors every model applies to its post-melt shear modulus and viscosity. The shear default is small but not exactly zero. The viscosity default is a molten silicate's; the packaged configuration gives each material type its own.
 
 ## Density and Bulk Response
 
-The shear laws above are empirical fits in temperature. Melt's effect on the density and on the bulk response is of another kind: it follows from mixing two phases with their own equations of state. The models describe the melt phase once and use it three ways, each behind its own switch, all off by default:
+The shear laws above are empirical fits in temperature. Melt's effect on the density and on the bulk response follow from mixing two phases with their own equations of state. The models describe the melt phase once and use it three ways, each behind its own switch, all off by default.
 
 | Switch | Effect |
 |---|---|
-| `density_melt_mixing` | The melt enters the density, so the structure solve sees it. |
-| `bulk_melt_weakening` | The unrelaxed bulk modulus is the two-phase bound. |
+| `density_melt_mixing` | The melt enters the density, so the structure EOS solve sees it. |
+| `bulk_melt_weakening` | The unrelaxed bulk modulus uses a two-phase bound method. |
 | `bulk_viscosity_melt_weakening` | Melt sets a compaction bulk viscosity, which lets a bulk rheology dissipate. |
 
 ### Order of Evaluation
@@ -103,25 +101,25 @@ The melt follows a Murnaghan (1944) law, with its zero-pressure density $\rho_{l
 
 $$K_l(P) = K_{l0} + K_l' P, \qquad \rho_l(P) = \rho_{l0} \left(1 + \frac{K_l' P}{K_{l0}}\right)^{1/K_l'}.$$
 
-$K_l' = 0$ gives $\rho_l = \rho_{l0} e^{P/K_{l0}}$. Under tension, which only the structure solve's trial central pressures reach, the law continues at constant $K_{l0}$ so it stays finite. The law is isothermal. Because $\rho_l / (d\rho_l/dP) = K_l$, a layer that is wholly melt, with both switches on, is neutrally stratified under the bulk modulus the tidal equations see (see [dynamic liquids](../RadialSolver/dense_radial_solution.md#dynamic-liquid-layers-at-long-forcing-periods)).
+$K_l' = 0$ gives $\rho_l = \rho_{l0} e^{P/K_{l0}}$. Under tension, which only the structure solve's trial central pressures reach, the law continues at constant $K_{l0}$ so it stays finite. The law is isothermal. Because $\rho_l / (d\rho_l/dP) = K_l$, a layer that is fully melted, with both switches on, is neutrally stratified under the bulk modulus the tidal equations see (see [dynamic liquids](../RadialSolver/dense_radial_solution.md#dynamic-liquid-layers-at-long-forcing-periods)).
 
 ### Density
 
-With `density_melt_mixing = true` the two phases mix by volume at the same pressure:
+With `density_melt_mixing = true` the two phases mix at the same pressure,
 
 $$\rho = (1 - \phi)\,\rho_s + \phi\,\rho_l(P),$$
 
-where $\rho_s$ is the density law's value. Silicate melt is lighter than its source at low pressure, so melt lowers a rocky layer's density; water is denser than ice I, so it raises an ice shell's. A world whose mass was fitted without mixing will hold a different mass with it, and a partially molten layer couples its density to its temperature, so a thermal solve takes more passes to settle. The phase change's own compressibility (the melt fraction changing with pressure) and latent heat are not included.
+where $\rho_s$ is the density law's value. Silicate melt is lighter than its source at low pressure, so melt lowers a rocky layer's density; water is denser than ice I, so it raises an ice shell's. A world whose mass was fitted without mixing will hold a different mass with it, and a partially molten layer couples its density to its temperature, so a thermal solve takes more passes to settle. The phase change's own compressibility (the melt fraction changing with pressure) as well as latent heat are not currently included.
 
 ### Bulk Modulus
 
-Melt lowers the bulk modulus far less than the shear modulus: a melt keeps a bulk modulus of the same order as the solid's (about 20 GPa for a silicate melt at low pressure against about 130 GPa for the rock), while its shear modulus vanishes (Mavko 1980; Takei 2002). With `bulk_melt_weakening = true` the post-melt bulk modulus is the Hashin and Shtrikman (1963) bound for melt of bulk modulus $K_l(P)$ in a solid framework of bulk modulus $K_s$ (the pre-melt value), evaluated with the framework's post-melt shear modulus $\mu$:
+Melt lowers the bulk modulus far less than the shear modulus, approx. the same order as the solid bulk (about 20 GPa for a silicate melt at low pressure against about 130 GPa for the rock), while its shear modulus vanishes (Mavko 1980; Takei 2002). With `bulk_melt_weakening = true` the post-melt bulk modulus is the Hashin and Shtrikman (1963) bound for melt of bulk modulus $K_l(P)$ in a solid framework of bulk modulus $K_s$ (the pre-melt value), evaluated with the framework's post-melt shear modulus $\mu$:
 
 $$K = K_s + \frac{\phi}{\dfrac{1}{K_l - K_s} + \dfrac{1 - \phi}{K_s + \tfrac{4}{3}\mu}}$$
 
 While the framework holds, $\mu$ is close to the solid's and this is the upper bound for isolated melt pockets, a weak reduction (about 16 percent at $\phi = 0.1$ for $K_s$ = 130, $\mu$ = 60, $K_l$ = 20 GPa). Once the melt model has collapsed the framework's shear modulus (Henning past the critical melt fraction), the same expression becomes the Reuss (Wood 1955) average of a crystal suspension, and it reaches $K_l(P)$ at $\phi = 1$. Since $K_l$ rises with pressure faster than a rock's, the bound weakens less at depth, and not at all where the melt is as stiff as the solid.
 
-This is the unrelaxed (undrained) modulus: the melt is held in place over a forcing cycle. Isolated pockets are the stiffest geometry, and melt that wets grain edges or forms films weakens the framework more (Mavko 1980; Takei 2002), so the bound is an upper limit.
+This is the unrelaxed (undrained) modulus. The melt is held in place over a forcing cycle. Isolated pockets are the stiffest geometry, and melt that wets grain edges or forms films weakens the framework more (Mavko 1980; Takei 2002), so the bound is an upper limit.
 
 ### Bulk Viscosity
 
@@ -129,9 +127,9 @@ A melt-free rock has no viscous compaction, so its bulk response is elastic; mel
 
 $$\frac{1}{\zeta} = \frac{1}{\zeta_\mathrm{pre}} + \frac{\phi^n}{c\,\eta},$$
 
-with $\eta$ the post-melt shear viscosity, $c$ `melt_bulk_viscosity_coefficient`, and $n$ `melt_bulk_viscosity_exponent`. $n = 1$ with $c$ of order one is the classic compaction viscosity $\eta/\phi$ (McKenzie 1984); micromechanical models give a bulk viscosity of the same order as the shear viscosity instead (Takei and Holtzman 2009), which is $n = 0$. The series form is continuous at the solidus for $n > 0$. A non-finite pre-melt bulk viscosity counts as no pre-melt dashpot, so melt alone sets $\zeta$.
+with $\eta$ the post-melt shear viscosity, $c$ `melt_bulk_viscosity_coefficient`, and $n$ `melt_bulk_viscosity_exponent`. $n = 1$ with $c$ of order 1 is the classic compaction viscosity $\eta/\phi$ (McKenzie 1984). Micromechanical models give a bulk viscosity of the same order as the shear viscosity instead (Takei and Holtzman 2009), which is $n = 0$. The series form is continuous at the solidus for $n > 0$. A non-finite pre-melt bulk viscosity counts as no pre-melt dashpot, so melt alone sets $\zeta$.
 
-The bulk viscosity reaches the tides only through the layer's bulk rheology, which is `elastic` by default. A Maxwell bulk rheology would let the bulk modulus relax to zero at long periods, which no rock does. The [Zener](../Rheology/rheology_models.md) (standard linear solid) rheology relaxes it to a set fraction $r$ of the unrelaxed modulus instead, the drained-to-undrained ratio; for isolated pockets at 10% melt that ratio is near 0.9, and melt films lower it. Bulk dissipation in a partially molten layer can rival the shear dissipation (Kervazo et al. 2021).
+The bulk viscosity reaches the tides only through the layer's bulk rheology, which is `elastic` by default. A Maxwell bulk rheology would let the bulk modulus relax to zero at long periods, which is unphysical. The [Zener](../Rheology/rheology_models.md) (standard linear solid) rheology relaxes it to a set fraction $r$ of the unrelaxed modulus instead, the drained-to-undrained ratio. For isolated pockets at 10% melt that ratio is near 0.9, and melt films lowers it further. Bulk dissipation in a partially molten layer, while understudied, has been shown to rival the shear dissipation (Kervazo et al. 2021).
 
 | Parameter | Config key | Default | Units | Used by |
 |---|---|---|---|---|
@@ -190,7 +188,7 @@ where `<melt phase>` is `liquid_bulk_modulus_derivative=5.0, liquid_density=2750
 | `get_config_dict()` | `dict` | `model` plus every parameter the model carries, under the config keys from the table above. |
 | `save_config(path)` | - | That dict written as TOML. |
 
-`make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively; absent keys fall back to the model defaults, and both an unrecognized name and a key that no partial-melt model reads raise `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`, `liquid_viscosity_pas`, `liquid_bulk_modulus_pa`, `liquid_density_kg_m3`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
+`make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively. Absent keys fall back to the model defaults, and both an unrecognized name and a key that no partial-melt model reads raise `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`, `liquid_viscosity_pas`, `liquid_bulk_modulus_pa`, `liquid_density_kg_m3`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
 
 ### Attaching a Melt Model to a `Layer`
 
@@ -205,7 +203,7 @@ mantle.set_eos(ConstantDensityEOS(shear_modulus_static=50.0e9, bulk_modulus_stat
 mantle.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1500.0}))
 ```
 
-A partial-melt model belongs to the layer's material, which is its EOS model: the layer's `set_partial_melt` is a helper that hands the model to the attached EOS (so attach the EOS first), and the same method is on the EOS model itself. The world's equation-of-state solve applies the model as it integrates, to the shear pair and (when switched on) to the density, the bulk modulus, and the bulk viscosity, and `get_melt_fraction(radius)` reads the result back. The declarative form is a `[layers.<name>.material.partial_melt]` table in the world's TOML; see the [TOML schema](../Structures/config/toml_schema.md).
+A partial-melt model belongs to the layer's material (its EOS model). The layer's `set_partial_melt` is a helper that hands the model to the attached EOS, and the same method can be called from the EOS model itself. The world's equation-of-state solve applies the model as it integrates, to the shear pair and (when switched on) to the density, the bulk modulus, and the bulk viscosity, and `get_melt_fraction(radius)` reads the result back. The declarative form is a `[layers.<name>.material.partial_melt]` table in the world's TOML; see the [TOML schema](../Structures/config/toml_schema.md).
 
 ## C++ API
 

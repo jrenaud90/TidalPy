@@ -7,9 +7,9 @@ The module holds two calculators:
 - `Spin` calculates how fast a body's rotation is changing.
 - `OrbitSolver` calculates how fast its orbit is changing.
 
-Both take the tidal-potential derivatives from a completed tidal solve and return rates.
+Both take the tidal-potential derivatives from a completed tidal solve and return derivatives of orbital and spin wrt to time.
 
-The inputs both classes depend on are $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$, the derivatives of the tidal potential with respect to the mean anomaly, the argument of pericenter, and the longitude of the node, each in J kg$^{-1}$ rad$^{-1}$. They come from `world.calc_tides(...)` and are read back with `world.get_tidal_potential_derivatives()`. Everything on this page assumes that solve has already run.
+The inputs depend on $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$, the derivatives of the tidal potential with respect to the mean anomaly, the argument of pericenter, and the longitude of the node, each in J kg$^{-1}$ rad$^{-1}$. They come from `world.calc_tides(...)` and are read back with `world.get_tidal_potential_derivatives()`. Everything on this page assumes that solve has already run.
 
 ## Spin
 
@@ -26,17 +26,17 @@ synchronous = model.calc_synchronous_spin(orbital_frequency) # [rad s-1]
 
 ### Moment of Inertia
 
-The moment of inertia is where a body's internal structure enters the spin rate. `Spin` carries a simple estimate of it:
+`Spin` carries a simple estimate of moment of inertia:
 
 $$C = f M R^2$$
 
-where $f$ is the constructor's `moment_of_inertia_factor`, the conventional dimensionless factor $C / (M R^2)$. A uniform sphere has $f = 0.4$, which is the default. A centrally condensed body has less, with the Earth at 0.3307, and no body with non-negative density can exceed $2/3$, the value for all of its mass in a thin surface shell. A factor that is not finite or lies outside $(0, 2/3]$ raises `ValueError`.
+where $f$ is the constructor's `moment_of_inertia_factor`, the conventional dimensionless factor $C / (M R^2)$. A uniform sphere has $f = 0.4$, which is the default. A centrally condensed body has less, with the Earth ~0.331, and no body with non-negative density can exceed $2/3$, the value for all mass concentrated in a thin surface shell. A factor that is not finite or lies outside $(0, 2/3]$ raises `ValueError`.
 
 This estimate exists as a fallback. A world that has solved its equation of state has the real structure-resolved moment of inertia, and `world.get_moment_of_inertia()` returns that instead, falling back to the model's formula only when no solve has run.
 
 ```python
-world.set_spin_model(Spin())
-world.solve_eos()
+world.set_spin_model(Spin())  # Has a fallback MOI
+world.solve_eos()             # Now has a more accurate MOI
 world.calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity,
                  semi_major_axis, host_mass)
 
@@ -64,30 +64,27 @@ The last is Kepler's third law differentiated, so the mean motion is not an inde
 from TidalPy.Dynamics import OrbitSolver
 
 solver = OrbitSolver()
-da_dt = solver.calc_da_dt(orbital_frequency, semi_major_axis, eccentricity,
-                          target_mass, host_mass, dU_dM)                     # [m s-1]
-de_dt = solver.calc_de_dt(orbital_frequency, semi_major_axis, eccentricity,
-                          target_mass, host_mass, dU_dM, dU_dw)              # [s-1]
-dn_dt = solver.calc_dn_dt(orbital_frequency, semi_major_axis, da_dt)         # [rad s-2]
+da_dt = solver.calc_da_dt(orbital_frequency, semi_major_axis, eccentricity, target_mass, host_mass, dU_dM)   # [m s-1]
+de_dt = solver.calc_de_dt(orbital_frequency, semi_major_axis, eccentricity, target_mass, host_mass, dU_dM, dU_dw)   # [s-1]
+dn_dt = solver.calc_dn_dt(orbital_frequency, semi_major_axis, da_dt)   # [rad s-2]
+rates = solver.calc_derivatives(orbital_frequency, semi_major_axis, eccentricity, target_mass, host_mass, dU_dM, dU_dw)
 
-rates = solver.calc_derivatives(orbital_frequency, semi_major_axis, eccentricity,
-                                target_mass, host_mass, dU_dM, dU_dw)
-rates["da_dt"], rates["de_dt"], rates["dn_dt"]
+print(rates["da_dt"], rates["de_dt"], rates["dn_dt"])
 ```
 
-`calc_derivatives` computes all three in one call and is the entry point the system class uses. The eccentricity rate carries a $1/e$ factor that is indeterminate at $e = 0$, so a circular or degenerate orbit returns exactly zero rather than a division by zero.
+`calc_derivatives` computes all three in one call and is what the system class uses. The eccentricity rate carries a $1/e$ factor that is indeterminate at $e = 0$, so a circular or degenerate orbit returns exactly zero rather than raise a divide by 0 error.
 
 At small eccentricity the two terms of $\dot{e}$ nearly cancel, so forming their difference from the separate sums loses precision as the eccentricity shrinks. `calc_de_dt` and `calc_derivatives` take the per-mode sum of $\partial U / \partial M - \partial U / \partial \omega$ as an optional last argument, `dU_dM_minus_dw`, which keeps the rate exact; a world returns it with `world.get_tidal_dU_dM_minus_dw()` after `calc_tides`, and `System` passes it for you.
 
-For a system where both bodies dissipate, the two contributions are additive in the disturbing-function derivatives: solve each body's tides with the other as the raiser and sum the rates. `System.calc_pair_evolution` does exactly that.
+For a system where both bodies dissipate, the two contributions are additive in the disturbing-function derivatives. `System.calc_pair_evolution` calculates the effect of the tide raised on the host and the one raised on the target world.
 
 ## Energy Conservation
 
-The spin and orbital rates are not independent. Together they must account for all the energy the tidal solve says is being dissipated:
+Together the spin and orbital rates must account for all the energy being dissipated via tides,
 
 $$Q_{\text{tidal}} = -\left( \dot{E}_{\text{orbit}} + \dot{E}_{\text{spin}} \right), \qquad E_{\text{orbit}} = -\frac{G M_{\text{target}} M_{\text{host}}}{2 a}, \qquad E_{\text{spin}} = \frac{1}{2} C \Omega_{\text{spin}}^2$$
 
-This allows for a check on the whole chain: it ties the rate equations here back to the heating computed by a separate code path. Every evolution dict returned by `System` reports `dE_orbit_dt`, `dE_spin_dt`, and the `energy_residual` between them and the tidal heating, so a failure anywhere upstream shows up as a non-zero residual. The balance is verified to machine precision in `Tests/Test_Structures/Test_Worlds/test_world_spin_01.py`.
+This allows for a check on the calculation. Every evolution dict returned by `System` reports `dE_orbit_dt`, `dE_spin_dt`, and the `energy_residual` between them and the tidal heating, so a failure anywhere upstream shows up as a non-zero residual. The balance is verified for several test cases in `Tests/Test_Structures/Test_Worlds/test_world_spin_01.py`.
 
 ## Driving the Rates from a `System`
 

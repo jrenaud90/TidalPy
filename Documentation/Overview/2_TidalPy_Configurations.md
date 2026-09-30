@@ -21,7 +21,7 @@ The version folder holds only the major and minor version (`0.8.X` for every 0.8
 To keep the data directory somewhere else, set the `TIDALPY_DATA_DIR` environment variable before importing TidalPy. It replaces the "TidalPy" folder in the paths above, so the version folder goes inside it: `TIDALPY_DATA_DIR=/scratch/me/tidalpy` gives "/scratch/me/tidalpy/\<major.minor\>.X/Config/TidalPy_Configs.toml".
 
 > [!NOTE]
-> Where the data directory cannot be created or written (a read-only home directory on a cluster node, in a container, or on a sandboxed CI runner), TidalPy still imports. It warns once and runs without the directory: the configuration is the packaged defaults, no log file is written to `Logs`, and the bundled worlds are read from the package. Set `TIDALPY_DATA_DIR` to a writable directory to keep a configuration file there.
+> Where the data directory cannot be created or written (a read-only home directory on a cluster node, in a container, or on a CI runner), TidalPy still imports. It warns once and runs without the directory. Instead, the configuration is the packaged defaults, no log file is written to `Logs`, and the bundled worlds are read from the package. Set `TIDALPY_DATA_DIR` to a writable directory to keep a configuration file there.
 
 The file holds all of TidalPy's settings, with comments giving context for each one. The loaded settings are the dictionary `TidalPy.config`. Edits to the file reach TidalPy the next time it is imported, or immediately with `TidalPy.reinit(provided_config="default")`.
 
@@ -132,7 +132,7 @@ The `[eos_solver]` and `[radial_solver]` sections set the defaults for every who
 | `scale_rtols` | | `false` |
 | `max_num_steps`, `expected_size`, `max_ram_mb` | | `500000`, `128`, `500` |
 
-`solve_temperature` carries temperature and heat flow through the structure solve, so each layer's profile follows its cooling model and its viscosity and melt models see the local temperature (see [Worlds](../Structures/worlds/worlds.md)). `slices_per_layer` only sets the number of radial samples in the profile a solve reports; the Love solves and the profile getters read the solve's dense output at the exact radius.
+`solve_temperature` carries temperature and heat flow through the structure solve, so each layer's profile follows its cooling model; its viscosity and melt models see the local temperature (see [Worlds](../Structures/worlds/worlds.md)). `slices_per_layer` only sets the number of radial samples in the profile a solve reports. The Love solves and the profile getters read the solve's dense output at the exact radius.
 
 Both solves run in non-dimensional units (the planet radius, its bulk density, and $1/\sqrt{\pi G \rho}$ as the length, density, and time units), so one tolerance pair means the same thing for every planet. The packaged values come from a convergence study over the bundled worlds and synthetic homogeneous, rocky, icy-ocean, and liquid-core models at degrees 2 and 3 and periods from a day to a hundred days. DOP853 gave the most accuracy per millisecond at every tolerance on both solves: RK45 needs a hundred times tighter `rtol` for the same Love-number error, RK23 far more, and the implicit methods are slower without being more accurate here.
 
@@ -146,7 +146,7 @@ Tightening the EOS tolerance costs almost nothing, so it is set where the mass, 
 
 `[tides]` supplies the global (1D) tidal defaults a world takes when its own `[tides]` table omits a value (see the [TOML schema](../Structures/config/toml_schema.md)):
 
-- `min_degree_l = 2` and `max_degree_l = 2`: the harmonic degrees of the mode sum (2 to 10).
+- `min_degree_l = 2` and `max_degree_l = 2`: the harmonic degrees of the mode sum (2 to 10 are supported).
 - `eccentricity_trunc_lvl = 10`: the eccentricity truncation level, one of 2, 4, 6, 8, 10, 20, 50, or `"exact"`; `eccentricity_exact_tolerance = 1.0e-4` sets the mode range of `"exact"` (see [Eccentricity Functions](../Tides/eccentricity.md)).
 - `obliquity_trunc_lvl = "off"`: the obliquity truncation level, one of `"off"` (0), 2, 4, or `"gen"` (see [Obliquity Functions](../Tides/obliquity.md)).
 - `layer_tidal_heating = true`: whether `calc_tides` also resolves each layer's heating when the Love numbers come from the radial solver.

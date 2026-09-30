@@ -1,6 +1,6 @@
 # Getting Started with TidalPy
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-29_
 
 ## Installation
 

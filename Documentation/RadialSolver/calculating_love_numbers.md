@@ -53,7 +53,7 @@ The [input builders](build_inputs.md) exist because the solver's array requireme
 | `radial_solver` (`shooting`, `rs`) | Default. Integrates the radial ODEs from the starting radius to the surface. Handles arbitrary multi-layer, solid or liquid, static or dynamic, compressible or incompressible interiors. |
 | `propagation_matrix` (`prop_matrix`, `pm`, `prop`) | Quasi-analytic matrix propagation, valid only for a single solid, static, incompressible layer. It is more sensitive to the number of slices than the shooting method, since that sets the matrix dimension. Included mainly for comparison. |
 
-The analytic methods (`homogeneous`, `cpl`, `ctl`) are not available here because this API takes moduli arrays rather than a layered world. Use `BaseWorld.solve_love_numbers(love_method=...)` for those, or the closed-form functions in [`TidalPy.Tides.love`](../Tides/love/love_numbers.md). Passing one of them raises `ValueError` with that pointer.
+The analytic methods (`homogeneous`, `cpl`, `ctl`) are not available here because this API takes moduli arrays rather than a layered world. Use `BaseWorld.solve_love_numbers(love_method=...)` for those, or the closed-form functions in [`TidalPy.Tides.love`](../Tides/love/love_numbers.md).
 
 ## Arguments
 

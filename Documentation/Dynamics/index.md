@@ -4,9 +4,9 @@ _Updated: 2026-09-29_
 
 `TidalPy.Dynamics` contains functionality to couple tidal dissipation with orbit-spin evolution. It takes the tidal-potential derivatives produced by a tidal solve and turns them into the instantaneous rates of change of a body's spin and orbit.
 
-Tides raised on a body lag behind the raising potential, and that lag exerts a torque. The torque exchanges angular momentum between the body's rotation and the orbit, while the associated friction removes energy from the pair and deposits it as heat. Everything in this module follows from that exchange: a satellite spins down to synchronous rotation, its orbit expands or decays, and its eccentricity is damped or pumped.
+Tides raised on a viscoelastic body lag behind the raising potential, and that lag exerts a torque. The torque exchanges angular momentum between the body's rotation and the orbit, while the associated frictional heat removes energy from both bodies.
 
-This module computes rates only; it never integrates in time. To evolve a system, use these rates in an integrator of your choice. `System` supplies the state at each step and collects the rates, which is the usual starting point for a thermal-orbital evolution model.
+This module just computes derivative rates, it does not perform integrations directly. To evolve a system, use these rates in an integrator of your choice. `System` supplies the state at each step and collects the rates, which is the usual starting point for a thermal-orbital evolution model.
 
 | Page | Covers |
 |---|---|
@@ -20,7 +20,7 @@ Spin and Orbital Rates <dynamics.md>
 
 ## Where Dynamics is Used
 
-The chain runs in one direction. A world's [rheology](../Rheology/index.md) gives its complex moduli; the [radial solver](../RadialSolver/index.md) turns those into Love numbers; the [tidal solve](../Tides/index.md) collapses the Kaula mode sum into a heating rate and the three potential derivatives $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$ with respect to the mean anomaly, the argument of pericenter, and the longitude of the node. This module consumes those three potential derivatives.
+The solve runs in one direction. A world's [EOS](../Material/index.md) provides static moduli, interior structure, etc. [Rheology](../Rheology/index.md) converts these to complex moduli. The [radial solver](../RadialSolver/index.md) turns those into Love numbers. The [tidal solve](../Tides/index.md) collapses the Kaula mode sum into a heating rate and the three potential derivatives $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$ with respect to the mean anomaly, the argument of pericenter, and the longitude of the node. This module takes all of those to find the change in spin and orbital elements.
 
 Every world holds a `Spin` model and drives it with its own moment of inertia from the equation-of-state solve, so the spin rate uses the structure-resolved value rather than a uniform-density estimate. See [Worlds](../Structures/worlds/worlds.md). A [System](../Structures/system/system.md) attaches an `OrbitSolver`, pulls the orbital state and potential derivatives from its worlds, and reports the full set of rates with an energy-balance diagnostic.
 

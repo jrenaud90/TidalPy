@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-29_
 
-`TidalPy.Material` contains functionality to calculate the equation of state of various planet-relevant materials. Each model maps the local state onto a mass density [kg m$^{-3}$], and the whole-planet solve integrates those densities from the center outward to produce the body's radial structure. During this process, the gravity, pressure, and moment of inertia are also calculated.
+`TidalPy.Material` contains functionality to calculate the equation of state of various planet-relevant materials. Each model maps the local state into radially-dependent density [kg m$^{-3}$], and the whole-planet solve integrates those densities from the center outward to produce the body's radial structure. During this process, the gravity, pressure, total mass, and moment of inertia are also calculated.
 
 The density profile fixes the gravity and pressure profiles, which fix the moment of inertia, which is one of the few interior quantities a spacecraft can actually measure. It also fixes the coefficients of the radial functions the Love-number solver integrates, so two bodies with the same mass and radius but different internal density distributions have measurably different $k_2$.
 

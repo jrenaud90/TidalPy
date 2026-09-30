@@ -10,7 +10,7 @@ There are three ways to call its functionality:
 |---|---|
 | `BaseWorld.solve_love_numbers(...)` | You have a built world. The layer rheologies supply the complex moduli and the equation of state is already solved. See [Worlds](../Structures/worlds/worlds.md). |
 | `radial_solver(...)` | You have arrays rather than a world, or you want to drive the solver directly. Documented in [Calculating Love Numbers](calculating_love_numbers.md). |
-| `homogeneous_love_numbers(...)` | You want an estimate for a uniform sphere without building anything. |
+| `homogeneous_love_numbers(...)` | You want an estimate for a uniform sphere without building anything. Fast but not realistic for most worlds. |
 
 > [!TIP]
 > The `radial_solver` function's inputs are extensive. The [helper functions](build_inputs.md) build them through a simpler API.

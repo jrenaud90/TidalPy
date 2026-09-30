@@ -102,9 +102,11 @@ import numpy as np
 from TidalPy.Cooling import ConvectiveCooling
 
 model = ConvectiveCooling()
-sweep = model.calc_cooling_vectorize_temperature(np.linspace(100.0, 2000.0, 50),
-                                                 1.0e6, 9.8, 3300.0, 1.0e21,
-                                                 4.0, 1.0e-6, 3.0e-5)
+# delta_temp, thickness, gravity, density, viscosity, conductivity, diffusivity, expansion
+sweep = model.calc_cooling_vectorize_temperature(
+      np.linspace(100.0, 2000.0, 50),
+      1.0e6, 9.8, 3300.0, 1.0e21, 4.0, 1.0e-6, 3.0e-5
+)
 flux_profile = sweep.cooling_flux   # float64 array
 ```
 
@@ -112,7 +114,7 @@ At the C++ level each fills a caller-supplied `std::vector<c_CoolingResult>`, co
 
 ### Convenience Functions
 
-For a one-shot evaluation that does not leave an object behind:
+For a one-shot evaluation that does not leave an object behind.
 
 ```python
 import numpy as np

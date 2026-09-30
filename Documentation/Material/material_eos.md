@@ -46,7 +46,7 @@ where $K_0$ is the reference bulk modulus and $K_0'$ its pressure derivative. It
 
 ### Vinet
 
-Also called the universal equation of state, derived from a scaled interatomic potential rather than a strain expansion. With $x = (V / V_0)^{1/3} = \eta^{-1/3}$,
+Is derived from a scaled interatomic potential rather than a strain expansion. With $x = (V / V_0)^{1/3} = \eta^{-1/3}$,
 
 $$P(x) = 3 K_0 \frac{1 - x}{x^2} \exp\left[ \frac{3}{2} \left( K_0' - 1 \right) \left( 1 - x \right) \right]$$
 
@@ -54,7 +54,7 @@ The two forms agree closely at modest compression and diverge at high compressio
 
 ### Interpolated
 
-Linear interpolation of a sorted radius-to-density table, clamped at both ends. TidalPy uses it for a PREM profile of the Earth.
+Linear interpolation of a sorted radius-to-density table, clamped at both ends. TidalPy uses it for a PREM-like profiles provided by a user for a planet.
 
 The model optionally carries four more radius-varying tables: static shear modulus, static bulk modulus, shear viscosity, and bulk viscosity. They are read with `get_tabulated_shear_modulus(radius)`, `get_tabulated_bulk_modulus(radius)`, `get_tabulated_shear_viscosity(radius)`, and `get_tabulated_bulk_viscosity(radius)`. The analytic models return NaN from these base-class lookups. A tabulated value takes precedence over the material's law or constant (see [The Material](#the-material)). A world TOML that names a `data_file` (in a PREM-like format) fills these tables automatically (see the [TOML schema](../Structures/config/toml_schema.md)).
 

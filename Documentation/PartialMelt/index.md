@@ -2,9 +2,11 @@
 
 _Updated: 2026-09-29_
 
-`TidalPy.PartialMelt` has functionality to modify planetary material's strength once it begins to experience partial melt. Each model takes the pre-melt (solid) viscosity and shear modulus at a point, together with the temperature, and returns the post-melt values plus the volumetric melt fraction.
+`TidalPy.PartialMelt` has functionality to modify planetary material's strength once it begins to experience partial melt. Partial melt occurs in minerals where one element begins to melt while others remain solid. It is a fraction between 0 and 1, and for many materials has a critical melt fraction where a material switches from behaving like a solid with pockets of melt to a liquid with chunks of solid ($f_{crit}$ is often between 0.4 to 0.6 for rocks and ices). This transition causes a dramatic change in shear modulus and viscosity. 
 
-Melt weakening is the feedback that makes solid-body tidal heating self-limiting. Heating raises the temperature, the temperature raises the melt fraction, the melt fraction drops the viscosity and shear modulus by orders of magnitude, and a weaker body deforms more but has weaker dissipation (less friction). Whether a body runs away to a magma ocean or settles into a warm steady state is largely decided by the shape of the weakening curve near the critical melt fraction, which is why the models differ most sharply right there.
+Each model takes the pre-melt (solid) viscosity and shear modulus at a point, together with the temperature, and returns the post-melt values plus the volumetric melt fraction.
+
+Partial melting is an important feedback that makes solid-body tidal heating self-limiting. Heating raises the temperature, the temperature raises the melt fraction, the melt fraction drops the viscosity and shear modulus by orders of magnitude, and a weaker body deforms more but has weaker dissipation (less friction). Whether a body runs away to a magma ocean or settles into a warm steady state is largely decided by the shape of the weakening curve near the critical melt fraction, which is why the models differ most sharply right there.
 
 | Page | Covers |
 |---|---|
