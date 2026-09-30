@@ -21,6 +21,7 @@ from libcpp.utility cimport move
 from libcpp.memory cimport make_shared
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.vector cimport vector
+from cpython.complex cimport PyComplex_FromDoubles
 from cython.operator cimport dereference as deref
 
 from TidalPy.Utilities.logging.logger cimport (
@@ -794,7 +795,7 @@ cdef class BaseWorld(StructureBase):
         """
         cdef cpp_complex[double] k = self._world_ptr.get().get_tidal_love_k(
             <int>degree_l, <int>m, <int>p, <int>q)
-        return complex(k.real(), k.imag())
+        return PyComplex_FromDoubles(k.real(), k.imag())
 
     @staticmethod
     def build(source, force=False):
@@ -1236,7 +1237,7 @@ cdef class BaseWorld(StructureBase):
             value = self._world_ptr.get().calc_complex_shear_modulus(<double>radius, frequency)
         else:
             value = self._world_ptr.get().calc_complex_bulk_modulus(<double>radius, frequency)
-        return complex(value.real(), value.imag())
+        return PyComplex_FromDoubles(value.real(), value.imag())
 
     def get_density(self, radius):
         """Density [kg/m^3] at radius [m] (float or np.ndarray); NaN if unsolved."""
@@ -1687,9 +1688,9 @@ cdef class BaseWorld(StructureBase):
             'error_code':    self._world_ptr.get().get_love_error_code(),
             'message':       self._world_ptr.get().get_love_message().decode('utf-8'),
             'love_method':   self.love_method,
-            'love_number_k': complex(k.real(), k.imag()),
-            'love_number_h': complex(h.real(), h.imag()),
-            'love_number_l': complex(l.real(), l.imag()),
+            'love_number_k': PyComplex_FromDoubles(k.real(), k.imag()),
+            'love_number_h': PyComplex_FromDoubles(h.real(), h.imag()),
+            'love_number_l': PyComplex_FromDoubles(l.real(), l.imag()),
         }
 
 
@@ -1753,7 +1754,7 @@ cdef class BaseWorld(StructureBase):
         frequency); real (static) for ``cpl`` and ``ctl``.
         """
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_analytic_shear()
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     @property
     def love_tidal_volume(self) -> float:
@@ -1777,10 +1778,11 @@ cdef class BaseWorld(StructureBase):
             parts.append({
                 "layer":         self._world_ptr.get().get_layer(layer_parts[i].layer_index).get_name().decode("utf-8"),
                 "tidal_scale":   layer_parts[i].tidal_scale,
-                "love_number_k": complex(layer_parts[i].love.k.real(), layer_parts[i].love.k.imag()),
-                "love_number_h": complex(layer_parts[i].love.h.real(), layer_parts[i].love.h.imag()),
-                "love_number_l": complex(layer_parts[i].love.l.real(), layer_parts[i].love.l.imag()),
-                "shear_modulus": complex(layer_parts[i].shear_modulus.real(), layer_parts[i].shear_modulus.imag()),
+                "love_number_k": PyComplex_FromDoubles(layer_parts[i].love.k.real(), layer_parts[i].love.k.imag()),
+                "love_number_h": PyComplex_FromDoubles(layer_parts[i].love.h.real(), layer_parts[i].love.h.imag()),
+                "love_number_l": PyComplex_FromDoubles(layer_parts[i].love.l.real(), layer_parts[i].love.l.imag()),
+                "shear_modulus": PyComplex_FromDoubles(
+                    layer_parts[i].shear_modulus.real(), layer_parts[i].shear_modulus.imag()),
             })
         return parts
 
@@ -1793,34 +1795,34 @@ cdef class BaseWorld(StructureBase):
     def love_number_k(self) -> complex:
         """Complex potential Love number k2 from the last radial solve (NaN+0j if unsolved)."""
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_number_k(<size_t>0)
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     @property
     def love_number_h(self) -> complex:
         """Complex radial displacement Love number h2 from the last radial solve (NaN+0j if unsolved)."""
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_number_h(<size_t>0)
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     @property
     def love_number_l(self) -> complex:
         """Complex tangential (Shida) Love number l2 from the last radial solve (NaN+0j if unsolved)."""
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_number_l(<size_t>0)
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     def get_love_number_k(self, ytype_idx: int = 0) -> complex:
         """Complex k Love number for the given boundary-condition ytype index."""
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_number_k(<size_t>ytype_idx)
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     def get_love_number_h(self, ytype_idx: int = 0) -> complex:
         """Complex h Love number for the given boundary-condition ytype index."""
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_number_h(<size_t>ytype_idx)
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     def get_love_number_l(self, ytype_idx: int = 0) -> complex:
         """Complex l (Shida) Love number for the given boundary-condition ytype index."""
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_number_l(<size_t>ytype_idx)
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     def get_love_radial_y(self, double radius, ytype_idx: int = 0, y_idx: int = 0) -> complex:
         """Radial function y[y_idx + 1] (SI) at ``radius`` from the last radial-solver Love solve.
@@ -1831,13 +1833,13 @@ cdef class BaseWorld(StructureBase):
         """
         cdef cpp_complex[double] v = self._world_ptr.get().get_radial_solution_y(
             radius, <size_t>ytype_idx, <size_t>y_idx)
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     def get_love_surface_y(self, ytype_idx: int, y_idx: int) -> complex:
         """Complex radial y-solution value at the surface for the given ytype and y index."""
         cdef cpp_complex[double] v = self._world_ptr.get().get_love_surface_y(
             <size_t>ytype_idx, <size_t>y_idx)
-        return complex(v.real(), v.imag())
+        return PyComplex_FromDoubles(v.real(), v.imag())
 
     # Global (1D) tidal dissipation
     def calc_tides(

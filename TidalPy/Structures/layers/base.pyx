@@ -19,6 +19,7 @@ from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
 from libcpp.memory cimport make_unique
+from cpython.complex cimport PyComplex_FromDoubles
 
 from TidalPy.Utilities.logging.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -731,7 +732,7 @@ cdef class BaseLayer(StructureBase):
             value = self._layer_ptr.get().calc_complex_shear_modulus(<double>radius, frequency)
         else:
             value = self._layer_ptr.get().calc_complex_bulk_modulus(<double>radius, frequency)
-        return complex(value.real(), value.imag())
+        return PyComplex_FromDoubles(value.real(), value.imag())
 
     def calc_complex_shear_modulus(self, first_arg, frequency=None):
         """Complex shear modulus [Pa]: layer-constant or radius-resolved.
@@ -763,7 +764,7 @@ cdef class BaseLayer(StructureBase):
         cdef cpp_complex[double] result
         if frequency is None:
             result = self._layer_ptr.get().calc_complex_shear_modulus(<double>first_arg)
-            return complex(result.real(), result.imag())
+            return PyComplex_FromDoubles(result.real(), result.imag())
         return self._apply_complex(first_arg, <double>frequency, True)
 
     def calc_complex_bulk_modulus(self, first_arg, frequency=None):
@@ -796,7 +797,7 @@ cdef class BaseLayer(StructureBase):
         cdef cpp_complex[double] result
         if frequency is None:
             result = self._layer_ptr.get().calc_complex_bulk_modulus(<double>first_arg)
-            return complex(result.real(), result.imag())
+            return PyComplex_FromDoubles(result.real(), result.imag())
         return self._apply_complex(first_arg, <double>frequency, False)
 
     def update_eos_data(

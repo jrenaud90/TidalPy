@@ -2,6 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from libcpp.complex cimport complex as cpp_complex
+from cpython.complex cimport PyComplex_FromDoubles
 
 
 def z_calc(double complex x_squared, int degree_l):
@@ -23,7 +24,7 @@ def z_calc(double complex x_squared, int degree_l):
     """
     cdef cpp_complex[double] x_sq = cpp_complex[double](x_squared.real, x_squared.imag)
     cdef cpp_complex[double] result = c_z_calc(x_sq, degree_l)
-    return complex(result.real(), result.imag())
+    return PyComplex_FromDoubles(result.real(), result.imag())
 
 
 def takeuchi_phi_psi(double complex z2, int degree_l):
@@ -49,7 +50,7 @@ def takeuchi_phi_psi(double complex z2, int degree_l):
     cdef cpp_complex[double] phi, phi_lp1, psi
     c_takeuchi_phi_psi(z2_cpp, degree_l, &phi, &phi_lp1, &psi)
     return (
-        complex(phi.real(), phi.imag()),
-        complex(phi_lp1.real(), phi_lp1.imag()),
-        complex(psi.real(), psi.imag()),
+        PyComplex_FromDoubles(phi.real(), phi.imag()),
+        PyComplex_FromDoubles(phi_lp1.real(), phi_lp1.imag()),
+        PyComplex_FromDoubles(psi.real(), psi.imag()),
     )

@@ -38,7 +38,11 @@ cdef extern from "cooling_base_.hpp" namespace "tidalpy" nogil:
             const vector[double]& delta_temp,
             const vector[double]& viscosity,
             const c_CoolingInputs& base_inputs,
-            vector[c_CoolingResult]& out_results) except +
+            size_t num_points,
+            double* out_cooling_flux,
+            double* out_blt,
+            double* out_rayleigh,
+            double* out_nusselt) except +
 
 
 cdef extern from "cooling_.hpp" namespace "tidalpy" nogil:

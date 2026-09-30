@@ -3,6 +3,7 @@
 """Python view of the c_LoveNumbers C++ struct."""
 
 from libcpp.complex cimport complex as cpp_complex
+from cpython.complex cimport PyComplex_FromDoubles
 
 from TidalPy.Utilities.logging.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -31,23 +32,23 @@ cdef class LoveNumbers:
     @property
     def k(self) -> complex:
         """Potential Love number [dimensionless]."""
-        return complex(self._love.k.real(), self._love.k.imag())
+        return PyComplex_FromDoubles(self._love.k.real(), self._love.k.imag())
 
     @property
     def h(self) -> complex:
         """Radial displacement Love number [dimensionless]."""
-        return complex(self._love.h.real(), self._love.h.imag())
+        return PyComplex_FromDoubles(self._love.h.real(), self._love.h.imag())
 
     @property
     def l(self) -> complex:
         """Tangential displacement Love number [dimensionless]."""
-        return complex(self._love.l.real(), self._love.l.imag())
+        return PyComplex_FromDoubles(self._love.l.real(), self._love.l.imag())
 
     def __repr__(self) -> str:
         return (f"LoveNumbers("
-                f"k={complex(self._love.k.real(), self._love.k.imag())}, "
-                f"h={complex(self._love.h.real(), self._love.h.imag())}, "
-                f"l={complex(self._love.l.real(), self._love.l.imag())})")
+                f"k={PyComplex_FromDoubles(self._love.k.real(), self._love.k.imag())}, "
+                f"h={PyComplex_FromDoubles(self._love.h.real(), self._love.h.imag())}, "
+                f"l={PyComplex_FromDoubles(self._love.l.real(), self._love.l.imag())})")
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, LoveNumbers):
@@ -58,9 +59,9 @@ cdef class LoveNumbers:
 
     def __iter__(self):
         """Iterate as (k, h, l), which enables tuple unpacking."""
-        yield complex(self._love.k.real(), self._love.k.imag())
-        yield complex(self._love.h.real(), self._love.h.imag())
-        yield complex(self._love.l.real(), self._love.l.imag())
+        yield PyComplex_FromDoubles(self._love.k.real(), self._love.k.imag())
+        yield PyComplex_FromDoubles(self._love.h.real(), self._love.h.imag())
+        yield PyComplex_FromDoubles(self._love.l.real(), self._love.l.imag())
 
     cpdef dict to_dict(self):
         """Return all components as a flat dict with re/im suffixes.
@@ -165,7 +166,7 @@ def calc_effective_rigidity(
             gravity,
             radius,
             degree_l)
-        return complex(out_c.real(), out_c.imag())
+        return PyComplex_FromDoubles(out_c.real(), out_c.imag())
     return c_calc_effective_rigidity_real(
             <double>shear_modulus,
             density,

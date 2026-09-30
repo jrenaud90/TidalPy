@@ -5,6 +5,14 @@
 #include <numbers>
 #include <stdexcept>
 
+// Asks the compiler to inline a small per-point kernel into the sweep that calls it. MSVC otherwise leaves some of
+// these as calls inside the larger vectorized loops, which costs a sweep about a sixth of its time.
+#if defined(_MSC_VER)
+#define TIDALPY_FORCE_INLINE __forceinline
+#else
+#define TIDALPY_FORCE_INLINE inline __attribute__((always_inline))
+#endif
+
 
 // TidalPy constants and runtime parameter struct
 struct TidalPyConstants

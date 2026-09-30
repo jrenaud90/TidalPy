@@ -15,16 +15,24 @@ import numpy as np
 
 from harness import benchmark
 
-from TidalPy.constants import G
-from TidalPy.Structures.configs import build_world, build_system
-from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.constants import G, au, seconds_per_myr
+from TidalPy.Structures.configs import build_world, build_system, load_toml
+from TidalPy.Structures.worlds import TerrestrialWorld, StarWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS, BirchMurnaghanEOS
 from TidalPy.Viscosity import make_viscosity
-from TidalPy.Rheology import Maxwell, Elastic
+from TidalPy.Rheology import Maxwell, Elastic, Andrade
 from TidalPy.RadialSolver import radial_solver, homogeneous_love_numbers
+from TidalPy.Cooling import make_cooling
+from TidalPy.Radiogenics import make_radiogenics
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Structures.system import System
+from TidalPy.Utilities.logging import set_log_level
+
+# A poorly conditioned solve logs a console warning; console I/O inside a timed loop would be charged to the task.
+set_log_level("error")
+
+_WORK_DIR = tempfile.mkdtemp(prefix="tidalpy_perf_")
 
 
 # =====================================================================================================================
@@ -45,6 +53,32 @@ def _build_earth_prem():
     build_world("earth_prem")
 
 
+@benchmark("build_world:io", group="structures", note="3-layer Io (core, mantle, asthenosphere) from bundled config")
+def _build_io():
+    build_world("io")
+
+
+@benchmark("build_world:sol", group="structures", note="star from bundled config")
+def _build_sol():
+    build_world("sol")
+
+
+# The 2-layer Io dict used by the tidal heating task below, as demos 05 and 11 build their worlds.
+_IO_DICT = {
+    "schema_version": "0.2.0", "name": "Io", "type": "terrestrial",
+    "radius_m": 1.8216e6, "mass_kg": 8.9319e22,
+    "layers": {"core": {"class": "base", "type": "iron", "layer_index": 0,
+                        "radius_outer_m": 9.0e5, "is_tidal": False},
+               "mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 1,
+                          "radius_fraction": 1.0, "is_tidal": True}},
+}
+
+
+@benchmark("build_world:from_dict", group="structures", note="2-layer terrestrial from a Python dict")
+def _build_from_dict():
+    build_world(_IO_DICT)
+
+
 @benchmark("build_system:sol_system", group="system", note="star + terrestrial + gas giant from bundled config")
 def _build_sol_system():
     build_system("sol_system")
@@ -59,6 +93,92 @@ _prem = build_world("earth_prem")
 @benchmark("solve_eos:earth_prem", group="eos", note="integrate the PREM interior")
 def _solve_eos_prem():
     _prem.solve_eos()
+
+
+_earth_simple = build_world("earth_simple")
+
+
+@benchmark("solve_eos:earth_simple", group="eos", note="integrate the bundled 2-layer Earth interior")
+def _solve_eos_earth_simple():
+    _earth_simple.solve_eos()
+
+
+_eos_io = build_world("io")
+
+
+@benchmark("solve_eos:io", group="eos", note="integrate the bundled 3-layer Io interior")
+def _solve_eos_io():
+    _eos_io.solve_eos()
+
+
+@benchmark("build_world+solve_eos:io", group="structures", note="bundled Io built and its interior integrated")
+def _build_and_solve_io():
+    build_world("io").solve_eos()
+
+
+# =====================================================================================================================
+# Interior profiles
+# =====================================================================================================================
+_prem.solve_eos()
+_PREM_RADII = np.linspace(0.0, _prem.radius, 200)
+
+
+@benchmark("profiles:earth_prem_200", group="eos", note="density, gravity, and pressure of PREM at 200 radii")
+def _profiles_earth_prem():
+    _prem.get_density(_PREM_RADII)
+    _prem.get_gravity(_PREM_RADII)
+    _prem.get_pressure(_PREM_RADII)
+
+
+# =====================================================================================================================
+# World Love numbers
+# =====================================================================================================================
+_SEMIDIURNAL = 2.0 * math.pi / (12.42 * 3600.0)
+_earth_simple.solve_eos()
+
+
+@benchmark("love_numbers:world_earth_simple", group="radial_solver",
+           note="solve_love_numbers on the bundled Earth at the semidiurnal frequency")
+def _love_world_earth_simple():
+    _earth_simple.solve_love_numbers(frequency=_SEMIDIURNAL)
+
+
+_eos_io.solve_eos()
+
+
+@benchmark("love_numbers:world_io", group="radial_solver",
+           note="solve_love_numbers on the bundled 3-layer Io at Io's mean motion")
+def _love_world_io():
+    _eos_io.solve_love_numbers(frequency=4.11e-5)
+
+
+# =====================================================================================================================
+# World configuration, TOML, and binary round trips
+# =====================================================================================================================
+@benchmark("world_config:get_config_dict", group="structures", note="get_config_dict of the 4-layer PREM Earth")
+def _world_get_config_dict():
+    _prem.get_config_dict()
+
+
+_toml_path = os.path.join(_WORK_DIR, "earth_simple.toml")
+
+
+@benchmark("world_toml:round_trip", group="structures",
+           note="save_to_toml + build_world(load_toml) of the bundled 2-layer Earth")
+def _world_toml_round_trip():
+    _earth_simple.save_to_toml(_toml_path)
+    build_world(load_toml(_toml_path))
+
+
+_world_binary_path = os.path.join(_WORK_DIR, "earth_prem.tpyb")
+_world_restored = TerrestrialWorld("placeholder", 1.0, 1.0)
+
+
+@benchmark("world_binary:round_trip", group="structures",
+           note="save_binary + load_binary of the solved 4-layer PREM Earth")
+def _world_binary_round_trip():
+    _prem.save_binary(_world_binary_path)
+    _world_restored.load_binary(_world_binary_path)
 
 
 # =====================================================================================================================
@@ -84,6 +204,29 @@ _io.set_spin_frequency(_N_IO)
 @benchmark("tidal_heating:fixed_q", group="tides", note="one calc_tides on a fixed-Q world")
 def _tidal_heating_fixed_q():
     _io.calc_tides(_N_IO, _N_IO, 0.0041, 0.0, _A_IO, _M_JUP)
+
+
+# The bundled 3-layer Io with its rheology tide, as demos 14, 15, and 19 use it. Both Love methods at the bundled
+# tide settings (degree 2, the default eccentricity truncation).
+_bundled_io = build_world("io")
+_bundled_io.solve_eos()
+_bundled_io_homogeneous = build_world("io")
+_bundled_io_homogeneous.solve_eos()
+_bundled_io_homogeneous.set_tide_config(love_method="homogeneous")
+
+
+@benchmark("tidal_heating:io_radial_solver", group="tides",
+           note="one calc_tides on the bundled 3-layer Io, radial_solver Love method")
+def _tidal_heating_io_radial_solver():
+    _bundled_io.calc_tides(_N_IO, _N_IO, 0.0041, 0.0, _A_IO, _M_JUP)
+    _bundled_io.get_tidal_heating()
+
+
+@benchmark("tidal_heating:io_homogeneous", group="tides",
+           note="one calc_tides on the bundled 3-layer Io, homogeneous Love method")
+def _tidal_heating_io_homogeneous():
+    _bundled_io_homogeneous.calc_tides(_N_IO, _N_IO, 0.0041, 0.0, _A_IO, _M_JUP)
+    _bundled_io_homogeneous.get_tidal_heating()
 
 
 # =====================================================================================================================
@@ -142,6 +285,50 @@ def _rheology_complex_modulus():
     _maxwell.calc_complex_modulus(60.0e9, 1.0e15, _N_IO)
 
 
+_andrade = Andrade(alpha=0.3, zeta=1.0)
+_FREQUENCY_SWEEP = np.logspace(-8, -3, 1000)
+
+
+@benchmark("rheology:andrade_frequency_sweep_1000", group="rheology",
+           note="Andrade complex moduli over 1000 frequencies (vectorized)")
+def _rheology_andrade_sweep():
+    _andrade.calc_complex_modulus_vectorize_frequency(60.0e9, 1.0e19, _FREQUENCY_SWEEP)
+
+
+# =====================================================================================================================
+# Viscosity, cooling, and radiogenics
+# =====================================================================================================================
+_reference_viscosity = make_viscosity("reference", {
+    "reference_viscosity_pas": 1.0e21, "reference_temperature_k": 1600.0, "molar_activation_energy_j_mol": 3.0e5})
+
+
+@benchmark("viscosity:reference", group="physics", number=100000, note="one reference-law viscosity evaluation")
+def _viscosity_reference():
+    _reference_viscosity.calc_viscosity(1500.0, 1.0e9)
+
+
+# Demo 15's silicate mantle: delta T, thickness, gravity, density, viscosity, conductivity, diffusivity, expansivity.
+_convection = make_cooling("convection")
+_VISCOSITY_SWEEP = np.logspace(16.0, 26.0, 200)
+_COOLING_ARGS = (1000.0, 9.1e5, 1.5, 3300.0, _VISCOSITY_SWEEP, 3.75, 3.75 / (3300.0 * 1200.0), 5.2e-5)
+
+
+@benchmark("cooling:convection_viscosity_sweep_200", group="physics",
+           note="convective cooling over 200 viscosities (vectorized)")
+def _cooling_convection_sweep():
+    _convection.calc_cooling_vectorize_viscosity(*_COOLING_ARGS)
+
+
+_isotopes = make_radiogenics("isotope", {"isotopes": "modern_day_chondritic"})
+_RADIOGENIC_TIMES = np.linspace(0.0, 4600.0 * seconds_per_myr, 10000)
+
+
+@benchmark("radiogenics:isotope_time_sweep_10k", group="physics",
+           note="chondritic isotope heating over 10k times (vectorized)")
+def _radiogenics_isotope_sweep():
+    _isotopes.calc_heating_vectorize_time(_RADIOGENIC_TIMES, 1.0)
+
+
 # =====================================================================================================================
 # System evolution
 # =====================================================================================================================
@@ -165,10 +352,83 @@ def _system_evolution():
     _evo_system.calc_world_evolution(_evo_io)
 
 
+# The Jupiter-Io system of the migration guide: the bundled 3-layer Io with its rheology tide and radial solves.
+_jovian = System("jovian")
+_jovian_host = build_world("jupiter_simple")
+_jovian_io = build_world("io")
+_jovian_io.solve_eos()
+_jovian.add_world(_jovian_host)
+_jovian.add_world(_jovian_io, tidal_host=_jovian_host, semi_major_axis=_A_IO, eccentricity=0.0041)
+_jovian_io.set_spin_frequency(_jovian.calc_orbital_frequency(_jovian_io))
+
+
+@benchmark("system_evolution:io_rheology", group="system",
+           note="calc_world_evolution of the bundled 3-layer Io about Jupiter (rheology tide)")
+def _system_evolution_io_rheology():
+    _jovian.calc_world_evolution(_jovian_io)
+
+
+# Demo 16: the bundled Sun, Earth, and Moon, with the Earth and Moon raising tides on each other.
+_ems = System("Earth-Moon-Sun")
+_ems_earth = build_world("earth_simple")
+_ems_moon = build_world("luna")
+_ems_earth.solve_eos()
+_ems_moon.solve_eos()
+_ems.add_world(build_world("sol"), is_star=True)
+_ems.add_world(_ems_earth)
+_ems.add_world(_ems_moon, tidal_host=_ems_earth, semi_major_axis=3.84748e8, eccentricity=0.0549)
+_ems.set_tidal_host(_ems_earth, _ems_moon)
+_ems_moon.set_spin_frequency(_ems.calc_orbital_frequency(_ems_moon))
+for _world in (_ems_earth, _ems_moon):
+    _ems.set_stellar_semi_major_axis(_world, au)
+    _ems.set_stellar_eccentricity(_world, 0.0167)
+
+
+@benchmark("system_evolution:earth_moon_pair", group="system",
+           note="calc_pair_evolution of the bundled Earth and Moon (both rheology tides)")
+def _system_evolution_earth_moon_pair():
+    _ems.calc_pair_evolution(_ems_moon)
+
+
+@benchmark("system:insolation", group="system", note="insolation flux and equilibrium temperature of the Moon")
+def _system_insolation():
+    _ems.calc_insolation_flux(_ems_moon)
+    _ems.calc_equilibrium_temperature(_ems_moon)
+
+
+# Demo 11: a star with a terrestrial planet and a gas giant, both fixed-Q, evolved together.
+def _fixed_q_planet(config):
+    world = build_world(config)
+    world.set_tide_model(make_tide("fixed_q", {"fixed_k": [0.3], "fixed_q": [100.0]}))
+    world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
+    return world
+
+
+_multi_star = StarWorld("Sun", 6.957e8, 1.988e30)
+_multi_star.set_effective_temperature(5772.0)
+_multi_inner = _fixed_q_planet({**_IO_DICT, "name": "Inner", "radius_m": 6.0e6, "mass_kg": 5.0e24,
+                                "spin_frequency_rad_s": 2.0e-5})
+_multi_outer = _fixed_q_planet({
+    "schema_version": "0.2.0", "name": "Outer", "type": "gasgiant",
+    "radius_m": 6.0e7, "mass_kg": 6.0e26, "spin_frequency_rad_s": 1.0e-4,
+    "layers": {"envelope": {"class": "gas", "type": "gas", "layer_index": 0,
+                            "radius_fraction": 1.0, "is_tidal": True}}})
+_multi_system = System("multi")
+_multi_system.add_world(_multi_star, is_star=True)
+_multi_system.add_world(_multi_inner, tidal_host=_multi_star, semi_major_axis=0.20 * au, eccentricity=0.05)
+_multi_system.add_world(_multi_outer, tidal_host=_multi_star, semi_major_axis=1.50 * au, eccentricity=0.02)
+
+
+@benchmark("system_evolution:multi_world", group="system",
+           note="calc_system_evolution of a star, a terrestrial planet, and a gas giant (fixed-Q)")
+def _system_evolution_multi_world():
+    _multi_system.calc_system_evolution()
+
+
 # =====================================================================================================================
 # Equation of state (Birch-Murnaghan)
 # =====================================================================================================================
-_bm_world = BaseWorld("bm_planet", 6.371e6, 5.972e24)
+_bm_world = TerrestrialWorld("bm_planet", 6.371e6, 5.972e24)
 _bm_layer = BaseLayer("mantle", 0, 0.0, 6.371e6, 5.972e24)
 _bm_layer.set_eos(BirchMurnaghanEOS(
     reference_density=4000.0, shear_modulus_static=80.0e9, bulk_modulus_static=200.0e9))
@@ -187,7 +447,7 @@ def _solve_eos_birch_murnaghan():
 # =====================================================================================================================
 # 3D tides (rheology tide, fully collapsed total)
 # =====================================================================================================================
-_rheo_io = BaseWorld("RheoIo", _R, 8.9319e22)
+_rheo_io = TerrestrialWorld("RheoIo", _R, 8.9319e22)
 _rheo_layer = BaseLayer("mantle", 0, 0.0, _R, 8.9319e22)
 _rheo_layer.is_static = False
 _rheo_layer.set_eos(ConstantDensityEOS(
@@ -208,12 +468,24 @@ def _tides_3d_collapse_total():
                            latitude_summed=True, longitude_summed=True, radial_summed=True)
 
 
+# Demo 09: secular heating along one line of points (120 colatitudes just below the surface).
+_HEATING_COLATITUDES = np.linspace(0.02, np.pi - 0.02, 120)
+_HEATING_RADII = np.full(_HEATING_COLATITUDES.size, 0.99 * _R)
+
+
+@benchmark("tides_3d:heating_array_120", group="tides",
+           note="get_3d_tidal_heating_array at 120 surface colatitudes (rheology tide)")
+def _tides_3d_heating_array():
+    _rheo_io.get_3d_tidal_heating_array(_N_IO, _N_IO, 0.0041, 0.0, _A_IO, _M_JUP,
+                                        _HEATING_RADII, _HEATING_COLATITUDES)
+
+
 # =====================================================================================================================
 # 3D grids on one thread and on every logical core
 # =====================================================================================================================
 # Degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, so hundreds of waves reach every point. The
 # radial solves are the same in both variants; only the per-point evaluation after them runs on the extra threads.
-_grid_io = BaseWorld("GridIo", _R, 8.9319e22)
+_grid_io = TerrestrialWorld("GridIo", _R, 8.9319e22)
 _grid_layer = BaseLayer("mantle", 0, 0.0, _R, 8.9319e22)
 _grid_layer.is_static = False
 _grid_layer.set_eos(ConstantDensityEOS(
@@ -286,7 +558,7 @@ def _tides_3d_displacements_all_threads():
 # System binary round trip
 # =====================================================================================================================
 _sol_system = build_system("sol_system")
-_binary_path = os.path.join(tempfile.mkdtemp(prefix="tidalpy_perf_"), "sol_system_roundtrip.tpb")
+_binary_path = os.path.join(_WORK_DIR, "sol_system_roundtrip.tpb")
 
 
 @benchmark("system_binary:round_trip", group="system", note="save_binary + load_binary of the bundled sol system")

@@ -15,8 +15,7 @@ from libcpp.vector cimport vector
 
 cimport numpy as cnp
 
-import numpy as np
-
+# The result arrays are built through the NumPy C API.
 cnp.import_array()
 
 from TidalPy.Utilities.logging.logger cimport (
@@ -58,44 +57,31 @@ cdef CoolingResult cy_result_to_py(c_CoolingResult res):
     return CoolingResult(res.cooling_flux, res.blt, res.rayleigh_number, res.nusselt_number)
 
 
-cdef CoolingResult cy_results_to_py(vector[c_CoolingResult]& src, tuple shape):
-    """Build a CoolingResult of float64 ndarrays from a std::vector of results."""
-    cdef Py_ssize_t n = <Py_ssize_t>src.size()
-    cdef Py_ssize_t i
-    cdef cnp.ndarray flux = np.empty(n, dtype=np.float64)
-    cdef cnp.ndarray blt  = np.empty(n, dtype=np.float64)
-    cdef cnp.ndarray ray  = np.empty(n, dtype=np.float64)
-    cdef cnp.ndarray nu   = np.empty(n, dtype=np.float64)
-    cdef double[::1] m_flux = flux
-    cdef double[::1] m_blt  = blt
-    cdef double[::1] m_ray  = ray
-    cdef double[::1] m_nu   = nu
-    cdef c_CoolingResult* cooling_result_ptr = NULL
-
-    with nogil:
-        for i in range(n):
-            cooling_result_ptr = &src[i]
-            m_flux[i] = cooling_result_ptr.cooling_flux
-            m_blt[i]  = cooling_result_ptr.blt
-            m_ray[i]  = cooling_result_ptr.rayleigh_number
-            m_nu[i]   = cooling_result_ptr.nusselt_number
-    return CoolingResult(flux.reshape(shape), blt.reshape(shape), ray.reshape(shape), nu.reshape(shape))
-
-
 cdef object cy_solve_cooling(
         c_CoolingBase* model, c_CoolingInputs base, object delta_temp, object viscosity, cpp_bool flatten):
     """Cooling for float or ndarray ``delta_temp`` and ``viscosity`` broadcast together (cy_broadcast_inputs) at the
-    otherwise fixed state ``base``; a CoolingResult of floats when both are floats and ``flatten`` is off."""
+    otherwise fixed state ``base``; a CoolingResult of floats when both are floats and ``flatten`` is off. A sweep
+    writes straight into the four result arrays."""
     cdef vector[vector[double]] inputs
-    cdef vector[c_CoolingResult] results
     cdef object shape = cy_broadcast_inputs((delta_temp, viscosity), inputs, flatten)
     if shape is None:
         base.delta_temp = <double>delta_temp
         base.viscosity  = <double>viscosity
         return cy_result_to_py(model.calc_cooling(base))
+    # Each input holds one value or one per point.
+    cdef cnp.npy_intp num_points = <cnp.npy_intp>max(inputs[0].size(), inputs[1].size())
+    cdef cnp.ndarray flux     = cnp.PyArray_EMPTY(1, &num_points, cnp.NPY_FLOAT64, 0)
+    cdef cnp.ndarray blt      = cnp.PyArray_EMPTY(1, &num_points, cnp.NPY_FLOAT64, 0)
+    cdef cnp.ndarray rayleigh = cnp.PyArray_EMPTY(1, &num_points, cnp.NPY_FLOAT64, 0)
+    cdef cnp.ndarray nusselt  = cnp.PyArray_EMPTY(1, &num_points, cnp.NPY_FLOAT64, 0)
+    cdef double* flux_ptr     = <double*>cnp.PyArray_DATA(flux)
+    cdef double* blt_ptr      = <double*>cnp.PyArray_DATA(blt)
+    cdef double* rayleigh_ptr = <double*>cnp.PyArray_DATA(rayleigh)
+    cdef double* nusselt_ptr  = <double*>cnp.PyArray_DATA(nusselt)
     with nogil:
-        model.calc_cooling_vectorize(inputs[0], inputs[1], base, results)
-    return cy_results_to_py(results, shape)
+        model.calc_cooling_vectorize(
+            inputs[0], inputs[1], base, <size_t>num_points, flux_ptr, blt_ptr, rayleigh_ptr, nusselt_ptr)
+    return CoolingResult(flux.reshape(shape), blt.reshape(shape), rayleigh.reshape(shape), nusselt.reshape(shape))
 
 
 cdef class CoolingResult:

@@ -17,6 +17,7 @@ from libcpp.complex cimport complex as cpp_complex
 from libcpp.memory cimport unique_ptr
 from libcpp.utility cimport move
 from libcpp.vector cimport vector
+from cpython.complex cimport PyComplex_FromDoubles
 
 cimport numpy as cnp
 
@@ -46,7 +47,7 @@ cdef object cy_solve_complex_modulus(
     cdef object shape = cy_broadcast_inputs((modulus, viscosity, frequency), inputs, flatten)
     if shape is None:
         scalar_result = model.calc_complex_modulus(<double>modulus, <double>viscosity, <double>frequency)
-        return complex(scalar_result.real(), scalar_result.imag())
+        return PyComplex_FromDoubles(scalar_result.real(), scalar_result.imag())
     with nogil:
         model.calc_complex_modulus_vectorize(inputs[0], inputs[1], inputs[2], complex_modulus)
     return cy_complex_vector_to_ndarray(complex_modulus, shape)
@@ -98,7 +99,7 @@ cdef class RheologyBase(PhysicsBase):
         self._check_ptr()
         cdef cpp_complex[double] result = self._rheology_ptr.get().calc_complex_modulus(
             modulus, viscosity, frequency)
-        return complex(result.real(), result.imag())
+        return PyComplex_FromDoubles(result.real(), result.imag())
 
     def calc_complex_modulus_vectorize_modulus(self, modulus, viscosity,
                                                double frequency):

@@ -11,6 +11,7 @@ from libcpp.memory cimport unique_ptr
 from libcpp.string cimport string as cpp_string
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.utility cimport move
+from cpython.complex cimport PyComplex_FromDoubles
 
 from TidalPy.RadialSolver.rs_constants cimport C_MAX_NUM_Y
 from TidalPy.Material.eos.ode cimport (
@@ -530,7 +531,7 @@ cdef class RadialSolverSolution:
         cdef cpp_complex[double] shear
         cdef cpp_complex[double] bulk
         self.solution_storage_ptr.get_complex_moduli_si(radius, shear, bulk)
-        return (complex(shear.real(), shear.imag()), complex(bulk.real(), bulk.imag()))
+        return (PyComplex_FromDoubles(shear.real(), shear.imag()), PyComplex_FromDoubles(bulk.real(), bulk.imag()))
 
     cdef object _complex_moduli_sweep(self, object radius, size_t which):
         """Complex shear (``which`` 0) or bulk (1) modulus [Pa] over an array of radii [m].

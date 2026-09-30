@@ -34,7 +34,7 @@ struct c_CoolingConfig {
 };
 
 // No cooling. Boundary layer is set to half the layer thickness so downstream users see a sane value.
-inline c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
+TIDALPY_FORCE_INLINE c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
     result.cooling_flux    = 0.0;
     result.blt             = 0.5 * in.thickness;
@@ -44,7 +44,7 @@ inline c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
 }
 
 // Conduction across the whole layer: flux = k * delta_temp / thickness.
-inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
+TIDALPY_FORCE_INLINE c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
     result.blt             = in.thickness;
     result.cooling_flux    = in.thermal_conductivity * in.delta_temp / c_guard_denominator(in.thickness);
@@ -67,7 +67,7 @@ inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
 // [numerical] minimum_nusselt setting; at its default of 1 a sub-critical or rigid layer conducts. Degenerate
 // inputs (no temperature contrast, or a vanishingly thin layer) collapse to Ra = 0 and Nu = Nu_min. Each test is
 // made once so that Ra, Nu, and the boundary layer stay consistent with one another.
-inline c_CoolingResult cool_convection(
+TIDALPY_FORCE_INLINE c_CoolingResult cool_convection(
         const c_CoolingInputs& in, const c_CoolingConfig& cfg) noexcept {
     const double eps = TidalPyConstants::d_EPS;
     // An unwired config gives NaN limits, so the result shows the missing initialization.
@@ -114,6 +114,21 @@ public:
     c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
         return cool_off(inputs);
     }
+    void calc_cooling_vectorize(
+            const std::vector<double>& delta_temp,
+            const std::vector<double>& viscosity,
+            const c_CoolingInputs& base_inputs,
+            std::size_t num_points,
+            double* out_cooling_flux,
+            double* out_blt,
+            double* out_rayleigh,
+            double* out_nusselt) const override {
+        p_vectorize_kernel(
+            [](const c_CoolingInputs& inputs) { return cool_off(inputs); },
+            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh,
+            out_nusselt);
+    }
+
     c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Off; }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::OffCooling); }
@@ -128,6 +143,21 @@ public:
     c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
         return cool_conduction(inputs);
     }
+    void calc_cooling_vectorize(
+            const std::vector<double>& delta_temp,
+            const std::vector<double>& viscosity,
+            const c_CoolingInputs& base_inputs,
+            std::size_t num_points,
+            double* out_cooling_flux,
+            double* out_blt,
+            double* out_rayleigh,
+            double* out_nusselt) const override {
+        p_vectorize_kernel(
+            [](const c_CoolingInputs& inputs) { return cool_conduction(inputs); },
+            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh,
+            out_nusselt);
+    }
+
     c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Conduction; }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::ConductiveCooling); }
@@ -156,6 +186,23 @@ public:
     c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
         return cool_convection(inputs, this->p_config);
     }
+    void calc_cooling_vectorize(
+            const std::vector<double>& delta_temp,
+            const std::vector<double>& viscosity,
+            const c_CoolingInputs& base_inputs,
+            std::size_t num_points,
+            double* out_cooling_flux,
+            double* out_blt,
+            double* out_rayleigh,
+            double* out_nusselt) const override {
+        p_vectorize_kernel(
+            [config = this->p_config](const c_CoolingInputs& inputs) {
+                return cool_convection(inputs, config);
+            },
+            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh,
+            out_nusselt);
+    }
+
     c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Convection; }
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::ConvectiveCooling); }

@@ -55,7 +55,9 @@ inline double c_safe_pow(double base, double exponent)
 inline double c_safe_exp(double exponent)
 {
     const double result = std::exp(exponent);
-    if (!std::isfinite(result))
+    // exp never returns a negative value, so one compare rejects both inf and NaN. It is cheaper than std::isfinite
+    // under MSVC, which matters in the radiogenic sweeps that call this once per isotope and point.
+    if (!(result <= std::numeric_limits<double>::max()))
     {
         return std::numeric_limits<double>::quiet_NaN();
     }
