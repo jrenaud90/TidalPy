@@ -1,10 +1,10 @@
 # Radiogenic Models (`Radiogenics`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
 A radiogenics model utilizes a layer of mass $m$ at time $t$ to find how much power is being released inside it by radioactive decay. The heating $Q$ \[W\] is returned by `calc_heating(time, mass)`.
 
-Time is measured in seconds from an epoch the caller chooses, and each model carries the reference time `ref_time` at which its rates or concentrations were quoted. Only the difference $t - t_{\text{ref}}$ enters the physics, so a model built from present-day abundances with a reference time of 4600 Myr is evaluated at $t = 0$ to get the heating at the birth of the solar system, or at $t = t_{\text{ref}}$ to get today's.
+Time is measured in seconds from an epoch the caller chooses, and each model carries the reference time `ref_time` at which its rates or concentrations were quoted. Only the difference $t - t_{\text{ref}}$ is used in the calculations, so a model built from present-day abundances with a reference time of 4600 Myr is evaluated at $t = 0$ to get the heating at the birth of the Solar System, or at $t = t_{\text{ref}}$ to get today's.
 
 ## Inheritance
 

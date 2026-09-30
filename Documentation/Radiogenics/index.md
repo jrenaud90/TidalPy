@@ -1,8 +1,8 @@
 # Radiogenics (`Radiogenics`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
-`TidalPy.Radiogenics` adds functionality to calculate internal heating due to the decay of radioactive isotopes (both long- and short-duration isotopes). Each model in this module uses a layer's mass and the elapsed time to find the radiogenic heating $Q$ [W] released inside that layer.
+`TidalPy.Radiogenics` adds functionality to calculate internal heating due to the decay of radioactive isotopes (both long- and short-duration isotopes). Each model in this module uses a layer's mass and the elapsed time to find the radiogenic heating $Q$ \[W\] released inside that layer.
 
 | Page | Covers |
 |---|---|
@@ -18,9 +18,7 @@ Radiogenic Models <radiogenics_models.md>
 
 A radiogenics model is attached to a `SolidLiquidLayer` with `set_radiogenics`, alongside the layer's cooling model. See [SolidLiquidLayer](../Structures/layers/solidliquid_layer.md). The layer then provides `calc_radiogenic_heating(time, mass)`, and `BaseWorld.calc_internal_heating(time)` sums the contributions of every layer that carries a model. Layers without one contribute zero rather than raising.
 
-When a world is built from a TOML file or a config dict, the `[layers.<name>.radiogenics]` table names the model and its parameters, and anything the user omits falls back to the material defaults in `TidalPy_Configs.toml`. The shipped defaults give a rock mantle the chondritic isotope set and turn radiogenics off in iron cores and ice shells. See the [TOML schema](../Structures/config/toml_schema.md).
-
-Radiogenic heating is computed separately from the tidal solve; the two sources are summed by whatever drives the thermal state, so a study can hold one fixed while varying the other.
+When a world is built from a TOML file or a config dict, the `[layers.<name>.radiogenics]` table names the model and its parameters, and anything the user omits falls back to the material defaults in `TidalPy_Configs.toml`. The shipped defaults give a rock mantle the chondritic isotopes and turn radiogenics off in iron cores and ice shells. See the [TOML schema](../Structures/config/toml_schema.md).
 
 ## References
 
