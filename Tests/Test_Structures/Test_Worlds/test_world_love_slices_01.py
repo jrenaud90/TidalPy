@@ -15,13 +15,13 @@ def _compressible_world():
     return build_world({
         "schema_version": "0.2.0", "name": "bm", "type": "terrestrial", "radius_m": 6.371e6, "mass_kg": 6.0e24,
         "layers": {
-            "core": {"class": "physics", "type": "iron", "layer_index": 0, "radius_fraction": 0.55,
+            "core": {"class": "base", "type": "iron", "layer_index": 0, "radius_fraction": 0.55,
                      "material": {"model": "birch_murnaghan", "reference_density_kg_m3": 8300.0,
                                   "reference_bulk_modulus_pa": 1.6e11, "bulk_modulus_derivative": 5.0,
                                   "shear_modulus_static_pa": 1.0e11, "bulk_modulus_static_pa": 5.0e11,
                                   "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e24}},
                      "shear_rheology": {"model": "maxwell"}},
-            "mantle": {"class": "physics", "type": "mantle_rock", "layer_index": 1, "radius_fraction": 1.0,
+            "mantle": {"class": "base", "type": "mantle_rock", "layer_index": 1, "radius_fraction": 1.0,
                        "material": {"model": "birch_murnaghan", "reference_density_kg_m3": 3300.0,
                                     "reference_bulk_modulus_pa": 1.3e11, "bulk_modulus_derivative": 4.0,
                                     "shear_modulus_static_pa": 7.0e10, "bulk_modulus_static_pa": 2.0e11,

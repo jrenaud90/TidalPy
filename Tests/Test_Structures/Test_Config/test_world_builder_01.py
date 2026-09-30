@@ -29,7 +29,7 @@ def _terrestrial_dict():
         "mass_kg": 5.0e24,
         "spin_frequency_rad_s": 7.0e-5,
         "layers": {
-            "core": {"class": "physics", "layer_index": 0, "radius_outer_m": 3.0e6, "is_tidal": False,
+            "core": {"class": "base", "layer_index": 0, "radius_outer_m": 3.0e6, "is_tidal": False,
                      "material": {"model": "constant", "reference_density_kg_m3": 9000.0}},
             "mantle": {"class": "solidliquid", "layer_index": 1, "radius_outer_m": 6.0e6, "mass_kg": 3.0e24,
                        "is_tidal": True,
@@ -201,12 +201,12 @@ def test_construct_world_rejects_a_bad_config(config, match):
 # Per-material defaults (tier 2: the configuration)
 # =====================================================================================================================
 def test_material_defaults_filtered_to_class():
-    """solidliquid mantle_rock keeps cooling and radiogenics; physics drops them."""
+    """solidliquid mantle_rock keeps cooling and radiogenics; base drops them."""
     solidliquid = world_builder._material_type_defaults("mantle_rock", "solidliquid")
     assert "cooling" in solidliquid and "radiogenics" in solidliquid
     assert "shear_rheology" in solidliquid
-    physics = world_builder._material_type_defaults("mantle_rock", "physics")
-    assert "cooling" not in physics and "radiogenics" not in physics
+    base = world_builder._material_type_defaults("mantle_rock", "base")
+    assert "cooling" not in base and "radiogenics" not in base
     assert solidliquid["shear_rheology"]["model"] == "andrade"
     assert "zeta" in solidliquid["shear_rheology"]
 
@@ -226,8 +226,8 @@ def test_no_material_type_uses_the_default_block():
         {"type": "mantle_rock", "material": {"model": "constant", "reference_density_kg_m3": 5200.0}},
         5200.0,
         id="user-value-wins"),
-    # Ice's cooling and radiogenics defaults are dropped for a physics layer, but its EOS still applies.
-    pytest.param({"class": "physics", "type": "ice"}, 1000.0, id="physics-layer-ice-type"),
+    # Ice's cooling and radiogenics defaults are dropped for a base layer, but its EOS still applies.
+    pytest.param({"class": "base", "type": "ice"}, 1000.0, id="base-layer-ice-type"),
 ])
 def test_single_layer_eos_follows_the_default_tiers(layer_overrides, density):
     world = construct_world(_single_layer_world(layer_overrides))
@@ -271,13 +271,13 @@ def test_inner_radius_derived_from_previous_layer():
     config = {
         "name": "D", "type": "terrestrial", "radius_m": 6.0e6, "mass_kg": 5.0e24,
         "layers": {
-            "core": {"class": "physics", "layer_index": 0, "radius_outer_m": 2.0e6,
+            "core": {"class": "base", "layer_index": 0, "radius_outer_m": 2.0e6,
                      "material": {"model": "constant", "reference_density_kg_m3": 8000.0}},
-            "mid": {"class": "physics", "layer_index": 1, "radius_fraction": 0.75,
+            "mid": {"class": "base", "layer_index": 1, "radius_fraction": 0.75,
                     "material": {"model": "constant", "reference_density_kg_m3": 5000.0}},
-            "shell": {"class": "physics", "layer_index": 2, "volume_fraction": 0.125,
+            "shell": {"class": "base", "layer_index": 2, "volume_fraction": 0.125,
                       "material": {"model": "constant", "reference_density_kg_m3": 3000.0}},
-            "crust": {"class": "physics", "layer_index": 3, "radius_fraction": 1.0,
+            "crust": {"class": "base", "layer_index": 3, "radius_fraction": 1.0,
                       "material": {"model": "constant", "reference_density_kg_m3": 2800.0}},
         }}
     world = construct_world(config)

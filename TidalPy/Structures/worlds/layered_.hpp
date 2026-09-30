@@ -125,18 +125,19 @@ struct c_WorldEOSSolveConfig {
 
 // Parameters for the whole-planet Love-number solve.
 struct c_LoveSolveConfig {
-    double    frequency = 1.0e-5;            // [rad/s]; tidal forcing frequency
-    int       degree_l  = 2;                  // harmonic degree
+    double    frequency = 1.0e-5;   // [rad/s]; tidal forcing frequency
+    int       degree_l  = 2;        // harmonic degree
     // In order; 1 = tidal, 2 = loading, 0 = free.
     std::vector<int> bc_models = {1};
-    int       love_method = 0;                  // c_LoveMethod as int: 0 radial_solver, 1 propagation_matrix,
-                                                       // 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous
+    // c_LoveMethod as int: 0 radial_solver, 1 propagation_matrix,
+    // 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous
+    int       love_method = 0;
     double    fixed_q            = TidalPyConstants::d_NAN;   // cpl quality factor (NaN: from the tide model)
     double    fixed_dt           = TidalPyConstants::d_NAN;   // ctl time lag [s] (NaN: from the tide model)
-    int       core_model         = 0;                  // propagation-matrix core starting condition (0-4)
+    int       core_model         = 0;                         // propagation-matrix core starting condition (0-4)
     bool      use_kamata         = false;
     bool      nondimensionalize  = true;
-    double    starting_radius    = 0.0;                // [m]; 0 -> auto
+    double    starting_radius    = 0.0;                       // [m]; 0 -> auto
     double    start_radius_tol   = 1.0e-5;
     ODEMethod integration_method = ODEMethod::DOP853;
     double    rtol               = 1.0e-6;
@@ -581,8 +582,8 @@ public:
         return (thermal.heat_flow_in - thermal.heat_flow_out + thermal.heating) / (mass * heat_capacity);
     }
 
-    // Viscoelastic profile queries, post-melt with pre-melt variants. NaN when no layer contains r, the
-    // layer is geometry-only, or the EOS has not been solved.
+    // Viscoelastic profile queries, post-melt with pre-melt variants. NaN when no layer contains r or the EOS has
+    // not been solved.
     double get_shear_modulus(double radius) const noexcept {
         return this->p_eos_field(radius, C_EOS_SHEAR_MODULUS_INDEX);
     }
@@ -861,8 +862,7 @@ public:
                 for (std::size_t i = 0; i < n_layers; ++i) {
                     // The viscosity and melt models of the material always see the temperature; its density law
                     // sees it only when the layer asked for a thermal EOS.
-                    const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[i].get());
-                    const bool thermal_eos = (physics_layer != nullptr) && physics_layer->get_use_thermal_eos();
+                    const bool thermal_eos = this->p_layers[i]->get_use_thermal_eos();
                     solve_state->inputs[i].temperature           = layer_thermal[i].temperature;
                     solve_state->inputs[i].use_state_temperature = integrate_temperature;
                     solve_state->inputs[i].thermal_density       = thermal_eos;
@@ -1078,10 +1078,9 @@ public:
             const c_BaseLayer* layer  = this->p_layers[layer_i].get();
             const double radius_inner = layer->get_radius_inner();
             const double radius_outer = layer->get_radius_outer();
-            const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(layer);
             // The melt model the solve used, which the layer may have replaced since.
             const c_PartialMeltBase* melt_model =
-                ((physics_layer != nullptr) && this->p_solve_state && (layer_i < this->p_solve_state->materials.size()))
+                (this->p_solve_state && (layer_i < this->p_solve_state->materials.size()))
                 ? this->p_solve_state->materials[layer_i]->get_partial_melt_model() : nullptr;
             if ((melt_model == nullptr) || (slices < 2)) {
                 this->p_radial_segments.push_back({layer_i, radius_inner, radius_outer, false});
@@ -1133,7 +1132,7 @@ public:
             this->p_radial_segments.insert(this->p_radial_segments.end(), merged.begin(), merged.end());
 
             for (const c_RadialSegment& segment : merged) {
-                if (segment.molten && physics_layer->get_is_solid()) {
+                if (segment.molten && layer->get_is_solid()) {
                     TIDALPY_LOG_INFO(
                         "TidalPy: layer '{}' of world '{}' is molten between {:.6e} and {:.6e} m; the radial solver "
                         "treats that stretch as a static liquid.",
@@ -1162,9 +1161,7 @@ public:
         std::vector<c_RadialSegment> regions;
         for (const c_RadialSegment& segment : this->p_radial_segments) {
             if (!segment.molten) { continue; }
-            const auto* physics_layer =
-                dynamic_cast<const c_PhysicsLayer*>(this->p_layers[segment.world_layer].get());
-            if ((physics_layer != nullptr) && physics_layer->get_is_solid()) { regions.push_back(segment); }
+            if (this->p_layers[segment.world_layer]->get_is_solid()) { regions.push_back(segment); }
         }
         return regions;
     }
@@ -1419,7 +1416,7 @@ public:
         // The solver's layers: every world layer once, except that a solid layer with molten stretches is split
         // at their edges and each molten stretch is a static liquid (it keeps the layer's compressibility flag).
         // The static formulation reads only density and gravity, so it does not see the melt-weakened bulk
-        // modulus there. Geometry-only layers default to static solid. Gathered before the cache check because
+        // modulus there. Gathered before the cache check because
         // the flags are user-mutable without an EOS re-solve, so a cache hit is only valid when they still match.
         const c_EOSSolution* world_eos = this->p_eos_solution.get();
         const std::size_t slices = total_slices / n_layers;
@@ -1460,10 +1457,9 @@ public:
         const std::vector<c_RadialSegment>& segments = this->p_radial_segments;
         for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
             const c_BaseLayer* layer = this->p_layers[layer_i].get();
-            const auto* phys = dynamic_cast<const c_PhysicsLayer*>(layer);
-            const bool is_solid          = (phys == nullptr) || phys->get_is_solid();
-            const bool is_static         = (phys == nullptr) || phys->get_is_static();
-            const bool is_incompressible = (phys != nullptr) && phys->get_is_incompressible();
+            const bool is_solid          = layer->get_is_solid();
+            const bool is_static         = layer->get_is_static();
+            const bool is_incompressible = layer->get_is_incompressible();
 
             std::size_t layer_segment_end = segment_i;
             while ((layer_segment_end < segments.size()) && (segments[layer_segment_end].world_layer == layer_i)) {
@@ -1622,8 +1618,8 @@ public:
         double state[C_EOS_DY_VALUES];
         double worst_error = 0.0;
         for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
-            const auto* phys = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
-            if ((phys == nullptr) || phys->get_is_solid() || phys->get_is_static()) { continue; }
+            const c_BaseLayer* phys = this->p_layers[layer_i].get();
+            if (phys->get_is_solid() || phys->get_is_static()) { continue; }
             const bool incompressible = phys->get_is_incompressible();
             // Short of the centre, where 1 / r is singular.
             const double radius_outer = phys->get_radius_outer();
@@ -1692,8 +1688,8 @@ public:
     // One tidal layer as the quasi-homogeneous Love methods see it: its volume-averaged post-melt shear and bulk
     // moduli, its log-volume-averaged post-melt viscosities, and its tidal scale. Frequency independent.
     struct c_HomogeneousLayer {
-        const c_PhysicsLayer* layer = nullptr;
-        std::size_t layer_index     = 0;
+        const c_BaseLayer* layer = nullptr;
+        std::size_t layer_index  = 0;
         double shear_modulus   = TidalPyConstants::d_NAN;   // [Pa]
         double bulk_modulus    = TidalPyConstants::d_NAN;   // [Pa]
         double shear_viscosity = TidalPyConstants::d_NAN;   // [Pa s]
@@ -1857,16 +1853,12 @@ public:
         const std::size_t n_layers = this->p_layers.size();
         std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
         std::vector<std::shared_ptr<const c_RheologyBase>> bulk_bylayer(n_layers);
-        std::vector<char> is_physics_bylayer(n_layers, 0);
         for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-            const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[layer_i].get());
-            if (physics_layer == nullptr) { continue; }
-            is_physics_bylayer[layer_i] = 1;
-            shear_bylayer[layer_i]      = physics_layer->share_shear_rheology();
-            bulk_bylayer[layer_i]       = physics_layer->share_bulk_rheology();
+            shear_bylayer[layer_i] = this->p_layers[layer_i]->share_shear_rheology();
+            bulk_bylayer[layer_i]  = this->p_layers[layer_i]->share_bulk_rheology();
         }
         std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
-        return [eos_solution, shear_bylayer, bulk_bylayer, is_physics_bylayer, world_layer_of, frequency](
+        return [eos_solution, shear_bylayer, bulk_bylayer, world_layer_of, frequency](
                 std::size_t solver_layer_index,
                 double radius_si,
                 double* state_out,
@@ -1875,8 +1867,7 @@ public:
             // The solver counts the stretches of a split layer as layers of their own.
             const std::size_t layer_index = world_layer_of[solver_layer_index];
             eos_solution->call_si(layer_index, radius_si, state_out);
-            // A layer with no material models has no modulus to report.
-            if (layer_index >= is_physics_bylayer.size() || !is_physics_bylayer[layer_index]) { return; }
+            if (layer_index >= shear_bylayer.size()) { return; }
             const double static_shear = state_out[C_EOS_SHEAR_MODULUS_INDEX];
             const double static_bulk  = state_out[C_EOS_BULK_MODULUS_INDEX];
             // Purely real (no dissipation) where no rheology is attached.
@@ -1931,8 +1922,8 @@ public:
     // of each layer's tidal scale (its volume fraction unless set) times its Love numbers, so a one-layer planet
     // gets exactly the homogeneous value and a small, weak layer cannot dominate the planet's dissipation.
     //
-    // A physics layer takes part with the moduli its material gives, so a fluid layer adds its fluid Love number;
-    // a geometry-only layer, one that is not tidal, or one with a zero tidal scale takes no part.
+    // A layer takes part with the moduli its material gives, so a fluid layer adds its fluid Love number; a layer
+    // that is not tidal, or one with a zero tidal scale, takes no part.
     void build_homogeneous_layers(c_HomogeneousLoveCache& cache) const {
         const std::size_t n_intervals = homogeneous_quadrature_intervals;
         const double planet_radius = this->get_radius();
@@ -1943,8 +1934,6 @@ public:
             const c_BaseLayer* layer = this->p_layers[layer_i].get();
             const double tidal_scale = layer->calc_tidal_scale(planet_volume);
             if (!(tidal_scale > 0.0)) { continue; }
-            const auto* physics = dynamic_cast<const c_PhysicsLayer*>(layer);
-            if (physics == nullptr) { continue; }   // geometry-only layer: no material moduli
             const double r_inner = layer->get_radius_inner();
             const double r_outer = layer->get_radius_outer();
             if (!(r_outer > r_inner)) { continue; }
@@ -1961,7 +1950,7 @@ public:
                 const double r = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * dr;
                 const double simpson = (i == 0 || i == n_intervals) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
                 const double weight = simpson * r * r;
-                physics->get_eos_state(r, state);
+                layer->get_eos_state(r, state);
                 weight_sum         += weight;
                 shear_sum          += weight * state[C_EOS_SHEAR_MODULUS_INDEX];     // post-melt
                 bulk_sum           += weight * state[C_EOS_BULK_MODULUS_INDEX];
@@ -1969,7 +1958,7 @@ public:
                 log_bulk_visc_sum  += weight * std::log10(state[C_EOS_BULK_VISCOSITY_INDEX]);
             }
             c_HomogeneousLayer averaged;
-            averaged.layer           = physics;
+            averaged.layer           = layer;
             averaged.layer_index     = layer_i;
             averaged.shear_modulus   = shear_sum / weight_sum;
             averaged.bulk_modulus    = bulk_sum / weight_sum;
@@ -2638,12 +2627,12 @@ protected:
     }
 
     // The shear (is_shear) or bulk complex modulus [Pa] at a radius [m] and frequency [rad s-1] from the rheology
-    // of the layer that holds the radius; NaN for a geometry-only layer. The caller holds the call lock, which is also
-    // the layer's.
+    // of the layer that holds the radius; NaN only for a world with no layers. The caller holds the call lock, which
+    // is also the layer's.
     std::complex<double> p_complex_modulus(bool is_shear, double radius, double frequency) const noexcept {
-        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius));
-        if (physics_layer == nullptr) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
-        return physics_layer->p_complex_modulus(is_shear, radius, frequency);
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        if (layer == nullptr) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
+        return layer->p_complex_modulus(is_shear, radius, frequency);
     }
 
     // The layer whose radial span contains radius [m], non-owning. Radii beyond the surface clamp to the

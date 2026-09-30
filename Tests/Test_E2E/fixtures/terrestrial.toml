@@ -7,7 +7,7 @@ mass_kg = 5.0e24
 spin_frequency_rad_s = 2.0e-5
 
 [layers.core]
-class = "physics"
+class = "base"
 type = "iron"
 layer_index = 0
 radius_outer_m = 3.0e6

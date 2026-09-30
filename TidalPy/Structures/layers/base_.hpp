@@ -1,20 +1,26 @@
 #pragma once
 /*
- * base_.hpp: c_BaseLayer, the geometry base class for every TidalPy layer type (extends c_StructureBase).
+ * base_.hpp: c_BaseLayer, the layer class every TidalPy layer type builds on (extends c_StructureBase).
  *
- * Holds the geometry and identification set at construction plus the EOS profile (density, gravity, pressure
- * against radius) populated by the world's EOS solve. Spatial fields in meters [m], mass in kilograms [kg]. A layer
- * a world owns reads and writes that profile under the world's call lock (c_WorldCallLock, call_lock_.hpp), so its
- * getters take turns with the world's solves on other threads, and tells the world when a setting its EOS solve reads
- * changes (c_LayerOwner), so the world forgets the structure it solved with the old setting.
+ * Holds the geometry and identification set at construction, the radial-solver classification flags, the layer
+ * temperature and thermal switches, the material (the layer's EOS model, which holds the static moduli, the shear
+ * law, the viscosities, and partial melt), the shear and bulk rheology, and the EOS profile (density, gravity,
+ * pressure against radius) populated by the world's EOS solve. A complex modulus is the rheology applied to the static
+ * modulus and viscosity the solved EOS reports at a radius; without a rheology it is the static value as a purely real
+ * number (no dissipation). All MKS. A layer a world owns reads and writes its profile under the world's call lock
+ * (c_WorldCallLock, call_lock_.hpp), so its getters take turns with the world's solves on other threads, and tells
+ * the world when a setting its EOS solve reads changes (c_LayerOwner), so the world forgets the structure it solved
+ * with the old setting.
  *
  * Binary payload: radius and mass (c_StructureBase), the name, layer index, inner radius, material name, is_tidal,
- * is_volume_fixed, and tidal_scale (NaN when the world uses the layer's volume fraction), then the material EOS model
- * behind a presence flag. The derived geometry is recomputed on load, and the EOS profile is not serialized: re-run
- * the world EOS solve after loading.
+ * is_volume_fixed, tidal_scale (NaN when the world uses the layer's volume fraction), the three classification flags,
+ * the temperature, use_thermal_eos, and use_heating, then the material EOS model and the shear and bulk rheologies,
+ * each behind a presence flag. The derived geometry is recomputed on load, and the EOS profile is not serialized:
+ * re-run the world EOS solve after loading.
  */
 
 #include <cctype>
+#include <complex>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -28,6 +34,7 @@
 #include "eos_data_.hpp"
 #include "structure_base_.hpp"
 #include "material_eos_.hpp"   // c_MaterialEOSBase (per-layer density source)
+#include "rheology_.hpp"
 
 namespace tidalpy {
 
@@ -67,7 +74,6 @@ private:
 // The "class" key of a layer config table.
 inline const char* c_layer_class_name(uint32_t class_id) noexcept {
     switch (class_id) {
-        case static_cast<uint32_t>(BinaryClassID::PhysicsLayer):     return "physics";
         case static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer): return "solidliquid";
         case static_cast<uint32_t>(BinaryClassID::GasLayer):         return "gas";
         case static_cast<uint32_t>(BinaryClassID::BaseLayer):
@@ -89,12 +95,22 @@ struct c_BaseLayerConfig {
     // The layer's share of the planet's volume in the quasi-homogeneous Love methods; NaN takes the layer's volume
     // fraction when the world uses it (c_BaseLayer::calc_tidal_scale).
     double             tidal_scale = TidalPyConstants::d_NAN;   // dimensionless
+    // Radial-solver layer classification flags.
+    bool               is_solid          = true;    // false for liquid layers
+    bool               is_static         = true;    // use static (no dynamic terms) approximation
+    bool               is_incompressible = false;   // use incompressible approximation
+    // The layer temperature is 0 K until set: the cold, rigid limit of the viscosity laws.
+    double             temperature     = 0.0;     // [K]
+    bool               use_thermal_eos = false;   // the EOS density and bulk modulus see the temperature
+    bool               use_heating     = false;   // the world's heat sources act inside this layer
 };
 
 // The world that owns layers; it reads their profile through the unlocked p_ helpers while it holds its call lock.
 class c_LayeredWorld;
 
 class c_BaseLayer : public c_StructureBase {
+    // The owning world reads the profile and applies the rheology through the p_ helpers while it holds its call
+    // lock.
     friend class c_LayeredWorld;
 
 public:
@@ -108,7 +124,13 @@ public:
           p_material_name(cfg.material_name),
           p_is_tidal(cfg.is_tidal),
           p_is_volume_fixed(cfg.is_volume_fixed),
-          p_tidal_scale(cfg.tidal_scale)
+          p_tidal_scale(cfg.tidal_scale),
+          p_is_solid(cfg.is_solid),
+          p_is_static(cfg.is_static),
+          p_is_incompressible(cfg.is_incompressible),
+          p_temperature(cfg.temperature),
+          p_use_thermal_eos(cfg.use_thermal_eos),
+          p_use_heating(cfg.use_heating)
     {
         // An inverted or negative shell would carry a negative volume through every mass and heating sum.
         if (!(std::isfinite(cfg.radius_inner) && std::isfinite(cfg.radius_outer)
@@ -126,8 +148,9 @@ public:
 
     ~c_BaseLayer() override = default;
 
-    // p_eos is a unique_ptr, which deletes the implicit copy assignment, and the subclass operator=s call
-    // this one. Source temporaries always have a null p_eos, so resetting on copy is safe.
+    // The owned models delete the implicit copy assignment, which Cython's stack allocation emits from freshly
+    // constructed temporaries, and the subclass operator=s call this one. Source temporaries always hold null
+    // models, so resetting them on copy is safe.
     c_BaseLayer& operator=(const c_BaseLayer& other) noexcept {
         if (this != &other) {
             c_StructureBase::operator=(other);
@@ -144,8 +167,16 @@ public:
             this->p_is_volume_fixed    = other.p_is_volume_fixed;
             this->p_tidal_scale        = other.p_tidal_scale;
             this->p_tidal_heating      = other.p_tidal_heating;
+            this->p_is_solid           = other.p_is_solid;
+            this->p_is_static          = other.p_is_static;
+            this->p_is_incompressible  = other.p_is_incompressible;
+            this->p_temperature        = other.p_temperature;
+            this->p_use_thermal_eos    = other.p_use_thermal_eos;
+            this->p_use_heating        = other.p_use_heating;
             this->p_eos_data           = other.p_eos_data;
             this->p_eos.reset();
+            this->p_shear_rheology.reset();
+            this->p_bulk_rheology.reset();
         }
         return *this;
     }
@@ -295,6 +326,180 @@ public:
     c_MaterialEOSBase* get_eos()      const noexcept { return this->p_eos.get(); }
     bool               get_eos_set()  const noexcept { return this->p_eos != nullptr; }
 
+    bool get_is_solid()          const noexcept { return this->p_is_solid; }
+    bool get_is_static()         const noexcept { return this->p_is_static; }
+    bool get_is_incompressible() const noexcept { return this->p_is_incompressible; }
+
+    // These control the shooting and propagation-matrix assumptions. Each Love solve reads them afresh, so they
+    // leave the owning world's EOS solve standing; they take its call lock so they never change under a solve.
+    void set_is_solid(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_is_solid = value;
+    }
+    void set_is_static(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_is_static = value;
+    }
+    void set_is_incompressible(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_is_incompressible = value;
+    }
+
+    // Layer temperature [K] and whether the EOS density law sees it. The EOS solve reads both, so setting either
+    // makes the owning world forget its solved structure (c_LayerOwner).
+    double get_temperature()     const noexcept { return this->p_temperature; }
+    bool   get_use_thermal_eos() const noexcept { return this->p_use_thermal_eos; }
+    void set_temperature(double value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_temperature = value;
+        this->p_update_owner_after_change();
+    }
+    void set_use_thermal_eos(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_use_thermal_eos = value;
+        this->p_update_owner_after_change();
+    }
+
+    // Whether the world's heat sources act inside this layer during a thermal EOS solve. Off, the layer
+    // generates no heat whatever models it carries. Setting it makes the owning world forget its solved structure.
+    bool get_use_heating() const noexcept { return this->p_use_heating; }
+    void set_use_heating(bool value) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_use_heating = value;
+        this->p_update_owner_after_change();
+    }
+
+    // Read from the layer's EOS model; NaN when none is attached.
+    double get_shear_modulus_static() const noexcept {
+        return this->p_eos ? this->p_eos->get_shear_modulus_static() : TidalPyConstants::d_NAN;
+    }
+    double get_bulk_modulus_static() const noexcept {
+        return this->p_eos ? this->p_eos->get_bulk_modulus_static() : TidalPyConstants::d_NAN;
+    }
+    double get_shear_viscosity_static() const noexcept {
+        return this->p_eos ? this->p_eos->get_shear_viscosity_static() : TidalPyConstants::d_NAN;
+    }
+    double get_bulk_viscosity_static() const noexcept {
+        return this->p_eos ? this->p_eos->get_bulk_viscosity_static() : TidalPyConstants::d_NAN;
+    }
+
+    // From the material's static constants: the rheology applied to them, or the static modulus as a purely
+    // real number without one. The static viscosity is NaN until set, so a viscous rheology then returns NaN.
+    std::complex<double> calc_complex_shear_modulus(double frequency) const noexcept {
+        return this->apply_shear_rheology(
+            this->get_shear_modulus_static(), this->get_shear_viscosity_static(), frequency);
+    }
+
+    // Same rules as the shear overload above.
+    std::complex<double> calc_complex_bulk_modulus(double frequency) const noexcept {
+        return this->apply_bulk_rheology(
+            this->get_bulk_modulus_static(), this->get_bulk_viscosity_static(), frequency);
+    }
+
+    // The only place a complex modulus comes from: the EOS supplies the two static inputs and knows nothing
+    // about frequency. Purely real, with no dissipation, when no rheology is attached.
+    std::complex<double> apply_shear_rheology(
+            double static_modulus, double viscosity, double frequency) const noexcept {
+        if (this->p_shear_rheology) {
+            return this->p_shear_rheology->calc_complex_modulus(static_modulus, viscosity, frequency);
+        }
+        return std::complex<double>(static_modulus, 0.0);
+    }
+    std::complex<double> apply_bulk_rheology(
+            double static_modulus, double viscosity, double frequency) const noexcept {
+        if (this->p_bulk_rheology) {
+            return this->p_bulk_rheology->calc_complex_modulus(static_modulus, viscosity, frequency);
+        }
+        return std::complex<double>(static_modulus, 0.0);
+    }
+
+    // The rheology applied to the static modulus and viscosity the solved EOS reports at that radius. The solved
+    // profile is read under the owning world's call lock (set_owner).
+    std::complex<double> calc_complex_shear_modulus(double radius, double frequency) const noexcept {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        return this->p_complex_modulus(true, radius, frequency);
+    }
+    std::complex<double> calc_complex_bulk_modulus(double radius, double frequency) const noexcept {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        return this->p_complex_modulus(false, radius, frequency);
+    }
+
+    // Vectorized form of the two above at one frequency [rad s-1]: the shear (is_shear) or bulk complex modulus [Pa]
+    // at each of radii[0 .. num_radii) [m], taking the owner's lock once for the whole call.
+    //
+    // Assumes moduli_out holds num_radii values.
+    void calc_complex_moduli(
+            bool is_shear,
+            const double* radii,
+            std::size_t num_radii,
+            double frequency,
+            std::complex<double>* moduli_out) const noexcept {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        for (std::size_t radius_i = 0; radius_i < num_radii; ++radius_i) {
+            moduli_out[radius_i] = this->p_complex_modulus(is_shear, radii[radius_i], frequency);
+        }
+    }
+
+    // Ownership transfers in, and each registers this layer as the model's observer. The EOS solve does not read
+    // the rheology (each Love solve applies it afresh), so the owning world's solved structure stands; the owner's
+    // call lock keeps the swap out of a solve that is applying the old model.
+    void set_shear_rheology(std::unique_ptr<c_RheologyBase> shear) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_shear_rheology = std::move(shear);
+        if (this->p_shear_rheology) { this->p_shear_rheology->set_layer_ptr(this); }
+    }
+
+    void set_bulk_rheology(std::unique_ptr<c_RheologyBase> bulk) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_bulk_rheology = std::move(bulk);
+        if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
+    }
+
+    bool get_shear_rheology_set() const noexcept { return this->p_shear_rheology != nullptr; }
+    bool get_bulk_rheology_set()  const noexcept { return this->p_bulk_rheology  != nullptr; }
+
+    // Non-owning; null when unset.
+    c_RheologyBase* get_shear_rheology_model() const noexcept { return this->p_shear_rheology.get(); }
+    c_RheologyBase* get_bulk_rheology_model()  const noexcept { return this->p_bulk_rheology.get(); }
+
+    // Shared handles, for a consumer that must outlive this layer (see the member declarations).
+    std::shared_ptr<const c_RheologyBase> share_shear_rheology() const noexcept { return this->p_shear_rheology; }
+    std::shared_ptr<const c_RheologyBase> share_bulk_rheology()  const noexcept { return this->p_bulk_rheology; }
+
+    // The material owns these models, so each call hands the model to the layer's EOS; they exist so a layer
+    // can be configured in one place. Attach the EOS first, or there is no material to give the model to. The EOS
+    // solve evaluates them, so each makes the owning world forget its solved structure (c_LayerOwner).
+    void set_shear_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_require_eos("a shear viscosity model")->set_shear_viscosity(std::move(viscosity));
+        this->p_update_owner_after_change();
+    }
+    void set_bulk_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_require_eos("a bulk viscosity model")->set_bulk_viscosity(std::move(viscosity));
+        this->p_update_owner_after_change();
+    }
+    void set_partial_melt(std::unique_ptr<c_PartialMeltBase> partial_melt) {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_require_eos("a partial-melt model")->set_partial_melt(std::move(partial_melt));
+        this->p_update_owner_after_change();
+    }
+
+    bool get_shear_viscosity_set() const noexcept { return this->get_shear_viscosity_model() != nullptr; }
+    bool get_bulk_viscosity_set()  const noexcept { return this->get_bulk_viscosity_model()  != nullptr; }
+    bool get_partial_melt_set()    const noexcept { return this->get_partial_melt_model()    != nullptr; }
+
+    // Non-owning; null when unset or no EOS is attached.
+    c_ViscosityBase* get_shear_viscosity_model() const noexcept {
+        return this->p_eos ? this->p_eos->get_shear_viscosity_model() : nullptr;
+    }
+    c_ViscosityBase* get_bulk_viscosity_model() const noexcept {
+        return this->p_eos ? this->p_eos->get_bulk_viscosity_model() : nullptr;
+    }
+    c_PartialMeltBase* get_partial_melt_model() const noexcept {
+        return this->p_eos ? this->p_eos->get_partial_melt_model() : nullptr;
+    }
+
     void update_physicals() {
         this->p_radius_outer       = this->p_radius;
         this->p_thickness          = this->p_radius_outer - this->p_radius_inner;
@@ -321,7 +526,15 @@ protected:
             static_cast<uint8_t>(this->p_is_tidal), static_cast<uint8_t>(this->p_is_volume_fixed)};
         out.write(reinterpret_cast<const char*>(flag_bytes), sizeof(flag_bytes));
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale), sizeof(double));
+        const uint8_t state_bytes[5] = {
+            static_cast<uint8_t>(this->p_is_solid), static_cast<uint8_t>(this->p_is_static),
+            static_cast<uint8_t>(this->p_is_incompressible), static_cast<uint8_t>(this->p_use_thermal_eos),
+            static_cast<uint8_t>(this->p_use_heating)};
+        out.write(reinterpret_cast<const char*>(state_bytes), sizeof(state_bytes));
+        out.write(reinterpret_cast<const char*>(&this->p_temperature), sizeof(double));
         write_optional_binary(out, this->p_eos);
+        write_optional_binary(out, this->p_shear_rheology);
+        write_optional_binary(out, this->p_bulk_rheology);
     }
 
     // A loaded layer carries no solved profile or heating until its world solves again.
@@ -340,9 +553,44 @@ protected:
         this->p_is_tidal        = static_cast<bool>(flag_bytes[0]);
         this->p_is_volume_fixed = static_cast<bool>(flag_bytes[1]);
         in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
+        uint8_t state_bytes[5] = {0, 0, 0, 0, 0};
+        in.read(reinterpret_cast<char*>(state_bytes), sizeof(state_bytes));
+        this->p_is_solid          = static_cast<bool>(state_bytes[0]);
+        this->p_is_static         = static_cast<bool>(state_bytes[1]);
+        this->p_is_incompressible = static_cast<bool>(state_bytes[2]);
+        this->p_use_thermal_eos   = static_cast<bool>(state_bytes[3]);
+        this->p_use_heating       = static_cast<bool>(state_bytes[4]);
+        in.read(reinterpret_cast<char*>(&this->p_temperature), sizeof(double));
         this->p_eos = read_optional_binary<c_MaterialEOSBase>(in, force, c_material_eos_from_binary);
         if (this->p_eos) { this->p_eos->set_layer_ptr(this); }
+        this->p_shear_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+        if (this->p_shear_rheology) { this->p_shear_rheology->set_layer_ptr(this); }
+        this->p_bulk_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+        if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
         this->update_physicals();
+    }
+
+    // The shear (is_shear) or bulk rheology applied to the solved static modulus and viscosity at a radius [m];
+    // the caller holds the owner's lock.
+    std::complex<double> p_complex_modulus(bool is_shear, double radius, double frequency) const noexcept {
+        double state[C_EOS_DY_VALUES];
+        this->p_eos_state(radius, state);
+        if (is_shear) {
+            return this->apply_shear_rheology(
+                state[C_EOS_SHEAR_MODULUS_INDEX], state[C_EOS_SHEAR_VISCOSITY_INDEX], frequency);
+        }
+        return this->apply_bulk_rheology(
+            state[C_EOS_BULK_MODULUS_INDEX], state[C_EOS_BULK_VISCOSITY_INDEX], frequency);
+    }
+
+    // The attached EOS model, or a clear error naming what needed it.
+    c_MaterialEOSBase* p_require_eos(const char* what) const {
+        if (!this->p_eos) {
+            throw std::logic_error(
+                std::string("TidalPy: attach an EOS model to layer '") + this->p_name + "' before giving it "
+                + what + ": the material owns it.");
+        }
+        return this->p_eos.get();
     }
 
     // Every solved quantity at a radius; the caller holds the owner's lock. The owning world calls it directly
@@ -381,6 +629,16 @@ protected:
     double             p_tidal_scale        = TidalPyConstants::d_NAN;   // dimensionless; NaN: volume fraction
     double             p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve
 
+    // Radial-solver layer classification.
+    bool p_is_solid          = true;
+    bool p_is_static         = true;
+    bool p_is_incompressible = false;
+
+    // Layer state (see c_BaseLayerConfig).
+    double p_temperature     = 0.0;
+    bool   p_use_thermal_eos = false;
+    bool   p_use_heating     = false;
+
     // Populated by the world-level EOS solve; not serialized. Read and written under p_owner_call_mutex.
     c_LayerEOSData p_eos_data;
 
@@ -389,6 +647,12 @@ protected:
 
     // Attached from Python through set_eos and serialized with the layer binary record.
     std::unique_ptr<c_MaterialEOSBase> p_eos;
+
+    // Optional rheology objects. They are shared, not unique: a radial-solver solution exported to Python keeps a
+    // copy of these pointers so it can reproduce the complex moduli it was solved with, at any radius, even after
+    // this layer is gone.
+    std::shared_ptr<c_RheologyBase> p_shear_rheology;
+    std::shared_ptr<c_RheologyBase> p_bulk_rheology;
 };
 
 } // namespace tidalpy

@@ -7,18 +7,18 @@ from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
 
-from TidalPy.Structures.layers.physics cimport PhysicsLayer, c_PhysicsLayer, c_PhysicsConfig, c_BaseLayer
+from TidalPy.Structures.layers.base cimport BaseLayer, c_BaseLayer, c_BaseLayerConfig
 from TidalPy.Cooling.cooling cimport c_CoolingBase
 from TidalPy.Radiogenics.radiogenics cimport c_RadiogenicsBase
 
 
 cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
 
-    # Adds no fields to c_PhysicsConfig.
-    cdef cppclass c_SolidLiquidConfig(c_PhysicsConfig):
+    # Adds no fields to c_BaseLayerConfig.
+    cdef cppclass c_SolidLiquidConfig(c_BaseLayerConfig):
         pass
 
-    cdef cppclass c_SolidLiquidLayer(c_PhysicsLayer):
+    cdef cppclass c_SolidLiquidLayer(c_BaseLayer):
         c_SolidLiquidLayer() except +
         c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg) except +
         # Thermal constants of the material (read from the layer's EOS model)
@@ -41,7 +41,7 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         void     set_radiogenics(unique_ptr[c_RadiogenicsBase] radiogenics) except +
 
 
-cdef class SolidLiquidLayer(PhysicsLayer):
+cdef class SolidLiquidLayer(BaseLayer):
     cdef c_SolidLiquidLayer* _solidliquid_ptr   # non-owning; ownership via BaseLayer._layer_ptr
     cpdef dict get_config_dict(self)
     

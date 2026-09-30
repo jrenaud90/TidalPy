@@ -5,7 +5,6 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Radiogenics.radiogenics import FixedRadiogenics
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.gas import GasLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
@@ -114,7 +113,7 @@ def test_mixed_layer_types():
     """A world accepts layers of different subclasses."""
     world = LayeredWorld("Mixed", _R_SURF, _M_TOT)
     world.add_layer(BaseLayer(*_CORE_ARGS))
-    world.add_layer(PhysicsLayer(*_MANTLE_ARGS))
+    world.add_layer(BaseLayer(*_MANTLE_ARGS))
     assert world.num_layers == 2
     assert world.calc_total_mass() == pytest.approx(_M_TOT, rel=1e-9)
 

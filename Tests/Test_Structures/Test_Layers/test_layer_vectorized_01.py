@@ -6,7 +6,7 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
 from TidalPy.Rheology.rheology import Maxwell, Elastic
@@ -27,7 +27,7 @@ _REAL_GETTERS = _PROFILE_GETTERS + (
 def _solved_world():
     """A homogeneous Maxwell world with its EOS solved."""
     world = LayeredWorld("world", _RADIUS, _MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _RADIUS, _MASS)
+    layer = BaseLayer("mantle", 0, 0.0, _RADIUS, _MASS)
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
@@ -41,7 +41,7 @@ def _solved_world():
 
 def _standalone_layer():
     """A layer with a directly populated EOS profile and no world."""
-    layer = PhysicsLayer("mantle", 0, 0.0, _RADIUS, _MASS)
+    layer = BaseLayer("mantle", 0, 0.0, _RADIUS, _MASS)
     layer.update_eos_data(
         np.linspace(0.0, _RADIUS, 11),
         np.full(11, _DENSITY),

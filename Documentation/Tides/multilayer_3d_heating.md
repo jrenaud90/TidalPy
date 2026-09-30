@@ -119,7 +119,7 @@ import numpy as np
 
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import Elastic, Maxwell
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers import BaseLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Viscosity import make_viscosity
@@ -128,7 +128,7 @@ radius  = 1.8e6    # [m]
 density = 3500.0   # [kg m-3]
 mass    = (4.0 / 3.0) * np.pi * radius**3 * density
 
-layer = PhysicsLayer("mantle", 0, 0.0, radius, mass)
+layer = BaseLayer("mantle", 0, 0.0, radius, mass)
 layer.set_eos(ConstantDensityEOS(reference_density=density, shear_modulus_static=6.0e10, bulk_modulus_static=1.0e11))
 layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
 layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))

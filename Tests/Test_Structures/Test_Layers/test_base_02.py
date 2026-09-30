@@ -1,4 +1,5 @@
-"""PhysicsLayer: construction, inherited geometry, complex moduli, rheology, config dict, and binary round trip."""
+"""BaseLayer: static material constants, complex moduli, rheology, solver flags, config dict, and binary round
+trip."""
 import math
 
 import pytest
@@ -6,7 +7,6 @@ import pytest
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import rheology
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Utilities.classes.classes import StructureBase, TidalPyBaseClass
 
 _R_INNER = 3.485e6    # [m]
@@ -21,9 +21,6 @@ _CONFIG_KEYS = (
     "name", "layer_index", "radius_inner_m", "radius_outer_m",
     "mass_kg", "material_name", "is_tidal", "tidal_scale",
     "is_solid", "is_static", "is_incompressible",
-    "love_number_k_re", "love_number_k_im",
-    "love_number_h_re", "love_number_h_im",
-    "love_number_l_re", "love_number_l_im",
 )
 
 
@@ -37,7 +34,7 @@ def _material(shear=_SHEAR, bulk=_BULK, shear_viscosity=_VISCOSITY, bulk_viscosi
 
 
 def _make_mantle():
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         name="mantle",
         layer_index=1,
         radius_inner=_R_INNER,
@@ -46,9 +43,6 @@ def _make_mantle():
         material_name="perovskite",
         is_tidal=True,
         tidal_scale=1.0,
-        love_number_k=0.0 + 0.0j,
-        love_number_h=0.0 + 0.0j,
-        love_number_l=0.0 + 0.0j,
     )
     layer.set_eos(_material())
     return layer
@@ -57,7 +51,7 @@ def _make_mantle():
 def _roundtrip(layer, tmp_path):
     path = str(tmp_path / "layer.tpyb")
     layer.save_binary(path)
-    loaded = PhysicsLayer("placeholder", 99, 0.0, 1.0, 1.0)
+    loaded = BaseLayer("placeholder", 99, 0.0, 1.0, 1.0)
     loaded.load_binary(path)
     return loaded
 
@@ -72,8 +66,8 @@ def _read_toml(path):
 
 
 def test_construction():
-    """PhysicsLayer stores its values; the static constants are read from its material."""
-    layer = PhysicsLayer("core", 0, 0.0, 3.485e6, 1.932e24)
+    """BaseLayer stores its values; the static constants are read from its material."""
+    layer = BaseLayer("core", 0, 0.0, 3.485e6, 1.932e24)
     layer.set_eos(_material(5e10, 2e11, 1e20, 1e22))
     assert layer.name == "core"
     assert layer.layer_index == 0
@@ -84,38 +78,32 @@ def test_construction():
     assert layer.bulk_modulus_static == pytest.approx(2e11)
     assert layer.shear_viscosity_static == pytest.approx(1e20)
     assert layer.bulk_viscosity_static == pytest.approx(1e22)
-    assert layer.love_number_k == pytest.approx(0.0 + 0.0j)
-    assert layer.love_number_h == pytest.approx(0.0 + 0.0j)
-    assert layer.love_number_l == pytest.approx(0.0 + 0.0j)
 
 
 def test_defaults():
     """Without a material the constants are NaN; a default material's moduli are 0 and viscosities NaN."""
-    layer = PhysicsLayer("test", 0, 0.0, 1e6, 1e20)
+    layer = BaseLayer("test", 0, 0.0, 1e6, 1e20)
     assert math.isnan(layer.shear_modulus_static)
     layer.set_eos(ConstantDensityEOS())
     assert layer.shear_modulus_static == pytest.approx(0.0)
     assert layer.bulk_modulus_static == pytest.approx(0.0)
     assert math.isnan(layer.shear_viscosity_static)
     assert math.isnan(layer.bulk_viscosity_static)
-    assert layer.love_number_k == pytest.approx(0.0 + 0.0j)
 
 
 def test_unset_static_viscosity_fails_loudly():
     """Without a static viscosity a viscous rheology's modulus is NaN; an elastic one is unaffected."""
-    layer = PhysicsLayer("test", 0, 0.0, 1e6, 1e20)
+    layer = BaseLayer("test", 0, 0.0, 1e6, 1e20)
     layer.set_eos(ConstantDensityEOS(shear_modulus_static=_SHEAR))
     layer.set_shear_rheology(rheology.Elastic())
     assert layer.calc_complex_shear_modulus(_FREQUENCY) == pytest.approx(_SHEAR + 0.0j)
     layer.set_shear_rheology(rheology.Maxwell())
     modulus = layer.calc_complex_shear_modulus(_FREQUENCY)
     assert math.isnan(modulus.real) and math.isnan(modulus.imag)
-    assert layer.love_number_h == pytest.approx(0.0 + 0.0j)
-    assert layer.love_number_l == pytest.approx(0.0 + 0.0j)
 
 
-def test_inherits_base_fields():
-    """Stored fields from BaseLayer resolve on a PhysicsLayer."""
+def test_stored_fields():
+    """The identity fields are stored as given."""
     layer = _make_mantle()
     assert layer.name == "mantle"
     assert layer.layer_index == 1
@@ -124,8 +112,8 @@ def test_inherits_base_fields():
     assert layer.tidal_scale == pytest.approx(1.0)
 
 
-def test_inherits_geometry():
-    """Derived geometry from BaseLayer resolves on a PhysicsLayer."""
+def test_geometry():
+    """The derived geometry follows the radii."""
     layer = _make_mantle()
     assert layer.radius == pytest.approx(_R_OUTER)
     assert layer.mass == pytest.approx(_MASS)
@@ -135,8 +123,8 @@ def test_inherits_geometry():
     assert layer.surface_area_inner == pytest.approx(4.0 * math.pi * _R_INNER ** 2, rel=1e-9)
 
 
-def test_inherits_eos():
-    """The EOS profile from BaseLayer works on a PhysicsLayer."""
+def test_eos_profile():
+    """The EOS profile is empty until populated, then interpolates."""
     layer = _make_mantle()
     assert layer.eos_data_populated is False
     assert math.isnan(layer.get_density(_R_INNER))
@@ -158,7 +146,7 @@ def test_complex_modulus_without_rheology_is_static(method, expected, frequency)
 
 
 def test_complex_modulus_zero_modulus():
-    layer = PhysicsLayer("test", 0, 0.0, 1e6, 1e20)
+    layer = BaseLayer("test", 0, 0.0, 1e6, 1e20)
     layer.set_eos(ConstantDensityEOS(shear_modulus_static=0.0, bulk_modulus_static=0.0))
     assert layer.calc_complex_shear_modulus(_FREQUENCY).real == pytest.approx(0.0)
     assert layer.calc_complex_bulk_modulus(_FREQUENCY).real == pytest.approx(0.0)
@@ -189,11 +177,7 @@ def test_get_config_dict_values():
     assert material["bulk_modulus_static_pa"] == pytest.approx(_BULK)
     assert material["shear_viscosity_static_pas"] == pytest.approx(_VISCOSITY)
     assert material["bulk_viscosity_static_pas"] == pytest.approx(_VISCOSITY)
-    assert config["love_number_k_re"] == pytest.approx(0.0)
-    assert config["love_number_k_im"] == pytest.approx(0.0)
-    assert config["love_number_h_re"] == pytest.approx(0.0)
-    assert config["love_number_l_re"] == pytest.approx(0.0)
-    # A default physics layer is a compressible static solid.
+    # A default layer is a compressible static solid.
     assert config["is_solid"] is True
     assert config["is_static"] is True
     assert config["is_incompressible"] is False
@@ -201,7 +185,7 @@ def test_get_config_dict_values():
 
 def test_assumption_flags_from_constructor():
     """Solver flags given to the constructor are reported by the properties and get_config_dict."""
-    layer = PhysicsLayer("ocean", 0, 0.0, 1e6, 1e20, is_solid=False, is_static=False, is_incompressible=True)
+    layer = BaseLayer("ocean", 0, 0.0, 1e6, 1e20, is_solid=False, is_static=False, is_incompressible=True)
     assert (layer.is_solid, layer.is_static, layer.is_incompressible) == (False, False, True)
     config = layer.get_config_dict()
     assert (config["is_solid"], config["is_static"], config["is_incompressible"]) == (False, False, True)
@@ -213,7 +197,7 @@ def test_get_config_dict_class_and_model_tables():
     from TidalPy.Viscosity import make_viscosity
     layer = _make_mantle()
     config = layer.get_config_dict()
-    assert config["class"] == "physics"
+    assert config["class"] == "base"
     for key in ("shear_rheology", "bulk_rheology"):
         assert key not in config
     for key in ("shear_viscosity", "bulk_viscosity", "partial_melt"):
@@ -244,10 +228,6 @@ def test_save_config(tmp_path):
     assert material["bulk_modulus_static_pa"] == pytest.approx(_BULK)
     assert material["shear_viscosity_static_pas"] == pytest.approx(_VISCOSITY)
     assert material["bulk_viscosity_static_pas"] == pytest.approx(_VISCOSITY)
-    assert data["love_number_k_re"] == pytest.approx(0.0)
-    assert data["love_number_k_im"] == pytest.approx(0.0)
-    assert data["love_number_h_re"] == pytest.approx(0.0)
-    assert data["love_number_l_re"] == pytest.approx(0.0)
 
 
 def test_binary_roundtrip(tmp_path):
@@ -263,9 +243,6 @@ def test_binary_roundtrip(tmp_path):
     assert loaded.bulk_modulus_static == pytest.approx(_BULK)
     assert loaded.shear_viscosity_static == pytest.approx(_VISCOSITY)
     assert loaded.bulk_viscosity_static == pytest.approx(_VISCOSITY)
-    assert loaded.love_number_k == pytest.approx(0.0 + 0.0j)
-    assert loaded.love_number_h == pytest.approx(0.0 + 0.0j)
-    assert loaded.love_number_l == pytest.approx(0.0 + 0.0j)
 
 
 def test_binary_roundtrip_derived_fields(tmp_path):

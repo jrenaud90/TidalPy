@@ -8,7 +8,6 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Radiogenics.radiogenics import FixedRadiogenics, IsotopeRadiogenics
 from TidalPy.Rheology.rheology import Maxwell
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Utilities.classes.classes import StructureBase, TidalPyBaseClass
 
@@ -31,9 +30,6 @@ _MATERIAL_KEYS = ("shear_modulus_static", "bulk_modulus_static", "shear_viscosit
 _ALL_KEYS = (
     "name", "layer_index", "radius_inner_m", "radius_outer_m", "mass_kg",
     "material_name", "is_tidal", "tidal_scale",
-    "love_number_k_re", "love_number_k_im",
-    "love_number_h_re", "love_number_h_im",
-    "love_number_l_re", "love_number_l_im",
 )
 _MATERIAL_TABLE_KEYS = ("thermal_conductivity_w_mk", "thermal_expansion_1_k", "heat_capacity_j_kgk")
 
@@ -139,27 +135,6 @@ def test_inherits_eos():
     assert layer.get_density(_R_INNER) == pytest.approx(5000.0)
 
 
-def test_inherits_love_numbers():
-    """Love numbers from PhysicsLayer are stored and bundled."""
-    love_k, love_h, love_l = 0.3 - 0.01j, 0.6 - 0.02j, 0.1 - 0.005j
-    layer = SolidLiquidLayer(
-        "test",
-        0,
-        0.0,
-        1e6,
-        1e20,
-        love_number_k=love_k,
-        love_number_h=love_h,
-        love_number_l=love_l)
-    assert layer.love_number_k == pytest.approx(love_k)
-    assert layer.love_number_h == pytest.approx(love_h)
-    assert layer.love_number_l == pytest.approx(love_l)
-    love_numbers = layer.love_numbers
-    assert love_numbers.k == pytest.approx(love_k)
-    assert love_numbers.h == pytest.approx(love_h)
-    assert love_numbers.l == pytest.approx(love_l)
-
-
 @pytest.mark.parametrize("temperature", [1000.0, 4000.0])
 def test_thermal_conductivity_constant(temperature):
     assert _make_layer().calc_thermal_conductivity(temperature) == pytest.approx(_CONDUCTIVITY)
@@ -232,8 +207,6 @@ def test_get_config_dict_values():
     assert material["reference_density_kg_m3"] == pytest.approx(_DENSITY)
     for moved in ("thermal_conductivity_ref_w_mk", "reference_density_kg_m3", "reference_temperature_k"):
         assert moved not in config
-    assert config["love_number_k_re"] == pytest.approx(0.0)
-    assert config["love_number_k_im"] == pytest.approx(0.0)
 
 
 def test_get_config_dict_class_and_thermal_model_tables():
@@ -328,7 +301,7 @@ def test_binary_roundtrip_without_submodels(tmp_path):
 
 @pytest.mark.parametrize(
     "parent",
-    [PhysicsLayer, BaseLayer, StructureBase, TidalPyBaseClass],
+    [BaseLayer, StructureBase, TidalPyBaseClass],
     ids=lambda cls: cls.__name__)
 def test_is_instance_of_parents(parent):
     assert isinstance(_make_layer(), parent)

@@ -6,7 +6,7 @@ import time
 import numpy as np
 
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 
 _R          = 1.6e6               # [m]
@@ -20,7 +20,7 @@ _RUN_TIME   = 0.8                 # [s] how long the threads run
 def _two_layer_world():
     """A constant-density core and mantle, so the solved density is known exactly."""
     world = LayeredWorld("threads", _R, (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0)
-    core = PhysicsLayer(
+    core = BaseLayer(
         "core",
         0,
         0.0,
@@ -31,7 +31,7 @@ def _two_layer_world():
         reference_density=_RHO_CORE,
         shear_modulus_static=8.0e10,
         bulk_modulus_static=2.5e11))
-    mantle = PhysicsLayer(
+    mantle = BaseLayer(
         "mantle",
         1,
         _R_CORE,
@@ -174,7 +174,7 @@ def test_unsolved_and_standalone_layers_read_nan():
     assert np.all(np.isnan(world.mantle.get_density(radii)))
     assert math.isnan(world.get_temperature(0.5 * _R))
 
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         "standalone",
         0,
         0.0,

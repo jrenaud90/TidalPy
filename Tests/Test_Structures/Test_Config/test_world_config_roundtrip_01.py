@@ -9,7 +9,7 @@ from TidalPy.Structures.configs.world_builder import construct_world
 from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION, WORLD_TYPES, validate_world_config
 from TidalPy.Structures.worlds.base import BUILDER_WORLD_TYPES, BaseWorld
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Material.eos.material_eos import BirchMurnaghanEOS, ConstantDensityEOS
 from TidalPy.Rheology.rheology import Andrade, Elastic
@@ -80,7 +80,7 @@ def test_hand_built_world_rebuilds_from_config_dict():
     radius = 6.0e6
     mass = (4.0 / 3.0) * math.pi * radius ** 3 * 4000.0
     world = LayeredWorld("handmade", radius, mass)
-    core = PhysicsLayer(
+    core = BaseLayer(
         "core",
         0,
         0.0,
@@ -129,7 +129,7 @@ def test_hand_built_world_rebuilds_from_config_dict():
     assert cfg["type"] == world.world_type
     assert cfg["type"] in WORLD_TYPES
     assert list(cfg["layers"]) == ["core", "mantle"]
-    assert cfg["layers"]["core"]["class"] == "physics"
+    assert cfg["layers"]["core"]["class"] == "base"
     assert cfg["layers"]["mantle"]["class"] == "solidliquid"
     assert cfg["layers"]["mantle"]["radiogenics"]["isotope_names"][:2] == ["U238", "U235"]
     assert cfg["tides"]["global_tidal_model"] == tide_name
@@ -149,7 +149,7 @@ def test_hand_built_world_rebuilds_from_config_dict():
 def _liquid_core_config(**core_flags):
     """A two-layer world whose core carries the given radial-solver flags."""
     core = {
-        "class": "physics",
+        "class": "base",
         "type": "iron",
         "layer_index": 0,
         "radius_outer_m": 3.0e6,
@@ -213,7 +213,7 @@ def test_bare_base_world_fallback_save_is_rejected(tmp_path):
 
 def test_duplicate_layer_names_are_rejected():
     world = LayeredWorld("dup", 2.0e6, 1.0e22)
-    world.add_layer(PhysicsLayer(
+    world.add_layer(BaseLayer(
         "shell",
         0,
         0.0,
@@ -221,7 +221,7 @@ def test_duplicate_layer_names_are_rejected():
         5.0e21,
     ))
     with pytest.raises(ValueError):
-        world.add_layer(PhysicsLayer(
+        world.add_layer(BaseLayer(
             "shell",
             1,
             1.0e6,

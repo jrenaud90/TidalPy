@@ -8,7 +8,7 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Structures.configs.world_builder import construct_world
 from TidalPy.Structures.layers.gas import GasLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Viscosity import make_viscosity
 
@@ -306,7 +306,7 @@ def test_nested_model_table_needs_a_model_key():
 # The layer hands viscosity and partial-melt models to its material
 # =====================================================================================================================
 def test_layer_helpers_put_the_models_on_the_material():
-    layer = _layer(PhysicsLayer, "mantle")
+    layer = _layer(BaseLayer, "mantle")
     with pytest.raises(ValueError, match="EOS"):
         layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e20}))
     layer.set_eos(_make_material())
@@ -320,7 +320,7 @@ def test_layer_helpers_put_the_models_on_the_material():
     assert layer.shear_modulus_static == pytest.approx(_SHEAR)
 
 
-@pytest.mark.parametrize("layer_class", [PhysicsLayer, SolidLiquidLayer, GasLayer])
+@pytest.mark.parametrize("layer_class", [BaseLayer, SolidLiquidLayer, GasLayer])
 def test_material_survives_config_and_binary_roundtrips(layer_class, tmp_path):
     layer = _layer(layer_class, "shell", temperature=1700.0, use_thermal_eos=True)
     layer.set_eos(_make_material(
@@ -398,7 +398,7 @@ def test_material_table_builds_through_the_world_builder():
 @pytest.mark.parametrize("key, where", [
     ("shear_modulus_static_pa", "material"), ("eos", "material"), ("shear_viscosity", "material.shear_viscosity")])
 def test_keys_left_on_the_layer_say_where_they_moved(key, where):
-    layer = {"class": "physics", "radius_fraction": 1.0}
+    layer = {"class": "base", "radius_fraction": 1.0}
     layer[key] = 6.0e10 if key.endswith("_pa") else {"model": "constant"}
     config = {"schema_version": "0.2.0", "name": "moved", "type": "terrestrial", "radius_m": 1.0e6,
               "mass_kg": 1.0e22, "layers": {"mantle": layer}}

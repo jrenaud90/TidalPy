@@ -20,8 +20,8 @@
  * nothing holds a contrast across it, so the lower layer stores nothing: it passes on the heat that enters it and
  * the heat it generates, and the node keeps its temperature.
  *
- * A layer with no temperature of its own (a geometry-only layer, or one whose temperature is not a positive
- * number, such as the 0 K default) takes no part: its interfaces carry no flow, so it is neither a heat sink nor a
+ * A layer with no temperature of its own (one whose temperature is not a positive number, such as the 0 K
+ * default) takes no part: its interfaces carry no flow, so it is neither a heat sink nor a
  * source for its neighbors, and each neighbor keeps its own temperature at the shared interface.
  *
  * What each cooling model makes of a layer:
@@ -65,7 +65,6 @@
 #include "ode_.hpp"             // c_EOSSegment, c_TemperatureKind
 #include "eos_solution_.hpp"    // c_EOSSolution
 #include "../layers/base_.hpp"
-#include "../layers/physics_.hpp"
 #include "../layers/solidliquid_.hpp"
 #include "../../Cooling/cooling_base_.hpp"
 #include "../../Utilities/math/quadrature_.hpp"   // c_gauss_legendre_nodes
@@ -150,7 +149,7 @@ inline c_TemperatureKind c_layer_temperature_kind(const c_BaseLayer* layer) noex
 
 // Build the per-layer thermal description from the layers themselves: the temperature each carries, the kind its
 // cooling model asks for, and its thermal material properties. A finite temperature_override replaces every
-// layer's own temperature (a geometry-only layer then has one too). The resistances and flows are filled in later,
+// layer's own temperature. The resistances and flows are filled in later,
 // against a solved structure.
 inline void c_init_layer_thermal(
         const std::vector<std::unique_ptr<c_BaseLayer>>& layers,
@@ -162,14 +161,8 @@ inline void c_init_layer_thermal(
         const c_BaseLayer* layer = layers[layer_i].get();
         c_LayerThermal& thermal  = out[layer_i];
 
-        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(layer);
-        if (std::isfinite(temperature_override)) {
-            thermal.temperature = temperature_override;
-        } else {
-            thermal.temperature = (physics_layer != nullptr) ? physics_layer->get_temperature() : 0.0;
-        }
-        thermal.in_network = ((physics_layer != nullptr) || std::isfinite(temperature_override))
-            && std::isfinite(thermal.temperature) && (thermal.temperature > 0.0);
+        thermal.temperature = std::isfinite(temperature_override) ? temperature_override : layer->get_temperature();
+        thermal.in_network  = std::isfinite(thermal.temperature) && (thermal.temperature > 0.0);
         thermal.top_temperature = thermal.temperature;
         thermal.node_temperature = thermal.temperature;
         thermal.kind            = thermal.in_network ? c_layer_temperature_kind(layer) : c_TemperatureKind::Isothermal;

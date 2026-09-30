@@ -21,7 +21,6 @@ WORLD_TYPES = (
 # Layer ``class`` values; selects the Cython layer class.
 LAYER_CLASSES = (
     "base",
-    "physics",
     "solidliquid",
     "gas"
 )
@@ -60,9 +59,6 @@ MOVED_TO_MATERIAL = ("eos", "shear_viscosity", "bulk_viscosity", "partial_melt")
 ALLOWED_MODEL_SECTIONS = {
     "base": (
         "material",
-    ),
-    "physics": (
-        "material",
         "shear_rheology",
         "bulk_rheology"
     ),
@@ -92,16 +88,14 @@ LAYER_GEOMETRY_SPEC_KEYS = (
 # Allowed scalar (non-table) layer keys per class. These mirror the layer-class constructor argument
 # names exactly, so the builder can forward only the keys the user supplied. ``layer_index``, ``class``,
 # the material ``type``, and the outer-radius specifiers are handled separately.
-_GEOMETRY_LAYER_KEYS = (
+_BASE_LAYER_KEYS = (
     "mass_kg",
     "material_name",
     "is_tidal",
     # The layer's share in the quasi-homogeneous Love methods; absent takes its volume fraction.
     "tidal_scale",
     # False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
-    "is_volume_fixed"
-)
-_PHYSICS_LAYER_KEYS = (
+    "is_volume_fixed",
     # Radial-solver flags: a liquid layer sets is_solid = false and stays static unless is_static = false.
     "is_solid",
     "is_static",
@@ -142,10 +136,9 @@ _GAS_LAYER_KEYS = (
 )
 
 ALLOWED_LAYER_SCALAR_KEYS = {
-    "base":        frozenset(_GEOMETRY_LAYER_KEYS),
-    "physics":     frozenset(_GEOMETRY_LAYER_KEYS + _PHYSICS_LAYER_KEYS),
-    "gas":         frozenset(_GEOMETRY_LAYER_KEYS + _PHYSICS_LAYER_KEYS + _GAS_LAYER_KEYS),
-    "solidliquid": frozenset(_GEOMETRY_LAYER_KEYS + _PHYSICS_LAYER_KEYS + _SOLIDLIQUID_LAYER_KEYS),
+    "base":        frozenset(_BASE_LAYER_KEYS),
+    "gas":         frozenset(_BASE_LAYER_KEYS + _GAS_LAYER_KEYS),
+    "solidliquid": frozenset(_BASE_LAYER_KEYS + _SOLIDLIQUID_LAYER_KEYS),
 }
 
 # Allowed scalar world keys per family. ``name``, ``type``, ``schema_version``, and the ``layers`` table

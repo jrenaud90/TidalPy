@@ -31,7 +31,7 @@ _CONFIG = {
     "tides": {"global_tidal_model": "rheology", "max_degree_l": 2, "eccentricity_trunc_lvl": 2},
     "layers": {
         "core": {
-            "class": "physics", "type": "none", "radius_fraction": 0.45, "is_tidal": False,
+            "class": "base", "type": "none", "radius_fraction": 0.45, "is_tidal": False,
             "material": {
                 "model": "constant", "reference_density_kg_m3": 8000.0,
                 "shear_modulus_static_pa": 1.0e11, "bulk_modulus_static_pa": 2.0e11},

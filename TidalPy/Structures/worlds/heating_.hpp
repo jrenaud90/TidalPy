@@ -27,7 +27,6 @@
 #include "constants_.hpp"
 #include "ode_.hpp"                        // c_EOSHeatingBase
 #include "../layers/base_.hpp"
-#include "../layers/physics_.hpp"
 #include "../layers/solidliquid_.hpp"
 #include "../../Radiogenics/radiogenics_base_.hpp"
 
@@ -115,9 +114,7 @@ public:
         this->p_use_heating_bylayer.clear();
         if (state.layers_ptr != nullptr) {
             for (const auto& layer_uptr : *state.layers_ptr) {
-                const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(layer_uptr.get());
-                this->p_use_heating_bylayer.push_back(
-                    ((physics_layer != nullptr) && physics_layer->get_use_heating()) ? 1 : 0);
+                this->p_use_heating_bylayer.push_back(layer_uptr->get_use_heating() ? 1 : 0);
             }
         }
         for (c_HeatSourceBase* source_ptr : this->p_sources) { source_ptr->solve_radial_heat(state); }

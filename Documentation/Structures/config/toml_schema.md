@@ -96,7 +96,7 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 
 | Key | Required | Layer classes | Description |
 |-----|----------|---------------|-------------|
-| `class` | **yes** | all | `base`, `physics`, `solidliquid`, or `gas`. Selects the layer class. |
+| `class` | **yes** | all | `base`, `solidliquid`, or `gas`. Selects the layer class. |
 | `type` | optional | all | Material type for default lookup: `gas`, `mantle_rock`, `ice`, `hp_ice`, `iron`, `default` (the block a layer without a type takes, a copy of `mantle_rock`), or `none` (no material defaults at all; `get_config_dict` writes this because it lists every model explicitly). |
 | `layer_index` | optional | all | Inner-to-outer position (0 = innermost). Falls back to declaration order. |
 | `radius_outer_m` | one-of | all | Outer radius \[m\] (absolute). |
@@ -107,12 +107,12 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `is_tidal` | optional | all | Whether the layer participates in tides. |
 | `is_volume_fixed` | optional | all | `false` lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior; the layers above it move with it. Default `true`. |
 | `tidal_scale` | optional | all | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating. Absent takes the layer's volume over the planet's. The radial solver resolves the layers directly and does not use it. |
-| `is_solid` | optional | physics, solidliquid, gas | `false` makes the layer a liquid in the radial Love-number solve. Default `true` (`false` for `gas`). |
-| `is_static` | optional | physics, solidliquid, gas | Static approximation (no inertia) in the radial solve. Default `true`, so a liquid layer is a static liquid unless this is `false`. |
-| `is_incompressible` | optional | physics, solidliquid, gas | Incompressible approximation in the radial solve. Default `false`. |
-| `temperature_k` | optional | physics, solidliquid, gas | Layer temperature \[K\] at which the material's viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
-| `use_thermal_eos` | optional | physics, solidliquid, gas | Let the density law of the layer's material see the temperature, so its density and bulk modulus depend on it (set `thermal_expansion_1_k` in the `material` table). Default `false`. |
-| `use_heating` | optional | physics, solidliquid, gas | Let the world's heat sources act inside the layer during a thermal EOS solve: its `radiogenics` model then heats it, as a specific rate times the local density. Default `false`. |
+| `is_solid` | optional | all | `false` makes the layer a liquid in the radial Love-number solve. Default `true` (`false` for `gas`). |
+| `is_static` | optional | all | Static approximation (no inertia) in the radial solve. Default `true`, so a liquid layer is a static liquid unless this is `false`. |
+| `is_incompressible` | optional | all | Incompressible approximation in the radial solve. Default `false`. |
+| `temperature_k` | optional | all | Layer temperature \[K\] at which the material's viscosity and melt models are evaluated. Default `0.0`, the cold rigid limit of the viscosity laws. |
+| `use_thermal_eos` | optional | all | Let the density law of the layer's material see the temperature, so its density and bulk modulus depend on it (set `thermal_expansion_1_k` in the `material` table). Default `false`. |
+| `use_heating` | optional | all | Let the world's heat sources act inside the layer during a thermal EOS solve: its `radiogenics` model then heats it, as a specific rate times the local density. Default `false`. |
 | gas params | optional | gas | See below. |
 
 The static moduli, the shear law, the thermal constants, and the viscosity and melting parameters are material properties, not layer keys. They live in the layer's `material` table (below), so the layer and the solve read the same numbers. Setting one on the layer is a validation error that names its new location.
@@ -147,9 +147,9 @@ A layer attaches a physics model through a nested table holding a `model` key an
 
 | Model table | Factory | Allowed layer classes |
 |-------------|---------|-----------------------|
-| `[layers.<name>.material]` | `make_material_eos` | base, physics, solidliquid, gas |
-| `[layers.<name>.shear_rheology]` | `make_rheology` | physics, solidliquid, gas |
-| `[layers.<name>.bulk_rheology]` | `make_rheology` | physics, solidliquid, gas |
+| `[layers.<name>.material]` | `make_material_eos` | all |
+| `[layers.<name>.shear_rheology]` | `make_rheology` | all |
+| `[layers.<name>.bulk_rheology]` | `make_rheology` | all |
 | `[layers.<name>.cooling]` | `make_cooling` | solidliquid only |
 | `[layers.<name>.radiogenics]` | `make_radiogenics` | solidliquid only |
 
@@ -252,7 +252,7 @@ use_kamata = true
 Any layer parameter or physics-model table is resolved through three tiers, in order:
 
 1. The user world (dict or TOML): a value the user writes takes precedence over every other tier.
-2. The TidalPy configuration (`TidalPy_Configs.toml`), keyed by material `type`: the builder fills anything the user omitted from `TidalPy.config['layers'][<type>]`. Keys and model tables that the layer's `class` cannot hold are ignored (an `ice` block applied to a `physics` layer drops its cooling and radiogenics sections). A layer with no `type` takes the `[layers.default]` block, and `type = "none"` skips this tier. A model table fills in from the type's table even when it names a different `model`: an `ice` layer that sets `[layers.<name>.material.partial_melt] model = "henning"` keeps the ice solidus, liquidus, and liquid properties of `[layers.ice.material.partial_melt]`, and a key the new model does not read is ignored by it. Only a key whose meaning depends on the model reading it (`TidalPy.configurations.MODEL_SPECIFIC_KEYS`: the radiogenics `ref_time_s`, an isotope dataset's reference time to one model and a fixed rate's to the other) is dropped from the type's table when the model changes.
+2. The TidalPy configuration (`TidalPy_Configs.toml`), keyed by material `type`: the builder fills anything the user omitted from `TidalPy.config['layers'][<type>]`. Keys and model tables that the layer's `class` cannot hold are ignored (an `ice` block applied to a `base` layer drops its cooling and radiogenics sections). A layer with no `type` takes the `[layers.default]` block, and `type = "none"` skips this tier. A model table fills in from the type's table even when it names a different `model`: an `ice` layer that sets `[layers.<name>.material.partial_melt] model = "henning"` keeps the ice solidus, liquidus, and liquid properties of `[layers.ice.material.partial_melt]`, and a key the new model does not read is ignored by it. Only a key whose meaning depends on the model reading it (`TidalPy.configurations.MODEL_SPECIFIC_KEYS`: the radiogenics `ref_time_s`, an isotope dataset's reference time to one model and a fixed rate's to the other) is dropped from the type's table when the model changes.
 3. The constructor or factory default: anything still unset falls through to the C++ or Cython default.
 
 For example, an Andrade shear rheology's `zeta` on a `solidliquid` / `mantle_rock` layer comes from `layers.<name>.shear_rheology.zeta` in the user world, else `[layers.mantle_rock.shear_rheology].zeta` in `TidalPy_Configs.toml`, else the Cython class' factory default.

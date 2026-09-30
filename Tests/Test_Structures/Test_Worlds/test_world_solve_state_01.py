@@ -7,7 +7,7 @@ import pytest
 from TidalPy.Material.eos import make_material_eos
 from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 
 _IO_FREQUENCY = 4.11e-5   # [rad s-1]
 _MANTLE_RADIUS = 1.2e6    # [m], inside Io's mantle
@@ -107,7 +107,7 @@ def test_a_layer_past_the_world_radius_is_refused():
     """A layer reaching past the world radius is refused and the world stays solved."""
     world = _solved_io()
     top = world.radius
-    shell = PhysicsLayer(
+    shell = BaseLayer(
         "shell",
         world.num_layers,
         top,

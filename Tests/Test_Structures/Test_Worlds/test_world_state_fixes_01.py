@@ -14,7 +14,7 @@ from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Radiogenics import make_radiogenics
 from TidalPy.Rheology import make_rheology
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.worlds import LayeredWorld
 from TidalPy.Tides import make_tide
 from TidalPy.Utilities.logging.logger import flush_logger, init_logger
@@ -131,7 +131,7 @@ def test_a_layer_change_each_love_solve_reads_keeps_the_solved_structure(change)
 
 def test_a_standalone_layer_takes_the_same_setters():
     """A layer no world owns has nothing to tell and no lock to take."""
-    layer = PhysicsLayer("shell", 0, 0.0, 1.0e6, 0.0)
+    layer = BaseLayer("shell", 0, 0.0, 1.0e6, 0.0)
     layer.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 3000.0}))
     layer.set_partial_melt(make_partial_melt("henning"))
     layer.temperature = 1500.0
@@ -227,7 +227,7 @@ def _hot_layer_world(law, temperature):
     """A one-layer world whose material's thermal pressure alpha0 K0 (T - T_ref) can push it past the tension end."""
     radius = 5.0e5
     world = LayeredWorld("hot", radius, 4.0 / 3.0 * np.pi * radius**3 * 3000.0)
-    layer = PhysicsLayer("mantle", 0, 0.0, radius, 0.0, temperature=temperature, use_thermal_eos=True)
+    layer = BaseLayer("mantle", 0, 0.0, radius, 0.0, temperature=temperature, use_thermal_eos=True)
     layer.set_eos(make_material_eos(law, {
         "reference_density_kg_m3": 3300.0,
         "reference_bulk_modulus_pa": 3.0e10,
@@ -268,13 +268,13 @@ def test_a_layer_past_the_compression_end_warns(spdlog_text):
     radius = 6.4e6
     mass = 4.0 / 3.0 * np.pi * (core_radius**3 * 8000.0 + (radius**3 - core_radius**3) * 4000.0)
     world = LayeredWorld("turnover", radius, mass)
-    core = PhysicsLayer("core", 0, 0.0, core_radius, 0.0)
+    core = BaseLayer("core", 0, 0.0, core_radius, 0.0)
     core.set_eos(make_material_eos("bm", {
         "reference_density_kg_m3": 8000.0,
         "reference_bulk_modulus_pa": 3.0e10,
         "bulk_modulus_derivative": 3.2}))
     world.add_layer(core)
-    mantle = PhysicsLayer("mantle", 1, core_radius, radius, 0.0)
+    mantle = BaseLayer("mantle", 1, core_radius, radius, 0.0)
     mantle.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 4000.0}))
     world.add_layer(mantle)
     result = world.solve_eos(solve_temperature=False)

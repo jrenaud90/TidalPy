@@ -8,7 +8,7 @@ import pytest
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import Maxwell
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.love import calc_homogeneous_love_numbers
@@ -33,7 +33,7 @@ def _layer(
         viscosity,
         **kwargs,
 ):
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         name,
         index,
         radius_inner,

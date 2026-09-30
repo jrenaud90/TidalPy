@@ -7,7 +7,7 @@ import pytest
 from TidalPy.constants import G
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import Elastic, Maxwell
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Tides.potential import tidal_potential_3d_modes
@@ -27,7 +27,7 @@ ORBIT = dict(orbital_frequency=ORBITAL_FREQ, spin_frequency=SPIN_FREQ, eccentric
 
 @pytest.fixture(scope="module")
 def world():
-    layer = PhysicsLayer("mantle", 0, 0.0, RADIUS, MASS)
+    layer = BaseLayer("mantle", 0, 0.0, RADIUS, MASS)
     layer.set_eos(ConstantDensityEOS(
         reference_density=DENSITY, shear_modulus_static=6.0e10, bulk_modulus_static=1.0e15))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))

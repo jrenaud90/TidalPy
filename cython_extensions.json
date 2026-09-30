@@ -375,55 +375,6 @@
       ],
       [
         "TidalPy",
-        "Utilities",
-        "classes"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "binary"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "logging"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "arrays"
-      ],
-      [
-        "TidalPy"
-      ]
-    ],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "Structures.layers.physics": {
-    "name": "TidalPy.Structures.layers.physics",
-    "sources": [
-      [
-        "TidalPy",
-        "Structures",
-        "layers",
-        "physics.pyx"
-      ]
-    ],
-    "include_dirs": [
-      [
-        "TidalPy",
-        "Structures",
-        "layers"
-      ],
-      [
-        "TidalPy",
-        "Material",
-        "eos"
-      ],
-      [
-        "TidalPy",
         "Tides",
         "love"
       ],

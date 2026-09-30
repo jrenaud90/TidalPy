@@ -19,7 +19,7 @@ _REFERENCE_CORE_MASS = _shell_mass(_CORE_DENSITY, 0.0, _CORE_FRACTION * _RADIUS)
 
 
 def _config(core_floats=False, mantle_floats=False, core_density=_CORE_DENSITY, **core_keys):
-    core = {"class": "physics", "type": "none", "layer_index": 0, "radius_fraction": _CORE_FRACTION,
+    core = {"class": "base", "type": "none", "layer_index": 0, "radius_fraction": _CORE_FRACTION,
             "is_volume_fixed": not core_floats,
             "material": {"model": "constant", "reference_density_kg_m3": core_density}}
     core.update(core_keys)
@@ -32,7 +32,7 @@ def _config(core_floats=False, mantle_floats=False, core_density=_CORE_DENSITY, 
                     + _shell_mass(_MANTLE_DENSITY, _CORE_FRACTION * _RADIUS, _RADIUS)),
         "layers": {
             "core": core,
-            "mantle": {"class": "physics", "type": "none", "layer_index": 1, "radius_fraction": 1.0,
+            "mantle": {"class": "base", "type": "none", "layer_index": 1, "radius_fraction": 1.0,
                        "is_volume_fixed": not mantle_floats,
                        "material": {"model": "constant", "reference_density_kg_m3": _MANTLE_DENSITY}},
         },

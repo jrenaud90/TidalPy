@@ -9,7 +9,6 @@ from TidalPy.Material.eos import make_material_eos
 from TidalPy.RadialSolver import build_rs_input_homogeneous_layers, radial_solver
 from TidalPy.Rheology import Maxwell, Elastic
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Utilities.arrays import interp
 
@@ -18,7 +17,7 @@ def test_uniform_sphere_gravity_is_the_closed_form():
     """The EOS solve starts from the exact center limit of dg/dr, so a uniform sphere's gravity is exact."""
     radius, density = 2.0e6, 4000.0
     world = LayeredWorld("uniform", radius, (4.0 / 3.0) * math.pi * radius ** 3 * density)
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         "body",
         0,
         0.0,

@@ -1,6 +1,6 @@
 # Rheology (`Rheology`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-29_
 
 `TidalPy.Rheology` utilizes a planet's material static shear (or bulk) modulus and viscosity to determine how it will respond to tidal (or loading) forcing. The result is a complex modulus $\mu^*(\omega)$ whose real part describes the elastic energy stored in the material and whose imaginary part quantifies the energy lost as frictional heat. Every dissipation quantity TidalPy produces, from a Love number to a heating rate to an orbital decay timescale, depends on that imaginary part.
 
@@ -20,7 +20,7 @@ Rheology Models <rheology_models.md>
 
 A rheology model is the bridge between a material description and a response calculation, and it usually appears in three places.
 
-The first is a layer. `PhysicsLayer` and its subclasses hold up to two rheology models, one for the shear response and one for the bulk response, attached with `set_shear_rheology` and `set_bulk_rheology`. The layer's `calc_complex_shear_modulus(frequency)` then returns $\mu^*(\omega)$ instead of the purely real static modulus. See [PhysicsLayer](../Structures/layers/physics_layer.md).
+The first is a layer. Every layer holds up to two rheology models, one for the shear response and one for the bulk response, attached with `set_shear_rheology` and `set_bulk_rheology`. The layer's `calc_complex_shear_modulus(frequency)` then returns $\mu^*(\omega)$ instead of the purely real static modulus. See [BaseLayer](../Structures/layers/base_layer.md).
 
 The second is the radial solver. Solving for Love numbers requires a complex modulus at every radius, which is what these models supply. A world with elastic layers returns a real $k_2$ and no dissipation; the same world with a Maxwell or Andrade rheology (for example) returns a complex $k_2$ whose imaginary part sets the heating. See [Calculating Love Numbers](../RadialSolver/calculating_love_numbers.md).
 

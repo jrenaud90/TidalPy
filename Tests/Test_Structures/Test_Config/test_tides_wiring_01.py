@@ -16,7 +16,7 @@ def _config(world_type="terrestrial", tides=None):
     elif world_type == "gasgiant":
         config["layers"] = {"envelope": {"class": "gas", "type": "gas", "radius_fraction": 1.0}}
     else:
-        config["layers"] = {"mantle": {"class": "physics", "type": "mantle_rock", "radius_fraction": 1.0}}
+        config["layers"] = {"mantle": {"class": "base", "type": "mantle_rock", "radius_fraction": 1.0}}
     if tides is not None:
         config["tides"] = copy.deepcopy(tides)
     return config

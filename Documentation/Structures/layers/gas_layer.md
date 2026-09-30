@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-29_
 
-`TidalPy.Structures.layers.GasLayer` (`c_GasLayer` in C++) is the layer class for gas and fluid envelopes such as planetary atmospheres or gaseous mantles. It inherits `PhysicsLayer`, so its density, moduli, and viscosities come from its material exactly as for any physics layer, and it adds four ideal-gas parameters (mean molecular weight, adiabatic index, and a reference temperature and density). Those are stored and serialized, but no calculation reads them: they change no result. No phase-change, cooling, or radiogenics sub-models are available; use `SolidLiquidLayer` for those.
+`TidalPy.Structures.layers.GasLayer` (`c_GasLayer` in C++) is the layer class for gas and fluid envelopes such as planetary atmospheres or gaseous mantles. It inherits `BaseLayer`, so its density, moduli, and viscosities come from its material exactly as for any layer, and it adds four ideal-gas parameters (mean molecular weight, adiabatic index, and a reference temperature and density). Those are stored and serialized, but no calculation reads them: they change no result. No phase-change, cooling, or radiogenics sub-models are available; use `SolidLiquidLayer` for those.
 
 ## Inheritance
 
@@ -10,8 +10,7 @@ _Updated: 2026-09-29_
 c_TidalPyBaseClass
   └── c_StructureBase
         └── c_BaseLayer
-              └── c_PhysicsLayer
-                    └── c_GasLayer
+              └── c_GasLayer
 ```
 
 ## Constructor
@@ -29,9 +28,6 @@ layer = GasLayer(
     material_name          = "hydrogen",
     is_tidal               = False,
     tidal_scale            = None,
-    love_number_k          = 0+0j,
-    love_number_h          = 0+0j,
-    love_number_l          = 0+0j,
     mean_molecular_weight  = 2.0e-3,   # H₂
     adiabatic_index        = 1.4,
     reference_temperature  = 300.0,
@@ -41,7 +37,7 @@ layer = GasLayer(
 
 ### Parameters
 
-All parameters from `PhysicsLayer` are accepted, including the material-state parameters (`temperature`, the shear law, `use_thermal_eos`, `use_heating`), except that `is_solid` defaults to `False` (a gas carries no shear stress, so the radial solver treats it as a static liquid), plus:
+All parameters from `BaseLayer` are accepted, including the material-state parameters (`temperature`, the shear law, `use_thermal_eos`, `use_heating`), except that `is_solid` defaults to `False` (a gas carries no shear stress, so the radial solver treats it as a static liquid), plus:
 
 | Parameter | Unit | Default | Description |
 |---|---|---|---|
@@ -52,7 +48,7 @@ All parameters from `PhysicsLayer` are accepted, including the material-state pa
 
 ## Properties
 
-Inherits all `BaseLayer` and `PhysicsLayer` properties, plus:
+Inherits all `BaseLayer` properties, plus:
 
 | Property | Unit | Description |
 |---|---|---|

@@ -9,7 +9,7 @@ from TidalPy.constants import update_constants
 from TidalPy.Rheology import Maxwell
 from TidalPy.Cooling.cooling import ConductiveCooling
 from TidalPy.Radiogenics.radiogenics import FixedRadiogenics
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Rheology import Elastic
 from TidalPy.RadialSolver.solver import radial_solver
@@ -122,8 +122,8 @@ def test_restoring_the_floor_restores_the_result(numerical_setter):
 def _two_layer_world(gap):
     """A world whose outer layer starts `gap` meters above the inner layer's 1e6 m outer radius."""
     world = LayeredWorld("continuity", 2.0e6, 1.0e23)
-    world.add_layer(PhysicsLayer("inner", 0, 0.0, 1.0e6, 5.0e22))
-    return world, PhysicsLayer("outer", 1, 1.0e6 + gap, 2.0e6, 5.0e22)
+    world.add_layer(BaseLayer("inner", 0, 0.0, 1.0e6, 5.0e22))
+    return world, BaseLayer("outer", 1, 1.0e6 + gap, 2.0e6, 5.0e22)
 
 
 def test_continuity_rtol_decides_whether_a_gap_is_accepted(numerical_setter):

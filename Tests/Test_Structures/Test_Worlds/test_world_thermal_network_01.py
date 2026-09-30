@@ -75,7 +75,7 @@ def test_the_solve_reports_the_convecting_detail():
 def test_floating_layers_end_on_the_solved_grid():
     """Floating layer radii end on the grid of the last solve pass."""
     # A compressible core with less mass than its starting geometry, so its radius takes several passes.
-    core = {"class": "physics", "is_volume_fixed": False, "mass_kg": 2.0e22,
+    core = {"class": "base", "is_volume_fixed": False, "mass_kg": 2.0e22,
             "material": {"model": "bm", "reference_density_kg_m3": 8000.0, "reference_bulk_modulus_pa": 1.3e11,
                          "bulk_modulus_derivative": 4.5}}
     world, result = _solve(_config(core))

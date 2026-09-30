@@ -8,7 +8,7 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos import make_material_eos
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
@@ -26,7 +26,7 @@ def _two_layer_world(world_radius=PLANET_RADIUS):
     world = LayeredWorld("two_layer", world_radius, mass)
     for index, (radius_inner, radius_outer, name, density) in enumerate(
             [(0.0, CORE_RADIUS, "core", CORE_DENSITY), (CORE_RADIUS, PLANET_RADIUS, "mantle", MANTLE_DENSITY)]):
-        layer = PhysicsLayer(name, index, radius_inner, radius_outer, 0.0)
+        layer = BaseLayer(name, index, radius_inner, radius_outer, 0.0)
         layer.set_eos(ConstantDensityEOS(
             reference_density=density,
             shear_modulus_static=5.0e10,
@@ -75,7 +75,7 @@ def test_layer_read_past_its_own_top(solved_world):
 def test_no_hydrostatic_solution_is_a_failure(bulk_modulus, radius):
     """A Vinet sphere this large has no hydrostatic solution, and the solve reports failure."""
     world = LayeredWorld("unsolvable", radius, 1.0e24)
-    layer = PhysicsLayer("L", 0, 0.0, radius, 0.0)
+    layer = BaseLayer("L", 0, 0.0, radius, 0.0)
     layer.set_eos(make_material_eos("vinet", {
         "reference_density_kg_m3": 4000.0,
         "reference_bulk_modulus_pa": bulk_modulus,

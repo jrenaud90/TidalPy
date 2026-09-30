@@ -16,8 +16,8 @@ def _config():
     return {
         "name": "checked", "type": "terrestrial", "radius_m": 2.0e6, "mass_kg": 1.0e23,
         "layers": {
-            "core":   {"class": "physics", "type": "iron", "radius_fraction": 0.5},
-            "mantle": {"class": "physics", "type": "mantle_rock", "radius_fraction": 1.0},
+            "core":   {"class": "base", "type": "iron", "radius_fraction": 0.5},
+            "mantle": {"class": "base", "type": "mantle_rock", "radius_fraction": 1.0},
         },
     }
 

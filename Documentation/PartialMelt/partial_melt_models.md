@@ -197,9 +197,9 @@ where `<melt phase>` is `liquid_bulk_modulus_derivative=5.0, liquid_density=2750
 ```python
 from TidalPy.Material.eos import ConstantDensityEOS
 from TidalPy.PartialMelt import make_partial_melt
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers import BaseLayer
 
-mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
+mantle = BaseLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
 mantle.set_eos(ConstantDensityEOS(shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9))
 
 mantle.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1500.0}))

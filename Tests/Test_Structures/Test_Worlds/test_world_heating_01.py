@@ -199,11 +199,11 @@ def test_time_defaults_to_each_models_reference_time_and_decays_from_there():
 # =====================================================================================================================
 # The switch is part of the layer's configuration
 # =====================================================================================================================
-@pytest.mark.parametrize("layer_class_name", ["PhysicsLayer", "SolidLiquidLayer", "GasLayer"])
+@pytest.mark.parametrize("layer_class_name", ["BaseLayer", "SolidLiquidLayer", "GasLayer"])
 def test_use_heating_survives_config_and_binary_roundtrips(layer_class_name, tmp_path):
-    from TidalPy.Structures.layers import gas, physics, solidliquid
+    from TidalPy.Structures.layers import base, gas, solidliquid
 
-    layer_class = {"PhysicsLayer": physics.PhysicsLayer, "SolidLiquidLayer": solidliquid.SolidLiquidLayer,
+    layer_class = {"BaseLayer": base.BaseLayer, "SolidLiquidLayer": solidliquid.SolidLiquidLayer,
                    "GasLayer": gas.GasLayer}[layer_class_name]
     layer = layer_class("shell", 0, 0.0, 1.0e6, 1.0e22, use_heating=True)
     assert layer.use_heating is True

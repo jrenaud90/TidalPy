@@ -16,7 +16,6 @@ from TidalPy.Structures import (
 )
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.gas import GasLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Structures.system.system import System
 
@@ -37,8 +36,8 @@ def _base_layer():
     )
 
 
-def _physics_layer():
-    return PhysicsLayer(
+def _layer_with_state():
+    return BaseLayer(
         "mantle",
         2,
         1.0e6,
@@ -50,9 +49,6 @@ def _physics_layer():
         temperature=1500.0,
         use_thermal_eos=True,
         use_heating=True,
-        love_number_k=0.3 - 0.01j,
-        love_number_h=0.6 - 0.02j,
-        love_number_l=0.08 - 0.003j,
     )
 
 
@@ -67,9 +63,9 @@ def _world_layer(world_name, layer_name):
 
 @pytest.mark.parametrize("make_layer, expected_class", [
     pytest.param(_base_layer, BaseLayer, id="base"),
-    pytest.param(_physics_layer, PhysicsLayer, id="physics"),
+    pytest.param(_layer_with_state, BaseLayer, id="base-with-state"),
     pytest.param(lambda: _world_layer("io", "mantle"), SolidLiquidLayer, id="io-mantle"),
-    pytest.param(lambda: _world_layer("io", "core"), (PhysicsLayer, SolidLiquidLayer), id="io-core"),
+    pytest.param(lambda: _world_layer("io", "core"), BaseLayer, id="io-core"),
     pytest.param(lambda: _world_layer("jupiter_simple", "envelope"), GasLayer, id="jupiter-envelope"),
 ])
 def test_layer_rebuilds_from_its_config_dict(make_layer, expected_class):
@@ -84,25 +80,11 @@ def test_layer_rebuilds_from_its_config_dict(make_layer, expected_class):
     assert rebuilt.get_config_dict() == config
 
 
-def test_physics_layer_love_numbers_survive_the_round_trip():
-    love = build_layer_from_dict(_physics_layer().get_config_dict()).love_numbers
-    assert love.k == 0.3 - 0.01j
-    assert love.h == 0.6 - 0.02j
-    assert love.l == 0.08 - 0.003j
-
-
 @pytest.mark.parametrize("missing", ["name", "radius_inner_m", "radius_outer_m"])
 def test_layer_config_needs_its_standalone_keys(missing):
-    config = _physics_layer().get_config_dict()
+    config = _layer_with_state().get_config_dict()
     del config[missing]
     with pytest.raises(ValueError, match=missing):
-        build_layer_from_dict(config)
-
-
-def test_base_layer_config_cannot_carry_love_numbers():
-    config = _base_layer().get_config_dict()
-    config["love_number_k_re"] = 0.3
-    with pytest.raises(ValueError, match="Love numbers"):
         build_layer_from_dict(config)
 
 

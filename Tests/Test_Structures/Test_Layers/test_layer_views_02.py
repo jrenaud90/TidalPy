@@ -6,14 +6,14 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 
 PLANET_RADIUS = 1.0e6  # [m]
 
 
 def _layer(name, index, radius_inner, radius_outer, density=5000.0):
-    layer = PhysicsLayer(name, index, radius_inner, radius_outer, 0.0)
+    layer = BaseLayer(name, index, radius_inner, radius_outer, 0.0)
     layer.set_eos(ConstantDensityEOS(
         reference_density=density,
         shear_modulus_static=5.0e10,
@@ -91,4 +91,4 @@ def test_add_layer_rejections_leave_the_layer_usable(layer_args, message):
 @pytest.mark.parametrize("radii", ((-1.0, 1.0e6), (5.0e5, 1.0e5), (0.0, math.inf)))
 def test_inverted_or_negative_layers_are_rejected(radii):
     with pytest.raises(ValueError, match="radius_inner"):
-        PhysicsLayer("bad", 0, radii[0], radii[1], 0.0)
+        BaseLayer("bad", 0, radii[0], radii[1], 0.0)

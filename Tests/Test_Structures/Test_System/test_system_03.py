@@ -10,7 +10,7 @@ from TidalPy.Utilities.classes.classes import TidalPyBaseClass
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.configs import build_system
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
@@ -117,7 +117,7 @@ def _attach_tide_and_spin(moon):
 def _dissipating_moon():
     """A homogeneous Maxwell moon with tide and spin models attached and its EOS solved."""
     moon = LayeredWorld("moon", _EVO_RADIUS, _EVO_MOON_MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS)
+    layer = BaseLayer("mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS)
     layer.is_static = False
     layer.set_eos(ConstantDensityEOS(
         reference_density=_EVO_DENSITY, shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11))

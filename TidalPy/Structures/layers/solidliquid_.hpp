@@ -1,12 +1,12 @@
 #pragma once
 /*
- * solidliquid_.hpp: c_SolidLiquidLayer, a thermo-mechanical layer with phase changes, built on c_PhysicsLayer.
+ * solidliquid_.hpp: c_SolidLiquidLayer, a thermo-mechanical layer with phase changes, built on c_BaseLayer.
  *
  * Adds the optional cooling and radiogenics sub-models, and the conductive and adiabatic calculations that need
  * the layer's geometry or solved profile. The thermal constants those read (conductivity, expansivity, heat
  * capacity) belong to the material, the layer's EOS model, like every other material property. All MKS.
  *
- * Binary payload: the c_PhysicsLayer payload, then the cooling and radiogenics models, each behind a presence flag.
+ * Binary payload: the c_BaseLayer payload, then the cooling and radiogenics models, each behind a presence flag.
  */
 
 #include <algorithm>
@@ -18,31 +18,31 @@
 #include <stdexcept>
 #include <string>
 
-#include "physics_.hpp"
+#include "base_.hpp"
 #include "cooling_.hpp"
 #include "radiogenics_.hpp"
 
 namespace tidalpy {
 
-// Construction parameters for c_SolidLiquidLayer. It adds no scalars to c_PhysicsConfig: what distinguishes the
+// Construction parameters for c_SolidLiquidLayer. It adds no scalars to c_BaseLayerConfig: what distinguishes the
 // class is the cooling and radiogenics models it can hold.
-struct c_SolidLiquidConfig : public c_PhysicsConfig {};
+struct c_SolidLiquidConfig : public c_BaseLayerConfig {};
 
-class c_SolidLiquidLayer : public c_PhysicsLayer {
+class c_SolidLiquidLayer : public c_BaseLayer {
 public:
     c_SolidLiquidLayer() = default;
 
     explicit c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg)
-        : c_PhysicsLayer(cfg)
+        : c_BaseLayer(cfg)
     {}
 
     ~c_SolidLiquidLayer() override = default;
 
-    // The unique_ptr members here and in c_PhysicsLayer delete the implicit copy assignment that Cython's stack
+    // The unique_ptr members here and in c_BaseLayer delete the implicit copy assignment that Cython's stack
     // allocation needs. Cython temporaries always have null sub-model pointers, so resetting on copy is safe.
     c_SolidLiquidLayer& operator=(const c_SolidLiquidLayer& other) noexcept {
         if (this != &other) {
-            c_PhysicsLayer::operator=(other);
+            c_BaseLayer::operator=(other);
             this->p_cooling.reset();
             this->p_radiogenics.reset();
         }
@@ -144,13 +144,13 @@ public:
 
 protected:
     void p_write_payload(std::ostream& out) const override {
-        c_PhysicsLayer::p_write_payload(out);
+        c_BaseLayer::p_write_payload(out);
         write_optional_binary(out, this->p_cooling);
         write_optional_binary(out, this->p_radiogenics);
     }
 
     void p_read_payload(std::istream& in, bool force) override {
-        c_PhysicsLayer::p_read_payload(in, force);
+        c_BaseLayer::p_read_payload(in, force);
         this->p_cooling = read_optional_binary<c_CoolingBase>(in, force, c_cooling_from_binary);
         if (this->p_cooling) { this->p_cooling->set_layer_ptr(this); }
         this->p_radiogenics = read_optional_binary<c_RadiogenicsBase>(in, force, c_radiogenics_from_binary);

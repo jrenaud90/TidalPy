@@ -9,7 +9,7 @@ import TidalPy.constants as tidalpy_constants
 from TidalPy.constants import G, mass_trap1
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology.rheology import Elastic, Maxwell
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.worlds.layered import STRESS_STRAIN_COMPONENTS, LayeredWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.multilayer.stress_strain import strain_stress_heating_point
@@ -41,7 +41,7 @@ _CASES = [
 
 def _build_world(max_degree_l=2, obliquity_truncation=0, tide_model="rheology", solve_eos=True):
     world = LayeredWorld("w", _R, _MASS)
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         "mantle",
         0,
         0.0,
@@ -249,12 +249,12 @@ def _liquid_core_world(core_is_static):
     """A liquid core under the Maxwell mantle of ``_build_world``."""
     mass = (4.0 / 3.0) * math.pi * (_R_CORE ** 3 * _CORE_DENSITY + (_R ** 3 - _R_CORE ** 3) * _DENSITY)
     world = LayeredWorld("w", _R, mass)
-    core = PhysicsLayer("core", 0, 0.0, _R_CORE, 0.0, is_solid=False, is_static=core_is_static)
+    core = BaseLayer("core", 0, 0.0, _R_CORE, 0.0, is_solid=False, is_static=core_is_static)
     core.set_eos(ConstantDensityEOS(
         reference_density=_CORE_DENSITY, shear_modulus_static=0.0, bulk_modulus_static=2.0 * _BULK))
     core.set_shear_rheology(Elastic())
     core.set_bulk_rheology(Elastic())
-    mantle = PhysicsLayer("mantle", 1, _R_CORE, _R, 0.0)
+    mantle = BaseLayer("mantle", 1, _R_CORE, _R, 0.0)
     mantle.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
     mantle.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))

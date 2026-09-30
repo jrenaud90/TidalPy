@@ -523,15 +523,15 @@ inline const ::c_RadialSolutionStorage* c_solve_radial_group_3d(
 
 // The layer at a radius as the strain there needs it, looked up once per radius.
 struct c_RadiusLayer3D {
-    const c_PhysicsLayer* physics_layer = nullptr;   // null for a geometry-only layer
+    const c_BaseLayer* layer_ptr = nullptr;   // null only for a world with no layers
     // A liquid layer, or a molten stretch the radial solver treats as a static liquid.
     bool liquid = false;
 };
 
 inline c_RadiusLayer3D c_radius_layer_3d(const c_LayeredWorld& world, double radius) {
     c_RadiusLayer3D layer;
-    layer.physics_layer = dynamic_cast<const c_PhysicsLayer*>(world.find_layer_for_radius(radius));
-    layer.liquid = ((layer.physics_layer != nullptr) && !layer.physics_layer->get_is_solid())
+    layer.layer_ptr = world.find_layer_for_radius(radius);
+    layer.liquid = ((layer.layer_ptr != nullptr) && !layer.layer_ptr->get_is_solid())
         || world.get_is_molten_at(radius);
     return layer;
 }
@@ -620,7 +620,7 @@ inline c_RadialValues3D c_radial_values_3d(
 // solution does not reach the radius). False where there is no depth-resolved strain solution (the center, below the
 // solver start), where a point-wise quantity is NaN and a radial sum takes it as zero. A liquid point is not missing:
 // it has no shear kernel, so its coefficients are invalid and it contributes no heating (0) while its stress and
-// strain are NaN. A geometry-only layer has NaN moduli.
+// strain are NaN.
 inline bool c_strain_coeffs_at_radius_3d(
         const c_RadiusLayer3D& layer,
         const c_RadialY3D& y_at_r,
@@ -643,11 +643,11 @@ inline bool c_strain_coeffs_at_radius_3d(
     bool is_incompressible = false;
     std::complex<double> shear(TidalPyConstants::d_NAN, 0.0);
     std::complex<double> bulk(TidalPyConstants::d_NAN, 0.0);
-    if (layer.physics_layer != nullptr) {
-        is_solid = layer.physics_layer->get_is_solid();
-        is_incompressible = layer.physics_layer->get_is_incompressible();
-        shear = layer.physics_layer->calc_complex_shear_modulus(radius, group.frequency);
-        bulk  = layer.physics_layer->calc_complex_bulk_modulus(radius, group.frequency);
+    if (layer.layer_ptr != nullptr) {
+        is_solid = layer.layer_ptr->get_is_solid();
+        is_incompressible = layer.layer_ptr->get_is_incompressible();
+        shear = layer.layer_ptr->calc_complex_shear_modulus(radius, group.frequency);
+        bulk  = layer.layer_ptr->calc_complex_bulk_modulus(radius, group.frequency);
     }
     out = tides::c_compute_strain_radial_coeffs(
         y_at_r[0],

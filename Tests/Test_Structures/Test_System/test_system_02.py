@@ -10,7 +10,7 @@ from TidalPy.Utilities.conversions import orbital_motion2semi_a
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
 from TidalPy.Rheology.rheology import Maxwell, Elastic
@@ -37,7 +37,7 @@ def _layered(name, radius, spin_frequency):
     """A homogeneous Maxwell body that dissipates tidally and carries a spin model."""
     mass = _mass(radius)
     world = LayeredWorld(name, radius, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, radius, mass)
+    layer = BaseLayer("mantle", 0, 0.0, radius, mass)
     layer.is_static = False
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))

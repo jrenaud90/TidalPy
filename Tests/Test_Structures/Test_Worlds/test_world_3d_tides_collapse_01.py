@@ -24,7 +24,7 @@ _SUMMED = dict(latitude_summed=True, longitude_summed=True, radial_summed=True)
 
 def _build_world(two_layer=False, soft_shell=False):
     from TidalPy.Structures.worlds.layered import LayeredWorld
-    from TidalPy.Structures.layers.physics import PhysicsLayer
+    from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
     from TidalPy.Rheology.rheology import Maxwell, Elastic
@@ -34,7 +34,7 @@ def _build_world(two_layer=False, soft_shell=False):
 
     def _mk(name, idx, r_in, r_out, shear=_SHEAR, shear_visc=_VISC):
         mass = (4.0 / 3.0) * math.pi * (r_out ** 3 - r_in ** 3) * _DENSITY
-        layer = PhysicsLayer(name, idx, r_in, r_out, mass)
+        layer = BaseLayer(name, idx, r_in, r_out, mass)
         layer.is_static = False
         layer.set_eos(ConstantDensityEOS(
             reference_density=_DENSITY, shear_modulus_static=shear, bulk_modulus_static=_BULK))

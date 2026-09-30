@@ -7,7 +7,6 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology.rheology import Maxwell
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.gas import GasLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Utilities.classes.classes import StructureBase, TidalPyBaseClass
 
 _R_INNER = 0.0
@@ -23,9 +22,6 @@ _MATERIAL_KEYS = ("shear_modulus_static", "bulk_modulus_static", "shear_viscosit
 _ALL_KEYS = (
     "name", "layer_index", "radius_inner_m", "radius_outer_m", "mass_kg",
     "material_name", "is_tidal", "tidal_scale",
-    "love_number_k_re", "love_number_k_im",
-    "love_number_h_re", "love_number_h_im",
-    "love_number_l_re", "love_number_l_im",
     "mean_molecular_weight_kg_mol", "adiabatic_index",
     "reference_temperature_k",
 )
@@ -173,7 +169,7 @@ def test_binary_load_file_not_found():
 
 
 def test_attach_rheology_sets_flag():
-    """GasLayer inherits set_shear_rheology from PhysicsLayer."""
+    """GasLayer inherits set_shear_rheology from BaseLayer."""
     layer = _make_layer(shear_modulus_static=1.0e9, shear_viscosity_static=1.0e18)
     assert layer.shear_rheology_set is False
     layer.set_shear_rheology(Maxwell())
@@ -195,7 +191,7 @@ def test_binary_roundtrip_with_rheology(tmp_path):
 
 @pytest.mark.parametrize(
     "parent",
-    [PhysicsLayer, BaseLayer, StructureBase, TidalPyBaseClass],
+    [BaseLayer, StructureBase, TidalPyBaseClass],
     ids=lambda cls: cls.__name__)
 def test_is_instance_of_parents(parent):
     assert isinstance(_make_layer(), parent)

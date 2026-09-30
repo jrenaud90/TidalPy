@@ -7,6 +7,7 @@ from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 from libcpp.memory cimport unique_ptr
+from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.Utilities.classes.classes cimport (
     TidalPyBaseClass,
@@ -14,6 +15,9 @@ from TidalPy.Utilities.classes.classes cimport (
     c_StructureBase,
 )
 from TidalPy.Material.eos.material_eos cimport c_MaterialEOSBase
+from TidalPy.Rheology.rheology cimport c_RheologyBase
+from TidalPy.Viscosity.viscosity cimport c_ViscosityBase
+from TidalPy.PartialMelt.partial_melt cimport c_PartialMeltBase
 
 
 cdef extern from "eos_data_.hpp" namespace "tidalpy" nogil:
@@ -40,6 +44,13 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         cpp_bool           is_tidal
         cpp_bool           is_volume_fixed
         double             tidal_scale
+        # Radial-solver layer classification flags
+        cpp_bool           is_solid
+        cpp_bool           is_static
+        cpp_bool           is_incompressible
+        double             temperature
+        cpp_bool           use_thermal_eos
+        cpp_bool           use_heating
 
     cdef cppclass c_BaseLayer(c_StructureBase):
         c_BaseLayer()
@@ -78,6 +89,49 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
                      const double* radii,
                      size_t num_radii,
                      double* values_out) const
+        double              get_shear_modulus_static()               const
+        double              get_bulk_modulus_static()                const
+        double              get_shear_viscosity_static()             const
+        double              get_bulk_viscosity_static()              const
+        cpp_complex[double] calc_complex_shear_modulus(double freq)  const
+        cpp_complex[double] calc_complex_bulk_modulus(double freq)   const
+        cpp_complex[double] calc_complex_shear_modulus(double radius, double freq) const
+        cpp_complex[double] calc_complex_bulk_modulus(double radius, double freq)  const
+        # Vectorized radius-resolved form; takes the owning world's call lock once for the whole array.
+        void                calc_complex_moduli(
+                                cpp_bool is_shear,
+                                const double* radii,
+                                size_t num_radii,
+                                double frequency,
+                                cpp_complex[double]* moduli_out) const
+        cpp_bool            get_shear_rheology_set()                 const
+        c_RheologyBase*     get_shear_rheology_model()               const
+        c_RheologyBase*     get_bulk_rheology_model()                const
+        c_ViscosityBase*    get_shear_viscosity_model()              const
+        c_ViscosityBase*    get_bulk_viscosity_model()               const
+        c_PartialMeltBase*  get_partial_melt_model()                 const
+        cpp_bool            get_bulk_rheology_set()                  const
+        void                set_shear_rheology(unique_ptr[c_RheologyBase] shear) except +
+        void                set_bulk_rheology(unique_ptr[c_RheologyBase] bulk) except +
+        void                set_shear_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
+        void                set_bulk_viscosity(unique_ptr[c_ViscosityBase] viscosity) except +
+        void                set_partial_melt(unique_ptr[c_PartialMeltBase] partial_melt) except +
+        cpp_bool            get_shear_viscosity_set()                const
+        cpp_bool            get_bulk_viscosity_set()                 const
+        cpp_bool            get_partial_melt_set()                   const
+        cpp_bool            get_is_solid()                           const
+        cpp_bool            get_is_static()                          const
+        cpp_bool            get_is_incompressible()                  const
+        void                set_is_solid(cpp_bool) except +
+        void                set_is_static(cpp_bool) except +
+        void                set_is_incompressible(cpp_bool) except +
+        double              get_temperature()                          const
+        cpp_bool            get_use_thermal_eos()                      const
+        void                set_temperature(double) except +
+        void                set_use_thermal_eos(cpp_bool) except +
+        cpp_bool            get_use_heating()                          const
+        void                set_use_heating(cpp_bool) except +
+
 
 
 cdef extern from "eos_layout_.hpp" nogil:
@@ -119,7 +173,13 @@ cdef int cy_fill_base_layer_config(
     str material_name,
     cpp_bool is_tidal,
     cpp_bool is_volume_fixed,
-    object tidal_scale) except -1
+    object tidal_scale,
+    cpp_bool is_solid,
+    cpp_bool is_static,
+    cpp_bool is_incompressible,
+    double temperature,
+    cpp_bool use_thermal_eos,
+    cpp_bool use_heating) except -1
 
 
 cdef class BaseLayer(StructureBase):

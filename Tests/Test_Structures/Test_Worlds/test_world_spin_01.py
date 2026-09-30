@@ -22,14 +22,14 @@ _MASS = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
 
 def _build_world():
     from TidalPy.Structures.worlds.layered import LayeredWorld
-    from TidalPy.Structures.layers.physics import PhysicsLayer
+    from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
     from TidalPy.Rheology.rheology import Maxwell, Elastic
     from TidalPy.Tides.classes.tide import make_tide
 
     world = LayeredWorld("w", _R, _MASS)
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         "mantle",
         0,
         0.0,

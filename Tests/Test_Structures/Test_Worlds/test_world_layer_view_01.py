@@ -5,7 +5,7 @@ import math
 import pytest
 
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Tides.classes.tide import make_tide
@@ -28,7 +28,7 @@ def _two_layer_world():
         tidal_scale=0.3,
     )
     core.set_eos(ConstantDensityEOS(shear_modulus_static=8.0e10, bulk_modulus_static=2.5e11))
-    mantle = PhysicsLayer(
+    mantle = BaseLayer(
         "mantle",
         1,
         _R_CORE,
@@ -44,7 +44,7 @@ def _two_layer_world():
 
 @pytest.mark.parametrize(
     "index, name, layer_class",
-    [(0, "core", SolidLiquidLayer), (1, "mantle", PhysicsLayer)],
+    [(0, "core", SolidLiquidLayer), (1, "mantle", BaseLayer)],
     ids=["core", "mantle"],
 )
 def test_layer_access_dispatches_to_subclass(index, name, layer_class):
@@ -135,7 +135,7 @@ def test_cache_invalidated_on_add_layer():
     """Adding a layer invalidates the view cache."""
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0
     world = LayeredWorld("planet", _R, mass)
-    world.add_layer(PhysicsLayer(
+    world.add_layer(BaseLayer(
         "core",
         0,
         0.0,
@@ -143,7 +143,7 @@ def test_cache_invalidated_on_add_layer():
         0.0,
     ))
     core_before = world.core
-    world.add_layer(PhysicsLayer(
+    world.add_layer(BaseLayer(
         "mantle",
         1,
         _R_CORE,

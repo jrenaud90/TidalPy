@@ -87,9 +87,9 @@ Parameters are read-only properties under their code names: `reference_viscosity
 ```python
 from TidalPy.Material.eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers import BaseLayer
 
-mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
+mantle = BaseLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
 mantle.set_eos(ConstantDensityEOS(shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9))
 
 mantle.set_shear_viscosity(make_viscosity("reference", {"reference_viscosity_pas": 1.0e20}))

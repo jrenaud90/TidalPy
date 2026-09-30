@@ -59,11 +59,11 @@ love_method = "radial_solver"       # radial_solver | propagation_matrix | homog
 love_fixed_q = 100.0                # the Q the cpl Love method applies (unused by the method chosen above)
 love_fixed_dt_s = 600.0             # the time lag the ctl Love method applies (likewise)
 
-# Layer 1: the innermost layer, a `physics` layer. It holds a material and two rheologies but no cooling or
+# Layer 1: the innermost layer, a `base` layer. It holds a material and two rheologies but no cooling or
 # radiogenics table (those need the solidliquid class). Its inner radius is 0; every later layer starts where the
 # one before it ends.
 [layers.inner_core]
-class = "physics"                   # base | physics | solidliquid | gas (base: material only, structure solves only)
+class = "base"                      # base | solidliquid | gas
 type = "iron"                       # the [layers.<type>] defaults block: default | none | gas | mantle_rock | ice | hp_ice | iron
 layer_index = 0                     # inner-to-outer position; optional when the tables are written in order
 radius_outer_m = 6.0e5              # one of radius_outer_m | radius_fraction | volume_fraction
@@ -295,15 +295,13 @@ critical_rayleigh = 1100.0
 model = "isotope"
 isotopes = "modern_day_chondritic"  # modern_day_chondritic | llri | slri | llri_and_slri | bulk_silicate_earth
 
-# Layer 5: the crust, a `physics` layer that names no material type, so nothing is merged in: this table is the
+# Layer 5: the crust, a `base` layer that names no material type, so nothing is merged in: this table is the
 # whole layer. With no rheology attached it responds elastically, as a data-file world's layers do. Its material
 # is an interpolated profile given inline, the form a data-file world takes for every layer (see
 # example_profile_world.toml): the tables are read at the radii given and interpolated between them, and a
-# radius past the last point takes the last value. It reaches the surface. (The fourth class, `base`, holds a
-# material and nothing else and is for worlds solved for structure alone: it carries no rheology, so a
-# Love-number solve cannot pass through it.)
+# radius past the last point takes the last value. It reaches the surface.
 [layers.crust]
-class = "physics"
+class = "base"
 type = "none"                       # take no defaults block at all
 layer_index = 4
 radius_fraction = 1.0

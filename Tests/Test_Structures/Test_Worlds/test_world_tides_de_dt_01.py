@@ -17,7 +17,7 @@ def _cpl_world():
         "name": "test_terr", "type": "terrestrial", "radius_m": 1.6e6, "mass_kg": MASS,
         "tides": {"global_tidal_model": "cpl", "max_degree_l": 2, "eccentricity_trunc_lvl": 10,
                   "obliquity_trunc_lvl": "off", "fixed_k": [0.3], "fixed_q": [50.0]},
-        "layers": {"mantle": {"class": "physics", "type": "mantle_rock", "radius_fraction": 1.0,
+        "layers": {"mantle": {"class": "base", "type": "mantle_rock", "radius_fraction": 1.0,
                               "material": {"shear_modulus_static_pa": 6.0e10, "bulk_modulus_static_pa": 2.0e11}}},
     })
 

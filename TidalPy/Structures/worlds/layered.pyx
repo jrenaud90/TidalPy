@@ -40,7 +40,6 @@ from TidalPy.Structures.layers.base cimport (
     C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX, C_EOS_TEMPERATURE_INDEX, C_EOS_HEAT_FLOW_INDEX,
     C_EOS_MELT_FRACTION_INDEX)
 from TidalPy.Structures.layers.base import LAYER_STANDALONE_CONFIG_KEYS
-from TidalPy.Structures.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.Structures.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
 from TidalPy.Structures.layers.gas cimport GasLayer, c_GasLayer
 from TidalPy.RadialSolver.rs_constants cimport C_MAX_NUM_YTYPES
@@ -56,9 +55,7 @@ from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name
 # layer's concrete class id. The view keeps the world alive (see BaseLayer._view).
 cdef BaseLayer cy_wrap_layer_view(c_BaseLayer* ptr, object world):
     cdef bytes class_name = c_layer_class_name(ptr.get_layer_class_id())
-    if class_name == b"physics":
-        return PhysicsLayer._view(<c_PhysicsLayer*>ptr, world)
-    elif class_name == b"solidliquid":
+    if class_name == b"solidliquid":
         return SolidLiquidLayer._view(<c_SolidLiquidLayer*>ptr, world)
     elif class_name == b"gas":
         return GasLayer._view(<c_GasLayer*>ptr, world)
@@ -451,7 +448,7 @@ cdef class LayeredWorld(BaseWorld):
         Parameters
         ----------
         layer : BaseLayer
-            A layer (``BaseLayer``, ``PhysicsLayer``, ``SolidLiquidLayer``, or
+            A layer (``BaseLayer``, ``SolidLiquidLayer``, or
             ``GasLayer``). Its inner radius must match the current outermost
             radius (0 for the first layer).
 
@@ -783,10 +780,9 @@ cdef class LayeredWorld(BaseWorld):
     # Structure and viscoelastic profile queries (delegate to the containing layer).
     #
     # Every getter takes a scalar radius [m] (returning a float or complex) or a NumPy array of radii
-    # (returning an array of the same shape). NaN where the EOS is unsolved, the layer is geometry-only, or
-    # no rheology is attached. Each makes one C++ call for the whole input, which holds the world's call lock
-    # throughout, so a read takes turns with solve_eos and the other locked calls on other threads and every value
-    # of one call comes from one solve (see cy_eos_field in layers/base.pyx).
+    # (returning an array of the same shape), NaN where the EOS is unsolved. Each makes one C++ call for the whole
+    # input, which holds the world's call lock throughout, so a read takes turns with solve_eos and the other locked
+    # calls on other threads and every value of one call comes from one solve (see cy_eos_field in layers/base.pyx).
     def _apply_complex(self, radius, double frequency, cpp_bool is_shear):
         # float -> complex; np.ndarray -> complex np.ndarray (same shape), read without the GIL.
         cdef cnp.ndarray in_arr
@@ -874,7 +870,7 @@ cdef class LayeredWorld(BaseWorld):
 
         Applies the containing layer's shear rheology to the stored post-melt static
         modulus + viscosity. Solves the EOS first if it has not been solved (or if
-        ``recalc_eos``). NaN+0j for a geometry-only layer or no rheology.
+        ``recalc_eos``). Without a rheology it is the static modulus as a purely real number.
         """
         self._ensure_solved(recalc_eos)
         return self._apply_complex(radius, frequency, True)
@@ -884,7 +880,7 @@ cdef class LayeredWorld(BaseWorld):
 
         Applies the containing layer's bulk rheology to the stored post-melt static
         modulus + viscosity. Solves the EOS first if it has not been solved (or if
-        ``recalc_eos``). NaN+0j for a geometry-only layer or no rheology.
+        ``recalc_eos``). Without a rheology it is the static modulus as a purely real number.
         """
         self._ensure_solved(recalc_eos)
         return self._apply_complex(radius, frequency, False)

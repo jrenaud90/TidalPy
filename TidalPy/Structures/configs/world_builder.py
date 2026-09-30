@@ -19,7 +19,6 @@ import warnings
 from typing import Optional, Union, Callable
 
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Structures.layers.gas import GasLayer
 from TidalPy.Structures.worlds.base import BaseWorld
@@ -60,7 +59,6 @@ from TidalPy.Structures.configs import worldpack
 # Layer ``class`` string -> Cython layer class.
 _LAYER_CLASSES = {
     "base":        BaseLayer,
-    "physics":     PhysicsLayer,
     "solidliquid": SolidLiquidLayer,
     "gas":         GasLayer,
 }
@@ -210,7 +208,7 @@ def _material_type_defaults(material_type: Optional[str], layer_class_name: str)
     Looks up ``TidalPy.config['layers'][material_type]`` and keeps only the scalar
     keys and physics-model sections the given layer class can actually hold (so the
     same material block can be reused across layer classes, e.g. an ``ice`` block on a
-    ``physics`` layer simply drops its cooling/radiogenics sections).
+    ``base`` layer simply drops its cooling/radiogenics sections).
 
     Parameters
     ----------
@@ -218,7 +216,7 @@ def _material_type_defaults(material_type: Optional[str], layer_class_name: str)
         The layer's material type (e.g. ``"mantle_rock"``). None selects the ``[layers.default]``
         block, the defaults for a layer that names no material; ``"none"`` selects no block at all.
     layer_class_name : str
-        The layer's class (``base`` / ``physics`` / ``solidliquid`` / ``gas``).
+        The layer's class (``base`` / ``solidliquid`` / ``gas``).
 
     Returns
     -------
@@ -252,8 +250,7 @@ def construct_layer(
         layer_cfg: dict,
         layer_index: int,
         radius_inner: float,
-        radius_outer: float,
-        extra_kwargs: Optional[dict] = None):
+        radius_outer: float):
     """Construct a single layer (and its attached physics models) from config.
 
     The geometry is supplied by the caller. Every other parameter and physics-model table resolves
@@ -274,9 +271,6 @@ def construct_layer(
         Inner radius [m] (the previous layer's outer radius; 0 for the innermost).
     radius_outer : float
         Outer radius [m] (already resolved from the layer's outer-radius specifier).
-    extra_kwargs : dict, optional
-        Constructor arguments that are not layer schema keys (a standalone layer's Love numbers; see
-        :func:`build_layer_from_dict`).
 
     Returns
     -------
@@ -320,8 +314,6 @@ def construct_layer(
     # The mass has no constructor default. Every successful EOS solve overwrites it, so 0.0 stands in when
     # neither the user nor the material block supplies one.
     ctor_kwargs.setdefault("mass", 0.0)
-    if extra_kwargs:
-        ctor_kwargs.update(extra_kwargs)
 
     if isinstance(merged.get("material"), dict):
         _check_interpolated_coverage(layer_name, merged["material"], radius_inner, radius_outer)
@@ -347,9 +339,8 @@ def build_layer_from_dict(config: dict):
     """Rebuild a standalone layer from the dictionary its ``get_config_dict`` returns.
 
     The dictionary is the world builder's layer table plus the keys only a standalone layer needs: ``name``,
-    ``radius_inner_m`` (inside a world both come from the layer's place in the ``layers`` table), and the six
-    Love number components of a physics layer. The rebuilt layer is of the same class, with the same
-    parameters and the same attached models.
+    and ``radius_inner_m`` (inside a world both come from the layer's place in the ``layers`` table). The rebuilt
+    layer is of the same class, with the same parameters and the same attached models.
 
     Parameters
     ----------
@@ -359,7 +350,7 @@ def build_layer_from_dict(config: dict):
     Returns
     -------
     BaseLayer
-        The rebuilt layer (``BaseLayer``, ``PhysicsLayer``, ``SolidLiquidLayer``, or ``GasLayer``).
+        The rebuilt layer (``BaseLayer``, ``SolidLiquidLayer``, or ``GasLayer``).
 
     Raises
     ------
@@ -377,26 +368,13 @@ def build_layer_from_dict(config: dict):
                 f"A standalone layer configuration needs '{required}': there is no world to take it from.")
     layer_name = layer_cfg.pop("name")
     radius_inner = float(layer_cfg.pop("radius_inner_m"))
-
-    # TOML has no complex type, so the Love numbers travel as real and imaginary parts.
-    extra_kwargs = {}
-    for letter in ("k", "h", "l"):
-        real_key = f"love_number_{letter}_re"
-        imag_key = f"love_number_{letter}_im"
-        if real_key in layer_cfg or imag_key in layer_cfg:
-            extra_kwargs[f"love_number_{letter}"] = complex(
-                layer_cfg.pop(real_key, 0.0), layer_cfg.pop(imag_key, 0.0))
-
     validate_layer_config(layer_name, layer_cfg)
-    if extra_kwargs and layer_cfg["class"] == "base":
-        raise ValueError(f"Layer '{layer_name}' of class 'base' holds no Love numbers.")
     return construct_layer(
         layer_name,
         layer_cfg,
         int(layer_cfg.get("layer_index", 0)),
         radius_inner,
-        float(layer_cfg["radius_outer_m"]),
-        extra_kwargs=extra_kwargs)
+        float(layer_cfg["radius_outer_m"]))
 
 
 # Radial data expansion: a PREM-like profile describing the world's geometry and materials.

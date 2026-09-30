@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrapper for TidalPy's gas layer class.
 
-GasLayer extends PhysicsLayer with ideal-gas parameters (mean molecular weight, adiabatic index, and a reference
+GasLayer extends BaseLayer with ideal-gas parameters (mean molecular weight, adiabatic index, and a reference
 state), stored and serialized for a future gas description; nothing reads them yet, and the layer's density comes
 from its material's law. It has no phase changes and no cooling or radiogenics sub-models.
 """
@@ -17,15 +17,14 @@ from TidalPy.Utilities.logging.logger cimport (
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.classes.classes cimport c_TidalPyBaseClass
 from TidalPy.Structures.layers.base cimport BaseLayer, c_BaseLayer, cy_fill_base_layer_config
-from TidalPy.Structures.layers.physics cimport PhysicsLayer, c_PhysicsLayer, cy_fill_physics_config
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef class GasLayer(PhysicsLayer):
-    """Gas layer: PhysicsLayer plus stored ideal-gas parameters, which nothing reads yet.
+cdef class GasLayer(BaseLayer):
+    """Gas layer: BaseLayer plus stored ideal-gas parameters, which nothing reads yet.
 
     No phase changes, cooling, or radiogenics sub-models are available (use SolidLiquidLayer for those).
 
@@ -83,7 +82,7 @@ cdef class GasLayer(PhysicsLayer):
     Assumptions
     -----------
     - Spherically symmetric layer geometry.
-    - The density, moduli, and viscosities are the material's, as for any physics layer; the ideal-gas parameters
+    - The density, moduli, and viscosities are the material's, as for any layer; the ideal-gas parameters
       take no part in any calculation yet.
     """
 
@@ -101,9 +100,6 @@ cdef class GasLayer(PhysicsLayer):
             cpp_bool is_tidal             = True,
             cpp_bool is_volume_fixed      = True,
             tidal_scale                   = None,
-            complex love_number_k         = 0+0j,
-            complex love_number_h         = 0+0j,
-            complex love_number_l         = 0+0j,
             double mean_molecular_weight  = 2.0e-3,
             double adiabatic_index        = 1.4,
             double reference_temperature  = 300.0,
@@ -117,10 +113,7 @@ cdef class GasLayer(PhysicsLayer):
         cdef c_GasConfig config
         cy_fill_base_layer_config(
             &config, name, layer_index, radius_inner, radius_outer, mass, material_name, is_tidal, is_volume_fixed,
-            tidal_scale)
-        cy_fill_physics_config(
-            &config, love_number_k, love_number_h, love_number_l, is_solid, is_static, is_incompressible,
-            temperature, use_thermal_eos, use_heating)
+            tidal_scale, is_solid, is_static, is_incompressible, temperature, use_thermal_eos, use_heating)
         config.mean_molecular_weight = mean_molecular_weight
         config.adiabatic_index       = adiabatic_index
         config.reference_temperature = reference_temperature
@@ -128,20 +121,17 @@ cdef class GasLayer(PhysicsLayer):
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_GasLayer] built = make_unique[c_GasLayer](config)
-        self._gas_ptr     = built.get()
-        self._physics_ptr = <c_PhysicsLayer*>self._gas_ptr
+        self._gas_ptr = built.get()
         self._layer_ptr.reset(<c_BaseLayer*>built.release())
         self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
     def __dealloc__(self):
-        self._gas_ptr     = NULL  # base's unique_ptr owns the C++ object
-        self._physics_ptr = NULL
+        self._gas_ptr = NULL  # base's unique_ptr owns the C++ object
 
     @staticmethod
     cdef GasLayer _view(c_GasLayer* ptr, object world):
         cdef GasLayer v = GasLayer.__new__(GasLayer)
-        v._gas_ptr      = ptr
-        v._physics_ptr  = <c_PhysicsLayer*>ptr
+        v._gas_ptr = ptr
         v._init_view(<c_BaseLayer*>ptr, world)
         return v
 
@@ -170,12 +160,12 @@ cdef class GasLayer(PhysicsLayer):
         return self._gas_ptr.get_reference_density()
 
     cpdef dict get_config_dict(self):
-        """Return all configuration values as a Python dict (MKS): the PhysicsLayer keys plus the gas parameters.
+        """Return all configuration values as a Python dict (MKS): the BaseLayer keys plus the gas parameters.
 
         The layer's own ``reference_density`` is left out: a layer file cannot carry it (the layer's density is its
         material's, in the ``material`` table).
         """
-        cdef dict d = PhysicsLayer.get_config_dict(self)
+        cdef dict d = BaseLayer.get_config_dict(self)
         d["mean_molecular_weight_kg_mol"] = self._gas_ptr.get_mean_molecular_weight()
         d["adiabatic_index"]              = self._gas_ptr.get_adiabatic_index()
         d["reference_temperature_k"]      = self._gas_ptr.get_reference_temperature()

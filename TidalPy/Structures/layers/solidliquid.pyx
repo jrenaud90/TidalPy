@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrapper for TidalPy's solid/liquid layer class.
 
-SolidLiquidLayer extends PhysicsLayer with optional cooling and radiogenics sub-models and the conductive and
+SolidLiquidLayer extends BaseLayer with optional cooling and radiogenics sub-models and the conductive and
 adiabatic calculations that need the layer's geometry or solved profile.
 """
 
@@ -17,7 +17,6 @@ from TidalPy.Utilities.logging.logger cimport (
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.classes.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
 from TidalPy.Structures.layers.base cimport BaseLayer, c_BaseLayer, cy_fill_base_layer_config
-from TidalPy.Structures.layers.physics cimport PhysicsLayer, c_PhysicsLayer, cy_fill_physics_config
 from TidalPy.Cooling.cooling cimport CoolingBase
 from TidalPy.Radiogenics.radiogenics cimport RadiogenicsBase
 
@@ -26,10 +25,10 @@ set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
 
-cdef class SolidLiquidLayer(PhysicsLayer):
+cdef class SolidLiquidLayer(BaseLayer):
     """Thermo-mechanical layer with optional cooling and radiogenics sub-models.
 
-    Extends PhysicsLayer with thermal diffusivity, the adiabatic gradient, and conductive heat flux, which read
+    Extends BaseLayer with thermal diffusivity, the adiabatic gradient, and conductive heat flux, which read
     the thermal constants (conductivity, expansivity, heat capacity) of the layer's material, its EOS model.
     Viscosity, melt fraction, and the melt-reduced shear modulus belong to the material too; the EOS solve
     evaluates them, and the radius getters read them back.
@@ -55,12 +54,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     tidal_scale : float, optional
         The layer's share of the planet in the quasi-homogeneous Love methods; ``None`` (default) takes
         its volume fraction. See ``BaseLayer``.
-    love_number_k : complex, optional
-        Potential Love number k (placeholder). Default ``0+0j``.
-    love_number_h : complex, optional
-        Radial displacement Love number h (placeholder). Default ``0+0j``.
-    love_number_l : complex, optional
-        Tangential displacement Love number l (placeholder). Default ``0+0j``.
     is_solid : bool, optional
         False marks the layer liquid for the radial Love-number solver. Default ``True``.
     is_static : bool, optional
@@ -96,9 +89,6 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             cpp_bool is_tidal               = True,
             cpp_bool is_volume_fixed        = True,
             tidal_scale                     = None,
-            complex love_number_k           = 0+0j,
-            complex love_number_h           = 0+0j,
-            complex love_number_l           = 0+0j,
             cpp_bool   is_solid             = True,
             cpp_bool   is_static            = True,
             cpp_bool   is_incompressible    = False,
@@ -108,27 +98,21 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         cdef c_SolidLiquidConfig config
         cy_fill_base_layer_config(
             &config, name, layer_index, radius_inner, radius_outer, mass, material_name, is_tidal, is_volume_fixed,
-            tidal_scale)
-        cy_fill_physics_config(
-            &config, love_number_k, love_number_h, love_number_l, is_solid, is_static, is_incompressible,
-            temperature, use_thermal_eos, use_heating)
+            tidal_scale, is_solid, is_static, is_incompressible, temperature, use_thermal_eos, use_heating)
         # make_unique owns the allocation; ownership then moves into the base-typed member
         # (Cython cannot assign a unique_ptr[Derived] to a unique_ptr[Base] directly).
         cdef unique_ptr[c_SolidLiquidLayer] built = make_unique[c_SolidLiquidLayer](config)
         self._solidliquid_ptr = built.get()
-        self._physics_ptr     = <c_PhysicsLayer*>self._solidliquid_ptr
         self._layer_ptr.reset(<c_BaseLayer*>built.release())
         self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
     def __dealloc__(self):
         self._solidliquid_ptr = NULL  # base's unique_ptr owns the C++ object
-        self._physics_ptr     = NULL
 
     @staticmethod
     cdef SolidLiquidLayer _view(c_SolidLiquidLayer* ptr, object world):
         cdef SolidLiquidLayer v = SolidLiquidLayer.__new__(SolidLiquidLayer)
         v._solidliquid_ptr = ptr
-        v._physics_ptr     = <c_PhysicsLayer*>ptr
         v._init_view(<c_BaseLayer*>ptr, world)
         return v
 
@@ -309,10 +293,10 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Returns
         -------
         dict
-            The PhysicsLayer keys plus the ``cooling`` and ``radiogenics`` sub-tables when those models are
+            The BaseLayer keys plus the ``cooling`` and ``radiogenics`` sub-tables when those models are
             attached. The thermal constants are the material's, so they sit in the ``material`` table.
         """
-        cdef dict d = PhysicsLayer.get_config_dict(self)
+        cdef dict d = BaseLayer.get_config_dict(self)
         cdef const c_PhysicsBase* model_ptr
         model_ptr = <const c_PhysicsBase*>self._solidliquid_ptr.get_cooling_model()
         if model_ptr != NULL:

@@ -11,7 +11,6 @@
 #include <stdexcept>
 
 #include "base_.hpp"
-#include "physics_.hpp"
 #include "solidliquid_.hpp"
 #include "gas_.hpp"
 
@@ -25,7 +24,6 @@ inline std::unique_ptr<c_BaseLayer> c_layer_from_binary(std::istream& in, bool f
     std::unique_ptr<c_BaseLayer> layer;
     switch (static_cast<BinaryClassID>(header.class_id)) {
         case BinaryClassID::BaseLayer:        layer = std::make_unique<c_BaseLayer>();        break;
-        case BinaryClassID::PhysicsLayer:     layer = std::make_unique<c_PhysicsLayer>();     break;
         case BinaryClassID::SolidLiquidLayer: layer = std::make_unique<c_SolidLiquidLayer>(); break;
         case BinaryClassID::GasLayer:         layer = std::make_unique<c_GasLayer>();         break;
         default:

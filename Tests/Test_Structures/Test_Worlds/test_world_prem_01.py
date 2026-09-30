@@ -109,7 +109,7 @@ def test_earth_prem_toml_override_of_modulus():
     """A layer table's constant modulus replaces that layer's profile values; detected flags are kept."""
     world = build_world(_prem_config(layers={
         "layer_0": {"class": "solidliquid", "layer_index": 0},
-        "layer_1": {"class": "physics", "layer_index": 1, "is_incompressible": True},
+        "layer_1": {"class": "base", "layer_index": 1, "is_incompressible": True},
         "layer_2": {"class": "solidliquid", "layer_index": 2, "material": {"bulk_modulus_static_pa": 1.0e11}},
     }))
     world.solve_eos(G_to_use=G, verbose=False)

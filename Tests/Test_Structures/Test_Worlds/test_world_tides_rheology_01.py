@@ -6,7 +6,7 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
 from TidalPy.Rheology.rheology import Maxwell
@@ -30,7 +30,7 @@ _TIDAL_SCALE = 0.8
 def _uniform_layer(tidal_scale=None):
     """A whole-planet layer and its mass."""
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    return PhysicsLayer(
+    return BaseLayer(
         "mantle",
         0,
         0.0,

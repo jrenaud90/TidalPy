@@ -18,7 +18,7 @@ def _valid_terrestrial():
         "radius_m": 6.0e6,
         "mass_kg": 5.0e24,
         "layers": {
-            "core": {"class": "physics", "type": "iron", "layer_index": 0, "radius_outer_m": 3.0e6,
+            "core": {"class": "base", "type": "iron", "layer_index": 0, "radius_outer_m": 3.0e6,
                      "material": {"model": "constant", "reference_density_kg_m3": 9000.0}},
             "mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 1, "radius_outer_m": 6.0e6,
                        "material": {"model": "constant", "reference_density_kg_m3": 4000.0},
@@ -158,7 +158,7 @@ def test_invalid_world_raises(config, match):
       for spec_key, spec_value in (("radius_outer_m", 1.0e6), ("radius_fraction", 0.5), ("volume_fraction", 0.3))],
     *[pytest.param(_layer(layer_class, is_solid=False, is_static=False, is_incompressible=True),
                    id=f"flags-{layer_class}")
-      for layer_class in ("physics", "solidliquid", "gas")],
+      for layer_class in ("base", "solidliquid", "gas")],
     pytest.param(
         _layer(
             "solidliquid",
@@ -184,17 +184,12 @@ def test_valid_layer_passes(config):
     pytest.param({"class": "base"}, "exactly one outer-radius", id="no-outer-radius"),
     pytest.param(_layer(radius_fraction=0.5), "multiple outer-radius", id="two-outer-radii"),
     pytest.param(_layer(bogus=1.0), "Unexpected key", id="unknown-key"),
-    # A geometry-only base layer holds no solver flags, material state, or models.
-    pytest.param(_layer(is_solid=False), "Unexpected key", id="base-flag"),
-    *[pytest.param(_layer(**{key: value}), "Unexpected key", id=f"base-{key}")
-      for key, value in (("temperature_k", 1600.0), ("use_thermal_eos", True), ("use_heating", True))],
-    pytest.param(_layer(shear_rheology={"model": "maxwell"}), "cannot hold", id="base-rheology"),
     # Cooling and radiogenics are solidliquid-only.
-    pytest.param(_layer("physics", cooling={"model": "convection"}), "cannot hold", id="physics-cooling"),
+    pytest.param(_layer("base", cooling={"model": "convection"}), "cannot hold", id="base-cooling"),
     pytest.param(
-        _layer("physics", shear_rheology={"alpha": 0.3}), "missing the required 'model'", id="model-table-no-model"),
-    pytest.param(_layer("physics", magnetics={"model": "dynamo"}), "unknown model table", id="unknown-model-table"),
-    *[pytest.param(_layer("physics", **{table: {"model": "constant"}}), r"layers\.L\.material", id=f"moved-{table}")
+        _layer("base", shear_rheology={"alpha": 0.3}), "missing the required 'model'", id="model-table-no-model"),
+    pytest.param(_layer("base", magnetics={"model": "dynamo"}), "unknown model table", id="unknown-model-table"),
+    *[pytest.param(_layer("base", **{table: {"model": "constant"}}), r"layers\.L\.material", id=f"moved-{table}")
       for table in ("eos", "shear_viscosity", "bulk_viscosity", "partial_melt")],
 ])
 def test_invalid_layer_raises(config, match):
@@ -202,13 +197,13 @@ def test_invalid_layer_raises(config, match):
         tl.validate_layer_config("L", config)
 
 
-@pytest.mark.parametrize("layer_class", ["physics", "solidliquid", "gas"])
+@pytest.mark.parametrize("layer_class", ["base", "solidliquid", "gas"])
 @pytest.mark.parametrize("key, value", [("temperature_k", 1600.0), ("use_thermal_eos", True), ("use_heating", True)])
 def test_layer_state_keys_are_schema_keys(key, value, layer_class):
     tl.validate_layer_config("L", _layer(layer_class, **{key: value}))
 
 
-@pytest.mark.parametrize("layer_class", ["base", "physics", "solidliquid", "gas"])
+@pytest.mark.parametrize("layer_class", ["base", "solidliquid", "gas"])
 @pytest.mark.parametrize("key, value", [
     ("shear_modulus_static_pa", 6.0e10),
     ("shear_viscosity_static_pas", 1.0e21),

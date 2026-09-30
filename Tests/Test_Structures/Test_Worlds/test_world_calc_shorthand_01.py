@@ -17,13 +17,13 @@ _SHEAR_VISC    = 1.0e21
 
 def _world(solve=False):
     from TidalPy.Structures.worlds.layered import LayeredWorld
-    from TidalPy.Structures.layers.physics import PhysicsLayer
+    from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
 
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("rocky", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
+    layer = BaseLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))

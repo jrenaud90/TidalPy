@@ -52,27 +52,6 @@ d = ln.to_dict()
 | `__eq__(other)` | `bool` | Equality check (component-wise) |
 | `__iter__()` | iterator | Yields `k`, `h`, `l` for tuple unpacking |
 
-### Use in `Layer` Classes
-
-`PhysicsLayer` and `SolidLiquidLayer` store Love numbers internally as a `c_LoveNumbers` struct:
-
-```python
-from TidalPy.Structures.layers.physics import PhysicsLayer
-
-pl = PhysicsLayer("mantle", 1, 3.485e6, 6.371e6, 4.043e24,
-                  love_number_k=0.3 - 0.01j,
-                  love_number_h=0.6 - 0.02j,
-                  love_number_l=0.1 - 0.005j)
-
-# Access as a LoveNumbers object
-ln = pl.love_numbers
-
-# Or access individual components
-k = pl.love_number_k
-h = pl.love_number_h
-l = pl.love_number_l
-```
-
 ## Love-Number Methods
 
 A world obtains its Love numbers by one of these methods (`LayeredWorld.solve_love_numbers(love_method=...)` per call, `set_tide_config(love_method=...)` or the `[tides]` key `love_method` for the default that `calc_tides` uses). `love_method_name(alias)` returns the canonical name.
@@ -141,4 +120,4 @@ struct c_LoveNumbers {
 };
 ```
 
-Stack-allocated in Cython; heap-allocated as a member of `c_PhysicsLayer` and `c_SolidLiquidLayer`.
+Stack-allocated in Cython and in C++.

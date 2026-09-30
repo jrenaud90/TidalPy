@@ -1,4 +1,4 @@
-"""``LoveNumbers``: storage, equality, iteration, to_dict, repr, and access through a PhysicsLayer."""
+"""``LoveNumbers``: storage, equality, iteration, to_dict, repr, and access through a BaseLayer."""
 import pytest
 
 from TidalPy.Tides.love.love import LoveNumbers
@@ -11,20 +11,6 @@ _DICT_KEYS = ("love_number_k_re", "love_number_k_im", "love_number_h_re", "love_
 def _make(values):
     k, h, l = values
     return LoveNumbers(k=k, h=h, l=l)
-
-
-@pytest.fixture
-def physics_layer():
-    physics = pytest.importorskip("TidalPy.Structures.layers.physics")
-    return physics.PhysicsLayer(
-        "test",
-        0,
-        0.0,
-        1e6,
-        1e20,
-        love_number_k=_COMPLEX[0],
-        love_number_h=_COMPLEX[1],
-        love_number_l=_COMPLEX[2])
 
 
 _VALUE_CASES = pytest.mark.parametrize("values", [
@@ -96,19 +82,3 @@ def test_love_numbers_repr():
     assert "h=" in text
     assert "l=" in text
 
-
-def test_love_numbers_from_physics_layer(physics_layer):
-    """PhysicsLayer.love_numbers holds the layer's Love numbers."""
-    love = physics_layer.love_numbers
-    assert isinstance(love, LoveNumbers)
-    assert love.k == pytest.approx(_COMPLEX[0])
-    assert love.h == pytest.approx(_COMPLEX[1])
-    assert love.l == pytest.approx(_COMPLEX[2])
-
-
-def test_love_numbers_from_physics_layer_to_dict(physics_layer):
-    """PhysicsLayer.love_numbers.to_dict matches the layer's config dict."""
-    as_dict = physics_layer.love_numbers.to_dict()
-    config = physics_layer.get_config_dict()
-    for key in _DICT_KEYS:
-        assert as_dict[key] == pytest.approx(config[key]), f"Mismatch for {key}"

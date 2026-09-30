@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-29_
 
-`TidalPy.Structures.layers.SolidLiquidLayer` extends `PhysicsLayer` with optional sub-models for radiogenic heating and convective or conductive cooling, and with the thermal-transport calculations that need the layer's geometry or solved profile. It adds no parameters of its own.
+`TidalPy.Structures.layers.SolidLiquidLayer` extends `BaseLayer` with optional sub-models for radiogenic heating and convective or conductive cooling, and with the thermal-transport calculations that need the layer's geometry or solved profile. It adds no parameters of its own.
 
 The physics:
 
@@ -17,8 +17,7 @@ The thermal constants these read ($k$, $\alpha$, $c_{p}$) are not layer paramete
 TidalPyBaseClass
   └── StructureBase
         └── BaseLayer
-              └── PhysicsLayer
-                    └── SolidLiquidLayer
+              └── SolidLiquidLayer
 ```
 
 ## Constructor
@@ -32,16 +31,14 @@ SolidLiquidLayer(
     mass:                     float,
     material_name:            str     = "",
     is_tidal:                 bool    = True,
+    is_volume_fixed:          bool    = True,
     tidal_scale:              float   = None,
-    love_number_k:            complex = 0+0j,
-    love_number_h:            complex = 0+0j,
-    love_number_l:            complex = 0+0j,
     is_solid:                 bool    = True,
     is_static:                bool    = True,
     is_incompressible:        bool    = False,
-    temperature:                          float = 0.0,
-    use_thermal_eos:                      bool  = False,
-    use_heating:                          bool  = False,
+    temperature:              float   = 0.0,
+    use_thermal_eos:          bool    = False,
+    use_heating:              bool    = False,
 )
 ```
 
@@ -57,19 +54,14 @@ SolidLiquidLayer(
 | `material_name` | - | Material identifier. Default `""`. |
 | `is_tidal` | - | Tidal dissipation flag. Default `True`. |
 | `tidal_scale` | - | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating; `None` (default) takes its volume fraction. See [Worlds](../worlds/worlds.md). |
-| `love_number_k`, `love_number_h`, `love_number_l` | - | Per-layer complex Love numbers, if you want to carry them on the layer. Default `0+0j`. |
-| `is_solid`, `is_static`, `is_incompressible` | - | Radial-solver assumptions; see [PhysicsLayer](physics_layer.md). Defaults `True`, `True`, `False`. |
-| `temperature`, `use_thermal_eos`, `use_heating` | | Layer-state parameters; see [PhysicsLayer](physics_layer.md). |
+| `is_solid`, `is_static`, `is_incompressible` | - | Radial-solver assumptions; see [BaseLayer](base_layer.md#layer-assumptions). Defaults `True`, `True`, `False`. |
+| `temperature`, `use_thermal_eos`, `use_heating` | | Layer-state parameters; see [BaseLayer](base_layer.md#layer-state). |
 
 ## Properties
 
-### Inherited from `PhysicsLayer`
-
-See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `love_numbers`, `love_number_k`, `love_number_h`, `love_number_l`, `shear_rheology_set`, `bulk_rheology_set`, `is_solid`, `is_static`, `is_incompressible`, `temperature`, and `use_thermal_eos`. The four static constants read the layer's material (its EOS model).
-
 ### Inherited from `BaseLayer`
 
-See [BaseLayer](base_layer.md): `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `density_bulk`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
+See [BaseLayer](base_layer.md): the geometry (`name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `density_bulk`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`), the material and models (`shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, `shear_rheology_set`, `bulk_rheology_set`, `eos_data_populated`), the solver flags (`is_solid`, `is_static`, `is_incompressible`), and the layer state (`temperature`, `use_thermal_eos`, `use_heating`). The four static constants read the layer's material (its EOS model).
 
 ### Thermal
 
@@ -119,7 +111,7 @@ flux = layer.calc_heat_flux_conductive(temperature_base=3500.0, temperature_top=
 
 ### `set_cooling(cooling)` / `set_radiogenics(radiogenics)`
 
-Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model. Ownership of the underlying C++ model is transferred into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (raises `ValueError` if re-attached). Shear/bulk rheology are attached via the inherited `set_shear_rheology` / `set_bulk_rheology` (see [PhysicsLayer](physics_layer.md)). A thermal EOS solve reads both sub-models, so attaching one to a layer of a solved world leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)).
+Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model. Ownership of the underlying C++ model is transferred into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (raises `ValueError` if re-attached). Shear/bulk rheology are attached via the inherited `set_shear_rheology` / `set_bulk_rheology` (see [BaseLayer](base_layer.md)). A thermal EOS solve reads both sub-models, so attaching one to a layer of a solved world leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)).
 
 ```python
 from TidalPy.Cooling import make_cooling
@@ -133,13 +125,13 @@ layer.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
 
 Radiogenic heating power [W] from the attached sub-model. Returns `0.0` when no radiogenics sub-model has been attached.
 
-### Inherited from PhysicsLayer / BaseLayer
+### Inherited from `BaseLayer`
 
 `calc_complex_shear_modulus`, `calc_complex_bulk_modulus`, `update_eos_data`, `get_density`, `get_gravity`, `get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`, `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
 
 ## `get_config_dict()` -> dict
 
-Returns all configuration values as a Python dictionary (MKS): all `BaseLayer` + `PhysicsLayer` keys (with `class = "solidliquid"` and the attached model sub-tables), plus the `cooling` and `radiogenics` sub-tables when those models are attached. The layer adds no scalar keys: its thermal constants are `thermal_conductivity_w_mk`, `thermal_expansion_1_k`, and `heat_capacity_j_kgk` in the `material` table.
+Returns all configuration values as a Python dictionary (MKS): all `BaseLayer` keys (with `class = "solidliquid"` and the attached model sub-tables), plus the `cooling` and `radiogenics` sub-tables when those models are attached. The layer adds no scalar keys: its thermal constants are `thermal_conductivity_w_mk`, `thermal_expansion_1_k`, and `heat_capacity_j_kgk` in the `material` table.
 
 ## Example
 

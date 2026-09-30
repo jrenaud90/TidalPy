@@ -32,6 +32,12 @@ _MANTLE_CONFIG = dict(
     material_name="perovskite",
     is_tidal=True,
     tidal_scale=1.0,
+    is_solid=True,
+    is_static=True,
+    is_incompressible=False,
+    temperature_k=0.0,
+    use_thermal_eos=False,
+    use_heating=False,
 )
 _PROFILE = dict(gravity=[10.0, 9.8], pressure=[1e11, 0.0])
 

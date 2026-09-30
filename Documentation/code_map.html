@@ -256,8 +256,8 @@ const NODES = [
     purpose: 'The Python face of a world: its layers, tide model, and spin; solve_eos, solve_love_numbers, ' +
       'calc_tides, and the 3D tide methods; get_config_dict, save_to_toml, and binary save and load.',
     inputs: 'name, radius, mass, world scalars', outputs: 'a world that owns its C++ object' },
-  { id: 'PhysicsLayer', lane: 'structures', kind: 'cycdef', shape: 'class',
-    label: 'PhysicsLayer', sub: 'SolidLiquidLayer, GasLayer', file: 'Structures/layers/physics.pyx',
+  { id: 'BaseLayer', lane: 'structures', kind: 'cycdef', shape: 'class',
+    label: 'BaseLayer', sub: 'SolidLiquidLayer, GasLayer', file: 'Structures/layers/base.pyx',
     purpose: 'A layer with static moduli, the solver flags is_solid, is_static, is_incompressible, and slots for ' +
       'its physics models (set_eos, set_shear_rheology, set_shear_viscosity, set_partial_melt, set_cooling, ' +
       'set_radiogenics).',
@@ -278,8 +278,8 @@ const NODES = [
       'build_layered_world_from_profile, so the two build the same world.',
     inputs: 'radius, density, static moduli, layer radii, layer types and flags, bulk density',
     outputs: 'shared_ptr<c_LayeredWorld>' },
-  { id: 'c_PhysicsLayer', lane: 'structures', kind: 'cpp', shape: 'class',
-    label: 'c_PhysicsLayer', sub: 'c_SolidLiquidLayer, c_GasLayer', file: 'Structures/layers/physics_.hpp',
+  { id: 'c_BaseLayer', lane: 'structures', kind: 'cpp', shape: 'class',
+    label: 'c_BaseLayer', sub: 'c_SolidLiquidLayer, c_GasLayer', file: 'Structures/layers/base_.hpp',
     purpose: 'Holds its models (unique_ptr; the models observe the layer through raw pointers), the EOS profile ' +
       '(c_LayerEOSData with the dense evaluator), and the pre- and post-melt viscoelastic arrays. ' +
       'calc_complex_shear_modulus(r, w) applies the rheology to the local modulus and viscosity.',
@@ -503,7 +503,7 @@ const EDGES = [
   { from: 'construct_world', to: 'factories', flow: 'build', type: 'call',
     purpose: 'Attach each [layers.<name>.<section>] model table through its family factory.',
     inputs: 'section name, model name, parameter dict', outputs: 'Cython model wrapper' },
-  { from: 'construct_world', to: 'PhysicsLayer', flow: 'build', type: 'make',
+  { from: 'construct_world', to: 'BaseLayer', flow: 'build', type: 'make',
     purpose: 'Build each layer from its scalars, with the inner radius taken from the previous layer.',
     inputs: 'constructor keywords (radius_outer, mass, moduli, flags)', outputs: 'layer wrapper with models attached' },
   { from: 'construct_world', to: 'LayeredWorld', flow: 'build', type: 'make',
@@ -514,13 +514,13 @@ const EDGES = [
     purpose: 'Each make_<model> calls the C++ factory c_find_<module>(enum, config) and adopts the pointer into the ' +
       'matching rich subclass.',
     inputs: 'model enum, C++ config struct', outputs: 'unique_ptr to the C++ model' },
-  { from: 'PhysicsLayer', to: 'c_PhysicsLayer', flow: 'build', type: 'make',
+  { from: 'BaseLayer', to: 'c_BaseLayer', flow: 'build', type: 'make',
     purpose: 'The wrapper owns the C++ layer and moves each model into it (set_eos, set_shear_rheology, ...).',
     inputs: 'unique_ptr models', outputs: 'a C++ layer holding its models' },
   { from: 'LayeredWorld', to: 'c_LayeredWorld', flow: 'build', type: 'make',
     purpose: 'add_layer validates continuity and moves the layer in; the wrapper keeps a non-owning view of it.',
     inputs: 'unique_ptr<c_BaseLayer>', outputs: 'the layer stack (world.<layer_name>, for layer in world)' },
-  { from: 'c_PhysicsLayer', to: 'models', flow: 'build', type: 'call',
+  { from: 'c_BaseLayer', to: 'models', flow: 'build', type: 'call',
     purpose: 'The layer asks its models for the EOS density, viscosity at (T, P), melt weakening, cooling, ' +
       'radiogenic heating, and the complex modulus from its rheology.',
     inputs: 'the local state', outputs: 'model values at that state' },
@@ -570,7 +570,7 @@ const EDGES = [
     purpose: 'Keep the retained integrators and the layer EOS functions, then sample the whole planet onto the ' +
       'output slices.',
     inputs: 'CySolverResult per segment, EOS functions', outputs: 'slice arrays and scalars (mass, MOI, gravity)' },
-  { from: 'c_solve_eos_world', to: 'c_PhysicsLayer', flow: 'eos', type: 'make',
+  { from: 'c_solve_eos_world', to: 'c_BaseLayer', flow: 'eos', type: 'make',
     purpose: 'Populate each layer: its mass, its radii when it holds its mass, and c_LayerEOSData with a dense ' +
       'evaluator onto the solution.',
     inputs: 'the layer slice of the solution', outputs: 'get_density(r), get_shear_modulus(r), get_temperature(r), ...' },
@@ -580,7 +580,7 @@ const EDGES = [
     purpose: 'Start from make_love_solve_config (the world [tides] Love method and [radial_solver] defaults), ' +
       'override with the arguments given, release the GIL.',
     inputs: 'frequency, degree, solve_for, method, tolerances', outputs: 'k, h, l; success; error code' },
-  { from: 'c_solve_love_world', to: 'c_PhysicsLayer', flow: 'love', type: 'call',
+  { from: 'c_solve_love_world', to: 'c_BaseLayer', flow: 'love', type: 'call',
     purpose: 'The state provider shares each layer rheology and applies it to the static modulus and viscosity ' +
       'the solved EOS reports at the radius asked for.',
     inputs: 'static modulus, viscosity, frequency', outputs: 'complex moduli [Pa]' },
@@ -623,7 +623,7 @@ const EDGES = [
     inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary c_LayeredWorld' },
   { from: 'c_build_world_from_layered_profile', to: 'c_LayeredWorld', flow: 'love', type: 'make',
     purpose: 'Create the world and add each interpolated-EOS layer inner to outer.',
-    inputs: 'one c_PhysicsLayer per profile layer', outputs: 'the layered world, ready for solve_eos' },
+    inputs: 'one c_BaseLayer per profile layer', outputs: 'the layered world, ready for solve_eos' },
   { from: 'radial_solver', to: 'solve_eos', flow: 'love', type: 'call',
     purpose: 'Solve the temporary world structure with the EOS settings given.',
     inputs: 'surface pressure, EOS settings', outputs: 'a solved world' },
@@ -655,7 +655,7 @@ const EDGES = [
   { from: 'c_calc_tides', to: 'c_collapse_global_tides', flow: 'tides1d', type: 'call',
     purpose: 'Sum the mode terms with the dissipation multipliers.',
     inputs: 'potential storage, Love numbers per mode', outputs: 'c_GlobalTideResult' },
-  { from: 'c_calc_tides', to: 'c_PhysicsLayer', flow: 'tides1d', type: 'make',
+  { from: 'c_calc_tides', to: 'c_BaseLayer', flow: 'tides1d', type: 'make',
     purpose: 'Resolve the heating of each layer: the volume integral of the radial solution for the radial methods ' +
       '(the 3D engine with every axis summed), the scaled Love numbers of each layer for the quasi-homogeneous ' +
       'methods, or the total times the layer tidal scale for an analytic tide model.',
@@ -684,7 +684,7 @@ const EDGES = [
   { from: 'kernel', to: 'c_RadialSolutionStorage', flow: 'tides3d', type: 'call',
     purpose: 'get_radial_solution(r) evaluates the dense interpolants and collapse constants at the point radius.',
     inputs: 'SI radius', outputs: 'y1..y6 (SI)' },
-  { from: 'c_calc_3d', to: 'c_PhysicsLayer', flow: 'tides3d', type: 'call',
+  { from: 'c_calc_3d', to: 'c_BaseLayer', flow: 'tides3d', type: 'call',
     purpose: 'Complex moduli at the wave frequency and the layer solid and incompressible flags at each radius.',
     inputs: 'radius, frequency', outputs: 'complex moduli, layer type' },
 

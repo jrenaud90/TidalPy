@@ -151,7 +151,7 @@ def test_every_layer_key_has_an_example(examples):
     assert set(schema.LAYER_GEOMETRY_SPEC_KEYS) <= used
     assert set(schema.LAYER_MODEL_SECTIONS) <= used
     classes = {layer.get("class") for layer in _layer_tables(examples)}
-    assert classes >= {"physics", "solidliquid", "gas"}
+    assert classes >= {"base", "solidliquid", "gas"}
 
 
 @pytest.mark.parametrize("sections, accepted", [

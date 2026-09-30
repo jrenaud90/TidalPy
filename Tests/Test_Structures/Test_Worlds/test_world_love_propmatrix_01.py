@@ -7,7 +7,7 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
 from TidalPy.Rheology.rheology import Maxwell
@@ -29,7 +29,7 @@ def _maxwell_layer(
         mass=0.0,
 ):
     radius_inner, radius_outer = radius_bounds
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         name,
         layer_index,
         radius_inner,
@@ -47,7 +47,7 @@ def _incompressible_solid_world():
     """Single solid, static, incompressible uniform sphere."""
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("incompressible_planet", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         "mantle",
         0,
         0.0,

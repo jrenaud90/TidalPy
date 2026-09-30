@@ -66,7 +66,6 @@ enum class BinaryClassID : uint32_t {
     // 010-99: Other utility classes
     // 1XX: Layer structures
     BaseLayer        = 100,
-    PhysicsLayer     = 101,
     SolidLiquidLayer = 102,
     GasLayer         = 103,
     // 2XX: World structures

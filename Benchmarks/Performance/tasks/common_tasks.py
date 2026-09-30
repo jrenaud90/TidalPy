@@ -18,7 +18,7 @@ from harness import benchmark
 from TidalPy.constants import G
 from TidalPy.Structures.configs import build_world, build_system
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS, BirchMurnaghanEOS
 from TidalPy.Viscosity import make_viscosity
 from TidalPy.Rheology import Maxwell, Elastic
@@ -71,7 +71,7 @@ _N_IO = math.sqrt(G * _M_JUP / _A_IO**3)
 _io = build_world({
     "schema_version": "0.2.0", "name": "Io", "type": "terrestrial",
     "radius_m": 1.8216e6, "mass_kg": 8.9319e22, "spin_frequency_rad_s": _N_IO,
-    "layers": {"core": {"class": "physics", "type": "iron", "layer_index": 0,
+    "layers": {"core": {"class": "base", "type": "iron", "layer_index": 0,
                         "radius_outer_m": 9.0e5, "is_tidal": False},
                "mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 1,
                           "radius_fraction": 1.0, "is_tidal": True}},
@@ -169,7 +169,7 @@ def _system_evolution():
 # Equation of state (Birch-Murnaghan)
 # =====================================================================================================================
 _bm_world = LayeredWorld("bm_planet", 6.371e6, 5.972e24)
-_bm_layer = PhysicsLayer("mantle", 0, 0.0, 6.371e6, 5.972e24)
+_bm_layer = BaseLayer("mantle", 0, 0.0, 6.371e6, 5.972e24)
 _bm_layer.set_eos(BirchMurnaghanEOS(
     reference_density=4000.0, shear_modulus_static=80.0e9, bulk_modulus_static=200.0e9))
 _bm_layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
@@ -188,7 +188,7 @@ def _solve_eos_birch_murnaghan():
 # 3D tides (rheology tide, fully collapsed total)
 # =====================================================================================================================
 _rheo_io = LayeredWorld("RheoIo", _R, 8.9319e22)
-_rheo_layer = PhysicsLayer("mantle", 0, 0.0, _R, 8.9319e22)
+_rheo_layer = BaseLayer("mantle", 0, 0.0, _R, 8.9319e22)
 _rheo_layer.is_static = False
 _rheo_layer.set_eos(ConstantDensityEOS(
     reference_density=_RHO, shear_modulus_static=60.0e9, bulk_modulus_static=200.0e9))
@@ -214,7 +214,7 @@ def _tides_3d_collapse_total():
 # Degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, so hundreds of waves reach every point. The
 # radial solves are the same in both variants; only the per-point evaluation after them runs on the extra threads.
 _grid_io = LayeredWorld("GridIo", _R, 8.9319e22)
-_grid_layer = PhysicsLayer("mantle", 0, 0.0, _R, 8.9319e22)
+_grid_layer = BaseLayer("mantle", 0, 0.0, _R, 8.9319e22)
 _grid_layer.is_static = False
 _grid_layer.set_eos(ConstantDensityEOS(
     reference_density=_RHO, shear_modulus_static=60.0e9, bulk_modulus_static=200.0e9))

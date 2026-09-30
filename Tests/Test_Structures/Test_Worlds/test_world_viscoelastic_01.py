@@ -11,7 +11,6 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Rheology.rheology import Maxwell
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Viscosity import make_viscosity
 
@@ -26,7 +25,7 @@ _MASS           = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
 _MID_RADIUS     = 0.5 * _PLANET_RADIUS
 
 
-def _whole_planet_layer(layer_class=PhysicsLayer):
+def _whole_planet_layer(layer_class=BaseLayer):
     return layer_class(
         "mantle",
         0,
@@ -122,15 +121,16 @@ def test_complex_shear_matches_maxwell():
     assert abs(value.imag) > 0.0
 
 
-def test_complex_nan_on_geometry_layer():
-    """A geometry-only BaseLayer world gives NaN complex moduli."""
+def test_complex_modulus_without_a_rheology_is_static():
+    """A layer with no rheology reports its solved static shear modulus as a real complex modulus."""
     world = LayeredWorld("geom", _PLANET_RADIUS, _MASS)
     layer = _whole_planet_layer(BaseLayer)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     world.add_layer(layer)
     world.solve_eos(G_to_use=G, verbose=False)
     value = world.calc_complex_shear_modulus(_MID_RADIUS, 1.0e-5)
-    assert math.isnan(value.real)
+    assert value.real == world.get_shear_modulus(_MID_RADIUS)
+    assert value.imag == 0.0
 
 
 def test_layer_getters_match_world():

@@ -110,7 +110,7 @@ At negative frequency Elastic, Viscous, Voigt, Maxwell, Burgers, Zener, and Seis
 
 ### Choosing a Model
 
-`Elastic` gives deformation without dissipation: use it to isolate the elastic part of a Love number or for a layer that is effectively rigid on the forcing timescale. It is what a `PhysicsLayer` behaves like when no rheology is attached, and it is the most common choice for the bulk rheology, so a planet can compress without dissipating energy from it.
+`Elastic` gives deformation without dissipation: use it to isolate the elastic part of a Love number or for a layer that is effectively rigid on the forcing timescale. It is what a layer behaves like when no rheology is attached, and it is the most common choice for the bulk rheology, so a planet can compress without dissipating energy from it.
 
 `Maxwell` is the traditional rheology used in tidal studies. It is a good choice when comparing against published Love numbers, since most of the literature uses it. Its weakness is the high-frequency tail: dissipation falls as $\omega^{-1}$, which underestimates the dissipation response of real silicates to fast forcing.
 
@@ -204,9 +204,9 @@ The signatures follow the classes: `elastic/viscous/maxwell(modulus, viscosity, 
 ```python
 from TidalPy.Material.eos import ConstantDensityEOS
 from TidalPy.Rheology import Maxwell, make_rheology
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers import BaseLayer
 
-mantle = PhysicsLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
+mantle = BaseLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
 # The static moduli and viscosities the rheology works on belong to the material, the layer's EOS model.
 mantle.set_eos(ConstantDensityEOS(
     shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9,
@@ -218,7 +218,7 @@ mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 complex_shear = mantle.calc_complex_shear_modulus(1.0e-5)
 ```
 
-Ownership of the C++ model transfers into the layer: the Python wrapper becomes an empty shell and cannot be attached again. Until a rheology is set, `calc_complex_shear_modulus` returns the static modulus as a purely real complex number, which is elastic behavior. The equivalent declarative form is a `[layers.<name>.shear_rheology]` table in a world's TOML, keyed by `model` plus any parameters; see the [TOML schema](../Structures/config/toml_schema.md) and [PhysicsLayer](../Structures/layers/physics_layer.md).
+Ownership of the C++ model transfers into the layer: the Python wrapper becomes an empty shell and cannot be attached again. Until a rheology is set, `calc_complex_shear_modulus` returns the static modulus as a purely real complex number, which is elastic behavior. The equivalent declarative form is a `[layers.<name>.shear_rheology]` table in a world's TOML, keyed by `model` plus any parameters; see the [TOML schema](../Structures/config/toml_schema.md) and [BaseLayer](../Structures/layers/base_layer.md).
 
 ## Serialization
 

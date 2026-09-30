@@ -9,7 +9,7 @@ from TidalPy.constants import G
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import Elastic, Maxwell
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Tides.love import calc_homogeneous_love_numbers
@@ -26,7 +26,7 @@ FREQ = 1.0e-5
 
 def _layer(name, index, r_inner, r_outer, mass, shear=SHEAR, is_tidal=True, rheology=None, viscosity=VISCOSITY,
            incompressible=True, bulk=BULK):
-    layer = PhysicsLayer(name, index, r_inner, r_outer, mass, is_tidal=is_tidal)
+    layer = BaseLayer(name, index, r_inner, r_outer, mass, is_tidal=is_tidal)
     layer.set_eos(ConstantDensityEOS(reference_density=DENSITY, shear_modulus_static=shear, bulk_modulus_static=bulk))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": viscosity}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))

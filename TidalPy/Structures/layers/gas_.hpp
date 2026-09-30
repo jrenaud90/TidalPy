@@ -1,12 +1,12 @@
 #pragma once
 /*
- * gas_.hpp: c_GasLayer, an ideal-gas layer built on c_PhysicsLayer.
+ * gas_.hpp: c_GasLayer, an ideal-gas layer built on c_BaseLayer.
  *
  * Adds ideal-gas parameters (mean molecular weight, adiabatic index, and a reference state), stored and serialized
  * for a future gas description; nothing reads them yet, and the layer's density comes from its material's law. No
  * phase changes, no solidus or liquidus, and no cooling or radiogenics sub-models. All MKS.
  *
- * Binary payload: the c_PhysicsLayer payload, then the mean molecular weight, adiabatic index, reference temperature,
+ * Binary payload: the c_BaseLayer payload, then the mean molecular weight, adiabatic index, reference temperature,
  * and reference density.
  */
 
@@ -18,12 +18,12 @@
 #include <stdexcept>
 #include <string>
 
-#include "physics_.hpp"
+#include "base_.hpp"
 
 namespace tidalpy {
 
-// Construction parameters for c_GasLayer: c_PhysicsConfig plus the ideal-gas thermodynamic fields.
-struct c_GasConfig : public c_PhysicsConfig {
+// Construction parameters for c_GasLayer: c_BaseLayerConfig plus the ideal-gas thermodynamic fields.
+struct c_GasConfig : public c_BaseLayerConfig {
     double mean_molecular_weight = 2.0e-3;    // [kg/mol] hydrogen default
     double adiabatic_index       = 1.4;       // γ = c_p/c_v [dimensionless]
     double reference_temperature = 300.0;     // [K]
@@ -33,13 +33,13 @@ struct c_GasConfig : public c_PhysicsConfig {
     c_GasConfig() { this->is_solid = false; }
 };
 
-class c_GasLayer : public c_PhysicsLayer {
+class c_GasLayer : public c_BaseLayer {
 public:
     // Construction
     c_GasLayer() = default;
 
     explicit c_GasLayer(const c_GasConfig& cfg)
-        : c_PhysicsLayer(cfg),
+        : c_BaseLayer(cfg),
           p_mean_molecular_weight(cfg.mean_molecular_weight),
           p_adiabatic_index(cfg.adiabatic_index),
           p_reference_temperature(cfg.reference_temperature),
@@ -48,11 +48,11 @@ public:
 
     ~c_GasLayer() override = default;
 
-    // The unique_ptr members inherited from c_PhysicsLayer delete the implicit copy assignment, so an explicit
+    // The unique_ptr members inherited from c_BaseLayer delete the implicit copy assignment, so an explicit
     // one is needed for Cython stack allocation. Cython temporaries always have null model pointers.
     c_GasLayer& operator=(const c_GasLayer& other) noexcept {
         if (this != &other) {
-            c_PhysicsLayer::operator=(other);
+            c_BaseLayer::operator=(other);
             this->p_mean_molecular_weight = other.p_mean_molecular_weight;
             this->p_adiabatic_index       = other.p_adiabatic_index;
             this->p_reference_temperature = other.p_reference_temperature;
@@ -78,7 +78,7 @@ public:
 
 protected:
     void p_write_payload(std::ostream& out) const override {
-        c_PhysicsLayer::p_write_payload(out);
+        c_BaseLayer::p_write_payload(out);
         const double gas_fields[4] = {
             this->p_mean_molecular_weight, this->p_adiabatic_index, this->p_reference_temperature,
             this->p_reference_density};
@@ -86,7 +86,7 @@ protected:
     }
 
     void p_read_payload(std::istream& in, bool force) override {
-        c_PhysicsLayer::p_read_payload(in, force);
+        c_BaseLayer::p_read_payload(in, force);
         double gas_fields[4] = {0.0, 0.0, 0.0, 0.0};
         in.read(reinterpret_cast<char*>(gas_fields), sizeof(gas_fields));
         this->p_mean_molecular_weight = gas_fields[0];

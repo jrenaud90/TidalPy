@@ -7,7 +7,7 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.layered import LayeredWorld
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
 from TidalPy.Rheology.rheology import Maxwell
@@ -25,7 +25,7 @@ def _solid_world():
     """Single solid uniform Maxwell sphere."""
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("solid_planet", _PLANET_RADIUS, mass)
-    layer = PhysicsLayer(
+    layer = BaseLayer(
         "mantle",
         0,
         0.0,
@@ -56,7 +56,7 @@ def _two_layer_solid_world():
     )
     world = LayeredWorld("two_layer", _PLANET_RADIUS, mass)
 
-    core = PhysicsLayer(
+    core = BaseLayer(
         "core",
         0,
         0.0,
@@ -67,7 +67,7 @@ def _two_layer_solid_world():
     core.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
     core.set_shear_rheology(Maxwell())
 
-    mantle = PhysicsLayer(
+    mantle = BaseLayer(
         "mantle",
         1,
         r_core,

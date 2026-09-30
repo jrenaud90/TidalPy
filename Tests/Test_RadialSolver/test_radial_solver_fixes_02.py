@@ -8,7 +8,7 @@ from TidalPy.constants import G
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.RadialSolver import radial_solver
 from TidalPy.Rheology.rheology import Elastic, Maxwell
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Viscosity import make_viscosity
@@ -144,7 +144,7 @@ def _world(slices_per_layer):
     """A uniform static incompressible Maxwell body solved with the propagation matrix."""
     density = _WORLD_MASS / ((4.0 / 3.0) * math.pi * _WORLD_RADIUS**3)
     world = LayeredWorld("homogeneous", _WORLD_RADIUS, _WORLD_MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _WORLD_RADIUS, _WORLD_MASS)
+    layer = BaseLayer("mantle", 0, 0.0, _WORLD_RADIUS, _WORLD_MASS)
     layer.set_eos(ConstantDensityEOS(reference_density=density, shear_modulus_static=5.0e10))
     layer.is_static = True
     layer.is_incompressible = True

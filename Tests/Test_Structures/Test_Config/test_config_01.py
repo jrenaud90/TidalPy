@@ -196,7 +196,7 @@ def test_merge_configs_merges_model_tables_across_a_model_change(base, override,
 @pytest.mark.parametrize("value", ("false", 0, 1.0))
 def test_switches_must_be_booleans(value):
     with pytest.raises(ValueError, match="must be true or false"):
-        validate_layer_config("mantle", {"class": "physics", "radius_fraction": 1.0, "is_solid": value})
+        validate_layer_config("mantle", {"class": "base", "radius_fraction": 1.0, "is_solid": value})
 
 
 def test_numpy_values_are_written_as_numbers():

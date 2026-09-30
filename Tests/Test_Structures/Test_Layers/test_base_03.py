@@ -1,4 +1,4 @@
-"""PhysicsLayer viscosity and partial-melt models (attachment, ownership, binary round trip) and EOS model I/O."""
+"""BaseLayer viscosity and partial-melt models (attachment, ownership, binary round trip) and EOS model I/O."""
 import pytest
 
 from TidalPy.Material.eos import InterpolatedEOS
@@ -6,13 +6,12 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.gas import GasLayer
-from TidalPy.Structures.layers.physics import PhysicsLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Viscosity import make_viscosity
 
 
 def _layer_with_material():
-    layer = PhysicsLayer("mantle", 0, 0.0, 6.371e6, 4.0e24)
+    layer = BaseLayer("mantle", 0, 0.0, 6.371e6, 4.0e24)
     # The viscosity and partial-melt models belong to the material, so the layer needs one to hand them to.
     layer.set_eos(ConstantDensityEOS(shear_modulus_static=6.0e10, bulk_modulus_static=1.3e11))
     return layer
@@ -66,7 +65,7 @@ def test_models_are_move_once():
         layer.set_partial_melt(melt)
 
 
-@pytest.mark.parametrize("layer_class", [PhysicsLayer, SolidLiquidLayer], ids=["physics", "solidliquid"])
+@pytest.mark.parametrize("layer_class", [BaseLayer, SolidLiquidLayer], ids=["base", "solidliquid"])
 def test_strength_models_binary_roundtrip(layer_class, tmp_path):
     """Viscosity and partial-melt models, tidal_scale, and solver flags survive a binary round trip."""
     loaded = _roundtrip(_build_layer(layer_class), layer_class, tmp_path)
@@ -81,7 +80,7 @@ def test_strength_models_binary_roundtrip(layer_class, tmp_path):
 
 def test_unset_strength_models_stay_unset(tmp_path):
     """A bare layer loads back with no models, no EOS, and an unset tidal scale."""
-    loaded = _roundtrip(PhysicsLayer("bare", 0, 0.0, 1.0e6, 1.0e22), PhysicsLayer, tmp_path)
+    loaded = _roundtrip(BaseLayer("bare", 0, 0.0, 1.0e6, 1.0e22), BaseLayer, tmp_path)
     assert not loaded.shear_viscosity_set
     assert not loaded.bulk_viscosity_set
     assert not loaded.partial_melt_set
@@ -91,8 +90,8 @@ def test_unset_strength_models_stay_unset(tmp_path):
 
 @pytest.mark.parametrize(
     "layer_class",
-    [BaseLayer, PhysicsLayer, SolidLiquidLayer, GasLayer],
-    ids=["base", "physics", "solidliquid", "gas"])
+    [BaseLayer, SolidLiquidLayer, GasLayer],
+    ids=["base", "solidliquid", "gas"])
 def test_eos_model_binary_roundtrip(layer_class, tmp_path):
     """Every layer class saves its material EOS model, including an interpolated model's optional tables."""
     layer = layer_class("mantle", 0, 0.0, 2.0e6, 1.0e22)

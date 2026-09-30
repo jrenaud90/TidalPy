@@ -148,10 +148,10 @@ On read, the owning class reads the flag and, when set, calls a binary-dispatch 
 | `Structures.layers` | `c_layer_from_binary` |
 
 ```cpp
-// Writing, in c_PhysicsLayer::p_write_payload.
+// Writing, in c_BaseLayer::p_write_payload.
 write_optional_binary(out, this->p_shear_rheology);
 
-// Reading, in c_PhysicsLayer::p_read_payload.
+// Reading, in c_BaseLayer::p_read_payload.
 this->p_shear_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
 ```
 
@@ -159,8 +159,7 @@ The sub-objects each layer class carries (a class's payload is its parent's payl
 
 | Layer | Recursively serialized sub-objects |
 |---|---|
-| `c_BaseLayer` | material EOS model |
-| `c_PhysicsLayer` | material EOS model (with its shear and bulk viscosity and partial-melt models), shear rheology, bulk rheology |
+| `c_BaseLayer` | material EOS model (with its shear and bulk viscosity and partial-melt models), shear rheology, bulk rheology |
 | `c_GasLayer` | the same, inherited |
 | `c_SolidLiquidLayer` | the same, plus cooling and radiogenics |
 
@@ -182,7 +181,7 @@ Each concrete class needs a unique id so the dispatch factories can reconstruct 
 | Range | Family | Members |
 |---|---|---|
 | 1-3 | Base classes | `TidalPyBase` 1, `StructureBase` 2, `PhysicsBase` 3 |
-| 100-199 | Layers | `BaseLayer` 100, `PhysicsLayer` 101, `SolidLiquidLayer` 102, `GasLayer` 103 |
+| 100-199 | Layers | `BaseLayer` 100, `SolidLiquidLayer` 102, `GasLayer` 103 |
 | 200-299 | Worlds and systems | `BaseWorld` 200, `LayeredWorld` 201, `GasGiantWorld` 202, `StarWorld` 203, `System` 210 |
 | 300-399 | Rheology | `RheologyBase` 300, `Elastic` 301, `Viscous` 302, `Voigt` 303, `Maxwell` 304, `Burgers` 305, `Andrade` 306, `Sundberg` 307, `Zener` 308, `SeismicQ` 309 |
 | 400-499 | Cooling | `CoolingBase` 400, `OffCooling` 401, `ConvectiveCooling` 402, `ConductiveCooling` 403 |

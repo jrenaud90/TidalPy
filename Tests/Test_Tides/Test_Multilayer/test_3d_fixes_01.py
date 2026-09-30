@@ -12,7 +12,7 @@ import pytest
 from TidalPy.constants import G
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology.rheology import Elastic, Maxwell
-from TidalPy.Structures.layers.physics import PhysicsLayer
+from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.multilayer.stress_strain import strain_stress_heating_point
@@ -36,7 +36,7 @@ _Y = np.array([1.5 - 0.2j, 3.0 + 0.4j, 0.7 + 0.1j, 2.0 - 0.3j, 0.5, 0.1], dtype=
 def _world(incompressible, bulk_modulus):
     """One static Maxwell layer: incompressible (propagation matrix) or compressible (shooting)."""
     world = LayeredWorld("homogeneous", _R, _MASS)
-    layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS)
+    layer = BaseLayer("mantle", 0, 0.0, _R, _MASS)
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=bulk_modulus))
     layer.is_static = True
