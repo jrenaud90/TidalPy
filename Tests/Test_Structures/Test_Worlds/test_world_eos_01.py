@@ -1,4 +1,4 @@
-"""The world equation-of-state solve (``LayeredWorld.solve_eos``) and the per-layer EOS wiring (``set_eos``)."""
+"""The world equation-of-state solve (``BaseWorld.solve_eos``) and the per-layer EOS wiring (``set_eos``)."""
 import math
 import warnings
 from pathlib import Path
@@ -10,11 +10,11 @@ from TidalPy.constants import G
 
 
 def _import():
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import (
         ConstantDensityEOS, InterpolatedEOS)
-    return LayeredWorld, BaseLayer, ConstantDensityEOS, InterpolatedEOS
+    return BaseWorld, BaseLayer, ConstantDensityEOS, InterpolatedEOS
 
 
 _PLANET_RADIUS = 6000.0e3      # [m]
@@ -24,9 +24,9 @@ LAYER_MASS_RTOL = 1e-12  # Constant-density layer mass versus rho V after the so
 
 
 def _uniform_world():
-    LayeredWorld, BaseLayer, ConstantDensityEOS, _ = _import()
+    BaseWorld, BaseLayer, ConstantDensityEOS, _ = _import()
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    world = LayeredWorld("Uniform", _PLANET_RADIUS, mass, world_type="terrestrial")
+    world = BaseWorld("Uniform", _PLANET_RADIUS, mass, world_type="terrestrial")
     layer = BaseLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass, material_name="rock")
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     world.add_layer(layer)
@@ -35,9 +35,9 @@ def _uniform_world():
 
 def _two_layer_world(rho_core=5000.0, rho_mantle=3000.0):
     """Two constant-density layers built without layer masses (as the TOML builder does)."""
-    LayeredWorld, BaseLayer, ConstantDensityEOS, _ = _import()
+    BaseWorld, BaseLayer, ConstantDensityEOS, _ = _import()
     mass = (4.0 / 3.0) * math.pi * (rho_core * _R_CMB ** 3 + rho_mantle * (_PLANET_RADIUS ** 3 - _R_CMB ** 3))
-    world = LayeredWorld("TwoLayer", _PLANET_RADIUS, mass)
+    world = BaseWorld("TwoLayer", _PLANET_RADIUS, mass)
     core = BaseLayer("core", 0, 0.0, _R_CMB, 0.0, material_name="iron")
     mantle = BaseLayer("mantle", 1, _R_CMB, _PLANET_RADIUS, 0.0, material_name="rock")
     core.set_eos(ConstantDensityEOS(reference_density=rho_core))
@@ -76,8 +76,8 @@ def test_set_eos_consumes_model():
 
 
 def test_solve_requires_all_eos_set():
-    LayeredWorld, BaseLayer, ConstantDensityEOS, _ = _import()
-    world = LayeredWorld("NoEOS", _PLANET_RADIUS, 1.0e24)
+    BaseWorld, BaseLayer, ConstantDensityEOS, _ = _import()
+    world = BaseWorld("NoEOS", _PLANET_RADIUS, 1.0e24)
     world.add_layer(BaseLayer("mantle", 0, 0.0, _PLANET_RADIUS, 1.0e24))
     assert world.all_eos_set is False
     with pytest.raises(ValueError):
@@ -85,8 +85,8 @@ def test_solve_requires_all_eos_set():
 
 
 def test_solve_requires_layers():
-    LayeredWorld, _, _, _ = _import()
-    world = LayeredWorld("Empty", _PLANET_RADIUS, 1.0e24)
+    BaseWorld, _, _, _ = _import()
+    world = BaseWorld("Empty", _PLANET_RADIUS, 1.0e24)
     with pytest.raises(ValueError):
         world.solve_eos(verbose=False)
 
@@ -208,7 +208,7 @@ def test_bundled_world_internal_heating_after_solve():
 # PREM Earth (InterpolatedEOS)
 # =====================================================================================================================
 def test_prem_earth_interpolated():
-    LayeredWorld, BaseLayer, _, InterpolatedEOS = _import()
+    BaseWorld, BaseLayer, _, InterpolatedEOS = _import()
     prem_dir = Path(__file__).resolve().parents[2] / "Test_Material"
 
     prem_data = []
@@ -220,7 +220,7 @@ def test_prem_earth_interpolated():
         pytest.skip("Could not load PREM Earth data.")
 
     surface_radius = prem_data[2][:, 0][-1]
-    world = LayeredWorld("PREM-Earth", surface_radius, 5.972e24, world_type="terrestrial")
+    world = BaseWorld("PREM-Earth", surface_radius, 5.972e24, world_type="terrestrial")
 
     prev_outer = 0.0
     for layer_i in range(3):
@@ -251,14 +251,14 @@ def test_prem_earth_interpolated():
 def test_loaded_world_solves_eos_without_reattaching(tmp_path):
     """A world reloaded from binary keeps its EOS models and pinned solver settings, and reproduces its solve."""
     from TidalPy.Structures import build_world
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     world = build_world("earth_prem")
     reference = world.solve_eos(verbose=False)
     assert reference["success"]
     path = str(tmp_path / "earth_prem.tpyb")
     world.save_binary(path)
 
-    loaded = LayeredWorld("placeholder", 1.0, 1.0)
+    loaded = type(world)("placeholder", 1.0, 1.0)
     loaded.load_binary(path)
     assert loaded.all_eos_set
     assert loaded.get_solver_defaults() == world.get_solver_defaults()

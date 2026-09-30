@@ -17,14 +17,14 @@ _FREQUENCY     = 1.0e-5
 
 
 def _solved_world():
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
     from TidalPy.Rheology.rheology import Maxwell
 
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    world = LayeredWorld("rocky", _PLANET_RADIUS, mass)
+    world = BaseWorld("rocky", _PLANET_RADIUS, mass)
     layer = BaseLayer(
         "mantle",
         0,

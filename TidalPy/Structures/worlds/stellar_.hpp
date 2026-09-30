@@ -1,9 +1,11 @@
 #pragma once
 /*
- * stellar_.hpp: c_StarWorld, a star with no internal layers and no equation of state.
+ * stellar_.hpp: c_StarWorld, a star.
  *
- * Built on c_BaseWorld. Carries scalar effective temperature and luminosity kept consistent by the
- * Stefan-Boltzmann law, plus an optional c_LuminosityBase model that derives both from the star's mass.
+ * Built on c_BaseWorld, so a star may hold layers and solve its EOS like any world, though it needs neither: with no
+ * layers its tides run through the analytic models and its moment of inertia comes from its spin model's factor.
+ * Adds the scalar effective temperature and luminosity, kept consistent by the Stefan-Boltzmann law, and an optional
+ * c_LuminosityBase model that derives both from the star's mass.
  *
  * Binary payload: the c_BaseWorld payload, then the effective temperature and luminosity, then the luminosity model
  * behind a presence flag.

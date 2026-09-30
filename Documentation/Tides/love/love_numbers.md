@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-29_
 
-`TidalPy.Tides.love` contains the Love-number storage type, the names of the Love-number solution methods, and the closed-form homogeneous-sphere Love numbers. Solved Love numbers come from the radial solver (`RadialSolver.radial_solver` for the standalone array API, or `LayeredWorld.solve_love_numbers` on a built world), which populates the storage type after integration; `LayeredWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
+`TidalPy.Tides.love` contains the Love-number storage type, the names of the Love-number solution methods, and the closed-form homogeneous-sphere Love numbers. Solved Love numbers come from the radial solver (`RadialSolver.radial_solver` for the standalone array API, or `BaseWorld.solve_love_numbers` on a built world), which populates the storage type after integration; `BaseWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
 
 ## Overview
 
@@ -54,7 +54,7 @@ d = ln.to_dict()
 
 ## Love-Number Methods
 
-A world obtains its Love numbers by one of these methods (`LayeredWorld.solve_love_numbers(love_method=...)` per call, `set_tide_config(love_method=...)` or the `[tides]` key `love_method` for the default that `calc_tides` uses). `love_method_name(alias)` returns the canonical name.
+A world obtains its Love numbers by one of these methods (`BaseWorld.solve_love_numbers(love_method=...)` per call, `set_tide_config(love_method=...)` or the `[tides]` key `love_method` for the default that `calc_tides` uses). `love_method_name(alias)` returns the canonical name.
 
 | Canonical name | Aliases | Source of k, h, l |
 |---|---|---|

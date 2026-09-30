@@ -1,4 +1,4 @@
-"""LayeredWorld.solve_love_numbers end to end (EOS then radial solver) on one- and two-layer Maxwell worlds."""
+"""BaseWorld.solve_love_numbers end to end (EOS then radial solver) on one- and two-layer Maxwell worlds."""
 
 import cmath
 import math
@@ -6,7 +6,7 @@ import math
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
@@ -24,7 +24,7 @@ _FREQ          = 1.0e-5    # [rad/s]
 def _solid_world():
     """Single solid uniform Maxwell sphere."""
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    world = LayeredWorld("solid_planet", _PLANET_RADIUS, mass)
+    world = BaseWorld("solid_planet", _PLANET_RADIUS, mass)
     layer = BaseLayer(
         "mantle",
         0,
@@ -54,7 +54,7 @@ def _two_layer_solid_world():
     mass = (4.0 / 3.0) * math.pi * (
         rho_c * r_core ** 3 + rho_m * (_PLANET_RADIUS ** 3 - r_core ** 3)
     )
-    world = LayeredWorld("two_layer", _PLANET_RADIUS, mass)
+    world = BaseWorld("two_layer", _PLANET_RADIUS, mass)
 
     core = BaseLayer(
         "core",

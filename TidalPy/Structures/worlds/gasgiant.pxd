@@ -3,19 +3,15 @@
 
 from libcpp.memory cimport shared_ptr
 
-from TidalPy.Utilities.classes.classes cimport c_TidalPyBaseClass
-from TidalPy.Structures.worlds.base cimport c_WorldConfig, c_BaseWorld
-from TidalPy.Structures.worlds.layered cimport LayeredWorld, c_LayeredWorld
+from TidalPy.Structures.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 
 
 cdef extern from "gasgiant_.hpp" namespace "tidalpy" nogil:
-    cdef cppclass c_GasGiantWorld(c_LayeredWorld):
+    cdef cppclass c_GasGiantWorld(c_BaseWorld):
         c_GasGiantWorld()
         c_GasGiantWorld(const c_WorldConfig& cfg) except +
 
 
-cdef class GasGiantWorld(LayeredWorld):
-    cdef c_GasGiantWorld* _gasgiant_ptr   # non-owning; ownership via BaseWorld._world_ptr
-    cdef void _bind(self, shared_ptr[c_BaseWorld] ptr)
+cdef class GasGiantWorld(BaseWorld):
     @staticmethod
     cdef GasGiantWorld _wrap(shared_ptr[c_BaseWorld] ptr)

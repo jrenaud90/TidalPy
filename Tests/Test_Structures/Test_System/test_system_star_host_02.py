@@ -3,7 +3,7 @@ import pytest
 
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.stellar import StarWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 
 AU = 1.495978707e11  # [m]
 
@@ -11,7 +11,7 @@ AU = 1.495978707e11  # [m]
 def _system_with_planet(semi_major_axis=None):
     system = System("s")
     system.add_world(StarWorld("sun", 6.957e8, 1.988e30), is_star=True)
-    planet_index = system.add_world(LayeredWorld("earth", 6.371e6, 5.97e24), semi_major_axis=semi_major_axis)
+    planet_index = system.add_world(BaseWorld("earth", 6.371e6, 5.97e24), semi_major_axis=semi_major_axis)
     return system, planet_index
 
 
@@ -38,7 +38,7 @@ def test_two_different_orbits_are_refused():
 def test_changing_the_tidal_orbit_moves_the_stored_stellar_orbit(setter, getter, value):
     """Moving a star-hosted world's host away and back leaves no stale stellar copy of a changed orbit."""
     system, planet = _system_with_planet(semi_major_axis=AU)
-    system.add_world(LayeredWorld("moon", 1.7e6, 7.3e22), semi_major_axis=3.8e8)
+    system.add_world(BaseWorld("moon", 1.7e6, 7.3e22), semi_major_axis=3.8e8)
     system.set_tidal_host(planet, "sun")
     system.set_eccentricity(planet, 0.05)
     getattr(system, setter)(planet, value)

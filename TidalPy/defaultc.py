@@ -205,7 +205,7 @@ schema_version = "{SCHEMA_VERSION}"
 # =====================================================================================================================
 # Whole-planet equation-of-state solve defaults
 #
-# The starting point of every EOS solve: `LayeredWorld.solve_eos`, the `eos_*` arguments of the standalone
+# The starting point of every EOS solve: `BaseWorld.solve_eos`, the `eos_*` arguments of the standalone
 # `radial_solver`, and the solves the tide paths run. A call overrides only the arguments it passes. A world file
 # may pin any of these keys in its own [eos_solver] table, which then wins over this section for that world.
 # =====================================================================================================================
@@ -237,7 +237,7 @@ schema_version = "{SCHEMA_VERSION}"
 # =====================================================================================================================
 # Radial (Love number) solve defaults
 #
-# The starting point of every shooting-method solve: `LayeredWorld.solve_love_numbers`, the standalone
+# The starting point of every shooting-method solve: `BaseWorld.solve_love_numbers`, the standalone
 # `radial_solver`, and the Love solves behind `calc_tides` and the 3D tidal maps. A call overrides only the
 # arguments it passes. A world file may pin any of these keys in its own [radial_solver] table, which then wins
 # over this section for that world.
@@ -352,7 +352,8 @@ schema_version = "{SCHEMA_VERSION}"
 # Used by the world builder when a world's own configuration omits one of these. Resolution is the
 # same three tiers the layer blocks use: the user's world wins, then `[worlds]` (specialized by
 # `[worlds.<type>]` when that table names the key), then the C++ class default. These are the fields of
-# c_WorldConfig, plus c_StarConfig's two, so every world property a user can set is visible here.
+# c_WorldConfig, the spin model's moment-of-inertia factor, and c_StarConfig's two, so every world property a user
+# can set is visible here.
 # =====================================================================================================================
 [worlds]
     # Bond albedo: the fraction of incident stellar flux reflected rather than absorbed.
@@ -363,6 +364,10 @@ schema_version = "{SCHEMA_VERSION}"
     obliquity_rad = 0.0
     # Rotation rate [rad/s]. Zero leaves the world non-rotating until a spin is set.
     spin_frequency_rad_s = 0.0
+    # Moment-of-inertia factor C / (M R^2) of the spin model, the world's moment of inertia until its EOS is solved
+    # (after which the solved structure gives it). 0.4 is a uniform sphere; a differentiated planet is lower (Earth
+    # 0.331, Io 0.378).
+    moment_of_inertia_factor = 0.4
 
     # Stars only.
     [worlds.star]
@@ -370,6 +375,9 @@ schema_version = "{SCHEMA_VERSION}"
         effective_temperature_k = 5772.0
         # Luminosity [W]. Zero means derive it from the effective temperature by Stefan-Boltzmann.
         luminosity_w = 0.0
+        # An n = 3 polytrope, a Sun-like, centrally condensed star, as the [tides.star] Love numbers assume (a fully
+        # convective M dwarf is closer to n = 1.5, 0.205).
+        moment_of_inertia_factor = 0.0754
 
 
 # =====================================================================================================================

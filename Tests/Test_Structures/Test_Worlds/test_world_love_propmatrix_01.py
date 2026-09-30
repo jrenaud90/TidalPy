@@ -1,4 +1,4 @@
-"""Propagation-matrix Love solve on LayeredWorld: analytic homogeneous k2 and clean rejection of unsupported worlds."""
+"""Propagation-matrix Love solve on BaseWorld: analytic homogeneous k2 and clean rejection of unsupported worlds."""
 
 import cmath
 import math
@@ -6,7 +6,7 @@ import math
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
@@ -46,7 +46,7 @@ def _maxwell_layer(
 def _incompressible_solid_world():
     """Single solid, static, incompressible uniform sphere."""
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    world = LayeredWorld("incompressible_planet", _PLANET_RADIUS, mass)
+    world = BaseWorld("incompressible_planet", _PLANET_RADIUS, mass)
     layer = BaseLayer(
         "mantle",
         0,
@@ -70,7 +70,7 @@ def _two_layer_incompressible_world():
     r_core = 3.0e6
     mass = (4.0 / 3.0) * math.pi * (
         8000.0 * r_core ** 3 + 3300.0 * (_PLANET_RADIUS ** 3 - r_core ** 3))
-    world = LayeredWorld("two_layer", _PLANET_RADIUS, mass)
+    world = BaseWorld("two_layer", _PLANET_RADIUS, mass)
     for name, layer_index, radius_bounds, density in (("core", 0, (0.0, r_core), 8000.0),
                                                       ("mantle", 1, (r_core, _PLANET_RADIUS), 3300.0)):
         layer = _maxwell_layer(name, layer_index, radius_bounds, density)
@@ -81,7 +81,7 @@ def _two_layer_incompressible_world():
 
 def _compressible_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    world = LayeredWorld("compressible_planet", _PLANET_RADIUS, mass)
+    world = BaseWorld("compressible_planet", _PLANET_RADIUS, mass)
     layer = _maxwell_layer(
         "mantle",
         0,

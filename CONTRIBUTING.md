@@ -156,7 +156,7 @@ def calc_tidal_heating(world, orbital_frequency, eccentricity, host_mass):
 
     Parameters
     ----------
-    world : LayeredWorld
+    world : BaseWorld
         The world, with its equation of state solved.
     orbital_frequency : float
         Orbital mean motion [rad s-1].

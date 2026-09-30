@@ -2,9 +2,10 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrapper for TidalPy's star world class.
 
-StarWorld has no internal layers and no equation of state. Its effective temperature and luminosity are kept
-consistent through the Stefan-Boltzmann law (L = 4·pi·R²·sigma·T⁴), and an optional ``LuminosityBase`` model
-derives both from the star's mass.
+StarWorld is a BaseWorld, so it may hold layers and solve its EOS, though it needs neither: with no layers its tides
+run through the analytic models and its moment of inertia comes from its spin model's factor. Its effective
+temperature and luminosity are kept consistent through the Stefan-Boltzmann law (L = 4·pi·R²·sigma·T⁴), and an
+optional ``LuminosityBase`` model derives both from the star's mass.
 """
 
 from libcpp.utility cimport move
@@ -15,7 +16,7 @@ from TidalPy.Utilities.logging.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities.classes.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
+from TidalPy.Utilities.classes.classes cimport c_PhysicsBase, cy_physics_model_config
 from TidalPy.Structures.worlds.base cimport BaseWorld, c_BaseWorld, cy_fill_world_config
 from TidalPy.Stellar.luminosity cimport LuminosityBase
 
@@ -25,7 +26,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 
 cdef class StarWorld(BaseWorld):
-    """A star: no layers, no EOS; effective temperature and luminosity.
+    """A star: a world with an effective temperature and luminosity, and usually no layers.
 
     Parameters
     ----------
@@ -151,7 +152,7 @@ cdef class StarWorld(BaseWorld):
         return "star"
 
     cpdef dict get_config_dict(self):
-        """Return the BaseWorld config dict plus the stellar values and the attached luminosity model.
+        """Return the world config dict plus the stellar values and the attached luminosity model.
 
         Returns
         -------

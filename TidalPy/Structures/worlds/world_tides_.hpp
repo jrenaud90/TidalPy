@@ -1,15 +1,17 @@
 #pragma once
 /*
- * world_tides_.hpp: out-of-line definition of c_LayeredWorld::calc_tides and the 3D tidal paths.
+ * world_tides_.hpp: out-of-line definition of c_BaseWorld::calc_tides and the 3D tidal paths.
  *
- * c_LayeredWorld extends the common analytic tide path (c_BaseWorld::calc_tides in world_tides_base_.hpp) with
- * two layered-world capabilities: the rheology model, whose -Im[k_l(omega)] comes from the world's Love solve at
- * each unique tidal frequency (the EOS must be solved first), and each layer's share of the heating. The Love
+ * calc_tides runs the global-potential engine (eccentricity and obliquity functions, tidal potential of Renaud et al.
+ * 2021) for the world's tide config and the supplied orbital and spin state, then collapses the per-mode terms into
+ * the total tidal heating and the three orbital potential derivatives. The analytic models (cpl, ctl, ctl_q) supply
+ * -Im[k_l] from their fixed per-degree parameters; the rheology model takes it from the world's Love solve at each
+ * unique tidal frequency (the EOS must be solved first). Each layer then takes its share of the heating. The Love
  * solves of these paths go into workspaces of their own, so they leave the world's last solve_love_numbers result
- * alone. The tide-model holder, config, and result state stay on c_BaseWorld.
+ * alone.
  *
- * This header pulls in the heavy global-potential tables; force-include it in the layered and gas-giant world
- * extension only.
+ * This header pulls in the heavy global-potential tables; force-include it only in the extensions that call
+ * calc_tides or the 3D paths (the base world and the system).
  */
 
 #include <algorithm>
@@ -28,8 +30,7 @@
 #include <thread>
 #include <vector>
 
-#include "layered_.hpp"
-#include "world_tides_base_.hpp"                         // c_world_global_potential
+#include "base_.hpp"
 #include "../../Tides/classes/tide_collapse_.hpp"      // c_global_potential, c_collapse_global_tides
 #include "../../Tides/classes/tide_.hpp"               // c_RheologyTide (3D orchestration target)
 #include "../../Tides/potential/potential_3d_.hpp"     // c_tidal_potential_3d_modes (dynamic Kaula engine)
@@ -37,6 +38,42 @@
 #include "../../Tides/multilayer/angular_collapse_.hpp" // c_theta_integrated_heating_pair (analytic collapse)
 
 namespace tidalpy {
+
+// The global potential of a world's tide config at an orbital state. On failure the world's tide state, passed in as
+// tides_solved and tide_result, is marked unsolved with the engine's error code, and std::runtime_error is thrown.
+inline c_GlobalPotentialStorage c_world_global_potential(
+        const c_BaseWorld& world,
+        const c_TideSolveConfig& state,
+        bool& tides_solved,
+        c_GlobalTideResult& tide_result) {
+    const double planet_radius = world.get_radius();
+    const double G_to_use = c_get_G();
+    const c_TideConfig& tcfg = world.get_tide_config();
+
+    c_GlobalPotentialStorage potential = c_global_potential(
+        planet_radius,
+        state.semi_major_axis,
+        state.orbital_frequency,
+        state.spin_frequency,
+        state.obliquity,
+        state.eccentricity,
+        state.host_mass,
+        G_to_use,
+        tcfg.min_degree_l,
+        tcfg.max_degree_l,
+        tcfg.obliquity_truncation,
+        tcfg.eccentricity_truncation,
+        tcfg.eccentricity_exact_tolerance
+    );
+
+    if (potential.error_code != 0) {
+        tides_solved           = false;
+        tide_result            = c_GlobalTideResult();
+        tide_result.error_code = potential.error_code;
+        throw std::runtime_error("TidalPy: global potential failed during calc_tides");
+    }
+    return potential;
+}
 
 namespace tides3d {
 // Logical processors an automatic thread count (num_threads = 0) leaves free for the rest of the machine.
@@ -66,7 +103,7 @@ inline void c_parallel_tasks_3d(size_t num_tasks, int num_threads, const Body& b
 //                                       Im(k) is scaled by its tidal scale; the layer takes the heating of those
 //                                       scaled Love numbers, and the layers sum to the total.
 //   an analytic tide model            : the whole-body heating times the layer's tidal scale.
-inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
+inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     const c_WorldCallLock call_lock(this->p_call_mutex.get());
     // The previous call's results are cleared before anything can throw, so a call that fails leaves the world and
     // its layers unsolved (NaN heating) rather than reporting the previous orbit.
@@ -236,8 +273,8 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     }
 
     // Commit: layer.get_tidal_heating() reports each layer's share.
-    this->p_tide_result        = tide_result;
-    this->p_tide_solver_love   = tide_love;
+    this->p_tide_result         = tide_result;
+    this->p_tide_solver_love    = tide_love;
     this->p_layer_tidal_heating = layer_heating;
     for (std::size_t i = 0; i < n_layers; ++i) {
         this->p_layers[i]->set_tidal_heating(layer_heating[i]);
@@ -252,7 +289,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
 // liquid layer carries no shear dissipation and takes 0; with no usable integral every layer is NaN.
 // `retained_solves`, when given, are the radial solves the 1D pass already ran; the integral reuses them instead of
 // solving its (degree, |omega|) groups again, which would double the cost of calc_tides.
-inline void c_LayeredWorld::calc_layer_tidal_heating_radial(
+inline void c_BaseWorld::calc_layer_tidal_heating_radial(
         const c_TideSolveConfig& state,
         double total_heating,
         std::vector<double>& out,
@@ -273,6 +310,7 @@ inline void c_LayeredWorld::calc_layer_tidal_heating_radial(
                              const std::vector<c_RetainedRadialSolve>* loan) : slot(slot_in) { slot = loan; }
         ~c_RetainedSolvesLoan() { slot = nullptr; }
     } loan(this->p_retained_radial_solves, retained_solves);
+    
     const c_Heating3DCollapsed integrated = this->calc_3d_tides(
         state,
         nullptr,
@@ -468,7 +506,7 @@ inline c_WaveSet3D c_build_wave_set_3d(
 
 // The wave set for the world's tide config and an orbital state.
 inline c_WaveSet3D c_world_wave_set_3d(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const c_TideSolveConfig& state,
         const char* what,
         bool secular) {
@@ -502,7 +540,7 @@ inline c_WaveSet3D c_world_wave_set_3d(
 // Run the world radial solve for one radial group into `workspace` and return its solution storage, which lives
 // until the workspace's next solve. The world's own last Love solve is left alone.
 inline const ::c_RadialSolutionStorage* c_solve_radial_group_3d(
-        const c_LayeredWorld& world,
+        const c_BaseWorld& world,
         c_LoveSolveConfig& love_cfg,
         const c_RadialGroup3D& group,
         const char* what,
@@ -528,7 +566,7 @@ struct c_RadiusLayer3D {
     bool liquid = false;
 };
 
-inline c_RadiusLayer3D c_radius_layer_3d(const c_LayeredWorld& world, double radius) {
+inline c_RadiusLayer3D c_radius_layer_3d(const c_BaseWorld& world, double radius) {
     c_RadiusLayer3D layer;
     layer.layer_ptr = world.find_layer_for_radius(radius);
     layer.liquid = ((layer.layer_ptr != nullptr) && !layer.layer_ptr->get_is_solid())
@@ -553,7 +591,7 @@ struct c_RadialValues3D {
 // workers: the layers' getters take the world's call lock, which the calling thread holds, so their callers stay on
 // the calling thread.
 inline c_RadialValues3D c_radial_values_3d(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const c_WaveSet3D& set,
         const double* radii,
         size_t num_radii,
@@ -674,7 +712,7 @@ struct c_RadialCoefficients3D {
 // with l, so a higher-degree group starting further out just contributes nothing below it. The solves run on up to
 // c_resolve_num_threads(num_threads) threads (c_radial_values_3d); the coefficients read the layers on this thread.
 inline c_RadialCoefficients3D c_radial_coefficients_3d(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const c_WaveSet3D& set,
         const double* radii,
         size_t num_radii,
@@ -972,7 +1010,7 @@ struct c_CollapseGrids3D {
 };
 
 inline c_CollapseGrids3D c_collapse_grids_3d(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const double* radii,
         size_t num_radii,
         const double* colatitudes,
@@ -1145,13 +1183,13 @@ inline double c_secular_theta_integral_3d(
 }  // namespace tides3d
 
 // The 3D orchestration lives on the rheology tide model, the only TideBase with a depth-resolved solution,
-// and calls the world's members directly. It is defined here, in the world extension, where c_LayeredWorld
+// and calls the world's members directly. It is defined here, in the world extension, where c_BaseWorld
 // and the kernel and potential headers are complete and CyRK lives, so every radial solve and dense call
 // stays in its owning extension.
 
 // Scalar form: the batch path with one point.
 inline double c_RheologyTide::calc_3d_tidal_heating(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const c_TideSolveConfig& state,
         double radius,
         double colatitude) const {
@@ -1164,7 +1202,7 @@ namespace tides3d {
 
 // The rheology tide model a world's 3D path `what` runs on, once the world is checked to have one attached and its
 // EOS solved; `plural` says whether `what` takes a plural verb.
-inline const c_RheologyTide& c_require_3d_rheology(const c_LayeredWorld& world, const char* what, bool plural) {
+inline const c_RheologyTide& c_require_3d_rheology(const c_BaseWorld& world, const char* what, bool plural) {
     if (!world.get_tide_model_set()) {
         throw std::runtime_error("TidalPy: no tide model attached to the world. Call set_tide_model() first");
     }
@@ -1186,7 +1224,7 @@ inline const c_RheologyTide& c_require_3d_rheology(const c_LayeredWorld& world, 
 
 // World delegation: validate preconditions, check the orbital state as calc_tides does (p_check_tide_state: the same
 // rejections and truncation-range warnings), and hand off to the rheology tide model's 3D orchestration.
-inline double c_LayeredWorld::get_3d_tidal_heating(
+inline double c_BaseWorld::get_3d_tidal_heating(
         const c_TideSolveConfig& state,
         double radius,
         double colatitude) {
@@ -1197,7 +1235,7 @@ inline double c_LayeredWorld::get_3d_tidal_heating(
 }
 
 // World delegation for the batch path: same preconditions as the scalar get_3d_tidal_heating.
-inline void c_LayeredWorld::get_3d_tidal_heating_array(
+inline void c_BaseWorld::get_3d_tidal_heating_array(
         const c_TideSolveConfig& state,
         const double* radii,
         const double* colatitudes,
@@ -1218,7 +1256,7 @@ inline void c_LayeredWorld::get_3d_tidal_heating_array(
 }
 
 // World delegation for the displacement grid: same preconditions as the 3D heating paths.
-inline void c_LayeredWorld::get_3d_displacements_grid(
+inline void c_BaseWorld::get_3d_displacements_grid(
         const c_TideSolveConfig& state,
         const c_Grid3DAxes& axes,
         double* out_disp,
@@ -1240,7 +1278,7 @@ inline void c_LayeredWorld::get_3d_displacements_grid(
 // Re[amplitude e^{i |omega| t}] over the frequencies, the phase factors tabulated once. The colatitude rows
 // run on up to num_threads threads, each writing only its own cells.
 inline void c_RheologyTide::calc_3d_displacements_grid(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const c_TideSolveConfig& state,
         const c_Grid3DAxes& axes,
         double* out_disp,
@@ -1341,7 +1379,7 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
 // is added into its frequency's total, and each component at time t sums Re[amplitude e^{i |omega| t}] over
 // the frequencies. The colatitude rows run on up to num_threads threads.
 inline void c_RheologyTide::calc_3d_stress_strain_grid(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const c_TideSolveConfig& state,
         const c_Grid3DAxes& axes,
         double* out_stress,
@@ -1411,7 +1449,7 @@ inline void c_RheologyTide::calc_3d_stress_strain_grid(
 }
 
 // World delegation for the stress and strain grid: same preconditions as the 3D heating paths.
-inline void c_LayeredWorld::get_3d_stress_strain_grid(
+inline void c_BaseWorld::get_3d_stress_strain_grid(
         const c_TideSolveConfig& state,
         const c_Grid3DAxes& axes,
         double* out_stress,
@@ -1428,7 +1466,7 @@ inline void c_LayeredWorld::get_3d_stress_strain_grid(
 // coefficients are evaluated once per unique radius, since points on a map share radii. Points sharing a
 // colatitude share its angular work, and the colatitudes run on up to num_threads threads.
 inline void c_RheologyTide::calc_3d_tidal_heating_batch(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const c_TideSolveConfig& state,
         const double* radii,
         const double* colatitudes,
@@ -1511,7 +1549,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
 // instantaneous power sigma_ij(t) eps_dot_ij(t) at each user time. The radial solves run on the calling
 // thread and the per-point evaluation on up to cfg.num_threads threads over colatitude rows.
 inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
-        c_LayeredWorld& world,
+        c_BaseWorld& world,
         const c_TideSolveConfig& state,
         const double* radii,
         size_t num_radii,
@@ -1783,7 +1821,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_collapsed(
 }
 
 // World delegation for the collapse layout, from the layer geometry alone.
-inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides_layout(
+inline c_Heating3DCollapsed c_BaseWorld::calc_3d_tides_layout(
         const double* radii,
         size_t num_radii,
         const double* colatitudes,
@@ -1810,7 +1848,7 @@ inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides_layout(
 }
 
 // World delegation for the collapse path into caller buffers: same preconditions as the scalar get_3d_tidal_heating.
-inline void c_LayeredWorld::calc_3d_tides_into(
+inline void c_BaseWorld::calc_3d_tides_into(
         const c_TideSolveConfig& state,
         const double* radii,
         size_t num_radii,
@@ -1843,7 +1881,7 @@ inline void c_LayeredWorld::calc_3d_tides_into(
 }
 
 // World delegation for the collapse path returning vectors: the layout, then calc_3d_tides_into.
-inline c_Heating3DCollapsed c_LayeredWorld::calc_3d_tides(
+inline c_Heating3DCollapsed c_BaseWorld::calc_3d_tides(
         const c_TideSolveConfig& state,
         const double* radii,
         size_t num_radii,

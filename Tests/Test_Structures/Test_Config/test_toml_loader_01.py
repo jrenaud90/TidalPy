@@ -134,8 +134,8 @@ def test_valid_world_passes(config):
     pytest.param(_edited(_valid_star, surface_gravity=9.8), "Unexpected world-level key", id="unknown-key"),
     pytest.param(
         _edited(_valid_star, layers={"x": {"class": "base", "radius_outer_m": 1.0}}),
-        "must not declare any layers",
-        id="star-with-layers"),
+        "have to fill the world",
+        id="star-layers-short-of-the-surface"),
     pytest.param(_edited(_valid_terrestrial, layers={}), "at least one", id="no-layers"),
     # Unknown [tides] keys are rejected as typo protection.
     pytest.param(_edited(_valid_terrestrial, tides={"fixed_qq": [100.0]}), None, id="tides-unknown-key"),

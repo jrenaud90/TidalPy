@@ -9,7 +9,7 @@ from TidalPy.constants import G, mass_trap1
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology.rheology import Elastic, Maxwell
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.multilayer.stress_strain import displacement_point, strain_stress_heating_point, volumetric_heating
 from TidalPy.Tides.potential import tidal_potential_3d_modes
@@ -54,7 +54,7 @@ def _kernel(row):
 
 
 def _build_world(max_degree_l):
-    world = LayeredWorld("w", _R, _MASS)
+    world = BaseWorld("w", _R, _MASS)
     layer = BaseLayer(
         "mantle",
         0,

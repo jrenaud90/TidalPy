@@ -70,7 +70,7 @@ enum class BinaryClassID : uint32_t {
     GasLayer         = 103,
     // 2XX: World structures
     BaseWorld        = 200,
-    LayeredWorld     = 201,
+    TerrestrialWorld = 201,
     GasGiantWorld    = 202,
     StarWorld        = 203,
 

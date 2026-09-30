@@ -1,4 +1,4 @@
-"""LayeredWorld.solve_love_numbers_supplied reproduces the rheology-driven solve when fed the rheology moduli."""
+"""BaseWorld.solve_love_numbers_supplied reproduces the rheology-driven solve when fed the rheology moduli."""
 
 import cmath
 import math
@@ -18,14 +18,14 @@ _FREQ          = 1.0e-5
 
 
 def _maxwell_world():
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
     from TidalPy.Rheology.rheology import Maxwell
 
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    world = LayeredWorld("supplied_planet", _PLANET_RADIUS, mass)
+    world = BaseWorld("supplied_planet", _PLANET_RADIUS, mass)
     layer = BaseLayer(
         "mantle",
         0,

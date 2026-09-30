@@ -2,7 +2,7 @@
 # world file (example_world.toml) does not: the gas-layer scalars, the per-degree lists of the analytic tide models,
 # the long spellings of the truncation keys, and the ctl Love method with its stored time lag.
 #
-# A gas giant is a LayeredWorld whose layers are gas; the classes and keys are otherwise those of example_world.toml,
+# A gas giant is a GasGiantWorld whose layers are gas; the classes and keys are otherwise those of example_world.toml,
 # and this file leaves to the [layers.gas] defaults everything it does not state.
 
 schema_version = "0.2.0"

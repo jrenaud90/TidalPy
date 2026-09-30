@@ -17,7 +17,7 @@ from harness import benchmark
 
 from TidalPy.constants import G
 from TidalPy.Structures.configs import build_world, build_system
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS, BirchMurnaghanEOS
 from TidalPy.Viscosity import make_viscosity
@@ -168,7 +168,7 @@ def _system_evolution():
 # =====================================================================================================================
 # Equation of state (Birch-Murnaghan)
 # =====================================================================================================================
-_bm_world = LayeredWorld("bm_planet", 6.371e6, 5.972e24)
+_bm_world = BaseWorld("bm_planet", 6.371e6, 5.972e24)
 _bm_layer = BaseLayer("mantle", 0, 0.0, 6.371e6, 5.972e24)
 _bm_layer.set_eos(BirchMurnaghanEOS(
     reference_density=4000.0, shear_modulus_static=80.0e9, bulk_modulus_static=200.0e9))
@@ -187,7 +187,7 @@ def _solve_eos_birch_murnaghan():
 # =====================================================================================================================
 # 3D tides (rheology tide, fully collapsed total)
 # =====================================================================================================================
-_rheo_io = LayeredWorld("RheoIo", _R, 8.9319e22)
+_rheo_io = BaseWorld("RheoIo", _R, 8.9319e22)
 _rheo_layer = BaseLayer("mantle", 0, 0.0, _R, 8.9319e22)
 _rheo_layer.is_static = False
 _rheo_layer.set_eos(ConstantDensityEOS(
@@ -213,7 +213,7 @@ def _tides_3d_collapse_total():
 # =====================================================================================================================
 # Degrees 2 to 3 with eccentricity, a non-synchronous spin, and obliquity, so hundreds of waves reach every point. The
 # radial solves are the same in both variants; only the per-point evaluation after them runs on the extra threads.
-_grid_io = LayeredWorld("GridIo", _R, 8.9319e22)
+_grid_io = BaseWorld("GridIo", _R, 8.9319e22)
 _grid_layer = BaseLayer("mantle", 0, 0.0, _R, 8.9319e22)
 _grid_layer.is_static = False
 _grid_layer.set_eos(ConstantDensityEOS(

@@ -7,7 +7,7 @@ import pytest
 
 from TidalPy.Structures.configs import build_world, build_system, load_toml
 from TidalPy.Structures.system import System
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
 from TidalPy.Tides.classes import make_tide
 
@@ -29,7 +29,7 @@ def _configure_tide(world, model, config):
     [
         pytest.param(
             "terrestrial.toml",
-            LayeredWorld,
+            BaseWorld,
             "terrestrial",
             "fixed_q",
             {"fixed_k": [0.3], "fixed_q": [100.0]},

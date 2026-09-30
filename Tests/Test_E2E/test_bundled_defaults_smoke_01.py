@@ -10,7 +10,6 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures import available_systems, available_worlds, build_system, build_world
-from TidalPy.Structures.worlds.layered import LayeredWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
 
 
@@ -33,7 +32,7 @@ def _tidal_state(world):
 
 
 _WORLD_NAMES = available_worlds()
-_LAYERED_NAMES = [name for name in _WORLD_NAMES if isinstance(build_world(name), LayeredWorld)]
+_LAYERED_NAMES = [name for name in _WORLD_NAMES if len(build_world(name)) > 0]
 
 
 @pytest.mark.parametrize(
@@ -95,7 +94,7 @@ def test_solve_love_numbers_defaults(world_name):
 def test_calc_tides_defaults(world_name):
     """calc_tides gives finite nonnegative heating, active modes, and finite potential derivatives."""
     world = build_world(world_name)
-    if isinstance(world, LayeredWorld):
+    if len(world) > 0:
         world.solve_eos()
     world.calc_tides(**_tidal_state(world))
     assert world.tides_solved
@@ -103,7 +102,7 @@ def test_calc_tides_defaults(world_name):
     assert math.isfinite(heating) and heating >= 0.0
     assert world.get_num_tidal_modes() > 0
     assert all(math.isfinite(value) for value in world.get_tidal_potential_derivatives())
-    if isinstance(world, LayeredWorld):
+    if len(world) > 0:
         per_layer = [world.get_layer_tidal_heating(index) for index in range(world.num_layers)]
         assert all(math.isfinite(value) and value >= 0.0 for value in per_layer)
 
@@ -129,7 +128,7 @@ def test_system_evolution_defaults(system_name):
     """Every bundled system evolves at least one world with finite rates."""
     system = build_system(system_name)
     for world in system:
-        if isinstance(world, LayeredWorld):
+        if len(world) > 0:
             world.solve_eos()
     rates = system.calc_system_evolution()
     assert len(rates) == system.num_worlds

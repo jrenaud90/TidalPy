@@ -7,7 +7,7 @@ import pytest
 
 from TidalPy.constants import G, mass_trap1
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
@@ -27,7 +27,7 @@ _STATE = dict(orbital_frequency=_N, spin_frequency=1.5 * _N, eccentricity=_ECC,
 
 
 def _world():
-    world = LayeredWorld("band_world", _R, _MASS)
+    world = BaseWorld("band_world", _R, _MASS)
     layer = BaseLayer("mantle", 0, 0.0, _R, _MASS)
     layer.is_static = False
     layer.set_eos(ConstantDensityEOS(

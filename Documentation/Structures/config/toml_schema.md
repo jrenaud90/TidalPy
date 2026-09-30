@@ -38,7 +38,7 @@ world = build_world(my_config_dict)
 earth.save_to_toml("earth_copy.toml")
 ```
 
-`build_world(source)` returns a `BaseWorld` subclass: `LayeredWorld`, `GasGiantWorld`, or `StarWorld` (see [Python API](#python-api)).
+`build_world(source)` returns a `BaseWorld`: a `TerrestrialWorld`, `GasGiantWorld`, `StarWorld`, or, for the `layered` type, the `BaseWorld` class itself (see [Python API](#python-api)).
 
 ## Bundled Worlds (`WorldPack`)
 
@@ -72,23 +72,24 @@ print(available_worlds())      # data-dir worlds unioned with packaged worlds
 | `effective_temperature_k` | optional | `star` | Effective temperature \[K\]. |
 | `luminosity_w` | optional | `star` | Luminosity \[W\]. |
 | `[luminosity]` | optional | `star` | The star's mass-to-luminosity model: `model` (`fixed`, `mass_to_luminosity`, or `power_law`) plus that model's parameters, as `Stellar.make_luminosity` takes them. Attaching it does not change the stored `luminosity_w`. |
-| `moment_of_inertia_factor` | optional | layered families | $C/(MR^2)$ of the world's spin model, within $(0, 2/3]$ (0.4, a uniform sphere, when left out). It gives the moment of inertia until the EOS is solved. |
-| `[layers.<name>]` | **yes** (non-star) | layered families | One table per layer (see below). |
+| `moment_of_inertia_factor` | optional | all | $C/(MR^2)$ of the world's spin model, within $(0, 2/3]$. It gives the moment of inertia until the EOS is solved. Left out, it comes from `[worlds]` in `TidalPy_Configs.toml`: 0.4 (a uniform sphere), or 0.0754 for a star (an $n = 3$ polytrope). |
+| `[layers.<name>]` | **yes** (optional for a star) | all | One table per layer (see below). |
 | `[tides]` | optional | all | Tidal dissipation settings (see below). Omitted entirely, the world still gets a dissipation model from the `[tides]` defaults of `TidalPy_Configs.toml`. |
 
 World `type` maps to a class as follows:
 
 | `type` | Class |
 |--------|-------|
-| `terrestrial`, `layered` | `LayeredWorld` |
+| `terrestrial` | `TerrestrialWorld` |
 | `gasgiant` | `GasGiantWorld` |
-| `star` | `StarWorld` (no layers) |
+| `star` | `StarWorld` (layers optional) |
+| `layered` | `BaseWorld` |
 
 An omitted optional key falls back to the `[worlds]` block of `TidalPy_Configs.toml`, then to the C++ class default (see [Default Configuration Resolution](#default-configuration-resolution)). The loader never duplicates a default.
 
 ## Layer-Level Schema
 
-Each non-star world declares one or more `[layers.<layer_name>]` tables, keyed by the layer's name. Layers are ordered inner-to-outer by `layer_index` when given, otherwise by declaration order ([Geometry](#geometry) covers the radii).
+Each world other than a star declares one or more `[layers.<layer_name>]` tables (a star may declare them too), keyed by the layer's name. Layers are ordered inner-to-outer by `layer_index` when given, otherwise by declaration order ([Geometry](#geometry) covers the radii).
 
 The material defaults for a layer's `type` come from the `[layers.<type>]` blocks of `TidalPy_Configs.toml` (see [Default Configuration Resolution](#default-configuration-resolution)).
 
@@ -199,10 +200,10 @@ The per-degree lists of the `[tides]` block (`fixed_k = 0.3`, `fixed_q = 100` at
 | `eccentricity_trunc_lvl` | all | Eccentricity truncation level $N$: every product of two eccentricity functions, and so the heating, is kept through $e^N$ (see [Eccentricity Functions](../../Tides/eccentricity.md)). Tabulated at 2, 4, 6, 8, 10, 20, and 50, or `"exact"` for the functions from the exact orbit (any $e < 1$); default `10`. An untabulated level is promoted to the next tabulated one with a once-per-session warning, so accuracy never drops silently. `eccentricity_truncation` is accepted as an alias. |
 | `eccentricity_exact_tolerance` | all | For `eccentricity_trunc_lvl = "exact"`: the modes kept leave a $q^2$-weighted tail of the squared eccentricity functions below this fraction of the total, which bounds the relative error of the heating. In (0, 1); default `1e-4`. Ignored by the tabulated levels. |
 | `obliquity_trunc_lvl` | all | Obliquity truncation level $N$: every product of two obliquity functions (the heating) is kept through $I^N$. Tabulated at 0, 2, and 4; default `"off"`. `"off"` means 0 (no obliquity terms), and `"gen"` or `"general"` the general functions (exact at any obliquity). Level 2 stays within 1% of the general heating to $I \approx 8^\circ$, level 4 to $27^\circ$ ([Obliquity Functions](../../Tides/obliquity.md)). Untabulated integers are promoted like the eccentricity levels (1 to 2, and anything past 4 to `"gen"`). `obliquity_truncation` is accepted as an alias. |
-| `layer_tidal_heating` | layered families | Whether `calc_tides` also resolves each layer's heating when the Love numbers come from the radial solver, a volume integral of the radial solution that costs about as much as the global solve again. The other paths share out the heating at no extra cost. Default `true`. |
-| `love_method` | layered families | How the Love numbers are obtained: `radial_solver` (aliases `shooting`, `rs`; the default), `propagation_matrix` (`prop_matrix`, `pm`, `prop`), `homogeneous` (`homogen`), `cpl`, `ctl`, or `laterally_inhomogeneous` (`3d`, `lat_inhom`, reserved for the 3D solver: setting it raises `NotImplementedError`). The three homogeneous methods use the analytic homogeneous-sphere formulas instead of a radial solve, so they have no depth-resolved solution and the 3D stress, strain, and heating path raises `RuntimeError` while one of them is configured. |
-| `love_fixed_q` | layered families | Scalar $Q$ the `cpl` Love method applies to the static Love numbers. Unset by default, in which case the tide model's own `fixed_q` is used. |
-| `love_fixed_dt_s` | layered families | Scalar time lag \[s\] the `ctl` Love method applies. Unset by default, falling back to the tide model's `fixed_dt_s`. |
+| `layer_tidal_heating` | all | Whether `calc_tides` also resolves each layer's heating when the Love numbers come from the radial solver, a volume integral of the radial solution that costs about as much as the global solve again. The other paths share out the heating at no extra cost. Default `true`. |
+| `love_method` | all | How the Love numbers are obtained: `radial_solver` (aliases `shooting`, `rs`; the default), `propagation_matrix` (`prop_matrix`, `pm`, `prop`), `homogeneous` (`homogen`), `cpl`, `ctl`, or `laterally_inhomogeneous` (`3d`, `lat_inhom`, reserved for the 3D solver: setting it raises `NotImplementedError`). The three homogeneous methods use the analytic homogeneous-sphere formulas instead of a radial solve, so they have no depth-resolved solution and the 3D stress, strain, and heating path raises `RuntimeError` while one of them is configured. |
+| `love_fixed_q` | all | Scalar $Q$ the `cpl` Love method applies to the static Love numbers. Unset by default, in which case the tide model's own `fixed_q` is used. |
+| `love_fixed_dt_s` | all | Scalar time lag \[s\] the `ctl` Love method applies. Unset by default, falling back to the tide model's `fixed_dt_s`. |
 
 `global_tidal_model` (Love numbers to dissipation) and `love_method` (how the Love numbers are computed) are independent: a world can solve its Love numbers with the radial solver and still collapse them with an analytic tide model.
 
@@ -229,7 +230,7 @@ fixed_q = [1.0e5, 1.0e5, 1.0e5]
 
 ## Solver Settings (`[eos_solver]`, `[radial_solver]`)
 
-A layered world's file may pin the solver settings its results depend on, so the file and a TidalPy configuration file reproduce a run on another machine. The two tables take the keys of the same-named sections of `TidalPy_Configs.toml` (see [Configurations](../../Overview/2_TidalPy_Configurations.md)):
+A world's file may pin the solver settings its results depend on, so the file and a TidalPy configuration file reproduce a run on another machine. The two tables take the keys of the same-named sections of `TidalPy_Configs.toml` (see [Configurations](../../Overview/2_TidalPy_Configurations.md)):
 
 - `[eos_solver]`: `integration_method`, `rtol`, `atol`, `pressure_tol`, `max_iters`, `slices_per_layer`, `nondimensionalize`, and `solve_temperature`.
 - `[radial_solver]`: `integration_method`, `rtol`, `atol`, `use_kamata`, `start_radius_tolerance`, `scale_rtols`, `max_num_steps`, `expected_size`, `max_ram_mb`, and `nondimensionalize`.
@@ -314,7 +315,7 @@ model = "constant"
 reference_viscosity_pas = 1.0e21
 ```
 
-A star has no layers:
+A star needs no layers:
 
 ```toml
 schema_version = "0.2.0"
@@ -485,7 +486,7 @@ All entry points are re-exported from `TidalPy.Structures` and from `TidalPy.Str
 
 ### Low Level
 
-* `construct_world(config) -> LayeredWorld | GasGiantWorld | StarWorld`: validate a dict and build the underlying Cython world (and its layers).
+* `construct_world(config) -> BaseWorld`: validate a dict and build the underlying Cython world (and its layers).
 * `construct_layer(name, layer_cfg, layer_index, radius_inner, radius_outer) -> BaseLayer`: build a single layer and attach its physics models.
 * `save_world_to_toml(config, path, overwrite=True)`: serialize a config dict.
 

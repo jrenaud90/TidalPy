@@ -120,7 +120,7 @@ import numpy as np
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import Elastic, Maxwell
 from TidalPy.Structures.layers import BaseLayer
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds import TerrestrialWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Viscosity import make_viscosity
 
@@ -135,7 +135,7 @@ layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 
 layer.set_shear_rheology(Maxwell())
 layer.set_bulk_rheology(Elastic())
 
-world = LayeredWorld("io_like", radius, mass)
+world = TerrestrialWorld("io_like", radius, mass)
 world.add_layer(layer)
 world.solve_eos()
 world.set_tide_model(make_tide("rheology"))

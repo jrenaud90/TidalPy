@@ -1,6 +1,6 @@
 # Dynamics (`Dynamics`)
 
-_Updated: 2026-09-15_
+_Updated: 2026-09-29_
 
 `TidalPy.Dynamics` contains functionality to couple tidal dissipation with orbit-spin evolution. It takes the tidal-potential derivatives produced by a tidal solve and turns them into the instantaneous rates of change of a body's spin and orbit.
 
@@ -22,7 +22,7 @@ Spin and Orbital Rates <dynamics.md>
 
 The chain runs in one direction. A world's [rheology](../Rheology/index.md) gives its complex moduli; the [radial solver](../RadialSolver/index.md) turns those into Love numbers; the [tidal solve](../Tides/index.md) collapses the Kaula mode sum into a heating rate and the three potential derivatives $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$ with respect to the mean anomaly, the argument of pericenter, and the longitude of the node. This module consumes those three potential derivatives.
 
-A `LayeredWorld` holds a `Spin` model and drives it with its own moment of inertia from the equation-of-state solve, so the spin rate uses the structure-resolved value rather than a uniform-density estimate. See [Worlds](../Structures/worlds/worlds.md). A [System](../Structures/system/system.md) attaches an `OrbitSolver`, pulls the orbital state and potential derivatives from its worlds, and reports the full set of rates with an energy-balance diagnostic.
+Every world holds a `Spin` model and drives it with its own moment of inertia from the equation-of-state solve, so the spin rate uses the structure-resolved value rather than a uniform-density estimate. See [Worlds](../Structures/worlds/worlds.md). A [System](../Structures/system/system.md) attaches an `OrbitSolver`, pulls the orbital state and potential derivatives from its worlds, and reports the full set of rates with an energy-balance diagnostic.
 
 ## Examples
 

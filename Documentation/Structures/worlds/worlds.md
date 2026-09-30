@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-29_
 
-The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, and bulk geometry. A layered world also owns an ordered stack of [layers](../layers/base_layer.md) and runs the whole-planet equation-of-state and radial (Love number) solves.
+The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, bulk geometry, spin model, and tide model, and an ordered stack of [layers](../layers/base_layer.md), which may be empty. It runs the whole-planet equation-of-state, radial (Love number), and tidal solves.
 
 ## Inheritance
 
@@ -10,17 +10,17 @@ The world classes are the top-level structural objects in TidalPy. A world owns 
 TidalPyBaseClass
   └── StructureBase
         └── BaseWorld
-              ├── LayeredWorld
-              │     └── GasGiantWorld
+              ├── TerrestrialWorld
+              ├── GasGiantWorld
               └── StarWorld
 ```
 
-| Class | Layers? | EOS? | Purpose |
-|-------|---------|------|---------|
-| `BaseWorld` | no | no | Identity, albedo/emissivity/obliquity/spin, bulk geometry, equilibrium temperature. |
-| `StarWorld` | no | no | A star; effective temperature and luminosity linked by the Stefan-Boltzmann law. |
-| `GasGiantWorld` | yes | yes | Gas giant; a `LayeredWorld` with its own type/binary id. |
-| `LayeredWorld` | yes | yes | Terrestrial/layered body; owns layers, aggregates mass and heating, runs the whole-planet EOS solve. |
+| Class | TOML `type` | Purpose |
+|-------|-------------|---------|
+| `BaseWorld` | `layered` | A world: layers, identity, albedo/emissivity/obliquity/spin, bulk geometry, equilibrium temperature, spin and tide models, and the EOS, Love, and tidal solves. |
+| `TerrestrialWorld` | `terrestrial` | A rocky or icy planet or moon; a `BaseWorld` with its own type and binary id. |
+| `GasGiantWorld` | `gasgiant` | A gas giant; a `BaseWorld` with its own type and binary id. |
+| `StarWorld` | `star` | A star; adds the effective temperature and luminosity, linked by the Stefan-Boltzmann law. Usually has no layers. |
 
 ## `BaseWorld`
 
@@ -47,18 +47,17 @@ welcome_to_earth = BaseWorld(
 | `set_spin_frequency(ω)` | - | Set rotation rate [rad/s]. A `System` reads it when it builds the world's tidal state; `calc_tides` takes its spin rate as an argument, so a tidal result already solved is left alone. |
 | `set_obliquity(θ)` | - | Set axial obliquity [rad]. The same holds as for the spin rate. |
 
-`get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`, `type` (the builder's world type, from `get_builder_world_type()`), `radius`, `mass`, `albedo`, `emissivity`, `obliquity`, `spin_frequency`, and a `tides` table when a tide model is attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`). `save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`. `save_to_toml` validates the dict against the schema before writing when no build configuration is retained.
+`get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`, `type` (the builder's world type, from `get_builder_world_type()`), `radius_m`, `mass_kg`, `albedo`, `emissivity`, `obliquity_rad`, `spin_frequency_rad_s`, `moment_of_inertia_factor` (the spin model's), a `tides` table when a tide model is attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`), the `eos_solver` and `radial_solver` tables when the world pins any solver key, and a `layers` table when the world has layers. Each layer entry is the layer's own config dict (`class`, scalars, attached-model sub-tables) without the standalone-only keys the builder derives itself, so `build_world(world.get_config_dict())` rebuilds the same structure. `save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`. `save_to_toml` validates the dict against the schema before writing when no build configuration is retained.
 
+### Layers
 
-## `LayeredWorld`
-
-A world built from an ordered (inner-to-outer) stack of layers.
+A world holds an ordered (inner-to-outer) stack of layers.
 
 ```python
-from TidalPy.Structures.worlds import LayeredWorld
+from TidalPy.Structures.worlds import TerrestrialWorld
 from TidalPy.Structures.layers import SolidLiquidLayer
 
-world = LayeredWorld("Earth", 6.371e6, 5.972e24, world_type="terrestrial")
+world = TerrestrialWorld("Earth", 6.371e6, 5.972e24)
 world.add_layer(SolidLiquidLayer("core",   0, 0.0,     3.485e6, 1.932e24))
 world.add_layer(SolidLiquidLayer("mantle", 1, 3.485e6, 6.371e6, 4.040e24))
 ```
@@ -83,23 +82,21 @@ Python reaches a world's layers through non-owning views:
 | `world[a:b]` | a list of the sliced layer wrappers |
 | `world.layers` | a list of all layer wrappers, inner to outer |
 | `world.<layer_name>` | the layer with that name (e.g. `world.mantle`) |
-| `for layer in world:` | iterate the layers inner-to-outer; `len(world)` is the layer count |
+| `for layer in world:` | iterate the layers inner-to-outer; `len(world)` is the layer count (a world is always true, even with no layers) |
 
 Each view is dispatched to the matching subclass (`BaseLayer`/`SolidLiquidLayer`/`GasLayer`), so the layer's full API is available (`world.mantle.shear_modulus_static`, `world.mantle.get_tidal_heating()`, `world.core.calc_complex_shear_modulus(r, ω)`, ...). The view keeps the world alive, so it is safe to hold, but it must not be mutated through. Views are built once and cached (rebuilt only when a layer is added), so repeated access returns the same object (`world.mantle is world.mantle`). Access by layer name runs only after normal attribute lookup, so defined members win, and it ignores names starting with `_`.
-
-`get_config_dict()` adds a `layers` table keyed by layer name to the `BaseWorld` keys. Each entry is the layer's own config dict (`class`, scalars, attached-model sub-tables) without the standalone-only keys the builder derives itself, so `build_world(world.get_config_dict())` rebuilds the same structure.
 
 
 ### Equation of State
 
-Each layer carries a [material EOS model](../../Material/material_eos.md) as its density source, attached with `BaseLayer.set_eos(model)`. Once every layer has one, `LayeredWorld.solve_eos(...)` integrates the planet's radial structure from center to surface. It populates every layer's density, gravity, and pressure profile and sets each layer's `mass` (and so its `density_bulk`) to the mass the solved profile places between the layer's radii. Before the solve, a layer's mass is the value it was constructed with. The TOML builder uses 0.0 when a file gives none, which is the usual case.
+Each layer carries a [material EOS model](../../Material/material_eos.md) as its density source, attached with `BaseLayer.set_eos(model)`. Once every layer has one, `BaseWorld.solve_eos(...)` integrates the planet's radial structure from center to surface. It populates every layer's density, gravity, and pressure profile and sets each layer's `mass` (and so its `density_bulk`) to the mass the solved profile places between the layer's radii. Before the solve, a layer's mass is the value it was constructed with. The TOML builder uses 0.0 when a file gives none, which is the usual case.
 
 ```python
-from TidalPy.Structures.worlds import LayeredWorld
+from TidalPy.Structures.worlds import BaseWorld
 from TidalPy.Structures.layers import BaseLayer
 from TidalPy.Material.eos import make_material_eos
 
-world  = LayeredWorld("Earth", 6.371e6, 5.972e24)
+world  = BaseWorld("Earth", 6.371e6, 5.972e24)
 core   = BaseLayer("core", 0, 0.0, 3.485e6, 0.0)
 mantle = BaseLayer("mantle", 1, 3.485e6, 6.371e6, 0.0)
 core.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 11000.0}))
@@ -249,9 +246,9 @@ world.solve_eos(cfg);                        // populates each layer's c_LayerEO
 double rho = world.get_density(5.0e6);
 ```
 
-`c_LayeredWorld::solve_eos(const c_WorldEOSSolveConfig&)` generates the per-layer radius grids, estimates the bulk density, converts to the non-dimensional solve units, calls `Material/eos`'s `c_solve_eos` (CyRK ODE integration with the secant surface-pressure iteration), converts the solution back to SI, and slices it into each layer's `c_LayerEOSData`. It throws `std::invalid_argument` on bad input (`ValueError` in Cython via `except +`). The per-layer density source is `tidalpy::c_MaterialEOSBase`, attached via `c_BaseLayer::set_eos(std::unique_ptr<c_MaterialEOSBase>)` and observed through `get_eos()` (non-owning) and `get_eos_set()`. During integration the `c_preeval_material_eos` pre-eval (in `Material/eos/methods/material_.hpp`) dispatches to `model->calc_density(pressure, temperature, radius)` in SI. It is paired with the `c_MaterialEOSInput` struct, which holds the model pointer and the unit scales of the solve. The retained integrators carry only the four structure variables. The density, moduli, and viscosities at any radius are evaluated on demand from the interpolated state by the same EOS function, so a dense evaluation is a polynomial evaluation plus one model call.
+`c_BaseWorld::solve_eos(const c_WorldEOSSolveConfig&)` generates the per-layer radius grids, estimates the bulk density, converts to the non-dimensional solve units, calls `Material/eos`'s `c_solve_eos` (CyRK ODE integration with the secant surface-pressure iteration), converts the solution back to SI, and slices it into each layer's `c_LayerEOSData`. It throws `std::invalid_argument` on bad input (`ValueError` in Cython via `except +`). The per-layer density source is `tidalpy::c_MaterialEOSBase`, attached via `c_BaseLayer::set_eos(std::unique_ptr<c_MaterialEOSBase>)` and observed through `get_eos()` (non-owning) and `get_eos_set()`. During integration the `c_preeval_material_eos` pre-eval (in `Material/eos/methods/material_.hpp`) dispatches to `model->calc_density(pressure, temperature, radius)` in SI. It is paired with the `c_MaterialEOSInput` struct, which holds the model pointer and the unit scales of the solve. The retained integrators carry only the four structure variables. The density, moduli, and viscosities at any radius are evaluated on demand from the interpolated state by the same EOS function, so a dense evaluation is a polynomial evaluation plus one model call.
 
-`c_LayeredWorld` exposes `get_density/get_gravity/get_pressure(double) const` (delegating to the containing layer via `find_layer_for_radius`), the vectorized `get_eos_fields(field_indices, num_fields, radii, num_radii, values_out) const` (entries of the `eos_layout_.hpp` evaluation layout at every radius, field-major, under one hold of the call lock) and `calc_complex_moduli(is_shear, radii, num_radii, frequency, moduli_out) const`, the result accessors `get_eos_success/get_eos_message/get_eos_iterations/get_eos_pressure_error/` `get_surface_gravity_eos/get_surface_pressure_eos/get_central_pressure/` `get_planet_mass_eos/get_planet_moi_eos`, the retained full solution via `get_eos_solution() -> const c_EOSSolution*`, and `get_eos_solved()` / `get_all_eos_set()`. The Cython `LayeredWorld.solve_eos` wrapper converts the integration-method string to the CyRK enum, fills `c_WorldEOSSolveConfig`, calls the C++ method under `nogil`, and builds the Python result dict from the retained solution.
+`c_BaseWorld` exposes `get_density/get_gravity/get_pressure(double) const` (delegating to the containing layer via `find_layer_for_radius`), the vectorized `get_eos_fields(field_indices, num_fields, radii, num_radii, values_out) const` (entries of the `eos_layout_.hpp` evaluation layout at every radius, field-major, under one hold of the call lock) and `calc_complex_moduli(is_shear, radii, num_radii, frequency, moduli_out) const`, the result accessors `get_eos_success/get_eos_message/get_eos_iterations/get_eos_pressure_error/` `get_surface_gravity_eos/get_surface_pressure_eos/get_central_pressure/` `get_planet_mass_eos/get_planet_moi_eos`, the retained full solution via `get_eos_solution() -> const c_EOSSolution*`, and `get_eos_solved()` / `get_all_eos_set()`. The Cython `BaseWorld.solve_eos` wrapper converts the integration-method string to the CyRK enum, fills `c_WorldEOSSolveConfig`, calls the C++ method under `nogil`, and builds the Python result dict from the retained solution.
 
 ### Viscoelastic Properties (after EOS solve)
 
@@ -270,7 +267,7 @@ All of the above accept a float or `np.ndarray` for `r` (and `ω`); array inputs
 
 ### Calculating Love Numbers
 
-`LayeredWorld.solve_love_numbers(...)` calculates the viscoelastic-gravitational tidal or loading Love numbers $k$, $h$, $l$ at a tidal forcing frequency.
+`BaseWorld.solve_love_numbers(...)` calculates the viscoelastic-gravitational tidal or loading Love numbers $k$, $h$, $l$ at a tidal forcing frequency.
 
 `love_method` selects the method (names are case-insensitive; aliases in parentheses):
 
@@ -304,13 +301,13 @@ The analytic methods have no radial functions (the radial-function getters, such
 The world's default method, used when its tide model needs Love numbers inside `calc_tides`, is set with `set_tide_config(love_method=..., love_fixed_q=..., love_fixed_dt=...)` or the `[tides]` keys `love_method`, `love_fixed_q`, `love_fixed_dt_s` in a world TOML file. `solve_love_numbers` takes the method per call.
 
 ```python
-from TidalPy.Structures.worlds import LayeredWorld
+from TidalPy.Structures.worlds import BaseWorld
 from TidalPy.Structures.layers import SolidLiquidLayer
 from TidalPy.Material.eos import make_material_eos
 from TidalPy.Rheology import make_rheology
 from TidalPy.Viscosity import make_viscosity
 
-world = LayeredWorld("planet", 6.0e6, 4.2e24)
+world = BaseWorld("planet", 6.0e6, 4.2e24)
 layer = SolidLiquidLayer("mantle", 0, 0.0, 6.0e6, 4.2e24)
 layer.set_eos(make_material_eos(
     "constant", {"reference_density_kg_m3": 4000.0, "shear_modulus_static_pa": 6.0e10, "bulk_modulus_static_pa": 1.3e11}))
@@ -392,7 +389,7 @@ std::complex<double> k2 = world.get_love_number_k(0);
 
 A default-constructed `c_LoveSolveConfig` (and `c_WorldEOSSolveConfig`) reads the `[radial_solver]` (`[eos_solver]`) section of the shared runtime config, so C++ callers and the tide paths start from the same defaults as Python callers.
 
-`c_LayeredWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a cached helper, `c_WorldRadialSolver` (held by `p_radial_solver`). The helper separates the frequency-independent setup (built once and reused) from the frequency-dependent work (recomputed on every call), which speeds up frequency sweeps and orbital evolution.
+`c_BaseWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a cached helper, `c_WorldRadialSolver` (held by `p_radial_solver`). The helper separates the frequency-independent setup (built once and reused) from the frequency-dependent work (recomputed on every call), which speeds up frequency sweeps and orbital evolution.
 
 The non-dimensionalization is frequency-independent (the `c_NonDimensionalScales` time scale is $1/\sqrt{\pi G \bar{\rho}}$ for the bulk density $\bar{\rho}$, not $1/\omega$). Only the complex moduli and the shooting integration change between calls at different frequencies.
 
@@ -405,7 +402,7 @@ A Love solve writes everything it produces (the cached radial solver and its sto
 
 ### Global (1D) Tidal Dissipation
 
-`LayeredWorld.calc_tides(...)` calculates the body's total tidal heating and three orbital potential partial derivatives by summing over the active tidal modes (the global or "1D potential" approach). A tide model (see [Global Tidal Dissipation](../../Tides/global_tides.md)) supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}]$. The world runs the global-potential engine for its stored `[tides]` config and the supplied orbital and spin state, collapses, and resolves each layer's share of the heating.
+`BaseWorld.calc_tides(...)` calculates the body's total tidal heating and three orbital potential partial derivatives by summing over the active tidal modes (the global or "1D potential" approach). A tide model (see [Global Tidal Dissipation](../../Tides/global_tides.md)) supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}]$. The world runs the global-potential engine for its stored `[tides]` config and the supplied orbital and spin state, collapses, and resolves each layer's share of the heating.
 
 #### Tidal Heating of Each Layer
 
@@ -459,7 +456,7 @@ world.get_tidal_love_k(2, 2, 0, 0)    # complex k₂ for the (l,m,p,q) = (2,2,0,
 | `set_tide_config(min_degree_l=None, max_degree_l=None, eccentricity_truncation=None, obliquity_truncation=None, layer_tidal_heating=None, eccentricity_exact_tolerance=None, love_method=None, love_fixed_q=None, love_fixed_dt=None)` | - | Change the stored `[tides]` truncation/degree settings (`eccentricity_truncation` a level or `"exact"`, with `eccentricity_exact_tolerance` its mode range; see [Eccentricity Functions](../../Tides/eccentricity.md); `obliquity_truncation` 0 or `"off"`, 2, 4, or `"gen"`; see [Obliquity Functions](../../Tides/obliquity.md)), whether `calc_tides` resolves each layer's heating on the radial-solver path, and the world's default Love-number method (see [Calculating Love Numbers](#calculating-love-numbers)). Only the arguments given change; the rest keep their current values (`get_tide_config()`). A NaN `love_fixed_q` or `love_fixed_dt` clears it. |
 | `get_tide_config()` | dict | The stored settings under the builder's `[tides]` key names (`*_trunc_lvl`). |
 | `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | - | Run the global tidal solve. |
-| `tides_solved` | bool | Whether a successful solve is held. A new tide model or tide configuration clears it, and so does a layered world's `solve_eos`, after which the heating and potential-derivative getters return NaN and each layer's `get_tidal_heating()` does too, until the next `calc_tides`. |
+| `tides_solved` | bool | Whether a successful solve is held. A new tide model or tide configuration clears it, and so does `solve_eos`, after which the heating and potential-derivative getters return NaN and each layer's `get_tidal_heating()` does too, until the next `calc_tides`. |
 | `get_tidal_heating()` | float [W] | Total global tidal heating (NaN if unsolved). |
 | `get_tidal_potential_derivatives()` | tuple | `(dUdM, dUdw, dUdO)` [J kg⁻¹ rad⁻¹]. |
 | `get_tidal_dU_dM_minus_dw()` | float | The per-mode sum of `dUdM - dUdw` [J kg⁻¹ rad⁻¹], to pass as `dU_dM_minus_dw` to `OrbitSolver.calc_de_dt`: at small eccentricity the two separate sums nearly cancel in $\dot{e}$. NaN if unsolved. |
@@ -494,9 +491,13 @@ Each layer also stores its own tidal heating: `layer.get_tidal_heating()` (C++ `
 
 **Pinned solver settings.** `set_solver_defaults(eos_solver=None, radial_solver=None)` pins keys of the `[eos_solver]` and `[radial_solver]` configuration sections on this world, and `get_solver_defaults()` returns them. A world file's tables of the same names are applied here. A call's own argument wins over a pinned key, and a pinned key wins over the TidalPy configuration for every solve the world runs. An unpinned key follows the configuration. `get_config_dict()` includes the tables.
 
+## `TerrestrialWorld`
+
+A `BaseWorld` whose `world_type` defaults to `"terrestrial"`, with its own binary class id. It has the same API as `BaseWorld`; rocky and icy planets and moons, the bundled ones included, are built as terrestrial worlds.
+
 ## `GasGiantWorld`
 
-A `LayeredWorld` whose `world_type` defaults to `"gasgiant"`. It has the same API as `LayeredWorld` and is usually populated with `GasLayer`s.
+A `BaseWorld` whose `world_type` defaults to `"gasgiant"`, with its own binary class id. It has the same API as `BaseWorld` and is usually populated with `GasLayer`s.
 
 ```python
 from TidalPy.Structures.worlds import GasGiantWorld
@@ -508,7 +509,7 @@ jupiter.add_layer(GasLayer("envelope", 0, 0.0, 7.0e7, 1.898e27))
 
 ## `StarWorld`
 
-A star: no layers, no EOS. Effective temperature and luminosity are kept consistent through the Stefan-Boltzmann law, $L = 4\pi R^{2}\sigma T^{4}$.
+A star: a `BaseWorld` that adds an effective temperature and luminosity, kept consistent through the Stefan-Boltzmann law, $L = 4\pi R^{2}\sigma T^{4}$. A star usually has no layers. It may hold them and solve its EOS like any world, and the TOML builder accepts `[layers.<name>]` tables for a star, but it needs neither.
 
 ```python
 from TidalPy.Structures.worlds import StarWorld
@@ -520,15 +521,16 @@ sun.set_luminosity(3.828e26)  # recomputes effective_temperature
 
 **Properties:** `effective_temperature` [K], `luminosity` [W]. **Methods:** `calc_luminosity_from_temperature(T)`, `calc_temperature_from_luminosity(L)`, `set_effective_temperature(T)`, `set_luminosity(L)`. A luminosity-model hierarchy (fixed, mass-to-luminosity, power law) can be attached via `set_luminosity_model` (see `Stellar/luminosity.md`).
 
-**Tides.** The analytic tide pipeline (`set_tide_model`/`set_tide_config`/`calc_tides` and the `get_tidal_*` accessors) is defined on `BaseWorld`, so a star can use the analytic tide models (`cpl`, `ctl`, `ctl_q`). The `rheology` model needs the radial solver and a layered interior, so `calc_tides` raises if it is selected on a star. A star has no per-layer heating. See [Global tidal dissipation](#global-1d-tidal-dissipation).
+**Tides.** A star without layers uses the analytic tide models (`cpl`, `ctl`, `ctl_q`); the `rheology` model needs layers and a solved EOS, so `calc_tides` raises if it is selected on a star that has neither. See [Global (1D) Tidal Dissipation](#global-1d-tidal-dissipation).
+
+**Spin.** A star carries a spin model like every world, so a `System` evolves its spin rate. Without a solved EOS its moment of inertia is `moment_of_inertia_factor` $\times\,M R^{2}$. The builder takes the factor from `[worlds.star]` in the TidalPy configuration, 0.0754 (an $n = 3$ polytrope, a Sun-like star, as the `[tides.star]` Love numbers assume); a fully convective M dwarf is closer to 0.205 ($n = 1.5$). Set `moment_of_inertia_factor` in the star's TOML, or call `set_spin_model`, to change it.
 
 
 ## Binary Serialization
 
 A world's binary file ([Binary Serialization](../../Utilities/binary.md)) holds the whole world graph, every layer with its attached models, and every setting that changes a result, so a loaded world computes what the saved one did:
 
-- Every world type: the tide model and its configuration (`get_tide_config()`: degrees, truncations, Love method, `love_fixed_q`, `love_fixed_dt`, `layer_tidal_heating`).
-- `LayeredWorld` and `GasGiantWorld`: the spin model's `moment_of_inertia_factor` and the pinned solver settings (`get_solver_defaults()`).
+- Every world type: the tide model and its configuration (`get_tide_config()`: degrees, truncations, Love method, `love_fixed_q`, `love_fixed_dt`, `layer_tidal_heating`), the spin model's `moment_of_inertia_factor`, the pinned solver settings (`get_solver_defaults()`), and every layer.
 - `StarWorld`: the luminosity model.
 
 Solved state is not saved. The EOS profile (`c_LayerEOSData`), Love numbers, and tide results are recomputed with `solve_eos` and `calc_tides` after a load. Loading into an existing world replaces all of these, so a record saved without a tide model leaves the world without one.

@@ -8,7 +8,7 @@ from TidalPy.Structures.configs import build_system
 from TidalPy.Structures.configs.world_builder import construct_world
 from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION, WORLD_TYPES, validate_world_config
 from TidalPy.Structures.worlds.base import BUILDER_WORLD_TYPES, BaseWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Material.eos.material_eos import BirchMurnaghanEOS, ConstantDensityEOS
@@ -53,7 +53,7 @@ def test_bundled_world_rebuilds_from_config_dict(world_name):
     assert rebuilt.mass == pytest.approx(world.mass)
     assert rebuilt.get_tide_config() == world.get_tide_config()
     assert _nan_equal(rebuilt.get_config_dict(), cfg)
-    if isinstance(world, LayeredWorld):
+    if len(world) > 0:
         assert list(cfg["layers"]) == [layer.name for layer in world]
         world.solve_eos(verbose=False)
         rebuilt.solve_eos(verbose=False)
@@ -79,7 +79,7 @@ def test_directly_built_world_writes_a_buildable_file(world_name, tmp_path):
 def test_hand_built_world_rebuilds_from_config_dict():
     radius = 6.0e6
     mass = (4.0 / 3.0) * math.pi * radius ** 3 * 4000.0
-    world = LayeredWorld("handmade", radius, mass)
+    world = TerrestrialWorld("handmade", radius, mass)
     core = BaseLayer(
         "core",
         0,
@@ -212,7 +212,7 @@ def test_bare_base_world_fallback_save_is_rejected(tmp_path):
 
 
 def test_duplicate_layer_names_are_rejected():
-    world = LayeredWorld("dup", 2.0e6, 1.0e22)
+    world = BaseWorld("dup", 2.0e6, 1.0e22)
     world.add_layer(BaseLayer(
         "shell",
         0,

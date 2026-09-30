@@ -8,47 +8,47 @@ from CyRK cimport ODEMethod
 from TidalPy.RadialSolver.rs_solution cimport c_RadialSolutionStorage
 
 
-# The world types are redeclared here rather than cimported from Structures.worlds.layered, which declares
+# The world types are redeclared here rather than cimported from Structures.worlds.base, which declares
 # the same C++ classes. A cimport would be compile-time for these plain C++ declarations, but Cython also emits
-# a runtime import of every extension type the cimported .pxd declares (LayeredWorld, and through its own
-# cimports BaseWorld and BaseLayer). RadialSolver/__init__ imports this module and layered.pyx cimports
+# a runtime import of every extension type the cimported .pxd declares (BaseWorld, and through its own
+# cimports BaseLayer). RadialSolver/__init__ imports this module and base.pyx cimports
 # RadialSolver.rs_solution, so that runtime import would close an import cycle. Only the members this module
 # calls are declared; the header itself is the single definition, so a signature that changes there fails to
 # compile here rather than drifting silently.
-cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
+cdef extern from "base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_WorldEOSSolveConfig:
-        double    surface_pressure
-        size_t    slices_per_layer
+        double surface_pressure
+        size_t slices_per_layer
         ODEMethod integration_method
-        double    rtol
-        double    atol
-        double    pressure_tol
-        size_t    max_iters
-        cpp_bool  nondimensionalize
+        double rtol
+        double atol
+        double pressure_tol
+        size_t max_iters
+        cpp_bool nondimensionalize
 
     cdef cppclass c_LoveSolveConfig:
-        double    frequency
-        int       degree_l
-        void      set_bc_models(const int* models_ptr, size_t num_models) except +
-        int       love_method
-        int       core_model
-        cpp_bool  use_kamata
-        cpp_bool  nondimensionalize
-        double    starting_radius
-        double    start_radius_tol
+        double frequency
+        int degree_l
+        void set_bc_models(const int* models_ptr, size_t num_models) except +
+        int love_method
+        int core_model
+        cpp_bool use_kamata
+        cpp_bool nondimensionalize
+        double starting_radius
+        double start_radius_tol
         ODEMethod integration_method
-        double    rtol
-        double    atol
-        cpp_bool  scale_rtols
-        size_t    max_num_steps
-        size_t    expected_size
-        size_t    max_ram_MB
-        double    max_step
-        cpp_bool  verbose
-        cpp_bool  warnings
+        double rtol
+        double atol
+        cpp_bool scale_rtols
+        size_t max_num_steps
+        size_t expected_size
+        size_t max_ram_MB
+        double max_step
+        cpp_bool verbose
+        cpp_bool warnings
 
-    cdef cppclass c_LayeredWorld:
+    cdef cppclass c_BaseWorld:
         c_WorldEOSSolveConfig make_eos_solve_config() const
         void solve_eos(const c_WorldEOSSolveConfig& cfg) except +
         cpp_bool get_eos_success() const
@@ -64,7 +64,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
 
 
 cdef extern from "profile_world_.hpp" namespace "tidalpy":
-    shared_ptr[c_LayeredWorld] c_build_world_from_layered_profile(
+    shared_ptr[c_BaseWorld] c_build_world_from_layered_profile(
         const double* radius_ptr,
         const double* density_ptr,
         const double* shear_modulus_ptr,

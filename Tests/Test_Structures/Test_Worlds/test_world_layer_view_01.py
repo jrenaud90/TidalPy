@@ -1,10 +1,10 @@
-"""Non-owning layer views returned by a LayeredWorld (dispatch, sequence protocol, caching, lifetime)."""
+"""Non-owning layer views returned by a BaseWorld (dispatch, sequence protocol, caching, lifetime)."""
 import gc
 import math
 
 import pytest
 
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
@@ -18,7 +18,7 @@ _R_CORE  = 0.5 * _R
 def _two_layer_world():
     """A solidliquid core and physics mantle (distinct subclasses to test dispatch)."""
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0
-    world = LayeredWorld("planet", _R, mass)
+    world = BaseWorld("planet", _R, mass)
     core = SolidLiquidLayer(
         "core",
         0,
@@ -134,7 +134,7 @@ def test_views_are_cached_built_once():
 def test_cache_invalidated_on_add_layer():
     """Adding a layer invalidates the view cache."""
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0
-    world = LayeredWorld("planet", _R, mass)
+    world = BaseWorld("planet", _R, mass)
     world.add_layer(BaseLayer(
         "core",
         0,

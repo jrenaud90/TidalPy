@@ -1,11 +1,11 @@
-"""Rheology tide model in LayeredWorld.calc_tides: per-frequency radial Love solves on a dissipative Maxwell sphere."""
+"""Rheology tide model in BaseWorld.calc_tides: per-frequency radial Love solves on a dissipative Maxwell sphere."""
 import cmath
 import math
 
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
@@ -43,7 +43,7 @@ def _uniform_layer(tidal_scale=None):
 def _rheology_world():
     """Single solid Maxwell sphere with a rheology tide model."""
     layer, mass = _uniform_layer(tidal_scale=_TIDAL_SCALE)
-    world = LayeredWorld("rheo_planet", _PLANET_RADIUS, mass)
+    world = BaseWorld("rheo_planet", _PLANET_RADIUS, mass)
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
@@ -122,7 +122,7 @@ def test_layer_heating_nan_before_solve():
 def test_analytic_model_love_k_is_nan():
     """An analytic (cpl) model leaves the per-mode Love numbers NaN."""
     layer, mass = _uniform_layer()
-    world = LayeredWorld("cpl_planet", _PLANET_RADIUS, mass)
+    world = BaseWorld("cpl_planet", _PLANET_RADIUS, mass)
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     world.add_layer(layer)

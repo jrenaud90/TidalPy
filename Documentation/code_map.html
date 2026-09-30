@@ -202,8 +202,8 @@ const NODES = [
   // ---- Configuration and building ----
   { id: 'build_world', lane: 'config', kind: 'py', shape: 'func', star: true,
     label: 'build_world(source)', file: 'Structures/configs/world_builder.py',
-    purpose: 'Entry point for worlds: a bundled name, a .toml path, or a dict becomes a LayeredWorld, ' +
-      'GasGiantWorld, or StarWorld with every layer and physics model attached. build_world_from_dict and ' +
+    purpose: 'Entry point for worlds: a bundled name, a .toml path, or a dict becomes a TerrestrialWorld, ' +
+      'GasGiantWorld, StarWorld, or BaseWorld with every layer and physics model attached. build_world_from_dict and ' +
       'build_layer_from_dict rebuild an object from the dict its get_config_dict returns. A bundled name that ' +
       'resolves to a data-directory copy differing from the packaged file is reported once (worldpack.py).',
     inputs: 'bundled world name, TOML path, or config dict', outputs: 'world object with source_config retained' },
@@ -251,8 +251,8 @@ const NODES = [
     inputs: 'update_constants at import and reinit', outputs: 'd_G, floors, solver defaults read by C++' },
 
   // ---- Worlds and layers ----
-  { id: 'LayeredWorld', lane: 'structures', kind: 'cycdef', shape: 'class',
-    label: 'LayeredWorld', sub: 'GasGiantWorld, StarWorld', file: 'Structures/worlds/layered.pyx',
+  { id: 'BaseWorld', lane: 'structures', kind: 'cycdef', shape: 'class',
+    label: 'BaseWorld', sub: 'TerrestrialWorld, GasGiantWorld, StarWorld', file: 'Structures/worlds/base.pyx',
     purpose: 'The Python face of a world: its layers, tide model, and spin; solve_eos, solve_love_numbers, ' +
       'calc_tides, and the 3D tide methods; get_config_dict, save_to_toml, and binary save and load.',
     inputs: 'name, radius, mass, world scalars', outputs: 'a world that owns its C++ object' },
@@ -262,8 +262,8 @@ const NODES = [
       'its physics models (set_eos, set_shear_rheology, set_shear_viscosity, set_partial_melt, set_cooling, ' +
       'set_radiogenics).',
     inputs: 'name, index, inner and outer radius, mass, moduli', outputs: 'a layer ready for add_layer' },
-  { id: 'c_LayeredWorld', lane: 'structures', kind: 'cpp', shape: 'class',
-    label: 'c_LayeredWorld', sub: 'layered_.hpp', file: 'Structures/worlds/layered_.hpp',
+  { id: 'c_BaseWorld', lane: 'structures', kind: 'cpp', shape: 'class',
+    label: 'c_BaseWorld', sub: 'base_.hpp', file: 'Structures/worlds/base_.hpp',
     purpose: 'Owns its layers (unique_ptr, inner to outer), the retained EOS solution, the cached radial solver, ' +
       'the tide model, and the spin model; runs the whole-planet solves; serializes the layer stack. solve_eos ' +
       'calls mark_structure_dirty first, so the Love numbers, the tidal result, and the heating of every layer that ' +
@@ -272,12 +272,12 @@ const NODES = [
   { id: 'c_build_world_from_layered_profile', lane: 'structures', kind: 'cpp', shape: 'func',
     label: 'c_build_world_from_layered_profile', sub: 'profile_world_.hpp',
     file: 'Structures/worlds/profile_world_.hpp',
-    purpose: 'Builds a layered world from a radial profile entirely in C++: each layer takes an interpolated ' +
+    purpose: 'Builds a world from a radial profile entirely in C++: each layer takes an interpolated ' +
       'material EOS over its own slice (partitioned by c_partition_radius_by_layer), is_tidal follows is_solid, ' +
       'and no per-material defaults are pulled in. Backs the standalone radial_solver and ' +
       'build_layered_world_from_profile, so the two build the same world.',
     inputs: 'radius, density, static moduli, layer radii, layer types and flags, bulk density',
-    outputs: 'shared_ptr<c_LayeredWorld>' },
+    outputs: 'shared_ptr<c_BaseWorld>' },
   { id: 'c_BaseLayer', lane: 'structures', kind: 'cpp', shape: 'class',
     label: 'c_BaseLayer', sub: 'c_SolidLiquidLayer, c_GasLayer', file: 'Structures/layers/base_.hpp',
     purpose: 'Holds its models (unique_ptr; the models observe the layer through raw pointers), the EOS profile ' +
@@ -295,7 +295,7 @@ const NODES = [
 
   // ---- Equation of state ----
   { id: 'solve_eos', lane: 'eos', kind: 'cydef', shape: 'func', star: true,
-    label: 'LayeredWorld.solve_eos(...)', file: 'Structures/worlds/layered.pyx',
+    label: 'BaseWorld.solve_eos(...)', file: 'Structures/worlds/base.pyx',
     purpose: 'Solves the whole-planet structure, and with it the temperature and heat flow when the layers differ ' +
       'in temperature or are heated. Every solver setting left as None takes the [eos_solver] value of the ' +
       'configuration.',
@@ -303,7 +303,7 @@ const NODES = [
     outputs: 'dict: success, iterations, profiles, mass, moment of inertia, central pressure, per-layer heat ' +
       'flows, heating, and temperature rates' },
   { id: 'c_solve_eos_world', lane: 'eos', kind: 'cpp', shape: 'func',
-    label: 'c_LayeredWorld::solve_eos', file: 'Structures/worlds/layered_.hpp',
+    label: 'c_BaseWorld::solve_eos', file: 'Structures/worlds/base_.hpp',
     purpose: 'Converts to non-dimensional units, prepares the heat sources, lays out the thermal segments ' +
       '(thermal_layout_.hpp), and runs the solver once per thermal pass, relaxing the boundary layers, interface ' +
       'temperatures, heat flows, and floating layer radii between passes. Starts each solve from the last ' +
@@ -351,7 +351,7 @@ const NODES = [
     inputs: 'radius, density, complex bulk and shear arrays, frequency, layer types and flags, degree, solve_for',
     outputs: 'RadialSolverSolution' },
   { id: 'solve_love_numbers', lane: 'radial', kind: 'cydef', shape: 'func', star: true,
-    label: 'LayeredWorld.solve_love_numbers(...)', file: 'Structures/worlds/layered.pyx',
+    label: 'BaseWorld.solve_love_numbers(...)', file: 'Structures/worlds/base.pyx',
     purpose: 'World entry point: Love numbers at one frequency and degree from the solved EOS and the layer ' +
       'rheologies. love_method left unset follows the world [tides] setting (radial_solver, propagation_matrix, ' +
       'homogeneous, cpl, ctl).',
@@ -363,7 +363,7 @@ const NODES = [
       'helpers. It holds the world it came from, which its interior getters read.',
     inputs: 'the solution storage', outputs: 'Love numbers, radial functions at any radius, diagnostics' },
   { id: 'c_solve_love_world', lane: 'radial', kind: 'cpp', shape: 'func',
-    label: 'c_LayeredWorld::solve_love_numbers', file: 'Structures/worlds/layered_.hpp',
+    label: 'c_BaseWorld::solve_love_numbers', file: 'Structures/worlds/base_.hpp',
     purpose: 'Ensures the radial cache matches the EOS and layer flags, installs a state provider (one dense EOS ' +
       'read plus each layer rheology at the frequency, or the supplied moduli profile), and solves; the analytic ' +
       'methods take the volume-averaged modulus instead.',
@@ -392,19 +392,19 @@ const NODES = [
 
   // ---- Tides ----
   { id: 'calc_tides', lane: 'tides', kind: 'cydef', shape: 'func', star: true,
-    label: 'LayeredWorld.calc_tides(...)', file: 'Structures/worlds/layered.pyx',
+    label: 'BaseWorld.calc_tides(...)', file: 'Structures/worlds/base.pyx',
     purpose: 'Global 1D tidal dissipation for one orbital state. The [tides] config sets the degrees, truncations, ' +
       'and Love method; the attached tide model sets how -Im k_l is obtained.',
     inputs: 'orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis, host mass',
     outputs: 'tidal heating, dU/dM, dU/dw, dU/dOmega, per-layer heating, per-mode Love numbers' },
   { id: 'calc_3d_tides', lane: 'tides', kind: 'cydef', shape: 'func', star: true,
-    label: 'LayeredWorld.calc_3d_tides(...)', sub: 'get_3d_tidal_heating, calc_3d_displacements',
-    file: 'Structures/worlds/layered.pyx',
+    label: 'BaseWorld.calc_3d_tides(...)', sub: 'get_3d_tidal_heating, calc_3d_displacements',
+    file: 'Structures/worlds/base.pyx',
     purpose: '3D stress, strain, displacements, and heating on radius, colatitude, longitude, and time grids, or ' +
       'collapsed totals and profiles. Needs the rheology tide model and a solved EOS.',
     inputs: 'orbital state, grid axes, collapse flags, threads', outputs: 'heating density grids, profiles, totals' },
   { id: 'c_calc_tides', lane: 'tides', kind: 'cpp', shape: 'func',
-    label: 'c_LayeredWorld::calc_tides', sub: 'world_tides_.hpp', file: 'Structures/worlds/world_tides_.hpp',
+    label: 'c_BaseWorld::calc_tides', sub: 'world_tides_.hpp', file: 'Structures/worlds/world_tides_.hpp',
     purpose: 'Runs the potential engine, solves the Love numbers once per unique (degree, |frequency|), collapses ' +
       'the modes, stores the result, and distributes the heating to the tidal layers.',
     inputs: 'c_TideSolveConfig', outputs: 'c_GlobalTideResult on the world' },
@@ -478,13 +478,13 @@ const NODES = [
 // Calls between boxes. kind 'member' marks a method drawn under its class (dashed, no purpose).
 const EDGES = [
   // Membership (dashed).
-  { from: 'LayeredWorld', to: 'solve_eos', kind: 'member' },
-  { from: 'LayeredWorld', to: 'solve_love_numbers', kind: 'member' },
-  { from: 'LayeredWorld', to: 'calc_tides', kind: 'member' },
-  { from: 'LayeredWorld', to: 'calc_3d_tides', kind: 'member' },
-  { from: 'c_LayeredWorld', to: 'c_solve_eos_world', kind: 'member' },
-  { from: 'c_LayeredWorld', to: 'c_solve_love_world', kind: 'member' },
-  { from: 'c_LayeredWorld', to: 'c_calc_tides', kind: 'member' },
+  { from: 'BaseWorld', to: 'solve_eos', kind: 'member' },
+  { from: 'BaseWorld', to: 'solve_love_numbers', kind: 'member' },
+  { from: 'BaseWorld', to: 'calc_tides', kind: 'member' },
+  { from: 'BaseWorld', to: 'calc_3d_tides', kind: 'member' },
+  { from: 'c_BaseWorld', to: 'c_solve_eos_world', kind: 'member' },
+  { from: 'c_BaseWorld', to: 'c_solve_love_world', kind: 'member' },
+  { from: 'c_BaseWorld', to: 'c_calc_tides', kind: 'member' },
   { from: 'tide_models', to: 'c_calc_3d', kind: 'member' },
   { from: 'System', to: 'calc_world_evolution', kind: 'member' },
   { from: 'c_System', to: 'c_calc_world_evolution', kind: 'member' },
@@ -495,7 +495,7 @@ const EDGES = [
     inputs: 'bundled name, .toml path, or dict', outputs: 'normalized, schema-checked config dict' },
   { from: 'build_world', to: 'construct_world', flow: 'build', type: 'call',
     purpose: 'Construct the world named by `type` and add its layers inner to outer.',
-    inputs: 'validated config', outputs: 'LayeredWorld, GasGiantWorld, or StarWorld' },
+    inputs: 'validated config', outputs: 'TerrestrialWorld, GasGiantWorld, StarWorld, or BaseWorld' },
   { from: 'construct_world', to: 'config', flow: 'build', type: 'call',
     purpose: 'Resolve every omitted value from the [layers.<type>] (or [layers.default]), [worlds], and [tides] ' +
       'sections; the world file always wins.',
@@ -506,7 +506,7 @@ const EDGES = [
   { from: 'construct_world', to: 'BaseLayer', flow: 'build', type: 'make',
     purpose: 'Build each layer from its scalars, with the inner radius taken from the previous layer.',
     inputs: 'constructor keywords (radius_outer, mass, moduli, flags)', outputs: 'layer wrapper with models attached' },
-  { from: 'construct_world', to: 'LayeredWorld', flow: 'build', type: 'make',
+  { from: 'construct_world', to: 'BaseWorld', flow: 'build', type: 'make',
     purpose: 'Create the world, add the layers, and wire the [tides] table and tide model (rheology, fixed_q, ' +
       'fixed_dt, ctl_q).',
     inputs: 'name, radius, mass, world scalars, layers', outputs: 'world wrapper with source_config' },
@@ -517,7 +517,7 @@ const EDGES = [
   { from: 'BaseLayer', to: 'c_BaseLayer', flow: 'build', type: 'make',
     purpose: 'The wrapper owns the C++ layer and moves each model into it (set_eos, set_shear_rheology, ...).',
     inputs: 'unique_ptr models', outputs: 'a C++ layer holding its models' },
-  { from: 'LayeredWorld', to: 'c_LayeredWorld', flow: 'build', type: 'make',
+  { from: 'BaseWorld', to: 'c_BaseWorld', flow: 'build', type: 'make',
     purpose: 'add_layer validates continuity and moves the layer in; the wrapper keeps a non-owning view of it.',
     inputs: 'unique_ptr<c_BaseLayer>', outputs: 'the layer stack (world.<layer_name>, for layer in world)' },
   { from: 'c_BaseLayer', to: 'models', flow: 'build', type: 'call',
@@ -620,10 +620,10 @@ const EDGES = [
     purpose: 'Validate the arrays and flags, resolve every None argument from [radial_solver] and [eos_solver], ' +
       'then build a temporary world from the profile in C++: an interpolated material per layer. The same ' +
       'routine backs build_world_from_layered_profile, so neither can drift from the other.',
-    inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary c_LayeredWorld' },
-  { from: 'c_build_world_from_layered_profile', to: 'c_LayeredWorld', flow: 'love', type: 'make',
+    inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary c_BaseWorld' },
+  { from: 'c_build_world_from_layered_profile', to: 'c_BaseWorld', flow: 'love', type: 'make',
     purpose: 'Create the world and add each interpolated-EOS layer inner to outer.',
-    inputs: 'one c_BaseLayer per profile layer', outputs: 'the layered world, ready for solve_eos' },
+    inputs: 'one c_BaseLayer per profile layer', outputs: 'the world, ready for solve_eos' },
   { from: 'radial_solver', to: 'solve_eos', flow: 'love', type: 'call',
     purpose: 'Solve the temporary world structure with the EOS settings given.',
     inputs: 'surface pressure, EOS settings', outputs: 'a solved world' },
@@ -701,7 +701,7 @@ const EDGES = [
     purpose: 'c_OrbitSolver turns dU/dM and dU/dw into da/dt, de/dt, dn/dt; c_Spin turns dU/dOmega into dspin/dt ' +
       'with the EOS moment of inertia. The energy residual checks heating = -(dE_orbit/dt + dE_spin/dt).',
     inputs: 'orbit state, potential derivatives, moment of inertia', outputs: 'orbital and spin rates' },
-  { from: 'c_System', to: 'c_LayeredWorld', flow: 'system', type: 'call',
+  { from: 'c_System', to: 'c_BaseWorld', flow: 'system', type: 'call',
     purpose: 'Insolation flux, equilibrium temperature, and the Kepler helpers read the worlds masses, radii, ' +
       'albedo, emissivity, and the star luminosity model.',
     inputs: 'world index', outputs: 'flux [W m-2], temperature [K], orbital frequency' },

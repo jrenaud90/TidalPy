@@ -9,7 +9,7 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import Maxwell
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.love import calc_homogeneous_love_numbers
 from TidalPy.Viscosity import make_viscosity
@@ -50,7 +50,7 @@ def _layer(
 
 def _two_layer(core_scale=None, mantle_scale=None, core_tidal=True):
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
-    world = LayeredWorld("scaled", _R, mass)
+    world = BaseWorld("scaled", _R, mass)
     world.add_layer(_layer("core", 0, 0.0, _R_CORE, 8.0e10, 1.0e22, tidal_scale=core_scale, is_tidal=core_tidal))
     world.add_layer(_layer("mantle", 1, _R_CORE, _R, 5.0e10, 1.0e14, tidal_scale=mantle_scale))
     world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
@@ -126,7 +126,7 @@ def test_the_world_love_number_is_the_scaled_sum_of_the_layers():
 def test_a_one_layer_planet_is_the_homogeneous_sphere():
     """A one-layer planet's homogeneous k2 is the closed-form homogeneous sphere's."""
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
-    world = LayeredWorld("single", _R, mass)
+    world = BaseWorld("single", _R, mass)
     world.add_layer(_layer("mantle", 0, 0.0, _R, 5.0e10, 1.0e14))
     world.solve_eos()
     k2 = world.solve_love_numbers(frequency=_N, degree_l=2, love_method="homogeneous")["love_number_k"]

@@ -31,12 +31,12 @@ def _build_world(core_state):
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Rheology.rheology import Maxwell
     from TidalPy.Structures.layers.base import BaseLayer
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Viscosity import make_viscosity
 
     layer_masses = [(4.0 / 3.0) * math.pi * (r_outer ** 3 - r_inner ** 3) * density
                     for _, r_inner, r_outer, density, _, _ in _LAYERS]
-    world = LayeredWorld("interfaces", _RADIUS, sum(layer_masses))
+    world = BaseWorld("interfaces", _RADIUS, sum(layer_masses))
     for index, (layer_data, mass) in enumerate(zip(_LAYERS, layer_masses)):
         name, r_inner, r_outer, density, shear, viscosity = layer_data
         if name == "core" and core_state == "liquid_zero_shear":

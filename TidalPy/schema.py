@@ -150,20 +150,18 @@ _COMMON_WORLD_KEYS = (
     "emissivity",
     "obliquity_rad",
     "spin_frequency_rad_s",
+    # C / (M R^2) of the world's spin model: its moment of inertia until the EOS is solved.
+    "moment_of_inertia_factor",
 )
 _STAR_WORLD_KEYS = (
     "effective_temperature_k",
     "luminosity_w"
 )
-_LAYERED_WORLD_KEYS = (
-    # C / (M R^2) of the world's spin model: its moment of inertia until the EOS is solved.
-    "moment_of_inertia_factor",
-)
 
 ALLOWED_WORLD_SCALAR_KEYS = {
-    "layered":     frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
-    "terrestrial": frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
-    "gasgiant":    frozenset(_COMMON_WORLD_KEYS + _LAYERED_WORLD_KEYS),
+    "layered":     frozenset(_COMMON_WORLD_KEYS),
+    "terrestrial": frozenset(_COMMON_WORLD_KEYS),
+    "gasgiant":    frozenset(_COMMON_WORLD_KEYS),
     "star":        frozenset(_COMMON_WORLD_KEYS + _STAR_WORLD_KEYS),
 }
 
@@ -192,7 +190,7 @@ ALLOWED_TIDES_KEYS = frozenset((
     "love_fixed_dt_s",
 ))
 
-# The [eos_solver] and [radial_solver] keys a layered world's file may pin, under the same names as the
+# The [eos_solver] and [radial_solver] keys a world's file may pin, under the same names as the
 # TidalPy_Configs.toml sections. Each maps to its required type and the open lower bound it must exceed
 # (None for a bool or a string); a float key also takes an int.
 _SOLVER_KEY_RULES = {

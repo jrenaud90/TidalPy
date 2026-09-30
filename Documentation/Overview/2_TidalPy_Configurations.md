@@ -116,7 +116,7 @@ If true, TidalPy merges a file named "TidalPy_Configs.toml" found in the current
 
 ## Solver Defaults
 
-The `[eos_solver]` and `[radial_solver]` sections set the defaults for every whole-planet EOS solve and every shooting-method Love-number solve: `LayeredWorld.solve_eos` and `solve_love_numbers`, the standalone `RadialSolver.radial_solver`, and the solves that `calc_tides` and the 3D tidal maps run internally. A call overrides only the arguments it passes, so a configuration file plus a world or system TOML fixes every numerical setting of a result.
+The `[eos_solver]` and `[radial_solver]` sections set the defaults for every whole-planet EOS solve and every shooting-method Love-number solve: `BaseWorld.solve_eos` and `solve_love_numbers`, the standalone `RadialSolver.radial_solver`, and the solves that `calc_tides` and the 3D tidal maps run internally. A call overrides only the arguments it passes, so a configuration file plus a world or system TOML fixes every numerical setting of a result.
 
 | Key | `[eos_solver]` | `[radial_solver]` |
 |---|---|---|

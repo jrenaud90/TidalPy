@@ -61,7 +61,7 @@ rs.love      # k, h, l
 
 Everything in that layout is frequency-independent, so its `shear_modulus` and `bulk_modulus` are the unrelaxed ones. A viscoelastic response is a property of a rheology at a forcing frequency rather than of the equation of state, so the `complex_shear_modulus` and `complex_bulk_modulus` fields come from a second read: `get_complex_shear_modulus(radius)` and `get_complex_bulk_modulus(radius)` reproduce the moduli the solve actually used by calling a world-attached rheology (shared with the solution, so it can outlive the world if applicable) at the frequency it recorded in `love_frequency`, and a solve handed its moduli as arrays interpolates those arrays. At the C++ level the solver reads the same values in one call through `c_EOSSolution::call_material`, which returns a `c_EOSMaterialState` (gravity, density, and both complex moduli) whatever the solution was built from.
 
-At the C++ level the same is available on `c_RadialSolutionStorage` (`get_radial_solution`, `get_radial_solution_array`, `get_surface_y`, `get_eos_si`, with `get_radial_solution_nondim` for a radius in solve units) and, for a built world, on `c_LayeredWorld` (`get_radial_solution_y`, `get_love_surface_y`).
+At the C++ level the same is available on `c_RadialSolutionStorage` (`get_radial_solution`, `get_radial_solution_array`, `get_surface_y`, `get_eos_si`, with `get_radial_solution_nondim` for a radius in solve units) and, for a built world, on `c_BaseWorld` (`get_radial_solution_y`, `get_love_surface_y`).
 
 ## Validation
 

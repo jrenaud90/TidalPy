@@ -1,4 +1,4 @@
-// world_radial_solver_.hpp: cached whole-planet Love-number solver owned by c_LayeredWorld.
+// world_radial_solver_.hpp: cached whole-planet Love-number solver owned by c_BaseWorld.
 //
 // build_cache stores the frequency-independent setup once per EOS solve; solve then only non-dimensionalizes
 // the complex moduli the world filled for the forcing frequency, runs the shooting or propagation-matrix
@@ -13,9 +13,9 @@
 #include <string>
 #include <vector>
 
-#include "../constants_.hpp"                                // TidalPyConstants
-#include "../Utilities/math/numerics_.hpp"                  // c_isclose
-#include "../Utilities/arrays/layer_partition_.hpp"           // c_partition_radius_by_layer
+#include "../constants_.hpp"                              // TidalPyConstants
+#include "../Utilities/math/numerics_.hpp"                // c_isclose
+#include "../Utilities/arrays/layer_partition_.hpp"       // c_partition_radius_by_layer
 #include "../Utilities/dimensions/nondimensional_.hpp"    // c_NonDimensionalScales
 #include "rs_constants_.hpp"
 #include "rs_solution_.hpp"

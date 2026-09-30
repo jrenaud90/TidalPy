@@ -9,7 +9,7 @@ import pytest
 
 from TidalPy.Structures.configs import build_world
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 
 
 _G = 6.674e-11
@@ -146,7 +146,7 @@ def _synchronous_tides(world, period_days, host_mass, eccentricity):
 @pytest.mark.parametrize("body", _BODY_CASES)
 def test_bundled_body_builds_with_its_stated_bulk_properties(body):
     world = build_world(body.name)
-    assert isinstance(world, LayeredWorld)
+    assert isinstance(world, BaseWorld)
     assert world.radius == pytest.approx(body.radius, rel=1e-12)
     assert world.mass == pytest.approx(body.mass, rel=1e-12)
     assert [layer.name for layer in world] == body.layers

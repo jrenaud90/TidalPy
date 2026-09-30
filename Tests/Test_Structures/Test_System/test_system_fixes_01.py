@@ -10,7 +10,7 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Structures.configs.system_builder import build_system_from_dict
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.system import System
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Tides.classes.tide import make_tide
 
@@ -20,7 +20,7 @@ AU = 1.495978707e11  # [m]
 def _body(name, radius=1.0e6, density=3000.0, fixed_q=None):
     """A uniform layered body, with an analytic fixed-Q tide model when fixed_q is given."""
     mass = 4.0 / 3.0 * math.pi * radius**3 * density
-    world = LayeredWorld(name, radius, mass)
+    world = BaseWorld(name, radius, mass)
     layer = BaseLayer("mantle", 0, 0.0, radius, mass)
     layer.set_eos(ConstantDensityEOS(reference_density=density, shear_modulus_static=5.0e10))
     world.add_layer(layer)

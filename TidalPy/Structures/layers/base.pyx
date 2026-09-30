@@ -400,7 +400,7 @@ cdef class BaseLayer(StructureBase):
 
         Used only by the quasi-homogeneous Love methods (``homogeneous``, ``cpl``, ``ctl``) and to share out the
         heating of an analytic tide model; the radial solver resolves the layers directly. Settable; ``None``
-        returns to the volume fraction. The value in use is ``LayeredWorld.get_layer_tidal_scale``.
+        returns to the volume fraction. The value in use is ``BaseWorld.get_layer_tidal_scale``.
         """
         self._check_ptr()
         cdef double value = self._layer_ptr.get().get_tidal_scale()
@@ -414,7 +414,7 @@ cdef class BaseLayer(StructureBase):
     def get_tidal_heating(self) -> float:
         """Tidal heating [W] deposited in this layer by the world's last tidal solve. NaN before one runs.
 
-        Set by :meth:`LayeredWorld.calc_tides`; how the heating is resolved per layer depends on the world's Love
+        Set by :meth:`BaseWorld.calc_tides`; how the heating is resolved per layer depends on the world's Love
         method (see the worlds documentation, Tidal Heating of Each Layer).
         """
         self._check_ptr()

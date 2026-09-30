@@ -167,9 +167,8 @@ Worlds carry their layers and world-scale models the same way:
 
 | World | Recursively serialized sub-objects |
 |---|---|
-| `c_BaseWorld` | tide model (after the tide configuration scalars) |
-| `c_LayeredWorld`, `c_GasGiantWorld` | tide model, then every layer in index order (the spin model's moment-of-inertia factor and the pinned solver settings are scalars in the payload) |
-| `c_StarWorld` | tide model, luminosity model |
+| `c_BaseWorld`, `c_TerrestrialWorld`, `c_GasGiantWorld` | tide model (after the tide configuration scalars), then every layer in index order (the spin model's moment-of-inertia factor and the pinned solver settings are scalars in the payload) |
+| `c_StarWorld` | the `c_BaseWorld` sub-objects, then the luminosity model |
 
 > [!NOTE]
 > The equation-of-state profile data is never serialized, because it is derived from the attached model: `solve_eos` runs directly on a loaded world and regenerates it.
@@ -182,7 +181,7 @@ Each concrete class needs a unique id so the dispatch factories can reconstruct 
 |---|---|---|
 | 1-3 | Base classes | `TidalPyBase` 1, `StructureBase` 2, `PhysicsBase` 3 |
 | 100-199 | Layers | `BaseLayer` 100, `SolidLiquidLayer` 102, `GasLayer` 103 |
-| 200-299 | Worlds and systems | `BaseWorld` 200, `LayeredWorld` 201, `GasGiantWorld` 202, `StarWorld` 203, `System` 210 |
+| 200-299 | Worlds and systems | `BaseWorld` 200, `TerrestrialWorld` 201, `GasGiantWorld` 202, `StarWorld` 203, `System` 210 |
 | 300-399 | Rheology | `RheologyBase` 300, `Elastic` 301, `Viscous` 302, `Voigt` 303, `Maxwell` 304, `Burgers` 305, `Andrade` 306, `Sundberg` 307, `Zener` 308, `SeismicQ` 309 |
 | 400-499 | Cooling | `CoolingBase` 400, `OffCooling` 401, `ConvectiveCooling` 402, `ConductiveCooling` 403 |
 | 500-599 | Radiogenics | `RadiogenicsBase` 500, `OffRadiogenics` 501, `IsotopeRadiogenics` 502, `FixedRadiogenics` 503 |

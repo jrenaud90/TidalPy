@@ -10,7 +10,7 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology.rheology import Elastic, Maxwell
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.potential import global_potential
 from TidalPy.Utilities.logging.logger import flush_logger, init_logger
@@ -50,7 +50,7 @@ def spdlog_text(tmp_path):
 
 def _world(eccentricity_truncation=2):
     """One compressible, static Maxwell layer solved with the shooting method."""
-    world = LayeredWorld("homogeneous", _R, _MASS)
+    world = BaseWorld("homogeneous", _R, _MASS)
     layer = BaseLayer("mantle", 0, 0.0, _R, _MASS)
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=6.0e10, bulk_modulus_static=2.0e11))

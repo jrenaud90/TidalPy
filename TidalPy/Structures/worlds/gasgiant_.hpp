@@ -1,24 +1,23 @@
 #pragma once
 /*
- * gasgiant_.hpp: c_GasGiantWorld, a layered world representing a gas giant.
+ * gasgiant_.hpp: c_GasGiantWorld, a world representing a gas giant.
  *
- * Functionally a c_LayeredWorld (it owns layers and supports the whole-planet EOS solve), distinguished by its
- * world type and a dedicated BinaryClassID so it can be rebuilt as the correct subclass.
+ * Functionally a c_BaseWorld (it owns layers and supports the whole-planet EOS solve), distinguished by its world
+ * type and a dedicated BinaryClassID so it can be rebuilt as the correct subclass.
  */
 
 #include <cstdint>
 #include <memory>
-#include <ostream>
 
-#include "layered_.hpp"
+#include "base_.hpp"
 
 namespace tidalpy {
 
-class c_GasGiantWorld : public c_LayeredWorld {
+class c_GasGiantWorld : public c_BaseWorld {
 public:
     c_GasGiantWorld() { this->p_world_type = "gasgiant"; }
 
-    explicit c_GasGiantWorld(const c_WorldConfig& cfg) : c_LayeredWorld(cfg) {
+    explicit c_GasGiantWorld(const c_WorldConfig& cfg) : c_BaseWorld(cfg) {
         if (this->p_world_type.empty() || this->p_world_type == "world") {
             this->p_world_type = "gasgiant";
         }

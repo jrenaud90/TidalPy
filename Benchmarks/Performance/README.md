@@ -32,11 +32,11 @@ Register a zero-argument callable in `tasks/common_tasks.py`:
 
 ```python
 from harness import benchmark
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 
 @benchmark("build_layered_world", group="structures")
 def _build_layered_world():
-    LayeredWorld("planet", 6.371e6, 5.972e24)
+    BaseWorld("planet", 6.371e6, 5.972e24)
 ```
 
 Do one-time construction in a `setup=` callback or at module scope so the timed call measures the operation itself, not its setup. Prefer tasks that mirror what the demos teach, so the tracked numbers reflect real usage.

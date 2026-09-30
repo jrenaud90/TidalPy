@@ -1,4 +1,4 @@
-"""The 3D tidal heating grid and its collapsed, secular, and instantaneous forms (``LayeredWorld.calc_3d_tides``)."""
+"""The 3D tidal heating grid and its collapsed, secular, and instantaneous forms (``BaseWorld.calc_3d_tides``)."""
 import math
 
 import numpy as np
@@ -23,14 +23,14 @@ _SUMMED = dict(latitude_summed=True, longitude_summed=True, radial_summed=True)
 
 
 def _build_world(two_layer=False, soft_shell=False):
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
     from TidalPy.Rheology.rheology import Maxwell, Elastic
     from TidalPy.Tides.classes.tide import make_tide
 
-    world = LayeredWorld("w", _R, _MASS)
+    world = BaseWorld("w", _R, _MASS)
 
     def _mk(name, idx, r_in, r_out, shear=_SHEAR, shear_visc=_VISC):
         mass = (4.0 / 3.0) * math.pi * (r_out ** 3 - r_in ** 3) * _DENSITY

@@ -1,6 +1,6 @@
 #pragma once
 /*
- * heating_.hpp: the heat generated inside a layered world, as the thermal structure solve reads it.
+ * heating_.hpp: the heat generated inside a world, as the thermal structure solve reads it.
  *
  * c_Heating belongs to a world and sums that world's heat sources into a volumetric heating h(r) [W m-3]. The
  * structure ODE integrates dL/dr = 4 pi r^2 h, so the heat flow L(r) and the conductive temperature profile

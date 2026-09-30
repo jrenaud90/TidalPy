@@ -1,4 +1,4 @@
-"""Instantaneous tidal stress and strain grids (``LayeredWorld.calc_3d_stress_strain``): layout, validation, and
+"""Instantaneous tidal stress and strain grids (``BaseWorld.calc_3d_stress_strain``): layout, validation, and
 agreement with the point helpers and with the gradient of the displacement grid."""
 import math
 
@@ -10,7 +10,7 @@ from TidalPy.constants import G, mass_trap1
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology.rheology import Elastic, Maxwell
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.worlds.layered import STRESS_STRAIN_COMPONENTS, LayeredWorld
+from TidalPy.Structures.worlds.base import STRESS_STRAIN_COMPONENTS, BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.multilayer.stress_strain import strain_stress_heating_point
 from TidalPy.Tides.potential import tidal_potential_3d_modes
@@ -40,7 +40,7 @@ _CASES = [
 
 
 def _build_world(max_degree_l=2, obliquity_truncation=0, tide_model="rheology", solve_eos=True):
-    world = LayeredWorld("w", _R, _MASS)
+    world = BaseWorld("w", _R, _MASS)
     layer = BaseLayer(
         "mantle",
         0,
@@ -248,7 +248,7 @@ _CORE_DENSITY = 8000.0
 def _liquid_core_world(core_is_static):
     """A liquid core under the Maxwell mantle of ``_build_world``."""
     mass = (4.0 / 3.0) * math.pi * (_R_CORE ** 3 * _CORE_DENSITY + (_R ** 3 - _R_CORE ** 3) * _DENSITY)
-    world = LayeredWorld("w", _R, mass)
+    world = BaseWorld("w", _R, mass)
     core = BaseLayer("core", 0, 0.0, _R_CORE, 0.0, is_solid=False, is_static=core_is_static)
     core.set_eos(ConstantDensityEOS(
         reference_density=_CORE_DENSITY, shear_modulus_static=0.0, bulk_modulus_static=2.0 * _BULK))

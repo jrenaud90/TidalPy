@@ -11,7 +11,7 @@ from TidalPy.constants import G
 from TidalPy.Structures import build_world, construct_world, available_worlds, save_world_to_toml
 from TidalPy.Structures.configs import world_builder, config_kind, worldpack
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
 
@@ -86,13 +86,13 @@ _GASGIANT = {
 
 
 @pytest.mark.parametrize("config, expected_class, num_layers", [
-    pytest.param(_terrestrial_dict(), LayeredWorld, 2, id="terrestrial"),
-    pytest.param(_terrestrial_edited(("type",), "layered"), LayeredWorld, 2, id="layered-alias"),
+    pytest.param(_terrestrial_dict(), TerrestrialWorld, 2, id="terrestrial"),
+    pytest.param(_terrestrial_edited(("type",), "layered"), BaseWorld, 2, id="layered-is-the-base-class"),
     pytest.param(_GASGIANT, GasGiantWorld, 1, id="gasgiant"),
 ])
 def test_construct_layered_family_class(config, expected_class, num_layers):
     world = construct_world(config)
-    assert isinstance(world, expected_class)
+    assert type(world) is expected_class
     assert world.num_layers == num_layers
 
 
@@ -113,7 +113,7 @@ def test_baseworld_build_dispatches_to_subclass():
 def test_build_world_returns_cython_world():
     """build_world returns the Cython world itself, not a wrapper, and keeps the normalized config."""
     world = build_world(_terrestrial_dict())
-    assert isinstance(world, LayeredWorld)
+    assert isinstance(world, TerrestrialWorld)
     assert world.name == "TestEarth"
     assert world.world_type == "terrestrial"
     assert world.num_layers == 2

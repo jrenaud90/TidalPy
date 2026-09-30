@@ -34,7 +34,7 @@ from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution, c_RadialSolu
 from TidalPy.RadialSolver.rs_solution cimport cy_check_surface_solve_conditioning
 from TidalPy.Tides.love.love cimport c_parse_love_method_int
 # The world types and the C++ profile builder come from this module's own .pxd, which redeclares them rather
-# than cimporting Structures.worlds.layered; see the note there for why that import cannot be used.
+# than cimporting Structures.worlds.base; see the note there for why that import cannot be used.
 
 
 # Nothing a caller can see reads this; it is here so a C++ message about that world says where it came from.
@@ -48,7 +48,7 @@ cdef class _ProfileWorldAnchor:
     Python. It must outlive the solution, though, because the material provider the Love solve installed on
     the solution reads this world's solved EOS; `RadialSolverSolution._adopt` keeps this object alive for it.
     """
-    cdef shared_ptr[c_LayeredWorld] world_sptr
+    cdef shared_ptr[c_BaseWorld] world_sptr
 
 
 cdef cpp_bool cy_resolve_prop_matrix(str love_method) except *:
@@ -61,7 +61,7 @@ cdef cpp_bool cy_resolve_prop_matrix(str love_method) except *:
     raise ValueError(
         f"The array-based radial_solver supports love_method 'radial_solver' (aliases 'shooting', 'rs') and "
         f"'propagation_matrix' (aliases 'prop_matrix', 'pm', 'prop') only; '{love_method}' needs a built world "
-        f"(LayeredWorld.solve_love_numbers) or the closed-form functions in TidalPy.Tides.love.")
+        f"(BaseWorld.solve_love_numbers) or the closed-form functions in TidalPy.Tides.love.")
 
 
 def radial_solver(
@@ -278,8 +278,8 @@ def radial_solver(
     # becomes a Python object on its way to the solver.
     cdef vector[double] shear_static
     cdef vector[double] bulk_static
-    cdef shared_ptr[c_LayeredWorld] world_sptr
-    cdef c_LayeredWorld* world_ptr = NULL
+    cdef shared_ptr[c_BaseWorld] world_sptr
+    cdef c_BaseWorld* world_ptr = NULL
     cdef c_WorldEOSSolveConfig eos_cfg
     cdef unique_ptr[c_RadialSolutionStorage] storage_uptr
     cdef _ProfileWorldAnchor world_anchor

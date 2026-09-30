@@ -24,7 +24,7 @@ from TidalPy.Utilities.logging.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Structures.worlds.base cimport BaseWorld
-from TidalPy.Structures.worlds.layered cimport LayeredWorld
+from TidalPy.Structures.worlds.terrestrial cimport TerrestrialWorld
 from TidalPy.Structures.worlds.gasgiant cimport GasGiantWorld
 from TidalPy.Structures.worlds.stellar cimport StarWorld
 
@@ -32,12 +32,8 @@ from TidalPy.Structures.worlds.stellar cimport StarWorld
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
 
-# Pull in the out-of-line (inline) definitions of the world tidal solves so the system can drive a
-# world's tides directly in C++. world_tides_base_.hpp defines the analytic c_BaseWorld::calc_tides;
-# world_tides_.hpp defines the layered c_LayeredWorld::calc_tides (rheology + layer heat distribution),
-# whose rheology path runs the CyRK-backed radial solver (linked via the CyRK cimport in system.pxd).
-cdef extern from "world_tides_base_.hpp" nogil:
-    pass
+# Pull in the out-of-line (inline) definition of c_BaseWorld::calc_tides so the system can drive a world's tides
+# directly in C++. Its rheology path runs the CyRK-backed radial solver (linked via the CyRK cimport in system.pxd).
 cdef extern from "world_tides_.hpp" nogil:
     pass
 
@@ -45,12 +41,12 @@ cdef extern from "world_tides_.hpp" nogil:
 cdef BaseWorld cy_wrap_world(shared_ptr[c_BaseWorld] ptr):
     """Wrap a C++ world (e.g. one loaded by c_System::read_binary) as the matching Python wrapper.
 
-    Dispatches on the world's concrete type so a layered / gas-giant / star world comes back as its own
-    wrapper class (with its layered / star methods), not a bare BaseWorld.
+    Dispatches on the world's concrete type so a terrestrial / gas-giant / star world comes back as its own
+    wrapper class (a star with its stellar methods), not a bare BaseWorld.
     """
     cdef int kind = c_world_kind(ptr.get())
     if kind == 1:
-        return LayeredWorld._wrap(ptr)
+        return TerrestrialWorld._wrap(ptr)
     if kind == 2:
         return GasGiantWorld._wrap(ptr)
     if kind == 3:
@@ -189,8 +185,8 @@ cdef class System:
         Parameters
         ----------
         world : BaseWorld
-            An initialized world (``LayeredWorld`` / ``GasGiantWorld`` / ``StarWorld``). The system
-            co-owns it; the wrapper stays fully usable.
+            An initialized world (``BaseWorld`` or a subclass: ``TerrestrialWorld``, ``GasGiantWorld``,
+            ``StarWorld``). The system co-owns it; the wrapper stays fully usable.
         tidal_host : int or str or BaseWorld, optional
             The world that raises this world's tides, already a member of the system and identified by
             index, name, or the world object. ``None`` leaves the world without a tidal host; name one
@@ -571,7 +567,7 @@ cdef class System:
         Rebuilds the heterogeneous world list from the stream (each world's concrete type is
         recovered from its record) and the Python wrappers around it. Each world comes back with its tide
         model and ``[tides]`` settings, spin model, pinned solver settings, and (for a star) luminosity
-        model; solved state is not saved, so call ``solve_eos`` on each layered world before evolving.
+        model; solved state is not saved, so call ``solve_eos`` on each world with layers before evolving.
 
         Parameters
         ----------

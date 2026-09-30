@@ -419,7 +419,7 @@ A world attaches these models to its layers from its TOML file or dict, so most 
 - Obliquity was on or off in 0.7.X. 0.8.0 offers `"off"`, levels 2 and 4, and the general functions `"gen"`.
 - Degrees 2 to 10 are supported (2 to 7 in 0.7.X).
 - Tidal modes are keyed by $(l, m, p, q)$ instead of names such as `'2o-n'`: `world.get_tidal_love_k(l, m, p, q)`.
-- The grid potential functions (`tidal_potential_nsr`, `tidal_potential_obliquity_nsr`, and the others, with their `use_static` switch) and the multilayer mode collapse are replaced by `LayeredWorld.calc_3d_tides` and `calc_3d_displacements` (see [3D Tidal Stress, Strain, and Heating](Tides/multilayer_3d_heating.md)). `calculate_displacements` is replaced by `TidalPy.Tides.displacement_point` and `calc_3d_displacements`.
+- The grid potential functions (`tidal_potential_nsr`, `tidal_potential_obliquity_nsr`, and the others, with their `use_static` switch) and the multilayer mode collapse are replaced by `BaseWorld.calc_3d_tides` and `calc_3d_displacements` (see [3D Tidal Stress, Strain, and Heating](Tides/multilayer_3d_heating.md)). `calculate_displacements` is replaced by `TidalPy.Tides.displacement_point` and `calc_3d_displacements`.
 - The `tides.love1d` helpers are in `TidalPy.Tides.love`: `calc_effective_rigidity(shear_modulus, density, gravity, radius, degree_l=2)` (the argument order changed from `effective_rigidity(shear_modulus, gravity, radius, density)`), `calc_homogeneous_love_numbers(complex_shear_modulus, density, gravity, radius, degree_l=2)` in place of `complex_love`, and `apply_fixed_q` and `apply_fixed_dt`.
 
 ```python
@@ -510,7 +510,7 @@ The global tidal heating rows use the homogeneous Love method, which solves the 
 The 0.8.0 standalone radial solver wraps the world path. It builds a temporary world from the supplied arrays, solves that world's equation of state, and integrates the Love-number equations against the same dense structure the world path uses.
 
 > [!TIP]
-> We recommend the world-based approach. It is as fast as the standalone solver, and reusing a constructed `LayeredWorld` is much faster than repeated calls to the standalone radial solver: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes.
+> We recommend the world-based approach. It is as fast as the standalone solver, and reusing a constructed `BaseWorld` is much faster than repeated calls to the standalone radial solver: its equation of state is solved once, its Love solves are cached per degree and frequency, and `calc_tides` reuses them across modes.
 
 The two versions take identical integration steps on these problems, so the whole gap is the cost of each right-hand-side read. 0.8.0 evaluates the equation-of-state interpolant for gravity, the interpolated material for density and both static moduli, and the two supplied complex-modulus arrays. 0.7.X did four linear interpolations of its input arrays. The equation-of-state solve itself takes a tenth of the time, the temporary world a twentieth, and the Python-side handling about as long as the world build. The dense read is more accurate. Against the closed-form homogeneous sphere, the 0.8.0 degree-2 k2 is 2.6 times closer (6.8e-5 against 1.8e-4). The two versions agree to 1e-15 on the one-layer worlds and 6e-10 on the three-layer one at the tolerances timed here (`integration_rtol` 1e-8, `integration_atol` 1e-12, both versions).
 

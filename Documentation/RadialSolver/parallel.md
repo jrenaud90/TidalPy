@@ -1,8 +1,8 @@
 # Parallel Love Solves
 
-_Updated: 2026-09-28_
+_Updated: 2026-09-29_
 
-Both entry points to the radial solver, the standalone `radial_solver` and `LayeredWorld.solve_love_numbers`, release Python's interpreter lock while the solve runs, so a thread pool can run several solves at once. A process pool works as well, with the setup described below. `calc_tides` and the 3D grid methods also use threads of their own, described at the end.
+Both entry points to the radial solver, the standalone `radial_solver` and `BaseWorld.solve_love_numbers`, release Python's interpreter lock while the solve runs, so a thread pool can run several solves at once. A process pool works as well, with the setup described below. `calc_tides` and the 3D grid methods also use threads of their own, described at the end.
 
 The speedups quoted below were measured on a 16-thread desktop with 64 forcing frequencies and 16 threads. They depend on the problem size and the machine, so time your own workload.
 

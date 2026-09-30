@@ -1,4 +1,4 @@
-"""The cached radial Love solver on LayeredWorld reproduces uncached results and rebuilds after an EOS re-solve."""
+"""The cached radial Love solver on BaseWorld reproduces uncached results and rebuilds after an EOS re-solve."""
 
 import cmath
 import math
@@ -17,14 +17,14 @@ _SHEAR_VISC    = 1.0e21    # [Pa s]
 
 def _solid_world():
     """Single solid uniform Maxwell sphere."""
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
     from TidalPy.Rheology.rheology import Maxwell
 
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    world = LayeredWorld("solid_planet", _PLANET_RADIUS, mass)
+    world = BaseWorld("solid_planet", _PLANET_RADIUS, mass)
     layer = BaseLayer(
         "mantle",
         0,

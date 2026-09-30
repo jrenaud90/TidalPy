@@ -15,7 +15,7 @@ from TidalPy.Radiogenics import make_radiogenics
 from TidalPy.Rheology import make_rheology
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.worlds import LayeredWorld
+from TidalPy.Structures.worlds import BaseWorld
 from TidalPy.Tides import make_tide
 from TidalPy.Utilities.logging.logger import flush_logger, init_logger
 from TidalPy.Viscosity import make_viscosity
@@ -226,7 +226,7 @@ def test_a_failed_load_keeps_the_layer_views(tmp_path):
 def _hot_layer_world(law, temperature):
     """A one-layer world whose material's thermal pressure alpha0 K0 (T - T_ref) can push it past the tension end."""
     radius = 5.0e5
-    world = LayeredWorld("hot", radius, 4.0 / 3.0 * np.pi * radius**3 * 3000.0)
+    world = BaseWorld("hot", radius, 4.0 / 3.0 * np.pi * radius**3 * 3000.0)
     layer = BaseLayer("mantle", 0, 0.0, radius, 0.0, temperature=temperature, use_thermal_eos=True)
     layer.set_eos(make_material_eos(law, {
         "reference_density_kg_m3": 3300.0,
@@ -267,7 +267,7 @@ def test_a_layer_past_the_compression_end_warns(spdlog_text):
     core_radius = 3.4e6
     radius = 6.4e6
     mass = 4.0 / 3.0 * np.pi * (core_radius**3 * 8000.0 + (radius**3 - core_radius**3) * 4000.0)
-    world = LayeredWorld("turnover", radius, mass)
+    world = BaseWorld("turnover", radius, mass)
     core = BaseLayer("core", 0, 0.0, core_radius, 0.0)
     core.set_eos(make_material_eos("bm", {
         "reference_density_kg_m3": 8000.0,

@@ -50,12 +50,12 @@ def _world():
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Rheology.rheology import Maxwell
     from TidalPy.Structures.layers.base import BaseLayer
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Tides.classes.tide import make_tide
     from TidalPy.Viscosity import make_viscosity
 
     density = _MASS / ((4.0 / 3.0) * math.pi * _RADIUS ** 3)
-    world = LayeredWorld("threads", _RADIUS, _MASS)
+    world = BaseWorld("threads", _RADIUS, _MASS)
     layers = (("core", 0.0, 0.45 * _RADIUS, 1.0e11, 1.0e22), ("mantle", 0.45 * _RADIUS, _RADIUS, 6.0e10, 1.0e15))
     for index, (name, r_inner, r_outer, shear, viscosity) in enumerate(layers):
         mass = (4.0 / 3.0) * math.pi * (r_outer ** 3 - r_inner ** 3) * density

@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-29_
 
-`TidalPy.RadialSolver.radial_solver` is the array-based entry point to the viscoelastic-gravitational solve. You hand it a radial grid with density and complex moduli on it, a forcing frequency, and a description of the layers; it returns a [`RadialSolverSolution`](solution_class.md) carrying the radial functions and the Love numbers. If you already have a built world, prefer `LayeredWorld.solve_love_numbers`, which fills these arrays from the layer rheologies for you.
+`TidalPy.RadialSolver.radial_solver` is the array-based entry point to the viscoelastic-gravitational solve. You hand it a radial grid with density and complex moduli on it, a forcing frequency, and a description of the layers; it returns a [`RadialSolverSolution`](solution_class.md) carrying the radial functions and the Love numbers. If you already have a built world, prefer `BaseWorld.solve_love_numbers`, which fills these arrays from the layer rheologies for you.
 
 ## Example
 
@@ -53,7 +53,7 @@ The [input builders](build_inputs.md) exist because the solver's array requireme
 | `radial_solver` (`shooting`, `rs`) | Default. Integrates the radial ODEs from the starting radius to the surface. Handles arbitrary multi-layer, solid or liquid, static or dynamic, compressible or incompressible interiors. |
 | `propagation_matrix` (`prop_matrix`, `pm`, `prop`) | Quasi-analytic matrix propagation, valid only for a single solid, static, incompressible layer. It is more sensitive to the number of slices than the shooting method, since that sets the matrix dimension. Included mainly for comparison. |
 
-The analytic methods (`homogeneous`, `cpl`, `ctl`) are not available here because this API takes moduli arrays rather than a layered world. Use `LayeredWorld.solve_love_numbers(love_method=...)` for those, or the closed-form functions in [`TidalPy.Tides.love`](../Tides/love/love_numbers.md). Passing one of them raises `ValueError` with that pointer.
+The analytic methods (`homogeneous`, `cpl`, `ctl`) are not available here because this API takes moduli arrays rather than a layered world. Use `BaseWorld.solve_love_numbers(love_method=...)` for those, or the closed-form functions in [`TidalPy.Tides.love`](../Tides/love/love_numbers.md). Passing one of them raises `ValueError` with that pointer.
 
 ## Arguments
 
@@ -74,7 +74,7 @@ Every solver setting whose default is `None` takes its value from the TidalPy co
 |---|---|---|
 | `starting_radius` | `0.0` | Radius where integration begins [m]. `0.0` picks one automatically using the Martens (2016) criterion and `start_radius_tolerance`. Starting very deep at high degree makes the surface boundary solve ill-conditioned: the solution constants grow enormous and cancel, amplifying Love numbers error. The solver measures this on every solve and warns when the achievable accuracy drops below the requested tolerance; prefer the automatic radius when that warning appears. A manual radius above `[numerical] max_start_radius_fraction` of the planet radius (default 0.9) is refused, here with a `ValueError` and on the world path with a failed solve. |
 | `start_radius_tolerance` | `None` (config) | Tolerance for that automatic choice: the start is at $R \cdot \mathrm{tol}^{1/l}$. |
-| `use_kamata` | `None` (config) | Use the Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972). Kamata is the more stable choice for incompressible layers, and is required for an incompressible solid layer at the center, where the Takeuchi and Saito form is undefined. It does not cover a static incompressible solid layer. For a dynamic incompressible solid, the first of the three Kamata solutions is replaced by a combination with the second that stays independent at long forcing periods, where the published pair converges (the difference is $O(\omega^2 / \gamma)$, $\gamma = 4 \pi G ho / 3$). |
+| `use_kamata` | `None` (config) | Use the Kamata et al. (2015) starting conditions instead of Takeuchi and Saito (1972). Kamata is the more stable choice for incompressible layers, and is required for an incompressible solid layer at the center, where the Takeuchi and Saito form is undefined. It does not cover a static incompressible solid layer. For a dynamic incompressible solid, the first of the three Kamata solutions is replaced by a combination with the second that stays independent at long forcing periods, where the published pair converges (the difference is $O(\omega^2 / \gamma)$, $\gamma = 4 \pi G \rho / 3$). |
 | `integration_method` | `None` (config) | `'RK23'`, `'RK45'`, `'DOP853'`, or the implicit methods `'BDF'`, `'LSODA'`, `'Radau'` for stiff problems. |
 | `integration_rtol`, `integration_atol` | `None` (config) | Relative and absolute integration tolerances. |
 | `scale_rtols_bylayer_type` | `None` (config) | Scale the relative tolerance by layer type; liquid layers generally want a tighter value. Experimental. |

@@ -5,7 +5,7 @@ import threading
 import numpy as np
 
 from TidalPy.constants import G
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 
@@ -17,7 +17,7 @@ _SOLVES     = 25                  # per thread
 
 
 def _two_layer_world():
-    world = LayeredWorld("report", _R, (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0)
+    world = BaseWorld("report", _R, (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0)
     core = BaseLayer("core", 0, 0.0, _R_CORE, 0.0)
     core.set_eos(ConstantDensityEOS(reference_density=_RHO_CORE))
     mantle = BaseLayer("mantle", 1, _R_CORE, _R, 0.0)

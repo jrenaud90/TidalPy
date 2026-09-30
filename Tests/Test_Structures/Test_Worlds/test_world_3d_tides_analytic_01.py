@@ -23,14 +23,14 @@ _RADIAL_PROFILE = dict(radii=np.linspace(1.0e3, _R, 150), latitude_summed=True, 
 
 
 def _build_world(max_degree_l=2, two_layer=False):
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
     from TidalPy.Rheology.rheology import Maxwell, Elastic
     from TidalPy.Tides.classes.tide import make_tide
 
-    world = LayeredWorld("w", _R, _MASS)
+    world = BaseWorld("w", _R, _MASS)
 
     def _mk(name, idx, r_in, r_out):
         mass = (4.0 / 3.0) * math.pi * (r_out ** 3 - r_in ** 3) * _DENSITY

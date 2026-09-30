@@ -5,7 +5,7 @@ import os
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 
@@ -22,7 +22,7 @@ def _layer(name, index, radius_inner, radius_outer, density=5000.0):
 
 
 def _world():
-    world = LayeredWorld("w", PLANET_RADIUS, (4.0 / 3.0) * math.pi * PLANET_RADIUS ** 3 * 5000.0)
+    world = BaseWorld("w", PLANET_RADIUS, (4.0 / 3.0) * math.pi * PLANET_RADIUS ** 3 * 5000.0)
     world.add_layer(_layer("core", 0, 0.0, 0.5 * PLANET_RADIUS, 6000.0))
     world.add_layer(_layer("mantle", 1, 0.5 * PLANET_RADIUS, PLANET_RADIUS))
     return world
@@ -43,7 +43,7 @@ def test_views_held_across_a_binary_load_raise(tmp_path):
 
 
 def test_layer_passed_to_add_layer_is_detached_by_a_load(tmp_path):
-    world = LayeredWorld("w", PLANET_RADIUS, 1.0e22)
+    world = BaseWorld("w", PLANET_RADIUS, 1.0e22)
     added = _layer("only", 0, 0.0, PLANET_RADIUS)
     world.add_layer(added)
     path = os.path.join(tmp_path, "w.tpyb")
@@ -79,7 +79,7 @@ def test_resolve_after_a_view_change_uses_the_new_material():
 ))
 def test_add_layer_rejections_leave_the_layer_usable(layer_args, message):
     """add_layer refuses a layer that breaks the stack and leaves it usable."""
-    world = LayeredWorld("w", PLANET_RADIUS, 1.0e22)
+    world = BaseWorld("w", PLANET_RADIUS, 1.0e22)
     world.add_layer(_layer("core", 0, 0.0, 0.5 * PLANET_RADIUS))
     rejected = _layer(*layer_args)
     with pytest.raises(ValueError, match=message):

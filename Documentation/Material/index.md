@@ -1,6 +1,6 @@
 # Material and Equation of State (`Material`)
 
-_Updated: 2026-09-15_
+_Updated: 2026-09-29_
 
 `TidalPy.Material` contains functionality to calculate the equation of state of various planet-relevant materials. Each model maps the local state onto a mass density [kg m$^{-3}$], and the whole-planet solve integrates those densities from the center outward to produce the body's radial structure. During this process, the gravity, pressure, and moment of inertia are also calculated.
 
@@ -18,7 +18,7 @@ Material EOS Models <material_eos.md>
 
 ## Where EOS is Used
 
-An EOS model is attached to a layer with `BaseLayer.set_eos`. Once every layer has one, `LayeredWorld.solve_eos()` integrates the planet's radial structure from the center to the surface and populates each layer's density, gravity, pressure, mass, and moment-of-inertia profiles. That solve, its convergence loop, and its results are documented with the world class; see [Worlds](../Structures/worlds/worlds.md).
+An EOS model is attached to a layer with `BaseLayer.set_eos`. Once every layer has one, `BaseWorld.solve_eos()` integrates the planet's radial structure from the center to the surface and populates each layer's density, gravity, pressure, mass, and moment-of-inertia profiles. That solve, its convergence loop, and its results are documented with the world class; see [Worlds](../Structures/worlds/worlds.md).
 
 The integration runs over radius with pressure as a state variable, so a pressure-dependent density law is evaluated at each step with the current pressure. The only iteration is the solver's outer loop, which adjusts the central pressure until the integrated surface pressure matches the requested boundary value.
 

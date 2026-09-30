@@ -8,7 +8,7 @@ from TidalPy.Dynamics import Spin
 from TidalPy.Stellar.luminosity import make_luminosity
 from TidalPy.Structures import build_world
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Tides.classes.tide import make_tide
 
@@ -44,7 +44,7 @@ def test_layered_world_keeps_its_tide_spin_and_solver_settings(tmp_path):
         eos_solver={"rtol": 1.0e-9, "slices_per_layer": 70, "integration_method": "RK45"},
         radial_solver={"use_kamata": True, "max_num_steps": 12345})
 
-    loaded = _round_trip(world, LayeredWorld("placeholder", 1.0, 1.0), tmp_path)
+    loaded = _round_trip(world, type(world)("placeholder", 1.0, 1.0), tmp_path)
 
     assert loaded.tide_model_set
     assert loaded.get_tide_config() == world.get_tide_config()
@@ -75,8 +75,8 @@ def test_star_keeps_its_tide_and_luminosity_models(tmp_path):
 
 
 def test_a_record_without_a_tide_model_clears_the_target_model(tmp_path):
-    rigid = LayeredWorld("rigid", 1.0e6, 1.0e22)
-    target = LayeredWorld("placeholder", 1.0, 1.0)
+    rigid = BaseWorld("rigid", 1.0e6, 1.0e22)
+    target = BaseWorld("placeholder", 1.0, 1.0)
     target.set_tide_model(make_tide("fixed_q", {"fixed_k": [0.3], "fixed_q": [100.0]}))
     loaded = _round_trip(rigid, target, tmp_path)
     assert not loaded.tide_model_set
@@ -92,7 +92,7 @@ def test_loaded_world_reproduces_its_tidal_heating_without_reattaching(tmp_path)
     reference = world.get_tidal_heating()
     assert math.isfinite(reference) and reference > 0.0
 
-    loaded = _round_trip(world, LayeredWorld("placeholder", 1.0, 1.0), tmp_path)
+    loaded = _round_trip(world, type(world)("placeholder", 1.0, 1.0), tmp_path)
     assert not loaded.tides_solved
     loaded.solve_eos()
     loaded.calc_tides(**_IO_ORBIT)
@@ -102,7 +102,7 @@ def test_loaded_world_reproduces_its_tidal_heating_without_reattaching(tmp_path)
 def test_exact_eccentricity_settings_survive_the_round_trip(tmp_path):
     world = build_world("io")
     world.set_tide_config(eccentricity_truncation="exact", eccentricity_exact_tolerance=1.0e-6)
-    loaded = _round_trip(world, LayeredWorld("placeholder", 1.0, 1.0), tmp_path)
+    loaded = _round_trip(world, type(world)("placeholder", 1.0, 1.0), tmp_path)
     config = loaded.get_tide_config()
     assert config["eccentricity_trunc_lvl"] == "exact"
     assert config["eccentricity_exact_tolerance"] == 1.0e-6

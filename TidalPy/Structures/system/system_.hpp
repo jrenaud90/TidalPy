@@ -30,14 +30,13 @@
 #include <string>
 #include <vector>
 
-#include "../worlds/base_.hpp"                // c_BaseWorld
-#include "../worlds/stellar_.hpp"             // c_StarWorld (for the star's luminosity in insolation)
-#include "../worlds/layered_.hpp"             // c_LayeredWorld (rheology tidal solve + spin model)
-#include "../worlds/factory_.hpp"             // c_world_from_binary (world binary-dispatch factory)
-#include "../../Dynamics/orbit_solver_.hpp" // c_OrbitSolver / c_OrbitState (orbital rate engine)
+#include "../worlds/base_.hpp"                 // c_BaseWorld
+#include "../worlds/stellar_.hpp"              // c_StarWorld (for the star's luminosity in insolation)
+#include "../worlds/factory_.hpp"              // c_world_from_binary (world binary-dispatch factory)
+#include "../../Dynamics/orbit_solver_.hpp"    // c_OrbitSolver / c_OrbitState (orbital rate engine)
 #include "../../Utilities/math/numerics_.hpp"  // c_isclose
 #include "../../Utilities/conversions/conversions_.hpp"  // c_semi_a2orbital_motion, c_orbital_motion2semi_a
-#include "constants_.hpp"                     // TidalPyConstants::d_EPS / d_NAN / d_PI, tidalpy_config_ptr->d_G
+#include "constants_.hpp"                      // TidalPyConstants::d_EPS / d_NAN / d_PI, tidalpy_config_ptr->d_G
 
 namespace tidalpy {
 
@@ -126,10 +125,10 @@ struct c_WorldEvolution {
     double da_dt    = 0.0;  // semi-major-axis rate                 [m s-1]
     double de_dt    = 0.0;  // eccentricity rate                    [s-1]
     double dn_dt    = 0.0;  // mean-motion rate                     [rad s-2]
-    double dspin_dt = 0.0;  // spin rate (0 without a spin model)   [rad s-2]
+    double dspin_dt = 0.0;  // spin rate (0 for a rigid world)      [rad s-2]
 
-    double moment_of_inertia = TidalPyConstants::d_NAN;  // world MoI [kg m2] (NaN without a spin model)
-    bool   has_spin          = false;                    // set when the world carries a spin model
+    double moment_of_inertia = TidalPyConstants::d_NAN;  // world MoI [kg m2] (NaN for a rigid world)
+    bool   has_spin          = false;                    // set when the world's spin was evolved
 
     // The tidal heating is drawn from the orbit and the spin, so under conservation
     // energy_residual = tidal_heating + dE_orbit_dt + dE_spin_dt is about zero.
@@ -665,7 +664,7 @@ public:
              / (2.0 * a * a) * evolution.da_dt;
     }
 
-    // E_spin = (1/2) I spin^2, so dE_spin/dt = I spin dspin/dt. Zero for a world with no spin model.
+    // E_spin = (1/2) I spin^2, so dE_spin/dt = I spin dspin/dt. Zero for a rigid world.
     double calc_spin_energy_derivative(const c_WorldEvolution& evolution) const noexcept {
         if (!evolution.has_spin || !std::isfinite(evolution.moment_of_inertia)) {
             return 0.0;
@@ -685,10 +684,6 @@ public:
     // calc_world_evolution, where the companion is the host, and calc_pair_evolution, which runs each body
     // in turn. A body with no tide model is rigid and contributes nothing: its result is evolved with zero rates
     // and has_tide_model false. This primitive does not warn; its callers decide when a rigid body is a problem.
-    //
-    // c_LayeredWorld hides the base analytic calc_tides with the rheology and layer-distribution path and
-    // owns the spin model, so the concrete type is resolved here to run the right solve and reach the spin
-    // rate; a layerless world uses the base analytic solve and contributes no spin.
     c_WorldEvolution calc_dissipation(
             std::size_t dissipator_index,
             double companion_mass,
@@ -731,12 +726,7 @@ public:
         state.semi_major_axis   = semi_major_axis;
         state.host_mass         = companion_mass;
 
-        c_LayeredWorld* layered = dynamic_cast<c_LayeredWorld*>(world_ptr);
-        if (layered != nullptr) {
-            layered->calc_tides(state);
-        } else {
-            world_ptr->calc_tides(state);
-        }
+        world_ptr->calc_tides(state);
 
         // calc_tides throws on failure, so the tide result is populated here, and the call lock keeps it this solve's.
         const c_GlobalTideResult& tide = world_ptr->get_tide_result();
@@ -758,21 +748,15 @@ public:
         out.de_dt = rates.de_dt;
         out.dn_dt = rates.dn_dt;
 
-        // From this body's own spin model, under the torque from the companion. Every layered world, gas giants
-        // included, carries one: it uses the EOS moment of inertia after solve_eos and its moment_of_inertia_factor
-        // (0.4 unless set) before. A dissipating body with no spin model (a star) is torqued all the same, but
-        // nothing here knows its moment of inertia, so its spin rate, the spin energy it gives up, and with them the
-        // energy balance are unknown: NaN, not 0.
-        if (layered != nullptr) {
-            out.moment_of_inertia = layered->get_moment_of_inertia();
-            out.dspin_dt          = layered->calc_spin_derivative(companion_mass);
-            out.has_spin          = true;
-        } else {
-            out.dspin_dt = TidalPyConstants::d_NAN;
-        }
+        // From this body's own spin model, under the torque from the companion. Every world carries one: it uses the
+        // EOS moment of inertia after solve_eos and its moment_of_inertia_factor before (the [worlds] default of its
+        // world type unless set).
+        out.moment_of_inertia = world_ptr->get_moment_of_inertia();
+        out.dspin_dt          = world_ptr->calc_spin_derivative(companion_mass);
+        out.has_spin          = true;
 
         out.dE_orbit_dt     = this->calc_orbital_energy_derivative(out);
-        out.dE_spin_dt      = out.has_spin ? this->calc_spin_energy_derivative(out) : TidalPyConstants::d_NAN;
+        out.dE_spin_dt      = this->calc_spin_energy_derivative(out);
         out.energy_residual = out.tidal_heating + out.dE_orbit_dt + out.dE_spin_dt;
         out.evolved         = true;
         return out;

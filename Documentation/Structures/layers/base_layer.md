@@ -4,7 +4,7 @@ _Updated: 2026-09-29_
 
 `TidalPy.Structures.layers.BaseLayer` is the layer class every TidalPy layer type builds on. It holds one spherically symmetric shell inside a planetary body: its inner and outer radii \[m\], total mass \[kg\], and an optional material identifier, the radial-solver assumptions, the layer temperature, the material, and the shear and bulk rheology. Derived geometry (thickness, volume, surface areas) is computed at construction and read through properties.
 
-The material is the layer's EOS model (see [Material EOS Models](../../Material/material_eos.md)), attached with `set_eos`. It holds the density law, the static moduli, the shear law, the viscosities, and the viscosity and partial-melt models, and the world-level EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)) evaluates it as it integrates. The solve populates the layer's EOS profile (density, gravity, pressure, and the viscoelastic state as a function of radius); `update_eos_data` can populate the first three directly. Until populated, every profile getter returns `NaN`.
+The material is the layer's EOS model (see [Material EOS Models](../../Material/material_eos.md)), attached with `set_eos`. It holds the density law, the static moduli, the shear law, the viscosities, and the viscosity and partial-melt models, and the world-level EOS solve ([`BaseWorld.solve_eos`](../worlds/worlds.md#equation-of-state)) evaluates it as it integrates. The solve populates the layer's EOS profile (density, gravity, pressure, and the viscoelastic state as a function of radius); `update_eos_data` can populate the first three directly. Until populated, every profile getter returns `NaN`.
 
 The rheology is the one thing that knows a forcing frequency. When a rheology model (a `RheologyBase` subclass) is attached with `set_shear_rheology` or `set_bulk_rheology`, `calc_complex_shear_modulus` and `calc_complex_bulk_modulus` apply it to the static modulus and viscosity the solved EOS reports. Until then they return the static modulus as a purely real complex number, which is perfectly elastic behavior.
 
@@ -186,7 +186,7 @@ Complex shear modulus \[Pa\] at the given tidal forcing frequency \[rad s$^{-1}$
 
 ### `calc_complex_shear_modulus(radius, frequency)` -> complex or ndarray
 
-Radius-resolved form: applies the shear rheology to the static modulus and viscosity the solved EOS reports at `radius`, exactly like the world-level [`LayeredWorld.calc_complex_shear_modulus`](../worlds/worlds.md). This is the only step of the chain that depends on frequency, and it is what the radial Love-number solve does at every radius it visits. `radius` may be a float (returns `complex`) or an `np.ndarray` of radii (returns a same-shape complex array). Returns `NaN` before the world EOS solve populates the layer.
+Radius-resolved form: applies the shear rheology to the static modulus and viscosity the solved EOS reports at `radius`, exactly like the world-level [`BaseWorld.calc_complex_shear_modulus`](../worlds/worlds.md). This is the only step of the chain that depends on frequency, and it is what the radial Love-number solve does at every radius it visits. `radius` may be a float (returns `complex`) or an `np.ndarray` of radii (returns a same-shape complex array). Returns `NaN` before the world EOS solve populates the layer.
 
 ### `calc_complex_bulk_modulus(...)` -> complex or ndarray
 

@@ -1,11 +1,11 @@
-"""LayeredWorld global (1D) tides with analytic models: CPL heating, layer sharing, defaults, and error paths."""
+"""BaseWorld global (1D) tides with analytic models: CPL heating, layer sharing, defaults, and error paths."""
 import math
 
 import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures import build_world
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 
 
 # Io-Jupiter-like orbital state.
@@ -145,7 +145,7 @@ def test_terrestrial_default_model_is_rheology_requires_eos():
 
 def test_calc_tides_without_model_raises():
     """calc_tides without a tide model raises."""
-    world = LayeredWorld(world_type="terrestrial", name="bare", radius=1.6e6, mass=8.9e22)
+    world = BaseWorld(world_type="terrestrial", name="bare", radius=1.6e6, mass=8.9e22)
     assert not world.tide_model_set
     with pytest.raises(RuntimeError):
         _solve(world)

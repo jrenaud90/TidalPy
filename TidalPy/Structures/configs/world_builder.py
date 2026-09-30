@@ -22,7 +22,7 @@ from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Structures.layers.gas import GasLayer
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Tides.eccentricity import ECCENTRICITY_TRUNCATIONS, promote_eccentricity_truncation
@@ -529,7 +529,7 @@ def build_world_from_layered_profile(
     """Build a world from a radial profile whose layers are already known.
 
     A thin wrapper over
-    :func:`~TidalPy.Structures.worlds.layered.build_layered_world_from_profile`, which builds the layers
+    :func:`~TidalPy.Structures.worlds.base.build_layered_world_from_profile`, which builds the layers
     and their interpolated material EOS models in C++. The standalone ``RadialSolver.radial_solver`` calls
     that same C++ routine directly, so the world it solves and the world returned here are built by one
     implementation and cannot drift apart.
@@ -565,7 +565,7 @@ def build_world_from_layered_profile(
 
     Returns
     -------
-    LayeredWorld
+    BaseWorld
 
     Raises
     ------
@@ -574,7 +574,7 @@ def build_world_from_layered_profile(
     """
     import numpy as np
 
-    from TidalPy.Structures.worlds.layered import build_layered_world_from_profile
+    from TidalPy.Structures.worlds.base import build_layered_world_from_profile
 
     # Everything below the arrays happens in C++: the slice partition, the per-layer geometry, and each
     # layer's interpolated material EOS. Only the array normalization belongs here.
@@ -948,8 +948,8 @@ def construct_world(config: dict):
     Returns
     -------
     BaseWorld
-        The constructed Cython world object (``LayeredWorld``, ``GasGiantWorld``,
-        or ``StarWorld``), with the normalized ``config`` retained on its
+        The constructed Cython world object (``TerrestrialWorld``, ``GasGiantWorld``, ``StarWorld``, or
+        ``BaseWorld`` for the ``layered`` type), with the normalized ``config`` retained on its
         ``source_config`` attribute (so it can be written back to TOML via
         ``world.save_to_toml``).
 
@@ -1007,28 +1007,27 @@ def _construct_owned_world(config: dict):
                 world.set_luminosity_model(_build_model(make_luminosity, config["luminosity"]))
             except ValueError as error:
                 raise ValueError(f"[luminosity] {error}") from error
-        # A star has no layers, but the analytic tide pipeline is common to every world type, so wire its
-        # [tides] table too.
-        _attach_tides(world, config)
+    elif world_type == "gasgiant":
+        world = GasGiantWorld(world_type=world_type, **world_kwargs)
+    elif world_type == "terrestrial":
+        world = TerrestrialWorld(world_type=world_type, **world_kwargs)
     else:
-        if world_type == "gasgiant":
-            world = GasGiantWorld(world_type=world_type, **world_kwargs)
-        else:
-            # "terrestrial" and "layered" both map to LayeredWorld.
-            world = LayeredWorld(world_type=world_type, **world_kwargs)
-        if "moment_of_inertia_factor" in resolved:
-            world.set_spin_model(Spin(moment_of_inertia_factor=resolved["moment_of_inertia_factor"]))
-        _add_layers(world, config["layers"], world_radius)
-        _attach_tides(world, config)
-        # The world's own solver settings, if its file pins any. A world built from a radial profile takes
-        # RK45 for its EOS solve unless its file says otherwise: on an interpolated profile RK45 is about
-        # 2.8 times faster than DOP853 at equal accuracy, the profile's kinks defeating the high order.
-        eos_solver = config.get("eos_solver")
-        if "data_file" in given or "data" in given:
-            eos_solver = dict(eos_solver or {})
-            eos_solver.setdefault("integration_method", DATA_FILE_EOS_INTEGRATION_METHOD)
-        if eos_solver or "radial_solver" in config:
-            world.set_solver_defaults(eos_solver=eos_solver, radial_solver=config.get("radial_solver"))
+        # "layered" names no world family, so it builds the base class.
+        world = BaseWorld(world_type=world_type, **world_kwargs)
+    if "moment_of_inertia_factor" in resolved:
+        world.set_spin_model(Spin(moment_of_inertia_factor=resolved["moment_of_inertia_factor"]))
+    # A star may have no layers; every other type has at least one (validate_world_config).
+    _add_layers(world, config.get("layers") or {}, world_radius)
+    _attach_tides(world, config)
+    # The world's own solver settings, if its file pins any. A world built from a radial profile takes
+    # RK45 for its EOS solve unless its file says otherwise: on an interpolated profile RK45 is about
+    # 2.8 times faster than DOP853 at equal accuracy, the profile's kinks defeating the high order.
+    eos_solver = config.get("eos_solver")
+    if "data_file" in given or "data" in given:
+        eos_solver = dict(eos_solver or {})
+        eos_solver.setdefault("integration_method", DATA_FILE_EOS_INTEGRATION_METHOD)
+    if eos_solver or "radial_solver" in config:
+        world.set_solver_defaults(eos_solver=eos_solver, radial_solver=config.get("radial_solver"))
 
     # Retained for a faithful save_to_toml. A world built from a data file also keeps the configuration as
     # given, the file reference and the tables that refined it, which is what a saved copy should carry
@@ -1157,7 +1156,7 @@ def _warn_short_degree_lists(world_name: str, tide_model, model_config: dict, ma
 
 
 def _attach_tides(world, config: dict) -> None:
-    """Wire the optional ``[tides]`` table onto any world (layered, gas giant, or star).
+    """Wire the optional ``[tides]`` table onto any world.
 
     Attaches a tide dissipation model (``set_tide_model``) and the truncation and degree
     configuration (``set_tide_config``). Values resolve through the world's ``[tides]`` table, then
@@ -1168,9 +1167,9 @@ def _attach_tides(world, config: dict) -> None:
 
     Parameters
     ----------
-    world : LayeredWorld, GasGiantWorld, or StarWorld
-        The world to wire (must expose ``set_tide_model``/``set_tide_config``). A star only
-        supports the analytic models (the rheology model needs a layered interior).
+    world : BaseWorld
+        The world to wire. The rheology model needs layers and a solved EOS; the analytic models work on any
+        world.
     config : dict
         The normalized world configuration.
     """
@@ -1224,14 +1223,14 @@ def _attach_tides(world, config: dict) -> None:
 
 
 def _add_layers(world, layers_cfg: dict, world_radius: float) -> None:
-    """Build and add layers to a layered world in inner-to-outer order.
+    """Build and add layers to a world in inner-to-outer order.
 
     Layers are ordered by their explicit ``layer_index`` when given, otherwise by declaration order.
     Each layer's inner radius is the previous layer's outer radius (0 for the innermost).
 
     Parameters
     ----------
-    world : LayeredWorld
+    world : BaseWorld
         The world to populate.
     layers_cfg : dict
         The ``layers`` table mapping layer name to layer configuration.

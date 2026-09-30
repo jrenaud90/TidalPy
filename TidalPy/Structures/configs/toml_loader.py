@@ -4,9 +4,9 @@ Turns a TOML world description, or an equivalent dict, into a validated configur
 builder. TOML is read and validated here and never reaches C++.
 
 A world configuration carries the required ``name``, ``type``, ``radius_m``, and ``mass_kg``, optional
-world scalars, an optional ``[tides]`` table, and, for a non-star world, one or more ``[layers.<name>]``
-tables. A layer names a ``class``, an optional material ``type``, exactly one outer-radius specifier,
-scalar parameters, and nested physics-model tables each carrying a ``model`` key. The key sets of
+world scalars, an optional ``[tides]`` table, and one or more ``[layers.<name>]`` tables (optional for a star).
+A layer names a ``class``, an optional material ``type``, exactly one outer-radius specifier, scalar parameters, and
+nested physics-model tables each carrying a ``model`` key. The key sets of
 :mod:`TidalPy.schema`, re-exported here, are the authoritative list of what is accepted where, and
 ``Documentation/Structures/config/toml_schema.md`` has the worked schema.
 
@@ -52,7 +52,6 @@ from TidalPy.schema import (
     _GAS_LAYER_KEYS,
     _COMMON_WORLD_KEYS,
     _STAR_WORLD_KEYS,
-    _LAYERED_WORLD_KEYS,
     _SOLVER_KEY_RULES,
     _REQUIRED_WORLD_KEYS,
 )
@@ -246,7 +245,7 @@ def validate_world_config(config: dict) -> None:
     """Validate the world-level portion of a configuration dictionary.
 
     Checks that the required world keys are present, the ``type`` is recognized,
-    no unknown world-level scalar keys appear, and (for layered worlds) the
+    no unknown world-level scalar keys appear, and (for a world with layers) the
     ``layers`` table is well formed. Each layer is validated via
     :func:`validate_layer_config`, and the values themselves are then checked by
     :func:`validate_physical_values`.
@@ -288,9 +287,6 @@ def validate_world_config(config: dict) -> None:
     structural = {"name", "type", "schema_version", "layers", "tides", "data_file", "data"}
     for key, value in config.items():
         if key in SOLVER_TABLES:
-            # A star runs no EOS or radial solve, so it has nothing for the tables to pin.
-            if world_type == "star":
-                raise ValueError(f"A star world cannot hold a '[{key}]' table: it runs no {key.split('_')[0]} solve.")
             validate_solver_table(key, value, f"World '{config.get('name', '?')}'")
             continue
         if key == "tides":
@@ -322,13 +318,12 @@ def validate_world_config(config: dict) -> None:
                 f"Unexpected world-level key '{key}' for world type "
                 f"'{world_type}'. Allowed keys: {sorted(allowed)}.")
 
-    if world_type == "star":
-        if "layers" in config and config["layers"]:
-            raise ValueError("A star world must not declare any layers.")
+    layers = config.get("layers", None)
+    # A star needs no layers: its tides run through the analytic models and its spin model gives its moment of
+    # inertia.
+    if not layers and world_type == "star":
         validate_physical_values(config)
         return
-
-    layers = config.get("layers", None)
     if not layers:
         raise ValueError(
             f"World type '{world_type}' requires at least one '[layers.<name>]' table.")

@@ -9,7 +9,8 @@ from TidalPy.Utilities.conversions import orbital_motion2semi_a
 from TidalPy.Utilities.classes.classes import TidalPyBaseClass
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.stellar import StarWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Structures.configs import build_system
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
@@ -49,7 +50,7 @@ def test_bundled_system_binary_roundtrip(sol_roundtrip):
     system, loaded = sol_roundtrip
     assert loaded.name == system.name
     assert [w.name for w in loaded] == [w.name for w in system]
-    assert [type(w).__name__ for w in loaded] == ["StarWorld", "LayeredWorld", "GasGiantWorld"]
+    assert [type(w).__name__ for w in loaded] == ["StarWorld", "TerrestrialWorld", "GasGiantWorld"]
     assert loaded.get_tidal_host("earth").name == "sun"
     assert loaded.get_tidal_host("jupiter").name == "sun"
     assert loaded.get_tidal_host("sun") is None
@@ -71,7 +72,7 @@ def test_loaded_worlds_are_concrete_wrappers(sol_roundtrip):
     """Loaded worlds keep their type-specific methods."""
     system, loaded = sol_roundtrip
     assert isinstance(loaded["sun"], StarWorld)
-    assert isinstance(loaded["earth"], LayeredWorld)
+    assert isinstance(loaded["earth"], TerrestrialWorld)
     assert loaded["earth"].num_layers == system["earth"].num_layers
     assert loaded["sun"].effective_temperature > 5000.0
 
@@ -87,7 +88,7 @@ def test_direct_system_binary_roundtrip(tmp_path):
     """A system assembled in Python round-trips through binary."""
     system = System("manual")
     system.add_world(StarWorld("star", 7.0e8, 1.9e30), is_star=True)
-    system.add_world(LayeredWorld("planet", 6.4e6, 6.0e24), tidal_host="star", semi_major_axis=AU, eccentricity=0.05)
+    system.add_world(BaseWorld("planet", 6.4e6, 6.0e24), tidal_host="star", semi_major_axis=AU, eccentricity=0.05)
     system.set_stellar_semi_major_axis("planet", AU)
     system.set_stellar_eccentricity("planet", 0.05)
     loaded = _roundtrip(system, str(tmp_path / "manual.tpyb"))
@@ -98,7 +99,7 @@ def test_direct_system_binary_roundtrip(tmp_path):
     assert math.isclose(loaded.get_semi_major_axis("planet"), AU)
     assert math.isclose(loaded.get_stellar_eccentricity("planet"), 0.05)
     assert isinstance(loaded["star"], StarWorld)
-    assert isinstance(loaded["planet"], LayeredWorld)
+    assert isinstance(loaded["planet"], BaseWorld)
 
 
 def test_load_binary_file_not_found():
@@ -116,7 +117,7 @@ def _attach_tide_and_spin(moon):
 
 def _dissipating_moon():
     """A homogeneous Maxwell moon with tide and spin models attached and its EOS solved."""
-    moon = LayeredWorld("moon", _EVO_RADIUS, _EVO_MOON_MASS)
+    moon = BaseWorld("moon", _EVO_RADIUS, _EVO_MOON_MASS)
     layer = BaseLayer("mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS)
     layer.is_static = False
     layer.set_eos(ConstantDensityEOS(

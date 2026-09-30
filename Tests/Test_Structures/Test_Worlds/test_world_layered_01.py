@@ -1,4 +1,4 @@
-"""LayeredWorld and GasGiantWorld: layer ownership, geometry checks, radiogenic heating, binary round-trip."""
+"""BaseWorld and GasGiantWorld: layer ownership, geometry checks, radiogenic heating, binary round-trip."""
 import pytest
 
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
@@ -8,7 +8,6 @@ from TidalPy.Structures.layers.gas import GasLayer
 from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
 
 
 # Earth-like two-layer geometry (MKS).
@@ -25,7 +24,7 @@ _ENVELOPE_ARGS = ("envelope", 0, 0.0, 7.0e7, 1.898e27)
 
 
 def _make_two_layer_world():
-    world = LayeredWorld("Earth", _R_SURF, _M_TOT, world_type="terrestrial")
+    world = BaseWorld("Earth", _R_SURF, _M_TOT, world_type="terrestrial")
     world.add_layer(SolidLiquidLayer(*_CORE_ARGS, material_name="iron"))
     world.add_layer(SolidLiquidLayer(*_MANTLE_ARGS, material_name="perovskite"))
     return world
@@ -40,7 +39,7 @@ def test_add_layers_and_count():
 
 def test_add_layer_consumes_wrapper():
     """A layer wrapper cannot be added twice."""
-    world = LayeredWorld("W", _R_SURF, _M_TOT)
+    world = BaseWorld("W", _R_SURF, _M_TOT)
     layer = SolidLiquidLayer(*_CORE_ARGS)
     world.add_layer(layer)
     with pytest.raises(ValueError):
@@ -49,7 +48,7 @@ def test_add_layer_consumes_wrapper():
 
 def test_added_layer_wrapper_stays_usable():
     """The wrapper handed to add_layer becomes a view of the world-owned layer."""
-    world = LayeredWorld("W", _R_CMB, _M_CORE)
+    world = BaseWorld("W", _R_CMB, _M_CORE)
     layer = SolidLiquidLayer(*_CORE_ARGS)
     layer.set_eos(ConstantDensityEOS(reference_density=9000.0))
     world.add_layer(layer)
@@ -92,12 +91,12 @@ def test_attached_model_wrappers_raise_instead_of_reading_a_moved_object():
 
 def test_add_layer_discontinuity_raises():
     """A layer leaving a radial gap is rejected but not consumed."""
-    world = LayeredWorld("W", _R_SURF, _M_TOT)
+    world = BaseWorld("W", _R_SURF, _M_TOT)
     # The first layer must start at radius 0.
     bad = SolidLiquidLayer("mantle", 0, _R_CMB, _R_SURF, _M_MANT)
     with pytest.raises(ValueError):
         world.add_layer(bad)
-    world2 = LayeredWorld("W2", _R_SURF, _M_MANT)
+    world2 = BaseWorld("W2", _R_SURF, _M_MANT)
     world2.add_layer(SolidLiquidLayer(*_CORE_ARGS))
     world2.add_layer(bad)
     assert world2.num_layers == 2
@@ -111,7 +110,7 @@ def test_calc_total_mass():
 
 def test_mixed_layer_types():
     """A world accepts layers of different subclasses."""
-    world = LayeredWorld("Mixed", _R_SURF, _M_TOT)
+    world = BaseWorld("Mixed", _R_SURF, _M_TOT)
     world.add_layer(BaseLayer(*_CORE_ARGS))
     world.add_layer(BaseLayer(*_MANTLE_ARGS))
     assert world.num_layers == 2
@@ -126,7 +125,7 @@ def test_internal_heating_zero_without_radiogenics():
 
 def test_internal_heating_with_radiogenics():
     """Internal heating is the mantle's radiogenic rate times its mass."""
-    world = LayeredWorld("Earth", _R_SURF, _M_TOT)
+    world = BaseWorld("Earth", _R_SURF, _M_TOT)
     mantle = SolidLiquidLayer(*_MANTLE_ARGS)
     mantle.set_radiogenics(FixedRadiogenics(fixed_heat_production=1.0e-11))
     world.add_layer(SolidLiquidLayer(*_CORE_ARGS))
@@ -136,7 +135,7 @@ def test_internal_heating_with_radiogenics():
 
 def test_layered_world_binary_roundtrip(tmp_path):
     """Binary save/load restores the world, its layers, and their sub-models."""
-    world = LayeredWorld(
+    world = BaseWorld(
         "Earth",
         _R_SURF,
         _M_TOT,
@@ -152,7 +151,7 @@ def test_layered_world_binary_roundtrip(tmp_path):
 
     path = str(tmp_path / "world.tpyb")
     world.save_binary(path)
-    loaded = LayeredWorld("placeholder", 1.0, 1.0)
+    loaded = BaseWorld("placeholder", 1.0, 1.0)
     loaded.load_binary(path)
 
     assert loaded.name        == "Earth"
@@ -194,7 +193,7 @@ def test_gasgiant_binary_roundtrip(tmp_path):
     "make_world, parent_class",
     [
         (_make_two_layer_world, BaseWorld),
-        (lambda: GasGiantWorld("Jupiter", 7.0e7, 1.898e27), LayeredWorld),
+        (lambda: GasGiantWorld("Jupiter", 7.0e7, 1.898e27), BaseWorld),
     ],
     ids=["layered_is_base", "gasgiant_is_layered"],
 )

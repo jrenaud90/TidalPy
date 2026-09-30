@@ -25,7 +25,7 @@
 #include <limits>
 #include <string>
 
-// Explicit relative path, not a bare "love_.hpp": the layered and world extensions also carry
+// Explicit relative path, not a bare "love_.hpp": the world extensions also carry
 // RadialSolver on their include path, which holds a different love_.hpp in the global namespace, so a
 // bare include can resolve to the wrong file depending on include-dir order.
 #include "../love/love_.hpp"   // tidalpy::c_LoveNumbers

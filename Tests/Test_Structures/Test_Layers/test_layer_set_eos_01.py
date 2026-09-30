@@ -7,7 +7,7 @@ from TidalPy.Material.eos import make_material_eos
 from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Rheology import make_rheology
 from TidalPy.Structures.layers import SolidLiquidLayer
-from TidalPy.Structures.worlds import LayeredWorld
+from TidalPy.Structures.worlds import BaseWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Viscosity import make_viscosity
 
@@ -45,14 +45,14 @@ def test_a_new_material_keeps_its_own_viscosity():
     layer = _layer()
     layer.set_eos(_material(shear_modulus=2.0e10, shear_viscosity=3.0e15))
     assert layer.shear_viscosity_set
-    world = LayeredWorld("world", RADIUS, MASS)
+    world = BaseWorld("world", RADIUS, MASS)
     world.add_layer(layer)
     world.solve_eos()
     assert np.isclose(world.get_shear_viscosity(0.5 * RADIUS), 3.0e15, rtol=1.0e-12)
 
 
 def test_material_swap_in_a_solved_world_keeps_its_tides():
-    world = LayeredWorld("world", RADIUS, MASS)
+    world = BaseWorld("world", RADIUS, MASS)
     world.add_layer(_layer())
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(

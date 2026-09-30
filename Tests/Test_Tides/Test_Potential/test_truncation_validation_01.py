@@ -7,7 +7,7 @@ import pytest
 from TidalPy.constants import G, mass_trap1
 from TidalPy.Tides.potential import tidal_potential_3d_modes, global_potential
 from TidalPy.Tides.classes.collapse import collapse_global_tides
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.obliquity import OBLIQUITY_GENERAL
 from TidalPy.Structures.configs.world_builder import (
     _resolve_obliquity_truncation,
@@ -26,14 +26,14 @@ def test_supported_levels_constant():
 
 @pytest.mark.parametrize("bad_level", (1, 3, 6, 10, 12))
 def test_set_tide_config_rejects_untabulated(bad_level):
-    world = LayeredWorld("w", _R, 1.0e20)
+    world = BaseWorld("w", _R, 1.0e20)
     with pytest.raises(NotImplementedError, match="Obliquity truncation"):
         world.set_tide_config(obliquity_truncation=bad_level)
 
 
 @pytest.mark.parametrize("good_level", (0, 2, 4, "gen", "off"))
 def test_set_tide_config_accepts_tabulated(good_level):
-    world = LayeredWorld("w", _R, 1.0e20)
+    world = BaseWorld("w", _R, 1.0e20)
     world.set_tide_config(obliquity_truncation=good_level)
 
 

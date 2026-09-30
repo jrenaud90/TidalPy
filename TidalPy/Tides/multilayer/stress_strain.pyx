@@ -87,7 +87,7 @@ def angular_gram(int degree_l, int order_m):
 
     The bounded 6-function angular basis is ``f1=P_lm, f2=dP/dtheta, f3=d2P/dtheta2, f4=P/sin,
     f5=-m^2 P/sin^2 + cot dP, f6=(dP - cot P)/sin``. This is the precomputed table backing the analytic
-    colatitude collapse (:meth:`LayeredWorld.calc_3d_tides`). Returns a ``(6, 6)`` float64 array; raises
+    colatitude collapse (:meth:`BaseWorld.calc_3d_tides`). Returns a ``(6, 6)`` float64 array; raises
     ``ValueError`` if ``(l, m)`` is outside the tabulated range (``l = 2..10``, ``m = 0..l``).
     """
     cdef double[36] gram36

@@ -9,7 +9,7 @@ import pytest
 from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layers, build_rs_input_from_data
 from TidalPy.RadialSolver.love import LoveNumbers
 from TidalPy.Rheology import Elastic
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 
@@ -291,7 +291,7 @@ def _uniform_world(bulk_modulus, is_incompressible=False):
     radius = 1.0e6
     density = 3000.0
     mass = (4.0 / 3.0) * math.pi * radius**3 * density
-    world = LayeredWorld("uniform", radius, mass)
+    world = BaseWorld("uniform", radius, mass)
     layer = BaseLayer("mantle", 0, 0.0, radius, mass)
     eos_kwargs = {} if bulk_modulus is None else dict(bulk_modulus_static=bulk_modulus)
     layer.set_eos(ConstantDensityEOS(reference_density=density, shear_modulus_static=5.0e10, **eos_kwargs))

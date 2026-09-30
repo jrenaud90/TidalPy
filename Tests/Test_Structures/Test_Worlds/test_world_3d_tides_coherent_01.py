@@ -22,14 +22,14 @@ _SYNC = (_N, _N, _ECC, 0.0, _SMA, _HOST)   # Synchronous rotation: every active 
 
 
 def _build_world(max_degree_l=2):
-    from TidalPy.Structures.worlds.layered import LayeredWorld
+    from TidalPy.Structures.worlds.base import BaseWorld
     from TidalPy.Structures.layers.base import BaseLayer
     from TidalPy.Material.eos.material_eos import ConstantDensityEOS
     from TidalPy.Viscosity import make_viscosity
     from TidalPy.Rheology.rheology import Maxwell, Elastic
     from TidalPy.Tides.classes.tide import make_tide
 
-    world = LayeredWorld("w", _R, _MASS)
+    world = BaseWorld("w", _R, _MASS)
     layer = BaseLayer("mantle", 0, 0.0, _R, _MASS)
     layer.is_static = False
     layer.set_eos(ConstantDensityEOS(

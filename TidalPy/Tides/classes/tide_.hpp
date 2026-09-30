@@ -37,7 +37,7 @@ namespace tidalpy {
 // The 3D methods of c_RheologyTide are declared here but defined in Structures/worlds/world_tides_.hpp,
 // compiled into the world extension alone, so this header never pulls in the world, potential-engine, or
 // kernel headers. The incomplete type is legal in a declaration and complete at each definition.
-class c_LayeredWorld;
+class c_BaseWorld;
 
 // Grid outputs are row-major in the order radius, colatitude, longitude, time.
 struct c_Grid3DAxes {
@@ -118,7 +118,7 @@ public:
     // complex amplitudes, so the volume integral equals the world's 1D get_tidal_heating. NaN at the center
     // and below the solver's starting radius, 0 in liquid layers, which have no shear kernel.
     double calc_3d_tidal_heating(
-            c_LayeredWorld& world,
+            c_BaseWorld& world,
             const c_TideSolveConfig& state,
             double radius,
             double colatitude) const;
@@ -127,7 +127,7 @@ public:
     // solve amortized across the points, since it depends on (l, |omega|) alone; points sharing a
     // colatitude share its angular work, and the colatitudes run on up to num_threads threads.
     void calc_3d_tidal_heating_batch(
-            c_LayeredWorld& world,
+            c_BaseWorld& world,
             const c_TideSolveConfig& state,
             const double* radii,
             const double* colatitudes,
@@ -141,7 +141,7 @@ public:
     // 3 * nr * nth * nph * nt doubles ordered (r, theta, phi, t, component), NaN where the radius has no
     // depth-resolved solution.
     void calc_3d_displacements_grid(
-            c_LayeredWorld& world,
+            c_BaseWorld& world,
             const c_TideSolveConfig& state,
             const c_Grid3DAxes& axes,
             double* out_disp,
@@ -152,7 +152,7 @@ public:
     // to skip it. NaN where no wave has a shear kernel: a radius with no depth-resolved solution, or a
     // liquid layer. Modes at zero forcing frequency, the permanent tide, are excluded.
     void calc_3d_stress_strain_grid(
-            c_LayeredWorld& world,
+            c_BaseWorld& world,
             const c_TideSolveConfig& state,
             const c_Grid3DAxes& axes,
             double* out_stress,
@@ -166,7 +166,7 @@ public:
     // out_layer_totals. The radial solves run on the calling thread, the per-point evaluation on up to
     // cfg.num_threads threads.
     void calc_3d_tidal_heating_collapsed(
-            c_LayeredWorld& world,
+            c_BaseWorld& world,
             const c_TideSolveConfig& state,
             const double* radii,
             size_t num_radii,

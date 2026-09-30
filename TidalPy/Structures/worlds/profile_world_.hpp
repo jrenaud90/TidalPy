@@ -1,9 +1,9 @@
 #pragma once
 /*
- * profile_world_.hpp: build a layered world from a radial profile, entirely in C++.
+ * profile_world_.hpp: build a world from a radial profile, entirely in C++.
  *
  * The standalone radial solver is handed a planet as contiguous arrays (radius, density, and the two static
- * moduli) plus its layer boundaries and per-layer solver assumptions. This turns those into a c_LayeredWorld
+ * moduli) plus its layer boundaries and per-layer solver assumptions. This turns those into a c_BaseWorld
  * whose layers each carry an interpolated material EOS over their own slice of the profile, which is what the
  * world-attached EOS and Love solves already consume.
  *
@@ -26,9 +26,9 @@
 #include <string>
 #include <vector>
 
-#include "layered_.hpp"                                   // c_LayeredWorld, c_WorldConfig
-#include "constants_.hpp"                                 // TidalPyConstants::d_PI
-#include "../layers/solidliquid_.hpp"                     // c_SolidLiquidLayer, c_SolidLiquidConfig
+#include "base_.hpp"                                    // c_BaseWorld, c_WorldConfig
+#include "constants_.hpp"                               // TidalPyConstants::d_PI
+#include "../layers/solidliquid_.hpp"                   // c_SolidLiquidLayer, c_SolidLiquidConfig
 #include "../../Material/eos/material_eos_.hpp"         // c_InterpolatedEOS, c_MaterialEOSConfig
 #include "../../Utilities/arrays/layer_partition_.hpp"  // c_partition_radius_by_layer
 
@@ -37,7 +37,7 @@ namespace tidalpy {
 /// Smallest number of profile slices an interpolated layer can be built from.
 inline constexpr std::size_t d_PROFILE_MIN_SLICES_PER_LAYER = 2;
 
-/// Build a layered world whose layers interpolate their own slice of a radial profile.
+/// Build a world whose layers interpolate their own slice of a radial profile.
 ///
 /// Parameters
 /// ----------
@@ -62,14 +62,14 @@ inline constexpr std::size_t d_PROFILE_MIN_SLICES_PER_LAYER = 2;
 ///
 /// Returns
 /// -------
-/// shared_ptr<c_LayeredWorld>
+/// shared_ptr<c_BaseWorld>
 ///     The world, with every layer added inner to outer and its EOS attached.
 ///
 /// Throws
 /// ------
 /// std::invalid_argument
 ///     If a pointer is null, there are no layers or slices, or a layer holds fewer than two slices.
-inline std::shared_ptr<c_LayeredWorld> c_build_world_from_layered_profile(
+inline std::shared_ptr<c_BaseWorld> c_build_world_from_layered_profile(
         const double* radius_ptr,
         const double* density_ptr,
         const double* shear_modulus_ptr,
@@ -113,7 +113,7 @@ inline std::shared_ptr<c_LayeredWorld> c_build_world_from_layered_profile(
     world_cfg.radius         = planet_radius;
     world_cfg.mass           = planet_mass;
 
-    std::shared_ptr<c_LayeredWorld> world = std::make_shared<c_LayeredWorld>(world_cfg);
+    std::shared_ptr<c_BaseWorld> world = std::make_shared<c_BaseWorld>(world_cfg);
 
     double radius_inner = 0.0;
     for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i)

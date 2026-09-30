@@ -11,7 +11,7 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Rheology.rheology import Maxwell
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Viscosity import make_viscosity
 
 
@@ -36,7 +36,7 @@ def _whole_planet_layer(layer_class=BaseLayer):
 
 
 def _uniform_physics_world(with_viscosity=True, with_melt=False, with_rheology=False):
-    world = LayeredWorld("rocky", _PLANET_RADIUS, _MASS)
+    world = BaseWorld("rocky", _PLANET_RADIUS, _MASS)
     layer = _whole_planet_layer()
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
@@ -123,7 +123,7 @@ def test_complex_shear_matches_maxwell():
 
 def test_complex_modulus_without_a_rheology_is_static():
     """A layer with no rheology reports its solved static shear modulus as a real complex modulus."""
-    world = LayeredWorld("geom", _PLANET_RADIUS, _MASS)
+    world = BaseWorld("geom", _PLANET_RADIUS, _MASS)
     layer = _whole_planet_layer(BaseLayer)
     layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     world.add_layer(layer)
@@ -135,7 +135,7 @@ def test_complex_modulus_without_a_rheology_is_static():
 
 def test_layer_getters_match_world():
     """A layer with only a shear viscosity model reports its static shear modulus and viscosity."""
-    world = LayeredWorld("rocky", _PLANET_RADIUS, _MASS)
+    world = BaseWorld("rocky", _PLANET_RADIUS, _MASS)
     layer = _whole_planet_layer()
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))

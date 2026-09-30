@@ -38,7 +38,7 @@
 
 namespace tidalpy {
 
-// The world that owns a layer, as the layer sees it (c_LayeredWorld). A layer tells its owner when a setting the
+// The world that owns a layer, as the layer sees it (c_BaseWorld). A layer tells its owner when a setting the
 // owner's EOS solve reads changes (its material and the models the material holds, its temperature and thermal
 // switches, its cooling and radiogenics, whether it holds its volume), so the owner forgets the structure it solved
 // with the old setting rather than reporting it as the current one.
@@ -100,18 +100,18 @@ struct c_BaseLayerConfig {
     bool               is_static         = true;    // use static (no dynamic terms) approximation
     bool               is_incompressible = false;   // use incompressible approximation
     // The layer temperature is 0 K until set: the cold, rigid limit of the viscosity laws.
-    double             temperature     = 0.0;     // [K]
-    bool               use_thermal_eos = false;   // the EOS density and bulk modulus see the temperature
-    bool               use_heating     = false;   // the world's heat sources act inside this layer
+    double             temperature     = 0.0;       // [K]
+    bool               use_thermal_eos = false;     // the EOS density and bulk modulus see the temperature
+    bool               use_heating     = false;     // the world's heat sources act inside this layer
 };
 
 // The world that owns layers; it reads their profile through the unlocked p_ helpers while it holds its call lock.
-class c_LayeredWorld;
+class c_BaseWorld;
 
 class c_BaseLayer : public c_StructureBase {
     // The owning world reads the profile and applies the rheology through the p_ helpers while it holds its call
     // lock.
-    friend class c_LayeredWorld;
+    friend class c_BaseWorld;
 
 public:
     c_BaseLayer() = default;
@@ -203,7 +203,7 @@ public:
     // Keeps every derived geometric quantity in step. The EOS solve calls it when a layer below has grown
     // or shrunk, or when this layer is holding its mass rather than its volume, so it leaves the owning world's
     // solved structure alone; a caller moving a world's layer by hand tells the world itself
-    // (c_LayeredWorld::update_after_layer_change). The owner's call lock keeps a move out of a running solve.
+    // (c_BaseWorld::update_after_layer_change). The owner's call lock keeps a move out of a running solve.
     void set_radii(double radius_inner, double radius_outer) noexcept {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_radius_inner = radius_inner;
@@ -228,7 +228,7 @@ public:
     uint32_t get_layer_class_id() const noexcept { return this->get_binary_class_id(); }
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::BaseLayer); }
     // A transient result, not serialized: the heating [W] the world's last calc_tides put in this layer, and NaN
-    // until then (see c_LayeredWorld::calc_tides for how each Love method distributes it).
+    // until then (see c_BaseWorld::calc_tides for how each Love method distributes it).
     double get_tidal_heating()                   const noexcept { return this->p_tidal_heating; }
     void set_tidal_heating(double heating)   noexcept { this->p_tidal_heating = heating; }
 

@@ -1,6 +1,6 @@
 # Spin and Orbital Rates (`Dynamics`)
 
-_Updated: 2026-09-24_
+_Updated: 2026-09-29_
 
 The module holds two calculators:
 
@@ -32,7 +32,7 @@ $$C = f M R^2$$
 
 where $f$ is the constructor's `moment_of_inertia_factor`, the conventional dimensionless factor $C / (M R^2)$. A uniform sphere has $f = 0.4$, which is the default. A centrally condensed body has less, with the Earth at 0.3307, and no body with non-negative density can exceed $2/3$, the value for all of its mass in a thin surface shell. A factor that is not finite or lies outside $(0, 2/3]$ raises `ValueError`.
 
-This estimate exists as a fallback. A `LayeredWorld` that has solved its equation of state has the real structure-resolved moment of inertia, and `world.get_moment_of_inertia()` returns that instead, falling back to the model's formula only when no solve has run.
+This estimate exists as a fallback. A world that has solved its equation of state has the real structure-resolved moment of inertia, and `world.get_moment_of_inertia()` returns that instead, falling back to the model's formula only when no solve has run.
 
 ```python
 world.set_spin_model(Spin())

@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 
@@ -19,7 +19,7 @@ _RUN_TIME   = 0.8                 # [s] how long the threads run
 
 def _two_layer_world():
     """A constant-density core and mantle, so the solved density is known exactly."""
-    world = LayeredWorld("threads", _R, (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0)
+    world = BaseWorld("threads", _R, (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0)
     core = BaseLayer(
         "core",
         0,

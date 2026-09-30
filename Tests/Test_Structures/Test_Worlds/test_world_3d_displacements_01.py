@@ -1,4 +1,4 @@
-"""The instantaneous 3D tidal displacement grid (``LayeredWorld.calc_3d_displacements``) on a single-mode orbit."""
+"""The instantaneous 3D tidal displacement grid (``BaseWorld.calc_3d_displacements``) on a single-mode orbit."""
 import math
 
 import numpy as np
@@ -8,7 +8,7 @@ from TidalPy.constants import G
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import Elastic, Maxwell
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Tides.potential import tidal_potential_3d_modes
 from TidalPy.Viscosity import make_viscosity
@@ -34,7 +34,7 @@ def world():
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
     layer.set_bulk_rheology(Elastic())
-    world = LayeredWorld("io_like", RADIUS, MASS)
+    world = BaseWorld("io_like", RADIUS, MASS)
     world.add_layer(layer)
     world.solve_eos()
     world.set_tide_model(make_tide("rheology"))
@@ -120,6 +120,6 @@ def test_center_is_nan_and_preconditions(world):
             world.calc_3d_displacements(**ORBIT, radii=RADIUS, colatitudes=1.0, longitudes=0.0, times=0.0)
     finally:
         world.set_tide_config(max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
-    bare = LayeredWorld("bare", RADIUS, MASS)
+    bare = BaseWorld("bare", RADIUS, MASS)
     with pytest.raises(RuntimeError, match="no tide model"):
         bare.calc_3d_displacements(**ORBIT, radii=RADIUS, colatitudes=1.0, longitudes=0.0, times=0.0)

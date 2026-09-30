@@ -17,11 +17,11 @@ TidalPy has no N-body dynamics: its dynamics are semi-analytic two-body rates. A
 from TidalPy.constants import au
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.stellar import StarWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
 
 system = System("sol")
 star = StarWorld("sun", 6.957e8, 1.988e30)
-earth = LayeredWorld("earth", 6.371e6, 5.972e24)
+earth = TerrestrialWorld("earth", 6.371e6, 5.972e24)
 
 system.add_world(
     star,
@@ -169,7 +169,7 @@ with the world's albedo $A$, its emissivity $\varepsilon$, and the Stefan-Boltzm
 
 ## Orbital and Spin Evolution
 
-A layered world whose tide model is `rheology` (the default for a terrestrial world) takes its Love numbers from its interior, so run `world.solve_eos()` on every such member before any of the evolution methods below; they raise `RuntimeError` otherwise. A later `solve_eos` retires the world's tidal result, and the next evolution call solves it again.
+A world whose tide model is `rheology` (the default for a terrestrial world) takes its Love numbers from its interior, so run `world.solve_eos()` on every such member before any of the evolution methods below; they raise `RuntimeError` otherwise. A later `solve_eos` retires the world's tidal result, and the next evolution call solves it again.
 
 `calc_world_evolution(world)` evolves a single world. It solves the world's global tides in the current system state (mean motion from Kepler's third law, spin and obliquity from the world, eccentricity and semi-major axis from the orbit about its tidal host, host mass from that host), then turns the tidal-potential derivatives into the orbital rates and the world's spin rate. Only this world raises tides; its host is treated as a point mass. A world with no tidal host, or no usable orbit about it, comes back with `evolved = False`. The evolution methods hold each world's call lock from its tidal solve through the read of its result, so evolution calls on threads that share a world take turns on it and each reads its own solve.
 
@@ -178,12 +178,12 @@ A world that belongs to a system can be asked for the same state directly: `worl
 ```python
 ev = system.calc_world_evolution("moon")
 ev["da_dt"], ev["de_dt"], ev["dn_dt"]     # orbital rates [m/s], [1/s], [rad/s^2]
-ev["dspin_dt"]                            # spin rate [rad/s^2] (NaN for a dissipating world with no spin model)
+ev["dspin_dt"]                            # spin rate [rad/s^2]
 ev["tidal_heating"]                       # [W]
 ev["energy_residual"]                     # heating + dE_orbit/dt + dE_spin/dt (~0 under conservation)
 ```
 
-The returned dict also carries the state used (`orbital_frequency`, `semi_major_axis`, `eccentricity`, `spin_frequency`, `host_mass`, `target_mass`), the raw tidal outputs (`dU_dM`, `dU_dw`, `dU_dO`), the `moment_of_inertia`, the `has_spin` and `has_tide_model` flags, and the energy terms (`dE_orbit_dt`, `dE_spin_dt`). A dissipating world with no spin model (a star) is torqued like any other, but nothing knows its moment of inertia, so its `dspin_dt`, `dE_spin_dt`, and `energy_residual` are NaN rather than a zero the balance would contradict. Every layered world, gas giants included, carries a spin model: after `solve_eos` it uses the EOS moment of inertia, and before it the spin model's `moment_of_inertia_factor`, which is 0.4 (a uniform sphere) unless set, so set it for an unsolved gas giant (about 0.25 for Jupiter). `evolved` is `False` for the host's own entry or a world with no usable orbit about the host; its rates are then zero. `calc_system_evolution()` returns one such dict per world, in index order.
+The returned dict also carries the state used (`orbital_frequency`, `semi_major_axis`, `eccentricity`, `spin_frequency`, `host_mass`, `target_mass`), the raw tidal outputs (`dU_dM`, `dU_dw`, `dU_dO`), the `moment_of_inertia`, the `has_spin` and `has_tide_model` flags, and the energy terms (`dE_orbit_dt`, `dE_spin_dt`). Every world, stars included, carries a spin model: after `solve_eos` it uses the EOS moment of inertia, and before it the spin model's `moment_of_inertia_factor`, which comes from `[worlds]` in `TidalPy_Configs.toml` unless the world sets it: 0.4 (a uniform sphere), or 0.0754 for a star (an $n = 3$ polytrope). Set it for an unsolved gas giant (about 0.25 for Jupiter). `evolved` is `False` for the host's own entry or a world with no usable orbit about the host; its rates are then zero. `calc_system_evolution()` returns one such dict per world, in index order.
 
 A rigid world (no tide model attached) raises no tide. Its entry comes back with `evolved = True`, zero rates and energy terms, and `has_tide_model = False`, and the system logs a warning the first time each such world is evolved. Check `has_tide_model` in an integration loop: a rigid world gives zero rates, which would otherwise hold its orbit fixed without an error.
 
@@ -234,7 +234,7 @@ A system's binary file ([Binary Serialization](../../Utilities/binary.md)) carri
 * `set/get_stellar_semi_major_axis(i)`, `set/get_stellar_eccentricity(i)` (orbit about the star).
 * `calc_gravitational_parameter(i)`, `calc_orbital_frequency(i)`, `calc_semi_major_axis_from_frequency(i, n)` (host orbit), and the `calc_stellar_gravitational_parameter(i)` / `calc_stellar_orbital_frequency(i)` counterparts.
 * `calc_insolation_flux(i)`, `calc_equilibrium_temperature(i)`.
-* `calc_world_evolution(i)` and `calc_system_evolution()`: run the world's tidal solve for the current system state and return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` struct (a layered world is resolved through `dynamic_cast` so the rheology solve runs and the spin model is reached; a layerless world uses the analytic solve and contributes no spin). `calc_orbital_energy_derivative`, `calc_spin_energy_derivative`, and `calc_energy_residual` compute the energy-balance terms. `c_WorldEvolution::has_tide_model` is false for a rigid world, which is evolved with zero rates and warned about once per world through `TIDALPY_LOG_WARN`.
+* `calc_world_evolution(i)` and `calc_system_evolution()`: run the world's tidal solve for the current system state and return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` struct (every world runs the same `c_BaseWorld::calc_tides` and carries a spin model). `calc_orbital_energy_derivative`, `calc_spin_energy_derivative`, and `calc_energy_residual` compute the energy-balance terms. `c_WorldEvolution::has_tide_model` is false for a rigid world, which is evolved with zero rates and warned about once per world through `TIDALPY_LOG_WARN`.
 * `calc_pair_evolution(i)`: dual-body evolution returning a `c_PairEvolution` (both bodies' `c_WorldEvolution` contributions plus the combined shared-orbit rates and energy balance). Built on the shared `calc_dissipation(dissipator_i, companion_mass, n, a, e)` primitive, which computes one body's tidal solve, rate, and spin contribution (a body with no tide model is rigid and contributes zero; the primitive itself does not warn). `c_PairEvolution::has_tide_model` is true when either body carries a tide model.
 * The binary record rebuilds the world list through `c_world_from_binary` (`Structures/worlds/factory_.hpp`), which peeks each record's `BinaryClassID` and constructs the matching world type; `c_world_kind` gives a loaded world's concrete type so the Cython layer can pick the matching wrapper. It validates the host and star indices, the world names, and every orbit (`c_check_orbit`) before committing, and throws `std::runtime_error` on corrupt data.
 

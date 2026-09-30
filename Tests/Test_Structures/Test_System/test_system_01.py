@@ -7,7 +7,7 @@ import pytest
 from TidalPy.constants import G
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.stellar import StarWorld
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 
 MASS_SOLAR = 1.988435e30
 RADIUS_SOLAR = 6.957e8
@@ -20,7 +20,7 @@ def _sun():
 
 
 def _planet(name="earth", mass=MASS_EARTH, radius=6.371e6):
-    return LayeredWorld(name, radius, mass)
+    return BaseWorld(name, radius, mass)
 
 
 def _moon():

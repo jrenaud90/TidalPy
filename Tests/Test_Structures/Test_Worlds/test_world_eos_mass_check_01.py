@@ -7,7 +7,7 @@ import TidalPy
 from TidalPy.Material.eos import make_material_eos
 from TidalPy.Structures.configs import build_world
 from TidalPy.Structures.layers import SolidLiquidLayer
-from TidalPy.Structures.worlds import LayeredWorld
+from TidalPy.Structures.worlds import BaseWorld
 
 # Birch-Murnaghan layers at 80% of these densities: the only surface-pressure root holds about 60 times the mass.
 MASS = 0.692 * 5.972e24
@@ -27,7 +27,7 @@ def _birch_murnaghan(density):
 def _collapsing_world():
     core_density = CORE_MASS / ((4.0 / 3.0) * math.pi * CORE_RADIUS ** 3)
     mantle_density = (MASS - CORE_MASS) / ((4.0 / 3.0) * math.pi * (RADIUS ** 3 - CORE_RADIUS ** 3))
-    world = LayeredWorld("collapsing", RADIUS, MASS)
+    world = BaseWorld("collapsing", RADIUS, MASS)
     core = SolidLiquidLayer("core", 0, 0.0, CORE_RADIUS, 0.0, is_solid=False)
     core.set_eos(_birch_murnaghan(0.8 * core_density))
     world.add_layer(core)

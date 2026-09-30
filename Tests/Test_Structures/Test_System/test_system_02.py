@@ -8,7 +8,7 @@ import pytest
 from TidalPy.constants import G, mass_trap1
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
 from TidalPy.Structures.system import System
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
@@ -36,7 +36,7 @@ def _mass(radius):
 def _layered(name, radius, spin_frequency):
     """A homogeneous Maxwell body that dissipates tidally and carries a spin model."""
     mass = _mass(radius)
-    world = LayeredWorld(name, radius, mass)
+    world = BaseWorld(name, radius, mass)
     layer = BaseLayer("mantle", 0, 0.0, radius, mass)
     layer.is_static = False
     layer.set_eos(ConstantDensityEOS(
@@ -194,8 +194,8 @@ def test_system_evolution_sweep():
     assert abs(results[1]["energy_residual"]) <= 1e-6 * abs(results[1]["tidal_heating"])
 
 
-def test_layerless_world_evolves_without_spin():
-    """A layerless fixed-Q world evolves its orbit but, without a spin model, its spin terms are NaN."""
+def test_layerless_star_evolves_its_spin():
+    """A star with no layers evolves its orbit and its spin, the moment of inertia from its spin model's factor."""
     companion_mass = 1.898e27
     sma = 1.0e10
     orbital_frequency = math.sqrt(G * (_HOST + companion_mass) / sma ** 3)
@@ -210,12 +210,13 @@ def test_layerless_world_evolves_without_spin():
 
     ev = system.calc_world_evolution("companion")
     assert ev["evolved"] is True
-    assert ev["has_spin"] is False
-    # Torqued, but with no moment of inertia to turn the torque into a rate: unknown, not zero.
-    assert math.isnan(ev["dspin_dt"])
-    assert math.isnan(ev["dE_spin_dt"])
-    assert math.isnan(ev["energy_residual"])
+    assert ev["has_spin"] is True
+    assert ev["moment_of_inertia"] == pytest.approx(0.4 * companion_mass * 5.0e8 ** 2, rel=1e-12)
+    assert np.isfinite(ev["dspin_dt"])
+    assert np.isfinite(ev["dE_spin_dt"])
     assert ev["tidal_heating"] > 0.0
+    # The heating is drawn from the orbit and the spin.
+    assert abs(ev["energy_residual"]) <= 1e-6 * ev["tidal_heating"]
     assert np.isfinite(ev["da_dt"])
     assert np.isfinite(ev["de_dt"])
     assert np.isfinite(ev["dE_orbit_dt"])

@@ -1,4 +1,4 @@
-"""Love-number method dispatch on LayeredWorld (radial solver, propagation matrix, homogeneous, cpl, ctl)."""
+"""Love-number method dispatch on BaseWorld (radial solver, propagation matrix, homogeneous, cpl, ctl)."""
 import cmath
 import math
 
@@ -10,7 +10,7 @@ from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Rheology import Elastic, Maxwell
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Tides.love import calc_homogeneous_love_numbers
 from TidalPy.Viscosity import make_viscosity
@@ -38,7 +38,7 @@ def _layer(name, index, r_inner, r_outer, mass, shear=SHEAR, is_tidal=True, rheo
 
 def _uniform_world(rheology=None, viscosity=VISCOSITY, incompressible=True, bulk=BULK):
     """Single solid static uniform sphere (shooting cannot start a static incompressible solid: use _stiff_world)."""
-    world = LayeredWorld("uniform", RADIUS, MASS)
+    world = BaseWorld("uniform", RADIUS, MASS)
     world.add_layer(_layer("mantle", 0, 0.0, RADIUS, MASS, rheology=rheology, viscosity=viscosity,
                            incompressible=incompressible, bulk=bulk))
     world.solve_eos()
@@ -54,7 +54,7 @@ def _two_layer_world(core_tidal):
     """Uniform density, two layers with different shear moduli; the core is optionally non-tidal."""
     r_core = 0.5 * RADIUS
     core_mass = MASS * (r_core / RADIUS) ** 3
-    world = LayeredWorld("two_layer", RADIUS, MASS)
+    world = BaseWorld("two_layer", RADIUS, MASS)
     world.add_layer(_layer("core", 0, 0.0, r_core, core_mass, shear=3.0 * SHEAR, is_tidal=core_tidal,
                            rheology=Elastic()))
     world.add_layer(_layer("mantle", 1, r_core, RADIUS, MASS - core_mass, rheology=Elastic()))

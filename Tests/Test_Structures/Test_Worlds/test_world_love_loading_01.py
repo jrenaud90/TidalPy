@@ -1,4 +1,4 @@
-"""LayeredWorld Love solves with non-tidal surface boundary conditions (solve_for: tidal, loading, free)."""
+"""BaseWorld Love solves with non-tidal surface boundary conditions (solve_for: tidal, loading, free)."""
 
 import cmath
 import math
@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
@@ -24,7 +24,7 @@ _FREQ = 1.0e-5
 
 def _maxwell_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    world = LayeredWorld("loading_planet", _PLANET_RADIUS, mass)
+    world = BaseWorld("loading_planet", _PLANET_RADIUS, mass)
     layer = BaseLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))

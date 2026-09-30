@@ -134,8 +134,7 @@ def test_a_data_file_world_pins_rk45_unless_its_file_says_otherwise():
     assert build_world(config).get_solver_defaults()["eos_solver"] == {"integration_method": "RK45", "rtol": 1.0e-9}
 
 
-def test_a_star_rejects_the_tables():
+def test_a_star_takes_the_tables():
     config = {"name": "sun", "type": "star", "radius_m": 6.96e8, "mass_kg": 1.99e30, "luminosity_w": 3.8e26,
               "radial_solver": {"use_kamata": True}}
-    with pytest.raises(ValueError, match="star"):
-        build_world(config)
+    assert build_world(config).get_solver_defaults()["radial_solver"] == {"use_kamata": True}

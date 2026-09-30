@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Structures.worlds.layered import LayeredWorld
+from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers.base import BaseLayer
 from TidalPy.Material.eos.material_eos import ConstantDensityEOS
 from TidalPy.Viscosity import make_viscosity
@@ -26,7 +26,7 @@ _REAL_GETTERS = _PROFILE_GETTERS + (
 
 def _solved_world():
     """A homogeneous Maxwell world with its EOS solved."""
-    world = LayeredWorld("world", _RADIUS, _MASS)
+    world = BaseWorld("world", _RADIUS, _MASS)
     layer = BaseLayer("mantle", 0, 0.0, _RADIUS, _MASS)
     layer.set_eos(ConstantDensityEOS(
         reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
