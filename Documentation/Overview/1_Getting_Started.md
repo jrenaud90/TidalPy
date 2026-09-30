@@ -1,6 +1,6 @@
 # Getting Started with TidalPy
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
 ## Installation
 
@@ -46,6 +46,31 @@ print(rates["da_dt"], rates["de_dt"])                 # [m s-1], [s-1]
 ```
 
 TidalPy computes rates only; to evolve a system in time, integrate these rates with an integrator of your choice (the demos use [CyRK](https://github.com/jrenaud90/CyRK)).
+
+## Logging to a File
+
+TidalPy's messages (warnings from a radial solve, for example) go to the console by default. To also write them to a file of your choosing for the rest of the session, call `init_logger` after importing TidalPy:
+
+```python
+from pathlib import Path
+
+from TidalPy.Utilities.logging import init_logger, flush_logger
+
+log_path = Path("my_runs/io_run.log").resolve()   # Any location; missing folders are created
+
+init_logger({                                     # Replaces the current console and file outputs
+    "console_level": "warning",
+    "file_level": "debug",
+    "log_to_file": True,
+    "log_file_path": str(log_path),
+})
+
+# ... run your calculations ...
+
+flush_logger()                                    # Write buffered info and debug lines before reading the file
+```
+
+Warnings and errors are written to the file immediately. Lower levels are buffered until `flush_logger` runs or the interpreter exits (so calling `flush_logger` is not required unless you want to look at a log while an interpreter is still running, e.g., while using a Jupyter notebook). The file is appended to, not overwritten. `TidalPy.reinit()` returns the logger to the settings in your configuration file. To write a timestamped log file to the TidalPy data directory in every session, set `write_log_to_disk = true` in the `[logging]` section of the configuration file instead (see [Configurations](2_TidalPy_Configurations.md)). The levels and the other logging functions are described on the [Logging](../Utilities/logging.md) page.
 
 ## Learning More
 

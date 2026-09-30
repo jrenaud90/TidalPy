@@ -1,10 +1,8 @@
 # SolidLiquidLayer
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
-`TidalPy.Structures.layers.SolidLiquidLayer` extends `BaseLayer` with optional sub-models for radiogenic heating and convective or conductive cooling, and with the thermal-transport calculations that need the layer's geometry or solved profile. It adds no parameters of its own.
-
-The physics:
+`TidalPy.Structures.layers.SolidLiquidLayer` extends `BaseLayer` with optional sub-models for radiogenic heating and convective or conductive cooling, and with the thermal-transport calculations that need the layer's geometry or solved profile.
 
 - Thermal transport: a constant conductivity $k$; the diffusivity $\kappa = k/(\rho\,c_{p})$ at the layer's bulk density; the adiabatic gradient $\alpha T g / c_{p}$ (requires EOS data for gravity).
 - Conductive heat flux, $F = k\,(T_\mathrm{base} - T_\mathrm{top})/h$.
@@ -79,7 +77,7 @@ _Read-only properties._
 
 ### `calc_thermal_conductivity(temperature)` -> float
 
-Returns the material's thermal conductivity k [W/(m·K)]. Temperature dependence is not modeled.
+Returns the material's thermal conductivity k [W/(m·K)]. Temperature dependence is not currently implemented.
 
 ### `calc_thermal_diffusivity(temperature)` -> float
 
@@ -116,6 +114,7 @@ Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model. O
 ```python
 from TidalPy.Cooling import make_cooling
 from TidalPy.Radiogenics import IsotopeRadiogenics
+
 layer.set_cooling(make_cooling("convection"))
 layer.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
 ```
@@ -141,12 +140,12 @@ from TidalPy.Material.eos import ConstantDensityEOS
 from TidalPy.Structures.layers import SolidLiquidLayer
 
 mantle = SolidLiquidLayer(
-    name                     = "mantle",
-    layer_index              = 1,
-    radius_inner             = 3.485e6,
-    radius_outer             = 6.371e6,
-    mass                     = 4.043e24,
-    material_name            = "perovskite",
+    name          = "mantle",
+    layer_index   = 1,
+    radius_inner  = 3.485e6,
+    radius_outer  = 6.371e6,
+    mass          = 4.043e24,
+    material_name = "perovskite",
 )
 
 # The material: density law, static moduli, static viscosity, thermal constants. Attach a viscosity and a
@@ -166,8 +165,13 @@ T = 3200.0    # K (hot lower mantle)
 P = 1e11      # Pa (about 100 GPa)
 
 # Before attaching it, ask the material about a pressure and temperature directly. Once the layer sits in a solved
-# world, read mantle.get_shear_modulus(radius) and friends instead: they report what the solve used.
-material = ConstantDensityEOS(reference_density=4000.0, shear_modulus_static=1.67e11, shear_viscosity_static=1.0e21)
+# world, read mantle.get_shear_modulus(radius) and friends instead. They report what the solve used.
+material = ConstantDensityEOS(
+    reference_density=4000.0,
+    shear_modulus_static=1.67e11,
+    shear_viscosity_static=1.0e21
+)
+
 state = material.calc_material_state(pressure=P, temperature=T)
 phi = state["melt_fraction"]
 eta = state["shear_viscosity"]

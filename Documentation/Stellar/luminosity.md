@@ -1,6 +1,6 @@
 # Luminosity Models (`Stellar`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
 A luminosity model maps a star's mass onto its luminosity $L$ \[W\]. That sets the effective temperature through the Stefan-Boltzmann law, and, once the star is placed in a `System`, the flux and equilibrium temperature of every world orbiting it.
 

@@ -1,6 +1,6 @@
 # GasLayer
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
 `TidalPy.Structures.layers.GasLayer` (`c_GasLayer` in C++) is the layer class for gas and fluid envelopes such as planetary atmospheres or gaseous mantles. It inherits `BaseLayer`, so its density, moduli, and viscosities come from its material exactly as for any layer, and it adds four ideal-gas parameters (mean molecular weight, adiabatic index, and a reference temperature and density). Those are stored and serialized, but no calculation reads them: they change no result. No phase-change, cooling, or radiogenics sub-models are available; use `SolidLiquidLayer` for those.
 

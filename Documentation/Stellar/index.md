@@ -1,6 +1,6 @@
 # Stellar (`Stellar`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-30_
 
 `TidalPy.Stellar` contains the stellar physics used to calculate stellar heating on a planet in long-term thermal-orbital evolution models. Its luminosity models map a star's mass \[kg\] onto its luminosity \[W\] using published relationships, which is helpful for exoplanet hosts whose stellar properties are not fully published.
 
@@ -18,7 +18,7 @@ Luminosity Models <luminosity.md>
 
 A luminosity model is attached to a `StarWorld` with `set_luminosity_model`. The star then derives its own luminosity and effective temperature from its mass and radius. See [Worlds](../Structures/worlds/worlds.md).
 
-The model is optional. A star given a luminosity or an effective temperature directly keeps the two consistent through the Stefan-Boltzmann relation without a model. A model lets the star's mass set those numbers instead, as a population study or an evolving system needs.
+A star given a luminosity or an effective temperature directly keeps the two consistent through the Stefan-Boltzmann relation without a model. A model lets the star's mass set those numbers instead, as a population study or an evolving system needs.
 
 `System` uses the star's luminosity to compute the orbit-averaged flux at each of its worlds and the gray-body equilibrium temperature that follows from it. See [System](../Structures/system/system.md).
 

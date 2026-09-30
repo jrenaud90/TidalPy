@@ -23,7 +23,7 @@ The abstract base declares `calc_heating(time, mass)` and supplies the three vec
 
 For a half life $t_{1/2}$ the decay constant is $\gamma = \ln(0.5) / t_{1/2}$, a negative number whose magnitude grows as the half life shortens.
 
-| Model (aliases) | Heating $Q$ [W] | Parameters |
+| Model (aliases) | Heating $Q$ \[W\] | Parameters |
 |---|---|---|
 | `off` (`none`) | $0$ | none |
 | `isotope` (`isotopes`) | $m \sum_i q_i f_i c_i \exp[\gamma_i (t - t_{\text{ref}})]$ | a list of isotopes, `ref_time` |
@@ -45,7 +45,7 @@ Applies one lumped specific rate to the whole layer, optionally with a single ef
 
 ### Behavior at the Limits
 
-A half life at or below zero is treated as infinite rather than as an error, which is what makes the constant-rate case fall out of the same formula. A half life that is finite but smaller than the module's floor is clamped to that floor, so no decay constant is ever divided by zero.
+A half life at or below zero is treated as infinite, not zero. This allows the constant-rate case to use the same formula. A half life that is finite but smaller than the module's floor is clamped to that floor, so no decay constant is ever divided by zero.
 
 Evaluating a model far before its reference time asks for an exponential that would overflow. Both decaying models guard against this and return NaN, so a bad epoch shows up as NaN heating.
 
@@ -56,12 +56,12 @@ One isotope is described by the `c_Isotope` C++ struct, a plain value type with 
 | Field | Meaning |
 |---|---|
 | `name` | Isotope label, for example `"U238"`. |
-| `heat_production` | Specific heat production of the pure isotope [W kg$^{-1}$]. |
-| `half_life` | Half life [s]. |
-| `mass_frac` | Mass fraction of the isotope within its element at the reference time [kg kg$^{-1}$]; 1 when `concentration` is the isotope's own. |
-| `concentration` | Concentration of the parent element in the layer material at the reference time [kg kg$^{-1}$]. |
+| `heat_production` | Specific heat production of the pure isotope \[W kg$^{-1}$\]. |
+| `half_life` | Half life \[s\]. |
+| `mass_frac` | Mass fraction of the isotope within its element at the reference time \[kg kg$^{-1}$\]; 1 when `concentration` is the isotope's own. |
+| `concentration` | Concentration of the parent element in the layer material at the reference time \[kg kg$^{-1}$\]. |
 
-It provides `decay_constant()` [s$^{-1}$] and `specific_heating(time, ref_time)` [W kg$^{-1}$]. `c_IsotopeRadiogenics` holds a `std::vector<c_Isotope>` and sums the specific heating of each member before scaling by the layer mass.
+It provides `decay_constant()` \[s$^{-1}$\] and `specific_heating(time, ref_time)` \[W kg$^{-1}$\]. `c_IsotopeRadiogenics` holds a `std::vector<c_Isotope>` and sums the specific heating of each member before scaling by the layer mass.
 
 `IsotopeRadiogenics` is the Python wrapper to this struct. It takes parallel arrays and reads them back through properties of the same names.
 
@@ -96,19 +96,17 @@ TidalPy provides some sets of isotopes popular in the literature. List them with
 | `bulk_silicate_earth` | U238, U235, Th232, K40 | 4600 Myr | Present-day Earth-like silicate mantles (U 20.3 ppb, Th 79.5 ppb, K 240 ppm). | McDonough and Sun (1995) concentrations; Turcotte and Schubert (2002) rates |
 
 > [!NOTE]
-> Notice that the reference times differ. The two present-day sets quote concentrations at 4600 Myr, so evaluating them at $t = 0$ gives the heating at solar system formation and evaluating at $t = $ `ref_time` gives today's. The three Castillo-Rogez et al. (2007) sets quote their concentrations at formation instead, so they are evaluated at the time since formation directly.
+> Notice that the reference times differ. The two present-day sets quote concentrations at 4600 Myr, so evaluating them at $t = 0$ gives the heating at Solar System formation and evaluating at $t = $ `ref_time` gives today's. The three Castillo-Rogez et al. (2007) sets quote their concentrations at formation instead, so they are evaluated at formation time instead.
 
 The Castillo-Rogez et al. (2007) sets are ordinary chondritic rock at the formation of the calcium-aluminum-rich inclusions (CAIs). Their Table 3 quotes each isotope's own concentration at that time, so heating at formation is the heat production times that concentration.
 
 - The long-lived isotopes are entered with that concentration and a mass fraction of 1. The isotopic abundances in their Table 4 are present-day values, which do not hold at formation.
-- The short-lived isotopes are entered as the initial isotopic ratio of their Table 5 times the element concentration it implies (26Al/27Al = 5 × 10$^{-5}$ of 1.2 wt% aluminum, 60Fe/56Fe = 10$^{-6}$ of 22.5 wt% iron, 53Mn/55Mn = 10$^{-5}$ of 0.257 wt% manganese). The product reproduces Table 3.
+- The short-lived isotopes are entered as the initial isotopic ratio of their Table 5 times the element concentration it implies (26Al/27Al = 5 × 10$^{-5}$ of 1.2 wt\% aluminum, 60Fe/56Fe = 10$^{-6}$ of 22.5 wt\% iron, 53Mn/55Mn = 10$^{-5}$ of 0.257 wt\% manganese). The product reproduces Table 3.
 - The paper explores 60Fe/56Fe from 10$^{-7}$ to 10$^{-6}$; the set uses the 10$^{-6}$ of its short-lived-isotope models. Where the paper quotes a range for a half life or a heat production, the set uses its middle.
-
-At formation the rock releases about 1.0 × 10$^{-7}$ W kg$^{-1}$, 84 percent of it from 26Al. The long-lived isotopes alone give about 4 × 10$^{-11}$ W kg$^{-1}$ at formation and 5 × 10$^{-12}$ W kg$^{-1}$ at 4568 Myr.
 
 `isotope_dataset(name)` returns the dataset as a dict with the keys `heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, `isotope_names`, and `ref_time_s`.
 
-A name that is not one of the built-ins is looked up in the `[radiogenics.known_isotope_data]` section of `TidalPy_Configs.toml` (`TidalPy.config['radiogenics']['known_isotope_data']`, empty by default), and an inline dict is accepted in the same place. Those two sources store half lives and reference times in mega-years \[Myr\] and the heat production rate in \[W kg$^{-1}$\], with a `ref_time` entry and the per-isotope keys `hpr`, `half_life`, `iso_mass_fraction`, and `element_concentration`; the Python factory converts them to seconds. The built-in catalog is always preferred over a same-named config entry.
+A name that is not one of the built-ins is looked up in the `[radiogenics.known_isotope_data]` section of `TidalPy_Configs.toml` (`TidalPy.config['radiogenics']['known_isotope_data']`, empty by default), and an inline dict is accepted in the same place. Those two sources store half lives and reference times in mega-years \[Myr\] and the heat production rate in \[W kg$^{-1}$\], with a `ref_time` entry and the per-isotope keys `hpr`, `half_life`, `iso_mass_fraction`, and `element_concentration`. The built-in catalog is always preferred over a same-named config entry.
 
 ## Python API
 
@@ -122,7 +120,7 @@ time = 1.0e17   # [s] from the caller's epoch
 
 # A lumped rate with no decay.
 model = FixedRadiogenics(fixed_heat_production=1.0e-11)
-heating = model.calc_heating(time, mass)                    # [W]
+heating = model.calc_heating(time, mass)   # [W]
 
 # A literature isotope set, evaluated at its own reference epoch (present day).
 chondritic = IsotopeRadiogenics.from_dataset("modern_day_chondritic")
@@ -138,8 +136,8 @@ model = make_radiogenics("isotope", {"isotopes": "bulk_silicate_earth"})
 | Config key | Model | Meaning |
 |---|---|---|
 | `fixed_heat_production_w_kg` | fixed | Lumped specific rate [W kg$^{-1}$]. |
-| `average_half_life_s` | fixed | Effective half life [s]; non-positive means no decay. |
-| `ref_time_s` | fixed, isotope | Reference time [s]. |
+| `average_half_life_s` | fixed | Effective half life \[s\]; non-positive means no decay. |
+| `ref_time_s` | fixed, isotope | Reference time \[s\]. |
 | `isotopes` | isotope | A built-in dataset name, a config dataset name, or an inline dict. |
 | `heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, `isotope_names` | isotope | Explicit parallel arrays, in MKS. |
 
@@ -152,9 +150,9 @@ layer.calc_radiogenic_heating(time, mass)     # [W] for the mass supplied
 world.calc_internal_heating(time)             # [W] summed over all layers
 ```
 
-`set_radiogenics` moves ownership of the C++ model into the layer, leaving the Python wrapper an empty shell, so build a fresh model if the same parameters are needed elsewhere. Only `SolidLiquidLayer` accepts one. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one. A layer with `use_heating` set also feeds its model to the world's thermal EOS solve, which heats the layer at the model's specific rate times the local density and reports the total as `layer_heating` (see [Worlds](../Structures/worlds/worlds.md)).
+`set_radiogenics` moves ownership of the C++ model into the layer, leaving the Python wrapper an empty shell, so build a fresh model if the same parameters are needed elsewhere. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one. A layer with `use_heating` set also feeds its model to the world's thermal EOS solve, which heats the layer at the model's specific rate times the local density and reports the total as `layer_heating` (see [Worlds](../Structures/worlds/worlds.md)).
 
-The mass is an argument so the caller can choose which mass is radiogenic: usually the layer's own mass, but possibly one differentiated component of it. The world-level sum uses each layer's `mass` attribute, which the equation-of-state solve sets, so solve the world's structure first: a layer built without a mass reports zero until then.
+The mass is an argument so the caller can choose which mass is radiogenic. This is usually the layer's own mass, but possibly one differentiated part of it. The world-level sum uses each layer's `mass` attribute, which the equation-of-state solves, so solve the world's structure first.
 
 ### Vectorized Evaluation
 
@@ -196,13 +194,11 @@ Signatures:
 - `isotope(time, mass, heat_production, half_lives, mass_fracs, concentrations, ref_time=0.0, names=None)`;
 - `fixed(time, mass, fixed_heat_production=0.0, average_half_life=0.0, ref_time=0.0)`.
 
-All-scalar input returns a float, anything else a `float64` array. The model parameters themselves are always constants.
+An all-scalar input returns a float, anything else a `float64` array. The model parameters themselves are always constants.
 
-Both the class methods and the convenience functions take `time` first, then `mass`, then the model parameters, matching the argument order used across the physics modules.
+Both the class methods and the convenience functions take `time` first, then `mass`, then other model parameters.
 
 ## Serialization
-
-Every model supports the standard interfaces inherited from the TidalPy base class.
 
 - `get_config_dict()` returns the model name under the key `model` plus its parameters, with isotope arrays as lists. The dict is accepted by `make_radiogenics`, so a model round-trips through it.
 - `save_config(path)` writes the same content as TOML.
@@ -216,7 +212,7 @@ using namespace tidalpy;
 
 c_RadiogenicsConfig config;
 config.fixed_heat_production = 1.0e-11;
-config.average_half_life     = 4.47e17;
+config.average_half_life     = 4.47e17;   // Converted to seconds already
 
 const c_RadiogenicsModel model_id = c_radiogenics_model_from_name("fixed");
 std::unique_ptr<c_RadiogenicsBase> model = c_find_radiogenics(model_id, config);

@@ -1,8 +1,8 @@
 # Rheology Models (`Rheology`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
-A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss modulus, the part in quadrature, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$.
+A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$ (Efroimsky 2013).
 
 Everything on this page applies equally to the shear and the bulk response. The models do not know which one they are computing; supply a shear modulus with a shear viscosity, or a bulk modulus with a bulk viscosity, and the same constitutive law applies. In practice the shear response dominates tidal dissipation in solid bodies, and the bulk response is usually left elastic, however this is a new and active area of research.
 
@@ -104,19 +104,19 @@ The element compliances $J_\mathrm{maxwell}$, $J_\mathrm{voigt}$, and $J_\mathrm
 
 ### Behavior at the Limits
 
-At zero frequency Maxwell, Burgers, Andrade, and Sundberg return effectively zero: with unlimited time to flow, a viscoelastic body supports no static rigidity. Elastic returns $\mu$, Viscous returns zero, Voigt returns $\mu f_J$, and Zener returns $r\mu$. Seismic Q treats zero frequency as no forcing and returns $\mu$ with no loss, as it does for an infinite $Q$; a $Q$ that is not positive returns `NaN`.
+At zero frequency Maxwell, Burgers, Andrade, and Sundberg return approx. zero. In this scenario there is unlimited time to flow, a viscoelastic body supports no static rigidity. Elastic returns $\mu$, Viscous returns zero, Voigt returns $\mu f_J$, and Zener returns $r\mu$. Seismic Q treats zero frequency as no forcing and returns $\mu$ with no loss, as it does for an infinite $Q$; a $Q$ that is not positive returns `NaN`.
 
 At negative frequency Elastic, Viscous, Voigt, Maxwell, Burgers, Zener, and SeismicQ mirror the imaginary part, but Andrade and Sundberg return `NaN`: their transient term raises a negative quantity to a fractional power. Always pass the absolute value of the forcing frequency. TidalPy's own tidal solvers do this; a direct call does not.
 
 ### Choosing a Model
 
-`Elastic` gives deformation without dissipation: use it to isolate the elastic part of a Love number or for a layer that is effectively rigid on the forcing timescale. It is what a layer behaves like when no rheology is attached, and it is the most common choice for the bulk rheology, so a planet can compress without dissipating energy from it.
+`Elastic` gives deformation without dissipation. It should be used to isolate the elastic part of a Love number or for a layer that is effectively rigid on the forcing timescale.
 
-`Maxwell` is the traditional rheology used in tidal studies. It is a good choice when comparing against published Love numbers, since most of the literature uses it. Its weakness is the high-frequency tail: dissipation falls as $\omega^{-1}$, which underestimates the dissipation response of real silicates to fast forcing.
+`Maxwell` is the traditional rheology used in tidal studies. It is a good choice when comparing against published Love numbers, since most of the literature uses it. Its weakness is the high-frequency tail which has dissipation fall off quickly, as $\omega^{-1}$, which underestimates the dissipation response of real silicates during fast forcing.
 
-`Andrade` and `Sundberg` are the models to use when the forcing is fast compared with the Maxwell time, which is the usual situation for a cool, stiff, or rapidly forced body. Their loss falls only as $\omega^{-\alpha}$, and for tidal problems that difference can be orders of magnitude in the heating rate.
+`Andrade` and `Sundberg` are the models to use when the forcing is fast compared with the Maxwell time, which is the usual situation for a cool, stiff, or rapidly forced body. Their loss falls only as $\omega^{-\alpha}$, and for tidal problems that difference can be orders of magnitude in the heating rate (Renaud & Henning 2018).
 
-`Zener` suits a response that relaxes only partway. A Maxwell bulk rheology lets a layer's bulk modulus relax to zero at long periods, which no rock does; a Zener bulk rheology relaxes it to $r K$. Melt-driven compaction is the usual case: a partially molten rock's bulk modulus relaxes from its unrelaxed (undrained) value toward its drained one as melt moves, and the partial-melt model can supply the bulk viscosity that sets the rate (see [Partial Melt Models](../PartialMelt/partial_melt_models.md)). Pick $r$ as the drained-to-unrelaxed ratio; for melt in isolated pockets it is near 0.9 at 10% melt, and melt films lower it.
+`Zener` suits a response that relaxes only partway. A Maxwell bulk rheology lets a layer's bulk modulus relax to zero at long periods, which is not realistic. A Zener bulk rheology relaxes it to $r K$. Melt-driven compaction is the usual case: a partially molten rock's bulk modulus relaxes from its unrelaxed (undrained) value toward its drained one as melt moves, and the partial-melt model can supply the bulk viscosity that sets the rate (see [Partial Melt Models](../PartialMelt/partial_melt_models.md)). Pick $r$ as the drained-to-unrelaxed ratio; for melt in isolated pockets it is near 0.9 at 10% melt, and melt films lower it.
 
 `SeismicQ` takes the loss straight from a measured quality factor, with no viscosity and no model of the relaxation behind it. It is what a seismic profile such as PREM supports, and a world built from a radial data file gives it to every solid layer when the world sets `q_provided = true` (see the [TOML schema](../Structures/config/toml_schema.md)). What it assumes is how $Q$ changes between the reference frequency and the forcing frequency: $a = 0$ keeps the seismic $Q$, while laboratory and geodetic constraints put Earth's mantle nearer $a = 0.1$ to $0.3$, so a tidal $Q$ several times lower than the seismic one. That choice, not the rest of the model, sets the tidal dissipation. Because its viscosity input is a quality factor, pair it only with a material whose viscosity slot holds one; a layer whose material carries a viscosity model would have that viscosity read as $Q$.
 
@@ -142,7 +142,7 @@ Model parameters are fixed at construction and exposed as read-only properties (
 
 ### Factory Internals
 
-At the C++ level the factory is enum-based. `c_RheologyModel` names one value per model; `c_rheology_model_from_name(name)` maps a case-insensitive name or alias onto that enum, throwing `std::invalid_argument` for an unknown name; and `c_find_rheology(model, config)` returns a `std::unique_ptr<c_RheologyBase>` to a freshly heap-allocated model. Every C++ consumer uses this path, including layers attaching a rheology and the binary loader rebuilding one. The Python `make_rheology` wraps it: it fills a `c_RheologyConfig`, calls the two C++ functions, and adopts the returned pointer into the matching Python wrapper.
+At the C++ level the factory is enum-based. `c_RheologyModel` names one value per model, `c_rheology_model_from_name(name)` maps a case-insensitive name or alias onto that enum, throwing `std::invalid_argument` for an unknown name. `c_find_rheology(model, config)` returns a `std::unique_ptr<c_RheologyBase>` to a freshly heap-allocated model. Every C++ consumer uses this path, including layers attaching a rheology and the binary loader rebuilding one. The Python `make_rheology` wraps it: it fills a `c_RheologyConfig`, calls the two C++ functions, and adopts the returned pointer into the matching Python wrapper.
 
 ### Vectorized Evaluation
 
@@ -218,7 +218,7 @@ mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 complex_shear = mantle.calc_complex_shear_modulus(1.0e-5)
 ```
 
-Ownership of the C++ model transfers into the layer: the Python wrapper becomes an empty shell and cannot be attached again. Until a rheology is set, `calc_complex_shear_modulus` returns the static modulus as a purely real complex number, which is elastic behavior. The equivalent declarative form is a `[layers.<name>.shear_rheology]` table in a world's TOML, keyed by `model` plus any parameters; see the [TOML schema](../Structures/config/toml_schema.md) and [BaseLayer](../Structures/layers/base_layer.md).
+Ownership of the C++ model transfers into the layer. Until a rheology is set, `calc_complex_shear_modulus` returns the static modulus as a purely real complex number, which is elastic behavior. The equivalent declarative form is a `[layers.<name>.shear_rheology]` table in a world's TOML, keyed by `model` plus any parameters; see the [TOML schema](../Structures/config/toml_schema.md) and [BaseLayer](../Structures/layers/base_layer.md).
 
 ## Serialization
 

@@ -1,12 +1,12 @@
 # BaseLayer
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
-`TidalPy.Structures.layers.BaseLayer` is the layer class every TidalPy layer type builds on. It holds one spherically symmetric shell inside a planetary body: its inner and outer radii \[m\], total mass \[kg\], and an optional material identifier, the radial-solver assumptions, the layer temperature, the material, and the shear and bulk rheology. Derived geometry (thickness, volume, surface areas) is computed at construction and read through properties.
+`TidalPy.Structures.layers.BaseLayer` holds one spherically symmetric shell inside a planetary body: its inner and outer radii \[m\], total mass \[kg\], and an optional material identifier, the radial-solver assumptions, the layer temperature, the material, and the shear and bulk rheology. Derived geometry (thickness, volume, surface areas) is computed at construction and read through properties.
 
-The material is the layer's EOS model (see [Material EOS Models](../../Material/material_eos.md)), attached with `set_eos`. It holds the density law, the static moduli, the shear law, the viscosities, and the viscosity and partial-melt models, and the world-level EOS solve ([`BaseWorld.solve_eos`](../worlds/worlds.md#equation-of-state)) evaluates it as it integrates. The solve populates the layer's EOS profile (density, gravity, pressure, and the viscoelastic state as a function of radius); `update_eos_data` can populate the first three directly. Until populated, every profile getter returns `NaN`.
+The material is defined via the layer's EOS model (see [Material EOS Models](../../Material/material_eos.md)), attached with `set_eos`. It holds the density law, the static moduli, the shear law, the viscosities, and the viscosity and partial-melt models, and the world-level EOS solve ([`BaseWorld.solve_eos`](../worlds/worlds.md#equation-of-state)) evaluates it as it integrates. The solve populates the layer's EOS profile (density, gravity, pressure, and the viscoelastic state as a function of radius).
 
-The rheology is the one thing that knows a forcing frequency. When a rheology model (a `RheologyBase` subclass) is attached with `set_shear_rheology` or `set_bulk_rheology`, `calc_complex_shear_modulus` and `calc_complex_bulk_modulus` apply it to the static modulus and viscosity the solved EOS reports. Until then they return the static modulus as a purely real complex number, which is perfectly elastic behavior.
+When a rheology model (a `RheologyBase` subclass) is attached with `set_shear_rheology` or `set_bulk_rheology`, `calc_complex_shear_modulus` and `calc_complex_bulk_modulus` apply it to the static modulus and viscosity the solved EOS reports. Until then they return the static modulus as a purely real complex number, which is perfectly elastic behavior.
 
 ## Inheritance
 
@@ -115,15 +115,15 @@ Read-only properties.
 
 | Property | Units | Description |
 |----------|-------|-------------|
-| `temperature` | K | Layer temperature. Writable. |
-| `use_thermal_eos` | - | `True` if the material's density law receives the temperature. Writable. |
-| `use_heating` | - | `True` if the world's heat sources act inside the layer during a thermal EOS solve (see [Worlds](../worlds/worlds.md)). Writable. |
+| `temperature` | K | Layer temperature. |
+| `use_thermal_eos` | - | `True` if the material's density law receives the temperature. |
+| `use_heating` | - | `True` if the world's heat sources act inside the layer during a thermal EOS solve (see [Worlds](../worlds/worlds.md)). |
 
 The EOS solve reads all three, so writing one on a layer of a solved world leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)).
 
 ### Layer Assumptions
 
-These three flags decide which equations the radial solver uses inside this layer. They are constructor arguments, layer keys in a world TOML (see [TOML schema](../config/toml_schema.md)), and writable after construction. A liquid layer is static unless `is_static` is set `False`. Every Love solve reads them afresh, so writing one keeps the world's solved structure.
+These three flags decide which equations the radial solver uses inside this layer. They are constructor arguments, layer keys in a world TOML (see [TOML schema](../config/toml_schema.md)), and writable after construction. A liquid layer is static unless `is_static` is set `False`.
 
 | Property | Meaning |
 |---|---|
@@ -140,7 +140,7 @@ mantle.is_incompressible = False
 
 ### `set_eos(model)`
 
-Attach a [material EOS model](../../Material/material_eos.md), the layer's material and density source. Ownership of the C++ model transfers into the layer; the passed wrapper becomes an empty shell, and attaching it again raises `ValueError`. The layer's viscosity and partial-melt models are held by its material, so replacing the material keeps the ones attached before unless the new model carries its own. On a layer of a solved world, a new material leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)); so does a new `is_volume_fixed`.
+Attach a [material EOS model](../../Material/material_eos.md), the layer's material and density source. Ownership of the C++ model transfers into the layer; the passed wrapper becomes an empty shell, and attaching it again raises `ValueError`. The layer's viscosity and partial-melt models are held by its material, so replacing the material keeps the ones attached before unless the new model carries its own. On a layer of a solved world, a new material leaves the world unsolved until its next `solve_eos` (see [Solved State](../worlds/worlds.md#solved-state)).
 
 ```python
 from TidalPy.Material.eos import make_material_eos
@@ -166,7 +166,7 @@ mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 
 ### `set_shear_viscosity(model)` / `set_bulk_viscosity(model)` / `set_partial_melt(model)`
 
-Helpers. The material owns these models, so each call hands the model to the layer's EOS model rather than storing it on the layer; they exist so a layer can be configured in one place. Attach the EOS first (`set_eos`): with none there is no material to give the model to, and the call raises `ValueError`. The same methods are on the EOS model itself, for a material configured before it is attached. On a layer of a solved world, each call leaves the world unsolved until its next `solve_eos`.
+These helpers hand the models to the layer's EOS (material) rather than store it on the layer.
 
 ```python
 from TidalPy.Viscosity import make_viscosity
@@ -178,7 +178,7 @@ mantle.set_shear_viscosity(make_viscosity("reference", {
 mantle.set_partial_melt(make_partial_melt("henning"))
 ```
 
-A viscosity model from [`Viscosity`](../../Viscosity/viscosity_models.md) turns the temperature and pressure into the viscosity the rheology then uses; without one the material falls back to its static viscosity, which is NaN unless you set it. A partial-melt model from [`PartialMelt`](../../PartialMelt/partial_melt_models.md) weakens the modulus and the viscosity between the solidus and the liquidus.
+A viscosity model from [`Viscosity`](../../Viscosity/viscosity_models.md) turns the temperature and pressure into the viscosity the rheology then uses. Without one the material falls back to its static viscosity, which is NaN unless specifically set. A partial-melt model from [`PartialMelt`](../../PartialMelt/partial_melt_models.md) weakens the modulus and the viscosity between the solidus and the liquidus.
 
 ### `calc_complex_shear_modulus(frequency)` -> complex
 
@@ -186,15 +186,15 @@ Complex shear modulus \[Pa\] at the given tidal forcing frequency \[rad s$^{-1}$
 
 ### `calc_complex_shear_modulus(radius, frequency)` -> complex or ndarray
 
-Radius-resolved form: applies the shear rheology to the static modulus and viscosity the solved EOS reports at `radius`, exactly like the world-level [`BaseWorld.calc_complex_shear_modulus`](../worlds/worlds.md). This is the only step of the chain that depends on frequency, and it is what the radial Love-number solve does at every radius it visits. `radius` may be a float (returns `complex`) or an `np.ndarray` of radii (returns a same-shape complex array). Returns `NaN` before the world EOS solve populates the layer.
+Radius-resolved form: applies the shear rheology to the static modulus and viscosity the solved EOS reports at `radius`, exactly like the world-level [`BaseWorld.calc_complex_shear_modulus`](../worlds/worlds.md). `radius` may be a float (returns `complex`) or an `np.ndarray` of radii (returns a same-shape complex array). Returns `NaN` before the world EOS solve populates the layer.
 
 ### `calc_complex_bulk_modulus(...)` -> complex or ndarray
 
 Complex bulk modulus \[Pa\], in both the material-constant `(frequency)` and the radius-resolved `(radius, frequency)` forms, following the same rules as `calc_complex_shear_modulus`.
 
-### `update_eos_data(radius, density_kgm3, gravity_ms2, pressure)`
+### `update_eos_data(radius, density, gravity, pressure)`
 
-Populate the density, gravity, and pressure profile directly from sorted radius arrays. The world EOS solve does this in the normal workflow; the direct form is for tests and manual construction. All sequences must be the same length and `radius` sorted ascending. Values are interpolated linearly and clamped at the layer boundaries.
+Populate the density, gravity, and pressure profile directly from sorted arrays. The world EOS solve does this in the normal workflow. This direct form is for tests and manual construction. All sequences must be the same length and `radius` sorted ascending. Values are interpolated linearly and clamped at the layer boundaries.
 
 ### Profile Getters -> float or ndarray
 
@@ -240,15 +240,15 @@ cfg = mantle.get_config_dict()   # every construction parameter and attached mod
 mantle.save_config("mantle.toml")
 ```
 
-The dict follows the world builder's layer schema: `class` names the layer class (`base`, `solidliquid`, or `gas`), the scalar keys are the constructor parameters (`temperature_k` for the temperature), and each attached model is a sub-table keyed by `model`. The `material` table is the EOS model with its static constants, its shear law, and its own `shear_viscosity`, `bulk_viscosity`, and `partial_melt` tables; `shear_rheology` and `bulk_rheology` are the rheologies. `name` and `radius_inner_m` belong to a standalone layer only; a world drops them when it nests the layer under its name (`LAYER_STANDALONE_CONFIG_KEYS`).
+The dict follows the world builder's layer schema. `class` names the layer class (`base`, `solidliquid`, or `gas`), the scalar keys are the constructor parameters (`temperature_k` for the temperature), and each attached model is a sub-table keyed by `model`. The `material` table is the EOS model with its static constants, its shear law, and its own `shear_viscosity`, `bulk_viscosity`, and `partial_melt` tables; `shear_rheology` and `bulk_rheology` are the rheologies. `name` and `radius_inner_m` belong to a standalone layer only; a world drops them when it nests the layer under its name (`LAYER_STANDALONE_CONFIG_KEYS`).
 
 ### Tidal Bookkeeping
 
 | Member | Description |
 |---|---|
 | `get_tidal_heating()` | Tidal heating deposited in this layer \[W\], set by the world's tidal solve. |
-| `tidal_scale` | The layer's share of the planet in the quasi-homogeneous Love methods and of an analytic tide model's heating (its volume fraction when unset). Writable; see [Worlds](../worlds/worlds.md). |
-| `is_tidal` | Whether the layer takes any tidal heating at all. A non-tidal layer always gets zero. |
+| `tidal_scale` | The layer's share of the planet in the quasi-homogeneous Love methods and of an analytic tide model's heating (its volume fraction when unset). See [Worlds](../worlds/worlds.md). |
+| `is_tidal` | Whether the layer takes any tidal heating at all. |
 
 ## Example
 
@@ -278,7 +278,7 @@ mantle.set_eos(ConstantDensityEOS(
 freq = 2.0 * math.pi / (1.77 * 86400.0)   # Io's orbital frequency [rad/s]
 mu   = mantle.calc_complex_shear_modulus(freq)
 print(f"Thickness:              {mantle.thickness / 1e3:.0f} km")
-print(f"Complex shear modulus:  {mu.real:.3e} + {mu.imag:.3e}j Pa")   # no rheology yet: imaginary part 0.0
+print(f"Complex shear modulus:  {mu.real:.3e} + {mu.imag:.3e}j Pa")   # no rheology has been set yet: imaginary part 0.0
 
 mantle.set_shear_rheology(Maxwell())
 mu = mantle.calc_complex_shear_modulus(freq)
