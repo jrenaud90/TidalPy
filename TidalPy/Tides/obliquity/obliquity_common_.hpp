@@ -28,9 +28,9 @@
 #include <cstdlib>
 #include <vector>
 
-#include "../mode_func_common_.hpp"               // c_ModeFuncOutput
+#include "../mode_func_common_.hpp"           // c_ModeFuncOutput
 #include "../../Utilities/math/series_.hpp"   // Horner sums, powers, cut Cauchy products
-#include "obliquity_accuracy_.hpp"                // C_OBLIQUITY_OFF, C_OBLIQUITY_GENERAL
+#include "obliquity_accuracy_.hpp"            // C_OBLIQUITY_OFF, C_OBLIQUITY_GENERAL
 
 // The tabulated truncation levels, the one list every entry point validates against (C_OBLIQUITY_GENERAL aside).
 inline constexpr int C_OBLIQUITY_TRUNCATIONS[] = {0, 2, 4};

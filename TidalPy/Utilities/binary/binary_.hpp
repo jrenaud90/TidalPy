@@ -58,34 +58,34 @@ inline constexpr uint8_t c_host_binary_byte_order() noexcept {
 
 // One id per serializable class, stored in c_BinaryHeader.class_id.
 enum class BinaryClassID : uint32_t {
-    Unknown          = 0,
+    Unknown            = 0,
     // 01-09: Base Structure classes
-    TidalPyBase      = 1,
-    StructureBase    = 2,
-    PhysicsBase      = 3,
+    TidalPyBase        = 1,
+    StructureBase      = 2,
+    PhysicsBase        = 3,
     // 010-99: Other utility classes
     // 1XX: Layer structures
-    BaseLayer        = 100,
-    SolidLiquidLayer = 102,
-    GasLayer         = 103,
+    BaseLayer          = 100,
+    SolidLiquidLayer   = 102,
+    GasLayer           = 103,
     // 2XX: World structures
-    BaseWorld        = 200,
-    TerrestrialWorld = 201,
-    GasGiantWorld    = 202,
-    StarWorld        = 203,
+    BaseWorld          = 200,
+    TerrestrialWorld   = 201,
+    GasGiantWorld      = 202,
+    StarWorld          = 203,
 
-    System           = 210,
+    System             = 210,
     // 3XX: Rheological models to convert static moduli and viscosities into complex ones.
-    RheologyBase     = 300,
-    Elastic          = 301,
-    Viscous          = 302,
-    Voigt            = 303,
-    Maxwell          = 304,
-    Burgers          = 305,
-    Andrade          = 306,
-    Sundberg         = 307,
-    Zener            = 308,
-    SeismicQ         = 309,
+    RheologyBase       = 300,
+    Elastic            = 301,
+    Viscous            = 302,
+    Voigt              = 303,
+    Maxwell            = 304,
+    Burgers            = 305,
+    Andrade            = 306,
+    Sundberg           = 307,
+    Zener              = 308,
+    SeismicQ           = 309,
     // 4XX: Thermodynamic cooling models
     CoolingBase        = 400,
     OffCooling         = 401,

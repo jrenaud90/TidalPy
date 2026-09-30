@@ -96,9 +96,9 @@ protected:
     }
 
     double p_mean_molecular_weight = 2.0e-3;   // [kg/mol]
-    double p_adiabatic_index       = 1.4;       // γ = c_p/c_v [dimensionless]
-    double p_reference_temperature = 300.0;     // [K]
-    double p_reference_density     = 1.0;       // [kg/m³]
+    double p_adiabatic_index       = 1.4;      // γ = c_p/c_v [dimensionless]
+    double p_reference_temperature = 300.0;    // [K]
+    double p_reference_density     = 1.0;      // [kg/m³]
 };
 
 } // namespace tidalpy

@@ -35,12 +35,12 @@
 #include <cstdint>
 #include <vector>
 
-#include "obliquity_driver_.hpp"        // c_obliquity_values
-#include "eccentricity_driver_.hpp"     // c_eccentricity_values
-#include "potential_common_.hpp"        // c_lm_coeff, c_FrequencyTolerance, c_ToleranceIndex
-#include "potential_point_.hpp"         // tidalpy::c_PotentialPointC
-#include "legendre_driver_.hpp"         // tidalpy::c_legendre
-#include "constants_.hpp"               // TidalPyConstants
+#include "obliquity_driver_.hpp"      // c_obliquity_values
+#include "eccentricity_driver_.hpp"   // c_eccentricity_values
+#include "potential_common_.hpp"      // c_lm_coeff, c_FrequencyTolerance, c_ToleranceIndex
+#include "potential_point_.hpp"       // tidalpy::c_PotentialPointC
+#include "legendre_driver_.hpp"       // tidalpy::c_legendre
+#include "constants_.hpp"             // TidalPyConstants
 
 namespace tidalpy {
 
@@ -49,8 +49,8 @@ namespace tidalpy {
 // consume the complex amplitude, which keeps the cycle average exact.
 struct c_TidalPotential3DMode {
     int degree_l = 0;
-    double mode_frequency = 0.0;      // signed omega_lmpq [rad s-1]
-    c_PotentialPointC potential;      // complex amplitude of U and its theta/phi derivatives
+    double mode_frequency = 0.0;   // signed omega_lmpq [rad s-1]
+    c_PotentialPointC potential;   // complex amplitude of U and its theta/phi derivatives
 };
 
 // Everything about a mode the engine can determine without a colatitude or longitude; the angular factor at
@@ -81,12 +81,12 @@ inline c_PotentialPointC c_potential_point_from_phasor(
     const std::complex<double> i_mu(0.0, mu);
 
     return c_PotentialPointC {
-        phasor * legendre.p,                     // U_c
-        phasor * legendre.dp_dtheta,             // dU/dtheta
-        phasor * (i_mu * legendre.p),            // dU/dphi
-        phasor * legendre.d2p_dtheta2,           // d2U/dtheta2
-        phasor * (-mu * mu * legendre.p),        // d2U/dphi2
-        phasor * (i_mu * legendre.dp_dtheta)     // d2U/dtheta_dphi
+        phasor * legendre.p,                   // U_c
+        phasor * legendre.dp_dtheta,           // dU/dtheta
+        phasor * (i_mu * legendre.p),          // dU/dphi
+        phasor * legendre.d2p_dtheta2,         // d2U/dtheta2
+        phasor * (-mu * mu * legendre.p),      // d2U/dphi2
+        phasor * (i_mu * legendre.dp_dtheta)   // d2U/dtheta_dphi
     };
 }
 

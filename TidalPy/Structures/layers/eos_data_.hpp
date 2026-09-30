@@ -89,10 +89,10 @@ public:
 private:
     DenseEval p_dense_eval;  // CyRK dense output (type-erased, co-owns solution); empty until solved
 
-    std::vector<double> p_radius;      // [m], sorted ascending
+    std::vector<double> p_radius;        // [m], sorted ascending
     std::vector<double> p_density_kgm3;  // [kg/m^3]   linear fallback
     std::vector<double> p_gravity_ms2;   // [m/s^2]    linear fallback
-    std::vector<double> p_pressure;   // [Pa]       linear fallback
+    std::vector<double> p_pressure;      // [Pa]       linear fallback
 
     double interp_fallback(double radius, const std::vector<double>& values) const noexcept {
         if (values.size() != this->p_radius.size()) { return TidalPyConstants::d_NAN; }

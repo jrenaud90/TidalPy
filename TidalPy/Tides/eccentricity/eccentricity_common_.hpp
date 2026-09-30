@@ -25,9 +25,9 @@
 #include <cstdlib>
 #include <vector>
 
-#include "../mode_func_common_.hpp"               // c_ModeFuncOutput
+#include "../mode_func_common_.hpp"           // c_ModeFuncOutput
 #include "../../Utilities/math/series_.hpp"   // Horner sums, powers, cut Cauchy products
-#include "eccentricity_accuracy_.hpp"             // C_ECCENTRICITY_EXACT
+#include "eccentricity_accuracy_.hpp"         // C_ECCENTRICITY_EXACT
 
 // The tabulated truncation levels, the one list every entry point validates against.
 inline constexpr int C_ECCENTRICITY_TRUNCATIONS[] = {2, 4, 6, 8, 10, 20, 50};

@@ -83,26 +83,26 @@ inline const char* c_layer_class_name(uint32_t class_id) noexcept {
 
 // Grouped to avoid a long constructor argument list.
 struct c_BaseLayerConfig {
-    std::string        name;
-    int                layer_index  = 0;
-    double             radius_inner = 0.0;   // [m]
-    double             radius_outer = 0.0;   // [m]
-    double             mass         = 0.0;   // [kg]
-    std::string        material_name = "Unknown";
-    bool               is_tidal    = true;
+    std::string name;
+    int         layer_index   = 0;
+    double      radius_inner  = 0.0;   // [m]
+    double      radius_outer  = 0.0;   // [m]
+    double      mass          = 0.0;   // [kg]
+    std::string material_name = "Unknown";
+    bool        is_tidal      = true;
     // False lets the layer grow or shrink to hold its mass while the solve redistributes the interior.
-    bool               is_volume_fixed = true;
+    bool        is_volume_fixed = true;
     // The layer's share of the planet's volume in the quasi-homogeneous Love methods; NaN takes the layer's volume
     // fraction when the world uses it (c_BaseLayer::calc_tidal_scale).
-    double             tidal_scale = TidalPyConstants::d_NAN;   // dimensionless
+    double      tidal_scale = TidalPyConstants::d_NAN;   // dimensionless
     // Radial-solver layer classification flags.
-    bool               is_solid          = true;    // false for liquid layers
-    bool               is_static         = true;    // use static (no dynamic terms) approximation
-    bool               is_incompressible = false;   // use incompressible approximation
+    bool        is_solid          = true;    // false for liquid layers
+    bool        is_static         = true;    // use static (no dynamic terms) approximation
+    bool        is_incompressible = false;   // use incompressible approximation
     // The layer temperature is 0 K until set: the cold, rigid limit of the viscosity laws.
-    double             temperature     = 0.0;       // [K]
-    bool               use_thermal_eos = false;     // the EOS density and bulk modulus see the temperature
-    bool               use_heating     = false;     // the world's heat sources act inside this layer
+    double      temperature       = 0.0;     // [K]
+    bool        use_thermal_eos   = false;   // the EOS density and bulk modulus see the temperature
+    bool        use_heating       = false;   // the world's heat sources act inside this layer
 };
 
 // The world that owns layers; it reads their profile through the unlocked p_ helpers while it holds its call lock.
@@ -298,12 +298,15 @@ public:
             std::size_t num_fields,
             const double* radii,
             std::size_t num_radii,
-            double* values_out) const noexcept {
+            double* values_out) const noexcept
+    {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         double state[C_EOS_DY_VALUES];
-        for (std::size_t radius_i = 0; radius_i < num_radii; ++radius_i) {
+        for (std::size_t radius_i = 0; radius_i < num_radii; ++radius_i)
+        {
             this->p_eos_state(radii[radius_i], state);
-            for (std::size_t field_i = 0; field_i < num_fields; ++field_i) {
+            for (std::size_t field_i = 0; field_i < num_fields; ++field_i)
+            {
                 const std::size_t field_index = field_indices[field_i];
                 values_out[field_i * num_radii + radius_i] =
                     (field_index < C_EOS_DY_VALUES) ? state[field_index] : TidalPyConstants::d_NAN;
@@ -624,10 +627,10 @@ protected:
     double      p_surface_area_inner = 0.0;   // [m^2]
     double      p_surface_area_outer = 0.0;   // [m^2]
     std::string p_material_name;
-    bool               p_is_tidal           = true;
-    bool               p_is_volume_fixed    = true;
-    double             p_tidal_scale        = TidalPyConstants::d_NAN;   // dimensionless; NaN: volume fraction
-    double             p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve
+    bool        p_is_tidal           = true;
+    bool        p_is_volume_fixed    = true;
+    double      p_tidal_scale        = TidalPyConstants::d_NAN;   // dimensionless; NaN: volume fraction
+    double      p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve
 
     // Radial-solver layer classification.
     bool p_is_solid          = true;

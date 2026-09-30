@@ -54,12 +54,12 @@ inline c_GlobalTideResult c_collapse_global_tides(
 
         const double neg_imk = tide_model.calc_neg_imk(degree_l, frequency, solver_love);
 
-        result.tidal_heating += terms.E_dot * neg_imk;
-        result.dU_dM         += terms.dU_dM * neg_imk;
-        result.dU_dw         += terms.dU_dw * neg_imk;
-        result.dU_dO         += terms.dU_dO * neg_imk;
+        result.tidal_heating  += terms.E_dot * neg_imk;
+        result.dU_dM          += terms.dU_dM * neg_imk;
+        result.dU_dw          += terms.dU_dw * neg_imk;
+        result.dU_dO          += terms.dU_dO * neg_imk;
         result.dU_dM_minus_dw += terms.dU_dM_minus_dw * neg_imk;
-        result.num_modes     += 1;
+        result.num_modes      += 1;
     }
 
     return result;

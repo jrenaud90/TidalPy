@@ -26,37 +26,37 @@ struct TidalPyConstants
     static constexpr double d_SECONDS_PER_MYR = 1.0e6 * 365.25 * 86400.0;
 
     // Computational
-    static constexpr double d_DBL_MAX = std::numeric_limits<double>::max();
-    static constexpr double d_DBL_MIN = std::numeric_limits<double>::min();
+    static constexpr double d_DBL_MAX         = std::numeric_limits<double>::max();
+    static constexpr double d_DBL_MIN         = std::numeric_limits<double>::min();
     static constexpr double d_DBL_MANT_DIGITS = std::numeric_limits<double>::digits;
-    static constexpr double d_EPS = std::numeric_limits<double>::epsilon();
-    static constexpr double d_EPS_10 = 10 * std::numeric_limits<double>::epsilon();
-    static constexpr double d_EPS_100 = 100 * std::numeric_limits<double>::epsilon();
+    static constexpr double d_EPS             = std::numeric_limits<double>::epsilon();
+    static constexpr double d_EPS_10          = 10 * std::numeric_limits<double>::epsilon();
+    static constexpr double d_EPS_100         = 100 * std::numeric_limits<double>::epsilon();
 
     // Sun
-    static constexpr double d_MASS_SOLAR = 1.988435e30;
-    static constexpr double d_RADIUS_SOLAR = 6.957e8;
+    static constexpr double d_MASS_SOLAR       = 1.988435e30;
+    static constexpr double d_RADIUS_SOLAR     = 6.957e8;
     static constexpr double d_LUMINOSITY_SOLAR = 3.828e26;  // IAU 2015 nominal [W]
 
     // TRAPPIST-1: So we have small M-dwarf parameter at hand. Set with Agol+ 2021 data
-    static constexpr double d_MASS_TRAP1 = 0.0898 * d_MASS_SOLAR;
-    static constexpr double d_RADIUS_TRAP1 = 0.1192 * d_RADIUS_SOLAR;
+    static constexpr double d_MASS_TRAP1       = 0.0898 * d_MASS_SOLAR;
+    static constexpr double d_RADIUS_TRAP1     = 0.1192 * d_RADIUS_SOLAR;
     static constexpr double d_LUMINOSITY_TRAP1 = 0.000553 * d_LUMINOSITY_SOLAR;
 
     // Earth
-    static constexpr double d_MASS_EARTH = 5.9721986e24;
+    static constexpr double d_MASS_EARTH   = 5.9721986e24;
     static constexpr double d_RADIUS_EARTH = 6.371008e6;
 
     // Jupiter
-    static constexpr double d_MASS_JUPITER = 1.898125e27;
+    static constexpr double d_MASS_JUPITER   = 1.898125e27;
     static constexpr double d_RADIUS_JUPITER = 69.911e6;  // IAU nominal mean radius [m]
 
     // Pluto
-    static constexpr double d_MASS_PLUTO = 1.309e22;
+    static constexpr double d_MASS_PLUTO   = 1.309e22;
     static constexpr double d_RADIUS_PLUTO = 1.1899e6;
 
     // Io
-    static constexpr double d_MASS_IO  = 8.9298e22;
+    static constexpr double d_MASS_IO   = 8.9298e22;
     static constexpr double d_RADIUS_IO = 1.82149e6;
 };
 
@@ -109,12 +109,12 @@ struct TidalPyConfig
     // Quadrature resolutions of the 3D tidal heating integrals (calc_3d_tides), -1 until the config is loaded:
     // the Gauss-Legendre order of the colatitude integral, the trapezoid nodes of the instantaneous longitude
     // integral, and the Gauss-Legendre nodes per layer of the radial integral.
-    int d_TIDES_3D_LATITUDE_NODES;  // Updated from TidalPy.config['numerical']['tides_3d_latitude_nodes']
-    int d_TIDES_3D_LONGITUDE_NODES; // Updated from TidalPy.config['numerical']['tides_3d_longitude_nodes']
-    int d_TIDES_3D_RADIAL_SLICES;   // Updated from TidalPy.config['numerical']['tides_3d_radial_slices']
+    int d_TIDES_3D_LATITUDE_NODES;       // Updated from TidalPy.config['numerical']['tides_3d_latitude_nodes']
+    int d_TIDES_3D_LONGITUDE_NODES;      // Updated from TidalPy.config['numerical']['tides_3d_longitude_nodes']
+    int d_TIDES_3D_RADIAL_SLICES;        // Updated from TidalPy.config['numerical']['tides_3d_radial_slices']
     int d_TIDES_3D_MIN_RADII_PER_THREAD; // Updated from TidalPy.config['numerical']['tides_3d_min_radii_per_thread']
-    int d_LOVE_SOLVE_THREADS;       // Updated from TidalPy.config['numerical']['love_solve_threads']
-    int d_LOVE_SOLVE_MIN_PARALLEL;  // Updated from TidalPy.config['numerical']['love_solve_min_parallel']
+    int d_LOVE_SOLVE_THREADS;            // Updated from TidalPy.config['numerical']['love_solve_threads']
+    int d_LOVE_SOLVE_MIN_PARALLEL;       // Updated from TidalPy.config['numerical']['love_solve_min_parallel']
 
     // Whole-planet EOS solve defaults, from TidalPy.config['eos_solver']. Read by every EOS solve that is
     // not handed an explicit value. The method is CyRK's ODEMethod enum as an int (-1 until the config is
