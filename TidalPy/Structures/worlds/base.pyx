@@ -23,7 +23,7 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_physics_model_config,
 )
 from TidalPy.Tides.classes.tide cimport TideBase
-from TidalPy.Tides.love.love cimport c_parse_love_method_int, c_love_method_name_int
+from TidalPy.Tides.love.love cimport c_love_method_name_int, cy_parse_love_method
 from TidalPy.Tides.eccentricity.eccentricity_driver import (
     eccentricity_truncation_name, validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
 from TidalPy.Tides.obliquity.obliquity_driver import obliquity_truncation_name, validate_obliquity_truncation
@@ -110,6 +110,32 @@ cdef class BaseWorld(StructureBase):
         cdef BaseWorld world = BaseWorld.__new__(BaseWorld)
         world._bind(ptr)
         return world
+
+    def load_binary(self, str path, cpp_bool force=False):
+        """Load this world's state from a TidalPy binary file.
+
+        The configurations the world was built from (:attr:`source_config` and :attr:`portable_config`) describe
+        it before the load, so a load that succeeds clears them and :meth:`save_to_toml` then writes the loaded
+        world's own :meth:`get_config_dict`. A load that raises leaves the world, those configurations included,
+        as it was.
+
+        Parameters
+        ----------
+        path : str
+            Source file path.
+        force : bool, optional
+            Attempt the load even on a schema version mismatch.
+
+        Raises
+        ------
+        FileNotFoundError
+            ``path`` does not exist.
+        IOError
+            The file holds a record of another class, has an incompatible schema version, or is corrupt.
+        """
+        StructureBase.load_binary(self, path, force)
+        self.source_config   = None
+        self.portable_config = None
 
     @property
     def radius(self) -> float:
@@ -262,7 +288,7 @@ cdef class BaseWorld(StructureBase):
             How the world obtains Love numbers when its tide model asks for them (and the default for
             ``solve_love_numbers``): ``'radial_solver'`` (``'shooting'``, ``'rs'``), ``'propagation_matrix'``
             (``'prop_matrix'``, ``'pm'``, ``'prop'``), ``'homogeneous'`` (``'homogen'``), ``'cpl'``, ``'ctl'``,
-            or ``'laterally_inhomogeneous'`` (``'3d'``, ``'lat_inhom'``; reserved, not implemented).
+            or ``'laterally_inhomogeneous'`` (``'3d'``, ``'lat_inhom'``; reserved: raises ``NotImplementedError``).
         love_fixed_q, love_fixed_dt : float, optional
             Quality factor for the ``'cpl'`` method and time lag [s] for the ``'ctl'`` method. A NaN clears the
             value, after which the attached tide model's per-degree fixed Q / time lag is used.
@@ -288,7 +314,7 @@ cdef class BaseWorld(StructureBase):
         if layer_tidal_heating is not None:
             cfg.layer_tidal_heating = <cpp_bool>bool(layer_tidal_heating)
         if love_method is not None:
-            cfg.love_method = c_parse_love_method_int(str(love_method).encode('utf-8'))
+            cfg.love_method = cy_parse_love_method(str(love_method))
         if love_fixed_q is not None:
             cfg.love_fixed_q = <double>love_fixed_q
         if love_fixed_dt is not None:

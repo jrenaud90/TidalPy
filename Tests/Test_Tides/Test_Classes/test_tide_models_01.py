@@ -122,6 +122,22 @@ def test_per_degree_parameters():
     assert model.calc_neg_imk(4, 1.0e-5) == 0.0
 
 
+@pytest.mark.parametrize("name, config, fixed_q, fixed_dt", [
+    ("rheology", None, math.nan, math.nan),
+    ("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}, 50.0, math.nan),
+    ("ctl", {"fixed_k": [0.3], "fixed_dt_s": [100.0]}, math.nan, 100.0),
+    ("ctl_q", {"fixed_k": [0.3], "fixed_dt_s": [100.0], "fixed_q": [20.0]}, 20.0, 100.0),
+])
+def test_fixed_q_and_dt_on_every_model(name, config, fixed_q, fixed_dt):
+    """Every tide model answers get_fixed_q and get_fixed_dt, NaN for a parameter it does not carry."""
+    model = tide_classes.make_tide(name, config)
+    for found, expected in ((model.get_fixed_q(2), fixed_q), (model.get_fixed_dt(2), fixed_dt)):
+        if math.isnan(expected):
+            assert math.isnan(found)
+        else:
+            assert isclose(found, expected)
+
+
 def test_config_dict_fixed_q():
     """The config dict names the model and holds per-degree lists for l = 2 to 10."""
     config = tide_classes.make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}).get_config_dict()

@@ -97,11 +97,14 @@ cdef class TidalPyBaseClass:
         return {}
 
     def save_config(self, str path):
-        """Save this object's configuration to a TOML file."""
-        import toml
-        cdef dict config = self.get_config_dict()
-        with open(path, 'w', encoding='utf-8') as f:
-            toml.dump(config, f)
+        """Save this object's configuration (:meth:`get_config_dict`) to a TOML file.
+
+        The file starts with the comment header naming the TidalPy, SciPy, and CyRK versions, as every saved
+        configuration does, and is written with LF newlines.
+        """
+        # Deferred like the TidalPy import in factory_defaults: this module is imported while TidalPy initializes.
+        from TidalPy.configurations import write_config_toml
+        write_config_toml(self.get_config_dict(), path, f"TidalPy {type(self).__name__} configuration")
 
 
 cdef class StructureBase(TidalPyBaseClass):

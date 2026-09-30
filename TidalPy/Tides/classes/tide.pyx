@@ -98,6 +98,16 @@ cdef class TideBase(PhysicsBase):
             solver_c = solver_love._love
         return self._tide_ptr.get().calc_neg_imk(degree_l, frequency, solver_c)
 
+    def get_fixed_q(self, int degree_l) -> float:
+        """Tidal quality factor Q_l at the given degree; NaN when the model carries none."""
+        self._check_ptr()
+        return self._tide_ptr.get().get_fixed_q(degree_l)
+
+    def get_fixed_dt(self, int degree_l) -> float:
+        """Tidal time lag dt_l [s] at the given degree; NaN when the model carries none."""
+        self._check_ptr()
+        return self._tide_ptr.get().get_fixed_dt(degree_l)
+
     @property
     def needs_radial_solve(self) -> bool:
         """Whether this model requires the radial solver to supply k_l (rheology)."""
@@ -129,11 +139,6 @@ cdef class FixedQTide(TideBase):
         self._check_ptr()
         return (<c_FixedQTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
 
-    def get_fixed_q(self, int degree_l) -> float:
-        """Tidal quality factor Q_l at the given degree."""
-        self._check_ptr()
-        return (<c_FixedQTide*>self._tide_ptr.get()).get_fixed_q(degree_l)
-
 
 cdef class FixedLagTide(TideBase):
     """Constant time lag (CTL): k_l(omega) = k_l * (1 - i * omega * dt_l)."""
@@ -149,11 +154,6 @@ cdef class FixedLagTide(TideBase):
         """Static potential Love number k_l at the given degree."""
         self._check_ptr()
         return (<c_FixedLagTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
-
-    def get_fixed_dt(self, int degree_l) -> float:
-        """Tidal time lag dt_l [s] at the given degree."""
-        self._check_ptr()
-        return (<c_FixedLagTide*>self._tide_ptr.get()).get_fixed_dt(degree_l)
 
 
 cdef class CTLQTide(TideBase):
@@ -171,16 +171,6 @@ cdef class CTLQTide(TideBase):
         """Static potential Love number k_l at the given degree."""
         self._check_ptr()
         return (<c_CTLQTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
-
-    def get_fixed_dt(self, int degree_l) -> float:
-        """Tidal time lag dt_l [s] at the given degree."""
-        self._check_ptr()
-        return (<c_CTLQTide*>self._tide_ptr.get()).get_fixed_dt(degree_l)
-
-    def get_fixed_q(self, int degree_l) -> float:
-        """Tidal quality factor Q_l at the given degree."""
-        self._check_ptr()
-        return (<c_CTLQTide*>self._tide_ptr.get()).get_fixed_q(degree_l)
 
 
 # The wrapper class of each c_TideModel, indexed by its enum value.

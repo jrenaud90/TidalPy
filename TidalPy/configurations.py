@@ -292,6 +292,23 @@ def config_version_header(title: str) -> str:
     lines.append(rule)
     return "\n".join(lines) + "\n"
 
+
+def write_config_toml(config: dict, file_path: str, title: str) -> None:
+    """Write a configuration to a TOML file under the version header, with plain values and LF newlines.
+
+    Parameters
+    ----------
+    config : dict
+        The configuration; numpy values are written as plain Python values (:func:`plain_config`).
+    file_path : str
+        Destination path; an existing file is replaced.
+    title : str
+        One line describing the file, written in the header (:func:`config_version_header`).
+    """
+    with open(file_path, 'w', encoding='utf-8', newline='\n') as toml_file:
+        toml_file.write(config_version_header(title))
+        toml.dump(plain_config(config), toml_file)
+
 def save_dict_to_toml(dict_to_save: dict,
               file_path: str,
               overwrite: bool = True):
@@ -526,7 +543,5 @@ def save_config(file_path: str, overwrite: bool = True) -> str:
         get_default_config()
     if os.path.isfile(file_path) and not overwrite:
         file_path = unique_path(file_path, is_dir=False, make_dir=False)
-    with open(file_path, 'w', encoding='utf-8', newline='\n') as config_file:
-        config_file.write(config_version_header('TidalPy Configurations'))
-        toml.dump(plain_config(TidalPy.config), config_file)
+    write_config_toml(TidalPy.config, file_path, 'TidalPy Configurations')
     return file_path

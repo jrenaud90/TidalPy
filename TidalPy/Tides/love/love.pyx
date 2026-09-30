@@ -93,6 +93,20 @@ cdef LoveNumbers cy_wrap_love(c_LoveNumbers love):
     return out
 
 
+cdef int cy_parse_love_method(str love_method) except? -999:
+    """Map a Love-number method name (or alias) to its c_LoveMethod index for a world to use.
+
+    Unknown names raise ``ValueError``; the reserved ``laterally_inhomogeneous`` method raises
+    ``NotImplementedError``, so a world never holds a method it cannot solve.
+    """
+    cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
+    if method == <int>c_LoveMethod.LaterallyInhomogeneous:
+        raise NotImplementedError(
+            "The laterally_inhomogeneous Love-number method is reserved for the 3D Love solver and is not "
+            "implemented.")
+    return method
+
+
 def love_method_name(str method) -> str:
     """Canonical name of a Love-number method given any accepted alias.
 

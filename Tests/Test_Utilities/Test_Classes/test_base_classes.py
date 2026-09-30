@@ -125,6 +125,18 @@ def test_structure_base_save_config(tmp_path):
     assert data["mass_kg"]  == pytest.approx(_EARTH_MASS_KG)
 
 
+def test_save_config_writes_the_version_header_with_lf(tmp_path):
+    """save_config starts with the version header every saved configuration carries, and writes LF newlines."""
+    path = tmp_path / "structure.toml"
+    classes.StructureBase(_EARTH_RADIUS_M, _EARTH_MASS_KG).save_config(str(path))
+    raw = path.read_bytes()
+    assert b"\r\n" not in raw
+    text = raw.decode("utf-8")
+    assert text.startswith("# ===")
+    assert "#  TidalPy StructureBase configuration" in text
+    assert "#  TidalPy version:" in text
+
+
 @pytest.mark.parametrize(
     "name",
     ["elastic", "viscous", "voigt", "maxwell", "burgers", "andrade", "sundberg", "", "a" * 256],

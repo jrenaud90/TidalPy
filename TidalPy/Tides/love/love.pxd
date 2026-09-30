@@ -32,6 +32,14 @@ cdef extern from "love_method_.hpp" namespace "tidalpy" nogil:
     string c_love_method_name_int(int value) except +
     cpp_bool c_love_method_uses_radial_solver_int(int value)
 
+    cdef enum class c_LoveMethod:
+        RadialSolver
+        PropagationMatrix
+        Homogeneous
+        HomogeneousCPL
+        HomogeneousCTL
+        LaterallyInhomogeneous
+
     double c_calc_effective_rigidity_real(
             double shear_modulus,
             double density,
@@ -57,3 +65,7 @@ cdef extern from "love_method_.hpp" namespace "tidalpy" nogil:
 cdef class LoveNumbers:
     cdef c_LoveNumbers _love
     cpdef dict to_dict(self)
+
+
+# A method name (or alias) to its c_LoveMethod index, raising NotImplementedError for the reserved 3D method.
+cdef int cy_parse_love_method(str love_method) except? -999

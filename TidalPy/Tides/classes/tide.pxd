@@ -18,6 +18,8 @@ cdef extern from "tide_base_.hpp" namespace "tidalpy" nogil:
         c_LoveNumbers calc_love_numbers(int degree_l, double frequency, const c_LoveNumbers& solver_love) const
         double calc_neg_imk(int degree_l, double frequency, const c_LoveNumbers& solver_love) const
         cpp_bool needs_radial_solve() const
+        double get_fixed_q(int degree_l) const
+        double get_fixed_dt(int degree_l) const
 
 
 cdef extern from "tide_.hpp" namespace "tidalpy" nogil:
@@ -35,20 +37,16 @@ cdef extern from "tide_.hpp" namespace "tidalpy" nogil:
         c_FixedQTide() except +
         c_FixedQTide(const c_TideModelConfig& cfg) except +
         double get_fixed_k(int degree_l) const
-        double get_fixed_q(int degree_l) const
 
     cdef cppclass c_FixedLagTide(c_TideBase):
         c_FixedLagTide() except +
         c_FixedLagTide(const c_TideModelConfig& cfg) except +
         double get_fixed_k(int degree_l) const
-        double get_fixed_dt(int degree_l) const
 
     cdef cppclass c_CTLQTide(c_TideBase):
         c_CTLQTide() except +
         c_CTLQTide(const c_TideModelConfig& cfg) except +
         double get_fixed_k(int degree_l) const
-        double get_fixed_dt(int degree_l) const
-        double get_fixed_q(int degree_l) const
 
     cdef enum class c_TideModel:
         Rheology

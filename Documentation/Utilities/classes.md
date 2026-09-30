@@ -52,7 +52,7 @@ Abstract; instantiate a concrete subclass. It provides the file and version surf
 | `save_binary(path)` | | Serialize to a binary file. |
 | `load_binary(path, force=False)` | | Load from a binary file. |
 | `get_config_dict()` | `dict` | Empty at this level; subclasses fill it. |
-| `save_config(path)` | | Write `get_config_dict()` as TOML. |
+| `save_config(path)` | | Write `get_config_dict()` as TOML, under the comment header naming the TidalPy, SciPy, and CyRK versions, with LF newlines. |
 
 A file written by a different minor version is refused, because the class layout it encodes may no longer match. `force=True` bypasses the refusal with a warning.
 

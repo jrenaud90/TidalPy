@@ -8,17 +8,8 @@ the reader, checked by nothing).
 
 import os
 
-import toml
-
-from TidalPy.configurations import config_version_header, plain_config
+from TidalPy.configurations import write_config_toml
 from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION
-
-
-def _write_toml(out_config: dict, file_path: str, title: str) -> None:
-    """Write the header and the table with LF newlines."""
-    with open(file_path, "w", encoding="utf-8", newline="\n") as toml_file:
-        toml_file.write(config_version_header(title))
-        toml.dump(plain_config(out_config), toml_file)
 
 
 def _save_config(config: dict, file_path: str, overwrite: bool, kind: str) -> str:
@@ -35,7 +26,10 @@ def _save_config(config: dict, file_path: str, overwrite: bool, kind: str) -> st
 
     out_config = dict(config)
     out_config["schema_version"] = SCHEMA_VERSION
-    _write_toml(out_config, file_path, f"TidalPy {kind} configuration: {out_config.get('name', 'unnamed')}")
+    write_config_toml(
+        out_config,
+        file_path,
+        f"TidalPy {kind} configuration: {out_config.get('name', 'unnamed')}")
     return file_path
 
 

@@ -189,6 +189,17 @@ def test_set_tide_config_changes_only_the_given_settings():
         world.set_tide_config(eccentricity_truncation=7)
 
 
+def test_the_reserved_3d_love_method_is_refused_when_set():
+    """The reserved laterally_inhomogeneous method raises where it is set, not at the next solve."""
+    world = build_world(_config("terrestrial"))
+    before = world.get_tide_config()
+    with pytest.raises(NotImplementedError, match="laterally_inhomogeneous"):
+        world.set_tide_config(love_method="3d")
+    assert world.get_tide_config() == before
+    with pytest.raises(NotImplementedError, match="laterally_inhomogeneous"):
+        build_world(_config("terrestrial", {"love_method": "lat_inhom"}))
+
+
 def test_exact_eccentricity_from_a_tides_table():
     """A [tides] table can ask for the exact eccentricity functions and their tolerance, and they round-trip."""
     world = build_world(_config(

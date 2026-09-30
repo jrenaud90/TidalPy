@@ -1,6 +1,7 @@
 """Material EOS models (constant, Birch-Murnaghan, Vinet, interpolated): density, inversion, thermal terms, I/O."""
 
 import math
+import struct
 
 import numpy as np
 import pytest
@@ -179,6 +180,41 @@ def test_interpolated_reads_match_numpy_on_an_uneven_table(tmp_path):
     check(eos)
     # A binary load rebuilds the search seeds.
     check(_binary_copy(eos, make_material_eos(eos.model_name), tmp_path))
+
+
+def _saved_interpolated_bytes(tmp_path):
+    """A three-point interpolated EOS saved to a file, returned as its bytes."""
+    path = tmp_path / "eos.tpyb"
+    material_eos.InterpolatedEOS([0.0, 1.0e6, 2.0e6], [5000.0, 4000.0, 3000.0]).save_binary(str(path))
+    return path.read_bytes()
+
+
+def _load_refused(data, tmp_path, match):
+    """Loading the bytes raises IOError matching ``match`` and leaves the target model as it was."""
+    path = tmp_path / "bad.tpyb"
+    path.write_bytes(bytes(data))
+    blank = make_material_eos("interpolate")
+    config_before = blank.get_config_dict()
+    with pytest.raises(IOError, match=match):
+        blank.load_binary(str(path))
+    assert blank.get_config_dict() == config_before
+
+
+def test_an_interpolated_table_out_of_order_is_refused_on_load(tmp_path):
+    """A radius table out of order fails the load, as it fails the constructor."""
+    data = _saved_interpolated_bytes(tmp_path)
+    middle_radius = struct.pack("<d", 1.0e6)
+    assert data.count(middle_radius) == 1
+    _load_refused(data.replace(middle_radius, struct.pack("<d", 3.0e6)), tmp_path, "ascending")
+
+
+def test_an_interpolated_record_of_the_wrong_size_is_refused_on_load(tmp_path):
+    """A header payload size that disagrees with the tables fails the load, as for the other EOS models."""
+    data = bytearray(_saved_interpolated_bytes(tmp_path))
+    # The payload size is the header's last field: 4 magic bytes, 4 version and byte-order bytes, a 4-byte class id.
+    payload_size = struct.unpack_from("<Q", data, 12)[0]
+    struct.pack_into("<Q", data, 12, payload_size + 8)
+    _load_refused(data + bytes(8), tmp_path, "interpolated EOS record holds")
 
 
 def test_config_dict_interpolated_roundtrip():

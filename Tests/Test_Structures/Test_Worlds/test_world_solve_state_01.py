@@ -81,6 +81,19 @@ def test_loading_a_binary_file_leaves_the_world_unsolved(tmp_path):
     assert k2_reloaded == pytest.approx(k2_original, rel=1e-12)
 
 
+@pytest.mark.parametrize("name", ["io", "earth_prem", "sol"])
+def test_a_load_clears_the_configuration_the_world_was_built_from(name, tmp_path):
+    """After a load the build configurations no longer describe the world, so they are cleared."""
+    world = build_world(name)
+    assert world.config is not None
+    path = os.path.join(str(tmp_path), f"{name}.tpyb")
+    world.save_binary(path)
+
+    world.load_binary(path)
+    assert world.config is None
+    assert world.portable_config is None
+
+
 def test_a_layer_view_cannot_be_loaded_in_place(tmp_path):
     """load_binary on a world-owned layer view raises."""
     world = _solved_io()

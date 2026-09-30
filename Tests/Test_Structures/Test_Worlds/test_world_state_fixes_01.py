@@ -214,6 +214,9 @@ def test_a_failed_load_keeps_the_layer_views(tmp_path):
     world.load_binary(path)
     with pytest.raises(RuntimeError, match="no longer refers to a layer"):
         _ = mantle.name
+    # The config dict reads the solid-liquid layer's own pointer too, after the base class's.
+    with pytest.raises(RuntimeError, match="no longer refers to a layer"):
+        mantle.get_config_dict()
     assert world.mantle.name == "mantle"
 
 

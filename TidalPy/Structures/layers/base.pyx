@@ -566,6 +566,8 @@ cdef class BaseLayer(StructureBase):
         # Deferred: the configs package imports the layer modules.
         from TidalPy.Structures.configs.toml_loader import NO_MATERIAL_TYPE
 
+        # The subclasses call this first, so this check covers their typed pointers too.
+        self._check_ptr()
         cdef c_BaseLayer* p = self._layer_ptr.get()
         cdef bytes class_bytes = c_layer_class_name(p.get_layer_class_id())
         cdef double tidal_scale = p.get_tidal_scale()

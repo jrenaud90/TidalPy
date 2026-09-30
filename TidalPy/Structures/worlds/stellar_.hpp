@@ -131,7 +131,9 @@ public:
         write_optional_binary(out, this->p_luminosity_model);
     }
 
+    // Takes the call lock, as c_BaseWorld::read_binary does: the load replaces the tide section a calc_tides reads.
     void read_binary(std::istream& in, bool force = false) override {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
         c_TidalPyBaseClass::read_binary(in, force);
         this->read_world_fields(in);
         if (!in) {

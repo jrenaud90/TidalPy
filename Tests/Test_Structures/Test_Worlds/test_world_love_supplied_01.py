@@ -44,13 +44,13 @@ def _maxwell_world():
     return world
 
 
-def _solve_with_rheology_moduli(world):
+def _solve_with_rheology_moduli(world, **solver_kwargs):
     """Sample the rheology moduli on the EOS grid and solve through the supplied path."""
     eos = world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
     radius = np.ascontiguousarray(eos["radius"], dtype=np.float64)
     shear = np.ascontiguousarray(world.calc_complex_shear_modulus(radius, _FREQ), dtype=np.complex128)
     bulk = np.ascontiguousarray(world.calc_complex_bulk_modulus(radius, _FREQ), dtype=np.complex128)
-    return world.solve_love_numbers_supplied(shear, bulk, radius, frequency=_FREQ)
+    return world.solve_love_numbers_supplied(shear, bulk, radius, frequency=_FREQ, **solver_kwargs)
 
 
 def test_supplied_matches_rheology():
@@ -66,6 +66,18 @@ def test_supplied_matches_rheology():
     assert cmath.isclose(res["love_number_k"], k_ref, rel_tol=1e-6, abs_tol=1e-9)
     assert cmath.isclose(res["love_number_h"], h_ref, rel_tol=1e-6, abs_tol=1e-9)
     assert cmath.isclose(res["love_number_l"], l_ref, rel_tol=1e-6, abs_tol=1e-9)
+
+
+def test_supplied_takes_the_pinned_radial_solver_settings():
+    """The supplied path starts from the world's pinned [radial_solver] keys, as solve_love_numbers does."""
+    loose = {"rtol": 1.0e-3, "atol": 1.0e-5}
+    pinned = _maxwell_world()
+    pinned.set_solver_defaults(radial_solver=loose)
+    k_pinned = _solve_with_rheology_moduli(pinned)["love_number_k"]
+    k_explicit = _solve_with_rheology_moduli(_maxwell_world(), **loose)["love_number_k"]
+    k_default = _solve_with_rheology_moduli(_maxwell_world())["love_number_k"]
+    assert k_pinned == k_explicit
+    assert k_pinned != k_default
 
 
 def test_supplied_k2_reasonable():

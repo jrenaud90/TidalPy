@@ -47,7 +47,7 @@ from TidalPy.RadialSolver.rs_constants cimport C_MAX_NUM_YTYPES
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver.rs_solution cimport cy_check_surface_solve_conditioning
 from TidalPy.Tides.love.love cimport (
-    c_parse_love_method_int, c_love_method_name_int, c_love_method_uses_radial_solver_int)
+    c_love_method_name_int, c_love_method_uses_radial_solver_int, cy_parse_love_method)
 from TidalPy.Utilities.logging.logger import log_warning
 from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name
 
@@ -361,15 +361,6 @@ cdef void cy_set_solve_for(c_LoveSolveConfig* cfg, solve_for) except *:
     cfg.set_bc_models(models.data(), models.size())
 
 
-cdef int cy_resolve_love_method(str love_method) except? -999:
-    # Map a Love-number method name (or alias) to its c_LoveMethod index.
-    cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
-    if method == 5:
-        raise NotImplementedError(
-            "The laterally_inhomogeneous Love-number method is reserved for the 3D Love solver and is not "
-            "implemented.")
-    return method
-
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
@@ -495,7 +486,8 @@ cdef class LayeredWorld(BaseWorld):
 
         The load replaces the world's layers, so layer views taken from this world before it (``world.<name>``,
         ``get_layer``, iteration) no longer refer to a layer of this world and raise if used; take new ones.
-        Nothing solved survives the load: run ``solve_eos`` again. A load that fails leaves the world as it was, its
+        Nothing solved survives the load: run ``solve_eos`` again. The configurations the world was built from are
+        cleared (:meth:`BaseWorld.load_binary`). A load that fails leaves the world as it was, its
         layers, views, and solved state included: the file is read into a new world first and reaches this one only
         once that read succeeded.
 
@@ -1144,7 +1136,7 @@ cdef class LayeredWorld(BaseWorld):
         cfg.degree_l  = degree_l
         cy_set_solve_for(&cfg, solve_for)
         if love_method is not None:
-            cfg.love_method = cy_resolve_love_method(love_method)
+            cfg.love_method = cy_parse_love_method(love_method)
         if fixed_q is not None:
             cfg.fixed_q = <double>fixed_q
         if fixed_dt is not None:
@@ -1206,11 +1198,12 @@ cdef class LayeredWorld(BaseWorld):
                 or complex_bulk_modulus.shape[0] != radius_array.shape[0]):
             raise ValueError("complex moduli and radius arrays must have matching length")
 
-        cdef c_LoveSolveConfig cfg
+        # The world's pinned [radial_solver] keys first, as in solve_love_numbers; the method is always the argument.
+        cdef c_LoveSolveConfig cfg = self._layered_ptr.make_love_solve_config()
         cfg.frequency   = frequency
         cfg.degree_l    = degree_l
         cy_set_solve_for(&cfg, solve_for)
-        cfg.love_method = cy_resolve_love_method(love_method)
+        cfg.love_method = cy_parse_love_method(love_method)
         cfg.core_model  = core_model
         cfg.starting_radius = starting_radius
         cfg.max_step        = max_step

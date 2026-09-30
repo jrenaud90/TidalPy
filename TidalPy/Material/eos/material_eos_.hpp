@@ -945,18 +945,7 @@ public:
 
     void write_binary(std::ostream& out) const override {
         const auto n = static_cast<uint64_t>(this->p_radius.size());
-        const uint64_t optional_count =
-            (this->has_shear_modulus()   ? 1u : 0u) + (this->has_bulk_modulus()   ? 1u : 0u)
-            + (this->has_shear_viscosity() ? 1u : 0u) + (this->has_bulk_viscosity() ? 1u : 0u);
-        const uint64_t payload =
-            binary_string_bytes(this->p_model_name)
-            + sizeof(uint64_t)                       // point count
-            + n * 2 * sizeof(double)                 // radius + density
-            + 4 * sizeof(uint8_t)                    // 4 optional-array presence flags
-            + optional_count * n * sizeof(double)    // present optional arrays
-            + 2 * sizeof(double)                     // thermal expansivity + reference temperature
-            + C_MATERIAL_BINARY_SCALARS * sizeof(double);
-        write_binary_header(out, static_cast<uint32_t>(BinaryClassID::InterpolatedEOS), payload);
+        write_binary_header(out, static_cast<uint32_t>(BinaryClassID::InterpolatedEOS), this->p_payload_bytes());
         write_binary_string(out, this->p_model_name);
         out.write(reinterpret_cast<const char*>(&n), sizeof(uint64_t));
         for (uint64_t i = 0; i < n; ++i) {
@@ -977,8 +966,10 @@ public:
         }
         this->write_material_submodels(out);
     }
+    // The payload size the header declares must be exactly what was read, and the tables must pass the checks a
+    // constructor applies; either failing means a corrupt file, so both raise std::runtime_error, even with force.
     void read_binary(std::istream& in, bool force = false) override {
-        c_TidalPyBaseClass::read_binary(in, force);
+        const c_BinaryHeader header = c_read_binary_record_header(in, force);
         this->p_model_name = read_binary_string(in);
         uint64_t n = 0;
         in.read(reinterpret_cast<char*>(&n), sizeof(uint64_t));
@@ -994,7 +985,6 @@ public:
         this->p_read_optional_array(in, this->p_bulk_modulus, n);
         this->p_read_optional_array(in, this->p_shear_viscosity, n);
         this->p_read_optional_array(in, this->p_bulk_viscosity, n);
-        this->p_update_table_cache();
         in.read(reinterpret_cast<char*>(&this->p_thermal_expansion),     sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_reference_temperature), sizeof(double));
         double material_scalars[C_MATERIAL_BINARY_SCALARS];
@@ -1002,6 +992,20 @@ public:
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read interpolated EOS binary data");
         }
+        const uint64_t expected_payload = this->p_payload_bytes();
+        if (header.payload_size != expected_payload) {
+            throw std::runtime_error(
+                "TidalPy: corrupt binary data: the interpolated EOS record holds " + std::to_string(header.payload_size)
+                + " payload bytes, but its tables need " + std::to_string(expected_payload)
+                + ", so it was written with a different layout or is corrupt");
+        }
+        try {
+            this->p_validate_tables();
+        }
+        catch (const std::invalid_argument& table_error) {
+            throw std::runtime_error(std::string("TidalPy: corrupt binary data: ") + table_error.what());
+        }
+        this->p_update_table_cache();
         this->p_set_material_scalars(material_scalars);
         this->read_material_submodels(in, force);
     }
@@ -1082,6 +1086,21 @@ protected:
         return this->p_bucket_seed[
             (position >= static_cast<double>(last_bucket)) ? last_bucket : static_cast<std::size_t>(position)];
     }
+    // This record's own payload [bytes], its sub-model records excluded.
+    uint64_t p_payload_bytes() const {
+        const auto n = static_cast<uint64_t>(this->p_radius.size());
+        const uint64_t optional_count =
+            (this->has_shear_modulus()   ? 1u : 0u) + (this->has_bulk_modulus()   ? 1u : 0u)
+            + (this->has_shear_viscosity() ? 1u : 0u) + (this->has_bulk_viscosity() ? 1u : 0u);
+        return binary_string_bytes(this->p_model_name)
+            + sizeof(uint64_t)                       // point count
+            + n * 2 * sizeof(double)                 // radius + density
+            + 4 * sizeof(uint8_t)                    // 4 optional-array presence flags
+            + optional_count * n * sizeof(double)    // present optional arrays
+            + 2 * sizeof(double)                     // thermal expansivity + reference temperature
+            + C_MATERIAL_BINARY_SCALARS * sizeof(double);
+    }
+
     void p_write_optional_array(std::ostream& out, const std::vector<double>& values) const {
         const uint8_t present = values.empty() ? 0u : 1u;
         out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
