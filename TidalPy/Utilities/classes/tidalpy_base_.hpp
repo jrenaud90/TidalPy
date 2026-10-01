@@ -18,7 +18,13 @@ namespace tidalpy {
 
 class c_TidalPyBaseClass {
 public:
+    c_TidalPyBaseClass() = default;
     virtual ~c_TidalPyBaseClass() = default;
+
+    // The user-declared assignments below would delete the implicit copy and move constructors, which a model's
+    // copy (clone_physics) needs; the const members copy exactly.
+    c_TidalPyBaseClass(const c_TidalPyBaseClass&) = default;
+    c_TidalPyBaseClass(c_TidalPyBaseClass&&) = default;
 
     // The const schema-version members delete the implicit copy/move assignment. They are compile-time
     // constants with the same value in every instance, so assigning them is a no-op; provide them back.
