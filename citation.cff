@@ -49,9 +49,9 @@ keywords:
 - Pluto
 - Rheology
 license: Apache-2.0
-commit: 8eb1fc5
+commit: 6efb86e
 version: 0.8.0
-date-released: '2026-09-28'
+date-released: '2026-10-01'
 preferred-citation:
   type: article
   authors:
