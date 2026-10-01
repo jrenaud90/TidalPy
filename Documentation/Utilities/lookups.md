@@ -54,4 +54,4 @@ See `intmap_.hpp` and `intmap.pxd` for the template signatures.
 
 ## Where Lookups are Used
 
-The eccentricity and obliquity function results were the first to use these structures. See [Eccentricity Functions](../Tides/eccentricity.md) and [Obliquity Functions](../Tides/obliquity.md). The tidal mode collapse uses the same structures to carry per-mode quantities through the sum. A truncation-20 solve at degree 10 involves thousands of modes per evaluation.
+The eccentricity and obliquity function results were the first to use these structures. See [Eccentricity Functions](../Tides/Eccentricity.md) and [Obliquity Functions](../Tides/Obliquity.md). The tidal mode collapse uses the same structures to carry per-mode quantities through the sum. A truncation-20 solve at degree 10 involves thousands of modes per evaluation.

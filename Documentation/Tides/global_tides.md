@@ -16,7 +16,7 @@ A host of mass $M_h$ on an orbit of semi-major axis $a$, eccentricity $e$, and o
 
 $$U(\theta, \phi, t) = \frac{G M_h}{a}\sum_{l=2}^{\infty}\left(\frac{R}{a}\right)^{l}\sum_{m=0}^{l}\frac{(l-m)!}{(l+m)!}\left(2-\delta_{0m}\right)P_{lm}(\cos\theta)\sum_{p=0}^{l}F_{lmp}(I)\sum_{q=-\infty}^{\infty}G_{lpq}(e)\,\mathcal{T}_{lm}\!\left(\omega_{lmpq}t - m\phi\right),$$
 
-where $\theta$ is the colatitude, $\phi$ the east longitude, $P_{lm}$ the associated Legendre functions without the Condon-Shortley phase, $\mathcal{T}_{lm}$ is $\cos$ for even $l - m$ and $\sin$ for odd $l - m$, and $F_{lmp}$ and $G_{lpq}$ are the [obliquity](obliquity.md) and [eccentricity](eccentricity.md) functions. Each $(l, m, p, q)$ is a tidal mode with the forcing frequency
+where $\theta$ is the colatitude, $\phi$ the east longitude, $P_{lm}$ the associated Legendre functions without the Condon-Shortley phase, $\mathcal{T}_{lm}$ is $\cos$ for even $l - m$ and $\sin$ for odd $l - m$, and $F_{lmp}$ and $G_{lpq}$ are the [obliquity](Obliquity.md) and [eccentricity](Eccentricity.md) functions. Each $(l, m, p, q)$ is a tidal mode with the forcing frequency
 
 $$\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta},$$
 

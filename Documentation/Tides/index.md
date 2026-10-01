@@ -9,8 +9,8 @@ _Updated: 2026-09-21_
 | [Global Tides](global_tides.md) | The tide models (`rheology`, `cpl`, `ctl`, `ctl_q`), the mode collapse, and the world's `calc_tides`. |
 | [3D Tidal Heating](multilayer_3d_heating.md) | The depth-resolved kernel, the secular and instantaneous heating paths, the displacement grid, and the stress and strain grids. |
 | [Love Numbers](love/love_numbers.md) | The `LoveNumbers` container, the Love-number solution methods, and the closed-form homogeneous-sphere formulas. |
-| [Eccentricity Functions](eccentricity.md) | $G_{l,p,q}(e)$, the truncation levels, and what each costs. |
-| [Obliquity Functions](obliquity.md) | $F_{l,m,p}(I)$, the truncation levels, and why they matter even at zero obliquity. |
+| [Eccentricity Functions](Eccentricity.md) | $G_{l,p,q}(e)$, the truncation levels, and what each costs. |
+| [Obliquity Functions](Obliquity.md) | $F_{l,m,p}(I)$, the truncation levels, and why they matter even at zero obliquity. |
 
 ```{toctree}
 :maxdepth: 1
