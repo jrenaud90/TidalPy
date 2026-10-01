@@ -3,8 +3,9 @@
  *
  * A c_Phase is one phase of a material (a solid, or its melt): an equation-of-state law, an optional shear-modulus
  * law, optional shear and bulk viscosity laws, optional default rheologies for the layers that use it, and its
- * thermal conductivity and heat capacity. A c_Material is a solid phase, an optional liquid phase with the solidus
- * and liquidus between them, a melt-weakening law, and optional bulk-mixing laws.
+ * thermal conductivity and heat capacity. A c_Material is a solid phase, a liquid phase, or both. With both it melts:
+ * the solidus and liquidus lie between them, with a melt-weakening law and optional bulk-mixing laws. A material with
+ * one phase is that phase everywhere (a water ocean is a liquid-only material).
  *
  * c_Material::calc_state is the one place a point (pressure, temperature, radius) is mapped onto a material's
  * properties: the structure and thermal integrations, the thermal network, the radial solver, and every getter read
@@ -133,7 +134,8 @@ struct c_PhaseComponents {
         if (slot == "bulk_viscosity")  { return c_share_physics_of(this->bulk_viscosity); }
         if (slot == "shear_rheology")  { return c_share_physics_of(this->shear_rheology); }
         if (slot == "bulk_rheology")   { return c_share_physics_of(this->bulk_rheology); }
-        throw std::invalid_argument("TidalPy: a phase has no slot '" + slot + "'" + c_did_you_mean(slot, slots()) + ".");
+        throw std::invalid_argument(
+            "TidalPy: a phase has no slot '" + slot + "'" + c_did_you_mean(slot, slots()) + ".");
     }
 };
 
@@ -379,11 +381,16 @@ public:
     }
 
     const c_MaterialComponents& get_components() const noexcept { return this->p_components; }
-    const c_Phase& get_solid() const noexcept { return *this->p_components.solid; }
+    // Null for a material without that phase.
+    const c_Phase* get_solid() const noexcept { return this->p_components.solid.get(); }
     const c_Phase* get_liquid() const noexcept { return this->p_components.liquid.get(); }
 
-    // Whether the material can melt: it has a liquid phase (and so a solidus and liquidus).
-    bool get_can_melt() const noexcept { return static_cast<bool>(this->p_components.liquid); }
+    // Whether the material can melt: it has a solid and a liquid phase (and so a solidus and liquidus).
+    bool get_can_melt() const noexcept {
+        return static_cast<bool>(this->p_components.solid) && static_cast<bool>(this->p_components.liquid);
+    }
+    // Whether the material is liquid everywhere: it has a liquid phase and no solid one.
+    bool get_is_liquid_only() const noexcept { return !this->p_components.solid; }
 
     // The solidus and liquidus [K] at a pressure [Pa] as a layer sees them (at zero pressure unless it uses pressure
     // melting); NaN for a material that cannot melt.
@@ -401,7 +408,8 @@ public:
 
     // The material at a point, as a layer with these switches sees it.
     //
-    // Below the solidus (or with melting off, or for a material that cannot melt) it is the solid phase. Above it the
+    // A liquid-only material is its liquid phase, fully molten, whatever the switches. Otherwise, below the solidus
+    // (or with melting off, or for a material that cannot melt) it is the solid phase. Above it the
     // melt fraction phi runs linearly from the solidus to the liquidus (a step at a single melting temperature when
     // they coincide), and:
     //   - shear modulus and viscosity: the weakening law between the solid's and the liquid's values (none: the solid's
@@ -410,14 +418,22 @@ public:
     //   - density: mixed by volume with use_melt_density, else the solid's;
     //   - expansivity, heat capacity, conductivity: linear in phi; the heat capacity adds the latent heat spread over
     //     the melting range, L / (T_liq - T_sol).
-    // Without a finite temperature there is no melt state: the solid phase, with a NaN melt fraction.
-    void calc_state(const c_ThermoPoint& point, const c_MaterialSwitches& switches, c_MaterialState& out) const noexcept {
+    // Without a finite temperature there is no melt state: the solid phase with a NaN melt fraction (a liquid-only
+    // material stays liquid with a melt fraction of 1). A single melting temperature (a step) adds no latent heat:
+    // there is no range to spread it over.
+    void calc_state(
+            const c_ThermoPoint& point,
+            const c_MaterialSwitches& switches,
+            c_MaterialState& out) const noexcept {
         this->p_evaluate(point, switches, true, out);
     }
 
     // Only what the thermal integration needs (density, expansivity, heat capacity, conductivity, melt fraction): no
     // moduli, viscosities, or weakening.
-    void calc_thermal(const c_ThermoPoint& point, const c_MaterialSwitches& switches, c_MaterialState& out) const noexcept {
+    void calc_thermal(
+            const c_ThermoPoint& point,
+            const c_MaterialSwitches& switches,
+            c_MaterialState& out) const noexcept {
         this->p_evaluate(point, switches, false, out);
     }
 
@@ -425,7 +441,7 @@ public:
     double calc_density(const c_ThermoPoint& point, const c_MaterialSwitches& switches) const noexcept {
         const bool thermal = switches.use_thermal_expansion;
         if (!(switches.use_melting && switches.use_melt_density && this->get_can_melt())) {
-            return this->p_components.solid->calc_density(point, thermal);
+            return this->p_base_phase().calc_density(point, thermal);
         }
         c_MaterialState state;
         this->p_evaluate(point, switches, false, state);
@@ -490,19 +506,24 @@ protected:
         return components;
     }
 
+    // The phase the material is when it is not melting: the solid, or the liquid of a liquid-only material.
+    const c_Phase& p_base_phase() const noexcept {
+        return this->p_components.solid ? *this->p_components.solid : *this->p_components.liquid;
+    }
+
     void p_evaluate(
             const c_ThermoPoint& point,
             const c_MaterialSwitches& switches,
             bool mechanical,
             c_MaterialState& out) const noexcept {
         const bool thermal = switches.use_thermal_expansion;
-        const c_Phase& solid_phase = *this->p_components.solid;
+        const bool liquid_only = this->get_is_liquid_only();
         c_PhaseState solid;
-        if (mechanical) { solid_phase.calc_phase_state(point, thermal, solid); }
-        else            { solid_phase.calc_phase_thermal(point, thermal, solid); }
+        if (mechanical) { this->p_base_phase().calc_phase_state(point, thermal, solid); }
+        else            { this->p_base_phase().calc_phase_thermal(point, thermal, solid); }
         p_copy_phase(solid, out);
-        out.phase         = c_MaterialPhase::Solid;
-        out.melt_fraction = 0.0;
+        out.phase         = liquid_only ? c_MaterialPhase::Liquid : c_MaterialPhase::Solid;
+        out.melt_fraction = liquid_only ? 1.0 : 0.0;
         out.solidus       = TidalPyConstants::d_NAN;
         out.liquidus      = TidalPyConstants::d_NAN;
         if (!(switches.use_melting && this->get_can_melt())) { return; }
@@ -580,13 +601,15 @@ protected:
         out.bulk_viscosity         = phase.bulk_viscosity;
     }
 
-    // A liquid phase brings the melting curves and needs a viscosity for the melt; melting laws need a liquid phase.
+    // A material needs at least one phase. With both, the liquid brings the melting curves and needs a viscosity for
+    // the melt; melting laws need both phases to melt between.
     void p_validate() const override {
         const c_MaterialComponents& components = this->p_components;
-        if (!components.solid) {
-            throw std::invalid_argument(this->p_describe() + " needs a solid phase ('solid').");
+        if (!components.solid && !components.liquid) {
+            throw std::invalid_argument(
+                this->p_describe() + " needs a solid phase ('solid'), a liquid phase ('liquid'), or both.");
         }
-        if (components.liquid) {
+        if (components.solid && components.liquid) {
             if (!components.solidus || !components.liquidus) {
                 throw std::invalid_argument(
                     this->p_describe() + " has a liquid phase, so it needs a 'solidus' and a 'liquidus' curve.");
@@ -598,7 +621,8 @@ protected:
         } else if (components.solidus || components.liquidus || components.weakening
                    || components.bulk_modulus_mixing || components.bulk_viscosity_mixing) {
             throw std::invalid_argument(
-                this->p_describe() + " has melting laws but no liquid phase ('liquid') for them to melt into.");
+                this->p_describe() + " has melting laws but not both a solid ('solid') and a liquid ('liquid') phase "
+                "for them to melt between.");
         }
     }
 
@@ -656,9 +680,10 @@ inline std::unique_ptr<c_Phase> c_make_phase(const c_ParamMap& params, const c_P
     return std::make_unique<c_Phase>(params, std::move(filled));
 }
 
+// A material given neither phase gets a default solid one.
 inline std::unique_ptr<c_Material> c_make_material(const c_ParamMap& params, const c_MaterialComponents& components) {
     c_MaterialComponents filled = components;
-    if (!filled.solid) { filled.solid = std::make_shared<const c_Phase>(); }
+    if (!filled.solid && !filled.liquid) { filled.solid = std::make_shared<const c_Phase>(); }
     return std::make_unique<c_Material>(params, std::move(filled));
 }
 

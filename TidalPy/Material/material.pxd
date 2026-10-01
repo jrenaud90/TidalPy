@@ -62,6 +62,7 @@ cdef extern from "material_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_Material(c_PhysicsBase):
         const c_MaterialComponents& get_components() const
         cpp_bool get_can_melt() const
+        cpp_bool get_is_liquid_only() const
         void calc_melting_range(
             double pressure, const c_MaterialSwitches& switches, double& solidus, double& liquidus) const
         void calc_state(const c_ThermoPoint& point, const c_MaterialSwitches& switches, c_MaterialState& out) const

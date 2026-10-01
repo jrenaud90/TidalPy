@@ -1,0 +1,34 @@
+# liquid_iron: liquid iron, for a molten core.
+#
+# A liquid-only material. Anderson and Ahrens (1994) fit liquid iron from 1 bar to core pressure: density 7019 kg m-3 at
+# 1811 K and an adiabatic bulk modulus K_S0 = 109.7 GPa with K_S0' = 4.66. The structure integration uses the
+# isothermal K_T0 = 85 GPa derived from the same work (via BurnMan); K_S0' stands in for K_T0', and the Gruneisen
+# parameter 1.74 is derived from K_S0 / K_T0 = 1 + alpha gamma T, so a tidal (adiabatic) deformation sees K_S. A
+# third-order law drops their K'' of -0.043 GPa-1. The expansivity falls with compression through an Anderson-Gruneisen
+# law with the mantle-mineral values of Chopelas and Boehler (1992) (an unsourced choice for the liquid), about 2e-5 K-1
+# at core-mantle-boundary density, so K_S / K_T stays near its 1 bar value at depth (with a constant expansivity it
+# would reach about 2 at the inner-core boundary). Viscosity at 1811 K and 1 bar (Assael et al. 2006; about 1e-2 Pa s
+# at core conditions, de Wijs et al. 1998). Conductivity: an unsourced Wiedemann-Franz estimate with a resistivity of
+# about 1.35e-6 ohm m.
+schema_version = "0.2.0"
+description = "Liquid iron (Anderson and Ahrens 1994); always liquid."
+category = "rocky"
+
+[liquid]
+thermal_conductivity_w_mk = 33.0
+heat_capacity_j_kgk = 830.0
+
+[liquid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 7019.0
+reference_bulk_modulus_pa = 8.5e10
+bulk_modulus_derivative = 4.66
+thermal_expansion_1_k = 9.2e-5
+reference_temperature_k = 1811.0
+anderson_gruneisen_parameter = 5.5
+anderson_gruneisen_exponent = 1.4
+gruneisen_parameter = 1.74
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 6.0e-3

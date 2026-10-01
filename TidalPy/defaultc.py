@@ -359,7 +359,9 @@ schema_version = "{SCHEMA_VERSION}"
     # bundled file being used differs from the one packaged with this install. The copy is never overwritten:
     # delete it, or call install_worldpack(force=True), to take the packaged file.
     stale_worldpack_copy = true
-    # A world or system file whose schema_version is missing, or differs from this build's in its minor
+    # The same for the bundled materials (MatPack): delete the copy, or call install_matpack(force=True).
+    stale_matpack_copy = true
+    # A world, system, or material file whose schema_version is missing, or differs from this build's in its minor
     # version. A major difference is refused outright and is not a warning.
     schema_version = true
     # A [tides] truncation level that is not tabulated and is promoted to the next tabulated one.

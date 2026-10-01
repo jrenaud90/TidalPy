@@ -31,6 +31,8 @@ import os
 os.environ["TIDALPY_TEST_MODE"] = "1"
 from TidalPy.Structures.configs import worldpack
 worldpack.get_worlds_dir = lambda: {worlds_dir!r}
+from TidalPy.Material import matpack
+matpack.get_materials_dir = lambda: {materials_dir!r}
 """
 
 
@@ -43,8 +45,11 @@ def test_notebook_executes(notebook_path, tmp_path):
     notebook = nbformat.read(notebook_path, as_version=4)
     worlds_dir = tmp_path / "Worlds"
     worlds_dir.mkdir()
+    materials_dir = tmp_path / "Materials"
+    materials_dir.mkdir()
     # The kernel is a separate process that Tests/conftest.py cannot reach, so an in-memory setup cell isolates it.
-    notebook.cells.insert(0, nbformat.v4.new_code_cell(SETUP_TEMPLATE.format(worlds_dir=str(worlds_dir))))
+    setup = SETUP_TEMPLATE.format(worlds_dir=str(worlds_dir), materials_dir=str(materials_dir))
+    notebook.cells.insert(0, nbformat.v4.new_code_cell(setup))
 
     client = nbclient.NotebookClient(
         notebook,

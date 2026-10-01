@@ -1,0 +1,68 @@
+# iron: solid iron, melting into liquid iron.
+#
+# Solid: a Vinet law for hcp iron (Dewaele et al. 2006, fit 17 to 197 GPa; Fei et al. 2016 give K0 = 172.7 GPa and
+# K0' = 4.79), with the expansivity, its Anderson-Gruneisen fit, and the shear modulus of hcp iron as encoded in BurnMan
+# (Kurnosov et al. 2017). bcc iron is stable below about 13 GPa at room temperature and is not separately represented.
+# The temperature derivative of the shear modulus and the Gruneisen parameter are unsourced and left out (so the solid's
+# adiabatic bulk modulus is its isothermal one, below the liquid's). The viscosity of solid iron is poorly
+# constrained (inner-core estimates span 1e16 to 1e22 Pa s). Conductivity: pure iron is 80 W m-1 K-1 at 300 K and 1 bar
+# (CRC handbook), falling with temperature; 30 to 150 are argued at core conditions. Heat capacity: the high-temperature
+# range of 600 to 800 J kg-1 K-1 (unsourced). Both are low-confidence values for a hot core.
+#
+# Melting: Anzellini et al. (2013), converted to two Simon-Glatzel branches joined at 98.5 GPa (1822 K at 1 bar against
+# a measured 1811 K; 6230 K at the inner-core boundary); pure iron melts at one temperature. Latent heat at 1 bar (CRC
+# handbook; larger at core pressure). Liquid: liquid_iron.
+schema_version = "0.2.0"
+description = "Solid (hcp) iron with the Anzellini et al. (2013) melting curve, melting into liquid iron."
+category = "rocky"
+latent_heat_j_kg = 2.47e5
+
+[solid]
+thermal_conductivity_w_mk = 40.0
+heat_capacity_j_kgk = 700.0
+
+[solid.eos]
+model = "vinet"
+reference_density_kg_m3 = 8273.0
+reference_bulk_modulus_pa = 1.634e11
+bulk_modulus_derivative = 5.38
+thermal_expansion_1_k = 3.5e-5
+reference_temperature_k = 300.0
+anderson_gruneisen_parameter = 4.5
+anderson_gruneisen_exponent = 0.74
+
+[solid.shear_modulus]
+model = "linear"
+shear_modulus_pa = 8.15e10
+pressure_derivative = 1.9
+reference_temperature_k = 300.0
+
+[solid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e20
+
+[solid.shear_rheology]
+model = "maxwell"
+
+[liquid]
+preset = "liquid_iron"
+
+[melting.solidus]
+model = "simon_glatzel_2"
+temperature_k = 1822.4
+simon_a_pa = 2.219e10
+simon_c = 2.38
+transition_pressure_pa = 9.85e10
+high_temperature_k = 2143.8
+high_simon_a_pa = 6.27e10
+high_simon_c = 1.72
+
+[melting.liquidus]
+model = "simon_glatzel_2"
+temperature_k = 1822.4
+simon_a_pa = 2.219e10
+simon_c = 2.38
+transition_pressure_pa = 9.85e10
+high_temperature_k = 2143.8
+high_simon_a_pa = 6.27e10
+high_simon_c = 1.72

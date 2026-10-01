@@ -13,7 +13,7 @@ from TidalPy.Structures.configs import validate_schema_version, world_builder, w
 def data_dir(tmp_path, monkeypatch):
     """A private data directory holding fresh copies of the packaged files, and a clean warned-once record."""
     monkeypatch.setattr(worldpack, "get_worlds_dir", lambda: str(tmp_path))
-    monkeypatch.setattr(worldpack, "_WARNED_STALE_COPIES", set())
+    monkeypatch.setattr(worldpack.WORLD_PACK, "p_warned_stale_copies", set())
     worldpack.install_worldpack()
     return tmp_path
 

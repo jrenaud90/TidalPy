@@ -12,6 +12,17 @@ from TidalPy.Utilities.classes.classes import resolve_factory_config
 _FAMILIES = {}
 
 
+def get_family(family: str) -> "ModelFamily":
+    """A registered family by its name (``"viscosity"``, ``"equation of state"``, ...).
+
+    Raises
+    ------
+    KeyError
+        No family of that name has been registered (its module was not imported).
+    """
+    return _FAMILIES[family]
+
+
 def model_class(family: str, model_name: str):
     """The Python class of a model, by its family and canonical model name.
 

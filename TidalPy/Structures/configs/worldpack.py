@@ -3,11 +3,8 @@
 The example configurations in the package directory ``TidalPy/WorldPack/`` are copied into a
 version-scoped, user-editable data directory (``.../TidalPy/<version>/Worlds``, see
 :func:`TidalPy.paths.get_worlds_dir`) on first use, and the data-directory copy is preferred when a
-world is requested by name. Installation is copy-if-absent per file, so user edits and renames are
-never clobbered while newly packaged worlds appear on the next import. The price is that a copy made by
-an older install outlives an update to the packaged file, so a copy that differs from its packaged
-counterpart is reported (once per file per session, and never overwritten). Without a usable data directory
-(a read-only home directory, say) the packaged files are used directly.
+world is requested by name. :class:`TidalPy.Utilities.data_pack.DataPack` describes the copy-if-absent
+installation and the stale-copy warning, which the MatPack shares.
 
 World configurations and system configurations share this directory and are told apart by content:
 a system names its members in a ``[worlds.<name>]`` table, a world never does. :func:`config_kind`
@@ -15,14 +12,12 @@ is that test, and :func:`available_worlds` / :func:`available_systems` list the 
 """
 
 import os
-import shutil
-import warnings
 
 import toml
 
 import TidalPy
-from TidalPy.paths import get_worlds_dir as _paths_get_worlds_dir, warn_unusable_data_dir
-from TidalPy.Structures.configs.toml_loader import warning_enabled
+from TidalPy.paths import get_worlds_dir as _paths_get_worlds_dir
+from TidalPy.Utilities.data_pack import DataPack
 
 
 # The packaged WorldPack directory (read-only source of the example worlds), found
@@ -38,17 +33,6 @@ _INSTALLED_EXTENSIONS = (".toml", ".csv", ".txt", ".dat")
 WORLD_CONFIG = "world"
 SYSTEM_CONFIG = "system"
 
-# Data-directory copies already reported as differing from their packaged file (once per file per session).
-_WARNED_STALE_COPIES: set = set()
-
-# Data directories already filled this session. Installation is copy-if-absent, so doing it again would only list
-# the package and check every file; a copy deleted from the data directory during a session is read from the
-# package until the next session installs it again.
-_INSTALLED_DATA_DIRS: set = set()
-
-# The packaged files' normalized contents, read once: the package does not change during a session.
-_PACKAGED_CONTENTS: dict = {}
-
 
 def get_worlds_dir():
     """Return the user-editable data directory for Structures worlds.
@@ -63,6 +47,17 @@ def get_worlds_dir():
         case the packaged worlds are used directly.
     """
     return _paths_get_worlds_dir()
+
+
+# The pack itself. Its getter looks get_worlds_dir up on every call, so redirecting that module attribute redirects
+# the pack.
+WORLD_PACK = DataPack(
+    "WorldPack",
+    PACKAGED_WORLDPACK_DIR,
+    lambda: get_worlds_dir(),
+    _INSTALLED_EXTENSIONS,
+    "stale_worldpack_copy",
+    "TidalPy.Structures.install_worldpack(force=True)")
 
 
 def install_worldpack(force: bool = False) -> str:
@@ -85,42 +80,7 @@ def install_worldpack(force: bool = False) -> str:
         ``force`` is set and a copy cannot be written. Without ``force`` a directory that cannot be written is
         warned about once and left as it is, and the packaged file is used wherever the directory has no copy.
     """
-    data_dir = get_worlds_dir()
-    if data_dir is None:
-        return None
-    key = os.path.normcase(os.path.abspath(data_dir))
-    if (not force) and (key in _INSTALLED_DATA_DIRS):
-        return data_dir
-    if not os.path.isdir(PACKAGED_WORLDPACK_DIR):
-        return data_dir
-    for entry in os.listdir(PACKAGED_WORLDPACK_DIR):
-        if not entry.lower().endswith(_INSTALLED_EXTENSIONS):
-            continue
-        destination = os.path.join(data_dir, entry)
-        if force or not os.path.isfile(destination):
-            try:
-                shutil.copyfile(os.path.join(PACKAGED_WORLDPACK_DIR, entry), destination)
-            except OSError as error:
-                if force:
-                    raise
-                warn_unusable_data_dir(error)
-                break
-    _INSTALLED_DATA_DIRS.add(key)
-    return data_dir
-
-
-def _read_normalized(file_path: str) -> bytes:
-    """File contents with line endings normalized, so an editor's or git's newline choice is not a difference."""
-    with open(file_path, "rb") as file:
-        return file.read().replace(b"\r\n", b"\n")
-
-
-def _packaged_normalized(packaged_path: str) -> bytes:
-    """A packaged file's normalized contents, read once per session."""
-    key = os.path.normcase(os.path.abspath(packaged_path))
-    if key not in _PACKAGED_CONTENTS:
-        _PACKAGED_CONTENTS[key] = _read_normalized(packaged_path)
-    return _PACKAGED_CONTENTS[key]
+    return WORLD_PACK.install(force)
 
 
 def warn_if_stale_copy(data_path: str) -> bool:
@@ -142,32 +102,7 @@ def warn_if_stale_copy(data_path: str) -> bool:
     bool
         True when the file differs from its packaged counterpart (whether or not a warning was given).
     """
-    packaged_path = os.path.join(PACKAGED_WORLDPACK_DIR, os.path.basename(data_path))
-    if not (os.path.isfile(data_path) and os.path.isfile(packaged_path)):
-        return False
-    if os.path.abspath(data_path) == os.path.abspath(packaged_path):
-        return False
-    try:
-        differs = _read_normalized(data_path) != _packaged_normalized(packaged_path)
-    except OSError:
-        return False
-    if not differs:
-        return False
-
-    key = os.path.normcase(os.path.abspath(data_path))
-    if warning_enabled("stale_worldpack_copy") and key not in _WARNED_STALE_COPIES:
-        _WARNED_STALE_COPIES.add(key)
-        warnings.warn(
-            f"The copy of '{os.path.basename(data_path)}' in the TidalPy data directory differs from the one "
-            f"packaged with this install, and the copy is the one being used.\n"
-            f"    data directory copy: {data_path}\n"
-            f"    packaged file:       {packaged_path}\n"
-            "If the difference is your own edit, nothing needs doing. If the copy was left by an older "
-            "install, delete it or call TidalPy.Structures.install_worldpack(force=True), which replaces "
-            "every copy (and discards every edit). Set stale_worldpack_copy = false under [warnings] in "
-            "TidalPy_Configs.toml to silence this.",
-            stacklevel=2)
-    return True
+    return WORLD_PACK.warn_if_stale_copy(data_path)
 
 
 def resolve_data_file(data_file: str, base_dir: str = None) -> str:
@@ -196,7 +131,7 @@ def resolve_data_file(data_file: str, base_dir: str = None) -> str:
     """
     if os.path.isabs(data_file) and os.path.isfile(data_file):
         return data_file
-    worlds_dir = install_worldpack()
+    worlds_dir = WORLD_PACK.install()
     candidates = []
     if base_dir is not None:
         candidates.append(os.path.join(base_dir, data_file))
@@ -211,7 +146,7 @@ def resolve_data_file(data_file: str, base_dir: str = None) -> str:
             resolved = os.path.abspath(candidate)
             # Only the data directory holds copies of the packaged files; a user's own file elsewhere is theirs.
             if worlds_dir is not None and os.path.dirname(resolved) == worlds_dir:
-                warn_if_stale_copy(candidate)
+                WORLD_PACK.warn_if_stale_copy(candidate)
             return resolved
     raise FileNotFoundError(
         f"Could not resolve world data file '{data_file}'. Looked in: "
@@ -239,23 +174,13 @@ def resolve_world_path(name: str) -> str:
     FileNotFoundError
         If no bundled world of that name exists in either location.
     """
-    worlds_dir = install_worldpack()
     # The bundled names are lowercase; matching them that way works the same on case-sensitive file systems.
-    file_name = name.lower() + ".toml"
-
-    if worlds_dir is not None:
-        data_path = os.path.join(worlds_dir, file_name)
-        if os.path.isfile(data_path):
-            warn_if_stale_copy(data_path)
-            return data_path
-
-    packaged_path = os.path.join(PACKAGED_WORLDPACK_DIR, file_name)
-    if os.path.isfile(packaged_path):
-        return packaged_path
-
+    path = WORLD_PACK.find(name.lower() + ".toml")
+    if path is not None:
+        return path
     raise FileNotFoundError(
         f"No bundled WorldPack world named '{name}' was found in the data "
-        f"directory ({worlds_dir}) or the packaged worlds "
+        f"directory ({WORLD_PACK.install()}) or the packaged worlds "
         f"({PACKAGED_WORLDPACK_DIR}).")
 
 
@@ -352,28 +277,18 @@ def _available_configs(kind: str) -> list:
     list of str
         Configuration names, without the ``.toml`` extension.
     """
-    worlds_dir = install_worldpack()
-    names = {}
-    # The data directory is searched first so its copy of a shared name wins.
-    for directory in (worlds_dir, PACKAGED_WORLDPACK_DIR):
-        if directory is None or not os.path.isdir(directory):
+    names = []
+    for name, path in WORLD_PACK.files(".toml").items():
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                text = file.read()
+            if (kind == SYSTEM_CONFIG) and not _may_be_system(text):
+                continue
+            if config_kind(toml.loads(text)) == kind:
+                names.append(name)
+        except (toml.TomlDecodeError, OSError, UnicodeDecodeError):
             continue
-        for entry in os.listdir(directory):
-            if not entry.endswith(".toml"):
-                continue
-            name = os.path.splitext(entry)[0]
-            if name in names:
-                continue
-            try:
-                with open(os.path.join(directory, entry), "r", encoding="utf-8") as file:
-                    text = file.read()
-                if (kind == SYSTEM_CONFIG) and not _may_be_system(text):
-                    names[name] = None
-                    continue
-                names[name] = config_kind(toml.loads(text))
-            except (toml.TomlDecodeError, OSError, UnicodeDecodeError):
-                names[name] = None
-    return sorted(name for name, found in names.items() if found == kind)
+    return sorted(names)
 
 
 def available_worlds() -> list:

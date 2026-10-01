@@ -1,6 +1,6 @@
 # Material and Equation of State (`Material`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-01_
 
 `TidalPy.Material` contains functionality to calculate the equation of state of various planet-relevant materials. Each model maps the local state into radially-dependent density [kg m$^{-3}$], and the whole-planet solve integrates those densities from the center outward to produce the body's radial structure. During this process, the gravity, pressure, total mass, and moment of inertia are also calculated.
 
@@ -9,11 +9,13 @@ The density profile fixes the gravity and pressure profiles, which fix the momen
 | Page | Covers |
 |---|---|
 | [Material EOS Models](material_eos.md) | The four models, the pressure inversion they share, the interpolated tables, the factory, serialization, the C++ surface, and how to add a model. |
+| [MatPack](matpack.md) | The named materials TidalPy ships (simplified, rocky, icy, and giant-planet), loading them, overriding them, and adding new ones. |
 
 ```{toctree}
 :maxdepth: 1
 
 Material EOS Models <material_eos.md>
+MatPack <matpack.md>
 ```
 
 ## Where EOS is Used

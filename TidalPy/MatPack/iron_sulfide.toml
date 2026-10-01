@@ -1,0 +1,68 @@
+# iron_sulfide: an Fe-FeS core alloy with 16 wt% S (atomic sulfur fraction 0.25 in the melt).
+#
+# A preset needs a fixed composition, and 16 wt% S is a reasonable small-body core default. Most of the values below
+# are derived here or unsourced; confidence low.
+#
+# Solid: iron (bcc, 7874 kg m-3) and troilite (4800 kg m-3) at 300 K mixed at 16 wt% S by additive volumes (56 wt% Fe,
+# 44 wt% FeS), the bulk modulus as a Reuss average of iron (166 GPa, a standard bcc value not in the sources here) and
+# FeS V (54.3 GPa; Urakawa et al. 2004) with K0' = 4, and the expansivity as the volume average of iron (3.5e-5) and
+# FeS V (1.04e-4 K-1; Urakawa et al. 2004). The FeS V values are for about 1000 K while the density is a 300 K value,
+# so the reference state is mixed. The shear modulus, viscosity, conductivity, and heat capacity are unsourced
+# estimates between FeS and iron. FeS goes through several phase changes below 12 GPa.
+#
+# Melting: the Fe-FeS eutectic, constant to at least 8 GPa (Buono and Walker 2015), and the 1 bar liquidus at 16 wt% S
+# (read from the Fe-S diagram; unsourced). Latent heat: iron's (unsourced for the alloy).
+#
+# Liquid: K_T0 = K_Fe^(1 - X_S) K_S^(X_S) and K0' = 6.5 + 3 X_S at 1900 K (Morard et al. 2018, as used by Xu et al.
+# 2021) at X_S = 0.25; the density mixes liquid iron (7019) and liquid FeS (about 3900 kg m-3, an unsourced estimate) by
+# additive volumes (derived here); the viscosity is assumed close to liquid iron's.
+schema_version = "0.2.0"
+description = "Fe-FeS core alloy at 16 wt% S with a eutectic solidus (low confidence)."
+category = "rocky"
+latent_heat_j_kg = 2.5e5
+
+[solid]
+thermal_conductivity_w_mk = 20.0
+heat_capacity_j_kgk = 650.0
+
+[solid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 6150.0
+reference_bulk_modulus_pa = 7.7e10
+bulk_modulus_derivative = 4.0
+thermal_expansion_1_k = 7.4e-5
+reference_temperature_k = 300.0
+
+[solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 4.0e10
+
+[solid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e20
+
+[solid.shear_rheology]
+model = "maxwell"
+
+[liquid]
+thermal_conductivity_w_mk = 20.0
+heat_capacity_j_kgk = 650.0
+
+[liquid.eos]
+model = "birch_murnaghan"
+reference_density_kg_m3 = 5190.0
+reference_bulk_modulus_pa = 2.9e10
+bulk_modulus_derivative = 7.25
+reference_temperature_k = 1900.0
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e-2
+
+[melting.solidus]
+model = "constant"
+temperature_k = 1261.0
+
+[melting.liquidus]
+model = "constant"
+temperature_k = 1600.0

@@ -19,6 +19,68 @@ from TidalPy import version
 from TidalPy.exceptions import ConfigurationException, InitializationError
 from TidalPy.paths import get_config_dir, unique_path, warn_unusable_data_dir
 from TidalPy.defaultc import default_config_str
+from TidalPy.schema import SCHEMA_VERSION
+
+
+def warning_enabled(name: str) -> bool:
+    """Whether the ``[warnings]`` switch ``name`` of ``TidalPy.config`` is on; on when the config is absent."""
+    config = getattr(TidalPy, "config", None) or {}
+    return bool((config.get("warnings", {}) or {}).get(name, True))
+
+
+def validate_schema_version(config: dict, force: bool = False) -> bool:
+    """Check a configuration's ``schema_version`` against this build's schema.
+
+    Graded against :data:`TidalPy.schema.SCHEMA_VERSION`: a patch difference is silent, a minor difference warns
+    that some functionality may break, a major difference raises, and a missing ``schema_version`` warns and is
+    assumed to target the current schema. World, system, and material files share the schema.
+
+    Parameters
+    ----------
+    config : dict
+        The configuration dictionary.
+    force : bool, optional
+        If True, bypass all checks: the configuration is accepted silently regardless of version (use at your own
+        risk). Default False.
+
+    Returns
+    -------
+    bool
+        True if the configuration is accepted (it always is, unless a major-version mismatch raises).
+
+    Raises
+    ------
+    ValueError
+        If the configuration's schema major version differs from the current schema and ``force`` is False.
+    """
+    if force:
+        return True
+
+    found = config.get("schema_version", None)
+    if found is None:
+        if warning_enabled("schema_version"):
+            warnings.warn(
+                "Configuration has no 'schema_version'; assuming it targets the "
+                f"current schema {SCHEMA_VERSION}. Behavior may be unexpected.")
+        return True
+
+    expected_parts = SCHEMA_VERSION.split(".")
+    found_parts = str(found).split(".")
+    found_major = found_parts[0]
+    found_minor = found_parts[1] if len(found_parts) > 1 else "0"
+
+    if found_major != expected_parts[0]:
+        raise ValueError(
+            f"Configuration schema version {found} is incompatible with the "
+            f"current schema {SCHEMA_VERSION}: the major versions differ. Refusing to "
+            "load. (Pass force=True to bypass this check at your own risk.)")
+
+    if found_minor != expected_parts[1]:
+        if warning_enabled("schema_version"):
+            warnings.warn(
+                f"Configuration schema version {found} differs from the current "
+                f"schema {SCHEMA_VERSION} by a minor version; some functionality may break.")
+    return True
 
 
 def merge_configs(base: dict, overrides: dict) -> dict:

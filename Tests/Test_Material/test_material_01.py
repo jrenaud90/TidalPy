@@ -62,6 +62,7 @@ def test_components_read_back_as_their_classes():
 def test_defaults_build():
     assert isinstance(Phase().eos, ConstantEOS)
     assert not Material().can_melt
+    assert not Material().is_liquid_only
     assert Phase().shear_modulus is None
 
 
@@ -74,9 +75,25 @@ def test_material_validation(bad, message):
         _material(**bad)
 
 
-def test_melting_laws_need_a_liquid_phase():
-    with pytest.raises(ValueError, match="no liquid phase"):
+def test_melting_laws_need_both_phases():
+    with pytest.raises(ValueError, match="not both a solid"):
         Material(_solid(), weakening="henning")
+    with pytest.raises(ValueError, match="not both a solid"):
+        Material(liquid=_liquid(), solidus={"model": "constant", "temperature_k": _T_SOL})
+
+
+def test_a_liquid_only_material_is_liquid_everywhere():
+    material = Material(liquid=_liquid())
+    assert material.is_liquid_only and not material.can_melt
+    assert material.solid is None
+    for switches in ({}, _MELTING, dict(use_melting=True, use_melt_density=True)):
+        state = material.calc_state(1.0e9, 300.0, **switches)
+        assert state["phase"] == "liquid"
+        assert state["melt_fraction"] == 1.0
+        assert state["density"] == 2800.0
+        assert state["shear_modulus"] == 0.0
+        assert state["shear_viscosity"] == 0.2
+    assert material.get_config_dict().keys() == {"liquid", "latent_heat_j_kg"}
 
 
 def test_wrong_family_in_a_slot():
@@ -165,7 +182,8 @@ def test_mixing_laws():
     state = material.calc_state(0.0, 1800.0, **_MELTING)
     k_s, k_l, phi = 1.3e11, 2.0e10, 0.5
     mu = state["shear_modulus"]
-    assert state["bulk_modulus"] == pytest.approx(k_s + phi / (1.0 / (k_l - k_s) + (1.0 - phi) / (k_s + 4.0 / 3.0 * mu)))
+    hashin_shtrikman = k_s + phi / (1.0 / (k_l - k_s) + (1.0 - phi) / (k_s + 4.0 / 3.0 * mu))
+    assert state["bulk_modulus"] == pytest.approx(hashin_shtrikman)
     assert state["bulk_viscosity"] == pytest.approx(1.0 / (1.0 / 1.0e22 + phi / state["shear_viscosity"]))
 
 

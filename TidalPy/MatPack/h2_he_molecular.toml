@@ -1,0 +1,31 @@
+# h2_he_molecular: the molecular hydrogen-helium envelope of a Jupiter-like planet.
+#
+# A liquid-only material on an n = 1 polytrope (Hubbard 1984; Stevenson 1982) with Jupiter's constant, K = 2 G R^2 / pi
+# for R = 69911 km (Saturn: 1.44e5). It gives a central density of 4360 kg m-3 and a central pressure of 4 TPa for
+# Jupiter, inside the range of detailed models, and somewhat overestimates the density of the molecular region. The
+# Saumon et al. (1995) tables or the Militzer and Hubbard (2013) EOS are the detailed alternatives, through the
+# interpolate law. Above about 1 kbar the outer layer is closer to an n = 2.5 ideal diatomic gas (unsourced).
+#
+# Thermal properties along the Jupiter adiabat (French et al. 2012): conductivity 10 to 1e3 W m-1 K-1 rising inward,
+# heat capacity 1.3e4 to 1.4e4 J kg-1 K-1, expansivity 1e-5 to 1e-4 K-1, and a dynamic viscosity of 1e-4 to
+# 1e-3 Pa s. The molecular-to-metallic transition is gradual, at roughly 1 to 2 Mbar and 5000 to 7000 K. Tides in a
+# fluid envelope are usually a world-level fixed_q or fixed_dt model (Jupiter: k2 = 0.565, Durante et al. 2020;
+# k2 / Q = 1.10e-5, Lainey et al. 2009).
+schema_version = "0.2.0"
+description = "Molecular H2-He envelope on Jupiter's n = 1 polytrope; always fluid."
+category = "giant"
+
+[liquid]
+thermal_conductivity_w_mk = 10.0
+heat_capacity_j_kgk = 1.35e4
+
+[liquid.eos]
+model = "polytrope"
+polytropic_constant = 2.08e5
+polytropic_index = 1.0
+thermal_expansion_1_k = 3.0e-5
+reference_temperature_k = 165.0
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 3.0e-4

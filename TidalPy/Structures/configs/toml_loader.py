@@ -18,13 +18,14 @@ the C++, Cython, or factory default. That merge lives in the world builder.
 import copy
 import math
 import os
-import warnings
 from typing import Union
 
 import numpy as np
 import toml
 
 import TidalPy
+# Shared with the material and system loaders, re-exported: this loader is where callers look for them.
+from TidalPy.configurations import validate_schema_version, warning_enabled
 
 # The schema's version and key sets, re-exported: this loader is where callers look for them.
 from TidalPy.schema import (
@@ -110,11 +111,6 @@ def _config_section(name: str) -> dict:
     return config.get(name, {}) or {}
 
 
-def warning_enabled(name: str) -> bool:
-    """Whether the ``[warnings]`` switch ``name`` is on; on when the config is absent."""
-    return bool(_config_section("warnings").get(name, True))
-
-
 # Parsed configuration files by path, with the text each was parsed from. A file read again with the same text (a
 # world built by name in a loop, say) skips the parse, which is most of the cost of building a world; any change to
 # the text parses it again. The text itself is compared, not the modification time, which on some file systems only
@@ -174,68 +170,6 @@ def load_toml(source: Union[str, dict]) -> dict:
     raise TypeError(
         f"Unsupported world configuration source type: {type(source)}. "
         "Provide a path to a .toml file or a configuration dict.")
-
-
-# =====================================================================================================================
-# Schema-version compatibility
-# =====================================================================================================================
-def validate_schema_version(config: dict, force: bool = False) -> bool:
-    """Check a configuration's ``schema_version`` against this build's schema.
-
-    Graded against :data:`SCHEMA_VERSION`: a patch difference is silent, a minor difference warns
-    that some functionality may break, a major difference raises, and a missing ``schema_version``
-    warns and is assumed to target the current schema.
-
-    Parameters
-    ----------
-    config : dict
-        The world configuration dictionary.
-    force : bool, optional
-        If True, bypass all checks: the configuration is accepted silently
-        regardless of version (use at your own risk). Default False.
-
-    Returns
-    -------
-    bool
-        True if the configuration is accepted (it always is, unless a major-version
-        mismatch raises).
-
-    Raises
-    ------
-    ValueError
-        If the configuration's schema major version differs from the current schema
-        and ``force`` is False.
-    """
-    if force:
-        return True
-
-    found = config.get("schema_version", None)
-    if found is None:
-        if warning_enabled("schema_version"):
-            warnings.warn(
-                "World configuration has no 'schema_version'; assuming it targets the "
-                f"current schema {SCHEMA_VERSION}. Behavior may be unexpected.")
-        return True
-
-    expected_parts = SCHEMA_VERSION.split(".")
-    found_parts = str(found).split(".")
-    found_major = found_parts[0]
-    found_minor = found_parts[1] if len(found_parts) > 1 else "0"
-
-    if found_major != expected_parts[0]:
-        raise ValueError(
-            f"World configuration schema version {found} is incompatible with the "
-            f"current schema {SCHEMA_VERSION}: the major versions differ. Refusing to "
-            "load. (Pass force=True to bypass this check at your own risk.)")
-
-    if found_minor != expected_parts[1]:
-        if warning_enabled("schema_version"):
-            warnings.warn(
-                f"World configuration schema version {found} differs from the current "
-                f"schema {SCHEMA_VERSION} by a minor version; some functionality may break.")
-        return True
-
-    return True
 
 
 # =====================================================================================================================

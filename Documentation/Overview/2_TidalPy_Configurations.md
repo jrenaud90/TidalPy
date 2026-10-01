@@ -1,6 +1,6 @@
 # TidalPy Configurations
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-01_
 
 TidalPy's settings and parameters are read when the package is first imported. They live in one configuration file, `TidalPy_Configs.toml`, in the TidalPy data directory inside the user's documents directory, whose location varies by operating system.
 
@@ -16,12 +16,12 @@ TidalPy's settings and parameters are read when the package is first imported. T
 
 "/home/\<username\>/Documents/TidalPy/\<major.minor\>.X/Config/TidalPy_Configs.toml"
 
-The version folder holds only the major and minor version (`0.8.X` for every 0.8 release), so patch releases share one configuration. Beside `Config` it holds `Logs` (log files, when they are written there) and `Worlds` (the editable copies of the bundled worlds, see the [world pack page](../Structures/config/worldpack.md)). `TidalPy.paths.get_config_dir()`, `get_log_dir()`, and `get_worlds_dir()` return the three paths, and `get_data_dir()` the version folder.
+The version folder holds only the major and minor version (`0.8.X` for every 0.8 release), so patch releases share one configuration. Beside `Config` it holds `Logs` (log files, when they are written there), `Worlds` (the editable copies of the bundled worlds, see the [world pack page](../Structures/config/worldpack.md)), and `Materials` (the editable copies of the bundled materials, see the [MatPack page](../Material/matpack.md)). `TidalPy.paths.get_config_dir()`, `get_log_dir()`, `get_worlds_dir()`, and `get_materials_dir()` return the four paths, and `get_data_dir()` the version folder.
 
 To keep the data directory somewhere else, set the `TIDALPY_DATA_DIR` environment variable before importing TidalPy. It replaces the "TidalPy" folder in the paths above, so the version folder goes inside it: `TIDALPY_DATA_DIR=/scratch/me/tidalpy` gives "/scratch/me/tidalpy/\<major.minor\>.X/Config/TidalPy_Configs.toml".
 
 > [!NOTE]
-> Where the data directory cannot be created or written (a read-only home directory on a cluster node, in a container, or on a CI runner), TidalPy still imports. It warns once and runs without the directory. Instead, the configuration is the packaged defaults, no log file is written to `Logs`, and the bundled worlds are read from the package. Set `TIDALPY_DATA_DIR` to a writable directory to keep a configuration file there.
+> Where the data directory cannot be created or written (a read-only home directory on a cluster node, in a container, or on a CI runner), TidalPy still imports. It warns once and runs without the directory. Instead, the configuration is the packaged defaults, no log file is written to `Logs`, and the bundled worlds and materials are read from the package. Set `TIDALPY_DATA_DIR` to a writable directory to keep a configuration file there.
 
 The file holds all of TidalPy's settings, with comments giving context for each one. The loaded settings are the dictionary `TidalPy.config`. Edits to the file reach TidalPy the next time it is imported, or immediately with `TidalPy.reinit(provided_config="default")`.
 
@@ -189,7 +189,8 @@ The `[layers.default]` model tables are also what a physics-model factory (`make
 `[warnings]` switches the Python warnings the configuration and world-building code can give, each on by default and given at most once per cause per session:
 
 - `stale_worldpack_copy`: a data-directory copy of a bundled world or data file differs from the packaged one (see the [world pack page](../Structures/config/worldpack.md)).
-- `schema_version`: a world or system file's `schema_version` is missing or differs from this build's in its minor version (a major difference is refused, not warned about).
+- `stale_matpack_copy`: the same for a bundled material (see the [MatPack page](../Material/matpack.md)).
+- `schema_version`: a world, system, or material file's `schema_version` is missing or differs from this build's in its minor version (a major difference is refused, not warned about).
 - `truncation_promotion`: a `[tides]` truncation level is not tabulated and is promoted to the next tabulated one.
 - `short_degree_list`: a `[tides]` per-degree list (`fixed_k`, `fixed_q`, `fixed_dt_s`) the tide model reads stops short of `max_degree_l`, so its missing degrees are zero and dissipate nothing.
 - `unknown_config_key`: a key of `TidalPy_Configs.toml` (or of a configuration passed to `TidalPy.reinit`) that nothing reads, which is how a misspelled or outdated key shows itself.

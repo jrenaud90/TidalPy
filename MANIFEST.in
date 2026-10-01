@@ -11,6 +11,8 @@ include TidalPy/Utilities/graphics/data/*.csv
 # PREM-like radial profiles).
 include TidalPy/WorldPack/*.toml
 include TidalPy/WorldPack/*.csv
+# The bundled named materials (MatPack).
+include TidalPy/MatPack/*.toml
 
 # Include Cython pyx and pxd files
 global-include *.pxd

@@ -38,7 +38,7 @@ def get_data_version() -> str:
 
 
 def get_data_dir() -> str:
-    """ The version-scoped TidalPy data directory, which holds ``Config``, ``Logs``, and ``Worlds``.
+    """ The version-scoped TidalPy data directory, which holds ``Config``, ``Logs``, ``Worlds``, and ``Materials``.
 
     ``<TIDALPY_DATA_DIR>/<data version>`` when the ``TIDALPY_DATA_DIR`` environment variable is set, otherwise
     ``<user documents>/TidalPy/<data version>``. The directory is not created here.
@@ -104,11 +104,20 @@ def get_worlds_dir() -> Optional[str]:
     """
     return _data_sub_dir('Worlds')
 
+def get_materials_dir() -> Optional[str]:
+    """ TidalPy directory containing named material configurations; None when it cannot be created.
+
+    This is the user-editable home for the ``MatPack`` materials. The packaged materials are copied here on first
+    use, and a material named in ``load_material`` is read from here before the packaged copy.
+    """
+    return _data_sub_dir('Materials')
+
 def create_data_dirs():
     """ Creates TidalPy data directories if not already present. """
     get_config_dir()
     get_log_dir()
     get_worlds_dir()
+    get_materials_dir()
 
 def timestamped_str(
     string_to_stamp: str = '',

@@ -4,9 +4,9 @@
 
 A ``Phase`` is one phase of a material: an equation of state, an optional shear-modulus law, optional shear and bulk
 viscosity laws, optional default rheologies, and its thermal conductivity and heat capacity. A ``Material`` is a solid
-phase, an optional liquid phase with the solidus and liquidus between them, a melt-weakening law, and optional
-bulk-mixing laws. ``Material.calc_state`` gives every property at a pressure, temperature, and radius, as a layer with
-the given physics switches sees it.
+phase, a liquid phase, or both; with both it melts between its solidus and liquidus, through a melt-weakening law and
+optional bulk-mixing laws, and with one it is that phase everywhere. ``Material.calc_state`` gives every property at a
+pressure, temperature, and radius, as a layer with the given physics switches sees it.
 
 Each component may be given as a model (``make_eos("vinet", {...})``), a config table with a ``model`` key, or a
 model name for its defaults; a whole phase or material may be given as one nested config table, the form
@@ -240,17 +240,19 @@ cdef class Phase(PhysicsBase):
 # Material
 # =====================================================================================================================
 cdef class Material(PhysicsBase):
-    """A material: a solid phase, an optional liquid phase with the melting curves between them, a melt-weakening law,
-    and optional bulk-mixing laws.
+    """A material: a solid phase, a liquid phase, or both. With both it melts between its solidus and liquidus,
+    through a melt-weakening law and optional bulk-mixing laws; with one it is that phase everywhere (a water ocean is
+    a liquid-only material).
 
     Parameters
     ----------
     solid : Phase or dict, optional
-        The solid phase; a default phase when absent.
+        The solid phase; a default phase when neither phase is given.
     liquid : Phase or dict, optional
-        The liquid phase (its ``shear_viscosity`` is the melt's). Without one the material cannot melt.
+        The liquid phase. With a solid phase it is the melt (its ``shear_viscosity`` is the melt's), and without one
+        the material is liquid everywhere.
     solidus, liquidus : MeltingCurveBase, str, or dict, optional
-        Required with a liquid phase; equal curves give a single melting temperature.
+        Required with both phases; equal curves give a single melting temperature.
     weakening : MeltWeakeningBase, str, or dict, optional
         How the shear modulus and viscosity fall with melt; none (the solid's until fully molten) when absent.
     bulk_modulus_mixing, bulk_viscosity_mixing : str or dict or model, optional
@@ -304,8 +306,8 @@ cdef class Material(PhysicsBase):
         return cy_wrap_model(self._material().get_components().get(slot.encode("utf-8")))
 
     @property
-    def solid(self) -> Phase:
-        """The solid phase."""
+    def solid(self):
+        """The solid phase, or None for a liquid-only material."""
         return self._component("solid")
 
     @property
@@ -340,13 +342,19 @@ cdef class Material(PhysicsBase):
 
     @property
     def can_melt(self) -> bool:
-        """Whether the material has a liquid phase to melt into."""
+        """Whether the material has a solid and a liquid phase to melt between."""
         return True if self._material().get_can_melt() else False
+
+    @property
+    def is_liquid_only(self) -> bool:
+        """Whether the material has a liquid phase and no solid one, so it is liquid everywhere."""
+        return True if self._material().get_is_liquid_only() else False
 
     def replace(self, **changes) -> "Material":
         """A new material with some components replaced (``None`` removes one); this one is unchanged.
 
-        ``changes`` take the slot names (``solid``, ``liquid``, ``solidus``, ...) and the material's parameters.
+        ``changes`` take the slot names (``solid``, ``liquid``, ``solidus``, ...) and the material's parameters. A
+        change that would leave neither a solid nor a liquid phase raises ValueError.
         """
         cdef dict components = {slot: self._component(slot) for slot in ("solid", "liquid", *_MELTING_SLOTS)}
         cdef dict parameters = dict(self.parameters)
@@ -355,6 +363,8 @@ cdef class Material(PhysicsBase):
                 components[key] = value
             else:
                 parameters[key] = value
+        if components["solid"] is None and components["liquid"] is None:
+            raise ValueError("TidalPy: the material would have neither a 'solid' nor a 'liquid' phase.")
         return Material(**{slot: value for slot, value in components.items() if value is not None}, **parameters)
 
     def calc_melting_range(self, double pressure, use_pressure_melting=True) -> tuple:

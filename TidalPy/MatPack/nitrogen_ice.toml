@@ -1,0 +1,80 @@
+# nitrogen_ice: beta-N2 ice (stable from 35.6 K to its 63.15 K triple point), melting into liquid nitrogen.
+#
+# Solid: the density at 50 K and its expansivity from rho = 1000 - 2.14 (T - 36 K) (McKinnon et al. 2016, Methods,
+# from Scott 1976). The bulk and shear moduli are unsourced estimates for a van der Waals solid near its melting point.
+#
+# Viscosity: the power law of Yamashita et al. (2010) (as McKinnon et al. 2016 give it; at 0.01 MPa stress, about
+# 1e10 Pa s at 50 K) in parallel with diffusion creep at a 1 mm grain size (McKinnon et al. 2016; about 3e15 Pa s).
+# Conductivity and diffusivity from McKinnon et al. (2016), the heat capacity derived from them.
+#
+# Melting: the triple point (McKinnon et al. 2016) and the enthalpy of fusion. Liquid: unsourced recollections of
+# liquid-nitrogen density and viscosity near 63 K, an unsourced bulk modulus, and the solid's conductivity and heat
+# capacity.
+schema_version = "0.2.0"
+description = "Beta nitrogen ice (Pluto, Triton) with a power-law and diffusion creep, melting at 63.15 K."
+category = "icy"
+latent_heat_j_kg = 2.57e4
+
+[solid]
+thermal_conductivity_w_mk = 0.2
+heat_capacity_j_kgk = 1550.0
+
+[solid.eos]
+model = "constant"
+reference_density_kg_m3 = 970.0
+bulk_modulus_pa = 2.0e9
+thermal_expansion_1_k = 2.2e-3
+reference_temperature_k = 50.0
+
+[solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 1.0e9
+
+[solid.shear_viscosity]
+model = "composite"
+
+# Power-law creep: A = 3.73e-12 Pa-2.2 s-1.
+[[solid.shear_viscosity.mechanisms]]
+model = "arrhenius"
+arrhenius_coeff = 1.34e11
+stress_pa = 1.0e4
+stress_expo = 2.2
+grain_size_expo = 0.0
+molar_activation_energy_j_mol = 3.5e3
+molar_activation_volume_m3_mol = 0.0
+
+# Diffusion creep: A = 1.52e-7 (d / 1 mm)^-2 (T / 50 K)^-1 Pa-1 s-1.
+[[solid.shear_viscosity.mechanisms]]
+model = "arrhenius"
+arrhenius_coeff = 6.6e10
+additional_temp_dependence = true
+stress_pa = 1.0e4
+stress_expo = 1.0
+grain_size_m = 1.0e-3
+grain_size_expo = 2.0
+molar_activation_energy_j_mol = 8.6e3
+molar_activation_volume_m3_mol = 0.0
+
+[solid.shear_rheology]
+model = "maxwell"
+
+[liquid]
+thermal_conductivity_w_mk = 0.2
+heat_capacity_j_kgk = 1550.0
+
+[liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 867.0
+bulk_modulus_pa = 1.0e9
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 2.8e-4
+
+[melting.solidus]
+model = "constant"
+temperature_k = 63.15
+
+[melting.liquidus]
+model = "constant"
+temperature_k = 63.15

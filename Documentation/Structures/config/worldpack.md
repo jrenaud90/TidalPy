@@ -1,6 +1,6 @@
 # WorldPack and World TOML Files (`Structures.configs.worldpack`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-01_
 
 A world file is a TOML description of a single world (a star, gas giant, or terrestrial/layered body) for the `Structures` class system. WorldPack ships a small set of example world files with TidalPy, installs them into a user-editable data directory, and resolves them by name when you call `build_world("<name>")`.
 
@@ -22,6 +22,8 @@ The example worlds live in the package directory `TidalPy/WorldPack/`. They are 
 The data directory is given by `TidalPy.paths.get_worlds_dir()`. It is scoped to the package's major.minor version (with a literal `X` patch placeholder, e.g. `0.8.X`), so every patch release of a given major.minor shares the same directory (configs and downloaded data are not duplicated on each bugfix release).
 
 World TOMLs and their companion data files (radial profiles: `.csv`, `.txt`, `.dat`) are both installed. A world's `data_file` reference is resolved by `resolve_data_file` in this order: the world TOML's own directory, the data directory, the packaged `WorldPack`, then the working directory. What such a file may contain is described in [`toml_schema.md`](toml_schema.md#building-a-world-from-a-radial-profile).
+
+The bundled materials install the same way into `<user documents>/TidalPy/<major>.<minor>.X/Materials/` (see [MatPack](../../Material/matpack.md)).
 
 ### Install
 

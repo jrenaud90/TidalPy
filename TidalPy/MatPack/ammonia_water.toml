@@ -1,0 +1,38 @@
+# ammonia_water: water ice with 10 wt% NH3, melting into an ammonia-water liquid.
+#
+# A preset needs a fixed bulk composition; 10 wt% NH3 is a common choice (5 wt% is the other). Below the peritectic the
+# solid is water ice plus ammonia dihydrate (about 31 wt% of the solid at 10 wt% NH3); the dihydrate is not
+# represented, and the solid is ice_ih. Confidence low.
+#
+# Melting: the peritectic (176.15 K; Kargel 1992; Leliwa-Kopystynski et al. 2002) and an unsourced liquidus of about
+# 258 K at 10 wt% NH3 (it falls from 273.1 K for pure water to the peritectic). The melt's composition changes with
+# temperature, which one liquid phase cannot follow: the liquid is the 10 wt% melt near its liquidus, with the density
+# and viscosity of Hammond et al. (2018), Eqs. 12 and 13 (fits to Croft et al. 1988 and Kargel et al. 1991), at
+# 258 K (the melt near the peritectic is NH3-rich, 946 kg m-3, and about 5 Pa s). Its bulk modulus is an unsourced
+# estimate near water's. Latent heat: ice Ih's.
+schema_version = "0.2.0"
+description = "Water ice with 10 wt% NH3 and an ammonia-water melt below the water melting point (low confidence)."
+category = "icy"
+preset = "ice_ih"
+latent_heat_j_kg = 3.3e5
+
+[liquid]
+thermal_conductivity_w_mk = 0.5
+heat_capacity_j_kgk = 4000.0
+
+[liquid.eos]
+model = "constant"
+reference_density_kg_m3 = 977.0
+bulk_modulus_pa = 2.0e9
+
+[liquid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.7e-3
+
+[melting.solidus]
+model = "constant"
+temperature_k = 176.15
+
+[melting.liquidus]
+model = "constant"
+temperature_k = 258.0
