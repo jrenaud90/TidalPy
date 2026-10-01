@@ -18,32 +18,8 @@ WORLD_TYPES = (
     "layered"
 )
 
-# Layer ``class`` values; selects the Cython layer class.
-LAYER_CLASSES = (
-    "base",
-    "solidliquid",
-    "gas"
-)
-
-# A layer's material type selects the ``[layers.<type>]`` section of TidalPy_Configs.toml that supplies
-# its parameter defaults; a layer that names none takes ``[layers.default]``. ``"none"`` opts out of every
-# material default, which is what ``get_config_dict`` writes: a saved layer lists all of its models
-# explicitly, so a rebuild must not add any.
-DEFAULT_MATERIAL_TYPE = "default"
-NO_MATERIAL_TYPE = "none"
-MATERIAL_TYPES = (
-    DEFAULT_MATERIAL_TYPE,
-    NO_MATERIAL_TYPE,
-    "gas",
-    "mantle_rock",
-    "ice",
-    "hp_ice",
-    "iron"
-)
-
-# The nested physics-model tables a layer may carry. ``material`` is the layer's EOS model and holds every
-# frequency-independent piece: the density law, the static moduli and viscosities, and its own nested
-# ``shear_viscosity``, ``bulk_viscosity``, and ``partial_melt`` tables.
+# The nested tables a layer may carry: its ``material`` (the key also takes a MatPack name) and the models the layer
+# holds itself, its rheology overrides (otherwise the material's own), cooling, and radiogenics.
 LAYER_MODEL_SECTIONS = (
     "material",
     "shear_rheology",
@@ -51,30 +27,6 @@ LAYER_MODEL_SECTIONS = (
     "cooling",
     "radiogenics",
 )
-
-# Tables that used to sit on the layer and now belong inside ``material``; named so the error can say so.
-MOVED_TO_MATERIAL = ("eos", "shear_viscosity", "bulk_viscosity", "partial_melt")
-
-# Attaching a model the layer class cannot hold is a configuration error caught up front.
-ALLOWED_MODEL_SECTIONS = {
-    "base": (
-        "material",
-        "shear_rheology",
-        "bulk_rheology"
-    ),
-    "gas": (
-        "material",
-        "shear_rheology",
-        "bulk_rheology"
-    ),
-    "solidliquid": (
-        "material",
-        "shear_rheology",
-        "bulk_rheology",
-        "cooling",
-        "radiogenics"
-    ),
-}
 
 # Mutually exclusive outer-radius specifiers, builder-only: consumed to compute the outer radius and not
 # forwarded to the layer constructor. A layer must carry exactly one. The inner radius is never
@@ -85,60 +37,49 @@ LAYER_GEOMETRY_SPEC_KEYS = (
     "volume_fraction",  # layer volume = volume_fraction * world volume (-> outer radius)
 )
 
-# Allowed scalar (non-table) layer keys per class. These mirror the layer-class constructor argument
-# names exactly, so the builder can forward only the keys the user supplied. ``layer_index``, ``class``,
-# the material ``type``, and the outer-radius specifiers are handled separately.
-_BASE_LAYER_KEYS = (
+# Scalar (non-table) layer keys, the Layer constructor's arguments under their config spelling. ``layer_index`` and the
+# outer-radius specifiers are handled separately.
+LAYER_SCALAR_KEYS = frozenset((
     "mass_kg",
-    "material_name",
-    "is_tidal",
-    # The layer's share in the quasi-homogeneous Love methods; absent takes its volume fraction.
+    # Whether the layer takes part in the tides, and its share in the quasi-homogeneous Love methods (absent takes its
+    # volume fraction).
+    "use_tides",
     "tidal_scale",
     # False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
     "is_volume_fixed",
-    # Radial-solver flags: a liquid layer sets is_solid = false and stays static unless is_static = false.
-    "is_solid",
+    # Radial-solver assumptions: the state ("auto" takes it from the material) and the liquid and solid equations.
+    "state",
     "is_static",
     "is_incompressible",
-    # Layer state: its temperature, whether its material's density law sees it, and whether the world's
-    # heat sources act inside it during a thermal EOS solve.
     "temperature_k",
-    "use_thermal_eos",
-    "use_heating"
-)
+    # How much of its material the layer uses, and whether the world's heat sources act inside it.
+    "use_thermal_expansion",
+    "use_melting",
+    "use_pressure_melting",
+    "use_melt_density",
+    "use_heating",
+))
 
-# Scalar keys that used to sit on the layer and now belong inside its ``material`` table.
-MATERIAL_SCALAR_KEYS = (
-    "shear_modulus_static_pa",
-    "bulk_modulus_static_pa",
-    "shear_viscosity_static_pas",
-    "bulk_viscosity_static_pas",
-    "shear_modulus_pressure_derivative",
-    "shear_modulus_temperature_derivative_pa_k",
-    "shear_modulus_reference_temperature_k",
-)
-# A solid-liquid layer adds no scalar keys of its own: its thermal constants are the material's.
-_SOLIDLIQUID_LAYER_KEYS = ()
+# The values a layer's ``state`` takes.
+LAYER_STATES = ("auto", "solid", "liquid")
 
-# Thermal keys that used to sit on a solid-liquid layer, and the material key each became. The layer's
-# reference density and temperature have no successor: the density law has its own, and nothing read the
-# other.
-MOVED_THERMAL_KEYS = {
-    "thermal_conductivity_ref_w_mk": "thermal_conductivity_w_mk",
-    "thermal_expansion_ref_1_k":     "thermal_expansion_1_k",
-    "heat_capacity_ref_j_kgk":       "heat_capacity_j_kgk",
-}
-# Stored and serialized for a future gas description; nothing reads them yet. A gas layer's density is its material's.
-_GAS_LAYER_KEYS = (
-    "mean_molecular_weight_kg_mol",
-    "adiabatic_index",
-    "reference_temperature_k",
-)
-
-ALLOWED_LAYER_SCALAR_KEYS = {
-    "base":        frozenset(_BASE_LAYER_KEYS),
-    "gas":         frozenset(_BASE_LAYER_KEYS + _GAS_LAYER_KEYS),
-    "solidliquid": frozenset(_BASE_LAYER_KEYS + _SOLIDLIQUID_LAYER_KEYS),
+# Retired layer keys, each with its replacement, so the error that rejects one says what to write instead.
+RETIRED_LAYER_KEYS = {
+    "class":                        "there is one layer class, so delete the key",
+    "type":                         "a layer names its material instead (material = \"<MatPack name>\", or a table)",
+    "material_name":                "the material's name is its MatPack name (material = \"<name>\")",
+    "is_tidal":                     "renamed 'use_tides'",
+    "is_solid":                     "replaced by state = \"solid\" or \"liquid\" (the default \"auto\" takes the "
+                                    "state from the material)",
+    "use_thermal_eos":              "renamed 'use_thermal_expansion'",
+    "mean_molecular_weight_kg_mol": "a gas envelope is a liquid-only material (for example on a polytrope EOS)",
+    "adiabatic_index":              "a gas envelope is a liquid-only material (for example on a polytrope EOS)",
+    "reference_temperature_k":      "a gas envelope is a liquid-only material (for example on a polytrope EOS)",
+    "eos":                          "the material holds its laws: [layers.<name>.material.solid.eos] (or liquid)",
+    "shear_viscosity":              "the material holds its laws: [layers.<name>.material.solid.shear_viscosity]",
+    "bulk_viscosity":               "the material holds its laws: [layers.<name>.material.solid.bulk_viscosity]",
+    "partial_melt":                 "melting is a liquid phase and [layers.<name>.material.melting] (solidus, "
+                                    "liquidus, weakening), with use_melting = true on the layer",
 }
 
 # Allowed scalar world keys per family. ``name``, ``type``, ``schema_version``, and the ``layers`` table

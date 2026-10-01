@@ -21,7 +21,7 @@ the static moduli follow
     mu = rho V_s^2                K = rho (V_p^2 - 4/3 V_s^2)
 
 A profile may instead give those moduli directly, and may add a shear and a bulk viscosity. Without
-viscosities the layers are elastic: nothing dissipates, and no viscosity or partial-melt model is built.
+viscosities the layers are elastic: nothing dissipates, and no viscosity law or melting is added.
 
 A seismic profile usually gives quality factors instead of viscosities: Q_mu (``q_mu``) and Q_kappa
 (``q_kappa``). They are read whenever the columns are present, and used only when the world sets
@@ -31,8 +31,9 @@ viscosity arrays (see the world builder).
 Columns are found by name, so their order does not matter and they may state their units; a name whose
 unit is not one this reader converts is taken to be MKS already. A file with no header is read
 positionally in the canonical order; a header row must name every column. :func:`detect_layer_boundaries`
-then splits the profile at every solid/liquid transition, and the world builder hands each layer's slice
-to an interpolated EOS, which owns those arrays. That EOS is the only place a radial grid persists.
+then splits the profile at every solid/liquid transition, and the world builder makes each layer's slice its
+material: radius-tabulated (``interpolate``) laws that own those arrays, liquid-only for a liquid layer. Those laws
+are the only place a radial grid persists.
 """
 
 import os

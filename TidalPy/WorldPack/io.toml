@@ -7,9 +7,10 @@
 # density fixed at the 5150 kg/m3 of the Fe-FeS core in the standard interior models (Anderson et al.
 # 2001) and the asthenosphere at 3200 kg/m3 for partially molten silicate, the mantle's Birch-Murnaghan
 # reference density is whatever reproduces the published mass: 3344.887 kg/m3. That gives a surface
-# gravity of 1.7964 m/s2 (observed 1.796) and a central pressure of 7.34 GPa. The core is left
-# incompressible because its composition is the least constrained part of the model (the 0.7 file
-# used a half-pyrite, half-iron mix), so a bulk modulus for it would be invented precision. The
+# gravity of 1.7964 m/s2 (observed 1.796) and a central pressure of 7.34 GPa. The core's density is
+# held constant because its composition is the least constrained part of the model (the 0.7 file used
+# a half-pyrite, half-iron mix), so a compression law for it would be invented precision; its bulk
+# modulus, which only the Love solve reads, is a generic iron value. The
 # moment-of-inertia factor comes out at C/MR2 = 0.3832 against the measured 0.37685 (Anderson et al.
 # 2001), 1.7 percent high; the core radius is the lever if that matters for your work.
 #
@@ -18,9 +19,9 @@
 # eta = eta_ref exp[(E/R)(1/T - 1/T_ref)] with E = 300 kJ/mol, whose reference temperature is the
 # layer's own, so the reference viscosity is the viscosity the layer has now and the law says how it
 # changes when the temperature does. The core is solid iron at 1900 K and 1e20 Pa s (it dissipates
-# 6e-6 of the total). The mantle is warm solid silicate at 1600 K and 1e19 Pa s. The asthenosphere
-# sits at the 1600 K solidus of its default partial-melt model, so no melt acts on it; its weakening
-# is in its static shear modulus, 1e9 Pa against 6e10 Pa for the solid mantle.
+# 6e-6 of the total). The mantle is warm solid silicate at 1600 K and 1e19 Pa s. The asthenosphere is
+# at 1600 K too, with no melting law: its weakening is in its static shear modulus, 1e9 Pa against 6e10 Pa
+# for the solid mantle, and in its fitted viscosity.
 #
 # Tides
 # The asthenosphere viscosity is the one fitted number: 3.5362e12 Pa s gives a total tidal heating of
@@ -48,64 +49,82 @@ albedo = 0.63
 solve_temperature = false
 
 [layers.core]
-class = "solidliquid"
-type = "iron"
 layer_index = 0
 radius_outer_m = 810000.0
-is_tidal = true
+use_tides = true
 temperature_k = 1900.0
 
-[layers.core.material]
+[layers.core.material.solid.eos]
 model = "constant"
 reference_density_kg_m3 = 5150.0
+bulk_modulus_pa = 1.6e11
 
-[layers.core.material.shear_viscosity]
+[layers.core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.core.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e20        # solid iron core
 reference_temperature_k = 1900.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.core.shear_rheology]
+model = "maxwell"
+
 [layers.mantle]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 1
 radius_outer_m = 1721490.0
-is_tidal = true
+use_tides = true
 temperature_k = 1600.0
 
-[layers.mantle.material]
-model = "bm"
-shear_modulus_static_pa = 6.0e10
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 3344.8870
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 
-[layers.mantle.material.shear_viscosity]
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 6.0e10
+
+[layers.mantle.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e19        # warm solid silicate
 reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
 [layers.asthenosphere]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0
-is_tidal = true
-temperature_k = 1600.0                  # at the solidus of the default partial-melt model
+use_tides = true
+temperature_k = 1600.0
 
-[layers.asthenosphere.material]
-model = "bm"
-shear_modulus_static_pa = 1.0e9       # melt-weakened, against 6e10 Pa for the solid mantle
+[layers.asthenosphere.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 3200.0      # partially molten silicate
 reference_bulk_modulus_pa = 1.28e11
 bulk_modulus_derivative = 4.2
 
-[layers.asthenosphere.material.shear_viscosity]
+[layers.asthenosphere.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 1.0e9              # melt-weakened, against 6e10 Pa for the solid mantle
+
+[layers.asthenosphere.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 3.5362e12     # fitted to Io's observed heat output
 reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
+
+[layers.asthenosphere.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0

@@ -7,6 +7,8 @@ import math
 import numpy as np
 import pytest
 
+import TidalPy
+from TidalPy.constants import update_constants
 from TidalPy.Structures.configs import build_world
 
 
@@ -17,17 +19,34 @@ _MIDDLE_TOP = 0.7 * _RADIUS
 _DENSITIES = {"core": 7000.0, "middle": 3500.0, "shell": 3000.0}   # [kg m-3]
 
 
-def _solid_material(density, shear_modulus, viscosity, partial_melt=None):
-    return {"model": "constant", "reference_density_kg_m3": density,
-            "shear_modulus_static_pa": shear_modulus, "bulk_modulus_static_pa": 1.0e11,
-            "shear_viscosity": {"model": "constant", "reference_viscosity_pas": viscosity},
-            "partial_melt": partial_melt or {"model": "off"}}
+# Silicate thermal constants: conductivity [W m-1 K-1], heat capacity [J kg-1 K-1], and expansivity [1/K].
+_ROCK_THERMAL = {"thermal_conductivity_w_mk": 3.75, "heat_capacity_j_kgk": 1200.0}
+_ROCK_EXPANSION = 5.2e-5
+# Iron thermal constants, likewise.
+_IRON_THERMAL = {"thermal_conductivity_w_mk": 7.95, "heat_capacity_j_kgk": 840.0}
+_IRON_EXPANSION = 1.2e-5
+
+
+def _solid_material(density, shear_modulus, viscosity, melting=None):
+    """A constant-density solid; with melting (a material melting table), also a melt phase of the same density and
+    bulk modulus, with a 0.2 Pa s viscosity."""
+    eos = {"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 1.0e11,
+           "thermal_expansion_1_k": _ROCK_EXPANSION}
+    material = {"solid": {**_ROCK_THERMAL, "eos": eos,
+                          "shear_modulus": {"model": "constant", "shear_modulus_pa": shear_modulus},
+                          "shear_viscosity": {"model": "constant", "reference_viscosity_pas": viscosity}}}
+    if melting is not None:
+        material["liquid"] = {**_ROCK_THERMAL, "eos": dict(eos),
+                              "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 0.2}}
+        material["melting"] = melting
+    return material
 
 
 def _layer(index, radius_outer, temperature, material, cooling="off", **flags):
-    layer = {"class": "solidliquid", "layer_index": index, "radius_outer_m": radius_outer, "is_tidal": True,
-             "temperature_k": temperature, "material": material, "shear_rheology": {"model": "maxwell"},
-             "bulk_rheology": {"model": "elastic"}, "cooling": {"model": cooling}, "radiogenics": {"model": "off"}}
+    layer = {"layer_index": index, "radius_outer_m": radius_outer, "use_tides": True,
+             "temperature_k": temperature, "material": material, "use_melting": "melting" in material,
+             "shear_rheology": {"model": "maxwell"}, "bulk_rheology": {"model": "elastic"},
+             "cooling": {"model": cooling}, "radiogenics": {"model": "off"}}
     layer.update(flags)
     return layer
 
@@ -46,9 +65,16 @@ def _world(middle_layers):
 
 
 # Henning with no sub-critical factor and a negligible breakdown band: solid moduli until breakdown, then molten.
-_SHARP_MELT = {"model": "henning", "solidus_k": 1400.0, "liquidus_k": 1600.0,
-               "crit_melt_frac": 1.0e-6, "crit_melt_frac_width": 1.0e-6,
-               "hn_shear_param_1_k": 0.0}
+_SHARP_MELT = {"solidus": {"model": "constant", "temperature_k": 1400.0},
+               "liquidus": {"model": "constant", "temperature_k": 1600.0},
+               "weakening": {"model": "henning", "crit_melt_frac": 1.0e-6, "crit_melt_frac_width": 1.0e-6,
+                             "hn_shear_param_1_k": 0.0}}
+
+
+def _rigidity_scale(world):
+    """rho g R of the solved world [Pa] (bulk density, surface gravity, radius), the scale of minimum_solid_rigidity."""
+    bulk_density = world.planet_mass_eos / (4.0 / 3.0 * math.pi * world.radius ** 3)
+    return bulk_density * world.surface_gravity_eos * world.radius
 
 
 def _love(world):
@@ -61,7 +87,7 @@ def test_a_layer_molten_throughout_matches_a_declared_static_liquid():
     """A solid layer molten throughout solves exactly as the same layer declared a static liquid."""
     molten = _world({"middle": _layer(1, _MIDDLE_TOP, 2000.0, _solid_material(3500.0, 6.0e10, 1.0e19, _SHARP_MELT))})
     declared = _world({"middle": _layer(1, _MIDDLE_TOP, 2000.0, _solid_material(3500.0, 6.0e10, 1.0e19),
-                                        is_solid=False, is_static=True)})
+                                        state="liquid", is_static=True)})
     molten.solve_eos()
     declared.solve_eos()
     assert molten.molten_regions == [("middle", _CORE_TOP, _MIDDLE_TOP)]
@@ -81,18 +107,18 @@ def test_a_molten_middle_matches_the_layers_declared_one_by_one():
     assert name == "middle"
     assert _CORE_TOP < molten_inner < 0.5 * (_CORE_TOP + _MIDDLE_TOP) < molten_outer < _MIDDLE_TOP
 
-    # The edges sit where the post-melt shear modulus reaches the liquid floor.
-    liquid_shear = 1.0e-5
+    # The edges sit where the post-melt shear modulus reaches the solid-rigidity floor.
+    molten_shear = TidalPy.config["numerical"]["minimum_solid_rigidity"] * _rigidity_scale(melting)
     edge_offset = 1.0e-3 * (molten_outer - molten_inner)
     inside = np.array([molten_inner + edge_offset, molten_outer - edge_offset])
     outside = np.array([molten_inner - edge_offset, molten_outer + edge_offset])
-    assert np.all(np.asarray(melting.get_shear_modulus(inside)) <= liquid_shear * (1.0 + 1.0e-9))
-    assert np.all(np.asarray(melting.get_shear_modulus(outside)) > 1.0e3 * liquid_shear)
+    assert np.all(np.asarray(melting.get_shear_modulus(inside)) <= molten_shear)
+    assert np.all(np.asarray(melting.get_shear_modulus(outside)) > 1.0e3 * molten_shear)
 
     declared = _world({
         "lower": _layer(1, molten_inner, 1000.0, _solid_material(3500.0, 6.0e10, 1.0e19)),
         "melt": _layer(2, molten_outer, 1000.0, _solid_material(3500.0, 6.0e10, 1.0e19),
-                       is_solid=False, is_static=True),
+                       state="liquid", is_static=True),
         "upper": _layer(3, _MIDDLE_TOP, 1000.0, _solid_material(3500.0, 6.0e10, 1.0e19))})
     declared.solve_eos()
     for auto_value, declared_value in zip(_love(melting), _love(declared)):
@@ -114,11 +140,11 @@ def test_a_liquid_layer_is_not_split():
     world.solve_eos(solve_temperature=True, surface_temperature=1000.0)
     assert len(world.molten_regions) == 1
     solid_answer = _love(world)
-    world.middle.is_solid = False
+    world.middle.state = "liquid"
     assert world.molten_regions == []
     liquid_answer = _love(world)
     assert liquid_answer[0] != solid_answer[0]
-    world.middle.is_solid = True
+    world.middle.state = "auto"
     assert _love(world) == solid_answer
 
 
@@ -130,18 +156,57 @@ def test_nothing_molten_leaves_the_layers_whole():
     _love(world)
 
 
+def _melting_rock(layer):
+    """Give a silicate layer of a bundled world silicate thermal constants, convection, chondritic radiogenics, and a
+    Henning-weakened melt between a 1600 K solidus and a 2000 K liquidus (a Murnaghan melt of 0.2 Pa s)."""
+    solid = layer["material"]["solid"]
+    solid.update(_ROCK_THERMAL)
+    solid["eos"]["thermal_expansion_1_k"] = _ROCK_EXPANSION
+    layer["material"]["liquid"] = {
+        **_ROCK_THERMAL,
+        "eos": {"model": "murnaghan", "reference_density_kg_m3": 2750.0, "reference_bulk_modulus_pa": 2.0e10,
+                "bulk_modulus_derivative": 5.0, "thermal_expansion_1_k": _ROCK_EXPANSION},
+        "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 0.2}}
+    layer["material"]["melting"] = {"solidus": {"model": "constant", "temperature_k": 1600.0},
+                                    "liquidus": {"model": "constant", "temperature_k": 2000.0},
+                                    "weakening": {"model": "henning"}}
+    layer["use_melting"] = True
+    layer["cooling"] = {"model": "convection", "convection_alpha": 1.0, "convection_beta": 1.0 / 3.0,
+                        "critical_rayleigh": 1100.0}
+    layer["radiogenics"] = {"model": "isotope", "isotopes": "modern_day_chondritic"}
+
+
+def _iron(layer):
+    """Give an iron layer of a bundled world iron thermal constants and no cooling or radiogenics."""
+    for phase in layer["material"].values():
+        if isinstance(phase, dict):
+            phase.update(_IRON_THERMAL)
+            phase["eos"]["thermal_expansion_1_k"] = _IRON_EXPANSION
+    layer["cooling"] = {"model": "off"}
+    layer["radiogenics"] = {"model": "off"}
+
+
+def _thermal_world(world_name, rock_layers, iron_layers):
+    """A bundled world whose silicate layers melt and convect, ready for a thermal solve."""
+    config = build_world(world_name).get_config_dict()
+    for name in rock_layers:
+        _melting_rock(config["layers"][name])
+    for name in iron_layers:
+        _iron(config["layers"][name])
+    return build_world(config)
+
+
 def _hot_core_io(core_temperature):
-    """Bundled Io with its core set to core_temperature and a conductive temperature solve."""
-    io = build_world("io")
+    """Bundled Io, melting and convecting, with its core set to core_temperature and a temperature solve."""
+    io = _thermal_world("io", ("mantle", "asthenosphere"), ("core",))
     io.core.temperature = core_temperature
     io.solve_eos(solve_temperature=True, surface_temperature=110.0)
     return io
 
 
 def test_minimum_solid_rigidity_takes_in_the_weakened_band():
-    """The minimum_solid_rigidity floor extends Io's molten stretch over the weakened band above the liquid floor."""
-    import TidalPy
-    from TidalPy.constants import update_constants
+    """The minimum_solid_rigidity floor extends Io's molten stretch from the fully molten part over the weakened band
+    above it."""
     numerical = TidalPy.config["numerical"]
     default_floor = numerical["minimum_solid_rigidity"]
     outer_edges = {}
@@ -156,7 +221,7 @@ def test_minimum_solid_rigidity_takes_in_the_weakened_band():
     assert outer_edges[default_floor] > outer_edges[0.0]
     # Just above the default edge the modulus has left the band: its rigidity is at least the floor.
     io = _hot_core_io(1900.0)
-    rigidity_scale = (io.planet_mass_eos / (4.0 / 3.0 * math.pi * io.radius ** 3)) * io.surface_gravity_eos * io.radius
+    rigidity_scale = _rigidity_scale(io)
     edge = io.molten_regions[0][2]
     assert io.mantle.get_shear_modulus(edge + 1.0) >= default_floor * rigidity_scale
     assert io.mantle.get_shear_modulus(edge - 1.0) < default_floor * rigidity_scale
@@ -182,7 +247,7 @@ def test_io_with_a_core_hot_enough_to_melt_the_mantle_base(core_temperature):
 def test_a_mantle_molten_up_to_its_surface_still_solves(mantle_temperature):
     """A hot convecting mantle under a hot surface is molten to (or within millimetres of) the surface. No stretch is
     left too thin for the radial solver to grid, so the Love solve succeeds."""
-    earth = build_world("earth_simple")
+    earth = _thermal_world("earth_simple", ("mantle",), ("inner_core", "outer_core"))
     earth.mantle.temperature = mantle_temperature
     result = earth.solve_eos(solve_temperature=True, surface_temperature=1150.0)
     assert result["success"], result["message"]

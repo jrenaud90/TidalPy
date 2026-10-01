@@ -14,9 +14,9 @@ def _config(world_type="terrestrial", tides=None):
     if world_type == "star":
         config["luminosity_w"] = 3.8e26
     elif world_type == "gasgiant":
-        config["layers"] = {"envelope": {"class": "gas", "type": "gas", "radius_fraction": 1.0}}
+        config["layers"] = {"envelope": {"material": "simple_gas", "radius_fraction": 1.0}}
     else:
-        config["layers"] = {"mantle": {"class": "base", "type": "mantle_rock", "radius_fraction": 1.0}}
+        config["layers"] = {"mantle": {"material": "simple_rock", "radius_fraction": 1.0}}
     if tides is not None:
         config["tides"] = copy.deepcopy(tides)
     return config

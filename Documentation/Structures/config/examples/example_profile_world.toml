@@ -31,10 +31,12 @@ global_tidal_model = "rheology"
 love_method = "radial_solver"
 
 # Refines the outermost detected layer by index and gives it a name, a rheology, a viscosity, and a temperature;
-# the profile's own density and moduli stay.
+# the profile's own density and moduli stay. Its material table merges over the layer's slice of the profile, which
+# is a solid phase of radius-tabulated laws; a law it names is added (or, naming another model, replaces the
+# profile's).
 [layers.mantle]
 layer_index = 2
-is_tidal = true
+use_tides = true
 tidal_scale = 0.999                 # the layer's share in the quasi-homogeneous Love methods (default: its volume fraction)
 temperature_k = 1600.0
 
@@ -43,14 +45,16 @@ model = "andrade"
 alpha = 0.3
 zeta = 1.0
 
-[layers.mantle.material]
-shear_viscosity_static_pas = 1.0e21     # the profile named no viscosity, so give one here
+[layers.mantle.material.solid.shear_viscosity]
+model = "constant"                      # the profile named no viscosity, so give one here
+reference_viscosity_pas = 1.0e21
 
 # Refines the innermost detected layer by its detected name, layer_0, and only to switch its dissipation on.
 [layers.layer_0]
-is_tidal = true
+use_tides = true
 tidal_scale = 0.001
 temperature_k = 5500.0
 
-[layers.layer_0.material]
-shear_viscosity_static_pas = 1.0e20
+[layers.layer_0.material.solid.shear_viscosity]
+model = "constant"
+reference_viscosity_pas = 1.0e20

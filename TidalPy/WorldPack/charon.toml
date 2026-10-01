@@ -17,7 +17,7 @@
 # Charon is less rocky than Pluto, 66.4 percent against 71.9 percent by mass, which is the expected
 # signature of a giant-impact origin that put a larger ice fraction in the secondary. Charon has no ocean
 # here: its tectonics point to one that has since refrozen, and nothing in its bulk properties requires
-# a present-day one. To model it, split the shell and set is_solid = false on the lower part.
+# a present-day one. To model it, split the shell and give the lower part a liquid-only material.
 #
 # Temperatures and viscosities
 # Every layer carries a temperature and a reference-law viscosity at it (see io.toml): the core at 300 K
@@ -45,43 +45,55 @@ albedo = 0.29
 solve_temperature = false
 
 [layers.core]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 0
 radius_outer_m = 437374.8067          # TidalPy 0.7 charon.toml
-is_tidal = true
+use_tides = true
 temperature_k = 300.0
 
-[layers.core.material]
-model = "bm"
+[layers.core.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 3007.0339   # fitted to the published mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 
-[layers.core.material.shear_viscosity]
+[layers.core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 6.0e10
+
+[layers.core.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e22
 reference_temperature_k = 300.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.core.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
 [layers.ice_shell]
-class = "solidliquid"
-type = "ice"
 layer_index = 1
 radius_fraction = 1.0
-is_tidal = true
+use_tides = true
 temperature_k = 40.0
 
-[layers.ice_shell.material]
-model = "bm"
+[layers.ice_shell.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 917.0
 reference_bulk_modulus_pa = 9.6e9     # ice I
 bulk_modulus_derivative = 5.5
 
-[layers.ice_shell.material.shear_viscosity]
+[layers.ice_shell.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 3.3e9
+
+[layers.ice_shell.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e15
 reference_temperature_k = 40.0
 molar_activation_energy_j_mol = 59.4e3
 molar_activation_volume_m3_mol = 0.0
+
+[layers.ice_shell.shear_rheology]
+model = "maxwell"

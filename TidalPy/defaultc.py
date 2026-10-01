@@ -4,117 +4,13 @@ The file (schema ``0.2.0``) is written to the user's TidalPy data directory on f
 user-editable; the packaged defaults are parsed on every load and the user's file is merged over them.
 ``[pathing]``, ``[logging]``, and ``[configs]`` set up the package when it is imported. ``[numerical]``,
 ``[eos_solver]``, and ``[radial_solver]`` feed the C++ config singleton through
-``TidalPy.constants.update_constants``. ``[tides]``, ``[worlds]``, and ``[layers.<type>]`` supply the second
-tier of the world builder's default chain, between the user's own configuration and the C++ or Cython
-constructor default. ``[radiogenics.known_isotope_data]`` holds user-defined isotope datasets.
+``TidalPy.constants.update_constants``. ``[tides]``, ``[worlds]``, and ``[layers]`` supply the world builder's
+defaults, between the user's own configuration and the C++ or Cython constructor default. ``[radiogenics]`` holds
+the isotope dataset an isotope model takes by default and user-defined isotope datasets.
 """
 
 from TidalPy import version
 from TidalPy.schema import SCHEMA_VERSION
-
-
-def _rock_layer_block(section: str) -> str:
-    """The silicate-rock layer defaults as a ``[layers.<section>]`` block.
-
-    Written once and used for both ``mantle_rock`` and ``default`` (the block a layer without a material
-    ``type`` takes), so the two cannot drift apart.
-    """
-    return f"""[layers.{section}]
-
-    [layers.{section}.material]
-        model = "constant"
-        thermal_conductivity_w_mk = 3.75
-        thermal_expansion_1_k = 5.2e-5
-        heat_capacity_j_kgk = 1200.0
-        # The expansivity falls with compression as alpha0 exp[(d0 / k) ((rho0 / rho)^k - 1)], with d0 the
-        # Anderson-Gruneisen parameter and k its compression exponent (Anderson 1967; Chopelas and Boehler 1992).
-        # It sets the adiabat and the convective vigor of a thermal solve; 0 keeps alpha constant, which over a thick
-        # mantle gives far too steep an adiabat. Mantle silicates have d0 of about 5 to 6 and k of about 1.4.
-        anderson_gruneisen_parameter = 0.0
-        anderson_gruneisen_exponent = 0.0
-        shear_modulus_static_pa = 6.0e10
-        bulk_modulus_static_pa = 2.0e11
-        reference_density_kg_m3 = 3500.0
-
-    [layers.{section}.material.shear_viscosity]
-        model = "reference"
-        reference_viscosity_pas = 1.0e22
-        reference_temperature_k = 1000.0
-        molar_activation_energy_j_mol = 3.0e5
-        molar_activation_volume_m3_mol = 0.0
-
-    [layers.{section}.material.bulk_viscosity]
-        model = "constant"
-        reference_viscosity_pas = 1.0e22
-
-    [layers.{section}.material.partial_melt]
-        model = "henning"
-        solidus_k = 1600.0
-        liquidus_k = 2000.0
-        # The solidus and liquidus above are zero-pressure temperatures. Each can follow a Simon-Glatzel law,
-        # T(P) = T0 (1 + P / a)^(1 / c), and a second one above a transition pressure; a = 0 keeps a curve constant,
-        # the default, so worlds fitted at fixed melting temperatures keep their numbers. Mantle peridotite, from the
-        # Monteux et al. (2016) fits to Andrault et al. (2011) and Fiquet et al. (2010), is solidus_k = 1661.2 with
-        # a = 1.336e9 Pa and c = 7.437, then above 20 GPa T0 = 2081.8 K, a = 1.0169e11 Pa, and c = 1.226; and
-        # liquidus_k = 1982.1 with a = 6.594e9 Pa and c = 5.374, then above 20 GPa T0 = 2006.8 K, a = 3.465e10 Pa,
-        # and c = 1.844.
-        solidus_simon_a_pa = 0.0
-        solidus_simon_c = 0.0
-        solidus_transition_pressure_pa = 0.0
-        solidus_high_k = 0.0
-        solidus_high_simon_a_pa = 0.0
-        solidus_high_simon_c = 0.0
-        liquidus_simon_a_pa = 0.0
-        liquidus_simon_c = 0.0
-        liquidus_transition_pressure_pa = 0.0
-        liquidus_high_k = 0.0
-        liquidus_high_simon_a_pa = 0.0
-        liquidus_high_simon_c = 0.0
-        liquid_shear_pa = 1.0e-5
-        # Molten silicate: the floor on the post-melt viscosity.
-        liquid_viscosity_pas = 0.2
-        # Set true to weaken the bulk modulus with melt as well (a Hashin-Shtrikman bound; far weaker than the
-        # shear weakening). The melt phase follows a Murnaghan law, K = K0 + K' P, with roughly an ultramafic
-        # silicate melt's zero-pressure density, bulk modulus, and K' (Rigden et al. 1984; Agee 1998).
-        bulk_melt_weakening = false
-        liquid_bulk_modulus_pa = 2.0e10
-        liquid_bulk_modulus_derivative = 5.0
-        liquid_density_kg_m3 = 2750.0
-        # Set true to mix the melt into the density by volume, (1 - phi) rho_solid + phi rho_melt(P).
-        density_melt_mixing = false
-        # Set true to let melt set a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in
-        # series with the pre-melt one; n = 1 is McKenzie (1984), n = 0 is closer to Takei and Holtzman (2009). It
-        # acts only through a bulk rheology that is not elastic (a zener one relaxes to a set fraction of K).
-        bulk_viscosity_melt_weakening = false
-        melt_bulk_viscosity_coefficient = 1.0
-        melt_bulk_viscosity_exponent = 1.0
-        crit_melt_frac = 0.5
-        crit_melt_frac_width = 0.05
-        hn_visc_slope_1 = 13.5
-        hn_visc_falloff_slope = 370.0
-        # Shear modulus below the critical melt fraction: mu exp[b1 (1/T - 1/T_sol)], anchored at the solidus.
-        hn_shear_param_1_k = 40000.0
-        hn_shear_falloff_slope = 700.0
-
-    [layers.{section}.shear_rheology]
-        model = "andrade"
-        alpha = 0.3
-        zeta = 1.0
-
-    [layers.{section}.bulk_rheology]
-        model = "elastic"
-
-    [layers.{section}.cooling]
-        model = "convection"
-        convection_alpha = 1.0
-        convection_beta = 0.3333333333333333
-        critical_rayleigh = 1100.0
-
-    [layers.{section}.radiogenics]
-        model = "isotope"
-        isotopes = "modern_day_chondritic"
-
-"""
 
 
 default_config_str = f"""
@@ -161,11 +57,11 @@ schema_version = "{SCHEMA_VERSION}"
     maximum_frequency = 1.0e8
     # Material floor: a modulus below this is treated as zero.
     minimum_modulus = 1.0e-3
-    # A layer with a partial-melt model is solved by the radial solver as a static liquid wherever its post-melt
-    # rigidity mu / (rho g R) (planet bulk density, surface gravity, and radius) falls below this, as well as
-    # wherever the model reaches its liquid_shear floor. The solid equations divide by the shear modulus, so a
-    # near-fluid solid cannot be integrated, while treating it as liquid changes the Love numbers by about this
-    # fraction. Applied when the EOS is solved.
+    # A layer whose state can change (state "auto", use_melting on, and a material that melts) is solved by the radial
+    # solver as a static liquid wherever its post-melt rigidity mu / (rho g R) (planet bulk density, surface gravity,
+    # and radius) falls to this or below. The solid equations divide by the shear modulus, so a near-fluid solid
+    # cannot be integrated, while treating it as liquid changes the Love numbers by about this fraction. Applied when
+    # the EOS is solved.
     minimum_solid_rigidity = 1.0e-6
     # Geometry floor: a layer thinner than this is ignored.
     minimum_layer_thickness = 0.1
@@ -198,10 +94,10 @@ schema_version = "{SCHEMA_VERSION}"
     # the only surface-pressure root lies on a collapsed branch at an absurd central pressure. Real worlds whose
     # layers are not fitted to their mass sit well inside this factor.
     maximum_eos_mass_ratio = 10.0
-    # Density-from-pressure inversion of the compressible material EOS models (Birch-Murnaghan, Vinet): the
-    # relative convergence tolerance on the compression, and an iteration cap that only guarantees termination
-    # (convergence normally takes well under ten steps). A model built with its own `invert_rtol` or
-    # `invert_max_iters` keeps them; the value in use is stored on the model and written with it.
+    # Density-from-pressure inversion of the Birch-Murnaghan and Vinet equation-of-state laws: the relative
+    # convergence tolerance on the compression, and an iteration cap that only guarantees termination (convergence
+    # normally takes well under ten steps). A law built with its own `invert_rtol` or `invert_max_iters` keeps them;
+    # the value in use is stored on the law and written with it.
     eos_invert_rtol = 1.0e-13
     eos_invert_max_iters = 60
     # Quadrature resolutions of the 3D tidal heating integrals (`calc_3d_tides`): the Gauss-Legendre order of the
@@ -247,7 +143,7 @@ schema_version = "{SCHEMA_VERSION}"
     # Cap on the central-pressure iterations (a secant iteration normally converges in under ten).
     max_iters = 100
     # Carry temperature and heat flow through the structure solve, so each layer's profile follows its cooling
-    # model and its viscosity and melt models see the local temperature. A world whose layers are all at one
+    # model and its material sees the local temperature. A world whose layers are all at one
     # temperature has no profile to integrate and keeps the four structure variables whatever this says.
     solve_temperature = true
     # Integrate in non-dimensional units (the planet radius, its bulk density, and 1/sqrt(pi G rho) as the length,
@@ -411,6 +307,8 @@ schema_version = "{SCHEMA_VERSION}"
 # =====================================================================================================================
 # Radiogenic isotope datasets
 #
+# `isotopes` is the dataset an isotope radiogenics model takes when its table (or make_radiogenics) gives none.
+#
 # User-defined isotope datasets, each a table named after the dataset. A layer's radiogenics table selects one with
 # `isotopes = "<dataset name>"`; the built-in datasets ("modern_day_chondritic", "llri_and_slri",
 # "bulk_silicate_earth") are always available and take precedence over a dataset here with the same name. Each
@@ -426,6 +324,8 @@ schema_version = "{SCHEMA_VERSION}"
 #           element_concentration = 0.012e-6
 # =====================================================================================================================
 [radiogenics]
+    isotopes = "modern_day_chondritic"
+
     [radiogenics.known_isotope_data]
 
 
@@ -454,215 +354,15 @@ schema_version = "{SCHEMA_VERSION}"
 
 
 # =====================================================================================================================
-# Per-material layer defaults (keyed by a layer's material `type`)
+# Layer defaults
 #
-# A layer in a world TOML names a `class` (base | physics | solidliquid | gas) and,
-# optionally, a material `type` (one of the sections below). Any layer parameter or
-# physics-model sub-table the user omits falls back to the matching section here.
-# Model sub-tables / scalar keys that a given layer `class` cannot hold are ignored
-# for that layer, so the same material defaults can be reused across layer classes.
+# Used by the world builder when a layer's own table omits one of these. A layer's other values default to the
+# simplest case: no thermal expansion or melting, no cooling or radiogenics model, and its material's own rheology.
 # =====================================================================================================================
-
-# Iron (metallic core). Typically a non-tidal solidliquid layer.
-[layers.iron]
-
-    [layers.iron.material]
-        model = "constant"
-        thermal_conductivity_w_mk = 7.95
-        thermal_expansion_1_k = 1.2e-5
-        heat_capacity_j_kgk = 840.0
-        shear_modulus_static_pa = 5.25e10
-        bulk_modulus_static_pa = 1.6e11
-        reference_density_kg_m3 = 8000.0
-
-    [layers.iron.material.shear_viscosity]
-        model = "constant"
-        reference_viscosity_pas = 1.0e20
-
-    [layers.iron.material.bulk_viscosity]
-        model = "constant"
-        reference_viscosity_pas = 1.0e22
-
-    [layers.iron.material.partial_melt]
-        model = "off"
-        solidus_k = 4000.0
-        liquidus_k = 5000.0
-        # Liquid iron (de Wijs et al. 1998 viscosity; bulk modulus near 1 bar; K' of Anderson and Ahrens 1994;
-        # density at the 1 bar melting point, Assael et al. 2006).
-        liquid_viscosity_pas = 1.3e-2
-        bulk_melt_weakening = false
-        liquid_bulk_modulus_pa = 1.1e11
-        liquid_bulk_modulus_derivative = 4.66
-        liquid_density_kg_m3 = 7019.0
-        # Set true to mix the melt into the density by volume, (1 - phi) rho_solid + phi rho_melt(P).
-        density_melt_mixing = false
-        # Set true to let melt set a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in
-        # series with the pre-melt one; n = 1 is McKenzie (1984), n = 0 is closer to Takei and Holtzman (2009). It
-        # acts only through a bulk rheology that is not elastic (a zener one relaxes to a set fraction of K).
-        bulk_viscosity_melt_weakening = false
-        melt_bulk_viscosity_coefficient = 1.0
-        melt_bulk_viscosity_exponent = 1.0
-
-    [layers.iron.shear_rheology]
-        model = "maxwell"
-
-    [layers.iron.bulk_rheology]
-        model = "elastic"
-
-    [layers.iron.cooling]
-        model = "off"
-
-    [layers.iron.radiogenics]
-        model = "off"
-
-# Defaults for a layer that names no material `type` (and for factories that do not know one): a copy of the
-# silicate mantle rock block.
-{_rock_layer_block("default")}
-# Silicate mantle rock. The canonical tidally active solid layer.
-{_rock_layer_block("mantle_rock")}
-# Low-pressure water ice (ice Ih). Tidally active outer-shell material.
-[layers.ice]
-
-    [layers.ice.material]
-        model = "constant"
-        thermal_conductivity_w_mk = 2.3
-        thermal_expansion_1_k = 5.0e-5
-        heat_capacity_j_kgk = 2000.0
-        shear_modulus_static_pa = 3.3e9
-        bulk_modulus_static_pa = 9.2e9
-        reference_density_kg_m3 = 1000.0
-
-    [layers.ice.material.shear_viscosity]
-        model = "arrhenius"
-        arrhenius_coeff = 1.1037527593819e07
-        additional_temp_dependence = true
-        stress_pa = 1.0
-        stress_expo = 1.0
-        grain_size_m = 5.0e-4
-        grain_size_expo = 2.0
-        molar_activation_energy_j_mol = 59.4e3
-        molar_activation_volume_m3_mol = 0.0
-
-    [layers.ice.material.bulk_viscosity]
-        model = "constant"
-        reference_viscosity_pas = 1.0e22
-
-    [layers.ice.material.partial_melt]
-        model = "off"
-        solidus_k = 250.0
-        liquidus_k = 273.15
-        # Liquid water.
-        liquid_viscosity_pas = 8.9e-4
-        bulk_melt_weakening = false
-        liquid_bulk_modulus_pa = 2.2e9
-        # Water's K' and density at 273 K (IAPWS-95). Water is denser than ice I, so mixing raises the density.
-        liquid_bulk_modulus_derivative = 6.8
-        liquid_density_kg_m3 = 999.84
-        # Set true to mix the melt into the density by volume, (1 - phi) rho_solid + phi rho_melt(P).
-        density_melt_mixing = false
-        # Set true to let melt set a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in
-        # series with the pre-melt one; n = 1 is McKenzie (1984), n = 0 is closer to Takei and Holtzman (2009). It
-        # acts only through a bulk rheology that is not elastic (a zener one relaxes to a set fraction of K).
-        bulk_viscosity_melt_weakening = false
-        melt_bulk_viscosity_coefficient = 1.0
-        melt_bulk_viscosity_exponent = 1.0
-
-    [layers.ice.shear_rheology]
-        model = "maxwell"
-
-    [layers.ice.bulk_rheology]
-        model = "elastic"
-
-    [layers.ice.cooling]
-        model = "convection"
-        convection_alpha = 1.0
-        convection_beta = 0.3333333333333333
-        critical_rayleigh = 1600.0
-
-    [layers.ice.radiogenics]
-        model = "off"
-
-# High-pressure water ice (e.g. ice VI/VII in large icy worlds). Denser and stiffer.
-[layers.hp_ice]
-
-    [layers.hp_ice.material]
-        model = "constant"
-        thermal_conductivity_w_mk = 2.3
-        thermal_expansion_1_k = 4.0e-5
-        heat_capacity_j_kgk = 2000.0
-        shear_modulus_static_pa = 6.0e9
-        bulk_modulus_static_pa = 1.4e10
-        reference_density_kg_m3 = 1300.0
-
-    [layers.hp_ice.material.shear_viscosity]
-        model = "arrhenius"
-        arrhenius_coeff = 1.1037527593819e07
-        additional_temp_dependence = true
-        stress_pa = 1.0
-        stress_expo = 1.0
-        grain_size_m = 5.0e-4
-        grain_size_expo = 2.0
-        molar_activation_energy_j_mol = 59.4e3
-        molar_activation_volume_m3_mol = 0.0
-
-    [layers.hp_ice.material.bulk_viscosity]
-        model = "constant"
-        reference_viscosity_pas = 1.0e22
-
-    [layers.hp_ice.material.partial_melt]
-        model = "off"
-        solidus_k = 270.0
-        liquidus_k = 300.0
-        # Liquid water.
-        liquid_viscosity_pas = 8.9e-4
-        bulk_melt_weakening = false
-        liquid_bulk_modulus_pa = 2.2e9
-        # Water's K' and density at 273 K (IAPWS-95). Water is denser than ice I, so mixing raises the density.
-        liquid_bulk_modulus_derivative = 6.8
-        liquid_density_kg_m3 = 999.84
-        # Set true to mix the melt into the density by volume, (1 - phi) rho_solid + phi rho_melt(P).
-        density_melt_mixing = false
-        # Set true to let melt set a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in
-        # series with the pre-melt one; n = 1 is McKenzie (1984), n = 0 is closer to Takei and Holtzman (2009). It
-        # acts only through a bulk rheology that is not elastic (a zener one relaxes to a set fraction of K).
-        bulk_viscosity_melt_weakening = false
-        melt_bulk_viscosity_coefficient = 1.0
-        melt_bulk_viscosity_exponent = 1.0
-
-    [layers.hp_ice.shear_rheology]
-        model = "andrade"
-        alpha = 0.3
-        zeta = 1.0
-
-    [layers.hp_ice.bulk_rheology]
-        model = "elastic"
-
-    [layers.hp_ice.cooling]
-        model = "convection"
-        convection_alpha = 1.0
-        convection_beta = 0.3333333333333333
-        critical_rayleigh = 1600.0
-
-    [layers.hp_ice.radiogenics]
-        model = "off"
-
-# Gaseous envelope (e.g. a gas-giant layer). Uses the `gas` layer class; the
-# cooling/radiogenics sections below are ignored for that class.
-[layers.gas]
-    mean_molecular_weight_kg_mol = 2.22e-3
-    adiabatic_index = 1.4
-    reference_temperature_k = 165.0
-
-    [layers.gas.material]
-        model = "constant"
-        shear_modulus_static_pa = 0.0
-        bulk_modulus_static_pa = 1.0e5
-        reference_density_kg_m3 = 1000.0
-
-    [layers.gas.shear_rheology]
-        model = "elastic"
-
-    [layers.gas.bulk_rheology]
-        model = "elastic"
+[layers]
+    # The material of a layer that names none: a MatPack name (TidalPy.Material.available_materials()) or a material
+    # table. The simplified materials are the fastest; the Materials folder of the TidalPy data directory holds
+    # editable copies.
+    material = "simple_rock"
 
 """

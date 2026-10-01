@@ -341,6 +341,10 @@ def material_config(source, overrides: dict = None) -> dict:
             raise ValueError(f"TidalPy: overrides cannot name a '{PRESET_KEY}'; name it in the source instead.")
         resolved = p_resolve(merge_material_tables(resolved, overrides), ())
     if not any(isinstance(resolved.get(slot), dict) for slot in _PHASE_SLOTS):
+        if "model" in resolved:
+            raise ValueError(
+                "TidalPy: the material table names a 'model', but a material is made of phases: put the equation of "
+                "state in 'solid.eos' (or 'liquid.eos') and the other laws beside it in the phase table.")
         raise ValueError("TidalPy: the material has neither a 'solid' nor a 'liquid' phase.")
     return resolved
 

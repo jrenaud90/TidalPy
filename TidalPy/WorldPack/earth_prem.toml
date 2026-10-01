@@ -5,8 +5,9 @@
 # order does not matter and they may state their units. On build the profile is split
 # into layers by shear modulus (Vs = 0 -> liquid; each solid<->liquid transition starts
 # a new layer, named layer_0, layer_1, ... from the center outward), and each layer's
-# slice of the profile becomes its material: an interpolated EOS carrying that layer's
-# density and static shear/bulk moduli. A liquid layer is flagged `is_solid = false`.
+# slice of the profile becomes its material: radius-tabulated (interpolate) laws carrying
+# that layer's density and static bulk and shear moduli. A liquid layer's material is
+# liquid-only, with no shear modulus.
 # The bundled PREM.csv replaces PREM's 3 km surface ocean with the upper crust, so it
 # gives three layers: inner core (solid), outer core (liquid), and mantle plus crust
 # (solid). It names no viscosity, so the body is elastic and its degree-2 Love number
@@ -16,14 +17,15 @@
 # are a cooling model and radiogenics. Add a [layers.<name>] table with a `layer_index`
 # saying which detected layer it refines (or call it layer_N); only the layers you are
 # refining need one, and a provided outer radius must match the detected boundary. A
-# viscoelastic rheology also needs a viscosity, which this profile does not carry, for
-# example:
+# viscoelastic rheology also needs a viscosity, which this profile does not carry; a
+# material table in the layer table adds it to the profile's slice, for example:
 #   [layers.mantle]
 #   layer_index = 2
 #   [layers.mantle.shear_rheology]
 #   model = "maxwell"
-#   [layers.mantle.material]
-#   shear_viscosity_static_pas = 1.0e21
+#   [layers.mantle.material.solid.shear_viscosity]
+#   model = "constant"
+#   reference_viscosity_pas = 1.0e21
 # See Documentation/Structures/config/toml_schema.md.
 schema_version = "0.2.0"
 name = "Earth-PREM"

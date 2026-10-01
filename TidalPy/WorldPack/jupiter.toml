@@ -55,9 +55,8 @@ mass_kg = 1.898125e27
 spin_frequency_rad_s = 1.7585181e-04
 albedo = 0.503
 
-# The layer temperatures below are prescribed, not solved: no layer here is a rock with a thermal law worth
-# integrating, and the default thermal solve would carry rock constants through hydrogen and ices. The world
-# pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+# The layer temperatures below are prescribed, not solved: no layer here has a thermal law worth integrating. The
+# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
 [eos_solver]
 solve_temperature = false
 
@@ -67,40 +66,36 @@ fixed_k = [0.59, 0.295, 0.1967, 0.1475, 0.118, 0.0983, 0.0843, 0.0738, 0.0656]
 fixed_q = [53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0]
 
 [layers.core]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 0
 radius_outer_m = 10486650.0           # 0.15 of the radius
-is_tidal = false
-is_solid = false                      # dilute heavy-element core, solved as a static liquid
+use_tides = false
 temperature_k = 20000.0
 
-[layers.core.material]
+# A liquid-only material, so the layer is a liquid: dilute heavy-element core, solved as a static liquid.
+[layers.core.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 20000.0     # heavy-element core, held fixed
+bulk_modulus_pa = 2.0e11
 
 [layers.mantle]
-class = "solidliquid"
-type = "hp_ice"
 layer_index = 1
 radius_outer_m = 54530580.0           # 0.78 of the radius, near the 1 Mbar metallic transition
-is_tidal = false
-is_solid = false                      # metallic hydrogen, a fluid
+use_tides = false
 temperature_k = 10000.0
 
-[layers.mantle.material]
+# A liquid-only material, so the layer is a liquid: metallic hydrogen, a fluid.
+[layers.mantle.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 2377.224    # fitted, with the envelope, to the mass and C/MR2
+bulk_modulus_pa = 1.4e10
 
 [layers.envelope]
-class = "gas"
-type = "gas"
 layer_index = 2
 radius_fraction = 1.0
-is_tidal = true
+use_tides = true
 tidal_scale = 1.0
 temperature_k = 2000.0
 
-[layers.envelope.material]
+[layers.envelope.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 263.7333    # fitted, with the mantle, to the mass and C/MR2

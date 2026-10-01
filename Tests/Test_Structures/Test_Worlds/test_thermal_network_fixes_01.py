@@ -13,13 +13,15 @@ _SURFACE_TEMPERATURE = 100.0   # [K]
 
 
 def _layer(index, radius_fraction, temperature, cooling, density=3000.0, viscosity=1.0e21,
-           specific_heating=None, layer_class="solidliquid"):
-    layer = {"class": layer_class, "type": "none", "layer_index": index, "radius_fraction": radius_fraction}
-    material = {"model": "constant", "reference_density_kg_m3": density, "shear_modulus_static_pa": 6.0e10,
-                "thermal_conductivity_w_mk": _CONDUCTIVITY, "heat_capacity_j_kgk": _HEAT_CAPACITY,
-                "thermal_expansion_1_k": _EXPANSION, "shear_viscosity_static_pas": viscosity}
-    layer["material"] = material
-    if layer_class == "base":
+           specific_heating=None, geometry_only=False):
+    """A constant-density layer; a geometry-only layer has no temperature and no cooling model."""
+    layer = {"layer_index": index, "radius_fraction": radius_fraction}
+    layer["material"] = {"solid": {
+        "thermal_conductivity_w_mk": _CONDUCTIVITY, "heat_capacity_j_kgk": _HEAT_CAPACITY,
+        "eos": {"model": "constant", "reference_density_kg_m3": density, "thermal_expansion_1_k": _EXPANSION},
+        "shear_modulus": {"model": "constant", "shear_modulus_pa": 6.0e10},
+        "shear_viscosity": {"model": "constant", "reference_viscosity_pas": viscosity}}}
+    if geometry_only:
         return layer
     layer.update({"temperature_k": temperature, "cooling": {"model": cooling}})
     if specific_heating is not None:
@@ -69,7 +71,7 @@ def test_the_innermost_convecting_layer_is_adiabatic_down_to_the_center(specific
 def test_a_convecting_layer_above_a_layer_outside_the_network_starts_at_its_temperature():
     """A base that exchanges no heat carries no boundary layer either: the interior starts there, at the base of
     its adiabat."""
-    layers = {"core": _layer(0, 0.5, 0.0, "off", density=8000.0, layer_class="base"),
+    layers = {"core": _layer(0, 0.5, 0.0, "off", density=8000.0, geometry_only=True),
               "mantle": _layer(1, 1.0, 1000.0, "convection", specific_heating=1.0e-9)}
     world, result = _solve(layers, [8000.0, 3000.0])
     assert result["layer_in_thermal_network"] == [False, True]

@@ -15,7 +15,7 @@ def _config(world_type, tides=None):
     else:
         config["radius_m"] = 7.0e7
         config["mass_kg"] = 1.9e27
-        config["layers"] = {"envelope": {"class": "gas", "type": "gas", "radius_fraction": 1.0}}
+        config["layers"] = {"envelope": {"material": "simple_gas", "radius_fraction": 1.0}}
     if tides is not None:
         config["tides"] = copy.deepcopy(tides)
     return config

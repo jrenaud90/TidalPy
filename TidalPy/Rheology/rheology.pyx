@@ -199,8 +199,7 @@ def _canonical_name(str model_name) -> str:
 _FAMILY = ModelFamily(
     "rheology",
     (Elastic, Viscous, Voigt, Maxwell, Burgers, Andrade, Sundberg, Zener, SeismicQ),
-    _canonical_name,
-    "shear_rheology")
+    _canonical_name)
 
 # Every config key any rheology model reads.
 RHEOLOGY_CONFIG_KEYS = _FAMILY.config_keys
@@ -248,9 +247,7 @@ def make_rheology(str model_name, dict config=None):
         ``maxwell``, ``burgers``, ``andrade``, ``sundberg`` (``sundberg-cooper``), ``zener`` (``sls``,
         ``standard_linear_solid``), ``seismic_q`` (``constant_q``, ``power_law_q``).
     config : dict, optional
-        Model parameters by config key; missing keys take the model defaults. ``None`` takes
-        ``[layers.default.shear_rheology]`` from ``TidalPy_Configs.toml`` when that table names this model, matching
-        what the world builder would attach; an empty dict asks for the model's own defaults.
+        Model parameters by config key; missing keys (all of them for ``None``) take the model's defaults.
 
     Returns
     -------

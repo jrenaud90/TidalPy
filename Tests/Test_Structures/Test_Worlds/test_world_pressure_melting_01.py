@@ -11,28 +11,67 @@ from TidalPy.Structures import build_world
 from TidalPy.Structures.worlds import TerrestrialWorld
 
 # Monteux et al. (2016) peridotite melting curves, and mantle-silicate Anderson-Gruneisen constants.
-_MONTEUX = {
-    "solidus_k": 1661.2, "solidus_simon_a_pa": 1.336e9, "solidus_simon_c": 7.437,
-    "solidus_transition_pressure_pa": 20.0e9, "solidus_high_k": 2081.8, "solidus_high_simon_a_pa": 1.0169e11,
-    "solidus_high_simon_c": 1.226,
-    "liquidus_k": 1982.1, "liquidus_simon_a_pa": 6.594e9, "liquidus_simon_c": 5.374,
-    "liquidus_transition_pressure_pa": 20.0e9, "liquidus_high_k": 2006.8, "liquidus_high_simon_a_pa": 3.465e10,
-    "liquidus_high_simon_c": 1.844,
-}
+_MONTEUX_SOLIDUS = {
+    "model": "simon_glatzel_2", "temperature_k": 1661.2, "simon_a_pa": 1.336e9, "simon_c": 7.437,
+    "transition_pressure_pa": 20.0e9, "high_temperature_k": 2081.8, "high_simon_a_pa": 1.0169e11,
+    "high_simon_c": 1.226}
+_MONTEUX_LIQUIDUS = {
+    "model": "simon_glatzel_2", "temperature_k": 1982.1, "simon_a_pa": 6.594e9, "simon_c": 5.374,
+    "transition_pressure_pa": 20.0e9, "high_temperature_k": 2006.8, "high_simon_a_pa": 3.465e10,
+    "high_simon_c": 1.844}
 _DELTA = 5.5
 _KAPPA = 1.4
 _SURFACE_TEMPERATURE = 300.0
 _MANTLE_TEMPERATURE = 1600.0
+# Silicate and iron thermal constants: conductivity [W m-1 K-1], heat capacity [J kg-1 K-1], expansivity [1/K].
+_ROCK_THERMAL = {"thermal_conductivity_w_mk": 3.75, "heat_capacity_j_kgk": 1200.0}
+_ROCK_EXPANSION = 5.2e-5
+_IRON_THERMAL = {"thermal_conductivity_w_mk": 7.95, "heat_capacity_j_kgk": 840.0}
+_IRON_EXPANSION = 1.2e-5
+
+
+def _thermal_earth_config(pressure_dependent):
+    """Bundled earth_simple, ready for a thermal solve: iron cores, and a convecting mantle with silicate thermal
+    constants that melts into a Murnaghan melt of 0.2 Pa s through Henning weakening. Its melting curves are a constant
+    1600 K solidus and 2000 K liquidus, or with pressure_dependent the Monteux curves, which follow the pressure, and an
+    Anderson-Gruneisen expansivity."""
+    config = build_world("earth_simple").get_config_dict()
+    for name in ("inner_core", "outer_core"):
+        layer = config["layers"][name]
+        for phase in layer["material"].values():
+            if isinstance(phase, dict):
+                phase.update(_IRON_THERMAL)
+                phase["eos"]["thermal_expansion_1_k"] = _IRON_EXPANSION
+        layer["cooling"] = {"model": "off"}
+        layer["radiogenics"] = {"model": "off"}
+    mantle = config["layers"]["mantle"]
+    material = mantle["material"]
+    material["solid"].update(_ROCK_THERMAL)
+    material["solid"]["eos"]["thermal_expansion_1_k"] = _ROCK_EXPANSION
+    material["liquid"] = {
+        **_ROCK_THERMAL,
+        "eos": {"model": "murnaghan", "reference_density_kg_m3": 2750.0, "reference_bulk_modulus_pa": 2.0e10,
+                "bulk_modulus_derivative": 5.0, "thermal_expansion_1_k": _ROCK_EXPANSION},
+        "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 0.2}}
+    material["melting"] = {"solidus": {"model": "constant", "temperature_k": 1600.0},
+                           "liquidus": {"model": "constant", "temperature_k": 2000.0},
+                           "weakening": {"model": "henning"}}
+    mantle["use_melting"] = True
+    mantle["cooling"] = {"model": "convection", "convection_alpha": 1.0, "convection_beta": 1.0 / 3.0,
+                         "critical_rayleigh": 1100.0}
+    mantle["radiogenics"] = {"model": "isotope", "isotopes": "modern_day_chondritic"}
+    if pressure_dependent:
+        material["solid"]["eos"]["anderson_gruneisen_parameter"] = _DELTA
+        material["solid"]["eos"]["anderson_gruneisen_exponent"] = _KAPPA
+        material["melting"]["solidus"] = dict(_MONTEUX_SOLIDUS)
+        material["melting"]["liquidus"] = dict(_MONTEUX_LIQUIDUS)
+        mantle["use_pressure_melting"] = True
+    return config
 
 
 def _earth(pressure_dependent):
-    config = build_world("earth_simple").get_config_dict()
-    mantle = config["layers"]["mantle"]
-    mantle["temperature_k"] = _MANTLE_TEMPERATURE
-    if pressure_dependent:
-        mantle["material"]["anderson_gruneisen_parameter"] = _DELTA
-        mantle["material"]["anderson_gruneisen_exponent"] = _KAPPA
-        mantle["material"]["partial_melt"].update(_MONTEUX)
+    config = _thermal_earth_config(pressure_dependent)
+    config["layers"]["mantle"]["temperature_k"] = _MANTLE_TEMPERATURE
     return build_world(config)
 
 
@@ -71,10 +110,10 @@ def test_adiabat_base_follows_the_anderson_gruneisen_expansivity():
     """The reported base of the mantle's adiabat is T exp(int alpha(rho) g / c_p dr) over the solved structure."""
     earth = _earth(pressure_dependent=True)
     result = _solve(earth)
-    material = earth.mantle.get_config_dict()["material"]
-    alpha0 = material["thermal_expansion_1_k"]
-    heat_capacity = material["heat_capacity_j_kgk"]
-    reference_density = material["reference_density_kg_m3"]
+    solid = earth.mantle.get_config_dict()["material"]["solid"]
+    alpha0 = solid["eos"]["thermal_expansion_1_k"]
+    heat_capacity = solid["heat_capacity_j_kgk"]
+    reference_density = solid["eos"]["reference_density_kg_m3"]
     boundary = result["layer_boundary_thickness"][2]
     radii = np.linspace(earth.mantle.radius_inner + boundary, earth.mantle.radius_outer - boundary, 4001)
     density = earth.get_density(radii)
@@ -88,10 +127,12 @@ def test_parameters_round_trip_through_the_world_config():
     earth = _earth(pressure_dependent=True)
     config = earth.get_config_dict()
     material = config["layers"]["mantle"]["material"]
-    assert material["anderson_gruneisen_parameter"] == _DELTA
-    assert material["anderson_gruneisen_exponent"] == _KAPPA
-    for key, value in _MONTEUX.items():
-        assert material["partial_melt"][key] == value, key
+    assert material["solid"]["eos"]["anderson_gruneisen_parameter"] == _DELTA
+    assert material["solid"]["eos"]["anderson_gruneisen_exponent"] == _KAPPA
+    assert config["layers"]["mantle"]["use_pressure_melting"] is True
+    for curve, expected in (("solidus", _MONTEUX_SOLIDUS), ("liquidus", _MONTEUX_LIQUIDUS)):
+        for key, value in expected.items():
+            assert material["melting"][curve][key] == value, (curve, key)
     rebuilt = build_world(config)
     assert rebuilt.get_config_dict() == config
     assert _solve(rebuilt)["layer_base_temperature"] == _solve(earth)["layer_base_temperature"]

@@ -42,59 +42,67 @@ albedo = 0.068
 solve_temperature = false
 
 [layers.inner_core]
-class = "solidliquid"
-type = "iron"
 layer_index = 0
 radius_outer_m = 1277250.0
-is_tidal = true
+use_tides = true
 temperature_k = 1800.0
 
-[layers.inner_core.material]
+[layers.inner_core.material.solid.eos]
 model = "constant"
 reference_density_kg_m3 = 7305.6948   # fitted to the published mass; mean core density
+bulk_modulus_pa = 1.6e11
 
-[layers.inner_core.material.shear_viscosity]
+[layers.inner_core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.inner_core.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e20
 reference_temperature_k = 1800.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.inner_core.shear_rheology]
+model = "maxwell"
+
 [layers.outer_core]
-class = "solidliquid"
-type = "iron"
 layer_index = 1
 radius_outer_m = 1965000.0
-is_tidal = false
-is_solid = false
+use_tides = false
 is_static = false                     # fluid outer core, solved with the dynamic equations
-is_incompressible = false
 temperature_k = 1800.0
 
-[layers.outer_core.material]
-model = "bm"
+[layers.outer_core.material.liquid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 6653.4691   # fitted to the published mass
 reference_bulk_modulus_pa = 1.1547e11 # Fe-Si liquid, Margot et al. (2018)
 bulk_modulus_derivative = 4.93
 
 [layers.mantle]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0
-is_tidal = true
+use_tides = true
 temperature_k = 1600.0
 
-[layers.mantle.material]
-model = "bm"
-shear_modulus_static_pa = 4.364771e10 # fitted to the measured k2 with the liquid outer core
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 3300.0      # fixed silicate mantle; the core is the fitted layer here
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 
-[layers.mantle.material.shear_viscosity]
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 4.364771e10        # fitted to the measured k2 with the liquid outer core
+
+[layers.mantle.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e21
 reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0

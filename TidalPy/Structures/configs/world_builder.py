@@ -1,15 +1,16 @@
 """World and layer builders for the Structures class system.
 
 Turns a validated configuration dict into a fully wired C++/Cython world: the world object, its ordered
-stack of layers, and each layer's attached physics models.
+stack of layers, and each layer's material and attached physics models.
 
 :func:`build_world` resolves a source (bundled name, file path, or dict), validates it, and returns the
 built world; :func:`construct_world` and :func:`construct_layer` take an already-parsed dict, and
 :func:`build_world_from_dict` and :func:`build_layer_from_dict` rebuild an object from the dictionary its
 ``get_config_dict`` returns.
 
-A value the user omits is taken from the ``[layers.<type>]`` block of ``TidalPy_Configs.toml``, keyed by
-the layer's material ``type``; only if that is also absent does the constructor or factory default apply.
+A layer's material is a MatPack name or a material table (:func:`TidalPy.Material.load_material`); a layer that names
+none takes ``[layers] material`` of ``TidalPy_Configs.toml``. Every other value a layer table omits takes the
+layer's or the model factory's own default.
 """
 
 import copy
@@ -28,20 +29,18 @@ from TidalPy.Tides.eccentricity.eccentricity_driver import _WARNED_PROMOTIONS as
 from TidalPy.Tides.obliquity.obliquity_driver import (
     OBLIQUITY_TRUNCATIONS, promote_obliquity_truncation, _WARNED_PROMOTIONS as _WARNED_OBLIQUITY_PROMOTIONS)
 
-from TidalPy.configurations import keep_on_model_change
-from TidalPy.Rheology.rheology import make_rheology, _same_model as _same_rheology_model, rheology_config_keys
+from TidalPy.Rheology.rheology import make_rheology, _same_model as _same_rheology_model
 from TidalPy.Cooling.cooling import make_cooling, _same_model as _same_cooling_model
-from TidalPy.Radiogenics.radiogenics import make_radiogenics, _same_model as _same_radiogenics_model
-from TidalPy.Material import make_material
-from TidalPy.Viscosity.viscosity import _same_model as _same_viscosity_model, viscosity_config_keys
+from TidalPy.Radiogenics.radiogenics import make_radiogenics
+from TidalPy.Material import load_material, merge_material_tables
+from TidalPy.Material.matpack import PRESET_KEY
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Stellar.luminosity import make_luminosity
 from TidalPy.Dynamics.spin import Spin
 
 from TidalPy.Structures.configs.toml_loader import (
-    ALLOWED_LAYER_SCALAR_KEYS,
-    ALLOWED_MODEL_SECTIONS,
     LAYER_GEOMETRY_SPEC_KEYS,
+    LAYER_SCALAR_KEYS,
     _config_section,
     _require_number,
     ordered_layers,
@@ -50,30 +49,23 @@ from TidalPy.Structures.configs.toml_loader import (
     validate_world_config,
     warning_enabled,
 )
-from TidalPy.Structures.configs.toml_loader import DEFAULT_MATERIAL_TYPE, NO_MATERIAL_TYPE
 from TidalPy.Structures.configs import worldpack
 
-# Layer ``class`` string -> Cython layer class.
-_LAYER_CLASSES = {
-    "base":        Layer,
-    "solidliquid": Layer,
-    "gas":         Layer,
-}
-
-# Model section name -> (factory function, layer setter method name).
-_MODEL_DISPATCH = {
-    "shear_rheology":  (make_rheology,     "set_shear_rheology"),
-    "bulk_rheology":   (make_rheology,     "set_bulk_rheology"),
-    "cooling":         (make_cooling,      "set_cooling"),
-    "radiogenics":     (make_radiogenics,  "set_radiogenics"),
+# Model table of a layer -> the factory that builds it. Each model is passed as the Layer constructor argument of the
+# same name.
+_LAYER_MODEL_FACTORIES = {
+    "shear_rheology": make_rheology,
+    "bulk_rheology":  make_rheology,
+    "cooling":        make_cooling,
+    "radiogenics":    make_radiogenics,
 }
 
 
 def _build_model(make_func: Callable, section_cfg: dict):
     """Build a physics model from a configuration section via its factory.
 
-    The ``model`` key selects the model; every other key is forwarded to the
-    factory as its parameter ``dict`` (omitted keys keep their factory defaults).
+    The ``model`` key selects the model; every other key is forwarded to the factory as its parameter ``dict``
+    (omitted keys keep the model's defaults), and a table holding only ``model`` takes the factory's own defaults.
 
     Parameters
     ----------
@@ -88,7 +80,7 @@ def _build_model(make_func: Callable, section_cfg: dict):
         The constructed physics-model object.
     """
     if "model" not in section_cfg:
-        raise ValueError("the table names no 'model', and the layer's material type supplies none.")
+        raise ValueError("the table names no 'model'.")
     model_name = section_cfg["model"]
     params = {key: value for key, value in section_cfg.items() if key != "model"}
     return make_func(model_name, params if params else None)
@@ -107,110 +99,7 @@ _CONFIG_KEY_TO_ARGUMENT = {
     "radius_inner_m":               "radius_inner",
     "radius_outer_m":               "radius_outer",
     "temperature_k":                "temperature",
-    "reference_temperature_k":      "reference_temperature",
-    "mean_molecular_weight_kg_mol": "mean_molecular_weight",
 }
-
-
-# Model table name -> the family's alias-aware test of whether two model names are one model.
-_SAME_MODEL = {
-    "shear_rheology":  _same_rheology_model,
-    "bulk_rheology":   _same_rheology_model,
-    "cooling":         _same_cooling_model,
-    "radiogenics":     _same_radiogenics_model,
-    "shear_viscosity": _same_viscosity_model,
-    "bulk_viscosity":  _same_viscosity_model,
-}
-
-
-# Model table name -> the config keys one model of a spec-driven family reads (from its parameter table). Defaults
-# merged beneath such a table keep only the keys its model reads, since the model refuses any other.
-_SPEC_MODEL_KEYS = {
-    "shear_rheology":  rheology_config_keys,
-    "bulk_rheology":   rheology_config_keys,
-    "shear_viscosity": viscosity_config_keys,
-    "bulk_viscosity":  viscosity_config_keys,
-}
-
-
-def _model_changes(section_name, defaults: dict, overrides: dict) -> bool:
-    """Whether ``overrides`` names a different model than ``defaults`` (aliases count as the same model)."""
-    if ("model" not in overrides) or ("model" not in defaults):
-        return False
-    same_model = _SAME_MODEL.get(section_name)
-    if same_model is None:
-        return str(defaults["model"]).lower() != str(overrides["model"]).lower()
-    try:
-        return not same_model(str(defaults["model"]), str(overrides["model"]))
-    except ValueError:
-        return True
-
-
-def _merge_section(defaults: dict, overrides: dict, section_name=None) -> dict:
-    """Overlay a model table on its defaults key by key; nested tables merge the same way.
-
-    The defaults are those of the layer's effective material type, so a user key wins and every key the user left
-    out comes from that type, whether or not the override names a different model. When it does, only the default
-    keys whose meaning depends on the model (``MODEL_SPECIFIC_KEYS``) are dropped first (``keep_on_model_change``).
-    For a spec-driven family (``_SPEC_MODEL_KEYS``) the defaults keep only the keys the table's model reads; the
-    user's own keys are kept as given, so a misspelled one still fails in the model's factory.
-    """
-    if _model_changes(section_name, defaults, overrides):
-        defaults = keep_on_model_change(section_name or "", defaults)
-    model_keys = _SPEC_MODEL_KEYS.get(section_name)
-    model_name = overrides.get("model", defaults.get("model"))
-    if (model_keys is not None) and (model_name is not None):
-        try:
-            accepted = model_keys(str(model_name))
-        except ValueError:
-            # An unknown model name; the factory reports it.
-            accepted = None
-        if accepted is not None:
-            defaults = {key: value for key, value in defaults.items() if key == "model" or key in accepted}
-    section = dict(defaults)
-    for key, value in overrides.items():
-        if isinstance(value, dict) and isinstance(section.get(key), dict):
-            section[key] = _merge_section(section[key], value, key)
-        else:
-            section[key] = value
-    return section
-
-
-# Relative tolerance [of the layer's outer radius] on how closely an interpolated material's radius table must reach
-# each boundary of its layer: loose enough for a boundary rounded to a few figures, far tighter than a unit mistake.
-_INTERPOLATED_COVERAGE_RTOL = 1.0e-3
-
-
-def _check_interpolated_coverage(layer_name: str, material_cfg: dict, radius_inner: float, radius_outer: float):
-    """Refuse an interpolated material whose radius table does not span its layer.
-
-    The interpolated EOS holds its end values beyond the table, so a table that misses its layer, a radius given in
-    km under ``radius_m`` say, would otherwise build a uniform layer without complaint. Each end of the table must
-    reach its layer boundary to within ``_INTERPOLATED_COVERAGE_RTOL`` of the outer radius.
-
-    Raises
-    ------
-    ValueError
-        The table stops short of the layer's inner or outer radius.
-    """
-    model = material_cfg.get("model")
-    radius_table = material_cfg.get("radius_m")
-    if model is None or radius_table is None or len(radius_table) == 0:
-        return
-    try:
-        if not _same_material_model(str(model), "interpolate"):
-            return
-    except ValueError:
-        # An unknown model name; the material factory reports it.
-        return
-    table_bottom = min(float(value) for value in radius_table)
-    table_top = max(float(value) for value in radius_table)
-    tolerance = _INTERPOLATED_COVERAGE_RTOL * abs(radius_outer)
-    if (table_bottom - radius_inner > tolerance) or (radius_outer - table_top > tolerance):
-        raise ValueError(
-            f"[layers.{layer_name}.material] the interpolated material's radius_m table spans {table_bottom:.6g} to "
-            f"{table_top:.6g} m, but the layer spans {radius_inner:.6g} to {radius_outer:.6g} m. The table must "
-            "cover its layer (radius_m is in meters).")
 
 
 def _as_constructor_kwargs(config_items) -> dict:
@@ -218,47 +107,72 @@ def _as_constructor_kwargs(config_items) -> dict:
     return {_CONFIG_KEY_TO_ARGUMENT.get(key, key): value for key, value in config_items}
 
 
-def _material_type_defaults(material_type: Optional[str], layer_class_name: str) -> dict:
-    """The configuration defaults for a material ``type``, filtered to a layer class.
+# The two phase slots of a material table.
+_PHASE_SLOTS = ("solid", "liquid")
 
-    Looks up ``TidalPy.config['layers'][material_type]`` and keeps only the scalar
-    keys and physics-model sections the given layer class can actually hold (so the
-    same material block can be reused across layer classes, e.g. an ``ice`` block on a
-    ``base`` layer simply drops its cooling/radiogenics sections).
+# Relative tolerance [of the layer's outer radius] on how closely a radius-tabulated law must reach each boundary of
+# its layer: loose enough for a boundary rounded to a few figures, far tighter than a unit mistake.
+_INTERPOLATED_COVERAGE_RTOL = 1.0e-3
 
-    Parameters
-    ----------
-    material_type : str or None
-        The layer's material type (e.g. ``"mantle_rock"``). None selects the ``[layers.default]``
-        block, the defaults for a layer that names no material; ``"none"`` selects no block at all.
-    layer_class_name : str
-        The layer's class (``base`` / ``solidliquid`` / ``gas``).
 
-    Returns
-    -------
-    dict
-        The filtered per-material default block (empty for ``"none"``, no configuration, or no
-        matching block).
+def _check_interpolated_coverage(layer_name: str, material_cfg: dict, radius_inner: float, radius_outer: float):
+    """Refuse a material table whose radius-tabulated laws do not span its layer.
+
+    A radius-tabulated law (the ``interpolate`` EOS, shear-modulus, and viscosity laws, each with a ``radius_m``
+    table) holds its end values beyond the table, so a table that misses its layer, a radius given in km under
+    ``radius_m`` say, would otherwise build a uniform layer without complaint. Each end of every such table must reach
+    its layer boundary to within ``_INTERPOLATED_COVERAGE_RTOL`` of the outer radius. A MatPack name or a preset is
+    not checked: no bundled material is tabulated in radius.
+
+    Raises
+    ------
+    ValueError
+        A table stops short of the layer's inner or outer radius.
     """
-    if not material_type:
-        material_type = DEFAULT_MATERIAL_TYPE
-    if material_type == NO_MATERIAL_TYPE:
-        return {}
+    tolerance = _INTERPOLATED_COVERAGE_RTOL * abs(radius_outer)
+    for slot in _PHASE_SLOTS:
+        phase_cfg = material_cfg.get(slot)
+        if not isinstance(phase_cfg, dict):
+            continue
+        for law_name, law_cfg in phase_cfg.items():
+            if not isinstance(law_cfg, dict) or not law_cfg.get("radius_m"):
+                continue
+            table_bottom = min(float(value) for value in law_cfg["radius_m"])
+            table_top = max(float(value) for value in law_cfg["radius_m"])
+            if (table_bottom - radius_inner > tolerance) or (radius_outer - table_top > tolerance):
+                raise ValueError(
+                    f"[layers.{layer_name}.material.{slot}.{law_name}] the radius_m table spans {table_bottom:.6g} to "
+                    f"{table_top:.6g} m, but the layer spans {radius_inner:.6g} to {radius_outer:.6g} m. The table "
+                    "must cover its layer (radius_m is in meters).")
 
-    type_block = _config_section("layers").get(material_type, {})
-    if not type_block:
-        return {}
 
-    allowed_scalars = ALLOWED_LAYER_SCALAR_KEYS[layer_class_name]
-    allowed_models = ALLOWED_MODEL_SECTIONS[layer_class_name]
-    filtered = {}
-    for key, value in type_block.items():
-        if isinstance(value, dict):
-            if key in allowed_models:
-                filtered[key] = _merge_section({}, value, key)
-        elif key in allowed_scalars:
-            filtered[key] = value
-    return filtered
+def _layer_material(layer_name: str, layer_cfg: dict, radius_inner: float, radius_outer: float):
+    """The layer's material: its ``material`` name or table, else ``[layers] material`` of the configuration.
+
+    Raises
+    ------
+    ValueError
+        The layer names no material and the configuration names no default, or the material cannot be built (the
+        message names the layer's table, or the configuration's when the material is its default).
+    """
+    source = layer_cfg.get("material")
+    where = f"[layers.{layer_name}.material]"
+    if source is None:
+        source = _config_section("layers").get("material")
+        where = f"TidalPy_Configs.toml [layers] material (the default of layer '{layer_name}')"
+        if source is None:
+            raise ValueError(
+                f"Layer '{layer_name}' names no material, and TidalPy_Configs.toml gives no default ([layers] "
+                "material). Give the layer a 'material' (a MatPack name or a table).")
+    if isinstance(source, dict):
+        _check_interpolated_coverage(layer_name, source, radius_inner, radius_outer)
+    try:
+        return load_material(source)
+    except (ValueError, TypeError) as error:
+        detail = str(error)
+        if detail.startswith("TidalPy: "):
+            detail = detail[len("TidalPy: "):]
+        raise type(error)(f"{where} {detail}") from error
 
 
 def construct_layer(
@@ -267,20 +181,18 @@ def construct_layer(
         layer_index: int,
         radius_inner: float,
         radius_outer: float):
-    """Construct a single layer (and its attached physics models) from config.
+    """Construct a single layer (its material and attached physics models) from config.
 
-    The geometry is supplied by the caller. Every other parameter and physics-model table resolves
-    through the three tiers: ``layer_cfg``, then the ``[layers.<type>]`` block of
-    ``TidalPy_Configs.toml`` filtered to what the layer ``class`` can hold, then the layer
-    constructor or physics-model-factory default.
+    The geometry is supplied by the caller. The material comes from the layer's ``material`` key (a MatPack name or
+    a material table), else ``[layers] material`` of ``TidalPy_Configs.toml``; every scalar and model table the
+    layer table omits takes the Layer constructor's or the model factory's default.
 
     Parameters
     ----------
     layer_name : str
         The layer's name (the TOML table key).
     layer_cfg : dict
-        The layer's configuration sub-dictionary (already validated). Carries a
-        ``class`` and, optionally, a material ``type``.
+        The layer's configuration sub-dictionary (already validated).
     layer_index : int
         The resolved inner-to-outer position of the layer (0 = innermost).
     radius_inner : float
@@ -290,65 +202,28 @@ def construct_layer(
 
     Returns
     -------
-    BaseLayer
-        A ``BaseLayer`` (or subclass) with every resolved physics model attached.
+    Layer
+        The layer, with its material and every model its table names attached.
 
     Raises
     ------
     ValueError
-        If the layer class is unknown, a model name is not recognized, or an interpolated material's radius table
-        does not span the layer.
+        If the material or a model cannot be built (the message names the layer's table), or a radius-tabulated
+        material does not span the layer.
     """
-    layer_class_name = layer_cfg["class"]
-    if layer_class_name not in _LAYER_CLASSES:
-        raise ValueError(
-            f"Layer '{layer_name}' has unknown class '{layer_class_name}'. "
-            f"Allowed classes: {sorted(_LAYER_CLASSES)}.")
-    layer_class = _LAYER_CLASSES[layer_class_name]
-    allowed_scalars = ALLOWED_LAYER_SCALAR_KEYS[layer_class_name]
-
-    # Tier 2: per-material defaults from the configuration, filtered to this class.
-    merged = _material_type_defaults(layer_cfg.get("type"), layer_class_name)
-
-    # Tier 1: the user's keys on top, model sections merging per key. The class, type, layer_index, and
-    # outer-radius specifiers are handled separately.
-    for key, value in layer_cfg.items():
-        if key in ("class", "type", "layer_index") or key in LAYER_GEOMETRY_SPEC_KEYS:
-            continue
-        if isinstance(value, dict):
-            merged[key] = _merge_section(merged.get(key, {}), value, key)
-        else:
-            merged[key] = value
-
-    # Tier 3: anything still absent falls through to the constructor or factory default.
-    ctor_kwargs = _as_constructor_kwargs(
-        (key, value) for key, value in merged.items() if key in allowed_scalars)
-    # The caller always supplies the geometry: the inner radius from the previous layer, the outer radius
-    # from the specifier.
-    ctor_kwargs["radius_inner"] = radius_inner
-    ctor_kwargs["radius_outer"] = radius_outer
-    # The mass has no constructor default. Every successful EOS solve overwrites it, so 0.0 stands in when
-    # neither the user nor the material block supplies one.
-    ctor_kwargs.setdefault("mass", 0.0)
-
-    if isinstance(merged.get("material"), dict):
-        _check_interpolated_coverage(layer_name, merged["material"], radius_inner, radius_outer)
-
-    layer = layer_class(name=layer_name, layer_index=layer_index, **ctor_kwargs)
-
-    # Attach each physics model present in the resolved configuration.
-    for section_name, (make_func, setter_name) in _MODEL_DISPATCH.items():
-        section_cfg = merged.get(section_name, None)
-        if not section_cfg:
+    material = _layer_material(layer_name, layer_cfg, radius_inner, radius_outer)
+    models = {}
+    for section_name, make_func in _LAYER_MODEL_FACTORIES.items():
+        section_cfg = layer_cfg.get(section_name)
+        if section_cfg is None:
             continue
         try:
-            model = _build_model(make_func, section_cfg)
+            models[section_name] = _build_model(make_func, section_cfg)
         except ValueError as error:
             # Name the TOML table so a rejected key or model name can be found in the source file.
             raise ValueError(f"[layers.{layer_name}.{section_name}] {error}") from error
-        getattr(layer, setter_name)(model)
-
-    return layer
+    scalars = _as_constructor_kwargs((key, value) for key, value in layer_cfg.items() if key in LAYER_SCALAR_KEYS)
+    return Layer(layer_name, layer_index, radius_inner, radius_outer, material=material, **scalars, **models)
 
 
 def build_layer_from_dict(config: dict):
@@ -356,7 +231,7 @@ def build_layer_from_dict(config: dict):
 
     The dictionary is the world builder's layer table plus the keys only a standalone layer needs: ``name``,
     and ``radius_inner_m`` (inside a world both come from the layer's place in the ``layers`` table). The rebuilt
-    layer is of the same class, with the same parameters and the same attached models.
+    layer has the same parameters, material, and attached models.
 
     Parameters
     ----------
@@ -365,8 +240,8 @@ def build_layer_from_dict(config: dict):
 
     Returns
     -------
-    BaseLayer
-        The rebuilt layer (``BaseLayer``, ``SolidLiquidLayer``, or ``GasLayer``).
+    Layer
+        The rebuilt layer.
 
     Raises
     ------
@@ -395,14 +270,14 @@ def build_layer_from_dict(config: dict):
 
 # Radial data expansion: a PREM-like profile describing the world's geometry and materials.
 def _layers_from_radial_data(arrays: dict, liquid_loss: bool = True) -> list:
-    """Split a normalized radial profile into layers and give each one an interpolated material.
+    """Split a normalized radial profile into layers and give each one a radius-tabulated material.
 
     The profile is split at every solid/liquid transition (see
     :mod:`TidalPy.Structures.configs.data_file`) and each layer takes the slice of the profile that
-    falls inside it: its density, its static shear and bulk moduli, and its viscosities when the
-    profile gave any. That slice is the layer's material, an interpolated EOS, and the only grid this
-    world keeps. No viscosity or partial-melt model is built: a profile without viscosities describes
-    an elastic body, and one with them has already said what they are at every radius.
+    falls inside it: its density and bulk modulus, its shear modulus when it is solid, and its viscosities when the
+    profile gave any. That slice is the layer's material, a set of ``interpolate`` laws, and the only grid this world
+    keeps. No other law and no melting is added: a profile without viscosities describes an elastic body, and one
+    with them has already said what they are at every radius.
 
     A layer starts where the one below it ends. When the profile repeats no row at that boundary, the
     layer's first row is repeated at the boundary radius, so its table spans the layer and holds its
@@ -418,9 +293,9 @@ def _layers_from_radial_data(arrays: dict, liquid_loss: bool = True) -> list:
 
     Returns
     -------
-    list of (str, dict)
-        ``(layer_name, layer_config)`` pairs, inner to outer. A layer detected as liquid (zero shear
-        modulus) carries ``is_solid = False``, and every layer is static.
+    list of (str, dict, bool)
+        ``(layer_name, layer_config, is_solid)`` per layer, inner to outer. A layer detected as liquid (zero shear
+        modulus) has a liquid-only material, so it is a liquid, and every layer is static.
     """
     import numpy as np
 
@@ -442,18 +317,15 @@ def _layers_from_radial_data(arrays: dict, liquid_loss: bool = True) -> list:
         boundary = float(layer_radius[-1])
         with_loss = bool(is_solid) or liquid_loss
         layer_cfg = _interpolated_layer_config(
-            index          = index,
-            radius         = layer_radius,
-            density        = arrays["density_kg_m3"][rows],
-            shear_modulus  = shear[rows],
-            bulk_modulus   = arrays["bulk_modulus_pa"][rows],
-            is_solid       = bool(is_solid),
-            # A layer with zero shear velocity is liquid, and is solved as a static liquid.
-            is_static      = True,
+            index           = index,
+            radius          = layer_radius,
+            density         = arrays["density_kg_m3"][rows],
+            shear_modulus   = shear[rows] if is_solid else None,
+            bulk_modulus    = arrays["bulk_modulus_pa"][rows],
             shear_viscosity = None if (shear_visc is None or not with_loss) else shear_visc[rows],
             bulk_viscosity  = None if (bulk_visc is None or not with_loss) else bulk_visc[rows],
         )
-        auto_layers.append((f"layer_{index}", layer_cfg))
+        auto_layers.append((f"layer_{index}", layer_cfg, bool(is_solid)))
     if not auto_layers:
         raise ValueError("The radial profile yielded no layers of non-zero thickness.")
     return auto_layers
@@ -465,9 +337,6 @@ def _interpolated_layer_config(
         density,
         shear_modulus,
         bulk_modulus,
-        is_solid: bool,
-        is_static: bool,
-        is_incompressible: Optional[bool] = None,
         shear_viscosity=None,
         bulk_viscosity=None) -> dict:
     """One layer config whose material is the slice of a radial profile that falls inside it.
@@ -481,18 +350,17 @@ def _interpolated_layer_config(
     ----------
     index : int
         Position of this layer, inner to outer.
-    radius, density, shear_modulus, bulk_modulus : np.ndarray[float64]
-        This layer's slice of the profile [m, kg m-3, Pa, Pa]. The moduli are the static (unrelaxed) ones.
-    is_solid, is_static : bool
-        Radial-solver assumptions for this layer.
-    is_incompressible : bool, optional
-        Set only when the caller states it; otherwise the layer default stands.
+    radius, density, bulk_modulus : np.ndarray[float64]
+        This layer's slice of the profile [m, kg m-3, Pa]. The bulk modulus is the static (unrelaxed) one.
+    shear_modulus : np.ndarray[float64] or None
+        The static shear modulus [Pa] of a solid layer; None for a liquid one, whose material is then liquid-only.
     shear_viscosity, bulk_viscosity : np.ndarray[float64], optional
         Viscosities [Pa s] when the profile carried them. Absent means an elastic layer.
 
     Returns
     -------
     dict
+        The layer's table: its index, outer radius, ``use_tides`` (a solid layer's), and its ``material``.
     """
     import numpy as np
 
@@ -501,34 +369,28 @@ def _interpolated_layer_config(
     def as_floats(values):
         return np.ascontiguousarray(values, dtype=np.float64).tolist()
 
-    material_cfg = {
-        "model":            "interpolate",
-        "radius_m":         as_floats(radius),
-        "density_kg_m3":    as_floats(density),
-        "shear_modulus_pa": as_floats(shear_modulus),
-        "bulk_modulus_pa":  as_floats(bulk_modulus),
+    radius_table = as_floats(radius)
+    phase_cfg = {
+        "eos": {
+            "model":           "interpolate",
+            "radius_m":        radius_table,
+            "density_kg_m3":   as_floats(density),
+            "bulk_modulus_pa": as_floats(bulk_modulus),
+        },
     }
-    if shear_viscosity is not None:
-        material_cfg["shear_viscosity_pas"] = as_floats(shear_viscosity)
-    if bulk_viscosity is not None:
-        material_cfg["bulk_viscosity_pas"] = as_floats(bulk_viscosity)
-
-    layer_cfg = {
-        "class":          "solidliquid",
-        # The profile is the material, so the layer takes no defaults from a material type: no viscosity
-        # model, no partial-melt model, no rheology it did not ask for. A layer table naming a `type` gets
-        # that block back.
-        "type":           NO_MATERIAL_TYPE,
+    if shear_modulus is not None:
+        phase_cfg["shear_modulus"] = {
+            "model": "interpolate", "radius_m": radius_table, "shear_modulus_pa": as_floats(shear_modulus)}
+    for slot, values in (("shear_viscosity", shear_viscosity), ("bulk_viscosity", bulk_viscosity)):
+        if values is not None:
+            phase_cfg[slot] = {"model": "interpolate", "radius_m": radius_table, "viscosity_pas": as_floats(values)}
+    is_solid = shear_modulus is not None
+    return {
         "layer_index":    index,
-        "radius_outer_m": float(material_cfg["radius_m"][-1]),
-        "is_tidal":       bool(is_solid),
-        "is_solid":       bool(is_solid),
-        "is_static":      bool(is_static),
-        "material":       material_cfg,
+        "radius_outer_m": radius_table[-1],
+        "use_tides":      is_solid,
+        "material":       {"solid" if is_solid else "liquid": phase_cfg},
     }
-    if is_incompressible is not None:
-        layer_cfg["is_incompressible"] = bool(is_incompressible)
-    return layer_cfg
 
 
 def build_world_from_layered_profile(
@@ -546,11 +408,11 @@ def build_world_from_layered_profile(
 
     A thin wrapper over
     :func:`~TidalPy.Structures.worlds.base.build_layered_world_from_profile`, which builds the layers
-    and their interpolated material EOS models in C++. The standalone ``RadialSolver.radial_solver`` calls
+    and their radius-tabulated materials in C++. The standalone ``RadialSolver.radial_solver`` calls
     that same C++ routine directly, so the world it solves and the world returned here are built by one
     implementation and cannot drift apart.
 
-    The sibling of :func:`_layers_from_radial_data`: both turn a profile into interpolated-material layers,
+    The sibling of :func:`_layers_from_radial_data`: both turn a profile into radius-tabulated layers,
     and they differ only in where the boundaries come from. That path detects them from the shear profile,
     which merges any solid/solid interface and can only produce static layers. This one is told them, so it
     keeps every interface the caller declared and carries all three radial-solver assumptions per layer. It
@@ -560,7 +422,7 @@ def build_world_from_layered_profile(
     Interface radii appear twice in the profile, once as the top of the lower layer and once as the base of
     the upper one, and each copy belongs to its own layer.
 
-    Unlike :func:`build_world`, the world returned carries its layers and their EOS models and nothing else:
+    Unlike :func:`build_world`, the world returned carries its layers and their materials and nothing else:
     a profile is not a configuration file, so no tide model, no ``[worlds]`` defaults, and no retained source
     configuration are attached. ``save_to_toml`` still works, rebuilding the configuration from the live
     world rather than replaying a stored one.
@@ -593,7 +455,7 @@ def build_world_from_layered_profile(
     from TidalPy.Structures.worlds.base import build_layered_world_from_profile
 
     # Everything below the arrays happens in C++: the slice partition, the per-layer geometry, and each
-    # layer's interpolated material EOS. Only the array normalization belongs here.
+    # layer's material. Only the array normalization belongs here.
     return build_layered_world_from_profile(
         np.ascontiguousarray(radius, dtype=np.float64),
         np.ascontiguousarray(density, dtype=np.float64),
@@ -611,17 +473,19 @@ def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float
     """Merge a user layer table over a layer detected from a radial profile.
 
     The user's outer radius (if given) is cross-checked against the detected radius (a mismatch is an
-    error). A user-supplied constant modulus or viscosity replaces that layer's array with a constant
-    one, so the interpolation returns the constant. Remaining user keys (``class``, the physics-model
-    sub-tables, ...) override the detected values, ``type`` among them: naming a material type brings
-    that block's defaults back to a layer the profile otherwise leaves bare.
-    """
-    import math
+    error). The user's ``material`` table merges over the profile's slice (``merge_material_tables``): a law table
+    naming another model replaces that law (a constant viscosity in place of the profile's, say), and a law the
+    profile lacks is added. Every other user key (a rheology, cooling, or radiogenics table, a switch) is set on the
+    layer.
 
-    # Both copies are shallow: the detected layer is left as it was, and every table or array changed below
-    # is replaced rather than edited.
+    Raises
+    ------
+    ValueError
+        The outer radius disagrees with the detected one, or ``material`` is not a table (the profile is the
+        layer's material, so it can be refined but not replaced by a name).
+    """
+    # Shallow: the detected layer is left as it was, since every value changed below is replaced rather than edited.
     merged = dict(auto_cfg)
-    merged["material"] = dict(auto_cfg["material"])
     auto_outer = auto_cfg["radius_outer_m"]
 
     # Cross-check the user's outer radius against the detected boundary.
@@ -635,25 +499,16 @@ def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float
             f"Layer '{layer_name}': provided outer radius {user_outer:.6g} m does not match the "
             f"radius {auto_outer:.6g} m detected from the radial profile.")
 
-    # A user-provided constant overrides the profile's array across the whole layer.
-    num_points = len(merged["material"]["radius_m"])
-    user_material = user_cfg.get("material", {}) or {}
-    _const_override = {
-        "shear_modulus_static_pa":    "shear_modulus_pa",
-        "bulk_modulus_static_pa":     "bulk_modulus_pa",
-        "shear_viscosity_static_pas": "shear_viscosity_pas",
-        "bulk_viscosity_static_pas":  "bulk_viscosity_pas",
-    }
-    for scalar_key, array_key in _const_override.items():
-        if scalar_key in user_material:
-            merged["material"][array_key] = [float(user_material[scalar_key])] * num_points
-
     # The geometry specifiers were handled above.
     for key, value in user_cfg.items():
         if key == "layer_index" or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
-        if key == "material" and isinstance(value, dict):
-            merged["material"] = _merge_section(merged["material"], value, "material")
+        if key == "material":
+            if not isinstance(value, dict):
+                raise ValueError(
+                    f"Layer '{layer_name}' refines a layer of the radial profile, whose slice of the profile is its "
+                    f"material, so its 'material' must be a table of changes to that slice, not {value!r}.")
+            merged["material"] = merge_material_tables(auto_cfg["material"], value)
         else:
             merged[key] = value
     return merged
@@ -752,36 +607,40 @@ def _quality_factors_as_loss(arrays: dict, world_name, source) -> dict:
 def _check_q_layer_table(user_cfg: dict, layer_name: str, world_name, is_solid: bool) -> None:
     """Refuse a layer table that would put something other than the profile's quality factors in its loss arrays.
 
-    A viscosity given as a constant would replace them, and a material ``type`` brings viscosity models that
-    would overwrite them; seismic_q would then read a viscosity as a quality factor. A solid layer's viscosity slot
-    holds its Q_mu, so a model that reads that slot as a viscosity is refused too: any partial-melt model but
-    ``off`` (Henning at 1800 K turns a Q of 312 into 0.365) and the convection cooling model (its Rayleigh number).
+    A viscosity law or a preset in the layer's material table would replace them, and seismic_q would then read a
+    viscosity as a quality factor. A solid layer's viscosity holds its Q_mu, so what reads that viscosity as one is
+    refused too: melting (its weakening lowers the viscosity with melt) and the convection cooling model (its Rayleigh
+    number).
     """
     where = f"World '{world_name}', layer '{layer_name}'"
     user_material = user_cfg.get("material", {}) or {}
-    for key in ("shear_viscosity_static_pas", "bulk_viscosity_static_pas", "shear_viscosity_pas",
-                "bulk_viscosity_pas", "shear_viscosity", "bulk_viscosity"):
-        if key in user_material:
-            raise ValueError(
-                f"{where}: sets the material's '{key}', but with 'q_provided = true' the layer's loss comes from "
-                "the profile's quality factors, not a viscosity.")
-    if user_cfg.get("type", NO_MATERIAL_TYPE) != NO_MATERIAL_TYPE:
+    if not isinstance(user_material, dict):
+        return      # a name is refused when the table merges over the profile's slice
+    if (PRESET_KEY in user_material) or any(
+            isinstance(user_material.get(slot), dict) and PRESET_KEY in user_material[slot] for slot in _PHASE_SLOTS):
         raise ValueError(
-            f"{where}: names the material type '{user_cfg['type']}', whose viscosity models would replace the "
-            "profile's quality factors (the world sets 'q_provided = true'). Leave 'type' unset.")
+            f"{where}: names a material '{PRESET_KEY}', which would replace the profile's quality factors (the world "
+            "sets 'q_provided = true').")
+    for slot in _PHASE_SLOTS:
+        phase_cfg = user_material.get(slot)
+        if not isinstance(phase_cfg, dict):
+            continue
+        for key in ("shear_viscosity", "bulk_viscosity"):
+            if key in phase_cfg:
+                raise ValueError(
+                    f"{where}: sets the material's {slot} '{key}', but with 'q_provided = true' the layer's loss comes "
+                    "from the profile's quality factors, not a viscosity.")
     if not is_solid:
         return
-    melt_model = str((user_material.get("partial_melt", {}) or {}).get("model", "off"))
-    if not _same_partial_melt_model(melt_model, "off"):
+    if user_cfg.get("use_melting", False):
         raise ValueError(
-            f"{where}: names the '{melt_model}' partial-melt model, which would read the layer's viscosity, but with "
-            "'q_provided = true' a solid layer's viscosity slot holds its quality factor Q_mu. Only 'off' is "
-            "allowed.")
+            f"{where}: sets 'use_melting = true', whose melt weakening would lower the layer's viscosity, but with "
+            "'q_provided = true' a solid layer's viscosity holds its quality factor Q_mu.")
     cooling_model = (user_cfg.get("cooling", {}) or {}).get("model")
     if cooling_model is not None and _same_cooling_model(str(cooling_model), "convection"):
         raise ValueError(
             f"{where}: names the '{cooling_model}' cooling model, whose Rayleigh number would read the layer's "
-            "viscosity, but with 'q_provided = true' a solid layer's viscosity slot holds its quality factor Q_mu. "
+            "viscosity, but with 'q_provided = true' a solid layer's viscosity holds its quality factor Q_mu. "
             "Use 'conduction' or 'off'.")
 
 
@@ -819,9 +678,9 @@ def _attach_seismic_q(layer_cfg: dict, layer_name: str, world_name, settings: di
     """
     where = f"World '{world_name}', layer '{layer_name}'"
     layer_cfg = dict(layer_cfg)
-    material = layer_cfg["material"]
-    for key, label in (("shear_viscosity_pas", "Q_mu"), ("bulk_viscosity_pas", "Q_kappa")):
-        values = material.get(key)
+    phase_cfg = layer_cfg["material"]["solid"]
+    for key, label in (("shear_viscosity", "Q_mu"), ("bulk_viscosity", "Q_kappa")):
+        values = (phase_cfg.get(key) or {}).get("viscosity_pas")
         if values is not None and min(values) <= 0.0:
             raise ValueError(
                 f"{where}: is solid but its profile gives a {label} of {min(values):g}; a solid layer's quality "
@@ -889,8 +748,9 @@ def _expand_radial_data(config: dict) -> dict:
     auto_layers = _layers_from_radial_data(arrays, liquid_loss=(q_settings is None))
 
     # Each user table refines one detected layer, and lends it its own name.
-    names = [name for name, _ in auto_layers]
-    merged = [cfg for _, cfg in auto_layers]
+    names = [name for name, _, _ in auto_layers]
+    merged = [cfg for _, cfg, _ in auto_layers]
+    is_solid = [solid for _, _, solid in auto_layers]
     claimed = {}
     for layer_name, user_cfg in (config.get("layers", {}) or {}).items():
         index = _user_layer_index(layer_name, user_cfg, len(auto_layers), world_name)
@@ -901,12 +761,12 @@ def _expand_radial_data(config: dict) -> dict:
         claimed[index] = layer_name
         names[index] = layer_name
         if q_settings is not None:
-            _check_q_layer_table(user_cfg, layer_name, world_name, auto_layers[index][1]["is_solid"])
+            _check_q_layer_table(user_cfg, layer_name, world_name, is_solid[index])
         merged[index] = _merge_radial_data_layer(merged[index], user_cfg, world_radius, layer_name)
 
     if q_settings is not None:
         for index, layer_cfg in enumerate(merged):
-            if auto_layers[index][1]["is_solid"]:
+            if is_solid[index]:
                 merged[index] = _attach_seismic_q(
                     layer_cfg, names[index], world_name, q_settings, arrays["bulk_viscosity_pas"] is not None)
 

@@ -1,4 +1,5 @@
-"""Layer defaults across a model change, the radial data-file reader's checks, and running without a data directory."""
+"""A layer's material overrides across a model change, the radial data-file reader's checks, and running without a
+data directory."""
 import copy
 import os
 import subprocess
@@ -13,9 +14,9 @@ import TidalPy
 from TidalPy import paths
 from TidalPy import configurations
 from TidalPy.configurations import get_packaged_config, merge_configs
-from TidalPy.PartialMelt.partial_melt import make_partial_melt
+from TidalPy.Material import merge_material_tables
 from TidalPy.Structures import build_world, build_world_from_dict, available_worlds
-from TidalPy.Structures.configs import data_file, world_builder, worldpack
+from TidalPy.Structures.configs import data_file, worldpack
 
 
 @pytest.fixture
@@ -37,7 +38,7 @@ def fresh_data_dir_warning(monkeypatch):
 
 
 def _one_layer_world(layer_cfg):
-    layer = {"class": "solidliquid", "layer_index": 0, "radius_outer_m": 1.0e6, **layer_cfg}
+    layer = {"layer_index": 0, "radius_outer_m": 1.0e6, **layer_cfg}
     return {"schema_version": "0.2.0", "name": "x", "type": "terrestrial", "radius_m": 1.0e6, "mass_kg": 1.0e22,
             "layers": {"shell": layer}}
 
@@ -58,77 +59,94 @@ def _two_layer_profile(**layer_tables):
 
 
 # =====================================================================================================================
-# A model table fills in from the layer's material type, whichever model it names
+# A preset's model table merges with an override naming its model, and is replaced by one naming another
 # =====================================================================================================================
-@pytest.mark.parametrize("material_type, solidus, liquidus, liquid_viscosity", [
-    ("iron", 4000.0, 5000.0, 1.3e-2),
-    ("ice", 250.0, 273.15, 8.9e-4),
-    ("hp_ice", 270.0, 300.0, 8.9e-4),
-    ("mantle_rock", 1600.0, 2000.0, 0.2),
-])
-def test_switching_the_melt_model_keeps_the_types_melt_properties(material_type, solidus, liquidus, liquid_viscosity):
-    # Every type but mantle_rock defaults to the 'off' melt model; the henning table takes the type's values.
-    world = build_world_from_dict(_one_layer_world(
-        {"type": material_type, "material": {"partial_melt": {"model": "henning"}}}))
-    melt = world.shell.get_config_dict()["material"]["partial_melt"]
-    assert melt["model"] == "henning"
-    assert melt["solidus_k"] == solidus
-    assert melt["liquidus_k"] == liquidus
-    assert melt["liquid_viscosity_pas"] == liquid_viscosity
+def _preset_layer(preset, **overrides):
+    """A one-layer world whose material is a MatPack preset with overrides."""
+    return _one_layer_world({"material": {"preset": preset, **overrides}})
 
 
-def test_a_users_key_wins_over_the_types_default():
-    world = build_world_from_dict(_one_layer_world(
-        {"type": "ice", "material": {"partial_melt": {"model": "spohn", "solidus_k": 260.0}}}))
-    melt = world.shell.get_config_dict()["material"]["partial_melt"]
-    assert melt["solidus_k"] == 260.0
-    assert melt["liquidus_k"] == 273.15
+def test_an_override_naming_the_presets_model_keeps_its_other_values():
+    # "bm" is an alias of the preset's birch_murnaghan law, so the override merges into it.
+    world = build_world_from_dict(_preset_layer(
+        "peridotite", solid={"eos": {"model": "bm", "reference_density_kg_m3": 3400.0}}))
+    eos = world.shell.get_config_dict()["material"]["solid"]["eos"]
+    assert eos["model"] == "birch_murnaghan"
+    assert eos["reference_density_kg_m3"] == 3400.0
+    assert eos["reference_bulk_modulus_pa"] == 1.25e11
+    assert eos["bulk_modulus_derivative"] == 4.9
 
 
-def test_switching_the_viscosity_model_keeps_the_types_activation_energy():
+def test_a_users_key_wins_over_the_presets_value():
+    world = build_world_from_dict(_preset_layer("ice_ih", melting={"solidus": {"temperature_k": 260.0}}))
+    melting = world.shell.get_config_dict()["material"]["melting"]
+    assert melting["solidus"]["temperature_k"] == 260.0
+    # The rest of the preset's curve and the other curve are kept.
+    assert melting["solidus"]["simon_a_pa"] == -4.15e8
+    assert melting["liquidus"]["temperature_k"] == 273.16
+
+
+def test_switching_the_viscosity_model_replaces_the_presets_table():
     table = {"model": "reference", "reference_viscosity_pas": 1.0e14, "reference_temperature_k": 260.0}
-    world = build_world_from_dict(_one_layer_world({"type": "ice", "material": {"shear_viscosity": table}}))
-    viscosity = world.shell.get_config_dict()["material"]["shear_viscosity"]
+    world = build_world_from_dict(_preset_layer("ice_ih", solid={"shear_viscosity": table}))
+    viscosity = world.shell.get_config_dict()["material"]["solid"]["shear_viscosity"]
     assert viscosity["reference_viscosity_pas"] == 1.0e14
-    # The ice value, not the silicate one (3e5).
-    assert viscosity["molar_activation_energy_j_mol"] == 59.4e3
+    # The reference law's own activation energy, not the ice preset's Arrhenius value (5.94e4): another model reads
+    # its keys differently, so none carry over.
+    assert viscosity["molar_activation_energy_j_mol"] == 3.0e5
+    assert "arrhenius_coeff" not in viscosity
 
 
-def test_a_layer_with_no_material_type_takes_only_its_own_keys():
+def test_a_full_material_table_takes_only_its_own_keys():
     world = build_world_from_dict(_one_layer_world({
-        "type": "none",
-        "material": {"model": "constant", "reference_density_kg_m3": 1000.0, "partial_melt": {"model": "henning"}}}))
-    melt = world.shell.get_config_dict()["material"]["partial_melt"]
-    assert melt["solidus_k"] == make_partial_melt("henning", {}).get_config_dict()["solidus_k"]
+        "material": {"solid": {"eos": {"model": "constant", "reference_density_kg_m3": 1000.0}}}}))
+    material = world.shell.get_config_dict()["material"]
+    # No preset: no liquid phase, melting curves, or laws the table does not name.
+    assert set(material) == {"latent_heat_j_kg", "solid"}
+    assert "shear_modulus" not in material["solid"] and "shear_viscosity" not in material["solid"]
+    assert material["solid"]["eos"]["reference_density_kg_m3"] == 1000.0
 
 
-def test_a_type_named_on_a_profile_layer_supplies_the_defaults():
-    config = _two_layer_profile(layer_1={"layer_index": 1, "type": "ice",
-                                         "material": {"partial_melt": {"model": "henning"}}})
-    melt = build_world(config).layer_1.get_config_dict()["material"]["partial_melt"]
-    assert melt["solidus_k"] == 250.0
-    assert melt["liquid_density_kg_m3"] == 999.84
+def test_a_profile_layers_material_table_merges_over_its_slice():
+    config = _two_layer_profile(layer_1={"layer_index": 1, "material": {
+        "liquid": {"shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e-3}}}})
+    liquid = build_world(config).layer_1.get_config_dict()["material"]["liquid"]
+    assert liquid["shear_viscosity"] == {"model": "constant", "reference_viscosity_pas": 1.0e-3}
+    # The profile's slice is kept.
+    assert liquid["eos"]["model"] == "interpolate"
+    assert liquid["eos"]["density_kg_m3"][-1] == 1000.0
 
 
-def test_merge_configs_keeps_the_packaged_melt_properties_across_a_model_change():
-    packaged = get_packaged_config()
-    merged = merge_configs(packaged, {"layers": {"ice": {"material": {"partial_melt": {"model": "spohn"}}}}})
-    expected = dict(packaged["layers"]["ice"]["material"]["partial_melt"], model="spohn")
-    assert merged["layers"]["ice"]["material"]["partial_melt"] == expected
+def test_a_profile_layer_cannot_name_a_material():
+    with pytest.raises(ValueError, match="must be a table of changes"):
+        build_world(_two_layer_profile(layer_1={"layer_index": 1, "material": "water"}))
 
 
-@pytest.mark.parametrize("override_model, keeps_reference_time", [
-    ("fixed", False),
-    # An alias of the default model is the same model.
-    ("isotopes", True),
+def test_merge_configs_merges_model_tables_key_by_key():
+    # No model-change rule: a configuration table keeps the base's keys whichever model the override names.
+    base = {"radiogenics": {"model": "isotope", "isotopes": "modern_day_chondritic", "ref_time_s": 1.0e16}}
+    merged = merge_configs(base, {"radiogenics": {"model": "fixed"}})
+    assert merged == {"radiogenics": {"model": "fixed", "isotopes": "modern_day_chondritic", "ref_time_s": 1.0e16}}
+    assert base["radiogenics"]["model"] == "isotope"
+    # The packaged [layers] table names the default material and nothing else.
+    assert get_packaged_config()["layers"] == {"material": "simple_rock"}
+
+
+@pytest.mark.parametrize("override_model, keeps_reference_viscosity", [
+    ("reference", False),
+    # An alias of the base's model is the same model.
+    ("const", True),
 ])
-def test_a_model_specific_key_is_dropped_only_on_a_real_model_change(override_model, keeps_reference_time):
-    assert "ref_time_s" in configurations.MODEL_SPECIFIC_KEYS["radiogenics"]
-    defaults = {"model": "isotope", "isotopes": "modern_day_chondritic", "ref_time_s": 1.0e16}
-    merged = world_builder._merge_section(defaults, {"model": override_model}, "radiogenics")
-    assert merged["model"] == override_model
-    assert merged["isotopes"] == "modern_day_chondritic"
-    assert ("ref_time_s" in merged) == keeps_reference_time
+def test_a_material_table_is_replaced_only_on_a_real_model_change(override_model, keeps_reference_viscosity):
+    base = {"solid": {"eos": {"model": "constant"},
+                      "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}}}
+    merged = merge_material_tables(base, {"solid": {"shear_viscosity": {"model": override_model}}})
+    assert merged["solid"]["shear_viscosity"]["model"] == override_model
+    assert ("reference_viscosity_pas" in merged["solid"]["shear_viscosity"]) == keeps_reference_viscosity
+    assert merged["solid"]["eos"] == {"model": "constant"}
+    # None removes a slot, and the base is untouched.
+    assert "shear_viscosity" not in merge_material_tables(base, {"solid": {"shear_viscosity": None}})["solid"]
+    assert base["solid"]["shear_viscosity"]["reference_viscosity_pas"] == 1.0e21
 
 
 # =====================================================================================================================
@@ -191,9 +209,10 @@ def test_moduli_with_their_unit_are_converted():
 
 
 def _interpolated_layer(radius):
-    return {"type": "none", "material": {
-        "model": "interpolate", "radius_m": radius, "density_kg_m3": [3000.0, 3000.0, 3000.0],
-        "shear_modulus_pa": [5.0e10, 5.0e10, 5.0e10], "bulk_modulus_pa": [1.0e11, 1.0e11, 1.0e11]}}
+    return {"material": {"solid": {
+        "eos": {"model": "interpolate", "radius_m": radius, "density_kg_m3": [3000.0, 3000.0, 3000.0],
+                "bulk_modulus_pa": [1.0e11, 1.0e11, 1.0e11]},
+        "shear_modulus": {"model": "interpolate", "radius_m": radius, "shear_modulus_pa": [5.0e10, 5.0e10, 5.0e10]}}}}
 
 
 def test_an_interpolated_table_that_misses_its_layer_is_refused():
@@ -204,18 +223,19 @@ def test_an_interpolated_table_that_misses_its_layer_is_refused():
 
 def test_an_interpolated_table_that_covers_its_layer_builds():
     world = build_world_from_dict(_one_layer_world(_interpolated_layer([0.0, 5.0e5, 1.0e6])))
-    assert world.shell.get_config_dict()["material"]["radius_m"][-1] == 1.0e6
+    assert world.shell.get_config_dict()["material"]["solid"]["eos"]["radius_m"][-1] == 1.0e6
 
 
 def test_a_profile_without_a_repeated_boundary_row_spans_each_layer():
     world = build_world(_two_layer_profile())
-    upper = world.get_config_dict()["layers"]["layer_1"]["material"]
+    upper = world.get_config_dict()["layers"]["layer_1"]["material"]["liquid"]["eos"]
     # The liquid layer's first row is repeated down at the solid layer's top.
     assert upper["radius_m"][:2] == [1.0e6, 1.1e6]
     assert upper["density_kg_m3"][:2] == [1100.0, 1100.0]
     # The saved configuration rebuilds.
     rebuilt = build_world_from_dict(world.get_config_dict())
-    assert rebuilt.get_config_dict()["layers"]["layer_1"]["material"]["radius_m"] == upper["radius_m"]
+    assert rebuilt.get_config_dict()["layers"]["layer_1"]["material"]["liquid"]["eos"]["radius_m"] == \
+        upper["radius_m"]
 
 
 # =====================================================================================================================

@@ -24,7 +24,8 @@ from TidalPy.Utilities.logging.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.arrays.vectors cimport cy_broadcast_inputs
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_TidalPyBaseClass, cy_resolve_factory_config
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities.classes.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -350,8 +351,8 @@ def make_cooling(str model_name, dict config=None):
         Model name or alias: ``off`` (``none``), ``convection`` (``convective``), ``conduction``
         (``conductive``).
     config : dict, optional
-        Convection parameters: ``convection_alpha``, ``convection_beta``, ``critical_rayleigh``.
-        Ignored by the off and conduction models.
+        Convection parameters: ``convection_alpha``, ``convection_beta``, ``critical_rayleigh``; absent keys (all of
+        them for ``None``) take the model's defaults. Ignored by the off and conduction models.
 
     Returns
     -------
@@ -363,8 +364,8 @@ def make_cooling(str model_name, dict config=None):
     ValueError
         If the model name is not recognized, or if ``config`` holds a key that no cooling model reads.
     """
-    # None falls back to the same defaults the world-attached path uses.
-    config = cy_resolve_factory_config(config, "cooling", COOLING_CONFIG_KEYS, model_name, _same_model, "cooling")
+    config = {} if config is None else config
+    check_config_keys(config, COOLING_CONFIG_KEYS, "cooling")
 
     # The default-constructed config carries the C++ defaults, so only override what the caller gave.
     cdef c_CoolingConfig cfg

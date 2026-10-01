@@ -22,8 +22,9 @@ def _terrestrial_config(tides):
         "name": "test_terr", "type": "terrestrial", "radius_m": 1.6e6, "mass_kg": 8.9e22,
         "tides": tides,
         "layers": {
-            "mantle": {"class": "base", "type": "mantle_rock", "radius_fraction": 1.0, "tidal_scale": 0.8,
-                       "material": {"shear_modulus_static_pa": 6.0e10, "bulk_modulus_static_pa": 2.0e11}}
+            "mantle": {"radius_fraction": 1.0, "tidal_scale": 0.8, "material": {"solid": {
+                "eos": {"model": "constant", "reference_density_kg_m3": 3500.0, "bulk_modulus_pa": 2.0e11},
+                "shear_modulus": {"model": "constant", "shear_modulus_pa": 6.0e10}}}}
         },
     }
 

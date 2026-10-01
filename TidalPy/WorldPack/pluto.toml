@@ -55,56 +55,67 @@ albedo = 0.72
 solve_temperature = false
 
 [layers.core]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 0
 radius_outer_m = 910903.0             # TidalPy 0.7 pluto.toml
-is_tidal = true
+use_tides = true
 temperature_k = 300.0
 
-[layers.core.material]
-model = "bm"
+[layers.core.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 2943.7302   # fitted to the published mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 
-[layers.core.material.shear_viscosity]
+[layers.core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 6.0e10
+
+[layers.core.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e22
 reference_temperature_k = 300.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.core.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
 [layers.ocean]
-class = "solidliquid"
-type = "ice"
 layer_index = 1
 radius_outer_m = 1023300.0            # 165 km below the surface, Nimmo et al. (2016)
-is_tidal = false
-is_solid = false                      # subsurface ocean, solved as a static liquid
+use_tides = false
 temperature_k = 260.0
 
-[layers.ocean.material]
+# A liquid-only material, so the layer is a liquid: subsurface ocean, solved as a static liquid.
+[layers.ocean.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 1000.0      # fresh water; a briny ocean would be denser
+bulk_modulus_pa = 9.2e9
 
 [layers.ice_shell]
-class = "solidliquid"
-type = "ice"
 layer_index = 2
 radius_fraction = 1.0
-is_tidal = true
+use_tides = true
 temperature_k = 200.0
 
-[layers.ice_shell.material]
-model = "bm"
+[layers.ice_shell.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 917.0
 reference_bulk_modulus_pa = 9.6e9     # ice I
 bulk_modulus_derivative = 5.5
 
-[layers.ice_shell.material.shear_viscosity]
+[layers.ice_shell.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 3.3e9
+
+[layers.ice_shell.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e15
 reference_temperature_k = 200.0
 molar_activation_energy_j_mol = 59.4e3
 molar_activation_volume_m3_mol = 0.0
+
+[layers.ice_shell.shear_rheology]
+model = "maxwell"

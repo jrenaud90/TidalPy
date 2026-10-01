@@ -21,10 +21,12 @@ _REF_TIME = 3.0e16             # [s]
 def _layer(index, radius_fraction, temperature, cooling, use_heating=True, density=_DENSITY,
            specific_heating=_SPECIFIC_HEATING, half_life=0.0):
     layer = {
-        "class": "solidliquid", "type": "none", "layer_index": index, "radius_fraction": radius_fraction,
-        "temperature_k": temperature, "use_heating": use_heating,
-        "material": {"model": "constant", "reference_density_kg_m3": density, "shear_modulus_static_pa": 6.0e10,
-                     "thermal_conductivity_w_mk": _CONDUCTIVITY, "heat_capacity_j_kgk": _HEAT_CAPACITY},
+        "layer_index": index, "radius_fraction": radius_fraction, "temperature_k": temperature,
+        "use_heating": use_heating,
+        "material": {"solid": {
+            "thermal_conductivity_w_mk": _CONDUCTIVITY, "heat_capacity_j_kgk": _HEAT_CAPACITY,
+            "eos": {"model": "constant", "reference_density_kg_m3": density},
+            "shear_modulus": {"model": "constant", "shear_modulus_pa": 6.0e10}}},
         "cooling": {"model": cooling},
     }
     if specific_heating is not None:
@@ -178,7 +180,9 @@ def test_heated_profile_passes_through_every_layer_temperature():
 
 def test_heated_convecting_layer_converges_and_gains_heat_flow():
     layer = _layer(0, 1.0, 1600.0, "convection")
-    layer["material"].update({"thermal_expansion_1_k": 3.0e-5, "shear_viscosity_static_pas": 1.0e21})
+    solid = layer["material"]["solid"]
+    solid["eos"]["thermal_expansion_1_k"] = 3.0e-5
+    solid["shear_viscosity"] = {"model": "constant", "reference_viscosity_pas": 1.0e21}
     world, result = _solve({"shell": layer}, surface_temperature=300.0)
     assert result["thermal_converged"]
     assert result["layer_heat_flow_out"][0] > result["layer_heat_flow_in"][0]

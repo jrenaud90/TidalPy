@@ -18,18 +18,25 @@ _MANTLE_DENSITY = 3300.0  # [kg/m^3]
 _CONDUCTIVITY = 4.0       # [W/(m K)]
 _HEAT_CAPACITY = 1200.0   # [J/(kg K)]
 _EXPANSION = 3.0e-5       # [1/K]
+# Bundled-world silicate and iron thermal constants: conductivity [W m-1 K-1], heat capacity [J kg-1 K-1].
+_ROCK_THERMAL = {"thermal_conductivity_w_mk": 3.75, "heat_capacity_j_kgk": 1200.0}
+_ROCK_EXPANSION = 5.2e-5  # [1/K]
+_IRON_THERMAL = {"thermal_conductivity_w_mk": 7.95, "heat_capacity_j_kgk": 840.0}
+_IRON_EXPANSION = 1.2e-5  # [1/K]
 
 
 def _config(core_temperature=1800.0, mantle_temperature=1600.0, cooling="conduction", **mantle_keys):
     """An isothermal iron core under a silicate mantle with the given cooling model."""
-    mantle = {"class": "solidliquid", "type": "none", "layer_index": 1, "radius_fraction": 1.0,
-              "temperature_k": mantle_temperature,
-              # The expansivity drives the adiabat and convection; it drives density only with use_thermal_eos.
-              "material": {"model": "constant", "reference_density_kg_m3": _MANTLE_DENSITY,
-                           "shear_modulus_static_pa": 6.0e10, "thermal_conductivity_w_mk": _CONDUCTIVITY,
-                           "heat_capacity_j_kgk": _HEAT_CAPACITY, "thermal_expansion_1_k": _EXPANSION},
+    mantle = {"layer_index": 1, "radius_fraction": 1.0, "temperature_k": mantle_temperature,
+              # The expansivity drives the adiabat and convection; it drives density only with
+              # use_thermal_expansion.
+              "material": {"solid": {
+                  "thermal_conductivity_w_mk": _CONDUCTIVITY, "heat_capacity_j_kgk": _HEAT_CAPACITY,
+                  "eos": {"model": "constant", "reference_density_kg_m3": _MANTLE_DENSITY,
+                          "thermal_expansion_1_k": _EXPANSION},
+                  "shear_modulus": {"model": "constant", "shear_modulus_pa": 6.0e10}}},
               "cooling": {"model": cooling}}
-    mantle["material"].update(mantle_keys)
+    mantle["material"]["solid"].update(mantle_keys)
     return {
         "schema_version": "0.2.0",
         "name": "thermal_test",
@@ -37,10 +44,10 @@ def _config(core_temperature=1800.0, mantle_temperature=1600.0, cooling="conduct
         "radius_m": _RADIUS,
         "mass_kg": _MASS,
         "layers": {
-            "core": {"class": "solidliquid", "type": "none", "layer_index": 0, "radius_fraction": _CORE_FRACTION,
-                     "temperature_k": core_temperature,
-                     "material": {"model": "constant", "reference_density_kg_m3": _CORE_DENSITY,
-                                  "thermal_conductivity_w_mk": _CONDUCTIVITY, "heat_capacity_j_kgk": _HEAT_CAPACITY},
+            "core": {"layer_index": 0, "radius_fraction": _CORE_FRACTION, "temperature_k": core_temperature,
+                     "material": {"solid": {
+                         "thermal_conductivity_w_mk": _CONDUCTIVITY, "heat_capacity_j_kgk": _HEAT_CAPACITY,
+                         "eos": {"model": "constant", "reference_density_kg_m3": _CORE_DENSITY}}},
                      "cooling": {"model": "off"}},
             "mantle": mantle,
         },
@@ -62,15 +69,49 @@ def _convecting_world():
     return config
 
 
-def _isothermal_config_with_expansion(temperature, use_thermal_eos):
+def _isothermal_config_with_expansion(temperature, use_thermal_expansion):
     """Both layers at one temperature with a thermal expansivity, optionally using the thermal EOS."""
     config = _config(core_temperature=temperature, mantle_temperature=temperature)
     for layer in config["layers"].values():
-        layer["material"]["thermal_expansion_1_k"] = _EXPANSION
-        if use_thermal_eos:
-            layer["use_thermal_eos"] = True
-            layer["material"]["reference_temperature_k"] = 300.0
+        eos = layer["material"]["solid"]["eos"]
+        eos["thermal_expansion_1_k"] = _EXPANSION
+        if use_thermal_expansion:
+            layer["use_thermal_expansion"] = True
+            eos["reference_temperature_k"] = 300.0
     return config
+
+
+def _melting_rock(layer):
+    """Give a silicate layer of a bundled world silicate thermal constants, convection, chondritic radiogenics, and a
+    Henning-weakened melt between a 1600 K solidus and a 2000 K liquidus (a Murnaghan melt of 0.2 Pa s)."""
+    solid = layer["material"]["solid"]
+    solid.update(_ROCK_THERMAL)
+    solid["eos"]["thermal_expansion_1_k"] = _ROCK_EXPANSION
+    layer["material"]["liquid"] = {
+        **_ROCK_THERMAL,
+        "eos": {"model": "murnaghan", "reference_density_kg_m3": 2750.0, "reference_bulk_modulus_pa": 2.0e10,
+                "bulk_modulus_derivative": 5.0, "thermal_expansion_1_k": _ROCK_EXPANSION},
+        "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 0.2}}
+    layer["material"]["melting"] = {"solidus": {"model": "constant", "temperature_k": 1600.0},
+                                    "liquidus": {"model": "constant", "temperature_k": 2000.0},
+                                    "weakening": {"model": "henning"}}
+    layer["use_melting"] = True
+    layer["cooling"] = {"model": "convection", "convection_alpha": 1.0, "convection_beta": 1.0 / 3.0,
+                        "critical_rayleigh": 1100.0}
+    layer["radiogenics"] = {"model": "isotope", "isotopes": "modern_day_chondritic"}
+
+
+def _thermal_io():
+    """Bundled Io whose silicate layers melt and convect over an iron core, ready for a thermal solve."""
+    config = build_world("io").get_config_dict()
+    for name in ("mantle", "asthenosphere"):
+        _melting_rock(config["layers"][name])
+    core = config["layers"]["core"]
+    core["material"]["solid"].update(_IRON_THERMAL)
+    core["material"]["solid"]["eos"]["thermal_expansion_1_k"] = _IRON_EXPANSION
+    core["cooling"] = {"model": "off"}
+    core["radiogenics"] = {"model": "off"}
+    return build_world(config)
 
 
 def test_uniform_world_matches_the_untemperatured_solve():
@@ -239,7 +280,7 @@ def test_viscosity_follows_the_solved_profile():
         "reference_temperature_k": 1600.0,
         "molar_activation_energy_j_mol": 3.0e5}
     config = _config(cooling="conduction")
-    config["layers"]["mantle"]["material"]["shear_viscosity"] = dict(model="reference", **viscosity_config)
+    config["layers"]["mantle"]["material"]["solid"]["shear_viscosity"] = dict(model="reference", **viscosity_config)
     world, result = _solve(config, surface_temperature=300.0)
     viscosity_model = make_viscosity("reference", dict(viscosity_config))
     # Compare at the solve's slices: between slices the stored profile interpolates an exponential linearly.
@@ -253,18 +294,18 @@ def test_viscosity_follows_the_solved_profile():
 
 
 def test_thermal_eos_expands_the_hot_interior():
-    """With use_thermal_eos a hot world is lighter than the same world cold, by exp(-alpha dT)."""
-    _, cold_result = _solve(_isothermal_config_with_expansion(300.0, use_thermal_eos=True))
-    _, hot_result = _solve(_isothermal_config_with_expansion(2500.0, use_thermal_eos=True))
+    """With use_thermal_expansion a hot world is lighter than the same world cold, by exp(-alpha dT)."""
+    _, cold_result = _solve(_isothermal_config_with_expansion(300.0, use_thermal_expansion=True))
+    _, hot_result = _solve(_isothermal_config_with_expansion(2500.0, use_thermal_expansion=True))
     assert hot_result["planet_mass"] < cold_result["planet_mass"]
     assert hot_result["planet_mass"] / cold_result["planet_mass"] == pytest.approx(
         math.exp(-_EXPANSION * 2200.0), rel=5e-3)
 
 
 def test_thermal_eos_is_off_by_default():
-    """Without use_thermal_eos the mass does not depend on temperature."""
-    _, hot_result = _solve(_isothermal_config_with_expansion(2500.0, use_thermal_eos=False))
-    _, cold_result = _solve(_isothermal_config_with_expansion(300.0, use_thermal_eos=False))
+    """Without use_thermal_expansion the mass does not depend on temperature."""
+    _, hot_result = _solve(_isothermal_config_with_expansion(2500.0, use_thermal_expansion=False))
+    _, cold_result = _solve(_isothermal_config_with_expansion(300.0, use_thermal_expansion=False))
     assert hot_result["planet_mass"] == pytest.approx(cold_result["planet_mass"], rel=1e-12)
 
 
@@ -282,8 +323,9 @@ def test_bundled_worlds_are_unchanged(world_name):
 
 @pytest.mark.parametrize("core_temperature", (1700.0, 1800.0, 1850.0, 1900.0))
 def test_hot_core_under_an_isothermal_mantle_keeps_planetary_heat_flow(core_temperature):
-    """Io with a core hotter than its mantle keeps a planetary core heat flow and a physical k2."""
-    io = build_world("io")
+    """Io (melting and convecting) with a core hotter than its mantle keeps a planetary core heat flow and a physical
+    k2."""
+    io = _thermal_io()
     io.core.temperature = core_temperature
     io.solve_eos(solve_temperature=True, surface_temperature=110.0)
     heat_flow_into_mantle = float(io.get_heat_flow(np.array([io.mantle.radius_inner + 10.0]))[0])
@@ -294,5 +336,5 @@ def test_hot_core_under_an_isothermal_mantle_keeps_planetary_heat_flow(core_temp
     # Io's measured k2 is 0.125 +/- 0.047 (Park et al. 2024).
     assert 0.02 < love_k2.real < 0.15
     assert -0.05 < love_k2.imag < 0.0
-    # A molten stretch raises the amplification from about 10 to a few hundred, far below the warning level.
+    # A molten stretch raises the amplification (to about 10 here), far below the warning level.
     assert io.love_surface_amplification < 1.0e4

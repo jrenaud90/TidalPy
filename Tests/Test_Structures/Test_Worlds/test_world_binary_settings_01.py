@@ -56,7 +56,8 @@ def test_layered_world_keeps_its_tide_spin_and_solver_settings(tmp_path):
 def test_gas_giant_keeps_its_tide_model(tmp_path):
     world = build_world({
         "schema_version": "0.2.0", "name": "giant", "type": "gasgiant", "radius_m": 7.0e7, "mass_kg": 1.9e27,
-        "layers": {"envelope": {"class": "gas", "type": "gas", "radius_fraction": 1.0}},
+        "layers": {"envelope": {"radius_fraction": 1.0, "material": {"liquid": {"eos": {
+            "model": "constant", "reference_density_kg_m3": 1000.0, "bulk_modulus_pa": 1.0e5}}}}},
         "tides": {"global_tidal_model": "fixed_dt", "fixed_k": [0.4], "fixed_dt_s": [0.5],
                   "min_degree_l": 2, "max_degree_l": 2, "eccentricity_trunc_lvl": 10}})
     loaded = _round_trip(world, GasGiantWorld("placeholder", 1.0, 1.0), tmp_path)

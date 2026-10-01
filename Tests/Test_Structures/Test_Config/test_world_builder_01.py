@@ -1,4 +1,6 @@
-"""The world builder: family dispatch, model wiring, the default tiers, geometry specs, bundled worlds, and saving."""
+"""The world builder: family dispatch, model wiring, the default material, geometry specs, bundled worlds, and
+saving."""
+import copy
 import math
 import warnings
 
@@ -19,8 +21,15 @@ from TidalPy.Structures.worlds.stellar import StarWorld
 # =====================================================================================================================
 # Helpers
 # =====================================================================================================================
+def _constant_material(density):
+    """A solid of constant density with the moduli the earlier schema's default silicate block gave [kg m-3]."""
+    return {"solid": {
+        "eos": {"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 2.0e11},
+        "shear_modulus": {"model": "constant", "shear_modulus_pa": 6.0e10}}}
+
+
 def _terrestrial_dict():
-    """A two-layer terrestrial world; the mantle lists every model so nothing depends on the default block."""
+    """A two-layer terrestrial world; the mantle lists every model so nothing depends on the configured default."""
     return {
         "schema_version": "0.2.0",
         "name": "TestEarth",
@@ -29,16 +38,19 @@ def _terrestrial_dict():
         "mass_kg": 5.0e24,
         "spin_frequency_rad_s": 7.0e-5,
         "layers": {
-            "core": {"class": "base", "layer_index": 0, "radius_outer_m": 3.0e6, "is_tidal": False,
-                     "material": {"model": "constant", "reference_density_kg_m3": 9000.0}},
-            "mantle": {"class": "solidliquid", "layer_index": 1, "radius_outer_m": 6.0e6, "mass_kg": 3.0e24,
-                       "is_tidal": True,
-                       "material": {"model": "constant", "reference_density_kg_m3": 4000.0,
-                                    "shear_modulus_static_pa": 8.0e10, "bulk_modulus_static_pa": 2.0e11,
-                                    "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21},
-                                    "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e22},
-                                    "partial_melt": {"model": "off"}}, "shear_rheology": {"model": "maxwell"},
-                       "bulk_rheology": {"model": "elastic"}, "cooling": {"model": "convection"},
+            "core": {"layer_index": 0, "radius_outer_m": 3.0e6, "use_tides": False,
+                     "material": _constant_material(9000.0)},
+            "mantle": {"layer_index": 1, "radius_outer_m": 6.0e6, "mass_kg": 3.0e24, "use_tides": True,
+                       "material": {"solid": {
+                           "thermal_conductivity_w_mk": 3.75,
+                           "heat_capacity_j_kgk": 1200.0,
+                           "eos": {"model": "constant", "reference_density_kg_m3": 4000.0, "bulk_modulus_pa": 2.0e11,
+                                   "thermal_expansion_1_k": 5.2e-5},
+                           "shear_modulus": {"model": "constant", "shear_modulus_pa": 8.0e10},
+                           "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21},
+                           "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e22}}},
+                       "shear_rheology": {"model": "maxwell"}, "bulk_rheology": {"model": "elastic"},
+                       "cooling": {"model": "convection"},
                        "radiogenics": {"model": "fixed", "fixed_heat_production_w_kg": 5.0e-12}},
         },
     }
@@ -56,7 +68,6 @@ def _terrestrial_edited(path, value):
 def _single_layer_world(layer_overrides):
     """A one-layer terrestrial world; ``layer_overrides`` is merged into the layer."""
     layer = {
-        "class": "solidliquid",
         "layer_index": 0,
         "radius_outer_m": 6.0e6,
     }
@@ -80,8 +91,8 @@ def _star_dict(**extra):
 # =====================================================================================================================
 _GASGIANT = {
     "name": "G", "type": "gasgiant", "radius_m": 7.0e7, "mass_kg": 1.9e27,
-    "layers": {"env": {"class": "gas", "radius_outer_m": 7.0e7,
-                       "material": {"model": "constant", "reference_density_kg_m3": 1300.0}}},
+    "layers": {"env": {"radius_outer_m": 7.0e7,
+                       "material": {"liquid": {"eos": {"model": "constant", "reference_density_kg_m3": 1300.0}}}}},
 }
 
 
@@ -138,7 +149,7 @@ def test_layers_sorted_by_index_regardless_of_declaration_order():
 # =====================================================================================================================
 def test_eos_wired_and_solves():
     world = construct_world(_terrestrial_dict())
-    assert world.all_eos_set is True
+    assert world.all_materials_set is True
     result = world.solve_eos(G_to_use=G, verbose=False)
     assert result["success"] is True
     assert math.isclose(world.get_density(1.0e6), 9000.0, rel_tol=0.05)
@@ -158,25 +169,31 @@ def test_rheology_and_viscosity_wired_give_complex_modulus():
     assert mu.imag != 0.0
 
 
-def test_missing_eos_on_a_layer_blocks_solve():
-    """``type = "none"`` keeps the builder from supplying an EOS, and the solve then refuses."""
-    config = _terrestrial_dict()
-    del config["layers"]["core"]["material"]
-    config["layers"]["core"]["type"] = "none"
-    world = construct_world(config)
-    assert world.all_eos_set is False
-    with pytest.raises(ValueError):
-        world.solve_eos(verbose=False)
+@pytest.fixture
+def private_config(monkeypatch):
+    """A private copy of the configuration that a test may edit."""
+    private = copy.deepcopy(TidalPy.config)
+    monkeypatch.setattr(TidalPy, "config", private)
+    return private
 
 
-def test_typeless_layer_takes_the_default_eos():
-    """A layer that names no material type takes its EOS from ``[layers.default]``, a copy of mantle_rock."""
+def test_a_layer_without_a_material_needs_the_configured_default(private_config):
+    """A layer that names no material takes ``[layers] material``; with none configured the build refuses."""
+    config = _terrestrial_dict()
+    del config["layers"]["core"]["material"]
+    del private_config["layers"]["material"]
+    with pytest.raises(ValueError, match="Layer 'core' names no material"):
+        construct_world(config)
+
+
+def test_a_layer_without_a_material_takes_the_configured_default():
+    """A layer that names no material takes ``[layers] material`` of the configuration, simple_rock."""
     config = _terrestrial_dict()
     del config["layers"]["core"]["material"]
     world = construct_world(config)
-    assert world.all_eos_set is True
+    assert world.all_materials_set is True
     world.solve_eos(G_to_use=G, verbose=False)
-    assert math.isclose(world.get_density(1.0e6), 3500.0, rel_tol=1e-6)
+    assert math.isclose(world.get_density(1.0e6), 3300.0, rel_tol=1e-6)
 
 
 @pytest.mark.parametrize("config, match", [
@@ -186,9 +203,22 @@ def test_typeless_layer_takes_the_default_eos():
         id="unknown-model-name"),
     pytest.param(
         _terrestrial_edited(
-            ("layers", "mantle", "material", "partial_melt"), {"model": "henning", "solidus": 1500.0}),
-        r"\[layers\.mantle\.material\].*partial_melt.*'solidus'",
-        id="misspelled-key-names-its-table"),
+            ("layers", "mantle", "material", "solid", "shear_viscosity"),
+            {"model": "constant", "reference_viscosty_pas": 1.0e21}),
+        r"\[layers\.mantle\.material\].*'reference_viscosty_pas'",
+        id="misspelled-material-key-names-its-table"),
+    pytest.param(
+        _terrestrial_edited(("layers", "mantle", "shear_rheology"), {"model": "andrade", "alpah": 0.3}),
+        r"\[layers\.mantle\.shear_rheology\].*'alpah'",
+        id="misspelled-model-key-names-its-table"),
+    pytest.param(
+        _terrestrial_edited(("layers", "mantle", "material"), "no_such_material"),
+        r"\[layers\.mantle\.material\].*no MatPack material named 'no_such_material'",
+        id="unknown-matpack-name"),
+    pytest.param(
+        _terrestrial_edited(("layers", "mantle", "material"), {"model": "constant", "reference_density_kg_m3": 3300.0}),
+        r"\[layers\.mantle\.material\] .*'solid\.eos'",
+        id="flat-material-table-names-the-phase"),
     pytest.param(
         {"name": "X", "type": "terrestrial", "radius_m": 1.0, "mass_kg": 1.0}, None, id="no-layers"),
 ])
@@ -198,42 +228,48 @@ def test_construct_world_rejects_a_bad_config(config, match):
 
 
 # =====================================================================================================================
-# Per-material defaults (tier 2: the configuration)
+# The layer's material: a MatPack name, a preset with overrides, a full table, or the configured default
 # =====================================================================================================================
-def test_material_defaults_filtered_to_class():
-    """solidliquid mantle_rock keeps cooling and radiogenics; base drops them."""
-    solidliquid = world_builder._material_type_defaults("mantle_rock", "solidliquid")
-    assert "cooling" in solidliquid and "radiogenics" in solidliquid
-    assert "shear_rheology" in solidliquid
-    base = world_builder._material_type_defaults("mantle_rock", "base")
-    assert "cooling" not in base and "radiogenics" not in base
-    assert solidliquid["shear_rheology"]["model"] == "andrade"
-    assert "zeta" in solidliquid["shear_rheology"]
-
-
-def test_no_material_type_uses_the_default_block():
-    """None selects ``[layers.default]`` (a copy of mantle_rock); ``"none"`` selects nothing."""
-    from_none = world_builder._material_type_defaults(None, "solidliquid")
-    assert from_none == world_builder._material_type_defaults("default", "solidliquid")
-    assert from_none == world_builder._material_type_defaults("mantle_rock", "solidliquid")
-    assert from_none["material"]["model"] == "constant"
-    assert world_builder._material_type_defaults("none", "solidliquid") == {}
-
-
 @pytest.mark.parametrize("layer_overrides, density", [
-    pytest.param({"type": "mantle_rock"}, 3500.0, id="material-type-default"),
+    pytest.param({}, 3300.0, id="configured-default-material"),
+    pytest.param({"material": "simple_ice"}, 920.0, id="matpack-name"),
     pytest.param(
-        {"type": "mantle_rock", "material": {"model": "constant", "reference_density_kg_m3": 5200.0}},
+        {"material": {"preset": "simple_rock", "solid": {"eos": {"reference_density_kg_m3": 5200.0}}}},
         5200.0,
         id="user-value-wins"),
-    # Ice's cooling and radiogenics defaults are dropped for a base layer, but its EOS still applies.
-    pytest.param({"class": "base", "type": "ice"}, 1000.0, id="base-layer-ice-type"),
+    pytest.param({"material": _constant_material(1000.0)}, 1000.0, id="full-table"),
 ])
-def test_single_layer_eos_follows_the_default_tiers(layer_overrides, density):
+def test_single_layer_eos_follows_the_layer_material(layer_overrides, density):
     world = construct_world(_single_layer_world(layer_overrides))
-    assert world.all_eos_set is True
+    assert world.all_materials_set is True
     assert world.solve_eos(G_to_use=G, verbose=False)["success"]
     assert math.isclose(world.get_density(3.0e6), density, rel_tol=0.05)
+
+
+def test_the_configured_default_material_is_editable(private_config):
+    private_config["layers"]["material"] = "simple_ice"
+    world = construct_world(_single_layer_world({}))
+    assert world.only.get_config_dict()["material"]["solid"]["eos"]["reference_density_kg_m3"] == 920.0
+    # A table works as the default too.
+    private_config["layers"]["material"] = {
+        "preset": "simple_ice", "solid": {"eos": {"reference_density_kg_m3": 930.0}}}
+    world = construct_world(_single_layer_world({}))
+    assert world.only.get_config_dict()["material"]["solid"]["eos"]["reference_density_kg_m3"] == 930.0
+
+
+def test_an_error_in_the_configured_default_material_names_the_configuration(private_config):
+    """A misspelled default is reported against TidalPy_Configs.toml, not against the layer, which names none."""
+    private_config["layers"]["material"] = "simple_rok"
+    with pytest.raises(ValueError, match=r"TidalPy_Configs\.toml \[layers\] material .*layer 'only'.*simple_rok"):
+        construct_world(_single_layer_world({}))
+
+
+def test_an_isotope_table_naming_no_dataset_takes_the_configured_one():
+    """A radiogenics table that names no dataset or arrays takes [radiogenics] isotopes, keeping its other keys."""
+    world = construct_world(_single_layer_world({"radiogenics": {"model": "isotope", "ref_time_s": 1.0e17}}))
+    held = world.only.get_config_dict()["radiogenics"]
+    assert held["isotope_names"] == ["U238", "U235", "Th232", "K40"]
+    assert held["ref_time_s"] == 1.0e17
 
 
 # =====================================================================================================================
@@ -245,13 +281,13 @@ def _layer_outer_radii(world):
 
 def _two_layer_world(name, inner_spec):
     """A 6000 km world whose inner layer takes ``inner_spec``; the outer layer fills the rest."""
-    inner = {"class": "solidliquid", "layer_index": 0}
+    inner = {"layer_index": 0}
     inner.update(inner_spec)
     return {
         "name": name, "type": "terrestrial", "radius_m": 6.0e6, "mass_kg": 5.0e24,
         "layers": {
             "inner": inner,
-            "outer": {"class": "solidliquid", "layer_index": 1, "radius_fraction": 1.0},
+            "outer": {"layer_index": 1, "radius_fraction": 1.0},
         }}
 
 
@@ -271,14 +307,10 @@ def test_inner_radius_derived_from_previous_layer():
     config = {
         "name": "D", "type": "terrestrial", "radius_m": 6.0e6, "mass_kg": 5.0e24,
         "layers": {
-            "core": {"class": "base", "layer_index": 0, "radius_outer_m": 2.0e6,
-                     "material": {"model": "constant", "reference_density_kg_m3": 8000.0}},
-            "mid": {"class": "base", "layer_index": 1, "radius_fraction": 0.75,
-                    "material": {"model": "constant", "reference_density_kg_m3": 5000.0}},
-            "shell": {"class": "base", "layer_index": 2, "volume_fraction": 0.125,
-                      "material": {"model": "constant", "reference_density_kg_m3": 3000.0}},
-            "crust": {"class": "base", "layer_index": 3, "radius_fraction": 1.0,
-                      "material": {"model": "constant", "reference_density_kg_m3": 2800.0}},
+            "core": {"layer_index": 0, "radius_outer_m": 2.0e6, "material": _constant_material(8000.0)},
+            "mid": {"layer_index": 1, "radius_fraction": 0.75, "material": _constant_material(5000.0)},
+            "shell": {"layer_index": 2, "volume_fraction": 0.125, "material": _constant_material(3000.0)},
+            "crust": {"layer_index": 3, "radius_fraction": 1.0, "material": _constant_material(2800.0)},
         }}
     world = construct_world(config)
     outers = _layer_outer_radii(world)
@@ -296,7 +328,7 @@ def test_inner_radius_derived_from_previous_layer():
 def _terrestrial_with_tides(tides_toml_keys):
     config = {"schema_version": "0.2.0", "name": "Tides", "type": "terrestrial",
               "radius_m": 6.371e6, "mass_kg": 5.972e24,
-              "layers": {"mantle": {"class": "solidliquid", "type": "mantle_rock", "radius_fraction": 1.0}},
+              "layers": {"mantle": {"radius_fraction": 1.0}},
               "tides": dict(tides_toml_keys)}
     return build_world(config)
 
@@ -327,7 +359,7 @@ def _bare_terrestrial():
     """A world config that names no world-level property, so the defaults tier decides."""
     return {"schema_version": "0.2.0", "name": "Bare", "type": "terrestrial",
             "radius_m": 6.0e6, "mass_kg": 5.0e24,
-            "layers": {"mantle": {"class": "solidliquid", "type": "mantle_rock", "radius_fraction": 1.0}}}
+            "layers": {"mantle": {"radius_fraction": 1.0}}}
 
 
 @pytest.fixture
@@ -411,10 +443,10 @@ def test_bundled_worlds_build(world_name):
     assert world.name
 
 
-def test_bundled_earth_simple_solves_via_material_defaults():
-    """earth_simple names no models, so both layers take their EOS from their material types."""
+def test_bundled_earth_simple_solves_with_its_material_tables():
+    """earth_simple gives each layer a full material table."""
     world = build_world("earth_simple")
-    assert world.all_eos_set is True
+    assert world.all_materials_set is True
     assert world.solve_eos(G_to_use=G, verbose=False)["success"]
 
 

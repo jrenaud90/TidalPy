@@ -5,7 +5,7 @@
 # quality factors, both measured at the reference frequency: Q(omega) = Q_ref (omega / omega_ref)^a, with the storage
 # modulus softened by the dispersion causality ties to that loss. The two world keys below seed every layer's
 # seismic_q table; a layer table naming seismic_q overrides them for that layer. A liquid layer takes no quality
-# factor. A layer table here may not give a viscosity or a material type, and names no rheology other than seismic_q
+# factor. A layer table here may not give a viscosity or turn melting on, and names no rheology other than seismic_q
 # (or elastic, for the bulk).
 #
 # The bundled PREM.csv carries PREM's quality factors at its 1 s reference period; earth_prem_q.toml in the WorldPack

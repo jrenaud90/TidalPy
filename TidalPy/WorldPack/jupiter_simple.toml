@@ -1,10 +1,8 @@
 # Simple single-layer gas-giant world for the Structures world builder, and the minimal example of the
-# schema: one gas-class layer of material type "gas" spanning the whole planet, with its rheology, cooling,
-# and other parameter defaults taken from the [layers.gas] block of TidalPy_Configs.toml.
+# schema: one layer of a liquid-only material, a fluid of constant density, spanning the whole planet.
 #
-# The layer density is stated here rather than left to those defaults, because the packaged default is a
-# round 1000 kg/m3 that has nothing to do with Jupiter: at the mean density below the solved equation of
-# state reproduces the stated mass, as every other bundled world does. One uniform layer still gives
+# The density is Jupiter's mean density, so the solved equation of state reproduces the stated mass, as
+# every other bundled world does. One uniform layer still gives
 # C/MR2 = 0.4, the uniform-sphere value, against Jupiter's 0.264, and a Love number of 1.5, the fluid-sphere
 # limit, against the measured 0.590. See jupiter.toml for the three-layer version that reproduces both.
 #
@@ -18,9 +16,9 @@ radius_m = 69911000.0
 mass_kg = 1.898e27
 spin_frequency_rad_s = 1.7585e-4
 
-# The layer temperatures below are prescribed, not solved: the one gas layer has no thermal law worth
-# integrating, and the default thermal solve would carry rock constants through hydrogen. The world
-# pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+# The layer temperature below is prescribed, not solved: the one layer has no thermal law worth
+# integrating. The world pins the equation-of-state solve to keep it (a call may still pass
+# solve_temperature = true).
 [eos_solver]
 solve_temperature = false
 
@@ -30,13 +28,11 @@ fixed_k = [0.59, 0.295, 0.1967, 0.1475, 0.118, 0.0983, 0.0843, 0.0738, 0.0656]
 fixed_q = [53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0, 53500.0]
 
 [layers.envelope]
-class = "gas"
-type = "gas"
 layer_index = 0
 radius_fraction = 1.0   # single layer spanning the whole world
-is_tidal = true
+use_tides = true
 temperature_k = 165.0
 
-[layers.envelope.material]
+[layers.envelope.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 1326.0841   # the mean density, so the solved mass matches the stated one

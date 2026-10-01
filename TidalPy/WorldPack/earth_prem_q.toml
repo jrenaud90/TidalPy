@@ -10,7 +10,7 @@
 # absorption band does. Liquid layers (the outer core, Q_mu = 0) take no quality factor.
 #
 # A [layers.layer_N] table may still refine a detected layer, and a seismic_q rheology table in it overrides these
-# world settings for that layer; it may not give the layer a viscosity or a material type. See
+# world settings for that layer; it may not give the layer a viscosity or melting. See
 # Documentation/Structures/config/toml_schema.md.
 schema_version = "0.2.0"
 name = "Earth-PREM-Q"

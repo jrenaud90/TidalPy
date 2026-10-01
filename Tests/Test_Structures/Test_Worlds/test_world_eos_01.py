@@ -1,4 +1,5 @@
 """The world equation-of-state solve (``BaseWorld.solve_eos``) and the per-layer material wiring (``material``)."""
+import copy
 import math
 import warnings
 from pathlib import Path
@@ -174,13 +175,15 @@ def test_resolve_overwrites_layer_mass():
 def test_bundled_world_internal_heating_after_solve():
     """A bundled world's radiogenic heating is zero until the EOS solve sets its layer masses."""
     from TidalPy.Structures import build_world
-    world = build_world("earth_simple")
+    # The bundled Earth names no radiogenic source, so its mantle is given the chondritic isotopes.
+    config = copy.deepcopy(build_world("earth_simple").source_config)
+    config["layers"]["mantle"]["radiogenics"] = {"model": "isotope", "isotopes": "modern_day_chondritic"}
+    world = build_world(config)
     assert world.calc_internal_heating(0.0) == 0.0
     assert world.solve_eos(verbose=False)["success"]
     heating = world.calc_internal_heating(0.0)
     assert heating > 0.0
-    expected = sum(layer.calc_radiogenic_heating(0.0, layer.mass)
-                   for layer in world.layers if hasattr(layer, "calc_radiogenic_heating"))
+    expected = sum(layer.calc_radiogenic_heating(0.0, layer.mass) for layer in world.layers)
     assert math.isclose(heating, expected, rel_tol=1e-12)
 
 
@@ -249,35 +252,48 @@ def test_loaded_world_solves_eos_without_reattaching(tmp_path):
 # =====================================================================================================================
 # Non-dimensional solve, central-pressure iteration, and configuration defaults
 # =====================================================================================================================
+def _bm_solid(reference_density, bulk_modulus, bulk_modulus_derivative, shear_modulus, shear_viscosity):
+    """A solid phase table on a Birch-Murnaghan law, with a constant shear modulus and the given viscosity law."""
+    return {"eos": {"model": "birch_murnaghan", "reference_density_kg_m3": reference_density,
+                    "reference_bulk_modulus_pa": bulk_modulus, "bulk_modulus_derivative": bulk_modulus_derivative},
+            "shear_modulus": {"model": "constant", "shear_modulus_pa": shear_modulus},
+            "shear_viscosity": shear_viscosity,
+            "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e22}}
+
+
+# The viscosity law of the silicate mantle layers: 1e22 Pa s at 1000 K, with an activation energy of 300 kJ/mol.
+_ROCK_VISCOSITY = {"model": "reference", "reference_viscosity_pas": 1.0e22, "reference_temperature_k": 1000.0,
+                   "molar_activation_energy_j_mol": 3.0e5, "molar_activation_volume_m3_mol": 0.0}
+
+
 def _compressible_world(radius=6.371e6):
     """Two Birch-Murnaghan layers, so the central-pressure iteration has real work to do."""
     from TidalPy.Structures import build_world
     return build_world({
         "schema_version": "0.2.0", "name": "bm", "type": "terrestrial", "radius_m": radius, "mass_kg": 6.0e24,
         "layers": {
-            "core": {"class": "base", "type": "iron", "layer_index": 0, "radius_fraction": 0.55,
-                     "material": {"model": "birch_murnaghan", "reference_density_kg_m3": 8300.0,
-                                  "reference_bulk_modulus_pa": 1.6e11, "bulk_modulus_derivative": 5.0}},
-            "mantle": {"class": "base", "type": "mantle_rock", "layer_index": 1, "radius_fraction": 1.0,
-                       "material": {"model": "birch_murnaghan", "reference_density_kg_m3": 3300.0,
-                                    "reference_bulk_modulus_pa": 1.3e11, "bulk_modulus_derivative": 4.0}}}})
+            "core": {"layer_index": 0, "radius_fraction": 0.55,
+                     "material": {"solid": _bm_solid(8300.0, 1.6e11, 5.0, 5.25e10,
+                                                     {"model": "constant", "reference_viscosity_pas": 1.0e20})},
+                     "shear_rheology": {"model": "maxwell"}},
+            "mantle": {"layer_index": 1, "radius_fraction": 1.0,
+                       "material": {"solid": _bm_solid(3300.0, 1.3e11, 4.0, 6.0e10, _ROCK_VISCOSITY)},
+                       "shear_rheology": {"model": "andrade", "alpha": 0.3, "zeta": 1.0}}}})
 
 
 def _one_layer_bm_world(radius, reference_density, bulk_modulus):
     from TidalPy.Structures import build_world
     return build_world({
         "schema_version": "0.2.0", "name": "bm1", "type": "terrestrial", "radius_m": radius, "mass_kg": 6.0e24,
-        "layers": {"mantle": {"class": "base", "type": "mantle_rock", "layer_index": 0, "radius_fraction": 1.0,
-                               "material": {"model": "birch_murnaghan",
-                                            "reference_density_kg_m3": reference_density,
-                                            "reference_bulk_modulus_pa": bulk_modulus,
-                                            "bulk_modulus_derivative": 4.0}}}})
+        "layers": {"mantle": {"layer_index": 0, "radius_fraction": 1.0,
+                              "material": {"solid": _bm_solid(reference_density, bulk_modulus, 4.0, 6.0e10,
+                                                              _ROCK_VISCOSITY)},
+                              "shear_rheology": {"model": "andrade", "alpha": 0.3, "zeta": 1.0}}}})
 
 
 @pytest.fixture
 def restore_config():
     """Restore ``TidalPy.config`` and the C++ solver defaults after a test changes them."""
-    import copy
     import TidalPy
     from TidalPy.constants import update_constants
     original = copy.deepcopy(TidalPy.config)

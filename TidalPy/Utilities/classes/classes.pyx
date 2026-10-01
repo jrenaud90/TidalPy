@@ -523,30 +523,19 @@ cdef class PhysicsBase(TidalPyBaseClass):
         return cy_physics_model_config(<const c_PhysicsBase*>self._ptr)
 
 
-def factory_defaults(str section, accepted_keys, model_name=None, same_model=None) -> dict:
-    """The parameters a ``make_*`` factory takes when called with no config: the world builder's defaults.
+def factory_defaults(str section, accepted_keys) -> dict:
+    """The keys of the ``[section]`` table of ``TidalPy_Configs.toml`` that a family's ``make_*`` factory reads.
 
-    The world builder resolves a model's parameters through the layer's own table and then the matching
-    model table of ``[layers.default]`` in ``TidalPy_Configs.toml`` (``[tides]`` for a tide model). A
-    model built directly through its factory shares that second tier, so one file describes both, and by the
-    same rule: a model the table does not name still takes its parameters, except the family's model-specific
-    keys (``configurations.MODEL_SPECIFIC_KEYS``), which another model would read differently, as a fixed
-    radiogenic rate would an isotope dataset's reference time. A key the model does not read is ignored by it.
+    Two families have such a table: tide models take ``[tides]`` (the per-degree lists the world builder also falls
+    back on) under the keys a call gives, and an isotope radiogenics model given no dataset takes the ``isotopes``
+    of ``[radiogenics]``. Every other family takes its models' own defaults, which their parameter tables state.
 
     Parameters
     ----------
     section : str
-        The table below ``[layers.default]``, dotted for nesting (``"material.shear_viscosity"``), or
-        ``"tides"`` for the top-level tide table.
+        The top-level table, ``"tides"`` or ``"radiogenics"``.
     accepted_keys : collection of str
-        The keys the family reads (the factory's ``*_CONFIG_KEYS``).
-    model_name : str, optional
-        The model being built. When the table's ``model`` names another one, its model-specific keys are left
-        out; a table with no ``model`` key, such as ``[tides]``, is taken as is.
-    same_model : callable, optional
-        ``same_model(table_name, model_name) -> bool``, the family's own alias-aware name test; a
-        ``ValueError`` from it counts as a different model. Without it the names are compared as lower-case
-        strings, so an alias will not match.
+        The keys the family reads (the factory's ``*_CONFIG_KEYS``); the table's other keys are left out.
 
     Returns
     -------
@@ -556,59 +545,10 @@ def factory_defaults(str section, accepted_keys, model_name=None, same_model=Non
     # Deferred: this module is imported while TidalPy initializes, before config exists.
     import TidalPy
     cdef dict config = getattr(TidalPy, "config", None) or {}
-    # `table` stays `object`: walking a dotted section can land on a scalar, which the isinstance check
-    # below turns into an empty table. `cdef dict` would raise on the assignment first.
-    cdef object table
-    cdef object named
-    cdef cpp_bool matches = True
-    cdef set accepted
-    cdef str part
-    if section == "tides":
-        table = config.get("tides", {}) or {}
-    else:
-        table = (config.get("layers", {}) or {}).get("default", {}) or {}
-        for part in section.split("."):
-            table = table.get(part, {}) or {}
-            if not isinstance(table, dict):
-                return {}
-    named = table.get("model", None)
-    if model_name is not None and named is not None:
-        if same_model is None:
-            matches = str(named).lower() == model_name.lower()
-        else:
-            try:
-                matches = bool(same_model(str(named), model_name))
-            except ValueError:
-                matches = False
-    accepted = set(accepted_keys)
-    accepted.discard("model")
-    if not matches:
-        # Deferred like TidalPy above: this module is imported while TidalPy initializes.
-        from TidalPy.configurations import MODEL_SPECIFIC_KEYS
-        # rpartition rather than split()[-1]: this module compiles with wraparound off, so a negative index reads
-        # out of bounds.
-        accepted -= MODEL_SPECIFIC_KEYS.get(section.rpartition(".")[2], frozenset())
-    return {key: value for key, value in table.items() if key in accepted}
-
-
-cdef dict cy_resolve_factory_config(
-        dict config, str section, object accepted_keys, str model_name, object same_model, str family):
-    """The config a ``make_*`` factory builds from.
-
-    ``None`` takes ``factory_defaults(section, accepted_keys, model_name, same_model)``, the world builder's defaults;
-    a given dict, empty included, is used as is. Either way ``check_config_keys`` then rejects a key the family does
-    not read, naming ``family``.
-    """
-    if config is None:
-        config = factory_defaults(section, accepted_keys, model_name, same_model)
-    check_config_keys(config, accepted_keys, family)
-    return config
-
-
-def resolve_factory_config(
-        config, str section, accepted_keys, str model_name, same_model, str family) -> dict:
-    """The config a ``make_*`` factory builds from (``cy_resolve_factory_config``), for the Python family helpers."""
-    return cy_resolve_factory_config(config, section, accepted_keys, model_name, same_model, family)
+    cdef object table = config.get(section, {}) or {}
+    if not isinstance(table, dict):
+        return {}
+    return {key: value for key, value in table.items() if key in accepted_keys and key != "model"}
 
 
 def check_config_keys(dict config, accepted_keys, str family):

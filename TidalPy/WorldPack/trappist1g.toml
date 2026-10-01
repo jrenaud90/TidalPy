@@ -22,8 +22,8 @@
 #
 # Temperatures and viscosities
 # Every layer carries a temperature and a reference-law viscosity at it (see io.toml): the core at 4000 K and 1e20
-# Pa s, the mantle at 1600 K and 1e21 Pa s with the 300 kJ/mol silicate activation energy and the Andrade rheology
-# of the silicate defaults. Nothing constrains either for a planet outside the solar system, so both are nominal
+# Pa s, the mantle at 1600 K and 1e21 Pa s with the 300 kJ/mol silicate activation energy and an Andrade rheology
+# (alpha = 0.3, zeta = 1). Nothing constrains either for a planet outside the solar system, so both are nominal
 # Earth-like values and the tidal response follows them: change the mantle viscosity before reading any dissipation
 # number off this file.
 #
@@ -46,41 +46,54 @@ spin_frequency_rad_s = 5.8872593e-06
 solve_temperature = false
 
 [layers.core]
-class = "solidliquid"
-type = "iron"
 layer_index = 0
 radius_outer_m = 3108901.9           # fitted to the published mass
-is_tidal = true
+use_tides = true
 temperature_k = 4000.0
 
-[layers.core.material]
+[layers.core.material.solid.eos]
 model = "constant"
 reference_density_kg_m3 = 10900.0     # Earth's mean core density
+bulk_modulus_pa = 1.6e11
 
-[layers.core.material.shear_viscosity]
+[layers.core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.core.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e20
 reference_temperature_k = 4000.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.core.shear_rheology]
+model = "maxwell"
+
 [layers.mantle]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 1
 radius_fraction = 1.0
-is_tidal = true
+use_tides = true
 temperature_k = 1600.0
 
-[layers.mantle.material]
-model = "bm"
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 3516.322    # the reference density of earth_simple
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 
-[layers.mantle.material.shear_viscosity]
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 6.0e10
+
+[layers.mantle.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e21
 reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0

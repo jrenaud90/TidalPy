@@ -185,7 +185,8 @@ cdef class Layer(StructureBase):
         How the radial solver treats the layer: ``"auto"`` (default) from its material (liquid for a liquid-only
         material, else solid with its molten stretches as static liquids), or ``"solid"`` or ``"liquid"``.
     is_static : bool, optional
-        Static (no inertia) equations in a liquid. Default ``True``.
+        Static (no inertia) equations; False takes the dynamic form, which a liquid needs at short periods. Default
+        ``True``.
     is_incompressible : bool, optional
         Incompressible equations. Default ``False``.
     temperature : float, optional
@@ -571,7 +572,7 @@ cdef class Layer(StructureBase):
 
     @property
     def is_static(self) -> bool:
-        """Static (no inertia) equations in a liquid. Read by the radial solver."""
+        """Static (no inertia) equations; False takes the dynamic form. Read by the radial solver."""
         self._check_ptr()
         return self._layer_ptr.get().get_is_static()
 

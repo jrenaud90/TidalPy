@@ -3,13 +3,13 @@
 # published mass, moment of inertia, and degree-2 Love number reproduced; earth_prem is the seismic
 # profile for work that needs one.
 #
-# Each layer names a `class` (which layer class to build) and a material `type`; the per-material
-# parameter defaults (EOS, rheology, viscosity, melt, cooling, radiogenics) are pulled from the matching
-# [layers.<type>] block of TidalPy_Configs.toml. Any of those can be overridden here by adding the
-# corresponding key or [..] sub-table, as the viscosity laws below are. Layers are built inner-to-outer:
-# the inner radius is derived from the previous layer (0 for the innermost), and each layer's outer
-# radius is set by exactly one of radius_outer_m, radius_fraction (* world radius), or volume_fraction
-# (* world volume).
+# Each layer states its material in full: a solid or a liquid phase, each with an equation of state and,
+# for a solid, a shear modulus and a viscosity law. A layer may instead name a MatPack material (material =
+# "peridotite"), or a preset with overrides (TidalPy.Material.available_materials() lists them). A layer
+# with a liquid-only material, like the outer core, is a liquid. Each solid layer names its rheology.
+# Layers are built inner-to-outer: the inner radius is derived from the previous layer (0 for the
+# innermost), and each layer's outer radius is set by exactly one of radius_outer_m, radius_fraction
+# (* world radius), or volume_fraction (* world volume).
 #
 # Structure
 # The core boundaries are PREM's: 1221.5 km for the inner core and 3480 km for the core-mantle boundary.
@@ -22,8 +22,8 @@
 # Temperatures and viscosities
 # Every layer carries a temperature and every solid layer a reference-law viscosity whose reference
 # temperature is the layer's own (see io.toml; E = 300 kJ/mol): the inner core at 5500 K and 1e20 Pa s,
-# the outer core at 4500 K, and the mantle at 1600 K and 1e21 Pa s with the Andrade rheology of the
-# silicate defaults.
+# the outer core at 4500 K, and the mantle at 1600 K and 1e21 Pa s with an Andrade rheology
+# (alpha = 0.3, zeta = 1).
 #
 # Tides
 # With the liquid outer core, the mantle's shear modulus is the one number fitted to a tidal observable:
@@ -48,55 +48,66 @@ spin_frequency_rad_s = 7.292e-5
 solve_temperature = false
 
 [layers.inner_core]
-class = "solidliquid"
-type = "iron"
 layer_index = 0
 radius_outer_m = 1221500.0            # PREM inner-core boundary
-is_tidal = true
+use_tides = true
 temperature_k = 5500.0
 
-[layers.inner_core.material]
+[layers.inner_core.material.solid.eos]
 model = "constant"
 reference_density_kg_m3 = 12900.0     # PREM inner core, 12.76 to 13.09
+bulk_modulus_pa = 1.6e11
 
-[layers.inner_core.material.shear_viscosity]
+[layers.inner_core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.inner_core.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e20
 reference_temperature_k = 5500.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.inner_core.shear_rheology]
+model = "maxwell"
+
 [layers.outer_core]
-class = "solidliquid"
-type = "iron"
 layer_index = 1
 radius_outer_m = 3480000.0            # PREM core-mantle boundary
-is_tidal = false
-is_solid = false                      # fluid outer core, solved as a static liquid
+use_tides = false
 temperature_k = 4500.0
 
-[layers.outer_core.material]
+# A liquid-only material, so the layer is a liquid: fluid outer core, solved as a static liquid.
+[layers.outer_core.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 11384.6     # fitted, with the mantle density, to the mass and C/MR2
+bulk_modulus_pa = 1.6e11
 
 [layers.mantle]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 2
 radius_fraction = 1.0                 # outer radius = full world radius
-is_tidal = true
+use_tides = true
 temperature_k = 1600.0
 
-[layers.mantle.material]
-model = "bm"
-shear_modulus_static_pa = 2.211e11    # fitted to k2 = 0.30 at the M2 period with the liquid outer core
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 3516.322    # fitted, with the outer core density, to the mass and C/MR2
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 
-[layers.mantle.material.shear_viscosity]
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 2.211e11           # fitted to k2 = 0.30 at the M2 period with the liquid outer core
+
+[layers.mantle.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e21
 reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
+
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0

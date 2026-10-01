@@ -7,16 +7,15 @@ import toml
 
 import TidalPy.schema as schema
 from TidalPy.constants import G, mass_jupiter
-from TidalPy.Material.eos.material_eos import MATERIAL_EOS_CONFIG_KEYS
-from TidalPy.Cooling.cooling import COOLING_CONFIG_KEYS
-from TidalPy.PartialMelt.partial_melt import PARTIAL_MELT_CONFIG_KEYS
-from TidalPy.Radiogenics.radiogenics import RADIOGENICS_CONFIG_KEYS
+from TidalPy.Cooling.cooling import COOLING_CONFIG_KEYS, make_cooling
+from TidalPy.Material import available_materials
+from TidalPy.Radiogenics.radiogenics import RADIOGENICS_CONFIG_KEYS, make_radiogenics
 from TidalPy.Rheology.rheology import RHEOLOGY_CONFIG_KEYS
 from TidalPy.Stellar.luminosity import LUMINOSITY_CONFIG_KEYS
 from TidalPy.Structures import build_system, build_world, build_world_from_dict
 from TidalPy.Structures.configs.toml_loader import SYSTEM_WORLD_KEYS
 from TidalPy.Tides.classes.tide import TIDE_CONFIG_KEYS
-from TidalPy.Viscosity.viscosity import VISCOSITY_CONFIG_KEYS
+from TidalPy.Utilities.classes.families import get_family
 
 EXAMPLES = os.path.normpath(os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "Documentation", "Structures", "config", "examples"))
@@ -111,14 +110,70 @@ def _layer_tables(examples):
 
 
 def _model_tables(examples, section):
+    """The tables of a layer-held model family: the layer's own, and its material phases' for a rheology."""
     for layer in _layer_tables(examples):
         table = layer.get(section)
         if isinstance(table, dict):
             yield table
-        if section != "material" and isinstance(layer.get("material"), dict):
-            nested = layer["material"].get(section)
-            if isinstance(nested, dict):
-                yield nested
+        material = layer.get("material")
+        if isinstance(material, dict):
+            for slot in ("solid", "liquid"):
+                nested = (material.get(slot) or {}).get(section)
+                if isinstance(nested, dict):
+                    yield nested
+
+
+def _material_tables(examples):
+    """Every layer's material, as written: a MatPack name or a table."""
+    for layer in _layer_tables(examples):
+        if "material" in layer:
+            yield layer["material"]
+
+
+# The law slots of a material table, each with the model family it holds: a phase's laws, and the melting laws.
+_PHASE_LAW_FAMILIES = {
+    "eos":             "equation of state",
+    "shear_modulus":   "shear modulus",
+    "shear_viscosity": "viscosity",
+    "bulk_viscosity":  "viscosity",
+    "shear_rheology":  "rheology",
+    "bulk_rheology":   "rheology",
+}
+_MELTING_LAW_FAMILIES = {
+    "solidus":               "melting curve",
+    "liquidus":              "melting curve",
+    "weakening":             "melt weakening",
+    "bulk_modulus_mixing":   "bulk-modulus mixing",
+    "bulk_viscosity_mixing": "bulk-viscosity mixing",
+}
+
+
+def _law_tables(examples, family):
+    """The law tables of one family in the examples' material tables (a preset's own laws are not written there)."""
+    for material in _material_tables(examples):
+        if not isinstance(material, dict):
+            continue
+        for slot in ("solid", "liquid"):
+            phase = material.get(slot) or {}
+            for law, law_family in _PHASE_LAW_FAMILIES.items():
+                table = phase.get(law)
+                if law_family == family and isinstance(table, dict):
+                    yield table
+                    # A composite viscosity's mechanisms are viscosity laws too.
+                    for mechanism in table.get("mechanisms", ()):
+                        yield mechanism
+        melting = material.get("melting") or {}
+        for law, law_family in _MELTING_LAW_FAMILIES.items():
+            if law_family == family and isinstance(melting.get(law), dict):
+                yield melting[law]
+
+
+def _phase_tables(examples):
+    for material in _material_tables(examples):
+        if isinstance(material, dict):
+            for slot in ("solid", "liquid"):
+                if isinstance(material.get(slot), dict):
+                    yield material[slot]
 
 
 def _keys(tables):
@@ -146,18 +201,34 @@ def test_every_tides_key_has_an_example(examples):
 
 def test_every_layer_key_has_an_example(examples):
     used = _keys(_layer_tables(examples))
-    for layer_class, allowed in schema.ALLOWED_LAYER_SCALAR_KEYS.items():
-        assert allowed <= used, (layer_class, allowed - used)
+    assert schema.LAYER_SCALAR_KEYS <= used, schema.LAYER_SCALAR_KEYS - used
     assert set(schema.LAYER_GEOMETRY_SPEC_KEYS) <= used
     assert set(schema.LAYER_MODEL_SECTIONS) <= used
-    classes = {layer.get("class") for layer in _layer_tables(examples)}
-    assert classes >= {"base", "solidliquid", "gas"}
+    assert "layer_index" in used
+
+
+def test_every_material_form_has_an_example(examples):
+    """A material is given as a MatPack name, as a preset with overrides, and as a full table."""
+    materials = list(_material_tables(examples))
+    names = [material for material in materials if isinstance(material, str)]
+    presets = [material for material in materials if isinstance(material, dict) and "preset" in material]
+    full = [material for material in materials if isinstance(material, dict) and "preset" not in material
+            and ("solid" in material or "liquid" in material)]
+    assert names and presets and full
+    assert set(names) | {material["preset"] for material in presets} <= set(available_materials())
+    # A full table of each kind: one with a solid phase and one with only a liquid phase.
+    assert any("solid" in material for material in full)
+    assert any("liquid" in material and "solid" not in material for material in full)
+
+
+def test_every_material_and_phase_key_has_an_example(examples):
+    material_keys = _keys(material for material in _material_tables(examples) if isinstance(material, dict))
+    assert get_family("material").config_keys_of("material") <= material_keys
+    phase_keys = _keys(_phase_tables(examples))
+    assert get_family("phase").config_keys_of("phase") <= phase_keys
 
 
 @pytest.mark.parametrize("sections, accepted", [
-    (("material",), MATERIAL_EOS_CONFIG_KEYS),
-    (("shear_viscosity", "bulk_viscosity"), VISCOSITY_CONFIG_KEYS),
-    (("partial_melt",), PARTIAL_MELT_CONFIG_KEYS),
     (("shear_rheology", "bulk_rheology"), RHEOLOGY_CONFIG_KEYS),
     (("cooling",), COOLING_CONFIG_KEYS),
     (("radiogenics",), RADIOGENICS_CONFIG_KEYS),
@@ -177,17 +248,51 @@ def test_every_luminosity_tide_and_system_key_has_an_example(examples):
     assert set(SYSTEM_WORLD_KEYS) <= members, set(SYSTEM_WORLD_KEYS) - members
 
 
-@pytest.mark.parametrize("sections, expected_models", [
-    (("material",), {"constant", "bm", "vinet", "interpolate"}),
-    (("shear_viscosity", "bulk_viscosity"), {"constant", "reference", "arrhenius"}),
-    (("partial_melt",), {"off", "spohn", "henning"}),
-    (("shear_rheology", "bulk_rheology"), {"elastic", "maxwell", "andrade", "sundberg", "voigt", "burgers"}),
-    (("cooling",), {"off", "convection", "conduction"}),
-    (("radiogenics",), {"off", "isotope", "fixed"}),
-], ids=lambda value: value[0] if isinstance(value, tuple) else None)
-def test_every_model_of_every_family_is_named_somewhere(examples, sections, expected_models):
-    """Each family's models appear across the layer tables (aliases aside)."""
+def _canonical(family_name, model_name):
+    # Cooling and radiogenics have no Python name lookup; a model built by name reports its canonical name.
+    if family_name == "cooling":
+        return make_cooling(model_name, {}).model_name
+    if family_name == "radiogenics":
+        return make_radiogenics(model_name, {}).model_name
+    return get_family(family_name).canonical_name(model_name)
+
+
+@pytest.mark.parametrize("sections, family_name, expected_models", [
+    pytest.param(("shear_rheology", "bulk_rheology"), "rheology", set(get_family("rheology").model_names()),
+                 id="rheology"),
+    pytest.param(("cooling",), "cooling", {"off", "convection", "conduction"}, id="cooling"),
+    pytest.param(("radiogenics",), "radiogenics", {"off", "isotope", "fixed"}, id="radiogenics"),
+])
+def test_every_model_of_every_layer_family_is_named_somewhere(examples, sections, family_name, expected_models):
+    """Each layer-held family's models appear across the layer tables (aliases aside)."""
     named = set()
     for section in sections:
-        named |= {table["model"] for table in _model_tables(examples, section) if "model" in table}
-    assert named >= expected_models, expected_models - named
+        named |= {_canonical(family_name, table["model"])
+                  for table in _model_tables(examples, section) if "model" in table}
+    expected = {_canonical(family_name, model) for model in expected_models}
+    assert named >= expected, expected - named
+
+
+# The models the examples' material tables name, by law family. The examples do not name every model of these
+# families; each model they name is checked to show every key it reads.
+_MATERIAL_LAW_MODELS = {
+    "equation of state":     {"constant", "birch_murnaghan", "vinet", "interpolate"},
+    "shear modulus":         {"linear", "interpolate"},
+    "viscosity":             {"arrhenius", "reference", "constant", "interpolate", "composite"},
+    "melting curve":         {"simon_glatzel_2"},
+    "melt weakening":        {"spohn"},
+    "bulk-modulus mixing":   {"hashin_shtrikman"},
+    "bulk-viscosity mixing": {"compaction"},
+}
+
+
+@pytest.mark.parametrize("family_name", sorted(_MATERIAL_LAW_MODELS))
+def test_every_material_law_model_and_its_keys_have_an_example(examples, family_name):
+    """The material tables name these models of each law family, and between them show every key those models read."""
+    family = get_family(family_name)
+    tables = list(_law_tables(examples, family_name))
+    named = {family.canonical_name(table["model"]) for table in tables}
+    assert named >= _MATERIAL_LAW_MODELS[family_name], _MATERIAL_LAW_MODELS[family_name] - named
+    needed = set().union(*(family.config_keys_of(model) for model in named))
+    used = _keys(tables)
+    assert needed <= used, needed - used

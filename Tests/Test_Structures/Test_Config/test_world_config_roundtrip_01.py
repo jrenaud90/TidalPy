@@ -9,12 +9,10 @@ from TidalPy.Structures.configs.world_builder import construct_world
 from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION, WORLD_TYPES, validate_world_config
 from TidalPy.Structures.worlds.base import BUILDER_WORLD_TYPES, BaseWorld
 from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
-from TidalPy.Material.eos.material_eos import BirchMurnaghanEOS, ConstantDensityEOS
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Andrade, Elastic
 from TidalPy.Viscosity import make_viscosity
-from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Cooling import make_cooling
 from TidalPy.Radiogenics.radiogenics import IsotopeRadiogenics
 from TidalPy.Tides.classes import make_tide
@@ -80,42 +78,49 @@ def test_hand_built_world_rebuilds_from_config_dict():
     radius = 6.0e6
     mass = (4.0 / 3.0) * math.pi * radius ** 3 * 4000.0
     world = TerrestrialWorld("handmade", radius, mass)
-    core = BaseLayer(
+    core_material = Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": 8000.0, "bulk_modulus_pa": 3.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 1.0e11},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e22},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30},
+    ))
+    core = Layer(
         "core",
         0,
         0.0,
         0.5 * radius,
         0.4 * mass,
+        material=core_material,
+        shear_rheology=Elastic(),
     )
-    core.set_eos(ConstantDensityEOS(
-        reference_density=8000.0,
-        shear_modulus_static=1.0e11,
-        bulk_modulus_static=3.0e11,
-        shear_viscosity_static=1.0e22,
-        bulk_viscosity_static=1.0e30,
-    ))
-    core.set_shear_rheology(Elastic())
-    mantle = SolidLiquidLayer(
+    # A melting mantle: a liquid phase, melting curves, and Henning weakening.
+    mantle_material = Material(
+        solid=Phase(
+            eos={"model": "birch_murnaghan", "reference_density_kg_m3": 3300.0, "reference_bulk_modulus_pa": 1.3e11,
+                 "bulk_modulus_derivative": 4.0},
+            shear_modulus={"model": "constant", "shear_modulus_pa": 6.0e10},
+            shear_viscosity=make_viscosity("reference", {"reference_viscosity_pas": 1.0e21}),
+            bulk_viscosity=make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}),
+        ),
+        liquid=Phase(
+            eos={"model": "constant", "reference_density_kg_m3": 2750.0, "bulk_modulus_pa": 2.0e10},
+            shear_viscosity={"model": "constant", "reference_viscosity_pas": 0.2},
+        ),
+        solidus={"model": "constant", "temperature_k": 1600.0},
+        liquidus={"model": "constant", "temperature_k": 2000.0},
+        weakening="henning",
+    )
+    mantle = Layer(
         "mantle",
         1,
         0.5 * radius,
         radius,
         0.6 * mass,
+        material=mantle_material,
+        use_melting=True,
+        shear_rheology=Andrade(0.3, 1.0),
+        bulk_rheology=Elastic(),
     )
-    mantle.set_eos(BirchMurnaghanEOS(
-        reference_density=3300.0,
-        reference_bulk_modulus=1.3e11,
-        bulk_modulus_derivative=4.0,
-        shear_modulus_static=6.0e10,
-        bulk_modulus_static=1.3e11,
-        shear_viscosity_static=1.0e21,
-        bulk_viscosity_static=1.0e30,
-    ))
-    mantle.set_shear_rheology(Andrade(0.3, 1.0))
-    mantle.set_bulk_rheology(Elastic())
-    mantle.set_shear_viscosity(make_viscosity("reference", {"reference_viscosity_pas": 1.0e21}))
-    mantle.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    mantle.set_partial_melt(make_partial_melt("henning"))
     mantle.set_cooling(make_cooling("convective"))
     mantle.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
     world.add_layer(core)
@@ -129,8 +134,11 @@ def test_hand_built_world_rebuilds_from_config_dict():
     assert cfg["type"] == world.world_type
     assert cfg["type"] in WORLD_TYPES
     assert list(cfg["layers"]) == ["core", "mantle"]
-    assert cfg["layers"]["core"]["class"] == "base"
-    assert cfg["layers"]["mantle"]["class"] == "solidliquid"
+    # One layer class: no class or material type is written, and each layer carries its material table.
+    assert all("class" not in layer and "type" not in layer for layer in cfg["layers"].values())
+    assert cfg["layers"]["core"]["material"]["solid"]["eos"]["reference_density_kg_m3"] == 8000.0
+    assert cfg["layers"]["mantle"]["use_melting"] is True
+    assert cfg["layers"]["mantle"]["material"]["melting"]["weakening"]["model"] == "henning"
     assert cfg["layers"]["mantle"]["radiogenics"]["isotope_names"][:2] == ["U238", "U235"]
     assert cfg["tides"]["global_tidal_model"] == tide_name
     assert cfg["tides"]["eccentricity_trunc_lvl"] == 4
@@ -146,14 +154,36 @@ def test_hand_built_world_rebuilds_from_config_dict():
     assert rebuilt.get_density(query_radius) == pytest.approx(world.get_density(query_radius), rel=1e-9)
 
 
+# An iron core and a silicate mantle, each with the values the earlier schema's iron and mantle_rock defaults gave.
+_IRON = {"solid": {
+    "thermal_conductivity_w_mk": 7.95,
+    "heat_capacity_j_kgk": 840.0,
+    "eos": {"model": "constant", "reference_density_kg_m3": 8000.0, "bulk_modulus_pa": 1.6e11,
+            "thermal_expansion_1_k": 1.2e-5},
+    "shear_modulus": {"model": "constant", "shear_modulus_pa": 5.25e10},
+    "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e20},
+    "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e22}}}
+_MANTLE_ROCK = {"solid": {
+    "thermal_conductivity_w_mk": 3.75,
+    "heat_capacity_j_kgk": 1200.0,
+    "eos": {"model": "constant", "reference_density_kg_m3": 3500.0, "bulk_modulus_pa": 2.0e11,
+            "thermal_expansion_1_k": 5.2e-5},
+    "shear_modulus": {"model": "constant", "shear_modulus_pa": 6.0e10},
+    "shear_viscosity": {"model": "reference", "reference_viscosity_pas": 1.0e22, "reference_temperature_k": 1000.0,
+                        "molar_activation_energy_j_mol": 3.0e5, "molar_activation_volume_m3_mol": 0.0},
+    "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e22}}}
+
+
 def _liquid_core_config(**core_flags):
     """A two-layer world whose core carries the given radial-solver flags."""
     core = {
-        "class": "base",
-        "type": "iron",
         "layer_index": 0,
         "radius_outer_m": 3.0e6,
-        "is_tidal": False,
+        "use_tides": False,
+        "material": _IRON,
+        "shear_rheology": {"model": "maxwell"},
+        "cooling": {"model": "off"},
+        "radiogenics": {"model": "off"},
     }
     core.update(core_flags)
     return {
@@ -164,18 +194,26 @@ def _liquid_core_config(**core_flags):
         "mass_kg": 5.0e24,
         "layers": {
             "core": core,
-            "mantle": {"class": "solidliquid", "type": "mantle_rock", "layer_index": 1, "radius_fraction": 1.0},
+            "mantle": {
+                "layer_index": 1,
+                "radius_fraction": 1.0,
+                "material": _MANTLE_ROCK,
+                "shear_rheology": {"model": "andrade", "alpha": 0.3, "zeta": 1.0},
+                "cooling": {"model": "convection", "convection_alpha": 1.0, "convection_beta": 1.0 / 3.0,
+                            "critical_rayleigh": 1100.0},
+                "radiogenics": {"model": "isotope", "isotopes": "modern_day_chondritic"},
+            },
         },
     }
 
 
 def test_layer_assumption_flags_round_trip_through_the_builder(tmp_path):
-    world = construct_world(_liquid_core_config(is_solid=False, is_incompressible=True))
-    assert (world.core.is_solid, world.core.is_static, world.core.is_incompressible) == (False, True, True)
-    assert (world.mantle.is_solid, world.mantle.is_static, world.mantle.is_incompressible) == (True, True, False)
+    world = construct_world(_liquid_core_config(state="liquid", is_incompressible=True))
+    assert (world.core.is_liquid, world.core.is_static, world.core.is_incompressible) == (True, True, True)
+    assert (world.mantle.is_liquid, world.mantle.is_static, world.mantle.is_incompressible) == (False, True, False)
 
     cfg = world.get_config_dict()
-    assert (cfg["layers"]["core"]["is_solid"], cfg["layers"]["core"]["is_incompressible"]) == (False, True)
+    assert (cfg["layers"]["core"]["state"], cfg["layers"]["core"]["is_incompressible"]) == ("liquid", True)
     validate_world_config(cfg)
     assert _nan_equal(construct_world(cfg).get_config_dict(), cfg)
 
@@ -184,15 +222,15 @@ def test_layer_assumption_flags_round_trip_through_the_builder(tmp_path):
     path = tmp_path / "liquid_core.toml"
     world.save_to_toml(str(path))
     reloaded = build_world(str(path))
-    assert (reloaded.core.is_solid, reloaded.core.is_incompressible) == (False, True)
+    assert (reloaded.core.is_liquid, reloaded.core.is_incompressible) == (True, True)
 
 
 def test_liquid_layer_key_matches_setting_the_flag_on_the_built_layer():
     """A liquid layer declared in the config gives the same Love number as flagging the built layer."""
     frequency = 2.0 * math.pi / 86400.0
-    declared = construct_world(_liquid_core_config(is_solid=False))
+    declared = construct_world(_liquid_core_config(state="liquid"))
     flagged = construct_world(_liquid_core_config())
-    flagged.core.is_solid = False
+    flagged.core.state = "liquid"
     solid = construct_world(_liquid_core_config())
     for world in (declared, flagged, solid):
         world.solve_eos(verbose=False)
@@ -213,7 +251,7 @@ def test_bare_base_world_fallback_save_is_rejected(tmp_path):
 
 def test_duplicate_layer_names_are_rejected():
     world = BaseWorld("dup", 2.0e6, 1.0e22)
-    world.add_layer(BaseLayer(
+    world.add_layer(Layer(
         "shell",
         0,
         0.0,
@@ -221,7 +259,7 @@ def test_duplicate_layer_names_are_rejected():
         5.0e21,
     ))
     with pytest.raises(ValueError):
-        world.add_layer(BaseLayer(
+        world.add_layer(Layer(
             "shell",
             1,
             1.0e6,

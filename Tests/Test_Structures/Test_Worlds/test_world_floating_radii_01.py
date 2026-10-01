@@ -18,10 +18,14 @@ def _shell_mass(density, radius_inner, radius_outer):
 _REFERENCE_CORE_MASS = _shell_mass(_CORE_DENSITY, 0.0, _CORE_FRACTION * _RADIUS)
 
 
+def _constant_density(density):
+    """A material of one constant-density phase."""
+    return {"solid": {"eos": {"model": "constant", "reference_density_kg_m3": density}}}
+
+
 def _config(core_floats=False, mantle_floats=False, core_density=_CORE_DENSITY, **core_keys):
-    core = {"class": "base", "type": "none", "layer_index": 0, "radius_fraction": _CORE_FRACTION,
-            "is_volume_fixed": not core_floats,
-            "material": {"model": "constant", "reference_density_kg_m3": core_density}}
+    core = {"layer_index": 0, "radius_fraction": _CORE_FRACTION, "is_volume_fixed": not core_floats,
+            "material": _constant_density(core_density)}
     core.update(core_keys)
     return {
         "schema_version": "0.2.0",
@@ -32,9 +36,8 @@ def _config(core_floats=False, mantle_floats=False, core_density=_CORE_DENSITY, 
                     + _shell_mass(_MANTLE_DENSITY, _CORE_FRACTION * _RADIUS, _RADIUS)),
         "layers": {
             "core": core,
-            "mantle": {"class": "base", "type": "none", "layer_index": 1, "radius_fraction": 1.0,
-                       "is_volume_fixed": not mantle_floats,
-                       "material": {"model": "constant", "reference_density_kg_m3": _MANTLE_DENSITY}},
+            "mantle": {"layer_index": 1, "radius_fraction": 1.0, "is_volume_fixed": not mantle_floats,
+                       "material": _constant_density(_MANTLE_DENSITY)},
         },
     }
 
@@ -102,11 +105,11 @@ def test_both_layers_can_float():
 def test_a_compressible_floating_layer_conserves_its_mass():
     """A compressible floating core holds its mass exactly in a smaller radius than the incompressible one."""
     config = _config(core_floats=True)
-    config["layers"]["core"]["material"] = {
-        "model": "bm",
+    config["layers"]["core"]["material"] = {"solid": {"eos": {
+        "model": "birch_murnaghan",
         "reference_density_kg_m3": _CORE_DENSITY,
         "reference_bulk_modulus_pa": 1.3e11,
-        "bulk_modulus_derivative": 4.5}
+        "bulk_modulus_derivative": 4.5}}}
     reference = construct_world(_config())
     reference.solve_eos()
     target_mass = reference.core.mass

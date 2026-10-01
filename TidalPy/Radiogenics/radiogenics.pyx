@@ -29,7 +29,8 @@ from TidalPy.Utilities.logging.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_SECONDS_PER_MYR
 from TidalPy.Utilities.arrays.vectors cimport cy_broadcast_inputs, cy_vector_to_ndarray
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_TidalPyBaseClass, cy_resolve_factory_config
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities.classes.classes import check_config_keys, factory_defaults
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -432,13 +433,6 @@ RADIOGENICS_CONFIG_KEYS = frozenset({
 _RADIOGENICS_CLASSES = (OffRadiogenics, IsotopeRadiogenics, FixedRadiogenics)
 
 
-def _same_model(str table_name, str model_name) -> bool:
-    """Whether two names (aliases included) resolve to the same model."""
-    return (
-        c_radiogenics_model_from_name(table_name.encode("utf-8"))
-        == c_radiogenics_model_from_name(model_name.encode("utf-8")))
-
-
 def make_radiogenics(str model_name, dict config=None):
     """Build a radiogenics model from a (case-insensitive) name and config dict.
 
@@ -449,9 +443,10 @@ def make_radiogenics(str model_name, dict config=None):
     config : dict, optional
         Model parameters under the unit-suffixed keys ``get_config_dict()`` emits. For ``isotope``: either
         explicit MKS arrays, or a named or inline dataset under ``isotopes`` whose half lives and reference
-        times are in Myr and converted here. For ``fixed``: ``fixed_heat_production_w_kg``,
-        ``average_half_life_s``, ``ref_time_s``. Each model ignores the other's keys, so a table merged
-        family-wide builds the model it names from that model's keys alone.
+        times are in Myr and converted here; an isotope config giving neither (``None`` included) takes the
+        ``isotopes`` dataset of ``[radiogenics]`` in ``TidalPy_Configs.toml``. For ``fixed``:
+        ``fixed_heat_production_w_kg``, ``average_half_life_s``, ``ref_time_s``. Each model ignores the other's
+        keys.
 
     Returns
     -------
@@ -462,9 +457,8 @@ def make_radiogenics(str model_name, dict config=None):
     ValueError
         Unknown model name, or a config key that no radiogenics model reads.
     """
-    # None falls back to the same defaults the world-attached path uses.
-    config = cy_resolve_factory_config(
-        config, "radiogenics", RADIOGENICS_CONFIG_KEYS, model_name, _same_model, "radiogenics")
+    config = {} if config is None else config
+    check_config_keys(config, RADIOGENICS_CONFIG_KEYS, "radiogenics")
 
     cdef c_RadiogenicsConfig cfg
     cdef c_IsotopeDataset ds
@@ -476,17 +470,19 @@ def make_radiogenics(str model_name, dict config=None):
     cfg.average_half_life     = config.get("average_half_life_s", cfg.average_half_life)
     cfg.ref_time              = config.get("ref_time_s", cfg.ref_time)
 
-    # Read only for the isotope model: a family-wide merged config can carry a dataset next to a fixed
-    # model, and the dataset's reference time must not become the fixed rate's. A built-in name resolves
-    # straight from the C++ catalog (already MKS); anything else goes through the Python resolver.
+    # Read only for the isotope model, so a dataset's reference time never becomes a fixed rate's. A built-in name
+    # resolves straight from the C++ catalog (already MKS); anything else goes through the Python resolver.
+    # Explicit MKS arrays win over a named dataset (the resolver's rule).
+    cdef cpp_bool explicit_arrays = ("half_lives_s" in config) or ("heat_production_w_kg" in config)
     cdef object isotopes = config.get("isotopes", None)
+    if (model == c_RadiogenicsModel.Isotope) and (isotopes is None) and not explicit_arrays:
+        isotopes = factory_defaults("radiogenics", RADIOGENICS_CONFIG_KEYS).get("isotopes")
+        if isotopes is not None:
+            config = {**config, "isotopes": isotopes}
     cdef cpp_bool built_in = (
         isinstance(isotopes, str)
         and isotopes.lower() in {name.decode("utf-8") for name in c_isotope_dataset_names()}
     )
-    # Explicit MKS arrays win over a named dataset (the resolver's rule), so a dataset name merged in from the
-    # material defaults never replaces the isotopes a layer lists itself.
-    cdef cpp_bool explicit_arrays = ("half_lives_s" in config) or ("heat_production_w_kg" in config)
     if model == c_RadiogenicsModel.Isotope:
         if built_in and not explicit_arrays:
             ds = c_get_isotope_dataset(isotopes.encode("utf-8"))

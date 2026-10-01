@@ -44,79 +44,93 @@ albedo = 0.67
 solve_temperature = false
 
 [layers.core]
-class = "solidliquid"
-type = "iron"
 layer_index = 0
 radius_outer_m = 599000.0
-is_tidal = true
+use_tides = true
 temperature_k = 1500.0
 
-[layers.core.material]
+[layers.core.material.solid.eos]
 model = "constant"
 reference_density_kg_m3 = 5150.0
+bulk_modulus_pa = 1.6e11
 
-[layers.core.material.shear_viscosity]
+[layers.core.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 5.25e10
+
+[layers.core.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e20
 reference_temperature_k = 1500.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.core.shear_rheology]
+model = "maxwell"
+
 [layers.mantle]
-class = "solidliquid"
-type = "mantle_rock"
 layer_index = 1
 radius_outer_m = 1421000.0
-is_tidal = true
+use_tides = true
 temperature_k = 1400.0
 
-[layers.mantle.material]
-model = "bm"
+[layers.mantle.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 3498.1963   # fitted to the published mass
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
 
-[layers.mantle.material.shear_viscosity]
+[layers.mantle.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 6.0e10
+
+[layers.mantle.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e21
 reference_temperature_k = 1400.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.mantle.shear_rheology]
+model = "andrade"
+alpha = 0.3
+zeta = 1.0
+
 [layers.ocean]
-class = "solidliquid"
-type = "ice"
 layer_index = 2
 radius_outer_m = 1536000.0            # under a 25 km ice shell
-is_tidal = false
-is_solid = false
+use_tides = false
 is_static = false                     # subsurface ocean, solved with the dynamic equations
-is_incompressible = false
 temperature_k = 273.0
 
-[layers.ocean.material]
-model = "bm"
+[layers.ocean.material.liquid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 999.84      # liquid water at 273.15 K, fitted to IAPWS-95 to 0.2 GPa
 reference_bulk_modulus_pa = 1.937e9
 bulk_modulus_derivative = 6.84
 
 [layers.ice_shell]
-class = "solidliquid"
-type = "ice"
 layer_index = 3
 radius_fraction = 1.0
-is_tidal = true
+use_tides = true
 temperature_k = 250.0
 
-[layers.ice_shell.material]
-model = "bm"
+[layers.ice_shell.material.solid.eos]
+model = "birch_murnaghan"
 reference_density_kg_m3 = 917.0
 reference_bulk_modulus_pa = 9.6e9     # ice I
 bulk_modulus_derivative = 5.5
 
-[layers.ice_shell.material.shear_viscosity]
+[layers.ice_shell.material.solid.shear_modulus]
+model = "constant"
+shear_modulus_pa = 3.3e9
+
+[layers.ice_shell.material.solid.shear_viscosity]
 model = "reference"
 reference_viscosity_pas = 1.0e15      # warm ice
 reference_temperature_k = 250.0
 molar_activation_energy_j_mol = 59.4e3
 molar_activation_volume_m3_mol = 0.0
+
+[layers.ice_shell.shear_rheology]
+model = "maxwell"

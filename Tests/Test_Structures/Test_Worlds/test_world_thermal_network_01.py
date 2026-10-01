@@ -12,14 +12,14 @@ _SURFACE_TEMPERATURE = 200.0
 
 
 def _material(density):
-    return {"model": "constant", "reference_density_kg_m3": density, "shear_modulus_static_pa": 6.0e10,
-            "thermal_conductivity_w_mk": 4.0, "heat_capacity_j_kgk": 1200.0, "thermal_expansion_1_k": 3.0e-5}
+    return {"solid": {"thermal_conductivity_w_mk": 4.0, "heat_capacity_j_kgk": 1200.0,
+                      "eos": {"model": "constant", "reference_density_kg_m3": density, "thermal_expansion_1_k": 3.0e-5},
+                      "shear_modulus": {"model": "constant", "shear_modulus_pa": 6.0e10}}}
 
 
 def _config(core, core_density=8000.0, mantle_cooling="conduction", **mantle_keys):
-    core = dict({"layer_index": 0, "radius_fraction": _CORE_FRACTION, "type": "none",
-                 "material": _material(core_density)}, **core)
-    mantle = dict({"class": "solidliquid", "type": "none", "layer_index": 1, "radius_fraction": 1.0,
+    core = dict({"layer_index": 0, "radius_fraction": _CORE_FRACTION, "material": _material(core_density)}, **core)
+    mantle = dict({"layer_index": 1, "radius_fraction": 1.0,
                    "temperature_k": _MANTLE_TEMPERATURE, "material": _material(3300.0),
                    "cooling": {"model": mantle_cooling}}, **mantle_keys)
     volume = (4.0 / 3.0) * math.pi
@@ -37,8 +37,8 @@ def _solve(config):
 
 
 @pytest.mark.parametrize("core", [
-    pytest.param({"class": "base"}, id="geometry_only"),
-    pytest.param({"class": "solidliquid", "temperature_k": 0.0, "cooling": {"model": "off"}}, id="zero_kelvin"),
+    pytest.param({}, id="geometry_only"),
+    pytest.param({"temperature_k": 0.0, "cooling": {"model": "off"}}, id="zero_kelvin"),
 ])
 def test_a_layer_without_a_temperature_is_no_heat_sink(core):
     """A layer without a temperature is outside the network and exchanges no heat with the mantle."""
@@ -55,7 +55,7 @@ def test_a_layer_without_a_temperature_is_no_heat_sink(core):
 
 def test_a_warm_core_still_couples():
     """A core with a temperature is in the network and feeds heat into the mantle."""
-    _, result = _solve(_config({"class": "solidliquid", "temperature_k": 1800.0, "cooling": {"model": "off"}}))
+    _, result = _solve(_config({"temperature_k": 1800.0, "cooling": {"model": "off"}}))
     assert result["layer_in_thermal_network"] == [True, True]
     assert result["layer_heat_flow_in"][1] > 0.0
 
@@ -63,7 +63,7 @@ def test_a_warm_core_still_couples():
 def test_the_solve_reports_the_convecting_detail():
     """The solve reports per-layer node, top, and base temperatures, boundary layers, Rayleigh and Nusselt numbers.
     A convecting layer's temperature is the top of its interior, and the adiabat warms below it."""
-    _, result = _solve(_config({"class": "solidliquid", "temperature_k": 1800.0, "cooling": {"model": "off"}},
+    _, result = _solve(_config({"temperature_k": 1800.0, "cooling": {"model": "off"}},
                                mantle_cooling="convection"))
     for key in ("layer_node_temperature", "layer_top_temperature", "layer_base_temperature", "layer_boundary_thickness",
                 "layer_rayleigh_number", "layer_nusselt_number"):
@@ -77,9 +77,9 @@ def test_the_solve_reports_the_convecting_detail():
 def test_floating_layers_end_on_the_solved_grid():
     """Floating layer radii end on the grid of the last solve pass."""
     # A compressible core with less mass than its starting geometry, so its radius takes several passes.
-    core = {"class": "base", "is_volume_fixed": False, "mass_kg": 2.0e22,
-            "material": {"model": "bm", "reference_density_kg_m3": 8000.0, "reference_bulk_modulus_pa": 1.3e11,
-                         "bulk_modulus_derivative": 4.5}}
+    core = {"is_volume_fixed": False, "mass_kg": 2.0e22,
+            "material": {"solid": {"eos": {"model": "birch_murnaghan", "reference_density_kg_m3": 8000.0,
+                                           "reference_bulk_modulus_pa": 1.3e11, "bulk_modulus_derivative": 4.5}}}}
     world, result = _solve(_config(core))
     assert result["geometry_converged"]
     assert result["thermal_passes"] > 1

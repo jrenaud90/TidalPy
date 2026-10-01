@@ -2530,7 +2530,7 @@ cdef class BaseWorld(StructureBase):
         The dict validates against the world schema and rebuilds the same world through ``build_world``. It carries
         a ``tides`` table when a tide model is attached (``global_tidal_model`` plus the model's per-degree
         parameters and the stored degree and truncation settings), and a ``layers`` table keyed by layer name when
-        the world has layers. Each layer entry is the layer's own ``get_config_dict`` (``class``, scalars,
+        the world has layers. Each layer entry is the layer's own ``get_config_dict`` (scalars, the material table,
         attached-model sub-tables) minus the standalone-only keys the builder derives itself (``name``,
         ``radius_inner_m``).
 

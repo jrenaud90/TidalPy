@@ -39,11 +39,13 @@ def test_earth_prem_builds_three_layers_with_a_liquid_outer_core():
     world = build_world("earth_prem")
     assert world.name == "Earth-PREM"
     assert world.num_layers == 3
-    assert world.all_eos_set is True
-    assert [layer.is_solid for layer in world] == [True, False, True]
+    assert world.all_materials_set is True
+    assert [not layer.is_liquid for layer in world] == [True, False, True]
     assert [layer.is_static for layer in world] == [True, True, True]
-    assert [layer.is_tidal for layer in world] == [True, False, True]
-    assert [cfg["is_solid"] for cfg in world.source_config["layers"].values()] == [True, False, True]
+    assert [layer.use_tides for layer in world] == [True, False, True]
+    # A detected liquid layer gets a liquid-only material.
+    phases = [list(cfg["material"]) for cfg in world.source_config["layers"].values()]
+    assert phases == [["solid"], ["liquid"], ["solid"]]
 
 
 def test_earth_prem_eos_solve_converges_and_reproduces_earth():
@@ -106,15 +108,17 @@ def _prem_config(**extra):
 
 
 def test_earth_prem_toml_override_of_modulus():
-    """A layer table's constant modulus replaces that layer's profile values; detected flags are kept."""
+    """A layer table's constant shear modulus replaces that layer's profile values; detected flags are kept."""
     world = build_world(_prem_config(layers={
-        "layer_0": {"class": "solidliquid", "layer_index": 0},
-        "layer_1": {"class": "base", "layer_index": 1, "is_incompressible": True},
-        "layer_2": {"class": "solidliquid", "layer_index": 2, "material": {"bulk_modulus_static_pa": 1.0e11}},
+        "layer_0": {"layer_index": 0},
+        "layer_1": {"layer_index": 1, "is_incompressible": True},
+        "layer_2": {
+            "layer_index": 2,
+            "material": {"solid": {"shear_modulus": {"model": "constant", "shear_modulus_pa": 1.0e11}}}},
     }))
     world.solve_eos(G_to_use=G, verbose=False)
-    assert math.isclose(world.get_bulk_modulus(_MANTLE_RADIUS_M), 1.0e11, rel_tol=1e-6)
-    assert [layer.is_solid for layer in world] == [True, False, True]
+    assert math.isclose(world.get_shear_modulus(_MANTLE_RADIUS_M), 1.0e11, rel_tol=1e-6)
+    assert [not layer.is_liquid for layer in world] == [True, False, True]
     assert [layer.is_incompressible for layer in world] == [False, True, False]
 
 
@@ -124,13 +128,13 @@ def test_one_layer_table_refines_one_layer():
         "mantle": {
             "layer_index": 2,
             "shear_rheology": {"model": "maxwell"},
-            "material": {"shear_viscosity_static_pas": 1.0e21},
+            "material": {"solid": {"shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}}},
         },
     }))
     assert world.num_layers == 3
     assert [layer.name for layer in world] == ["layer_0", "layer_1", "mantle"]
-    assert [layer.shear_rheology_set for layer in world] == [False, False, True]
-    assert [layer.is_solid for layer in world] == [True, False, True]
+    assert [layer.shear_rheology is not None for layer in world] == [False, False, True]
+    assert [not layer.is_liquid for layer in world] == [True, False, True]
     world.solve_eos(G_to_use=G, verbose=False)
     arrays = _prem_arrays()
     expected = np.interp(_MANTLE_RADIUS_M, arrays["radius_m"], arrays["density_kg_m3"])
@@ -155,7 +159,7 @@ def _prem_config_without_radius():
             id="table_without_layer_index",
         ),
         pytest.param(
-            lambda: _prem_config(layers={"layer_7": {"class": "solidliquid"}}),
+            lambda: _prem_config(layers={"layer_7": {"is_static": True}}),
             "layer_index 7",
             id="table_out_of_range",
         ),
@@ -202,7 +206,7 @@ def test_a_world_can_be_built_from_arrays_in_memory():
         },
     })
     assert world.num_layers == 3
-    assert [layer.is_solid for layer in world] == [True, False, True]
+    assert [not layer.is_liquid for layer in world] == [True, False, True]
     world.solve_eos(G_to_use=G, verbose=False)
     assert math.isclose(world.planet_mass_eos, _PREM_MASS, rel_tol=1.0e-3)
     # The arrays became the layers' materials, so the config does not carry them twice.
@@ -216,8 +220,8 @@ def test_a_profile_without_viscosities_is_elastic():
     """A profile with no viscosity column gives an elastic body: no rheology, viscosity, or melt."""
     world = build_world("earth_prem")
     for layer in world:
-        assert layer.shear_rheology_set is False
-        assert layer.bulk_rheology_set is False
+        assert layer.shear_rheology is None
+        assert layer.bulk_rheology is None
     world.solve_eos(G_to_use=G, verbose=False)
     assert math.isnan(world.get_shear_viscosity(_MANTLE_RADIUS_M))
     assert math.isnan(world.get_bulk_viscosity(_MANTLE_RADIUS_M))

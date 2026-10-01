@@ -5,14 +5,14 @@ builder. TOML is read and validated here and never reaches C++.
 
 A world configuration carries the required ``name``, ``type``, ``radius_m``, and ``mass_kg``, optional
 world scalars, an optional ``[tides]`` table, and one or more ``[layers.<name>]`` tables (optional for a star).
-A layer names a ``class``, an optional material ``type``, exactly one outer-radius specifier, scalar parameters, and
-nested physics-model tables each carrying a ``model`` key. The key sets of
-:mod:`TidalPy.schema`, re-exported here, are the authoritative list of what is accepted where, and
-``Documentation/Structures/config/toml_schema.md`` has the worked schema.
+A layer carries exactly one outer-radius specifier, scalar parameters (its physics switches and radial-solver
+assumptions), its ``material`` (a MatPack name or a material table), and optional model tables each carrying a
+``model`` key: rheology overrides, cooling, and radiogenics. The key sets of :mod:`TidalPy.schema`, re-exported here,
+are the authoritative list of what is accepted where, and ``Documentation/Structures/config/toml_schema.md`` has the
+worked schema.
 
-A parameter the user omits is resolved in three tiers: the user configuration, then the
-``[layers.<type>]`` block of ``TidalPy_Configs.toml`` selected by the layer's material ``type``, then
-the C++, Cython, or factory default. That merge lives in the world builder.
+A layer that names no material takes ``[layers] material`` of ``TidalPy_Configs.toml``; every other value the user
+omits takes the layer's or the model's own default.
 """
 
 import copy
@@ -31,26 +31,17 @@ from TidalPy.configurations import validate_schema_version, warning_enabled
 from TidalPy.schema import (
     SCHEMA_VERSION,
     WORLD_TYPES,
-    LAYER_CLASSES,
-    DEFAULT_MATERIAL_TYPE,
-    NO_MATERIAL_TYPE,
-    MATERIAL_TYPES,
     LAYER_MODEL_SECTIONS,
-    MOVED_TO_MATERIAL,
-    ALLOWED_MODEL_SECTIONS,
     LAYER_GEOMETRY_SPEC_KEYS,
-    MATERIAL_SCALAR_KEYS,
-    MOVED_THERMAL_KEYS,
-    ALLOWED_LAYER_SCALAR_KEYS,
+    LAYER_SCALAR_KEYS,
+    LAYER_STATES,
+    RETIRED_LAYER_KEYS,
     ALLOWED_WORLD_SCALAR_KEYS,
     WORLD_MODEL_SECTIONS,
     ALLOWED_TIDES_KEYS,
     EOS_SOLVER_KEYS,
     RADIAL_SOLVER_KEYS,
     SOLVER_TABLES,
-    _BASE_LAYER_KEYS,
-    _SOLIDLIQUID_LAYER_KEYS,
-    _GAS_LAYER_KEYS,
     _COMMON_WORLD_KEYS,
     _STAR_WORLD_KEYS,
     _SOLVER_KEY_RULES,
@@ -362,8 +353,9 @@ def outer_radius_from_spec(layer_name: str, layer_cfg: dict, radius_inner: float
 # Schema keys that are switches. TOML writes them as true or false; a string or a number in their place is a
 # mistake that bool() would hide, since bool("false") is True.
 BOOLEAN_KEYS = frozenset({
-    "is_incompressible", "is_solid", "is_static", "is_tidal", "is_volume_fixed", "is_star",
-    "layer_tidal_heating", "solve_temperature", "use_heating", "use_kamata", "use_thermal_eos"})
+    "is_incompressible", "is_static", "is_volume_fixed", "is_star", "layer_tidal_heating", "solve_temperature",
+    "use_heating", "use_kamata", "use_melt_density", "use_melting", "use_pressure_melting", "use_thermal_expansion",
+    "use_tides"})
 
 
 def _require_booleans(where: str, table: dict) -> None:
@@ -460,6 +452,9 @@ def validate_physical_values(config: dict) -> None:
 def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
     """Validate a single ``[layers.<layer_name>]`` table.
 
+    The material table itself is checked when the material is built (``load_material``), which names the key or
+    model at fault.
+
     Parameters
     ----------
     layer_name : str
@@ -470,10 +465,9 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
     Raises
     ------
     ValueError
-        If the layer ``class`` is missing or unknown, the material ``type`` is
-        unknown, the outer-radius specification is missing/ambiguous, ``radius_inner_m``
-        is supplied, an unexpected scalar key or model table appears, or a model table
-        is not allowed for the layer's class.
+        If the outer-radius specification is missing or ambiguous, ``radius_inner_m`` is supplied, a key is unknown
+        (a retired one says what replaced it), ``material`` is neither a name nor a table, ``state`` is not one of
+        ``LAYER_STATES``, or a model table has no ``model`` key.
 
     Notes
     -----
@@ -485,21 +479,6 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
     if not isinstance(layer_cfg, dict):
         raise ValueError(f"Layer '{layer_name}' must be a table of key-value pairs.")
     _require_booleans(f"Layer '{layer_name}'", layer_cfg)
-
-    layer_class = layer_cfg.get("class", None)
-    if layer_class is None:
-        raise ValueError(f"Layer '{layer_name}' is missing the required 'class' key.")
-    if layer_class not in LAYER_CLASSES:
-        raise ValueError(
-            f"Layer '{layer_name}' has unknown class '{layer_class}'. "
-            f"Expected one of {LAYER_CLASSES}.")
-
-    # Optional; when present it selects the per-material defaults in TidalPy's configuration.
-    material_type = layer_cfg.get("type", None)
-    if material_type is not None and material_type not in MATERIAL_TYPES:
-        raise ValueError(
-            f"Layer '{layer_name}' has unknown material type '{material_type}'. "
-            f"Expected one of {MATERIAL_TYPES}.")
 
     # The inner radius is derived, never user-supplied; the outer radius comes from exactly one specifier.
     if "radius_inner_m" in layer_cfg:
@@ -516,50 +495,28 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
             f"Layer '{layer_name}' specifies multiple outer-radius keys {specs_present}; "
             f"use exactly one of {LAYER_GEOMETRY_SPEC_KEYS}.")
 
-    allowed_scalars = ALLOWED_LAYER_SCALAR_KEYS[layer_class]
-    allowed_models = ALLOWED_MODEL_SECTIONS[layer_class]
     for key, value in layer_cfg.items():
-        if key in ("class", "type", "layer_index") or key in LAYER_GEOMETRY_SPEC_KEYS:
+        if key == "layer_index" or key in LAYER_GEOMETRY_SPEC_KEYS:
             continue
-        if isinstance(value, dict):
-            if key in MOVED_TO_MATERIAL:
-                inside = "material" if key == "eos" else f"material.{key}"
-                raise ValueError(
-                    f"Layer '{layer_name}' has a '[{key}]' table. The material owns that now: move it to "
-                    f"'[layers.{layer_name}.{inside}]'.")
-            if key not in LAYER_MODEL_SECTIONS:
-                raise ValueError(
-                    f"Layer '{layer_name}' has unknown model table '[{key}]'. "
-                    f"Known model tables: {LAYER_MODEL_SECTIONS}.")
-            if key not in allowed_models:
-                raise ValueError(
-                    f"Layer '{layer_name}' of class '{layer_class}' cannot hold a "
-                    f"'{key}' model. Allowed for this class: {allowed_models}.")
-            # The material table is mostly scalars, and overriding one of them, a fitted shear modulus say,
-            # should not mean restating the model the layer's material type already names. The builder
-            # checks a model is there once the defaults are merged in.
-            if "model" not in value and key != "material":
-                raise ValueError(
-                    f"Model table '[{key}]' on layer '{layer_name}' is missing the "
-                    "required 'model' key.")
-        elif key in MOVED_THERMAL_KEYS:
+        if key in RETIRED_LAYER_KEYS:
             raise ValueError(
-                f"Layer '{layer_name}' sets '{key}' on the layer. It is a property of the material: set "
-                f"'{MOVED_THERMAL_KEYS[key]}' in '[layers.{layer_name}.material]'.")
-        elif key in MATERIAL_SCALAR_KEYS:
+                f"Layer '{layer_name}' sets '{key}', which layers no longer take: {RETIRED_LAYER_KEYS[key]}.")
+        if key == "material":
+            if not isinstance(value, (str, dict)):
+                raise ValueError(
+                    f"Layer '{layer_name}': 'material' is a MatPack name or a material table, not {value!r}.")
+        elif key in LAYER_MODEL_SECTIONS:
+            if not isinstance(value, dict) or "model" not in value:
+                raise ValueError(
+                    f"Layer '{layer_name}': '[{key}]' must be a table with a 'model' key.")
+        elif isinstance(value, dict):
             raise ValueError(
-                f"Layer '{layer_name}' sets '{key}' on the layer. It is a property of the material: move it "
-                f"into '[layers.{layer_name}.material]'.")
-        elif key == "reference_density_kg_m3":
-            # A gas layer once took this key, but its density has always come from the material's law, so a value
-            # here was silently ignored (and the solved mass missed the one intended).
+                f"Layer '{layer_name}' has unknown table '[{key}]'. Known tables: {LAYER_MODEL_SECTIONS}.")
+        elif key not in LAYER_SCALAR_KEYS:
             raise ValueError(
-                f"Layer '{layer_name}' sets 'reference_density_kg_m3' on the layer, where nothing reads it: the "
-                f"layer's density comes from its material. Set it in '[layers.{layer_name}.material]'.")
-        elif key not in allowed_scalars:
-            raise ValueError(
-                f"Unexpected key '{key}' on layer '{layer_name}' of class "
-                f"'{layer_class}'. Allowed keys: {sorted(allowed_scalars)}.")
+                f"Unexpected key '{key}' on layer '{layer_name}'. Allowed keys: {sorted(LAYER_SCALAR_KEYS)}.")
+        elif key == "state" and value not in LAYER_STATES:
+            raise ValueError(f"Layer '{layer_name}': 'state' must be one of {LAYER_STATES}, not {value!r}.")
 
 
 # =====================================================================================================================

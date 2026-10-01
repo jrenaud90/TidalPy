@@ -1,9 +1,9 @@
-# Example-GasGiant: a gas-giant world with a `gas` layer and an analytic tide model, showing the keys a layered
-# world file (example_world.toml) does not: the gas-layer scalars, the per-degree lists of the analytic tide models,
-# the long spellings of the truncation keys, and the ctl Love method with its stored time lag.
+# Example-GasGiant: a gas-giant world with a fluid envelope and an analytic tide model, showing the keys a layered
+# world file (example_world.toml) does not: the per-degree lists of the analytic tide models, the long spellings of
+# the truncation keys, and the ctl Love method with its stored time lag.
 #
-# A gas giant is a GasGiantWorld whose layers are gas; the classes and keys are otherwise those of example_world.toml,
-# and this file leaves to the [layers.gas] defaults everything it does not state.
+# A gas giant is a GasGiantWorld whose layers are fluids: each takes a liquid-only material (MatPack has
+# simple_gas, h2_he_molecular, and h_he_metallic). The keys are otherwise those of example_world.toml.
 
 schema_version = "0.2.0"
 name = "Example-GasGiant"
@@ -30,27 +30,13 @@ love_fixed_q = 1.0e5                # what the cpl method would use
 love_fixed_dt_s = 1.0e-2            # what the ctl method uses; set, so it never falls back to the tide model's list
 
 [layers.envelope]
-class = "gas"
-type = "gas"
 layer_index = 0
 radius_fraction = 1.0               # one layer spanning the whole world
-is_tidal = true
+use_tides = true
 tidal_scale = 1.0                   # the layer's share of an analytic tide model's heating (default: its volume fraction)
-is_solid = false                    # a gas layer is a liquid to the radial solver (its class default)
-is_static = true
 temperature_k = 165.0
-mean_molecular_weight_kg_mol = 2.22e-3  # stored and saved; no calculation reads them
-adiabatic_index = 1.4
-reference_temperature_k = 165.0
 
-[layers.envelope.material]
+# A liquid-only material, so the layer is a liquid (a static one unless is_static = false).
+[layers.envelope.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 1326.0    # the mean density: the constant law gives the stated mass at this radius
-shear_modulus_static_pa = 0.0
-bulk_modulus_static_pa = 1.0e5
-
-[layers.envelope.shear_rheology]
-model = "elastic"
-
-[layers.envelope.bulk_rheology]
-model = "elastic"

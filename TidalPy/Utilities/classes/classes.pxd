@@ -122,11 +122,6 @@ cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dic
 cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries)
 cdef dict cy_physics_model_config(const c_PhysicsBase* model_ptr)
 
-# The config a family's make_* factory builds from: the caller's, or the world builder's defaults when it gave none,
-# after the family's key check.
-cdef dict cy_resolve_factory_config(
-    dict config, str section, object accepted_keys, str model_name, object same_model, str family)
-
 
 cdef class TidalPyBaseClass:
     cdef c_TidalPyBaseClass* _ptr

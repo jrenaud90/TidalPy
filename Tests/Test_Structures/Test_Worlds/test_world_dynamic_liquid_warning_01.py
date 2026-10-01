@@ -38,7 +38,7 @@ def _world(name, is_static=True, is_incompressible=False):
     world = build_world(name)
     world.solve_eos()
     for layer in world.layers:
-        if not layer.is_solid:
+        if layer.is_liquid:
             layer.is_static = is_static
             layer.is_incompressible = is_incompressible
     return world

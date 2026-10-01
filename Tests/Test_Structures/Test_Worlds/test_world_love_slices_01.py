@@ -11,21 +11,24 @@ from TidalPy.Structures import build_world
 _FREQUENCY = 2.0 * math.pi / 86400.0
 
 
+def _bm_solid(reference_density, bulk_modulus, bulk_modulus_derivative, shear_modulus, shear_viscosity):
+    """A solid phase table on a Birch-Murnaghan law with a constant shear modulus and constant viscosities."""
+    return {"eos": {"model": "birch_murnaghan", "reference_density_kg_m3": reference_density,
+                    "reference_bulk_modulus_pa": bulk_modulus, "bulk_modulus_derivative": bulk_modulus_derivative},
+            "shear_modulus": {"model": "constant", "shear_modulus_pa": shear_modulus},
+            "shear_viscosity": {"model": "constant", "reference_viscosity_pas": shear_viscosity},
+            "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e22}}
+
+
 def _compressible_world():
     return build_world({
         "schema_version": "0.2.0", "name": "bm", "type": "terrestrial", "radius_m": 6.371e6, "mass_kg": 6.0e24,
         "layers": {
-            "core": {"class": "base", "type": "iron", "layer_index": 0, "radius_fraction": 0.55,
-                     "material": {"model": "birch_murnaghan", "reference_density_kg_m3": 8300.0,
-                                  "reference_bulk_modulus_pa": 1.6e11, "bulk_modulus_derivative": 5.0,
-                                  "shear_modulus_static_pa": 1.0e11, "bulk_modulus_static_pa": 5.0e11,
-                                  "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e24}},
+            "core": {"layer_index": 0, "radius_fraction": 0.55,
+                     "material": {"solid": _bm_solid(8300.0, 1.6e11, 5.0, 1.0e11, 1.0e24)},
                      "shear_rheology": {"model": "maxwell"}},
-            "mantle": {"class": "base", "type": "mantle_rock", "layer_index": 1, "radius_fraction": 1.0,
-                       "material": {"model": "birch_murnaghan", "reference_density_kg_m3": 3300.0,
-                                    "reference_bulk_modulus_pa": 1.3e11, "bulk_modulus_derivative": 4.0,
-                                    "shear_modulus_static_pa": 7.0e10, "bulk_modulus_static_pa": 2.0e11,
-                                    "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}},
+            "mantle": {"layer_index": 1, "radius_fraction": 1.0,
+                       "material": {"solid": _bm_solid(3300.0, 1.3e11, 4.0, 7.0e10, 1.0e21)},
                        "shear_rheology": {"model": "maxwell"}}}})
 
 

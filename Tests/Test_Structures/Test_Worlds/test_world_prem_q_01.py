@@ -74,7 +74,7 @@ def test_quality_factor_columns_are_ignored_without_q_provided():
     """earth_prem reads the same file and stays elastic."""
     config = build_world("earth_prem").source_config
     for layer in config["layers"].values():
-        assert "shear_viscosity_pas" not in layer["material"]
+        assert all("shear_viscosity" not in phase for phase in layer["material"].values())
         assert "shear_rheology" not in layer
     assert abs(_k2(build_world("earth_prem")).imag) < 1.0e-12
 
@@ -85,17 +85,18 @@ def test_quality_factor_columns_are_ignored_without_q_provided():
 def test_earth_prem_q_gives_each_solid_layer_seismic_q():
     world = build_world("earth_prem_q")
     live = world.get_config_dict()["layers"]
-    solid = [name for name, layer in zip(live, world) if layer.is_solid]
+    solid = [name for name, layer in zip(live, world) if not layer.is_liquid]
     assert solid == ["layer_0", "layer_2"]
     for name in solid:
         for table in ("shear_rheology", "bulk_rheology"):
             assert live[name][table] == {"model": "seismic_q", "reference_frequency_rad_s": _PREM_REFERENCE,
                                          "q_frequency_exponent": 0.0}
-    mantle_q = world.source_config["layers"]["layer_2"]["material"]["shear_viscosity_pas"]
+    mantle_q = world.source_config["layers"]["layer_2"]["material"]["solid"]["shear_viscosity"]["viscosity_pas"]
     assert (min(mantle_q), max(mantle_q)) == (80.0, 600.0)
-    # The liquid outer core has no quality factor and no rheology.
+    # The liquid outer core has a liquid-only material, no quality factor, and no rheology.
     outer_core = world.source_config["layers"]["layer_1"]
-    assert "shear_viscosity_pas" not in outer_core["material"]
+    assert list(outer_core["material"]) == ["liquid"]
+    assert "shear_viscosity" not in outer_core["material"]["liquid"]
     assert "shear_rheology" not in outer_core
 
 
@@ -201,11 +202,17 @@ def test_profile_must_give_q_and_no_viscosity(mapping, match):
 @pytest.mark.parametrize("layer_table,match", [
     ({"shear_rheology": {"model": "maxwell"}}, "only the 'seismic_q' rheology reads"),
     ({"bulk_rheology": {"model": "andrade"}}, "or 'elastic', which ignores them"),
-    ({"material": {"shear_viscosity_static_pas": 1.0e21}}, "not a viscosity"),
-    ({"type": "rock"}, "Leave 'type' unset"),
-    # A solid layer's viscosity slot holds Q_mu, which a melt law or a Rayleigh number would read as a viscosity.
-    ({"material": {"partial_melt": {"model": "henning"}}}, "Only 'off' is allowed"),
-    ({"material": {"partial_melt": {"model": "spohn"}}}, "Only 'off' is allowed"),
+    ({"material": {"solid": {"shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}}}},
+     "not a viscosity"),
+    ({"material": {"solid": {"bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e21}}}},
+     "not a viscosity"),
+    # A MatPack name would replace the profile's slice, quality factors and all, rather than refine it.
+    ({"material": "peridotite"}, "must be a table of changes"),
+    # A preset, of the material or of its solid phase, would replace the slice's quality factors too.
+    ({"material": {"preset": "peridotite"}}, "names a material 'preset'"),
+    ({"material": {"solid": {"preset": "peridotite"}}}, "names a material 'preset'"),
+    # A solid layer's viscosity slot holds Q_mu, which melt weakening or a Rayleigh number would read as a viscosity.
+    ({"use_melting": True}, "use_melting = true"),
     ({"cooling": {"model": "convective"}}, "Use 'conduction' or 'off'"),
 ])
 def test_layer_tables_that_would_misread_q_are_refused(layer_table, match):
@@ -215,7 +222,7 @@ def test_layer_tables_that_would_misread_q_are_refused(layer_table, match):
 
 
 def test_models_that_do_not_read_the_viscosity_are_allowed():
-    layer_table = {"material": {"partial_melt": {"model": "off"}}, "cooling": {"model": "conduction"}}
+    layer_table = {"use_melting": False, "cooling": {"model": "conduction"}}
     world = build_world(_prem_q_config(layers={"layer_2": layer_table}))
     assert world.layer_2.get_config_dict()["cooling"]["model"] == "conduction"
 

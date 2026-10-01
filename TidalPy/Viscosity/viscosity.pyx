@@ -180,8 +180,7 @@ def _canonical_name(str model_name) -> str:
 _FAMILY = ModelFamily(
     "viscosity",
     (ArrheniusViscosity, ReferenceViscosity, ConstantViscosity, InterpolatedViscosity, CompositeViscosity),
-    _canonical_name,
-    "material.shear_viscosity")
+    _canonical_name)
 
 # Every config key any viscosity model reads.
 VISCOSITY_CONFIG_KEYS = _FAMILY.config_keys
@@ -214,11 +213,6 @@ def viscosity_config_keys(str model_name) -> frozenset:
     return _FAMILY.config_keys_of(model_name)
 
 
-def _same_model(str table_name, str model_name) -> bool:
-    """Whether two names (aliases included) resolve to the same model."""
-    return _FAMILY.same_model(table_name, model_name)
-
-
 def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     """Build a viscosity model by name, returning the matching subclass.
 
@@ -228,8 +222,8 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
         ``"arrhenius"`` (``"arr"``), ``"reference"`` (``"ref"``), ``"constant"`` (``"const"``), or ``"interpolate"``
         (``"interp"``).
     config : dict, optional
-        Model parameters by config key (see each model's ``get_parameter_info()``). Absent keys take the model's
-        defaults. ``None`` takes the shear-viscosity defaults of ``[layers.default]`` in the TidalPy configuration.
+        Model parameters by config key (see each model's ``get_parameter_info()``). Absent keys (all of them for
+        ``None``) take the model's defaults.
 
     Returns
     -------

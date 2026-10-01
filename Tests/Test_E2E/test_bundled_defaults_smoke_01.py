@@ -31,8 +31,17 @@ def _tidal_state(world):
         host_mass=_HOST_MASS)
 
 
+# Names only: building a world here, at collection, would read the user's data directory before the conftest
+# redirects it to a fresh copy of the packaged files.
 _WORLD_NAMES = available_worlds()
-_LAYERED_NAMES = [name for name in _WORLD_NAMES if len(build_world(name)) > 0]
+
+
+def _build_layered(world_name):
+    """The bundled world, or a skip for one without layers (a star), which has no interior to solve."""
+    world = build_world(world_name)
+    if len(world) == 0:
+        pytest.skip(f"'{world_name}' has no layers")
+    return world
 
 
 @pytest.mark.parametrize(
@@ -52,10 +61,10 @@ def test_build_and_bulk_properties(world_name):
         assert world.luminosity > 0.0 and world.effective_temperature > 0.0
 
 
-@pytest.mark.parametrize("world_name", _LAYERED_NAMES)
+@pytest.mark.parametrize("world_name", _WORLD_NAMES)
 def test_solve_eos_defaults(world_name):
     """The EOS converges to a plausible mass and moment of inertia with finite nonnegative profiles."""
-    world = build_world(world_name)
+    world = _build_layered(world_name)
     result = world.solve_eos()
     assert world.eos_solved and result["success"], result["message"]
     assert not result["max_iters_hit"]
@@ -72,10 +81,10 @@ def test_solve_eos_defaults(world_name):
     assert result["planet_mass"] == world.planet_mass_eos
 
 
-@pytest.mark.parametrize("world_name", _LAYERED_NAMES)
+@pytest.mark.parametrize("world_name", _WORLD_NAMES)
 def test_solve_love_numbers_defaults(world_name):
     """Love numbers lie between rigid and fluid limits and never amplify."""
-    world = build_world(world_name)
+    world = _build_layered(world_name)
     world.solve_eos()
     result = world.solve_love_numbers()
     assert result["success"], result["message"]
@@ -86,7 +95,7 @@ def test_solve_love_numbers_defaults(world_name):
     assert 0.0 < h2.real < 2.5 * (1.0 + 1.0e-6)
     # At a static liquid surface the free-surface condition fixes the radial displacement: h = 1 + k.
     surface_layer = world[-1]
-    if not (surface_layer.is_solid or not surface_layer.is_static):
+    if surface_layer.is_liquid and surface_layer.is_static:
         assert h2 == pytest.approx(1.0 + k2, rel=1.0e-10)
 
 
@@ -107,10 +116,10 @@ def test_calc_tides_defaults(world_name):
         assert all(math.isfinite(value) and value >= 0.0 for value in per_layer)
 
 
-@pytest.mark.parametrize("world_name", _LAYERED_NAMES)
+@pytest.mark.parametrize("world_name", _WORLD_NAMES)
 def test_calc_3d_tides_defaults(world_name):
     """The volume-integrated 3D heating on the default grids matches the 1D heating."""
-    world = build_world(world_name)
+    world = _build_layered(world_name)
     if world.get_config_dict()["tides"]["global_tidal_model"] != "rheology":
         pytest.skip("The 3D paths need the rheology tide model.")
     world.solve_eos()

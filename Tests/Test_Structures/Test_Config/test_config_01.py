@@ -19,7 +19,8 @@ from TidalPy.configurations import (
     set_config,
 )
 from TidalPy.exceptions import InitializationError
-from TidalPy.Structures.configs.toml_loader import MATERIAL_TYPES, NO_MATERIAL_TYPE, validate_layer_config
+from TidalPy.Material import available_materials, load_material
+from TidalPy.Structures.configs.toml_loader import validate_layer_config
 
 
 @pytest.fixture
@@ -76,10 +77,8 @@ _DEFAULT_VALUES = [
     (("radiogenics", "known_isotope_data"), {}),
     (("eos_solver", "nondimensionalize"), True),
     (("radial_solver", "nondimensionalize"), True),
-    (("layers", "mantle_rock", "shear_rheology", "model"), "andrade"),
-    (("layers", "mantle_rock", "shear_rheology", "zeta"), 1.0),
-    (("layers", "mantle_rock", "cooling", "model"), "convection"),
-    (("layers", "mantle_rock", "radiogenics", "model"), "isotope"),
+    (("layers", "material"), "simple_rock"),
+    (("radiogenics", "isotopes"), "modern_day_chondritic"),
 ] + [
     (("warnings", key), True)
     for key in ("stale_worldpack_copy", "schema_version", "truncation_promotion", "short_degree_list",
@@ -97,17 +96,13 @@ def test_config_default_value(path, expected):
     assert type(value) is type(expected)
 
 
-@pytest.mark.parametrize("material_type", [name for name in MATERIAL_TYPES if name != NO_MATERIAL_TYPE])
-def test_config_has_each_material_block(material_type):
-    layers = TidalPy.config["layers"]
-    assert material_type in layers
-    assert "model" in layers[material_type]["material"]
-
-
-def test_default_material_block_is_a_copy_of_mantle_rock():
-    # Packaged defaults, not TidalPy.config: a user file from an older TidalPy may keep keys this version dropped.
-    layers = get_packaged_config()["layers"]
-    assert layers["default"] == layers["mantle_rock"]
+def test_layers_table_names_only_the_default_material():
+    # Packaged defaults, not TidalPy.config: a user file may name another material.
+    assert get_packaged_config()["layers"] == {"material": "simple_rock"}
+    # The material a layer that names none takes is a MatPack material that builds.
+    name = TidalPy.config["layers"]["material"]
+    assert name in available_materials()
+    assert load_material(name).get_config_dict()["solid"]["eos"]["model"] == "constant"
 
 
 @pytest.mark.parametrize("constant_name, numerical_key", [
@@ -143,8 +138,8 @@ def test_merge_configs_overrides_only_the_given_values():
     assert base == {"numerical": {"a": 1.0, "b": 2.0}, "tides": {"fixed_q": [100.0, 100.0]}}
 
 
-def _ice_viscosity(table):
-    return {"layers": {"ice": {"shear_viscosity": table}}}
+def _model_table(table):
+    return {"section": {"shear_viscosity": table}}
 
 
 _ARRHENIUS = {"model": "arrhenius", "arrhenius_coeff": 1.0, "stress_pa": 1.0}
@@ -153,50 +148,50 @@ _CONSTANT_VISCOSITY = {"model": "constant", "reference_viscosity_pas": 1.0e14}
 
 @pytest.mark.parametrize("base, override, expected", [
     pytest.param(
-        _ice_viscosity(_ARRHENIUS),
-        _ice_viscosity({"model": "Arrhenius", "stress_pa": 2.0}),
-        _ice_viscosity({"model": "Arrhenius", "arrhenius_coeff": 1.0, "stress_pa": 2.0}),
+        _model_table(_ARRHENIUS),
+        _model_table({"model": "Arrhenius", "stress_pa": 2.0}),
+        _model_table({"model": "Arrhenius", "arrhenius_coeff": 1.0, "stress_pa": 2.0}),
         id="same-model-any-case"),
     pytest.param(
-        _ice_viscosity(_ARRHENIUS),
-        _ice_viscosity({"stress_pa": 5.0}),
-        _ice_viscosity({"model": "arrhenius", "arrhenius_coeff": 1.0, "stress_pa": 5.0}),
+        _model_table(_ARRHENIUS),
+        _model_table({"stress_pa": 5.0}),
+        _model_table({"model": "arrhenius", "arrhenius_coeff": 1.0, "stress_pa": 5.0}),
         id="no-model-name"),
     pytest.param(
-        _ice_viscosity(_ARRHENIUS),
-        _ice_viscosity(_CONSTANT_VISCOSITY),
-        # A default key the new model does not read carries over; the model ignores it.
-        _ice_viscosity({**_ARRHENIUS, **_CONSTANT_VISCOSITY}),
+        _model_table(_ARRHENIUS),
+        _model_table(_CONSTANT_VISCOSITY),
+        # merge_configs has no model rule: a base key the new model does not read carries over.
+        _model_table({**_ARRHENIUS, **_CONSTANT_VISCOSITY}),
         id="different-model"),
     pytest.param(
         {"radiogenics": {"model": "isotope", "isotopes": "modern_day_chondritic", "ref_time_s": 1.4e17}},
         {"radiogenics": {"model": "fixed", "fixed_heat_production_w_kg": 1.0e-11}},
-        # The dataset's reference time is not the fixed rate's, so it is dropped; the dataset name is ignored.
-        {"radiogenics": {"model": "fixed", "isotopes": "modern_day_chondritic", "fixed_heat_production_w_kg": 1.0e-11}},
+        {"radiogenics": {"model": "fixed", "isotopes": "modern_day_chondritic", "ref_time_s": 1.4e17,
+                         "fixed_heat_production_w_kg": 1.0e-11}},
         id="radiogenics-different-model"),
     pytest.param(
         {"radiogenics": {"model": "isotope", "isotopes": "modern_day_chondritic"}},
         {"radiogenics": {"model": "isotope", "ref_time_s": 0.0}},
         {"radiogenics": {"model": "isotope", "isotopes": "modern_day_chondritic", "ref_time_s": 0.0}},
         id="radiogenics-same-model"),
-    # Material properties and nested tables survive a change of EOS model.
+    # Nested tables merge key by key at every depth.
     pytest.param(
-        {"material": {"model": "constant", "reference_density_kg_m3": 917.0, "shear_modulus_static_pa": 3.3e9,
-                      "shear_viscosity": {"model": "arrhenius", "reference_viscosity_pas": 1.0e14}}},
-        {"material": {"model": "birch_murnaghan", "reference_bulk_modulus_pa": 1.0e10}},
-        {"material": {"model": "birch_murnaghan", "reference_density_kg_m3": 917.0, "shear_modulus_static_pa": 3.3e9,
-                      "shear_viscosity": {"model": "arrhenius", "reference_viscosity_pas": 1.0e14},
-                      "reference_bulk_modulus_pa": 1.0e10}},
-        id="material-model-change"),
+        {"material": {"solid": {"eos": {"model": "constant", "reference_density_kg_m3": 917.0},
+                                "shear_viscosity": {"model": "arrhenius", "arrhenius_coeff": 1.0e14}}}},
+        {"material": {"solid": {"eos": {"model": "birch_murnaghan", "reference_bulk_modulus_pa": 1.0e10}}}},
+        {"material": {"solid": {"eos": {"model": "birch_murnaghan", "reference_density_kg_m3": 917.0,
+                                        "reference_bulk_modulus_pa": 1.0e10},
+                                "shear_viscosity": {"model": "arrhenius", "arrhenius_coeff": 1.0e14}}}},
+        id="nested-model-change"),
 ])
-def test_merge_configs_merges_model_tables_across_a_model_change(base, override, expected):
+def test_merge_configs_merges_model_tables_key_by_key(base, override, expected):
     assert merge_configs(base, override) == expected
 
 
 @pytest.mark.parametrize("value", ("false", 0, 1.0))
 def test_switches_must_be_booleans(value):
     with pytest.raises(ValueError, match="must be true or false"):
-        validate_layer_config("mantle", {"class": "base", "radius_fraction": 1.0, "is_solid": value})
+        validate_layer_config("mantle", {"radius_fraction": 1.0, "use_tides": value})
 
 
 def test_numpy_values_are_written_as_numbers():
@@ -232,18 +227,21 @@ def test_missing_user_file_is_written_with_the_defaults_and_a_version_header(iso
 
 def test_partial_user_file_is_merged_over_the_packaged_defaults(isolated_config_dir, restore_config):
     (isolated_config_dir / "TidalPy_Configs.toml").write_text(
-        "[numerical]\nmaximum_eos_mass_ratio = 25.0\n\n[layers.ice.shear_rheology]\nmodel = \"andrade\"\n",
+        "[numerical]\nmaximum_eos_mass_ratio = 25.0\n\n[layers]\nmaterial = \"simple_ice\"\n\n"
+        "[layers.ice.shear_rheology]\nmodel = \"andrade\"\n",
         encoding="utf-8")
-    # A hand-written file has no version header, so loading warns and continues.
-    with pytest.warns(UserWarning, match="Could not determine version"):
+    # A hand-written file has no version header, so loading warns and continues; the retired [layers.ice] table of an
+    # earlier build is dropped, with its own warning.
+    with pytest.warns(UserWarning) as record:
         config = get_default_config()
+    messages = [str(entry.message) for entry in record]
+    assert any("Could not determine version" in message for message in messages)
+    assert sum("no longer read" in message and "layers.ice" in message for message in messages) == 1
     packaged = get_packaged_config()
     assert config["numerical"]["maximum_eos_mass_ratio"] == 25.0
     assert config["numerical"]["minimum_modulus"] == packaged["numerical"]["minimum_modulus"]
     assert config["tides"] == packaged["tides"]
-    # The ice rheology switched model; the packaged Maxwell table has no parameter to carry over to it.
-    assert config["layers"]["ice"]["shear_rheology"] == {"model": "andrade"}
-    assert config["layers"]["mantle_rock"] == packaged["layers"]["mantle_rock"]
+    assert config["layers"] == {"material": "simple_ice"}
 
 
 def test_reinit_merges_a_provided_config_dict_and_keeps_it(restore_config):

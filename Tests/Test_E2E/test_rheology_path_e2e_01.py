@@ -31,19 +31,19 @@ _CONFIG = {
     "tides": {"global_tidal_model": "rheology", "max_degree_l": 2, "eccentricity_trunc_lvl": 2},
     "layers": {
         "core": {
-            "class": "base", "type": "none", "radius_fraction": 0.45, "is_tidal": False,
-            "material": {
-                "model": "constant", "reference_density_kg_m3": 8000.0,
-                "shear_modulus_static_pa": 1.0e11, "bulk_modulus_static_pa": 2.0e11},
+            "radius_fraction": 0.45, "use_tides": False,
+            "material": {"solid": {
+                "eos": {"model": "constant", "reference_density_kg_m3": 8000.0, "bulk_modulus_pa": 2.0e11},
+                "shear_modulus": {"model": "constant", "shear_modulus_pa": 1.0e11}}},
             "shear_rheology": {"model": "elastic"}, "bulk_rheology": {"model": "elastic"},
         },
         "mantle": {
-            "class": "solidliquid", "type": "none", "radius_fraction": 1.0, "temperature_k": _TEMPERATURE,
-            "material": {
-                "model": "constant", "reference_density_kg_m3": 3400.0,
-                "shear_modulus_static_pa": 6.0e10, "bulk_modulus_static_pa": 1.5e11,
+            "radius_fraction": 1.0, "temperature_k": _TEMPERATURE,
+            "material": {"solid": {
+                "eos": {"model": "constant", "reference_density_kg_m3": 3400.0, "bulk_modulus_pa": 1.5e11},
+                "shear_modulus": {"model": "constant", "shear_modulus_pa": 6.0e10},
                 "shear_viscosity": dict(_VISCOSITY),
-                "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e24}},
+                "bulk_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e24}}},
             "shear_rheology": dict(_RHEOLOGY), "bulk_rheology": {"model": "elastic"},
         },
     },
@@ -123,10 +123,12 @@ def test_rebuilt_world_takes_the_same_path(tmp_path):
 def _core_world(core_is_liquid, core_shear=1.0e7, core_is_static=True):
     config = copy.deepcopy(_CONFIG)
     core = config["layers"]["core"]
-    core["material"]["shear_modulus_static_pa"] = 0.0 if core_is_liquid else core_shear
     if core_is_liquid:
-        core["is_solid"] = False
+        # A liquid-only material on the same equation of state: no shear modulus, so the layer is a liquid.
+        core["material"] = {"liquid": {"eos": core["material"]["solid"]["eos"]}}
         core["is_static"] = core_is_static
+    else:
+        core["material"]["solid"]["shear_modulus"]["shear_modulus_pa"] = core_shear
     world = build_world(config)
     assert world.solve_eos()["success"]
     return world

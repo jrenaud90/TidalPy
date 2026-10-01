@@ -47,7 +47,7 @@ def test_liquid_points_have_no_heating():
                  semi_major_axis=5.7909e10, host_mass=1.989e30)
     core = mercury.outer_core
     radius = 0.5 * (core.radius_inner + core.radius_outer)
-    assert not core.is_solid
+    assert core.is_liquid
     assert mercury.get_3d_tidal_heating(radius=radius, colatitude=1.0, **state) == 0.0
     mantle_radius = 0.5 * (mercury.mantle.radius_inner + mercury.mantle.radius_outer)
     assert mercury.get_3d_tidal_heating(radius=mantle_radius, colatitude=1.0, **state) > 0.0

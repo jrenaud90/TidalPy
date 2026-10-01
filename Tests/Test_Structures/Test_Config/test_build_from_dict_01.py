@@ -5,6 +5,7 @@ import math
 import pytest
 
 from TidalPy.Dynamics.spin import Spin
+from TidalPy.Material import load_material
 from TidalPy.Stellar.luminosity import make_luminosity
 from TidalPy.Structures import (
     available_worlds,
@@ -14,9 +15,7 @@ from TidalPy.Structures import (
     build_world,
     build_world_from_dict,
 )
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.gas import GasLayer
-from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.system.system import System
 
 
@@ -24,30 +23,35 @@ from TidalPy.Structures.system.system import System
 # Layers
 # =====================================================================================================================
 def _base_layer():
-    return BaseLayer(
+    return Layer(
         "shell",
         1,
         1.0e6,
         2.0e6,
         3.0e22,
-        material_name="rock",
-        is_tidal=False,
+        material=load_material("simple_rock"),
+        use_tides=False,
         tidal_scale=0.25,
     )
 
 
 def _layer_with_state():
-    return BaseLayer(
+    return Layer(
         "mantle",
         2,
         1.0e6,
         2.0e6,
         3.0e22,
-        is_solid=False,
+        material=load_material("peridotite"),
+        state="liquid",
+        is_volume_fixed=False,
         is_static=False,
         is_incompressible=True,
         temperature=1500.0,
-        use_thermal_eos=True,
+        use_thermal_expansion=True,
+        use_melting=True,
+        use_pressure_melting=True,
+        use_melt_density=True,
         use_heating=True,
     )
 
@@ -61,23 +65,23 @@ def _world_layer(world_name, layer_name):
     raise KeyError(layer_name)
 
 
-@pytest.mark.parametrize("make_layer, expected_class", [
-    pytest.param(_base_layer, BaseLayer, id="base"),
-    pytest.param(_layer_with_state, BaseLayer, id="base-with-state"),
-    pytest.param(lambda: _world_layer("io", "mantle"), SolidLiquidLayer, id="io-mantle"),
-    pytest.param(lambda: _world_layer("io", "core"), BaseLayer, id="io-core"),
-    pytest.param(lambda: _world_layer("jupiter_simple", "envelope"), GasLayer, id="jupiter-envelope"),
+@pytest.mark.parametrize("make_layer", [
+    pytest.param(_base_layer, id="base"),
+    pytest.param(_layer_with_state, id="base-with-state"),
+    pytest.param(lambda: _world_layer("io", "mantle"), id="io-mantle"),
+    pytest.param(lambda: _world_layer("io", "core"), id="io-core"),
+    pytest.param(lambda: _world_layer("jupiter_simple", "envelope"), id="jupiter-envelope"),
 ])
-def test_layer_rebuilds_from_its_config_dict(make_layer, expected_class):
+def test_layer_rebuilds_from_its_config_dict(make_layer):
     layer = make_layer()
     config = layer.get_config_dict()
     snapshot = copy.deepcopy(config)
 
     rebuilt = build_layer_from_dict(config)
     assert config == snapshot, "the input dictionary must not be modified"
-    assert type(rebuilt) is type(layer)
-    assert isinstance(rebuilt, expected_class)
+    assert type(rebuilt) is type(layer) is Layer
     assert rebuilt.get_config_dict() == config
+    assert rebuilt.is_liquid == layer.is_liquid
 
 
 @pytest.mark.parametrize("missing", ["name", "radius_inner_m", "radius_outer_m"])

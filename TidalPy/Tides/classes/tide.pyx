@@ -181,11 +181,6 @@ cdef tuple cy_tide_classes = (RheologyTide, FixedQTide, FixedLagTide, CTLQTide)
 TIDE_CONFIG_KEYS = frozenset({"fixed_k", "fixed_q", "fixed_dt_s"})
 
 
-def _same_model(str table_name, str model_name) -> bool:
-    """Whether two names (aliases included) resolve to the same model."""
-    return c_tide_model_from_name(table_name.lower().encode("utf-8")) == c_tide_model_from_name(model_name.lower().encode("utf-8"))
-
-
 def make_tide(str model_name, dict config=None) -> TideBase:
     """Build a tide model by name, returning the matching rich subclass.
 
@@ -215,7 +210,7 @@ def make_tide(str model_name, dict config=None) -> TideBase:
     # (an empty fixed_k would silently give no dissipation).
     if config is not None:
         check_config_keys(config, TIDE_CONFIG_KEYS, "tide")
-    config = {**factory_defaults("tides", TIDE_CONFIG_KEYS, model_name, _same_model), **(config or {})}
+    config = {**factory_defaults("tides", TIDE_CONFIG_KEYS), **(config or {})}
     cdef c_TideModelConfig cfg = cy_build_tide_config(config)
     cdef c_TideModel model = c_tide_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_TideBase] ptr = c_find_tide(model, cfg)

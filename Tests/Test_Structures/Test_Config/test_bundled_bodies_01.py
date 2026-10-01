@@ -122,6 +122,29 @@ _LOVE_CASES = [pytest.param(body, id=body.name) for body in _BODIES if body.love
 _SOLID_CORE_CASES = [pytest.param(body, id=body.name) for body in _BODIES if body.name in _SOLID_CORE_LOVE_K]
 
 
+# The solid laws a liquid layer takes when the counterfactuals below freeze it: an outer core freezes to iron and
+# Pluto's ocean to ice, each with the shear modulus and viscosity law the quoted counterfactual k2 was solved with.
+_IRON_SOLID_LAWS = {
+    "shear_modulus":   {"model": "constant", "shear_modulus_pa": 5.25e10},
+    "shear_viscosity": {"model": "constant", "reference_viscosity_pas": 1.0e20},
+}
+_ICE_SOLID_LAWS = {
+    "shear_modulus":   {"model": "constant", "shear_modulus_pa": 3.3e9},
+    "shear_viscosity": {
+        "model": "arrhenius", "arrhenius_coeff": 1.1037527593819e7, "additional_temp_dependence": True,
+        "stress_pa": 1.0, "stress_expo": 1.0, "grain_size_m": 5.0e-4, "grain_size_expo": 2.0,
+        "molar_activation_energy_j_mol": 59.4e3, "molar_activation_volume_m3_mol": 0.0},
+}
+
+
+def _freeze(layer, solid_laws):
+    """Make a liquid layer solid: its liquid's equation of state with the given shear laws and a Maxwell rheology."""
+    liquid_eos = layer.material.get_config_dict()["liquid"]["eos"]
+    layer.material = {"solid": {"eos": liquid_eos, **solid_laws}}
+    layer.shear_rheology = "maxwell"
+    assert not layer.is_liquid
+
+
 def _synchronous_tides(world, period_days, host_mass, eccentricity):
     """Each layer's share of the heating on a synchronous orbit of the given period about the given host [kg]."""
     world.solve_eos()
@@ -190,7 +213,7 @@ def test_bundled_body_density_profile_is_physical(body):
 @pytest.mark.parametrize("body", _BODY_CASES)
 def test_bundled_body_dissipates_in_the_intended_layers(body):
     world = build_world(body.name)
-    assert [layer.name for layer in world if layer.is_tidal] == body.tidal_layers
+    assert [layer.name for layer in world if layer.use_tides] == body.tidal_layers
 
 
 @pytest.mark.parametrize("body", _BODY_CASES)
@@ -198,9 +221,9 @@ def test_bundled_body_declares_its_liquid_layers(body):
     """Every liquid layer is a static liquid, except in the *_dynamic worlds, where it is dynamic; none is
     incompressible, and every solid layer is static."""
     world = build_world(body.name)
-    assert [layer.name for layer in world if not layer.is_solid] == body.liquid_layers
+    assert [layer.name for layer in world if layer.is_liquid] == body.liquid_layers
     for layer in world:
-        assert layer.is_static == (layer.is_solid or not body.dynamic_liquids), layer.name
+        assert layer.is_static == (not layer.is_liquid or not body.dynamic_liquids), layer.name
     assert not any(layer.is_incompressible for layer in world)
 
 
@@ -224,8 +247,8 @@ def test_bundled_body_states_its_temperatures_and_every_solid_layer_dissipates(b
     world.solve_eos()
     for layer in world:
         assert layer.temperature > 0.0, layer.name
-        assert layer.is_tidal == layer.is_solid, layer.name
-        if layer.is_solid:
+        assert layer.use_tides == (not layer.is_liquid), layer.name
+        if not layer.is_liquid:
             radius = 0.5 * (layer.radius_inner + layer.radius_outer)
             assert 0.0 < world.get_shear_viscosity(radius) < math.inf, layer.name
 
@@ -255,7 +278,7 @@ def test_bundled_body_needs_its_fluid_outer_core_for_its_measured_love_number(bo
     world.solve_love_numbers(frequency)
     fluid_core_k = world.love_number_k.real
 
-    world.outer_core.is_solid = True
+    _freeze(world.outer_core, _IRON_SOLID_LAWS)
     world.solve_eos()
     world.solve_love_numbers(frequency)
     solid_core_k = world.love_number_k.real
@@ -492,7 +515,7 @@ def test_gas_giant_interior_reproduces_its_mass_and_moment_of_inertia(name):
 def test_gas_giant_layers_are_all_fluid(name):
     """A rigid rock core would also fail numerically: its shear modulus is negligible against rho g R."""
     world = build_world(name)
-    assert [layer.name for layer in world if layer.is_solid] == []
+    assert [layer.name for layer in world if not layer.is_liquid] == []
     assert all(layer.is_static for layer in world)
 
 
@@ -517,8 +540,8 @@ def test_gas_giant_layer_masses_match_its_file(name):
         expected = _GAS_GIANT_LAYER_MASSES[name][layer.name]
         assert layer.mass / _MASS_EARTH == pytest.approx(expected, rel=1e-3), layer.name
     # The envelope is the only tidal layer, and it carries the whole scale.
-    assert [layer.name for layer in world if layer.is_tidal] == ["envelope"]
-    assert sum(layer.tidal_scale for layer in world if layer.is_tidal) == pytest.approx(1.0, abs=1e-4)
+    assert [layer.name for layer in world if layer.use_tides] == ["envelope"]
+    assert sum(layer.tidal_scale for layer in world if layer.use_tides) == pytest.approx(1.0, abs=1e-4)
 
 
 @pytest.mark.parametrize("name, semi_major_axis, satellite_mass, spin_multiple", [
@@ -592,7 +615,7 @@ def test_pluto_ocean_is_worth_a_factor_of_thirty_in_its_love_number():
     ocean_k = world.love_number_k.real
     assert ocean_k == pytest.approx(_PLUTO_OCEAN_K, rel=1e-3)
 
-    world.ocean.is_solid = True
+    _freeze(world.ocean, _ICE_SOLID_LAWS)
     world.solve_eos()
     world.solve_love_numbers(frequency)
     frozen_k = world.love_number_k.real
@@ -602,7 +625,7 @@ def test_pluto_ocean_is_worth_a_factor_of_thirty_in_its_love_number():
 
 def test_pluto_ocean_takes_none_of_the_tidal_heating():
     world = build_world("pluto")
-    assert not world.ocean.is_tidal
+    assert not world.ocean.use_tides
     # Charon's mass on the mutual orbit.
     shares = _synchronous_tides(world, 6.3872, 1.586e21, 0.005)
     assert shares["ocean"] == 0.0

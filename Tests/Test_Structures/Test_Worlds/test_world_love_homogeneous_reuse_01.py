@@ -5,6 +5,7 @@ import math
 import pytest
 
 from TidalPy.constants import G
+from TidalPy.Material import Phase
 from TidalPy.Structures.configs import build_world
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Viscosity import make_viscosity
@@ -33,6 +34,19 @@ def _io(love_method, eccentricity_truncation=10, max_degree_l=4):
     world.set_tide_model(make_tide("rheology"))
     world.set_spin_frequency(_ORBITAL_FREQUENCY)
     return world
+
+
+def _set_shear_viscosity(layer, viscosity):
+    """Give a layer's solid phase a new shear viscosity law, keeping the rest of its material."""
+    solid = layer.material.solid
+    layer.material = layer.material.replace(solid=Phase(
+        eos=solid.eos,
+        shear_modulus=solid.shear_modulus,
+        shear_viscosity=viscosity,
+        bulk_viscosity=solid.bulk_viscosity,
+        shear_rheology=solid.shear_rheology,
+        bulk_rheology=solid.bulk_rheology,
+        **solid.parameters))
 
 
 def _modes(world, eccentricity_truncation, max_degree_l):
@@ -70,14 +84,13 @@ def test_a_changed_interior_is_seen_by_the_next_call():
     world.calc_tides(*_ORBIT)
     before = world.get_tidal_heating()
 
-    world.asthenosphere.set_shear_viscosity(stiffer)
+    _set_shear_viscosity(world.asthenosphere, stiffer)
     world.solve_eos()
     world.calc_tides(*_ORBIT)
     after = world.get_tidal_heating()
 
     reference = _io("homogeneous", eccentricity_truncation=10, max_degree_l=2)
-    # A new viscosity model: the layer took ownership of the first one.
-    reference.asthenosphere.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 3.4239e14}))
+    _set_shear_viscosity(reference.asthenosphere, make_viscosity("constant", {"reference_viscosity_pas": 3.4239e14}))
     reference.solve_eos()
     reference.calc_tides(*_ORBIT)
 

@@ -15,9 +15,9 @@ _SIGMA = 5.670374419e-8   # Stefan-Boltzmann [W m-2 K-4]
 def test_a_dict_source_is_copied():
     config = copy.deepcopy(build_world("io").get_config_dict())
     world = build_world(config)
-    viscosity = config["layers"]["mantle"]["material"]["shear_viscosity"]["reference_viscosity_pas"]
-    config["layers"]["mantle"]["material"]["shear_viscosity"]["reference_viscosity_pas"] = 9.9e9
-    kept = world.source_config["layers"]["mantle"]["material"]["shear_viscosity"]["reference_viscosity_pas"]
+    viscosity = config["layers"]["mantle"]["material"]["solid"]["shear_viscosity"]["reference_viscosity_pas"]
+    config["layers"]["mantle"]["material"]["solid"]["shear_viscosity"]["reference_viscosity_pas"] = 9.9e9
+    kept = world.source_config["layers"]["mantle"]["material"]["solid"]["shear_viscosity"]["reference_viscosity_pas"]
     assert kept == viscosity
 
 

@@ -87,9 +87,7 @@ def merge_configs(base: dict, overrides: dict) -> dict:
     """Return ``base`` with ``overrides`` merged over it, leaving both inputs untouched.
 
     Tables merge key by key, so an override only needs the values it changes; any other value (a list included)
-    replaces the base value whole. A physics-model table (a table with a ``model`` key) merges the same way when the
-    override names a different model, except that the base's model-specific keys (``MODEL_SPECIFIC_KEYS``) are
-    dropped first (:func:`keep_on_model_change`), so none reaches a model that would read it differently.
+    replaces the base value whole.
 
     Parameters
     ----------
@@ -107,24 +105,10 @@ def merge_configs(base: dict, overrides: dict) -> dict:
     for key, value in overrides.items():
         base_value = merged.get(key, None)
         if isinstance(value, dict) and isinstance(base_value, dict):
-            model_changed = ("model" in value) and ("model" in base_value) and \
-                (str(value["model"]).lower() != str(base_value["model"]).lower())
-            if model_changed:
-                base_value = keep_on_model_change(key, base_value)
             merged[key] = merge_configs(base_value, value)
         else:
             merged[key] = copy.deepcopy(value)
     return merged
-
-
-# Model-table keys whose meaning depends on the model reading them, by table name. Across a change of model a base
-# value of one of these keys is dropped rather than handed to a model that would misread it: the isotope model reads
-# `ref_time_s` as the time its dataset's abundances apply, the fixed model as the time its rate applies. Every other
-# key of a model family means the same to each model that reads it (a solidus is a solidus to Spohn and to Henning)
-# and is ignored by the models that do not, so it carries over.
-MODEL_SPECIFIC_KEYS = {
-    "radiogenics": frozenset({"ref_time_s"}),
-}
 
 
 def plain_config(value):
@@ -154,88 +138,53 @@ def plain_config(value):
     return value
 
 
-def keep_on_model_change(table_name: str, base_table: dict) -> dict:
-    """What of a base model table carries over when an override names a different model.
-
-    Everything but the base's ``model`` and its model-specific keys (``MODEL_SPECIFIC_KEYS[table_name]``). A layer
-    of material type ``ice`` that switches its partial-melt model from ``off`` to ``henning`` so keeps the ice
-    solidus, liquidus, and liquid properties of ``[layers.ice.material.partial_melt]``, and a key the new model does
-    not read is ignored by it. Nested model tables carry over whole and merge by their own rule.
-
-    Parameters
-    ----------
-    table_name : str
-        The table's key (``material``, ``radiogenics``, ...).
-    base_table : dict
-        The table being overridden.
-
-    Returns
-    -------
-    dict
-        A new table holding what carries over, without a ``model`` key.
-    """
-    model_specific = MODEL_SPECIFIC_KEYS.get(table_name, frozenset())
-    return {key: copy.deepcopy(value) for key, value in base_table.items()
-            if key != "model" and key not in model_specific}
-
-
-# Model-table keys a 0.8.0 pre-release wrote into TidalPy_Configs.toml that no model reads any more, with the reason.
-# A loaded file has them dropped, with one warning, so an existing file keeps building worlds.
-RETIRED_CONFIG_MODEL_KEYS = {
-    "hn_shear_param_2": "the Henning shear law is anchored at the solidus, exp[b1 (1/T - 1/T_sol)], so it has no "
-                        "separate offset (the old default 25 is 40000 / 1600)",
-}
+# Why a table below ``[layers]`` other than ``material`` (a per-material block) is not read. A loaded file has them
+# dropped, with one warning, so a file holding them keeps loading.
+RETIRED_LAYER_BLOCKS_REASON = (
+    "the per-material [layers.<type>] blocks are retired: a layer names its material (a MatPack name or a material "
+    "table), a layer that names none takes [layers] material, and a material's values are edited in its MatPack file "
+    "(TidalPy.Material.material_info(name)['path'])")
 
 
 def drop_retired_config_keys(config: dict, source: str) -> list:
-    """Remove the retired model keys (``RETIRED_CONFIG_MODEL_KEYS``) from a loaded configuration, in place.
+    """Remove the retired per-material tables under ``[layers]`` (any but ``material``) of a configuration, in place.
 
     Parameters
     ----------
     config : dict
-        A ``TidalPy_Configs.toml`` or override dict; nested tables are searched.
+        A ``TidalPy_Configs.toml`` or override dict.
     source : str
         What ``config`` is, for the warning.
 
     Returns
     -------
     list of str
-        The dotted paths of the keys removed; empty when there were none. A nonempty list is also warned about,
-        under the ``[warnings] unknown_config_key`` switch.
+        The dotted paths of the tables removed; empty when there were none. A nonempty list is also warned about
+        (``RETIRED_LAYER_BLOCKS_REASON``), under the ``[warnings] unknown_config_key`` switch.
     """
-    removed = []
-
-    def walk(table, path):
-        for key in list(table):
-            here = f"{path}.{key}" if path else key
-            if isinstance(table[key], dict):
-                walk(table[key], here)
-            elif key in RETIRED_CONFIG_MODEL_KEYS:
-                del table[key]
-                removed.append(here)
-
-    walk(config, "")
+    layers = config.get("layers")
+    if not isinstance(layers, dict):
+        return []
+    removed = [f"layers.{key}" for key, value in layers.items() if isinstance(value, dict) and key != "material"]
+    for path in removed:
+        del layers[path.partition(".")[2]]
     if removed:
         # The file's own switch wins, then the configuration already loaded.
         loaded = TidalPy.config if isinstance(TidalPy.config, dict) else {}
         switch = (loaded.get("warnings", {}) or {}).get("unknown_config_key", True)
         switch = (config.get("warnings", {}) or {}).get("unknown_config_key", switch)
         if switch:
-            reasons = "; ".join(f"{key}: {why}" for key, why in RETIRED_CONFIG_MODEL_KEYS.items()
-                                if any(path.split(".")[-1] == key for path in removed))
             warnings.warn(
-                f"{source} sets {len(removed)} key(s) no longer read, which are ignored: {', '.join(removed)} "
-                f"({reasons}). Delete them from the file to silence this warning.")
+                f"{source} sets {len(removed)} table(s) no longer read, which are ignored: {', '.join(removed)} "
+                f"({RETIRED_LAYER_BLOCKS_REASON}). Delete them from the file to silence this warning.")
     return removed
 
 
 def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
     """The keys of a ``TidalPy_Configs.toml`` (or an override dict) that nothing in TidalPy reads.
 
-    A key is known when the packaged defaults hold it at the same place, with these exceptions: a ``[layers.<type>]``
-    block may be a material type of the user's own, and is checked against the layer schema instead (its scalar
-    keys and model-table names; what a model table holds is the model factory's business, which rejects an unknown
-    key when the layer is built); the per-type ``[worlds.<type>]`` tables are checked against the world schema;
+    A key is known when the packaged defaults hold it at the same place, with these exceptions: the per-type
+    ``[worlds.<type>]`` tables are checked against the world schema;
     ``[tides.default_model]`` names world types, as do the per-type ``[tides.<type>]`` tables, which take the
     ``[tides]`` keys; and the datasets in ``[radiogenics.known_isotope_data]`` are named by the user.
 
@@ -251,12 +200,8 @@ def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
     list of str
         The unknown keys as dotted paths (``numerical.min_viscosty``), in file order; empty when every key is known.
     """
-    from TidalPy.schema import (
-        ALLOWED_LAYER_SCALAR_KEYS, ALLOWED_WORLD_SCALAR_KEYS, LAYER_MODEL_SECTIONS, WORLD_TYPES)
+    from TidalPy.schema import ALLOWED_WORLD_SCALAR_KEYS, WORLD_TYPES
 
-    layer_keys = set(LAYER_MODEL_SECTIONS)
-    for keys in ALLOWED_LAYER_SCALAR_KEYS.values():
-        layer_keys |= set(keys)
     unknown = []
 
     def walk(table, reference, path):
@@ -273,15 +218,7 @@ def find_unknown_config_keys(overrides: dict, packaged: dict) -> list:
             continue
         if not isinstance(table, dict) or not isinstance(packaged[section], dict):
             continue
-        if section == "layers":
-            for material_type, block in table.items():
-                if not isinstance(block, dict):
-                    unknown.append(f"layers.{material_type}")
-                    continue
-                for key in block:
-                    if key not in layer_keys:
-                        unknown.append(f"layers.{material_type}.{key}")
-        elif section == "worlds":
+        if section == "worlds":
             for key, value in table.items():
                 if isinstance(value, dict):
                     if key not in WORLD_TYPES:
