@@ -59,6 +59,9 @@ Demos/Physics/14_bundled_worlds.ipynb
 Demos/Physics/15_thermal_interior.ipynb
 Demos/Systems/16_earth_moon_sun.ipynb
 Demos/Physics/17_tidal_truncations.ipynb
+Demos/Physics/18_dynamic_liquids.ipynb
+Demos/Physics/19_melt_and_bulk_dissipation.ipynb
+Demos/Physics/20_seismic_q.ipynb
 ```
 
 ```{toctree}

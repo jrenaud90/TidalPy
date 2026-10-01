@@ -18,8 +18,8 @@ _Updated: 2026-09-21_
 Global Tides <global_tides.md>
 3D Tidal Heating <multilayer_3d_heating.md>
 Love Numbers <love/love_numbers.md>
-Eccentricity Functions <eccentricity.md>
-Obliquity Functions <obliquity.md>
+Eccentricity Functions <Eccentricity.md>
+Obliquity Functions <Obliquity.md>
 ```
 
 ## Imports

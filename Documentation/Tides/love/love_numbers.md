@@ -1,6 +1,6 @@
 # Love Numbers (`Tides.love`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
 `TidalPy.Tides.love` contains the Love-number storage type, the names of the Love-number solution methods, and the closed-form homogeneous-sphere Love numbers. Solved Love numbers come from the radial solver (`RadialSolver.radial_solver` for the standalone array API, or `BaseWorld.solve_love_numbers` on a built world), which populates the storage type after integration; `BaseWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
 

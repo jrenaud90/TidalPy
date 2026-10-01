@@ -1,12 +1,12 @@
 # Global (1D) Tidal Dissipation (`Tides.classes`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
-The global (or "1D potential") approach computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal modes `(l, m, p, q)`. Each mode carries a forcing frequency $\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta}$ and a precomputed potential weight; a tide model supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}(\omega)]$ that the collapse multiplies in and sums. Harmonic degrees `l = 2..10` are supported.
+The global (or "1D potential") method computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal modes `(l, m, p, q)`. Each mode carries a forcing frequency $\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta}$ and a precomputed potential weight. A tide model supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}(\omega)]$ that the collapse multiplies in and sums. Harmonic degrees `l = 2..10` are supported.
 
-The model-independent per-mode weights (the eccentricity functions $G_{lpq}$, the obliquity functions $F_{lmp}$, and the common coefficient $G_{lpq}^{2}F_{lmp}^{2}\frac{(l-m)!}{(l+m)!}\left(2-\delta_{0m}\right)\left(\frac{R}{a}\right)^{2l+1}\frac{G M_{h}}{a}$) come from `c_global_potential`; the Physics section below derives them. This page documents the tide models and the collapse that turn those weights into heating and torque.
+The model-independent per-mode weights (the eccentricity functions $G_{lpq}$, the obliquity functions $F_{lmp}$, and the common coefficient $G_{lpq}^{2}F_{lmp}^{2}\frac{(l-m)!}{(l+m)!}\left(2-\delta_{0m}\right)\left(\frac{R}{a}\right)^{2l+1}\frac{G M_{h}}{a}$) come from `c_global_potential`. The Physics section below derives the collapse of these weights into heating and torque.
 
-The full complex Love-number suite (k, h, l) is always the transport type ([`c_LoveNumbers`](love/love_numbers.md)), even though only `k` drives heating and orbital dynamics, so the displacement Love numbers from the radial solver are never discarded. The analytic models cannot produce `h` and `l` (no radial solution) and return them as `NaN`.
+The full complex Love-number suite ($k$, $h$, $l$) is always the transport type ([`c_LoveNumbers`](love/love_numbers.md)), even though only `k` drives heating and orbital dynamics, so the displacement Love numbers from the radial solver are never discarded. The analytic models cannot produce `h` and `l` (no radial solution) and return them as `NaN`.
 
 ## Physics
 
@@ -24,11 +24,11 @@ where $n$ is the orbital mean motion and $\dot{\theta}$ the spin rate \[rad s$^{
 
 ### Dissipation and Orbital Derivatives
 
-The body answers each mode with the complex Love number $k_l$ at the forcing frequency $\chi_{lmpq} = |\omega_{lmpq}|$, and the tide model supplies its dissipative part $K_{l} = -\mathrm{Im}[k_{l}(\chi_{lmpq})]$ (see Models below). Averaged over the orbit and over apsidal precession, the tidal heating $\dot{E}$ \[W\] and the derivatives of the tidal potential with respect to the mean anomaly $\mathcal{M}$, the argument of periapse $\varpi$, and the node $\Omega$ \[J kg$^{-1}$ rad$^{-1}$\] are (Renaud et al. 2021, Eq. 7)
+The body couples each mode with the complex Love number $k_l$ at the forcing frequency $\chi_{lmpq} = |\omega_{lmpq}|$, and the tide model supplies its dissipative part $K_{l} = -\mathrm{Im}[k_{l}(\chi_{lmpq})]$ (see Models below). Averaged over the orbit and over apsidal precession, the tidal heating $\dot{E}$ \[W\] and the derivatives of the tidal potential with respect to the mean anomaly $\mathcal{M}$, the argument of periapse $\varpi$, and the node $\Omega$ \[J kg$^{-1}$ rad$^{-1}$\] are (Renaud et al. 2021, Eq. 7)
 
 $$\begin{bmatrix} \partial U / \partial \mathcal{M} \\ \partial U / \partial \varpi \\ \partial U / \partial \Omega \\ \dot{E} \end{bmatrix} = \frac{G M_h}{a}\sum_{l=2}^{l_{\max}}\left(\frac{R}{a}\right)^{2l+1}\sum_{m=0}^{l}\frac{(l-m)!}{(l+m)!}\left(2-\delta_{0m}\right)\sum_{p=0}^{l}F_{lmp}^{2}(I)\sum_{q}G_{lpq}^{2}(e)\begin{bmatrix} (l-2p+q)\,\mathrm{sgn}(\omega_{lmpq})\,K_{l} \\ (l-2p)\,\mathrm{sgn}(\omega_{lmpq})\,K_{l} \\ m\,\mathrm{sgn}(\omega_{lmpq})\,K_{l} \\ \chi_{lmpq}\,M_h\,K_{l} \end{bmatrix}.$$
 
-Modes at zero frequency do not dissipate and are skipped. The derivatives set the orbital and spin rates (see [Dynamics](../Dynamics/dynamics.md)). `collapse_global_tides` and a world's `calc_tides` return this sum; a layered world then splits the heating among its layers by their `tidal_scale`, so the whole-body sum itself uses the unscaled $K_l$.
+Modes at zero frequency do not dissipate and are skipped. The derivatives set the orbital and spin rates (see [Dynamics](../Dynamics/dynamics.md)). `collapse_global_tides` and a world's `calc_tides` return this sum. A layered world then splits the heating among its layers by their `tidal_scale`, so the whole-body sum itself uses the unscaled $K_l$.
 
 For a synchronously rotating body at zero obliquity, only the $q = \pm 1$ modes of degree 2 dissipate to leading order in $e$, and with $K_2 = k_2/Q$ the sum reduces to the constant-phase-lag heating (Peale and Cassen 1978)
 

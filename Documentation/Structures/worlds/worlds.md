@@ -168,9 +168,9 @@ Each cooling model sets its layer's profile as follows:
 | `conduction` | Two conducting halves, $T = T_0 - (L / 4 \pi k)(1/r_0 - 1/r)$. | The mid-radius |
 | `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. A layer whose base carries no heat (the innermost layer, or one above a layer outside the network) has no boundary layer at its base. | The base of the interior |
 
-A layer with no temperature of its own takes no part in the network. This is a layer whose temperature is not a positive number (the 0 K default, say). Its interfaces carry no heat, so it is neither a heat sink nor a source, and a neighbor keeps its own temperature at the shared interface. The layer is isothermal at its placeholder temperature, and `layer_in_thermal_network` reports it `False`. The `temperature` argument overrides every layer's temperature with one number.
+A layer with no temperature of its own is neither a heat sink nor a source, and a neighbor keeps its own temperature at the shared interface. The layer is isothermal at its placeholder temperature, and `layer_in_thermal_network` reports it `False`. The `temperature` argument overrides every layer's temperature with one number.
 
-A convecting layer's Rayleigh number uses the temperature drop across both of its boundary layers: from the top of the layer below (the end of its adiabat, when that layer convects) to the layer's own temperature, plus from that temperature to the layer above or to `surface_temperature`. A mantle at the temperature of the layer above it therefore still convects when the core below it is hotter. The innermost layer, and a layer above one outside the network, has only the upper drop and only the upper boundary layer, since no heat crosses its base. The cooling model's boundary-layer thickness $d / \mathrm{Nu}$ carries its flux across the whole drop, so a layer with two boundary layers gives each half of it and a layer with one gives it the whole, at most 40 percent of the layer each. The flux through the top of a layer whose two drops are equal is then the cooling model's `cooling_flux`, and the boundary layers of a sub-critical layer ($\mathrm{Nu} = 1$) are close to the two conducting halves of a `conduction` layer. A cooling model that gives no usable thickness (usually from a NaN viscosity at the layer's temperature) leaves each boundary layer at 40 percent, and the solve logs a warning naming the layer.
+A convecting layer's Rayleigh number uses the temperature drop across both of its boundary layers: from the top of the layer below (the end of its adiabat, when that layer convects) to the layer's own temperature, plus from that temperature to the layer above or to `surface_temperature`. A mantle at the temperature of the layer above it therefore still convects when the core below it is hotter. The innermost layer, and a layer above one outside the network, has only the upper drop and only the upper boundary layer, since no heat crosses its base. The cooling model's boundary-layer thickness $d / \mathrm{Nu}$ carries its flux across the whole drop, so a layer with two boundary layers gives each half of it and a layer with one gives it the whole, at most 40 percent of the layer each. The flux through the top of a layer whose two drops are equal is then the cooling model's `cooling_flux`, and the boundary layers of a sub-critical layer ($\mathrm{Nu} = 1$) are close to the two conducting halves of a `conduction` layer. A cooling model that gives no usable thickness (usually from a NaN viscosity at the layer's temperature) leaves each boundary layer at 40 percent, and the solve logs a warning.
 
 The layers form a chain of thermal resistances. A conducting spherical shell between $r_a$ and $r_b$ has
 
@@ -180,21 +180,21 @@ and the heat flow through an interface is $L = \Delta T / R$ across the two resi
 
 $$M c_p \frac{dT}{dt} = L_\mathrm{in} - L_\mathrm{out} + H$$
 
-with $H$ \[W\] the heat generated inside the layer (`layer_heating`), zero unless the layer is heated.
+with $H$ \[W\] the heat generated inside the layer (`layer_heating`).
 
-Where neither side of an interface has a resistance (an `off` layer under another `off` layer, or an `off` outermost layer under the surface), nothing holds a temperature contrast across it. The lower layer then stores no heat: it passes on the heat entering it plus the heat it generates, and the interface keeps its temperature. An `off` outermost layer therefore loses all of that heat through the surface, its `layer_temperature_rate` is zero, and its profile ends at its own temperature rather than at `surface_temperature`.
+Where neither side of an interface has a resistance (an `off` layer under another `off` layer, or an `off` outermost layer under the surface), nothing holds a temperature contrast across it. The lower layer then stores no heat, instead it passes on the heat entering it plus the heat it generates, and the interface keeps its temperature. An `off` outermost layer therefore loses all of that heat through the surface, its `layer_temperature_rate` is zero, and its profile ends at its own temperature rather than at `surface_temperature`.
 
 **Internal heating**
 
-A layer with `use_heating` set is heated by the world's heat sources. The radiogenic source evaluates the layer's [radiogenics model](../../Radiogenics/radiogenics_models.md) as a specific rate $\epsilon$ \[W kg$^{-1}$\] at the solve's `time` \[s\]. It heats the layer at $h = \epsilon \rho$ \[W m$^{-3}$\] with the local density, so it is exact for a layer whose mass is an output of the solve. `time=None` uses each model's own reference time. The structure solve integrates
+A layer with `use_heating` set is heated by the world's heat sources. The radiogenic source evaluates the layer's [radiogenics model](../../Radiogenics/radiogenics_models.md) as a specific rate $\epsilon$ \[W kg$^{-1}$\] at the solve's `time` \[s\]. It heats the layer at $h = \epsilon \rho$ \[W m$^{-3}$\] with the local density, so it is exact for a layer whose mass is an output of the solve. `time=None` uses each model's own reference time. The structure integrates
 
 $$\frac{dL}{dr} = 4 \pi r^2 h$$
 
 so the heat flow grows through a heated layer and its conducting stretches bend: a uniformly heated conducting shell follows $T = B + A/r - h r^2 / 6k$. The resistance chain includes the same heating. With $H(r)$ the heat generated between the base of a conducting stretch and $r$, the flow leaving its top is the flow entering plus $H$. The temperature drop across it is $L_\mathrm{base} R + \int H / (4 \pi r^2 k) \, dr$. Both follow from the heating and the solved density, so the solved profile still passes through every layer temperature and reaches `surface_temperature`. A heated world is a thermal solve even when its layers share one temperature. With `solve_temperature=False` there is no heat flow, so the heating is ignored and a warning is logged.
 
-A world whose layers are all at one temperature has no profile to integrate. The solve then keeps its four structure variables and returns exactly what it returns with `solve_temperature=False`, at the same cost. The profile queries still report each layer's own temperature. Otherwise the solve adds temperature and heat flow as two more state variables and iterates. The first pass is isothermal. Each later pass integrates the profile and then relaxes the boundary layers, interface temperatures, and heat flows against the structure it produced. `thermal_passes` counts the passes and `thermal_converged` reports whether they settled. A solve that uses every pass without settling logs a warning and keeps the last pass. Layers that hold their mass move in the same passes (`geometry_converged`) and end on the grid of the last pass, so every reported slice and interface lies in its own layer.
+A world whose layers are all at one temperature has no profile to integrate. The solve then keeps its four structure variables and returns what it would with `solve_temperature=False`, at the same cost. The profile queries still report each layer's own temperature. Otherwise the solve adds temperature and heat flow as two more state variables and iterates. The first pass is isothermal. Each later pass integrates the profile and then relaxes the boundary layers, interface temperatures, and heat flows against the structure it produced. `thermal_passes` counts the passes and `thermal_converged` reports whether they settled. A solve that uses every pass without settling logs a warning and keeps the last pass. Layers that hold their mass move in the same passes (`geometry_converged`) and end on the grid of the last pass, so every reported slice and interface lies in its own layer.
 
-The viscosity and partial-melt models of every layer are evaluated at the solved temperature of each slice, so an Arrhenius layer is stiff where the profile is cold. A layer whose `use_thermal_eos` is set also passes that temperature to its EOS model, so its density follows the profile.
+The viscosity and partial-melt models of every layer are evaluated at the solved temperature of each slice, so an Arrhenius layer is stiff where the profile is cold. A layer whose `use_thermal_eos = True` also passes that temperature to its EOS model, so its density follows the profile.
 
 ```python
 world.mantle.temperature = 1600.0            # [K] the layer's own temperature
@@ -215,7 +215,7 @@ result["layer_heating"]                      # [W] generated inside each layer
 
 **Profile queries (after a successful solve)**
 
-`get_state(radius)` returns the density, gravity, pressure, static moduli, viscosities, and melt fraction as a dict. It and `get_static_viscoelastics(radius)` read one evaluation of the solved state per radius, so they cost about as much as one single-quantity getter and return exactly what the single getters return.
+`get_state(radius)` returns the density, gravity, pressure, static moduli, viscosities, and melt fraction as a dict. It and `get_static_viscoelastics(radius)` read one evaluation of the solved state per radius.
 
 | Member | Returns | Description |
 |--------|---------|-------------|
@@ -271,30 +271,31 @@ All of the above accept a float or `np.ndarray` for `r` (and `ω`); array inputs
 |---|---|
 | `radial_solver` (`shooting`, `rs`; default) | Numerically integrates the radial ODEs from the center to the surface. Works for arbitrary multi-layer, solid/liquid, static/dynamic, compressible/incompressible worlds. |
 | `propagation_matrix` (`prop_matrix`, `pm`, `prop`) | Quasi-analytic matrix propagation, restricted to a single solid, static, incompressible layer. An incompatible world fails the solve gracefully (`love_success` is `False`, `love_error_code` non-zero). `core_model` selects the core starting condition. |
-| `homogeneous` (`homogen`) | Quasi-homogeneous: each tidal layer is treated as a homogeneous incompressible planet made of its own averaged material, and the world's Love numbers are the sum of the layers' weighted by their tidal scales (see Quasi-Homogeneous Love Numbers below). Each layer uses the homogeneous-sphere formulas, $k_{l} = \frac{3}{2(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$, $h_{l} = \frac{2l+1}{2(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$, $l_{l} = \frac{3}{2l(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$ with $\bar{\mu}_{l} = \frac{2l^{2} + 4l + 3}{l}\,\frac{\mu}{\rho g R}$, where $\mu$ is the layer's rheology at the forcing frequency applied to its averaged moduli and viscosity, and $\rho$, $g$, $R$ are the planet's EOS bulk density, EOS surface gravity, and radius. Fast; no radial functions. |
+| `homogeneous` (`homogen`) | Quasi-homogeneous: each tidal layer is treated as a homogeneous incompressible planet made of its own averaged material, and the world's Love numbers are the sum of the layers' weighted by their tidal scales (see Quasi-Homogeneous Love Numbers below). |
 | `cpl` | The same, with each layer's static (unrelaxed) averaged shear modulus and a constant phase lag: $k$, $h$, $l$ are multiplied by $(1 - i/Q)$ so $-\mathrm{Im}[k] = \mathrm{Re}[k]/Q$. $Q$ is `fixed_q` (argument or `[tides]` config) or, when unset, the attached tide model's fixed Q for the degree. |
 | `ctl` | Similar to `cpl` but with a constant time lag, $(1 - i\,\omega\,\Delta t)$; $\Delta t$ is `fixed_dt` or the tide model's fixed time lag. |
 | `laterally_inhomogeneous` (`3d`, `lat_inhom`) | Reserved for a laterally inhomogeneous (3D) Love solver, which is not implemented; raises `NotImplementedError`. |
 
 #### Quasi-Homogeneous Love Numbers
 
-The `homogeneous`, `cpl`, and `ctl` methods keep some of the layered structure without a radial solve. Each tidal layer is averaged into a homogeneous material. Its post-melt shear and bulk moduli are volume averaged. Its post-melt viscosity is log-volume averaged, so a viscosity that spans decades across the layer is averaged in log space. A homogeneous planet made of that material, with the planet's radius, bulk density, and surface gravity, has Love numbers $k_i$. The layer's tidal scale $s_i$ weights them, and the world's Love numbers are
+
+For the `homogeneous`, `cpl`, and `ctl` methods, each layer uses the homogeneous-sphere formulas, $k_{l} = \frac{3}{2(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$, $h_{l} = \frac{2l+1}{2(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$, $l_{l} = \frac{3}{2l(l-1)}\,\frac{1}{1+\bar{\mu}_{l}}$ with $\bar{\mu}_{l} = \frac{2l^{2} + 4l + 3}{l}\,\frac{\mu}{\rho g R}$, where $\mu$ is the layer's rheology at the forcing frequency applied to its averaged moduli and viscosity, and $\rho$, $g$, $R$ are the planet's EOS bulk density, EOS surface gravity, and radius. This allows these methods to keep some of the layered structure without a radial solve (so it is much faster). Each tidal layer is averaged into a homogeneous material. Its post-melt shear and bulk moduli are volume averaged. Its post-melt viscosity is log-volume averaged, so a viscosity that spans decades across the layer is averaged in log space. A homogeneous planet made of that material, with the planet's radius, bulk density, and surface gravity, has Love numbers $k_i$. The layer's tidal scale $s_i$ weights them, and the world's Love numbers are
 
 $$k = \sum_i s_i k_i$$
 
 (and likewise $h$ and $l$). The tidal scale is the layer's `tidal_scale`, or its volume over the planet's when none is set. It is 0 for a layer that is not tidal (`is_tidal = false`), which then takes no part. With the default scales, a one-layer planet gets exactly the homogeneous-sphere value. A small, highly dissipative layer (an asthenosphere, for example) adds dissipation in proportion to its volume instead of making the whole planet dissipate like it. The tidal heating is linear in $-\mathrm{Im}[k]$, so each layer's heating is the heating of its own term $s_i k_i$, constant within the layer, and the layers sum to the total. Gas layers carry no shear modulus and take no part. `love_layer_parts` lists each layer's $s_i$, $k_i$, $h_i$, $l_i$, and complex shear modulus. `get_layer_tidal_scale(index)` returns the scale in use.
 
 Every Love solve checks its input first and raises `ValueError` for:
-- a degree below 2 in a tidal or free-surface solve. Degree 1 is a translation of the body. A loading-only solve may use degree 1, whose load Love numbers depend on the reference frame.
-- a frequency that is not finite and positive, or that lies outside the `[numerical]` `minimum_frequency` to `maximum_frequency` range. The Love numbers at $-\omega$ are the complex conjugates of those at $\omega$.
-- a `start_radius_tol` outside (0, 1).
-- a negative `starting_radius` or `max_step`.
+- Degree below 2 in a tidal or free-surface solve. Degree 1 is a translation of the body. A loading-only solve may use degree 1, whose load Love numbers depend on the reference frame.
+- Frequency that is not finite and positive, or that lies outside the `[numerical]` `minimum_frequency` to `maximum_frequency` range. The Love numbers at $-\omega$ are the complex conjugates of those at $\omega$.
+- `start_radius_tol` outside (0, 1).
+- Negative `starting_radius` or `max_step`.
 
-`max_step` [m] is converted into the integration's units. The `homogeneous`, `cpl`, and `ctl` methods take the bulk density from the solved mass (the structure the EOS surface gravity comes from), not from the declared mass.
+`max_step` \[m\] is converted into the integration's units. The `homogeneous`, `cpl`, and `ctl` methods take the bulk density from the solved mass (the structure the EOS surface gravity comes from), not from the declared mass.
 
-The analytic methods have no radial functions (the radial-function getters, such as `get_love_radial_y`, return NaN) and no depth-resolved solution, so the 3D stress/strain/heating path (`calc_3d_tides`, `get_3d_tidal_heating`) raises `RuntimeError` while an analytic method is the world's configured method. Free-function versions of the formulas live in `TidalPy.Tides.love` (`calc_homogeneous_love_numbers`, `calc_effective_rigidity`, `apply_fixed_q`, `apply_fixed_dt`; see [Love numbers](../../Tides/love/love_numbers.md)).
+The analytic methods have no radial functions (the radial-function getters, such as `get_love_radial_y`, return NaN) and no depth-resolved solution, so the 3D stress/strain/heating path (`calc_3d_tides`, `get_3d_tidal_heating`) raises `RuntimeError` when an analytic method is used. Free-function versions of the formulas live in `TidalPy.Tides.love` (`calc_homogeneous_love_numbers`, `calc_effective_rigidity`, `apply_fixed_q`, `apply_fixed_dt`; see [Love numbers](../../Tides/love/love_numbers.md)).
 
-The world's default method, used when its tide model needs Love numbers inside `calc_tides`, is set with `set_tide_config(love_method=..., love_fixed_q=..., love_fixed_dt=...)` or the `[tides]` keys `love_method`, `love_fixed_q`, `love_fixed_dt_s` in a world TOML file. `solve_love_numbers` takes the method per call.
+The world's default method is set with `set_tide_config(love_method=..., love_fixed_q=..., love_fixed_dt=...)` or the `[tides]` keys `love_method`, `love_fixed_q`, `love_fixed_dt_s` in a world TOML file. `solve_love_numbers` takes the method per call.
 
 ```python
 from TidalPy.Structures.worlds import BaseWorld
@@ -305,8 +306,14 @@ from TidalPy.Viscosity import make_viscosity
 
 world = BaseWorld("planet", 6.0e6, 4.2e24)
 layer = SolidLiquidLayer("mantle", 0, 0.0, 6.0e6, 4.2e24)
-layer.set_eos(make_material_eos(
-    "constant", {"reference_density_kg_m3": 4000.0, "shear_modulus_static_pa": 6.0e10, "bulk_modulus_static_pa": 1.3e11}))
+layer.set_eos(
+    make_material_eos(
+        "constant",
+        {"reference_density_kg_m3": 4000.0,
+         "shear_modulus_static_pa": 6.0e10,
+         "bulk_modulus_static_pa": 1.3e11}
+    )
+)
 layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
 layer.set_shear_rheology(make_rheology("maxwell"))
 world.add_layer(layer)
@@ -318,7 +325,7 @@ print(result["love_number_k"])   # complex k2, also world.love_number_k
 print(world.love_number_h, world.love_number_l)
 ```
 
-The moduli and the viscosity are properties of the layer, not of the rheology model. A rheology model holds only its own shape parameters (the Andrade exponent, the Voigt fractions) and uses the modulus and viscosity it is given. A layer with no shear modulus and no viscosity model has no strength, and the solve fails.
+The moduli and the viscosity are properties of the layer, not of the rheology model. A rheology class only holds model parameters (the Andrade exponent, the Voigt fractions, etc.) and uses the modulus and viscosity as arguments. A layer with no shear modulus and no viscosity model has no strength, and the solve fails.
 
 **`solve_love_numbers( frequency=1e-5, degree_l=2, solve_for='tidal', core_model=0, use_kamata=None, nondimensionalize=None, starting_radius=0.0, start_radius_tol=None, integration_method=None, rtol=None, atol=None, scale_rtols=None, max_num_steps=None, expected_size=None, max_ram_MB=None, max_step=0.0, verbose=False, warnings=True, love_method=None, fixed_q=None, fixed_dt=None) -> dict`**
 
@@ -329,13 +336,13 @@ The solver does not interpolate between EOS slices. At the exact radius the inte
 - The density and the static moduli and viscosities come from the same solution (the layer's material evaluated them as the structure was integrated).
 - The complex moduli come from the layer's rheology applied to those static values at that solve's frequency.
 
-The Love numbers therefore converge with the integration tolerance alone and are exactly independent of `slices_per_layer`, whether or not the moduli and viscosities vary with depth. `slices_per_layer` still sets the size of the returned profile arrays and the `[layers.*]` array properties. The propagation-matrix method propagates across those slices, so its Love numbers depend on it.
+The Love numbers therefore converge with the integration tolerance alone and are entirely independent of `slices_per_layer`, whether or not the moduli and viscosities vary with depth. `slices_per_layer` still sets the size of the returned profile arrays and the `[layers.*]` array properties. The propagation-matrix method propagates across those slices, so its Love numbers _do_ depend on it.
 
 `release_radial_solution()` returns the world's last radial solve as a `RadialSolverSolution`, with its `result` grid filled on the solve's radius grid (`sample_radii()` gives those radii, so the two plot together). A radius above the surface has no solution and reads NaN.
 
 #### Molten Stretches in a Solid Layer
 
-A solid layer's partial-melt model can weaken part of the layer too far for it to be solved as a solid, for example the base of a mantle over a hot core. Past the critical melt fraction, the post-melt shear modulus falls steeply to the model's `liquid_shear` floor (10$^{-5}$ Pa by default). The solid equations divide by the shear modulus and cannot be integrated through it. After every EOS solve, the world marks as molten each stretch of a layer with a partial-melt model where the modulus sits at that floor or where its rigidity $\mu / (\bar{\rho} g R)$ (planet bulk density, surface gravity, and radius) is below `[numerical] minimum_solid_rigidity` (10$^{-6}$ by default). The stretches are found on the EOS slices, and their edges are refined by bisection on the dense profile. `molten_regions` lists them, and an info-level log message names each one.
+A solid layer's partial-melt model can weaken part of the layer too far for it to be solved as a solid, for example the base of a mantle over a hot core. Past the critical melt fraction, the post-melt shear modulus falls steeply to the model's `liquid_shear` floor (10$^{-5}$ Pa by default). The solid equations divide by the shear modulus and cannot be integrated through it. After every EOS solve, the world finds and records regions that are molten or where its shear rigidity $\mu / (\bar{\rho} g R)$ (planet bulk density, surface gravity, and radius) is below `[numerical] minimum_solid_rigidity` (10$^{-6}$ by default). These are found on the EOS slices, and their edges are refined by bisection on the dense profile. `molten_regions` lists them, and an info-level log message names each one.
 
 The radial solver splits the layer at those edges and solves each molten stretch as a static liquid, which uses only the density and gravity. The partial-melt model does not set a liquid's bulk modulus there, which a compressible dynamic liquid would use. It changes the bulk modulus only when its `bulk_melt_weakening` switch is on, and the density only when its `density_melt_mixing` switch is on. The solid parts keep the layer's own flags. Each stretch takes its share of the layer's slices, at least five, for the solution's output grid. Treating a solid of rigidity $10^{-6}$ as a liquid changes the Love numbers by about that fraction. Outside the radial solve the layer is one layer, and its 3D heating takes nothing from the molten stretch (a liquid carries no shear dissipation there). A layer declared liquid is never split.
 
@@ -356,8 +363,8 @@ These describe the world's last `solve_love_numbers` (or `solve_love_numbers_sup
 | `love_number_k`, `love_number_h`, `love_number_l` | complex | Love numbers for the first boundary condition at the solved degree. Equivalent to `get_love_number_k(0)` and friends. |
 | `love_method` | str | Canonical name of the method the last solve used. |
 | `love_surface_amplification` | float | Conditioning of the surface boundary-condition solve, recorded on every shooting solve whether or not `warnings` is on; near 1 is healthy, 0 after an analytic solve. |
-| `love_surface_rcond` | float | Reciprocal condition number of the surface boundary-condition system, the rank measure the amplification cannot give: near machine epsilon the solution constants are undetermined and the solve fails with error code -13 (below `[numerical] minimum_surface_rcond`); below the integration rtol it draws a conditioning warning. NaN before a shooting solve and for the other methods. The standalone solver reports it as `surface_solve_rcond`. |
-| `love_effective_shear_modulus`, `love_tidal_volume` | complex, float | The tidal-scale-weighted mean of the layers' complex shear moduli [Pa] and the volume of the layers that took part [m3] in the last quasi-homogeneous solve; NaN after a radial-solver solve. |
+| `love_surface_rcond` | float | Reciprocal condition number of the surface boundary-condition system, the rank measures if the solution constants are undetermined. |
+| `love_effective_shear_modulus`, `love_tidal_volume` | complex, float | The tidal-scale-weighted mean of the layers' complex shear moduli \[Pa\] and the volume of the layers that took part \[m$^3$\] in the last quasi-homogeneous solve; NaN after a radial-solver solve. |
 | `love_layer_parts` | list of dict | Each tidal layer's part of the last quasi-homogeneous solve: `layer`, `tidal_scale`, `love_number_k`, `love_number_h`, `love_number_l`, and `shear_modulus`. Empty after a radial-solver solve. |
 
 **`get_love_number_k(ytype_idx=0) -> complex`**, **`get_love_number_h(ytype_idx=0) -> complex`**, **`get_love_number_l(ytype_idx=0) -> complex`**
@@ -370,7 +377,7 @@ Raw radial function y₁…y₆ at the surface for solution type `ytype_idx`, fu
 
 **`get_love_radial_y(radius, ytype_idx=0, y_idx=0) -> complex`**
 
-The same radial function at any radius [m], evaluated from the solver's dense interpolants, so it is accurate between grid slices. Returns NaN if the solve failed, if an analytic Love method was used (those have no radial functions), or if the radius sits below the solver's starting radius.
+The same radial function at any radius \[m\], evaluated from the solver's dense interpolants, so it is accurate between grid slices. Returns NaN if the solve failed, if an analytic Love method was used (those have no radial functions), or if the radius sits below the solver's starting radius.
 
 #### C++ API
 
@@ -406,7 +413,7 @@ A layer's heating depends on the source of the Love numbers:
 
 | Love numbers from | Layer heating |
 |-------------------|---------------|
-| The radial solver (`radial_solver`, `propagation_matrix`) | The volume integral of the radial solution's orbit-averaged heating density over the layer: the same integral as `calc_3d_tides` with every axis summed, scaled so the layers sum to the 1D total. A liquid layer carries no shear dissipation and takes 0. It costs about as much as the global solve again, so `set_tide_config(layer_tidal_heating=False)` (or `layer_tidal_heating = false` in `[tides]`) skips it and leaves every layer's heating NaN. |
+| The radial solver (`radial_solver`, `propagation_matrix`) | The volume integral of the radial solution's orbit-averaged heating density over the layer: the same integral as `calc_3d_tides` with every axis summed, scaled so the layers sum to the 1D total. A liquid layer carries no shear dissipation. It costs about as much as the global solve again, so `set_tide_config(layer_tidal_heating=False)` (or `layer_tidal_heating = false` in `[tides]`) skips it and leaves every layer's heating NaN. |
 | The quasi-homogeneous methods (`homogeneous`, `cpl`, `ctl`) | The heating of the layer's own term $s_i k_i$ (see Quasi-Homogeneous Love Numbers), constant within the layer; the layers sum to the total. |
 | An analytic tide model (`cpl`, `ctl`, `ctl_q` tide models, which describe the whole body) | The total times the layer's tidal scale $s_i$. |
 
@@ -440,7 +447,7 @@ world.calc_tides(orbital_frequency=2.0e-5, spin_frequency=1.0e-5, eccentricity=0
                  obliquity=0.0, semi_major_axis=4.0e8, host_mass=1.9e27)
 
 world.get_tidal_heating()             # total heating [W]
-world.get_tidal_love_k(2, 2, 0, 0)    # complex k₂ for the (l,m,p,q) = (2,2,0,0) mode
+world.get_tidal_love_k(2, 2, 0, 0)    # complex k for the (l,m,p,q) = (2,2,0,0) mode
 ```
 
 `calc_tides` raises `RuntimeError` if the `rheology` model is selected but the EOS has not been solved, or if a per-frequency radial solve fails.
@@ -481,9 +488,9 @@ Each layer also stores its own tidal heating: `layer.get_tidal_heating()` (C++ `
 
 **State.** `get_state(radius)` returns every EOS profile at a radius as a dict (see [Solved State](#solved-state)), and `calc_state(radius, force_recalc=False)` solves the EOS first when needed.
 
-**Three-dimensional tides.** `get_3d_tidal_heating_array(...)` is the vectorized form of `get_3d_tidal_heating`, for building a heating map. `calc_3d_displacements(...)` returns the instantaneous displacement grid, and `calc_3d_stress_strain(...)` returns the stress and strain grids. All three, like `calc_3d_tides`, take `num_threads` (default 0, the logical processors less 4) to spread their radial solves and per-point work over threads. See the [3D heating page](../../Tides/multilayer_3d_heating.md).
+**Three-dimensional tides.** `get_3d_tidal_heating_array(...)` is the vectorized form of `get_3d_tidal_heating`, for building a heating map. `calc_3d_displacements(...)` returns the instantaneous displacement grid, and `calc_3d_stress_strain(...)` returns the stress and strain grids. All three, like `calc_3d_tides`, take `num_threads` (default 0, the logical processors minus 4) to spread their radial solves and per-point work over threads. See the [3D heating page](../../Tides/multilayer_3d_heating.md).
 
-**Configuration and identity.** `source_config` is the normalized configuration the world was built from, if any. `portable_config` is the configuration as given for a world built from a `data_file` (what `save_to_toml` writes). A successful `load_binary` clears both. `family_world_type()` returns the builder's world type for this class. `get_schema_version_str()` returns the schema version the class writes. See the [TOML schema](../config/toml_schema.md).
+**Configuration and identity.** `source_config` is the normalized configuration the world was built from, if any. `portable_config` is the configuration as given for a world built from a `data_file` (what `save_to_toml` writes). `family_world_type()` returns the builder's world type for this class. `get_schema_version_str()` returns the schema version the class writes. See the [TOML schema](../config/toml_schema.md).
 
 **Pinned solver settings.** `set_solver_defaults(eos_solver=None, radial_solver=None)` pins keys of the `[eos_solver]` and `[radial_solver]` configuration sections on this world, and `get_solver_defaults()` returns them. A world file's tables of the same names are applied here. A call's own argument wins over a pinned key, and a pinned key wins over the TidalPy configuration for every solve the world runs. An unpinned key follows the configuration. `get_config_dict()` includes the tables.
 
@@ -513,22 +520,22 @@ from TidalPy.Structures.worlds import StarWorld
 sun = StarWorld("Sun", 6.957e8, 1.989e30, effective_temperature=5772.0)
 sun.luminosity                # ~3.83e26 W (derived from T if luminosity == 0)
 sun.set_luminosity(3.828e26)  # recomputes effective_temperature
+sun.effective_temperature
 ```
 
-**Properties:** `effective_temperature` [K], `luminosity` [W]. **Methods:** `calc_luminosity_from_temperature(T)`, `calc_temperature_from_luminosity(L)`, `set_effective_temperature(T)`, `set_luminosity(L)`. A luminosity-model hierarchy (fixed, mass-to-luminosity, power law) can be attached via `set_luminosity_model` (see `Stellar/luminosity.md`).
+**Properties:** `effective_temperature` \[K\], `luminosity` \[W\]. **Methods:** `calc_luminosity_from_temperature(T)`, `calc_temperature_from_luminosity(L)`, `set_effective_temperature(T)`, `set_luminosity(L)`. A luminosity-model hierarchy (fixed, mass-to-luminosity, power law) can be attached via `set_luminosity_model` (see `Stellar/luminosity.md`).
 
 **Tides.** A star without layers uses the analytic tide models (`cpl`, `ctl`, `ctl_q`); the `rheology` model needs layers and a solved EOS, so `calc_tides` raises if it is selected on a star that has neither. See [Global (1D) Tidal Dissipation](#global-1d-tidal-dissipation).
 
 **Spin.** A star carries a spin model like every world, so a `System` evolves its spin rate. Without a solved EOS its moment of inertia is `moment_of_inertia_factor` $\times\,M R^{2}$. The builder takes the factor from `[worlds.star]` in the TidalPy configuration, 0.0754 (an $n = 3$ polytrope, a Sun-like star, as the `[tides.star]` Love numbers assume); a fully convective M dwarf is closer to 0.205 ($n = 1.5$). Set `moment_of_inertia_factor` in the star's TOML, or call `set_spin_model`, to change it.
 
-
 ## Binary Serialization
 
-A world's binary file ([Binary Serialization](../../Utilities/binary.md)) holds the whole world graph, every layer with its attached models, and every setting that changes a result, so a loaded world computes what the saved one did:
+A world's binary file ([Binary Serialization](../../Utilities/binary.md)) holds the whole world structure, every layer with its attached models, and every setting that affects calculations.
 
 - Every world type: the tide model and its configuration (`get_tide_config()`: degrees, truncations, Love method, `love_fixed_q`, `love_fixed_dt`, `layer_tidal_heating`), the spin model's `moment_of_inertia_factor`, the pinned solver settings (`get_solver_defaults()`), and every layer.
 - `StarWorld`: the luminosity model.
 
-Solved state is not saved. The EOS profile (`c_LayerEOSData`), Love numbers, and tide results are recomputed with `solve_eos` and `calc_tides` after a load. Loading into an existing world replaces all of these, so a record saved without a tide model leaves the world without one.
+Solved state is not saved. The EOS profile (`c_LayerEOSData`), Love numbers, and tide results must be recomputed with `solve_eos` and `calc_tides` after a load. Loading into an existing world replaces all of these, so a record saved without a tide model leaves the world without one.
 
 The layers' material EOS models are restored, so the EOS solve needs nothing re-attached. Layer views taken before the load (`world.<name>`, `get_layer`) refer to replaced layers, so take new ones. A layer that belongs to a world cannot be loaded in place. Load the world, or a standalone layer.

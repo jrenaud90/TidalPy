@@ -1,12 +1,12 @@
 # Eccentricity Functions
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
 The eccentricity functions $G_{l,p,q}(e)$ are one of the two drivers of the tidal potential, alongside the [obliquity functions](obliquity.md); see $G_{lpq}(e)$ in Eq. 1 of [Kaula (1964)](http://doi.wiley.com/10.1029/RG002i004p00661). Unlike the obliquity functions they are defined by an infinite sum over $q$ and cannot be written down exactly, so a truncation level has to be chosen. As long as $e < 1$ that choice trades accuracy against the number of active tidal modes, and therefore against computation time.
 
-The functions TidalPy returns are unsquared, the form a tidal potential uses. Truncation levels are named by the heating, which goes as their square: level $N$ keeps every product of two eccentricity functions through $e^N$.
+The functions TidalPy returns are unsquared, the form a tidal potential uses. Truncation levels, however, are named based on the heating truncation which goes as their square (this is just by tradition). So, level $N$ keeps every product of two eccentricity functions through $e^N$.
 
-TidalPy does not evaluate the series at runtime. The coefficients for each degree and truncation are generated ahead of time with exact rational arithmetic and compiled in, and a mode whose $G_{lpq}(e)$ is identically zero, or whose series starts past the truncation, is never returned.
+TidalPy generally does not evaluate the series at runtime (there is one exception, see "Exact Functions" below). The coefficients for each degree and truncation are generated ahead of time with exact rational arithmetic and compiled in, and a mode whose $G_{lpq}(e)$ is identically zero, or whose series starts past the truncation, is never returned.
 
 > [!NOTE]
 > TidalPy's eccentricity functions require $0 \le e < 1$; parabolic and hyperbolic orbits are outside their domain.
@@ -33,12 +33,12 @@ with $J_{-\nu} = (-1)^{\nu}J_{\nu}$ and generalized binomial coefficients for ne
 
 ## Truncation Rule
 
-Truncation level $N$ (an even number) keeps every product of two eccentricity functions through $e^N$ and nothing past it. Since the heating and the orbital and spin rates are sums of such products, they are the Taylor series of the exact result through $e^N$.
+Truncation level $N$ (an even number) keeps every product of two eccentricity functions through $e^N$ and nothing past it. Since the heating and the orbital and spin rates are sums of products, they are the Taylor series of the exact result through $e^N$.
 
 - The unsquared functions returned by `eccentricity_func` hold every mode with $\lvert q \rvert \le N$, each through $e^N$, so a tidal potential built from them is complete through $e^N$.
 - The squares used by the global (1D) heating, `eccentricity_squared_func`, hold every mode with $\lvert q \rvert \le N/2$, each square cut at $e^N$. A cut square can be negative for the highest-$\lvert q \rvert$ modes at large $e$; the sum over modes is still the heating's Taylor series.
 - The 3D secular heating forms products of pairs of modes that share a frequency and cuts each at $e^N$ in the same way, so at zero obliquity its volume integral equals the 1D heating at any eccentricity (with obliquity, see the cross terms in [3D Tidal Heating](multilayer_3d_heating.md)). The instantaneous 3D fields (displacements, stress, strain, instantaneous power) are linear in the potential and use the unsquared functions.
-- The $k = 0$ modes are exact, and so is a product of two of them. A product of a $k = 0$ mode with another keeps the exact factor whole and cuts the other factor's series; such products occur only in the 3D heating, in pointwise cross terms and at spin rates commensurate with the mean motion.
+- The $k = 0$ modes are exact, and so is a product of two of them. A product of a $k = 0$ mode with another keeps the exact factor whole and cuts the other factor's series.
 
 This is the definition of truncation used by Renaud et al. (2021).
 
@@ -49,11 +49,11 @@ Two other rules were tested against the exact heating before this one was adopte
 - Cutting each function at $e^N$ and squaring it without a further cut adds incomplete $e^{N+1}$ to $e^{2N}$ terms, mostly from the modes with $\lvert q \rvert$ near $N$, which carry only the first one or two terms of their series. Above $e \approx 0.45$ those terms overshoot and grow with $N$, so a higher level becomes worse: every function through $e^{20}$ overestimates the synchronous constant-time-lag heating by 760% at $e = 0.6$.
 - Carrying each mode well past its leading power and squaring without a cut converges from below, but it needs about twice the modes of this rule for the same accuracy.
 
-At a fixed number of modes the product cut was 10 to 100 times more accurate than either, errs low at every eccentricity, and never gets worse as the level rises.
+At a fixed number of modes the product cut was 10 to 100 times more accurate than either, leans low at every eccentricity, and never gets worse as the level rises.
 
 ### Tables
 
-The tables in `Tides/eccentricity/eccentricity_func_l{2..10}_.hpp` come from `cpp_eccentricity_func_builder.py` in the `Tidal Derivations` folder of the [derivations repository](https://github.com/jrenaud90/derivations). They hold data only: for each (degree, level), one record per mode $(p, q)$, dense in $p$ and $q$, pointing at its coefficients $c_j$ of $e^{\lvert q \rvert + 2j}$ (converted from exact rationals to the nearest double). `eccentricity_common_.hpp` evaluates them: `c_eccentricity_mode_value` gives $G_{lpq}(e)$ and `c_eccentricity_cut_product` any product cut at $e^N$. `eccentricity_driver_.hpp` fills the `(l, p, q)` and `(l, p)` lookup maps the tide engines read.
+The tables in `Tides/eccentricity/eccentricity_func_l{2..10}_.hpp` were generated by a separate code gen used by Renaud et al. (2021) and is available upon request. They hold data only: for each (degree, level), one record per mode $(p, q)$, dense in $p$ and $q$, pointing at its coefficients $c_j$ of $e^{\lvert q \rvert + 2j}$ (converted from exact rationals to the nearest double). `eccentricity_common_.hpp` evaluates them: `c_eccentricity_mode_value` gives $G_{lpq}(e)$ and `c_eccentricity_cut_product` any product cut at $e^N$. `eccentricity_driver_.hpp` fills the `(l, p, q)` and `(l, p)` lookup maps the tide engines read.
 
 ### Validation
 
@@ -61,18 +61,18 @@ The generated coefficients match the exact Taylor coefficients of the Hansen int
 
 ### High Eccentricity
 
-The series of the highest-$\lvert q \rvert$ modes converge slowly at large $e$, and their cut squares alternate in sign. The heating is then a sum of large terms of both signs, which cancel. At level 50 and degree 2 the terms are about $10^4$ times the total at $e = 0.7$ and $5 \times 10^5$ times at $e = 0.8$, and about ten times more at degree 3. Rounding and any error in the Love numbers are multiplied by that factor, so no tabulated level is reliable past about $e \approx 0.78$ (0.75 at degree 3, falling to 0.555 at degree 8), even where the truncation alone would allow it (level 50 stays within 10% to $e = 0.80$ at degree 2). The exact functions below have no such limit.
+The series of the highest-$\lvert q \rvert$ modes converge slowly at large $e$, and their cut squares alternate in sign. The heating is then a sum of large terms of both signs, which cancel. At level 50 and degree 2 the terms are about $10^4$ times the total at $e = 0.7$ and $5 \times 10^5$ times at $e = 0.8$, and about ten times more at degree 3. Rounding and any error in the Love numbers are multiplied by that factor, so no tabulated level is reliable past about $e \approx 0.78$ (0.75 at degree 3, falling to 0.555 at degree 8), even where the truncation alone would allow it (level 50 stays within 10% to $e = 0.80$ at degree 2). This was the motivation for providing exact forms of these functions.
 
 ## Exact Functions
 
 `eccentricity_trunc_lvl = "exact"` (in Python `truncation="exact"`, or `ECCENTRICITY_EXACT`) takes the eccentricity functions from the exact Kepler orbit instead of a table. $G_{lpq}$ is the $k$-th Fourier coefficient in mean anomaly of $(r/a)^{-(l+1)} e^{imf}$, so sampling that function (Kepler's equation solved at each sample) and taking one fast Fourier transform per $(l, p)$ gives every mode at once. Nothing is truncated in $e$, and a product of two functions is the plain product, so the result holds at any $e < 1$ with no cancellation between modes.
 
-The mode range follows from the tolerance `eccentricity_exact_tolerance` (`[tides]`, default $10^{-4}$): the modes kept are those whose $q^2$-weighted squares leave a tail below that fraction of the whole. That weight is the synchronous constant-time-lag heating's, the most demanding of the tide models measured, so the tolerance bounds its relative error; against Hut (1981) the heating is within the tolerance from $e = 0.1$ to $0.9$. The price is modes: at $10^{-4}$ it keeps about $\lvert q \rvert \le 55$ at $e = 0.7$, 105 at 0.8, and 320 at 0.9, against 25 for level 50. Each distinct forcing frequency needs its own Love number solve, so at $e = 0.9$ a rheology tide solves a few hundred of them per call. The transform itself costs about 0.1 ms per degree at small $e$ and 2 ms at $e = 0.9$ (7 ms at degree 10).
+The mode range follows from the tolerance `eccentricity_exact_tolerance` (`[tides]`, default $10^{-4}$): the modes kept are those whose $q^2$-weighted squares leave a tail below that fraction of the whole. That weight is the synchronous constant-time-lag heating's, the most demanding of the tide models measured, so the tolerance bounds its relative error; against Hut (1981) the heating is within the tolerance from $e = 0.1$ to $0.9$. The trade off is the number of tidal modes that are required. For a tolerance of $10^{-4}$ it keeps about $\lvert q \rvert \le 55$ at $e = 0.7$, 105 at 0.8, and 320 at 0.9, against 25 for level 50. Each distinct forcing frequency needs its own Love number solve, so at $e = 0.9$ a rheology tide solves a few hundred of them per call. The transform itself costs about 0.1 ms per degree at small $e$ and 2 ms at $e = 0.9$ (7 ms at degree 10).
 
 > [!NOTE]
-> The tolerance guarantee has one blind spot: a body that rings. Deciding which modes to drop, the exact option assumes the fast, high-$q$ modes matter less and less, which is true for the fixed-Q and fixed-time-lag models and for most viscoelastic bodies. A body solved with inertia (a dynamic layer) also has natural vibration frequencies, like a bell. A tidal mode that happens to force the body near one of them is amplified enormously, so it can matter even though it looks negligible by the usual measure. If that mode lies just outside the kept range, its heating is missed.
+> The tolerance guarantee has one blind spot: a body in resonance. Deciding which modes to drop, the exact option assumes the fast, high-$q$ modes matter less and less, which is true for the fixed-Q and fixed-time-lag models and for most viscoelastic bodies. A body solved with inertia (a dynamic layer) also has natural vibration resonant frequencies, like a bell. A tidal mode that happens to force the body near one of them is amplified enormously, so it can matter even though it looks negligible by the usual measure. If that mode lies just outside the kept range, its heating (and affect on the tidal torques) is missed.
 >
-> This only matters at high eccentricity, where the orbit forces the body at very high frequencies. In the [exact-orbit benchmark](../../Benchmarks/Tides/Exact_Orbit_Tidal_Heating.ipynb), a dynamic Maxwell Io at $e = 0.8$ rings at about 147 times its orbital frequency, a period of 17 minutes. At the default tolerance, 0.13% of its heating is missed, far more than the $10^{-4}$ promised. A tolerance of $10^{-10}$ keeps enough modes to include the resonance, and then the heating is right to $10^{-12}$. The tabulated levels miss such modes as well. For a dynamic body at high eccentricity, tighten the tolerance until the heating stops changing.
+> This only matters at high eccentricity, where the orbit forces the body at very high frequencies. In the [exact-orbit benchmark](../../Benchmarks/Tides/Exact_Orbit_Tidal_Heating.ipynb), a dynamic Maxwell Io at $e = 0.8$ is resonant at about 147 times its orbital frequency, a period of 17 minutes. At the default tolerance, 0.13% of its heating is missed, far more than the $10^{-4}$ promised. A tolerance of $10^{-10}$ keeps enough modes to include the resonance, and then the heating is right to $10^{-12}$. The tabulated levels miss such modes as well. For a dynamic body at high eccentricity, tighten the tolerance until the heating appears to have converged.
 
 Past about $e = 0.99$ the functions would need more than 20000 modes and are refused.
 
@@ -91,7 +91,7 @@ The accuracy columns give the largest eccentricity at which the degree-2 heating
 | 50 | 151 | 0.58 | 0.745 | 0.78 / 0.75 / 0.42 |
 | `"exact"` | depends on $e$ | any $e < 0.99$, to the tolerance | | never |
 
-Level 10 is TidalPy's default. Level 2 is the traditional $e^2$ theory: its synchronous heating is exactly $(21/2)(k_2/Q) G M^2 R^5 n e^2 / a^6$.
+Level 10 is TidalPy's default. Level 2 is the traditional $e^2$ theory (its synchronous heating is exactly $(21/2)(k_2/Q) G M^2 R^5 n e^2 / a^6$).
 
 `recommend_eccentricity_truncation(eccentricity, tolerance=0.01, max_degree_l=2)` returns the lowest level that holds a tolerance at an eccentricity, or `"exact"` when none does, and `eccentricity_accuracy_limit(level, tolerance, max_degree_l)` the largest eccentricity a level holds a tolerance to. Both read the measurements behind the table, made for each degree from 2 to 10 at tolerances of $10^{-8}$, $10^{-6}$, $10^{-4}$, $10^{-3}$, $10^{-2}$, and $10^{-1}$; a tolerance in between uses the next smaller one. A level must hold at every degree a solve includes, so both take the tightest limit of degrees 2 to `max_degree_l`. The limits barely depend on the spin rate, so the helper takes none:
 
@@ -105,9 +105,9 @@ recommend_eccentricity_truncation(0.3, tolerance=1e-6)    # 50
 recommend_eccentricity_truncation(0.85)                   # 'exact'
 ```
 
-A world's `calc_tides` logs a warning, once per world, when its eccentricity is past the last column (the 3D calls do not check it): the point where that level's heating at some included degree can be 10% or more below the exact value. Higher degrees generally lose accuracy at a lower eccentricity, so a world whose tides reach degree 3 uses the second value and one whose tides reach degree 10 the third; other degree ranges use the tightest limit of the degrees included (`eccentricity_accuracy_limit(level, 0.1, max_degree_l)`). The total heating of a solve through degree 10 is usually closer to exact than that, since the higher degrees are weaker, but its per-degree values and its 3D pattern are not.
+A world's `calc_tides` logs a warning, once per world, when its eccentricity is past the last column (the 3D calls do not check it). This is the point where that level's heating at some included degree can be 10% or more below the exact value. Higher harmonic degree $l$ generally lose accuracy at a lower eccentricity, so a world whose tides reach degree 3 uses the second value and one whose tides reach degree 10 the third; other degree ranges use the tightest limit of the degrees included (`eccentricity_accuracy_limit(level, 0.1, max_degree_l)`). The total heating of a solve through degree 10 is usually closer to exact than that, since the higher degrees are weaker, but its per-degree values and its 3D pattern are not.
 
-The cost is worse than linear. Each new truncation activates new tidal modes, and new modes can introduce new unique forcing frequencies, each of which needs its own Love number solve. Doubling the mode count more than doubles the work, and the effect compounds at $l > 2$ because higher degrees activate more modes of their own. We recommend the lowest truncation that covers your eccentricity values. In a numerical integration where eccentricity may be driven higher (_e.g._, in a mean motion resonance), a truncation adequate for the initial eccentricity may become inaccurate as the eccentricity rises; the warning above flags it.
+The computational cost of using a higher truncation level is worse than linear. Each new truncation activates new tidal modes, and new modes can introduce new unique forcing frequencies, each of which needs its own Love number solve. Doubling the mode count more than doubles the work, and the effect compounds at $l > 2$ because higher degrees activate more modes of their own. We recommend the lowest truncation that covers your eccentricity values. In a numerical integration where eccentricity may be driven higher (_e.g._, in a mean motion resonance), a truncation adequate for the initial eccentricity may become inaccurate as the eccentricity rises; the warning above flags it.
 
 ## Example
 
@@ -130,7 +130,7 @@ squares_by_lpq, _ = eccentricity_squared_func(eccentricity, degree_l=2, truncati
 print(len(squares_by_lpq))                 # 13 modes enter the heating, |q| <= 2
 ```
 
-Degrees $l = 2$ through $10$ are supported. Higher degrees require generating and compiling more terms; open a GitHub issue if you need them.
+Degrees $l = 2$ through $10$ are supported. Higher degrees require generating and compiling more terms. Please feel free to open a GitHub issue if you need them.
 
 Both functions return a pair of lookup objects holding the same numbers two ways: `modes_by_lpq` is keyed by the full `(l, p, q)` mode, and `modes_by_lp` is a dict keyed by `(l, p)` whose values iterate as `((q,), value)` pairs, which is the convenient form when you want every $q$ at a given $(l, p)$. Only non-zero modes appear in either. `truncation` defaults to the `[tides]` `eccentricity_trunc_lvl` of the TidalPy configuration; `exact_tolerance` sets the mode range of `"exact"` (default: the `[tides]` `eccentricity_exact_tolerance`). `validate_eccentricity_truncation` checks a level, and `promote_eccentricity_truncation` resolves an untabulated configured level to the next tabulated one with a warning, as the world builder does.
 
