@@ -254,8 +254,9 @@ schema_version = "{SCHEMA_VERSION}"
     # density, and time units) so the tolerances above mean the same thing for every planet.
     nondimensionalize = true
     # Radial samples per layer in the profile a solve reports (its arrays and each layer's hand-set fallback).
-    # Nothing else reads them: the Love solves and every profile getter evaluate the solve's dense output at the
-    # exact radius, so their answers do not depend on this, and raising it only costs time.
+    # The Love solves and every profile getter evaluate the solve's dense output at the exact radius, and the
+    # search for molten stretches refines between the samples, so their answers do not depend on this, and raising
+    # it only costs time.
     slices_per_layer = 100
 
 

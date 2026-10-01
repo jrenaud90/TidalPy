@@ -1239,10 +1239,12 @@ public:
     // The stretches the radial solver integrates, inner to outer, from the last successful EOS solve. Each layer
     // is one stretch unless its partial-melt model makes part of it molten: the post-melt shear modulus sits at the
     // model's liquid_shear floor, or its rigidity mu / (rho g R) is below the config's minimum_solid_rigidity, which
-    // takes in the steep weakening just short of the floor. Molten stretches are found on the EOS slices, their
-    // edges refined by bisection on the dense profile, and the layer is split there, each edge on the solid side so
-    // no solid stretch reaches into the melt. Whether a molten stretch is solved as a liquid is decided per Love
-    // solve (ensure_radial_cache), since the layer flags can change without a new EOS solve.
+    // takes in the steep weakening just short of the floor. Molten stretches are found on the EOS slices plus the
+    // peaks of the melt fraction between them (a band thinner than the slice spacing, such as the first melt where
+    // a conducting boundary layer meets an adiabat, can lie wholly between two solid slices). Their edges are
+    // refined by bisection on the dense profile, and the layer is split there, each edge on the solid side so no
+    // solid stretch reaches into the melt. Whether a molten stretch is solved as a liquid is decided per Love solve
+    // (ensure_radial_cache), since the layer flags can change without a new EOS solve.
     void update_radial_segments() {
         this->p_radial_segments.clear();
         const c_EOSSolution* solution = this->p_eos_solution.get();
@@ -1280,15 +1282,22 @@ public:
             // An edge is refined until its bracket is as narrow as the tolerance on a layer interface, and a
             // stretch no thicker than that is part of its neighbor.
             const double edge_tolerance = d_LAYER_BOUNDARY_RTOL * radius_outer;
+            const double min_thickness  = d_MIN_STRETCH_RTOL * radius_outer;
             const std::size_t first_segment = this->p_radial_segments.size();
             const double* slice_radius = solution->radius_array_vec.data() + layer_i * slices;
+            const std::vector<double> scan_radius = this->p_molten_scan_radii(
+                layer,
+                melt_model,
+                std::vector<double>(slice_radius, slice_radius + slices),
+                is_molten);
+            const std::size_t num_scan = scan_radius.size();
             double stretch_start  = radius_inner;
-            bool   stretch_molten = is_molten(slice_radius[0]);
-            for (std::size_t slice_i = 1; slice_i < slices; ++slice_i) {
-                const bool molten_here = is_molten(slice_radius[slice_i]);
+            bool   stretch_molten = is_molten(scan_radius[0]);
+            for (std::size_t scan_i = 1; scan_i < num_scan; ++scan_i) {
+                const bool molten_here = is_molten(scan_radius[scan_i]);
                 if (molten_here == stretch_molten) { continue; }
-                double lower = slice_radius[slice_i - 1];
-                double upper = slice_radius[slice_i];
+                double lower = scan_radius[scan_i - 1];
+                double upper = scan_radius[scan_i];
                 while (upper - lower > edge_tolerance) {
                     const double middle = 0.5 * (lower + upper);
                     if (is_molten(middle) == stretch_molten) { lower = middle; } else { upper = middle; }
@@ -1306,7 +1315,6 @@ public:
             // A stretch too thin for the radial solver to grid (its minimum slices would sit inside the interface
             // tolerance; the last stretch of a layer is not checked by the edge loop above) takes the state of its
             // thicker neighbor. A skin that thin carries no meaningful tidal response.
-            const double min_thickness = d_MIN_STRETCH_RTOL * radius_outer;
             std::vector<c_RadialSegment> stretches(this->p_radial_segments.begin() + first_segment,
                                                    this->p_radial_segments.end());
             if (stretches.size() > 1) {
@@ -2815,6 +2823,75 @@ protected:
         // The outermost layer's top is the world radius.
         this->p_radius = radius_inner_new;
         return largest_change;
+    }
+
+    // The radii [m] at which update_radial_segments tests a layer for melt: the given slice radii, plus each peak of
+    // the unclipped melt fraction (T - T_sol(P)) / (T_liq(P) - T_sol(P)) that is molten. A band thinner than the
+    // slice spacing can lie wholly between two solid slices. The melt fraction is continuous (with a kink where a
+    // boundary layer meets an adiabat), so its peak lies in the two intervals beside a sampled local maximum, and a
+    // golden-section search there finds it to within the thinnest stretch the radial solver grids. Henning
+    // weakening follows the melt fraction, and Spohn weakening the temperature above the solidus, which peaks at
+    // the same kink, so a molten band contains the peak.
+    template <typename MoltenTest>
+    std::vector<double> p_molten_scan_radii(
+            const c_BaseLayer* layer,
+            const c_PartialMeltBase* melt_model,
+            std::vector<double> scan_radius,
+            const MoltenTest& is_molten) const {
+        // The unclipped melt fraction at a radius; -inf where it is undefined (a degenerate envelope, no temperature).
+        const auto melt_drive = [layer, melt_model](double radius) {
+            double state[C_EOS_DY_VALUES];
+            layer->get_eos_state(radius, state);
+            const double solidus = melt_model->calc_solidus(state[C_EOS_PRESSURE_INDEX]);
+            const double span    = melt_model->calc_liquidus(state[C_EOS_PRESSURE_INDEX]) - solidus;
+            const double drive   = (state[C_EOS_TEMPERATURE_INDEX] - solidus) / span;
+            return ((span > TidalPyConstants::d_EPS) && std::isfinite(drive)) ? drive : -TidalPyConstants::d_INF;
+        };
+        // 1 / golden ratio, (sqrt(5) - 1) / 2: each step of the search keeps this fraction of its bracket.
+        constexpr double golden_fraction = 0.6180339887498949;
+        const double tolerance = d_MIN_STRETCH_RTOL * layer->get_radius_outer();
+
+        const std::size_t num_samples = scan_radius.size();
+        std::vector<double> drive(num_samples);
+        for (std::size_t sample_i = 0; sample_i < num_samples; ++sample_i) {
+            drive[sample_i] = melt_drive(scan_radius[sample_i]);
+        }
+        std::vector<double> molten_peaks;
+        for (std::size_t sample_i = 0; sample_i < num_samples; ++sample_i) {
+            const bool rises_to   = (sample_i == 0) || (drive[sample_i] >= drive[sample_i - 1]);
+            const bool falls_from = (sample_i + 1 == num_samples) || (drive[sample_i] > drive[sample_i + 1]);
+            if (!(rises_to && falls_from) || !std::isfinite(drive[sample_i]) || is_molten(scan_radius[sample_i])) {
+                continue;
+            }
+            double lower = scan_radius[(sample_i == 0) ? 0 : sample_i - 1];
+            double upper = scan_radius[(sample_i + 1 == num_samples) ? sample_i : sample_i + 1];
+            double probe_lower = upper - golden_fraction * (upper - lower);
+            double probe_upper = lower + golden_fraction * (upper - lower);
+            double drive_lower = melt_drive(probe_lower);
+            double drive_upper = melt_drive(probe_upper);
+            while (upper - lower > tolerance) {
+                if (drive_lower < drive_upper) {
+                    lower       = probe_lower;
+                    probe_lower = probe_upper;
+                    drive_lower = drive_upper;
+                    probe_upper = lower + golden_fraction * (upper - lower);
+                    drive_upper = melt_drive(probe_upper);
+                } else {
+                    upper       = probe_upper;
+                    probe_upper = probe_lower;
+                    drive_upper = drive_lower;
+                    probe_lower = upper - golden_fraction * (upper - lower);
+                    drive_lower = melt_drive(probe_lower);
+                }
+            }
+            const double peak = (drive_lower >= drive_upper) ? probe_lower : probe_upper;
+            if (is_molten(peak)) { molten_peaks.push_back(peak); }
+        }
+        if (!molten_peaks.empty()) {
+            scan_radius.insert(scan_radius.end(), molten_peaks.begin(), molten_peaks.end());
+            std::sort(scan_radius.begin(), scan_radius.end());
+        }
+        return scan_radius;
     }
 
     // One entry of the evaluation layout at a radius, as get_eos_fields reports it, under the call lock.
