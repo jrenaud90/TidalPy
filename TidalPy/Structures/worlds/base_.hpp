@@ -435,6 +435,11 @@ struct c_RadialSegment {
 // model's liquid_shear returned through the solve's unit conversions, while a solid lies orders of magnitude above.
 inline constexpr double d_MOLTEN_SHEAR_RTOL = 1.0e-9;
 
+// Thinnest radial stretch [fraction of the layer's outer radius] the radial solver grids: 100 times the interface
+// tolerance (d_LAYER_BOUNDARY_RTOL), so its minimum slices stay distinct from its edges. A thinner stretch
+// takes its neighbor's state (about 0.6 m in an Earth-sized world).
+inline constexpr double d_MIN_STRETCH_RTOL = 1.0e-7;
+
 // The evaluation-layout entries (eos_layout_.hpp) a world reads from its own EOS solution rather than from
 // the dense output of the layer that holds the radius.
 inline bool c_is_world_eos_field(std::size_t field_index) noexcept {
@@ -1298,10 +1303,39 @@ public:
             }
             this->p_radial_segments.push_back({layer_i, stretch_start, radius_outer, stretch_molten});
 
-            // A skipped sliver can leave two neighbors in the same state; they are one stretch.
+            // A stretch too thin for the radial solver to grid (its minimum slices would sit inside the interface
+            // tolerance; the last stretch of a layer is not checked by the edge loop above) takes the state of its
+            // thicker neighbor. A skin that thin carries no meaningful tidal response.
+            const double min_thickness = d_MIN_STRETCH_RTOL * radius_outer;
+            std::vector<c_RadialSegment> stretches(this->p_radial_segments.begin() + first_segment,
+                                                   this->p_radial_segments.end());
+            if (stretches.size() > 1) {
+                for (std::size_t stretch_i = 0; stretch_i < stretches.size(); ++stretch_i) {
+                    c_RadialSegment& stretch = stretches[stretch_i];
+                    if (stretch.radius_outer - stretch.radius_inner >= min_thickness) { continue; }
+                    const auto thickness_of = [&](std::size_t i) {
+                        return stretches[i].radius_outer - stretches[i].radius_inner;
+                    };
+                    const std::size_t neighbor =
+                        (stretch_i == 0) ? 1
+                        : (stretch_i + 1 == stretches.size()) ? stretch_i - 1
+                        : (thickness_of(stretch_i - 1) >= thickness_of(stretch_i + 1)) ? stretch_i - 1
+                        : stretch_i + 1;
+                    if (stretches[neighbor].molten != stretch.molten) {
+                        TIDALPY_LOG_INFO(
+                            "TidalPy: layer '{}' of world '{}' has a {} stretch only {:.3e} m thick between {:.6e} and "
+                            "{:.6e} m; the radial solver treats it as {}, like its neighbor.",
+                            layer->get_name(), this->get_name(), stretch.molten ? "molten" : "solid",
+                            stretch.radius_outer - stretch.radius_inner, stretch.radius_inner, stretch.radius_outer,
+                            stretches[neighbor].molten ? "molten" : "solid");
+                        stretch.molten = stretches[neighbor].molten;
+                    }
+                }
+            }
+
+            // A skipped or absorbed sliver can leave two neighbors in the same state; they are one stretch.
             std::vector<c_RadialSegment> merged;
-            for (std::size_t segment_i = first_segment; segment_i < this->p_radial_segments.size(); ++segment_i) {
-                const c_RadialSegment& segment = this->p_radial_segments[segment_i];
+            for (const c_RadialSegment& segment : stretches) {
                 if (!merged.empty() && (merged.back().molten == segment.molten)) {
                     merged.back().radius_outer = segment.radius_outer;
                 } else {

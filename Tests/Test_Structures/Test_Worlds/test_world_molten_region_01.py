@@ -176,3 +176,18 @@ def test_io_with_a_core_hot_enough_to_melt_the_mantle_base(core_temperature):
     # Io's measured k2 is 0.125 +/- 0.047 (Park et al. 2024).
     assert 0.02 < love_k2.real < 0.15
     assert -0.05 < love_k2.imag < 0.0
+
+
+@pytest.mark.parametrize("mantle_temperature", [1840.0, 1900.0])
+def test_a_mantle_molten_up_to_its_surface_still_solves(mantle_temperature):
+    """A hot convecting mantle under a hot surface is molten to (or within millimetres of) the surface. No stretch is
+    left too thin for the radial solver to grid, so the Love solve succeeds."""
+    earth = build_world("earth_simple")
+    earth.mantle.temperature = mantle_temperature
+    result = earth.solve_eos(solve_temperature=True, surface_temperature=1150.0)
+    assert result["success"], result["message"]
+    regions = earth.molten_regions
+    assert regions[-1][0] == "mantle"
+    assert regions[-1][2] == pytest.approx(earth.mantle.radius_outer, rel=1.0e-6)
+    earth.solve_love_numbers(frequency=1.0e-5, degree_l=2)
+    assert earth.love_success, earth.love_message
