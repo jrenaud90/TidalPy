@@ -34,7 +34,7 @@ from TidalPy.Utilities.classes.classes cimport (
 )
 from TidalPy.Material.eos.material_eos cimport MaterialEOSBase, cy_material_config
 from TidalPy.Rheology.rheology cimport RheologyBase
-from TidalPy.Viscosity.viscosity cimport ViscosityBase
+from TidalPy.Viscosity.viscosity cimport ViscosityBase, c_clone_viscosity
 from TidalPy.PartialMelt.partial_melt cimport PartialMeltBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
@@ -638,57 +638,46 @@ cdef class BaseLayer(StructureBase):
         """Give the layer's material a viscosity model for its shear viscosity (before partial melt).
 
         A helper: the material owns this model, so it is handed to the layer's EOS model, which must already be
-        attached (``set_eos`` first). Ownership of the C++ model moves out of the argument, which is left an empty
-        shell and must not be reused.
+        attached (``set_eos`` first). The material takes a copy; ``viscosity`` stays usable.
 
         Raises
         ------
         ValueError
-            If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
+            If the layer has no EOS model yet.
         """
         self._check_ptr()
-        if viscosity._visc_ptr.get() == NULL:
-            raise ValueError(
-                "This viscosity model holds no C++ object (already attached or moved).")
         if not self._layer_ptr.get().get_eos_set():
             raise ValueError(
                 f"Attach an EOS model to layer '{self.name}' before giving it a viscosity model: the material owns it.")
-        self._layer_ptr.get().set_shear_viscosity(move(viscosity._visc_ptr))
-        viscosity._ptr = NULL
+        self._layer_ptr.get().set_shear_viscosity(c_clone_viscosity(viscosity._viscosity()[0]))
 
     def set_bulk_viscosity(self, ViscosityBase viscosity not None):
         """Give the layer's material a viscosity model for its bulk viscosity (before partial melt).
 
         A helper: the material owns this model, so it is handed to the layer's EOS model, which must already be
-        attached (``set_eos`` first). Ownership of the C++ model moves out of the argument, which is left an empty
-        shell and must not be reused.
+        attached (``set_eos`` first). The material takes a copy; ``viscosity`` stays usable.
 
         Raises
         ------
         ValueError
-            If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
+            If the layer has no EOS model yet.
         """
         self._check_ptr()
-        if viscosity._visc_ptr.get() == NULL:
-            raise ValueError(
-                "This viscosity model holds no C++ object (already attached or moved).")
         if not self._layer_ptr.get().get_eos_set():
             raise ValueError(
                 f"Attach an EOS model to layer '{self.name}' before giving it a viscosity model: the material owns it.")
-        self._layer_ptr.get().set_bulk_viscosity(move(viscosity._visc_ptr))
-        viscosity._ptr = NULL
+        self._layer_ptr.get().set_bulk_viscosity(c_clone_viscosity(viscosity._viscosity()[0]))
 
     def set_partial_melt(self, PartialMeltBase partial_melt not None):
         """Give the layer's material a partial-melt model that weakens its static moduli and viscosities.
 
         A helper: the material owns this model, so it is handed to the layer's EOS model, which must already be
-        attached (``set_eos`` first). Ownership of the C++ model moves out of the argument, which is left an empty
-        shell and must not be reused.
+        attached (``set_eos`` first). The material takes a copy; ``viscosity`` stays usable.
 
         Raises
         ------
         ValueError
-            If the model has already been attached or otherwise moved, or the layer has no EOS model yet.
+            If the layer has no EOS model yet.
         """
         self._check_ptr()
         if partial_melt._melt_ptr.get() == NULL:

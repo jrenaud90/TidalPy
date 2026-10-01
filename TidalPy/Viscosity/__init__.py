@@ -9,6 +9,9 @@ from TidalPy.Viscosity.viscosity import (
     ReferenceViscosity,
     ArrheniusViscosity,
     make_viscosity,
+    viscosity_model_names,
+    canonical_viscosity_name,
+    viscosity_config_keys,
 )
 
 __all__ = [
@@ -17,4 +20,7 @@ __all__ = [
     "ReferenceViscosity",
     "ArrheniusViscosity",
     "make_viscosity",
+    "viscosity_model_names",
+    "canonical_viscosity_name",
+    "viscosity_config_keys",
 ]

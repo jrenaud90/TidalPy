@@ -36,24 +36,25 @@ _MODELS = [
 ]
 
 
-# Class -> readable property count (including model_name), so the sweep cannot pass vacuously.
+# Class -> readable property count, so the sweep cannot pass vacuously. Each count includes the two properties every
+# model inherits, model_name and parameters.
 _PROPERTY_COUNTS = {
-    Elastic:            1,
-    Viscous:            1,
-    Maxwell:            1,
-    Voigt:              3,
-    Burgers:            3,
-    Andrade:            3,
-    Sundberg:           5,
-    OffCooling:         1,
-    ConductiveCooling:  1,
-    ConvectiveCooling:  4,
-    OffRadiogenics:     1,
-    IsotopeRadiogenics: 8,
-    FixedRadiogenics:   4,
-    FixedLuminosity:    2,
-    MassToLuminosity:   1,
-    PowerLawLuminosity: 3,
+    Elastic:            2,
+    Viscous:            2,
+    Maxwell:            2,
+    Voigt:              4,
+    Burgers:            4,
+    Andrade:            4,
+    Sundberg:           6,
+    OffCooling:         2,
+    ConductiveCooling:  2,
+    ConvectiveCooling:  5,
+    OffRadiogenics:     2,
+    IsotopeRadiogenics: 9,
+    FixedRadiogenics:   5,
+    FixedLuminosity:    3,
+    MassToLuminosity:   2,
+    PowerLawLuminosity: 4,
 }
 
 

@@ -78,10 +78,10 @@ def test_attached_model_wrappers_raise_instead_of_reading_a_moved_object():
     with pytest.raises(RuntimeError, match="took ownership"):
         rheology.model_name
 
+    # A spec-driven model (viscosity) is copied in, so its wrapper stays usable.
     viscosity = make_viscosity("constant", {"reference_viscosity_pas": 1.0e20})
     layer.set_shear_viscosity(viscosity)
-    with pytest.raises(RuntimeError, match="took ownership"):
-        viscosity.calc_viscosity(1500.0, 1.0e9)
+    assert viscosity.calc_viscosity(1500.0, 1.0e9) == pytest.approx(1.0e20)
 
     partial_melt = make_partial_melt("henning")
     layer.set_partial_melt(partial_melt)

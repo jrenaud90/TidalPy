@@ -23,7 +23,7 @@ from TidalPy.Utilities.logging.logger cimport (
 from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.classes.classes cimport (
     PhysicsBase, c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config, cy_resolve_factory_config)
-from TidalPy.Viscosity.viscosity cimport ViscosityBase
+from TidalPy.Viscosity.viscosity cimport ViscosityBase, c_clone_viscosity
 from TidalPy.PartialMelt.partial_melt cimport PartialMeltBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
@@ -197,22 +197,16 @@ cdef class MaterialEOSBase(PhysicsBase):
     def set_shear_viscosity(self, ViscosityBase viscosity not None):
         """Attach a viscosity model supplying the shear viscosity before the partial-melt model.
 
-        Ownership moves out of ``viscosity``, which is left an empty shell and must not be reused.
+        The material takes a copy; ``viscosity`` stays usable.
         """
-        if viscosity._visc_ptr.get() == NULL:
-            raise ValueError("This viscosity model holds no C++ object (already attached or moved).")
-        self._model().set_shear_viscosity(move(viscosity._visc_ptr))
-        viscosity._ptr = NULL
+        self._model().set_shear_viscosity(c_clone_viscosity(viscosity._viscosity()[0]))
 
     def set_bulk_viscosity(self, ViscosityBase viscosity not None):
         """Attach a viscosity model supplying the bulk viscosity before the partial-melt model.
 
-        Ownership moves out of ``viscosity``, which is left an empty shell and must not be reused.
+        The material takes a copy; ``viscosity`` stays usable.
         """
-        if viscosity._visc_ptr.get() == NULL:
-            raise ValueError("This viscosity model holds no C++ object (already attached or moved).")
-        self._model().set_bulk_viscosity(move(viscosity._visc_ptr))
-        viscosity._ptr = NULL
+        self._model().set_bulk_viscosity(c_clone_viscosity(viscosity._viscosity()[0]))
 
     def set_partial_melt(self, PartialMeltBase partial_melt not None):
         """Attach a partial-melt model that weakens the static moduli and viscosities with melt fraction.

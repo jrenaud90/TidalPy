@@ -218,7 +218,8 @@ def test_partial_melt_leaves_the_density_and_bulk_viscosity_unless_switched_on()
 
 
 def test_an_attached_model_wrapper_is_an_empty_shell():
-    """Attaching moves the model into the material; the wrapper then raises instead of reading freed memory."""
+    """Attaching a partial-melt model moves it into the material; the wrapper then raises instead of reading freed
+    memory. A viscosity model is copied in, so its wrapper stays usable."""
     material = _make_material()
     melt = make_partial_melt("henning")
     viscosity = make_viscosity("constant", {"reference_viscosity_pas": 1.0e20})
@@ -226,8 +227,7 @@ def test_an_attached_model_wrapper_is_an_empty_shell():
     material.set_shear_viscosity(viscosity)
     with pytest.raises(RuntimeError):
         melt.calc_bulk_modulus_melt(1700.0, 0.0, 1.0e11, 1.0e10)
-    with pytest.raises(RuntimeError):
-        viscosity.calc_viscosity(1000.0, 0.0)
+    assert viscosity.calc_viscosity(1000.0, 0.0) == pytest.approx(1.0e20)
 
 
 def test_non_finite_temperature_skips_the_melt_model():

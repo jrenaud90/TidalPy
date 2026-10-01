@@ -53,12 +53,13 @@ def test_attach_models_sets_flags(attach):
 
 
 def test_models_are_move_once():
-    """A viscosity or partial-melt model moves into the layer, so it cannot be attached twice."""
+    """A partial-melt model moves into the layer, so it cannot be attached twice. A viscosity model is copied in, so
+    one model can be attached to several layers."""
     layer = _layer_with_material()
     viscosity = make_viscosity("reference")
     layer.set_shear_viscosity(viscosity)
-    with pytest.raises(ValueError):
-        layer.set_shear_viscosity(viscosity)
+    layer.set_bulk_viscosity(viscosity)
+    assert layer.shear_viscosity_set and layer.bulk_viscosity_set
     melt = make_partial_melt("spohn")
     layer.set_partial_melt(melt)
     with pytest.raises(ValueError):

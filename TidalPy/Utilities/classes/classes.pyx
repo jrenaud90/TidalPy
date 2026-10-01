@@ -1,13 +1,15 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-"""Cython wrappers for TidalPy's base class hierarchy: TidalPyBaseClass, StructureBase, PhysicsBase."""
+"""Cython wrappers for TidalPy's base class hierarchy (TidalPyBaseClass, StructureBase, PhysicsBase) and the
+parameter conversions every spec-driven physics model shares."""
 
 import difflib
 import os as _os
 
 from libcpp cimport bool as cpp_bool
-from libcpp.memory cimport make_unique
+from libcpp.memory cimport make_unique, shared_ptr, unique_ptr
 from libcpp.string cimport string
+from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
 from TidalPy.Utilities.logging.logger cimport (
@@ -211,8 +213,83 @@ cdef dict cy_physics_model_config(const c_PhysicsBase* model_ptr):
     return cy_config_entries_to_dict(entries)
 
 
+cdef c_ParamMap cy_param_map(dict parameters) except *:
+    """Python parameters as a c_ParamMap: each value a float, an int, a bool, or a sequence of floats (a table).
+
+    Keys may be argument names or config keys; the C++ model accepts either. ``None`` values are skipped, so a caller
+    can pass optional arguments straight through, and so is the ``model`` key, which names the model rather than a
+    parameter, so a ``get_config_dict()`` result goes straight back to its factory.
+    """
+    cdef c_ParamMap param_map
+    cdef vector[double] values
+    cdef object key
+    cdef object value
+    cdef object item
+    for key, value in parameters.items():
+        if value is None or key == "model":
+            continue
+        if not isinstance(key, str):
+            raise TypeError(f"TidalPy: parameter names must be strings; got {key!r}.")
+        if isinstance(value, str):
+            raise TypeError(f"TidalPy: parameter '{key}' takes a number, not the string {value!r}.")
+        values.clear()
+        if isinstance(value, (bool, int, float)):
+            values.push_back(<double>float(value))
+        else:
+            try:
+                for item in value:
+                    values.push_back(<double>float(item))
+            except TypeError:
+                # A NumPy scalar, or another object that converts to float.
+                values.clear()
+                values.push_back(<double>float(value))
+        param_map[(<str>key).encode("utf-8")] = values
+    return param_map
+
+
+cdef object cy_param_value(c_ParamKind kind, const vector[double]& values):
+    """A parameter's values as the Python type its kind names."""
+    cdef size_t value_i
+    if kind == c_ParamKind.Doubles:
+        return [values[value_i] for value_i in range(values.size())]
+    if values.size() == 0:
+        return None
+    if kind == c_ParamKind.Boolean:
+        return True if values[0] != 0.0 else False
+    if kind == c_ParamKind.Integer:
+        return int(values[0])
+    return values[0]
+
+
+cdef str cy_param_kind_name(c_ParamKind kind):
+    if kind == c_ParamKind.Integer:
+        return "int"
+    if kind == c_ParamKind.Boolean:
+        return "bool"
+    if kind == c_ParamKind.Doubles:
+        return "list[float]"
+    return "float"
+
+
+cdef str cy_param_bounds_name(c_ParamBounds bounds):
+    if bounds == c_ParamBounds.Finite:
+        return "finite"
+    if bounds == c_ParamBounds.Positive:
+        return "positive"
+    if bounds == c_ParamBounds.NonNegative:
+        return "non-negative"
+    if bounds == c_ParamBounds.UnitInterval:
+        return "unit interval"
+    return "any"
+
+
 cdef class PhysicsBase(TidalPyBaseClass):
     """Physics model base class.
+
+    A model built on a parameter spec answers a generic parameter interface here: ``parameters``,
+    ``get_parameter``, ``get_parameter_info``, ``with_parameters``, and attribute access by parameter name
+    (``model.reference_viscosity``). Models are not changed in place: ``with_parameters`` returns a new model, so one
+    model can be shared by several layers.
 
     Parameters
     ----------
@@ -221,18 +298,160 @@ cdef class PhysicsBase(TidalPyBaseClass):
 
     Notes
     -----
-    Subclasses own the most-derived C++ object themselves and leave ``_physics_ptr`` NULL, setting the
-    inherited ``_ptr`` instead, so ``model_name`` reads through ``_ptr`` cast to ``c_PhysicsBase*``.
+    A family not yet built on parameter specs owns its model through its own pointer and sets the inherited
+    ``_ptr``; the generic parameter methods then report no parameters or raise.
     """
 
     def __init__(self, str model_name):
         cdef string name = model_name.encode("utf-8")
-        self._physics_ptr = make_unique[c_PhysicsBase](name)
-        self._ptr = <c_TidalPyBaseClass*>self._physics_ptr.get()
+        cdef unique_ptr[c_PhysicsBase] model = make_unique[c_PhysicsBase](name)
+        self._set_model(c_share_physics[c_PhysicsBase](move(model)))
 
     def __dealloc__(self):
-        self._physics_ptr.reset()
+        self._model_sptr.reset()
         self._ptr = NULL
+
+    cdef void _set_model(self, shared_ptr[c_PhysicsBase] model) noexcept:
+        """Hold ``model``; the inherited ``_ptr`` observes it."""
+        self._model_sptr = model
+        self._ptr = <c_TidalPyBaseClass*>self._model_sptr.get()
+
+    def get_parameter_info(self) -> list:
+        """Descriptions of the model's parameters, in order.
+
+        Returns
+        -------
+        list of dict
+            One dict per parameter: ``name`` (the argument name), ``key`` (the config key, unit suffix included),
+            ``kind`` (``"float"``, ``"int"``, ``"bool"``, or ``"list[float]"``), ``default``, ``bounds``, and
+            ``doc``. Empty for a model without a parameter spec.
+        """
+        self._check_ptr()
+        cdef vector[c_ParamInfo] info = (<c_PhysicsBase*>self._ptr).get_parameter_info()
+        cdef vector[double] default_values
+        cdef list out = []
+        cdef size_t info_i
+        for info_i in range(info.size()):
+            default_values.assign(1, info[info_i].default_value)
+            out.append({
+                "name":    info[info_i].name.decode("utf-8"),
+                "key":     info[info_i].key.decode("utf-8"),
+                "kind":    cy_param_kind_name(info[info_i].kind),
+                "default": ([] if info[info_i].kind == c_ParamKind.Doubles
+                            else cy_param_value(info[info_i].kind, default_values)),
+                "bounds":  cy_param_bounds_name(info[info_i].bounds),
+                "doc":     info[info_i].doc.decode("utf-8"),
+            })
+        return out
+
+    def get_parameter(self, str name):
+        """A parameter's value by argument name or config key; a list for a table.
+
+        Raises
+        ------
+        ValueError
+            The model has no such parameter; the message names the closest one.
+        """
+        self._check_ptr()
+        cdef string encoded = name.encode("utf-8")
+        cdef vector[double] values = (<c_PhysicsBase*>self._ptr).get_parameter(encoded)
+        cdef vector[c_ParamInfo] info = (<c_PhysicsBase*>self._ptr).get_parameter_info()
+        cdef size_t info_i
+        for info_i in range(info.size()):
+            if info[info_i].name == encoded or info[info_i].key == encoded:
+                return cy_param_value(info[info_i].kind, values)
+        return cy_param_value(c_ParamKind.Double, values)
+
+    @property
+    def parameters(self) -> dict:
+        """Every parameter by argument name (no unit suffix); ``get_config_dict`` gives them by config key."""
+        self._check_ptr()
+        cdef vector[c_ParamInfo] info = (<c_PhysicsBase*>self._ptr).get_parameter_info()
+        cdef dict out = {}
+        cdef size_t info_i
+        for info_i in range(info.size()):
+            out[info[info_i].name.decode("utf-8")] = cy_param_value(
+                info[info_i].kind, (<c_PhysicsBase*>self._ptr).get_parameter(info[info_i].key))
+        return out
+
+    def with_parameters(self, **changes):
+        """A new model of the same kind with the given parameters changed (argument names or config keys).
+
+        This model is unchanged, and the new one is validated like a newly built one.
+
+        Raises
+        ------
+        ValueError
+            An unknown parameter (the message names the closest one) or a value outside its bounds.
+        """
+        self._check_ptr()
+        cdef c_ParamMap param_map = cy_param_map(changes)
+        cdef unique_ptr[c_PhysicsBase] changed = (<c_PhysicsBase*>self._ptr).with_parameters(param_map)
+        cdef PhysicsBase wrapper = type(self).__new__(type(self))
+        wrapper._set_model(c_share_physics[c_PhysicsBase](move(changed)))
+        return wrapper
+
+    def __copy__(self):
+        # Models are not changed in place, so a copy can share this one.
+        return self
+
+    def __deepcopy__(self, memo):
+        self._check_ptr()
+        cdef unique_ptr[c_PhysicsBase] copied = (<c_PhysicsBase*>self._ptr).clone_physics()
+        cdef PhysicsBase wrapper = type(self).__new__(type(self))
+        wrapper._set_model(c_share_physics[c_PhysicsBase](move(copied)))
+        return wrapper
+
+    def load_binary(self, str path, cpp_bool force=False):
+        """Load this object's state from a TidalPy binary file.
+
+        A spec model is read into a fresh copy that then replaces this wrapper's model, so a layer that shares the
+        previous model keeps it. A load that raises leaves this object as it was.
+
+        Raises
+        ------
+        FileNotFoundError
+            ``path`` does not exist.
+        IOError
+            The file holds a record of another class, has an incompatible schema version, or is corrupt.
+        """
+        self._check_ptr()
+        cdef unique_ptr[c_PhysicsBase] fresh
+        if self._model_sptr.get() != NULL:
+            try:
+                fresh = (<c_PhysicsBase*>self._ptr).clone_physics()
+            except RuntimeError:
+                # A model without a parameter spec cannot be copied, so it is read in place.
+                pass
+        if fresh.get() == NULL:
+            return TidalPyBaseClass.load_binary(self, path, force)
+        if not _os.path.isfile(path):
+            raise FileNotFoundError(f"No such file: '{path}'")
+        try:
+            fresh.get().load_binary(path.encode("utf-8"), force)
+        except RuntimeError as exc:
+            raise IOError(str(exc)) from exc
+        self._set_model(c_share_physics[c_PhysicsBase](move(fresh)))
+
+    def __getattr__(self, str name):
+        # Parameters read as attributes. Python calls this only after normal lookup fails, so methods and
+        # properties win.
+        if name.startswith("_") or self._ptr is NULL:
+            raise AttributeError(name)
+        cdef vector[c_ParamInfo] info = (<c_PhysicsBase*>self._ptr).get_parameter_info()
+        cdef string encoded = name.encode("utf-8")
+        cdef size_t info_i
+        for info_i in range(info.size()):
+            if info[info_i].name == encoded:
+                return cy_param_value(
+                    info[info_i].kind, (<c_PhysicsBase*>self._ptr).get_parameter(info[info_i].key))
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    def __dir__(self):
+        cdef list names = list(object.__dir__(self))
+        if self._ptr is not NULL:
+            names.extend(entry["name"] for entry in self.get_parameter_info())
+        return names
 
     @property
     def model_name(self) -> str:

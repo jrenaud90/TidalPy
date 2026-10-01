@@ -78,5 +78,8 @@ def test_factory_rejects_unrecognized_key(module_path, factory_name, family, mod
     factory = _factory(module_path, factory_name)
     config = dict(base_config or {})
     config["not_a_real_parameter"] = 1.0
-    with pytest.raises(ValueError, match=f"unrecognized {family} config key.*not_a_real_parameter"):
+    # A spec-driven family names the model; the rest name the family.
+    with pytest.raises(
+            ValueError,
+            match=f"(unrecognized {family} config key|{family} model .* has no parameter).*not_a_real_parameter"):
         factory(model_name, config)

@@ -4,16 +4,23 @@
  * Holds a model name and a non-owning observer pointer to the owning layer, which the layer sets after
  * construction. The name-based factory lives in each concrete physics subhierarchy, not here.
  *
- * Binary payload: the model name, then the model's scalar parameters (get_binary_params).
+ * A model built on a parameter spec (c_SpecModel, spec_model_.hpp) also answers the generic parameter interface
+ * below: its parameter descriptions, a parameter's value, a copy, and a copy with some parameters changed. A model
+ * without a spec reports no parameters and refuses the rest.
+ *
+ * Binary payload: the model name, then the model's scalar parameters (get_binary_params); a spec model writes its
+ * parameters by key instead.
  */
 
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "config_entry_.hpp"
+#include "param_map_.hpp"
 #include "tidalpy_base_.hpp"
 
 namespace tidalpy {
@@ -54,6 +61,26 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::PhysicsBase); }
 
+    // The generic parameter interface, which c_SpecModel implements from the model's spec.
+    virtual std::vector<c_ParamInfo> get_parameter_info() const { return {}; }
+
+    // A parameter's value by argument name or config key; one element for a scalar.
+    virtual std::vector<double> get_parameter(const std::string& name_or_key) const {
+        throw std::invalid_argument(
+            "TidalPy: model '" + this->p_model_name + "' has no parameter '" + name_or_key + "'");
+    }
+
+    // An independent copy that observes no layer.
+    virtual std::unique_ptr<c_PhysicsBase> clone_physics() const {
+        throw std::runtime_error("TidalPy: model '" + this->p_model_name + "' cannot be copied (it has no spec)");
+    }
+
+    // A copy with the given parameters (config keys) changed and the rest kept; the copy is validated.
+    virtual std::unique_ptr<c_PhysicsBase> with_parameters(const c_ParamMap& /*changes*/) const {
+        throw std::runtime_error(
+            "TidalPy: model '" + this->p_model_name + "' cannot be rebuilt with new parameters (it has no spec)");
+    }
+
 protected:
     // The model name, then get_binary_params. A model with more than scalars (tables, sub-models) appends them after
     // calling this.
@@ -86,5 +113,23 @@ protected:
     // Non-owning; set by the owning layer and never serialized.
     c_BaseLayer* p_layer_ptr = nullptr;
 };
+
+// A model of any family as the shared base pointer the Python wrappers hold.
+template <class Model>
+inline std::shared_ptr<c_PhysicsBase> c_share_physics(std::unique_ptr<Model> model) {
+    return std::shared_ptr<c_PhysicsBase>(std::move(model));
+}
+
+// clone_physics as the model's own family type, for code that holds a family pointer (a layer's viscosity, say).
+template <class Family>
+inline std::unique_ptr<Family> c_clone_as(const Family& model) {
+    std::unique_ptr<c_PhysicsBase> copy = model.clone_physics();
+    Family* family_ptr = dynamic_cast<Family*>(copy.get());
+    if (family_ptr == nullptr) {
+        throw std::runtime_error("TidalPy: a model's copy is not of the model's own family");
+    }
+    copy.release();
+    return std::unique_ptr<Family>(family_ptr);
+}
 
 } // namespace tidalpy

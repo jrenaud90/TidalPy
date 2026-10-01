@@ -35,7 +35,7 @@ from TidalPy.Rheology.rheology import make_rheology, _same_model as _same_rheolo
 from TidalPy.Cooling.cooling import make_cooling, _same_model as _same_cooling_model
 from TidalPy.Radiogenics.radiogenics import make_radiogenics, _same_model as _same_radiogenics_model
 from TidalPy.Material.eos.material_eos import make_material_eos, _same_model as _same_material_model
-from TidalPy.Viscosity.viscosity import _same_model as _same_viscosity_model
+from TidalPy.Viscosity.viscosity import _same_model as _same_viscosity_model, viscosity_config_keys
 from TidalPy.PartialMelt.partial_melt import _same_model as _same_partial_melt_model
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Stellar.luminosity import make_luminosity
@@ -129,6 +129,14 @@ _SAME_MODEL = {
 }
 
 
+# Model table name -> the config keys one model of a spec-driven family reads (from its parameter table). Defaults
+# merged beneath such a table keep only the keys its model reads, since the model refuses any other.
+_SPEC_MODEL_KEYS = {
+    "shear_viscosity": viscosity_config_keys,
+    "bulk_viscosity":  viscosity_config_keys,
+}
+
+
 def _model_changes(section_name, defaults: dict, overrides: dict) -> bool:
     """Whether ``overrides`` names a different model than ``defaults`` (aliases count as the same model)."""
     if ("model" not in overrides) or ("model" not in defaults):
@@ -148,9 +156,21 @@ def _merge_section(defaults: dict, overrides: dict, section_name=None) -> dict:
     The defaults are those of the layer's effective material type, so a user key wins and every key the user left
     out comes from that type, whether or not the override names a different model. When it does, only the default
     keys whose meaning depends on the model (``MODEL_SPECIFIC_KEYS``) are dropped first (``keep_on_model_change``).
+    For a spec-driven family (``_SPEC_MODEL_KEYS``) the defaults keep only the keys the table's model reads; the
+    user's own keys are kept as given, so a misspelled one still fails in the model's factory.
     """
     if _model_changes(section_name, defaults, overrides):
         defaults = keep_on_model_change(section_name or "", defaults)
+    model_keys = _SPEC_MODEL_KEYS.get(section_name)
+    model_name = overrides.get("model", defaults.get("model"))
+    if (model_keys is not None) and (model_name is not None):
+        try:
+            accepted = model_keys(str(model_name))
+        except ValueError:
+            # An unknown model name; the factory reports it.
+            accepted = None
+        if accepted is not None:
+            defaults = {key: value for key, value in defaults.items() if key == "model" or key in accepted}
     section = dict(defaults)
     for key, value in overrides.items():
         if isinstance(value, dict) and isinstance(section.get(key), dict):
