@@ -7,7 +7,7 @@ here only name the models and expose the family's calculation.
 """
 
 from libcpp.string cimport string
-from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport shared_ptr, unique_ptr
 from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
@@ -27,6 +27,7 @@ from TidalPy.Utilities.classes.classes cimport (
     c_share_physics,
     cy_collect_parameters,
     cy_param_map,
+    cy_wrap_model,
 )
 from TidalPy.Utilities.classes.families import ModelFamily
 
@@ -116,13 +117,69 @@ cdef class InterpolatedViscosity(ViscosityBase):
     MODEL_NAME = "interpolate"
 
 
+cdef class CompositeViscosity(ViscosityBase):
+    """Several deformation mechanisms acting in parallel (alias ``"parallel"``): 1 / eta = sum of 1 / eta_i, so the
+    weakest dominates. Published ice and olivine flow laws combine diffusion creep, dislocation creep, and
+    grain-boundary sliding this way.
+
+    Parameters
+    ----------
+    *mechanisms : ViscosityBase or dict
+        The mechanisms, as viscosity models or as config tables (each with a ``model`` key).
+    config : dict, optional
+        A config table with a ``mechanisms`` list of tables, as ``get_config_dict()`` returns.
+    """
+    MODEL_NAME = "composite"
+
+    # Config keys beyond the (empty) parameter table.
+    EXTRA_CONFIG_KEYS = frozenset({"mechanisms"})
+
+    def __init__(self, *mechanisms, dict config=None):
+        cdef list entries = list(mechanisms)
+        cdef object entry
+        cdef dict table
+        if config:
+            unknown = sorted(set(config) - {"model", "mechanisms"})
+            if unknown:
+                raise ValueError(
+                    f"TidalPy: viscosity model 'composite' has no parameter '{unknown[0]}'. Accepted: mechanisms.")
+            entries.extend(config.get("mechanisms", []) or [])
+        cdef vector[shared_ptr[c_PhysicsBase]] models
+        cdef ViscosityBase model
+        cdef unique_ptr[c_ViscosityBase] composite
+        if not entries:
+            composite = c_find_viscosity(b"composite", cy_param_map({}))
+        else:
+            for entry in entries:
+                if isinstance(entry, dict):
+                    table = dict(entry)
+                    if "model" not in table:
+                        raise ValueError("TidalPy: each composite viscosity mechanism table needs a 'model' key.")
+                    entry = make_viscosity(str(table.pop("model")), table)
+                if not isinstance(entry, ViscosityBase):
+                    raise TypeError(
+                        f"TidalPy: a composite viscosity mechanism must be a viscosity model or a config table, "
+                        f"not {type(entry).__name__}.")
+                model = <ViscosityBase>entry
+                models.push_back(model._model_sptr)
+            composite = c_make_composite_viscosity(models)
+        self._set_model(c_share_physics[c_ViscosityBase](move(composite)))
+
+    @property
+    def mechanisms(self) -> tuple:
+        """The mechanisms, as viscosity models."""
+        cdef vector[shared_ptr[c_PhysicsBase]] models = (<c_CompositeViscosity*>self._viscosity()).get_mechanism_models()
+        cdef size_t model_i
+        return tuple(cy_wrap_model(models[model_i]) for model_i in range(models.size()))
+
+
 def _canonical_name(str model_name) -> str:
     return c_viscosity_canonical_name(model_name.encode("utf-8")).decode("utf-8")
 
 
 _FAMILY = ModelFamily(
     "viscosity",
-    (ArrheniusViscosity, ReferenceViscosity, ConstantViscosity, InterpolatedViscosity),
+    (ArrheniusViscosity, ReferenceViscosity, ConstantViscosity, InterpolatedViscosity, CompositeViscosity),
     _canonical_name,
     "material.shear_viscosity")
 

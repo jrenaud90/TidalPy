@@ -277,8 +277,8 @@ molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
 [layers.upper_mantle.material.bulk_viscosity]
-model = "constant"
-reference_viscosity_pas = 1.0e22
+model = "composite"                 # mechanisms in parallel, 1 / eta = sum of 1 / eta_i (diffusion plus dislocation creep, say)
+mechanisms = [{ model = "constant", reference_viscosity_pas = 1.0e22 }]
 
 [layers.upper_mantle.material.partial_melt]
 model = "henning"                   # the Henning et al. (2009) two-regime weakening

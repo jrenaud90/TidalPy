@@ -6,7 +6,14 @@ import numpy as np
 import pytest
 from scipy.constants import R as _R   # molar gas constant [J/mol/K], the same source as the C++ config
 
-from TidalPy.Viscosity import InterpolatedViscosity, ReferenceViscosity, make_viscosity
+from TidalPy.Viscosity import (
+    ArrheniusViscosity,
+    CompositeViscosity,
+    ConstantViscosity,
+    InterpolatedViscosity,
+    ReferenceViscosity,
+    make_viscosity,
+)
 
 
 @pytest.mark.parametrize("temperature, pressure", [(1600.0, 2.0e10), (1400.0, 5.0e10), (2000.0, 0.0)])
@@ -43,3 +50,34 @@ def test_positional_and_keyword_arguments():
     assert ReferenceViscosity(reference_viscosity_pas=2.0e21).reference_viscosity == 2.0e21
     with pytest.raises(TypeError, match="multiple values"):
         ReferenceViscosity(1.0e21, reference_viscosity=2.0e21)
+
+
+def test_composite_adds_mechanisms_in_parallel():
+    """1 / eta = sum of 1 / eta_i; a rigid mechanism adds nothing."""
+    diffusion = ArrheniusViscosity(arrhenius_coeff=1.0e5, molar_activation_energy=6.0e4)
+    dislocation = ArrheniusViscosity(arrhenius_coeff=1.0e-12, molar_activation_energy=1.8e5)
+    composite = CompositeViscosity(diffusion, dislocation, ConstantViscosity(math.inf))
+    for temperature in (200.0, 250.0, 270.0):
+        expected = 1.0 / (1.0 / diffusion.calc_viscosity(temperature) + 1.0 / dislocation.calc_viscosity(temperature))
+        assert composite.calc_viscosity(temperature) == pytest.approx(expected, rel=1e-14)
+    assert [type(model) for model in composite.mechanisms] == [ArrheniusViscosity, ArrheniusViscosity, ConstantViscosity]
+
+
+def test_composite_config_and_binary_round_trip(tmp_path):
+    composite = make_viscosity("composite", {"mechanisms": [
+        {"model": "constant", "reference_viscosity_pas": 1.0e20},
+        {"model": "reference", "reference_viscosity_pas": 1.0e21}]})
+    config = composite.get_config_dict()
+    assert [table["model"] for table in config["mechanisms"]] == ["constant", "reference"]
+    assert make_viscosity("parallel", config).get_config_dict() == config
+    path = str(tmp_path / "composite.tpyb")
+    composite.save_binary(path)
+    loaded = CompositeViscosity()
+    loaded.load_binary(path)
+    assert loaded.get_config_dict() == config
+
+
+def test_composite_rejects_a_model_of_another_family():
+    from TidalPy.Rheology import Maxwell
+    with pytest.raises(TypeError, match="viscosity model or a config table"):
+        CompositeViscosity(Maxwell())

@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "binary_.hpp"
 #include "constants_.hpp"
 #include "registry_.hpp"
 #include "spec_model_.hpp"
@@ -39,7 +40,7 @@ public:
     static const std::vector<c_ParamSpec<c_ConstantViscosity>>& parameter_specs() {
         static const std::vector<c_ParamSpec<c_ConstantViscosity>> specs = {
             {"reference_viscosity", "reference_viscosity_pas", &c_ConstantViscosity::p_reference_viscosity, 1.0e22,
-             c_ParamBounds::Positive, "Viscosity [Pa s]."},
+             c_ParamBounds::PositiveOrInfinite, "Viscosity [Pa s]; infinite for a rigid (purely elastic) material."},
         };
         return specs;
     }
@@ -216,6 +217,109 @@ protected:
     c_TableLookup p_lookup;
 };
 
+// Defined below the registry; the composite reads its mechanisms' records through it.
+inline std::unique_ptr<c_ViscosityBase> c_viscosity_from_binary(std::istream& in, bool force);
+
+// Several deformation mechanisms acting in parallel (alias "parallel"): their strain rates add at a common stress,
+// so 1 / eta = sum of 1 / eta_i, and the weakest mechanism dominates. Published ice and olivine flow laws combine
+// diffusion creep, dislocation creep, and grain-boundary sliding this way; a mechanism whose law switches activation
+// energy at a temperature (ice near 255 K) is two mechanisms. A rigid (infinite) mechanism adds nothing.
+class c_CompositeViscosity final : public c_SpecModel<c_CompositeViscosity, c_ViscosityBase> {
+public:
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::CompositeViscosity;
+    static const std::vector<c_ParamSpec<c_CompositeViscosity>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_CompositeViscosity>> specs;
+        return specs;
+    }
+
+    using Mechanisms = std::vector<std::shared_ptr<const c_ViscosityBase>>;
+
+    // Without mechanisms (a default instance, which a binary read fills) it holds one constant mechanism.
+    c_CompositeViscosity() : c_CompositeViscosity(c_ParamMap{}) {}
+    explicit c_CompositeViscosity(const c_ParamMap& params)
+        : c_CompositeViscosity(params, Mechanisms{std::make_shared<const c_ConstantViscosity>()}) {}
+    c_CompositeViscosity(const c_ParamMap& params, Mechanisms mechanisms)
+        : c_SpecModel("composite"), p_mechanisms(std::move(mechanisms)) {
+        this->p_initialize(params);
+    }
+
+    const Mechanisms& get_mechanisms() const noexcept { return this->p_mechanisms; }
+
+    // The mechanisms as the shared base pointers the Python wrappers hold.
+    std::vector<std::shared_ptr<c_PhysicsBase>> get_mechanism_models() const {
+        std::vector<std::shared_ptr<c_PhysicsBase>> models;
+        for (const auto& mechanism : this->p_mechanisms) { models.push_back(c_share_physics_of(mechanism)); }
+        return models;
+    }
+
+    double calc_viscosity(const c_ThermoPoint& point) const noexcept override {
+        double inverse = 0.0;
+        for (const auto& mechanism : this->p_mechanisms) {
+            const double viscosity = mechanism->calc_viscosity(point);
+            if (std::isnan(viscosity)) { return TidalPyConstants::d_NAN; }
+            if (viscosity <= 0.0) { return 0.0; }
+            inverse += 1.0 / viscosity;
+        }
+        return (inverse > 0.0) ? 1.0 / inverse : TidalPyConstants::d_INF;
+    }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_SpecModel::append_config_entries(out);
+        std::vector<std::vector<c_ConfigEntry>> tables;
+        for (const auto& mechanism : this->p_mechanisms) { tables.push_back(mechanism->get_config_entries()); }
+        out.push_back(c_config_table_list("mechanisms", tables));
+    }
+
+protected:
+    void p_validate() const override {
+        if (this->p_mechanisms.empty()) {
+            throw std::invalid_argument(this->p_describe() + " needs at least one mechanism.");
+        }
+        for (const auto& mechanism : this->p_mechanisms) {
+            if (!mechanism) { throw std::invalid_argument(this->p_describe() + " was given an empty mechanism."); }
+        }
+    }
+
+    // The parameters (none), then the mechanism count and each mechanism's own record.
+    void p_write_payload(std::ostream& out) const override {
+        c_SpecModel::p_write_payload(out);
+        const uint32_t num_mechanisms = static_cast<uint32_t>(this->p_mechanisms.size());
+        out.write(reinterpret_cast<const char*>(&num_mechanisms), sizeof(uint32_t));
+        for (const auto& mechanism : this->p_mechanisms) { mechanism->write_binary(out); }
+    }
+
+    void p_read_payload(std::istream& in, bool force) override {
+        c_SpecModel::p_read_payload(in, force);
+        uint32_t num_mechanisms = 0;
+        in.read(reinterpret_cast<char*>(&num_mechanisms), sizeof(uint32_t));
+        if (!in) { throw std::runtime_error("TidalPy: failed to read a composite viscosity's mechanism count"); }
+        check_binary_count(in, num_mechanisms, TIDALPY_BINARY_HEADER_BYTES, "composite viscosity mechanisms");
+        Mechanisms mechanisms;
+        for (uint32_t mechanism_i = 0; mechanism_i < num_mechanisms; ++mechanism_i) {
+            mechanisms.push_back(std::shared_ptr<const c_ViscosityBase>(c_viscosity_from_binary(in, force)));
+        }
+        this->p_mechanisms = std::move(mechanisms);
+        try {
+            this->p_validate();
+        }
+        catch (const std::invalid_argument& mechanism_error) {
+            throw std::runtime_error(std::string("TidalPy: corrupt binary data: ") + mechanism_error.what());
+        }
+    }
+
+    Mechanisms p_mechanisms;
+};
+
+// A composite from mechanisms held as shared base pointers (the Python wrappers' form); each must be a viscosity model.
+inline std::unique_ptr<c_ViscosityBase> c_make_composite_viscosity(
+        const std::vector<std::shared_ptr<c_PhysicsBase>>& mechanisms) {
+    c_CompositeViscosity::Mechanisms family_mechanisms;
+    for (const auto& mechanism : mechanisms) {
+        family_mechanisms.push_back(c_share_as<c_ViscosityBase>(mechanism, "a composite viscosity mechanism"));
+    }
+    return std::make_unique<c_CompositeViscosity>(c_ParamMap{}, std::move(family_mechanisms));
+}
+
 inline const c_ModelRegistry<c_ViscosityBase>& c_viscosity_registry() {
     static const c_ModelRegistry<c_ViscosityBase> registry = {
         {{"arrhenius", "arr"},   BinaryClassID::ArrheniusViscosity, &c_make_entry<c_ViscosityBase, c_ArrheniusViscosity>},
@@ -223,6 +327,7 @@ inline const c_ModelRegistry<c_ViscosityBase>& c_viscosity_registry() {
         {{"constant", "const"},  BinaryClassID::ConstantViscosity,  &c_make_entry<c_ViscosityBase, c_ConstantViscosity>},
         {{"interpolate", "interp", "interpolated"},
          BinaryClassID::InterpolatedViscosity, &c_make_entry<c_ViscosityBase, c_InterpolatedViscosity>},
+        {{"composite", "parallel"}, BinaryClassID::CompositeViscosity, &c_make_entry<c_ViscosityBase, c_CompositeViscosity>},
     };
     return registry;
 }
@@ -232,7 +337,7 @@ inline std::unique_ptr<c_ViscosityBase> c_find_viscosity(const std::string& mode
     return c_make_model(c_viscosity_registry(), model_name, params);
 }
 
-inline std::unique_ptr<c_ViscosityBase> c_viscosity_from_binary(std::istream& in, bool force = false) {
+inline std::unique_ptr<c_ViscosityBase> c_viscosity_from_binary(std::istream& in, bool force) {
     return c_model_from_binary(c_viscosity_registry(), in, force);
 }
 

@@ -1514,6 +1514,53 @@
     "link_args": [],
     "is_cpp": true
   },
+  "Material.material": {
+    "name": "TidalPy.Material.material",
+    "sources": [
+      [
+        "TidalPy",
+        "Material",
+        "material.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "RadialSolver.love": {
     "name": "TidalPy.RadialSolver.love",
     "sources": [

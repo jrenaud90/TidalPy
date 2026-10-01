@@ -32,6 +32,7 @@ enum class c_ParamBounds : uint8_t {
     Positive     = 2,   // finite and > 0
     NonNegative  = 3,   // finite and >= 0
     UnitInterval = 4,   // finite and in [0, 1]
+    PositiveOrInfinite = 5,   // above 0, infinity included (a rigid limit)
 };
 
 struct c_ParamInfo {

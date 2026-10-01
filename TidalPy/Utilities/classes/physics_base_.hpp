@@ -61,6 +61,10 @@ public:
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::PhysicsBase); }
 
+    // The family the model belongs to ("viscosity", "rheology", ...), which the Python side uses to wrap a model in
+    // its family's class; empty for a model without a spec.
+    virtual std::string get_family_name() const { return std::string(); }
+
     // The generic parameter interface, which c_SpecModel implements from the model's spec.
     virtual std::vector<c_ParamInfo> get_parameter_info() const { return {}; }
 
@@ -113,6 +117,28 @@ protected:
     // Non-owning; set by the owning layer and never serialized.
     c_BaseLayer* p_layer_ptr = nullptr;
 };
+
+// A shared model as its family type, for a composite that holds it (a phase's equation of state, say). Null stays
+// null; a model of another family throws std::invalid_argument naming the slot (`what`) and both families.
+template <class Family>
+inline std::shared_ptr<const Family> c_share_as(const std::shared_ptr<c_PhysicsBase>& model, const std::string& what) {
+    if (!model) { return nullptr; }
+    std::shared_ptr<const Family> family_model = std::dynamic_pointer_cast<const Family>(model);
+    if (!family_model) {
+        const std::string family = model->get_family_name();
+        throw std::invalid_argument(
+            "TidalPy: " + what + " takes a " + Family::C_FAMILY_NAME + " model, not the "
+            + (family.empty() ? std::string("") : family + " ") + "model '" + model->get_model_name() + "'.");
+    }
+    return family_model;
+}
+
+// A composite's sub-model as the shared base pointer the Python wrappers hold. Models are not changed in place, so
+// the wrapper may share it.
+template <class Family>
+inline std::shared_ptr<c_PhysicsBase> c_share_physics_of(const std::shared_ptr<const Family>& model) {
+    return std::const_pointer_cast<c_PhysicsBase>(std::static_pointer_cast<const c_PhysicsBase>(model));
+}
 
 // A model of any family as the shared base pointer the Python wrappers hold.
 template <class Model>

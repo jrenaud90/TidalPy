@@ -11,6 +11,7 @@ import math
 import pytest
 
 from TidalPy.Material import laws
+from TidalPy.Material import material as material_module
 from TidalPy.PartialMelt import melting
 from TidalPy.Rheology import rheology
 from TidalPy.Utilities.classes.classes import PhysicsBase, TidalPyBaseClass
@@ -29,6 +30,9 @@ SPEC_FAMILIES = [
      melting.BulkModulusMixingBase),
     ("bulk_viscosity_mixing", melting.make_bulk_viscosity_mixing, melting.bulk_viscosity_mixing_model_names,
      melting.BulkViscosityMixingBase),
+    ("phase", material_module._PHASE_FAMILY.make, material_module._PHASE_FAMILY.model_names, material_module.Phase),
+    ("material", material_module._MATERIAL_FAMILY.make, material_module._MATERIAL_FAMILY.model_names,
+     material_module.Material),
 ]
 
 CASES = [
@@ -68,6 +72,7 @@ def _invalid_value(entry):
         "positive": -1.0,
         "non-negative": -1.0,
         "unit interval": 2.0,
+        "positive or infinite": -1.0,
     }.get(entry["bounds"])
 
 

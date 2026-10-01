@@ -102,6 +102,9 @@ enum class BinaryClassID : uint32_t {
     BirchMurnaghanEOS  = 602,
     VinetEOS           = 603,
     InterpolatedEOS    = 604,
+    // 63X: phases and materials
+    Phase              = 630,
+    Material           = 631,
     // 61X: equation-of-state laws; 62X: shear-modulus laws; 63X: phases and materials
     ConstantEOSLaw          = 610,
     BirchMurnaghanEOSLaw    = 611,
@@ -134,6 +137,7 @@ enum class BinaryClassID : uint32_t {
     ReferenceViscosity = 802,
     ConstantViscosity  = 803,
     InterpolatedViscosity = 804,
+    CompositeViscosity    = 805,
     // 9XX Tidal dissipation models - convert mode Love numbers into global tidal heating + torque.
     TideBase           = 900,
     RheologyTide       = 901,

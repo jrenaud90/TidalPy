@@ -196,6 +196,13 @@ cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries):
             for j in range(entry_ptr.value_double_list.size()):
                 values.append(entry_ptr.value_double_list[j])
             out[key] = values
+        elif entry_ptr.kind == c_ConfigEntryKind.Table:
+            out[key] = cy_config_entries_to_dict(entry_ptr.value_table)
+        elif entry_ptr.kind == c_ConfigEntryKind.TableList:
+            values = []
+            for j in range(entry_ptr.value_table_list.size()):
+                values.append(cy_config_entries_to_dict(entry_ptr.value_table_list[j]))
+            out[key] = values
         else:
             values = []
             for j in range(entries[i].value_string_list.size()):
@@ -245,6 +252,22 @@ cdef c_ParamMap cy_param_map(dict parameters) except *:
                 values.push_back(<double>float(value))
         param_map[(<str>key).encode("utf-8")] = values
     return param_map
+
+
+cdef object cy_wrap_model(shared_ptr[c_PhysicsBase] model):
+    """Any spec model as an instance of its family's Python class for its model name.
+
+    The class comes from the registry ModelFamily fills (TidalPy.Utilities.classes.families), keyed by the family
+    name the C++ model reports. Raises TypeError for a family or model no Python class is registered for.
+    """
+    if model.get() == NULL:
+        return None
+    # Deferred: families imports this module.
+    from TidalPy.Utilities.classes.families import model_class
+    cls = model_class(model.get().get_family_name().decode("utf-8"), model.get().get_model_name().decode("utf-8"))
+    cdef PhysicsBase wrapper = cls.__new__(cls)
+    wrapper._set_model(model)
+    return wrapper
 
 
 cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dict parameters):
@@ -307,6 +330,8 @@ cdef str cy_param_bounds_name(c_ParamBounds bounds):
         return "non-negative"
     if bounds == c_ParamBounds.UnitInterval:
         return "unit interval"
+    if bounds == c_ParamBounds.PositiveOrInfinite:
+        return "positive or infinite"
     return "any"
 
 

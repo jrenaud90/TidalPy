@@ -8,6 +8,23 @@ functions once, so a family module only names its classes and wraps these in doc
 
 from TidalPy.Utilities.classes.classes import resolve_factory_config
 
+# Family name (as the C++ models report it) -> its ModelFamily, filled as each family module is imported.
+_FAMILIES = {}
+
+
+def model_class(family: str, model_name: str):
+    """The Python class of a model, by its family and canonical model name.
+
+    Raises
+    ------
+    TypeError
+        No Python class is registered for that family and model.
+    """
+    family_record = _FAMILIES.get(family)
+    if family_record is None or model_name not in family_record.classes:
+        raise TypeError(f"TidalPy: no Python class is registered for the {family} model '{model_name}'.")
+    return family_record.classes[model_name]
+
 
 class ModelFamily:
     """The wrapper classes of one physics family and the lookups every family shares.
@@ -32,10 +49,13 @@ class ModelFamily:
         self.canonical_name = canonical_name
         self.defaults_section = defaults_section
         # Each model's config keys, read from a default instance's parameter table.
+        # A composite class lists the keys of its sub-model tables in EXTRA_CONFIG_KEYS.
         self.model_config_keys = {
             name: frozenset(entry["key"] for entry in cls().get_parameter_info())
+                  | frozenset(getattr(cls, "EXTRA_CONFIG_KEYS", ()))
             for name, cls in self.classes.items()}
         self.config_keys = frozenset().union(*self.model_config_keys.values())
+        _FAMILIES[family] = self
 
     def model_names(self) -> tuple:
         """The canonical model names, in registry order."""

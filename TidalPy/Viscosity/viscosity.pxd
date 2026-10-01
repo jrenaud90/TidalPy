@@ -1,7 +1,7 @@
 # distutils: language = c++
 
 from libcpp.string cimport string
-from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport shared_ptr, unique_ptr
 from libcpp.vector cimport vector
 
 from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase, c_ParamMap, c_ThermoPoint
@@ -23,6 +23,11 @@ cdef extern from "viscosity_.hpp" namespace "tidalpy" nogil:
     unique_ptr[c_ViscosityBase] c_find_viscosity(const string& model_name, const c_ParamMap& params) except +
     string c_viscosity_canonical_name(const string& model_name) except +
     vector[string] c_viscosity_model_names() except +
+
+    cdef cppclass c_CompositeViscosity(c_ViscosityBase):
+        vector[shared_ptr[c_PhysicsBase]] get_mechanism_models() except +
+
+    unique_ptr[c_ViscosityBase] c_make_composite_viscosity(const vector[shared_ptr[c_PhysicsBase]]& mechanisms) except +
 
     # A copy of a model as its family type, for the layer and material setters that take ownership.
     unique_ptr[c_ViscosityBase] c_clone_viscosity "tidalpy::c_clone_as<tidalpy::c_ViscosityBase>"(

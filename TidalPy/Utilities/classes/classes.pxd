@@ -43,6 +43,8 @@ cdef extern from "config_entry_.hpp" namespace "tidalpy" nogil:
         String
         DoubleList
         StringList
+        Table
+        TableList
 
     cdef cppclass c_ConfigEntry:
         string            key
@@ -53,6 +55,8 @@ cdef extern from "config_entry_.hpp" namespace "tidalpy" nogil:
         string            value_string
         vector[double]    value_double_list
         vector[string]    value_string_list
+        vector[c_ConfigEntry] value_table
+        vector[vector[c_ConfigEntry]] value_table_list
 
 
 cdef extern from "param_map_.hpp" namespace "tidalpy" nogil:
@@ -70,6 +74,7 @@ cdef extern from "param_map_.hpp" namespace "tidalpy" nogil:
         Positive
         NonNegative
         UnitInterval
+        PositiveOrInfinite
 
     cdef cppclass c_ParamInfo:
         string        name
@@ -93,6 +98,7 @@ cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
         c_PhysicsBase(const string& model_name) except +
         const string& get_model_name() const
         vector[c_ConfigEntry] get_config_entries() const
+        string get_family_name() const
         vector[c_ParamInfo] get_parameter_info() except +
         vector[double] get_parameter(const string& name_or_key) except +
         unique_ptr[c_PhysicsBase] clone_physics() except +
@@ -104,6 +110,9 @@ cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
 
 # Python parameters (argument names or config keys to floats, booleans, integers, or sequences) as a c_ParamMap.
 cdef c_ParamMap cy_param_map(dict parameters) except *
+
+# Any spec model as the Python class of its family and model (registered by ModelFamily); None for a null pointer.
+cdef object cy_wrap_model(shared_ptr[c_PhysicsBase] model)
 
 # A spec model's constructor arguments (config, positional in table order, keywords) as one dict.
 cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dict parameters)

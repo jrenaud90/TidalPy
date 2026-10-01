@@ -14,6 +14,7 @@ Solid-state creep is thermally activated. Viscosity falls exponentially with tem
 | `ReferenceViscosity` | `reference`, `ref` | $\eta_\mathrm{ref} \exp\left[\dfrac{E_a + P V_a}{R T} - \dfrac{E_a + P_\mathrm{ref} V_a}{R T_\mathrm{ref}}\right]$ |
 | `ConstantViscosity` | `constant`, `const` | $\eta_\mathrm{ref}$, independent of temperature and pressure |
 | `InterpolatedViscosity` | `interpolate`, `interp`, `interpolated` | Linear in radius between the points of a `radius_m` and `viscosity_pas` table, held at the end values beyond it |
+| `CompositeViscosity` | `composite`, `parallel` | $\left(\sum_i 1 / \eta_i\right)^{-1}$ over its `mechanisms`, each a viscosity model: deformation mechanisms acting in parallel at a common stress, so the weakest dominates |
 
 Each parameter carries two names: the constructor keyword, which also reads as an attribute, and the config key used in a TOML table, a `make_viscosity` config dictionary, and `get_config_dict()`. A dimensional config key ends in its unit while the code name does not.
 
@@ -36,6 +37,8 @@ Each parameter carries two names: the constructor keyword, which also reads as a
 The stress exponent $n$ distinguishes creep regimes. With $n = 1$ the material is in diffusion creep, where the flow law is linear and the stress term drops out, and with $n > 1$ it is in dislocation creep, where the viscosity decreases as the stress increases. The grain-size exponent plays the same role for grain-boundary processes. Setting `additional_temp_dependence = True` adds the explicit factor of $T$ that some published diffusion-creep flow laws carry in front of the exponential.
 
 ### Behavior at the Limits
+
+Published flow laws for ice and olivine combine several mechanisms (diffusion creep, dislocation creep, grain-boundary sliding), and a law whose activation energy switches at a temperature is two mechanisms; `CompositeViscosity(diffusion_law, dislocation_law)` or a TOML table `model = "composite"` with `mechanisms = [{ model = ... }, ...]` combines them. A `ConstantViscosity` may be infinite, a rigid (purely elastic) material.
 
 The reference viscosity $\eta_\mathrm{ref}$ is the viscosity at $T_\mathrm{ref}$ and $P_\mathrm{ref}$. With the default $P_\mathrm{ref} = 0$ a positive activation volume always raises the viscosity with pressure, as it does in the Arrhenius law; a law for a deep layer with a large activation volume is better anchored at a pressure inside the layer. The interpolated model reads only the radius, so its layer must keep its volume. A seismic profile's quality factor travels in this table for the `seismic_q` rheology, which reads its viscosity input as $Q$.
 

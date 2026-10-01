@@ -63,6 +63,7 @@ inline bool c_param_in_bounds(double value, c_ParamBounds bounds) noexcept {
         case c_ParamBounds::Positive:     return std::isfinite(value) && (value > 0.0);
         case c_ParamBounds::NonNegative:  return std::isfinite(value) && (value >= 0.0);
         case c_ParamBounds::UnitInterval: return std::isfinite(value) && (value >= 0.0) && (value <= 1.0);
+        case c_ParamBounds::PositiveOrInfinite: return value > 0.0;
     }
     return false;
 }
@@ -81,6 +82,7 @@ inline const char* c_param_bounds_text(c_ParamBounds bounds) noexcept {
         case c_ParamBounds::Positive:     return "a finite value above 0";
         case c_ParamBounds::NonNegative:  return "a finite value of at least 0";
         case c_ParamBounds::UnitInterval: return "a value from 0 to 1";
+        case c_ParamBounds::PositiveOrInfinite: return "a value above 0 (infinity allowed)";
     }
     return "a valid value";
 }
@@ -92,6 +94,8 @@ public:
     ~c_SpecModel() override = default;
 
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(Derived::C_CLASS_ID); }
+
+    std::string get_family_name() const override { return Base::C_FAMILY_NAME; }
 
     std::unique_ptr<c_TidalPyBaseClass> make_binary_scratch() const override { return std::make_unique<Derived>(); }
 
