@@ -15,6 +15,8 @@ dependencies = [
     # Configuration file resources
     "platformdirs>=3.11.0",
     "toml>=0.10.2",
+    # Progress bars for long calculations
+    "tqdm>=4.64",
     # Install CyRK requirements
     "cyrk>=0.19.0,<0.20.0"
 ]

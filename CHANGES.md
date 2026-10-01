@@ -62,6 +62,7 @@ This is a high-level summary only. The full API and design notes can be found in
 
 #### Dependencies
 * Removed: `numba`, `dill`, `pathos`, `astropy`, and `astroquery` (and the `numba_scipy` entry point), which only the classic modules used. `psutil` moves to the `dev` extra (used for performance-benchmark). The `burnman` and `julia` extras are removed; BurnMan is only needed to run the `Benchmarks/EOS/EOS_vs_BurnMan.ipynb` comparison.
+* Added: `tqdm` (progress bars for long calculations).
 * `pandas>=1.5` was added to the `dev` requirements. It is used by the performance-benchmark views in `Benchmarks/Performance`.
 
 ##### `spdlog` Submodule

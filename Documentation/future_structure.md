@@ -26,7 +26,7 @@ conda install -c conda-forge "tidalpy<0.8"
 - One configuration file, `TidalPy_Configs.toml`, in a data directory scoped to the minor version (`<Documents>/TidalPy/0.8.X/`).
 - One logger, written in C++ with spdlog.
 - The new code raises the built-in `ValueError`, `RuntimeError`, `TypeError`, and `NotImplementedError` instead of TidalPy's own exception classes.
-- The required dependencies are NumPy, SciPy, matplotlib, platformdirs, toml, and CyRK. numba, dill, pathos, astropy, and astroquery are no longer used. psutil moved to the `dev` extra. The `burnman` and `julia` extras were removed.
+- The required dependencies are NumPy, SciPy, matplotlib, platformdirs, toml, tqdm, and CyRK. numba, dill, pathos, astropy, and astroquery are no longer used. psutil moved to the `dev` extra. The `burnman` and `julia` extras were removed.
 - Importing TidalPy no longer warns about the backend change. `TidalPy.exceptions.TidalPyDeprecationWarning` still exists, so code that filters it keeps working.
 
 ## Module Map
