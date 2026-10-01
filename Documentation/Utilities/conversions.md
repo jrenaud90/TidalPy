@@ -1,6 +1,6 @@
 # Conversions and Scales (`Utilities.conversions`, `Utilities.dimensions`)
 
-_Updated: 2026-09-24_
+_Updated: 2026-09-30_
 
 `conversions` converts between MKS and the units typically used in the literature, and between orbital elements related by Kepler's third law. `dimensions` builds the scale factors that turn a dimensional interior problem into a non-dimensional one, so the non-dimensionalization the solvers rely on is defined in one place.
 
@@ -8,7 +8,8 @@ _Updated: 2026-09-24_
 
 ```python
 from TidalPy.Utilities.conversions import (
-    Au2m, m2Au, days2rads, rads2days, myr2sec, sec2myr)
+    Au2m, m2Au, days2rads, rads2days, myr2sec, sec2myr
+)
 
 Au2m(1.0)          # 1.495978707e11  [m]
 m2Au(1.495978707e11)   # 1.0          [AU]
@@ -33,9 +34,9 @@ semi_major_axis   = orbital_motion2semi_a(orbital_motion, host_mass, target_mass
 orbital_motion    = semi_a2orbital_motion(semi_major_axis, host_mass, target_mass=0.0)
 ```
 
-Both are Kepler's third law, $n^2 a^3 = G (M_{\text{host}} + M_{\text{target}})$, solved for one element or the other. The orbiting body's mass defaults to zero, which is the test-particle limit and is usually what a satellite problem wants; supply it when the mass ratio is large enough to matter, as in a binary or a planet-moon pair like Pluto and Charon.
+Both are Kepler's third law, $n^2 a^3 = G (M_{\text{host}} + M_{\text{target}})$, solved for one element or the other. The orbiting body's mass defaults to zero, which is the test-particle limit and is usually appropriate for a satellite problem. Supply it when the mass ratio is large enough to matter, as in a binary or a planet-moon pair like Pluto and Charon.
 
-Both take an optional `G_to_use` so a comparison against a published result can use whatever value of the gravitational constant that work adopted. The default, `None`, uses TidalPy's own value, which comes from SciPy through the TidalPy config and is read on every call, so a reinitialized config is honored.
+Both take an optional `G_to_use` so a comparison against a published result can use whatever value of the gravitational constant that work adopted. The default, `None`, uses TidalPy's own value, which comes from SciPy through the TidalPy config and is read on every call, so a reinitialized config is used.
 
 A non-positive orbital motion or semi-major axis (NaN included), a non-positive host mass, a negative target mass, or a non-positive `G_to_use` raises `ValueError`.
 
@@ -69,4 +70,4 @@ Callers rarely build these by hand. The radial solver and the world equation-of-
 
 ## C++ API
 
-The two Kepler functions wrap `c_orbital_motion2semi_a` and `c_semi_a2orbital_motion` from `conversions_.hpp`; the C++ functions skip the input checks. `G_to_use` defaults to `None`, which reads the config's gravitational constant at call time. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, built by its constructor from a mean radius and a bulk density, and are passed by reference into the solvers that need them.
+The two Kepler functions wrap `c_orbital_motion2semi_a` and `c_semi_a2orbital_motion` from `conversions_.hpp`. The C++ functions skip the input checks. The non-dimensional scales live in `nondimensional_.hpp` as `c_NonDimensionalScales`, built by its constructor from a mean radius and a bulk density, and are passed by reference into the solvers that need them.

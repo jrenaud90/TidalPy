@@ -1,10 +1,10 @@
 # Base Classes (`Utilities.classes`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
 Three C++ base classes underlie every object TidalPy builds. They give a rheology model, a cooling model, a layer, and a world the same methods for saving and restoring themselves, so a new physics model needs no serialization code of its own.
 
-A new model class has to satisfy the contract described here; the per-module "adding a new model" sections build on it.
+A new model class has to satisfy the contract described here. The per-module "adding a new model" sections build on it.
 
 ## Inheritance
 
@@ -44,7 +44,7 @@ model.get_config_dict()           # {'model': 'maxwell'}
 
 ## `TidalPyBaseClass`
 
-Abstract; instantiate a concrete subclass. It provides the file and version surface.
+This class is abstract, so instantiate a concrete subclass instead. It provides the file and version methods.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -64,14 +64,14 @@ StructureBase(radius: float, mass: float)
 
 | Property or method | Returns | Description |
 |---|---|---|
-| `.radius` | `float` | Stored radius [m]. |
-| `.mass` | `float` | Stored mass [kg]. |
-| `calc_surface_area(radius)` | `float` | $4 \pi r^2$ [m$^2$]. |
-| `calc_volume_sphere(radius)` | `float` | $\tfrac{4}{3} \pi r^3$ [m$^3$]. |
-| `calc_volume_shell(radius_outer, radius_inner)` | `float` | Shell volume [m$^3$]. |
-| `calc_surface_gravity(mass, radius)` | `float` | $G m / r^2$ [m s$^{-2}$]. |
-| `calc_mean_density(mass, volume)` | `float` | $m / V$ [kg m$^{-3}$]. |
-| `calc_escape_velocity(mass, radius)` | `float` | $\sqrt{2 G m / r}$ [m s$^{-1}$]. |
+| `.radius` | `float` | Stored radius \[m\]. |
+| `.mass` | `float` | Stored mass \[kg\]. |
+| `calc_surface_area(radius)` | `float` | $4 \pi r^2$ \[m$^2$\]. |
+| `calc_volume_sphere(radius)` | `float` | $\tfrac{4}{3} \pi r^3$ \[m$^3$\]. |
+| `calc_volume_shell(radius_outer, radius_inner)` | `float` | Shell volume \[m$^3$\]. |
+| `calc_surface_gravity(mass, radius)` | `float` | $G m / r^2$ \[m s$^{-2}$\]. |
+| `calc_mean_density(mass, volume)` | `float` | $m / V$ \[kg m$^{-3}$\]. |
+| `calc_escape_velocity(mass, radius)` | `float` | $\sqrt{2 G m / r}$ \[m s$^{-1}$\]. |
 
 Every `calc_` method is const and takes its inputs explicitly rather than reading the object's stored radius and mass, because a layer needs the volume of a shell between two radii that are not its own and a world needs the surface area at an arbitrary radius.
 
@@ -83,14 +83,14 @@ PhysicsBase(model_name: str)
 
 | Property or method | Returns | Description |
 |---|---|---|
-| `.model_name` | `str` | The physics model's resolved name, readable and writable. |
+| `.model_name` | `str` | The physics model's resolved name. |
 | `get_config_dict()` | `dict` | `{"model": ...}` plus the model's own parameters. |
 
-Every physics model's configuration comes from one place. The C++ base declares the virtual `append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the model name; each concrete model calls its parent and then appends its own parameters using the builders in `config_entry_.hpp`. The Cython `get_config_dict` converts the entries to a dict, so the wrapper classes never override it, and a layer or world writer can read the configuration of any attached model through its raw pointer.
+Every physics model's configuration comes from one place. The C++ base declares the virtual `append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the model name. Each concrete model calls its parent and then appends its own parameters using the builders in `config_entry_.hpp`. The Cython `get_config_dict` converts the entries to a dict, so the wrapper classes never override it, and a layer or world writer can read the configuration of any attached model through its raw pointer.
 
-The keys are exactly what the matching factory accepts, so `make_<family>(config["model"], config)` rebuilds the model, and a world's configuration round-trips: the world asks each layer, each layer asks each attached model, and every answer is valid builder input.
+The keys are the ones the matching factory accepts, so `make_<family>(config["model"], config)` rebuilds the model. A world's configuration therefore round-trips. The world collects the configuration of each layer, each layer collects the configuration of each attached model, and every result is valid builder input.
 
-The config entries are not part of the binary format; they are a separate, human-readable view. The layer observer pointer is a C++ only field that the owning layer sets after construction, and it is neither serialized nor exposed to Python.
+The config entries are not part of the binary format. They are a separate, human-readable view. The layer observer pointer is a C++-only field that the owning layer sets after construction, and it is neither serialized nor exposed to Python.
 
 ## Checking Physics-Model Config Keys
 
@@ -99,12 +99,20 @@ The config entries are not part of the binary format; they are a separate, human
 ```python
 from TidalPy.Utilities.classes import check_config_keys
 
-check_config_keys({"model": "henning", "solidus_k": 1500.0}, {"solidus_k", "liquidus_k"}, "partial-melt")
-check_config_keys({"solidus": 1500.0}, {"solidus_k", "liquidus_k"}, "partial-melt")
+check_config_keys(
+    {"model": "henning", "solidus_k": 1500.0},
+    {"solidus_k", "liquidus_k"},
+    "partial-melt"
+)
+check_config_keys(
+    {"solidus": 1500.0},
+    {"solidus_k", "liquidus_k"},
+    "partial-melt"
+)
 # ValueError: TidalPy: unrecognized partial-melt config key(s): 'solidus' (did you mean 'solidus_k'?). ...
 ```
 
-The check is per family rather than per model. The world builder merges material defaults beneath a user's table, so a table can legitimately carry a key that belongs to a different model of the same family; only a key that no model reads is an error. The world builder adds the table name to the message, for example `[layers.mantle.partial_melt]`, so the offending line can be found in the TOML file.
+The check is per family rather than per model. The world builder merges material defaults beneath a user's table, so a table can legitimately carry a key that belongs to a different model of the same family. Only a key that no model reads is an error. The world builder adds the table name to the message, for example `[layers.mantle.partial_melt]`, so the offending line can be found in the TOML file.
 
 ## C++ API
 
@@ -124,8 +132,8 @@ restored.load_binary("body.tpyb");
 |---|---|
 | `get_schema_version_str() const` | The schema version string. |
 | `check_schema_compatibility(major, minor) const` | Version check; logs a warning on mismatch. |
-| `write_binary(ostream&) const`, `read_binary(istream&, force = false)` | The record of this object; a subclass supplies `get_binary_class_id` and its payload (see [Binary Serialization](binary.md#c-api)). |
-| `save_binary(path) const` and `load_binary(path, force = false)` | Delegate to the two above. A save writes a temporary file beside the target and renames it over the target, so a failed save leaves the old file intact; a load raises if bytes remain after the root record, and a load that raises and error leaves the object's saved state as it was (see [Binary Format](binary.md)). |
+| `write_binary(ostream&) const`, `read_binary(istream&, force = false)` | The record of this object. A subclass supplies `get_binary_class_id` and its payload (see [Binary Serialization](binary.md#c-api)). |
+| `save_binary(path) const` and `load_binary(path, force = false)` | Delegate to the two above. A save writes a temporary file beside the target and renames it over the target, so a failed save leaves the old file intact. A load raises if bytes remain after the root record, and a load that raises an error leaves the object's saved state as it was (see [Binary Format](binary.md)). |
 
 ### `config_entry_.hpp`
 
@@ -156,7 +164,7 @@ const std::string& name = model.get_model_name();
 
 ## Logger Wiring Across Extensions
 
-`classes.pyx` calls `set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())` when the module initializes, so the logging macros inside `tidalpy_base_.hpp` and `binary_.hpp` reach the shared logger. Every compiled extension does the same thing, for the reason explained under [Logging](logging.md): each extension is a separate dynamic library with its own copy of the header-only state, and the pointer has to be handed across explicitly.
+`classes.pyx` calls `set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())` when the module initializes, so the logging macros inside `tidalpy_base_.hpp` and `binary_.hpp` reach the shared logger. Every compiled extension does the same thing, for the reason explained under [Logging](logging.md): each extension is a separate dynamic library with its own copy of the header-only state, and the pointer has to be passed across explicitly.
 
 ## Include Chain
 

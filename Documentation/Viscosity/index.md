@@ -1,6 +1,6 @@
 # Viscosity (`Viscosity`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-30_
 
 `TidalPy.Viscosity` contains viscosity models which map a temperature \[K\] and a pressure \[Pa\] onto a dynamic viscosity \[Pa s\].
 
@@ -18,7 +18,7 @@ Viscosity Models <viscosity_models.md>
 
 ## Where Viscosity is Used
 
-A layer's material (its EOS model) holds a viscosity model for its shear response and one for its bulk response, attached with `set_shear_viscosity` and `set_bulk_viscosity` on the EOS model or through the layer's helpers of the same name. During a whole-planet equation-of-state solve the viscosity model converts each radial slice's temperature and pressure into that slice's pre-melt viscosity, and the [partial-melt](../PartialMelt/partial_melt_models.md) model then weakens both the viscosity and the shear modulus wherever melt is present. The post-melt values are what [`Rheology`](../Rheology/index.md) consumes to produce a complex modulus.
+A layer's material (its EOS model) holds a viscosity model for its shear response and one for its bulk response, attached with `set_shear_viscosity` and `set_bulk_viscosity` on the EOS model or through the layer's helpers of the same name. During a whole-planet equation-of-state solve the viscosity model converts each radial slice's temperature and pressure into that slice's pre-melt viscosity, and the [partial-melt](../PartialMelt/partial_melt_models.md) model then weakens both the viscosity and the shear modulus wherever melt is present. The post-melt values are then used by [`Rheology`](../Rheology/index.md) to calculate a complex modulus.
 
 Viscosity is frequency-independent, so it is resolved once per equation-of-state solve and reused across every tidal forcing frequency.
 

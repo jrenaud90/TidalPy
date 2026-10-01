@@ -1,6 +1,6 @@
 # Constants (`TidalPy.constants`)
 
-_Updated: 2026-09-25_
+_Updated: 2026-09-30_
 
 TidalPy's constants come in three kinds, set at different times and from different sources. Mathematical and floating-point limits are fixed at compile time. Physical constants are pulled from third-party sources (mostly SciPy) when the package initializes, so TidalPy agrees with the reference values of those dependencies. Numerical floors and ceilings, the values that keep a solver from dividing by a vanishing modulus or evaluating a mode at zero frequency, come from the configuration file and can be changed by the user.
 
@@ -29,7 +29,7 @@ The corresponding C++ names carry a `d_` prefix (indicating they are doubles) an
 
 ### Compile-Time Values
 
-Mathematical constants ($\pi$, infinity, NaN) and floating-point limits (the largest and smallest normal double, the machine epsilon, the mantissa digit count) are `constexpr`. So are the solar-system body properties: the masses and radii of the Sun, Earth, Jupiter, Pluto, and Io, and the solar luminosity, all set to the IAU nominal values. The number of seconds in a Julian mega-year is compile-time as well, because the Julian year is exact by definition.
+Mathematical constants ($\pi$, infinity, NaN) and floating-point limits (the largest and smallest normal double, the machine epsilon, the mantissa digit count) are `constexpr`. So are the Solar System body properties: the masses and radii of the Sun, Earth, Jupiter, Pluto, and Io, and the solar luminosity, all set to the IAU nominal values. The number of seconds in a Julian mega-year is compile-time as well, because the Julian year is exact by definition.
 
 ### Values from SciPy
 
@@ -37,15 +37,15 @@ The gravitational constant, the astronomical unit, the Stefan-Boltzmann constant
 
 ### Values from Configuration
 
-The numerical guards are read from the `[numerical]` section of the configuration file: the minimum and maximum tidal frequency, the minimum modulus and solid rigidity, the minimum layer thickness, the shared numerical floor, the layer-boundary continuity tolerance, and the other settings listed on the [configuration page](../Overview/2_TidalPy_Configurations.md#numerical-settings). The `[eos_solver]` and `[radial_solver]` defaults are stored in the same struct. These are the thresholds below which a quantity is treated as zero or a mode is dropped, and their right values depend on the problem, so they are exposed rather than hard-coded.
+The numerical guards are read from the `[numerical]` section of the configuration file: the minimum and maximum tidal frequency, the minimum modulus and solid rigidity, the minimum layer thickness, the shared numerical floor, the layer-boundary continuity tolerance, and the other settings listed on the [configuration page](../Overview/2_TidalPy_Configurations.md#numerical-settings). The `[eos_solver]` and `[radial_solver]` defaults are stored in the same struct. These are the thresholds below which a quantity is treated as zero or a mode is dropped, and their appropriate values depend on the problem, so they are exposed rather than hard-coded.
 
-The numerical floor is not a physical threshold. It is the smallest magnitude a denominator may take before a guard substitutes it, and `Rheology`, `Cooling`, and `Radiogenics` all read it: a zero forcing frequency, a zero layer thickness, and a zero half life each reach a division that would otherwise produce infinity. Its default, `1e-100`, sits far below any physical value, so in practice it only replaces a true zero.
+The numerical floor is not a physical threshold. It is the smallest magnitude a denominator may take before a guard substitutes it, and `Rheology`, `Cooling`, and `Radiogenics` all read it. A zero forcing frequency, a zero layer thickness, and a zero half life each reach a division that would otherwise produce infinity. Its default, `1e-100`, is far below any physical value, so in practice it only replaces a true zero.
 
 ## Updating
 
 `update_constants()` repopulates the shared C++ struct. It copies the `[numerical]`, `[eos_solver]`, and `[radial_solver]` sections of `TidalPy.config` (loaded from `TidalPy_Configs.toml`) into the struct, reads the physical constants from SciPy, and refreshes the Python names in `TidalPy.constants`.
 
-It runs automatically when the package initializes and whenever `TidalPy.reinit` changes the configuration. Call it again after editing `TidalPy.config` directly in a running session; each call reconfigures in place.
+It runs automatically when the package initializes and whenever `TidalPy.reinit` changes the configuration. Call it again after editing `TidalPy.config` directly in a running session. Each call reconfigures in place.
 
 ## Files
 

@@ -1,6 +1,6 @@
 # Utilities (`Utilities`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-30_
 
 `TidalPy.Utilities` contains the shared infrastructure the other modules are built on: the base classes that give every object logging, configuration export, and binary serialization; the numerical primitives the inner loops call; and the conversions, constants, and plotting helpers.
 
@@ -36,6 +36,6 @@ Graphics <graphics.md>
 
 ## Where Utilities are Used
 
-The base classes define the contract a new model class has to satisfy; see [Base Classes](classes.md) and the "adding a new model" section on any physics module page.
+The base classes define the contract a new model class has to satisfy. See [Base Classes](classes.md) and the "adding a new model" section on any physics module page.
 
-The radial structure and deformation problems are integrated in non-dimensional variables, because the dimensional ones span thirty orders of magnitude and destroy the conditioning of the linear algebra; results are converted back to MKS before they reach the caller. See [Conversions and Scales](conversions.md).
+The radial structure and deformation problems are integrated in non-dimensional variables, because the dimensional ones span approx. thirty orders of magnitude and would ruin the conditioning of the linear algebra. Results are converted back to MKS before they are returned to the user. See [Conversions and Scales](conversions.md).

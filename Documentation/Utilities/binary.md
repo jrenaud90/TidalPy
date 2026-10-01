@@ -1,8 +1,8 @@
 # Binary Serialization (`Utilities.binary`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-09-30_
 
-TidalPy writes worlds, layers, systems, and physics models to a compact binary format. This page is the one description of that format and of how a class takes part in it; the other pages only list each class's id. A TOML configuration is the readable, editable way to describe a world; the binary format saves and restores an object graph exactly as it stands, including every attached sub-model, without going back through the builders.
+TidalPy writes worlds, layers, systems, and physics models to a compact binary format. This page describes that format and how a class takes part in it. The other pages only list each class's id. A TOML configuration is the readable, editable way to describe a world. The binary format saves and restores an object structure as it stands, including every attached sub-model, without going back through the builders.
 
 Every file starts with a fixed 20-byte header naming the format version, the class that wrote it, and the payload size, so a reader can identify what a file holds before deciding whether it can read it.
 
@@ -31,7 +31,7 @@ The current schema version is `0.2.0`.
 | Same major and minor, any patch | Compatible. A differing patch produces an informational log line. |
 | Different major or minor | Incompatible. Reading raises unless `force=True` is given. |
 
-A minor version bump can change a class's member layout, and reading an old payload into a new layout produces an object that looks valid and is not. `force=True` is for the case where the layout is known not to have changed, and it still warns. It relaxes only the version check, never the integrity checks below.
+A minor version bump can change a class's member layout, and reading an old payload into a new layout produces an object that looks valid but is not. `force=True` is for the case where the layout is known not to have changed, and it still warns. It relaxes only the version check, never the integrity checks below.
 
 ## Integrity Checks
 
@@ -40,13 +40,13 @@ A minor version bump can change a class's member layout, and reading an old payl
 - The root record's class id is not the class id of the object being loaded into.
 - The magic bytes are wrong, or the byte order is not this machine's.
 - The schema version is incompatible and `force=True` was not given.
-- Any record's header claims a payload larger than what is left in the file. This runs before the record is read, so a corrupt size never leads to a huge read or allocation.
+- Any record's header claims a payload larger than what is left in the file.
 - A nested record's class id is not the one its owner expects.
 - A record's payload ends before this build has read its fields, or bytes are left in it after them. The record was written with a different layout, which would otherwise misalign every record after it, or it is corrupt.
 - A count read from the file (a string length, a table length, a number of layers or worlds) is larger than what is left in the record.
 - Bytes are left over after the root record. The file was written with a layout this build does not read, or it is corrupt.
 
-A load that raises an error leaves every setting the object had before the call. The whole file is read into memory first, and then the initial checks are performed before anything is read into the object. For the other checks, which can only run while or after the record is read, `load_binary` keeps a copy of the object's own record in memory and reads it back into the object when a failed load is caught. A class that provides a scratch object (`make_binary_scratch` in C++) is protected more fully. The record is read into the scratch first and reaches the object only once the whole file has passed every check, so state the object does not save, such as a solved structure, survives a failed load too.
+A load that raises an error leaves every setting the object had before the call. The whole file is read into memory first, and the initial checks are performed before anything is read into the object. For the other checks, which can only run during or after the record is read, `load_binary` keeps a copy of the object's own record in memory and reads it back into the object when a failed load is caught. A class that provides a scratch object (`make_binary_scratch` in C++) is protected more fully. The record is read into the scratch first and reaches the object only once the whole file has passed every check, so state the object does not save, such as a solved structure, survives a failed load too.
 
 ## Saving
 
@@ -64,7 +64,7 @@ info = check_binary_file("world.tpyb")
 get_current_schema_version()   # '0.2.0'
 ```
 
-`check_binary_file(path)` reads only the header, so it is cheap and safe on a file of unknown provenance. It raises `FileNotFoundError` if the path does not exist and `IOError` if the magic bytes are wrong, the byte order is not this machine's, or the file is shorter than the header. It does not compare the payload size with the file; `load_binary` does.
+`check_binary_file(path)` reads only the header, so it is cheap and safe on a file of unknown provenance. It raises `FileNotFoundError` if the path does not exist and `IOError` if the magic bytes are wrong, the byte order is not this machine's, or the file is shorter than the header. It does not compare the payload size with the file. That check is done by `load_binary`.
 
 `get_current_schema_version()` returns the version compiled into this build, which is what a file would be written with now.
 
@@ -75,12 +75,12 @@ get_current_schema_version()   # '0.2.0'
 | Member | Role |
 |---|---|
 | `write_binary(out)` | Writes the class's payload to memory through `p_write_payload`, then the header, with the measured payload size, and the payload. |
-| `read_binary(in, force)` | Reads and checks the header (`c_read_binary_record_header` and the class id), then hands `p_read_payload` a stream that holds exactly the payload, and raises unless it read every byte. |
+| `read_binary(in, force)` | Reads and checks the header (`c_read_binary_record_header` and the class id), then passes `p_read_payload` a stream that holds only the payload, and raises unless it read every byte. |
 | `get_binary_class_id()` | The `BinaryClassID` of the class's records. Every concrete class returns its own. |
 | `p_write_payload(out)`, `p_read_payload(in, force)` | The class's payload. An override calls its parent's first, then writes or reads its own fields and the records of the sub-objects it owns, so a record holds its parent's payload followed by its own additions. |
 | `make_binary_scratch()` | Optional: a new object of the class that `load_binary` reads a file into first (see [Integrity Checks](#integrity-checks)). |
 
-A physics model (`c_PhysicsBase`) writes its model name and then `get_binary_params()`, the model's scalar parameters in a fixed order, and reads them back into `set_binary_params(params)`. A model with no parameters needs only `get_binary_class_id`; a model with parameters overrides the pair; a model that also holds tables or sub-models (the isotope list, the interpolated EOS tables, the material viscosity and melt models) extends `p_write_payload` and `p_read_payload`.
+A physics model (`c_PhysicsBase`) writes its model name and then `get_binary_params()`, the model's scalar parameters in a fixed order, and reads them back into `set_binary_params(params)`. A model with no parameters needs only `get_binary_class_id`. A model with parameters overrides the pair. A model that also holds tables or sub-models (the isotope list, the interpolated EOS tables, the material viscosity and melt models) extends `p_write_payload` and `p_read_payload`.
 
 ```cpp
 // A rheology with two parameters.
@@ -129,11 +129,11 @@ Model names, layer names, and material names are written as a `uint32_t` length 
 
 ## Nested and Recursive Serialization
 
-Containers own sub-objects that have to round-trip with them: a layer owns its physics models, a world owns its layers, a system owns its worlds. The encoding is uniform at every level.
+Containers own sub-objects that have to round-trip with them: a layer owns its physics models, a world owns its layers, a system owns its worlds. The encoding is the same at every level.
 
 An optional owned sub-object is written as a one-byte presence flag, zero for absent and one for present. When present, the sub-object's own complete record follows immediately, header and all. Both belong to the owning record's payload, so a file is one root record with every sub-object record nested inside it.
 
-On read, the owning class reads the flag and, when set, calls a binary-dispatch factory. The factory peeks the upcoming record's class id, default-constructs the matching concrete subclass, and delegates to its `read_binary`.
+On read, the owning class reads the flag and, when set, calls a binary-dispatch factory. The factory peeks at the upcoming record's class id, default-constructs the matching concrete subclass, and delegates to its `read_binary`.
 
 | Module | Dispatch factory |
 |---|---|
@@ -155,7 +155,7 @@ write_optional_binary(out, this->p_shear_rheology);
 this->p_shear_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
 ```
 
-The sub-objects each layer class carries (a class's payload is its parent's payload, then its own fields and sub-objects):
+The sub-objects each layer class carries:
 
 | Layer | Recursively serialized sub-objects |
 |---|---|
@@ -171,7 +171,7 @@ Worlds carry their layers and world-scale models the same way:
 | `c_StarWorld` | the `c_BaseWorld` sub-objects, then the luminosity model |
 
 > [!NOTE]
-> The equation-of-state profile data is never serialized, because it is derived from the attached model: `solve_eos` runs directly on a loaded world and regenerates it.
+> The equation-of-state profile data is never serialized, because it is derived from the attached model. Run `solve_eos` on a loaded world to regenerate it.
 
 ## Class Type IDs
 
@@ -195,6 +195,6 @@ ID zero is `Unknown` and is never written.
 
 ## Portability Notes
 
-Every field uses a fixed-width type from `<cstdint>`, and fields are written individually rather than as a struct, so the layout does not depend on the compiler. File paths are passed as UTF-8 `std::string`; non-ASCII paths on Windows are not guaranteed to work everywhere, so prefer ASCII paths when portability matters. The header is header-only, so no separate compilation step is involved.
+Every field uses a fixed-width type from `<cstdint>`, and fields are written individually rather than as a struct, so the layout does not depend on the compiler. File paths are passed as UTF-8 `std::string`. Non-ASCII paths on Windows are not guaranteed to work everywhere, so prefer ASCII paths when portability matters. `binary_.hpp` is header-only.
 
 The only external dependency is [spdlog](https://github.com/gabime/spdlog/releases/tag/v1.15.3), reached through `logger_.hpp`, and only for the version-mismatch warnings.

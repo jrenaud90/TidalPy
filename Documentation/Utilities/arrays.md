@@ -1,6 +1,6 @@
 # Arrays and Interpolation (`Utilities.arrays`)
 
-_Updated: 2026-09-16_
+_Updated: 2026-09-30_
 
 `TidalPy.Utilities.arrays` provides linear interpolation over a sorted grid. The tabulated equation of state uses it to get density at a radius, the layer profiles use it to get gravity and pressure between slices, and the radial solver's dense output uses it to evaluate the solution between integration steps.
 
@@ -21,7 +21,7 @@ interp([-1.0, 0.5, 9.0], sample_x, sample_y)   # array([0., 5., 7.]), clamped at
 
 `interp(x, xp, fp)` takes the query coordinate or coordinates, the sample coordinates sorted ascending, and the sample values. It returns a Python float for a scalar query and a `float64` array shaped like `x` otherwise, and raises `ValueError` if the sample arrays are empty or differ in length.
 
-The behavior matches `numpy.interp`, including the clamping of out-of-range queries to the nearest endpoint value and NumPy's fallback when an interpolation slope comes out NaN. The one difference is that the sample coordinates are assumed sorted ascending, and no check is performed, because the routine sits inside inner loops where the check would cost more than the interpolation. Unsorted input gives undefined results rather than an error.
+The behavior matches `numpy.interp`, including the clamping of out-of-range queries to the nearest endpoint value and NumPy's fallback when an interpolation slope comes out NaN. The one difference is that the sample coordinates are assumed to be sorted ascending and no check is performed, because the routine sits inside inner loops where the check would cost more than the interpolation. Unsorted input gives undefined results rather than an error.
 
 ## C++ API
 
@@ -48,8 +48,8 @@ Short domains are handled without the search: an empty domain gives NaN, a singl
 
 ## Where Interpolation is Used
 
-The tabulated equation of state interpolates its density and viscoelastic tables with `c_interp`; see [Material EOS Models](../Material/material_eos.md). The layer equation-of-state data, the radial solver's retained solution, and the equation-of-state solution object all use it to answer queries at an arbitrary radius between stored slices.
+The tabulated equation of state interpolates its density and viscoelastic tables with `c_interp`. See [Material EOS Models](../Material/material_eos.md). The layer equation-of-state data, the radial solver's retained solution, and the equation-of-state solution object all use it to answer queries at an arbitrary radius between stored slices.
 
 ## Implementation Notes
 
-The search routine is adapted from NumPy's compiled interpolation, which is why the results match `numpy.interp` down to the endpoint clamping and the NaN-slope fallback. The Python wrapper coerces its three arguments to contiguous `float64` arrays, loops over the queries in C, and returns a result shaped like the query.
+The search routine is adapted from NumPy's compiled interpolation. The Python wrapper coerces its three arguments to contiguous `float64` arrays and loops over the queries in C.
