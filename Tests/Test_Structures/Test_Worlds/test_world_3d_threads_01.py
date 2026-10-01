@@ -9,6 +9,11 @@ import pytest
 
 import TidalPy
 from TidalPy.constants import G, update_constants
+from TidalPy.Material import Material, Phase
+from TidalPy.Rheology.rheology import Maxwell
+from TidalPy.Structures.layers import Layer
+from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Tides.classes.tide import make_tide
 
 
 _RADIUS          = 1.8216e6
@@ -44,29 +49,24 @@ _COLLAPSE_CASES = {
 }
 
 
+def _material(density, shear, viscosity):
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 2.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": shear},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": viscosity},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+
+
 @functools.lru_cache(maxsize=1)
 def _world():
     """Io-sized two-layer Maxwell world at degrees 2 to 3, so many waves share frequencies and (l, m) pairs."""
-    from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-    from TidalPy.Rheology.rheology import Maxwell
-    from TidalPy.Structures.layers.base import BaseLayer
-    from TidalPy.Structures.worlds.base import BaseWorld
-    from TidalPy.Tides.classes.tide import make_tide
-    from TidalPy.Viscosity import make_viscosity
-
     density = _MASS / ((4.0 / 3.0) * math.pi * _RADIUS ** 3)
     world = BaseWorld("threads", _RADIUS, _MASS)
     layers = (("core", 0.0, 0.45 * _RADIUS, 1.0e11, 1.0e22), ("mantle", 0.45 * _RADIUS, _RADIUS, 6.0e10, 1.0e15))
     for index, (name, r_inner, r_outer, shear, viscosity) in enumerate(layers):
         mass = (4.0 / 3.0) * math.pi * (r_outer ** 3 - r_inner ** 3) * density
-        layer = BaseLayer(name, index, r_inner, r_outer, mass)
-        layer.set_eos(ConstantDensityEOS(
-            reference_density=density, shear_modulus_static=shear, bulk_modulus_static=2.0e11))
-        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": viscosity}))
-        layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-        layer.set_shear_rheology(Maxwell())
-        layer.set_bulk_rheology(Maxwell())
-        world.add_layer(layer)
+        world.add_layer(Layer(name, index, r_inner, r_outer, mass, _material(density, shear, viscosity),
+                              shear_rheology=Maxwell(), bulk_rheology=Maxwell()))
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=3, eccentricity_truncation=10, obliquity_truncation=2)
     world.solve_eos(G_to_use=G)

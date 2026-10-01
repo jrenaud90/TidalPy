@@ -295,8 +295,7 @@ public:
         this->eos_input_bylayer_vec    = eos_input_bylayer;
         for (c_EOS_ODEInput& input : this->eos_input_bylayer_vec)
         {
-            input.update_bulk  = true;
-            input.update_shear = true;
+            input.full_state = true;
         }
     }
 
@@ -533,7 +532,7 @@ public:
             return;
         }
 
-        // Otherwise: this solution's own retained integrators plus the layer's EOS model.
+        // Otherwise: this solution's own retained integrators plus the layer's EOS function (its material).
         if (layer_index >= this->current_layers_saved) [[unlikely]]
         {
             throw std::out_of_range("Layer index out of range.");

@@ -10,6 +10,11 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
+from TidalPy.Material import Material, Phase
+from TidalPy.RadialSolver.solver import radial_solver
+from TidalPy.Rheology.rheology import Maxwell
+from TidalPy.Structures.layers import Layer
+from TidalPy.Structures.worlds.base import BaseWorld
 
 
 _RADIUS    = 1.0e6
@@ -27,13 +32,16 @@ _CORE_STATES = [pytest.param("solid", id="solid_core"), pytest.param("liquid", i
                 pytest.param("liquid_zero_shear", id="liquid_core_zero_shear")]
 
 
-def _build_world(core_state):
-    from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-    from TidalPy.Rheology.rheology import Maxwell
-    from TidalPy.Structures.layers.base import BaseLayer
-    from TidalPy.Structures.worlds.base import BaseWorld
-    from TidalPy.Viscosity import make_viscosity
+def _material(density, shear, viscosity):
+    """Constant-density solid; a zero shear modulus leaves out the shear-modulus law (a fluid)."""
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": _BULK},
+        shear_modulus=None if shear == 0.0 else {"model": "constant", "shear_modulus_pa": shear},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": viscosity},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
 
+
+def _build_world(core_state):
     layer_masses = [(4.0 / 3.0) * math.pi * (r_outer ** 3 - r_inner ** 3) * density
                     for _, r_inner, r_outer, density, _, _ in _LAYERS]
     world = BaseWorld("interfaces", _RADIUS, sum(layer_masses))
@@ -41,15 +49,16 @@ def _build_world(core_state):
         name, r_inner, r_outer, density, shear, viscosity = layer_data
         if name == "core" and core_state == "liquid_zero_shear":
             shear = 0.0
-        layer = BaseLayer(name, index, r_inner, r_outer, mass)
-        layer.set_eos(ConstantDensityEOS(
-            reference_density=density, shear_modulus_static=shear, bulk_modulus_static=_BULK))
-        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": viscosity}))
-        layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-        layer.set_shear_rheology(Maxwell())
-        layer.set_bulk_rheology(Maxwell())
-        layer.is_solid = not (name == "core" and core_state != "solid")
-        world.add_layer(layer)
+        world.add_layer(Layer(
+            name,
+            index,
+            r_inner,
+            r_outer,
+            mass,
+            _material(density, shear, viscosity),
+            state="liquid" if (name == "core" and core_state != "solid") else "solid",
+            shear_rheology=Maxwell(),
+            bulk_rheology=Maxwell()))
     return world
 
 
@@ -87,8 +96,6 @@ def test_love_number_does_not_depend_on_the_slice_count(core_state, slices_per_l
 @pytest.mark.parametrize("core_state", _CORE_STATES)
 def test_love_number_matches_the_standalone_solver_given_each_layers_moduli(core_state):
     """World k2 matches the standalone radial solver fed each layer's own moduli."""
-    from TidalPy.RadialSolver.solver import radial_solver
-
     slices_per_layer = 20
     world = _build_world(core_state)
     world_k, eos = _solve_love_number_k(world, slices_per_layer)
@@ -101,7 +108,7 @@ def test_love_number_matches_the_standalone_solver_given_each_layers_moduli(core
         shear,
         _FREQUENCY,
         world.mass / ((4.0 / 3.0) * math.pi * _RADIUS ** 3),
-        tuple("solid" if layer.is_solid else "liquid" for layer in layers),
+        tuple("liquid" if layer.is_liquid else "solid" for layer in layers),
         tuple(bool(layer.is_static) for layer in layers),
         tuple(bool(layer.is_incompressible) for layer in layers),
         np.array([layer.radius_outer for layer in layers], dtype=np.float64),

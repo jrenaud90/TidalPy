@@ -6,9 +6,8 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-from TidalPy.Viscosity import make_viscosity
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Maxwell
 from TidalPy.Tides.classes.tide import make_tide
 
@@ -27,29 +26,39 @@ _ECC       = 0.01
 _TIDAL_SCALE = 0.8
 
 
-def _uniform_layer(tidal_scale=None):
-    """A whole-planet layer and its mass."""
+def _material(viscous=True):
+    """The uniform solid: constant static moduli, plus constant viscosities when viscous."""
+    viscosities = {}
+    if viscous:
+        viscosities = dict(
+            shear_viscosity={"model": "constant", "reference_viscosity_pas": _SHEAR_VISC},
+            bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30})
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _STATIC_BULK},
+        shear_modulus={"model": "constant", "shear_modulus_pa": _STATIC_SHEAR},
+        **viscosities))
+
+
+def _uniform_layer(material, tidal_scale=None, **kwargs):
+    """A whole-planet layer of the given material and its mass."""
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
-    return BaseLayer(
+    return Layer(
         "mantle",
         0,
         0.0,
         _PLANET_RADIUS,
         mass,
+        material,
         tidal_scale=tidal_scale,
+        **kwargs,
     ), mass
 
 
 def _rheology_world():
     """Single solid Maxwell sphere with a rheology tide model."""
-    layer, mass = _uniform_layer(tidal_scale=_TIDAL_SCALE)
+    layer, mass = _uniform_layer(
+        _material(), tidal_scale=_TIDAL_SCALE, shear_rheology=Maxwell(), bulk_rheology=Maxwell())
     world = BaseWorld("rheo_planet", _PLANET_RADIUS, mass)
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Maxwell())
     world.add_layer(layer)
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
@@ -121,10 +130,8 @@ def test_layer_heating_nan_before_solve():
 
 def test_analytic_model_love_k_is_nan():
     """An analytic (cpl) model leaves the per-mode Love numbers NaN."""
-    layer, mass = _uniform_layer()
+    layer, mass = _uniform_layer(_material(viscous=False))
     world = BaseWorld("cpl_planet", _PLANET_RADIUS, mass)
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     world.add_layer(layer)
     world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))
     world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)

@@ -2,23 +2,35 @@
 
 import math
 
+from TidalPy.Material import Material, Phase
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.gas import GasLayer
+from TidalPy.Structures.layers import Layer
+
+
+def _gas_material():
+    """A gas envelope: a liquid-only constant-density material."""
+    return Material(liquid=Phase(eos={"model": "constant", "reference_density_kg_m3": 1300.0}))
 
 
 def test_gas_layer_defaults_to_a_static_liquid():
-    """A gas layer defaults to a static liquid, including in the bundled Jupiter."""
-    layer = GasLayer(
+    """A layer of a liquid-only (gas) material defaults to a static liquid."""
+    layer = Layer(
         "envelope",
         0,
         0.0,
         1.0e7,
         1.0e27,
+        _gas_material(),
     )
-    assert layer.is_solid is False
+    assert layer.state == "auto"
+    assert layer.is_liquid is True
     assert layer.is_static is True
+
+
+def test_bundled_jupiter_envelope_is_a_static_liquid():
+    """The bundled Jupiter's single gas layer is a liquid."""
     world = build_world("jupiter_simple")
-    assert [layer.is_solid for layer in world] == [False]
+    assert [layer.is_liquid for layer in world] == [True]
 
 
 def test_jupiter_simple_love_number_is_the_uniform_fluid_value():

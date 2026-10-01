@@ -36,14 +36,12 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_physics_model_config,
 )
 from TidalPy.Tides.classes.tide cimport TideBase
-from TidalPy.Structures.layers.base cimport (
-    BaseLayer, c_BaseLayer, c_layer_class_name, cy_eos_field, cy_eos_fields, C_EOS_DENSITY_INDEX,
+from TidalPy.Structures.layers.layer cimport (
+    Layer, c_Layer, cy_eos_field, cy_eos_fields, C_EOS_DENSITY_INDEX,
     C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
     C_EOS_BULK_MODULUS_INDEX, C_EOS_BULK_VISCOSITY_INDEX, C_EOS_TEMPERATURE_INDEX, C_EOS_HEAT_FLOW_INDEX,
     C_EOS_MELT_FRACTION_INDEX)
-from TidalPy.Structures.layers.base import LAYER_STANDALONE_CONFIG_KEYS
-from TidalPy.Structures.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
-from TidalPy.Structures.layers.gas cimport GasLayer, c_GasLayer
+from TidalPy.Structures.layers.layer import LAYER_STANDALONE_CONFIG_KEYS
 from TidalPy.RadialSolver.rs_constants cimport C_MAX_NUM_YTYPES
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver.rs_solution cimport cy_check_surface_solve_conditioning
@@ -68,15 +66,9 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # cannot be imported here at module load without a circular import).
 BUILDER_WORLD_TYPES = ("star", "gasgiant", "terrestrial", "layered")
 
-# Build the matching layer wrapper as a non-owning view onto a layer the world owns, dispatched by the C++
-# layer's concrete class id. The view keeps the world alive (see BaseLayer._view).
-cdef BaseLayer cy_wrap_layer_view(c_BaseLayer* ptr, object world):
-    cdef bytes class_name = c_layer_class_name(ptr.get_layer_class_id())
-    if class_name == b"solidliquid":
-        return SolidLiquidLayer._view(<c_SolidLiquidLayer*>ptr, world)
-    elif class_name == b"gas":
-        return GasLayer._view(<c_GasLayer*>ptr, world)
-    return BaseLayer._view(ptr, world)
+# A layer wrapper as a non-owning view onto a layer the world owns. The view keeps the world alive (see Layer._view).
+cdef Layer cy_wrap_layer_view(c_Layer* ptr, object world):
+    return Layer._view(ptr, world)
 
 # Component order of the stress and strain grids returned by BaseWorld.calc_3d_stress_strain.
 STRESS_STRAIN_COMPONENTS = ("rr", "theta_theta", "phi_phi", "r_theta", "r_phi", "theta_phi")
@@ -178,7 +170,7 @@ def build_layered_world_from_profile(
     the same world. Interface radii appear twice in the profile, once as the top of the lower layer and once
     as the base of the upper one, and each copy belongs to its own layer.
 
-    The world carries its layers and their material EOS models and nothing else: no tide model, no
+    The world carries its layers and their materials and nothing else: no tide model, no
     ``[worlds]`` defaults, and no retained source configuration. It is the world a supplied profile
     describes, not one a configuration file asked for; :func:`build_world` is the route that adds those.
     ``save_to_toml`` still works, rebuilding the configuration from the live world.
@@ -468,7 +460,7 @@ cdef class BaseWorld(StructureBase):
         world._bind(ptr)
         return world
 
-    def add_layer(self, BaseLayer layer not None):
+    def add_layer(self, Layer layer not None):
         """Add a layer to the world (inner to outer).
 
         Ownership of the C++ layer and its attached physics models moves to the world. ``layer`` stays usable: it
@@ -476,10 +468,8 @@ cdef class BaseWorld(StructureBase):
 
         Parameters
         ----------
-        layer : BaseLayer
-            A layer (``BaseLayer``, ``SolidLiquidLayer``, or
-            ``GasLayer``). Its inner radius must match the current outermost
-            radius (0 for the first layer).
+        layer : Layer
+            Its inner radius must match the current outermost radius (0 for the first layer).
 
         Raises
         ------
@@ -499,7 +489,7 @@ cdef class BaseWorld(StructureBase):
         cdef string rejection = self._world_ptr.get().layer_rejection_reason(deref(layer._layer_ptr.get()))
         if rejection.size() > 0:
             raise ValueError(rejection.decode('utf-8'))
-        cdef c_BaseLayer* added_layer_ptr = layer._layer_ptr.get()
+        cdef c_Layer* added_layer_ptr = layer._layer_ptr.get()
         self._world_ptr.get().add_layer(move(layer._layer_ptr))
         layer._init_view(added_layer_ptr, self)
         self._track_view(layer)
@@ -533,7 +523,7 @@ cdef class BaseWorld(StructureBase):
             The file holds a record of another class, has an incompatible schema version, or is corrupt.
         """
         cdef object view_ref
-        cdef BaseLayer view
+        cdef Layer view
         StructureBase.load_binary(self, path, force)
         self.source_config   = None
         self.portable_config = None
@@ -934,7 +924,7 @@ cdef class BaseWorld(StructureBase):
             validate_world_config(config)
         return save_world_to_toml(config, file_path, overwrite=overwrite)
 
-    cdef void _track_view(self, BaseLayer view) except *:
+    cdef void _track_view(self, Layer view) except *:
         """Remember a view this world handed out (weakly), so a load that replaces the layers can detach it."""
         if self._issued_views is None:
             self._issued_views = []
@@ -957,7 +947,7 @@ cdef class BaseWorld(StructureBase):
         The views are non-owning wrappers onto the world's stable C++ layers; ``add_layer`` invalidates them.
         """
         cdef size_t n, i
-        cdef BaseLayer view
+        cdef Layer view
         if self._layer_views is None:
             n = self._world_ptr.get().get_num_layers()
             self._layer_views = []
@@ -969,7 +959,7 @@ cdef class BaseWorld(StructureBase):
                 self._layer_view_by_name[view.name] = view
         return self._layer_views
 
-    def get_layer(self, index: int) -> BaseLayer:
+    def get_layer(self, index: int) -> Layer:
         """Return a wrapper around the layer at ``index`` (0 = innermost).
 
         The returned object is a non-owning view: the world still owns the C++ layer, so the view exposes the
@@ -1036,8 +1026,7 @@ cdef class BaseWorld(StructureBase):
     def calc_internal_heating(self, double time) -> float:
         """Total internal radiogenic heating [W] at the given time [s].
 
-        Only ``SolidLiquidLayer`` layers with an attached radiogenics model
-        contribute; all other layers contribute zero.
+        Only layers with a radiogenics model contribute.
         """
         return self._world_ptr.get().calc_internal_heating(time)
 
@@ -1065,7 +1054,7 @@ cdef class BaseWorld(StructureBase):
         """Solve the whole-planet equation of state.
 
         Integrates gravity, pressure, enclosed mass, and moment of inertia from the planet center to its
-        surface with each layer's attached material EOS model (see :meth:`BaseLayer.set_eos`) as the local
+        surface with each layer's material (see :attr:`Layer.material`), with the layer's switches, as the local
         density source; a convergence loop on the surface pressure sets the central pressure. On success every
         layer's EOS profile is populated, so :meth:`get_density`, :meth:`get_gravity`, and
         :meth:`get_pressure` work on the world and on the individual layers, and every layer's mass (and so
@@ -1139,13 +1128,13 @@ cdef class BaseWorld(StructureBase):
         Raises
         ------
         ValueError
-            If the world has no layers, any layer lacks a material EOS model, an unsupported integration
+            If the world has no layers, any layer lacks a material, an unsupported integration
             method is given, or ``slices_per_layer < 2``.
 
         Assumptions
         -----------
         - Spherical symmetry; all quantities MKS.
-        - Each layer's density comes from its attached material EOS model.
+        - Each layer's density comes from its material.
         """
         # The config struct starts from the [eos_solver] section of the TidalPy configuration with the keys this
         # world's file pinned on top (set_solver_defaults); only the arguments given here override it.
@@ -1203,9 +1192,9 @@ cdef class BaseWorld(StructureBase):
         return self._world_ptr.get().get_eos_solved()
 
     @property
-    def all_eos_set(self) -> bool:
-        """True once every layer has a material EOS model attached."""
-        return self._world_ptr.get().get_all_eos_set()
+    def all_materials_set(self) -> bool:
+        """True once every layer has a material."""
+        return self._world_ptr.get().get_all_materials_set()
 
     # Structure and viscoelastic profile queries (delegate to the containing layer).
     #
@@ -1291,7 +1280,8 @@ cdef class BaseWorld(StructureBase):
             <const void*>self._world_ptr.get(), cy_world_eos_fields, radius, C_EOS_BULK_VISCOSITY_INDEX)
 
     def get_melt_fraction(self, radius):
-        """Melt fraction at radius [m] (float or np.ndarray); 0.0 where the material has no partial-melt model."""
+        """Melt fraction at radius [m] (float or np.ndarray): 0.0 where the layer's material does not melt (or its
+        layer does not use melting), 1.0 in a liquid-only material."""
         return cy_eos_field(
             <const void*>self._world_ptr.get(), cy_world_eos_fields, radius, C_EOS_MELT_FRACTION_INDEX)
 
@@ -1412,9 +1402,9 @@ cdef class BaseWorld(StructureBase):
     def molten_regions(self) -> list:
         """Molten stretches of solid layers from the last EOS solve, as ``(layer_name, radius_inner, radius_outer)``.
 
-        A stretch is molten where the layer's partial-melt model has weakened it past use as a solid: the post-melt
-        shear modulus sits at the model's ``liquid_shear`` floor, or its rigidity mu / (rho g R) (planet bulk density,
-        surface gravity, and radius) is below the ``[numerical]`` ``minimum_solid_rigidity`` of the TidalPy
+        A stretch is molten where melting has weakened the layer's material past use as a solid (a layer with
+        ``use_melting`` whose material melts): its post-melt rigidity mu / (rho g R) (planet bulk density, surface
+        gravity, and radius) is at or below the ``[numerical]`` ``minimum_solid_rigidity`` of the TidalPy
         configuration. The radial solver splits the layer at the stretch's edges and solves the stretch as a static
         liquid. Radii in [m]; empty before an EOS solve or when nothing is molten.
         """
@@ -1529,7 +1519,7 @@ cdef class BaseWorld(StructureBase):
             solid, static, incompressible layer; an incompatible world fails the solve gracefully, with
             ``love_success`` False and a non-zero ``love_error_code``. ``'homogeneous'`` (``'homogen'``)
             applies the homogeneous-sphere formulas with the volume-averaged complex shear modulus of the
-            tidal layers (``is_tidal``), the planet's bulk density, surface gravity, and radius. ``'cpl'``
+            tidal layers (``use_tides``), the planet's bulk density, surface gravity, and radius. ``'cpl'``
             and ``'ctl'`` apply those to the static shear modulus with a constant phase lag ``(1 - i/Q)`` or
             time lag ``(1 - i*omega*dt)``. ``'laterally_inhomogeneous'`` (``'3d'``, ``'lat_inhom'``) raises
             ``NotImplementedError``.

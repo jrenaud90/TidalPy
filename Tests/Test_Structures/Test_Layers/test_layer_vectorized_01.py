@@ -6,9 +6,8 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-from TidalPy.Viscosity import make_viscosity
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Maxwell, Elastic
 
 _RADIUS = 1.0e6
@@ -24,24 +23,26 @@ _REAL_GETTERS = _PROFILE_GETTERS + (
     "get_shear_modulus", "get_bulk_modulus", "get_shear_viscosity", "get_bulk_viscosity", "get_melt_fraction")
 
 
+def _material():
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _BULK},
+        shear_modulus={"model": "constant", "shear_modulus_pa": _SHEAR},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": _VISC},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": _VISC}))
+
+
 def _solved_world():
     """A homogeneous Maxwell world with its EOS solved."""
     world = BaseWorld("world", _RADIUS, _MASS)
-    layer = BaseLayer("mantle", 0, 0.0, _RADIUS, _MASS)
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Elastic())
-    world.add_layer(layer)
+    world.add_layer(Layer("mantle", 0, 0.0, _RADIUS, _MASS, _material(), shear_rheology=Maxwell(),
+                          bulk_rheology=Elastic()))
     world.solve_eos(G_to_use=G)
     return world
 
 
 def _standalone_layer():
     """A layer with a directly populated EOS profile and no world."""
-    layer = BaseLayer("mantle", 0, 0.0, _RADIUS, _MASS)
+    layer = Layer("mantle", 0, 0.0, _RADIUS, _MASS)
     layer.update_eos_data(
         np.linspace(0.0, _RADIUS, 11),
         np.full(11, _DENSITY),
@@ -123,7 +124,7 @@ def test_get_state_bundle():
 
 
 def test_layer_constant_complex_form_unchanged():
-    """The one-argument calc_complex_* form still returns a layer-constant complex."""
+    """The one-argument calc_complex_* form returns the layer's material at zero pressure, as a complex."""
     world = _solved_world()
     layer = world.mantle
     mu = layer.calc_complex_shear_modulus(_FREQ)

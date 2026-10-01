@@ -4,16 +4,16 @@
  *
  * The standalone radial solver is handed a planet as contiguous arrays (radius, density, and the two static
  * moduli) plus its layer boundaries and per-layer solver assumptions. This turns those into a c_BaseWorld
- * whose layers each carry an interpolated material EOS over their own slice of the profile, which is what the
- * world-attached EOS and Love solves already consume.
+ * whose layers are each made of a material that interpolates their own slice of the profile (a tabulated equation of
+ * state and shear modulus), which is what the world-attached EOS and Love solves already consume.
  *
  * It is the C++ twin of `build_world_from_layered_profile` in Structures/configs/world_builder.py, which
  * reaches the same place through a configuration dict. That route turns every slice into a Python float,
  * validates a schema, and merges per-material defaults on every call; this one copies the slices straight
  * into the EOS tables. The two must agree layer for layer, so the rules they share are written the same way
  * here: the slice partition comes from c_partition_radius_by_layer (the one place that rule lives), a layer
- * takes the last radius of its own slice as its outer radius rather than the declared boundary, is_tidal
- * follows is_solid, and the material name is left empty so no per-material defaults are pulled in.
+ * takes the last radius of its own slice as its outer radius rather than the declared boundary, and use_tides
+ * follows whether the layer is solid.
  *
  * The world built here anchors the lifetime of a solve and is never handed back to Python, so it takes none
  * of the world-level extras construct_world attaches (tide model, albedo and emissivity defaults, the
@@ -28,8 +28,7 @@
 
 #include "base_.hpp"                                    // c_BaseWorld, c_WorldConfig
 #include "constants_.hpp"                               // TidalPyConstants::d_PI
-#include "../layers/solidliquid_.hpp"                   // c_SolidLiquidLayer, c_SolidLiquidConfig
-#include "../../Material/eos/material_eos_.hpp"         // c_InterpolatedEOS, c_MaterialEOSConfig
+#include "../layers/layer_.hpp"                         // c_Layer, c_LayerConfig, c_Material
 #include "../../Utilities/arrays/layer_partition_.hpp"  // c_partition_radius_by_layer
 
 namespace tidalpy {
@@ -63,7 +62,7 @@ inline constexpr std::size_t d_PROFILE_MIN_SLICES_PER_LAYER = 2;
 /// Returns
 /// -------
 /// shared_ptr<c_BaseWorld>
-///     The world, with every layer added inner to outer and its EOS attached.
+///     The world, with every layer added inner to outer and its material attached.
 ///
 /// Throws
 /// ------
@@ -129,17 +128,23 @@ inline std::shared_ptr<c_BaseWorld> c_build_world_from_layered_profile(
         }
         const std::size_t stop = first + count;
 
-        // The material is the layer's slice of the profile. The viscosity tables stay empty: the profile
-        // carries none, and the Love solve is handed complex moduli instead.
-        c_MaterialEOSConfig eos_cfg;
-        eos_cfg.radius.assign(radius_ptr + first, radius_ptr + stop);
-        eos_cfg.density.assign(density_ptr + first, density_ptr + stop);
-        eos_cfg.shear_modulus.assign(shear_modulus_ptr + first, shear_modulus_ptr + stop);
-        eos_cfg.bulk_modulus.assign(bulk_modulus_ptr + first, bulk_modulus_ptr + stop);
+        // The material is the layer's slice of the profile. It has no viscosity law: the profile carries none,
+        // and the Love solve is handed complex moduli instead.
+        const std::vector<double> layer_radius(radius_ptr + first, radius_ptr + stop);
+        c_PhaseComponents phase_components;
+        phase_components.eos = std::make_shared<const c_InterpolatedEOS>(c_ParamMap{
+            {"radius_m", layer_radius},
+            {"density_kg_m3", std::vector<double>(density_ptr + first, density_ptr + stop)},
+            {"bulk_modulus_pa", std::vector<double>(bulk_modulus_ptr + first, bulk_modulus_ptr + stop)}});
+        phase_components.shear_modulus = std::make_shared<const c_InterpolatedShearModulus>(c_ParamMap{
+            {"radius_m", layer_radius},
+            {"shear_modulus_pa", std::vector<double>(shear_modulus_ptr + first, shear_modulus_ptr + stop)}});
+        c_MaterialComponents material_components;
+        material_components.solid = std::make_shared<const c_Phase>(c_ParamMap{}, phase_components);
 
         const bool is_solid = (layer_type_ptr[layer_i] == 0);
 
-        c_SolidLiquidConfig layer_cfg;
+        c_LayerConfig layer_cfg;
         layer_cfg.name         = std::string("layer_") + std::to_string(layer_i);
         layer_cfg.layer_index  = static_cast<int>(layer_i);
         layer_cfg.radius_inner = radius_inner;
@@ -148,16 +153,13 @@ inline std::shared_ptr<c_BaseWorld> c_build_world_from_layered_profile(
         layer_cfg.radius_outer = radius_ptr[stop - 1];
         // The mass has no meaningful value yet; every successful EOS solve overwrites it with the solved one.
         layer_cfg.mass = 0.0;
-        // An empty material name pulls in no per-material defaults: the profile is the material, so the layer
-        // gets no viscosity law, no partial-melt model, and no rheology it did not ask for.
-        layer_cfg.material_name     = std::string();
-        layer_cfg.is_tidal          = is_solid;
-        layer_cfg.is_solid          = is_solid;
+        layer_cfg.use_tides         = is_solid;
+        layer_cfg.state             = is_solid ? c_LayerState::Solid : c_LayerState::Liquid;
         layer_cfg.is_static         = is_static_ptr[layer_i];
         layer_cfg.is_incompressible = is_incompressible_ptr[layer_i];
 
-        std::unique_ptr<c_SolidLiquidLayer> layer = std::make_unique<c_SolidLiquidLayer>(layer_cfg);
-        layer->set_eos(std::make_unique<c_InterpolatedEOS>(eos_cfg));
+        std::unique_ptr<c_Layer> layer = std::make_unique<c_Layer>(layer_cfg);
+        layer->set_material(std::make_shared<const c_Material>(c_ParamMap{}, material_components));
         // Checks continuity against the layer below before taking ownership.
         world->add_layer(std::move(layer));
 

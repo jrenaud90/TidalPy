@@ -6,9 +6,9 @@ import threading
 
 import pytest
 
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Structures.configs.system_builder import build_system_from_dict
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
@@ -21,9 +21,10 @@ def _body(name, radius=1.0e6, density=3000.0, fixed_q=None):
     """A uniform layered body, with an analytic fixed-Q tide model when fixed_q is given."""
     mass = 4.0 / 3.0 * math.pi * radius**3 * density
     world = BaseWorld(name, radius, mass)
-    layer = BaseLayer("mantle", 0, 0.0, radius, mass)
-    layer.set_eos(ConstantDensityEOS(reference_density=density, shear_modulus_static=5.0e10))
-    world.add_layer(layer)
+    material = Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10}))
+    world.add_layer(Layer("mantle", 0, 0.0, radius, mass, material))
     if fixed_q is not None:
         world.set_tide_model(make_tide("fixed_q", {"fixed_q": [fixed_q]}))
         world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=0)

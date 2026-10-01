@@ -392,6 +392,12 @@ public:
     // Whether the material is liquid everywhere: it has a liquid phase and no solid one.
     bool get_is_liquid_only() const noexcept { return !this->p_components.solid; }
 
+    // The phase the material is when it is not melting: the solid, or the liquid of a liquid-only material. Its
+    // equation of state and default rheologies are the material's own.
+    const c_Phase& get_base_phase() const noexcept {
+        return this->p_components.solid ? *this->p_components.solid : *this->p_components.liquid;
+    }
+
     // The solidus and liquidus [K] at a pressure [Pa] as a layer sees them (at zero pressure unless it uses pressure
     // melting); NaN for a material that cannot melt.
     void calc_melting_range(double pressure, const c_MaterialSwitches& switches, double& solidus,
@@ -441,7 +447,7 @@ public:
     double calc_density(const c_ThermoPoint& point, const c_MaterialSwitches& switches) const noexcept {
         const bool thermal = switches.use_thermal_expansion;
         if (!(switches.use_melting && switches.use_melt_density && this->get_can_melt())) {
-            return this->p_base_phase().calc_density(point, thermal);
+            return this->get_base_phase().calc_density(point, thermal);
         }
         c_MaterialState state;
         this->p_evaluate(point, switches, false, state);
@@ -506,11 +512,6 @@ protected:
         return components;
     }
 
-    // The phase the material is when it is not melting: the solid, or the liquid of a liquid-only material.
-    const c_Phase& p_base_phase() const noexcept {
-        return this->p_components.solid ? *this->p_components.solid : *this->p_components.liquid;
-    }
-
     void p_evaluate(
             const c_ThermoPoint& point,
             const c_MaterialSwitches& switches,
@@ -519,8 +520,8 @@ protected:
         const bool thermal = switches.use_thermal_expansion;
         const bool liquid_only = this->get_is_liquid_only();
         c_PhaseState solid;
-        if (mechanical) { this->p_base_phase().calc_phase_state(point, thermal, solid); }
-        else            { this->p_base_phase().calc_phase_thermal(point, thermal, solid); }
+        if (mechanical) { this->get_base_phase().calc_phase_state(point, thermal, solid); }
+        else            { this->get_base_phase().calc_phase_thermal(point, thermal, solid); }
         p_copy_phase(solid, out);
         out.phase         = liquid_only ? c_MaterialPhase::Liquid : c_MaterialPhase::Solid;
         out.melt_fraction = liquid_only ? 1.0 : 0.0;

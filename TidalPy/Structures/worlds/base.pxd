@@ -18,7 +18,7 @@ from TidalPy.Utilities.classes.classes cimport (
     c_TidalPyBaseClass,
 )
 from TidalPy.Tides.classes.tide cimport c_TideBase
-from TidalPy.Structures.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.Structures.layers.layer cimport Layer, c_Layer
 from TidalPy.Material.eos.eos_solution cimport c_EOSSolution
 from TidalPy.RadialSolver.rs_solution cimport c_RadialSolutionStorage
 from TidalPy.Dynamics.spin cimport Spin, c_Spin
@@ -237,9 +237,9 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         void set_obliquity(double obliq)
 
         # Layers
-        void add_layer(unique_ptr[c_BaseLayer] layer) except +
-        string layer_rejection_reason(const c_BaseLayer& layer) except +
-        c_BaseLayer* get_layer(size_t index) except +
+        void add_layer(unique_ptr[c_Layer] layer) except +
+        string layer_rejection_reason(const c_Layer& layer) except +
+        c_Layer* get_layer(size_t index) except +
         void update_after_layer_change() except +
         size_t get_num_layers() const
         double calc_total_mass() const
@@ -282,7 +282,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
             double frequency,
             cpp_complex[double]* moduli_out) const
         cpp_bool get_eos_solved() const
-        cpp_bool get_all_eos_set() const
+        cpp_bool get_all_materials_set() const
         cpp_bool get_eos_success() const
         string get_eos_message() except +
         int get_eos_iterations() const
@@ -495,5 +495,5 @@ cdef class BaseWorld(StructureBase):
     # Wrap an already-constructed C++ world without building a new one; each subclass returns its own type.
     @staticmethod
     cdef BaseWorld _wrap(shared_ptr[c_BaseWorld] ptr)
-    cdef void _track_view(self, BaseLayer view) except *
+    cdef void _track_view(self, Layer view) except *
     cdef list _ensure_layer_views(self)

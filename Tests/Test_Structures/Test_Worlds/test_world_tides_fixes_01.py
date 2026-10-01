@@ -6,15 +6,14 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Elastic, Maxwell
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.potential import global_potential
 from TidalPy.Utilities.logging.logger import flush_logger, init_logger
-from TidalPy.Viscosity import make_viscosity
 from TidalPy.initialize import build_logging_config
 
 
@@ -48,18 +47,20 @@ def spdlog_text(tmp_path):
     init_logger(build_logging_config())
 
 
+def _material():
+    """A compressible solid with constant moduli and viscosities."""
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": 2.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 6.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e15},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+
+
 def _world(eccentricity_truncation=2):
     """One compressible, static Maxwell layer solved with the shooting method."""
     world = BaseWorld("homogeneous", _R, _MASS)
-    layer = BaseLayer("mantle", 0, 0.0, _R, _MASS)
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=6.0e10, bulk_modulus_static=2.0e11))
-    layer.is_static = True
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e15}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Elastic())
-    world.add_layer(layer)
+    world.add_layer(Layer(
+        "mantle", 0, 0.0, _R, _MASS, _material(), is_static=True, shear_rheology=Maxwell(), bulk_rheology=Elastic()))
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(
         min_degree_l=2, max_degree_l=2, eccentricity_truncation=eccentricity_truncation, obliquity_truncation=0)

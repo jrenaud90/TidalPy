@@ -93,6 +93,13 @@ public:
     // with no such limit.
     virtual c_PressureLawRange get_pressure_law_range() const noexcept { return c_PressureLawRange{}; }
 
+    // The thermal pressure [Pa] the law subtracts from the pressure before it inverts for the density at a temperature
+    // [K], so the pressure less this is what get_pressure_law_range bounds. Zero with `thermal` off, at a non-finite
+    // temperature, and for a law that scales its density instead.
+    double calc_thermal_pressure(double temperature, bool thermal) const noexcept {
+        return this->p_thermal_pressure(this->p_temperature_offset(temperature, thermal));
+    }
+
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
 
     // Element-wise over pressure, temperature, and radius; each holds one value per point or a single value used at
@@ -137,6 +144,9 @@ protected:
 
     // The density the expansivity's compression scaling is measured from; NaN for a law without one.
     virtual double p_expansion_reference_density() const noexcept { return TidalPyConstants::d_NAN; }
+
+    // The thermal pressure at a temperature above the reference; zero for a law that scales its density instead.
+    virtual double p_thermal_pressure(double /*temperature_offset*/) const noexcept { return 0.0; }
 
     double p_temperature_offset(double temperature, bool thermal) const noexcept {
         if (!thermal || (this->p_thermal_expansion == 0.0) || !std::isfinite(temperature)) { return 0.0; }
@@ -194,7 +204,10 @@ public:
     explicit c_ConstantEOS(const c_ParamMap& params) : c_SpecModel("constant") { this->p_initialize(params); }
 
 protected:
-    void p_calc_law(const c_ThermoPoint& /*point*/, double temperature_offset, c_EOSPoint& out) const noexcept override {
+    void p_calc_law(
+            const c_ThermoPoint& /*point*/,
+            double temperature_offset,
+            c_EOSPoint& out) const noexcept override {
         out.density      = this->p_reference_density * c_safe_exp(-this->p_thermal_expansion * temperature_offset);
         out.bulk_modulus = this->p_bulk_modulus;
     }
@@ -236,9 +249,9 @@ public:
 
 protected:
     void p_calc_law(const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept override {
-        const double thermal_pressure = this->p_thermal_expansion * this->p_reference_bulk_modulus * temperature_offset;
         const double eta = eos_invert_eta(
-            point.pressure - thermal_pressure, this->p_reference_bulk_modulus, this->p_bulk_modulus_derivative,
+            point.pressure - this->p_thermal_pressure(temperature_offset), this->p_reference_bulk_modulus,
+            this->p_bulk_modulus_derivative,
             p_law_function(), this->p_law_range, this->p_resolved_rtol, this->p_resolved_max_iters);
         double pressure = 0.0;
         double bulk_modulus = 0.0;
@@ -248,6 +261,9 @@ protected:
     }
 
     double p_expansion_reference_density() const noexcept override { return this->p_reference_density; }
+    double p_thermal_pressure(double temperature_offset) const noexcept override {
+        return this->p_thermal_expansion * this->p_reference_bulk_modulus * temperature_offset;
+    }
 
     // The inversion settings and the law's range depend on the parameters alone, so they are found once.
     void p_update_derived() noexcept override {
@@ -323,7 +339,7 @@ protected:
     void p_calc_law(const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept override {
         const double k0 = this->p_reference_bulk_modulus;
         const double kp = this->p_bulk_modulus_derivative;
-        const double pressure = point.pressure - this->p_thermal_expansion * k0 * temperature_offset;
+        const double pressure = point.pressure - this->p_thermal_pressure(temperature_offset);
         if ((kp == 0.0) || (pressure <= 0.0)) {
             out.density      = this->p_reference_density * c_safe_exp(pressure / k0);
             out.bulk_modulus = k0;
@@ -333,6 +349,9 @@ protected:
         out.bulk_modulus = k0 + kp * pressure;
     }
     double p_expansion_reference_density() const noexcept override { return this->p_reference_density; }
+    double p_thermal_pressure(double temperature_offset) const noexcept override {
+        return this->p_thermal_expansion * this->p_reference_bulk_modulus * temperature_offset;
+    }
 
     double p_reference_density       = 0.0;
     double p_reference_bulk_modulus  = 0.0;
@@ -367,7 +386,10 @@ public:
     explicit c_PolytropeEOS(const c_ParamMap& params) : c_SpecModel("polytrope") { this->p_initialize(params); }
 
 protected:
-    void p_calc_law(const c_ThermoPoint& point, double /*temperature_offset*/, c_EOSPoint& out) const noexcept override {
+    void p_calc_law(
+            const c_ThermoPoint& point,
+            double /*temperature_offset*/,
+            c_EOSPoint& out) const noexcept override {
         if (!(point.pressure > 0.0)) {
             out.density      = 0.0;
             out.bulk_modulus = 0.0;
@@ -413,7 +435,10 @@ public:
     }
 
 protected:
-    void p_calc_law(const c_ThermoPoint& point, double /*temperature_offset*/, c_EOSPoint& out) const noexcept override {
+    void p_calc_law(
+            const c_ThermoPoint& point,
+            double /*temperature_offset*/,
+            c_EOSPoint& out) const noexcept override {
         if (!(point.pressure > 0.0)) {
             out.density      = this->p_reference_density;
             out.bulk_modulus = (this->p_exponent < 1.0) ? 0.0 : TidalPyConstants::d_INF;

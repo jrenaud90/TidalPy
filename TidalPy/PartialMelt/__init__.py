@@ -1,15 +1,8 @@
 """Melting laws: melting curves (solidus and liquidus), melt weakening of the shear modulus and viscosity, and the
-optional bulk-modulus and bulk-viscosity mixing of melt (``melting``); and the partial-melt models that the world
-pipeline still reads (``partial_melt``).
+optional bulk-modulus and bulk-viscosity mixing of melt (``melting``). A material (``TidalPy.Material``) combines them
+with its solid and liquid phases.
 """
 
-from TidalPy.PartialMelt.partial_melt import (
-    PartialMeltBase,
-    OffPartialMelt,
-    SpohnPartialMelt,
-    HenningPartialMelt,
-    make_partial_melt,
-)
 from TidalPy.PartialMelt.melting import (
     MeltingCurveBase,
     ConstantMeltingCurve,
@@ -33,11 +26,6 @@ from TidalPy.PartialMelt.melting import (
 )
 
 __all__ = [
-    "PartialMeltBase",
-    "OffPartialMelt",
-    "SpohnPartialMelt",
-    "HenningPartialMelt",
-    "make_partial_melt",
     "MeltingCurveBase",
     "ConstantMeltingCurve",
     "SimonGlatzelCurve",

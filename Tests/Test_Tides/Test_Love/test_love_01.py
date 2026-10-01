@@ -1,4 +1,4 @@
-"""``LoveNumbers``: storage, equality, iteration, to_dict, repr, and access through a BaseLayer."""
+"""``LoveNumbers``: storage, equality, iteration, to_dict, and repr."""
 import pytest
 
 from TidalPy.Tides.love.love import LoveNumbers

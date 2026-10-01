@@ -6,19 +6,20 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 
 PLANET_RADIUS = 1.0e6  # [m]
 
 
+def _material(density=5000.0):
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 1.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10}))
+
+
 def _layer(name, index, radius_inner, radius_outer, density=5000.0):
-    layer = BaseLayer(name, index, radius_inner, radius_outer, 0.0)
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=density,
-        shear_modulus_static=5.0e10,
-        bulk_modulus_static=1.0e11))
-    return layer
+    return Layer(name, index, radius_inner, radius_outer, 0.0, _material(density))
 
 
 def _world():
@@ -67,7 +68,7 @@ def test_moving_a_layer_through_a_view_forgets_the_solve():
 def test_resolve_after_a_view_change_uses_the_new_material():
     world = _world()
     world.solve_eos(G_to_use=G)
-    world.mantle.set_eos(ConstantDensityEOS(reference_density=3000.0))
+    world.mantle.material = _material(3000.0)
     world.solve_eos(G_to_use=G)
     assert world.mantle.get_density(0.8 * PLANET_RADIUS) == pytest.approx(3000.0)
 
@@ -91,4 +92,4 @@ def test_add_layer_rejections_leave_the_layer_usable(layer_args, message):
 @pytest.mark.parametrize("radii", ((-1.0, 1.0e6), (5.0e5, 1.0e5), (0.0, math.inf)))
 def test_inverted_or_negative_layers_are_rejected(radii):
     with pytest.raises(ValueError, match="radius_inner"):
-        BaseLayer("bad", 0, radii[0], radii[1], 0.0)
+        Layer("bad", 0, radii[0], radii[1], 0.0)

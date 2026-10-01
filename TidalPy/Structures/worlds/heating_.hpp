@@ -26,8 +26,7 @@
 
 #include "constants_.hpp"
 #include "ode_.hpp"                        // c_EOSHeatingBase
-#include "../layers/base_.hpp"
-#include "../layers/solidliquid_.hpp"
+#include "../layers/layer_.hpp"
 #include "../../Radiogenics/radiogenics_base_.hpp"
 
 namespace tidalpy {
@@ -37,7 +36,7 @@ struct c_WorldState {
     // Time [s] on the clock the radiogenics models share. NaN asks each model for its own reference time.
     double time = TidalPyConstants::d_NAN;
     // The world's layers, inner to outer (non-owning).
-    const std::vector<std::unique_ptr<c_BaseLayer>>* layers_ptr = nullptr;
+    const std::vector<std::unique_ptr<c_Layer>>* layers_ptr = nullptr;
 };
 
 // c_HeatSourceBase: one physical source of internal heat.
@@ -68,10 +67,7 @@ public:
         const std::size_t n_layers = state.layers_ptr->size();
         this->p_specific_heating_bylayer.assign(n_layers, 0.0);
         for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-            const auto* solidliquid_layer =
-                dynamic_cast<const c_SolidLiquidLayer*>((*state.layers_ptr)[layer_i].get());
-            if (solidliquid_layer == nullptr) { continue; }
-            const c_RadiogenicsBase* radiogenics_model = solidliquid_layer->get_radiogenics_model();
+            const c_RadiogenicsBase* radiogenics_model = (*state.layers_ptr)[layer_i]->get_radiogenics_model();
             if (radiogenics_model == nullptr) { continue; }
             const double time = std::isfinite(state.time) ? state.time : radiogenics_model->get_ref_time();
             const double specific_heating = radiogenics_model->calc_heating(time, 1.0);

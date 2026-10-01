@@ -350,7 +350,7 @@ cdef class Material(PhysicsBase):
         """Whether the material has a liquid phase and no solid one, so it is liquid everywhere."""
         return True if self._material().get_is_liquid_only() else False
 
-    def replace(self, **changes) -> "Material":
+    def replace(self, **changes):
         """A new material with some components replaced (``None`` removes one); this one is unchanged.
 
         ``changes`` take the slot names (``solid``, ``liquid``, ``solidus``, ...) and the material's parameters. A

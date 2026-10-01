@@ -5,14 +5,13 @@ import math
 
 import pytest
 
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology import Maxwell
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.love import calc_homogeneous_love_numbers
-from TidalPy.Viscosity import make_viscosity
 
 
 _R         = 1.6e6
@@ -33,25 +32,26 @@ def _layer(
         viscosity,
         **kwargs,
 ):
-    layer = BaseLayer(
+    material = Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": 2.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": shear},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": viscosity}))
+    return Layer(
         name,
         index,
         radius_inner,
         radius_outer,
         0.0,
+        material,
+        shear_rheology=Maxwell(),
         **kwargs,
     )
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=shear, bulk_modulus_static=2.0e11))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": viscosity}))
-    layer.set_shear_rheology(Maxwell())
-    return layer
 
 
 def _two_layer(core_scale=None, mantle_scale=None, core_tidal=True):
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * _DENSITY
     world = BaseWorld("scaled", _R, mass)
-    world.add_layer(_layer("core", 0, 0.0, _R_CORE, 8.0e10, 1.0e22, tidal_scale=core_scale, is_tidal=core_tidal))
+    world.add_layer(_layer("core", 0, 0.0, _R_CORE, 8.0e10, 1.0e22, tidal_scale=core_scale, use_tides=core_tidal))
     world.add_layer(_layer("mantle", 1, _R_CORE, _R, 5.0e10, 1.0e14, tidal_scale=mantle_scale))
     world.set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
     return world

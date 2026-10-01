@@ -10,14 +10,13 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Elastic, Maxwell
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.multilayer.stress_strain import strain_stress_heating_point
 from TidalPy.Tides.potential import tidal_potential_3d_modes
-from TidalPy.Viscosity import make_viscosity
 
 
 _R = 1.8216e6
@@ -33,18 +32,28 @@ _SUMMED = dict(latitude_summed=True, longitude_summed=True, radial_summed=True, 
 _Y = np.array([1.5 - 0.2j, 3.0 + 0.4j, 0.7 + 0.1j, 2.0 - 0.3j, 0.5, 0.1], dtype=np.complex128)
 
 
+def _material(bulk_modulus):
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": bulk_modulus},
+        shear_modulus={"model": "constant", "shear_modulus_pa": _SHEAR},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e15},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+
+
 def _world(incompressible, bulk_modulus):
     """One static Maxwell layer: incompressible (propagation matrix) or compressible (shooting)."""
     world = BaseWorld("homogeneous", _R, _MASS)
-    layer = BaseLayer("mantle", 0, 0.0, _R, _MASS)
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=bulk_modulus))
-    layer.is_static = True
-    layer.is_incompressible = incompressible
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e15}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Elastic())
+    layer = Layer(
+        "mantle",
+        0,
+        0.0,
+        _R,
+        _MASS,
+        _material(bulk_modulus),
+        is_static=True,
+        is_incompressible=incompressible,
+        shear_rheology=Maxwell(),
+        bulk_rheology=Elastic())
     world.add_layer(layer)
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(

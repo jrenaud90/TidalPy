@@ -5,9 +5,9 @@ import threading
 import numpy as np
 
 from TidalPy.constants import G
+from TidalPy.Material import Material, Phase
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Structures.layers import Layer
 
 _R          = 1.6e6               # [m]
 _R_CORE     = 0.5 * _R            # [m]
@@ -16,14 +16,15 @@ _RHO_MANTLE = 3300.0              # [kg m-3]
 _SOLVES     = 25                  # per thread
 
 
+def _material(density):
+    """A constant-density material with only an equation of state."""
+    return Material(solid=Phase(eos={"model": "constant", "reference_density_kg_m3": density}))
+
+
 def _two_layer_world():
     world = BaseWorld("report", _R, (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0)
-    core = BaseLayer("core", 0, 0.0, _R_CORE, 0.0)
-    core.set_eos(ConstantDensityEOS(reference_density=_RHO_CORE))
-    mantle = BaseLayer("mantle", 1, _R_CORE, _R, 0.0)
-    mantle.set_eos(ConstantDensityEOS(reference_density=_RHO_MANTLE))
-    world.add_layer(core)
-    world.add_layer(mantle)
+    world.add_layer(Layer("core", 0, 0.0, _R_CORE, 0.0, _material(_RHO_CORE)))
+    world.add_layer(Layer("mantle", 1, _R_CORE, _R, 0.0, _material(_RHO_MANTLE)))
     return world
 
 

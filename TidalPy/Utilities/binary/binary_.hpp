@@ -65,9 +65,7 @@ enum class BinaryClassID : uint32_t {
     PhysicsBase        = 3,
     // 010-99: Other utility classes
     // 1XX: Layer structures
-    BaseLayer          = 100,
-    SolidLiquidLayer   = 102,
-    GasLayer           = 103,
+    Layer              = 100,
     // 2XX: World structures
     BaseWorld          = 200,
     TerrestrialWorld   = 201,
@@ -96,16 +94,7 @@ enum class BinaryClassID : uint32_t {
     OffRadiogenics     = 501,
     IsotopeRadiogenics = 502,
     FixedRadiogenics   = 503,
-    // 6XX: Material equation of state models
-    MaterialEOSBase    = 600,
-    ConstantDensityEOS = 601,
-    BirchMurnaghanEOS  = 602,
-    VinetEOS           = 603,
-    InterpolatedEOS    = 604,
-    // 63X: phases and materials
-    Phase              = 630,
-    Material           = 631,
-    // 61X: equation-of-state laws; 62X: shear-modulus laws; 63X: phases and materials
+    // 6XX: materials. 61X: equation-of-state laws; 62X: shear-modulus laws; 63X: phases and materials
     ConstantEOSLaw          = 610,
     BirchMurnaghanEOSLaw    = 611,
     VinetEOSLaw             = 612,
@@ -116,12 +105,9 @@ enum class BinaryClassID : uint32_t {
     ConstantShearModulus     = 620,
     LinearShearModulus       = 621,
     InterpolatedShearModulus = 622,
-    // 7XX Partial melting models - used to weaken viscosity and shear as a function of melt fraction.
-    PartialMeltBase    = 700,
-    OffPartialMelt     = 701,
-    SpohnPartialMelt   = 702,
-    HenningPartialMelt = 703,
-    // 71X: melting curves; 72X: melt weakening; 73X: bulk-modulus mixing; 74X: bulk-viscosity mixing
+    Phase                    = 630,
+    Material                 = 631,
+    // 7XX: melting. 71X: melting curves; 72X: melt weakening; 73X: bulk-modulus mixing; 74X: bulk-viscosity mixing
     ConstantMeltingCurve     = 710,
     SimonGlatzelCurve        = 711,
     SimonGlatzel2Curve       = 712,

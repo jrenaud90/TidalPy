@@ -151,6 +151,18 @@ def test_high_pressure_ice_viscosity_along_its_melting_curve(name, pressures):
         assert 5.0e12 < viscosity < 1.0e17, (pressure, viscosity)
 
 
+def test_peridotite_branches_meet_and_reach_the_published_cmb_solidus():
+    """The two branches of each Monteux et al. (2016) fit join at 20 GPa, and the solidus is about 4150 K at the
+    core-mantle boundary (135 GPa; Andrault et al. 2011), below the liquidus."""
+    peridotite = load_material("peridotite")
+    below = peridotite.calc_melting_range(20.0e9 * (1.0 - 1.0e-9))
+    above = peridotite.calc_melting_range(20.0e9 * (1.0 + 1.0e-9))
+    assert below == pytest.approx(above, rel=2.0e-3)
+    solidus, liquidus = peridotite.calc_melting_range(135.0e9)
+    assert solidus == pytest.approx(4150.0, rel=0.01)
+    assert liquidus > solidus
+
+
 def test_phase_presets_share_one_phase():
     assert load_material("ice_ih").liquid.get_config_dict() == load_material("water").liquid.get_config_dict()
     assert load_material("iron").liquid.get_config_dict() == load_material("liquid_iron").liquid.get_config_dict()

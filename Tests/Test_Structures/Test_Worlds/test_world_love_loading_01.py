@@ -8,9 +8,8 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-from TidalPy.Viscosity import make_viscosity
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Maxwell
 from TidalPy.RadialSolver import homogeneous_love_numbers
 
@@ -22,17 +21,19 @@ _SHEAR_VISC = 1.0e21
 _FREQ = 1.0e-5
 
 
+def _material():
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _STATIC_BULK},
+        shear_modulus={"model": "constant", "shear_modulus_pa": _STATIC_SHEAR},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": _SHEAR_VISC},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+
+
 def _maxwell_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = BaseWorld("loading_planet", _PLANET_RADIUS, mass)
-    layer = BaseLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass)
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Maxwell())
-    world.add_layer(layer)
+    world.add_layer(Layer("mantle", 0, 0.0, _PLANET_RADIUS, mass, _material(), shear_rheology=Maxwell(),
+                          bulk_rheology=Maxwell()))
     world.solve_eos(G_to_use=G, verbose=False)
     return world
 

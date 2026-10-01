@@ -7,11 +7,9 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
+from TidalPy.Material import Material, Phase
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos import make_material_eos
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-from TidalPy.Viscosity import make_viscosity
+from TidalPy.Structures.layers import Layer
 from TidalPy.Rheology.rheology import Maxwell, Elastic
 
 PLANET_RADIUS = 1.0e6       # [m]
@@ -21,21 +19,22 @@ MANTLE_DENSITY = 5000.0     # [kg m-3]
 FORCING_FREQUENCY = 2.0 * math.pi / 86400.0  # [rad s-1]
 
 
+def _material(density):
+    """A constant-density Maxwell solid."""
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 1.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19}))
+
+
 def _two_layer_world(world_radius=PLANET_RADIUS):
     mass = (4.0 / 3.0) * math.pi * PLANET_RADIUS ** 3 * MANTLE_DENSITY
     world = BaseWorld("two_layer", world_radius, mass)
     for index, (radius_inner, radius_outer, name, density) in enumerate(
             [(0.0, CORE_RADIUS, "core", CORE_DENSITY), (CORE_RADIUS, PLANET_RADIUS, "mantle", MANTLE_DENSITY)]):
-        layer = BaseLayer(name, index, radius_inner, radius_outer, 0.0)
-        layer.set_eos(ConstantDensityEOS(
-            reference_density=density,
-            shear_modulus_static=5.0e10,
-            bulk_modulus_static=1.0e11))
-        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
-        layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
-        layer.set_shear_rheology(Maxwell())
-        layer.set_bulk_rheology(Elastic())
-        world.add_layer(layer)
+        world.add_layer(Layer(name, index, radius_inner, radius_outer, 0.0, _material(density),
+                              shear_rheology=Maxwell(), bulk_rheology=Elastic()))
     return world
 
 
@@ -75,12 +74,12 @@ def test_layer_read_past_its_own_top(solved_world):
 def test_no_hydrostatic_solution_is_a_failure(bulk_modulus, radius):
     """A Vinet sphere this large has no hydrostatic solution, and the solve reports failure."""
     world = BaseWorld("unsolvable", radius, 1.0e24)
-    layer = BaseLayer("L", 0, 0.0, radius, 0.0)
-    layer.set_eos(make_material_eos("vinet", {
+    material = Material(solid=Phase(eos={
+        "model": "vinet",
         "reference_density_kg_m3": 4000.0,
         "reference_bulk_modulus_pa": bulk_modulus,
         "bulk_modulus_derivative": 4.0}))
-    world.add_layer(layer)
+    world.add_layer(Layer("L", 0, 0.0, radius, 0.0, material))
     result = world.solve_eos()
     assert result["success"] is False
     assert "no hydrostatic structure" in result["message"]

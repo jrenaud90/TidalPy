@@ -7,9 +7,8 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-from TidalPy.Viscosity import make_viscosity
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Maxwell
 
 
@@ -21,24 +20,29 @@ _SHEAR_VISC    = 1.0e21    # [Pa s]; high viscosity keeps the solve near-elastic
 _FREQ          = 1.0e-5    # [rad/s]
 
 
+def _material(density, shear, bulk, shear_viscosity, bulk_viscosity=None):
+    """Constant-density solid with constant viscosities; no bulk viscosity law when ``bulk_viscosity`` is None."""
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": bulk},
+        shear_modulus={"model": "constant", "shear_modulus_pa": shear},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": shear_viscosity},
+        bulk_viscosity=None if bulk_viscosity is None else {
+            "model": "constant", "reference_viscosity_pas": bulk_viscosity}))
+
+
 def _solid_world():
     """Single solid uniform Maxwell sphere."""
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = BaseWorld("solid_planet", _PLANET_RADIUS, mass)
-    layer = BaseLayer(
+    world.add_layer(Layer(
         "mantle",
         0,
         0.0,
         _PLANET_RADIUS,
         mass,
-    )
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Maxwell())
-    world.add_layer(layer)
+        _material(_DENSITY, _STATIC_SHEAR, _STATIC_BULK, _SHEAR_VISC, 1.0e30),
+        shear_rheology=Maxwell(),
+        bulk_rheology=Maxwell()))
     return world
 
 
@@ -56,27 +60,25 @@ def _two_layer_solid_world():
     )
     world = BaseWorld("two_layer", _PLANET_RADIUS, mass)
 
-    core = BaseLayer(
+    core = Layer(
         "core",
         0,
         0.0,
         r_core,
         0.0,
+        _material(rho_c, mu_c, K_c, 1.0e21),
+        shear_rheology=Maxwell(),
     )
-    core.set_eos(ConstantDensityEOS(reference_density=rho_c, shear_modulus_static=mu_c, bulk_modulus_static=K_c))
-    core.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e21}))
-    core.set_shear_rheology(Maxwell())
 
-    mantle = BaseLayer(
+    mantle = Layer(
         "mantle",
         1,
         r_core,
         _PLANET_RADIUS,
         0.0,
+        _material(rho_m, mu_m, K_m, _SHEAR_VISC),
+        shear_rheology=Maxwell(),
     )
-    mantle.set_eos(ConstantDensityEOS(reference_density=rho_m, shear_modulus_static=mu_m, bulk_modulus_static=K_m))
-    mantle.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
-    mantle.set_shear_rheology(Maxwell())
 
     world.add_layer(core)
     world.add_layer(mantle)

@@ -6,15 +6,14 @@ import pytest
 
 import TidalPy.constants as tidalpy_constants
 from TidalPy.constants import G, mass_trap1
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Elastic, Maxwell
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.multilayer.stress_strain import displacement_point, strain_stress_heating_point, volumetric_heating
 from TidalPy.Tides.potential import tidal_potential_3d_modes
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
-from TidalPy.Viscosity import make_viscosity
 
 
 _R = 1.0e6
@@ -53,21 +52,26 @@ def _kernel(row):
         _COLATITUDE)
 
 
+def _material():
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _BULK},
+        shear_modulus={"model": "constant", "shear_modulus_pa": _SHEAR},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": _VISC},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": _VISC}))
+
+
 def _build_world(max_degree_l):
     world = BaseWorld("w", _R, _MASS)
-    layer = BaseLayer(
+    layer = Layer(
         "mantle",
         0,
         0.0,
         _R,
-        _MASS)
-    layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Elastic())
+        _MASS,
+        _material(),
+        is_static=False,
+        shear_rheology=Maxwell(),
+        bulk_rheology=Elastic())
     world.add_layer(layer)
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(

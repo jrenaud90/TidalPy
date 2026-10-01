@@ -4,13 +4,31 @@ import os
 
 import pytest
 
-from TidalPy.Material.eos import make_material_eos
-from TidalPy.PartialMelt import make_partial_melt
+from TidalPy.Material import Material, Phase
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 
 _IO_FREQUENCY = 4.11e-5   # [rad s-1]
 _MANTLE_RADIUS = 1.2e6    # [m], inside Io's mantle
+
+
+def _constant_material(density):
+    """A constant-density material with only an equation of state."""
+    return Material(solid=Phase(eos={"model": "constant", "reference_density_kg_m3": density}))
+
+
+def _add_henning_melting(layer, solidus, liquidus):
+    """Give a layer's material a melt phase that melts between ``solidus`` and ``liquidus`` [K] with Henning
+    weakening, and switch the layer's melting on."""
+    melt = Phase(
+        eos={"model": "constant", "reference_density_kg_m3": 3000.0, "bulk_modulus_pa": 2.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0})
+    layer.material = layer.material.replace(
+        liquid=melt,
+        solidus={"model": "constant", "temperature_k": solidus},
+        liquidus={"model": "constant", "temperature_k": liquidus},
+        weakening="henning")
+    layer.use_melting = True
 
 
 def _solved_io(**eos_kwargs):
@@ -41,7 +59,7 @@ def test_changing_a_layer_material_after_a_solve_unsolves_the_world():
     density_before = world.get_density(_MANTLE_RADIUS)
     world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
 
-    world.mantle.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 2000.0}))
+    world.mantle.material = _constant_material(2000.0)
     assert not world.eos_solved
     assert math.isnan(world.get_density(_MANTLE_RADIUS))
     with pytest.raises(ValueError):
@@ -51,10 +69,10 @@ def test_changing_a_layer_material_after_a_solve_unsolves_the_world():
 
 
 def test_a_new_melt_model_takes_effect_at_the_next_solve():
-    """A new partial-melt model unsolves the world; the next solve_eos applies it."""
+    """A material that melts unsolves the world; the next solve_eos applies it."""
     world = _solved_io()
     shear_before = world.get_shear_modulus(_MANTLE_RADIUS)
-    world.mantle.set_partial_melt(make_partial_melt("henning", {"solidus_k": 100.0, "liquidus_k": 200.0}))
+    _add_henning_melting(world.mantle, 100.0, 200.0)
     assert not world.eos_solved
     assert math.isnan(world.get_shear_modulus(_MANTLE_RADIUS))
     assert world.molten_regions == []
@@ -107,14 +125,14 @@ def test_a_layer_past_the_world_radius_is_refused():
     """A layer reaching past the world radius is refused and the world stays solved."""
     world = _solved_io()
     top = world.radius
-    shell = BaseLayer(
+    shell = Layer(
         "shell",
         world.num_layers,
         top,
         top + 1.0e4,
         0.0,
+        _constant_material(1000.0),
     )
-    shell.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 1000.0}))
     with pytest.raises(ValueError, match="past the radius"):
         world.add_layer(shell)
     assert world.eos_solved

@@ -561,7 +561,7 @@ inline const ::c_RadialSolutionStorage* c_solve_radial_group_3d(
 
 // The layer at a radius as the strain there needs it, looked up once per radius.
 struct c_RadiusLayer3D {
-    const c_BaseLayer* layer_ptr = nullptr;   // null only for a world with no layers
+    const c_Layer* layer_ptr = nullptr;   // null only for a world with no layers
     // A liquid layer, or a molten stretch the radial solver treats as a static liquid.
     bool liquid = false;
 };
@@ -569,7 +569,7 @@ struct c_RadiusLayer3D {
 inline c_RadiusLayer3D c_radius_layer_3d(const c_BaseWorld& world, double radius) {
     c_RadiusLayer3D layer;
     layer.layer_ptr = world.find_layer_for_radius(radius);
-    layer.liquid = ((layer.layer_ptr != nullptr) && !layer.layer_ptr->get_is_solid())
+    layer.liquid = ((layer.layer_ptr != nullptr) && layer.layer_ptr->get_is_liquid())
         || world.get_is_molten_at(radius);
     return layer;
 }
@@ -682,7 +682,7 @@ inline bool c_strain_coeffs_at_radius_3d(
     std::complex<double> shear(TidalPyConstants::d_NAN, 0.0);
     std::complex<double> bulk(TidalPyConstants::d_NAN, 0.0);
     if (layer.layer_ptr != nullptr) {
-        is_solid = layer.layer_ptr->get_is_solid();
+        is_solid = !layer.layer_ptr->get_is_liquid();
         is_incompressible = layer.layer_ptr->get_is_incompressible();
         shear = layer.layer_ptr->calc_complex_shear_modulus(radius, group.frequency);
         bulk  = layer.layer_ptr->calc_complex_bulk_modulus(radius, group.frequency);
@@ -1034,7 +1034,7 @@ inline c_CollapseGrids3D c_collapse_grids_3d(
         std::vector<double> gl_r, gl_w;
         tides::c_gauss_legendre_nodes(nodes_per_layer, gl_r, gl_w);
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
-            const c_BaseLayer* layer = world.get_layer(layer_i);
+            const c_Layer* layer = world.get_layer(layer_i);
             const double r_mid  = 0.5 * (layer->get_radius_outer() + layer->get_radius_inner());
             const double r_half = 0.5 * (layer->get_radius_outer() - layer->get_radius_inner());
             for (int node = 0; node < nodes_per_layer; ++node) {

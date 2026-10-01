@@ -10,8 +10,8 @@ from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layer
 from TidalPy.RadialSolver.love import LoveNumbers
 from TidalPy.Rheology import Elastic
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 
 _EARTH_RADIUS = 6.371e6               # [m]
 _ONE_DAY      = 2.0 * np.pi / 86400.  # [rad s-1]
@@ -287,15 +287,16 @@ def test_static_ocean_h_is_close_to_dynamic_ocean():
 # Compressible layers need a positive bulk modulus
 # ======================================================================================================================
 def _uniform_world(bulk_modulus, is_incompressible=False):
-    """A 1000 km uniform body; a ConstantDensityEOS given no bulk modulus carries zero."""
+    """A 1000 km uniform body; a bulk modulus of None gives the constant-density EOS a zero bulk modulus."""
     radius = 1.0e6
     density = 3000.0
     mass = (4.0 / 3.0) * math.pi * radius**3 * density
     world = BaseWorld("uniform", radius, mass)
-    layer = BaseLayer("mantle", 0, 0.0, radius, mass)
-    eos_kwargs = {} if bulk_modulus is None else dict(bulk_modulus_static=bulk_modulus)
-    layer.set_eos(ConstantDensityEOS(reference_density=density, shear_modulus_static=5.0e10, **eos_kwargs))
-    layer.is_incompressible = is_incompressible
+    material = Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density,
+             "bulk_modulus_pa": 0.0 if bulk_modulus is None else bulk_modulus},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10}))
+    layer = Layer("mantle", 0, 0.0, radius, mass, material, is_incompressible=is_incompressible)
     world.add_layer(layer)
     world.solve_eos()
     return world

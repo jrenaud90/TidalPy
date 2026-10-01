@@ -5,13 +5,12 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology import Elastic, Maxwell
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Tides.potential import tidal_potential_3d_modes
-from TidalPy.Viscosity import make_viscosity
 
 RADIUS = 1.8e6
 DENSITY = 3500.0
@@ -25,15 +24,17 @@ ORBIT = dict(orbital_frequency=ORBITAL_FREQ, spin_frequency=SPIN_FREQ, eccentric
              semi_major_axis=SEMI_MAJOR_AXIS, host_mass=HOST_MASS)
 
 
+def _material():
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": DENSITY, "bulk_modulus_pa": 1.0e15},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 6.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+
+
 @pytest.fixture(scope="module")
 def world():
-    layer = BaseLayer("mantle", 0, 0.0, RADIUS, MASS)
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=DENSITY, shear_modulus_static=6.0e10, bulk_modulus_static=1.0e15))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Elastic())
+    layer = Layer("mantle", 0, 0.0, RADIUS, MASS, _material(), shear_rheology=Maxwell(), bulk_rheology=Elastic())
     world = BaseWorld("io_like", RADIUS, MASS)
     world.add_layer(layer)
     world.solve_eos()

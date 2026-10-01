@@ -7,12 +7,10 @@ import math
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-from TidalPy.PartialMelt import make_partial_melt
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Maxwell
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Viscosity import make_viscosity
 
 
 _PLANET_RADIUS  = 6.0e6     # [m]
@@ -23,32 +21,53 @@ _SHEAR_VISC     = 1.0e21    # [Pa s]
 _BULK_VISC      = 1.0e30    # [Pa s]
 _MASS           = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
 _MID_RADIUS     = 0.5 * _PLANET_RADIUS
+_SOLIDUS        = 1600.0    # [K]
+_LIQUIDUS       = 2000.0    # [K]
 
 
-def _whole_planet_layer(layer_class=BaseLayer):
-    return layer_class(
+def _whole_planet_layer(material, **layer_kwargs):
+    return Layer(
         "mantle",
         0,
         0.0,
         _PLANET_RADIUS,
         _MASS,
+        material,
+        **layer_kwargs,
     )
+
+
+def _material(shear_viscosity=_SHEAR_VISC, bulk_viscosity=_BULK_VISC, with_melt=False):
+    """A constant-density solid with static moduli and constant viscosities (None: no law), and an optional melt
+    phase that melts between the solidus and liquidus with Henning weakening."""
+    solid = Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _STATIC_BULK},
+        shear_modulus={"model": "constant", "shear_modulus_pa": _STATIC_SHEAR},
+        shear_viscosity=None if shear_viscosity is None else {
+            "model": "constant", "reference_viscosity_pas": shear_viscosity},
+        bulk_viscosity=None if bulk_viscosity is None else {
+            "model": "constant", "reference_viscosity_pas": bulk_viscosity})
+    if not with_melt:
+        return Material(solid=solid)
+    melt = Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _STATIC_BULK},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0})
+    return Material(
+        solid=solid,
+        liquid=melt,
+        solidus={"model": "constant", "temperature_k": _SOLIDUS},
+        liquidus={"model": "constant", "temperature_k": _LIQUIDUS},
+        weakening="henning")
 
 
 def _uniform_physics_world(with_viscosity=True, with_melt=False, with_rheology=False):
     world = BaseWorld("rocky", _PLANET_RADIUS, _MASS)
-    layer = _whole_planet_layer()
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
     if with_viscosity:
-        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
-        layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _BULK_VISC}))
-    if with_melt:
-        layer.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1600.0, "liquidus_k": 2000.0}))
-    if with_rheology:
-        layer.set_shear_rheology(Maxwell())
-        layer.set_bulk_rheology(Maxwell())
-    world.add_layer(layer)
+        material = _material(with_melt=with_melt)
+    else:
+        material = _material(shear_viscosity=None, bulk_viscosity=None, with_melt=with_melt)
+    rheology = {"shear_rheology": Maxwell(), "bulk_rheology": Maxwell()} if with_rheology else {}
+    world.add_layer(_whole_planet_layer(material, use_melting=with_melt, **rheology))
     return world
 
 
@@ -87,7 +106,7 @@ def test_viscosity_nan_when_model_unset():
 def test_melt_weakens_shear_at_high_temperature():
     """Between solidus and liquidus the melt fraction is set and Henning weakens the shear modulus."""
     world = _uniform_physics_world(with_viscosity=True, with_melt=True)
-    # 1800 K is halfway between the 1600 K solidus and 2000 K liquidus.
+    # 1800 K is halfway between the 1600 K solidus and the 2000 K liquidus.
     world.solve_eos(G_to_use=G, temperature=1800.0, verbose=False)
     assert world.get_shear_modulus(_MID_RADIUS) < _STATIC_SHEAR
     assert world.get_melt_fraction(_MID_RADIUS) == pytest.approx(0.5)
@@ -124,9 +143,8 @@ def test_complex_shear_matches_maxwell():
 def test_complex_modulus_without_a_rheology_is_static():
     """A layer with no rheology reports its solved static shear modulus as a real complex modulus."""
     world = BaseWorld("geom", _PLANET_RADIUS, _MASS)
-    layer = _whole_planet_layer(BaseLayer)
-    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
-    world.add_layer(layer)
+    world.add_layer(_whole_planet_layer(Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY}))))
     world.solve_eos(G_to_use=G, verbose=False)
     value = world.calc_complex_shear_modulus(_MID_RADIUS, 1.0e-5)
     assert value.real == world.get_shear_modulus(_MID_RADIUS)
@@ -136,11 +154,7 @@ def test_complex_modulus_without_a_rheology_is_static():
 def test_layer_getters_match_world():
     """A layer with only a shear viscosity model reports its static shear modulus and viscosity."""
     world = BaseWorld("rocky", _PLANET_RADIUS, _MASS)
-    layer = _whole_planet_layer()
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
-    world.add_layer(layer)
+    world.add_layer(_whole_planet_layer(_material(bulk_viscosity=None)))
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
     assert world.get_shear_modulus(_MID_RADIUS) == pytest.approx(_STATIC_SHEAR)
     assert world.get_shear_viscosity(_MID_RADIUS) == pytest.approx(_SHEAR_VISC)

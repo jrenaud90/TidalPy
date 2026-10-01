@@ -1,7 +1,5 @@
-"""TidalPy Structures.layers: the C++ layer class hierarchy."""
+"""TidalPy Structures.layers: the layer class."""
 
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
-from TidalPy.Structures.layers.gas import GasLayer
+from TidalPy.Structures.layers.layer import Layer, LAYER_STANDALONE_CONFIG_KEYS, LAYER_SWITCHES
 
-__all__ = ["BaseLayer", "SolidLiquidLayer", "GasLayer"]
+__all__ = ["Layer", "LAYER_STANDALONE_CONFIG_KEYS", "LAYER_SWITCHES"]

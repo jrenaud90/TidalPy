@@ -145,8 +145,7 @@ public:
 
     // A load that raises and error leaves the object as it was. The file must hold a
     // record of this object's own class: a record of another class would be read field by field into the wrong layout
-    // (a Sundberg model into a Maxwell one keeps computing Maxwell; a solid-liquid layer's file into a base layer
-    // drops its cooling and radiogenics), so it is refused before anything is read. force relaxes only the
+    // (a Sundberg model into a Maxwell one keeps computing Maxwell), so it is refused before anything is read. force relaxes only the
     // schema-version check. The record must end exactly at the end of the file: bytes left over mean the reader and
     // the writer disagree about the layout, or the file is corrupt, so the load raises.
     void load_binary(const std::string& path, bool force = false) {

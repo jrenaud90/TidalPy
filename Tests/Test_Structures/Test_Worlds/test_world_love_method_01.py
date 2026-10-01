@@ -6,14 +6,13 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology import Elastic, Maxwell
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Tides.love import calc_homogeneous_love_numbers
-from TidalPy.Viscosity import make_viscosity
 
 RADIUS = 6.0e6
 DENSITY = 4000.0
@@ -24,16 +23,27 @@ VISCOSITY = 1.0e19
 FREQ = 1.0e-5
 
 
-def _layer(name, index, r_inner, r_outer, mass, shear=SHEAR, is_tidal=True, rheology=None, viscosity=VISCOSITY,
+def _material(shear, viscosity, bulk):
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": DENSITY, "bulk_modulus_pa": bulk},
+        shear_modulus={"model": "constant", "shear_modulus_pa": shear},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": viscosity},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+
+
+def _layer(name, index, r_inner, r_outer, mass, shear=SHEAR, use_tides=True, rheology=None, viscosity=VISCOSITY,
            incompressible=True, bulk=BULK):
-    layer = BaseLayer(name, index, r_inner, r_outer, mass, is_tidal=is_tidal)
-    layer.set_eos(ConstantDensityEOS(reference_density=DENSITY, shear_modulus_static=shear, bulk_modulus_static=bulk))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": viscosity}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    layer.set_shear_rheology(rheology if rheology is not None else Maxwell())
-    layer.set_bulk_rheology(Elastic())
-    layer.is_incompressible = incompressible
-    return layer
+    return Layer(
+        name,
+        index,
+        r_inner,
+        r_outer,
+        mass,
+        _material(shear, viscosity, bulk),
+        use_tides=use_tides,
+        is_incompressible=incompressible,
+        shear_rheology=rheology if rheology is not None else Maxwell(),
+        bulk_rheology=Elastic())
 
 
 def _uniform_world(rheology=None, viscosity=VISCOSITY, incompressible=True, bulk=BULK):
@@ -55,7 +65,7 @@ def _two_layer_world(core_tidal):
     r_core = 0.5 * RADIUS
     core_mass = MASS * (r_core / RADIUS) ** 3
     world = BaseWorld("two_layer", RADIUS, MASS)
-    world.add_layer(_layer("core", 0, 0.0, r_core, core_mass, shear=3.0 * SHEAR, is_tidal=core_tidal,
+    world.add_layer(_layer("core", 0, 0.0, r_core, core_mass, shear=3.0 * SHEAR, use_tides=core_tidal,
                            rheology=Elastic()))
     world.add_layer(_layer("mantle", 1, r_core, RADIUS, MASS - core_mass, rheology=Elastic()))
     world.solve_eos()
@@ -120,7 +130,7 @@ def test_homogeneous_matches_radial_solvers_for_uniform_sphere(degree_l):
     for key in ("love_number_k", "love_number_h", "love_number_l"):
         np.testing.assert_allclose(analytic[key], matrix[key], rtol=1e-8)
         np.testing.assert_allclose(analytic[key], shooting[key], rtol=1e-3)   # bulk 1e15 Pa: ~1e-4 compressibility
-    mu =Maxwell().calc_complex_modulus(SHEAR, VISCOSITY, FREQ)
+    mu = Maxwell().calc_complex_modulus(SHEAR, VISCOSITY, FREQ)
     world.solve_love_numbers(frequency=FREQ, degree_l=degree_l, love_method="homogeneous")
     assert world.love_effective_shear_modulus == pytest.approx(mu, rel=1e-12)
     assert world.love_tidal_volume == pytest.approx((4.0 / 3.0) * math.pi * RADIUS**3, rel=1e-12)
@@ -144,7 +154,7 @@ def test_analytic_getters_do_not_leak_radial_results():
 
 
 def test_non_tidal_layers_take_no_part():
-    """Only is_tidal layers enter the homogeneous solve, each weighted by its tidal scale."""
+    """Only use_tides layers enter the homogeneous solve, each weighted by its tidal scale."""
     included = _two_layer_world(core_tidal=True)
     excluded = _two_layer_world(core_tidal=False)
     result_in = included.solve_love_numbers(frequency=FREQ, love_method="homogeneous")

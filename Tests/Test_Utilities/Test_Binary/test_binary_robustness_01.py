@@ -6,7 +6,7 @@ import pytest
 
 from TidalPy.Rheology import Andrade, Maxwell, Sundberg
 from TidalPy.Structures import build_system, build_world
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 
 
 @pytest.mark.parametrize("target_class", [Maxwell, Andrade])
@@ -24,12 +24,11 @@ def test_a_record_of_another_class_is_refused(tmp_path, target_class):
     assert reloaded.get_config_dict()["alpha"] == 0.2
 
 
-def test_a_layer_of_another_class_is_refused(tmp_path):
-    """A layer record of another class raises IOError and leaves the target unchanged."""
-    world = build_world("io")
-    path = os.path.join(str(tmp_path), "mantle.tpyb")
-    world.mantle.save_binary(path)
-    standalone = BaseLayer("probe", 0, 0.0, 1.0e6, 1.0e20)
+def test_a_record_of_another_class_is_refused(tmp_path):
+    """A record that is not a layer raises IOError and leaves the target layer unchanged."""
+    path = os.path.join(str(tmp_path), "maxwell.tpyb")
+    Maxwell().save_binary(path)
+    standalone = Layer("probe", 0, 0.0, 1.0e6, 1.0e20)
     with pytest.raises(IOError, match="class id"):
         standalone.load_binary(path)
     assert standalone.name == "probe"

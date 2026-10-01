@@ -18,9 +18,7 @@ import re
 import warnings
 from typing import Optional, Union, Callable
 
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Structures.layers.solidliquid import SolidLiquidLayer
-from TidalPy.Structures.layers.gas import GasLayer
+from TidalPy.Structures.layers.layer import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
 from TidalPy.Structures.worlds.gasgiant import GasGiantWorld
@@ -34,9 +32,8 @@ from TidalPy.configurations import keep_on_model_change
 from TidalPy.Rheology.rheology import make_rheology, _same_model as _same_rheology_model, rheology_config_keys
 from TidalPy.Cooling.cooling import make_cooling, _same_model as _same_cooling_model
 from TidalPy.Radiogenics.radiogenics import make_radiogenics, _same_model as _same_radiogenics_model
-from TidalPy.Material.eos.material_eos import make_material_eos, _same_model as _same_material_model
+from TidalPy.Material import make_material
 from TidalPy.Viscosity.viscosity import _same_model as _same_viscosity_model, viscosity_config_keys
-from TidalPy.PartialMelt.partial_melt import _same_model as _same_partial_melt_model
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Stellar.luminosity import make_luminosity
 from TidalPy.Dynamics.spin import Spin
@@ -58,14 +55,13 @@ from TidalPy.Structures.configs import worldpack
 
 # Layer ``class`` string -> Cython layer class.
 _LAYER_CLASSES = {
-    "base":        BaseLayer,
-    "solidliquid": SolidLiquidLayer,
-    "gas":         GasLayer,
+    "base":        Layer,
+    "solidliquid": Layer,
+    "gas":         Layer,
 }
 
 # Model section name -> (factory function, layer setter method name).
 _MODEL_DISPATCH = {
-    "material":        (make_material_eos, "set_eos"),
     "shear_rheology":  (make_rheology,     "set_shear_rheology"),
     "bulk_rheology":   (make_rheology,     "set_bulk_rheology"),
     "cooling":         (make_cooling,      "set_cooling"),
@@ -118,14 +114,12 @@ _CONFIG_KEY_TO_ARGUMENT = {
 
 # Model table name -> the family's alias-aware test of whether two model names are one model.
 _SAME_MODEL = {
-    "material":        _same_material_model,
     "shear_rheology":  _same_rheology_model,
     "bulk_rheology":   _same_rheology_model,
     "cooling":         _same_cooling_model,
     "radiogenics":     _same_radiogenics_model,
     "shear_viscosity": _same_viscosity_model,
     "bulk_viscosity":  _same_viscosity_model,
-    "partial_melt":    _same_partial_melt_model,
 }
 
 

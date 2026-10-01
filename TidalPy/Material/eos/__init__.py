@@ -1,23 +1,2 @@
-"""Material EOS models (density from pressure or radius) and their name-based factory."""
-
-from TidalPy.Material.eos.material_eos import (
-    MaterialEOSBase,
-    ConstantDensityEOS,
-    BirchMurnaghanEOS,
-    VinetEOS,
-    InterpolatedEOS,
-    make_material_eos,
-    birch_murnaghan_pressure,
-    vinet_pressure,
-)
-
-__all__ = [
-    "MaterialEOSBase",
-    "ConstantDensityEOS",
-    "BirchMurnaghanEOS",
-    "VinetEOS",
-    "InterpolatedEOS",
-    "make_material_eos",
-    "birch_murnaghan_pressure",
-    "vinet_pressure",
-]
+"""The whole-planet equation-of-state solve (C++): the structure ODE, its solver, and the solution worlds keep. A
+layer's density comes from its material (``TidalPy.Material``)."""

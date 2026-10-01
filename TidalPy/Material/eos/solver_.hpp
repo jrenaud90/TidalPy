@@ -246,15 +246,11 @@ inline void c_solve_eos(
 
             eos_input_layer_ptr = &eos_input_bylayer_vec[segment.layer_index];
             eos_input_layer_ptr->temperature_kind = segment.temperature_kind;
-            eos_input_layer_ptr->conduction_coeff = segment.conduction_coeff;
-            eos_input_layer_ptr->adiabat_coeff    = segment.adiabat_coeff;
-            eos_input_layer_ptr->anderson_gruneisen_parameter = segment.anderson_gruneisen_parameter;
-            eos_input_layer_ptr->anderson_gruneisen_exponent  = segment.anderson_gruneisen_exponent;
-            eos_input_layer_ptr->expansion_reference_density  = segment.expansion_reference_density;
 
-            // The integration needs only the density, so skip the moduli, viscosity, and melt models.
-            eos_input_layer_ptr->update_bulk  = false;
-            eos_input_layer_ptr->update_shear = false;
+            // The integration needs only the density, and a thermal one the thermal properties, so the moduli,
+            // viscosities, and melt weakening are skipped.
+            eos_input_layer_ptr->full_state    = false;
+            eos_input_layer_ptr->thermal_state = integrate_temperature;
             use_dense_output = capture_dense;
 
             std::memcpy(args_vec_eos_ptr, eos_input_layer_ptr, sizeof(c_EOS_ODEInput));

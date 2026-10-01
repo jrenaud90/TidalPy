@@ -3,7 +3,7 @@
  * call_lock_.hpp: c_WorldCallLock, the lock one call on a world holds.
  *
  * Every world owns a call mutex (c_BaseWorld::get_call_mutex) and the layers a world owns take it too
- * (c_BaseLayer::set_owner), so this lives apart from both, where the world and layer headers can each include it.
+ * (c_Layer::set_owner), so this lives apart from both, where the world and layer headers can each include it.
  */
 
 #include <mutex>

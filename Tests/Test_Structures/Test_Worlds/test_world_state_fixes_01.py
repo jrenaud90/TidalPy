@@ -9,16 +9,14 @@ import numpy as np
 import pytest
 
 from TidalPy.Cooling import make_cooling
-from TidalPy.Material.eos import make_material_eos
-from TidalPy.PartialMelt import make_partial_melt
+from TidalPy.Material import Material, Phase
 from TidalPy.Radiogenics import make_radiogenics
 from TidalPy.Rheology import make_rheology
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds import BaseWorld
 from TidalPy.Tides import make_tide
 from TidalPy.Utilities.logging.logger import flush_logger, init_logger
-from TidalPy.Viscosity import make_viscosity
 from TidalPy.initialize import build_logging_config
 
 _IO_FREQUENCY = 4.11e-5   # [rad s-1]
@@ -47,23 +45,44 @@ def _solved_io():
     return world
 
 
+def _constant_material(density):
+    """A constant-density material with only an equation of state."""
+    return Material(solid=Phase(eos={"model": "constant", "reference_density_kg_m3": density}))
+
+
+def _add_henning_melting(layer, solidus, liquidus):
+    """Give a layer's material a melt phase that melts between ``solidus`` and ``liquidus`` [K] with Henning
+    weakening, and switch the layer's melting on."""
+    melt = Phase(
+        eos={"model": "constant", "reference_density_kg_m3": 3000.0, "bulk_modulus_pa": 2.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0})
+    layer.material = layer.material.replace(
+        liquid=melt,
+        solidus={"model": "constant", "temperature_k": solidus},
+        liquidus={"model": "constant", "temperature_k": liquidus},
+        weakening="henning")
+    layer.use_melting = True
+
+
+def _toggle(layer, switch):
+    setattr(layer, switch, not getattr(layer, switch))
+
+
 # =====================================================================================================================
 # A layer change the EOS solve reads leaves the world unsolved
 # =====================================================================================================================
-# Each changes something the EOS solve reads, on the asthenosphere (a solid-liquid layer with a Birch-Murnaghan law).
+# Each changes something the EOS solve reads, on the asthenosphere (a layer with a Birch-Murnaghan material). The
+# material holds the viscosity laws and the melting laws, so a new material stands for every change to them.
 _EOS_CHANGES = {
-    "set_eos": lambda layer: layer.set_eos(
-        make_material_eos("constant", {"reference_density_kg_m3": 3200.0})),
-    "set_shear_viscosity": lambda layer: layer.set_shear_viscosity(
-        make_viscosity("constant", {"reference_viscosity_pas": 1.0e18})),
-    "set_bulk_viscosity": lambda layer: layer.set_bulk_viscosity(
-        make_viscosity("constant", {"reference_viscosity_pas": 1.0e18})),
-    "set_partial_melt": lambda layer: layer.set_partial_melt(
-        make_partial_melt("henning", {"solidus_k": 1200.0, "liquidus_k": 1800.0})),
+    "material": lambda layer: setattr(layer, "material", _constant_material(3200.0)),
+    "melting_material": lambda layer: _add_henning_melting(layer, 1200.0, 1800.0),
     "set_cooling": lambda layer: layer.set_cooling(make_cooling("convection")),
     "set_radiogenics": lambda layer: layer.set_radiogenics(make_radiogenics("fixed")),
     "temperature": lambda layer: setattr(layer, "temperature", 1650.0),
-    "use_thermal_eos": lambda layer: setattr(layer, "use_thermal_eos", True),
+    "use_thermal_expansion": lambda layer: _toggle(layer, "use_thermal_expansion"),
+    "use_melting": lambda layer: _toggle(layer, "use_melting"),
+    "use_pressure_melting": lambda layer: _toggle(layer, "use_pressure_melting"),
+    "use_melt_density": lambda layer: _toggle(layer, "use_melt_density"),
     "use_heating": lambda layer: setattr(layer, "use_heating", True),
     "is_volume_fixed": lambda layer: setattr(layer, "is_volume_fixed", True),
 }
@@ -93,10 +112,10 @@ def test_a_layer_change_the_solve_reads_leaves_the_world_unsolved(change):
 
 
 def test_a_new_melt_model_changes_the_love_numbers_after_the_next_solve():
-    """The audit case: a melt model with a lower solidus melts the asthenosphere once the EOS is solved again."""
+    """The audit case: a material with a lower solidus melts the asthenosphere once the EOS is solved again."""
     world = _solved_io()
     k2_before = world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)["love_number_k"]
-    world.asthenosphere.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1200.0, "liquidus_k": 1800.0}))
+    _add_henning_melting(world.asthenosphere, 1200.0, 1800.0)
     assert not world.eos_solved
     with pytest.raises(ValueError):
         world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
@@ -105,24 +124,24 @@ def test_a_new_melt_model_changes_the_love_numbers_after_the_next_solve():
     k2_after = world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)["love_number_k"]
     assert abs(k2_after - k2_before) > 0.1 * abs(k2_before)
 
-    # The same as a world built with the new melt model from the start.
+    # The same as a world built with the new material from the start.
     fresh = build_world("io")
-    fresh.asthenosphere.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1200.0, "liquidus_k": 1800.0}))
+    _add_henning_melting(fresh.asthenosphere, 1200.0, 1800.0)
     fresh.solve_eos()
     k2_fresh = fresh.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)["love_number_k"]
     assert k2_after == pytest.approx(k2_fresh, rel=1.0e-8)
 
 
-@pytest.mark.parametrize("change", ["is_solid", "is_static", "is_incompressible", "shear_rheology", "bulk_rheology"])
+@pytest.mark.parametrize("change", ["state", "is_static", "is_incompressible", "shear_rheology", "bulk_rheology"])
 def test_a_layer_change_each_love_solve_reads_keeps_the_solved_structure(change):
     """The radial-solver flags and the rheologies are read by every Love solve, so the EOS solve stands."""
     world = _solved_io()
     density = world.get_density(_MANTLE_RADIUS)
     layer = world.asthenosphere
     if change == "shear_rheology":
-        layer.set_shear_rheology(make_rheology("andrade"))
+        layer.shear_rheology = make_rheology("andrade")
     elif change == "bulk_rheology":
-        layer.set_bulk_rheology(make_rheology("maxwell"))
+        layer.bulk_rheology = make_rheology("maxwell")
     else:
         setattr(layer, change, getattr(layer, change))
     assert world.eos_solved
@@ -131,16 +150,17 @@ def test_a_layer_change_each_love_solve_reads_keeps_the_solved_structure(change)
 
 def test_a_standalone_layer_takes_the_same_setters():
     """A layer no world owns has nothing to tell and no lock to take."""
-    layer = BaseLayer("shell", 0, 0.0, 1.0e6, 0.0)
-    layer.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 3000.0}))
-    layer.set_partial_melt(make_partial_melt("henning"))
+    layer = Layer("shell", 0, 0.0, 1.0e6, 0.0, _constant_material(3000.0))
+    _add_henning_melting(layer, 1200.0, 1800.0)
     layer.temperature = 1500.0
-    layer.use_thermal_eos = True
+    layer.use_thermal_expansion = True
     layer.is_volume_fixed = False
-    layer.is_solid = False
-    assert layer.partial_melt_set
+    layer.state = "liquid"
+    assert layer.material.can_melt and layer.use_melting
     assert layer.temperature == 1500.0
+    assert layer.use_thermal_expansion
     assert not layer.is_volume_fixed
+    assert layer.is_liquid
 
 
 # =====================================================================================================================
@@ -214,7 +234,7 @@ def test_a_failed_load_keeps_the_layer_views(tmp_path):
     world.load_binary(path)
     with pytest.raises(RuntimeError, match="no longer refers to a layer"):
         _ = mantle.name
-    # The config dict reads the solid-liquid layer's own pointer too, after the base class's.
+    # The config dict reads the layer's pointer too.
     with pytest.raises(RuntimeError, match="no longer refers to a layer"):
         mantle.get_config_dict()
     assert world.mantle.name == "mantle"
@@ -227,15 +247,16 @@ def _hot_layer_world(law, temperature):
     """A one-layer world whose material's thermal pressure alpha0 K0 (T - T_ref) can push it past the tension end."""
     radius = 5.0e5
     world = BaseWorld("hot", radius, 4.0 / 3.0 * np.pi * radius**3 * 3000.0)
-    layer = BaseLayer("mantle", 0, 0.0, radius, 0.0, temperature=temperature, use_thermal_eos=True)
-    layer.set_eos(make_material_eos(law, {
-        "reference_density_kg_m3": 3300.0,
-        "reference_bulk_modulus_pa": 3.0e10,
-        "bulk_modulus_derivative": 12.0,
-        "thermal_expansion_1_k": 4.0e-5,
-        "reference_temperature_k": 300.0,
-        "shear_modulus_static_pa": 5.0e10}))
-    world.add_layer(layer)
+    material = Material(solid=Phase(
+        eos={"model": law,
+             "reference_density_kg_m3": 3300.0,
+             "reference_bulk_modulus_pa": 3.0e10,
+             "bulk_modulus_derivative": 12.0,
+             "thermal_expansion_1_k": 4.0e-5,
+             "reference_temperature_k": 300.0},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10}))
+    world.add_layer(Layer("mantle", 0, 0.0, radius, 0.0, material, temperature=temperature,
+                          use_thermal_expansion=True))
     return world
 
 
@@ -268,15 +289,13 @@ def test_a_layer_past_the_compression_end_warns(spdlog_text):
     radius = 6.4e6
     mass = 4.0 / 3.0 * np.pi * (core_radius**3 * 8000.0 + (radius**3 - core_radius**3) * 4000.0)
     world = BaseWorld("turnover", radius, mass)
-    core = BaseLayer("core", 0, 0.0, core_radius, 0.0)
-    core.set_eos(make_material_eos("bm", {
+    core_material = Material(solid=Phase(eos={
+        "model": "bm",
         "reference_density_kg_m3": 8000.0,
         "reference_bulk_modulus_pa": 3.0e10,
         "bulk_modulus_derivative": 3.2}))
-    world.add_layer(core)
-    mantle = BaseLayer("mantle", 1, core_radius, radius, 0.0)
-    mantle.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 4000.0}))
-    world.add_layer(mantle)
+    world.add_layer(Layer("core", 0, 0.0, core_radius, 0.0, core_material))
+    world.add_layer(Layer("mantle", 1, core_radius, radius, 0.0, _constant_material(4000.0)))
     result = world.solve_eos(solve_temperature=False)
     assert result["success"], result["message"]
     text = spdlog_text()

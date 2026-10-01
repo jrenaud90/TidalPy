@@ -5,6 +5,11 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G, mass_trap1
+from TidalPy.Material import Material, Phase
+from TidalPy.Rheology.rheology import Elastic, Maxwell
+from TidalPy.Structures.layers import Layer
+from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
 
 
@@ -17,24 +22,18 @@ _ECC = 0.05
 _OBLIQUITY = 0.3
 
 
-def _build_world(obliquity_truncation):
-    from TidalPy.Structures.worlds.base import BaseWorld
-    from TidalPy.Structures.layers.base import BaseLayer
-    from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-    from TidalPy.Viscosity import make_viscosity
-    from TidalPy.Rheology.rheology import Maxwell, Elastic
-    from TidalPy.Tides.classes.tide import make_tide
+def _material():
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": 1.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19}))
 
+
+def _build_world(obliquity_truncation):
     world = BaseWorld("w", _R, _MASS)
-    layer = BaseLayer("mantle", 0, 0.0, _R, _MASS)
-    layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e19}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Elastic())
-    world.add_layer(layer)
+    world.add_layer(Layer("mantle", 0, 0.0, _R, _MASS, _material(), is_static=False, shear_rheology=Maxwell(),
+                          bulk_rheology=Elastic()))
     world.set_tide_model(make_tide("rheology"))
     world.set_tide_config(min_degree_l=2, max_degree_l=2,
                           eccentricity_truncation=6, obliquity_truncation=obliquity_truncation)

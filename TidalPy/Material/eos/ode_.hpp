@@ -11,14 +11,20 @@
 static const double C_FOUR_PI = 4.0 * TidalPyConstants::d_PI;
 
 
+/// What a layer's EOS function reports at a point, in the units of the solve except where marked SI. The structure
+/// integration needs only the density; a thermal integration adds the three thermal properties, and a dense
+/// evaluation of the finished solution asks for everything.
 struct c_EOSOutput
 {
     double density                        = TidalPyConstants::d_NAN;
-    std::complex<double> bulk_modulus     = {TidalPyConstants::d_NAN, 0.0};
+    std::complex<double> bulk_modulus     = {TidalPyConstants::d_NAN, 0.0};   // adiabatic
     std::complex<double> shear_modulus    = {TidalPyConstants::d_NAN, 0.0};
-    double shear_viscosity                = TidalPyConstants::d_NAN;
-    double bulk_viscosity                 = TidalPyConstants::d_NAN;
+    double shear_viscosity                = TidalPyConstants::d_NAN;   // SI
+    double bulk_viscosity                 = TidalPyConstants::d_NAN;   // SI
     double melt_fraction                  = 0.0;
+    double thermal_expansion              = TidalPyConstants::d_NAN;   // SI [1/K]
+    double heat_capacity                  = TidalPyConstants::d_NAN;   // SI [J kg-1 K-1], latent heat included
+    double thermal_conductivity           = TidalPyConstants::d_NAN;   // SI [W m-1 K-1]
 };
 
 struct c_EOSMaterialState
@@ -34,8 +40,8 @@ struct c_EOSMaterialState
 enum class c_TemperatureKind : uint8_t
 {
     Isothermal = 0,   // dT/dr = 0
-    Conductive = 1,   // dT/dr = -conduction_coeff * L / r^2 (Fourier's law in a spherical shell)
-    Adiabatic  = 2,   // dT/dr = -adiabat_coeff * (alpha / alpha0) * g * T
+    Conductive = 1,   // dT/dr = -L / (4 pi r^2 k), Fourier's law in a spherical shell
+    Adiabatic  = 2,   // dT/dr = -alpha g T / c_p
 };
 
 /// A stretch of a layer over which the temperature gradient keeps one form. A layer is one segment unless
@@ -47,12 +53,6 @@ struct c_EOSSegment
     c_TemperatureKind temperature_kind  = c_TemperatureKind::Isothermal;
     double            start_temperature = TidalPyConstants::d_NAN;        // [K]; NaN continues from below
     double            start_heat_flow   = 0.0;                            // [W] entering the segment's base
-    double            conduction_coeff  = 0.0;                            // 1 / (4 pi k length_scale)
-    double            adiabat_coeff     = 0.0;                            // alpha0 g_scale length_scale / c_p
-    // The expansivity's compression scaling alpha / alpha0 (c_anderson_gruneisen_factor); delta_T0 = 0 keeps alpha0.
-    double            anderson_gruneisen_parameter = 0.0;                 // delta_T0
-    double            anderson_gruneisen_exponent  = 0.0;                 // kappa
-    double            expansion_reference_density  = TidalPyConstants::d_NAN;   // rho_ref [solve units]
 };
 
 /// Heat generated inside the planet, as the thermal structure ODE reads it. Abstract so this header stays
@@ -72,14 +72,14 @@ struct c_EOS_ODEInput
     double G_to_use       = 0.0;
     double planet_radius  = 0.0;
     char*  eos_input_ptr  = nullptr;
-    bool   update_bulk    = false;
-    bool   update_shear   = false;
+    // Ask the EOS function for every output (a dense evaluation of the finished solution) rather than the density.
+    bool   full_state     = false;
+    // Ask it for the thermal properties too (a solve that integrates temperature).
+    bool   thermal_state  = false;
     c_TemperatureKind temperature_kind = c_TemperatureKind::Isothermal;
-    double conduction_coeff = 0.0;
-    double adiabat_coeff    = 0.0;
-    double anderson_gruneisen_parameter = 0.0;
-    double anderson_gruneisen_exponent  = 0.0;
-    double expansion_reference_density  = TidalPyConstants::d_NAN;
+    // The solve's length [m] and gravity [m s-2] per unit, which turn the SI thermal gradients into its units.
+    double length_scale  = 1.0;
+    double gravity_scale = 1.0;
     // Heat sources of a thermal solve, non-owning and null for none.
     const c_EOSHeatingBase* heating_ptr = nullptr;
     size_t layer_index = 0;
@@ -87,20 +87,20 @@ struct c_EOS_ODEInput
 
 
 /// The four structure derivatives of a self-gravitating spherically symmetric body in hydrostatic
-/// equilibrium. Returns the local density, which the thermal ODE needs for its heat sources.
-inline double c_eos_structure_derivatives(
+/// equilibrium. Fills `eos_output` with what the EOS function reports at the point, which the thermal ODE reads.
+inline void c_eos_structure_derivatives(
         double* dy_ptr,
         double radius,
         double* y_ptr,
         char* input_args,
-        PreEvalFunc eos_function) noexcept
+        PreEvalFunc eos_function,
+        c_EOSOutput& eos_output) noexcept
 {
     c_EOS_ODEInput* eos_input_ptr = reinterpret_cast<c_EOS_ODEInput*>(input_args);
 
     const double r2 = radius * radius;
     const double grav_coeff = C_FOUR_PI * eos_input_ptr->G_to_use;
 
-    c_EOSOutput eos_output;
     eos_function(
         reinterpret_cast<char*>(&eos_output),
         radius,
@@ -135,7 +135,6 @@ inline double c_eos_structure_derivatives(
         dy_ptr[2] = C_FOUR_PI * rho * r2;
         dy_ptr[3] = (2.0 / 3.0) * dy_ptr[2] * r2;
     }
-    return rho;
 }
 
 
@@ -147,17 +146,17 @@ inline void c_eos_diffeq(
         char* input_args,
         PreEvalFunc eos_function) noexcept
 {
-    c_eos_structure_derivatives(dy_ptr, radius, y_ptr, input_args, eos_function);
+    c_EOSOutput eos_output;
+    c_eos_structure_derivatives(dy_ptr, radius, y_ptr, input_args, eos_function, eos_output);
 }
 
 
-/// As c_eos_diffeq, with the density evaluated at the local temperature when the layer's EOS is thermal,
-/// plus two extra states:
-///   dT/dr = 0, -conduction_coeff L / r^2, or -adiabat_coeff (alpha / alpha0) g T, by the segment's temperature kind
-///   (the last is the adiabat, with the Anderson-Gruneisen expansivity factor of c_anderson_gruneisen_factor), and
+/// As c_eos_diffeq, with the material evaluated at the local temperature, plus two extra states:
+///   dT/dr = 0, -L / (4 pi r^2 k), or -alpha g T / c_p, by the segment's temperature kind, with the material's
+///   conductivity, expansivity, and heat capacity at the point, and
 ///   dL/dr = 4 pi r^2 h, the heat the world's sources generate at this radius.
-/// The temperature is in Kelvin and the heat flow in Watts whatever units the rest of the solve runs in;
-/// the coefficients carry the conversion.
+/// The temperature is in Kelvin and the heat flow in Watts whatever units the rest of the solve runs in; the input's
+/// length and gravity scales carry the conversion.
 inline void c_eos_diffeq_thermal(
         double* dy_ptr,
         double radius,
@@ -167,7 +166,8 @@ inline void c_eos_diffeq_thermal(
 {
     c_EOS_ODEInput* eos_input_ptr = reinterpret_cast<c_EOS_ODEInput*>(input_args);
 
-    const double rho = c_eos_structure_derivatives(dy_ptr, radius, y_ptr, input_args, eos_function);
+    c_EOSOutput eos_output;
+    c_eos_structure_derivatives(dy_ptr, radius, y_ptr, input_args, eos_function, eos_output);
 
     if ((radius < TidalPyConstants::d_EPS_10) || (radius > eos_input_ptr->planet_radius))
     {
@@ -179,14 +179,19 @@ inline void c_eos_diffeq_thermal(
     switch (eos_input_ptr->temperature_kind)
     {
         case c_TemperatureKind::Conductive:
-            dy_ptr[4] = -eos_input_ptr->conduction_coeff * y_ptr[5] / (radius * radius);
+        {
+            const double conductivity = eos_output.thermal_conductivity;
+            dy_ptr[4] = (conductivity > TidalPyConstants::d_EPS)
+                ? -y_ptr[5] / (C_FOUR_PI * radius * radius * conductivity * eos_input_ptr->length_scale) : 0.0;
             break;
+        }
         case c_TemperatureKind::Adiabatic:
         {
-            const double coeff = eos_input_ptr->adiabat_coeff * c_anderson_gruneisen_factor(
-                eos_input_ptr->expansion_reference_density, rho, eos_input_ptr->anderson_gruneisen_parameter,
-                eos_input_ptr->anderson_gruneisen_exponent);
-            dy_ptr[4] = -coeff * y_ptr[0] * y_ptr[4];
+            const double heat_capacity = eos_output.heat_capacity;
+            dy_ptr[4] = (heat_capacity > TidalPyConstants::d_EPS)
+                ? -eos_output.thermal_expansion * y_ptr[0] * eos_input_ptr->gravity_scale
+                    * eos_input_ptr->length_scale * y_ptr[4] / heat_capacity
+                : 0.0;
             break;
         }
         default:
@@ -194,5 +199,6 @@ inline void c_eos_diffeq_thermal(
             break;
     }
     dy_ptr[5] = (eos_input_ptr->heating_ptr != nullptr)
-        ? eos_input_ptr->heating_ptr->calc_heat_flow_gradient(eos_input_ptr->layer_index, radius, rho) : 0.0;
+        ? eos_input_ptr->heating_ptr->calc_heat_flow_gradient(eos_input_ptr->layer_index, radius, eos_output.density)
+        : 0.0;
 }

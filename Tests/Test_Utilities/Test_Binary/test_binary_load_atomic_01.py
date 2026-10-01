@@ -10,7 +10,7 @@ import pytest
 from TidalPy.constants import G
 from TidalPy.Rheology import make_rheology
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Utilities.classes import StructureBase
@@ -43,7 +43,7 @@ def make_system(name, companion_radius):
 CASES = {
     "structure": (lambda: StructureBase(7.0e6, 8.0e23), lambda: StructureBase(1.0e6, 2.0e22)),
     "rheology": (lambda: make_rheology("sundberg", {"alpha": 0.2}), lambda: make_rheology("sundberg")),
-    "layer": (lambda: BaseLayer("probe", 0, 0.0, 1.0e6, 1.0e20), lambda: BaseLayer("other", 0, 0.0, 2.0e6, 3.0e20)),
+    "layer": (lambda: Layer("probe", 0, 0.0, 1.0e6, 1.0e20), lambda: Layer("other", 0, 0.0, 2.0e6, 3.0e20)),
     "world": (lambda: build_world("pluto"), lambda: build_world("io")),
     "system": (lambda: make_system("saved", 7.0e7), lambda: make_system("existing", 6.0e7)),
 }

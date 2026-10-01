@@ -8,11 +8,11 @@
  * carries temperature, [4] temperature [K] and [5] heat flow through the sphere of this radius [W].
  *
  * Evaluation layout, what c_EOSSolution::call hands back at a radius: the four structure variables, then
- * [4] density, [5] static shear modulus, [6] static bulk modulus, [7] shear viscosity, [8] bulk viscosity,
- * [9] temperature, [10] heat flow, [11] melt fraction.
+ * [4] density, [5] static shear modulus, [6] static (adiabatic) bulk modulus, [7] shear viscosity, [8] bulk
+ * viscosity, [9] temperature, [10] heat flow, [11] melt fraction.
  *
  * Every value here is frequency independent and real; the moduli are the material's unrelaxed values after
- * its partial-melt model.
+ * melting (c_Material::calc_state with the layer's switches).
  */
 
 #include <cstddef>

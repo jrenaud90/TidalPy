@@ -13,16 +13,10 @@ _FAMILIES = [
       ("andrade", None), ("sundberg", None)]),
     ("TidalPy.Viscosity.viscosity", "make_viscosity", "viscosity",
      [("arrhenius", None), ("reference", None), ("constant", None)]),
-    ("TidalPy.PartialMelt.partial_melt", "make_partial_melt", "partial-melt",
-     [("off", None), ("spohn", None), ("henning", None)]),
     ("TidalPy.Cooling.cooling", "make_cooling", "cooling",
      [("off", None), ("conduction", None), ("convection", None)]),
     ("TidalPy.Radiogenics.radiogenics", "make_radiogenics", "radiogenics",
      [("off", None), ("fixed", None), ("isotope", {"isotopes": "modern_day_chondritic"})]),
-    ("TidalPy.Material.eos.material_eos", "make_material_eos", "material EOS",
-     [("constant", None), ("bm", None), ("vinet", None),
-      ("interpolate", {"radius_m": [0.0, 1.0e6, 2.0e6], "density_kg_m3": [5000.0, 4000.0, 3000.0],
-                       "shear_modulus_pa": [1.0e11, 8.0e10, 6.0e10]})]),
     ("TidalPy.Stellar.luminosity", "make_luminosity", "luminosity",
      [("fixed", None), ("mass_to_luminosity", None), ("power_law", None)]),
     ("TidalPy.Tides.classes.tide", "make_tide", "tide",
@@ -58,9 +52,9 @@ def test_empty_config_and_model_key_accepted(config):
 
 def test_unrecognized_key_names_closest_accepted_key():
     """An unrecognized key raises ValueError naming the closest accepted key."""
-    expected = r"unrecognized partial-melt config key.*'solidus' \(did you mean 'solidus_k'\?\)"
+    expected = r"unrecognized cooling config key.*'critical_raleigh' \(did you mean 'critical_rayleigh'\?\)"
     with pytest.raises(ValueError, match=expected):
-        check_config_keys({"solidus": 1500.0}, {"solidus_k", "liquidus_k"}, "partial-melt")
+        check_config_keys({"critical_raleigh": 1100.0}, {"critical_rayleigh", "convection_alpha"}, "cooling")
 
 
 @pytest.mark.parametrize("module_path,factory_name,model_name,base_config", _model_cases())

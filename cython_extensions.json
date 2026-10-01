@@ -152,6 +152,15 @@
         "TidalPy",
         "Utilities",
         "dimensions"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
       ]
     ],
     "compile_args": [],
@@ -352,14 +361,14 @@
     "link_args": [],
     "is_cpp": true
   },
-  "Structures.layers.base": {
-    "name": "TidalPy.Structures.layers.base",
+  "Structures.layers.layer": {
+    "name": "TidalPy.Structures.layers.layer",
     "sources": [
       [
         "TidalPy",
         "Structures",
         "layers",
-        "base.pyx"
+        "layer.pyx"
       ]
     ],
     "include_dirs": [
@@ -411,50 +420,13 @@
         "arrays"
       ],
       [
-        "TidalPy"
-      ]
-    ],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "Structures.layers.solidliquid": {
-    "name": "TidalPy.Structures.layers.solidliquid",
-    "sources": [
-      [
         "TidalPy",
-        "Structures",
-        "layers",
-        "solidliquid.pyx"
-      ]
-    ],
-    "include_dirs": [
-      [
-        "TidalPy",
-        "Structures",
-        "layers"
+        "Material"
       ],
       [
         "TidalPy",
         "Material",
-        "eos"
-      ],
-      [
-        "TidalPy",
-        "Tides",
-        "love"
-      ],
-      [
-        "TidalPy",
-        "Rheology"
-      ],
-      [
-        "TidalPy",
-        "Viscosity"
-      ],
-      [
-        "TidalPy",
-        "PartialMelt"
+        "laws"
       ],
       [
         "TidalPy",
@@ -467,88 +439,7 @@
       [
         "TidalPy",
         "Utilities",
-        "classes"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "binary"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "logging"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "arrays"
-      ],
-      [
-        "TidalPy"
-      ]
-    ],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "Structures.layers.gas": {
-    "name": "TidalPy.Structures.layers.gas",
-    "sources": [
-      [
-        "TidalPy",
-        "Structures",
-        "layers",
-        "gas.pyx"
-      ]
-    ],
-    "include_dirs": [
-      [
-        "TidalPy",
-        "Structures",
-        "layers"
-      ],
-      [
-        "TidalPy",
-        "Material",
-        "eos"
-      ],
-      [
-        "TidalPy",
-        "Tides",
-        "love"
-      ],
-      [
-        "TidalPy",
-        "Rheology"
-      ],
-      [
-        "TidalPy",
-        "Viscosity"
-      ],
-      [
-        "TidalPy",
-        "PartialMelt"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "classes"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "binary"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "logging"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "arrays"
+        "math"
       ],
       [
         "TidalPy"
@@ -705,6 +596,15 @@
         "legendre"
       ],
       [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
         "TidalPy"
       ]
     ],
@@ -859,6 +759,15 @@
         "legendre"
       ],
       [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
+      ],
+      [
         "TidalPy"
       ]
     ],
@@ -1011,6 +920,15 @@
         "TidalPy",
         "Utilities",
         "legendre"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
       ],
       [
         "TidalPy"
@@ -1172,6 +1090,15 @@
       [
         "TidalPy",
         "Stellar"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
       ]
     ],
     "compile_args": [],
@@ -1265,43 +1192,6 @@
       [
         "TidalPy",
         "Cooling"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "classes"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "binary"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "logging"
-      ],
-      [
-        "TidalPy"
-      ]
-    ],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "PartialMelt.partial_melt": {
-    "name": "TidalPy.PartialMelt.partial_melt",
-    "sources": [
-      [
-        "TidalPy",
-        "PartialMelt",
-        "partial_melt.pyx"
-      ]
-    ],
-    "include_dirs": [
-      [
-        "TidalPy",
-        "PartialMelt"
       ],
       [
         "TidalPy",
@@ -1420,50 +1310,6 @@
         "TidalPy",
         "Utilities",
         "lookups"
-      ]
-    ],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "Material.eos.material_eos": {
-    "name": "TidalPy.Material.eos.material_eos",
-    "sources": [
-      [
-        "TidalPy",
-        "Material",
-        "eos",
-        "material_eos.pyx"
-      ]
-    ],
-    "include_dirs": [
-      [
-        "TidalPy",
-        "Material",
-        "eos"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "classes"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "binary"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "logging"
-      ],
-      [
-        "TidalPy",
-        "Utilities",
-        "arrays"
-      ],
-      [
-        "TidalPy"
       ]
     ],
     "compile_args": [],
@@ -2143,6 +1989,15 @@
         "TidalPy",
         "Utilities",
         "legendre"
+      ],
+      [
+        "TidalPy",
+        "Material"
+      ],
+      [
+        "TidalPy",
+        "Material",
+        "laws"
       ]
     ],
     "compile_args": [],

@@ -6,6 +6,11 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G, mass_trap1
+from TidalPy.Material import Material, Phase
+from TidalPy.Rheology.rheology import Elastic, Maxwell
+from TidalPy.Structures.layers import Layer
+from TidalPy.Structures.worlds.base import BaseWorld
+from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
 
 
@@ -22,27 +27,21 @@ _SUMMED = dict(latitude_summed=True, longitude_summed=True, radial_summed=True)
 _RADIAL_PROFILE = dict(radii=np.linspace(1.0e3, _R, 150), latitude_summed=True, longitude_summed=True)
 
 
-def _build_world(max_degree_l=2, two_layer=False):
-    from TidalPy.Structures.worlds.base import BaseWorld
-    from TidalPy.Structures.layers.base import BaseLayer
-    from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-    from TidalPy.Viscosity import make_viscosity
-    from TidalPy.Rheology.rheology import Maxwell, Elastic
-    from TidalPy.Tides.classes.tide import make_tide
+def _material():
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _BULK},
+        shear_modulus={"model": "constant", "shear_modulus_pa": _SHEAR},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": _VISC},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": _VISC}))
 
+
+def _build_world(max_degree_l=2, two_layer=False):
     world = BaseWorld("w", _R, _MASS)
 
     def _mk(name, idx, r_in, r_out):
         mass = (4.0 / 3.0) * math.pi * (r_out ** 3 - r_in ** 3) * _DENSITY
-        layer = BaseLayer(name, idx, r_in, r_out, mass)
-        layer.is_static = False
-        layer.set_eos(ConstantDensityEOS(
-            reference_density=_DENSITY, shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK))
-        layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
-        layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _VISC}))
-        layer.set_shear_rheology(Maxwell())
-        layer.set_bulk_rheology(Elastic())
-        return layer
+        return Layer(name, idx, r_in, r_out, mass, _material(), is_static=False, shear_rheology=Maxwell(),
+                     bulk_rheology=Elastic())
 
     if two_layer:
         world.add_layer(_mk("core", 0, 0.0, 0.5 * _R))

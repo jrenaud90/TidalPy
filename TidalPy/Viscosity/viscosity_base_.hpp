@@ -1,8 +1,8 @@
 #pragma once
 /* Abstract base for TidalPy viscosity models. Concrete models live in viscosity_.hpp.
  *
- * The result is the pre-melt (solid) viscosity that the partial-melt step weakens. Like the partial-melt outputs it
- * is frequency independent.
+ * The result is a phase's viscosity, which a material's melt weakening may then lower (c_Material). It is frequency
+ * independent.
  *
  * References
  * ----------

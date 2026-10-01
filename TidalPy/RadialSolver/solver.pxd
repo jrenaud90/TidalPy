@@ -11,7 +11,7 @@ from TidalPy.RadialSolver.rs_solution cimport c_RadialSolutionStorage
 # The world types are redeclared here rather than cimported from Structures.worlds.base, which declares
 # the same C++ classes. A cimport would be compile-time for these plain C++ declarations, but Cython also emits
 # a runtime import of every extension type the cimported .pxd declares (BaseWorld, and through its own
-# cimports BaseLayer). RadialSolver/__init__ imports this module and base.pyx cimports
+# cimports Layer). RadialSolver/__init__ imports this module and base.pyx cimports
 # RadialSolver.rs_solution, so that runtime import would close an import cycle. Only the members this module
 # calls are declared; the header itself is the single definition, so a signature that changes there fails to
 # compile here rather than drifting silently.

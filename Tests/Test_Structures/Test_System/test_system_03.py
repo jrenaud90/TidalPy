@@ -11,10 +11,9 @@ from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.terrestrial import TerrestrialWorld
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.configs import build_system
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-from TidalPy.Viscosity import make_viscosity
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Maxwell, Elastic
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Dynamics import Spin
@@ -115,18 +114,21 @@ def _attach_tide_and_spin(moon):
     moon.set_spin_frequency(1.5 * _EVO_N)
 
 
+def _moon_material():
+    """A solid with constant moduli and viscosities."""
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": _EVO_DENSITY, "bulk_modulus_pa": 1.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": _EVO_VISC},
+        bulk_viscosity={"model": "constant", "reference_viscosity_pas": _EVO_VISC}))
+
+
 def _dissipating_moon():
     """A homogeneous Maxwell moon with tide and spin models attached and its EOS solved."""
     moon = BaseWorld("moon", _EVO_RADIUS, _EVO_MOON_MASS)
-    layer = BaseLayer("mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS)
-    layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_EVO_DENSITY, shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _EVO_VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _EVO_VISC}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Elastic())
-    moon.add_layer(layer)
+    moon.add_layer(Layer(
+        "mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS, _moon_material(), is_static=False, shear_rheology=Maxwell(),
+        bulk_rheology=Elastic()))
     _attach_tide_and_spin(moon)
     return moon
 
@@ -142,7 +144,7 @@ def test_loaded_system_orbital_evolution_matches(tmp_path):
 
     loaded = _roundtrip(system, str(tmp_path / "evo.tpyb"))
     moon = loaded["moon"]
-    assert moon.mantle.eos_set
+    assert moon.mantle.material_set
     # The documented after-load steps: reattach the tide and spin models and re-solve the EOS profile.
     _attach_tide_and_spin(moon)
 

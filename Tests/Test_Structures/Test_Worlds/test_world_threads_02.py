@@ -6,8 +6,8 @@ import time
 import numpy as np
 
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 
 _R          = 1.6e6               # [m]
 _R_CORE     = 0.5 * _R            # [m]
@@ -17,31 +17,31 @@ _FREQUENCY  = 1.0e-5              # [rad s-1]
 _RUN_TIME   = 0.8                 # [s] how long the threads run
 
 
+def _material(density, shear, bulk):
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": bulk},
+        shear_modulus={"model": "constant", "shear_modulus_pa": shear}))
+
+
 def _two_layer_world():
     """A constant-density core and mantle, so the solved density is known exactly."""
     world = BaseWorld("threads", _R, (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0)
-    core = BaseLayer(
+    core = Layer(
         "core",
         0,
         0.0,
         _R_CORE,
         0.0,
+        _material(_RHO_CORE, 8.0e10, 2.5e11),
     )
-    core.set_eos(ConstantDensityEOS(
-        reference_density=_RHO_CORE,
-        shear_modulus_static=8.0e10,
-        bulk_modulus_static=2.5e11))
-    mantle = BaseLayer(
+    mantle = Layer(
         "mantle",
         1,
         _R_CORE,
         _R,
         0.0,
+        _material(_RHO_MANTLE, 6.0e10, 2.0e11),
     )
-    mantle.set_eos(ConstantDensityEOS(
-        reference_density=_RHO_MANTLE,
-        shear_modulus_static=6.0e10,
-        bulk_modulus_static=2.0e11))
     world.add_layer(core)
     world.add_layer(mantle)
     return world
@@ -174,7 +174,7 @@ def test_unsolved_and_standalone_layers_read_nan():
     assert np.all(np.isnan(world.mantle.get_density(radii)))
     assert math.isnan(world.get_temperature(0.5 * _R))
 
-    layer = BaseLayer(
+    layer = Layer(
         "standalone",
         0,
         0.0,

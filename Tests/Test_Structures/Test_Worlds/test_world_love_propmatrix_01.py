@@ -7,9 +7,8 @@ import pytest
 
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Structures.layers.base import BaseLayer
-from TidalPy.Material.eos.material_eos import ConstantDensityEOS
-from TidalPy.Viscosity import make_viscosity
+from TidalPy.Structures.layers import Layer
+from TidalPy.Material import Material, Phase
 from TidalPy.Rheology.rheology import Maxwell
 
 
@@ -21,6 +20,16 @@ _SHEAR_VISC    = 1.0e23    # [Pa s]; very high so the layer is in the elastic li
 _FREQ          = 1.0e-5    # [rad/s]
 
 
+def _material(density, bulk_viscosity=None):
+    """Constant-density elastic-limit solid; no bulk viscosity law when ``bulk_viscosity`` is None."""
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": _STATIC_BULK},
+        shear_modulus={"model": "constant", "shear_modulus_pa": _STATIC_SHEAR},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": _SHEAR_VISC},
+        bulk_viscosity=None if bulk_viscosity is None else {
+            "model": "constant", "reference_viscosity_pas": bulk_viscosity}))
+
+
 def _maxwell_layer(
         name,
         layer_index,
@@ -29,37 +38,31 @@ def _maxwell_layer(
         mass=0.0,
 ):
     radius_inner, radius_outer = radius_bounds
-    layer = BaseLayer(
+    return Layer(
         name,
         layer_index,
         radius_inner,
         radius_outer,
         mass,
+        _material(density),
+        shear_rheology=Maxwell(),
     )
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=density, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
-    layer.set_shear_rheology(Maxwell())
-    return layer
 
 
 def _incompressible_solid_world():
     """Single solid, static, incompressible uniform sphere."""
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = BaseWorld("incompressible_planet", _PLANET_RADIUS, mass)
-    layer = BaseLayer(
+    layer = Layer(
         "mantle",
         0,
         0.0,
         _PLANET_RADIUS,
         mass,
+        _material(_DENSITY, bulk_viscosity=1.0e30),
+        shear_rheology=Maxwell(),
+        bulk_rheology=Maxwell(),
     )
-    layer.set_eos(ConstantDensityEOS(
-        reference_density=_DENSITY, shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK))
-    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity_pas": _SHEAR_VISC}))
-    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity_pas": 1.0e30}))
-    layer.set_shear_rheology(Maxwell())
-    layer.set_bulk_rheology(Maxwell())
     layer.is_incompressible = True
     assert layer.is_incompressible is True
     world.add_layer(layer)

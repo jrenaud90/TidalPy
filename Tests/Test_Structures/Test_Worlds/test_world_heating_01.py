@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from TidalPy.Structures.configs.world_builder import construct_world
+from TidalPy.Structures.layers import Layer
 
 _RADIUS = 2.0e6                # [m]
 _MASS = 4.0e22                 # [kg]
@@ -199,22 +200,19 @@ def test_time_defaults_to_each_models_reference_time_and_decays_from_there():
 # =====================================================================================================================
 # The switch is part of the layer's configuration
 # =====================================================================================================================
-@pytest.mark.parametrize("layer_class_name", ["BaseLayer", "SolidLiquidLayer", "GasLayer"])
-def test_use_heating_survives_config_and_binary_roundtrips(layer_class_name, tmp_path):
-    from TidalPy.Structures.layers import base, gas, solidliquid
-
-    layer_class = {"BaseLayer": base.BaseLayer, "SolidLiquidLayer": solidliquid.SolidLiquidLayer,
-                   "GasLayer": gas.GasLayer}[layer_class_name]
-    layer = layer_class("shell", 0, 0.0, 1.0e6, 1.0e22, use_heating=True)
+@pytest.mark.parametrize("state", ["auto", "solid", "liquid"])
+def test_use_heating_survives_config_and_binary_roundtrips(state, tmp_path):
+    layer = Layer("shell", 0, 0.0, 1.0e6, 1.0e22, state=state, use_heating=True)
     assert layer.use_heating is True
     assert layer.get_config_dict()["use_heating"] is True
-    assert layer_class("shell", 0, 0.0, 1.0e6, 1.0e22).use_heating is False
+    assert Layer("shell", 0, 0.0, 1.0e6, 1.0e22, state=state).use_heating is False
 
     file_path = str(tmp_path / "layer.tpyb")
     layer.save_binary(file_path)
-    loaded = layer_class("other", 0, 0.0, 2.0e6, 2.0e22)
+    loaded = Layer("other", 0, 0.0, 2.0e6, 2.0e22)
     loaded.load_binary(file_path)
     assert loaded.use_heating is True
+    assert loaded.state == state
     loaded.use_heating = False
     assert loaded.use_heating is False
 

@@ -69,8 +69,7 @@
 #include "constants_.hpp"
 #include "ode_.hpp"             // c_EOSSegment, c_TemperatureKind
 #include "eos_solution_.hpp"    // c_EOSSolution
-#include "../layers/base_.hpp"
-#include "../layers/solidliquid_.hpp"
+#include "../layers/layer_.hpp"
 #include "../../Cooling/cooling_base_.hpp"
 #include "../../Utilities/math/quadrature_.hpp"   // c_gauss_legendre_nodes
 #include "heating_.hpp"                               // c_Heating
@@ -132,14 +131,10 @@ struct c_LayerThermal {
     double heating_drop_bottom = 0.0;
     double heating_drop_top    = 0.0;
 
-    // Material properties at the layer's mid-radius.
+    // The layer's material at its own temperature: at zero pressure before a solve, then at its mid-radius pressure.
     double conductivity      = TidalPyConstants::d_NAN;   // k     [W m-1 K-1]
-    double thermal_expansion = TidalPyConstants::d_NAN;   // alpha0 [K-1], at the reference density
-    double heat_capacity     = TidalPyConstants::d_NAN;   // c_p   [J kg-1 K-1]
-    // The expansivity's compression scaling alpha / alpha0 (c_anderson_gruneisen_factor; constant for delta_T0 = 0).
-    double anderson_gruneisen_parameter = 0.0;                     // delta_T0
-    double anderson_gruneisen_exponent  = 0.0;                     // kappa
-    double expansion_reference_density  = TidalPyConstants::d_NAN;   // rho_ref [kg m-3]
+    double thermal_expansion = TidalPyConstants::d_NAN;   // alpha [K-1]
+    double heat_capacity     = TidalPyConstants::d_NAN;   // c_p   [J kg-1 K-1], latent heat included
 };
 
 // Thermal resistance [K W-1] of a conducting spherical shell. Zero for a degenerate shell or conductivity.
@@ -156,11 +151,9 @@ inline bool c_base_is_insulated(const std::vector<c_LayerThermal>& thermal_vec, 
     return (layer_index == 0) || !thermal_vec[layer_index - 1].in_network;
 }
 
-// The temperature kind a layer's cooling model asks for. A layer that cannot hold one is isothermal.
-inline c_TemperatureKind c_layer_temperature_kind(const c_BaseLayer* layer) noexcept {
-    const auto* solidliquid_layer = dynamic_cast<const c_SolidLiquidLayer*>(layer);
-    if (solidliquid_layer == nullptr) { return c_TemperatureKind::Isothermal; }
-    const c_CoolingBase* cooling_model = solidliquid_layer->get_cooling_model();
+// The temperature kind a layer's cooling model asks for. A layer without one is isothermal.
+inline c_TemperatureKind c_layer_temperature_kind(const c_Layer* layer) noexcept {
+    const c_CoolingBase* cooling_model = layer->get_cooling_model();
     if (cooling_model == nullptr) { return c_TemperatureKind::Isothermal; }
     switch (cooling_model->get_model_type()) {
         case c_CoolingModel::Conduction: return c_TemperatureKind::Conductive;
@@ -170,18 +163,32 @@ inline c_TemperatureKind c_layer_temperature_kind(const c_BaseLayer* layer) noex
     return c_TemperatureKind::Isothermal;
 }
 
+// The layer's material at a point and its own lumped temperature [K], for the thermal network.
+inline void c_layer_thermal_state(
+        const c_Layer* layer,
+        double pressure,
+        double temperature,
+        double radius,
+        c_MaterialState& state) noexcept {
+    c_ThermoPoint point;
+    point.pressure    = pressure;
+    point.temperature = temperature;
+    point.radius      = radius;
+    layer->calc_state(point, state);
+}
+
 // Build the per-layer thermal description from the layers themselves: the temperature each carries, the kind its
-// cooling model asks for, and its thermal material properties. A finite temperature_override replaces every
-// layer's own temperature. The resistances and flows are filled in later,
-// against a solved structure.
+// cooling model asks for, and its thermal material properties at zero pressure. A finite temperature_override
+// replaces every layer's own temperature. The resistances and flows are filled in later, against a solved
+// structure.
 inline void c_init_layer_thermal(
-        const std::vector<std::unique_ptr<c_BaseLayer>>& layers,
+        const std::vector<std::unique_ptr<c_Layer>>& layers,
         std::vector<c_LayerThermal>& out,
         double temperature_override = TidalPyConstants::d_NAN) {
     const std::size_t n_layers = layers.size();
     out.assign(n_layers, c_LayerThermal());
     for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-        const c_BaseLayer* layer = layers[layer_i].get();
+        const c_Layer* layer = layers[layer_i].get();
         c_LayerThermal& thermal  = out[layer_i];
 
         thermal.temperature = std::isfinite(temperature_override) ? temperature_override : layer->get_temperature();
@@ -191,14 +198,13 @@ inline void c_init_layer_thermal(
         thermal.node_temperature = thermal.temperature;
         thermal.kind             = thermal.in_network ? c_layer_temperature_kind(layer) : c_TemperatureKind::Isothermal;
 
-        // The thermal constants belong to the material, so any layer with an EOS model has them.
-        if (const c_MaterialEOSBase* eos_model = layer->get_eos()) {
-            thermal.conductivity      = eos_model->get_thermal_conductivity();
-            thermal.thermal_expansion = eos_model->get_thermal_expansion();
-            thermal.heat_capacity     = eos_model->get_heat_capacity();
-            thermal.anderson_gruneisen_parameter = eos_model->get_anderson_gruneisen_parameter();
-            thermal.anderson_gruneisen_exponent  = eos_model->get_anderson_gruneisen_exponent();
-            thermal.expansion_reference_density  = eos_model->get_expansion_reference_density();
+        // The thermal properties belong to the material, so any layer with one has them.
+        if (layer->get_material_set()) {
+            c_MaterialState state;
+            c_layer_thermal_state(layer, 0.0, thermal.temperature, layer->get_radius_mid(), state);
+            thermal.conductivity      = state.thermal_conductivity;
+            thermal.thermal_expansion = state.thermal_expansion;
+            thermal.heat_capacity     = state.heat_capacity;
         }
         if (!(thermal.conductivity > TidalPyConstants::d_EPS)) {
             // Without a conductivity there is no gradient to integrate.
@@ -267,17 +273,18 @@ inline void c_stretch_heating(
 }
 
 // Exponent of the adiabatic warming across a convecting interior, the integral of alpha g / c_p from its base to its
-// top, using the solved gravity and density. With dT/dr = -alpha g T / c_p the base sits at T_top exp(exponent). The
-// expansivity follows the layer's Anderson-Gruneisen law (c_anderson_gruneisen_factor), as the integrated adiabat
-// does. Zero for an empty stretch or missing thermal constants, which leaves the interior isothermal.
+// top, using the solved gravity and pressure and the layer's material at its own temperature (whose expansivity can
+// fall with compression), as the integrated adiabat does. With dT/dr = -alpha g T / c_p the base sits at
+// T_top exp(exponent). Zero for an empty stretch or a layer without a material, which leaves the interior
+// isothermal.
 inline double c_adiabat_exponent(
         const c_EOSSolution& solution,
+        const c_Layer* layer,
         std::size_t layer_index,
         double radius_lower,
         double radius_upper,
         const c_LayerThermal& thermal) {
-    if (!(radius_upper > radius_lower) || !(thermal.heat_capacity > TidalPyConstants::d_EPS)
-        || !std::isfinite(thermal.thermal_expansion)) {
+    if (!(radius_upper > radius_lower) || !layer->get_material_set()) {
         return 0.0;
     }
     const std::vector<double>& nodes   = c_stretch_quadrature().nodes;
@@ -285,16 +292,17 @@ inline double c_adiabat_exponent(
     const double half_width = 0.5 * (radius_upper - radius_lower);
     const double midpoint   = 0.5 * (radius_upper + radius_lower);
     double integral = 0.0;
-    double state[C_EOS_DY_VALUES];
+    double structure[C_EOS_Y_VALUES];
+    c_MaterialState material;
     for (std::size_t node_i = 0; node_i < nodes.size(); ++node_i) {
-        solution.call_si(layer_index, midpoint + half_width * nodes[node_i], state);
-        const double gravity = state[C_EOS_GRAVITY_INDEX];
-        const double term = gravity * c_anderson_gruneisen_factor(
-            thermal.expansion_reference_density, state[C_EOS_DENSITY_INDEX], thermal.anderson_gruneisen_parameter,
-            thermal.anderson_gruneisen_exponent);
+        const double radius = midpoint + half_width * nodes[node_i];
+        solution.call_y_si(layer_index, radius, structure);
+        c_layer_thermal_state(layer, structure[C_EOS_PRESSURE_INDEX], thermal.temperature, radius, material);
+        if (!(material.heat_capacity > TidalPyConstants::d_EPS)) { continue; }
+        const double term = structure[C_EOS_GRAVITY_INDEX] * material.thermal_expansion / material.heat_capacity;
         if (std::isfinite(term)) { integral += term * half_width * weights[node_i]; }
     }
-    return thermal.thermal_expansion * integral / thermal.heat_capacity;
+    return integral;
 }
 
 // Update the boundary layers, resistances, interface temperatures, and heat flows against a solved structure.
@@ -302,7 +310,7 @@ inline double c_adiabat_exponent(
 // to decide it has converged.
 inline double c_update_layer_thermal(
         const c_EOSSolution& solution,
-        const std::vector<std::unique_ptr<c_BaseLayer>>& layers,
+        const std::vector<std::unique_ptr<c_Layer>>& layers,
         double surface_temperature,
         std::vector<c_LayerThermal>& thermal_vec,
         const c_Heating* heating_ptr = nullptr) {
@@ -311,7 +319,7 @@ inline double c_update_layer_thermal(
     const bool heated = (heating_ptr != nullptr) && heating_ptr->get_is_active();
 
     for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-        const c_BaseLayer* layer = layers[layer_i].get();
+        const c_Layer* layer = layers[layer_i].get();
         c_LayerThermal& thermal  = thermal_vec[layer_i];
         const double radius_inner = layer->get_radius_inner();
         const double radius_outer = layer->get_radius_outer();
@@ -346,15 +354,14 @@ inline double c_update_layer_thermal(
         const double gravity  = structure[C_EOS_GRAVITY_INDEX];
         const double pressure = structure[C_EOS_PRESSURE_INDEX];
 
-        const auto* solidliquid_layer = dynamic_cast<const c_SolidLiquidLayer*>(layer);
-        const c_CoolingBase* cooling_model = solidliquid_layer->get_cooling_model();
+        const c_CoolingBase* cooling_model = layer->get_cooling_model();
         // The material at the layer's own (lumped) temperature, which is not the local temperature of the
-        // profile at this radius, so it is asked of the EOS model rather than read from the solution.
+        // profile at this radius, so it is asked of the material rather than read from the solution.
         c_MaterialState material;
-        if (const c_MaterialEOSBase* eos_model = layer->get_eos()) {
-            eos_model->calc_material_state(
-                pressure, thermal.temperature, solidliquid_layer->get_use_thermal_eos(), radius_mid, material);
-        }
+        c_layer_thermal_state(layer, pressure, thermal.temperature, radius_mid, material);
+        if (std::isfinite(material.thermal_conductivity)) { thermal.conductivity = material.thermal_conductivity; }
+        if (std::isfinite(material.heat_capacity))        { thermal.heat_capacity = material.heat_capacity; }
+        if (std::isfinite(material.thermal_expansion))    { thermal.thermal_expansion = material.thermal_expansion; }
 
         // A neighbor outside the network exchanges no heat, so there is no drop across that boundary layer.
         const double inner_temperature = ((layer_i > 0) && thermal_vec[layer_i - 1].in_network)
@@ -378,10 +385,8 @@ inline double c_update_layer_thermal(
         // The diffusivity uses the density the material has here, not a separate reference density.
         cooling_inputs.thermal_diffusivity  =
             thermal.conductivity / (cooling_inputs.density * thermal.heat_capacity);
-        // The expansivity at the layer's own state, which with an Anderson-Gruneisen law is below alpha0.
-        const c_MaterialEOSBase* layer_eos = layer->get_eos();
-        cooling_inputs.thermal_expansion    = (layer_eos != nullptr)
-            ? layer_eos->calc_thermal_expansion(cooling_inputs.density) : thermal.thermal_expansion;
+        // The expansivity at the layer's own state, which can fall with compression.
+        cooling_inputs.thermal_expansion    = thermal.thermal_expansion;
         const c_CoolingResult cooling_result = cooling_model->calc_cooling(cooling_inputs);
 
         thermal.rayleigh_number = cooling_result.rayleigh_number;
@@ -407,7 +412,7 @@ inline double c_update_layer_thermal(
         // interior's base, along the gravity of the solved structure.
         const double interior_base = radius_inner + (insulated_base ? 0.0 : boundary);
         thermal.base_temperature = thermal.temperature * std::exp(c_adiabat_exponent(
-            solution, layer_i, interior_base, radius_outer - boundary, thermal));
+            solution, layer, layer_i, interior_base, radius_outer - boundary, thermal));
     }
 
     // Heat generated in each layer, and in the conducting stretches on either side of its own temperature.
@@ -518,15 +523,13 @@ inline double c_update_layer_thermal(
     return largest_change;
 }
 
-// Turn the per-layer thermal description into the radial segments the solve integrates. The radii and the two
-// gradient coefficients are converted into the units the solve runs in.
+// Turn the per-layer thermal description into the radial segments the solve integrates, with the radii in the units
+// the solve runs in. The gradient within a segment comes from the material at each point of the integration.
 inline void c_build_thermal_segments(
         const std::vector<c_LayerThermal>& thermal_vec,
-        const std::vector<std::unique_ptr<c_BaseLayer>>& layers,
+        const std::vector<std::unique_ptr<c_Layer>>& layers,
         bool integrate_temperature,
         double length_scale,
-        double gravity_scale,
-        double density_scale,
         std::vector<c_EOSSegment>& out) {
     const std::size_t n_layers = layers.size();
     out.clear();
@@ -541,13 +544,6 @@ inline void c_build_thermal_segments(
         segment.layer_index      = layer_i;
         segment.upper_radius     = radius_outer / length_scale;
         segment.start_heat_flow  = thermal.heat_flow_in;
-        segment.conduction_coeff = (thermal.conductivity > TidalPyConstants::d_EPS)
-            ? 1.0 / (4.0 * TidalPyConstants::d_PI * thermal.conductivity * length_scale) : 0.0;
-        segment.adiabat_coeff = (thermal.heat_capacity > TidalPyConstants::d_EPS)
-            ? thermal.thermal_expansion * gravity_scale * length_scale / thermal.heat_capacity : 0.0;
-        segment.anderson_gruneisen_parameter = thermal.anderson_gruneisen_parameter;
-        segment.anderson_gruneisen_exponent  = thermal.anderson_gruneisen_exponent;
-        segment.expansion_reference_density  = thermal.expansion_reference_density / density_scale;
 
         const bool isothermal = (!integrate_temperature) || (thermal.kind == c_TemperatureKind::Isothermal);
         if (isothermal) {

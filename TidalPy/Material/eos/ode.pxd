@@ -26,8 +26,8 @@ cdef extern from "ode_.hpp" nogil:
         double G_to_use
         double planet_radius
         char*  eos_input_ptr
-        cpp_bool update_bulk
-        cpp_bool update_shear
+        cpp_bool full_state
+        cpp_bool thermal_state
 
     void c_eos_diffeq(
             double* dy_ptr,

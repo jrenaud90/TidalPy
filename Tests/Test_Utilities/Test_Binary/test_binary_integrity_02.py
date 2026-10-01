@@ -8,7 +8,7 @@ import pytest
 
 from TidalPy.Rheology import make_rheology
 from TidalPy.Structures import build_world
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Utilities.binary import check_binary_file
 
 
@@ -28,11 +28,11 @@ def make_sundberg_target():
 
 
 def make_layer():
-    return BaseLayer("probe", 0, 0.0, 1.0e6, 1.0e20)
+    return Layer("probe", 0, 0.0, 1.0e6, 1.0e20)
 
 
 def make_layer_target():
-    return BaseLayer("other", 0, 0.0, 2.0e6, 3.0e20)
+    return Layer("other", 0, 0.0, 2.0e6, 3.0e20)
 
 
 def make_world():

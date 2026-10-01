@@ -9,7 +9,7 @@ from TidalPy.constants import update_constants
 from TidalPy.Rheology import Maxwell
 from TidalPy.Cooling.cooling import ConductiveCooling
 from TidalPy.Radiogenics.radiogenics import FixedRadiogenics
-from TidalPy.Structures.layers.base import BaseLayer
+from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Rheology import Elastic
 from TidalPy.RadialSolver.solver import radial_solver
@@ -122,8 +122,8 @@ def test_restoring_the_floor_restores_the_result(numerical_setter):
 def _two_layer_world(gap):
     """A world whose outer layer starts `gap` meters above the inner layer's 1e6 m outer radius."""
     world = BaseWorld("continuity", 2.0e6, 1.0e23)
-    world.add_layer(BaseLayer("inner", 0, 0.0, 1.0e6, 5.0e22))
-    return world, BaseLayer("outer", 1, 1.0e6 + gap, 2.0e6, 5.0e22)
+    world.add_layer(Layer("inner", 0, 0.0, 1.0e6, 5.0e22))
+    return world, Layer("outer", 1, 1.0e6 + gap, 2.0e6, 5.0e22)
 
 
 def test_continuity_rtol_decides_whether_a_gap_is_accepted(numerical_setter):
@@ -255,41 +255,22 @@ def test_minimum_nusselt_floors_the_convection_model(numerical_setter):
     assert at_three.cooling_flux == pytest.approx(1.5 * at_default.cooling_flux)
 
 
-@pytest.mark.parametrize("model_name", ("birch_murnaghan", "vinet"))
-def test_eos_inversion_default_comes_from_the_config(numerical_setter, model_name):
-    """Every way of building a compressible EOS takes and stores the configured inversion settings."""
-    from TidalPy.Material.eos.material_eos import BirchMurnaghanEOS, VinetEOS, make_material_eos
-    eos_class = BirchMurnaghanEOS if model_name == "birch_murnaghan" else VinetEOS
+def _pressure_law(model_name="birch_murnaghan", **extra):
+    from TidalPy.Material.laws import make_eos
+    return make_eos(model_name, dict({"reference_density_kg_m3": 3500.0, "reference_bulk_modulus_pa": 1.3e11,
+                                      "bulk_modulus_derivative": 4.5}, **extra))
+
+
+def test_eos_inversion_default_comes_from_the_config(numerical_setter):
+    """A pressure law left unset takes the configured inversion settings when it is built; an explicit value wins."""
     numerical_setter("eos_invert_rtol", 1.0e-9)
     numerical_setter("eos_invert_max_iters", 25)
-    built = (eos_class(3500.0, 1.3e11, 4.5),
-             make_material_eos(model_name, {"reference_density_kg_m3": 3500.0}),
-             make_material_eos(model_name))
-    for eos in built:
-        assert (eos.invert_rtol, eos.invert_max_iters) == (1.0e-9, 25)
-        config = eos.get_config_dict()
-        assert (config["invert_rtol"], config["invert_max_iters"]) == (1.0e-9, 25)
-
-
-def test_eos_inversion_is_fixed_when_the_model_is_built(numerical_setter):
-    """A later config change reaches new EOS models only, and an explicit value always wins."""
-    from TidalPy.Material.eos.material_eos import BirchMurnaghanEOS
-    numerical_setter("eos_invert_rtol", 1.0e-9)
-    existing = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5)
-    explicit = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5, invert_rtol=1.0e-11, invert_max_iters=80)
-    numerical_setter("eos_invert_rtol", 1.0e-7)
-    assert existing.invert_rtol == 1.0e-9
-    assert BirchMurnaghanEOS(3500.0, 1.3e11, 4.5).invert_rtol == 1.0e-7
-    assert (explicit.invert_rtol, explicit.invert_max_iters) == (1.0e-11, 80)
-
-
-def test_eos_inversion_tolerance_changes_the_density(numerical_setter):
-    """A one step, loose inversion returns a different density than a tight one."""
-    from TidalPy.Material.eos.material_eos import BirchMurnaghanEOS
-    pressure = 5.0e10
-    numerical_setter("eos_invert_rtol", 1.0e-13)
-    tight = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5)
+    loose = _pressure_law()
     numerical_setter("eos_invert_rtol", 1.0e-1)
     numerical_setter("eos_invert_max_iters", 1)
-    loose = BirchMurnaghanEOS(3500.0, 1.3e11, 4.5)
-    assert tight.calc_density(pressure, 300.0) != loose.calc_density(pressure, 300.0)
+    pressure = 5.0e10
+    # The unset settings were resolved when each law was built, so the laws built before and after differ.
+    assert _pressure_law().calc_density(pressure) != loose.calc_density(pressure)
+    explicit = _pressure_law(invert_rtol=1.0e-13, invert_max_iters=100)
+    assert explicit.get_config_dict()["invert_rtol"] == 1.0e-13
+    assert explicit.calc_density(pressure) == pytest.approx(loose.calc_density(pressure), rel=1.0e-8)

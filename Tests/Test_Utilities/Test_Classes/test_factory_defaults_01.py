@@ -5,8 +5,6 @@ import pytest
 
 import TidalPy
 from TidalPy.Cooling.cooling import make_cooling
-from TidalPy.Material.eos.material_eos import make_material_eos
-from TidalPy.PartialMelt.partial_melt import make_partial_melt
 from TidalPy.Radiogenics import radiogenics as radiogenics_module
 from TidalPy.Radiogenics.radiogenics import make_radiogenics
 from TidalPy.Rheology.rheology import make_rheology
@@ -76,18 +74,11 @@ def test_every_family_takes_its_own_table(config):
     """Each factory family reads its own default table."""
     default = config["layers"]["default"]
     default["material"]["shear_viscosity"]["reference_viscosity_pas"] = 4.0e20
-    default["material"]["partial_melt"]["solidus_k"] = 1234.0
     default["cooling"]["critical_rayleigh"] = 999.0
-    default["material"]["shear_modulus_static_pa"] = 7.7e10
     config["tides"]["fixed_q"] = [33.0]
 
     assert make_viscosity("reference").reference_viscosity == 4.0e20
-    assert make_partial_melt("henning").solidus == 1234.0
     assert make_cooling("convection").critical_rayleigh == 999.0
-    material = make_material_eos("constant")
-    assert material.shear_modulus_static == 7.7e10
-    # The material's nested model tables are attached as the world builder attaches them.
-    assert material.shear_viscosity_set and material.partial_melt_set
     assert make_tide("fixed_q").get_config_dict()["fixed_q"][0] == 33.0
 
 
