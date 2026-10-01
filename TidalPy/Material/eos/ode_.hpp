@@ -42,13 +42,17 @@ struct c_EOSMaterialState
 
 /// A stretch of a layer over which the temperature gradient keeps one form. A layer is one segment unless
 /// its temperature profile has a kink, which is where the adaptive stepper would otherwise lose its order.
+///
+/// The top is a radius on the geometry the segments were laid out on (c_EOSLayerBounds). A layer that holds its mass
+/// ends each segment where its enclosed mass reaches a fraction of that mass instead, so its segments move with it.
 struct c_EOSSegment
 {
-    double            upper_radius      = 0.0;                            // segment top [solve units]
-    size_t            layer_index       = 0;                              // the layer this segment belongs to
-    c_TemperatureKind temperature_kind  = c_TemperatureKind::Isothermal;
-    double            start_temperature = TidalPyConstants::d_NAN;        // [K]; NaN continues from below
-    double            start_heat_flow   = 0.0;                            // [W] entering the segment's base
+    double            upper_radius        = 0.0;                          // segment top [solve units]
+    size_t            layer_index         = 0;                            // the layer this segment belongs to
+    double            upper_mass_fraction = 1.0;                          // of a mass-held layer's mass, at the top
+    c_TemperatureKind temperature_kind    = c_TemperatureKind::Isothermal;
+    double            start_temperature   = TidalPyConstants::d_NAN;      // [K]; NaN continues from below
+    double            start_heat_flow     = 0.0;                          // [W] entering the segment's base
 };
 
 /// Heat generated inside the planet, as the thermal structure ODE reads it. Abstract so this header stays
@@ -79,7 +83,21 @@ struct c_EOS_ODEInput
     // Heat sources of a thermal solve, non-owning and null for none.
     const c_EOSHeatingBase* heating_ptr = nullptr;
     size_t layer_index = 0;
+    // The two events that can end a piece of the integration (c_solve_eos): the enclosed mass [solve units] at which a
+    // layer holding its mass, or one of its segments, ends, and the shear modulus [Pa] at or below which the
+    // material counts as a liquid (the rigidity margin, read by the layer's state event).
+    double target_mass           = TidalPyConstants::d_NAN;
+    double minimum_shear_modulus = 0.0;
 };
+
+
+/// CyRK EventFunc: zero where the enclosed mass reaches the input's target mass.
+inline double c_eos_mass_event(double radius, double* y_ptr, char* input_args) noexcept
+{
+    (void)radius;
+    const c_EOS_ODEInput* eos_input_ptr = reinterpret_cast<const c_EOS_ODEInput*>(input_args);
+    return y_ptr[2] - eos_input_ptr->target_mass;
+}
 
 
 /// The four structure derivatives of a self-gravitating spherically symmetric body in hydrostatic

@@ -134,17 +134,21 @@ def test_a_molten_middle_matches_the_layers_declared_one_by_one():
 
 
 def test_a_liquid_layer_is_not_split():
-    """A layer declared liquid is solved whole and reports no molten region."""
+    """A layer declared liquid is solved whole and reports no molten region. Whether a layer can change state decides
+    whether the solve looks for its zones, so a change between auto and a forced state needs a new solve."""
     world = _world({"middle": _layer(1, _MIDDLE_TOP, 2000.0, _solid_material(3500.0, 6.0e10, 1.0e19, _SHARP_MELT),
                                      cooling="conduction")})
     world.solve_eos(solve_temperature=True, surface_temperature=1000.0)
     assert len(world.molten_regions) == 1
     solid_answer = _love(world)
     world.middle.state = "liquid"
+    assert not world.eos_solved
+    world.solve_eos(solve_temperature=True, surface_temperature=1000.0)
     assert world.molten_regions == []
     liquid_answer = _love(world)
     assert liquid_answer[0] != solid_answer[0]
     world.middle.state = "auto"
+    world.solve_eos(solve_temperature=True, surface_temperature=1000.0)
     assert _love(world) == solid_answer
 
 

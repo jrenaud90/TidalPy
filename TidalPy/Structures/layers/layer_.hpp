@@ -76,7 +76,7 @@ private:
 };
 
 // How the radial solver treats a layer. Auto takes it from the material: a liquid-only material is liquid, any other
-// is solid, with its molten stretches (a melting material past its rigidity threshold) solved as static liquids.
+// is solid, split into liquid zones where it melts past its rigidity threshold (c_BaseWorld::get_zones).
 enum class c_LayerState : uint8_t {
     Auto   = 0,
     Solid  = 1,
@@ -355,11 +355,15 @@ public:
 
     // How the radial solver treats the layer.
     c_LayerState get_state() const noexcept { return this->p_state; }
-    // The radial solver reads it afresh at every Love solve, so the EOS solve stands; it takes the owner's call lock so
-    // it never changes under a solve.
+    // The radial solver reads it afresh at every Love solve, so the EOS solve stands, unless the change decides whether
+    // the layer can change state (get_can_change_state): the EOS solve finds its solid and liquid zones only where it
+    // can, so then the owning world forgets its solved structure. Takes the owner's call lock so it never changes
+    // under a solve.
     void set_state(c_LayerState state) {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        const bool could_change_state = this->get_can_change_state();
         this->p_state = state;
+        if (could_change_state != this->get_can_change_state()) { this->p_update_owner_after_change(); }
     }
 
     // Whether the radial solver treats the whole layer as a liquid: a layer set liquid, or an automatic one made of a

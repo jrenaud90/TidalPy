@@ -16,6 +16,14 @@ cdef extern from "../../Utilities/dimensions/nondimensional_.hpp" nogil:
 
 cdef extern from "eos_solution_.hpp" nogil:
 
+    cdef cppclass c_EOSZone:
+        size_t layer_index
+        double radius_inner
+        double radius_outer
+        double mass_inner
+        double mass_outer
+        cpp_bool liquid
+
     cdef cppclass c_EOSSolution:
         int error_code
         int iterations

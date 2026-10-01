@@ -57,12 +57,15 @@ schema_version = "{SCHEMA_VERSION}"
     maximum_frequency = 1.0e8
     # Material floor: a modulus below this is treated as zero.
     minimum_modulus = 1.0e-3
-    # A layer whose state can change (state "auto", use_melting on, and a material that melts) is solved by the radial
-    # solver as a static liquid wherever its post-melt rigidity mu / (rho g R) (planet bulk density, surface gravity,
-    # and radius) falls to this or below. The solid equations divide by the shear modulus, so a near-fluid solid
-    # cannot be integrated, while treating it as liquid changes the Love numbers by about this fraction. Applied when
-    # the EOS is solved.
+    # A layer whose state can change (state "auto", use_melting on, and a material that melts) is split by the EOS solve
+    # into solid and liquid zones, liquid wherever its post-melt rigidity mu / (rho g R) (the world's stated bulk
+    # density, surface gravity, and radius) falls to this or below. The solid equations divide by the shear modulus, so
+    # a near-fluid solid cannot be integrated, while treating it as liquid changes the Love numbers by about this
+    # fraction.
     minimum_solid_rigidity = 1.0e-6
+    # Thinnest solid or liquid zone, as a fraction of the world radius, that the radial solver integrates as a layer of
+    # its own; a thinner zone takes the state of its thicker neighbor (about 0.6 m in an Earth-sized world).
+    minimum_zone_fraction = 1.0e-7
     # Geometry floor: a layer thinner than this is ignored.
     minimum_layer_thickness = 0.1
     # Smallest magnitude a denominator may take before a guard substitutes it. Applies wherever a
@@ -151,8 +154,8 @@ schema_version = "{SCHEMA_VERSION}"
     nondimensionalize = true
     # Radial samples per layer in the profile a solve reports (its arrays and each layer's hand-set fallback).
     # The Love solves and every profile getter evaluate the solve's dense output at the exact radius, and the
-    # search for molten stretches refines between the samples, so their answers do not depend on this, and raising
-    # it only costs time.
+    # integration itself finds the edges of the solid and liquid zones, so their answers do not depend on this, and
+    # raising it only costs time.
     slices_per_layer = 100
 
 

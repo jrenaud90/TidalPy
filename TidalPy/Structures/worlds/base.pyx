@@ -86,8 +86,28 @@ cdef cnp.ndarray cy_vec_to_ndarray(const vector[double]& v):
             mv[i] = v[i]
     return out
 
+# The names of a world's layers, inner to outer.
+cdef list cy_layer_names(c_BaseWorld* world_ptr):
+    cdef size_t layer_i
+    return [world_ptr.get_layer(layer_i).get_name().decode("utf-8") for layer_i in range(world_ptr.get_num_layers())]
+
+# The solid and liquid zones of a solve as dicts: the layer's name, the radii [m] and enclosed masses [kg] at the zone's
+# two ends, and its state ("solid" or "liquid").
+cdef list cy_zones_to_list(const vector[c_EOSZone]& zones, list layer_names):
+    cdef size_t zone_i
+    cdef list out = []
+    for zone_i in range(zones.size()):
+        out.append({
+            'layer':        layer_names[zones[zone_i].layer_index],
+            'radius_inner': zones[zone_i].radius_inner,
+            'radius_outer': zones[zone_i].radius_outer,
+            'mass_inner':   zones[zone_i].mass_inner,
+            'mass_outer':   zones[zone_i].mass_outer,
+            'state':        'liquid' if zones[zone_i].liquid else 'solid'})
+    return out
+
 # The solve_eos result dict from a report copied under the world's call lock (c_BaseWorld::get_eos_report).
-cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
+cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names):
     cdef size_t j
     cdef size_t num_layers = report.layer_thermal.size()
     cdef list layer_temperature        = []
@@ -106,6 +126,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
     cdef list layer_ref_viscosity      = []
     cdef list layer_ref_melt_fraction  = []
     cdef list layer_in_thermal_network = []
+    cdef list layer_latent_capacity    = []
     for j in range(num_layers):
         layer_temperature.append(report.layer_thermal[j].temperature)
         layer_heat_flow_in.append(report.layer_thermal[j].heat_flow_in)
@@ -123,6 +144,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
         layer_ref_viscosity.append(report.layer_thermal[j].reference_viscosity)
         layer_ref_melt_fraction.append(report.layer_thermal[j].reference_melt_fraction)
         layer_in_thermal_network.append(bool(report.layer_thermal[j].in_network))
+        layer_latent_capacity.append(report.layer_thermal[j].latent_capacity)
 
     return {
         'success':          bool(report.success),
@@ -145,7 +167,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
         'heat_flow':        cy_vec_to_ndarray(report.heat_flow),
         'thermal_passes':   report.thermal_passes,
         'thermal_converged':      bool(report.thermal_converged),
-        'geometry_converged':     bool(report.geometry_converged),
+        'zones':                  cy_zones_to_list(report.zones, layer_names),
         'layer_radius_outer':     list(report.layer_radius_outer),
         'layer_temperature':      layer_temperature,
         'layer_heat_flow_in':     layer_heat_flow_in,
@@ -164,6 +186,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
         'layer_reference_viscosity':     layer_ref_viscosity,
         'layer_reference_melt_fraction': layer_ref_melt_fraction,
         'layer_in_thermal_network': layer_in_thermal_network,
+        'layer_latent_capacity':    layer_latent_capacity,
     }
 
 
@@ -1124,7 +1147,9 @@ cdef class BaseWorld(StructureBase):
             radiogenics models share. ``None`` takes each model's own reference time.
         reset_layer_masses : bool, optional
             A layer that holds its mass (``is_volume_fixed = False``) forgets the mass it holds and takes the
-            mass its current boundaries hold in this solve. Default False.
+            mass its current boundaries hold in this solve. Default False. A layer that holds its mass ends where it
+            encloses that mass, which the integration finds itself; the layers above it move with it, keeping their
+            volumes, and the world's radius becomes the top of the outermost layer.
 
         Returns
         -------
@@ -1133,7 +1158,8 @@ cdef class BaseWorld(StructureBase):
             profile arrays (``radius``, ``gravity``, ``pressure``, ``mass``, ``moi``, ``density``,
             ``temperature``, ``heat_flow``), the scalar results (``surface_gravity``, ``surface_pressure``,
             ``central_pressure``, ``planet_mass``, ``planet_moi``), the iteration report (``thermal_passes``,
-            ``thermal_converged``, ``geometry_converged``), and the per-layer results (``layer_radius_outer``
+            ``thermal_converged``), the solid and liquid zones (``zones``, as :attr:`zones` reports them), and the
+            per-layer results (``layer_radius_outer``
             [m], ``layer_temperature`` [K], ``layer_heat_flow_in`` and ``layer_heat_flow_out`` [W],
             ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1], ``layer_node_temperature``,
             ``layer_top_temperature``, and ``layer_base_temperature`` [K] (the two ends of a convecting interior,
@@ -1142,8 +1168,10 @@ cdef class BaseWorld(StructureBase):
             [Pa], ``layer_reference_viscosity`` [Pa s], and ``layer_reference_melt_fraction``, at the top of its
             interior and its own temperature; NaN for the other layers), ``layer_magma_ocean`` (a convecting
             interior liquid there, which takes the liquid scaling), ``layer_boundary_fallback`` (a convecting layer
-            whose cooling model gave no boundary-layer thickness, so each took the largest share it may), and
-            ``layer_in_thermal_network``).
+            whose cooling model gave no boundary-layer thickness, so each took the largest share it may),
+            ``layer_in_thermal_network``, and ``layer_latent_capacity`` [J K-1] (the latent heat the boundaries
+            between a layer's solid and liquid zones absorb per kelvin of its temperature, where its material melts
+            at one temperature; it adds to the layer's heat capacity in ``layer_temperature_rate``)).
 
         Raises
         ------
@@ -1200,11 +1228,11 @@ cdef class BaseWorld(StructureBase):
                 f"may have no hydrostatic structure at this radius and mass; otherwise raise max_iters, or keep "
                 f"pressure_tol above the integration rtol ({cfg.rtol:0.1e}).")
 
-        return cy_eos_report_to_dict(report)
+        return cy_eos_report_to_dict(report, cy_layer_names(self._world_ptr.get()))
 
     def _build_eos_result(self):
         """The result dict of the last ``solve_eos``, from a copy of the solution taken under the world's call lock."""
-        return cy_eos_report_to_dict(self._world_ptr.get().get_eos_report())
+        return cy_eos_report_to_dict(self._world_ptr.get().get_eos_report(), cy_layer_names(self._world_ptr.get()))
 
     @property
     def eos_solved(self) -> bool:
@@ -1419,23 +1447,34 @@ cdef class BaseWorld(StructureBase):
         return self._world_ptr.get().get_planet_moi_eos()
 
     @property
-    def molten_regions(self) -> list:
-        """Molten stretches of solid layers from the last EOS solve, as ``(layer_name, radius_inner, radius_outer)``.
+    def zones(self) -> list:
+        """The solid and liquid zones of the last EOS solve, inner to outer, as dicts with ``layer`` (the layer's
+        name), ``radius_inner`` and ``radius_outer`` [m], ``mass_inner`` and ``mass_outer`` (the enclosed mass at each
+        end) [kg], and ``state`` (``"solid"`` or ``"liquid"``).
 
-        A stretch is molten where melting has weakened the layer's material past use as a solid (a layer with
-        ``use_melting`` whose material melts): its post-melt rigidity mu / (rho g R) (planet bulk density, surface
-        gravity, and radius) is at or below the ``[numerical]`` ``minimum_solid_rigidity`` of the TidalPy
-        configuration. The radial solver splits the layer at the stretch's edges and solves the stretch as a static
-        liquid. Radii in [m]; empty before an EOS solve or when nothing is molten.
+        Each layer is one zone unless its material changed state inside it (a layer with ``use_melting`` and
+        ``state = "auto"`` whose material melts). The EOS solve finds each boundary as it integrates: where the
+        material's post-melt rigidity mu / (rho g R) (the world's stated bulk density, surface gravity, and radius)
+        crosses the ``[numerical]`` ``minimum_solid_rigidity`` of the TidalPy configuration. A zone thinner than
+        ``[numerical] minimum_zone_fraction`` of the world's radius takes the state of its thicker neighbor. The radial
+        solver integrates each zone as a layer of its own, with the liquid equations in a liquid zone and the layer's
+        ``is_static`` and ``is_incompressible`` choices. Empty before an EOS solve.
         """
-        cdef vector[c_RadialSegment] segments = self._world_ptr.get().get_molten_regions()
-        cdef size_t segment_i
+        return cy_zones_to_list(self._world_ptr.get().get_zones_copy(), cy_layer_names(self._world_ptr.get()))
+
+    @property
+    def molten_regions(self) -> list:
+        """The liquid zones of layers that are not liquid throughout (the stretches melting made liquid, see
+        :attr:`zones`), as ``(layer_name, radius_inner, radius_outer)`` with radii in [m]. Empty before an EOS solve
+        or when nothing is molten.
+        """
+        cdef vector[c_EOSZone] zones = self._world_ptr.get().get_molten_regions()
+        cdef size_t zone_i
+        cdef list layer_names = cy_layer_names(self._world_ptr.get())
         regions = []
-        for segment_i in range(segments.size()):
-            regions.append((
-                self._world_ptr.get().get_layer(segments[segment_i].world_layer).get_name().decode("utf-8"),
-                segments[segment_i].radius_inner,
-                segments[segment_i].radius_outer))
+        for zone_i in range(zones.size()):
+            regions.append((layer_names[zones[zone_i].layer_index], zones[zone_i].radius_inner,
+                            zones[zone_i].radius_outer))
         return regions
 
     # Spin dynamics (the Spin model attached to the world; uses the world's EOS moment of inertia)
@@ -2258,9 +2297,10 @@ cdef class BaseWorld(StructureBase):
         With ``latitude_summed``, ``longitude_summed``, and ``orbit_averaged`` the colatitude integral uses the
         precomputed analytic angular Gram table of the longitude mean (exact, no theta grid);
         ``latitude_analytic=False`` falls back to the Gauss-Legendre quadrature, which agrees to quadrature accuracy,
-        and a call that keeps its longitudes always uses the quadrature. A point in a liquid (or a molten stretch) has
-        zero heating. A latitude band can be integrated instead of the full sphere by setting ``colatitude_min`` and
-        ``colatitude_max`` [rad] (defaults 0 and pi), so complementary bands add up to the full-sphere result; a band
+        and a call that keeps its longitudes always uses the quadrature. A point in a liquid (a liquid layer or a liquid
+        zone, see :attr:`zones`) has zero heating. A latitude band can be integrated instead of the full sphere by
+        setting ``colatitude_min`` and ``colatitude_max`` [rad] (defaults 0 and pi), so complementary bands add up to
+        the full-sphere result; a band
         narrower than the full sphere always uses the quadrature. The band has no effect when colatitude is not summed.
 
         ``num_threads`` spreads the radial solves (one per degree and frequency, from ``[numerical]``

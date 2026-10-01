@@ -50,6 +50,11 @@
  * Both follow from the heating and the solved density alone, so they are found by quadrature against the last
  * structure and the network stays a chain of resistances between effective temperatures.
  *
+ * A material that melts at one temperature carries no latent heat in its heat capacity (there is no range to spread
+ * it over), so a boundary between the solid and liquid zones of a layer carries it instead: as the layer's temperature
+ * changes the boundary moves and melts or freezes mass, which adds a latent-heat capacity to the layer's temperature
+ * rate (a Stefan condition, c_zone_boundary_latent_capacity).
+ *
  * References
  * ----------
  * - Turcotte and Schubert (2002), Geodynamics: boundary-layer convection and the Nusselt scaling.
@@ -95,6 +100,11 @@ inline const c_StretchQuadrature& c_stretch_quadrature() {
 struct c_LayerThermal {
     c_TemperatureKind kind = c_TemperatureKind::Isothermal;
 
+    // The layer's radii [m] in the current pass: its own, or where the last pass put it when a layer below holds its
+    // mass (and so moves every layer above it).
+    double radius_inner = 0.0;
+    double radius_outer = 0.0;
+
     // False for a layer with no temperature of its own: its interfaces are insulating (see the header comment).
     bool in_network = true;
     // True when the cooling model gave no usable boundary-layer thickness (a NaN viscosity, say), so the
@@ -134,6 +144,10 @@ struct c_LayerThermal {
     double conductivity      = TidalPyConstants::d_NAN;   // k     [W m-1 K-1]
     double thermal_expansion = TidalPyConstants::d_NAN;   // alpha [K-1]
     double heat_capacity     = TidalPyConstants::d_NAN;   // c_p   [J kg-1 K-1], latent heat included
+
+    // The latent heat the boundaries between the layer's solid and liquid zones absorb per kelvin of the layer's
+    // temperature [J K-1], where its material melts at one temperature (c_zone_boundary_latent_capacity).
+    double latent_capacity = 0.0;
 };
 
 // True when no heat crosses a layer's base: the innermost layer (the center carries no flow) or one above a layer
@@ -177,6 +191,8 @@ inline void c_init_layer_thermal(
         const c_Layer* layer = layers[layer_i].get();
         c_LayerThermal& thermal  = out[layer_i];
 
+        thermal.radius_inner = layer->get_radius_inner();
+        thermal.radius_outer = layer->get_radius_outer();
         thermal.temperature = std::isfinite(temperature_override) ? temperature_override : layer->get_temperature();
         thermal.in_network  = std::isfinite(thermal.temperature) && (thermal.temperature > 0.0);
         thermal.top_temperature  = thermal.temperature;
@@ -259,17 +275,21 @@ inline void c_stretch_heating(
 }
 
 // The shear modulus [Pa] at or below which a material behaves as a liquid: the radial solver's minimum_solid_rigidity
-// times the planet's rigidity scale rho g R (bulk density, surface gravity, radius), the same threshold that makes a
-// molten stretch of a layer a liquid to the Love solve. Zero when the solve or the config gives no scale.
-inline double c_liquid_shear_threshold(const c_EOSSolution& solution) noexcept {
-    const double planet_radius = solution.radius;
-    const double planet_volume = (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
-    const double rigidity_scale = (planet_volume > TidalPyConstants::d_EPS)
-        ? (solution.mass / planet_volume) * solution.surface_gravity * planet_radius : 0.0;
+// times the rigidity scale rho g R = 3 G M^2 / (4 pi R^4) of a planet of mass M [kg] and radius R [m] (bulk density,
+// surface gravity, radius). Zero when the config or the planet gives no scale.
+inline double c_liquid_shear_threshold(double mass, double radius, double G) noexcept {
+    const double rigidity_scale = (radius > TidalPyConstants::d_EPS)
+        ? 3.0 * G * mass * mass / (4.0 * TidalPyConstants::d_PI * radius * radius * radius * radius) : 0.0;
     const double min_rigidity = (tidalpy_config_ptr != nullptr)
         ? tidalpy_config_ptr->d_MIN_SOLID_RIGIDITY : TidalPyConstants::d_NAN;
     const double threshold = min_rigidity * rigidity_scale;
     return (std::isfinite(threshold) && (threshold > 0.0)) ? threshold : 0.0;
+}
+
+// The threshold a solve took its zones with (c_EOSSolution::liquid_shear_threshold): the same one, from the world's
+// stated mass and radius, so the Love solve and the thermal network agree with the zones the integration found.
+inline double c_liquid_shear_threshold(const c_EOSSolution& solution) noexcept {
+    return solution.liquid_shear_threshold;
 }
 
 // The thermal network's view of one layer for its cooling model: the solved structure at a radius, and the layer's
@@ -375,8 +395,8 @@ inline double c_update_layer_thermal(
         }
 
         c_LayerThermalContext context;
-        context.radius_inner       = layer->get_radius_inner();
-        context.radius_outer       = layer->get_radius_outer();
+        context.radius_inner       = thermal.radius_inner;
+        context.radius_outer       = thermal.radius_outer;
         context.temperature        = thermal.temperature;
         context.base_temperature   = thermal.base_temperature;
         context.boundary_thickness = thermal.boundary_thickness;
@@ -425,8 +445,8 @@ inline double c_update_layer_thermal(
         thermal.heating_drop_top    = 0.0;
         if (!heated) { continue; }
 
-        const double radius_inner = layers[layer_i]->get_radius_inner();
-        const double radius_outer = layers[layer_i]->get_radius_outer();
+        const double radius_inner = thermal.radius_inner;
+        const double radius_outer = thermal.radius_outer;
         double unused_drop = 0.0;
         c_stretch_heating(
             solution, *heating_ptr, layer_i, radius_inner, radius_outer, 0.0, thermal.heating, unused_drop);
@@ -524,21 +544,21 @@ inline double c_update_layer_thermal(
 }
 
 // Turn the per-layer thermal description into the radial segments the solve integrates, with the radii in the units
-// the solve runs in. The gradient within a segment comes from the material at each point of the integration.
+// the solve runs in, on each layer's radii in the current pass. The gradient within a segment comes from the material
+// at each point of the integration.
 inline void c_build_thermal_segments(
         const std::vector<c_LayerThermal>& thermal_vec,
-        const std::vector<std::unique_ptr<c_Layer>>& layers,
         bool integrate_temperature,
         double length_scale,
         std::vector<c_EOSSegment>& out) {
-    const std::size_t n_layers = layers.size();
+    const std::size_t n_layers = thermal_vec.size();
     out.clear();
     out.reserve(3 * n_layers);
 
     for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
         const c_LayerThermal& thermal = thermal_vec[layer_i];
-        const double radius_inner = layers[layer_i]->get_radius_inner();
-        const double radius_outer = layers[layer_i]->get_radius_outer();
+        const double radius_inner = thermal.radius_inner;
+        const double radius_outer = thermal.radius_outer;
 
         c_EOSSegment segment;
         segment.layer_index      = layer_i;
@@ -604,6 +624,108 @@ inline void c_build_thermal_segments(
         upper.upper_radius      = radius_outer / length_scale;
         out.push_back(upper);
     }
+}
+
+// How far the temperature [K] at a radius [m] of a layer moves per kelvin of the layer's own temperature, with its
+// neighbors' interface temperatures held: one in an isothermal layer, T(r) / T along an adiabatic interior (which
+// scales with the temperature at its top), and in a conducting stretch the fraction of the way from the interface at
+// its far end to the end the layer holds, scaled by how that end moves. A stretch whose far end is an insulated base
+// moves with the layer.
+inline double c_temperature_sensitivity(
+        const std::vector<c_LayerThermal>& thermal_vec,
+        std::size_t layer_index,
+        double radius,
+        double temperature) noexcept {
+    const c_LayerThermal& thermal = thermal_vec[layer_index];
+    const double layer_temperature = thermal.temperature;
+    if ((thermal.kind == c_TemperatureKind::Isothermal) || !(layer_temperature > 0.0)) { return 1.0; }
+    const bool insulated_base = c_base_is_insulated(thermal_vec, layer_index);
+    const double node_below = insulated_base ? TidalPyConstants::d_NAN
+        : thermal_vec[layer_index - 1].node_temperature;
+    const double node_above = thermal.node_temperature;
+
+    // The fraction of the way from a stretch's far end to the end the layer holds, times how that end moves.
+    const auto stretch = [temperature](double far_end, double held_end, double held_scale) {
+        const double span = held_end - far_end;
+        if (!std::isfinite(far_end) || !(std::fabs(span) > TidalPyConstants::d_EPS)) { return held_scale; }
+        return held_scale * (temperature - far_end) / span;
+    };
+    const double interior_scale = temperature / layer_temperature;
+    double sensitivity = interior_scale;
+    if (thermal.kind == c_TemperatureKind::Conductive) {
+        const double radius_mid = 0.5 * (thermal.radius_inner + thermal.radius_outer);
+        sensitivity = (radius >= radius_mid)
+            ? stretch(node_above, layer_temperature, 1.0)
+            : (insulated_base ? interior_scale : stretch(node_below, layer_temperature, 1.0));
+    } else {
+        const double boundary_bottom = insulated_base ? 0.0 : thermal.boundary_thickness;
+        if (radius > thermal.radius_outer - thermal.boundary_thickness) {
+            sensitivity = stretch(node_above, layer_temperature, 1.0);
+        } else if (radius < thermal.radius_inner + boundary_bottom) {
+            sensitivity = stretch(node_below, thermal.base_temperature, thermal.base_temperature / layer_temperature);
+        }
+    }
+    return std::isfinite(sensitivity) ? std::max(sensitivity, 0.0) : 1.0;
+}
+
+// The latent heat [J K-1] a boundary between a solid and a liquid zone of one layer absorbs per kelvin of the layer's
+// temperature, where the layer's material melts at one temperature T_m(P) (a step; a material with a melting range
+// spreads its latent heat over its heat capacity instead). The boundary sits where G(r) = T(r) - T_m(P(r)) = 0, and
+// moves by dr_b/dT = -(dG/dT) / (dG/dr), so the liquid mass changes by 4 pi r_b^2 rho |dr_b/dT| per kelvin:
+//     C_latent = L 4 pi r_b^2 rho_solid S / |dG/dr|,
+// with S the temperature sensitivity at the boundary (c_temperature_sensitivity) and dG/dr a central difference
+// across the boundary. Zero where the material melts over a range or the boundary does not move.
+//
+// Assumptions: the neighbors' interface temperatures hold while the layer's own temperature changes, and the melt
+// that forms takes the solid's density at the boundary.
+struct c_ZoneBoundary {
+    std::size_t layer_index = 0;
+    double radius = 0.0;        // [m]
+    double half_width = 0.0;    // of the central difference across it, inside both zones [m]
+    bool solid_below = true;    // the solid zone is the one beneath it
+};
+
+inline double c_zone_boundary_latent_capacity(
+        const c_EOSSolution& solution,
+        const c_Material& material,
+        const c_MaterialSwitches& switches,
+        const std::vector<c_LayerThermal>& thermal_vec,
+        const c_ZoneBoundary& boundary) {
+    const std::size_t layer_index = boundary.layer_index;
+    const double boundary_radius  = boundary.radius;
+    const double half_width       = boundary.half_width;
+    const bool solid_below        = boundary.solid_below;
+    const double latent_heat = material.get_latent_heat();
+    if (!(latent_heat > 0.0) || !(half_width > 0.0)) { return 0.0; }
+    double state[C_EOS_DY_VALUES];
+    solution.call_si(layer_index, boundary_radius, state);
+    double solidus  = TidalPyConstants::d_NAN;
+    double liquidus = TidalPyConstants::d_NAN;
+    material.calc_melting_range(state[C_EOS_PRESSURE_INDEX], switches, solidus, liquidus);
+    if (!std::isfinite(solidus) || (liquidus - solidus > TidalPyConstants::d_EPS)) { return 0.0; }
+
+    // G on each side of the boundary.
+    const auto margin = [&](double radius) {
+        double side[C_EOS_DY_VALUES];
+        solution.call_si(layer_index, radius, side);
+        double side_solidus  = TidalPyConstants::d_NAN;
+        double side_liquidus = TidalPyConstants::d_NAN;
+        material.calc_melting_range(side[C_EOS_PRESSURE_INDEX], switches, side_solidus, side_liquidus);
+        return side[C_EOS_TEMPERATURE_INDEX] - side_solidus;
+    };
+    const double margin_slope = (margin(boundary_radius + half_width) - margin(boundary_radius - half_width))
+        / (2.0 * half_width);   // [K m-1]
+    if (!(std::fabs(margin_slope) > TidalPyConstants::d_EPS)) { return 0.0; }
+
+    // The solid's density beside the boundary, where the material is unambiguously solid.
+    double solid_state[C_EOS_DY_VALUES];
+    const double solid_radius = solid_below ? boundary_radius - half_width : boundary_radius + half_width;
+    solution.call_si(layer_index, solid_radius, solid_state);
+    const double sensitivity = c_temperature_sensitivity(
+        thermal_vec, layer_index, boundary_radius, state[C_EOS_TEMPERATURE_INDEX]);
+    const double capacity = latent_heat * 4.0 * TidalPyConstants::d_PI * boundary_radius * boundary_radius
+        * solid_state[C_EOS_DENSITY_INDEX] * sensitivity / std::fabs(margin_slope);
+    return std::isfinite(capacity) ? capacity : 0.0;
 }
 
 }  // namespace tidalpy

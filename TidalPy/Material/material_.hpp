@@ -391,6 +391,8 @@ public:
     }
     // Whether the material is liquid everywhere: it has a liquid phase and no solid one.
     bool get_is_liquid_only() const noexcept { return !this->p_components.solid; }
+    // The latent heat of melting [J kg-1].
+    double get_latent_heat() const noexcept { return this->p_latent_heat; }
 
     // The phase the material is when it is not melting: the solid, or the liquid of a liquid-only material. Its
     // equation of state and default rheologies are the material's own.
@@ -426,7 +428,8 @@ public:
     //     the melting range, L / (T_liq - T_sol).
     // Without a finite temperature there is no melt state: the solid phase with a NaN melt fraction (a liquid-only
     // material stays liquid with a melt fraction of 1). A single melting temperature (a step) adds no latent heat:
-    // there is no range to spread it over.
+    // there is no range to spread it over, so the boundary between the solid and liquid zones of a layer carries it
+    // (the world's thermal network, c_zone_boundary_latent_capacity).
     void calc_state(
             const c_ThermoPoint& point,
             const c_MaterialSwitches& switches,

@@ -188,7 +188,8 @@ cdef class Layer(StructureBase):
         fraction.
     state : str, optional
         How the radial solver treats the layer: ``"auto"`` (default) from its material (liquid for a liquid-only
-        material, else solid with its molten stretches as static liquids), or ``"solid"`` or ``"liquid"``.
+        material, else solid, split into solid and liquid zones where it melts with ``use_melting``), or
+        ``"solid"`` or ``"liquid"``.
     is_static : bool, optional
         Static (no inertia) equations; False takes the dynamic form, which a liquid needs at short periods. Default
         ``True``.

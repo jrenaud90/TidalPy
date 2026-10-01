@@ -77,8 +77,10 @@ struct TidalPyConfig
 
     // Material Extremes
     double d_MIN_MODULUS; // Updated from TidalPy.config['numerical']['minimum_modulus']
-    // Rigidity mu / (rho g R) below which a melt-weakened solid is solved as a static liquid.
+    // Rigidity mu / (rho g R) below which a melt-weakened solid is solved as a liquid.
     double d_MIN_SOLID_RIGIDITY; // Updated from TidalPy.config['numerical']['minimum_solid_rigidity']
+    // Thinnest solid or liquid zone [fraction of the world radius] the radial solver integrates on its own.
+    double d_MIN_ZONE_FRACTION; // Updated from TidalPy.config['numerical']['minimum_zone_fraction']
 
     // Planet Extremes
     double d_MIN_THICKNESS; // Updated from TidalPy.config['numerical']['minimum_layer_thickness']
@@ -165,6 +167,7 @@ struct TidalPyConfig
         d_MAX_FREQUENCY = nan;
         d_MIN_MODULUS = nan;
         d_MIN_SOLID_RIGIDITY = nan;
+        d_MIN_ZONE_FRACTION = nan;
         d_MIN_THICKNESS = nan;
         d_NUMERICAL_FLOOR = nan;
         d_LAYER_CONTINUITY_RTOL = nan;

@@ -19,7 +19,7 @@ from TidalPy.Utilities.classes.classes cimport (
 )
 from TidalPy.Tides.classes.tide cimport c_TideBase
 from TidalPy.Structures.layers.layer cimport Layer, c_Layer
-from TidalPy.Material.eos.eos_solution cimport c_EOSSolution
+from TidalPy.Material.eos.eos_solution cimport c_EOSSolution, c_EOSZone
 from TidalPy.RadialSolver.rs_solution cimport c_RadialSolutionStorage
 from TidalPy.Dynamics.spin cimport Spin, c_Spin
 from TidalPy.Tides.love.love cimport c_LoveNumbers
@@ -93,6 +93,7 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
         double reference_viscosity
         double reference_melt_fraction
         double heating
+        double latent_capacity
 
 
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
@@ -120,7 +121,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double planet_moi
         size_t thermal_passes
         cpp_bool thermal_converged
-        cpp_bool geometry_converged
         vector[double] radius
         vector[double] gravity
         vector[double] pressure
@@ -132,6 +132,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         vector[c_LayerThermal] layer_thermal
         vector[double] layer_temperature_rate
         vector[double] layer_radius_outer
+        vector[c_EOSZone] zones
 
     cdef cppclass c_LayerLove:
         size_t layer_index
@@ -139,12 +140,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         c_LoveNumbers love
         cpp_complex[double] shear_modulus
         double volume
-
-    cdef cppclass c_RadialSegment:
-        size_t world_layer
-        double radius_inner
-        double radius_outer
-        cpp_bool molten
 
     cdef cppclass c_Grid3DAxes:
         const double* radii
@@ -172,7 +167,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double time
         size_t max_thermal_passes
         double thermal_tol
-        double radius_tol
         cpp_bool reset_layer_masses
         cpp_bool verbose
 
@@ -259,7 +253,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double get_heat_flow(double radius)
         size_t get_thermal_passes()
         cpp_bool get_thermal_converged()
-        cpp_bool get_geometry_converged()
         double calc_layer_temperature_rate(size_t layer_index)
         const vector[c_LayerThermal]& get_layer_thermal()
         double get_density(double radius) const
@@ -298,8 +291,8 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double get_central_pressure() const
         double get_planet_mass_eos() const
         double get_planet_moi_eos() const
-        const vector[c_RadialSegment]& get_radial_segments() const
-        vector[c_RadialSegment] get_molten_regions() except +
+        vector[c_EOSZone] get_zones_copy() except +
+        vector[c_EOSZone] get_molten_regions() except +
         const c_EOSSolution* get_eos_solution() const
 
         # Spin

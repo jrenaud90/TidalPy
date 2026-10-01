@@ -1,4 +1,8 @@
-"""Layers with ``is_volume_fixed = false`` hold their mass through the EOS solve while their radii float."""
+"""Layers with ``is_volume_fixed = false`` hold their mass through the EOS solve while their radii float.
+
+The structure integration ends such a layer where it encloses its mass, so the radii settle inside one solve, with no
+passes of their own.
+"""
 import math
 
 import pytest
@@ -63,7 +67,6 @@ def test_fixed_volume_world_keeps_every_radius():
     world, result = _solve(_config())
     assert world.core.radius_outer == pytest.approx(_CORE_FRACTION * _RADIUS, rel=1e-15)
     assert world.radius == pytest.approx(_RADIUS, rel=1e-15)
-    assert result["geometry_converged"]
     assert result["thermal_passes"] == 0
 
 
@@ -74,7 +77,6 @@ def test_fixed_volume_world_keeps_every_radius():
 def test_a_floating_core_holds_its_mass(core_density, core_mass):
     """A floating core holding m / rho half its geometry's value shrinks by the cube root of two."""
     world, result = _solve(_config(core_floats=True, core_density=core_density, mass_kg=core_mass))
-    assert result["geometry_converged"]
     expected_radius = _CORE_FRACTION * _RADIUS / 2.0 ** (1.0 / 3.0)
     assert world.core.radius_outer == pytest.approx(expected_radius, rel=1e-9)
     assert world.core.mass == pytest.approx(core_mass, rel=1e-9)
@@ -96,7 +98,6 @@ def test_both_layers_can_float():
     mantle_mass = 1.2 * _shell_mass(_MANTLE_DENSITY, _CORE_FRACTION * _RADIUS, _RADIUS)
     config["layers"]["mantle"]["mass_kg"] = mantle_mass
     world, result = _solve(config)
-    assert result["geometry_converged"]
     assert world.core.mass == pytest.approx(core_mass, rel=1e-9)
     assert world.mantle.mass == pytest.approx(mantle_mass, rel=1e-9)
     assert world.planet_mass_eos == pytest.approx(core_mass + mantle_mass, rel=1e-9)
@@ -115,7 +116,6 @@ def test_a_compressible_floating_layer_conserves_its_mass():
     target_mass = reference.core.mass
     config["layers"]["core"]["mass_kg"] = target_mass
     world, result = _solve(config)
-    assert result["geometry_converged"]
     assert world.core.mass == pytest.approx(target_mass, rel=1e-6)
     assert world.core.radius_outer < reference.core.radius_outer
 
@@ -135,7 +135,6 @@ def test_reset_layer_masses_takes_the_current_geometry():
 def test_a_tiny_floating_layer_shrinks_to_almost_nothing():
     """A layer holding far less mass than its geometry implies collapses toward the center and holds it."""
     world, result = _solve(_config(core_floats=True, mass_kg=1.0e16))
-    assert result["geometry_converged"]
     assert world.core.radius_outer < 0.01 * _RADIUS
     assert world.core.mass == pytest.approx(1.0e16, rel=1e-6)
     assert world.mantle.radius_inner == pytest.approx(world.core.radius_outer, rel=1e-15)
@@ -149,5 +148,4 @@ def test_bundled_worlds_hold_their_volume(world_name):
     radii_before = [layer.radius_outer for layer in world]
     result = world.solve_eos()
     assert [layer.radius_outer for layer in world] == radii_before
-    assert result["geometry_converged"]
     assert result["thermal_passes"] == 0

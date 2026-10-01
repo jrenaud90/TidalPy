@@ -562,15 +562,14 @@ inline const ::c_RadialSolutionStorage* c_solve_radial_group_3d(
 // The layer at a radius as the strain there needs it, looked up once per radius.
 struct c_RadiusLayer3D {
     const c_Layer* layer_ptr = nullptr;   // null only for a world with no layers
-    // A liquid layer, or a molten stretch the radial solver treats as a static liquid.
+    // Inside a zone the radial solver treats as a liquid: a liquid layer, or a liquid zone of a layer that melted.
     bool liquid = false;
 };
 
 inline c_RadiusLayer3D c_radius_layer_3d(const c_BaseWorld& world, double radius) {
     c_RadiusLayer3D layer;
     layer.layer_ptr = world.find_layer_for_radius(radius);
-    layer.liquid = ((layer.layer_ptr != nullptr) && layer.layer_ptr->get_is_liquid())
-        || world.get_is_molten_at(radius);
+    layer.liquid    = (layer.layer_ptr != nullptr) && world.get_is_liquid_at(radius);
     return layer;
 }
 

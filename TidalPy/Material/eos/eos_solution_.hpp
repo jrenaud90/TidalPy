@@ -70,9 +70,38 @@ inline bool c_call_dense_checked(
 }
 
 
+/// One retained integration of the structure solve: a stretch of one layer inside one of its temperature segments, in
+/// one mechanical state. A segment is one piece unless the layer's material changes state inside it, where the
+/// integration stopped at the root of the rigidity margin and restarted in the other state; a layer holding its mass
+/// can add a piece where its integration was extended to reach that mass.
+struct c_EOSPiece
+{
+    size_t layer_index = 0;
+    size_t segment_index = 0;
+    double radius_lower = 0.0;   // [solve units], the units its integration ran in
+    double radius_upper = 0.0;
+    bool liquid = false;         // solved as a liquid by the radial solver
+    // The temperature of an isothermal segment [K], which a solve that does not integrate temperature reports.
+    double temperature = TidalPyConstants::d_NAN;
+};
+
+
+/// A stretch of one layer in one mechanical state: consecutive pieces of the layer that share a state. The radial
+/// solver integrates each zone as a layer of its own.
+struct c_EOSZone
+{
+    size_t layer_index = 0;
+    double radius_inner = 0.0;   // [m]
+    double radius_outer = 0.0;   // [m]
+    double mass_inner = 0.0;     // enclosed mass at the base [kg]
+    double mass_outer = 0.0;     // enclosed mass at the top [kg]
+    bool liquid = false;
+};
+
+
 /// Equation-of-state integration results for a layered planet.
 ///
-/// Holds the CyRK results of each layer and interpolates the planet's gravity, pressure, mass, moment of
+/// Holds the CyRK results of each piece of each layer and interpolates the planet's gravity, pressure, mass, moment of
 /// inertia, density, and unrelaxed moduli at any radius. The viscoelastic response at a forcing frequency
 /// belongs to a rheology rather than to the equation of state and is reached through call_material.
 class c_EOSSolution
@@ -135,18 +164,20 @@ public:
     double redim_moi_scale     = TidalPyConstants::d_NAN;
     double redim_pascal_scale  = TidalPyConstants::d_NAN;
 
-    // Store results from CyRK's cysolve_ivp.
+    // The shear modulus [Pa] at or below which the solve took a material that can change state as a liquid:
+    // minimum_solid_rigidity times the stated planet's rho g R. Set by the caller; zero when it set none.
+    double liquid_shear_threshold = 0.0;
+
+    // Store results from CyRK's cysolve_ivp. The layer tops are outputs of the solve: a layer that holds its mass
+    // ends where it encloses that mass.
     std::vector<double> upper_radius_bylayer_vec  = std::vector<double>();
     std::vector<size_t> steps_taken_vec           = std::vector<size_t>();
-    // One retained integrator per radial segment, ascending. A layer is one segment unless its temperature
-    // profile has a kink, so the mapping below finds a layer's segments.
+    // One retained integrator per piece, ascending, and the pieces themselves; the mapping below finds a layer's.
     std::vector<std::unique_ptr<CySolverResult>> cysolver_results_uptr_vec =
         std::vector<std::unique_ptr<CySolverResult>>();
-    std::vector<double> segment_upper_radius_vec   = std::vector<double>();
-    std::vector<size_t> first_segment_bylayer_vec  = std::vector<size_t>();
-    std::vector<size_t> num_segments_bylayer_vec   = std::vector<size_t>();
-    // Used when the solve did not carry temperature.
-    std::vector<double> segment_temperature_vec    = std::vector<double>();
+    std::vector<c_EOSPiece> piece_vec            = std::vector<c_EOSPiece>();
+    std::vector<size_t>     first_piece_bylayer_vec = std::vector<size_t>();
+    std::vector<size_t>     num_pieces_bylayer_vec  = std::vector<size_t>();
     // C_EOS_THERMAL_Y_VALUES when the solve integrated temperature and heat flow.
     size_t num_y_solved = C_EOS_Y_VALUES;
 
@@ -189,6 +220,17 @@ public:
     {
     }
 
+    /// A solution whose layer tops and radius grid are outputs of the structure solve (c_solve_eos sets both).
+    explicit c_EOSSolution(size_t num_layers_) :
+            error_code(0),
+            current_layers_saved(0),
+            num_layers(num_layers_)
+    {
+        this->cysolver_results_uptr_vec.reserve(num_layers_);
+        this->upper_radius_bylayer_vec.assign(num_layers_, TidalPyConstants::d_NAN);
+    }
+
+    /// A solution over a given layer stack and radius grid, the radial solver's stand-in for a world EOS.
     c_EOSSolution(
             double* upper_radius_bylayer_ptr,
             size_t num_layers_,
@@ -202,12 +244,11 @@ public:
         this->cysolver_results_uptr_vec.reserve(num_layers_);
         this->upper_radius_bylayer_vec.resize(num_layers_);
         std::memcpy(this->upper_radius_bylayer_vec.data(), upper_radius_bylayer_ptr, this->num_layers * sizeof(double));
-        this->set_segments_from_layers();
         this->change_radius_array(radius_array_ptr, radius_array_size_);
     }
 
 
-    /// Save a CyRK solver result for one segment, in ascending radius.
+    /// Save a CyRK solver result for one piece, in ascending radius.
     void save_cyresult(std::unique_ptr<CySolverResult> new_cysolver_result_uptr)
     {
         this->cysolver_results_uptr_vec.push_back(std::move(new_cysolver_result_uptr));
@@ -228,53 +269,80 @@ public:
         this->cysolver_results_uptr_vec.clear();
     }
 
-    /// The layout of a solve that does not carry temperature.
-    void set_segments_from_layers()
+    /// The pieces of the converged pass, ascending; each layer's run of them is contiguous.
+    void set_pieces(const std::vector<c_EOSPiece>& pieces)
     {
-        this->segment_upper_radius_vec  = this->upper_radius_bylayer_vec;
-        this->first_segment_bylayer_vec.resize(this->num_layers);
-        this->num_segments_bylayer_vec.assign(this->num_layers, 1);
-        this->segment_temperature_vec.assign(this->num_layers, TidalPyConstants::d_NAN);
-        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
+        this->piece_vec = pieces;
+        this->first_piece_bylayer_vec.assign(this->num_layers, 0);
+        this->num_pieces_bylayer_vec.assign(this->num_layers, 0);
+        for (size_t piece_i = 0; piece_i < pieces.size(); ++piece_i)
         {
-            this->first_segment_bylayer_vec[layer_i] = layer_i;
-        }
-    }
-
-    void set_segments(const std::vector<c_EOSSegment>& segment_vec)
-    {
-        const size_t num_segments = segment_vec.size();
-        this->segment_upper_radius_vec.resize(num_segments);
-        this->segment_temperature_vec.resize(num_segments);
-        this->first_segment_bylayer_vec.assign(this->num_layers, 0);
-        this->num_segments_bylayer_vec.assign(this->num_layers, 0);
-        for (size_t segment_i = 0; segment_i < num_segments; ++segment_i)
-        {
-            const c_EOSSegment& segment = segment_vec[segment_i];
-            this->segment_upper_radius_vec[segment_i] = segment.upper_radius;
-            this->segment_temperature_vec[segment_i]  = segment.start_temperature;
-            const size_t layer_i = segment.layer_index;
+            const size_t layer_i = pieces[piece_i].layer_index;
             if (layer_i >= this->num_layers) { continue; }
-            if (this->num_segments_bylayer_vec[layer_i] == 0)
+            if (this->num_pieces_bylayer_vec[layer_i] == 0)
             {
-                this->first_segment_bylayer_vec[layer_i] = segment_i;
+                this->first_piece_bylayer_vec[layer_i] = piece_i;
             }
-            this->num_segments_bylayer_vec[layer_i]++;
+            this->num_pieces_bylayer_vec[layer_i]++;
         }
     }
 
-    /// The last segment at or above the radius; the layer's first as a fallback.
-    size_t segment_index(const size_t layer_index, const double radius_val) const noexcept
+    /// The piece of a layer that holds a radius: the first whose top is at or above it, so a radius on the boundary
+    /// between two pieces belongs to the lower one. The structure is continuous across that boundary and the material
+    /// is read at its pressure and temperature, so either piece gives the same values there. The layer's last piece
+    /// takes anything above it (and p_call_piece refuses a radius past its top); SIZE_MAX for a layer with none.
+    size_t piece_index(const size_t layer_index, const double radius_val) const noexcept
     {
-        if (layer_index >= this->num_segments_bylayer_vec.size()) { return layer_index; }
-        const size_t first = this->first_segment_bylayer_vec[layer_index];
-        const size_t count = this->num_segments_bylayer_vec[layer_index];
-        if (count == 0) { return first; }
+        if (layer_index >= this->num_pieces_bylayer_vec.size()) { return static_cast<size_t>(-1); }
+        const size_t first = this->first_piece_bylayer_vec[layer_index];
+        const size_t count = this->num_pieces_bylayer_vec[layer_index];
+        if (count == 0) { return static_cast<size_t>(-1); }
         for (size_t offset = 0; offset < count - 1; ++offset)
         {
-            if (radius_val <= this->segment_upper_radius_vec[first + offset]) { return first + offset; }
+            if (radius_val <= this->piece_vec[first + offset].radius_upper) { return first + offset; }
         }
         return first + count - 1;
+    }
+
+    /// The base of a layer as solved [solve units; SI once re-dimensionalized]: the top of the layer below it.
+    double get_layer_radius_inner(const size_t layer_index) const noexcept
+    {
+        if ((layer_index == 0) || (layer_index > this->upper_radius_bylayer_vec.size())) { return 0.0; }
+        return this->upper_radius_bylayer_vec[layer_index - 1];
+    }
+
+    /// The pieces' consecutive runs of one layer in one state, inner to outer, with the enclosed mass at each end, in
+    /// the units the solution reports (SI once re-dimensionalized).
+    std::vector<c_EOSZone> build_zones() const
+    {
+        std::vector<c_EOSZone> zones;
+        for (const c_EOSPiece& piece : this->piece_vec)
+        {
+            if (!zones.empty() && (zones.back().layer_index == piece.layer_index)
+                && (zones.back().liquid == piece.liquid))
+            {
+                zones.back().radius_outer = piece.radius_upper;
+                continue;
+            }
+            c_EOSZone zone;
+            zone.layer_index  = piece.layer_index;
+            zone.radius_inner = piece.radius_lower;
+            zone.radius_outer = piece.radius_upper;
+            zone.liquid       = piece.liquid;
+            zones.push_back(zone);
+        }
+        const double length_scale = (this->nondim_status == 1) ? this->redim_length_scale : 1.0;
+        double structure[C_EOS_Y_VALUES];
+        for (c_EOSZone& zone : zones)
+        {
+            this->call_y(zone.layer_index, zone.radius_inner, structure);
+            zone.mass_inner = structure[C_EOS_MASS_INDEX];
+            this->call_y(zone.layer_index, zone.radius_outer, structure);
+            zone.mass_outer = structure[C_EOS_MASS_INDEX];
+            zone.radius_inner *= length_scale;
+            zone.radius_outer *= length_scale;
+        }
+        return zones;
     }
 
 
@@ -330,6 +398,24 @@ public:
 
 
 protected:
+    /// The structure state of a piece at a radius in solve units: a radius just past either end of the piece (the
+    /// layer continuity tolerance) is read at that end. False, with NaN, for anything further out, so an integration a
+    /// terminal event stopped (whose CyRK domain runs past the root) is never read past its root, or for a piece with
+    /// no integration.
+    bool p_call_piece(const size_t piece_i, double radius_val, double* state_out) const noexcept
+    {
+        for (size_t y_i = 0; y_i < C_EOS_THERMAL_Y_VALUES; ++y_i) { state_out[y_i] = TidalPyConstants::d_NAN; }
+        if (piece_i >= this->cysolver_results_uptr_vec.size() || piece_i >= this->piece_vec.size()) { return false; }
+        const c_EOSPiece& piece = this->piece_vec[piece_i];
+        const double end_rtol = tidalpy_config_ptr ? tidalpy_config_ptr->d_LAYER_CONTINUITY_RTOL : 0.0;
+        const double slack = end_rtol * std::max(std::abs(piece.radius_lower), std::abs(piece.radius_upper));
+        const bool inside = (radius_val >= piece.radius_lower - slack) && (radius_val <= piece.radius_upper + slack);
+        if (!inside) { return false; }
+        radius_val = std::min(std::max(radius_val, piece.radius_lower), piece.radius_upper);
+        return c_call_dense_checked(
+            this->cysolver_results_uptr_vec[piece_i].get(), radius_val, state_out, C_EOS_THERMAL_Y_VALUES);
+    }
+
     /// No rescaling: the four structure variables from the dense output, then the density, moduli, and
     /// viscosities from the layer's EOS function at that state. The extra outputs are NaN when no EOS
     /// function was saved.
@@ -341,11 +427,9 @@ protected:
     {
         // The integrator writes num_y_solved values into a buffer of its own, and the structure variables
         // are copied out: the evaluation layout uses slots 4 and 5 for the density and the shear modulus.
-        const size_t segment_i = this->segment_index(layer_index, radius_val);
+        const size_t piece_i = this->piece_index(layer_index, radius_val);
         double state_arr[C_EOS_THERMAL_Y_VALUES];
-        const bool state_found = (segment_i < this->cysolver_results_uptr_vec.size())
-            && c_call_dense_checked(
-                this->cysolver_results_uptr_vec[segment_i].get(), radius_val, &state_arr[0], C_EOS_THERMAL_Y_VALUES);
+        const bool state_found = this->p_call_piece(piece_i, radius_val, &state_arr[0]);
         if (!state_found)
         {
             // Outside the layer's solved domain: every output is unknown.
@@ -378,8 +462,7 @@ protected:
         else
         {
             // A solve without temperature reports each segment's uniform value and no heat flow.
-            y_interp_ptr[C_EOS_TEMPERATURE_INDEX] = (segment_i < this->segment_temperature_vec.size())
-                ? this->segment_temperature_vec[segment_i] : TidalPyConstants::d_NAN;
+            y_interp_ptr[C_EOS_TEMPERATURE_INDEX] = this->piece_vec[piece_i].temperature;
             y_interp_ptr[C_EOS_HEAT_FLOW_INDEX]   = 0.0;
         }
         if (layer_index < this->eos_function_bylayer_vec.size()
@@ -568,19 +651,7 @@ public:
             throw std::out_of_range("Layer index out of range.");
         }
         double state_arr[C_EOS_THERMAL_Y_VALUES];
-        const size_t segment_i = this->segment_index(layer_index, radius_val);
-        if (segment_i < this->cysolver_results_uptr_vec.size())
-        {
-            c_call_dense_checked(
-                this->cysolver_results_uptr_vec[segment_i].get(), radius_val, &state_arr[0], C_EOS_THERMAL_Y_VALUES);
-        }
-        else
-        {
-            for (size_t value_i = 0; value_i < C_EOS_THERMAL_Y_VALUES; ++value_i)
-            {
-                state_arr[value_i] = TidalPyConstants::d_NAN;
-            }
-        }
+        this->p_call_piece(this->piece_index(layer_index, radius_val), radius_val, &state_arr[0]);
         for (size_t value_i = 0; value_i < C_EOS_Y_VALUES; ++value_i)
         {
             y_interp_ptr[value_i] = state_arr[value_i];

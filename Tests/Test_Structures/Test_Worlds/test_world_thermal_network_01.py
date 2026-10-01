@@ -75,14 +75,13 @@ def test_the_solve_reports_the_convecting_detail():
 
 
 def test_floating_layers_end_on_the_solved_grid():
-    """Floating layer radii end on the grid of the last solve pass."""
-    # A compressible core with less mass than its starting geometry, so its radius takes several passes.
+    """Floating layer radii end on the grid of the solve, which found them inside its one structure integration."""
+    # A compressible core with less mass than its starting geometry, so its radius moves.
     core = {"is_volume_fixed": False, "mass_kg": 2.0e22,
             "material": {"solid": {"eos": {"model": "birch_murnaghan", "reference_density_kg_m3": 8000.0,
                                            "reference_bulk_modulus_pa": 1.3e11, "bulk_modulus_derivative": 4.5}}}}
     world, result = _solve(_config(core))
-    assert result["geometry_converged"]
-    assert result["thermal_passes"] > 1
+    assert world.core.mass == pytest.approx(2.0e22, rel=1.0e-9)
     slices = len(result["radius"]) // 2
     assert result["radius"][slices - 1] == world.core.radius_outer
     assert result["radius"][-1] == world.radius

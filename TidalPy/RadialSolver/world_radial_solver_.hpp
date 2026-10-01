@@ -72,7 +72,7 @@ public:
     }
 
     // The layer flags are user-mutable without an EOS re-solve, so a cache hit must confirm them too, and the
-    // layer tops with them: a world splits a layer at the edges of a molten stretch.
+    // layer tops with them: a world splits a layer into its solid and liquid zones.
     bool layer_flags_match(
         const int* layer_types,
         const bool* is_static,
