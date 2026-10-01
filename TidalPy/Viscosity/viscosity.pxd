@@ -4,16 +4,17 @@ from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.vector cimport vector
 
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase, c_ParamMap
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase, c_ParamMap, c_ThermoPoint
 
 
 cdef extern from "viscosity_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_ViscosityBase(c_PhysicsBase):
-        double calc_viscosity(double temperature, double pressure) const
+        double calc_viscosity(const c_ThermoPoint& point) const
         void calc_viscosity_vectorize(
             const vector[double]& temperature,
             const vector[double]& pressure,
+            const vector[double]& radius,
             vector[double]& out_viscosity) except +
 
 

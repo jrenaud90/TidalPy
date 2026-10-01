@@ -37,15 +37,16 @@ _MODELS = [
 
 
 # Class -> readable property count, so the sweep cannot pass vacuously. Each count includes the two properties every
-# model inherits, model_name and parameters.
+# model inherits, model_name and parameters; a spec-driven model (the rheologies) has no others, its parameters
+# reading as attributes through PhysicsBase.
 _PROPERTY_COUNTS = {
     Elastic:            2,
     Viscous:            2,
     Maxwell:            2,
-    Voigt:              4,
-    Burgers:            4,
-    Andrade:            4,
-    Sundberg:           6,
+    Voigt:              2,
+    Burgers:            2,
+    Andrade:            2,
+    Sundberg:           2,
     OffCooling:         2,
     ConductiveCooling:  2,
     ConvectiveCooling:  5,

@@ -33,7 +33,7 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_physics_model_config,
 )
 from TidalPy.Material.eos.material_eos cimport MaterialEOSBase, cy_material_config
-from TidalPy.Rheology.rheology cimport RheologyBase
+from TidalPy.Rheology.rheology cimport RheologyBase, c_clone_rheology
 from TidalPy.Viscosity.viscosity cimport ViscosityBase, c_clone_viscosity
 from TidalPy.PartialMelt.partial_melt cimport PartialMeltBase
 
@@ -575,46 +575,28 @@ cdef class BaseLayer(StructureBase):
     def set_shear_rheology(self, RheologyBase rheology not None):
         """Attach a rheology model used to compute the complex shear modulus.
 
-        Ownership of the C++ model moves out of ``rheology``, which is left an empty shell and must not be reused.
+        The layer takes a copy; ``rheology`` stays usable.
 
         Parameters
         ----------
         rheology : RheologyBase
             A rheology model (e.g. ``Maxwell()``, ``make_rheology("andrade")``).
-
-        Raises
-        ------
-        ValueError
-            If ``rheology`` has already been attached or otherwise moved.
         """
         self._check_ptr()
-        if rheology._rheology_ptr.get() == NULL:
-            raise ValueError(
-                "This rheology model holds no C++ object (already attached or moved).")
-        self._layer_ptr.get().set_shear_rheology(move(rheology._rheology_ptr))
-        rheology._ptr = NULL
+        self._layer_ptr.get().set_shear_rheology(c_clone_rheology(rheology._rheology()[0]))
 
     def set_bulk_rheology(self, RheologyBase rheology not None):
         """Attach a rheology model used to compute the complex bulk modulus.
 
-        Ownership of the C++ model moves out of ``rheology``, which is left an empty shell and must not be reused.
+        The layer takes a copy; ``rheology`` stays usable.
 
         Parameters
         ----------
         rheology : RheologyBase
             A rheology model (e.g. ``Maxwell()``, ``make_rheology("andrade")``).
-
-        Raises
-        ------
-        ValueError
-            If ``rheology`` has already been attached or otherwise moved.
         """
         self._check_ptr()
-        if rheology._rheology_ptr.get() == NULL:
-            raise ValueError(
-                "This rheology model holds no C++ object (already attached or moved).")
-        self._layer_ptr.get().set_bulk_rheology(move(rheology._rheology_ptr))
-        rheology._ptr = NULL
+        self._layer_ptr.get().set_bulk_rheology(c_clone_rheology(rheology._rheology()[0]))
 
     @property
     def shear_viscosity_set(self) -> bool:

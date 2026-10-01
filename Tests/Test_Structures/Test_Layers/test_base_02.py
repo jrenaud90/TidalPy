@@ -284,13 +284,14 @@ def test_attach_shear_rheology_changes_complex_modulus():
     assert modulus.imag != 0.0
 
 
-def test_attach_rheology_consumes_wrapper():
-    """A rheology model moves into the layer, so it cannot be attached twice."""
+def test_attach_rheology_copies_the_model():
+    """A rheology model is copied into the layer, so one model can serve as both its shear and bulk rheology."""
     layer = _make_mantle()
     model = rheology.Maxwell()
     layer.set_shear_rheology(model)
-    with pytest.raises(ValueError):
-        layer.set_bulk_rheology(model)
+    layer.set_bulk_rheology(model)
+    assert layer.shear_rheology_set and layer.bulk_rheology_set
+    assert model.model_name == "maxwell"
 
 
 @pytest.mark.parametrize("shear_model, bulk_model", [

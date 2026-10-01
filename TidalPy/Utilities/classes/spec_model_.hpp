@@ -43,7 +43,8 @@ namespace tidalpy {
 template <class Model>
 using c_ParamMember = std::variant<double Model::*, int Model::*, bool Model::*, std::vector<double> Model::*>;
 
-// One parameter of a spec model. A table's default is always empty, so its default_value is unused.
+// One parameter of a spec model. A scalar's default is default_value; a table's is default_table (empty, meaning not
+// provided, unless a model needs one).
 template <class Model>
 struct c_ParamSpec {
     std::string          name;
@@ -52,6 +53,7 @@ struct c_ParamSpec {
     double               default_value;
     c_ParamBounds        bounds;
     std::string          doc;
+    std::vector<double>  default_table = {};
 };
 
 inline bool c_param_in_bounds(double value, c_ParamBounds bounds) noexcept {
@@ -123,6 +125,7 @@ public:
             entry.key           = spec.key;
             entry.kind          = p_kind_of(spec.member);
             entry.default_value = spec.default_value;
+            entry.default_table = spec.default_table;
             entry.bounds        = spec.bounds;
             entry.doc           = spec.doc;
             info.push_back(std::move(entry));
@@ -175,7 +178,7 @@ protected:
             std::visit([&](auto member) {
                 using Value = std::decay_t<decltype(self.*member)>;
                 if constexpr (std::is_same_v<Value, std::vector<double>>) {
-                    (self.*member).clear();
+                    self.*member = spec.default_table;
                 } else if constexpr (std::is_same_v<Value, bool>) {
                     self.*member = (spec.default_value != 0.0);
                 } else {

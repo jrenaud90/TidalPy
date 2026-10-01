@@ -5,7 +5,7 @@ from libcpp.memory cimport unique_ptr
 from libcpp.vector cimport vector
 from libcpp.complex cimport complex as cpp_complex
 
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase, c_ParamMap
 
 
 cdef extern from "rheology_base_.hpp" namespace "tidalpy" nogil:
@@ -22,118 +22,14 @@ cdef extern from "rheology_base_.hpp" namespace "tidalpy" nogil:
 
 cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
 
-    cdef cppclass c_RheologyConfig:
-        double alpha
-        double zeta
-        double voigt_modulus_frac
-        double voigt_viscosity_frac
-        double relaxed_modulus_frac
-        double reference_frequency
-        double q_frequency_exponent
+    unique_ptr[c_RheologyBase] c_find_rheology(const string& model_name, const c_ParamMap& params) except +
+    string c_rheology_canonical_name(const string& model_name) except +
+    vector[string] c_rheology_model_names() except +
 
-    cdef cppclass c_Elastic(c_RheologyBase):
-        c_Elastic() except +
-        c_Elastic(const c_RheologyConfig& cfg) except +
-
-    cdef cppclass c_Viscous(c_RheologyBase):
-        c_Viscous() except +
-        c_Viscous(const c_RheologyConfig& cfg) except +
-
-    cdef cppclass c_Maxwell(c_RheologyBase):
-        c_Maxwell() except +
-        c_Maxwell(const c_RheologyConfig& cfg) except +
-
-    cdef cppclass c_Voigt(c_RheologyBase):
-        c_Voigt() except +
-        c_Voigt(const c_RheologyConfig& cfg) except +
-        double get_voigt_modulus_frac()   const
-        double get_voigt_viscosity_frac() const
-
-    cdef cppclass c_Burgers(c_RheologyBase):
-        c_Burgers() except +
-        c_Burgers(const c_RheologyConfig& cfg) except +
-        double get_voigt_modulus_frac()   const
-        double get_voigt_viscosity_frac() const
-
-    cdef cppclass c_Andrade(c_RheologyBase):
-        c_Andrade() except +
-        c_Andrade(const c_RheologyConfig& cfg) except +
-        double get_alpha() const
-        double get_zeta()  const
-
-    cdef cppclass c_Sundberg(c_RheologyBase):
-        c_Sundberg() except +
-        c_Sundberg(const c_RheologyConfig& cfg) except +
-        double get_alpha()                const
-        double get_zeta()                 const
-        double get_voigt_modulus_frac()   const
-        double get_voigt_viscosity_frac() const
-
-    cdef cppclass c_Zener(c_RheologyBase):
-        c_Zener() except +
-        c_Zener(const c_RheologyConfig& cfg) except +
-        double get_relaxed_modulus_frac() const
-
-    cdef cppclass c_SeismicQ(c_RheologyBase):
-        c_SeismicQ() except +
-        c_SeismicQ(const c_RheologyConfig& cfg) except +
-        double get_reference_frequency()  const
-        double get_q_frequency_exponent() const
-
-    cdef enum class c_RheologyModel:
-        Elastic
-        Viscous
-        Voigt
-        Maxwell
-        Burgers
-        Andrade
-        Sundberg
-        Zener
-        SeismicQ
-
-    # Raises ValueError on an unknown name.
-    c_RheologyModel c_rheology_model_from_name(const string& model_name) except +
-
-    unique_ptr[c_RheologyBase] c_find_rheology(
-        c_RheologyModel model, const c_RheologyConfig& cfg) except +
+    # A copy of a model as its family type, for the layer setters that take ownership.
+    unique_ptr[c_RheologyBase] c_clone_rheology "tidalpy::c_clone_as<tidalpy::c_RheologyBase>"(
+        const c_RheologyBase& model) except +
 
 
 cdef class RheologyBase(PhysicsBase):
-    cdef unique_ptr[c_RheologyBase] _rheology_ptr   # owns the most-derived C++ model object
-    cdef void _adopt(self, unique_ptr[c_RheologyBase]& model) noexcept
-
-
-cdef class Elastic(RheologyBase):
-    pass
-
-
-cdef class Viscous(RheologyBase):
-    pass
-
-
-cdef class Maxwell(RheologyBase):
-    pass
-
-
-cdef class Voigt(RheologyBase):
-    pass
-
-
-cdef class Burgers(RheologyBase):
-    pass
-
-
-cdef class Andrade(RheologyBase):
-    pass
-
-
-cdef class Sundberg(RheologyBase):
-    pass
-
-
-cdef class Zener(RheologyBase):
-    pass
-
-
-cdef class SeismicQ(RheologyBase):
-    pass
+    cdef c_RheologyBase* _rheology(self) except NULL

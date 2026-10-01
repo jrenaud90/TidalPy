@@ -20,6 +20,7 @@
 #include "registry_.hpp"
 #include "spec_model_.hpp"
 #include "viscosity_base_.hpp"
+#include "../Utilities/arrays/table_lookup_.hpp"
 #include "../Utilities/math/numerics_.hpp"  // c_safe_pow
 
 namespace tidalpy {
@@ -46,7 +47,7 @@ public:
     c_ConstantViscosity() : c_ConstantViscosity(c_ParamMap{}) {}
     explicit c_ConstantViscosity(const c_ParamMap& params) : c_SpecModel("constant") { this->p_initialize(params); }
 
-    double calc_viscosity(double /*temperature*/, double /*pressure*/) const noexcept override {
+    double calc_viscosity(const c_ThermoPoint& /*point*/) const noexcept override {
         return this->p_reference_viscosity;
     }
 
@@ -54,10 +55,10 @@ protected:
     double p_reference_viscosity = 0.0;
 };
 
-// Relative-activation law (alias "ref"):
-//   eta = eta_ref * exp( (E_a / R) (1/T - 1/T_ref) + P V_a / (R T) )
-// The activation energy is anchored at the reference temperature; the reference viscosity is at zero pressure, so a
-// positive activation volume always raises the viscosity, by exp(P V_a / (R T)).
+// Relative-activation law (alias "ref"), anchored at a reference temperature and pressure:
+//   eta = eta_ref * exp( (E_a + P V_a) / (R T) - (E_a + P_ref V_a) / (R T_ref) )
+// so eta = eta_ref at (T_ref, P_ref). With the default P_ref = 0 a positive activation volume always raises the
+// viscosity; a deep layer's law is better anchored at a pressure inside the layer.
 class c_ReferenceViscosity final : public c_SpecModel<c_ReferenceViscosity, c_ViscosityBase> {
 public:
     static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::ReferenceViscosity;
@@ -66,13 +67,15 @@ public:
         using Self = c_ReferenceViscosity;
         static const std::vector<c_ParamSpec<Self>> specs = {
             {"reference_viscosity", "reference_viscosity_pas", &Self::p_reference_viscosity, 1.0e22,
-             c_ParamBounds::Positive, "Viscosity at the reference temperature and zero pressure [Pa s]."},
+             c_ParamBounds::Positive, "Viscosity at the reference temperature and pressure [Pa s]."},
             {"reference_temperature", "reference_temperature_k", &Self::p_reference_temperature, 1000.0,
              c_ParamBounds::Positive, "Reference temperature [K]."},
             {"molar_activation_energy", "molar_activation_energy_j_mol", &Self::p_molar_activation_energy, 3.0e5,
              c_ParamBounds::NonNegative, "Molar activation energy E_a [J mol-1]."},
             {"molar_activation_volume", "molar_activation_volume_m3_mol", &Self::p_molar_activation_volume, 0.0,
              c_ParamBounds::Finite, "Molar activation volume V_a [m3 mol-1]."},
+            {"reference_pressure", "reference_pressure_pa", &Self::p_reference_pressure, 0.0,
+             c_ParamBounds::Finite, "Reference pressure [Pa]."},
         };
         return specs;
     }
@@ -82,13 +85,15 @@ public:
         this->p_initialize(params);
     }
 
-    double calc_viscosity(double temperature, double pressure) const noexcept override {
+    double calc_viscosity(const c_ThermoPoint& point) const noexcept override {
+        const double temperature = point.temperature;
         // Cold limit: rigid, which the rheology models read as a purely elastic response.
         if (temperature <= TidalPyConstants::d_EPS) { return TidalPyConstants::d_INF; }
         const double R = c_viscosity_gas_constant();
         const double exponent =
-            (this->p_molar_activation_energy / R) * ((1.0 / temperature) - (1.0 / this->p_reference_temperature))
-            + (pressure * this->p_molar_activation_volume) / (R * temperature);
+            (this->p_molar_activation_energy + point.pressure * this->p_molar_activation_volume) / (R * temperature)
+            - (this->p_molar_activation_energy + this->p_reference_pressure * this->p_molar_activation_volume)
+              / (R * this->p_reference_temperature);
         // Plain exp: an overflowing (very cold) exponent saturates to that same rigid limit.
         return this->p_reference_viscosity * std::exp(exponent);
     }
@@ -98,6 +103,7 @@ protected:
     double p_reference_temperature   = 0.0;
     double p_molar_activation_energy = 0.0;
     double p_molar_activation_volume = 0.0;
+    double p_reference_pressure      = 0.0;
 };
 
 // Arrhenius flow law (alias "arr"):
@@ -134,12 +140,13 @@ public:
         this->p_initialize(params);
     }
 
-    double calc_viscosity(double temperature, double pressure) const noexcept override {
+    double calc_viscosity(const c_ThermoPoint& point) const noexcept override {
+        const double temperature = point.temperature;
         // Cold limit: rigid, which the rheology models read as a purely elastic response.
         if (temperature <= TidalPyConstants::d_EPS) { return TidalPyConstants::d_INF; }
         const double R = c_viscosity_gas_constant();
         const double exponent =
-            (this->p_molar_activation_energy + pressure * this->p_molar_activation_volume) / (R * temperature);
+            (this->p_molar_activation_energy + point.pressure * this->p_molar_activation_volume) / (R * temperature);
         double viscosity = this->p_prefactor * std::exp(exponent);
         if (this->p_additional_temp_dependence) { viscosity *= temperature; }
         return viscosity;
@@ -167,11 +174,55 @@ protected:
     double p_prefactor = 0.0;
 };
 
+// A viscosity profile tabulated in radius (alias "interp"), linear between the table points and held at the end
+// values beyond them. A seismic profile's quality factor travels in this table for the seismic_q rheology, which reads
+// its viscosity input as Q.
+class c_InterpolatedViscosity final : public c_SpecModel<c_InterpolatedViscosity, c_ViscosityBase> {
+public:
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::InterpolatedViscosity;
+
+    static const std::vector<c_ParamSpec<c_InterpolatedViscosity>>& parameter_specs() {
+        using Self = c_InterpolatedViscosity;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            // The default tables hold one point, a constant profile.
+            {"radius", "radius_m", &Self::p_radius, 0.0, c_ParamBounds::Finite,
+             "Table radii, ascending [m].", {0.0}},
+            {"viscosity", "viscosity_pas", &Self::p_viscosity, 0.0, c_ParamBounds::Positive,
+             "Viscosity at each table radius [Pa s].", {1.0e22}},
+        };
+        return specs;
+    }
+
+    c_InterpolatedViscosity() : c_InterpolatedViscosity(c_ParamMap{}) {}
+    explicit c_InterpolatedViscosity(const c_ParamMap& params) : c_SpecModel("interpolate") {
+        this->p_initialize(params);
+    }
+
+    double calc_viscosity(const c_ThermoPoint& point) const noexcept override {
+        return this->p_lookup.interpolate(point.radius, this->p_radius, this->p_viscosity);
+    }
+
+protected:
+    void p_validate() const override {
+        c_check_table(this->p_describe(), this->p_radius, {&this->p_viscosity});
+        if (this->p_viscosity.size() != this->p_radius.size()) {
+            throw std::invalid_argument(this->p_describe() + " needs a 'viscosity_pas' value at every table radius.");
+        }
+    }
+    void p_update_derived() noexcept override { this->p_lookup.build(this->p_radius); }
+
+    std::vector<double> p_radius;
+    std::vector<double> p_viscosity;
+    c_TableLookup p_lookup;
+};
+
 inline const c_ModelRegistry<c_ViscosityBase>& c_viscosity_registry() {
     static const c_ModelRegistry<c_ViscosityBase> registry = {
         {{"arrhenius", "arr"},   BinaryClassID::ArrheniusViscosity, &c_make_entry<c_ViscosityBase, c_ArrheniusViscosity>},
         {{"reference", "ref"},   BinaryClassID::ReferenceViscosity, &c_make_entry<c_ViscosityBase, c_ReferenceViscosity>},
         {{"constant", "const"},  BinaryClassID::ConstantViscosity,  &c_make_entry<c_ViscosityBase, c_ConstantViscosity>},
+        {{"interpolate", "interp", "interpolated"},
+         BinaryClassID::InterpolatedViscosity, &c_make_entry<c_ViscosityBase, c_InterpolatedViscosity>},
     };
     return registry;
 }

@@ -1326,6 +1326,48 @@
     "link_args": [],
     "is_cpp": true
   },
+  "PartialMelt.melting": {
+    "name": "TidalPy.PartialMelt.melting",
+    "sources": [
+      [
+        "TidalPy",
+        "PartialMelt",
+        "melting.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "PartialMelt"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "Viscosity.viscosity": {
     "name": "TidalPy.Viscosity.viscosity",
     "sources": [
@@ -1399,6 +1441,50 @@
         "TidalPy",
         "Material",
         "eos"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "binary"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "arrays"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material.laws.laws": {
+    "name": "TidalPy.Material.laws.laws",
+    "sources": [
+      [
+        "TidalPy",
+        "Material",
+        "laws",
+        "laws.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Material",
+        "laws"
       ],
       [
         "TidalPy",

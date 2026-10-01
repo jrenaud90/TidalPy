@@ -12,7 +12,8 @@
  * - Kanamori and Anderson (1977), Rev. Geophys., DOI: 10.1029/RG015i001p00105; Wahr and Bergen (1986), GJRAS,
  *   DOI: 10.1111/j.1365-246X.1986.tb06642.x (a seismic Q and the dispersion it carries to tidal frequencies).
  *
- * Binary payload: model name then the model's doubles. The layer observer pointer is not serialized.
+ * Each model's parameters are declared once in its table (c_SpecModel), which gives its config entries and
+ * binary record.
  */
 
 #include <cmath>
@@ -26,21 +27,11 @@
 #include <vector>
 
 #include "constants_.hpp"
-#include "model_names_.hpp"
+#include "registry_.hpp"
 #include "rheology_base_.hpp"
+#include "spec_model_.hpp"
 
 namespace tidalpy {
-
-// Combined construction parameters; each model reads only the fields it needs. Its defaults are the models' defaults.
-struct c_RheologyConfig {
-    double alpha                = 0.3;     // Andrade exponent           [dimensionless]
-    double zeta                 = 1.0;     // Andrade timescale ratio    [dimensionless]
-    double voigt_modulus_frac   = 5.0;     // Voigt modulus fraction     [dimensionless]
-    double voigt_viscosity_frac = 0.02;    // Voigt viscosity fraction   [dimensionless]
-    double relaxed_modulus_frac = 0.5;     // Zener relaxed modulus as a fraction of the unrelaxed one
-    double reference_frequency  = 2.0 * TidalPyConstants::d_PI;  // Seismic Q reference frequency [rad s-1]; 1 s
-    double q_frequency_exponent = 0.0;     // Seismic Q grows as frequency^exponent [dimensionless]
-};
 
 // The factors of the Andrade transient that depend on alpha alone: Gamma(1 + alpha) and the cosine and sine of
 // alpha pi / 2. A model computes them once when its alpha is set, not on every call.
@@ -333,481 +324,301 @@ inline c_ComplexModulus rheo_modulus_seismic_q(
     return c_ComplexModulus(storage, std::copysign(storage * loss_over_q, frequency));
 }
 
-// Each model supplies only its BinaryClassID (get_binary_class_id) and its scalar params; c_PhysicsBase handles the
-// header, the model name, and the byte layout.
+// Each model declares its parameters in one table (c_SpecModel, spec_model_.hpp), which gives its construction,
+// validation, config entries, and binary record. The physics is in the rheo_modulus_* functions above.
+
+// The parameter rows several models share, so each is described once.
+template <class Model>
+inline c_ParamSpec<Model> c_voigt_modulus_frac_spec(double Model::* member) {
+    return {"voigt_modulus_frac", "voigt_modulus_frac", member, 5.0, c_ParamBounds::Positive,
+            "Voigt spring as a multiple of the unrelaxed modulus [dimensionless]."};
+}
+template <class Model>
+inline c_ParamSpec<Model> c_voigt_viscosity_frac_spec(double Model::* member) {
+    return {"voigt_viscosity_frac", "voigt_viscosity_frac", member, 0.02, c_ParamBounds::Positive,
+            "Voigt dashpot as a fraction of the viscosity [dimensionless]."};
+}
+template <class Model>
+inline c_ParamSpec<Model> c_andrade_alpha_spec(double Model::* member) {
+    return {"alpha", "alpha", member, 0.3, c_ParamBounds::UnitInterval,
+            "Andrade exponent, in (0, 1] [dimensionless]."};
+}
+template <class Model>
+inline c_ParamSpec<Model> c_andrade_zeta_spec(double Model::* member) {
+    return {"zeta", "zeta", member, 1.0, c_ParamBounds::Positive,
+            "Andrade timescale over the Maxwell time [dimensionless]."};
+}
+
+// The empty table of a model with no parameters.
+template <class Model>
+inline const std::vector<c_ParamSpec<Model>>& c_no_param_specs() {
+    static const std::vector<c_ParamSpec<Model>> specs;
+    return specs;
+}
 
 // Purely elastic response (alias "off").
-class c_Elastic final : public c_RheologyBase {
+class c_Elastic final : public c_SpecModel<c_Elastic, c_RheologyBase> {
 public:
-    c_Elastic() : c_Elastic(c_RheologyConfig{}) {}
-    explicit c_Elastic(const c_RheologyConfig& /*cfg*/) : c_RheologyBase("elastic") {}
-    ~c_Elastic() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::Elastic;
+    static const std::vector<c_ParamSpec<c_Elastic>>& parameter_specs() { return c_no_param_specs<c_Elastic>(); }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus,
-            double viscosity,
-            double frequency) const override {
-        return rheo_modulus_elastic(
-            modulus, 
-            viscosity,
-            frequency);
+    c_Elastic() : c_Elastic(c_ParamMap{}) {}
+    explicit c_Elastic(const c_ParamMap& params) : c_SpecModel("elastic") { this->p_initialize(params); }
+
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
+        return rheo_modulus_elastic(modulus, viscosity, frequency);
     }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Elastic); }
 };
 
 // Purely viscous response (alias "newton").
-class c_Viscous final : public c_RheologyBase {
+class c_Viscous final : public c_SpecModel<c_Viscous, c_RheologyBase> {
 public:
-    c_Viscous() : c_Viscous(c_RheologyConfig{}) {}
-    explicit c_Viscous(const c_RheologyConfig& /*cfg*/) : c_RheologyBase("viscous") {}
-    ~c_Viscous() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::Viscous;
+    static const std::vector<c_ParamSpec<c_Viscous>>& parameter_specs() { return c_no_param_specs<c_Viscous>(); }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus,
-            double viscosity,
-            double frequency) const override {
-        return rheo_modulus_viscous(
-            modulus,
-            viscosity,
-            frequency);
+    c_Viscous() : c_Viscous(c_ParamMap{}) {}
+    explicit c_Viscous(const c_ParamMap& params) : c_SpecModel("viscous") { this->p_initialize(params); }
+
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
+        return rheo_modulus_viscous(modulus, viscosity, frequency);
     }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Viscous); }
 };
 
-class c_Maxwell final : public c_RheologyBase {
+class c_Maxwell final : public c_SpecModel<c_Maxwell, c_RheologyBase> {
 public:
-    c_Maxwell() : c_Maxwell(c_RheologyConfig{}) {}
-    explicit c_Maxwell(const c_RheologyConfig& /*cfg*/) : c_RheologyBase("maxwell") {}
-    ~c_Maxwell() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::Maxwell;
+    static const std::vector<c_ParamSpec<c_Maxwell>>& parameter_specs() { return c_no_param_specs<c_Maxwell>(); }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus,
-            double viscosity,
-            double frequency) const override {
-        return rheo_modulus_maxwell(
-            modulus,
-            viscosity,
-            frequency);
+    c_Maxwell() : c_Maxwell(c_ParamMap{}) {}
+    explicit c_Maxwell(const c_ParamMap& params) : c_SpecModel("maxwell") { this->p_initialize(params); }
+
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
+        return rheo_modulus_maxwell(modulus, viscosity, frequency);
     }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Maxwell); }
 };
 
 // Voigt-Kelvin element (alias "voigt-kelvin").
-class c_Voigt final : public c_RheologyBase {
+class c_Voigt final : public c_SpecModel<c_Voigt, c_RheologyBase> {
 public:
-    c_Voigt() : c_Voigt(c_RheologyConfig{}) {}
-    explicit c_Voigt(const c_RheologyConfig& cfg)
-        : c_RheologyBase("voigt"),
-          p_voigt_modulus_frac(cfg.voigt_modulus_frac),
-          p_voigt_viscosity_frac(cfg.voigt_viscosity_frac) {}
-    ~c_Voigt() override = default;
-
-    double get_voigt_modulus_frac() const noexcept { return this->p_voigt_modulus_frac; }
-    double get_voigt_viscosity_frac() const noexcept { return this->p_voigt_viscosity_frac; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_RheologyBase::append_config_entries(out);
-        out.push_back(c_config_double("voigt_modulus_frac", this->p_voigt_modulus_frac));
-        out.push_back(c_config_double("voigt_viscosity_frac", this->p_voigt_viscosity_frac));
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::Voigt;
+    static const std::vector<c_ParamSpec<c_Voigt>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_Voigt>> specs = {
+            c_voigt_modulus_frac_spec<c_Voigt>(&c_Voigt::p_voigt_modulus_frac),
+            c_voigt_viscosity_frac_spec<c_Voigt>(&c_Voigt::p_voigt_viscosity_frac),
+        };
+        return specs;
     }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus,
-            double viscosity,
-            double frequency) const override {
+    c_Voigt() : c_Voigt(c_ParamMap{}) {}
+    explicit c_Voigt(const c_ParamMap& params) : c_SpecModel("voigt") { this->p_initialize(params); }
+
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
         return rheo_modulus_voigt(
-            modulus,
-            viscosity,
-            frequency,
-            this->p_voigt_modulus_frac,
-            this->p_voigt_viscosity_frac);
-    }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Voigt); }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        this->p_voigt_modulus_frac   = params[0];
-        this->p_voigt_viscosity_frac = params[1];
+            modulus, viscosity, frequency, this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac);
     }
 
 protected:
-    double p_voigt_modulus_frac;
-    double p_voigt_viscosity_frac;
+    double p_voigt_modulus_frac   = 0.0;
+    double p_voigt_viscosity_frac = 0.0;
 };
 
 // Maxwell and Voigt in series.
-class c_Burgers final : public c_RheologyBase {
+class c_Burgers final : public c_SpecModel<c_Burgers, c_RheologyBase> {
 public:
-    c_Burgers() : c_Burgers(c_RheologyConfig{}) {}
-    explicit c_Burgers(const c_RheologyConfig& cfg)
-        : c_RheologyBase("burgers"),
-          p_voigt_modulus_frac(cfg.voigt_modulus_frac),
-          p_voigt_viscosity_frac(cfg.voigt_viscosity_frac) {}
-    ~c_Burgers() override = default;
-
-    double get_voigt_modulus_frac()   const noexcept { return this->p_voigt_modulus_frac; }
-    double get_voigt_viscosity_frac() const noexcept { return this->p_voigt_viscosity_frac; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_RheologyBase::append_config_entries(out);
-        out.push_back(c_config_double("voigt_modulus_frac", this->p_voigt_modulus_frac));
-        out.push_back(c_config_double("voigt_viscosity_frac", this->p_voigt_viscosity_frac));
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::Burgers;
+    static const std::vector<c_ParamSpec<c_Burgers>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_Burgers>> specs = {
+            c_voigt_modulus_frac_spec<c_Burgers>(&c_Burgers::p_voigt_modulus_frac),
+            c_voigt_viscosity_frac_spec<c_Burgers>(&c_Burgers::p_voigt_viscosity_frac),
+        };
+        return specs;
     }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus, 
-            double viscosity,
-            double frequency) const override {
+    c_Burgers() : c_Burgers(c_ParamMap{}) {}
+    explicit c_Burgers(const c_ParamMap& params) : c_SpecModel("burgers") { this->p_initialize(params); }
+
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
         return rheo_modulus_burgers(
-            modulus,
-            viscosity,
-            frequency,
-            this->p_voigt_modulus_frac,
-            this->p_voigt_viscosity_frac);
-    }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Burgers); }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        this->p_voigt_modulus_frac   = params[0];
-        this->p_voigt_viscosity_frac = params[1];
+            modulus, viscosity, frequency, this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac);
     }
 
 protected:
-    double p_voigt_modulus_frac;
-    double p_voigt_viscosity_frac;
+    double p_voigt_modulus_frac   = 0.0;
+    double p_voigt_viscosity_frac = 0.0;
 };
 
 // Maxwell plus an Andrade transient term.
-class c_Andrade final : public c_RheologyBase {
+class c_Andrade final : public c_SpecModel<c_Andrade, c_RheologyBase> {
 public:
-    c_Andrade() : c_Andrade(c_RheologyConfig{}) {}
-    explicit c_Andrade(const c_RheologyConfig& cfg)
-        : c_RheologyBase("andrade"),
-          p_alpha(cfg.alpha),
-          p_zeta(cfg.zeta) {}
-    ~c_Andrade() override = default;
-
-    double get_alpha() const noexcept { return this->p_alpha; }
-    double get_zeta()  const noexcept { return this->p_zeta; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_RheologyBase::append_config_entries(out);
-        out.push_back(c_config_double("alpha", this->p_alpha));
-        out.push_back(c_config_double("zeta", this->p_zeta));
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::Andrade;
+    static const std::vector<c_ParamSpec<c_Andrade>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_Andrade>> specs = {
+            c_andrade_alpha_spec<c_Andrade>(&c_Andrade::p_alpha),
+            c_andrade_zeta_spec<c_Andrade>(&c_Andrade::p_zeta),
+        };
+        return specs;
     }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus,
-            double viscosity,
-            double frequency) const override {
-        return rheo_modulus_andrade(
-            modulus,
-            viscosity,
-            frequency,
-            this->p_alpha,
-            this->p_zeta,
-            this->p_andrade_factors);
-    }
+    c_Andrade() : c_Andrade(c_ParamMap{}) {}
+    explicit c_Andrade(const c_ParamMap& params) : c_SpecModel("andrade") { this->p_initialize(params); }
 
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Andrade); }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_alpha, this->p_zeta};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        this->p_alpha = params[0];
-        this->p_zeta  = params[1];
-        this->p_andrade_factors = c_AndradeFactors(this->p_alpha);
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
+        return rheo_modulus_andrade(modulus, viscosity, frequency, this->p_alpha, this->p_zeta, this->p_factors);
     }
 
 protected:
-    double p_alpha;
-    double p_zeta;
-    // Declared after p_alpha, so every constructor builds it from the alpha it set.
-    c_AndradeFactors p_andrade_factors{this->p_alpha};
+    // A zero exponent has no transient creep, which is the Maxwell model.
+    void p_validate() const override {
+        if (!(this->p_alpha > 0.0)) {
+            throw std::invalid_argument(this->p_describe() + " needs an 'alpha' above 0; maxwell has none.");
+        }
+    }
+    void p_update_derived() noexcept override { this->p_factors = c_AndradeFactors(this->p_alpha); }
+
+    double p_alpha = 0.0;
+    double p_zeta  = 0.0;
+    c_AndradeFactors p_factors;
 };
 
-// Andrade and Voigt (alias "sundberg-cooper").
-class c_Sundberg final : public c_RheologyBase {
+// Andrade and Voigt in series (alias "sundberg-cooper").
+class c_Sundberg final : public c_SpecModel<c_Sundberg, c_RheologyBase> {
 public:
-    c_Sundberg() : c_Sundberg(c_RheologyConfig{}) {}
-    explicit c_Sundberg(const c_RheologyConfig& cfg)
-        : c_RheologyBase("sundberg"),
-          p_alpha(cfg.alpha),
-          p_zeta(cfg.zeta),
-          p_voigt_modulus_frac(cfg.voigt_modulus_frac),
-          p_voigt_viscosity_frac(cfg.voigt_viscosity_frac) {}
-    ~c_Sundberg() override = default;
-
-    double get_alpha()                 const noexcept { return this->p_alpha; }
-    double get_zeta()                  const noexcept { return this->p_zeta; }
-    double get_voigt_modulus_frac() const noexcept { return this->p_voigt_modulus_frac; }
-    double get_voigt_viscosity_frac()  const noexcept { return this->p_voigt_viscosity_frac; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_RheologyBase::append_config_entries(out);
-        out.push_back(c_config_double("alpha", this->p_alpha));
-        out.push_back(c_config_double("zeta", this->p_zeta));
-        out.push_back(c_config_double("voigt_modulus_frac", this->p_voigt_modulus_frac));
-        out.push_back(c_config_double("voigt_viscosity_frac", this->p_voigt_viscosity_frac));
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::Sundberg;
+    static const std::vector<c_ParamSpec<c_Sundberg>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_Sundberg>> specs = {
+            c_andrade_alpha_spec<c_Sundberg>(&c_Sundberg::p_alpha),
+            c_andrade_zeta_spec<c_Sundberg>(&c_Sundberg::p_zeta),
+            c_voigt_modulus_frac_spec<c_Sundberg>(&c_Sundberg::p_voigt_modulus_frac),
+            c_voigt_viscosity_frac_spec<c_Sundberg>(&c_Sundberg::p_voigt_viscosity_frac),
+        };
+        return specs;
     }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus,
-            double viscosity,
-            double frequency) const override {
+    c_Sundberg() : c_Sundberg(c_ParamMap{}) {}
+    explicit c_Sundberg(const c_ParamMap& params) : c_SpecModel("sundberg") { this->p_initialize(params); }
+
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
         return rheo_modulus_sundberg(
-            modulus, 
-            viscosity,
-            frequency,
-            this->p_alpha,
-            this->p_zeta,
-            this->p_voigt_modulus_frac,
-            this->p_voigt_viscosity_frac,
-            this->p_andrade_factors);
-    }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Sundberg); }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_alpha, this->p_zeta, this->p_voigt_modulus_frac, this->p_voigt_viscosity_frac};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        this->p_alpha                = params[0];
-        this->p_zeta                 = params[1];
-        this->p_voigt_modulus_frac   = params[2];
-        this->p_voigt_viscosity_frac = params[3];
-        this->p_andrade_factors      = c_AndradeFactors(this->p_alpha);
+            modulus, viscosity, frequency, this->p_alpha, this->p_zeta, this->p_voigt_modulus_frac,
+            this->p_voigt_viscosity_frac, this->p_factors);
     }
 
 protected:
-    double p_alpha;
-    double p_zeta;
-    double p_voigt_modulus_frac;
-    double p_voigt_viscosity_frac;
-    // Declared after p_alpha, so every constructor builds it from the alpha it set.
-    c_AndradeFactors p_andrade_factors{this->p_alpha};
+    void p_validate() const override {
+        if (!(this->p_alpha > 0.0)) {
+            throw std::invalid_argument(this->p_describe() + " needs an 'alpha' above 0; burgers has none.");
+        }
+    }
+    void p_update_derived() noexcept override { this->p_factors = c_AndradeFactors(this->p_alpha); }
+
+    double p_alpha                = 0.0;
+    double p_zeta                 = 0.0;
+    double p_voigt_modulus_frac   = 0.0;
+    double p_voigt_viscosity_frac = 0.0;
+    c_AndradeFactors p_factors;
 };
 
 // Zener, the standard linear solid (aliases "sls", "standard_linear_solid"). Unlike Maxwell it relaxes to a finite
 // modulus, which suits a bulk response: melt-driven compaction relaxes a partially molten rock's bulk modulus toward
 // its drained value, not to zero.
-class c_Zener final : public c_RheologyBase {
+class c_Zener final : public c_SpecModel<c_Zener, c_RheologyBase> {
 public:
-    c_Zener() : c_Zener(c_RheologyConfig{}) {}
-    explicit c_Zener(const c_RheologyConfig& cfg)
-        : c_RheologyBase("zener"),
-          p_relaxed_modulus_frac(cfg.relaxed_modulus_frac) {
-        c_check_relaxed_modulus_frac(this->p_relaxed_modulus_frac);
-    }
-    ~c_Zener() override = default;
-
-    double get_relaxed_modulus_frac() const noexcept { return this->p_relaxed_modulus_frac; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_RheologyBase::append_config_entries(out);
-        out.push_back(c_config_double("relaxed_modulus_frac", this->p_relaxed_modulus_frac));
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::Zener;
+    static const std::vector<c_ParamSpec<c_Zener>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_Zener>> specs = {
+            {"relaxed_modulus_frac", "relaxed_modulus_frac", &c_Zener::p_relaxed_modulus_frac, 0.5,
+             c_ParamBounds::UnitInterval,
+             "Relaxed (zero-frequency) modulus as a fraction of the unrelaxed one [dimensionless]."},
+        };
+        return specs;
     }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus,
-            double viscosity,
-            double frequency) const override {
-        return rheo_modulus_zener(
-            modulus,
-            viscosity,
-            frequency,
-            this->p_relaxed_modulus_frac);
-    }
+    c_Zener() : c_Zener(c_ParamMap{}) {}
+    explicit c_Zener(const c_ParamMap& params) : c_SpecModel("zener") { this->p_initialize(params); }
 
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::Zener); }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_relaxed_modulus_frac};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        c_check_relaxed_modulus_frac(params[0]);
-        this->p_relaxed_modulus_frac = params[0];
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
+        return rheo_modulus_zener(modulus, viscosity, frequency, this->p_relaxed_modulus_frac);
     }
 
 protected:
-    double p_relaxed_modulus_frac;
-
-    // A fraction outside [0, 1] would give a negative spring.
-    static void c_check_relaxed_modulus_frac(double value) {
-        if (!(value >= 0.0 && value <= 1.0)) {
-            throw std::invalid_argument(
-                "TidalPy: the Zener relaxed_modulus_frac must lie in [0, 1], got " + std::to_string(value));
-        }
-    }
+    double p_relaxed_modulus_frac = 0.0;
 };
 
 // Seismic Q (aliases "constant_q", "power_law_q"): the loss comes from a quality factor rather than a viscosity. Its
 // viscosity input is read as Q at the reference frequency, which is how a seismic profile's Q(r) reaches the Love
 // solve; see rheo_modulus_seismic_q.
-class c_SeismicQ final : public c_RheologyBase {
+class c_SeismicQ final : public c_SpecModel<c_SeismicQ, c_RheologyBase> {
 public:
-    c_SeismicQ() : c_SeismicQ(c_RheologyConfig{}) {}
-    explicit c_SeismicQ(const c_RheologyConfig& cfg)
-        : c_RheologyBase("seismic_q"),
-          p_reference_frequency(cfg.reference_frequency),
-          p_q_frequency_exponent(cfg.q_frequency_exponent) {
-        c_check_params(this->p_reference_frequency, this->p_q_frequency_exponent);
-        this->p_set_dispersion_coefficient();
-    }
-    ~c_SeismicQ() override = default;
-
-    double get_reference_frequency()  const noexcept { return this->p_reference_frequency; }
-    double get_q_frequency_exponent() const noexcept { return this->p_q_frequency_exponent; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_RheologyBase::append_config_entries(out);
-        out.push_back(c_config_double("reference_frequency_rad_s", this->p_reference_frequency));
-        out.push_back(c_config_double("q_frequency_exponent", this->p_q_frequency_exponent));
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::SeismicQ;
+    static const std::vector<c_ParamSpec<c_SeismicQ>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_SeismicQ>> specs = {
+            {"reference_frequency", "reference_frequency_rad_s", &c_SeismicQ::p_reference_frequency,
+             2.0 * TidalPyConstants::d_PI, c_ParamBounds::Positive,
+             "Frequency at which the quality factor is given [rad s-1]; 2 pi is a 1 s period."},
+            {"q_frequency_exponent", "q_frequency_exponent", &c_SeismicQ::p_q_frequency_exponent, 0.0,
+             c_ParamBounds::UnitInterval, "Exponent a of Q ~ omega^a, in [0, 1) [dimensionless]."},
+        };
+        return specs;
     }
 
-    c_ComplexModulus calc_complex_modulus(
-            double modulus,
-            double viscosity,
-            double frequency) const override {
+    c_SeismicQ() : c_SeismicQ(c_ParamMap{}) {}
+    explicit c_SeismicQ(const c_ParamMap& params) : c_SpecModel("seismic_q") { this->p_initialize(params); }
+
+    c_ComplexModulus calc_complex_modulus(double modulus, double viscosity, double frequency) const override {
         return rheo_modulus_seismic_q(
-            modulus,
-            viscosity,
-            frequency,
-            this->p_reference_frequency,
-            this->p_q_frequency_exponent,
+            modulus, viscosity, frequency, this->p_reference_frequency, this->p_q_frequency_exponent,
             this->p_dispersion_coefficient);
     }
 
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::SeismicQ); }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_reference_frequency, this->p_q_frequency_exponent};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        c_check_params(params[0], params[1]);
-        this->p_reference_frequency  = params[0];
-        this->p_q_frequency_exponent = params[1];
-        this->p_set_dispersion_coefficient();
-    }
-
 protected:
-    double p_reference_frequency;
-    double p_q_frequency_exponent;
-    double p_dispersion_coefficient = 0.0;
-
+    // An exponent of 1 has no finite dispersion (cot(a pi / 2) = 0).
+    void p_validate() const override {
+        if (!(this->p_q_frequency_exponent < 1.0)) {
+            throw std::invalid_argument(this->p_describe() + " needs a 'q_frequency_exponent' below 1.");
+        }
+    }
     // cot(a pi / 2), or its a -> 0 limit taken with ln s in place of s^a - 1.
-    void p_set_dispersion_coefficient() noexcept {
+    void p_update_derived() noexcept override {
         this->p_dispersion_coefficient = (this->p_q_frequency_exponent == 0.0)
             ? 2.0 / TidalPyConstants::d_PI
             : 1.0 / std::tan(0.5 * this->p_q_frequency_exponent * TidalPyConstants::d_PI);
     }
 
-    // An exponent of 1 or more has no finite dispersion (cot(a pi / 2) <= 0), and a negative one a Q that falls with
-    // frequency, which no absorption band gives.
-    static void c_check_params(double reference_frequency, double q_frequency_exponent) {
-        if (!(reference_frequency > 0.0) || std::isinf(reference_frequency)) {
-            throw std::invalid_argument(
-                "TidalPy: the seismic Q reference_frequency_rad_s must be positive and finite, got "
-                + std::to_string(reference_frequency));
-        }
-        if (!(q_frequency_exponent >= 0.0 && q_frequency_exponent < 1.0)) {
-            throw std::invalid_argument(
-                "TidalPy: the seismic Q q_frequency_exponent must lie in [0, 1), got "
-                + std::to_string(q_frequency_exponent));
-        }
-    }
+    double p_reference_frequency    = 0.0;
+    double p_q_frequency_exponent   = 0.0;
+    double p_dispersion_coefficient = 0.0;
 };
 
-// One value per model, so c_find_rheology dispatches without string comparisons.
-enum class c_RheologyModel : uint8_t {
-    Elastic  = 0,
-    Viscous  = 1,
-    Voigt    = 2,
-    Maxwell  = 3,
-    Burgers  = 4,
-    Andrade  = 5,
-    Sundberg = 6,
-    Zener    = 7,
-    SeismicQ = 8,
-};
-
-// Model names are matched case-insensitively.
-inline c_RheologyModel c_rheology_model_from_name(const std::string& model_name) {
-    const std::string name = c_to_lower(model_name);
-
-    if (name == "elastic" || name == "off")          { return c_RheologyModel::Elastic; }
-    if (name == "viscous" || name == "newton")       { return c_RheologyModel::Viscous; }
-    if (name == "voigt"   || name == "voigt-kelvin"
-                          || name == "voigt_kelvin") { return c_RheologyModel::Voigt; }
-    if (name == "maxwell")                           { return c_RheologyModel::Maxwell; }
-    if (name == "burgers")                           { return c_RheologyModel::Burgers; }
-    if (name == "andrade")                           { return c_RheologyModel::Andrade; }
-    if (name == "sundberg"
-             || name == "sundberg-cooper"
-             || name == "sundberg_cooper")           { return c_RheologyModel::Sundberg; }
-    if (name == "zener"    || name == "sls"
-             || name == "standard_linear_solid")     { return c_RheologyModel::Zener; }
-    if (name == "seismic_q" || name == "constant_q"
-             || name == "power_law_q")               { return c_RheologyModel::SeismicQ; }
-
-    throw std::invalid_argument("TidalPy: unknown rheology model name '" + model_name + "'");
+inline const c_ModelRegistry<c_RheologyBase>& c_rheology_registry() {
+    static const c_ModelRegistry<c_RheologyBase> registry = {
+        {{"elastic", "off"},                                 BinaryClassID::Elastic,  &c_make_entry<c_RheologyBase, c_Elastic>},
+        {{"viscous", "newton"},                              BinaryClassID::Viscous,  &c_make_entry<c_RheologyBase, c_Viscous>},
+        {{"voigt", "voigt-kelvin", "voigt_kelvin"},          BinaryClassID::Voigt,    &c_make_entry<c_RheologyBase, c_Voigt>},
+        {{"maxwell"},                                        BinaryClassID::Maxwell,  &c_make_entry<c_RheologyBase, c_Maxwell>},
+        {{"burgers"},                                        BinaryClassID::Burgers,  &c_make_entry<c_RheologyBase, c_Burgers>},
+        {{"andrade"},                                        BinaryClassID::Andrade,  &c_make_entry<c_RheologyBase, c_Andrade>},
+        {{"sundberg", "sundberg-cooper", "sundberg_cooper"}, BinaryClassID::Sundberg, &c_make_entry<c_RheologyBase, c_Sundberg>},
+        {{"zener", "sls", "standard_linear_solid"},          BinaryClassID::Zener,    &c_make_entry<c_RheologyBase, c_Zener>},
+        {{"seismic_q", "constant_q", "power_law_q"},         BinaryClassID::SeismicQ, &c_make_entry<c_RheologyBase, c_SeismicQ>},
+    };
+    return registry;
 }
 
-// Builds a model from its enum value and parameters; the Cython wrappers construct through it. A saved record is
-// restored by c_rheology_from_binary instead.
-inline std::unique_ptr<c_RheologyBase> c_find_rheology(
-        c_RheologyModel model, const c_RheologyConfig& cfg) {
-    switch (model) {
-        case c_RheologyModel::Elastic:  return std::make_unique<c_Elastic>(cfg);
-        case c_RheologyModel::Viscous:  return std::make_unique<c_Viscous>(cfg);
-        case c_RheologyModel::Voigt:    return std::make_unique<c_Voigt>(cfg);
-        case c_RheologyModel::Maxwell:  return std::make_unique<c_Maxwell>(cfg);
-        case c_RheologyModel::Burgers:  return std::make_unique<c_Burgers>(cfg);
-        case c_RheologyModel::Andrade:  return std::make_unique<c_Andrade>(cfg);
-        case c_RheologyModel::Sundberg: return std::make_unique<c_Sundberg>(cfg);
-        case c_RheologyModel::Zener:    return std::make_unique<c_Zener>(cfg);
-        case c_RheologyModel::SeismicQ: return std::make_unique<c_SeismicQ>(cfg);
-    }
-    throw std::invalid_argument("TidalPy: unrecognised c_RheologyModel enum value");
+// The family's entry points, each one line over the generic registry functions.
+inline std::unique_ptr<c_RheologyBase> c_find_rheology(const std::string& model_name, const c_ParamMap& params) {
+    return c_make_model(c_rheology_registry(), model_name, params);
 }
 
-inline std::unique_ptr<c_RheologyBase> c_find_rheology(
-        const std::string& model_name, const c_RheologyConfig& cfg) {
-    return c_find_rheology(c_rheology_model_from_name(model_name), cfg);
-}
-
-// The class id is peeked without consuming the header so the default-constructed model restores itself.
-// Used by the layer recursive deserialization in Structures/layers.
 inline std::unique_ptr<c_RheologyBase> c_rheology_from_binary(std::istream& in, bool force = false) {
-    const c_BinaryHeader header = c_peek_binary_header(in);
+    return c_model_from_binary(c_rheology_registry(), in, force);
+}
 
-    std::unique_ptr<c_RheologyBase> model;
-    switch (static_cast<BinaryClassID>(header.class_id)) {
-        case BinaryClassID::Elastic:  model = std::make_unique<c_Elastic>();  break;
-        case BinaryClassID::Viscous:  model = std::make_unique<c_Viscous>();  break;
-        case BinaryClassID::Voigt:    model = std::make_unique<c_Voigt>();    break;
-        case BinaryClassID::Maxwell:  model = std::make_unique<c_Maxwell>();  break;
-        case BinaryClassID::Burgers:  model = std::make_unique<c_Burgers>();  break;
-        case BinaryClassID::Andrade:  model = std::make_unique<c_Andrade>();  break;
-        case BinaryClassID::Sundberg: model = std::make_unique<c_Sundberg>(); break;
-        case BinaryClassID::Zener:    model = std::make_unique<c_Zener>();    break;
-        case BinaryClassID::SeismicQ: model = std::make_unique<c_SeismicQ>(); break;
-        default:
-            throw std::runtime_error("TidalPy: unknown rheology class id in binary stream");
-    }
-    model->read_binary(in, force);
-    return model;
+inline std::string c_rheology_canonical_name(const std::string& model_name) {
+    return c_canonical_model_name(c_rheology_registry(), model_name);
+}
+
+inline std::vector<std::string> c_rheology_model_names() {
+    return c_model_names(c_rheology_registry());
 }
 
 }  // namespace tidalpy

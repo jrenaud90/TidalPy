@@ -12,6 +12,9 @@ from TidalPy.Rheology.rheology import (
     Zener,
     SeismicQ,
     make_rheology,
+    rheology_model_names,
+    canonical_rheology_name,
+    rheology_config_keys,
     elastic,
     viscous,
     voigt,
@@ -37,6 +40,9 @@ __all__ = [
     "SeismicQ",
     # Factory
     "make_rheology",
+    "rheology_model_names",
+    "canonical_rheology_name",
+    "rheology_config_keys",
     # Direct complex-modulus convenience functions (float or np.ndarray inputs)
     "elastic",
     "viscous",

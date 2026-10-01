@@ -10,6 +10,9 @@ import math
 
 import pytest
 
+from TidalPy.Material import laws
+from TidalPy.PartialMelt import melting
+from TidalPy.Rheology import rheology
 from TidalPy.Utilities.classes.classes import PhysicsBase, TidalPyBaseClass
 from TidalPy.Viscosity import viscosity as viscosity_module
 
@@ -17,6 +20,15 @@ from TidalPy.Viscosity import viscosity as viscosity_module
 SPEC_FAMILIES = [
     ("viscosity", viscosity_module.make_viscosity, viscosity_module.viscosity_model_names,
      viscosity_module.ViscosityBase),
+    ("rheology", rheology.make_rheology, rheology.rheology_model_names, rheology.RheologyBase),
+    ("eos", laws.make_eos, laws.eos_model_names, laws.EOSBase),
+    ("shear_modulus", laws.make_shear_modulus, laws.shear_modulus_model_names, laws.ShearModulusBase),
+    ("melting_curve", melting.make_melting_curve, melting.melting_curve_model_names, melting.MeltingCurveBase),
+    ("melt_weakening", melting.make_melt_weakening, melting.melt_weakening_model_names, melting.MeltWeakeningBase),
+    ("bulk_modulus_mixing", melting.make_bulk_modulus_mixing, melting.bulk_modulus_mixing_model_names,
+     melting.BulkModulusMixingBase),
+    ("bulk_viscosity_mixing", melting.make_bulk_viscosity_mixing, melting.bulk_viscosity_mixing_model_names,
+     melting.BulkViscosityMixingBase),
 ]
 
 CASES = [
@@ -24,6 +36,13 @@ CASES = [
     for family, factory, names, base in SPEC_FAMILIES
     for name in names()
 ]
+
+
+def _same(first, second):
+    """Equality that counts two NaNs (an unset parameter) as equal."""
+    if isinstance(first, float) and isinstance(second, float) and math.isnan(first) and math.isnan(second):
+        return True
+    return first == second
 
 
 def _valid_change(entry):
@@ -73,9 +92,9 @@ def test_parameter_info_is_consistent(family, factory, base, name):
     for entry in info:
         assert entry["doc"], entry["key"]
         by_name = model.get_parameter(entry["name"])
-        assert by_name == model.get_parameter(entry["key"])
-        assert getattr(model, entry["name"]) == by_name
-        assert model.parameters[entry["name"]] == by_name
+        assert _same(by_name, model.get_parameter(entry["key"]))
+        assert _same(getattr(model, entry["name"]), by_name)
+        assert _same(model.parameters[entry["name"]], by_name)
         default_unset = entry["kind"] == "float" and isinstance(entry["default"], float) and \
             math.isnan(entry["default"])
         if entry["kind"] != "list[float]" and not default_unset:

@@ -18,16 +18,17 @@ from TidalPy.Utilities.logging.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.arrays.vectors cimport cy_broadcast_inputs, cy_vector_to_ndarray
 from TidalPy.Utilities.classes.classes cimport (
     PhysicsBase,
-    c_TidalPyBaseClass,
     c_ParamMap,
+    c_ThermoPoint,
     c_share_physics,
+    cy_collect_parameters,
     cy_param_map,
-    cy_resolve_factory_config,
 )
+from TidalPy.Utilities.classes.families import ModelFamily
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -37,23 +38,22 @@ set_tidalpy_config_ptr(get_shared_config_address())
 cdef class ViscosityBase(PhysicsBase):
     """Base for viscosity models, which give the pre-melt (solid) viscosity [Pa s] at a temperature and pressure.
 
-    Instantiate a concrete model (``ArrheniusViscosity``, ``ReferenceViscosity``, ``ConstantViscosity``) with its
-    parameters as keywords, by argument name or config key, or build one by name with ``make_viscosity``.
-    ``get_parameter_info()`` lists every parameter with its unit, default, and bounds.
+    Instantiate a concrete model (``ArrheniusViscosity``, ``ReferenceViscosity``, ``ConstantViscosity``,
+    ``InterpolatedViscosity``) with its parameters positionally (in the order ``get_parameter_info()`` lists them) or
+    as keywords (argument names or config keys), or build one by name with ``make_viscosity``.
     """
 
     # The canonical name of the model a concrete subclass builds; None on this abstract base.
     MODEL_NAME = None
 
-    def __init__(self, dict config=None, **parameters):
+    def __init__(self, *args, dict config=None, **parameters):
         cdef object model_name = type(self).MODEL_NAME
         if model_name is None:
             raise TypeError(
                 "ViscosityBase is abstract; instantiate a concrete model "
-                "(ArrheniusViscosity, ReferenceViscosity, ConstantViscosity) or call make_viscosity.")
-        cdef dict merged = dict(config) if config else {}
-        merged.update(parameters)
-        cdef c_ParamMap param_map = cy_param_map(merged)
+                "(ArrheniusViscosity, ReferenceViscosity, ConstantViscosity, InterpolatedViscosity) "
+                "or call make_viscosity.")
+        cdef c_ParamMap param_map = cy_param_map(cy_collect_parameters(type(self), args, config, parameters))
         cdef unique_ptr[c_ViscosityBase] model = c_find_viscosity((<str>model_name).encode("utf-8"), param_map)
         self._set_model(c_share_physics[c_ViscosityBase](move(model)))
 
@@ -61,7 +61,7 @@ cdef class ViscosityBase(PhysicsBase):
         self._check_ptr()
         return <c_ViscosityBase*>self._ptr
 
-    def calc_viscosity(self, temperature, pressure=0.0):
+    def calc_viscosity(self, temperature, pressure=0.0, radius=d_NAN):
         """Dynamic viscosity [Pa s].
 
         Parameters
@@ -70,20 +70,26 @@ cdef class ViscosityBase(PhysicsBase):
             Temperature [K].
         pressure : float or np.ndarray, optional
             Pressure [Pa]; zero by default.
+        radius : float or np.ndarray, optional
+            Radius [m], read only by ``InterpolatedViscosity``.
 
         Returns
         -------
         float or np.ndarray
-            A float when both inputs are floats, otherwise an array of their broadcast shape.
+            A float when every input is a float, otherwise an array of their broadcast shape.
         """
         cdef c_ViscosityBase* model_ptr = self._viscosity()
         cdef vector[vector[double]] inputs
         cdef vector[double] viscosity
-        cdef object shape = cy_broadcast_inputs((temperature, pressure), inputs, False)
+        cdef c_ThermoPoint point
+        cdef object shape = cy_broadcast_inputs((temperature, pressure, radius), inputs, False)
         if shape is None:
-            return model_ptr.calc_viscosity(<double>temperature, <double>pressure)
+            point.pressure    = <double>pressure
+            point.temperature = <double>temperature
+            point.radius      = <double>radius
+            return model_ptr.calc_viscosity(point)
         with nogil:
-            model_ptr.calc_viscosity_vectorize(inputs[0], inputs[1], viscosity)
+            model_ptr.calc_viscosity_vectorize(inputs[0], inputs[1], inputs[2], viscosity)
         return cy_vector_to_ndarray(viscosity, shape)
 
 
@@ -93,7 +99,8 @@ cdef class ConstantViscosity(ViscosityBase):
 
 
 cdef class ReferenceViscosity(ViscosityBase):
-    """Relative-activation law (alias ``"ref"``): eta = eta_ref exp((E_a / R)(1/T - 1/T_ref) + P V_a / (R T))."""
+    """Relative-activation law (alias ``"ref"``), anchored at a reference temperature and pressure:
+    eta = eta_ref exp((E_a + P V_a)/(R T) - (E_a + P_ref V_a)/(R T_ref))."""
     MODEL_NAME = "reference"
 
 
@@ -103,14 +110,29 @@ cdef class ArrheniusViscosity(ViscosityBase):
     MODEL_NAME = "arrhenius"
 
 
-# The wrapper class of each model, by canonical name.
-_VISCOSITY_CLASSES = {cls.MODEL_NAME: cls for cls in (ArrheniusViscosity, ReferenceViscosity, ConstantViscosity)}
+cdef class InterpolatedViscosity(ViscosityBase):
+    """A viscosity profile tabulated in radius (aliases ``"interp"``, ``"interpolated"``): ``radius_m`` and
+    ``viscosity_pas`` tables, linear between points and held at the end values beyond them."""
+    MODEL_NAME = "interpolate"
+
+
+def _canonical_name(str model_name) -> str:
+    return c_viscosity_canonical_name(model_name.encode("utf-8")).decode("utf-8")
+
+
+_FAMILY = ModelFamily(
+    "viscosity",
+    (ArrheniusViscosity, ReferenceViscosity, ConstantViscosity, InterpolatedViscosity),
+    _canonical_name,
+    "material.shear_viscosity")
+
+# Every config key any viscosity model reads.
+VISCOSITY_CONFIG_KEYS = _FAMILY.config_keys
 
 
 def viscosity_model_names() -> tuple:
     """The canonical names of the viscosity models."""
-    cdef vector[string] names = c_viscosity_model_names()
-    return tuple(name.decode("utf-8") for name in names)
+    return _FAMILY.model_names()
 
 
 def canonical_viscosity_name(str model_name) -> str:
@@ -121,20 +143,7 @@ def canonical_viscosity_name(str model_name) -> str:
     ValueError
         Unknown model name; the message names the closest one.
     """
-    return c_viscosity_canonical_name(model_name.encode("utf-8")).decode("utf-8")
-
-
-def _same_model(str table_name, str model_name) -> bool:
-    """Whether two names (aliases included) resolve to the same model."""
-    return canonical_viscosity_name(table_name) == canonical_viscosity_name(model_name)
-
-
-# Canonical model name -> the config keys that model reads, from its parameter table.
-_MODEL_CONFIG_KEYS = {
-    name: frozenset(entry["key"] for entry in cls().get_parameter_info()) for name, cls in _VISCOSITY_CLASSES.items()}
-
-# Every config key any viscosity model reads.
-VISCOSITY_CONFIG_KEYS = frozenset().union(*_MODEL_CONFIG_KEYS.values())
+    return _FAMILY.canonical_name(model_name)
 
 
 def viscosity_config_keys(str model_name) -> frozenset:
@@ -145,7 +154,12 @@ def viscosity_config_keys(str model_name) -> frozenset:
     ValueError
         Unknown model name.
     """
-    return _MODEL_CONFIG_KEYS[canonical_viscosity_name(model_name)]
+    return _FAMILY.config_keys_of(model_name)
+
+
+def _same_model(str table_name, str model_name) -> bool:
+    """Whether two names (aliases included) resolve to the same model."""
+    return _FAMILY.same_model(table_name, model_name)
 
 
 def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
@@ -154,7 +168,8 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     Parameters
     ----------
     model_name : str
-        ``"arrhenius"`` (``"arr"``), ``"reference"`` (``"ref"``), or ``"constant"`` (``"const"``).
+        ``"arrhenius"`` (``"arr"``), ``"reference"`` (``"ref"``), ``"constant"`` (``"const"``), or ``"interpolate"``
+        (``"interp"``).
     config : dict, optional
         Model parameters by config key (see each model's ``get_parameter_info()``). Absent keys take the model's
         defaults. ``None`` takes the shear-viscosity defaults of ``[layers.default]`` in the TidalPy configuration.
@@ -168,8 +183,4 @@ def make_viscosity(str model_name, dict config=None) -> ViscosityBase:
     ValueError
         Unknown model name, or a parameter the model does not read; each message names the closest accepted one.
     """
-    cdef str canonical = canonical_viscosity_name(model_name)
-    if config is None:
-        config = cy_resolve_factory_config(
-            config, "material.shear_viscosity", _MODEL_CONFIG_KEYS[canonical], canonical, _same_model, "viscosity")
-    return _VISCOSITY_CLASSES[canonical](config)
+    return _FAMILY.make(model_name, config)

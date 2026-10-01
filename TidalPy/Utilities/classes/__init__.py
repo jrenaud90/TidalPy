@@ -7,11 +7,13 @@ from TidalPy.Utilities.classes.classes import (
     check_config_keys,
     factory_defaults,
 )
+from TidalPy.Utilities.classes.families import ModelFamily
 
 __all__ = [
     "TidalPyBaseClass",
     "StructureBase",
     "PhysicsBase",
     "check_config_keys",
-    "factory_defaults"
+    "factory_defaults",
+    "ModelFamily",
 ]

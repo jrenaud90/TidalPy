@@ -1,6 +1,6 @@
 # Rheology Models (`Rheology`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 A rheology model maps a material's static (purely real) mechanical properties onto a complex modulus $\mu^*(\omega)$ \[Pa\] at a given forcing frequency. The real part is the storage modulus, the part of the stress in phase with the strain; the imaginary part is the loss, and it is what converts mechanical work into frictional heat. Their ratio $\mathrm{Im}[\mu^*]/\mathrm{Re}[\mu^*]$ is the material's loss tangent, the inverse of its quality factor $Q$ (Efroimsky 2013).
 
@@ -136,13 +136,13 @@ andrade_model = Andrade(alpha=0.25, zeta=2.0)
 sundberg_model = make_rheology("Sundberg-Cooper", {"alpha": 0.4, "zeta": 2.0})
 ```
 
-`make_rheology(model_name, config=None)` recognizes every name and alias in the inheritance tree above and reads the keys `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac`, `relaxed_modulus_frac`, `reference_frequency_rad_s`, and `q_frequency_exponent` from `config`. Keys another rheology model uses are ignored and absent keys fall back to the model's default. An unrecognized model name raises `ValueError`, and so does a key that no rheology model reads, with the closest accepted key named in the message.
+Constructors take a model's parameters positionally, in the order `get_parameter_info()` lists them, or as keywords by argument name or config key. `make_rheology(model_name, config=None)` recognizes every name and alias in the inheritance tree above and builds that model from `config`, keyed by config key (`alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac`, `relaxed_modulus_frac`, `reference_frequency_rad_s`, `q_frequency_exponent`, as each model reads them). Absent keys take the model's default. An unrecognized model name, a key the model does not read, or a value outside a parameter's bounds (an Andrade `alpha` outside (0, 1], a Zener `relaxed_modulus_frac` outside [0, 1], a seismic Q exponent outside [0, 1)) raises `ValueError` naming the closest accepted name or key.
 
-Model parameters are fixed at construction and exposed as read-only properties (`andrade_model.alpha`, `sundberg_model.voigt_viscosity_frac`). To change one, build a new model.
+Model parameters are fixed at construction and read as attributes (`andrade_model.alpha`, `sundberg_model.voigt_viscosity_frac`), and `parameters` returns them all. `with_parameters(**changes)` returns a new model with some changed, leaving this one as it was.
 
 ### Factory Internals
 
-At the C++ level the factory is enum-based. `c_RheologyModel` names one value per model, `c_rheology_model_from_name(name)` maps a case-insensitive name or alias onto that enum, throwing `std::invalid_argument` for an unknown name. `c_find_rheology(model, config)` returns a `std::unique_ptr<c_RheologyBase>` to a freshly heap-allocated model. Every C++ consumer uses this path, including layers attaching a rheology and the binary loader rebuilding one. The Python `make_rheology` wraps it: it fills a `c_RheologyConfig`, calls the two C++ functions, and adopts the returned pointer into the matching Python wrapper.
+Each model declares its parameters once, in a `parameter_specs()` table (`c_SpecModel`, `Utilities/classes/spec_model_.hpp`), which gives its construction, validation, config entries, and binary record. `c_rheology_registry()` lists each model's names (canonical first, then aliases), binary class id, and constructor; `c_find_rheology(name, params)` returns a `std::unique_ptr<c_RheologyBase>` from it and throws `std::invalid_argument` for an unknown name or parameter, and `c_rheology_from_binary` rebuilds a saved model. Every C++ consumer uses these, including layers attaching a rheology and the binary loader. The Python classes and `make_rheology` are thin wrappers over them.
 
 ### Vectorized Evaluation
 
@@ -159,7 +159,7 @@ model = Maxwell()
 complex_shear = model.calc_complex_modulus(modulus, viscosity, frequency)
 ```
 
-Three vectorized methods, defined once on the base class so every model inherits them, cover the array patterns that occur in a tidal calculation.
+`calc_complex_modulus` also takes arrays, broadcast together, and returns a `complex128` array of their shape. Three vectorized methods, defined once on the base class so every model inherits them, name the array patterns that occur in a tidal calculation and always return a one-dimensional array.
 
 | Method | Vectorized over | Typical use |
 |---|---|---|
@@ -183,7 +183,7 @@ Each fills a caller-supplied `std::vector<std::complex<double>>` at the C++ leve
 
 ### Convenience Functions
 
-Each model also has a lower-case free function that builds a stack-allocated C++ model, evaluates it, and returns, with no Python object left behind.
+Each model also has a lower-case free function that builds the C++ model for the one call, evaluates it, and returns, with no Python object left behind.
 
 ```python
 import numpy as np
@@ -218,7 +218,7 @@ mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 complex_shear = mantle.calc_complex_shear_modulus(1.0e-5)
 ```
 
-Ownership of the C++ model transfers into the layer. Until a rheology is set, `calc_complex_shear_modulus` returns the static modulus as a purely real complex number, which is elastic behavior. The equivalent declarative form is a `[layers.<name>.shear_rheology]` table in a world's TOML, keyed by `model` plus any parameters; see the [TOML schema](../Structures/config/toml_schema.md) and [BaseLayer](../Structures/layers/base_layer.md).
+The layer takes a copy, so the model passed in stays usable and one model can serve several layers. Until a rheology is set, `calc_complex_shear_modulus` returns the static modulus as a purely real complex number, which is elastic behavior. The equivalent declarative form is a `[layers.<name>.shear_rheology]` table in a world's TOML, keyed by `model` plus any parameters; see the [TOML schema](../Structures/config/toml_schema.md) and [BaseLayer](../Structures/layers/base_layer.md).
 
 ## Serialization
 
@@ -228,6 +228,7 @@ Every model supports the standard TidalPy interfaces.
 |---|---|
 | `get_config_dict()` | A dict of `model` plus the model's own parameters, in the same form the world builder reads. |
 | `save_config(path)` | That dict written as a TOML file. |
+| `save_binary(path)` / `load_binary(path)` | The model's TidalPy binary record, its parameters written by key; a load replaces the wrapper's model with the one read. |
 
 ## Adding a New Rheology
 
@@ -235,31 +236,20 @@ To add one named `Foo`:
 
 **C++ (`TidalPy/Rheology/rheology_.hpp`)**
 
-1. If `Foo` needs new parameters, add them to `c_RheologyConfig` with sensible defaults. The single combined config is shared by all models.
-2. If the constitutive law is a new series combination, add an internal `detail::element_compliance_*` helper. A model with a closed form can compute its modulus inline instead.
-3. Add the class `c_Foo : public c_RheologyBase` with constructors `c_Foo()` and `explicit c_Foo(const c_RheologyConfig&)` that pass a model-name string to the base and copy any parameters into `p_*` members, a `get_*` accessor per parameter, an override of `calc_complex_modulus(modulus, viscosity, frequency)` returning the complex modulus, and `get_binary_class_id`, and `get_binary_params` / `set_binary_params` when it has parameters ([Binary Serialization](../Utilities/binary.md)).
+1. If the constitutive law is a new series combination, add an internal `detail::element_compliance_*` helper, and a free `rheo_modulus_foo(modulus, viscosity, frequency, ...)` function. A model with a closed form can compute its modulus inline instead.
+2. Add `c_Foo : public c_SpecModel<c_Foo, c_RheologyBase>`: its `parameter_specs()` table (argument name, config key, member, default, bounds, one-line description per parameter), `C_CLASS_ID`, two constructors that call `p_initialize`, and `calc_complex_modulus(modulus, viscosity, frequency)`. Override `p_validate` for checks across parameters and `p_update_derived` for values cached from them (the Andrade factors, say).
+3. Reserve a unique `BinaryClassID::Foo` in `Utilities/binary/binary_.hpp`; rheology models occupy the 30X range.
+4. Add one row to `c_rheology_registry()` with the model's names and aliases.
 
-**C++ (`TidalPy/Utilities/binary/binary_.hpp`)**
+**Cython (`rheology.pyx`)**
 
-4. Add a unique `BinaryClassID::Foo` value. Rheology models occupy the 30X range.
-
-**C++ factory (`rheology_.hpp`)**
-
-5. Add `Foo` to the `c_RheologyModel` enum, map its name and aliases in `c_rheology_model_from_name`, and add a `case` to `c_find_rheology`.
-6. Add a `case BinaryClassID::Foo` to `c_rheology_from_binary` so a `Foo` attached to a layer can be rebuilt when the layer is loaded. Omitting this makes recursive layer loads throw "unknown rheology class id in binary stream".
-
-**Cython (`rheology.pxd` / `rheology.pyx`)**
-
-7. Declare `c_Foo` (constructors and getters) in `rheology.pxd` and add the enum value to the `c_RheologyModel` cimport.
-8. Add the `cdef class Foo(RheologyBase)` wrapper in `rheology.pyx` with its parameter properties, the adoption branch in `make_rheology`, and the lower-case `foo(modulus, viscosity, frequency, ...)` convenience function. The config dict comes from the C++ `append_config_entries` override, so no Cython override is needed.
+5. Add `cdef class Foo(RheologyBase)` with a docstring and `MODEL_NAME = "foo"`, include it in the `ModelFamily` list, and add the lower-case `foo(modulus, viscosity, frequency, ...)` convenience function.
 
 **Package, tests, and documentation**
 
-9. Export `Foo` and `foo` from `TidalPy/Rheology/__init__.py`, and the C++ names from `__init__.pxd`.
-10. Add `Foo` to the parametrized lists in `Tests/Test_Rheology/test_rheology_01.py`, which cover the model name, the modulus against an independent reference, the factory and aliases, vectorization, the config dict, the binary round trip, and `isinstance`. If the model can be attached to a layer, also cover the layer's recursive binary round trip.
-11. Document the model here with its formula, parameters, and references.
-
-No build-system change is needed; `Rheology.rheology` is already registered in `cython_extensions.json`.
+6. Export `Foo` and `foo` from `TidalPy/Rheology/__init__.py`.
+7. Add `Foo` to the physics tests in `Tests/Test_Rheology/test_rheology_01.py` (the modulus against an independent reference). The generic tests in `Tests/Test_Utilities/Test_Classes/test_spec_models_01.py` cover its parameters, config, binary record, and errors without changes.
+8. Document the model here with its formula, parameters, and references.
 
 ## References
 

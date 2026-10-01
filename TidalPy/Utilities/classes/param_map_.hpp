@@ -38,7 +38,8 @@ struct c_ParamInfo {
     std::string   name;            // argument name, no unit suffix
     std::string   key;             // config key, unit suffix included
     c_ParamKind   kind          = c_ParamKind::Double;
-    double        default_value = 0.0;   // unused for a table, whose default is empty
+    double        default_value = 0.0;   // a scalar's default
+    std::vector<double> default_table;   // a table's default; empty means not provided
     c_ParamBounds bounds        = c_ParamBounds::Any;
     std::string   doc;             // one line, unit included
 };

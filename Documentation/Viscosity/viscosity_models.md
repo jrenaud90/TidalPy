@@ -11,10 +11,11 @@ Solid-state creep is thermally activated. Viscosity falls exponentially with tem
 | Model | Aliases | Viscosity $\eta$ \[Pa s\] |
 |---|---|---|
 | `ArrheniusViscosity` | `arrhenius`, `arr` | $A \, \sigma^{1-n} d^{\,m} \exp\left(\dfrac{E_a + P V_a}{R T}\right)$, multiplied by $T$ when `additional_temp_dependence = True` |
-| `ReferenceViscosity` | `reference`, `ref` | $\eta_\mathrm{ref} \exp\left[\dfrac{E_a}{R} \left(\dfrac{1}{T} - \dfrac{1}{T_\mathrm{ref}}\right) + \dfrac{P V_a}{R T}\right]$ |
+| `ReferenceViscosity` | `reference`, `ref` | $\eta_\mathrm{ref} \exp\left[\dfrac{E_a + P V_a}{R T} - \dfrac{E_a + P_\mathrm{ref} V_a}{R T_\mathrm{ref}}\right]$ |
 | `ConstantViscosity` | `constant`, `const` | $\eta_\mathrm{ref}$, independent of temperature and pressure |
+| `InterpolatedViscosity` | `interpolate`, `interp`, `interpolated` | Linear in radius between the points of a `radius_m` and `viscosity_pas` table, held at the end values beyond it |
 
-Each parameter carries two names: the constructor keyword, which is also the read-only property, and the config key used in a TOML table, a `make_viscosity` config dictionary, and `get_config_dict()`. A dimensional config key ends in its unit while the code name does not.
+Each parameter carries two names: the constructor keyword, which also reads as an attribute, and the config key used in a TOML table, a `make_viscosity` config dictionary, and `get_config_dict()`. A dimensional config key ends in its unit while the code name does not.
 
 | Parameter | Config key | Symbol | Default | Units | Used by |
 |---|---|---|---|---|---|
@@ -22,6 +23,9 @@ Each parameter carries two names: the constructor keyword, which is also the rea
 | `reference_temperature` | `reference_temperature_k` | $T_\mathrm{ref}$ | 1000.0 | K | Reference |
 | `molar_activation_energy` | `molar_activation_energy_j_mol` | $E_a$ | 3.0e5 | J mol$^{-1}$ | Arrhenius, Reference |
 | `molar_activation_volume` | `molar_activation_volume_m3_mol` | $V_a$ | 0.0 | m$^3$ mol$^{-1}$ | Arrhenius, Reference |
+| `reference_pressure` | `reference_pressure_pa` | $P_\mathrm{ref}$ | 0.0 | Pa | Reference |
+| `radius` | `radius_m` | $r$ | `[0.0]` | m | Interpolated |
+| `viscosity` | `viscosity_pas` | $\eta$ | `[1.0e22]` | Pa s | Interpolated |
 | `arrhenius_coeff` | `arrhenius_coeff` | $A$ | 1.0 | model-dependent | Arrhenius |
 | `stress` | `stress_pa` | $\sigma$ | 1.0 | Pa | Arrhenius |
 | `stress_expo` | `stress_expo` | $n$ | 1.0 | - | Arrhenius |
@@ -33,9 +37,9 @@ The stress exponent $n$ distinguishes creep regimes. With $n = 1$ the material i
 
 ### Behavior at the Limits
 
-The reference viscosity $\eta_\mathrm{ref}$ is the viscosity at $T_\mathrm{ref}$ and zero pressure, so a positive activation volume always raises the viscosity with pressure, as it does in the Arrhenius law.
+The reference viscosity $\eta_\mathrm{ref}$ is the viscosity at $T_\mathrm{ref}$ and $P_\mathrm{ref}$. With the default $P_\mathrm{ref} = 0$ a positive activation volume always raises the viscosity with pressure, as it does in the Arrhenius law; a law for a deep layer with a large activation volume is better anchored at a pressure inside the layer. The interpolated model reads only the radius, so its layer must keep its volume. A seismic profile's quality factor travels in this table for the `seismic_q` rheology, which reads its viscosity input as $Q$.
 
-The Arrhenius and reference models return infinity at or below zero temperature (`ConstantViscosity` returns its constant at any temperature). The cold limit of a thermally activated fluid is a solid that does not flow, and an infinite viscosity makes the rheology models return a purely elastic response. A reference model with a non-positive reference temperature also returns infinity. Very cold, but positive, temperatures can also return infinity when the exponential overflows. This is intended behavior.
+The Arrhenius and reference models return infinity at or below zero temperature (`ConstantViscosity` returns its constant at any temperature, `InterpolatedViscosity` its table value). The cold limit of a thermally activated fluid is a solid that does not flow, and an infinite viscosity makes the rheology models return a purely elastic response. A non-positive reference temperature is refused when the model is built. Very cold, but positive, temperatures can also return infinity when the exponential overflows. This is intended behavior.
 
 ### Choosing a Model
 
@@ -79,8 +83,8 @@ Constructors take every parameter their model uses as a keyword, by its argument
 
 | Member | Returns | Description |
 |---|---|---|
-| `calc_viscosity(temperature, pressure=0.0)` | `float` or `np.ndarray` \[Pa s\] | Dynamic viscosity; floats give a float, arrays broadcast together. |
-| `model_name` | `str` | The canonical model name (`arrhenius`, `reference`, `constant`). |
+| `calc_viscosity(temperature, pressure=0.0, radius=nan)` | `float` or `np.ndarray` \[Pa s\] | Dynamic viscosity; floats give a float, arrays broadcast together. The radius is read only by the interpolated model. |
+| `model_name` | `str` | The canonical model name (`arrhenius`, `reference`, `constant`, `interpolate`). |
 | `parameters` | `dict` | Every parameter by argument name. |
 | `get_parameter(name)` | value | One parameter by argument name or config key. |
 | `get_parameter_info()` | `list` of `dict` | Each parameter's name, config key, kind, default, bounds, and description. |

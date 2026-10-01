@@ -76,8 +76,16 @@ cdef extern from "param_map_.hpp" namespace "tidalpy" nogil:
         string        key
         c_ParamKind   kind
         double        default_value
+        vector[double] default_table
         c_ParamBounds bounds
         string        doc
+
+
+cdef extern from "thermo_point_.hpp" namespace "tidalpy" nogil:
+    cdef cppclass c_ThermoPoint:
+        double pressure
+        double temperature
+        double radius
 
 
 cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
@@ -96,6 +104,9 @@ cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
 
 # Python parameters (argument names or config keys to floats, booleans, integers, or sequences) as a c_ParamMap.
 cdef c_ParamMap cy_param_map(dict parameters) except *
+
+# A spec model's constructor arguments (config, positional in table order, keywords) as one dict.
+cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dict parameters)
 
 # Shared by the Cython wrappers and by the layer and world writers, which reach attached models through
 # raw pointers.

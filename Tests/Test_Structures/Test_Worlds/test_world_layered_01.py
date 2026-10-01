@@ -71,12 +71,10 @@ def test_attached_model_wrappers_raise_instead_of_reading_a_moved_object():
     layer = SolidLiquidLayer("mantle", 0, 0.0, _R_SURF, _M_TOT)
     layer.set_eos(ConstantDensityEOS(reference_density=5000.0))
 
+    # Spec-driven models (rheology, viscosity) are copied in, so their wrappers stay usable.
     rheology = Maxwell()
     layer.set_shear_rheology(rheology)
-    with pytest.raises(RuntimeError, match="took ownership"):
-        rheology.calc_complex_modulus(5.0e10, 1.0e20, 1.0e-5)
-    with pytest.raises(RuntimeError, match="took ownership"):
-        rheology.model_name
+    assert rheology.model_name == "maxwell"
 
     # A spec-driven model (viscosity) is copied in, so its wrapper stays usable.
     viscosity = make_viscosity("constant", {"reference_viscosity_pas": 1.0e20})

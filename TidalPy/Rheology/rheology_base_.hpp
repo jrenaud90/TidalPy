@@ -18,6 +18,8 @@ using c_ComplexCompliance = std::complex<double>;
 
 class c_RheologyBase : public c_PhysicsBase {
 public:
+    static constexpr const char* C_FAMILY_NAME = "rheology";
+
     c_RheologyBase() = default;
 
     explicit c_RheologyBase(const std::string& model_name) : c_PhysicsBase(model_name) {}

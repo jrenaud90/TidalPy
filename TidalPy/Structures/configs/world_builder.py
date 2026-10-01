@@ -31,7 +31,7 @@ from TidalPy.Tides.obliquity.obliquity_driver import (
     OBLIQUITY_TRUNCATIONS, promote_obliquity_truncation, _WARNED_PROMOTIONS as _WARNED_OBLIQUITY_PROMOTIONS)
 
 from TidalPy.configurations import keep_on_model_change
-from TidalPy.Rheology.rheology import make_rheology, _same_model as _same_rheology_model
+from TidalPy.Rheology.rheology import make_rheology, _same_model as _same_rheology_model, rheology_config_keys
 from TidalPy.Cooling.cooling import make_cooling, _same_model as _same_cooling_model
 from TidalPy.Radiogenics.radiogenics import make_radiogenics, _same_model as _same_radiogenics_model
 from TidalPy.Material.eos.material_eos import make_material_eos, _same_model as _same_material_model
@@ -132,6 +132,8 @@ _SAME_MODEL = {
 # Model table name -> the config keys one model of a spec-driven family reads (from its parameter table). Defaults
 # merged beneath such a table keep only the keys its model reads, since the model refuses any other.
 _SPEC_MODEL_KEYS = {
+    "shear_rheology":  rheology_config_keys,
+    "bulk_rheology":   rheology_config_keys,
     "shear_viscosity": viscosity_config_keys,
     "bulk_viscosity":  viscosity_config_keys,
 }

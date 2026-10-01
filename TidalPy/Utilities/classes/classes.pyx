@@ -247,6 +247,33 @@ cdef c_ParamMap cy_param_map(dict parameters) except *:
     return param_map
 
 
+cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dict parameters):
+    """A spec model's constructor arguments as one dict: ``config`` (config keys), then the positional ``args`` in the
+    order of the model's parameter table, then the keywords (argument names or config keys).
+
+    Raises
+    ------
+    TypeError
+        More positional arguments than parameters, or a parameter given both positionally and by keyword.
+    """
+    cdef dict merged = dict(config) if config else {}
+    cdef list names
+    cdef Py_ssize_t arg_i
+    if args:
+        # A default instance lists the parameters in table order.
+        names = [entry["name"] for entry in model_class().get_parameter_info()]
+        if len(args) > len(names):
+            raise TypeError(
+                f"{model_class.__name__} takes at most {len(names)} positional parameters "
+                f"({', '.join(names) if names else 'none'}); got {len(args)}.")
+        for arg_i in range(len(args)):
+            if names[arg_i] in parameters:
+                raise TypeError(f"{model_class.__name__} got multiple values for '{names[arg_i]}'.")
+            merged[names[arg_i]] = args[arg_i]
+    merged.update(parameters)
+    return merged
+
+
 cdef object cy_param_value(c_ParamKind kind, const vector[double]& values):
     """A parameter's values as the Python type its kind names."""
     cdef size_t value_i
@@ -337,8 +364,9 @@ cdef class PhysicsBase(TidalPyBaseClass):
                 "name":    info[info_i].name.decode("utf-8"),
                 "key":     info[info_i].key.decode("utf-8"),
                 "kind":    cy_param_kind_name(info[info_i].kind),
-                "default": ([] if info[info_i].kind == c_ParamKind.Doubles
-                            else cy_param_value(info[info_i].kind, default_values)),
+                "default": cy_param_value(
+                    info[info_i].kind,
+                    info[info_i].default_table if info[info_i].kind == c_ParamKind.Doubles else default_values),
                 "bounds":  cy_param_bounds_name(info[info_i].bounds),
                 "doc":     info[info_i].doc.decode("utf-8"),
             })
@@ -434,15 +462,15 @@ cdef class PhysicsBase(TidalPyBaseClass):
         self._set_model(c_share_physics[c_PhysicsBase](move(fresh)))
 
     def __getattr__(self, str name):
-        # Parameters read as attributes. Python calls this only after normal lookup fails, so methods and
-        # properties win.
+        # Parameters read as attributes, by argument name or config key. Python calls this only after normal lookup
+        # fails, so methods and properties win.
         if name.startswith("_") or self._ptr is NULL:
             raise AttributeError(name)
         cdef vector[c_ParamInfo] info = (<c_PhysicsBase*>self._ptr).get_parameter_info()
         cdef string encoded = name.encode("utf-8")
         cdef size_t info_i
         for info_i in range(info.size()):
-            if info[info_i].name == encoded:
+            if info[info_i].name == encoded or info[info_i].key == encoded:
                 return cy_param_value(
                     info[info_i].kind, (<c_PhysicsBase*>self._ptr).get_parameter(info[info_i].key))
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
@@ -550,6 +578,12 @@ cdef dict cy_resolve_factory_config(
         config = factory_defaults(section, accepted_keys, model_name, same_model)
     check_config_keys(config, accepted_keys, family)
     return config
+
+
+def resolve_factory_config(
+        config, str section, accepted_keys, str model_name, same_model, str family) -> dict:
+    """The config a ``make_*`` factory builds from (``cy_resolve_factory_config``), for the Python family helpers."""
+    return cy_resolve_factory_config(config, section, accepted_keys, model_name, same_model, family)
 
 
 def check_config_keys(dict config, accepted_keys, str family):

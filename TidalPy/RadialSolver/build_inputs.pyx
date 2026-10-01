@@ -142,9 +142,7 @@ cdef list cy_resolve_rheology_bylayer(
     if isinstance(models, (RheologyBase, str)):
         wrapper = <RheologyBase>cy_coerce_rheology(models, argument_name, None)
         keep_alive.append(wrapper)
-        model_ptr = wrapper._rheology_ptr.get()
-        if model_ptr == NULL:
-            raise ValueError(f"`{argument_name}` model is not initialized.")
+        model_ptr = wrapper._rheology()
         for layer_i in range(num_layers):
             out_ptrs.push_back(model_ptr)
         return keep_alive
@@ -164,9 +162,7 @@ cdef list cy_resolve_rheology_bylayer(
     for layer_i in range(num_layers):
         wrapper = <RheologyBase>cy_coerce_rheology(models_seq[layer_i], argument_name, layer_i)
         keep_alive.append(wrapper)
-        model_ptr = wrapper._rheology_ptr.get()
-        if model_ptr == NULL:
-            raise ValueError(f"`{argument_name}` entry {layer_i} is not initialized.")
+        model_ptr = wrapper._rheology()
         out_ptrs.push_back(model_ptr)
     return keep_alive
 

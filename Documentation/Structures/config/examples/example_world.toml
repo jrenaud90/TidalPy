@@ -100,8 +100,9 @@ model = "constant"                  # constant | reference | arrhenius
 reference_viscosity_pas = 1.0e20
 
 [layers.inner_core.material.bulk_viscosity]
-model = "constant"
-reference_viscosity_pas = 1.0e22
+model = "interpolate"               # a profile tabulated in radius, as a seismic model carries: radius_m and viscosity_pas
+radius_m = [0.0, 6.0e5]
+viscosity_pas = [1.0e22, 1.0e22]
 
 [layers.inner_core.material.partial_melt]
 model = "off"                       # off | spohn (fischer) | henning
@@ -186,6 +187,7 @@ reference_viscosity_pas = 1.0e23
 reference_temperature_k = 1700.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
+reference_pressure_pa = 0.0         # where the reference viscosity applies; deep laws are better anchored inside the layer
 
 [layers.lower_mantle.material.partial_melt]
 model = "spohn"                     # the Fischer and Spohn (1990) power-law weakening
