@@ -12,20 +12,62 @@ $$\phi = \mathrm{clip}\left( \frac{T - T_\mathrm{solidus}(P)}{T_\mathrm{liquidus
 
 Below the solidus $\phi = 0$, above the liquidus $\phi = 1$, and a degenerate envelope with the solidus at or above the liquidus returns $\phi = 0$, which is the fully solid answer. A non-finite temperature has no melt state: the melt fraction is NaN, and so are the Spohn and Henning strengths (Off passes its pre-melt strengths through).
 
-### Pressure-Dependent Melting Curves
+## Melting Curves
 
-The solidus and liquidus are constant by default (`solidus_k`, `liquidus_k`). Mantle rock melts at much higher temperatures under pressure, though: peridotite's solidus rises from about 1660 K at the surface to about 4150 K at Earth's core-mantle boundary. A constant pair therefore melts the lower mantle of any Earth-sized world whose upper mantle is at a realistic temperature. Each curve can follow a Simon and Glatzel (1929) law, with an optional second law above a transition pressure:
+The solidus and liquidus are constant by default, `solidus_k` and `liquidus_k` at every pressure. Rock and iron melt at higher temperatures under pressure. Peridotite's solidus, for example, rises from about 1660 K at the surface to about 4150 K at Earth's core-mantle boundary. Either curve can instead follow a pressure law, and the world's equation-of-state solve evaluates it at the local pressure. The melt fraction, the weakening laws (each anchored at the local solidus), the density mixing, and the bulk effects all use the curves at that pressure.
+
+### Simon and Glatzel Law
+
+Each curve can follow the Simon and Glatzel (1929) law, with an optional second law above a transition pressure $P_t$,
 
 $$T_m(P) = \begin{cases} T_0 \left(1 + P / a\right)^{1/c} & P \le P_t \\ T_{0,\mathrm{high}} \left(1 + P / a_\mathrm{high}\right)^{1/c_\mathrm{high}} & P > P_t \end{cases}$$
 
-Both branches are written in the absolute pressure, as the published fits are. Tension ($P < 0$) holds the zero-pressure temperature. An `a` of 0 keeps a curve constant, and a transition pressure of 0 keeps one branch. Monteux et al. (2016) fit this form to the peridotite and chondritic-mantle melting experiments of Fiquet et al. (2010) and Andrault et al. (2011):
+where $T_0$ is the zero-pressure melting temperature \[K\] (`solidus_k` or `liquidus_k`), $a$ \[Pa\] sets the pressure at which the curve begins to rise, and $c$ sets how quickly the rise flattens. Both branches are written in the absolute pressure, as the published fits are. The second branch allows a fit to change slope across a phase transition, such as the one near 20 GPa at the top of Earth's lower mantle.
+
+The law rises monotonically with pressure. Ice I, whose melting point falls with pressure, is better represented by a constant curve.
+
+### Peridotite Fits
+
+Monteux et al. (2016) fit this form to the peridotite and chondritic-mantle melting experiments of Fiquet et al. (2010) and Andrault et al. (2011).
 
 | Curve | $T_0$ \[K\] | $a$ \[Pa\] | $c$ | $P_t$ \[Pa\] | $T_{0,\mathrm{high}}$ \[K\] | $a_\mathrm{high}$ \[Pa\] | $c_\mathrm{high}$ |
 |---|---|---|---|---|---|---|---|
 | Solidus | 1661.2 | 1.336e9 | 7.437 | 20.0e9 | 2081.8 | 1.0169e11 | 1.226 |
 | Liquidus | 1982.1 | 6.594e9 | 5.374 | 20.0e9 | 2006.8 | 3.465e10 | 1.844 |
 
-The two branches of each meet at 20 GPa, and at 135 GPa they give a solidus of about 4150 K and a liquidus of about 4750 K. The pressure is the local one: the structure solve passes it to every melt evaluation, so the melt fraction, the weakening laws (each anchored at the local solidus), the density mixing, and the bulk effects all follow the curves. The packaged configuration lists these keys at 0 (off), so worlds fitted at fixed melting temperatures keep their numbers.
+The two branches of each curve meet at 20 GPa. These fits give the following melting temperatures.
+
+| Pressure \[GPa\] | Solidus \[K\] | Liquidus \[K\] | Where |
+|---|---|---|---|
+| 0 | 1661 | 1982 | Surface |
+| 5 | 2048 | 2202 | Base of Io's mantle |
+| 20 | 2411 | 2569 | Branch transition |
+| 60 | 3039 | 3461 | Mid lower mantle of the Earth |
+| 135 | 4147 | 4749 | Earth's core-mantle boundary |
+
+The experiments reach about 140 GPa, so the curves are extrapolated in the deeper mantles of planets larger than the Earth.
+
+### Behavior at the Limits
+
+- Tension ($P < 0$), which the structure solve's trial central pressures can reach, holds the zero-pressure temperature.
+- A non-finite pressure gives a NaN melting temperature, and so a NaN melt fraction.
+- An `a` or `c` of 0 keeps a curve constant at $T_0$. A transition pressure of 0, or a high branch with an `a` or `c` of 0, keeps a single branch.
+- The two curves are independent. Where the liquidus falls to or below the solidus the envelope is degenerate and the melt fraction is 0, as for constant curves.
+
+### Choosing Melting Curves
+
+The packaged configuration lists every curve key at 0, so the bundled worlds, whose structures were fitted at constant melting temperatures, keep their results. We recommend the pressure law for any rocky layer whose base is more than a few GPa deep: the solidus at the base of Io's mantle (about 5 GPa) is already about 400 K above its zero-pressure value.
+
+The melting curves matter most together with the [compressed expansivity](../Material/material_eos.md#expansivity-under-compression), which sets how much a convecting mantle warms with depth. As an example, `earth_simple` with a 1600 K upper mantle, solved with `solve_temperature=True`, gives the following (its mantle is 2891 km thick).
+
+| Expansivity | Melting curves | Base of the mantle adiabat \[K\] | Molten region above the core \[km\] |
+|---|---|---|---|
+| Constant | Constant | 5552 | 2581 |
+| Compressed ($\delta_{T0}$ = 5.5, $\kappa$ = 1.4) | Constant | 2510 | 2483 |
+| Constant | Peridotite fits | 5552 | 970 |
+| Compressed ($\delta_{T0}$ = 5.5, $\kappa$ = 1.4) | Peridotite fits | 2510 | 1.25 |
+
+With both laws the mantle is solid, and melt is confined to the thermal boundary layer against the 4500 K core. With either law alone, much of an Earth-like mantle is molten. The molten region is the world's `molten_regions` entry for the mantle.
 
 ## Models
 
@@ -68,7 +110,7 @@ Below the critical melt fraction, melt sits in isolated pockets and weakens the 
 
 ## Parameters
 
-Each parameter carries two names: the constructor keyword, which is also the read-only property, and the config key used in a TOML table, a `make_partial_melt` config dictionary, and `get_config_dict()`. A dimensional config key ends in its unit; the code name does not.
+Each parameter carries two names: the constructor keyword, which is also the read-only property, and the config key used in a TOML table, a `make_partial_melt` config dictionary, and `get_config_dict()`. A dimensional config key ends in its unit while the code name does not.
 
 | Parameter | Config key | Default | Units | Used by |
 |---|---|---|---|---|
@@ -110,7 +152,7 @@ The shear laws above are empirical fits in temperature. Melt's effect on the den
 At every point of a world's equation-of-state solve the material evaluates, in this order:
 
 1. The density law gives the solid density and bulk modulus at the local pressure (and temperature, for a thermal law).
-2. The melt fraction follows from the temperature, and with `density_melt_mixing` the density becomes the two-phase mixture. The structure iteration and the dense readout call the same function, so the mass the solve integrated and the density `get_density` reports agree.
+2. The melt fraction follows from the temperature and the melting curves at the local pressure, and with `density_melt_mixing` the density becomes the two-phase mixture. The structure iteration and the dense readout call the same function, so the mass the solve integrated and the density `get_density` reports agree.
 3. The shear modulus and viscosities come from their laws and models; the melt model then weakens the shear pair.
 4. With `bulk_melt_weakening` the bulk modulus becomes the two-phase bound, using the post-melt shear modulus as the framework's. With `bulk_viscosity_melt_weakening` the bulk viscosity takes the compaction term, using the post-melt shear viscosity.
 
@@ -169,35 +211,33 @@ The rock defaults are roughly an ultramafic silicate melt's. The packaged config
 
 ```python
 from TidalPy.PartialMelt import (
-    HenningPartialMelt, OffPartialMelt, SpohnPartialMelt, make_partial_melt)
+    HenningPartialMelt,
+    OffPartialMelt,
+    SpohnPartialMelt,
+    make_partial_melt
+)
 
-melt_model = HenningPartialMelt(solidus=1600.0, liquidus=2000.0, liquid_shear=1.0e-5)
+melt_model = HenningPartialMelt(
+    solidus=1600.0,
+    liquidus=2000.0,
+    liquid_shear=1.0e-5
+)
 
-phi = melt_model.calc_melt_fraction(1800.0)                 # 0.5
+phi = melt_model.calc_melt_fraction(1800.0)   # 0.5
 phi, post_viscosity, post_shear = melt_model.calc_partial_melt(
     temperature=1700.0,
-    premelt_viscosity=1.0e22,   # Pa s
-    premelt_shear=6.0e10,       # Pa
+    premelt_viscosity=1.0e22,   # [Pa s]
+    premelt_shear=6.0e10        # [Pa]
 )
-
-# Peridotite melting curves (Monteux et al. 2016)
-mantle_melt = make_partial_melt(
-    "henning",
-    {"solidus_k": 1661.2, "solidus_simon_a_pa": 1.336e9, "solidus_simon_c": 7.437,
-     "solidus_transition_pressure_pa": 20.0e9, "solidus_high_k": 2081.8,
-     "solidus_high_simon_a_pa": 1.0169e11, "solidus_high_simon_c": 1.226,
-     "liquidus_k": 1982.1, "liquidus_simon_a_pa": 6.594e9, "liquidus_simon_c": 5.374,
-     "liquidus_transition_pressure_pa": 20.0e9, "liquidus_high_k": 2006.8,
-     "liquidus_high_simon_a_pa": 3.465e10, "liquidus_high_simon_c": 1.844}
-)
-mantle_melt.calc_solidus(135.0e9)                    # [K], about 4150 at the core-mantle boundary
-mantle_melt.calc_melt_fraction(3000.0, 60.0e9)       # 0.0: solid at 60 GPa
 
 # Name factory: case-insensitive, aliases accepted.
-spohn_model = make_partial_melt("fischer", {"solidus_k": 1500.0})
+spohn_model = make_partial_melt(
+    "fischer",
+    {"solidus_k": 1500.0}
+)
 ```
 
-Constructors take the melt envelope plus their own parameters, all with the defaults from the table: 
+Constructors take the melt envelope plus their own parameters, all with the defaults from the table.
 
 `OffPartialMelt(solidus=1600.0, liquidus=2000.0, liquid_shear=1.0e-5, liquid_viscosity=0.2, bulk_melt_weakening=False, liquid_bulk_modulus=2.0e10, <melt phase>)`
 
@@ -209,22 +249,57 @@ where `<melt phase>` is `liquid_bulk_modulus_derivative=5.0, liquid_density=2750
 
 | Member | Returns | Description |
 |---|---|---|
-| `calc_melt_fraction(temperature, pressure=0.0)` | `float` | Melt fraction in [0, 1] at a pressure [Pa]. |
-| `calc_solidus(pressure)`, `calc_liquidus(pressure)` | `float` | The solidus and liquidus [K] at a pressure [Pa]. |
-| `calc_partial_melt(temperature, premelt_viscosity, premelt_shear, pressure=0.0)` | `(phi, viscosity, shear_modulus)` | Melt fraction, post-melt viscosity [Pa s], post-melt shear modulus [Pa]. |
-| `calc_liquid_density(pressure)`, `calc_liquid_bulk_modulus(pressure)` | `float` | The melt phase's density [kg/m$^3$] and bulk modulus [Pa]. |
-| `calc_mixture_density(temperature, pressure, solid_density)` | `float` | Density [kg/m$^3$]; `solid_density` unless `density_melt_mixing` is on. |
-| `calc_bulk_modulus_melt(temperature, pressure, premelt_bulk_modulus, framework_shear_modulus)` | `float` | Post-melt bulk modulus [Pa]; the pre-melt value unless `bulk_melt_weakening` is on. |
-| `calc_bulk_viscosity_melt(temperature, premelt_bulk_viscosity, postmelt_shear_viscosity, pressure=0.0)` | `float` | Post-melt bulk viscosity [Pa s]; the pre-melt value unless `bulk_viscosity_melt_weakening` is on. |
+| `calc_melt_fraction(temperature, pressure=0.0)` | `float` | Melt fraction in \[0, 1\] at a pressure \[Pa\]. |
+| `calc_solidus(pressure)`, `calc_liquidus(pressure)` | `float` | The solidus and liquidus \[K\] at a pressure \[Pa\]. |
+| `calc_partial_melt(temperature, premelt_viscosity, premelt_shear, pressure=0.0)` | `(phi, viscosity, shear_modulus)` | Melt fraction, post-melt viscosity \[Pa s\], post-melt shear modulus \[Pa\]. |
+| `calc_liquid_density(pressure)`, `calc_liquid_bulk_modulus(pressure)` | `float` | The melt phase's density \[kg/m$^3$\] and bulk modulus \[Pa\]. |
+| `calc_mixture_density(temperature, pressure, solid_density)` | `float` | Density \[kg/m$^3$\]: `solid_density` unless `density_melt_mixing` is on. |
+| `calc_bulk_modulus_melt(temperature, pressure, premelt_bulk_modulus, framework_shear_modulus)` | `float` | Post-melt bulk modulus \[Pa\]: the pre-melt value unless `bulk_melt_weakening` is on. |
+| `calc_bulk_viscosity_melt(temperature, premelt_bulk_viscosity, postmelt_shear_viscosity, pressure=0.0)` | `float` | Post-melt bulk viscosity \[Pa s\]: the pre-melt value unless `bulk_viscosity_melt_weakening` is on. |
 | `solidus_curve`, `liquidus_curve` | `dict` | Each curve's `temperature`, `simon_a`, `simon_c`, `transition_pressure`, `high_temperature`, `high_simon_a`, and `high_simon_c`, read-only. |
 | `solidus`, `liquidus`, `liquid_shear`, `liquid_viscosity`, `bulk_melt_weakening`, `liquid_bulk_modulus`, `liquid_bulk_modulus_derivative`, `liquid_density`, `density_melt_mixing`, `bulk_viscosity_melt_weakening`, `melt_bulk_viscosity_coefficient`, `melt_bulk_viscosity_exponent` | `float`, `bool` | The melt envelope, liquid limits, melt phase, and switches, read-only. |
 | `fs_visc_power_slope`, `fs_visc_log10_at_solidus`, `fs_shear_power_slope`, `fs_shear_log10_at_solidus` | `float` | The Spohn model's parameters, read-only. |
 | `crit_melt_frac`, `crit_melt_frac_width`, `hn_visc_slope_1`, `hn_visc_falloff_slope`, `hn_shear_param_1`, `hn_shear_falloff_slope` | `float` | The Henning model's parameters, read-only. |
 | `model_name` | `str` | The resolved model name (`off`, `spohn`, `henning`). |
 | `get_config_dict()` | `dict` | `model` plus every parameter the model carries, under the config keys from the table above. |
-| `save_config(path)` | - | That dict written as TOML. |
+| `save_config(path)` | - | Writes that dict to a TOML file. |
 
 `make_partial_melt(model_name, config=None)` resolves a name or alias case-insensitively. Absent keys fall back to the model defaults, and both an unrecognized name and a key that no partial-melt model reads raise `ValueError`. Note that the configuration keys for the melt envelope carry their units (`solidus_k`, `liquidus_k`, `liquid_shear_pa`, `liquid_viscosity_pas`, `liquid_bulk_modulus_pa`, `liquid_density_kg_m3`), matching the TOML the world builder reads, while the constructor keywords do not. The model-specific parameters use one name everywhere: constructor keyword, configuration key, and property.
+
+### Pressure-Dependent Melting Curves
+
+The curve parameters are constructor keywords like the rest of the envelope. Here the peridotite fits of Monteux et al. (2016) are passed through the factory with their config keys.
+
+```python
+from TidalPy.PartialMelt import make_partial_melt
+
+mantle_melt = make_partial_melt(
+    "henning",
+    {
+        "solidus_k": 1661.2,
+        "solidus_simon_a_pa": 1.336e9,
+        "solidus_simon_c": 7.437,
+        "solidus_transition_pressure_pa": 20.0e9,
+        "solidus_high_k": 2081.8,
+        "solidus_high_simon_a_pa": 1.0169e11,
+        "solidus_high_simon_c": 1.226,
+        "liquidus_k": 1982.1,
+        "liquidus_simon_a_pa": 6.594e9,
+        "liquidus_simon_c": 5.374,
+        "liquidus_transition_pressure_pa": 20.0e9,
+        "liquidus_high_k": 2006.8,
+        "liquidus_high_simon_a_pa": 3.465e10,
+        "liquidus_high_simon_c": 1.844
+    }
+)
+
+mantle_melt.calc_solidus(135.0e9)                # [K] about 4150 at Earth's core-mantle boundary
+mantle_melt.calc_melt_fraction(3000.0, 60.0e9)   # 0.0: solid at 60 GPa
+mantle_melt.calc_melt_fraction(3000.0, 25.0e9)   # 1.0: fully molten at 25 GPa
+mantle_melt.solidus_curve                        # dict of the solidus curve's seven parameters
+```
+
+A curve's config keys appear in `get_config_dict()` only when that curve is pressure dependent, so the config of a model with constant curves is unchanged.
 
 ### Attaching a Melt Model to a `Layer`
 
@@ -234,18 +309,50 @@ from TidalPy.PartialMelt import make_partial_melt
 from TidalPy.Structures.layers import BaseLayer
 
 mantle = BaseLayer("mantle", 0, 0.0, 1.0e6, 2.1e19)
-mantle.set_eos(ConstantDensityEOS(shear_modulus_static=50.0e9, bulk_modulus_static=100.0e9))
+mantle.set_eos(
+    ConstantDensityEOS(
+        shear_modulus_static=50.0e9,
+        bulk_modulus_static=100.0e9
+    )
+)
 
-mantle.set_partial_melt(make_partial_melt("henning", {"solidus_k": 1500.0}))
+mantle.set_partial_melt(
+    make_partial_melt(
+        "henning",
+        {"solidus_k": 1500.0}
+    )
+)
 ```
 
-A partial-melt model belongs to the layer's material (its EOS model). The layer's `set_partial_melt` is a helper that hands the model to the attached EOS, and the same method can be called from the EOS model itself. The world's equation-of-state solve applies the model as it integrates, to the shear pair and (when switched on) to the density, the bulk modulus, and the bulk viscosity, and `get_melt_fraction(radius)` reads the result back. The declarative form is a `[layers.<name>.material.partial_melt]` table in the world's TOML; see the [TOML schema](../Structures/config/toml_schema.md).
+A partial-melt model belongs to the layer's material (its EOS model). The layer's `set_partial_melt` is a helper that hands the model to the attached EOS, and the same method can be called from the EOS model itself. The world's equation-of-state solve applies the model as it integrates, to the shear pair and (when switched on) to the density, the bulk modulus, and the bulk viscosity, and `get_melt_fraction(radius)` reads the result back. The declarative form is a `[layers.<name>.material.partial_melt]` table in the world's TOML. See the [TOML schema](../Structures/config/toml_schema.md).
+
+```toml
+# Henning melt weakening with the peridotite melting curves of Monteux et al. (2016)
+[layers.mantle.material.partial_melt]
+model = "henning"
+solidus_k = 1661.2
+solidus_simon_a_pa = 1.336e9
+solidus_simon_c = 7.437
+solidus_transition_pressure_pa = 20.0e9
+solidus_high_k = 2081.8
+solidus_high_simon_a_pa = 1.0169e11
+solidus_high_simon_c = 1.226
+liquidus_k = 1982.1
+liquidus_simon_a_pa = 6.594e9
+liquidus_simon_c = 5.374
+liquidus_transition_pressure_pa = 20.0e9
+liquidus_high_k = 2006.8
+liquidus_high_simon_a_pa = 3.465e10
+liquidus_high_simon_c = 1.844
+```
 
 ## C++ API
 
-`c_PartialMeltConfig` (in `partial_melt_base_.hpp`) carries every parameter for every model in one struct with the defaults listed above. The call passes `c_PartialMeltInputs { temperature, premelt_viscosity, premelt_shear }` and returns `c_PartialMeltResult { melt_fraction, postmelt_viscosity, postmelt_shear_modulus }`.
+`c_PartialMeltConfig` (in `partial_melt_base_.hpp`) carries every parameter for every model in one struct with the defaults listed above. The call passes `c_PartialMeltInputs { temperature, pressure, premelt_viscosity, premelt_shear }` and returns `c_PartialMeltResult { melt_fraction, postmelt_viscosity, postmelt_shear_modulus }`.
 
-`c_PartialMeltBase : c_PhysicsBase` (in `partial_melt_base_.hpp`) holds the envelope and liquid limits, implements `calc_melt_fraction(temperature)` and `calc_bulk_modulus_melt(temperature, premelt_bulk, framework_shear)` for every model, declares `calc_partial_melt(const c_PartialMeltInputs&) const` pure virtual, and adds `calc_partial_melt_vectorize(temperature, premelt_viscosity, premelt_shear, out_results)`, a radial sweep. Accessors `get_solidus`, `get_liquidus`, `get_liquid_shear`, `get_liquid_viscosity`, `get_bulk_melt_weakening`, and `get_liquid_bulk_modulus` are on the base.
+`c_MeltingCurve { temperature, simon_a, simon_c, transition_pressure, high_temperature, high_simon_a, high_simon_c }` holds one melting curve. `calc(pressure)` returns its temperature \[K\] and `get_is_pressure_dependent()` reports whether it follows the Simon and Glatzel law.
+
+`c_PartialMeltBase : c_PhysicsBase` (in `partial_melt_base_.hpp`) holds the two curves and the liquid limits. It implements `calc_solidus(pressure)`, `calc_liquidus(pressure)`, `calc_melt_fraction(temperature, pressure)`, and `calc_bulk_modulus_melt(temperature, pressure, premelt_bulk, framework_shear)` for every model, declares `calc_partial_melt(const c_PartialMeltInputs&) const` pure virtual, and adds `calc_partial_melt_vectorize(temperature, pressure, premelt_viscosity, premelt_shear, out_results)`, a radial sweep. Accessors `get_solidus` and `get_liquidus` (the zero-pressure temperatures), `get_solidus_curve`, `get_liquidus_curve`, `get_liquid_shear`, `get_liquid_viscosity`, `get_bulk_melt_weakening`, and `get_liquid_bulk_modulus` are on the base.
 
 The concrete models `c_OffPartialMelt`, `c_SpohnPartialMelt`, and `c_HenningPartialMelt` live in `partial_melt_.hpp` with a getter per parameter. The factory follows the same shape as the other physics modules: `c_partial_melt_model_from_name(name)` maps onto the `c_PartialMeltModel` enum and throws `std::invalid_argument` for an unknown name, `c_find_partial_melt(model, config)` returns a `std::unique_ptr<c_PartialMeltBase>` (a name overload does both), and `c_partial_melt_from_binary(stream, force=false)` peeks the class id, builds, and reads.
 

@@ -76,13 +76,36 @@ A model is athermal when $\alpha_0 = 0$ (the default) or when no temperature is 
 
 #### Expansivity Under Compression
 
-The expansivity of a mantle silicate falls by a factor of several across a planet's mantle, so a constant $\alpha_0$ makes a thick convecting layer's adiabat far too steep. The Anderson-Gruneisen parameter $\delta_T = -(\partial \ln \alpha / \partial \ln \rho)_T$ describes this fall, and $\delta_T$ itself decreases with compression, $\delta_T = \delta_{T0} (\rho_0 / \rho)^{\kappa}$ (Chopelas and Boehler 1992). Integrating gives
+The thermal expansivity of rock falls with compression, by several times across the Earth's mantle. A constant $\alpha_0$ therefore makes the adiabat of a thick convecting layer far too steep. The Anderson-Gruneisen parameter $\delta_T = -(\partial \ln \alpha / \partial \ln \rho)_T$ describes this fall. $\delta_T$ itself decreases with compression, $\delta_T = \delta_{T0} (\rho_0 / \rho)^{\kappa}$ (Chopelas and Boehler 1992), and integrating gives
 
-$$\alpha(\rho) = \alpha_0 \exp\left[ \frac{\delta_{T0}}{\kappa} \left( \left( \frac{\rho_0}{\rho} \right)^{\kappa} - 1 \right) \right]$$
+$$\alpha(\rho) = \alpha_0 \exp\left[ \frac{\delta_{T0}}{\kappa} \left( \left( \frac{\rho_0}{\rho} \right)^{\kappa} - 1 \right) \right].$$
 
-which for $\kappa = 0$ is the single power law $\alpha_0 (\rho_0 / \rho)^{\delta_{T0}}$ (Anderson 1967). `anderson_gruneisen_parameter` ($\delta_{T0}$) and `anderson_gruneisen_exponent` ($\kappa$) set it, and both default to 0, a constant $\alpha_0$. Mantle silicates have $\delta_{T0}$ of about 5 to 6 and $\kappa$ of about 1.4. $\rho_0$ is the model's reference density, and the interpolated model, which has none, keeps $\alpha_0$. `calc_thermal_expansion(density)` returns $\alpha(\rho)$.
+For $\kappa = 0$ this is the single power law $\alpha_0 (\rho_0 / \rho)^{\delta_{T0}}$ (Anderson 1967). $\rho_0$ is the model's reference density. The interpolated model has no reference density, so its expansivity stays $\alpha_0$.
 
-The compressed expansivity sets the adiabat and the Rayleigh number of a thermal solve. The density law keeps its thermal pressure $\alpha_0 K_0 (T - T_\mathrm{ref})$, since the product $\alpha K_T$ stays nearly constant as $\alpha$ falls and $K_T$ rises.
+| Parameter | Symbol | Default | Mantle silicates |
+|---|---|---|---|
+| `anderson_gruneisen_parameter` | $\delta_{T0}$ | `0.0` (a constant $\alpha_0$) | 5 to 6 |
+| `anderson_gruneisen_exponent` | $\kappa$ | `0.0` | About 1.4 |
+
+With $\delta_{T0}$ = 5.5 and $\kappa$ = 1.4, a rock with $\rho_0$ = 3300 kg m$^{-3}$ keeps 40 percent of $\alpha_0$ at 4000 kg m$^{-3}$ and 13 percent at 5500 kg m$^{-3}$.
+
+```python
+from TidalPy.Material.eos import BirchMurnaghanEOS
+
+rock = BirchMurnaghanEOS(
+    reference_density=3300.0,
+    reference_bulk_modulus=1.3e11,
+    bulk_modulus_derivative=4.2,
+    thermal_expansion=3.0e-5,
+    anderson_gruneisen_parameter=5.5,
+    anderson_gruneisen_exponent=1.4
+)
+
+rock.calc_thermal_expansion(3300.0)   # [K-1] 3.0e-5, alpha_0 at the reference density
+rock.calc_thermal_expansion(5500.0)   # [K-1] about 4.0e-6 under compression
+```
+
+A world's thermal solve uses the compressed expansivity for a convecting layer's adiabat, $dT/dr = -\alpha(\rho) g T / c_p$ along the solved density, and for that layer's Rayleigh number. The [Choosing Melting Curves](../PartialMelt/partial_melt_models.md#choosing-melting-curves) table shows the effect on an Earth-like mantle. The density law keeps its thermal pressure $\alpha_0 K_0 (T - T_\mathrm{ref})$, since the product $\alpha K_T$ stays nearly constant as $\alpha$ falls and $K_T$ rises (Anderson 1995).
 
 ### Bulk Modulus
 
@@ -102,7 +125,7 @@ The EOS model contains the layer's material parameters:
 | `shear_modulus_reference_temperature` | K | `300.0` | $T_\mathrm{ref}$ of the shear law. |
 | `thermal_conductivity` | W m$^{-1}$ K$^{-1}$ | `4.0` | Conductivity $k$ of a conducting layer and of a convecting layer's boundary layers. |
 | `heat_capacity` | J kg$^{-1}$ K$^{-1}$ | `1200.0` | Specific heat $c_p$: the adiabat, the diffusivity, and the secular cooling rate. |
-| `anderson_gruneisen_parameter` | - | `0.0` | $\delta_{T0}$ of the expansivity's fall with compression; 0 keeps $\alpha_0$. |
+| `anderson_gruneisen_parameter` | - | `0.0` | $\delta_{T0}$ of the expansivity's fall with compression. 0 keeps $\alpha_0$. |
 | `anderson_gruneisen_exponent` | - | `0.0` | $\kappa$ in $\delta_T = \delta_{T0} (\rho_0 / \rho)^\kappa$. |
 
 The thermal expansivity is the model's `thermal_expansion`, $\alpha_0$ at the reference density, which falls with compression when `anderson_gruneisen_parameter` is set (see [Expansivity Under Compression](#expansivity-under-compression)). The expansivity at the local density sets the adiabatic gradient $\alpha T g / c_p$ and the Rayleigh number of a convecting layer. The density law uses the same $\alpha$ only when it receives a temperature (see step 3 below). `calc_thermal_diffusivity(density)` returns $\kappa = k / (\rho c_p)$.

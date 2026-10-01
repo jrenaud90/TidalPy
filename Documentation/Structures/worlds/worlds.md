@@ -166,7 +166,7 @@ Each cooling model sets its layer's profile as follows:
 |---|---|---|
 | `off` | Isothermal: one temperature throughout, and no modeled gradient, so the layer conducts perfectly. | Everywhere |
 | `conduction` | Two conducting halves, $T = T_0 - (L / 4 \pi k)(1/r_0 - 1/r)$. | The mid-radius |
-| `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. | The top of the interior. |
+| `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$, with $\alpha$ at the local density ([Expansivity Under Compression](../../Material/material_eos.md#expansivity-under-compression)). | The top of the interior. |
 
 The interior warms downward from the layer's temperature, so its base sits at $T \exp\left(\int \alpha g / c_p \, dr\right)$. A layer whose base carries no heat (the innermost layer, or one above a layer outside the network) has no boundary layer at its base. It is applied to the top of the interior, under the upper boundary layer: the upper-mantle temperature of parameterized convection (Stevenson et al. 1983; Schubert et al. 2001).
 
