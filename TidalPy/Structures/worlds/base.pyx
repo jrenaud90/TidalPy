@@ -104,6 +104,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
     cdef list layer_heating            = []
     cdef list layer_node_temperature   = []
     cdef list layer_top_temperature    = []
+    cdef list layer_base_temperature   = []
     cdef list layer_boundary_thickness = []
     cdef list layer_rayleigh_number    = []
     cdef list layer_nusselt_number     = []
@@ -115,6 +116,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
         layer_heating.append(report.layer_thermal[j].heating)
         layer_node_temperature.append(report.layer_thermal[j].node_temperature)
         layer_top_temperature.append(report.layer_thermal[j].top_temperature)
+        layer_base_temperature.append(report.layer_thermal[j].base_temperature)
         layer_boundary_thickness.append(report.layer_thermal[j].boundary_thickness)
         layer_rayleigh_number.append(report.layer_thermal[j].rayleigh_number)
         layer_nusselt_number.append(report.layer_thermal[j].nusselt_number)
@@ -150,6 +152,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
         'layer_temperature_rate': list(report.layer_temperature_rate),
         'layer_node_temperature':   layer_node_temperature,
         'layer_top_temperature':    layer_top_temperature,
+        'layer_base_temperature':   layer_base_temperature,
         'layer_boundary_thickness': layer_boundary_thickness,
         'layer_rayleigh_number':    layer_rayleigh_number,
         'layer_nusselt_number':     layer_nusselt_number,
@@ -1128,8 +1131,9 @@ cdef class BaseWorld(StructureBase):
             ``central_pressure``, ``planet_mass``, ``planet_moi``), the iteration report (``thermal_passes``,
             ``thermal_converged``, ``geometry_converged``), and the per-layer results (``layer_radius_outer``
             [m], ``layer_temperature`` [K], ``layer_heat_flow_in`` and ``layer_heat_flow_out`` [W],
-            ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1], ``layer_node_temperature`` and
-            ``layer_top_temperature`` [K], ``layer_boundary_thickness`` [m], ``layer_rayleigh_number``,
+            ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1], ``layer_node_temperature``,
+            ``layer_top_temperature``, and ``layer_base_temperature`` [K] (the two ends of a convecting interior,
+            whose top is the layer's own temperature), ``layer_boundary_thickness`` [m], ``layer_rayleigh_number``,
             ``layer_nusselt_number``, and ``layer_in_thermal_network``).
 
         Raises

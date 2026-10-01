@@ -1081,8 +1081,7 @@ public:
 
                 if (thermal_contrast) {
                     const double thermal_change = c_update_layer_thermal(
-                        *solution, this->p_layers, cfg.surface_temperature, integrate_temperature,
-                        layer_thermal, &heating);
+                        *solution, this->p_layers, cfg.surface_temperature, layer_thermal, &heating);
                     thermal_converged = integrate_temperature && (thermal_change < cfg.thermal_tol);
                 }
                 if (geometry_floats) {

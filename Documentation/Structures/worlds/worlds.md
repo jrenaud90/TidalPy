@@ -1,6 +1,6 @@
 # Worlds (`Structures.worlds`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-01_
 
 The world classes are the top-level structural objects in TidalPy. A world owns its identity, orbital and thermal scalars, bulk geometry, spin model, and tide model, and an ordered stack of [layers](../layers/base_layer.md), which may be empty. It runs the whole-planet equation-of-state, radial (Love number), and tidal solves.
 
@@ -137,7 +137,7 @@ A converged solve also fails when a layer is in tension past what its material's
 The returned dict contains:
 - `success`, `message`, `iterations`, `max_iters_hit`, and `pressure_error` \[Pa\].
 - The profile arrays: `radius`, `gravity`, `pressure`, `mass`, `moi`, `density`, `temperature`, `heat_flow`.
-- The per-layer lists: `layer_radius_outer`, `layer_temperature`, `layer_heat_flow_in`, `layer_heat_flow_out`, `layer_heating`, `layer_temperature_rate`, and the network detail `layer_node_temperature` (at the interface above the layer), `layer_top_temperature` (where a convecting layer's adiabat ends), `layer_boundary_thickness` \[m\], `layer_rayleigh_number`, `layer_nusselt_number`, and `layer_in_thermal_network`.
+- The per-layer lists: `layer_radius_outer`, `layer_temperature`, `layer_heat_flow_in`, `layer_heat_flow_out`, `layer_heating`, `layer_temperature_rate`, and the network detail `layer_node_temperature` (at the interface above the layer), `layer_top_temperature` and `layer_base_temperature` (the two ends of a convecting layer's adiabat, whose top is the layer's own temperature), `layer_boundary_thickness` \[m\], `layer_rayleigh_number`, `layer_nusselt_number`, and `layer_in_thermal_network`.
 - The iteration report: `thermal_passes`, `thermal_converged`, `geometry_converged`.
 - The scalar results: `surface_gravity`, `surface_pressure`, `central_pressure`, `planet_mass`, `planet_moi`.
 
@@ -166,7 +166,9 @@ Each cooling model sets its layer's profile as follows:
 |---|---|---|
 | `off` | Isothermal: one temperature throughout, and no modeled gradient, so the layer conducts perfectly. | Everywhere |
 | `conduction` | Two conducting halves, $T = T_0 - (L / 4 \pi k)(1/r_0 - 1/r)$. | The mid-radius |
-| `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. A layer whose base carries no heat (the innermost layer, or one above a layer outside the network) has no boundary layer at its base. | The base of the interior |
+| `convection` | A conducting boundary layer at the base and the top, sized by the model's Nusselt scaling, around an adiabatic interior, $dT/dr = -\alpha g T / c_p$. | The top of the interior. |
+
+The interior warms downward from the layer's temperature, so its base sits at $T \exp\left(\int \alpha g / c_p \, dr\right)$. A layer whose base carries no heat (the innermost layer, or one above a layer outside the network) has no boundary layer at its base. It is applied to the top of the interior, under the upper boundary layer: the upper-mantle temperature of parameterized convection (Stevenson et al. 1983; Schubert et al. 2001).
 
 A layer with no temperature of its own is neither a heat sink nor a source, and a neighbor keeps its own temperature at the shared interface. The layer is isothermal at its placeholder temperature, and `layer_in_thermal_network` reports it `False`. The `temperature` argument overrides every layer's temperature with one number.
 

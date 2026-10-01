@@ -61,15 +61,17 @@ def test_a_warm_core_still_couples():
 
 
 def test_the_solve_reports_the_convecting_detail():
-    """The solve reports per-layer node and top temperatures, boundary layers, Rayleigh and Nusselt numbers."""
+    """The solve reports per-layer node, top, and base temperatures, boundary layers, Rayleigh and Nusselt numbers.
+    A convecting layer's temperature is the top of its interior, and the adiabat warms below it."""
     _, result = _solve(_config({"class": "solidliquid", "temperature_k": 1800.0, "cooling": {"model": "off"}},
                                mantle_cooling="convection"))
-    for key in ("layer_node_temperature", "layer_top_temperature", "layer_boundary_thickness",
+    for key in ("layer_node_temperature", "layer_top_temperature", "layer_base_temperature", "layer_boundary_thickness",
                 "layer_rayleigh_number", "layer_nusselt_number"):
         assert len(result[key]) == 2, key
     assert 0.0 < result["layer_boundary_thickness"][1] <= 0.4 * (1.0 - _CORE_FRACTION) * _RADIUS
     assert result["layer_node_temperature"][1] == _SURFACE_TEMPERATURE
-    assert result["layer_top_temperature"][1] < _MANTLE_TEMPERATURE
+    assert result["layer_top_temperature"][1] == _MANTLE_TEMPERATURE
+    assert result["layer_base_temperature"][1] > _MANTLE_TEMPERATURE
 
 
 def test_floating_layers_end_on_the_solved_grid():

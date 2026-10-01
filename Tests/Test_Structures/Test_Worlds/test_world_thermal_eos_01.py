@@ -154,7 +154,8 @@ def test_no_surface_temperature_leaves_no_flow():
 
 
 def test_convecting_layer_has_an_adiabatic_interior_between_boundary_layers():
-    """A convecting layer has a gently cooling interior and carries most of its drop in the boundary layers."""
+    """A convecting layer has a gently cooling interior and carries most of its drop in the boundary layers. Its
+    temperature applies at the top of the interior, and the adiabat warms below it."""
     world, result = _solve(_convecting_world(), surface_temperature=300.0)
     assert result["thermal_converged"]
     r_inner = _CORE_FRACTION * _RADIUS
@@ -162,7 +163,8 @@ def test_convecting_layer_has_an_adiabatic_interior_between_boundary_layers():
     base_temperature = world.get_temperature(r_inner + 0.25 * boundary)
     top_temperature = world.get_temperature(_RADIUS - 0.25 * boundary)
     assert base_temperature > top_temperature > 300.0
-    assert base_temperature < 1600.0 + 1.0
+    assert result["layer_top_temperature"][1] == 1600.0
+    assert result["layer_base_temperature"][1] > 1600.0
     assert world.get_temperature(_RADIUS) == pytest.approx(300.0, rel=1e-6)
     assert (base_temperature - top_temperature) < 0.25 * (base_temperature - 300.0)
 
@@ -181,6 +183,34 @@ def test_adiabat_follows_its_closed_form():
     expected = temperatures[0] * np.exp(-integral)
     assert temperatures == pytest.approx(expected, rel=1e-5)
     assert temperatures[-1] < temperatures[0]
+
+
+def test_layer_temperature_is_the_top_of_the_adiabat():
+    """The solved profile reaches the layer's own temperature at the top of its interior, under the upper boundary
+    layer, and the reported base is the adiabat carried down to the interior's base."""
+    world, result = _solve(_convecting_world(), surface_temperature=300.0)
+    interior_top = world.mantle.radius_outer - result["layer_boundary_thickness"][1]
+    interior_base = world.mantle.radius_inner + result["layer_boundary_thickness"][1]
+    assert world.get_temperature(interior_top) == pytest.approx(1600.0, rel=1e-6)
+    radii = np.linspace(interior_base, interior_top, 2001)
+    gravity = world.get_gravity(radii)
+    exponent = np.trapezoid(gravity, radii) * _EXPANSION / _HEAT_CAPACITY
+    assert result["layer_base_temperature"][1] == pytest.approx(1600.0 * np.exp(exponent), rel=1e-6)
+    assert world.get_temperature(interior_base) == pytest.approx(result["layer_base_temperature"][1], rel=1e-6)
+
+
+@pytest.mark.parametrize("mantle_temperature", [1600.0, 2400.0])
+def test_a_molten_convecting_layer_keeps_its_own_temperature(mantle_temperature):
+    """A nearly inviscid convecting layer has millimetre boundary layers (resistances near 1e-18 K/W). They still
+    conduct: the layer keeps its own temperature, and its heat loss follows its temperature drop."""
+    config = _config(mantle_temperature=mantle_temperature, cooling="convection",
+                     shear_viscosity={"model": "constant", "reference_viscosity_pas": 0.2})
+    world, result = _solve(config, surface_temperature=300.0)
+    assert result["layer_boundary_thickness"][1] < 1.0e-2
+    interior_top = world.mantle.radius_outer - result["layer_boundary_thickness"][1]
+    assert world.get_temperature(interior_top) == pytest.approx(mantle_temperature, rel=1e-6)
+    resistance = (1.0 / interior_top - 1.0 / _RADIUS) / (4.0 * math.pi * _CONDUCTIVITY)
+    assert result["layer_heat_flow_out"][1] == pytest.approx((mantle_temperature - 300.0) / resistance, rel=1e-6)
 
 
 def test_convecting_layer_reports_its_rayleigh_and_boundary_layer():
@@ -261,7 +291,8 @@ def test_hot_core_under_an_isothermal_mantle_keeps_planetary_heat_flow(core_temp
     io.solve_love_numbers(frequency=4.11e-5, degree_l=2)
     love_k2 = complex(io.love_number_k)
     assert io.love_success, io.love_message
-    assert 0.02 < love_k2.real < 0.1
+    # Io's measured k2 is 0.125 +/- 0.047 (Park et al. 2024).
+    assert 0.02 < love_k2.real < 0.15
     assert -0.05 < love_k2.imag < 0.0
     # A molten stretch raises the amplification from about 10 to a few hundred, far below the warning level.
     assert io.love_surface_amplification < 1.0e4

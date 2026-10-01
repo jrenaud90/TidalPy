@@ -173,5 +173,6 @@ def test_io_with_a_core_hot_enough_to_melt_the_mantle_base(core_temperature):
     assert molten_inner == pytest.approx(io.mantle.radius_inner, rel=1.0e-9)
     assert molten_outer < io.mantle.radius_outer
     love_k2 = _love(io)[0]
-    assert 0.02 < love_k2.real < 0.1
+    # Io's measured k2 is 0.125 +/- 0.047 (Park et al. 2024).
+    assert 0.02 < love_k2.real < 0.15
     assert -0.05 < love_k2.imag < 0.0

@@ -80,6 +80,7 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
         cpp_bool boundary_fallback
         double temperature
         double top_temperature
+        double base_temperature
         double node_temperature
         double heat_flow_in
         double heat_flow_out

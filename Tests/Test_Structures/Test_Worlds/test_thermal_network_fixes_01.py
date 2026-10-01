@@ -50,9 +50,12 @@ def test_the_innermost_convecting_layer_is_adiabatic_down_to_the_center(specific
     """With no flow at the center there is no lower boundary layer, so the heating is not trapped there."""
     world, result = _solve({"mantle": _layer(0, 1.0, 1000.0, "convection", specific_heating=specific_heating)},
                            [3000.0])
-    # The interior starts at the center at the layer's temperature, and the adiabat only cools it outward.
-    assert world.get_temperature(0.0) == pytest.approx(1000.0, rel=1.0e-9)
-    assert world.get_temperature(0.3 * _RADIUS) <= 1000.0
+    # The interior starts at the center at the base of its adiabat and cools outward to the layer's temperature,
+    # which holds at the top of the interior.
+    assert world.get_temperature(0.0) == pytest.approx(result["layer_base_temperature"][0], rel=1.0e-9)
+    assert result["layer_base_temperature"][0] >= world.get_temperature(0.3 * _RADIUS) >= 1000.0
+    interior_top = _RADIUS - result["layer_boundary_thickness"][0]
+    assert world.get_temperature(interior_top) == pytest.approx(1000.0, rel=1.0e-6)
     # One boundary layer carries the whole drop, so it takes the cooling model's whole thickness D / Nu.
     nusselt = result["layer_nusselt_number"][0]
     assert nusselt > 2.5
@@ -64,14 +67,16 @@ def test_the_innermost_convecting_layer_is_adiabatic_down_to_the_center(specific
 
 
 def test_a_convecting_layer_above_a_layer_outside_the_network_starts_at_its_temperature():
-    """A base that exchanges no heat carries no boundary layer either."""
+    """A base that exchanges no heat carries no boundary layer either: the interior starts there, at the base of
+    its adiabat."""
     layers = {"core": _layer(0, 0.5, 0.0, "off", density=8000.0, layer_class="base"),
               "mantle": _layer(1, 1.0, 1000.0, "convection", specific_heating=1.0e-9)}
     world, result = _solve(layers, [8000.0, 3000.0])
     assert result["layer_in_thermal_network"] == [False, True]
     assert result["layer_heat_flow_in"][1] == 0.0
     r_core = world.core.radius_outer
-    assert world.get_temperature(r_core * (1.0 + 1.0e-9)) == pytest.approx(1000.0, rel=1.0e-9)
+    assert world.get_temperature(r_core * (1.0 + 1.0e-9)) == pytest.approx(result["layer_base_temperature"][1],
+                                                                       rel=1.0e-9)
 
 
 # =====================================================================================================================
