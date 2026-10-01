@@ -26,7 +26,7 @@ affiliations:
   - name: NASA Goddard Space Flight Center, Greenbelt, Maryland USA
     index: 2
     ror: 0171mag52
-date: 22 November 2025
+date: 30 September 2026
 bibliography: paper.bib
 ---
 
@@ -101,7 +101,7 @@ TidalPy is licensed under the [Apache 2.0 License (Apache-2.0)](https://www.apac
 
 # AI usage disclosure
 
-Generative AI was used in the development of TidalPy since v0.7.5 to help refactor code, write tests, and expand documentation. The authors directed this work and reviewed its changes. Correctness was checked against TidalPy's already extensive pre-existing test suite as well as against published or analytical results. The overall structure, purpose, and style of the package was, for better or worse, designed and written by the primary author.
+Generative AI was used in the development of TidalPy since v0.7.5 to help refactor code, write tests, and expand documentation. The authors directed this work and reviewed its changes. Correctness was checked against TidalPy's already extensive pre-existing test suite as well as against published or analytical results. The overall design, structure, purpose, and style of the package was, for better or worse, was made by the primary author.
 
 # Acknowledgements
 

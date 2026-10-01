@@ -2,9 +2,9 @@
 
 ## Version 0.8.X
 
-### Version 0.8.0 (2026-NNN)
+### Version 0.8.0 (2026-10-01)
 
-**TidalPy 0.8.0 replaces TidalPy's backend with a new C++ backend.** The classic Cython, numba, and Python modules are removed, and the new modules carry their final names: `Structures`, `RadialSolver`, `Tides`, `Material`, `Rheology`, `Viscosity`, `PartialMelt`, `Cooling`, `Radiogenics`, `Dynamics`, `Stellar`, and `Utilities`. Module, class, and function names and signatures change, so code written for 0.7.X needs to be updated: see the migration guide in the documentation (https://tidalpy.readthedocs.io/en/latest/future_structure.html). The 0.7.X API is frozen at 0.7.6; pin `TidalPy<0.8` to keep using it.
+**TidalPy 0.8.0 replaces TidalPy's backend with a new C++ backend.** The classic Cython, numba, and Python modules are removed, and the new modules carry their final names: `Structures`, `RadialSolver`, `Tides`, `Material`, `Rheology`, `Viscosity`, `PartialMelt`, `Cooling`, `Radiogenics`, `Dynamics`, `Stellar`, and `Utilities`. Module, class, and function names and signatures change, so code written for 0.7.X needs to be updated: see the migration guide in the documentation (https://tidalpy.readthedocs.io/en/latest/future_structure.html). Pin `TidalPy<0.8` to keep using 0.7.X API.
 
 #### New Features
 
