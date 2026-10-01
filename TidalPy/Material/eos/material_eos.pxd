@@ -26,6 +26,10 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         void calc_material_state(
             double pressure, double temperature, cpp_bool thermal_density, double radius, c_MaterialState& out) const
         double get_thermal_expansion() const
+        double get_anderson_gruneisen_parameter() const
+        double get_anderson_gruneisen_exponent() const
+        double get_expansion_reference_density() const
+        double calc_thermal_expansion(double density) const
         double get_reference_temperature() const
         double get_tabulated_shear_modulus(double radius) const
         double get_tabulated_bulk_modulus(double radius) const
@@ -59,6 +63,8 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         double reference_bulk_modulus
         double bulk_modulus_derivative
         double thermal_expansion
+        double anderson_gruneisen_parameter
+        double anderson_gruneisen_exponent
         double reference_temperature
         double invert_rtol
         int    invert_max_iters

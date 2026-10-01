@@ -134,8 +134,12 @@ struct c_LayerThermal {
 
     // Material properties at the layer's mid-radius.
     double conductivity      = TidalPyConstants::d_NAN;   // k     [W m-1 K-1]
-    double thermal_expansion = TidalPyConstants::d_NAN;   // alpha [K-1]
+    double thermal_expansion = TidalPyConstants::d_NAN;   // alpha0 [K-1], at the reference density
     double heat_capacity     = TidalPyConstants::d_NAN;   // c_p   [J kg-1 K-1]
+    // The expansivity's compression scaling alpha / alpha0 (c_anderson_gruneisen_factor; constant for delta_T0 = 0).
+    double anderson_gruneisen_parameter = 0.0;                     // delta_T0
+    double anderson_gruneisen_exponent  = 0.0;                     // kappa
+    double expansion_reference_density  = TidalPyConstants::d_NAN;   // rho_ref [kg m-3]
 };
 
 // Thermal resistance [K W-1] of a conducting spherical shell. Zero for a degenerate shell or conductivity.
@@ -192,6 +196,9 @@ inline void c_init_layer_thermal(
             thermal.conductivity      = eos_model->get_thermal_conductivity();
             thermal.thermal_expansion = eos_model->get_thermal_expansion();
             thermal.heat_capacity     = eos_model->get_heat_capacity();
+            thermal.anderson_gruneisen_parameter = eos_model->get_anderson_gruneisen_parameter();
+            thermal.anderson_gruneisen_exponent  = eos_model->get_anderson_gruneisen_exponent();
+            thermal.expansion_reference_density  = eos_model->get_expansion_reference_density();
         }
         if (!(thermal.conductivity > TidalPyConstants::d_EPS)) {
             // Without a conductivity there is no gradient to integrate.
@@ -260,31 +267,34 @@ inline void c_stretch_heating(
 }
 
 // Exponent of the adiabatic warming across a convecting interior, the integral of alpha g / c_p from its base to its
-// top, using the solved gravity. With dT/dr = -alpha g T / c_p the base sits at T_top exp(exponent). Zero for an
-// empty stretch or missing thermal constants, which leaves the interior isothermal.
+// top, using the solved gravity and density. With dT/dr = -alpha g T / c_p the base sits at T_top exp(exponent). The
+// expansivity follows the layer's Anderson-Gruneisen law (c_anderson_gruneisen_factor), as the integrated adiabat
+// does. Zero for an empty stretch or missing thermal constants, which leaves the interior isothermal.
 inline double c_adiabat_exponent(
         const c_EOSSolution& solution,
         std::size_t layer_index,
         double radius_lower,
         double radius_upper,
-        double thermal_expansion,
-        double heat_capacity) {
-    if (!(radius_upper > radius_lower) || !(heat_capacity > TidalPyConstants::d_EPS)
-        || !std::isfinite(thermal_expansion)) {
+        const c_LayerThermal& thermal) {
+    if (!(radius_upper > radius_lower) || !(thermal.heat_capacity > TidalPyConstants::d_EPS)
+        || !std::isfinite(thermal.thermal_expansion)) {
         return 0.0;
     }
     const std::vector<double>& nodes   = c_stretch_quadrature().nodes;
     const std::vector<double>& weights = c_stretch_quadrature().weights;
     const double half_width = 0.5 * (radius_upper - radius_lower);
     const double midpoint   = 0.5 * (radius_upper + radius_lower);
-    double gravity_integral = 0.0;
-    double structure[C_EOS_Y_VALUES];
+    double integral = 0.0;
+    double state[C_EOS_DY_VALUES];
     for (std::size_t node_i = 0; node_i < nodes.size(); ++node_i) {
-        solution.call_y_si(layer_index, midpoint + half_width * nodes[node_i], structure);
-        const double gravity = structure[C_EOS_GRAVITY_INDEX];
-        if (std::isfinite(gravity)) { gravity_integral += gravity * half_width * weights[node_i]; }
+        solution.call_si(layer_index, midpoint + half_width * nodes[node_i], state);
+        const double gravity = state[C_EOS_GRAVITY_INDEX];
+        const double term = gravity * c_anderson_gruneisen_factor(
+            thermal.expansion_reference_density, state[C_EOS_DENSITY_INDEX], thermal.anderson_gruneisen_parameter,
+            thermal.anderson_gruneisen_exponent);
+        if (std::isfinite(term)) { integral += term * half_width * weights[node_i]; }
     }
-    return thermal_expansion * gravity_integral / heat_capacity;
+    return thermal.thermal_expansion * integral / thermal.heat_capacity;
 }
 
 // Update the boundary layers, resistances, interface temperatures, and heat flows against a solved structure.
@@ -368,7 +378,10 @@ inline double c_update_layer_thermal(
         // The diffusivity uses the density the material has here, not a separate reference density.
         cooling_inputs.thermal_diffusivity  =
             thermal.conductivity / (cooling_inputs.density * thermal.heat_capacity);
-        cooling_inputs.thermal_expansion    = thermal.thermal_expansion;
+        // The expansivity at the layer's own state, which with an Anderson-Gruneisen law is below alpha0.
+        const c_MaterialEOSBase* layer_eos = layer->get_eos();
+        cooling_inputs.thermal_expansion    = (layer_eos != nullptr)
+            ? layer_eos->calc_thermal_expansion(cooling_inputs.density) : thermal.thermal_expansion;
         const c_CoolingResult cooling_result = cooling_model->calc_cooling(cooling_inputs);
 
         thermal.rayleigh_number = cooling_result.rayleigh_number;
@@ -394,8 +407,7 @@ inline double c_update_layer_thermal(
         // interior's base, along the gravity of the solved structure.
         const double interior_base = radius_inner + (insulated_base ? 0.0 : boundary);
         thermal.base_temperature = thermal.temperature * std::exp(c_adiabat_exponent(
-            solution, layer_i, interior_base, radius_outer - boundary, thermal.thermal_expansion,
-            thermal.heat_capacity));
+            solution, layer_i, interior_base, radius_outer - boundary, thermal));
     }
 
     // Heat generated in each layer, and in the conducting stretches on either side of its own temperature.
@@ -455,7 +467,8 @@ inline double c_update_layer_thermal(
             temperature_upper = surface_temperature;
         } else {
             resistance_upper  = thermal_vec[layer_i + 1].resistance_bottom;
-            temperature_upper = thermal_vec[layer_i + 1].base_temperature + thermal_vec[layer_i + 1].heating_drop_bottom;
+            temperature_upper =
+                thermal_vec[layer_i + 1].base_temperature + thermal_vec[layer_i + 1].heating_drop_bottom;
         }
 
         double node = 0.0;
@@ -513,6 +526,7 @@ inline void c_build_thermal_segments(
         bool integrate_temperature,
         double length_scale,
         double gravity_scale,
+        double density_scale,
         std::vector<c_EOSSegment>& out) {
     const std::size_t n_layers = layers.size();
     out.clear();
@@ -531,6 +545,9 @@ inline void c_build_thermal_segments(
             ? 1.0 / (4.0 * TidalPyConstants::d_PI * thermal.conductivity * length_scale) : 0.0;
         segment.adiabat_coeff = (thermal.heat_capacity > TidalPyConstants::d_EPS)
             ? thermal.thermal_expansion * gravity_scale * length_scale / thermal.heat_capacity : 0.0;
+        segment.anderson_gruneisen_parameter = thermal.anderson_gruneisen_parameter;
+        segment.anderson_gruneisen_exponent  = thermal.anderson_gruneisen_exponent;
+        segment.expansion_reference_density  = thermal.expansion_reference_density / density_scale;
 
         const bool isothermal = (!integrate_temperature) || (thermal.kind == c_TemperatureKind::Isothermal);
         if (isothermal) {
@@ -547,7 +564,8 @@ inline void c_build_thermal_segments(
         // to start to reach the base of the layer's interior (its own temperature, for a conducting layer).
         const bool starts_fresh = c_base_is_insulated(thermal_vec, layer_i);
         const double start_temperature = starts_fresh
-            ? (thermal.base_temperature + thermal.heat_flow_in * thermal.resistance_bottom + thermal.heating_drop_bottom)
+            ? (thermal.base_temperature + thermal.heat_flow_in * thermal.resistance_bottom
+               + thermal.heating_drop_bottom)
             : TidalPyConstants::d_NAN;
 
         // A convecting layer whose base carries no heat has no boundary layer there.

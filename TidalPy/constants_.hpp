@@ -229,6 +229,28 @@ inline double c_get_G() noexcept
 // numerical floor is replaced by the floor, keeping the sign. Shared by every module that divides by such a quantity
 // (rheology, cooling, radiogenics). An unwired config pointer leaves the value unchanged, as an unloaded (NaN) floor
 // does.
+// Thermal expansivity relative to its value at a reference density, alpha / alpha0, for an Anderson-Gruneisen
+// parameter that itself falls with compression, delta_T = delta_T0 (rho0 / rho)^kappa (Anderson 1967; Chopelas and
+// Boehler 1992). Integrating d ln(alpha) = delta_T d ln(V) gives
+//     alpha / alpha0 = exp[(delta_T0 / kappa) ((rho0 / rho)^kappa - 1)],
+// and the kappa -> 0 limit, a constant delta_T0, is (rho0 / rho)^delta_T0. 1 (a constant alpha) for delta_T0 = 0 or a
+// density or reference density that is not positive.
+inline double c_anderson_gruneisen_factor(
+        double reference_density,
+        double density,
+        double delta_t0,
+        double kappa) noexcept
+{
+    if ((delta_t0 == 0.0) || !(reference_density > 0.0) || !(density > 0.0)) {
+        return 1.0;
+    }
+    const double expansion = reference_density / density;
+    if (kappa == 0.0) {
+        return std::pow(expansion, delta_t0);
+    }
+    return std::exp((delta_t0 / kappa) * (std::pow(expansion, kappa) - 1.0));
+}
+
 inline double c_guard_denominator(double value) noexcept
 {
     if (tidalpy_config_ptr == nullptr) {

@@ -1044,7 +1044,7 @@ public:
                 }
                 c_build_thermal_segments(
                     layer_thermal, this->p_layers, integrate_temperature,
-                    length_scale, gravity_scale, segment_vec);
+                    length_scale, gravity_scale, density_scale, segment_vec);
                 for (std::size_t i = 0; i < n_layers; ++i) {
                     // The viscosity and melt models of the material always see the temperature; its density law
                     // sees it only when the layer asked for a thermal EOS.

@@ -161,6 +161,8 @@ bulk_modulus_derivative = 4.0
 invert_rtol = 1.0e-10               # the density inversion of a compressible law: its tolerance and iteration cap
 invert_max_iters = 50
 thermal_expansion_1_k = 2.5e-5
+anderson_gruneisen_parameter = 5.5  # alpha = alpha0 exp[(d0 / k) ((rho0 / rho)^k - 1)] (Chopelas and Boehler 1992):
+anderson_gruneisen_exponent = 1.4   # the expansivity falls with compression, setting the adiabat; 0 keeps it constant
 reference_temperature_k = 1700.0
 shear_modulus_static_pa = 1.2e11
 bulk_modulus_static_pa = 2.0e11
@@ -187,8 +189,20 @@ molar_activation_volume_m3_mol = 0.0
 
 [layers.lower_mantle.material.partial_melt]
 model = "spohn"                     # the Fischer and Spohn (1990) power-law weakening
-solidus_k = 1600.0
-liquidus_k = 2000.0
+solidus_k = 1661.2                  # the zero-pressure solidus and liquidus, which rise with pressure as Simon-Glatzel
+liquidus_k = 1982.1                 # laws, T0 (1 + P / a)^(1 / c), with a second law above 20 GPa: the Monteux et al.
+solidus_simon_a_pa = 1.336e9        # (2016) fits to the peridotite melting of Andrault et al. (2011) and Fiquet et al.
+solidus_simon_c = 7.437             # (2010). A zero a keeps a curve constant.
+solidus_transition_pressure_pa = 20.0e9
+solidus_high_k = 2081.8
+solidus_high_simon_a_pa = 1.0169e11
+solidus_high_simon_c = 1.226
+liquidus_simon_a_pa = 6.594e9
+liquidus_simon_c = 5.374
+liquidus_transition_pressure_pa = 20.0e9
+liquidus_high_k = 2006.8
+liquidus_high_simon_a_pa = 3.465e10
+liquidus_high_simon_c = 1.844
 liquid_shear_pa = 1.0e-5            # the shear modulus of the melt
 liquid_viscosity_pas = 0.2          # the viscosity of the melt, and the floor on the post-melt viscosity
 bulk_melt_weakening = true          # also weaken the bulk modulus (a Hashin-Shtrikman bound; off by default)

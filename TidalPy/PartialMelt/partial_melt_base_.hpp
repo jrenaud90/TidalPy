@@ -18,6 +18,10 @@
  * - McKenzie (1984), J. Petrol. 25, 713; Takei and Holtzman (2009), JGR 114, B06205: the compaction (bulk)
  *   viscosity of a partially molten rock, eta / phi and of order eta respectively.
  * - Kervazo et al. (2021), A&A 650, A72: bulk dissipation in Io's partially molten interior.
+ * - Simon and Glatzel (1929), Z. Anorg. Allg. Chem. 178, 309: the melting-curve law T = T_0 (1 + P / a)^(1 / c).
+ * - Fiquet et al. (2010), Science 329, 1516; Andrault et al. (2011), EPSL 304, 251: peridotite and chondritic-
+ *   mantle melting to core-mantle boundary pressures; Monteux, Andrault, and Samuel (2016), EPSL 448, 140: the
+ *   two-branch Simon-Glatzel fits to them, joined at 20 GPa.
  */
 
 #include <algorithm>
@@ -31,11 +35,52 @@
 
 namespace tidalpy {
 
+// A melting curve [K] against pressure [Pa]. A constant temperature by default; with a positive simon_a and simon_c,
+// the Simon and Glatzel (1929) law T(P) = T_0 (1 + P / a)^(1 / c); and with a positive transition_pressure, a second
+// such law (high_*) above that pressure. The high branch is written in the absolute pressure, as the published fits
+// are. Tension holds the zero-pressure temperature, and a non-finite pressure gives NaN.
+struct c_MeltingCurve {
+    double temperature         = 0.0;   // T_0 [K]
+    double simon_a             = 0.0;   // a [Pa]; 0 keeps the curve constant
+    double simon_c             = 0.0;   // c [dimensionless]
+    double transition_pressure = 0.0;   // [Pa]; 0 keeps a single branch
+    double high_temperature    = 0.0;   // T_0 of the high-pressure branch [K]
+    double high_simon_a        = 0.0;   // [Pa]
+    double high_simon_c        = 0.0;   // [dimensionless]
+
+    bool get_is_pressure_dependent() const noexcept { return (this->simon_a > 0.0) && (this->simon_c > 0.0); }
+
+    double calc(double pressure) const noexcept {
+        if (!this->get_is_pressure_dependent()) { return this->temperature; }
+        if (!std::isfinite(pressure)) { return TidalPyConstants::d_NAN; }
+        const double compression = std::max(pressure, 0.0);
+        if ((this->transition_pressure > 0.0) && (compression > this->transition_pressure)
+            && (this->high_simon_a > 0.0) && (this->high_simon_c > 0.0)) {
+            return this->high_temperature
+                * std::pow(1.0 + compression / this->high_simon_a, 1.0 / this->high_simon_c);
+        }
+        return this->temperature * std::pow(1.0 + compression / this->simon_a, 1.0 / this->simon_c);
+    }
+};
+
 // Combined construction parameters; each model reads only the fields it needs. Its defaults are the models' defaults.
 struct c_PartialMeltConfig {
-    // Shared melt envelope and liquid limits.
+    // Shared melt envelope and liquid limits. The solidus and liquidus are the zero-pressure temperatures; the
+    // optional pressure dependence of each follows (see c_MeltingCurve), off by default.
     double solidus             = 1600.0;  // [K]
     double liquidus            = 2000.0;  // [K]
+    double solidus_simon_a              = 0.0;   // [Pa]
+    double solidus_simon_c              = 0.0;
+    double solidus_transition_pressure  = 0.0;   // [Pa]
+    double solidus_high                 = 0.0;   // [K]
+    double solidus_high_simon_a         = 0.0;   // [Pa]
+    double solidus_high_simon_c         = 0.0;
+    double liquidus_simon_a             = 0.0;   // [Pa]
+    double liquidus_simon_c             = 0.0;
+    double liquidus_transition_pressure = 0.0;   // [Pa]
+    double liquidus_high                = 0.0;   // [K]
+    double liquidus_high_simon_a        = 0.0;   // [Pa]
+    double liquidus_high_simon_c        = 0.0;
     double liquid_shear        = 1.0e-5;  // shear modulus of the fully molten material [Pa]
     double liquid_viscosity    = 0.2;     // viscosity of the fully molten material [Pa·s]
     bool   bulk_melt_weakening = false;   // weaken the bulk modulus with melt (calc_bulk_modulus_melt)
@@ -67,6 +112,7 @@ struct c_PartialMeltConfig {
 // Per-evaluation state. Material constants live on the model object; only what varies is passed here.
 struct c_PartialMeltInputs {
     double temperature       = 0.0;   // local temperature [K]
+    double pressure          = 0.0;   // local pressure [Pa], read by pressure-dependent melting curves
     double premelt_viscosity = 0.0;   // solid (pre-melt) viscosity [Pa·s]
     double premelt_shear     = 0.0;   // solid (pre-melt) shear modulus [Pa]
 };
@@ -80,7 +126,7 @@ struct c_PartialMeltResult {
 class c_PartialMeltBase : public c_PhysicsBase {
 public:
     // Number of shared parameters every model writes first in its binary payload.
-    static constexpr std::size_t C_NUM_ENVELOPE_PARAMS = 12;
+    static constexpr std::size_t C_NUM_ENVELOPE_PARAMS = 24;
 
     c_PartialMeltBase() : c_PartialMeltBase(std::string(), c_PartialMeltConfig{}) {}
 
@@ -89,8 +135,11 @@ public:
 
     c_PartialMeltBase(const std::string& model_name, const c_PartialMeltConfig& cfg)
         : c_PhysicsBase(model_name),
-          p_solidus(cfg.solidus),
-          p_liquidus(cfg.liquidus),
+          p_solidus_curve{cfg.solidus, cfg.solidus_simon_a, cfg.solidus_simon_c, cfg.solidus_transition_pressure,
+                          cfg.solidus_high, cfg.solidus_high_simon_a, cfg.solidus_high_simon_c},
+          p_liquidus_curve{cfg.liquidus, cfg.liquidus_simon_a, cfg.liquidus_simon_c,
+                           cfg.liquidus_transition_pressure, cfg.liquidus_high, cfg.liquidus_high_simon_a,
+                           cfg.liquidus_high_simon_c},
           p_liquid_shear(cfg.liquid_shear),
           p_liquid_viscosity(cfg.liquid_viscosity),
           p_bulk_melt_weakening(cfg.bulk_melt_weakening),
@@ -104,8 +153,16 @@ public:
 
     ~c_PartialMeltBase() override = default;
 
-    double get_solidus()             const noexcept { return this->p_solidus; }
-    double get_liquidus()            const noexcept { return this->p_liquidus; }
+    // The zero-pressure solidus and liquidus [K], and each curve's pressure dependence.
+    double get_solidus()             const noexcept { return this->p_solidus_curve.temperature; }
+    double get_liquidus()            const noexcept { return this->p_liquidus_curve.temperature; }
+    const c_MeltingCurve& get_solidus_curve()  const noexcept { return this->p_solidus_curve; }
+    const c_MeltingCurve& get_liquidus_curve() const noexcept { return this->p_liquidus_curve; }
+
+    // The solidus and liquidus [K] at a pressure [Pa].
+    double calc_solidus(double pressure)  const noexcept { return this->p_solidus_curve.calc(pressure); }
+    double calc_liquidus(double pressure) const noexcept { return this->p_liquidus_curve.calc(pressure); }
+
     double get_liquid_shear()        const noexcept { return this->p_liquid_shear; }
     double get_liquid_viscosity()    const noexcept { return this->p_liquid_viscosity; }
     bool   get_bulk_melt_weakening() const noexcept { return this->p_bulk_melt_weakening; }
@@ -119,8 +176,10 @@ public:
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_PhysicsBase::append_config_entries(out);
-        out.push_back(c_config_double("solidus_k", this->p_solidus));
-        out.push_back(c_config_double("liquidus_k", this->p_liquidus));
+        out.push_back(c_config_double("solidus_k", this->p_solidus_curve.temperature));
+        out.push_back(c_config_double("liquidus_k", this->p_liquidus_curve.temperature));
+        p_append_curve_entries(out, "solidus", this->p_solidus_curve);
+        p_append_curve_entries(out, "liquidus", this->p_liquidus_curve);
         out.push_back(c_config_double("liquid_shear_pa", this->p_liquid_shear));
         out.push_back(c_config_double("liquid_viscosity_pas", this->p_liquid_viscosity));
         out.push_back(c_config_bool("bulk_melt_weakening", this->p_bulk_melt_weakening));
@@ -133,13 +192,16 @@ public:
         out.push_back(c_config_double("melt_bulk_viscosity_exponent", this->p_melt_bulk_viscosity_exponent));
     }
 
-    // Volumetric melt fraction: phi = clip((T - T_sol) / (T_liq - T_sol), 0, 1).
+    // Volumetric melt fraction: phi = clip((T - T_sol(P)) / (T_liq(P) - T_sol(P)), 0, 1), with the solidus and
+    // liquidus at the local pressure [Pa] (constant unless their curves are pressure dependent).
     // A non-positive envelope (solidus >= liquidus) gives 0, fully solid; a non-finite temperature gives NaN.
-    double calc_melt_fraction(double temperature) const noexcept {
+    double calc_melt_fraction(double temperature, double pressure = 0.0) const noexcept {
         if (!std::isfinite(temperature)) { return TidalPyConstants::d_NAN; }
-        const double denom = this->p_liquidus - this->p_solidus;
+        const double solidus = this->calc_solidus(pressure);
+        const double denom   = this->calc_liquidus(pressure) - solidus;
+        if (!std::isfinite(denom)) { return TidalPyConstants::d_NAN; }
         if (denom <= TidalPyConstants::d_EPS) { return 0.0; }
-        double phi = (temperature - this->p_solidus) / denom;
+        double phi = (temperature - solidus) / denom;
         if (phi < 0.0) { phi = 0.0; }
         if (phi > 1.0) { phi = 1.0; }
         return phi;
@@ -175,7 +237,7 @@ public:
     // source, so melt lowers a rocky layer's density; water is denser than ice I, so it raises an ice shell's.
     double calc_mixture_density(double temperature, double pressure, double solid_density) const noexcept {
         if (!this->p_density_melt_mixing) { return solid_density; }
-        const double phi = this->calc_melt_fraction(temperature);
+        const double phi = this->calc_melt_fraction(temperature, pressure);
         if (!(phi > 0.0)) { return solid_density; }
         return (1.0 - phi) * solid_density + phi * this->calc_liquid_density(pressure);
     }
@@ -201,7 +263,7 @@ public:
             double premelt_bulk,
             double framework_shear) const noexcept {
         if (!this->p_bulk_melt_weakening) { return premelt_bulk; }
-        const double phi = this->calc_melt_fraction(temperature);
+        const double phi = this->calc_melt_fraction(temperature, pressure);
         if (!std::isfinite(phi)) { return TidalPyConstants::d_NAN; }
         if (phi <= 0.0) { return premelt_bulk; }
         const double contrast = this->calc_liquid_bulk_modulus(pressure) - premelt_bulk;
@@ -220,10 +282,11 @@ public:
     // non-finite pre-melt bulk viscosity counts as no pre-melt dashpot, so melt alone sets zeta.
     double calc_bulk_viscosity_melt(
             double temperature,
+            double pressure,
             double premelt_bulk_viscosity,
             double postmelt_shear_viscosity) const noexcept {
         if (!this->p_bulk_viscosity_melt_weakening) { return premelt_bulk_viscosity; }
-        const double phi = this->calc_melt_fraction(temperature);
+        const double phi = this->calc_melt_fraction(temperature, pressure);
         if (!std::isfinite(phi)) { return TidalPyConstants::d_NAN; }
         if (phi <= 0.0) { return premelt_bulk_viscosity; }
         const double melt_term = std::pow(phi, this->p_melt_bulk_viscosity_exponent)
@@ -235,40 +298,52 @@ public:
         return 1.0 / inverse;
     }
 
-    // Element-wise over temperature and the pre-melt strengths; this is the radial sweep, one entry per slice.
+    // Element-wise over temperature, pressure, and the pre-melt strengths; this is the radial sweep, one entry per
+    // slice. The pressure holds one value per slice, or a single value used at every slice.
     void calc_partial_melt_vectorize(
             const std::vector<double>& temperature,
+            const std::vector<double>& pressure,
             const std::vector<double>& premelt_viscosity,
             const std::vector<double>& premelt_shear,
             std::vector<c_PartialMeltResult>& out_results) const {
         const std::size_t n = temperature.size();
-        if (premelt_viscosity.size() != n || premelt_shear.size() != n) {
+        if (premelt_viscosity.size() != n || premelt_shear.size() != n
+            || !(pressure.size() == n || pressure.size() == 1)) {
             throw std::invalid_argument(
-                "TidalPy::calc_partial_melt_vectorize: temperature, premelt_viscosity, "
-                "and premelt_shear vectors must have the same length");
+                "TidalPy::calc_partial_melt_vectorize: temperature, premelt_viscosity, and premelt_shear vectors "
+                "must have the same length, and pressure that length or one value");
         }
         out_results.resize(n);
         c_PartialMeltInputs inputs;
+        const std::size_t pressure_stride = (pressure.size() == 1) ? 0 : 1;
         for (std::size_t i = 0; i < n; ++i) {
             inputs.temperature       = temperature[i];
+            inputs.pressure          = pressure[i * pressure_stride];
             inputs.premelt_viscosity = premelt_viscosity[i];
             inputs.premelt_shear     = premelt_shear[i];
             out_results[i] = this->calc_partial_melt(inputs);
         }
     }
 
-    // The shared parameters, in binary order; each model appends its own.
+    // The shared parameters, in binary order; each model appends its own. The twelve melting-curve parameters close
+    // the shared block: the solidus curve's six, then the liquidus curve's.
     std::vector<double> get_binary_params() const override {
-        return {this->p_solidus, this->p_liquidus, this->p_liquid_shear, this->p_liquid_viscosity,
+        const c_MeltingCurve& sol = this->p_solidus_curve;
+        const c_MeltingCurve& liq = this->p_liquidus_curve;
+        return {sol.temperature, liq.temperature, this->p_liquid_shear, this->p_liquid_viscosity,
                 this->p_bulk_melt_weakening ? 1.0 : 0.0, this->p_liquid_bulk_modulus,
                 this->p_liquid_bulk_modulus_derivative, this->p_liquid_density,
                 this->p_density_melt_mixing ? 1.0 : 0.0, this->p_bulk_viscosity_melt_weakening ? 1.0 : 0.0,
-                this->p_melt_bulk_viscosity_coefficient, this->p_melt_bulk_viscosity_exponent};
+                this->p_melt_bulk_viscosity_coefficient, this->p_melt_bulk_viscosity_exponent,
+                sol.simon_a, sol.simon_c, sol.transition_pressure, sol.high_temperature, sol.high_simon_a,
+                sol.high_simon_c,
+                liq.simon_a, liq.simon_c, liq.transition_pressure, liq.high_temperature, liq.high_simon_a,
+                liq.high_simon_c};
     }
 
     void set_binary_params(const std::vector<double>& params) override {
-        this->p_solidus             = params[0];
-        this->p_liquidus            = params[1];
+        this->p_solidus_curve.temperature  = params[0];
+        this->p_liquidus_curve.temperature = params[1];
         this->p_liquid_shear        = params[2];
         this->p_liquid_viscosity    = params[3];
         this->p_bulk_melt_weakening = (params[4] != 0.0);
@@ -279,6 +354,16 @@ public:
         this->p_bulk_viscosity_melt_weakening   = (params[9] != 0.0);
         this->p_melt_bulk_viscosity_coefficient = params[10];
         this->p_melt_bulk_viscosity_exponent    = params[11];
+        c_MeltingCurve* curves[2] = {&this->p_solidus_curve, &this->p_liquidus_curve};
+        for (std::size_t curve_i = 0; curve_i < 2; ++curve_i) {
+            const std::size_t i0 = 12 + 6 * curve_i;
+            curves[curve_i]->simon_a             = params[i0];
+            curves[curve_i]->simon_c             = params[i0 + 1];
+            curves[curve_i]->transition_pressure = params[i0 + 2];
+            curves[curve_i]->high_temperature    = params[i0 + 3];
+            curves[curve_i]->high_simon_a        = params[i0 + 4];
+            curves[curve_i]->high_simon_c        = params[i0 + 5];
+        }
     }
 
 protected:
@@ -288,8 +373,22 @@ protected:
         if (shear     <= this->p_liquid_shear)     { shear     = this->p_liquid_shear; }
     }
 
-    double p_solidus;              // [K]
-    double p_liquidus;             // [K]
+    // A curve's pressure-law keys, `<name>_simon_a_pa` and the rest. Written only for a pressure-dependent curve, so
+    // a constant one keeps the config it always had; an absent key reads back as the constant curve's 0.
+    static void p_append_curve_entries(std::vector<c_ConfigEntry>& out, const std::string& name,
+                                       const c_MeltingCurve& curve) {
+        if (!curve.get_is_pressure_dependent()) { return; }
+        out.push_back(c_config_double(name + "_simon_a_pa", curve.simon_a));
+        out.push_back(c_config_double(name + "_simon_c", curve.simon_c));
+        if (!(curve.transition_pressure > 0.0)) { return; }
+        out.push_back(c_config_double(name + "_transition_pressure_pa", curve.transition_pressure));
+        out.push_back(c_config_double(name + "_high_k", curve.high_temperature));
+        out.push_back(c_config_double(name + "_high_simon_a_pa", curve.high_simon_a));
+        out.push_back(c_config_double(name + "_high_simon_c", curve.high_simon_c));
+    }
+
+    c_MeltingCurve p_solidus_curve;    // T_0 [K] and its pressure law
+    c_MeltingCurve p_liquidus_curve;   // T_0 [K] and its pressure law
     double p_liquid_shear;         // [Pa]
     double p_liquid_viscosity;     // [Pa·s]
     bool   p_bulk_melt_weakening;

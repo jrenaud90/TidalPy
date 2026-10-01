@@ -93,6 +93,11 @@ struct c_MaterialEOSConfig {
 
     // Thermal terms, read by every model. A zero expansivity is the athermal EOS.
     double thermal_expansion     = 0.0;                          // alpha0 [1/K]
+    // The Anderson-Gruneisen parameter delta_T0 at the reference density and its compression exponent kappa,
+    // delta_T = delta_T0 (rho0 / rho)^kappa, which carry the expansivity's fall with compression into the adiabat and
+    // the convective vigor (c_anderson_gruneisen_factor). delta_T0 = 0 keeps alpha constant.
+    double anderson_gruneisen_parameter = 0.0;                   // delta_T0 [dimensionless]
+    double anderson_gruneisen_exponent  = 0.0;                   // kappa [dimensionless]
     double reference_temperature = d_EOS_REFERENCE_TEMPERATURE;  // T_ref [K], where rho0 and K0 apply
 
     // Density inversion: relative convergence tol on eta and the termination-safeguard cap. NaN and -1 mean
@@ -332,6 +337,8 @@ public:
     c_MaterialEOSBase(const std::string& model_name, const c_MaterialEOSConfig& cfg)
         : c_PhysicsBase(model_name),
           p_thermal_expansion(cfg.thermal_expansion),
+          p_anderson_gruneisen_parameter(cfg.anderson_gruneisen_parameter),
+          p_anderson_gruneisen_exponent(cfg.anderson_gruneisen_exponent),
           p_reference_temperature(cfg.reference_temperature),
           p_shear_modulus_static(cfg.shear_modulus_static),
           p_bulk_modulus_static(cfg.bulk_modulus_static),
@@ -348,6 +355,20 @@ public:
     ~c_MaterialEOSBase() override = default;
 
     double get_thermal_expansion()     const noexcept { return this->p_thermal_expansion; }
+    double get_anderson_gruneisen_parameter() const noexcept { return this->p_anderson_gruneisen_parameter; }
+    double get_anderson_gruneisen_exponent()  const noexcept { return this->p_anderson_gruneisen_exponent; }
+
+    // The density the expansivity's compression scaling is measured from [kg m-3]: an analytic model's reference
+    // density. NaN for a model without one (the interpolated profile), whose expansivity stays constant.
+    virtual double get_expansion_reference_density() const noexcept { return TidalPyConstants::d_NAN; }
+
+    // Thermal expansivity [1/K] at a density [kg m-3]: alpha0 times the Anderson-Gruneisen factor
+    // (c_anderson_gruneisen_factor). With delta_T0 = 0, no reference density, or a non-positive density it is alpha0.
+    double calc_thermal_expansion(double density) const noexcept {
+        return this->p_thermal_expansion * c_anderson_gruneisen_factor(
+            this->get_expansion_reference_density(), density, this->p_anderson_gruneisen_parameter,
+            this->p_anderson_gruneisen_exponent);
+    }
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }
 
     double get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static; }
@@ -408,6 +429,8 @@ public:
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_PhysicsBase::append_config_entries(out);
         out.push_back(c_config_double("thermal_expansion_1_k", this->p_thermal_expansion));
+        out.push_back(c_config_double("anderson_gruneisen_parameter", this->p_anderson_gruneisen_parameter));
+        out.push_back(c_config_double("anderson_gruneisen_exponent", this->p_anderson_gruneisen_exponent));
         out.push_back(c_config_double("reference_temperature_k", this->p_reference_temperature));
         out.push_back(c_config_double("shear_modulus_static_pa", this->p_shear_modulus_static));
         out.push_back(c_config_double("bulk_modulus_static_pa", this->p_bulk_modulus_static));
@@ -549,6 +572,7 @@ public:
             if (std::isfinite(temperature)) {
                 c_PartialMeltInputs inputs;
                 inputs.temperature       = temperature;
+                inputs.pressure          = pressure;
                 inputs.premelt_viscosity = shear_viscosity;
                 inputs.premelt_shear     = shear;
                 const c_PartialMeltResult shear_result = this->p_partial_melt_model->calc_partial_melt(inputs);
@@ -558,7 +582,7 @@ public:
                 bulk              = this->p_partial_melt_model->calc_bulk_modulus_melt(
                     temperature, pressure, bulk, shear);
                 bulk_viscosity    = this->p_partial_melt_model->calc_bulk_viscosity_melt(
-                    temperature, bulk_viscosity, shear_viscosity);
+                    temperature, pressure, bulk_viscosity, shear_viscosity);
             } else {
                 out.melt_fraction = TidalPyConstants::d_NAN;
             }
@@ -570,14 +594,16 @@ public:
     }
 
     // The material scalars every model stores, which open its parameters: the thermal expansivity and reference
-    // temperature, then the nine static values. A model appends its own law parameters after them.
+    // temperature, the nine static values, and the Anderson-Gruneisen parameter and exponent. A model appends its own
+    // law parameters after them.
     std::vector<double> get_binary_params() const override {
         return {this->p_thermal_expansion, this->p_reference_temperature,
                 this->p_shear_modulus_static, this->p_bulk_modulus_static,
                 this->p_shear_viscosity_static, this->p_bulk_viscosity_static,
                 this->p_shear_modulus_pressure_derivative, this->p_shear_modulus_temperature_derivative,
                 this->p_shear_modulus_reference_temperature,
-                this->p_thermal_conductivity, this->p_heat_capacity};
+                this->p_thermal_conductivity, this->p_heat_capacity, this->p_anderson_gruneisen_parameter,
+                this->p_anderson_gruneisen_exponent};
     }
 
     void set_binary_params(const std::vector<double>& params) override {
@@ -592,11 +618,13 @@ public:
         this->p_shear_modulus_reference_temperature  = params[8];
         this->p_thermal_conductivity                 = params[9];
         this->p_heat_capacity                        = params[10];
+        this->p_anderson_gruneisen_parameter         = params[11];
+        this->p_anderson_gruneisen_exponent          = params[12];
     }
 
 protected:
     // How many values get_binary_params holds before a model's own.
-    static constexpr std::size_t C_MATERIAL_BINARY_PARAMS = 11;
+    static constexpr std::size_t C_MATERIAL_BINARY_PARAMS = 13;
 
     // The model name and parameters, then the three optional sub-models, each behind a presence flag.
     void p_write_payload(std::ostream& out) const override {
@@ -626,6 +654,8 @@ protected:
     }
 
     double p_thermal_expansion     = 0.0;
+    double p_anderson_gruneisen_parameter = 0.0;
+    double p_anderson_gruneisen_exponent  = 0.0;
     double p_reference_temperature = d_EOS_REFERENCE_TEMPERATURE;
 
     double p_shear_modulus_static   = 0.0;
@@ -662,6 +692,7 @@ public:
     ~c_ConstantDensityEOS() override = default;
 
     double get_reference_density() const noexcept { return this->p_reference_density; }
+    double get_expansion_reference_density() const noexcept override { return this->p_reference_density; }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_MaterialEOSBase::append_config_entries(out);
@@ -708,6 +739,7 @@ public:
     c_PressureLaw get_pressure_law() const noexcept { return this->p_law; }
 
     double get_reference_density()       const noexcept { return this->p_reference_density; }
+    double get_expansion_reference_density() const noexcept override { return this->p_reference_density; }
     double get_reference_bulk_modulus()  const noexcept { return this->p_reference_bulk_modulus; }
     double get_bulk_modulus_derivative() const noexcept { return this->p_bulk_modulus_derivative; }
     double get_invert_rtol()             const noexcept { return this->p_invert_rtol; }

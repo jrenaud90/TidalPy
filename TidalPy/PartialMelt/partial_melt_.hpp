@@ -7,13 +7,15 @@
  * - Henning, O'Connell, and Sasselov (2009); Renaud and Henning (2018), ApJ 857, 98.
  *
  * Both temperature laws are anchored at the model's solidus, so they carry over to materials whose solidus is not
- * the 1600 K silicate value the published fits assume (the published forms are recovered at T_sol = 1600 K).
+ * the 1600 K silicate value the published fits assume (the published forms are recovered at T_sol = 1600 K). With a
+ * pressure-dependent melting curve the anchor is the solidus at the local pressure.
  *
- * Binary payload: model name then the model's doubles. Every model writes the 12 shared parameters first
+ * Binary payload: model name then the model's doubles. Every model writes the 24 shared parameters first
  * [solidus, liquidus, liquid_shear, liquid_viscosity, bulk_melt_weakening (0 or 1), liquid_bulk_modulus,
  * liquid_bulk_modulus_derivative, liquid_density, density_melt_mixing (0 or 1), bulk_viscosity_melt_weakening
- * (0 or 1), melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent]; Spohn appends its 4 scalars, Henning
- * its 6. The layer observer pointer is not serialized.
+ * (0 or 1), melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent, then the solidus and the liquidus
+ * curves' simon_a, simon_c, transition_pressure, high_temperature, high_simon_a, high_simon_c]; Spohn appends its 4
+ * scalars, Henning its 6. The layer observer pointer is not serialized.
  */
 
 #include <cmath>
@@ -40,7 +42,7 @@ public:
 
     c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& in) const override {
         c_PartialMeltResult result;
-        result.melt_fraction      = this->calc_melt_fraction(in.temperature);
+        result.melt_fraction      = this->calc_melt_fraction(in.temperature, in.pressure);
         result.postmelt_viscosity = in.premelt_viscosity;
         result.postmelt_shear_modulus = in.premelt_shear;
         return result;
@@ -82,7 +84,7 @@ public:
 
     c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& in) const override {
         c_PartialMeltResult result;
-        const double phi = this->calc_melt_fraction(in.temperature);
+        const double phi = this->calc_melt_fraction(in.temperature, in.pressure);
         result.melt_fraction = phi;
         if (!std::isfinite(phi)) {
             result.postmelt_viscosity     = TidalPyConstants::d_NAN;
@@ -93,7 +95,7 @@ public:
         double post_visc  = in.premelt_viscosity;
         double post_shear = in.premelt_shear;
         if (phi > 0.0) {
-            const double inv_temp_shift = (1.0 / in.temperature) - (1.0 / this->p_solidus);
+            const double inv_temp_shift = (1.0 / in.temperature) - (1.0 / this->calc_solidus(in.pressure));
             post_visc = c_safe_pow(10.0,
                 this->p_fs_visc_log10_at_solidus + this->p_fs_visc_power_slope * inv_temp_shift);
             post_shear = c_safe_pow(10.0,
@@ -170,7 +172,7 @@ public:
 
     c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& in) const override {
         c_PartialMeltResult result;
-        const double phi = this->calc_melt_fraction(in.temperature);
+        const double phi = this->calc_melt_fraction(in.temperature, in.pressure);
         result.melt_fraction = phi;
         if (!std::isfinite(phi)) {
             result.postmelt_viscosity     = TidalPyConstants::d_NAN;
@@ -180,7 +182,8 @@ public:
 
         const double crit       = this->p_crit_melt_frac;
         const double crit_plus  = crit + this->p_crit_melt_frac_width;
-        const double break_temp = this->p_solidus + crit * (this->p_liquidus - this->p_solidus);
+        const double solidus    = this->calc_solidus(in.pressure);
+        const double break_temp = solidus + crit * (this->calc_liquidus(in.pressure) - solidus);
 
         double post_visc;
         double post_shear;
@@ -191,14 +194,14 @@ public:
             // Sub-critical exponential weakening.
             post_visc  = in.premelt_viscosity * c_safe_exp(-this->p_hn_visc_slope_1 * phi);
             post_shear = in.premelt_shear
-                       * c_safe_exp(this->p_hn_shear_param_1 * ((1.0 / in.temperature) - (1.0 / this->p_solidus)));
+                       * c_safe_exp(this->p_hn_shear_param_1 * ((1.0 / in.temperature) - (1.0 / solidus)));
         } else if (phi <= crit_plus) {
             // Breakdown band: the full sub-critical effect, then a steep falloff.
             post_visc  = in.premelt_viscosity
                        * c_safe_exp(-this->p_hn_visc_slope_1 * crit)
                        * c_safe_exp(-this->p_hn_visc_falloff_slope * (phi - crit));
             post_shear = in.premelt_shear
-                       * c_safe_exp(this->p_hn_shear_param_1 * ((1.0 / break_temp) - (1.0 / this->p_solidus)))
+                       * c_safe_exp(this->p_hn_shear_param_1 * ((1.0 / break_temp) - (1.0 / solidus)))
                        * c_safe_exp(-this->p_hn_shear_falloff_slope * (phi - crit));
         } else {
             // Past breakdown: liquid-like.

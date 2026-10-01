@@ -26,6 +26,12 @@ def _rock_layer_block(section: str) -> str:
         thermal_conductivity_w_mk = 3.75
         thermal_expansion_1_k = 5.2e-5
         heat_capacity_j_kgk = 1200.0
+        # The expansivity falls with compression as alpha0 exp[(d0 / k) ((rho0 / rho)^k - 1)], with d0 the
+        # Anderson-Gruneisen parameter and k its compression exponent (Anderson 1967; Chopelas and Boehler 1992).
+        # It sets the adiabat and the convective vigor of a thermal solve; 0 keeps alpha constant, which over a thick
+        # mantle gives far too steep an adiabat. Mantle silicates have d0 of about 5 to 6 and k of about 1.4.
+        anderson_gruneisen_parameter = 0.0
+        anderson_gruneisen_exponent = 0.0
         shear_modulus_static_pa = 6.0e10
         bulk_modulus_static_pa = 2.0e11
         reference_density_kg_m3 = 3500.0
@@ -45,6 +51,25 @@ def _rock_layer_block(section: str) -> str:
         model = "henning"
         solidus_k = 1600.0
         liquidus_k = 2000.0
+        # The solidus and liquidus above are zero-pressure temperatures. Each can follow a Simon-Glatzel law,
+        # T(P) = T0 (1 + P / a)^(1 / c), and a second one above a transition pressure; a = 0 keeps a curve constant,
+        # the default, so worlds fitted at fixed melting temperatures keep their numbers. Mantle peridotite, from the
+        # Monteux et al. (2016) fits to Andrault et al. (2011) and Fiquet et al. (2010), is solidus_k = 1661.2 with
+        # a = 1.336e9 Pa and c = 7.437, then above 20 GPa T0 = 2081.8 K, a = 1.0169e11 Pa, and c = 1.226; and
+        # liquidus_k = 1982.1 with a = 6.594e9 Pa and c = 5.374, then above 20 GPa T0 = 2006.8 K, a = 3.465e10 Pa,
+        # and c = 1.844.
+        solidus_simon_a_pa = 0.0
+        solidus_simon_c = 0.0
+        solidus_transition_pressure_pa = 0.0
+        solidus_high_k = 0.0
+        solidus_high_simon_a_pa = 0.0
+        solidus_high_simon_c = 0.0
+        liquidus_simon_a_pa = 0.0
+        liquidus_simon_c = 0.0
+        liquidus_transition_pressure_pa = 0.0
+        liquidus_high_k = 0.0
+        liquidus_high_simon_a_pa = 0.0
+        liquidus_high_simon_c = 0.0
         liquid_shear_pa = 1.0e-5
         # Molten silicate: the floor on the post-melt viscosity.
         liquid_viscosity_pas = 0.2

@@ -10,8 +10,20 @@ from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase
 
 cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
 
+    cdef cppclass c_MeltingCurve:
+        double temperature
+        double simon_a
+        double simon_c
+        double transition_pressure
+        double high_temperature
+        double high_simon_a
+        double high_simon_c
+        cpp_bool get_is_pressure_dependent() const
+        double calc(double pressure) const
+
     cdef cppclass c_PartialMeltInputs:
         double temperature
+        double pressure
         double premelt_viscosity
         double premelt_shear
 
@@ -23,6 +35,10 @@ cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_PartialMeltBase(c_PhysicsBase):
         double get_solidus() const
         double get_liquidus() const
+        c_MeltingCurve get_solidus_curve() const
+        c_MeltingCurve get_liquidus_curve() const
+        double calc_solidus(double pressure) const
+        double calc_liquidus(double pressure) const
         double get_liquid_shear() const
         double get_liquid_viscosity() const
         cpp_bool get_bulk_melt_weakening() const
@@ -33,7 +49,7 @@ cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
         cpp_bool get_bulk_viscosity_melt_weakening() const
         double get_melt_bulk_viscosity_coefficient() const
         double get_melt_bulk_viscosity_exponent() const
-        double calc_melt_fraction(double temperature) const
+        double calc_melt_fraction(double temperature, double pressure) const
         c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& inputs) const
         double calc_liquid_bulk_modulus(double pressure) const
         double calc_liquid_density(double pressure) const
@@ -41,7 +57,8 @@ cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
         double calc_bulk_modulus_melt(
             double temperature, double pressure, double premelt_bulk, double framework_shear) const
         double calc_bulk_viscosity_melt(
-            double temperature, double premelt_bulk_viscosity, double postmelt_shear_viscosity) const
+            double temperature, double pressure, double premelt_bulk_viscosity,
+            double postmelt_shear_viscosity) const
 
 
 cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
@@ -49,6 +66,18 @@ cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_PartialMeltConfig:
         double solidus
         double liquidus
+        double solidus_simon_a
+        double solidus_simon_c
+        double solidus_transition_pressure
+        double solidus_high
+        double solidus_high_simon_a
+        double solidus_high_simon_c
+        double liquidus_simon_a
+        double liquidus_simon_c
+        double liquidus_transition_pressure
+        double liquidus_high
+        double liquidus_high_simon_a
+        double liquidus_high_simon_c
         double liquid_shear
         double liquid_viscosity
         cpp_bool bulk_melt_weakening

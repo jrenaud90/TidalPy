@@ -1,6 +1,6 @@
 # Partial-Melt Models (`PartialMelt`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-01_
 
 A partial melting, or melt weakening, maps a material's pre-melt (solid) viscosity and shear modulus, together with its temperature, onto the post-melt viscosity and shear modulus, and reports the volumetric melt fraction. Every model can also mix the melt into the density, weaken the bulk modulus with its own law, and let melt set a compaction bulk viscosity. Most of these additional features are off by default (see Density and Bulk Response).
 
@@ -8,9 +8,24 @@ A partial melting, or melt weakening, maps a material's pre-melt (solid) viscosi
 
 The volumetric melt fraction is model-independent.
 
-$$\phi = \mathrm{clip}\left( \frac{T - T_\mathrm{solidus}}{T_\mathrm{liquidus} - T_\mathrm{solidus}},\; 0,\; 1 \right)$$
+$$\phi = \mathrm{clip}\left( \frac{T - T_\mathrm{solidus}(P)}{T_\mathrm{liquidus}(P) - T_\mathrm{solidus}(P)},\; 0,\; 1 \right)$$
 
 Below the solidus $\phi = 0$, above the liquidus $\phi = 1$, and a degenerate envelope with the solidus at or above the liquidus returns $\phi = 0$, which is the fully solid answer. A non-finite temperature has no melt state: the melt fraction is NaN, and so are the Spohn and Henning strengths (Off passes its pre-melt strengths through).
+
+### Pressure-Dependent Melting Curves
+
+The solidus and liquidus are constant by default (`solidus_k`, `liquidus_k`). Mantle rock melts at much higher temperatures under pressure, though: peridotite's solidus rises from about 1660 K at the surface to about 4150 K at Earth's core-mantle boundary. A constant pair therefore melts the lower mantle of any Earth-sized world whose upper mantle is at a realistic temperature. Each curve can follow a Simon and Glatzel (1929) law, with an optional second law above a transition pressure:
+
+$$T_m(P) = \begin{cases} T_0 \left(1 + P / a\right)^{1/c} & P \le P_t \\ T_{0,\mathrm{high}} \left(1 + P / a_\mathrm{high}\right)^{1/c_\mathrm{high}} & P > P_t \end{cases}$$
+
+Both branches are written in the absolute pressure, as the published fits are. Tension ($P < 0$) holds the zero-pressure temperature. An `a` of 0 keeps a curve constant, and a transition pressure of 0 keeps one branch. Monteux et al. (2016) fit this form to the peridotite and chondritic-mantle melting experiments of Fiquet et al. (2010) and Andrault et al. (2011):
+
+| Curve | $T_0$ \[K\] | $a$ \[Pa\] | $c$ | $P_t$ \[Pa\] | $T_{0,\mathrm{high}}$ \[K\] | $a_\mathrm{high}$ \[Pa\] | $c_\mathrm{high}$ |
+|---|---|---|---|---|---|---|---|
+| Solidus | 1661.2 | 1.336e9 | 7.437 | 20.0e9 | 2081.8 | 1.0169e11 | 1.226 |
+| Liquidus | 1982.1 | 6.594e9 | 5.374 | 20.0e9 | 2006.8 | 3.465e10 | 1.844 |
+
+The two branches of each meet at 20 GPa, and at 135 GPa they give a solidus of about 4150 K and a liquidus of about 4750 K. The pressure is the local one: the structure solve passes it to every melt evaluation, so the melt fraction, the weakening laws (each anchored at the local solidus), the density mixing, and the bulk effects all follow the curves. The packaged configuration lists these keys at 0 (off), so worlds fitted at fixed melting temperatures keep their numbers.
 
 ## Models
 
@@ -59,6 +74,12 @@ Each parameter carries two names: the constructor keyword, which is also the rea
 |---|---|---|---|---|
 | `solidus` | `solidus_k` | 1600.0 | K | All |
 | `liquidus` | `liquidus_k` | 2000.0 | K | All |
+| `solidus_simon_a`, `liquidus_simon_a` | `solidus_simon_a_pa`, `liquidus_simon_a_pa` | 0.0 (constant) | Pa | All |
+| `solidus_simon_c`, `liquidus_simon_c` | `solidus_simon_c`, `liquidus_simon_c` | 0.0 | - | All |
+| `solidus_transition_pressure`, `liquidus_transition_pressure` | `solidus_transition_pressure_pa`, `liquidus_transition_pressure_pa` | 0.0 (one branch) | Pa | All |
+| `solidus_high`, `liquidus_high` | `solidus_high_k`, `liquidus_high_k` | 0.0 | K | All |
+| `solidus_high_simon_a`, `liquidus_high_simon_a` | `solidus_high_simon_a_pa`, `liquidus_high_simon_a_pa` | 0.0 | Pa | All |
+| `solidus_high_simon_c`, `liquidus_high_simon_c` | `solidus_high_simon_c`, `liquidus_high_simon_c` | 0.0 | - | All |
 | `liquid_shear` | `liquid_shear_pa` | 1.0e-5 | Pa | All |
 | `liquid_viscosity` | `liquid_viscosity_pas` | 0.2 | Pa s | All |
 | `fs_visc_power_slope` | `fs_visc_power_slope_k` | 27000.0 | K | Spohn |
@@ -159,6 +180,19 @@ phi, post_viscosity, post_shear = melt_model.calc_partial_melt(
     premelt_shear=6.0e10,       # Pa
 )
 
+# Peridotite melting curves (Monteux et al. 2016)
+mantle_melt = make_partial_melt(
+    "henning",
+    {"solidus_k": 1661.2, "solidus_simon_a_pa": 1.336e9, "solidus_simon_c": 7.437,
+     "solidus_transition_pressure_pa": 20.0e9, "solidus_high_k": 2081.8,
+     "solidus_high_simon_a_pa": 1.0169e11, "solidus_high_simon_c": 1.226,
+     "liquidus_k": 1982.1, "liquidus_simon_a_pa": 6.594e9, "liquidus_simon_c": 5.374,
+     "liquidus_transition_pressure_pa": 20.0e9, "liquidus_high_k": 2006.8,
+     "liquidus_high_simon_a_pa": 3.465e10, "liquidus_high_simon_c": 1.844}
+)
+mantle_melt.calc_solidus(135.0e9)                    # [K], about 4150 at the core-mantle boundary
+mantle_melt.calc_melt_fraction(3000.0, 60.0e9)       # 0.0: solid at 60 GPa
+
 # Name factory: case-insensitive, aliases accepted.
 spohn_model = make_partial_melt("fischer", {"solidus_k": 1500.0})
 ```
@@ -171,16 +205,18 @@ Constructors take the melt envelope plus their own parameters, all with the defa
 
 `HenningPartialMelt(solidus, liquidus, liquid_shear, crit_melt_frac=0.5, crit_melt_frac_width=0.05, hn_visc_slope_1=13.5, hn_visc_falloff_slope=370.0, hn_shear_param_1=40000.0, hn_shear_falloff_slope=700.0, liquid_viscosity, bulk_melt_weakening, liquid_bulk_modulus, <melt phase>)`
 
-where `<melt phase>` is `liquid_bulk_modulus_derivative=5.0, liquid_density=2750.0, density_melt_mixing=False, bulk_viscosity_melt_weakening=False, melt_bulk_viscosity_coefficient=1.0, melt_bulk_viscosity_exponent=1.0`.
+where `<melt phase>` is `liquid_bulk_modulus_derivative=5.0, liquid_density=2750.0, density_melt_mixing=False, bulk_viscosity_melt_weakening=False, melt_bulk_viscosity_coefficient=1.0, melt_bulk_viscosity_exponent=1.0`, followed in every constructor by the twelve curve parameters (`solidus_simon_a=0.0` through `liquidus_high_simon_c=0.0`).
 
 | Member | Returns | Description |
 |---|---|---|
-| `calc_melt_fraction(temperature)` | `float` | Melt fraction in [0, 1]. |
-| `calc_partial_melt(temperature, premelt_viscosity, premelt_shear)` | `(phi, viscosity, shear_modulus)` | Melt fraction, post-melt viscosity [Pa s], post-melt shear modulus [Pa]. |
+| `calc_melt_fraction(temperature, pressure=0.0)` | `float` | Melt fraction in [0, 1] at a pressure [Pa]. |
+| `calc_solidus(pressure)`, `calc_liquidus(pressure)` | `float` | The solidus and liquidus [K] at a pressure [Pa]. |
+| `calc_partial_melt(temperature, premelt_viscosity, premelt_shear, pressure=0.0)` | `(phi, viscosity, shear_modulus)` | Melt fraction, post-melt viscosity [Pa s], post-melt shear modulus [Pa]. |
 | `calc_liquid_density(pressure)`, `calc_liquid_bulk_modulus(pressure)` | `float` | The melt phase's density [kg/m$^3$] and bulk modulus [Pa]. |
 | `calc_mixture_density(temperature, pressure, solid_density)` | `float` | Density [kg/m$^3$]; `solid_density` unless `density_melt_mixing` is on. |
 | `calc_bulk_modulus_melt(temperature, pressure, premelt_bulk_modulus, framework_shear_modulus)` | `float` | Post-melt bulk modulus [Pa]; the pre-melt value unless `bulk_melt_weakening` is on. |
-| `calc_bulk_viscosity_melt(temperature, premelt_bulk_viscosity, postmelt_shear_viscosity)` | `float` | Post-melt bulk viscosity [Pa s]; the pre-melt value unless `bulk_viscosity_melt_weakening` is on. |
+| `calc_bulk_viscosity_melt(temperature, premelt_bulk_viscosity, postmelt_shear_viscosity, pressure=0.0)` | `float` | Post-melt bulk viscosity [Pa s]; the pre-melt value unless `bulk_viscosity_melt_weakening` is on. |
+| `solidus_curve`, `liquidus_curve` | `dict` | Each curve's `temperature`, `simon_a`, `simon_c`, `transition_pressure`, `high_temperature`, `high_simon_a`, and `high_simon_c`, read-only. |
 | `solidus`, `liquidus`, `liquid_shear`, `liquid_viscosity`, `bulk_melt_weakening`, `liquid_bulk_modulus`, `liquid_bulk_modulus_derivative`, `liquid_density`, `density_melt_mixing`, `bulk_viscosity_melt_weakening`, `melt_bulk_viscosity_coefficient`, `melt_bulk_viscosity_exponent` | `float`, `bool` | The melt envelope, liquid limits, melt phase, and switches, read-only. |
 | `fs_visc_power_slope`, `fs_visc_log10_at_solidus`, `fs_shear_power_slope`, `fs_shear_log10_at_solidus` | `float` | The Spohn model's parameters, read-only. |
 | `crit_melt_frac`, `crit_melt_frac_width`, `hn_visc_slope_1`, `hn_visc_falloff_slope`, `hn_shear_param_1`, `hn_shear_falloff_slope` | `float` | The Henning model's parameters, read-only. |
@@ -223,10 +259,14 @@ The concrete models `c_OffPartialMelt`, `c_SpohnPartialMelt`, and `c_HenningPart
 
 ## References
 
+- Andrault, D., Bolfan-Casanova, N., Lo Nigro, G., Bouhifd, M. A., Garbarino, G., and Mezouar, M. (2011). Solidus and liquidus profiles of chondritic mantle: Implication for melting of the Earth across its history. *Earth and Planetary Science Letters*, 304(1-2), 251-259.
+- Fiquet, G., Auzende, A. L., Siebert, J., Corgne, A., Bureau, H., Ozawa, H., and Garbarino, G. (2010). Melting of peridotite to 140 gigapascals. *Science*, 329(5998), 1516-1518.
 - Fischer, H.-J., and Spohn, T. (1990). Thermal-orbital histories of viscoelastic models of Io. *Icarus*, 83(1), 39-65.
 - Hashin, Z., and Shtrikman, S. (1963). A variational approach to the theory of the elastic behaviour of multiphase materials. *Journal of the Mechanics and Physics of Solids*, 11(2), 127-140.
 - Henning, W. G., O'Connell, R. J., and Sasselov, D. D. (2009). Tidally heated terrestrial exoplanets: Viscoelastic response models. *The Astrophysical Journal*, 707(2), 1000-1015.
 - Mavko, G. M. (1980). Velocity and attenuation in partially molten rocks. *Journal of Geophysical Research*, 85(B10), 5173-5189.
+- Monteux, J., Andrault, D., and Samuel, H. (2016). On the cooling of a deep terrestrial magma ocean. *Earth and Planetary Science Letters*, 448, 140-149.
 - Renaud, J. P., and Henning, W. G. (2018). Increased tidal dissipation using advanced rheological models: Implications for Io and tidally active exoplanets. *The Astrophysical Journal*, 857(2), 98.
+- Simon, F., and Glatzel, G. (1929). Bemerkungen zur Schmelzdruckkurve. *Zeitschrift für anorganische und allgemeine Chemie*, 178(1), 309-316.
 - Takei, Y. (2002). Effect of pore geometry on VP/VS: From equilibrium geometry to crack. *Journal of Geophysical Research*, 107(B2), 2043.
 - Wood, A. B. (1955). *A Textbook of Sound*. G. Bell and Sons.

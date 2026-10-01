@@ -1,6 +1,6 @@
 # Material EOS Models (`Material.eos`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-01_
 
 A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models calculate it from the local pressure [Pa]. The interpolated model looks it up by radius [m]. All four use the same call, `calc_density(pressure, temperature=None, radius=0.0)`, so the whole-planet solve does not need to know which model a layer uses.
 
@@ -74,6 +74,16 @@ $$\rho(T) = \rho \, \exp\left[ -\alpha_0 \left( T - T_\mathrm{ref} \right) \righ
 
 A model is athermal when $\alpha_0 = 0$ (the default) or when no temperature is passed (`None` in Python, a non-finite value in C++).
 
+#### Expansivity Under Compression
+
+The expansivity of a mantle silicate falls by a factor of several across a planet's mantle, so a constant $\alpha_0$ makes a thick convecting layer's adiabat far too steep. The Anderson-Gruneisen parameter $\delta_T = -(\partial \ln \alpha / \partial \ln \rho)_T$ describes this fall, and $\delta_T$ itself decreases with compression, $\delta_T = \delta_{T0} (\rho_0 / \rho)^{\kappa}$ (Chopelas and Boehler 1992). Integrating gives
+
+$$\alpha(\rho) = \alpha_0 \exp\left[ \frac{\delta_{T0}}{\kappa} \left( \left( \frac{\rho_0}{\rho} \right)^{\kappa} - 1 \right) \right]$$
+
+which for $\kappa = 0$ is the single power law $\alpha_0 (\rho_0 / \rho)^{\delta_{T0}}$ (Anderson 1967). `anderson_gruneisen_parameter` ($\delta_{T0}$) and `anderson_gruneisen_exponent` ($\kappa$) set it, and both default to 0, a constant $\alpha_0$. Mantle silicates have $\delta_{T0}$ of about 5 to 6 and $\kappa$ of about 1.4. $\rho_0$ is the model's reference density, and the interpolated model, which has none, keeps $\alpha_0$. `calc_thermal_expansion(density)` returns $\alpha(\rho)$.
+
+The compressed expansivity sets the adiabat and the Rayleigh number of a thermal solve. The density law keeps its thermal pressure $\alpha_0 K_0 (T - T_\mathrm{ref})$, since the product $\alpha K_T$ stays nearly constant as $\alpha$ falls and $K_T$ rises.
+
 ### Bulk Modulus
 
 `calc_bulk_modulus(pressure, temperature=None, radius=0.0)` returns the isothermal bulk modulus $K_T = \rho \, \partial P / \partial \rho$ [Pa]. Birch-Murnaghan and Vinet evaluate the analytic derivative of their pressure law at the solved compression, so the modulus is consistent with the density and equals $K_0$ at the reference state. The interpolated model returns its bulk table at `radius`. A model with neither returns NaN, and `calc_material_state` then uses the material's `bulk_modulus_static`.
@@ -92,8 +102,10 @@ The EOS model contains the layer's material parameters:
 | `shear_modulus_reference_temperature` | K | `300.0` | $T_\mathrm{ref}$ of the shear law. |
 | `thermal_conductivity` | W m$^{-1}$ K$^{-1}$ | `4.0` | Conductivity $k$ of a conducting layer and of a convecting layer's boundary layers. |
 | `heat_capacity` | J kg$^{-1}$ K$^{-1}$ | `1200.0` | Specific heat $c_p$: the adiabat, the diffusivity, and the secular cooling rate. |
+| `anderson_gruneisen_parameter` | - | `0.0` | $\delta_{T0}$ of the expansivity's fall with compression; 0 keeps $\alpha_0$. |
+| `anderson_gruneisen_exponent` | - | `0.0` | $\kappa$ in $\delta_T = \delta_{T0} (\rho_0 / \rho)^\kappa$. |
 
-The thermal expansivity is the model's `thermal_expansion`, one $\alpha$ per material. It sets the adiabatic gradient $\alpha T g / c_p$ and the Rayleigh number of a convecting layer. The density law uses the same $\alpha$ only when it receives a temperature (see step 3 below). `calc_thermal_diffusivity(density)` returns $\kappa = k / (\rho c_p)$.
+The thermal expansivity is the model's `thermal_expansion`, $\alpha_0$ at the reference density, which falls with compression when `anderson_gruneisen_parameter` is set (see [Expansivity Under Compression](#expansivity-under-compression)). The expansivity at the local density sets the adiabatic gradient $\alpha T g / c_p$ and the Rayleigh number of a convecting layer. The density law uses the same $\alpha$ only when it receives a temperature (see step 3 below). `calc_thermal_diffusivity(density)` returns $\kappa = k / (\rho c_p)$.
 
 The material also holds three optional models, attached with `set_shear_viscosity(model)`, `set_bulk_viscosity(model)` (from [`Viscosity`](../Viscosity/viscosity_models.md)) and `set_partial_melt(model)` (from [`PartialMelt`](../PartialMelt/partial_melt_models.md)). A layer has the same three methods, which pass the model to its EOS.
 
@@ -207,6 +219,7 @@ vinet_pressure(1.2, 1.3e11, 4.5)
 | `bulk_modulus_derivative` | Birch-Murnaghan, Vinet | `bulk_modulus_derivative` |
 | `invert_rtol`, `invert_max_iters` | Birch-Murnaghan, Vinet | same |
 | `thermal_expansion_1_k`, `reference_temperature_k` | all | `thermal_expansion`, `reference_temperature` |
+| `anderson_gruneisen_parameter`, `anderson_gruneisen_exponent` | all (a constant $\alpha$ for interpolated) | same |
 | `radius_m`, `density_kg_m3` | interpolated | `radius`, `density` |
 | `shear_modulus_pa`, `bulk_modulus_pa`, `shear_viscosity_pas`, `bulk_viscosity_pas` | interpolated | `shear_modulus`, `bulk_modulus`, `shear_viscosity`, `bulk_viscosity` |
 
@@ -275,13 +288,14 @@ One config struct is shared by every model, and each model reads only the fields
 | `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative` | all | `0.0` |
 | `shear_modulus_reference_temperature` | all | `d_EOS_REFERENCE_TEMPERATURE` (`300.0`) |
 | `thermal_conductivity`, `heat_capacity` | all | `4.0`, `1200.0` |
+| `anderson_gruneisen_parameter`, `anderson_gruneisen_exponent` | all | `0.0`, `0.0` (constant $\alpha$) |
 | `radius`, `density` and the four viscoelastic tables | interpolated | empty vectors |
 
 ### Classes and Free Functions
 
 All models derive from `c_MaterialEOSBase` and override `calc_density(pressure, temperature, radius)` (see [Inheritance](#inheritance)). The base also has the virtual `calc_density_and_bulk_modulus(pressure, temperature, radius, density, bulk_modulus)`, which returns both from one pressure inversion. Each model has a default constructor and one taking the config. Accessors:
 
-- All models: `get_thermal_expansion()`, `get_reference_temperature()`, and `get_reference_density()`.
+- All models: `get_thermal_expansion()`, `get_reference_temperature()`, `get_reference_density()`, `get_anderson_gruneisen_parameter()`, `get_anderson_gruneisen_exponent()`, `get_expansion_reference_density()` (NaN for interpolated), and `calc_thermal_expansion(density)`.
 - Birch-Murnaghan and Vinet: `get_reference_bulk_modulus()`, `get_bulk_modulus_derivative()`, `get_invert_rtol()`, and `get_invert_max_iters()`.
 - Interpolated: `get_num_points()`.
 
@@ -327,6 +341,8 @@ No build-system change is needed: `Material.eos.material_eos` is already registe
 
 - Birch, F. (1947). Finite elastic strain of cubic crystals. *Physical Review*, 71(11), 809-824.
 - Vinet, P., Ferrante, J., Rose, J. H., and Smith, J. R. (1987). Compressibility of solids. *Journal of Geophysical Research*, 92(B9), 9319-9325.
+- Anderson, O. L. (1967). Equation for thermal expansivity in planetary interiors. *Journal of Geophysical Research*, 72(14), 3661-3668. The Anderson-Gruneisen relation for the expansivity.
 - Anderson, O. L. (1995). *Equations of State of Solids for Geophysics and Ceramic Science*. Oxford University Press. Thermal pressure and the near constancy of $\alpha K_T$ at high temperature.
+- Chopelas, A., and Boehler, R. (1992). Thermal expansivity in the lower mantle. *Geophysical Research Letters*, 19(19), 1983-1986. The decrease of the Anderson-Gruneisen parameter with compression.
 - Poirier, J.-P. (2000). *Introduction to the Physics of the Earth's Interior*, second edition. Comparison of the finite-strain and universal forms.
 - Dziewonski, A. M., and Anderson, D. L. (1981). Preliminary reference Earth model. *Physics of the Earth and Planetary Interiors*, 25(4), 297-356.

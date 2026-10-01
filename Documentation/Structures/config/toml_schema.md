@@ -1,6 +1,6 @@
 # World Configuration & TOML Schema (`Structures.configs`)
 
-_Updated: 2026-09-29_
+_Updated: 2026-10-01_
 
 Schema version `0.2.0`.
 
@@ -162,9 +162,9 @@ See each module's documentation for the available model names and parameters.
 
 - Density law: `model` (`"constant"`, `"bm"`, `"vinet"`, `"interpolate"`) and its parameters (`reference_density_kg_m3`, `reference_bulk_modulus_pa`, `thermal_expansion_1_k`, ...). An `interpolate` table's `radius_m` \[m\] must span its layer to within 0.1% of the layer's outer radius at each end, or the build fails: the interpolation holds its end values beyond the table, so a table in km would otherwise build a uniform layer.
 - Static constants: `shear_modulus_static_pa`, `bulk_modulus_static_pa`, `shear_viscosity_static_pas`, and `bulk_viscosity_static_pas`. A viscosity left out is unset.
-- Thermal constants: `thermal_conductivity_w_mk` (default `4.0`), `heat_capacity_j_kgk` (default `1200.0`), and `thermal_expansion_1_k` (default `0.0`). The one expansivity sets the adiabat and convection of a cooling layer. The density law uses it only on a layer that sets `use_thermal_eos`.
+- Thermal constants: `thermal_conductivity_w_mk` (default `4.0`), `heat_capacity_j_kgk` (default `1200.0`), and `thermal_expansion_1_k` (default `0.0`), with `anderson_gruneisen_parameter` and `anderson_gruneisen_exponent` (default `0.0`, a constant expansivity) for its fall with compression (see [Material EOS](../../Material/material_eos.md#expansivity-under-compression)). The expansivity sets the adiabat and convection of a cooling layer. The density law uses it only on a layer that sets `use_thermal_eos`.
 - Static shear law: $\mu = \mu_0 + \mu'_P P + \mu'_T (T - T_\mathrm{ref})$ through `shear_modulus_pressure_derivative`, `shear_modulus_temperature_derivative_pa_k` \[Pa K$^{-1}$\], and `shear_modulus_reference_temperature_k` \[K\] (defaults `0.0`, `0.0`, `300.0`).
-- Three optional nested model tables, each with its own `model` key: `[layers.<name>.material.shear_viscosity]` and `[layers.<name>.material.bulk_viscosity]` (built by `make_viscosity`) and `[layers.<name>.material.partial_melt]` (built by `make_partial_melt`).
+- Three optional nested model tables, each with its own `model` key: `[layers.<name>.material.shear_viscosity]` and `[layers.<name>.material.bulk_viscosity]` (built by `make_viscosity`) and `[layers.<name>.material.partial_melt]` (built by `make_partial_melt`). The partial-melt table's solidus and liquidus can rise with pressure through the `solidus_simon_a_pa` family of keys (see [Pressure-Dependent Melting Curves](../../PartialMelt/partial_melt_models.md#pressure-dependent-melting-curves)).
 
 The whole table is passed to `make_material_eos` (see [Material EOS Models](../../Material/material_eos.md)). The rheology tables stay on the layer because the rheology is the only part that needs a frequency.
 

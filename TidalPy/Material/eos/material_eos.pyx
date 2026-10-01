@@ -85,8 +85,28 @@ cdef class MaterialEOSBase(PhysicsBase):
 
     @property
     def thermal_expansion(self) -> float:
-        """Thermal expansivity alpha0 [1/K]; zero is the athermal EOS."""
+        """Thermal expansivity alpha0 [1/K] at the reference density; zero is the athermal EOS."""
         return self._model().get_thermal_expansion()
+
+    @property
+    def anderson_gruneisen_parameter(self) -> float:
+        """Anderson-Gruneisen parameter delta_T0 at the reference density; zero keeps alpha constant."""
+        return self._model().get_anderson_gruneisen_parameter()
+
+    @property
+    def anderson_gruneisen_exponent(self) -> float:
+        """Exponent kappa of delta_T = delta_T0 (rho0 / rho)^kappa; zero keeps delta_T at delta_T0."""
+        return self._model().get_anderson_gruneisen_exponent()
+
+    def calc_thermal_expansion(self, double density) -> float:
+        """Thermal expansivity [1/K] at a density [kg/m^3] (Anderson 1967; Chopelas and Boehler 1992):
+        alpha0 exp[(delta_T0 / kappa) ((rho0 / rho)^kappa - 1)], which is alpha0 (rho0 / rho)^delta_T0 for kappa = 0.
+
+        This scaling sets the adiabat and the convective vigor of a thermal solve. The density law itself keeps its
+        thermal pressure, alpha0 K0 (T - T_ref), since alpha K_T is nearly constant under compression. A model without a
+        reference density (the interpolated profile) keeps alpha0.
+        """
+        return self._model().calc_thermal_expansion(density)
 
     @property
     def reference_temperature(self) -> float:
@@ -279,7 +299,8 @@ cdef dict cy_material_config(const c_MaterialEOSBase* eos_ptr):
 _MATERIAL_KWARGS = (
     "shear_modulus_static", "bulk_modulus_static", "shear_viscosity_static", "bulk_viscosity_static",
     "shear_modulus_pressure_derivative", "shear_modulus_temperature_derivative",
-    "shear_modulus_reference_temperature", "thermal_conductivity", "heat_capacity")
+    "shear_modulus_reference_temperature", "thermal_conductivity", "heat_capacity", "anderson_gruneisen_parameter",
+    "anderson_gruneisen_exponent")
 
 # The config key of each material keyword argument, as make_material_eos reads it.
 _MATERIAL_CONFIG_KEY_TO_KWARG = {
@@ -292,6 +313,8 @@ _MATERIAL_CONFIG_KEY_TO_KWARG = {
     "shear_modulus_reference_temperature_k":     "shear_modulus_reference_temperature",
     "thermal_conductivity_w_mk":                 "thermal_conductivity",
     "heat_capacity_j_kgk":                       "heat_capacity",
+    "anderson_gruneisen_parameter":              "anderson_gruneisen_parameter",
+    "anderson_gruneisen_exponent":               "anderson_gruneisen_exponent",
 }
 
 
@@ -317,6 +340,10 @@ cdef int cy_fill_material_config(c_MaterialEOSConfig& config, dict material) exc
         config.thermal_conductivity = material["thermal_conductivity"]
     if "heat_capacity" in material:
         config.heat_capacity = material["heat_capacity"]
+    if "anderson_gruneisen_parameter" in material:
+        config.anderson_gruneisen_parameter = material["anderson_gruneisen_parameter"]
+    if "anderson_gruneisen_exponent" in material:
+        config.anderson_gruneisen_exponent = material["anderson_gruneisen_exponent"]
     return 0
 
 
@@ -490,6 +517,7 @@ MATERIAL_EOS_CONFIG_KEYS = frozenset({
     "shear_modulus_static_pa", "bulk_modulus_static_pa", "shear_viscosity_static_pas", "bulk_viscosity_static_pas",
     "shear_modulus_pressure_derivative", "shear_modulus_temperature_derivative_pa_k",
     "shear_modulus_reference_temperature_k", "thermal_conductivity_w_mk", "heat_capacity_j_kgk",
+    "anderson_gruneisen_parameter", "anderson_gruneisen_exponent",
     # Nested model tables, built with make_viscosity / make_partial_melt and attached.
     "shear_viscosity", "bulk_viscosity", "partial_melt"})
 

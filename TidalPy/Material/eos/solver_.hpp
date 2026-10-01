@@ -248,6 +248,9 @@ inline void c_solve_eos(
             eos_input_layer_ptr->temperature_kind = segment.temperature_kind;
             eos_input_layer_ptr->conduction_coeff = segment.conduction_coeff;
             eos_input_layer_ptr->adiabat_coeff    = segment.adiabat_coeff;
+            eos_input_layer_ptr->anderson_gruneisen_parameter = segment.anderson_gruneisen_parameter;
+            eos_input_layer_ptr->anderson_gruneisen_exponent  = segment.anderson_gruneisen_exponent;
+            eos_input_layer_ptr->expansion_reference_density  = segment.expansion_reference_density;
 
             // The integration needs only the density, so skip the moduli, viscosity, and melt models.
             eos_input_layer_ptr->update_bulk  = false;

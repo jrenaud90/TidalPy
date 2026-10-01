@@ -38,6 +38,47 @@ cdef void _set_melt_phase(
     config.melt_bulk_viscosity_exponent    = melt_bulk_viscosity_exponent
 
 
+cdef void _set_melting_curves(
+        c_PartialMeltConfig& config,
+        double solidus_simon_a,
+        double solidus_simon_c,
+        double solidus_transition_pressure,
+        double solidus_high,
+        double solidus_high_simon_a,
+        double solidus_high_simon_c,
+        double liquidus_simon_a,
+        double liquidus_simon_c,
+        double liquidus_transition_pressure,
+        double liquidus_high,
+        double liquidus_high_simon_a,
+        double liquidus_high_simon_c) noexcept:
+    """Copy the solidus and liquidus pressure laws, shared by every model, into a config."""
+    config.solidus_simon_a              = solidus_simon_a
+    config.solidus_simon_c              = solidus_simon_c
+    config.solidus_transition_pressure  = solidus_transition_pressure
+    config.solidus_high                 = solidus_high
+    config.solidus_high_simon_a         = solidus_high_simon_a
+    config.solidus_high_simon_c         = solidus_high_simon_c
+    config.liquidus_simon_a             = liquidus_simon_a
+    config.liquidus_simon_c             = liquidus_simon_c
+    config.liquidus_transition_pressure = liquidus_transition_pressure
+    config.liquidus_high                = liquidus_high
+    config.liquidus_high_simon_a        = liquidus_high_simon_a
+    config.liquidus_high_simon_c        = liquidus_high_simon_c
+
+
+cdef dict _curve_dict(c_MeltingCurve curve):
+    return {
+        "temperature": curve.temperature,
+        "simon_a": curve.simon_a,
+        "simon_c": curve.simon_c,
+        "transition_pressure": curve.transition_pressure,
+        "high_temperature": curve.high_temperature,
+        "high_simon_a": curve.high_simon_a,
+        "high_simon_c": curve.high_simon_c,
+    }
+
+
 cdef class PartialMeltBase(PhysicsBase):
     """Abstract base for partial-melt models. Instantiate a concrete subclass.
 
@@ -45,6 +86,12 @@ cdef class PartialMeltBase(PhysicsBase):
     ``liquid_bulk_modulus``, ``liquid_bulk_modulus_derivative``), and three switches, all off by default:
     ``bulk_melt_weakening`` (the bulk modulus), ``density_melt_mixing`` (the density), and
     ``bulk_viscosity_melt_weakening`` (a compaction bulk viscosity).
+
+    The solidus and liquidus are zero-pressure temperatures. Each can follow a Simon-Glatzel law,
+    T(P) = T_0 (1 + P / a)^(1 / c), given ``<curve>_simon_a`` [Pa] and ``<curve>_simon_c``, and a second law above
+    ``<curve>_transition_pressure`` [Pa] with ``<curve>_high`` [K], ``<curve>_high_simon_a`` [Pa], and
+    ``<curve>_high_simon_c`` (for example the Monteux et al. 2016 peridotite fits; see the Partial Melting docs). A
+    zero ``simon_a`` keeps a curve constant, the default.
     """
 
     def __init__(self, *args, **kwargs):
@@ -63,15 +110,38 @@ cdef class PartialMeltBase(PhysicsBase):
 
     @property
     def solidus(self) -> float:
-        """Solidus temperature [K]."""
+        """Solidus temperature at zero pressure [K]."""
         self._check_ptr()
         return self._melt_ptr.get().get_solidus()
 
     @property
     def liquidus(self) -> float:
-        """Liquidus temperature [K]."""
+        """Liquidus temperature at zero pressure [K]."""
         self._check_ptr()
         return self._melt_ptr.get().get_liquidus()
+
+    @property
+    def solidus_curve(self) -> dict:
+        """The solidus pressure law: ``temperature`` [K], ``simon_a`` [Pa], ``simon_c``, ``transition_pressure``
+        [Pa], ``high_temperature`` [K], ``high_simon_a`` [Pa], ``high_simon_c``. A zero ``simon_a`` is a constant."""
+        self._check_ptr()
+        return _curve_dict(self._melt_ptr.get().get_solidus_curve())
+
+    @property
+    def liquidus_curve(self) -> dict:
+        """The liquidus pressure law, keyed as ``solidus_curve``."""
+        self._check_ptr()
+        return _curve_dict(self._melt_ptr.get().get_liquidus_curve())
+
+    def calc_solidus(self, double pressure) -> float:
+        """Solidus temperature [K] at a pressure [Pa]."""
+        self._check_ptr()
+        return self._melt_ptr.get().calc_solidus(pressure)
+
+    def calc_liquidus(self, double pressure) -> float:
+        """Liquidus temperature [K] at a pressure [Pa]."""
+        self._check_ptr()
+        return self._melt_ptr.get().calc_liquidus(pressure)
 
     @property
     def liquid_shear(self) -> float:
@@ -151,20 +221,22 @@ cdef class PartialMeltBase(PhysicsBase):
         self._check_ptr()
         return self._melt_ptr.get().calc_mixture_density(temperature, pressure, solid_density)
 
-    def calc_melt_fraction(self, double temperature) -> float:
-        """Volumetric melt fraction phi in [0, 1] from temperature [K]; NaN for a non-finite temperature."""
+    def calc_melt_fraction(self, double temperature, double pressure=0.0) -> float:
+        """Volumetric melt fraction phi in [0, 1] from temperature [K] and pressure [Pa]; NaN for a non-finite
+        temperature. The pressure matters only with a pressure-dependent solidus or liquidus."""
         self._check_ptr()
-        return self._melt_ptr.get().calc_melt_fraction(temperature)
+        return self._melt_ptr.get().calc_melt_fraction(temperature, pressure)
 
     def calc_partial_melt(
             self,
             double temperature,
             double premelt_viscosity,
-            double premelt_shear) -> tuple:
+            double premelt_shear,
+            double pressure=0.0) -> tuple:
         """Post-melt viscosity and shear modulus from the pre-melt state (all MKS).
 
         Both are floored at the model's liquid limits (``liquid_viscosity``, ``liquid_shear``). Below the solidus
-        the pre-melt pair is returned; a non-finite temperature gives NaN.
+        (at ``pressure`` [Pa]) the pre-melt pair is returned; a non-finite temperature gives NaN.
 
         Returns
         -------
@@ -173,6 +245,7 @@ cdef class PartialMeltBase(PhysicsBase):
         self._check_ptr()
         cdef c_PartialMeltInputs inputs
         inputs.temperature       = temperature
+        inputs.pressure          = pressure
         inputs.premelt_viscosity = premelt_viscosity
         inputs.premelt_shear     = premelt_shear
         cdef c_PartialMeltResult result = self._melt_ptr.get().calc_partial_melt(inputs)
@@ -199,16 +272,17 @@ cdef class PartialMeltBase(PhysicsBase):
             self,
             double temperature,
             double premelt_bulk_viscosity,
-            double postmelt_shear_viscosity) -> float:
+            double postmelt_shear_viscosity,
+            double pressure=0.0) -> float:
         """Post-melt bulk viscosity [Pa s]; the pre-melt value unless ``bulk_viscosity_melt_weakening`` is on.
 
         When on, melt adds a compaction bulk viscosity c eta / phi^n (eta the post-melt shear viscosity) in series
         with the pre-melt one: 1 / zeta = 1 / zeta_premelt + phi^n / (c eta). n = 1 is McKenzie (1984); n = 0 is
-        closer to Takei and Holtzman (2009).
+        closer to Takei and Holtzman (2009). The melt fraction is evaluated at ``pressure`` [Pa].
         """
         self._check_ptr()
         return self._melt_ptr.get().calc_bulk_viscosity_melt(
-            temperature, premelt_bulk_viscosity, postmelt_shear_viscosity)
+            temperature, pressure, premelt_bulk_viscosity, postmelt_shear_viscosity)
 
 
 cdef class OffPartialMelt(PartialMeltBase):
@@ -227,7 +301,19 @@ cdef class OffPartialMelt(PartialMeltBase):
             cpp_bool density_melt_mixing=False,
             cpp_bool bulk_viscosity_melt_weakening=False,
             double melt_bulk_viscosity_coefficient=1.0,
-            double melt_bulk_viscosity_exponent=1.0):
+            double melt_bulk_viscosity_exponent=1.0,
+            double solidus_simon_a=0.0,
+            double solidus_simon_c=0.0,
+            double solidus_transition_pressure=0.0,
+            double solidus_high=0.0,
+            double solidus_high_simon_a=0.0,
+            double solidus_high_simon_c=0.0,
+            double liquidus_simon_a=0.0,
+            double liquidus_simon_c=0.0,
+            double liquidus_transition_pressure=0.0,
+            double liquidus_high=0.0,
+            double liquidus_high_simon_a=0.0,
+            double liquidus_high_simon_c=0.0):
         cdef c_PartialMeltConfig config
         config.solidus             = solidus
         config.liquidus            = liquidus
@@ -237,6 +323,10 @@ cdef class OffPartialMelt(PartialMeltBase):
         config.liquid_bulk_modulus = liquid_bulk_modulus
         _set_melt_phase(config, liquid_bulk_modulus_derivative, liquid_density, density_melt_mixing,
                         bulk_viscosity_melt_weakening, melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent)
+        _set_melting_curves(
+            config, solidus_simon_a, solidus_simon_c, solidus_transition_pressure, solidus_high,
+            solidus_high_simon_a, solidus_high_simon_c, liquidus_simon_a, liquidus_simon_c,
+            liquidus_transition_pressure, liquidus_high, liquidus_high_simon_a, liquidus_high_simon_c)
         cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Off, config)
         self._adopt(model)
 
@@ -266,7 +356,19 @@ cdef class SpohnPartialMelt(PartialMeltBase):
             cpp_bool density_melt_mixing=False,
             cpp_bool bulk_viscosity_melt_weakening=False,
             double melt_bulk_viscosity_coefficient=1.0,
-            double melt_bulk_viscosity_exponent=1.0):
+            double melt_bulk_viscosity_exponent=1.0,
+            double solidus_simon_a=0.0,
+            double solidus_simon_c=0.0,
+            double solidus_transition_pressure=0.0,
+            double solidus_high=0.0,
+            double solidus_high_simon_a=0.0,
+            double solidus_high_simon_c=0.0,
+            double liquidus_simon_a=0.0,
+            double liquidus_simon_c=0.0,
+            double liquidus_transition_pressure=0.0,
+            double liquidus_high=0.0,
+            double liquidus_high_simon_a=0.0,
+            double liquidus_high_simon_c=0.0):
         cdef c_PartialMeltConfig config
         config.solidus             = solidus
         config.liquidus            = liquidus
@@ -280,6 +382,10 @@ cdef class SpohnPartialMelt(PartialMeltBase):
         config.fs_shear_log10_at_solidus = fs_shear_log10_at_solidus
         _set_melt_phase(config, liquid_bulk_modulus_derivative, liquid_density, density_melt_mixing,
                         bulk_viscosity_melt_weakening, melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent)
+        _set_melting_curves(
+            config, solidus_simon_a, solidus_simon_c, solidus_transition_pressure, solidus_high,
+            solidus_high_simon_a, solidus_high_simon_c, liquidus_simon_a, liquidus_simon_c,
+            liquidus_transition_pressure, liquidus_high, liquidus_high_simon_a, liquidus_high_simon_c)
         cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Spohn, config)
         self._adopt(model)
 
@@ -335,7 +441,19 @@ cdef class HenningPartialMelt(PartialMeltBase):
             cpp_bool density_melt_mixing=False,
             cpp_bool bulk_viscosity_melt_weakening=False,
             double melt_bulk_viscosity_coefficient=1.0,
-            double melt_bulk_viscosity_exponent=1.0):
+            double melt_bulk_viscosity_exponent=1.0,
+            double solidus_simon_a=0.0,
+            double solidus_simon_c=0.0,
+            double solidus_transition_pressure=0.0,
+            double solidus_high=0.0,
+            double solidus_high_simon_a=0.0,
+            double solidus_high_simon_c=0.0,
+            double liquidus_simon_a=0.0,
+            double liquidus_simon_c=0.0,
+            double liquidus_transition_pressure=0.0,
+            double liquidus_high=0.0,
+            double liquidus_high_simon_a=0.0,
+            double liquidus_high_simon_c=0.0):
         cdef c_PartialMeltConfig config
         config.solidus              = solidus
         config.liquidus             = liquidus
@@ -351,6 +469,10 @@ cdef class HenningPartialMelt(PartialMeltBase):
         config.hn_shear_falloff_slope = hn_shear_falloff_slope
         _set_melt_phase(config, liquid_bulk_modulus_derivative, liquid_density, density_melt_mixing,
                         bulk_viscosity_melt_weakening, melt_bulk_viscosity_coefficient, melt_bulk_viscosity_exponent)
+        _set_melting_curves(
+            config, solidus_simon_a, solidus_simon_c, solidus_transition_pressure, solidus_high,
+            solidus_high_simon_a, solidus_high_simon_c, liquidus_simon_a, liquidus_simon_c,
+            liquidus_transition_pressure, liquidus_high, liquidus_high_simon_a, liquidus_high_simon_c)
         cdef unique_ptr[c_PartialMeltBase] model = c_find_partial_melt(c_PartialMeltModel.Henning, config)
         self._adopt(model)
 
@@ -398,7 +520,11 @@ PARTIAL_MELT_CONFIG_KEYS = frozenset({
     "bulk_viscosity_melt_weakening", "melt_bulk_viscosity_coefficient", "melt_bulk_viscosity_exponent",
     "fs_visc_power_slope_k", "fs_visc_log10_at_solidus", "fs_shear_power_slope_k", "fs_shear_log10_at_solidus",
     "crit_melt_frac", "crit_melt_frac_width", "hn_visc_slope_1", "hn_visc_falloff_slope",
-    "hn_shear_param_1_k", "hn_shear_falloff_slope"})
+    "hn_shear_param_1_k", "hn_shear_falloff_slope",
+    "solidus_simon_a_pa", "solidus_simon_c", "solidus_transition_pressure_pa", "solidus_high_k",
+    "solidus_high_simon_a_pa", "solidus_high_simon_c",
+    "liquidus_simon_a_pa", "liquidus_simon_c", "liquidus_transition_pressure_pa", "liquidus_high_k",
+    "liquidus_high_simon_a_pa", "liquidus_high_simon_c"})
 
 # Keys a 0.8.0 pre-release wrote into the user's TidalPy_Configs.toml that no model reads any more. They are dropped
 # with a warning rather than rejected, so an existing configuration file still builds worlds.
@@ -417,6 +543,25 @@ def _same_model(str table_name, str model_name) -> bool:
     return (
         c_partial_melt_model_from_name(table_name.encode("utf-8"))
         == c_partial_melt_model_from_name(model_name.encode("utf-8")))
+
+
+cdef void _set_curve_from_config(c_PartialMeltConfig& cfg, str curve, dict config):
+    """Read one melting curve's pressure-law keys, `<curve>_simon_a_pa` and the rest, into a config."""
+    if curve == "solidus":
+        cfg.solidus_simon_a             = config.get("solidus_simon_a_pa", cfg.solidus_simon_a)
+        cfg.solidus_simon_c             = config.get("solidus_simon_c", cfg.solidus_simon_c)
+        cfg.solidus_transition_pressure = config.get("solidus_transition_pressure_pa", cfg.solidus_transition_pressure)
+        cfg.solidus_high                = config.get("solidus_high_k", cfg.solidus_high)
+        cfg.solidus_high_simon_a        = config.get("solidus_high_simon_a_pa", cfg.solidus_high_simon_a)
+        cfg.solidus_high_simon_c        = config.get("solidus_high_simon_c", cfg.solidus_high_simon_c)
+    else:
+        cfg.liquidus_simon_a             = config.get("liquidus_simon_a_pa", cfg.liquidus_simon_a)
+        cfg.liquidus_simon_c             = config.get("liquidus_simon_c", cfg.liquidus_simon_c)
+        cfg.liquidus_transition_pressure = config.get(
+            "liquidus_transition_pressure_pa", cfg.liquidus_transition_pressure)
+        cfg.liquidus_high                = config.get("liquidus_high_k", cfg.liquidus_high)
+        cfg.liquidus_high_simon_a        = config.get("liquidus_high_simon_a_pa", cfg.liquidus_high_simon_a)
+        cfg.liquidus_high_simon_c        = config.get("liquidus_high_simon_c", cfg.liquidus_high_simon_c)
 
 
 def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
@@ -484,6 +629,8 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     cfg.hn_visc_falloff_slope     = config.get("hn_visc_falloff_slope", cfg.hn_visc_falloff_slope)
     cfg.hn_shear_param_1          = config.get("hn_shear_param_1_k", cfg.hn_shear_param_1)
     cfg.hn_shear_falloff_slope    = config.get("hn_shear_falloff_slope", cfg.hn_shear_falloff_slope)
+    for curve in ("solidus", "liquidus"):
+        _set_curve_from_config(cfg, curve, config)
 
     cdef c_PartialMeltModel model = c_partial_melt_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(model, cfg)

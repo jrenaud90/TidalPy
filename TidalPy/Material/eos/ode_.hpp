@@ -35,7 +35,7 @@ enum class c_TemperatureKind : uint8_t
 {
     Isothermal = 0,   // dT/dr = 0
     Conductive = 1,   // dT/dr = -conduction_coeff * L / r^2 (Fourier's law in a spherical shell)
-    Adiabatic  = 2,   // dT/dr = -adiabat_coeff * g * T
+    Adiabatic  = 2,   // dT/dr = -adiabat_coeff * (alpha / alpha0) * g * T
 };
 
 /// A stretch of a layer over which the temperature gradient keeps one form. A layer is one segment unless
@@ -48,7 +48,11 @@ struct c_EOSSegment
     double            start_temperature = TidalPyConstants::d_NAN;        // [K]; NaN continues from below
     double            start_heat_flow   = 0.0;                            // [W] entering the segment's base
     double            conduction_coeff  = 0.0;                            // 1 / (4 pi k length_scale)
-    double            adiabat_coeff     = 0.0;                            // alpha g_scale length_scale / c_p
+    double            adiabat_coeff     = 0.0;                            // alpha0 g_scale length_scale / c_p
+    // The expansivity's compression scaling alpha / alpha0 (c_anderson_gruneisen_factor); delta_T0 = 0 keeps alpha0.
+    double            anderson_gruneisen_parameter = 0.0;                 // delta_T0
+    double            anderson_gruneisen_exponent  = 0.0;                 // kappa
+    double            expansion_reference_density  = TidalPyConstants::d_NAN;   // rho_ref [solve units]
 };
 
 /// Heat generated inside the planet, as the thermal structure ODE reads it. Abstract so this header stays
@@ -73,6 +77,9 @@ struct c_EOS_ODEInput
     c_TemperatureKind temperature_kind = c_TemperatureKind::Isothermal;
     double conduction_coeff = 0.0;
     double adiabat_coeff    = 0.0;
+    double anderson_gruneisen_parameter = 0.0;
+    double anderson_gruneisen_exponent  = 0.0;
+    double expansion_reference_density  = TidalPyConstants::d_NAN;
     // Heat sources of a thermal solve, non-owning and null for none.
     const c_EOSHeatingBase* heating_ptr = nullptr;
     size_t layer_index = 0;
@@ -146,7 +153,8 @@ inline void c_eos_diffeq(
 
 /// As c_eos_diffeq, with the density evaluated at the local temperature when the layer's EOS is thermal,
 /// plus two extra states:
-///   dT/dr = 0, -conduction_coeff L / r^2, or -adiabat_coeff g T, by the segment's temperature kind, and
+///   dT/dr = 0, -conduction_coeff L / r^2, or -adiabat_coeff (alpha / alpha0) g T, by the segment's temperature kind
+///   (the last is the adiabat, with the Anderson-Gruneisen expansivity factor of c_anderson_gruneisen_factor), and
 ///   dL/dr = 4 pi r^2 h, the heat the world's sources generate at this radius.
 /// The temperature is in Kelvin and the heat flow in Watts whatever units the rest of the solve runs in;
 /// the coefficients carry the conversion.
@@ -174,8 +182,13 @@ inline void c_eos_diffeq_thermal(
             dy_ptr[4] = -eos_input_ptr->conduction_coeff * y_ptr[5] / (radius * radius);
             break;
         case c_TemperatureKind::Adiabatic:
-            dy_ptr[4] = -eos_input_ptr->adiabat_coeff * y_ptr[0] * y_ptr[4];
+        {
+            const double coeff = eos_input_ptr->adiabat_coeff * c_anderson_gruneisen_factor(
+                eos_input_ptr->expansion_reference_density, rho, eos_input_ptr->anderson_gruneisen_parameter,
+                eos_input_ptr->anderson_gruneisen_exponent);
+            dy_ptr[4] = -coeff * y_ptr[0] * y_ptr[4];
             break;
+        }
         default:
             dy_ptr[4] = 0.0;
             break;
