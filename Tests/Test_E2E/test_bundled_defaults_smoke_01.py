@@ -82,6 +82,18 @@ def test_solve_eos_defaults(world_name):
 
 
 @pytest.mark.parametrize("world_name", _WORLD_NAMES)
+def test_solve_temperature_profile(world_name):
+    """The thermal solve a bundled world pins off also runs: it converges, and no convecting layer falls back to the
+    largest boundary layer, which is what a viscosity its cooling model cannot use (a liquid with none) gives."""
+    world = _build_layered(world_name)
+    result = world.solve_eos(solve_temperature=True)
+    assert result["success"], result["message"]
+    assert result["thermal_converged"]
+    assert not any(result["layer_boundary_fallback"])
+    assert np.all(np.isfinite(result["temperature"]))
+
+
+@pytest.mark.parametrize("world_name", _WORLD_NAMES)
 def test_solve_love_numbers_defaults(world_name):
     """Love numbers lie between rigid and fluid limits and never amplify."""
     world = _build_layered(world_name)

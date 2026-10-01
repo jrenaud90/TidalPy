@@ -87,6 +87,11 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
         double boundary_thickness
         double rayleigh_number
         double nusselt_number
+        cpp_bool magma_ocean
+        cpp_bool boundary_fallback
+        double reference_pressure
+        double reference_viscosity
+        double reference_melt_fraction
         double heating
 
 

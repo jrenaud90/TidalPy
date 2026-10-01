@@ -122,6 +122,26 @@ def test_earth_prem_toml_override_of_modulus():
     assert [layer.is_incompressible for layer in world] == [False, True, False]
 
 
+@pytest.mark.parametrize("slot, key, value, getter", [
+    ("eos", "bulk_modulus_pa", 1.5e11, "get_bulk_modulus"),
+    ("eos", "density_kg_m3", 4500.0, "get_density"),
+    ("shear_modulus", "shear_modulus_pa", 1.5e11, "get_shear_modulus"),
+])
+def test_a_single_value_holds_across_a_profile_layer(slot, key, value, getter):
+    """One number in place of a profile column holds across the layer; the layer's other columns stay the file's."""
+    reference = build_world(_prem_config())
+    reference.solve_eos(G_to_use=G, verbose=False)
+    world = build_world(_prem_config(layers={"layer_2": {"material": {"solid": {slot: {key: value}}}}}))
+    world.solve_eos(G_to_use=G, verbose=False)
+    radii = np.array([4.0e6, _MANTLE_RADIUS_M, 6.2e6])
+    np.testing.assert_array_equal(np.asarray(getattr(world, getter)(radii)), value)
+    untouched = "get_shear_modulus" if getter != "get_shear_modulus" else "get_bulk_modulus"
+    if key != "density_kg_m3":
+        np.testing.assert_allclose(
+            np.asarray(getattr(world, untouched)(radii)), np.asarray(getattr(reference, untouched)(radii)),
+            rtol=1.0e-12)
+
+
 def test_one_layer_table_refines_one_layer():
     """One layer table adds a rheology to one layer; the other layers need no table."""
     world = build_world(_prem_config(layers={

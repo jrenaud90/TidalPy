@@ -58,8 +58,9 @@ mass_kg = 1.02409e26
 spin_frequency_rad_s = 1.0833825e-04
 albedo = 0.290
 
-# The layer temperatures below are prescribed, not solved: no layer here has a thermal law worth integrating. The
-# world pins the equation-of-state solve to keep them (a call may still pass solve_temperature = true).
+# The layer temperatures below are prescribed, not solved: the layers carry rock and ice thermal constants,
+# which do not describe hydrogen, so the world pins the equation-of-state solve to keep them (a call may still
+# pass solve_temperature = true).
 [eos_solver]
 solve_temperature = false
 
@@ -75,10 +76,18 @@ use_tides = false
 temperature_k = 6000.0
 
 # A liquid-only material, so the layer is a liquid: rock core, solved as a static liquid.
+[layers.core.material.liquid]
+thermal_conductivity_w_mk = 3.75
+
 [layers.core.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 6000.0      # rock, held fixed
 bulk_modulus_pa = 2.0e11
+thermal_expansion_1_k = 5.2e-5
+
+[layers.core.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"
 
 [layers.mantle]
 layer_index = 1
@@ -87,10 +96,15 @@ use_tides = false
 temperature_k = 4000.0
 
 # A liquid-only material, so the layer is a liquid: hot dense fluid ices.
+[layers.mantle.material.liquid]
+thermal_conductivity_w_mk = 2.3
+heat_capacity_j_kgk = 2000.0
+
 [layers.mantle.material.liquid.eos]
 model = "constant"
 reference_density_kg_m3 = 4025.727    # fitted, with the envelope, to the mass and C/MR2
 bulk_modulus_pa = 1.4e10
+thermal_expansion_1_k = 4.0e-5
 
 [layers.envelope]
 layer_index = 2

@@ -10,6 +10,7 @@ import math
 
 import pytest
 
+from TidalPy.Cooling import cooling as cooling_module
 from TidalPy.Material import laws
 from TidalPy.Material import material as material_module
 from TidalPy.PartialMelt import melting
@@ -22,6 +23,7 @@ SPEC_FAMILIES = [
     ("viscosity", viscosity_module.make_viscosity, viscosity_module.viscosity_model_names,
      viscosity_module.ViscosityBase),
     ("rheology", rheology.make_rheology, rheology.rheology_model_names, rheology.RheologyBase),
+    ("cooling", cooling_module.make_cooling, cooling_module.cooling_model_names, cooling_module.CoolingBase),
     ("eos", laws.make_eos, laws.eos_model_names, laws.EOSBase),
     ("shear_modulus", laws.make_shear_modulus, laws.shear_modulus_model_names, laws.ShearModulusBase),
     ("melting_curve", melting.make_melting_curve, melting.melting_curve_model_names, melting.MeltingCurveBase),

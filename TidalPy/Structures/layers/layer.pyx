@@ -32,10 +32,10 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_physics_model_config,
     cy_wrap_model,
 )
-from TidalPy.Cooling.cooling cimport CoolingBase
 from TidalPy.Radiogenics.radiogenics cimport RadiogenicsBase
 from TidalPy.Material import Material, load_material
 from TidalPy.Rheology import make_rheology
+from TidalPy.Cooling.cooling import make_cooling
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -134,26 +134,31 @@ def _as_material(object material):
                     f"{type(material).__name__}.")
 
 
-def _as_rheology(object rheology, str slot):
-    """A rheology from a model, a model name, or a config table with a ``model`` key; None stays None."""
-    if rheology is None or isinstance(rheology, PhysicsBase):
-        return rheology
-    if isinstance(rheology, str):
-        return make_rheology(rheology, {})
-    if isinstance(rheology, dict):
-        table = dict(rheology)
+def _as_model(object model, str slot, object make_model, str family):
+    """A layer's model from a model, a model name, or a config table with a ``model`` key, built by ``make_model``;
+    None stays None. ``family`` names the kind of model in the error."""
+    if model is None or isinstance(model, PhysicsBase):
+        return model
+    if isinstance(model, str):
+        return make_model(model, {})
+    if isinstance(model, dict):
+        table = dict(model)
         if "model" not in table:
             raise ValueError(f"TidalPy: the layer's '{slot}' table needs a 'model' key naming its model.")
-        return make_rheology(str(table.pop("model")), table)
-    raise TypeError(f"TidalPy: a layer's {slot} is a rheology model, a model name, or a config table, not "
-                    f"{type(rheology).__name__}.")
+        return make_model(str(table.pop("model")), table)
+    raise TypeError(f"TidalPy: a layer's {slot} is a {family} model, a model name, or a config table, not "
+                    f"{type(model).__name__}.")
 
 
-cdef shared_ptr[c_PhysicsBase] cy_model_handle(object model):
-    """The shared C++ model behind a wrapper; empty for None."""
+cdef shared_ptr[c_PhysicsBase] cy_model_handle(object model, str what) except *:
+    """The shared C++ model behind a wrapper; empty for None. A wrapper holding no shared model (a family whose models
+    move into their layer, such as radiogenics) raises ValueError naming ``what``, as a model of another family does in
+    the C++ setter, rather than clearing the slot."""
     cdef shared_ptr[c_PhysicsBase] handle
     if model is not None:
         handle = (<PhysicsBase>model)._model_sptr
+        if not handle:
+            raise ValueError(f"TidalPy: {what} cannot be a {type(model).__name__}.")
     return handle
 
 
@@ -198,8 +203,8 @@ cdef class Layer(StructureBase):
         Let the world's heat sources act inside the layer during a thermal EOS solve. Default ``False``.
     shear_rheology, bulk_rheology : RheologyBase, str, or dict, optional
         Override the material's default rheology.
-    cooling : CoolingBase, optional
-        How heat moves through the layer in a thermal solve; its C++ model moves into the layer.
+    cooling : CoolingBase, str, or dict, optional
+        How heat moves through the layer in a thermal solve; without one the layer holds one temperature.
     radiogenics : RadiogenicsBase, optional
         The layer's radiogenic heating; its C++ model moves into the layer.
 
@@ -253,7 +258,7 @@ cdef class Layer(StructureBase):
             use_heating = False,
             shear_rheology = None,
             bulk_rheology = None,
-            CoolingBase cooling = None,
+            cooling = None,
             RadiogenicsBase radiogenics = None):
         cdef c_LayerConfig config
         config.name              = name.encode("utf-8")
@@ -282,7 +287,7 @@ cdef class Layer(StructureBase):
         if bulk_rheology is not None:
             self.bulk_rheology = bulk_rheology
         if cooling is not None:
-            self.set_cooling(cooling)
+            self.cooling = cooling
         if radiogenics is not None:
             self.set_radiogenics(radiogenics)
 
@@ -461,7 +466,7 @@ cdef class Layer(StructureBase):
     @material.setter
     def material(self, value):
         self._check_ptr()
-        self._layer_ptr.get().set_material_model(cy_model_handle(_as_material(value)))
+        self._layer_ptr.get().set_material_model(cy_model_handle(_as_material(value), "a layer's material"))
 
     @property
     def material_set(self) -> bool:
@@ -636,7 +641,8 @@ cdef class Layer(StructureBase):
     @shear_rheology.setter
     def shear_rheology(self, value):
         self._check_ptr()
-        self._layer_ptr.get().set_shear_rheology_model(cy_model_handle(_as_rheology(value, "shear_rheology")))
+        self._layer_ptr.get().set_shear_rheology_model(
+            cy_model_handle(_as_model(value, "shear_rheology", make_rheology, "rheology"), "a layer's shear rheology"))
 
     @property
     def bulk_rheology(self):
@@ -647,7 +653,8 @@ cdef class Layer(StructureBase):
     @bulk_rheology.setter
     def bulk_rheology(self, value):
         self._check_ptr()
-        self._layer_ptr.get().set_bulk_rheology_model(cy_model_handle(_as_rheology(value, "bulk_rheology")))
+        self._layer_ptr.get().set_bulk_rheology_model(
+            cy_model_handle(_as_model(value, "bulk_rheology", make_rheology, "rheology"), "a layer's bulk rheology"))
 
     def _apply_complex(self, radius, double frequency, cpp_bool is_shear):
         self._check_ptr()
@@ -716,8 +723,21 @@ cdef class Layer(StructureBase):
     # Cooling and radiogenics
     # =================================================================================================================
     @property
+    def cooling(self):
+        """How heat moves through the layer in a thermal solve, or None, which holds the layer at one temperature. Set
+        it to a model, a model name, or a config table; None clears it. The model is shared, not consumed."""
+        self._check_ptr()
+        return cy_wrap_model(self._layer_ptr.get().share_cooling_model())
+
+    @cooling.setter
+    def cooling(self, value):
+        self._check_ptr()
+        self._layer_ptr.get().set_cooling_model(
+            cy_model_handle(_as_model(value, "cooling", make_cooling, "cooling"), "a layer's cooling model"))
+
+    @property
     def cooling_set(self) -> bool:
-        """True after a cooling model has been attached."""
+        """True while a cooling model is attached."""
         self._check_ptr()
         return self._layer_ptr.get().get_cooling_model() != NULL
 
@@ -726,20 +746,6 @@ cdef class Layer(StructureBase):
         """True after a radiogenics model has been attached."""
         self._check_ptr()
         return self._layer_ptr.get().get_radiogenics_model() != NULL
-
-    def set_cooling(self, CoolingBase cooling not None):
-        """Attach a cooling model; its C++ model moves into the layer, so ``cooling`` must not be reused.
-
-        Raises
-        ------
-        ValueError
-            If ``cooling`` has already been attached or otherwise moved.
-        """
-        self._check_ptr()
-        if cooling._cooling_ptr.get() == NULL:
-            raise ValueError("This cooling model holds no C++ object (already attached or moved).")
-        self._layer_ptr.get().set_cooling(move(cooling._cooling_ptr))
-        cooling._ptr = NULL
 
     def set_radiogenics(self, RadiogenicsBase radiogenics not None):
         """Attach a radiogenics model; its C++ model moves into the layer, so ``radiogenics`` must not be reused.

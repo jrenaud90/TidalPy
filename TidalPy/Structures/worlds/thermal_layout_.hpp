@@ -24,22 +24,19 @@
  * default) takes no part: its interfaces carry no flow, so it is neither a heat sink nor a
  * source for its neighbors, and each neighbor keeps its own temperature at the shared interface.
  *
- * What each cooling model makes of a layer:
- *   off / none   one isothermal segment.
+ * Each layer's cooling model builds that layer's profile (c_CoolingBase::build_profile, Cooling/cooling_.hpp): which
+ * stretches conduct and which are adiabatic, their resistances, the temperature at the base of a convecting interior,
+ * and its Rayleigh and Nusselt numbers. It reads the solved structure and the layer's material through a probe
+ * (c_LayerProbe below), so it chooses where to evaluate them. In short:
+ *   off / none   one isothermal segment (so does a layer with no cooling model).
  *   conduction   two conducting halves, meeting at the layer's mid-radius where its temperature applies.
  *   convection   a conducting boundary layer at the base and the top, from the model's Nusselt scaling, around an
  *                adiabatic interior. The layer's temperature applies at the top of that interior, under the upper
  *                boundary layer: the upper-mantle temperature of parameterized convection (Stevenson et al. 1983;
- *                Schubert et al. 2001). The adiabat warms downward from it, so the base of the interior sits at
- *                T exp(integral of alpha g / c_p dr). A layer whose base carries no heat (the innermost layer, or
- *                one above a layer outside the network) has no boundary layer there: its interior reaches down to
- *                its base.
- *
- * The cooling model's boundary-layer thickness, D / Nu, is the conducting thickness that carries its flux,
- * Nu k dT / D, across the whole drop dT. Two boundary layers each carry that flux across their own share of the
- * drop, so each is half as thick; a layer with only the upper one keeps the whole thickness. At Nu = 1 (a
- * sub-critical layer) the two would be the halves of a conducting layer; d_MAX_BOUNDARY_FRACTION keeps each a
- * little thinner so that an interior remains.
+ *                Schubert et al. 2001), where the model also takes its viscosity. The adiabat warms downward from
+ *                it, so the base of the interior sits at T exp(integral of alpha g / c_p dr). A layer whose base
+ *                carries no heat (the innermost layer, or one above a layer outside the network) has no boundary
+ *                layer there: its interior reaches down to its base.
  *
  * The heat flow steps between the base and the top of a convecting interior: the difference is the heat the
  * lumped interior stores or releases, which is what makes its temperature evolve.
@@ -75,10 +72,6 @@
 #include "heating_.hpp"                               // c_Heating
 
 namespace tidalpy {
-
-// Largest share of a layer's thickness one conducting boundary layer may take, so a convecting layer keeps an
-// interior to be adiabatic in.
-inline constexpr double d_MAX_BOUNDARY_FRACTION = 0.4;
 
 // Gauss-Legendre nodes for the integrals over one stretch of a layer: the heating, which is smooth geometry times a
 // radiogenic heating that follows the density, and the gravity along an adiabat. This is far past what a layer's
@@ -122,6 +115,12 @@ struct c_LayerThermal {
 
     double rayleigh_number = 0.0;
     double nusselt_number  = 1.0;
+    // True when a convecting interior was liquid at its reference point and took the liquid scaling.
+    bool   magma_ocean     = false;
+    // Where a convecting layer's model evaluated its viscosity: the top of its interior, at the layer's temperature.
+    double reference_pressure      = TidalPyConstants::d_NAN;   // [Pa]
+    double reference_viscosity     = TidalPyConstants::d_NAN;   // [Pa s]
+    double reference_melt_fraction = TidalPyConstants::d_NAN;   // [m3 m-3]
 
     // Heat generated inside the layer [W], and the part of it generated inside the conducting stretch below and
     // above the layer's own temperature, with the temperature drop [K] each part adds across its stretch.
@@ -137,13 +136,6 @@ struct c_LayerThermal {
     double heat_capacity     = TidalPyConstants::d_NAN;   // c_p   [J kg-1 K-1], latent heat included
 };
 
-// Thermal resistance [K W-1] of a conducting spherical shell. Zero for a degenerate shell or conductivity.
-inline double c_shell_resistance(double radius_inner, double radius_outer, double conductivity) noexcept {
-    if (!(conductivity > TidalPyConstants::d_EPS) || !(radius_outer > radius_inner)) { return 0.0; }
-    const double inner = (radius_inner > TidalPyConstants::d_EPS) ? (1.0 / radius_inner) : (1.0 / radius_outer);
-    return (inner - 1.0 / radius_outer) / (4.0 * TidalPyConstants::d_PI * conductivity);
-}
-
 // True when no heat crosses a layer's base: the innermost layer (the center carries no flow) or one above a layer
 // outside the network. A thermal boundary layer forms only where heat crosses a boundary, so a convecting layer
 // has none there.
@@ -151,16 +143,10 @@ inline bool c_base_is_insulated(const std::vector<c_LayerThermal>& thermal_vec, 
     return (layer_index == 0) || !thermal_vec[layer_index - 1].in_network;
 }
 
-// The temperature kind a layer's cooling model asks for. A layer without one is isothermal.
+// The temperature kind a layer's cooling model gives its layer. A layer without one is isothermal.
 inline c_TemperatureKind c_layer_temperature_kind(const c_Layer* layer) noexcept {
     const c_CoolingBase* cooling_model = layer->get_cooling_model();
-    if (cooling_model == nullptr) { return c_TemperatureKind::Isothermal; }
-    switch (cooling_model->get_model_type()) {
-        case c_CoolingModel::Conduction: return c_TemperatureKind::Conductive;
-        case c_CoolingModel::Convection: return c_TemperatureKind::Adiabatic;
-        case c_CoolingModel::Off:        return c_TemperatureKind::Isothermal;
-    }
-    return c_TemperatureKind::Isothermal;
+    return (cooling_model == nullptr) ? c_TemperatureKind::Isothermal : cooling_model->get_temperature_kind();
 }
 
 // The layer's material at a point and its own lumped temperature [K], for the thermal network.
@@ -272,38 +258,91 @@ inline void c_stretch_heating(
     }
 }
 
-// Exponent of the adiabatic warming across a convecting interior, the integral of alpha g / c_p from its base to its
-// top, using the solved gravity and pressure and the layer's material at its own temperature (whose expansivity can
-// fall with compression), as the integrated adiabat does. With dT/dr = -alpha g T / c_p the base sits at
-// T_top exp(exponent). Zero for an empty stretch or a layer without a material, which leaves the interior
-// isothermal.
-inline double c_adiabat_exponent(
-        const c_EOSSolution& solution,
-        const c_Layer* layer,
-        std::size_t layer_index,
-        double radius_lower,
-        double radius_upper,
-        const c_LayerThermal& thermal) {
-    if (!(radius_upper > radius_lower) || !layer->get_material_set()) {
-        return 0.0;
-    }
-    const std::vector<double>& nodes   = c_stretch_quadrature().nodes;
-    const std::vector<double>& weights = c_stretch_quadrature().weights;
-    const double half_width = 0.5 * (radius_upper - radius_lower);
-    const double midpoint   = 0.5 * (radius_upper + radius_lower);
-    double integral = 0.0;
-    double structure[C_EOS_Y_VALUES];
-    c_MaterialState material;
-    for (std::size_t node_i = 0; node_i < nodes.size(); ++node_i) {
-        const double radius = midpoint + half_width * nodes[node_i];
-        solution.call_y_si(layer_index, radius, structure);
-        c_layer_thermal_state(layer, structure[C_EOS_PRESSURE_INDEX], thermal.temperature, radius, material);
-        if (!(material.heat_capacity > TidalPyConstants::d_EPS)) { continue; }
-        const double term = structure[C_EOS_GRAVITY_INDEX] * material.thermal_expansion / material.heat_capacity;
-        if (std::isfinite(term)) { integral += term * half_width * weights[node_i]; }
-    }
-    return integral;
+// The shear modulus [Pa] at or below which a material behaves as a liquid: the radial solver's minimum_solid_rigidity
+// times the planet's rigidity scale rho g R (bulk density, surface gravity, radius), the same threshold that makes a
+// molten stretch of a layer a liquid to the Love solve. Zero when the solve or the config gives no scale.
+inline double c_liquid_shear_threshold(const c_EOSSolution& solution) noexcept {
+    const double planet_radius = solution.radius;
+    const double planet_volume = (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
+    const double rigidity_scale = (planet_volume > TidalPyConstants::d_EPS)
+        ? (solution.mass / planet_volume) * solution.surface_gravity * planet_radius : 0.0;
+    const double min_rigidity = (tidalpy_config_ptr != nullptr)
+        ? tidalpy_config_ptr->d_MIN_SOLID_RIGIDITY : TidalPyConstants::d_NAN;
+    const double threshold = min_rigidity * rigidity_scale;
+    return (std::isfinite(threshold) && (threshold > 0.0)) ? threshold : 0.0;
 }
+
+// The thermal network's view of one layer for its cooling model: the solved structure at a radius, and the layer's
+// material at a point (c_LayerThermalProbe, Cooling/cooling_base_.hpp). The material is liquid where the Love solve
+// takes it as liquid: everywhere in a liquid layer, and where a layer that can change state is fully molten or has a
+// post-melt shear modulus at or below liquid_shear (c_liquid_shear_threshold).
+class c_LayerProbe final : public c_LayerThermalProbe {
+public:
+    c_LayerProbe(
+            const c_EOSSolution& solution,
+            const c_Layer& layer,
+            std::size_t layer_index,
+            double temperature,
+            double liquid_shear) noexcept
+        : p_solution(solution), p_layer(layer), p_layer_index(layer_index), p_temperature(temperature),
+          p_liquid_shear(liquid_shear) {}
+
+    void calc_structure(double radius, double& gravity, double& pressure) const override {
+        double structure[C_EOS_Y_VALUES];
+        this->p_solution.call_y_si(this->p_layer_index, radius, structure);
+        gravity  = structure[C_EOS_GRAVITY_INDEX];
+        pressure = structure[C_EOS_PRESSURE_INDEX];
+    }
+
+    void calc_transport_state(
+            double pressure,
+            double temperature,
+            double radius,
+            c_TransportState& out) const override {
+        c_MaterialState state;
+        c_layer_thermal_state(&this->p_layer, pressure, temperature, radius, state);
+        out.density              = state.density;
+        out.thermal_conductivity = state.thermal_conductivity;
+        out.heat_capacity        = state.heat_capacity;
+        out.thermal_expansion    = state.thermal_expansion;
+        out.shear_viscosity      = state.shear_viscosity;
+        out.melt_fraction        = state.melt_fraction;
+        out.is_liquid            = this->p_layer.get_is_liquid()
+            || (this->p_layer.get_can_change_state()
+                && ((state.phase == c_MaterialPhase::Liquid) || (state.shear_modulus <= this->p_liquid_shear)));
+    }
+
+    // The integral of alpha g / c_p from radius_lower to radius_upper, using the solved gravity and pressure and the
+    // layer's material at its own temperature (whose expansivity can fall with compression), as the integrated
+    // adiabat does. Zero for an empty stretch or a layer without a material, which leaves the interior isothermal.
+    double calc_adiabat_exponent(double radius_lower, double radius_upper) const override {
+        if (!(radius_upper > radius_lower) || !this->p_layer.get_material_set()) { return 0.0; }
+        const std::vector<double>& nodes   = c_stretch_quadrature().nodes;
+        const std::vector<double>& weights = c_stretch_quadrature().weights;
+        const double half_width = 0.5 * (radius_upper - radius_lower);
+        const double midpoint   = 0.5 * (radius_upper + radius_lower);
+        double integral = 0.0;
+        double gravity  = 0.0;
+        double pressure = 0.0;
+        c_TransportState material;
+        for (std::size_t node_i = 0; node_i < nodes.size(); ++node_i) {
+            const double radius = midpoint + half_width * nodes[node_i];
+            this->calc_structure(radius, gravity, pressure);
+            this->calc_transport_state(pressure, this->p_temperature, radius, material);
+            if (!(material.heat_capacity > TidalPyConstants::d_EPS)) { continue; }
+            const double term = gravity * material.thermal_expansion / material.heat_capacity;
+            if (std::isfinite(term)) { integral += term * half_width * weights[node_i]; }
+        }
+        return integral;
+    }
+
+private:
+    const c_EOSSolution& p_solution;
+    const c_Layer&       p_layer;
+    std::size_t          p_layer_index;
+    double               p_temperature;
+    double               p_liquid_shear;
+};
 
 // Update the boundary layers, resistances, interface temperatures, and heat flows against a solved structure.
 // Returns the largest relative change in the interface temperatures and flows, which is what the solve watches
@@ -317,102 +356,63 @@ inline double c_update_layer_thermal(
     const std::size_t n_layers = layers.size();
     double largest_change = 0.0;
     const bool heated = (heating_ptr != nullptr) && heating_ptr->get_is_active();
+    const double liquid_shear = c_liquid_shear_threshold(solution);
 
+    // Each layer's cooling model builds its profile against this pass's structure, its neighbors, and its own last
+    // pass (the base of its adiabat and its boundary layers lag by one).
     for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
         const c_Layer* layer = layers[layer_i].get();
         c_LayerThermal& thermal  = thermal_vec[layer_i];
-        const double radius_inner = layer->get_radius_inner();
-        const double radius_outer = layer->get_radius_outer();
-        const double thickness    = radius_outer - radius_inner;
-        const double radius_mid   = 0.5 * (radius_inner + radius_outer);
-
-        thermal.boundary_thickness = 0.0;
-        thermal.resistance_bottom  = 0.0;
-        thermal.resistance_top     = 0.0;
-        thermal.boundary_fallback  = false;
-        thermal.top_temperature    = thermal.temperature;
-        if (thermal.kind == c_TemperatureKind::Isothermal) {
-            thermal.base_temperature = thermal.temperature;
-            continue;
-        }
-
-        if (thermal.kind == c_TemperatureKind::Conductive) {
-            thermal.resistance_bottom = c_shell_resistance(radius_inner, radius_mid, thermal.conductivity);
-            thermal.resistance_top    = c_shell_resistance(radius_mid, radius_outer, thermal.conductivity);
-            thermal.base_temperature  = thermal.temperature;
-            continue;
-        }
-
-        // Convecting layer: the cooling model sizes both boundary layers from the temperature drop across the
-        // layer, the local state, and the viscosity at the layer's own temperature. The drop is the sum of the two
-        // boundary layers' drops: from the top of the layer below (its own temperature) to the base of this layer's
-        // adiabat, and from this layer's temperature (the top of that adiabat) to the base of the layer above or the
-        // surface. A base that carries no heat (the center, or a layer outside the network) has no boundary layer,
-        // so that layer has only the upper drop. The adiabat's base comes from the last pass, so it lags by one.
-        double structure[C_EOS_Y_VALUES];
-        solution.call_y_si(layer_i, radius_mid, structure);
-        const double gravity  = structure[C_EOS_GRAVITY_INDEX];
-        const double pressure = structure[C_EOS_PRESSURE_INDEX];
-
+        thermal.top_temperature  = thermal.temperature;
         const c_CoolingBase* cooling_model = layer->get_cooling_model();
-        // The material at the layer's own (lumped) temperature, which is not the local temperature of the
-        // profile at this radius, so it is asked of the material rather than read from the solution.
-        c_MaterialState material;
-        c_layer_thermal_state(layer, pressure, thermal.temperature, radius_mid, material);
-        if (std::isfinite(material.thermal_conductivity)) { thermal.conductivity = material.thermal_conductivity; }
-        if (std::isfinite(material.heat_capacity))        { thermal.heat_capacity = material.heat_capacity; }
-        if (std::isfinite(material.thermal_expansion))    { thermal.thermal_expansion = material.thermal_expansion; }
+        if ((thermal.kind == c_TemperatureKind::Isothermal) || (cooling_model == nullptr)) {
+            thermal.boundary_thickness = 0.0;
+            thermal.resistance_bottom  = 0.0;
+            thermal.resistance_top     = 0.0;
+            thermal.boundary_fallback  = false;
+            thermal.base_temperature   = thermal.temperature;
+            continue;
+        }
 
+        c_LayerThermalContext context;
+        context.radius_inner       = layer->get_radius_inner();
+        context.radius_outer       = layer->get_radius_outer();
+        context.temperature        = thermal.temperature;
+        context.base_temperature   = thermal.base_temperature;
+        context.boundary_thickness = thermal.boundary_thickness;
+        context.insulated_base     = c_base_is_insulated(thermal_vec, layer_i);
         // A neighbor outside the network exchanges no heat, so there is no drop across that boundary layer.
-        const double inner_temperature = ((layer_i > 0) && thermal_vec[layer_i - 1].in_network)
+        context.inner_temperature = ((layer_i > 0) && thermal_vec[layer_i - 1].in_network)
             ? thermal_vec[layer_i - 1].top_temperature
             : thermal.base_temperature;
-        double outer_temperature = thermal.temperature;
+        context.outer_temperature = thermal.temperature;
         if (layer_i + 1 < n_layers) {
-            if (thermal_vec[layer_i + 1].in_network) { outer_temperature = thermal_vec[layer_i + 1].base_temperature; }
+            if (thermal_vec[layer_i + 1].in_network) {
+                context.outer_temperature = thermal_vec[layer_i + 1].base_temperature;
+            }
         } else if (std::isfinite(surface_temperature)) {
-            outer_temperature = surface_temperature;
+            context.outer_temperature = surface_temperature;
         }
 
-        c_CoolingInputs cooling_inputs;
-        cooling_inputs.delta_temp = std::fabs(inner_temperature - thermal.base_temperature)
-                                  + std::fabs(thermal.temperature - outer_temperature);
-        cooling_inputs.thickness  = thickness;
-        cooling_inputs.gravity    = gravity;
-        cooling_inputs.density    = std::isfinite(material.density) ? material.density : layer->get_density_bulk();
-        cooling_inputs.viscosity  = material.shear_viscosity;
-        cooling_inputs.thermal_conductivity = thermal.conductivity;
-        // The diffusivity uses the density the material has here, not a separate reference density.
-        cooling_inputs.thermal_diffusivity  =
-            thermal.conductivity / (cooling_inputs.density * thermal.heat_capacity);
-        // The expansivity at the layer's own state, which can fall with compression.
-        cooling_inputs.thermal_expansion    = thermal.thermal_expansion;
-        const c_CoolingResult cooling_result = cooling_model->calc_cooling(cooling_inputs);
+        const c_LayerProbe probe(solution, *layer, layer_i, thermal.temperature, liquid_shear);
+        c_LayerThermalProfile profile;
+        cooling_model->build_profile(context, probe, profile);
 
-        thermal.rayleigh_number = cooling_result.rayleigh_number;
-        thermal.nusselt_number  = cooling_result.nusselt_number;
-        // The model's thickness carries its flux across the whole drop; two boundary layers split the drop at that
-        // flux, so each takes half of it (see the header comment).
-        const bool insulated_base = c_base_is_insulated(thermal_vec, layer_i);
-        double boundary = insulated_base ? cooling_result.blt : 0.5 * cooling_result.blt;
-        if (!(boundary > 0.0) || !std::isfinite(boundary)) {
-            // The solve reports it; the layer's viscosity is the usual cause.
-            thermal.boundary_fallback = true;
-            boundary = d_MAX_BOUNDARY_FRACTION * thickness;
-        }
-        if (boundary > d_MAX_BOUNDARY_FRACTION * thickness) { boundary = d_MAX_BOUNDARY_FRACTION * thickness; }
-        thermal.boundary_thickness = boundary;
-
-        thermal.resistance_bottom = insulated_base ? 0.0 : c_shell_resistance(
-            radius_inner, radius_inner + boundary, thermal.conductivity);
-        thermal.resistance_top = c_shell_resistance(
-            radius_outer - boundary, radius_outer, thermal.conductivity);
-
-        // The layer's temperature holds at the top of the interior, and the adiabat warms downward from it to the
-        // interior's base, along the gravity of the solved structure.
-        const double interior_base = radius_inner + (insulated_base ? 0.0 : boundary);
-        thermal.base_temperature = thermal.temperature * std::exp(c_adiabat_exponent(
-            solution, layer, layer_i, interior_base, radius_outer - boundary, thermal));
+        thermal.boundary_thickness      = profile.boundary_thickness;
+        thermal.resistance_bottom       = profile.resistance_bottom;
+        thermal.resistance_top          = profile.resistance_top;
+        thermal.base_temperature        = profile.base_temperature;
+        thermal.boundary_fallback       = profile.boundary_fallback;
+        thermal.rayleigh_number         = profile.rayleigh_number;
+        thermal.nusselt_number          = profile.nusselt_number;
+        thermal.magma_ocean             = profile.magma_ocean;
+        thermal.reference_pressure      = profile.reference_pressure;
+        thermal.reference_viscosity     = profile.reference_viscosity;
+        thermal.reference_melt_fraction = profile.reference_melt_fraction;
+        // The material the profile used, where it gave one.
+        if (std::isfinite(profile.conductivity))      { thermal.conductivity      = profile.conductivity; }
+        if (std::isfinite(profile.heat_capacity))     { thermal.heat_capacity     = profile.heat_capacity; }
+        if (std::isfinite(profile.thermal_expansion)) { thermal.thermal_expansion = profile.thermal_expansion; }
     }
 
     // Heat generated in each layer, and in the conducting stretches on either side of its own temperature.

@@ -1,6 +1,8 @@
-"""A molten band thinner than the EOS reporting grid. The first melt of a heated mantle forms where its conducting
-top boundary layer meets the adiabat, and it can lie wholly between two slices; it is found, and the Love solve
-treats it as a static liquid, whatever slices_per_layer is."""
+"""A molten band thinner than the EOS reporting grid. A heated mantle on pressure-dependent melting curves is most
+molten at the top of its convecting interior, where the layer's temperature applies at the lowest pressure. Just past
+the rheological transition there the interior is a magma ocean (the convection model takes its viscosity at that
+point), its conducting lid is far thinner than a slice, and the molten band from that depth up to the lid is only a
+few km thick; it is found, and the Love solve treats it as a static liquid, whatever slices_per_layer is."""
 import pytest
 
 from TidalPy.Structures import build_world
@@ -84,7 +86,12 @@ def _upper_mantle_bands(world):
     return [(inner, outer) for name, inner, outer in world.molten_regions if (name == "mantle") and (inner > middle)]
 
 
-@pytest.mark.parametrize("mantle_temperature", [1875.0, 1890.0])
+# Just past the rheological transition (Henning's critical melt fraction, 0.5) at the top of the interior: 0.59 melt at
+# 1850 K. Below it (1825 K, 0.49) the interior is a partially molten solid and no stretch is molten.
+_BAND_TEMPERATURES = (1850.0, 1855.0)
+
+
+@pytest.mark.parametrize("mantle_temperature", _BAND_TEMPERATURES)
 def test_a_band_thinner_than_the_slice_spacing_is_found(mantle_temperature):
     """The near-surface band is a few km thick, well under the 29 km spacing of 100 slices in this mantle, and the
     coarse grid finds the same band as a grid 30 times finer."""
@@ -101,11 +108,11 @@ def test_a_band_thinner_than_the_slice_spacing_is_found(mantle_temperature):
     assert band_outer == pytest.approx(fine_bands[0][1], abs=1.0)
 
 
-@pytest.mark.parametrize("mantle_temperature", [1875.0, 1890.0])
+@pytest.mark.parametrize("mantle_temperature", _BAND_TEMPERATURES)
 def test_the_love_solve_does_not_depend_on_the_slice_count(mantle_temperature):
-    """With the band missed, the shooting method either integrated it as a solid of near-zero rigidity and failed,
-    or returned a Love number for a mantle without the band (22 times the tidal heating at 1875 K). Both grids now
-    give the same k2, to the radial solve's own tolerance (rtol 1e-6 by default); the band edges agree to a mm."""
+    """A missed band would either be integrated as a solid of near-zero rigidity, failing the shooting method, or
+    leave a Love number for a mantle without the band. Both grids give the same k2, to the radial solve's own
+    tolerance (rtol 1e-6 by default)."""
     love_numbers = []
     for slices in (_COARSE_SLICES, _FINE_SLICES):
         world = _earth(mantle_temperature, slices)

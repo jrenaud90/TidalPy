@@ -50,10 +50,15 @@ radius_outer_m = 599000.0
 use_tides = true
 temperature_k = 1500.0
 
+[layers.core.material.solid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
+
 [layers.core.material.solid.eos]
 model = "constant"
 reference_density_kg_m3 = 5150.0
 bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
 
 [layers.core.material.solid.shear_modulus]
 model = "constant"
@@ -75,11 +80,15 @@ radius_outer_m = 1421000.0
 use_tides = true
 temperature_k = 1400.0
 
+[layers.mantle.material.solid]
+thermal_conductivity_w_mk = 3.75
+
 [layers.mantle.material.solid.eos]
 model = "birch_murnaghan"
 reference_density_kg_m3 = 3532.3413
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
 
 [layers.mantle.material.solid.shear_modulus]
 model = "constant"
@@ -97,17 +106,32 @@ model = "andrade"
 alpha = 0.3
 zeta = 1.0
 
+[layers.mantle.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+
+[layers.mantle.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"
+
 [layers.ice_shell]
 layer_index = 2
 radius_fraction = 1.0
 use_tides = true
 temperature_k = 250.0
 
+[layers.ice_shell.material.solid]
+thermal_conductivity_w_mk = 2.3
+heat_capacity_j_kgk = 2000.0
+
 [layers.ice_shell.material.solid.eos]
 model = "birch_murnaghan"
 reference_density_kg_m3 = 917.0
 reference_bulk_modulus_pa = 9.6e9     # ice I
 bulk_modulus_derivative = 5.5
+thermal_expansion_1_k = 5.0e-5
 
 [layers.ice_shell.material.solid.shear_modulus]
 model = "constant"
@@ -122,3 +146,9 @@ molar_activation_volume_m3_mol = 0.0
 
 [layers.ice_shell.shear_rheology]
 model = "maxwell"
+
+[layers.ice_shell.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1600.0

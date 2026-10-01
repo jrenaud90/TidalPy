@@ -9,7 +9,7 @@ import pytest
 from TidalPy.Cooling.cooling import make_cooling
 from TidalPy.Material import Material, Phase, load_material
 from TidalPy.Radiogenics.radiogenics import make_radiogenics
-from TidalPy.Rheology import Andrade, Elastic, Maxwell
+from TidalPy.Rheology import Andrade, Elastic, Maxwell, make_rheology
 from TidalPy.Structures.layers import Layer
 from TidalPy.Utilities.classes.classes import StructureBase, TidalPyBaseClass
 from TidalPy.Viscosity import ConstantViscosity
@@ -173,14 +173,28 @@ def test_layer_constant_complex_modulus():
 # =====================================================================================================================
 # Cooling and radiogenics
 # =====================================================================================================================
-def test_cooling_and_radiogenics_move_in_once():
+def test_cooling_is_shared_and_radiogenics_move_in_once():
     cooling = make_cooling("convection")
     radiogenics = make_radiogenics("fixed", {"fixed_heat_production_w_kg": 1.0e-11, "ref_time_s": 0.0})
     layer = _layer(cooling=cooling, radiogenics=radiogenics)
     assert layer.cooling_set and layer.radiogenics_set
     assert layer.calc_radiogenic_heating(0.0, 2.0e22) == pytest.approx(2.0e11)
-    with pytest.raises(ValueError, match="already attached"):
-        _layer().set_cooling(cooling)
+    # The cooling model is shared, like a rheology: the same model serves another layer, and the wrapper stays usable.
+    other = _layer()
+    other.cooling = cooling
+    assert other.cooling.get_config_dict() == cooling.get_config_dict() == layer.cooling.get_config_dict()
+    # A name or a table builds the model; None clears it.
+    other.cooling = {"model": "convection", "critical_rayleigh": 1600.0}
+    assert other.cooling.critical_rayleigh == 1600.0
+    other.cooling = "conduction"
+    assert other.cooling.model_name == "conduction"
+    other.cooling = None
+    assert other.cooling is None and not other.cooling_set
+    # A model of another family is refused, naming the slot, rather than clearing it.
+    with pytest.raises(ValueError, match="a layer's cooling model"):
+        other.cooling = radiogenics
+    with pytest.raises(ValueError, match="a layer's cooling model"):
+        other.cooling = make_rheology("maxwell")
     assert _layer().calc_radiogenic_heating(0.0, 1.0) == 0.0
 
 

@@ -288,9 +288,11 @@ relaxed_modulus_frac = 0.9          # the relaxed modulus as a fraction of the u
 
 [layers.upper_mantle.cooling]
 model = "convection"                # boundary-layer convection from a Nusselt-Rayleigh law
-convection_alpha = 1.0
+convection_alpha = 1.0              # a solid interior: Nu = alpha (Ra / Ra_crit)^beta
 convection_beta = 0.3333333333333333
 critical_rayleigh = 1100.0
+liquid_convection_alpha = 0.089     # a liquid interior (a magma ocean): Nu = alpha Ra^beta (Solomatov 2000)
+liquid_convection_beta = 0.3333333333333333
 
 [layers.upper_mantle.radiogenics]
 model = "isotope"

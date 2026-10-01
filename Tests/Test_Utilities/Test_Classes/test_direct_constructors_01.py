@@ -49,7 +49,7 @@ _PROPERTY_COUNTS = {
     Sundberg:           2,
     OffCooling:         2,
     ConductiveCooling:  2,
-    ConvectiveCooling:  5,
+    ConvectiveCooling:  2,
     OffRadiogenics:     2,
     IsotopeRadiogenics: 9,
     FixedRadiogenics:   5,

@@ -5,6 +5,10 @@
 #include "c_common.hpp"    // CyRK: PreEvalFunc
 #include "constants_.hpp"
 #include "eos_layout_.hpp"
+#include "../../Utilities/classes/thermo_point_.hpp"   // c_TemperatureKind
+
+// The EOS integration headers live in the global namespace; the temperature kind is the cooling models' (tidalpy).
+using tidalpy::c_TemperatureKind;
 
 
 
@@ -35,14 +39,6 @@ struct c_EOSMaterialState
     std::complex<double> bulk_modulus  = {TidalPyConstants::d_NAN, TidalPyConstants::d_NAN};
 };
 
-
-/// How a radial segment sets its temperature gradient.
-enum class c_TemperatureKind : uint8_t
-{
-    Isothermal = 0,   // dT/dr = 0
-    Conductive = 1,   // dT/dr = -L / (4 pi r^2 k), Fourier's law in a spherical shell
-    Adiabatic  = 2,   // dT/dr = -alpha g T / c_p
-};
 
 /// A stretch of a layer over which the temperature gradient keeps one form. A layer is one segment unless
 /// its temperature profile has a kink, which is where the adaptive stepper would otherwise lose its order.

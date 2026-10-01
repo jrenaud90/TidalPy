@@ -75,11 +75,10 @@ def test_attached_model_wrappers_raise_instead_of_reading_a_moved_object():
     assert rheology.model_name == "maxwell"
     assert material.calc_state(1.0e9)["density"] == pytest.approx(5000.0)
 
-    # A cooling model moves into the layer, so its wrapper raises.
+    # A cooling model is shared with the layer too, so its wrapper stays usable.
     cooling = make_cooling("convection")
-    layer.set_cooling(cooling)
-    with pytest.raises(RuntimeError, match="took ownership"):
-        cooling.get_config_dict()
+    layer.cooling = cooling
+    assert cooling.get_config_dict() == layer.cooling.get_config_dict()
 
 
 def test_add_layer_discontinuity_raises():

@@ -73,8 +73,9 @@ def test_the_result_can_be_rebuilt_from_the_world():
     result = world.solve_eos(G_to_use=G)
     rebuilt = world._build_eos_result()
     for key, value in result.items():
-        if isinstance(value, np.ndarray):
-            np.testing.assert_array_equal(rebuilt[key], value)
+        if isinstance(value, (np.ndarray, list)):
+            # NaN-aware: the reference state of a layer that does not convect is NaN.
+            np.testing.assert_array_equal(rebuilt[key], value, err_msg=key)
         else:
             assert rebuilt[key] == value, key
 

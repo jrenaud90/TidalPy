@@ -121,7 +121,7 @@ def test_hand_built_world_rebuilds_from_config_dict():
         shear_rheology=Andrade(0.3, 1.0),
         bulk_rheology=Elastic(),
     )
-    mantle.set_cooling(make_cooling("convective"))
+    mantle.cooling = make_cooling("convective")
     mantle.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
     world.add_layer(core)
     world.add_layer(mantle)

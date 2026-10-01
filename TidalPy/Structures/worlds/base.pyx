@@ -100,6 +100,11 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
     cdef list layer_boundary_thickness = []
     cdef list layer_rayleigh_number    = []
     cdef list layer_nusselt_number     = []
+    cdef list layer_boundary_fallback  = []
+    cdef list layer_magma_ocean        = []
+    cdef list layer_ref_pressure       = []
+    cdef list layer_ref_viscosity      = []
+    cdef list layer_ref_melt_fraction  = []
     cdef list layer_in_thermal_network = []
     for j in range(num_layers):
         layer_temperature.append(report.layer_thermal[j].temperature)
@@ -112,6 +117,11 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
         layer_boundary_thickness.append(report.layer_thermal[j].boundary_thickness)
         layer_rayleigh_number.append(report.layer_thermal[j].rayleigh_number)
         layer_nusselt_number.append(report.layer_thermal[j].nusselt_number)
+        layer_boundary_fallback.append(bool(report.layer_thermal[j].boundary_fallback))
+        layer_magma_ocean.append(bool(report.layer_thermal[j].magma_ocean))
+        layer_ref_pressure.append(report.layer_thermal[j].reference_pressure)
+        layer_ref_viscosity.append(report.layer_thermal[j].reference_viscosity)
+        layer_ref_melt_fraction.append(report.layer_thermal[j].reference_melt_fraction)
         layer_in_thermal_network.append(bool(report.layer_thermal[j].in_network))
 
     return {
@@ -148,6 +158,11 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report):
         'layer_boundary_thickness': layer_boundary_thickness,
         'layer_rayleigh_number':    layer_rayleigh_number,
         'layer_nusselt_number':     layer_nusselt_number,
+        'layer_boundary_fallback':  layer_boundary_fallback,
+        'layer_magma_ocean':        layer_magma_ocean,
+        'layer_reference_pressure':      layer_ref_pressure,
+        'layer_reference_viscosity':     layer_ref_viscosity,
+        'layer_reference_melt_fraction': layer_ref_melt_fraction,
         'layer_in_thermal_network': layer_in_thermal_network,
     }
 
@@ -1123,7 +1138,12 @@ cdef class BaseWorld(StructureBase):
             ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1], ``layer_node_temperature``,
             ``layer_top_temperature``, and ``layer_base_temperature`` [K] (the two ends of a convecting interior,
             whose top is the layer's own temperature), ``layer_boundary_thickness`` [m], ``layer_rayleigh_number``,
-            ``layer_nusselt_number``, and ``layer_in_thermal_network``).
+            ``layer_nusselt_number``, where a convecting layer evaluated its viscosity (``layer_reference_pressure``
+            [Pa], ``layer_reference_viscosity`` [Pa s], and ``layer_reference_melt_fraction``, at the top of its
+            interior and its own temperature; NaN for the other layers), ``layer_magma_ocean`` (a convecting
+            interior liquid there, which takes the liquid scaling), ``layer_boundary_fallback`` (a convecting layer
+            whose cooling model gave no boundary-layer thickness, so each took the largest share it may), and
+            ``layer_in_thermal_network``).
 
         Raises
         ------

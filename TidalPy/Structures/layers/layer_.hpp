@@ -171,9 +171,9 @@ public:
 
     ~c_Layer() override = default;
 
-    // The owned cooling and radiogenics models delete the implicit copy assignment, which Cython's stack allocation
-    // emits from freshly constructed temporaries. Source temporaries hold no owned models, so they are reset on copy;
-    // the shared material and rheologies are shared.
+    // The owned radiogenics model deletes the implicit copy assignment, which Cython's stack allocation emits from
+    // freshly constructed temporaries. Source temporaries hold no owned model, so it is reset on copy; the shared
+    // material, rheologies, and cooling model are shared.
     c_Layer& operator=(const c_Layer& other) noexcept {
         if (this != &other) {
             c_StructureBase::operator=(other);
@@ -199,7 +199,7 @@ public:
             this->p_material           = other.p_material;
             this->p_shear_rheology     = other.p_shear_rheology;
             this->p_bulk_rheology      = other.p_bulk_rheology;
-            this->p_cooling.reset();
+            this->p_cooling            = other.p_cooling;
             this->p_radiogenics.reset();
         }
         return *this;
@@ -503,14 +503,19 @@ public:
     // =================================================================================================================
     // Cooling and radiogenics
     // =================================================================================================================
-    // Ownership transfers in, and each registers this layer as the model's observer. A thermal EOS solve reads both,
-    // so each makes the owning world forget its solved structure (c_LayerOwner).
-    void set_cooling(std::unique_ptr<c_CoolingBase> cooling) {
+    // The cooling model is shared and immutable, like the rheologies; null clears it, which leaves the layer at one
+    // temperature. The radiogenics model's ownership transfers in, and it registers this layer as its observer. A
+    // thermal EOS solve reads both, so each makes the owning world forget its solved structure (c_LayerOwner).
+    void set_cooling(std::shared_ptr<const c_CoolingBase> cooling) {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_cooling = std::move(cooling);
-        if (this->p_cooling) { this->p_cooling->set_layer_ptr(this); }
         this->p_update_owner_after_change();
     }
+    // Through the generic model handle the Python wrappers hold; throws std::invalid_argument for another family.
+    void set_cooling_model(const std::shared_ptr<c_PhysicsBase>& model) {
+        this->set_cooling(c_share_as<c_CoolingBase>(model, "a layer's cooling model"));
+    }
+    std::shared_ptr<c_PhysicsBase> share_cooling_model() const { return c_share_physics_of(this->p_cooling); }
     void set_radiogenics(std::unique_ptr<c_RadiogenicsBase> radiogenics) {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_radiogenics = std::move(radiogenics);
@@ -656,7 +661,6 @@ protected:
         this->p_shear_rheology = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
         this->p_bulk_rheology  = read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
         this->p_cooling = read_optional_binary<c_CoolingBase>(in, force, c_cooling_from_binary);
-        if (this->p_cooling) { this->p_cooling->set_layer_ptr(this); }
         this->p_radiogenics = read_optional_binary<c_RadiogenicsBase>(in, force, c_radiogenics_from_binary);
         if (this->p_radiogenics) { this->p_radiogenics->set_layer_ptr(this); }
         this->update_physicals();
@@ -730,9 +734,10 @@ protected:
     std::shared_ptr<const c_RheologyBase> p_shear_rheology;
     std::shared_ptr<const c_RheologyBase> p_bulk_rheology;
 
-    // Owned, each observing this layer.
-    std::unique_ptr<c_CoolingBase>     p_cooling;
-    std::unique_ptr<c_RadiogenicsBase> p_radiogenics;
+    // Shared and immutable, like the rheologies.
+    std::shared_ptr<const c_CoolingBase> p_cooling;
+    // Owned, observing this layer.
+    std::unique_ptr<c_RadiogenicsBase>   p_radiogenics;
 };
 
 } // namespace tidalpy

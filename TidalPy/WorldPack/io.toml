@@ -54,10 +54,15 @@ radius_outer_m = 810000.0
 use_tides = true
 temperature_k = 1900.0
 
+[layers.core.material.solid]
+thermal_conductivity_w_mk = 7.95
+heat_capacity_j_kgk = 840.0
+
 [layers.core.material.solid.eos]
 model = "constant"
 reference_density_kg_m3 = 5150.0
 bulk_modulus_pa = 1.6e11
+thermal_expansion_1_k = 1.2e-5
 
 [layers.core.material.solid.shear_modulus]
 model = "constant"
@@ -79,11 +84,15 @@ radius_outer_m = 1721490.0
 use_tides = true
 temperature_k = 1600.0
 
+[layers.mantle.material.solid]
+thermal_conductivity_w_mk = 3.75
+
 [layers.mantle.material.solid.eos]
 model = "birch_murnaghan"
 reference_density_kg_m3 = 3344.8870
 reference_bulk_modulus_pa = 1.28e11   # forsterite-like
 bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
 
 [layers.mantle.material.solid.shear_modulus]
 model = "constant"
@@ -101,17 +110,31 @@ model = "andrade"
 alpha = 0.3
 zeta = 1.0
 
+[layers.mantle.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+
+[layers.mantle.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"
+
 [layers.asthenosphere]
 layer_index = 2
 radius_fraction = 1.0
 use_tides = true
 temperature_k = 1600.0
 
+[layers.asthenosphere.material.solid]
+thermal_conductivity_w_mk = 3.75
+
 [layers.asthenosphere.material.solid.eos]
 model = "birch_murnaghan"
 reference_density_kg_m3 = 3200.0      # partially molten silicate
 reference_bulk_modulus_pa = 1.28e11
 bulk_modulus_derivative = 4.2
+thermal_expansion_1_k = 5.2e-5
 
 [layers.asthenosphere.material.solid.shear_modulus]
 model = "constant"
@@ -128,3 +151,13 @@ molar_activation_volume_m3_mol = 0.0
 model = "andrade"
 alpha = 0.3
 zeta = 1.0
+
+[layers.asthenosphere.cooling]
+model = "convection"
+convection_alpha = 1.0
+convection_beta = 0.3333333333333333
+critical_rayleigh = 1100.0
+
+[layers.asthenosphere.radiogenics]
+model = "isotope"
+isotopes = "modern_day_chondritic"

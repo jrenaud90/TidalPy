@@ -508,10 +508,36 @@ def _merge_radial_data_layer(auto_cfg: dict, user_cfg: dict, world_radius: float
                 raise ValueError(
                     f"Layer '{layer_name}' refines a layer of the radial profile, whose slice of the profile is its "
                     f"material, so its 'material' must be a table of changes to that slice, not {value!r}.")
-            merged["material"] = merge_material_tables(auto_cfg["material"], value)
+            merged["material"] = _hold_profile_constants(merge_material_tables(auto_cfg["material"], value))
         else:
             merged[key] = value
     return merged
+
+
+# The tabulated quantities of the radius-tabulated (interpolate) laws a radial profile becomes.
+_PROFILE_TABLE_KEYS = ("density_kg_m3", "bulk_modulus_pa", "shear_modulus_pa", "viscosity_pas")
+
+
+def _hold_profile_constants(material_cfg: dict) -> dict:
+    """A material table whose radius-tabulated laws hold any single number given for a tabulated quantity.
+
+    A refining layer table may give one value in place of a profile's column (``bulk_modulus_pa = 1.0e11`` in its
+    ``solid.eos`` table, say); that value then holds across the layer, which is what a radius table of that value
+    gives.
+    """
+    for slot in _PHASE_SLOTS:
+        phase_cfg = material_cfg.get(slot)
+        if not isinstance(phase_cfg, dict):
+            continue
+        for law_cfg in phase_cfg.values():
+            if not isinstance(law_cfg, dict) or not isinstance(law_cfg.get("radius_m"), list):
+                continue
+            num_points = len(law_cfg["radius_m"])
+            for key in _PROFILE_TABLE_KEYS:
+                value = law_cfg.get(key)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    law_cfg[key] = [float(value)] * num_points
+    return material_cfg
 
 
 def _user_layer_index(layer_name: str, user_cfg: dict, num_detected: int, world_name: Optional[str]) -> int:

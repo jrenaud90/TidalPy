@@ -1,39 +1,36 @@
 #pragma once
 /* TidalPy's cooling (heat-transport) models. All quantities MKS.
  *
+ * Each model declares its parameters in one table (c_SpecModel, spec_model_.hpp), which gives its constructor,
+ * validation, config entries, and binary record, and builds its layer's thermal profile (build_profile, see
+ * cooling_base_.hpp).
+ *
  * References
  * ----------
  * - Turcotte and Schubert (2002), Geodynamics: Rayleigh and Nusselt convection scaling.
  * - Solomatov (1995); Schubert, Turcotte, and Olson (2001): boundary-layer theory.
- *
- * Binary payload: model name then the model's parameters as doubles. The observing layer pointer is not
- * serialized.
+ * - Stevenson, Spohn, and Schubert (1983): the upper-mantle temperature of parameterized convection, at the top of
+ *   the adiabatic interior.
+ * - Solomatov (2000), Fluid dynamics of a terrestrial magma ocean; Lebrun et al. (2013): Nu = 0.089 Ra^(1/3) for a
+ *   liquid (soft-turbulence) interior.
  */
 
 #include <cmath>
-#include <cstdint>
 #include <istream>
-#include <limits>
 #include <memory>
-#include <ostream>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "binary_.hpp"
 #include "constants_.hpp"
 #include "cooling_base_.hpp"
-#include "model_names_.hpp"
+#include "registry_.hpp"
+#include "spec_model_.hpp"
 
 namespace tidalpy {
 
-// Construction parameters for the convection model, and its defaults; the other models take none.
-struct c_CoolingConfig {
-    double convection_alpha  = 1.0;                  // Nu = alpha * (Ra / Ra_crit)^beta  [dimensionless]
-    double convection_beta   = 0.3333333333333333;   // convection exponent (~1/3)        [dimensionless]
-    double critical_rayleigh = 1100.0;               // critical Rayleigh number           [dimensionless]
-};
-
-// No cooling. Boundary layer is set to half the layer thickness so downstream users see a sane value.
+// No heat transport inside the layer: zero flux, and a boundary layer of half the layer thickness so downstream users
+// see a sane value.
 TIDALPY_FORCE_INLINE c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
     result.cooling_flux    = 0.0;
@@ -66,9 +63,13 @@ TIDALPY_FORCE_INLINE c_CoolingResult cool_conduction(const c_CoolingInputs& in) 
 // its base and its top splits the drop between them at that flux, so each is half this thick. Nu_min is the
 // [numerical] minimum_nusselt setting; at its default of 1 a sub-critical or rigid layer conducts. Degenerate
 // inputs (no temperature contrast, or a vanishingly thin layer) collapse to Ra = 0 and Nu = Nu_min. Each test is
-// made once so that Ra, Nu, and the boundary layer stay consistent with one another.
+// made once so that Ra, Nu, and the boundary layer stay consistent with one another. A liquid interior (a magma
+// ocean) takes the liquid scaling, Nu = alpha_liquid Ra^beta_liquid (Ra_crit = 1).
 TIDALPY_FORCE_INLINE c_CoolingResult cool_convection(
-        const c_CoolingInputs& in, const c_CoolingConfig& cfg) noexcept {
+        const c_CoolingInputs& in,
+        double alpha,
+        double beta,
+        double critical_rayleigh) noexcept {
     const double eps = TidalPyConstants::d_EPS;
     // An unwired config gives NaN limits, so the result shows the missing initialization.
     const bool config_wired    = (tidalpy_config_ptr != nullptr);
@@ -87,8 +88,7 @@ TIDALPY_FORCE_INLINE c_CoolingResult cool_convection(
     double rayleigh = parcel_rise_rate / c_guard_denominator(rate_heat_loss);
     if (no_contrast || too_thin) { rayleigh = 0.0; }
 
-    double nusselt = cfg.convection_alpha
-                   * std::pow(rayleigh / c_guard_denominator(cfg.critical_rayleigh), cfg.convection_beta);
+    double nusselt = alpha * std::pow(rayleigh / c_guard_denominator(critical_rayleigh), beta);
     // A NaN from another input (the viscosity, say) falls through so it reaches the caller.
     if (no_contrast || too_thin || (nusselt <= min_nusselt)) { nusselt = min_nusselt; }
 
@@ -104,16 +104,31 @@ TIDALPY_FORCE_INLINE c_CoolingResult cool_convection(
     return result;
 }
 
-// Cooling disabled (alias "none").
-class c_OffCooling final : public c_CoolingBase {
+// No heat transport inside the layer (alias "none"): the layer holds one temperature.
+class c_OffCooling final : public c_SpecModel<c_OffCooling, c_CoolingBase> {
 public:
-    c_OffCooling() : c_OffCooling(c_CoolingConfig{}) {}
-    explicit c_OffCooling(const c_CoolingConfig& /*cfg*/) : c_CoolingBase("off") {}
-    ~c_OffCooling() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::OffCooling;
 
-    c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
-        return cool_off(inputs);
+    static const std::vector<c_ParamSpec<c_OffCooling>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_OffCooling>> specs = {};
+        return specs;
     }
+
+    c_OffCooling() : c_OffCooling(c_ParamMap{}) {}
+    explicit c_OffCooling(const c_ParamMap& params) : c_SpecModel("off") { this->p_initialize(params); }
+
+    c_TemperatureKind get_temperature_kind() const noexcept override { return c_TemperatureKind::Isothermal; }
+
+    c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override { return cool_off(inputs); }
+
+    void build_profile(
+            const c_LayerThermalContext& context,
+            const c_LayerThermalProbe& /*probe*/,
+            c_LayerThermalProfile& out) const override {
+        out = c_LayerThermalProfile();
+        out.base_temperature = context.temperature;
+    }
+
     void calc_cooling_vectorize(
             const std::vector<double>& delta_temp,
             const std::vector<double>& viscosity,
@@ -125,24 +140,42 @@ public:
             double* out_nusselt) const override {
         p_vectorize_kernel(
             [](const c_CoolingInputs& inputs) { return cool_off(inputs); },
-            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh,
-            out_nusselt);
+            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh, out_nusselt);
     }
-
-    c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Off; }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::OffCooling); }
 };
 
-class c_ConductiveCooling final : public c_CoolingBase {
+// Conduction through the whole layer (alias "conductive"): two conducting halves meeting at the mid-radius, where
+// the layer's temperature applies.
+class c_ConductiveCooling final : public c_SpecModel<c_ConductiveCooling, c_CoolingBase> {
 public:
-    c_ConductiveCooling() : c_ConductiveCooling(c_CoolingConfig{}) {}
-    explicit c_ConductiveCooling(const c_CoolingConfig& /*cfg*/) : c_CoolingBase("conduction") {}
-    ~c_ConductiveCooling() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::ConductiveCooling;
 
-    c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
-        return cool_conduction(inputs);
+    static const std::vector<c_ParamSpec<c_ConductiveCooling>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_ConductiveCooling>> specs = {};
+        return specs;
     }
+
+    c_ConductiveCooling() : c_ConductiveCooling(c_ParamMap{}) {}
+    explicit c_ConductiveCooling(const c_ParamMap& params) : c_SpecModel("conduction") { this->p_initialize(params); }
+
+    c_TemperatureKind get_temperature_kind() const noexcept override { return c_TemperatureKind::Conductive; }
+
+    c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override { return cool_conduction(inputs); }
+
+    void build_profile(
+            const c_LayerThermalContext& context,
+            const c_LayerThermalProbe& probe,
+            c_LayerThermalProfile& out) const override {
+        out = c_LayerThermalProfile();
+        double gravity  = 0.0;
+        double pressure = 0.0;
+        p_mid_layer_state(context, probe, gravity, pressure, out);
+        const double radius_mid = 0.5 * (context.radius_inner + context.radius_outer);
+        out.resistance_bottom = c_shell_resistance(context.radius_inner, radius_mid, out.conductivity);
+        out.resistance_top    = c_shell_resistance(radius_mid, context.radius_outer, out.conductivity);
+        out.base_temperature  = context.temperature;
+    }
+
     void calc_cooling_vectorize(
             const std::vector<double>& delta_temp,
             const std::vector<double>& viscosity,
@@ -154,38 +187,119 @@ public:
             double* out_nusselt) const override {
         p_vectorize_kernel(
             [](const c_CoolingInputs& inputs) { return cool_conduction(inputs); },
-            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh,
-            out_nusselt);
+            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh, out_nusselt);
     }
-
-    c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Conduction; }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::ConductiveCooling); }
 };
 
-// Parameterized boundary-layer convection.
-class c_ConvectiveCooling final : public c_CoolingBase {
+// Parameterized boundary-layer convection (alias "convective"): a conducting boundary layer at the base and the top,
+// from the Nusselt scaling, around an adiabatic interior whose top is at the layer's temperature (the upper-mantle
+// temperature of parameterized convection). The viscosity of the Rayleigh number is the material's at that top,
+// the layer's temperature and the pressure there; a material liquid there, as the Love solve takes it
+// (c_LayerThermalProbe::calc_transport_state), is a magma ocean and takes the liquid scaling. Gravity, density, and
+// the thermal constants are the mid-layer values, as they are for a conducting layer.
+class c_ConvectiveCooling final : public c_SpecModel<c_ConvectiveCooling, c_CoolingBase> {
 public:
-    c_ConvectiveCooling() : c_ConvectiveCooling(c_CoolingConfig{}) {}
-    explicit c_ConvectiveCooling(const c_CoolingConfig& cfg)
-        : c_CoolingBase("convection"),
-          p_config(cfg) {}
-    ~c_ConvectiveCooling() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::ConvectiveCooling;
 
-    double get_convection_alpha()  const noexcept { return this->p_config.convection_alpha; }
-    double get_convection_beta()   const noexcept { return this->p_config.convection_beta; }
-    double get_critical_rayleigh() const noexcept { return this->p_config.critical_rayleigh; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_CoolingBase::append_config_entries(out);
-        out.push_back(c_config_double("convection_alpha", this->p_config.convection_alpha));
-        out.push_back(c_config_double("convection_beta", this->p_config.convection_beta));
-        out.push_back(c_config_double("critical_rayleigh", this->p_config.critical_rayleigh));
+    static const std::vector<c_ParamSpec<c_ConvectiveCooling>>& parameter_specs() {
+        using Self = c_ConvectiveCooling;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            {"convection_alpha", "convection_alpha", &Self::p_convection_alpha, 1.0, c_ParamBounds::Positive,
+             "Nusselt prefactor of a solid interior: Nu = alpha (Ra / Ra_crit)^beta."},
+            {"convection_beta", "convection_beta", &Self::p_convection_beta, 1.0 / 3.0, c_ParamBounds::Positive,
+             "Nusselt exponent of a solid interior."},
+            {"critical_rayleigh", "critical_rayleigh", &Self::p_critical_rayleigh, 1100.0, c_ParamBounds::Positive,
+             "Critical Rayleigh number of a solid interior."},
+            {"liquid_convection_alpha", "liquid_convection_alpha", &Self::p_liquid_convection_alpha, 0.089,
+             c_ParamBounds::Positive,
+             "Nusselt prefactor of a liquid interior (a magma ocean): Nu = alpha Ra^beta (Solomatov 2000)."},
+            {"liquid_convection_beta", "liquid_convection_beta", &Self::p_liquid_convection_beta, 1.0 / 3.0,
+             c_ParamBounds::Positive, "Nusselt exponent of a liquid interior."},
+        };
+        return specs;
     }
+
+    c_ConvectiveCooling() : c_ConvectiveCooling(c_ParamMap{}) {}
+    explicit c_ConvectiveCooling(const c_ParamMap& params) : c_SpecModel("convection") {
+        this->p_initialize(params);
+    }
+
+    c_TemperatureKind get_temperature_kind() const noexcept override { return c_TemperatureKind::Adiabatic; }
 
     c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
-        return cool_convection(inputs, this->p_config);
+        return inputs.liquid
+            ? cool_convection(inputs, this->p_liquid_convection_alpha, this->p_liquid_convection_beta, 1.0)
+            : cool_convection(inputs, this->p_convection_alpha, this->p_convection_beta, this->p_critical_rayleigh);
     }
+
+    void build_profile(
+            const c_LayerThermalContext& context,
+            const c_LayerThermalProbe& probe,
+            c_LayerThermalProfile& out) const override {
+        out = c_LayerThermalProfile();
+        double gravity      = 0.0;
+        double pressure_mid = 0.0;
+        const c_TransportState mid = p_mid_layer_state(context, probe, gravity, pressure_mid, out);
+        const double thickness = context.radius_outer - context.radius_inner;
+
+        // The reference point: the top of the interior, under the upper boundary layer of the last pass (the layer's
+        // top before there is one), where the layer's own temperature applies. Starting from the top, the passes
+        // settle on the shallowest self-consistent boundary layer.
+        double reference_radius = context.radius_outer - context.boundary_thickness;
+        if (reference_radius < context.radius_inner) { reference_radius = context.radius_inner; }
+        double reference_gravity  = 0.0;
+        double reference_pressure = 0.0;
+        probe.calc_structure(reference_radius, reference_gravity, reference_pressure);
+        c_TransportState reference;
+        probe.calc_transport_state(reference_pressure, context.temperature, reference_radius, reference);
+        out.reference_pressure      = reference_pressure;
+        out.reference_viscosity     = reference.shear_viscosity;
+        out.reference_melt_fraction = reference.melt_fraction;
+        out.magma_ocean             = reference.is_liquid;
+
+        // The drop is the sum of the two boundary layers' drops: from the top of the layer below to the base of this
+        // layer's adiabat, and from this layer's temperature to the base of the layer above or the surface. The
+        // adiabat's base comes from the last pass, so it lags by one.
+        c_CoolingInputs inputs;
+        inputs.delta_temp = std::fabs(context.inner_temperature - context.base_temperature)
+                          + std::fabs(context.temperature - context.outer_temperature);
+        inputs.thickness            = thickness;
+        inputs.gravity              = gravity;
+        inputs.density              = mid.density;
+        inputs.viscosity            = reference.shear_viscosity;
+        inputs.thermal_conductivity = out.conductivity;
+        // The diffusivity uses the density the material has here, not a separate reference density.
+        inputs.thermal_diffusivity  = out.conductivity / (mid.density * out.heat_capacity);
+        // The expansivity at the layer's own state, which can fall with compression.
+        inputs.thermal_expansion    = out.thermal_expansion;
+        inputs.liquid               = reference.is_liquid;
+        const c_CoolingResult result = this->calc_cooling(inputs);
+        out.rayleigh_number = result.rayleigh_number;
+        out.nusselt_number  = result.nusselt_number;
+
+        // The flux law's thickness carries its flux across the whole drop; two boundary layers split the drop at that
+        // flux, so each takes half of it. A base that carries no heat has no boundary layer.
+        double boundary = context.insulated_base ? result.blt : 0.5 * result.blt;
+        if (!(boundary > 0.0) || !std::isfinite(boundary)) {
+            // The solve reports it; the layer's viscosity is the usual cause.
+            out.boundary_fallback = true;
+            boundary = d_MAX_BOUNDARY_FRACTION * thickness;
+        }
+        if (boundary > d_MAX_BOUNDARY_FRACTION * thickness) { boundary = d_MAX_BOUNDARY_FRACTION * thickness; }
+        out.boundary_thickness = boundary;
+
+        out.resistance_bottom = context.insulated_base ? 0.0 : c_shell_resistance(
+            context.radius_inner, context.radius_inner + boundary, out.conductivity);
+        out.resistance_top = c_shell_resistance(
+            context.radius_outer - boundary, context.radius_outer, out.conductivity);
+
+        // The layer's temperature holds at the top of the interior, and the adiabat warms downward from it to the
+        // interior's base, along the gravity of the solved structure.
+        const double interior_base = context.radius_inner + (context.insulated_base ? 0.0 : boundary);
+        out.base_temperature = context.temperature
+            * std::exp(probe.calc_adiabat_exponent(interior_base, context.radius_outer - boundary));
+    }
+
     void calc_cooling_vectorize(
             const std::vector<double>& delta_temp,
             const std::vector<double>& viscosity,
@@ -195,74 +309,52 @@ public:
             double* out_blt,
             double* out_rayleigh,
             double* out_nusselt) const override {
+        const bool liquid = base_inputs.liquid;
+        const double alpha = liquid ? this->p_liquid_convection_alpha : this->p_convection_alpha;
+        const double beta  = liquid ? this->p_liquid_convection_beta : this->p_convection_beta;
+        const double critical_rayleigh = liquid ? 1.0 : this->p_critical_rayleigh;
         p_vectorize_kernel(
-            [config = this->p_config](const c_CoolingInputs& inputs) {
-                return cool_convection(inputs, config);
+            [alpha, beta, critical_rayleigh](const c_CoolingInputs& inputs) {
+                return cool_convection(inputs, alpha, beta, critical_rayleigh);
             },
-            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh,
-            out_nusselt);
-    }
-
-    c_CoolingModel get_model_type() const noexcept override { return c_CoolingModel::Convection; }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::ConvectiveCooling); }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_config.convection_alpha, this->p_config.convection_beta, this->p_config.critical_rayleigh};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        this->p_config.convection_alpha  = params[0];
-        this->p_config.convection_beta   = params[1];
-        this->p_config.critical_rayleigh = params[2];
+            delta_temp, viscosity, base_inputs, num_points, out_cooling_flux, out_blt, out_rayleigh, out_nusselt);
     }
 
 protected:
-    c_CoolingConfig p_config;
+    double p_convection_alpha        = 0.0;
+    double p_convection_beta         = 0.0;
+    double p_critical_rayleigh       = 0.0;
+    double p_liquid_convection_alpha = 0.0;
+    double p_liquid_convection_beta  = 0.0;
 };
 
-// Model names are matched case-insensitively.
-inline c_CoolingModel c_cooling_model_from_name(const std::string& model_name) {
-    const std::string name = c_to_lower(model_name);
-
-    if (name == "off"        || name == "none")       { return c_CoolingModel::Off; }
-    if (name == "convection" || name == "convective") { return c_CoolingModel::Convection; }
-    if (name == "conduction" || name == "conductive") { return c_CoolingModel::Conduction; }
-
-    throw std::invalid_argument("TidalPy: unknown cooling model name '" + model_name + "'");
+inline const c_ModelRegistry<c_CoolingBase>& c_cooling_registry() {
+    static const c_ModelRegistry<c_CoolingBase> registry = {
+        {{"off", "none"},
+         BinaryClassID::OffCooling,        &c_make_entry<c_CoolingBase, c_OffCooling>},
+        {{"convection", "convective"},
+         BinaryClassID::ConvectiveCooling, &c_make_entry<c_CoolingBase, c_ConvectiveCooling>},
+        {{"conduction", "conductive"},
+         BinaryClassID::ConductiveCooling, &c_make_entry<c_CoolingBase, c_ConductiveCooling>},
+    };
+    return registry;
 }
 
-// Builds a model from its enum value and parameters; the Cython wrappers construct through it. A saved record is
-// restored by c_cooling_from_binary instead.
-inline std::unique_ptr<c_CoolingBase> c_find_cooling(
-        c_CoolingModel model, const c_CoolingConfig& cfg) {
-    switch (model) {
-        case c_CoolingModel::Off:        return std::make_unique<c_OffCooling>(cfg);
-        case c_CoolingModel::Convection: return std::make_unique<c_ConvectiveCooling>(cfg);
-        case c_CoolingModel::Conduction: return std::make_unique<c_ConductiveCooling>(cfg);
-    }
-    throw std::invalid_argument("TidalPy: unrecognised c_CoolingModel enum value");
+// The family's entry points, each one line over the generic registry functions.
+inline std::unique_ptr<c_CoolingBase> c_find_cooling(const std::string& model_name, const c_ParamMap& params) {
+    return c_make_model(c_cooling_registry(), model_name, params);
 }
 
-inline std::unique_ptr<c_CoolingBase> c_find_cooling(
-        const std::string& model_name, const c_CoolingConfig& cfg) {
-    return c_find_cooling(c_cooling_model_from_name(model_name), cfg);
-}
-
-// The class id is peeked without consuming the header so the matching default-constructed model can
-// restore the record itself.
 inline std::unique_ptr<c_CoolingBase> c_cooling_from_binary(std::istream& in, bool force = false) {
-    const c_BinaryHeader header = c_peek_binary_header(in);
+    return c_model_from_binary(c_cooling_registry(), in, force);
+}
 
-    std::unique_ptr<c_CoolingBase> model;
-    switch (static_cast<BinaryClassID>(header.class_id)) {
-        case BinaryClassID::OffCooling:        model = std::make_unique<c_OffCooling>();        break;
-        case BinaryClassID::ConvectiveCooling: model = std::make_unique<c_ConvectiveCooling>(); break;
-        case BinaryClassID::ConductiveCooling: model = std::make_unique<c_ConductiveCooling>(); break;
-        default:
-            throw std::runtime_error("TidalPy: unknown cooling class id in binary stream");
-    }
-    model->read_binary(in, force);
-    return model;
+inline std::string c_cooling_canonical_name(const std::string& model_name) {
+    return c_canonical_model_name(c_cooling_registry(), model_name);
+}
+
+inline std::vector<std::string> c_cooling_model_names() {
+    return c_model_names(c_cooling_registry());
 }
 
 }  // namespace tidalpy

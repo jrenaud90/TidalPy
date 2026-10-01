@@ -1248,15 +1248,8 @@ public:
         const std::size_t n_layers = this->p_layers.size();
         if (!this->p_eos_solved || (solution == nullptr) || (n_layers == 0)) { return; }
         const std::size_t slices = solution->radius_array_size / n_layers;
-        // The rigidity scale rho g R of the planet: bulk density, surface gravity, radius.
-        const double planet_radius = solution->radius;
-        const double planet_volume =
-            (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
-        const double rigidity_scale = (planet_volume > TidalPyConstants::d_EPS)
-            ? (this->p_planet_mass_eos / planet_volume) * this->p_surface_gravity_eos * planet_radius : 0.0;
-        const double min_rigidity = tidalpy_config_ptr->d_MIN_SOLID_RIGIDITY;
-        const double weak_shear = (std::isfinite(min_rigidity) && std::isfinite(rigidity_scale))
-            ? min_rigidity * rigidity_scale : 0.0;   // [Pa]
+        // minimum_solid_rigidity times the planet's rho g R, the threshold the thermal network shares [Pa].
+        const double weak_shear = c_liquid_shear_threshold(*solution);
 
         for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
             const c_Layer* layer  = this->p_layers[layer_i].get();
