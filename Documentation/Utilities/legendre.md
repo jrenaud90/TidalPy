@@ -8,7 +8,7 @@ This module returns all three at once. Both entry points give the triple $\left(
 
 ## Evaluation Paths
 
-`legendre(l, m, colatitude)` uses precomputed closed forms for degrees 2 through 10. Each $(l, m)$ pair is a hard-coded polynomial in $\cos\theta$ and $\sin\theta$, generated from the Ferrers construction by `legendre/codegen/gen_legendre.py`. There are no calls to `pow` and no $1/\sin\theta$ factors that would diverge at the poles, so this path is fast enough for a mode loop evaluated at every grid point.
+`legendre(l, m, colatitude)` uses precomputed closed forms for degrees 2 through 10. Each $(l, m)$ pair is a hard-coded polynomial in $\cos\theta$ and $\sin\theta$, generated from the Ferrers construction by a separate code gen, which is available upon request. There are no calls to `pow` and no $1/\sin\theta$ factors that would diverge at the poles, so this path is fast enough for a mode loop evaluated at every grid point.
 
 `legendre_generic(l, m, colatitude)` handles any degree. The value comes from the standard upward recurrence in degree at fixed order, written in $\cos\theta$ and $\sin\theta$ themselves (rebuilding $\sin\theta$ from $\cos\theta$ would keep only a few digits near the poles), and the derivatives from the order recurrence
 
