@@ -147,8 +147,8 @@ Tightening the EOS tolerance costs almost nothing, so it is set where the mass, 
 `[tides]` supplies the global (1D) tidal defaults a world takes when its own `[tides]` table omits a value (see the [TOML schema](../Structures/config/toml_schema.md)):
 
 - `min_degree_l = 2` and `max_degree_l = 2`: the harmonic degrees of the mode sum (2 to 10 are supported).
-- `eccentricity_trunc_lvl = 10`: the eccentricity truncation level, one of 2, 4, 6, 8, 10, 20, 50, or `"exact"`; `eccentricity_exact_tolerance = 1.0e-4` sets the mode range of `"exact"` (see [Eccentricity Functions](../Tides/eccentricity.md)).
-- `obliquity_trunc_lvl = "off"`: the obliquity truncation level, one of `"off"` (0), 2, 4, or `"gen"` (see [Obliquity Functions](../Tides/obliquity.md)).
+- `eccentricity_trunc_lvl = 10`: the eccentricity truncation level, one of 2, 4, 6, 8, 10, 20, 50, or `"exact"`; `eccentricity_exact_tolerance = 1.0e-4` sets the mode range of `"exact"` (see [Eccentricity Functions](../Tides/Eccentricity.md)).
+- `obliquity_trunc_lvl = "off"`: the obliquity truncation level, one of `"off"` (0), 2, 4, or `"gen"` (see [Obliquity Functions](../Tides/Obliquity.md)).
 - `layer_tidal_heating = true`: whether `calc_tides` also resolves each layer's heating when the Love numbers come from the radial solver.
 - `fixed_k`, `fixed_q`, `fixed_dt_s`: per-degree Love numbers, quality factors, and time lags \[s\] of the analytic tide models, lists indexed from $l = 2$.
 
