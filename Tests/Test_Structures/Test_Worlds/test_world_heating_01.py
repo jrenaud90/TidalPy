@@ -153,10 +153,21 @@ def test_heated_conducting_shell_follows_the_closed_form_above_its_anchor(conduc
 
 
 def test_layer_temperature_rate_counts_the_heating(conducting_shell):
+    """With its heating and surface temperature held, a change of the layer's temperature shifts the insulated lower
+    half as a whole and the upper half by the steady-conduction share (1/r - 1/R) / (1/r_mid - 1/R), so the layer
+    stores rho c_p [V_lower + 4 pi (R^2 / 2 - r^3 / 3R)|_r_mid^R / (1/r_mid - 1/R)] per kelvin."""
     world, result = conducting_shell
-    mass = _layer_masses(result, 1)[0]
+    radius_mid = 0.5 * _RADIUS
+
+    def upper(radius):
+        return radius**2 / 2.0 - radius**3 / (3.0 * _RADIUS)
+
+    volume = 4.0 / 3.0 * math.pi * radius_mid**3 \
+        + 4.0 * math.pi * (upper(_RADIUS) - upper(radius_mid)) / (1.0 / radius_mid - 1.0 / _RADIUS)
+    capacity = _DENSITY * _HEAT_CAPACITY * volume
+    assert result["layer_thermal_capacity"][0] == pytest.approx(capacity, rel=1.0e-9)
     expected = (result["layer_heat_flow_in"][0] - result["layer_heat_flow_out"][0] + result["layer_heating"][0]) \
-        / (mass * _HEAT_CAPACITY)
+        / capacity
     assert result["layer_temperature_rate"][0] == pytest.approx(expected, rel=1.0e-9)
     assert result["layer_heating"][0] > 0.0
 

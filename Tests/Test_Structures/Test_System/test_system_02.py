@@ -5,6 +5,8 @@ import math
 import numpy as np
 import pytest
 
+import TidalPy
+
 from TidalPy.constants import G, mass_trap1
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
 from TidalPy.Structures.system import System
@@ -197,7 +199,8 @@ def test_system_evolution_sweep():
 
 
 def test_layerless_star_evolves_its_spin():
-    """A star with no layers evolves its orbit and its spin, the moment of inertia from its spin model's factor."""
+    """A star with no layers evolves its orbit and its spin, the moment of inertia from its spin model's factor (a star
+    built by hand takes the [worlds.star] factor, as a built one does)."""
     companion_mass = 1.898e27
     sma = 1.0e10
     orbital_frequency = math.sqrt(G * (_HOST + companion_mass) / sma ** 3)
@@ -213,7 +216,8 @@ def test_layerless_star_evolves_its_spin():
     ev = system.calc_world_evolution("companion")
     assert ev["evolved"] is True
     assert ev["has_spin"] is True
-    assert ev["moment_of_inertia"] == pytest.approx(0.4 * companion_mass * 5.0e8 ** 2, rel=1e-12)
+    moi_factor = TidalPy.config["worlds"]["star"]["moment_of_inertia_factor"]
+    assert ev["moment_of_inertia"] == pytest.approx(moi_factor * companion_mass * 5.0e8 ** 2, rel=1e-12)
     assert np.isfinite(ev["dspin_dt"])
     assert np.isfinite(ev["dE_spin_dt"])
     assert ev["tidal_heating"] > 0.0

@@ -126,8 +126,9 @@ def test_convecting_mantle_through_a_pressure_dependent_melting_range():
     assert result["thermal_converged"]
 
     mantle_i = [layer.name for layer in world].index("mantle")
-    boundary = result["layer_boundary_thickness"][mantle_i]
-    radii = np.linspace(world.mantle.radius_inner + 2.0 * boundary, world.mantle.radius_outer - 2.0 * boundary, 400)
+    # Clear of the boundary layers (millimeters thick in a magma ocean) and of the finite difference's reach.
+    margin = max(2.0 * result["layer_boundary_thickness"][mantle_i], 1.0e3)
+    radii = np.linspace(world.mantle.radius_inner + margin, world.mantle.radius_outer - margin, 400)
     temperature = world.get_temperature(radii)
     state = world.mantle.calc_state(world.get_pressure(radii), temperature)
     partial = (state["melt_fraction"] > 0.05) & (state["melt_fraction"] < 0.95)

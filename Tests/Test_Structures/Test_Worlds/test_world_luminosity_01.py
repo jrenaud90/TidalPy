@@ -23,14 +23,15 @@ def test_no_model_raises():
         star.update_luminosity_from_mass()
 
 
-def test_attach_transfers_ownership():
-    """Attaching a model consumes its wrapper, so reattaching it raises."""
+def test_attach_copies_the_model():
+    """The star holds its own copy, so the model stays usable and serves another star too."""
     star = StarWorld("s", RADIUS_SOLAR, MASS_SOLAR)
+    other = StarWorld("t", RADIUS_SOLAR, MASS_SOLAR)
     model = MassToLuminosity()
     star.set_luminosity_model(model)
-    assert star.luminosity_model_set is True
-    with pytest.raises(ValueError):
-        star.set_luminosity_model(model)
+    other.set_luminosity_model(model)
+    assert star.luminosity_model_set and other.luminosity_model_set
+    assert star.calc_luminosity_from_mass() == other.calc_luminosity_from_mass()
 
 
 @pytest.mark.parametrize(
