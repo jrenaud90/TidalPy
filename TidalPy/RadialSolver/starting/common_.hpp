@@ -11,6 +11,57 @@
 #include "xsf/bessel.h"
 #include "xsf/sph_bessel.h"
 
+// The two wave numbers of a dynamic compressible solid and their f and h functions (TS72 Eq. 99; KMN15 Eqs. B1-B12),
+// shared by the Takeuchi and Saito and the Kamata starting conditions. dynamic_term is omega^2, gamma is
+// 4 pi G rho / 3, and alpha2 and beta2 are (lambda + 2 mu) / rho and mu / rho. Which of the two a starting condition
+// calls "positive" and "negative" differs between TS72 and KMN15 (issue #43); this returns both by the sign of the
+// square root, and each caller orders them its own way.
+struct c_SolidWaveNumbers {
+    std::complex<double> k2_pos;   // (k2_quad_pos + sqrt(k2_quad)) / 2
+    std::complex<double> k2_neg;   // (k2_quad_pos - sqrt(k2_quad)) / 2
+    std::complex<double> f_pos;    // (beta2 k2_pos - omega^2) / gamma
+    std::complex<double> f_neg;
+    std::complex<double> h_pos;    // f_pos - (l + 1)
+    std::complex<double> h_neg;
+};
+
+inline c_SolidWaveNumbers c_solid_wave_numbers(
+        double dynamic_term,
+        double gamma,
+        const std::complex<double>& alpha2,
+        const std::complex<double>& beta2,
+        int degree_l) noexcept
+{
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double llp1         = degree_l_dbl * lp1;
+
+    const std::complex<double> k2_quad_pos  = (dynamic_term / beta2) + ((dynamic_term + 4.0 * gamma) / alpha2);
+    const std::complex<double> k2_quad_neg  = (dynamic_term / beta2) - ((dynamic_term + 4.0 * gamma) / alpha2);
+    const std::complex<double> k2_quad      =
+        (k2_quad_neg * k2_quad_neg) + ((4.0 * llp1 * gamma * gamma) / (alpha2 * beta2));
+    const std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
+
+    c_SolidWaveNumbers out;
+    out.k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
+    out.k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
+
+    // f(k2) = (beta2 k2 - w^2) / gamma cancels for k2_pos when w^2 >> gamma, with a relative error that grows as
+    // (w^2 / gamma)^2. With N = k2_quad_neg and D = k2_quad_sqrt, f_pos = beta2 (D - N) / (2 gamma) and
+    // f_neg = -beta2 (D + N) / (2 gamma); whichever of D -+ N cancels is rewritten with
+    // D^2 - N^2 = 4 l (l + 1) gamma^2 / (alpha2 beta2).
+    const std::complex<double> d_plus_n  = k2_quad_sqrt + k2_quad_neg;
+    const std::complex<double> d_minus_n = k2_quad_sqrt - k2_quad_neg;
+    const std::complex<double> f_scale   = beta2 / (2.0 * gamma);
+    const std::complex<double> f_product = (2.0 * llp1 * gamma) / alpha2;  // f_scale (D^2 - N^2)
+    const bool plus_is_larger = std::abs(d_plus_n) >= std::abs(d_minus_n);
+    out.f_pos = plus_is_larger ? f_product / d_plus_n : f_scale * d_minus_n;
+    out.f_neg = plus_is_larger ? -f_scale * d_plus_n : -f_product / d_minus_n;
+    out.h_pos = out.f_pos - lp1;
+    out.h_neg = out.f_neg - lp1;
+    return out;
+}
+
 // Calculates the z function from the spherical Bessel functions.
 //
 // References

@@ -407,12 +407,6 @@ inline double c_liquid_shear_threshold(double mass, double radius, double G) noe
     return (std::isfinite(threshold) && (threshold > 0.0)) ? threshold : 0.0;
 }
 
-// The threshold a solve took its zones with (c_EOSSolution::liquid_shear_threshold): the same one, from the world's
-// stated mass and radius, so the Love solve and the thermal network agree with the zones the integration found.
-inline double c_liquid_shear_threshold(const c_EOSSolution& solution) noexcept {
-    return solution.liquid_shear_threshold;
-}
-
 // The thermal network's view of one layer for its cooling model: the solved structure at a radius, and the layer's
 // material at a point (c_LayerThermalProbe, Cooling/cooling_base_.hpp). The material is liquid where the Love solve
 // takes it as liquid: everywhere in a liquid layer, and where a layer that can change state is fully molten or has a
@@ -594,7 +588,9 @@ inline double c_update_layer_thermal(
     const std::size_t n_layers = layers.size();
     double largest_change = 0.0;
     const bool heated = (heating_ptr != nullptr) && heating_ptr->get_is_active();
-    const double liquid_shear = c_liquid_shear_threshold(solution);
+    // The threshold the solve took its zones with, so the thermal network and the Love solve agree with the zones the
+    // integration found.
+    const double liquid_shear = solution.liquid_shear_threshold;
 
     // Each layer's cooling model builds its profile against this pass's structure, its neighbors, and its own last
     // pass (the base of its adiabat and its boundary layers lag by one).

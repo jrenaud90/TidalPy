@@ -29,7 +29,7 @@ from TidalPy.Utilities.logging.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_SECONDS_PER_MYR
 from TidalPy.Utilities.arrays.vectors cimport cy_broadcast_inputs, cy_vector_to_ndarray
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_share_physics
 from TidalPy.Utilities.classes.classes import check_config_keys, factory_defaults
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
@@ -120,7 +120,8 @@ cdef object cy_solve_heating(c_RadiogenicsBase* model, object time, object mass,
 
 
 cdef class RadiogenicsBase(PhysicsBase):
-    """Abstract base for radiogenics models; owns the most-derived C++ model object."""
+    """Abstract base for radiogenics models. The C++ model is shared (models are not changed in place), so a layer
+    holds the same object rather than a copy."""
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -128,14 +129,12 @@ cdef class RadiogenicsBase(PhysicsBase):
             "(OffRadiogenics, IsotopeRadiogenics, FixedRadiogenics)."
         )
 
-    def __dealloc__(self):
-        self._radiogenics_ptr.reset()
-        self._ptr = NULL
-
     cdef void _adopt(self, unique_ptr[c_RadiogenicsBase]& model) noexcept:
-        """Take ownership of ``model``; the inherited ``_ptr`` observes it."""
-        self._radiogenics_ptr = move(model)
-        self._ptr = <c_TidalPyBaseClass*>self._radiogenics_ptr.get()
+        """Hold ``model`` in the shared handle; the inherited ``_ptr`` observes it."""
+        self._set_model(c_share_physics[c_RadiogenicsBase](move(model)))
+
+    cdef c_RadiogenicsBase* _radiogenics(self) noexcept:
+        return <c_RadiogenicsBase*>self._model_sptr.get()
 
     def calc_heating(self, double time, double mass) -> float:
         """Total radiogenic heating [W] for the given time and mass.
@@ -157,22 +156,22 @@ cdef class RadiogenicsBase(PhysicsBase):
         Assumes exponential decay from the model's reference time.
         """
         self._check_ptr()
-        return self._radiogenics_ptr.get().calc_heating(time, mass)
+        return self._radiogenics().calc_heating(time, mass)
 
     def calc_heating_vectorize_time(self, time, double mass):
         """Radiogenic heating over a time sweep at constant mass."""
         self._check_ptr()
-        return cy_solve_heating(self._radiogenics_ptr.get(), time, mass, True)
+        return cy_solve_heating(self._radiogenics(), time, mass, True)
 
     def calc_heating_vectorize_mass(self, double time, mass):
         """Radiogenic heating over a mass sweep at constant time."""
         self._check_ptr()
-        return cy_solve_heating(self._radiogenics_ptr.get(), time, mass, True)
+        return cy_solve_heating(self._radiogenics(), time, mass, True)
 
     def calc_heating_vectorize_all(self, time, mass):
         """Radiogenic heating over element-wise (time, mass) pairs of equal length."""
         self._check_ptr()
-        return cy_solve_heating(self._radiogenics_ptr.get(), time, mass, True)
+        return cy_solve_heating(self._radiogenics(), time, mass, True)
 
 
 cdef class OffRadiogenics(RadiogenicsBase):
@@ -237,47 +236,47 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
     def num_isotopes(self) -> int:
         """Number of isotopes in the model."""
         self._check_ptr()
-        return <int>(<c_IsotopeRadiogenics*>self._radiogenics_ptr.get()).get_num_isotopes()
+        return <int>(<c_IsotopeRadiogenics*>self._radiogenics()).get_num_isotopes()
 
     @property
     def ref_time(self) -> float:
         """Reference time [s]."""
         self._check_ptr()
-        return (<c_IsotopeRadiogenics*>self._radiogenics_ptr.get()).get_ref_time()
+        return (<c_IsotopeRadiogenics*>self._radiogenics()).get_ref_time()
 
     @property
     def isotope_names(self):
         """Per-isotope labels (list of str)."""
         self._check_ptr()
-        return cy_isotope_names((<c_IsotopeRadiogenics*>self._radiogenics_ptr.get()).get_isotopes())
+        return cy_isotope_names((<c_IsotopeRadiogenics*>self._radiogenics()).get_isotopes())
 
     @property
     def heat_production(self):
         """Per-isotope specific heat production rate [W/kg]."""
         self._check_ptr()
         return cy_isotope_values(
-            (<c_IsotopeRadiogenics*>self._radiogenics_ptr.get()).get_isotopes(), ISOTOPE_HEAT_PRODUCTION)
+            (<c_IsotopeRadiogenics*>self._radiogenics()).get_isotopes(), ISOTOPE_HEAT_PRODUCTION)
 
     @property
     def half_lives(self):
         """Per-isotope half life [s]."""
         self._check_ptr()
         return cy_isotope_values(
-            (<c_IsotopeRadiogenics*>self._radiogenics_ptr.get()).get_isotopes(), ISOTOPE_HALF_LIFE)
+            (<c_IsotopeRadiogenics*>self._radiogenics()).get_isotopes(), ISOTOPE_HALF_LIFE)
 
     @property
     def mass_fracs(self):
         """Per-isotope isotopic mass fraction [kg/kg]."""
         self._check_ptr()
         return cy_isotope_values(
-            (<c_IsotopeRadiogenics*>self._radiogenics_ptr.get()).get_isotopes(), ISOTOPE_MASS_FRAC)
+            (<c_IsotopeRadiogenics*>self._radiogenics()).get_isotopes(), ISOTOPE_MASS_FRAC)
 
     @property
     def concentrations(self):
         """Per-isotope element concentration [kg/kg]."""
         self._check_ptr()
         return cy_isotope_values(
-            (<c_IsotopeRadiogenics*>self._radiogenics_ptr.get()).get_isotopes(), ISOTOPE_CONCENTRATION)
+            (<c_IsotopeRadiogenics*>self._radiogenics()).get_isotopes(), ISOTOPE_CONCENTRATION)
 
 
 cdef class FixedRadiogenics(RadiogenicsBase):
@@ -306,19 +305,19 @@ cdef class FixedRadiogenics(RadiogenicsBase):
     def fixed_heat_production(self) -> float:
         """Lumped specific heat production rate [W/kg]."""
         self._check_ptr()
-        return (<c_FixedRadiogenics*>self._radiogenics_ptr.get()).get_fixed_heat_production()
+        return (<c_FixedRadiogenics*>self._radiogenics()).get_fixed_heat_production()
 
     @property
     def average_half_life(self) -> float:
         """Half life for the lumped rate's decay [s]."""
         self._check_ptr()
-        return (<c_FixedRadiogenics*>self._radiogenics_ptr.get()).get_average_half_life()
+        return (<c_FixedRadiogenics*>self._radiogenics()).get_average_half_life()
 
     @property
     def ref_time(self) -> float:
         """Reference time [s]."""
         self._check_ptr()
-        return (<c_FixedRadiogenics*>self._radiogenics_ptr.get()).get_ref_time()
+        return (<c_FixedRadiogenics*>self._radiogenics()).get_ref_time()
 
 
 def available_isotope_datasets():

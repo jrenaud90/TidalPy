@@ -10,13 +10,15 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology.rheology import Elastic, Maxwell
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.multilayer.stress_strain import strain_stress_heating_point
 from TidalPy.Tides.potential import tidal_potential_3d_modes
+
+from shared_materials import constant_solid
 
 
 _R = 1.8216e6
@@ -33,11 +35,8 @@ _Y = np.array([1.5 - 0.2j, 3.0 + 0.4j, 0.7 + 0.1j, 2.0 - 0.3j, 0.5, 0.1], dtype=
 
 
 def _material(bulk_modulus):
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": bulk_modulus},
-        shear_modulus={"model": "constant", "shear_modulus_pa": _SHEAR},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e15},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+    return constant_solid(
+        _DENSITY, bulk_modulus=bulk_modulus, shear_modulus=_SHEAR, shear_viscosity=1.0e15, bulk_viscosity=1.0e30)
 
 
 def _world(incompressible, bulk_modulus):

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <cmath>
 #include <array>
@@ -13,6 +14,7 @@
 
 #include "love_.hpp"
 #include "rs_constants_.hpp"
+#include "layer_kind_.hpp"   // c_layer_layout
 #include "matrix_types/solid_matrix_.hpp"      // c_fundamental_matrix, to continue a propagation-matrix solution
 #include "../Material/eos/eos_solution_.hpp"   // also provides CyRK's CySolverResult (complete type)
 #include "../constants_.hpp"
@@ -39,6 +41,7 @@
 // -20 : Unknown core starting conditions
 // -21 : The surface boundary condition solve returned non-finite constants
 // -22 : A core starting condition other than the regular solution (core_model 1 to 4) with a manual starting radius
+// -23 : The world's structure is not the single solid, static, incompressible layer the method requires
 
 class c_RadialSolutionStorage
 {
@@ -48,6 +51,18 @@ public:
     int degree_l        = 0;
     std::string message = "No Message Set.";
     size_t num_ytypes   = 0;
+
+    // Marks the solve failed with an error code (the list above) and a message, printed as well when verbose. Returns
+    // the code, so a solver can `return storage->fail(...)`.
+    int fail(int code, const std::string& text, bool verbose) noexcept
+    {
+        this->success    = false;
+        this->error_code = code;
+        this->message    = text;
+        if (verbose) { std::printf("%s", this->message.c_str()); }
+        return code;
+    }
+
     size_t num_slices   = 0;
     size_t num_layers   = 0;
     size_t total_size   = 0;
@@ -458,35 +473,14 @@ public:
         const std::array<std::complex<double>, 3>& constants =
             this->p_constants_by_ytype_layer[ytype_i][basis.layer_i];
 
-        // out6[y] = sum_sol const[sol] * ysol[sol][mapped_y].
+        // out6[y] = sum_sol const[sol] * ysol[sol][slot of y], for each y the layer kind stores (c_layer_layout); a
+        // dynamic liquid's y3 is reconstructed below, and the ys a kind does not store stay NaN.
         const bool calculate_y3 = (basis.layer_type != 0) && (!basis.is_static);   // dynamic liquid, below
+        const c_LayerKindLayout& layout = c_layer_layout(basis.layer_type, basis.is_static);
         for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i)
         {
-            size_t y_rhs_i;
-            if (basis.layer_type == 0)
-            {
-                y_rhs_i = y_i;          // solid: all 6 ys
-            }
-            else if (basis.is_static)
-            {
-                if (y_i == 4)
-                {
-                    y_rhs_i = 0;        // static liquid: only y5 (stored at index 0)
-                }
-                else continue;
-            }
-            else
-            {
-                if (y_i < 2)
-                {
-                    y_rhs_i = y_i;      // dynamic liquid: y1, y2 (0, 1)
-                }
-                else if (y_i > 3 && y_i < 6)
-                {
-                    y_rhs_i = y_i - 2;  // y5, y6 (2, 3)
-                }
-                else continue;          // y3 reconstructed, y4 undefined
-            }
+            const size_t y_rhs_i = layout.slot_of_full_y(y_i);
+            if (y_rhs_i == C_Y_NOT_STORED) continue;
             std::complex<double> acc(0.0, 0.0);
             for (size_t sol_i = 0; sol_i < basis.num_sols; ++sol_i)
                 acc += constants[sol_i] * basis.ysol[sol_i][y_rhs_i];
@@ -530,7 +524,8 @@ public:
     }
 
     // Collapsed y1..y6 (SI) for one ytype: the shooting path evaluates the dense interpolants, the matrix
-    // path linearly interpolates its grid. False and NaN-filled on failure or out of range.
+    // path continues its propagation inside the slice (p_matrix_y_solve). False and NaN-filled on failure or out of
+    // range.
     bool get_radial_solution(
             double radius_si,
             size_t ytype_i,
@@ -717,16 +712,6 @@ public:
         double solve_r        = 0.0;
         if (!this->p_locate_eos(radius_si, target_layer_i, solve_r)) return false;
         this->eos_solution_uptr->call_nondim(target_layer_i, solve_r, out);
-        return true;
-    }
-
-    // The complex moduli the EOS itself carries; a real answer only on a path handed its moduli as arrays.
-    bool get_eos_material_si(double radius_si, c_EOSMaterialState& out) const
-    {
-        size_t target_layer_i = 0;
-        double solve_r        = 0.0;
-        if (!this->p_locate_eos(radius_si, target_layer_i, solve_r)) return false;
-        this->eos_solution_uptr->call_material(target_layer_i, solve_r, out);
         return true;
     }
 

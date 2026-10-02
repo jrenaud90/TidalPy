@@ -16,6 +16,7 @@ from TidalPy.Utilities.classes.classes cimport (
     StructureBase,
     c_StructureBase,
     c_TidalPyBaseClass,
+    c_PhysicsBase,
 )
 from TidalPy.Tides.classes.tide cimport c_TideBase
 from TidalPy.Structures.layers.layer cimport Layer, c_Layer
@@ -206,29 +207,25 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         cpp_bool verbose
         cpp_bool warnings
 
+    # One section's pinned solver keys (c_SolverOverrides), by the TidalPy_Configs.toml key; a value is a double
+    # whatever its kind (kind: 0 an ODE method's enum value, 1 a real number, 2 a count, 3 a switch).
     cdef cppclass c_EOSSolverOverrides:
-        optional[ODEMethod] integration_method
-        optional[double] rtol
-        optional[double] atol
-        optional[double] pressure_tol
-        optional[size_t] max_iters
-        optional[size_t] slices_per_layer
-        optional[cpp_bool] nondimensionalize
-        optional[cpp_bool] solve_temperature
-        optional[size_t] max_thermal_passes
-        optional[double] thermal_tol
+        void set(const string& key, double value) except +
+        cpp_bool has(const string& key) except +
+        double get(const string& key) except +
+        @staticmethod
+        vector[string] keys()
+        @staticmethod
+        int kind(const string& key) except +
 
     cdef cppclass c_RadialSolverOverrides:
-        optional[ODEMethod] integration_method
-        optional[double] rtol
-        optional[double] atol
-        optional[cpp_bool] use_kamata
-        optional[double] start_radius_tol
-        optional[cpp_bool] scale_rtols
-        optional[size_t] max_num_steps
-        optional[size_t] expected_size
-        optional[size_t] max_ram_MB
-        optional[cpp_bool] nondimensionalize
+        void set(const string& key, double value) except +
+        cpp_bool has(const string& key) except +
+        double get(const string& key) except +
+        @staticmethod
+        vector[string] keys()
+        @staticmethod
+        int kind(const string& key) except +
 
     cdef cppclass c_BaseWorld(c_StructureBase):
         c_BaseWorld()
@@ -356,7 +353,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         vector[c_LayerLove] get_love_layer_parts() except +
 
         # Global (1D) tidal dissipation; calc_tides is defined in world_tides_.hpp.
-        void set_tide_model(unique_ptr[c_TideBase] tide)
+        void set_tide_model_handle(const shared_ptr[c_PhysicsBase]& model) except +
         cpp_bool get_tide_model_set() const
         const c_TideBase* get_tide_model() const
         void set_tide_config(const c_TideConfig& cfg) except +

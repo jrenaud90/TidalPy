@@ -8,6 +8,9 @@
 
 #include <cstddef>
 #include <limits>
+#include <string>
+
+#include "../rs_constants_.hpp"   // C_MAX_NUM_YTYPES, C_MAX_SURFACE_CONDITIONS
 
 
 // Populates a boundary condition array at a planet's surface.
@@ -15,11 +18,11 @@
 // Parameters
 // ----------
 // boundary_conditions_ptr : double*
-//     Output array, must have space for 15 elements (5 max models * 3 BCs per model).
+//     Output array, must have space for C_MAX_SURFACE_CONDITIONS elements (3 per model, at most C_MAX_NUM_YTYPES).
 // bc_model_ptr : int*
 //     Array of BC model types: 0=free surface, 1=tidal potential, 2=loading potential.
 // num_bcs : size_t
-//     Number of BC models. Must be 1-5.
+//     Number of BC models, 1 to C_MAX_NUM_YTYPES.
 // radius_to_use : double
 //     Planet radius [m].
 // bulk_density_to_use : double
@@ -29,7 +32,7 @@
 //
 // Returns
 // -------
-// int : 0=success, -1=num_bcs>5, -2=num_bcs<=0, -3=unknown model.
+// int : 0=success, -1=too many models, -2=num_bcs<=0, -3=unknown model (c_surface_bc_error_message says which).
 inline int c_get_surface_bc(
         double* boundary_conditions_ptr,
         const int* bc_model_ptr,
@@ -40,7 +43,7 @@ inline int c_get_surface_bc(
 {
     const double nan_val = std::numeric_limits<double>::quiet_NaN();
 
-    if (num_bcs > 5) [[unlikely]]
+    if (num_bcs > C_MAX_NUM_YTYPES) [[unlikely]]
     {
         return -1;
     }
@@ -49,8 +52,7 @@ inline int c_get_surface_bc(
         return -2;
     }
 
-    // 15 = 5 (max_num_solutions) * 3 (surface conditions per solution)
-    for (size_t i = 0; i < 15; ++i) {
+    for (size_t i = 0; i < C_MAX_SURFACE_CONDITIONS; ++i) {
         boundary_conditions_ptr[i] = nan_val;
     }
 
@@ -76,4 +78,12 @@ inline int c_get_surface_bc(
         }
     }
     return 0;
+}
+
+
+// Why c_get_surface_bc refused a model list (its non-zero code), for a solve's message.
+inline std::string c_surface_bc_error_message(int code)
+{
+    return "Invalid surface boundary conditions (code " + std::to_string(code) + "): between 1 and " +
+        std::to_string(C_MAX_NUM_YTYPES) + " models are allowed, each free (0), tidal (1), or loading (2).\n";
 }

@@ -12,7 +12,6 @@ from TidalPy.RadialSolver.rs_solution import check_surface_solve_conditioning
 from TidalPy.RadialSolver.starting.common import z_calc
 from TidalPy.RadialSolver.starting.kamata import kamata_solid_dynamic_incompressible
 from TidalPy.Rheology import Elastic, Maxwell
-from TidalPy.Structures import build_world
 
 WARNING_TEXT = "poorly conditioned"
 
@@ -38,13 +37,6 @@ def numerical_setter():
     for key, value in originals.items():
         TidalPy.config["numerical"][key] = value
     update_constants()
-
-
-@pytest.fixture(scope="module")
-def io():
-    world = build_world("io")
-    world.solve_eos()
-    return world
 
 
 def _static_one_layer_inputs():

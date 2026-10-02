@@ -48,12 +48,9 @@ def _analytic_cpl(k2, q2, radius, mass_host=_HOST_MASS):
 
 
 def _config_tides():
-    """The config's [tides] table, skipping the test when the config directory predates it."""
+    """The config's [tides] table (the packaged one is merged under any user file, so it is always there)."""
     import TidalPy
-    tides = (TidalPy.config or {}).get("tides")
-    if not tides:
-        pytest.skip("config has no [tides] block (stale config dir); regenerate to test.")
-    return tides
+    return TidalPy.config["tides"]
 
 
 def test_cpl_world_matches_analytic_heating():

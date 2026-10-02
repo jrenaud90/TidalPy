@@ -152,14 +152,11 @@ public:
     }
 
     std::unique_ptr<c_PhysicsBase> clone_physics() const override {
-        auto copy = std::make_unique<Derived>(static_cast<const Derived&>(*this));
-        copy->set_layer_ptr(nullptr);
-        return copy;
+        return std::make_unique<Derived>(static_cast<const Derived&>(*this));
     }
 
     std::unique_ptr<c_PhysicsBase> with_parameters(const c_ParamMap& changes) const override {
         auto copy = std::make_unique<Derived>(static_cast<const Derived&>(*this));
-        copy->set_layer_ptr(nullptr);
         // Through this class, which owns the two helpers; the derived class cannot name them.
         c_SpecModel& copy_spec = *copy;
         copy_spec.p_apply_parameters(changes);

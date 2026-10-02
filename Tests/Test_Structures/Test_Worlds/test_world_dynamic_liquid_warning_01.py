@@ -12,26 +12,10 @@ import pytest
 from TidalPy.RadialSolver.solver import radial_solver
 from TidalPy.Rheology import Maxwell
 from TidalPy.Structures import build_world
-from TidalPy.Utilities.logging.logger import flush_logger, init_logger
-from TidalPy.initialize import build_logging_config
+
 
 _WARNING_TEXT = "grows unstable at long periods"
 _DAY = 86400.0
-
-
-@pytest.fixture
-def spdlog_text(tmp_path):
-    """Route the C++ logger to a temporary file for the test and hand back a reader for its text."""
-    log_path = tmp_path / "tidalpy.log"
-    init_logger({"console_level": "off", "file_level": "warning", "log_to_file": True,
-                 "log_file_path": str(log_path)})
-
-    def read():
-        flush_logger()
-        return log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-
-    yield read
-    init_logger(build_logging_config())
 
 
 def _world(name, is_static=True, is_incompressible=False):
@@ -45,11 +29,9 @@ def _world(name, is_static=True, is_incompressible=False):
 
 
 def _solve(world, period_days, **kwargs):
-    """Solve and ignore a failed integration: the warning is logged before the solve runs."""
-    try:
-        world.solve_love_numbers(frequency=2.0 * math.pi / (period_days * _DAY), degree_l=2, **kwargs)
-    except Exception:  # noqa: BLE001
-        pass
+    """Solve; the warning is logged before the solve runs, and an unstable solve reports its failure rather than
+    raising."""
+    world.solve_love_numbers(frequency=2.0 * math.pi / (period_days * _DAY), degree_l=2, **kwargs)
 
 
 def test_dynamic_constant_density_liquid_warns_once(spdlog_text):
@@ -85,10 +67,7 @@ def test_warnings_false_silences_it(spdlog_text):
 def test_calc_tides_checks_before_its_solves(spdlog_text):
     world = _world("earth_simple", is_static=False)
     orbital_frequency = 2.0 * math.pi / (10.0 * _DAY)
-    try:
-        world.calc_tides(orbital_frequency, orbital_frequency, 0.01, 0.0, 1.0e9, 7.3e22)
-    except Exception:  # noqa: BLE001
-        pass
+    world.calc_tides(orbital_frequency, orbital_frequency, 0.01, 0.0, 1.0e9, 7.3e22)
     assert spdlog_text().count(_WARNING_TEXT) == 1
 
 
@@ -101,12 +80,9 @@ def _three_layer(frequency, liquid_is_static, warnings):
     density = np.repeat((8500.0, 7000.0, 3500.0), num_per_layer)
     shear = Maxwell().calc_complex_modulus_vectorize_modulus(
         np.repeat((1.0e11, 0.0, 5.0e10), num_per_layer), np.repeat((1.0e26, 1.0e6, 1.0e20), num_per_layer), frequency)
-    try:
-        radial_solver(radii, density, np.full(radii.size, 1.0e11 + 0.0j), shear, frequency, float(np.mean(density)),
-                      ("solid", "liquid", "solid"), (False, liquid_is_static, False), (False, False, False),
-                      np.asarray((icb, cmb, radius)), degree_l=2, raise_on_fail=False, warnings=warnings)
-    except Exception:  # noqa: BLE001
-        pass
+    radial_solver(radii, density, np.full(radii.size, 1.0e11 + 0.0j), shear, frequency, float(np.mean(density)),
+                  ("solid", "liquid", "solid"), (False, liquid_is_static, False), (False, False, False),
+                  np.asarray((icb, cmb, radius)), degree_l=2, raise_on_fail=False, warnings=warnings)
 
 
 def test_standalone_radial_solver_uses_the_same_check(spdlog_text):

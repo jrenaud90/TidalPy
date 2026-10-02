@@ -7,13 +7,13 @@
  * whose layers are each made of a material that interpolates their own slice of the profile (a tabulated equation of
  * state and shear modulus), which is what the world-attached EOS and Love solves already consume.
  *
- * It is the C++ twin of `build_world_from_layered_profile` in Structures/configs/world_builder.py, which
- * reaches the same place through a configuration dict. That route turns every slice into a Python float,
- * validates a schema, and merges per-material defaults on every call; this one copies the slices straight
- * into the EOS tables. The two must agree layer for layer, so the rules they share are written the same way
- * here: the slice partition comes from c_partition_radius_by_layer (the one place that rule lives), a layer
- * takes the last radius of its own slice as its outer radius rather than the declared boundary, and use_tides
- * follows whether the layer is solid.
+ * `build_world_from_layered_profile` in Structures/configs/world_builder.py calls this routine, so a profile becomes
+ * layers in one place: the slice partition comes from c_partition_radius_by_layer (the one place that rule lives), a
+ * layer takes the last radius of its own slice as its outer radius rather than the declared boundary, and use_tides
+ * follows whether the layer is solid. A world file's data_file (_interpolated_layer_config) also turns a profile
+ * into radius-tabulated layers, but through a configuration dict, and it makes a liquid layer's material
+ * liquid-only, where this gives every layer a solid phase holding the profile's shear modulus (zero in a liquid) and
+ * sets a liquid layer's state to liquid.
  *
  * The world built here anchors the lifetime of a solve and is never handed back to Python, so it takes none
  * of the world-level extras construct_world attaches (tide model, albedo and emissivity defaults, the

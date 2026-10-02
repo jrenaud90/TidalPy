@@ -17,7 +17,6 @@ from libcpp.vector cimport vector
 from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport make_unique, shared_ptr
-from libcpp.utility cimport move
 from cpython.complex cimport PyComplex_FromDoubles
 
 from TidalPy.Utilities.logging.logger cimport (
@@ -33,7 +32,6 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_wrap_model,
 )
 from TidalPy.Radiogenics.radiogenics cimport RadiogenicsBase
-from TidalPy.Radiogenics.radiogenics import make_radiogenics
 from TidalPy.Material import Material, load_material
 from TidalPy.Rheology import make_rheology
 from TidalPy.Cooling.cooling import make_cooling
@@ -152,9 +150,8 @@ def _as_model(object model, str slot, object make_model, str family):
 
 
 cdef shared_ptr[c_PhysicsBase] cy_model_handle(object model, str what) except *:
-    """The shared C++ model behind a wrapper; empty for None. A wrapper holding no shared model (a family whose models
-    move into their layer, such as radiogenics) raises ValueError naming ``what``, as a model of another family does in
-    the C++ setter, rather than clearing the slot."""
+    """The shared C++ model behind a wrapper; empty for None. A wrapper holding no C++ model raises ValueError naming
+    ``what``, as a model of another family does in the C++ setter, rather than clearing the slot."""
     cdef shared_ptr[c_PhysicsBase] handle
     if model is not None:
         handle = (<PhysicsBase>model)._model_sptr
@@ -759,8 +756,8 @@ cdef class Layer(StructureBase):
     def set_radiogenics(self, RadiogenicsBase radiogenics not None):
         """Attach a radiogenics model.
 
-        The layer holds its own copy, built from ``radiogenics``'s parameters (``get_config_dict``), so
-        ``radiogenics`` stays usable and can be attached to other layers.
+        The model is shared, not copied (models are not changed in place), so ``radiogenics`` stays usable and can
+        be attached to other layers.
 
         Raises
         ------
@@ -768,11 +765,9 @@ cdef class Layer(StructureBase):
             If ``radiogenics`` holds no C++ object.
         """
         self._check_ptr()
-        if radiogenics._radiogenics_ptr.get() == NULL:
+        if radiogenics._model_sptr.get() == NULL:
             raise ValueError("This radiogenics model holds no C++ object.")
-        cdef RadiogenicsBase copy = make_radiogenics(radiogenics.model_name, radiogenics.get_config_dict())
-        self._layer_ptr.get().set_radiogenics(move(copy._radiogenics_ptr))
-        copy._ptr = NULL
+        self._layer_ptr.get().set_radiogenics_model(radiogenics._model_sptr)
 
     def calc_radiogenic_heating(self, double time, double mass) -> float:
         """Radiogenic heating [W] at a time [s] for a mass [kg] from the attached model; 0.0 without one."""

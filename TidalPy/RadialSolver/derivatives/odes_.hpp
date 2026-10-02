@@ -7,6 +7,7 @@
 #include "eos_solution_.hpp"   // TidalPy: c_EOSSolution
 #include "../../constants_.hpp"
 #include "../layer_kind_.hpp"   // c_layer_num_solutions
+#include "solid_dy1_.hpp"      // c_solid_dy1_compressible, c_solid_dy1_incompressible
 
 
 /// Arguments passed to each radial solver ODE function via the char* args_ptr.
@@ -171,15 +172,10 @@ inline void c_solid_compressible_body(
     const double grav_term       = rs_args_ptr->grav_coeff * density;
 
     const std::complex<double> lame_2mu         = lame + 2.0 * shear_modulus;
-    const std::complex<double> lame_2mu_inverse = 1.0 / lame_2mu;
     const std::complex<double> two_shear_r_inv  = 2.0 * shear_modulus * r_inverse;
     const std::complex<double> y1_y3_term       = 2.0 * y1 - rs_args_ptr->llp1 * y3;
 
-    const std::complex<double> dy1 =
-        lame_2mu_inverse * (
-            y1_y3_term * -lame * r_inverse +
-            y2
-        );
+    const std::complex<double> dy1 = c_solid_dy1_compressible(y1_y3_term, y2, lame, lame_2mu, r_inverse);
 
     std::complex<double> dy2;
     std::complex<double> dy4;
@@ -308,8 +304,7 @@ inline void c_solid_incompressible_body(
     const std::complex<double> two_shear_r_inv = 2.0 * shear_modulus * r_inverse;
     const std::complex<double> y1_y3_term      = 2.0 * y1 - rs_args_ptr->llp1 * y3;
 
-    const std::complex<double> dy1 =
-        y1_y3_term * -1.0 * r_inverse;
+    const std::complex<double> dy1 = c_solid_dy1_incompressible(y1_y3_term, r_inverse);
 
     std::complex<double> dy2;
     std::complex<double> dy4;

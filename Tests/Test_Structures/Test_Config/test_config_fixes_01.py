@@ -1,6 +1,5 @@
 """A layer's material overrides across a model change, the radial data-file reader's checks, and running without a
 data directory."""
-import copy
 import os
 import subprocess
 import sys
@@ -17,18 +16,6 @@ from TidalPy.configurations import get_packaged_config, merge_configs
 from TidalPy.Material import merge_material_tables
 from TidalPy.Structures import build_world, build_world_from_dict, available_worlds
 from TidalPy.Structures.configs import data_file, worldpack
-
-
-@pytest.fixture
-def restore_config():
-    """Restore ``TidalPy.config`` and the C++ numerical settings after a test changes them."""
-    from TidalPy.constants import update_constants
-    original = copy.deepcopy(TidalPy.config)
-    original_path = TidalPy._config_path
-    yield
-    TidalPy.config = original
-    TidalPy._config_path = original_path
-    update_constants()
 
 
 @pytest.fixture

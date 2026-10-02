@@ -23,7 +23,7 @@ from TidalPy.Utilities.logging.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.arrays.vectors cimport cy_broadcast_inputs, cy_vector_to_ndarray
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_share_physics
 from TidalPy.Utilities.classes.classes import check_config_keys
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
@@ -44,7 +44,8 @@ cdef object cy_solve_luminosity(c_LuminosityBase* model, object mass):
 
 
 cdef class LuminosityBase(PhysicsBase):
-    """Abstract base for stellar luminosity models; owns the most-derived C++ model object."""
+    """Abstract base for stellar luminosity models. The C++ model is shared (models are not changed in place), so a
+    star holds the same object rather than a copy."""
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -52,15 +53,12 @@ cdef class LuminosityBase(PhysicsBase):
             "(FixedLuminosity, MassToLuminosity, PowerLawLuminosity)."
         )
 
-    def __dealloc__(self):
-        # unique_ptr frees the most-derived C++ object; _ptr is only an observer.
-        self._luminosity_ptr.reset()
-        self._ptr = NULL
-
     cdef void _adopt(self, unique_ptr[c_LuminosityBase]& model) noexcept:
-        """Take ownership of ``model``; the inherited ``_ptr`` observes it."""
-        self._luminosity_ptr = move(model)
-        self._ptr = <c_TidalPyBaseClass*>self._luminosity_ptr.get()
+        """Hold ``model`` in the shared handle; the inherited ``_ptr`` observes it."""
+        self._set_model(c_share_physics[c_LuminosityBase](move(model)))
+
+    cdef c_LuminosityBase* _luminosity(self) noexcept:
+        return <c_LuminosityBase*>self._model_sptr.get()
 
     def calc_luminosity(self, mass):
         """Stellar luminosity [W] from mass.
@@ -80,22 +78,22 @@ cdef class LuminosityBase(PhysicsBase):
         Assumes main-sequence mass-luminosity scaling.
         """
         self._check_ptr()
-        return cy_solve_luminosity(self._luminosity_ptr.get(), mass)
+        return cy_solve_luminosity(self._luminosity(), mass)
 
     def calc_luminosity_from_temperature(self, double temperature, double radius) -> float:
         """Stefan-Boltzmann luminosity [W] = 4*pi*R^2*sigma*T^4; NaN for non-positive inputs."""
         self._check_ptr()
-        return self._luminosity_ptr.get().calc_luminosity_from_temperature(temperature, radius)
+        return self._luminosity().calc_luminosity_from_temperature(temperature, radius)
 
     def calc_temperature_from_luminosity(self, double luminosity, double radius) -> float:
         """Effective temperature ``T = (L / (4*pi*R^2*sigma))^(1/4)`` [K]; NaN for non-positive inputs."""
         self._check_ptr()
-        return self._luminosity_ptr.get().calc_temperature_from_luminosity(luminosity, radius)
+        return self._luminosity().calc_temperature_from_luminosity(luminosity, radius)
 
     def calc_effective_temperature(self, double mass, double radius) -> float:
         """Effective temperature [K] derived from the stellar mass (mass -> L -> T)."""
         self._check_ptr()
-        return self._luminosity_ptr.get().calc_effective_temperature(mass, radius)
+        return self._luminosity().calc_effective_temperature(mass, radius)
 
 
 cdef class FixedLuminosity(LuminosityBase):
@@ -117,7 +115,7 @@ cdef class FixedLuminosity(LuminosityBase):
     def luminosity(self) -> float:
         """The stored luminosity [W]."""
         self._check_ptr()
-        return (<c_FixedLuminosity*>self._luminosity_ptr.get()).get_luminosity()
+        return (<c_FixedLuminosity*>self._luminosity()).get_luminosity()
 
 
 cdef class MassToLuminosity(LuminosityBase):
@@ -153,13 +151,13 @@ cdef class PowerLawLuminosity(LuminosityBase):
     def coeff(self) -> float:
         """Dimensionless prefactor."""
         self._check_ptr()
-        return (<c_PowerLawLuminosity*>self._luminosity_ptr.get()).get_coeff()
+        return (<c_PowerLawLuminosity*>self._luminosity()).get_coeff()
 
     @property
     def exponent(self) -> float:
         """Dimensionless exponent."""
         self._check_ptr()
-        return (<c_PowerLawLuminosity*>self._luminosity_ptr.get()).get_exponent()
+        return (<c_PowerLawLuminosity*>self._luminosity()).get_exponent()
 
 
 # Every config key any luminosity model reads; make_luminosity rejects anything else.

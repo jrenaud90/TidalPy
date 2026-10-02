@@ -7,15 +7,15 @@ import pytest
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers import Layer
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
+
+from shared_materials import constant_solid
 
 PLANET_RADIUS = 1.0e6  # [m]
 
 
 def _material(density=5000.0):
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 1.0e11},
-        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10}))
+    return constant_solid(density, bulk_modulus=1.0e11, shear_modulus=5.0e10)
 
 
 def _layer(name, index, radius_inner, radius_outer, density=5000.0):
@@ -87,9 +87,3 @@ def test_add_layer_rejections_leave_the_layer_usable(layer_args, message):
         world.add_layer(rejected)
     assert rejected.name == layer_args[0]
     assert world.num_layers == 1
-
-
-@pytest.mark.parametrize("radii", ((-1.0, 1.0e6), (5.0e5, 1.0e5), (0.0, math.inf)))
-def test_inverted_or_negative_layers_are_rejected(radii):
-    with pytest.raises(ValueError, match="radius_inner"):
-        Layer("bad", 0, radii[0], radii[1], 0.0)

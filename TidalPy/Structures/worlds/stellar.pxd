@@ -6,6 +6,7 @@ from libcpp.memory cimport unique_ptr, shared_ptr
 
 from TidalPy.Structures.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.Stellar.luminosity cimport LuminosityBase, c_LuminosityBase
+from TidalPy.Utilities.classes.classes cimport c_PhysicsBase
 
 
 cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
@@ -22,7 +23,7 @@ cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
         double calc_temperature_from_luminosity(double luminosity) const
         void set_effective_temperature(double temperature)
         void set_luminosity(double luminosity)
-        void set_luminosity_model(unique_ptr[c_LuminosityBase] model)
+        void set_luminosity_model_handle(const shared_ptr[c_PhysicsBase]& model) except +
         const c_LuminosityBase* get_luminosity_model() const
         cpp_bool has_luminosity_model() const
         double calc_luminosity_from_mass() except +

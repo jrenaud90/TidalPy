@@ -289,10 +289,11 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      # sympy backs Test_Tides's independent check of the multilayer angular integrals; without it that
-      # file skips itself and the check never runs anywhere.
+      # sympy backs Test_Tides's independent check of the multilayer angular integrals, and nbformat, nbclient, and
+      # ipykernel let Test_Demos execute every demo and benchmark notebook; without them those tests skip
+      # themselves and never run anywhere.
       - name: Install Test Dependencies
-        run: python -m pip install pytest pytest-xdist sympy
+        run: python -m pip install pytest pytest-xdist sympy nbformat nbclient ipykernel
 
       - name: Install Package
         run: python -m pip install -v .

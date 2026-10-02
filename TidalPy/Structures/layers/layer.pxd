@@ -118,7 +118,7 @@ cdef extern from "layer_.hpp" namespace "tidalpy" nogil:
         # Cooling (shared) and radiogenics (ownership moves in)
         void set_cooling_model(const shared_ptr[c_PhysicsBase]& model) except +
         shared_ptr[c_PhysicsBase] share_cooling_model() const
-        void set_radiogenics(unique_ptr[c_RadiogenicsBase] radiogenics) except +
+        void set_radiogenics_model(const shared_ptr[c_PhysicsBase]& model) except +
         const c_CoolingBase*     get_cooling_model() const
         const c_RadiogenicsBase* get_radiogenics_model() const
         double calc_radiogenic_heating(double time, double mass) const

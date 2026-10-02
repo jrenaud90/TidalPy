@@ -1,5 +1,4 @@
 """calc_tides spreads its Love-number solves over threads ([numerical] love_solve_threads) with identical results."""
-import copy
 
 import numpy as np
 import pytest
@@ -14,15 +13,6 @@ _STATE = dict(orbital_frequency=_IO_N, spin_frequency=1.2 * _IO_N, eccentricity=
               semi_major_axis=4.217e8, host_mass=1.898e27)
 _TIDE_CONFIG = dict(min_degree_l=2, max_degree_l=3, eccentricity_truncation=10, obliquity_truncation=2)
 _MODES = [(2, 0, 1, 1), (2, 2, 0, 0), (2, 1, 0, -1), (3, 1, 1, 0), (3, 3, 0, 2)]
-
-
-@pytest.fixture
-def restore_config():
-    """Restore ``TidalPy.config`` and the C++ numerical settings after a test changes them."""
-    original = copy.deepcopy(TidalPy.config)
-    yield
-    TidalPy.config = original
-    update_constants()
 
 
 def _set_love_threads(threads, min_parallel):

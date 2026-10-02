@@ -276,13 +276,13 @@ public:
             // An unset or zero Q_l is no dissipation, not a divide by zero.
             return p_analytic_love(std::complex<double>(k_l, 0.0));
         }
-        return p_analytic_love(std::complex<double>(k_l, -k_l / q_l));
+        return p_analytic_love(k_l * c_constant_phase_lag(q_l));
     }
 };
 
 // c_FixedLagTide: constant time lag / CTL (alias "ctl" / "fixed_dt"):
 //
-//   k_l(omega) = k_l * (1 - i * omega * dt_l)   ->  -Im[k_l] = k_l * omega * dt_l
+//   k_l(omega) = k_l * (1 - i * |omega| * dt_l)   ->  -Im[k_l] = k_l * |omega| * dt_l
 class c_FixedLagTide : public c_AnalyticTide<2> {
 public:
     c_FixedLagTide() : c_AnalyticTide<2>("fixed_dt", BinaryClassID::FixedLagTide, {"fixed_k", "fixed_dt_s"}) {}
@@ -297,13 +297,13 @@ public:
             int degree_l, double frequency, const c_LoveNumbers& /*solver_love*/) const override {
         const double k_l  = this->get_fixed_k(degree_l);
         const double dt_l = this->p_slot_value(1, degree_l);
-        return p_analytic_love(std::complex<double>(k_l, -k_l * frequency * dt_l));
+        return p_analytic_love(k_l * c_constant_time_lag(frequency, dt_l));
     }
 };
 
 // c_CTLQTide: constant time lag with a quality factor (alias "ctl_q" / "fixed_dt_q"):
 //
-//   k_l(omega) = k_l * (1 - i * omega * dt_l / Q_l)  ->  -Im[k_l] = k_l * omega * dt_l / Q_l
+//   k_l(omega) = k_l * (1 - i * |omega| * dt_l / Q_l)  ->  -Im[k_l] = k_l * |omega| * dt_l / Q_l
 class c_CTLQTide : public c_AnalyticTide<3> {
 public:
     c_CTLQTide() :
@@ -324,7 +324,7 @@ public:
         if (std::abs(q_l) <= TidalPyConstants::d_EPS) {
             return p_analytic_love(std::complex<double>(k_l, 0.0));
         }
-        return p_analytic_love(std::complex<double>(k_l, -k_l * frequency * dt_l / q_l));
+        return p_analytic_love(k_l * c_constant_time_lag(frequency, dt_l, q_l));
     }
 };
 

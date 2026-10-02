@@ -6,13 +6,15 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology import Elastic, Maxwell
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Tides.love import calc_homogeneous_love_numbers
+
+from shared_materials import constant_solid
 
 RADIUS = 6.0e6
 DENSITY = 4000.0
@@ -24,11 +26,8 @@ FREQ = 1.0e-5
 
 
 def _material(shear, viscosity, bulk):
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": DENSITY, "bulk_modulus_pa": bulk},
-        shear_modulus={"model": "constant", "shear_modulus_pa": shear},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": viscosity},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+    return constant_solid(
+        DENSITY, bulk_modulus=bulk, shear_modulus=shear, shear_viscosity=viscosity, bulk_viscosity=1.0e30)
 
 
 def _layer(name, index, r_inner, r_outer, mass, shear=SHEAR, use_tides=True, rheology=None, viscosity=VISCOSITY,

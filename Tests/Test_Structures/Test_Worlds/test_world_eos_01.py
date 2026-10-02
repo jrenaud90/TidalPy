@@ -292,17 +292,6 @@ def _one_layer_bm_world(radius, reference_density, bulk_modulus):
 
 
 @pytest.fixture
-def restore_config():
-    """Restore ``TidalPy.config`` and the C++ solver defaults after a test changes them."""
-    import TidalPy
-    from TidalPy.constants import update_constants
-    original = copy.deepcopy(TidalPy.config)
-    yield
-    TidalPy.config = original
-    update_constants()
-
-
-@pytest.fixture
 def without_mass_check():
     """Lift `[numerical] maximum_eos_mass_ratio` for a test whose world carries a placeholder mass."""
     import TidalPy

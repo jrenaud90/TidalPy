@@ -940,8 +940,7 @@ def _resolve_obliquity_truncation(value) -> int:
     such as the old general code 10, to the general functions), so stale configuration files keep working while the
     accuracy never silently decreases (``promote_obliquity_truncation``).
     """
-    return promote_obliquity_truncation(
-        value, warned_levels=_WARNED_OBLIQUITY_TRUNCATIONS, warn=warning_enabled("truncation_promotion"))
+    return promote_obliquity_truncation(value, warned_levels=_WARNED_OBLIQUITY_TRUNCATIONS)
 
 
 def _tides_config() -> dict:
@@ -957,10 +956,7 @@ def _resolve_eccentricity_truncation(value) -> int:
     promoted to the next tabulated level with a once-per-session warning, so stale configuration files
     keep working while the accuracy never silently decreases.
     """
-    return promote_eccentricity_truncation(
-        value,
-        warned_levels=_WARNED_ECCENTRICITY_TRUNCATIONS,
-        warn=warning_enabled("truncation_promotion"))
+    return promote_eccentricity_truncation(value, warned_levels=_WARNED_ECCENTRICITY_TRUNCATIONS)
 
 
 # A `[tides]` table may spell either truncation the long way, while the config defaults always use

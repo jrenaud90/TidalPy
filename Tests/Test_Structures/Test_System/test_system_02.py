@@ -13,10 +13,12 @@ from TidalPy.Structures.system import System
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Structures.layers import Layer
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology.rheology import Maxwell, Elastic
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Dynamics import Spin, OrbitSolver
+
+from shared_materials import constant_solid
 
 _R = 1.0e6
 _DENSITY = 5000.0
@@ -36,11 +38,8 @@ def _mass(radius):
 
 def _material():
     """A solid with constant moduli and viscosities."""
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _BULK},
-        shear_modulus={"model": "constant", "shear_modulus_pa": _SHEAR},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": _VISC},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": _VISC}))
+    return constant_solid(
+        _DENSITY, bulk_modulus=_BULK, shear_modulus=_SHEAR, shear_viscosity=_VISC, bulk_viscosity=_VISC)
 
 
 def _layered(name, radius, spin_frequency):

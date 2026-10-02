@@ -15,6 +15,8 @@
 #include <complex>
 #include <limits>
 
+#include "../../RadialSolver/derivatives/solid_dy1_.hpp"   // c_solid_dy1_compressible, c_solid_dy1_incompressible
+
 
 namespace tidalpy {
 namespace tides {
@@ -109,18 +111,15 @@ inline c_StrainRadialCoeffs c_compute_strain_radial_coeffs(
     const double llp1  = degree_l * (degree_l + 1.0);
     const std::complex<double> y1_y3_term = 2.0 * y1 - llp1 * y3;   // (2 y1 - l(l+1) y3), as in the ODEs
 
-    // dy1/dr - layer-type specific (mirrors RadialSolver/derivatives/odes_.hpp exactly).
+    // dy1/dr, the radial ODEs' own (static and dynamic alike).
     if (layer_is_incompressible)
     {
-        // Solid incompressible (static & dynamic): dy1/dr = -(2 y1 - l(l+1) y3)/r.
-        out.dy1_dr = -y1_y3_term * r_inv;
+        out.dy1_dr = c_solid_dy1_incompressible(y1_y3_term, r_inv);
     }
     else
     {
-        // Solid compressible (static & dynamic): dy1/dr = (1/(lame+2mu)) [ y2 - (lame/r)(2 y1 - l(l+1) y3) ].
-        const std::complex<double> lame     = bulk - (2.0 / 3.0) * shear;
-        const std::complex<double> lame_2mu = lame + 2.0 * shear;
-        out.dy1_dr = (1.0 / lame_2mu) * (y2 - lame * r_inv * y1_y3_term);
+        const std::complex<double> lame = bulk - (2.0 / 3.0) * shear;
+        out.dy1_dr = c_solid_dy1_compressible(y1_y3_term, y2, lame, lame + 2.0 * shear, r_inv);
     }
 
     // lame tr(eps) per unit potential, from the radial stress (see above).

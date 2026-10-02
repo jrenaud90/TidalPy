@@ -80,3 +80,10 @@ def test_check_binary_file_type_error(path):
     """A path that is not a str raises TypeError."""
     with pytest.raises(TypeError):
         binary.check_binary_file(path)
+
+
+def test_the_binary_and_toml_schema_versions_agree():
+    """The schema version has two homes, the C++ binary header (binary_.hpp) and the TOML schema (schema.py, which
+    imports nothing from TidalPy so the configuration can load first); a bump to one must reach the other."""
+    from TidalPy.schema import SCHEMA_VERSION
+    assert binary.get_current_schema_version() == SCHEMA_VERSION

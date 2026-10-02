@@ -47,6 +47,8 @@ Applies one lumped specific rate to the whole layer, optionally with a single ef
 
 A `fixed` model's average half life at or below zero is treated as infinite, not zero, so the constant-rate case uses the same formula. A half life that is finite but smaller than the module's floor is clamped to that floor, so no decay constant is ever divided by zero.
 
+The models refuse values that are not physical, with `ValueError`: an isotope needs a finite, non-negative heat production and concentration, a positive half life (infinite for a stable isotope), and a mass fraction in [0, 1], and a `fixed` model a finite, non-negative rate and a finite half life; both need a finite reference time. A negative half life or abundance would otherwise make the heating grow without bound or turn negative.
+
 Evaluating a model far before its reference time asks for an exponential that would overflow. Both decaying models guard against this and return NaN, so a bad epoch shows up as NaN heating.
 
 ## Isotope Value Type
@@ -169,7 +171,7 @@ world.solve_eos()                                    # Sets each layer's mass
 world.calc_internal_heating(time)                    # [W] summed over all layers
 ```
 
-`set_radiogenics` gives the layer its own copy of the model, built from the model's parameters, so one model can be attached to several layers and stays usable afterwards; a later change to it does not reach the layers. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one. A layer with `use_heating` set also feeds its model to the world's thermal EOS solve, which heats the layer at the model's specific rate times the local density and reports it as `layer_heating_radiogenic`, part of `layer_heating` (see [Heat Sources](../Structures/worlds/worlds.md#heat-sources)).
+`set_radiogenics` shares the model with the layer rather than copying it (models are not changed in place), so one model can be attached to several layers and stays usable afterwards. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one. A layer with `use_heating` set also feeds its model to the world's thermal EOS solve, which heats the layer at the model's specific rate times the local density and reports it as `layer_heating_radiogenic`, part of `layer_heating` (see [Heat Sources](../Structures/worlds/worlds.md#heat-sources)).
 
 The mass is an argument so the caller can choose which mass is radiogenic. This is usually the layer's own mass, but possibly one differentiated part of it. The world-level sum uses each layer's `mass` attribute, which the equation-of-state solves, so solve the world's structure first.
 

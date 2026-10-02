@@ -357,7 +357,7 @@ The layer's `use_melting` and `use_pressure_melting` decide whether it uses them
 
 The laws are in `TidalPy/PartialMelt/melting_curve_.hpp`, `melt_weakening_.hpp`, and `melt_mixing_.hpp` (namespace `tidalpy`, header only).
 
-- `c_MeltingCurveBase` declares `calc_melting_temperature(pressure)` and `calc_melting_slope(pressure)` pure virtual, reports `get_is_pressure_dependent()` (false for a constant curve), and provides `calc_melting_temperature_vectorize` and `calc_melting_slope_vectorize`. The free functions `c_simon_glatzel(pressure, temperature, simon_a, simon_c, reference_pressure)` and `c_simon_glatzel_slope(...)` evaluate one branch.
+- `c_MeltingCurveBase` declares `calc_melting_temperature(pressure)` and `calc_melting_slope(pressure)` pure virtual and provides `calc_melting_temperature_vectorize` and `calc_melting_slope_vectorize`. The free functions `c_simon_glatzel(pressure, temperature, simon_a, simon_c, reference_pressure)` and `c_simon_glatzel_slope(...)` evaluate one branch.
 - `c_MeltWeakeningBase::calc_weakening(const c_MeltWeakeningInputs&)` handles the ends of the range and the liquid floor and calls the protected `p_calc_partial(inputs, out)` inside it, the one method a weakening law implements.
 - `c_BulkModulusMixingBase::calc_bulk_modulus(solid_bulk_modulus, liquid_bulk_modulus, framework_shear_modulus, melt_fraction)` and `c_BulkViscosityMixingBase::calc_bulk_viscosity(solid_bulk_viscosity, postmelt_shear_viscosity, melt_fraction)` are pure virtual.
 

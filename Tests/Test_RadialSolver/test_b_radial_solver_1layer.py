@@ -16,6 +16,19 @@ complex_shear_modulus_array = Maxwell().calc_complex_modulus_vectorize_modulus(s
 planet_bulk_density = float(density_array[0])
 upper_radius_by_layer = np.asarray((radius_array[-1],))
 
+# The incompressible, elastic homogeneous sphere's k_l = (3 / (2 (l - 1))) / (1 + (2 l^2 + 4 l + 3) mu / (l rho g R)).
+# This planet is compressible (K = 2 mu) and barely viscous (Maxwell time about 40 orbits), which moves k_l by well
+# under this tolerance; a wrong boundary condition or start moves it by far more.
+K_TOLERANCE = 0.25
+
+
+def _homogeneous_k(degree_l):
+    radius = float(radius_array[-1])
+    surface_gravity = 4.0 / 3.0 * np.pi * 6.67430e-11 * planet_bulk_density * radius
+    rigidity = (2 * degree_l**2 + 4 * degree_l + 3) * float(shear_array[0]) / (
+        degree_l * planet_bulk_density * surface_gravity * radius)
+    return (3.0 / (2.0 * (degree_l - 1))) / (1.0 + rigidity)
+
 
 def _solve_1layer(
         layer_type,
@@ -25,13 +38,16 @@ def _solve_1layer(
         degree_l,
         use_kamata,
         solve_for,
+        supported,
         **kwargs):
-    """Solve a 1-layer planet; skip all-liquid planets and unsupported inputs."""
+    """Solve a 1-layer planet: an unsupported start raises NotImplementedError, and a supported one succeeds with a
+    k_l near the homogeneous sphere's. All-liquid planets are skipped."""
     # A 1-layer all-liquid planet is numerically unstable.
     if layer_type != 'solid':
         pytest.skip('Planets with 1-layer liquid are not currently very stable. Skipping tests.')
-    try:
-        out = radial_solver(
+
+    def solve():
+        return radial_solver(
             radius_array,
             density_array,
             bulk_modulus_array,
@@ -57,14 +73,21 @@ def _solve_1layer(
             starting_radius=0.2 * radius_array[-1],
             raise_on_fail=True,
             **kwargs)
-    except NotImplementedError as error:
-        pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {error}')
 
+    if not supported(layer_type, is_static, is_incompressible, use_kamata):
+        with pytest.raises(NotImplementedError):
+            solve()
+        return None
+    out = solve()
     assert out.success
     assert type(out.message) is str
     assert type(out.result) is np.ndarray
     assert out.result.shape == (len(solve_for) * 6, N)
+    if 'tidal' in solve_for:
+        k_tidal = np.atleast_1d(out.k)[solve_for.index('tidal')]
+        assert k_tidal.real == pytest.approx(_homogeneous_k(degree_l), rel=K_TOLERANCE)
     return out
+
 
 
 @pytest.mark.parametrize('layer_type', ("solid", "liquid"))
@@ -81,7 +104,8 @@ def test_radial_solver_1layer(
         method,
         degree_l,
         use_kamata,
-        solve_for):
+        solve_for,
+        starting_conditions_supported):
     """A single solve type succeeds with a (6, N) result; the log_info kwarg is accepted."""
     _solve_1layer(
         layer_type,
@@ -91,6 +115,7 @@ def test_radial_solver_1layer(
         degree_l,
         use_kamata,
         solve_for,
+        starting_conditions_supported,
         log_info=True)
 
 
@@ -106,7 +131,8 @@ def test_radial_solver_1layer_solve_for_both(
         is_incompressible,
         method,
         degree_l,
-        use_kamata):
+        use_kamata,
+        starting_conditions_supported):
     """Solving for tidal and loading together succeeds and every solution attribute has its expected type and shape."""
     solve_for = ('tidal', 'loading')
     out = _solve_1layer(
@@ -116,7 +142,10 @@ def test_radial_solver_1layer_solve_for_both(
         method,
         degree_l,
         use_kamata,
-        solve_for)
+        solve_for,
+        starting_conditions_supported)
+    if out is None:
+        return
     num_solve_for = len(solve_for)
 
     assert type(out.error_code) is int

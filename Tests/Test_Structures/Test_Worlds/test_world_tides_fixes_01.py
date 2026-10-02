@@ -6,15 +6,15 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology.rheology import Elastic, Maxwell
 from TidalPy.Structures import build_world
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.potential import global_potential
-from TidalPy.Utilities.logging.logger import flush_logger, init_logger
-from TidalPy.initialize import build_logging_config
+
+from shared_materials import constant_solid
 
 
 _R = 1.8216e6
@@ -32,28 +32,10 @@ _RANGE_WARNING = "can underestimate the tides by 10% or more"
 _MISSING_NODES_WARNING = "have no radial solution"
 
 
-@pytest.fixture
-def spdlog_text(tmp_path):
-    """Route the C++ logger to a temporary file for the test and hand back a reader for its text."""
-    log_path = tmp_path / "tidalpy.log"
-    init_logger({"console_level": "off", "file_level": "warning", "log_to_file": True,
-                 "log_file_path": str(log_path)})
-
-    def read():
-        flush_logger()
-        return log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-
-    yield read
-    init_logger(build_logging_config())
-
-
 def _material():
     """A compressible solid with constant moduli and viscosities."""
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": 2.0e11},
-        shear_modulus={"model": "constant", "shear_modulus_pa": 6.0e10},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e15},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+    return constant_solid(
+        _DENSITY, bulk_modulus=2.0e11, shear_modulus=6.0e10, shear_viscosity=1.0e15, bulk_viscosity=1.0e30)
 
 
 def _world(eccentricity_truncation=2):

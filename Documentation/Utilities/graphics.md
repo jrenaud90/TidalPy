@@ -98,7 +98,7 @@ figure, axes = plot_interior(
 
 The panels are gravity with density on a twin axis; pressure, with an optional temperature twin axis; and, when either modulus is supplied, the moduli in GPa. Real parts are solid lines, the imaginary parts of complex moduli are dotted on a twin axis, and the modulus panel is log-scaled when every value is positive.
 
-`use_scatter` draws points instead of lines. `annotate`, on by default, labels the surface gravity, central pressure, and bulk density. `planet_name` becomes the title. Styling (colors, line styles, marker size, fonts, and panel size) lives in the `INTERIOR_PLOT_STYLE` dictionary, filled from the `[graphics.interior]` table of `TidalPy_Configs.toml` when the module is imported (`load_interior_plot_style()` reads it again). Edit it in place to restyle every plot the module draws.
+`use_scatter` draws points instead of lines. `annotate`, on by default, labels the surface gravity, central pressure, and bulk density. `planet_name` becomes the title. Styling (colors, line styles, marker size, fonts, and panel size) lives in the `INTERIOR_PLOT_STYLE` dictionary, filled from the `[graphics.interior]` table of `TidalPy_Configs.toml` when the module is imported (`load_interior_plot_style()` reads it again, and `reload_interior_plot_style()` refills the dictionary from it, after a `TidalPy.reinit`, say). Edit it in place to restyle every plot the module draws.
 
 ## Surface Maps
 

@@ -24,8 +24,6 @@ def top_to_bottom_interface_bc(
         int layer_above_type,
         cpp_bool layer_is_static,
         cpp_bool layer_above_is_static,
-        cpp_bool layer_is_incomp,
-        cpp_bool layer_above_is_incomp,
         object max_num_y = None):
     """
     Calculate the constant vector for a layer given the layer above's constants (top-to-bottom).
@@ -54,8 +52,6 @@ def top_to_bottom_interface_bc(
         0 = solid, 1 = liquid.
     layer_is_static : bool
     layer_above_is_static : bool
-    layer_is_incomp : bool
-    layer_above_is_incomp : bool
     max_num_y : int, optional
         The y values per solution, which must equal the array's column count; None (default) takes it from it.
 
@@ -89,8 +85,6 @@ def top_to_bottom_interface_bc(
         layer_above_type,
         layer_is_static,
         layer_above_is_static,
-        layer_is_incomp,
-        layer_above_is_incomp,
         num_sols,
         num_ys
         )

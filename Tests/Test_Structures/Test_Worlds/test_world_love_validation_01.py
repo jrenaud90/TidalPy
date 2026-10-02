@@ -9,13 +9,6 @@ from TidalPy.Structures import build_world, build_world_from_dict
 _IO_FREQUENCY = 4.11e-5   # [rad s-1]
 
 
-@pytest.fixture(scope="module")
-def io():
-    world = build_world("io")
-    world.solve_eos()
-    return world
-
-
 @pytest.mark.parametrize("kwargs", [
     dict(degree_l=1),
     dict(degree_l=0),

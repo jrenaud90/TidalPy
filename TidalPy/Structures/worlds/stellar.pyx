@@ -130,15 +130,13 @@ cdef class StarWorld(BaseWorld):
     def set_luminosity_model(self, LuminosityBase model not None):
         """Attach a :class:`~TidalPy.Stellar.LuminosityBase` model.
 
-        The star holds its own copy, built from ``model``'s parameters (``get_config_dict``), so ``model`` stays
-        usable and can be attached to other stars. Once attached, the star can derive its luminosity and effective
-        temperature from its own mass.
+        The model is shared, not copied (models are not changed in place), so ``model`` stays usable and can be
+        attached to other stars. Once attached, the star can derive its luminosity and effective temperature from its
+        own mass.
         """
-        if model._luminosity_ptr.get() == NULL:
+        if model._model_sptr.get() == NULL:
             raise ValueError("This luminosity model holds no C++ object.")
-        cdef LuminosityBase copy = make_luminosity(model.model_name, model.get_config_dict())
-        self._star_ptr.set_luminosity_model(move(copy._luminosity_ptr))
-        copy._ptr = NULL
+        self._star_ptr.set_luminosity_model_handle(model._model_sptr)
 
     @property
     def luminosity_model_set(self) -> bool:

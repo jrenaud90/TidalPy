@@ -25,22 +25,17 @@
 
 namespace tidalpy {
 
-// Defined in Structures/layers/layer_.hpp.
-class c_Layer;
-
 class c_PhysicsBase : public c_TidalPyBaseClass {
 public:
     c_PhysicsBase() = default;
 
     explicit c_PhysicsBase(const std::string& model_name)
-        : p_model_name(model_name), p_layer_ptr(nullptr) {}
+        : p_model_name(model_name) {}
 
     ~c_PhysicsBase() override = default;
 
     const std::string& get_model_name() const noexcept { return p_model_name; }
 
-    const c_Layer* get_layer_ptr() const noexcept { return p_layer_ptr; }
-    void set_layer_ptr(c_Layer* layer_ptr) noexcept { p_layer_ptr = layer_ptr; }
 
     // A subclass overrides append_config_entries: call the parent, then push its own parameters.
     virtual void append_config_entries(std::vector<c_ConfigEntry>& out) const {
@@ -114,8 +109,6 @@ protected:
     }
 
     std::string  p_model_name;
-    // Non-owning; set by the owning layer and never serialized.
-    c_Layer* p_layer_ptr = nullptr;
 };
 
 // A shared model as its family type, for a composite that holds it (a phase's equation of state, say). Null stays

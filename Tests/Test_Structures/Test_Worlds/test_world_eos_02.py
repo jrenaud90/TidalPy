@@ -12,6 +12,8 @@ from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers import Layer
 from TidalPy.Rheology.rheology import Maxwell, Elastic
 
+from shared_materials import constant_solid
+
 PLANET_RADIUS = 1.0e6       # [m]
 CORE_RADIUS   = 0.5e6       # [m]
 CORE_DENSITY  = 6000.0      # [kg m-3]
@@ -21,11 +23,8 @@ FORCING_FREQUENCY = 2.0 * math.pi / 86400.0  # [rad s-1]
 
 def _material(density):
     """A constant-density Maxwell solid."""
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 1.0e11},
-        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19}))
+    return constant_solid(
+        density, bulk_modulus=1.0e11, shear_modulus=5.0e10, shear_viscosity=1.0e19, bulk_viscosity=1.0e19)
 
 
 def _two_layer_world(world_radius=PLANET_RADIUS):

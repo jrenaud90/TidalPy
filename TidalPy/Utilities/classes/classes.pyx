@@ -3,7 +3,6 @@
 """Cython wrappers for TidalPy's base class hierarchy (TidalPyBaseClass, StructureBase, PhysicsBase) and the
 parameter conversions every spec-driven physics model shares."""
 
-import difflib
 import os as _os
 
 from libcpp cimport bool as cpp_bool
@@ -591,6 +590,24 @@ def factory_defaults(str section, accepted_keys) -> dict:
     return {key: value for key, value in table.items() if key in accepted_keys and key != "model"}
 
 
+cdef extern from "model_names_.hpp" namespace "tidalpy" nogil:
+    string c_did_you_mean(const string& name, const vector[string]& candidates) except +
+
+
+def did_you_mean(str name, candidates) -> str:
+    """`` (did you mean 'x'?)`` for the candidate closest to ``name``, or an empty string when none is a likely
+    misspelling.
+
+    The same rule the C++ factories use for an unknown model name or parameter (``c_closest_name``: within a third
+    of the longer name's edit distance, or a candidate that ``name`` begins, ignoring case), so a Python error and a
+    C++ one suggest the same name.
+    """
+    cdef vector[string] candidate_names
+    for candidate in candidates:
+        candidate_names.push_back(str(candidate).encode("utf-8"))
+    return c_did_you_mean(name.encode("utf-8"), candidate_names).decode("utf-8")
+
+
 def check_config_keys(dict config, accepted_keys, str family):
     """Raise ``ValueError`` if a physics-model config holds a key that no model in its family reads.
 
@@ -629,13 +646,7 @@ def check_config_keys(dict config, accepted_keys, str family):
     rejected = sorted(str(given) for given in config if given not in accepted)
     if not rejected:
         return
-    cdef list descriptions = []
-    for key in rejected:
-        close_matches = difflib.get_close_matches(key, accepted, n=1)
-        if close_matches:
-            descriptions.append(f"'{key}' (did you mean '{close_matches[0]}'?)")
-        else:
-            descriptions.append(f"'{key}'")
+    cdef list descriptions = [f"'{key}'{did_you_mean(key, sorted(accepted))}" for key in rejected]
     raise ValueError(
         f"TidalPy: unrecognized {family} config key(s): {', '.join(descriptions)}. "
         f"Accepted keys: {', '.join(sorted(accepted))}.")

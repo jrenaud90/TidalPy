@@ -209,7 +209,7 @@ inline c_LoveNumbers c_apply_fixed_q(const c_LoveNumbers& love, double fixed_q)
     if (!(fixed_q > 0.0) || !std::isfinite(fixed_q)) {
         throw std::invalid_argument("TidalPy: the cpl Love-number method needs a positive, finite fixed_q.");
     }
-    const std::complex<double> lag(1.0, -1.0 / fixed_q);
+    const std::complex<double> lag = c_constant_phase_lag(fixed_q);
     return c_LoveNumbers(love.k * lag, love.h * lag, love.l * lag);
 }
 
@@ -219,7 +219,7 @@ inline c_LoveNumbers c_apply_fixed_dt(const c_LoveNumbers& love, double frequenc
     if (!(fixed_dt >= 0.0) || !std::isfinite(fixed_dt)) {
         throw std::invalid_argument("TidalPy: the ctl Love-number method needs a non-negative, finite fixed_dt.");
     }
-    const std::complex<double> lag(1.0, -std::abs(frequency) * fixed_dt);
+    const std::complex<double> lag = c_constant_time_lag(frequency, fixed_dt);
     return c_LoveNumbers(love.k * lag, love.h * lag, love.l * lag);
 }
 

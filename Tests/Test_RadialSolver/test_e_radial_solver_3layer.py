@@ -30,6 +30,14 @@ layer_types = ("solid", "liquid", "solid")
 starting_radii = (0.2 * planet_r, 0.0, icb_r + (cmb_r - icb_r) / 2.0, cmb_r + (planet_r - cmb_r) / 2.0)
 
 
+def _start_layer(starting_radius):
+    """The layer the integration starts in. The automatic start (0) lies in the inner core for every degree here: it is
+    R times start_radius_tolerance^(1 / l), at most 0.32 R at l = 10, inside the inner core's R / 3."""
+    if starting_radius < icb_r:
+        return 0
+    return 1 if starting_radius < cmb_r else 2
+
+
 def _check_3layer(
         solid_is_static,
         liquid_is_static,
@@ -39,13 +47,23 @@ def _check_3layer(
         degree_l,
         use_kamata,
         solve_for,
-        starting_radius):
-    """Solve the 3-layer planet and check the output; skip unsupported inputs and the known unstable pairing."""
+        starting_radius,
+        supported):
+    """Solve the 3-layer planet and check the output: a start layer with no starting conditions raises
+    NotImplementedError, and the known unstable pairing is skipped."""
     # A compressible dynamic liquid over an incompressible solid can fail to integrate (step size underflow).
     known_unstable = (not liquid_is_incompressible) and solid_is_incompressible
     unstable_reason = 'Integration Failed. Compressible liquid with incompressible solid below is not very stable.'
-    try:
-        out = radial_solver(
+    start_layer = _start_layer(starting_radius)
+    start_is_liquid = layer_types[start_layer] == "liquid"
+    start_supported = supported(
+        layer_types[start_layer],
+        liquid_is_static if start_is_liquid else solid_is_static,
+        liquid_is_incompressible if start_is_liquid else solid_is_incompressible,
+        use_kamata)
+
+    def solve():
+        return radial_solver(
             radius_array,
             density_array,
             bulk_modulus_array,
@@ -70,8 +88,13 @@ def _check_3layer(
             raise_on_fail=True,
             verbose=False,
             nondimensionalize=True)
-    except NotImplementedError as error:
-        pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {error}')
+
+    if not start_supported:
+        with pytest.raises(NotImplementedError):
+            solve()
+        return
+    try:
+        out = solve()
     except SolutionFailedError as error:
         # Only the liquid layer's step-size collapse is expected; any other failure is a real one.
         if known_unstable and ('Integration problem at layer 2' in str(error)):
@@ -102,7 +125,8 @@ def test_radial_solver_3layer(
         degree_l,
         use_kamata,
         solve_for,
-        starting_radius):
+        starting_radius,
+        starting_conditions_supported):
     """A single solve type succeeds with a (6, N) result."""
     _check_3layer(
         solid_is_static,
@@ -113,7 +137,8 @@ def test_radial_solver_3layer(
         degree_l,
         use_kamata,
         solve_for,
-        starting_radius)
+        starting_radius,
+        starting_conditions_supported)
 
 
 @pytest.mark.parametrize('solid_is_static', (True, False))
@@ -130,7 +155,8 @@ def test_radial_solver_3layer_solve_for_both(
         liquid_is_incompressible,
         method,
         degree_l,
-        use_kamata):
+        use_kamata,
+        starting_conditions_supported):
     """Solving for tidal and loading together succeeds with a (12, N) result."""
     _check_3layer(
         solid_is_static,
@@ -141,4 +167,5 @@ def test_radial_solver_3layer_solve_for_both(
         degree_l,
         use_kamata,
         ('tidal', 'loading'),
-        0.2 * planet_r)
+        0.2 * planet_r,
+        starting_conditions_supported)

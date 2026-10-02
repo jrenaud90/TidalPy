@@ -4,7 +4,7 @@
 </p>
 <div align="center" style="text-align: center;">
     <a href="https://app.readthedocs.org/projects/tidalpy/builds/?version__slug=latest"><img src="https://app.readthedocs.org/projects/tidalpy/badge/?version=latest&style=flat" alt="TidalPy Documentation" /></a>
-    <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI: 10.5281/zenodo.7017475"></a>
+    <a href="https://doi.org/10.5281/zenodo.7017474"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017474.svg" alt="DOI: 10.5281/zenodo.7017474"></a>
     <a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.8.0-orange" alt="TidalPy Version 0.8.0" /></a><br />
     <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13|3.14-blue" alt="Python Version 3.9-3.14" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/tests.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/tests.yml/badge.svg?branch=main" alt="Tests" /></a><br />

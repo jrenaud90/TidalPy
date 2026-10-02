@@ -84,7 +84,7 @@ INVALID_INPUT_CASES = {
         _radii((0, 500, 5), (510, 1000, 5)),
         dict(layer_types=("solid", "solid"), is_static=(True, True), is_incompressible=(True, True),
              upper_radii=(500.0, 1000.0)),
-        PROPAGATION_MATRIX, (NotImplementedError, RuntimeError), None),
+        PROPAGATION_MATRIX, ArgumentException, None),
     "matrix_liquid_layer": (
         _radii((0, 1000, 10)), dict(ONE_LAYER, layer_types=("liquid",)), PROPAGATION_MATRIX, ArgumentException,
         None),

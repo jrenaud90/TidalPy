@@ -82,15 +82,20 @@ inline void c_validate_and_prep_radial_inputs(
         last_layer_r = upper_radius_bylayer_array[layer_i];
     }
 
-    if (std::abs(frequency) < tidalpy_config_ptr->d_MIN_FREQUENCY)
+    // The world's Love solve takes a positive frequency only (c_BaseWorld::validate_love_config), so a negative one is
+    // refused here, before the EOS solve, rather than after it.
+    if (!std::isfinite(frequency) || !(frequency > 0.0))
+        throw std::invalid_argument("Forcing frequency must be finite and positive [rad s-1].");
+    if (frequency < tidalpy_config_ptr->d_MIN_FREQUENCY)
         throw std::invalid_argument("Forcing frequency is too small (are you sure you are in rad s-1?).");
-    else if (std::abs(frequency) > tidalpy_config_ptr->d_MAX_FREQUENCY)
+    else if (frequency > tidalpy_config_ptr->d_MAX_FREQUENCY)
         throw std::invalid_argument("Forcing frequency is too large (are you sure you are in rad s-1?).");
 
     if (use_prop_matrix)
     {
         if (num_layers > 1)
-            throw std::logic_error("Currently, TidalPy's propagation matrix technique only works for 1-layer worlds.");
+            throw std::invalid_argument(
+                "Currently, TidalPy's propagation matrix technique only works for 1-layer worlds.");
         if (tidalpy::c_to_lower(layer_types[0]) != "solid")
             throw std::invalid_argument("The Propagation matrix technique only works for solid layers.");
         if (not is_static_bylayer[0])

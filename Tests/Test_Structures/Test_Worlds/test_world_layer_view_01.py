@@ -4,10 +4,12 @@ import math
 
 import pytest
 
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers import Layer
 from TidalPy.Tides.classes.tide import make_tide
+
+from shared_materials import constant_solid
 
 
 _R       = 1.6e6
@@ -16,9 +18,7 @@ _R_CORE  = 0.5 * _R
 
 def _material(shear_modulus, bulk_modulus):
     """A constant-density elastic solid."""
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": 3500.0, "bulk_modulus_pa": bulk_modulus},
-        shear_modulus={"model": "constant", "shear_modulus_pa": shear_modulus}))
+    return constant_solid(3500.0, bulk_modulus=bulk_modulus, shear_modulus=shear_modulus)
 
 
 def _two_layer_world():

@@ -541,3 +541,41 @@ def test_class_vectorize_methods_match_scalar():
         np.array([isotope.calc_heating(0.0, mass) for mass in masses]))
     assert isotope.calc_heating_vectorize_all(times, masses) == pytest.approx(
         np.array([isotope.calc_heating(time, mass) for time, mass in zip(times, masses)]))
+
+
+# =====================================================================================================================
+# Parameter validation
+# =====================================================================================================================
+@pytest.mark.parametrize("heat_production, half_life, mass_frac, concentration", [
+    (-1.0e-5, 1.0e17, 1.0, 1.0e-6),
+    (1.0e-5, -1.0e17, 1.0, 1.0e-6),
+    (1.0e-5, 0.0, 1.0, 1.0e-6),
+    (1.0e-5, 1.0e17, 1.5, 1.0e-6),
+    (1.0e-5, 1.0e17, 1.0, -1.0e-6),
+    (math.nan, 1.0e17, 1.0, 1.0e-6),
+], ids=["negative_heat_production", "negative_half_life", "zero_half_life", "mass_fraction_above_1",
+        "negative_concentration", "nan_heat_production"])
+def test_an_unphysical_isotope_is_refused(heat_production, half_life, mass_frac, concentration):
+    """A negative half life or abundance would make the heating grow without bound or go negative."""
+    with pytest.raises(ValueError, match="isotope"):
+        Radiogenics.IsotopeRadiogenics([heat_production], [half_life], [mass_frac], [concentration])
+
+
+def test_a_stable_isotope_is_accepted():
+    """An infinite half life is a stable isotope: its heating holds."""
+    model = Radiogenics.IsotopeRadiogenics([1.0e-5], [math.inf], [1.0], [1.0e-6])
+    assert model.calc_heating(1.0e17, _MASS) == pytest.approx(model.calc_heating(0.0, _MASS))
+
+
+@pytest.mark.parametrize("heat_production, half_life, ref_time", [
+    (-1.0e-11, 4.47e17, 0.0), (math.inf, 4.47e17, 0.0), (1.0e-11, math.nan, 0.0), (1.0e-11, 4.47e17, math.inf)],
+    ids=["negative_rate", "infinite_rate", "nan_half_life", "infinite_ref_time"])
+def test_an_unphysical_fixed_model_is_refused(heat_production, half_life, ref_time):
+    with pytest.raises(ValueError, match="fixed radiogenics"):
+        Radiogenics.FixedRadiogenics(heat_production, half_life, ref_time)
+
+
+def test_a_fixed_model_without_decay_is_accepted():
+    """A half life of zero or below means no decay."""
+    model = Radiogenics.FixedRadiogenics(1.0e-11, 0.0, 0.0)
+    assert model.calc_heating(1.0e17, _MASS) == model.calc_heating(0.0, _MASS)

@@ -11,11 +11,15 @@ namespace tidalpy {
 
 class c_RadiogenicsBase : public c_PhysicsBase {
 public:
+    static constexpr const char* C_FAMILY_NAME = "radiogenics";
+
     c_RadiogenicsBase() = default;
 
     explicit c_RadiogenicsBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
 
     ~c_RadiogenicsBase() override = default;
+
+    std::string get_family_name() const override { return C_FAMILY_NAME; }
 
     // Heating [W] from `mass` [kg] at `time` [s]. Time shares its zero point with the model's
     // reference time. Assumes exponential decay from that reference time.

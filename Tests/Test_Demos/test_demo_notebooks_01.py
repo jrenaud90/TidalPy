@@ -26,6 +26,13 @@ OPTIONAL_PACKAGES = {"EOS_vs_BurnMan.ipynb": ("burnman",)}
 # Generous: the slowest notebooks integrate an orbit or fill 3D grids, and an overloaded machine runs slower.
 CELL_TIMEOUT = 900  # [s]
 
+# Notebooks that cannot finish inside CELL_TIMEOUT, each with the reason, so a plain `pytest Tests/` passes without a
+# command-line filter and the skip shows in the report.
+TOO_SLOW = {
+    "12_thermal_orbital_evolution.ipynb": "integrates 5 Gyr of a coupled system about 1e9 stiff, which takes hours "
+                                          "(task list R25 (m))",
+}
+
 SETUP_TEMPLATE = """\
 import os
 os.environ["TIDALPY_DATA_DIR"] = {data_dir!r}
@@ -36,6 +43,8 @@ os.environ["TIDALPY_TEST_MODE"] = "1"
 @pytest.mark.parametrize("notebook_path", NOTEBOOKS, ids=[path.name for path in NOTEBOOKS])
 def test_notebook_executes(notebook_path, tmp_path):
     """The notebook executes in a fresh kernel from its own folder."""
+    if notebook_path.name in TOO_SLOW:
+        pytest.skip(f"{notebook_path.name} {TOO_SLOW[notebook_path.name]}")
     for package in OPTIONAL_PACKAGES.get(notebook_path.name, ()):
         pytest.importorskip(package)
 

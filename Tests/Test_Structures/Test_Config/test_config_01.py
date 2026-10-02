@@ -24,18 +24,6 @@ from TidalPy.Structures.configs.toml_loader import validate_layer_config
 
 
 @pytest.fixture
-def restore_config():
-    """Restore ``TidalPy.config`` and the C++ numerical settings after a test changes them."""
-    from TidalPy.constants import update_constants
-    original = copy.deepcopy(TidalPy.config)
-    original_path = TidalPy._config_path
-    yield
-    TidalPy.config = original
-    TidalPy._config_path = original_path
-    update_constants()
-
-
-@pytest.fixture
 def isolated_config_dir(tmp_path, monkeypatch):
     """Point the TidalPy Config directory at a temporary folder so the user's own files are never touched."""
     config_dir = tmp_path / "Config"

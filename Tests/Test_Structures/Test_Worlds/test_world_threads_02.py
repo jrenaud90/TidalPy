@@ -7,7 +7,9 @@ import numpy as np
 
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers import Layer
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
+
+from shared_materials import constant_solid
 
 _R          = 1.6e6               # [m]
 _R_CORE     = 0.5 * _R            # [m]
@@ -18,9 +20,7 @@ _RUN_TIME   = 0.8                 # [s] how long the threads run
 
 
 def _material(density, shear, bulk):
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": bulk},
-        shear_modulus={"model": "constant", "shear_modulus_pa": shear}))
+    return constant_solid(density, bulk_modulus=bulk, shear_modulus=shear)
 
 
 def _two_layer_world():

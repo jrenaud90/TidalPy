@@ -11,13 +11,6 @@ _IO_STATE = dict(orbital_frequency=_IO_N, spin_frequency=_IO_N, eccentricity=0.0
                  semi_major_axis=4.217e8, host_mass=1.898e27)
 
 
-@pytest.fixture(scope="module")
-def io():
-    world = build_world("io")
-    world.solve_eos()
-    return world
-
-
 def test_kept_longitudes_keep_their_dependence(io):
     """With latitude summed and longitudes kept, analytic and quadrature agree and vary with longitude."""
     radii = np.array([1.75e6])

@@ -232,17 +232,10 @@ cdef class CoolingBase(PhysicsBase):
             double thermal_expansion,
             cpp_bool liquid=False) -> CoolingResult:
         """Cooling over a temperature-drop sweep; the remaining inputs are scalar constants."""
-        cdef c_CoolingInputs base = cy_build_inputs(
-            0.0,
-            thickness,
-            gravity,
-            density,
-            0.0,
-            thermal_conductivity,
-            thermal_diffusivity,
-            thermal_expansion,
-            liquid)
-        return cy_solve_cooling(self._cooling(), base, delta_temp, viscosity, True)
+        # Typed to a scalar viscosity; the sweep itself is calc_cooling_vectorize_all's.
+        return self.calc_cooling_vectorize_all(
+            delta_temp, thickness, gravity, density, viscosity, thermal_conductivity, thermal_diffusivity,
+            thermal_expansion, liquid)
 
     def calc_cooling_vectorize_viscosity(
             self,
@@ -256,17 +249,10 @@ cdef class CoolingBase(PhysicsBase):
             double thermal_expansion,
             cpp_bool liquid=False) -> CoolingResult:
         """Cooling over a viscosity sweep; the remaining inputs are scalar constants."""
-        cdef c_CoolingInputs base = cy_build_inputs(
-            0.0,
-            thickness,
-            gravity,
-            density,
-            0.0,
-            thermal_conductivity,
-            thermal_diffusivity,
-            thermal_expansion,
-            liquid)
-        return cy_solve_cooling(self._cooling(), base, delta_temp, viscosity, True)
+        # Typed to a scalar temperature drop; the sweep itself is calc_cooling_vectorize_all's.
+        return self.calc_cooling_vectorize_all(
+            delta_temp, thickness, gravity, density, viscosity, thermal_conductivity, thermal_diffusivity,
+            thermal_expansion, liquid)
 
     def calc_cooling_vectorize_all(
             self,

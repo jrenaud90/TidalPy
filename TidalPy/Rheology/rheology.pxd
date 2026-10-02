@@ -26,10 +26,6 @@ cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
     string c_rheology_canonical_name(const string& model_name) except +
     vector[string] c_rheology_model_names() except +
 
-    # A copy of a model as its family type, for the layer setters that take ownership.
-    unique_ptr[c_RheologyBase] c_clone_rheology "tidalpy::c_clone_as<tidalpy::c_RheologyBase>"(
-        const c_RheologyBase& model) except +
-
 
 cdef class RheologyBase(PhysicsBase):
     cdef c_RheologyBase* _rheology(self) except NULL

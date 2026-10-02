@@ -24,23 +24,23 @@ def _y(rows, columns=NUM_YS):
 
 def test_an_upper_buffer_without_a_row_per_solution_is_refused():
     with pytest.raises(ValueError, match="rows"):
-        solve_upper_y_at_interface(_y(3), _y(2), SOLID, False, False, SOLID, False, False, 1.0, 3000.0, G)
+        solve_upper_y_at_interface(_y(3), _y(2), SOLID, False, SOLID, False, 1.0, 3000.0, G)
 
 
 def test_interface_buffers_of_different_widths_are_refused():
     with pytest.raises(ValueError, match="column count"):
-        solve_upper_y_at_interface(_y(3), _y(3, 4), SOLID, False, False, SOLID, False, False, 1.0, 3000.0, G)
+        solve_upper_y_at_interface(_y(3), _y(3, 4), SOLID, False, SOLID, False, 1.0, 3000.0, G)
 
 
 def test_a_max_num_y_that_disagrees_with_the_arrays_is_refused():
     with pytest.raises(ValueError, match="max_num_y"):
         solve_upper_y_at_interface(
-            _y(3), _y(3), SOLID, False, False, SOLID, False, False, 1.0, 3000.0, G, max_num_y=4)
+            _y(3), _y(3), SOLID, False, SOLID, False, 1.0, 3000.0, G, max_num_y=4)
 
 
 def test_an_interface_with_full_buffers_still_works():
     upper = _y(3)
-    solve_upper_y_at_interface(_y(3), upper, SOLID, False, False, SOLID, False, False, 1.0, 3000.0, G)
+    solve_upper_y_at_interface(_y(3), upper, SOLID, False, SOLID, False, 1.0, 3000.0, G)
     assert np.all(np.isfinite(upper))
 
 
@@ -67,7 +67,7 @@ def test_a_short_layer_above_constant_vector_is_refused():
     with pytest.raises(ValueError, match="layer_above_constant_vector_view"):
         top_to_bottom_interface_bc(
             np.zeros(3, dtype=np.complex128), np.zeros(1, dtype=np.complex128), _y(3), 1.0, 1.0, 3000.0, 3000.0,
-            SOLID, SOLID, False, False, False, False)
+            SOLID, SOLID, False, False)
 
 
 def test_find_love_needs_all_six_surface_values():

@@ -9,24 +9,11 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
 import TidalPy
+from TidalPy.configurations import get_packaged_config
 
-# The built-in style, and the only keys [graphics.interior] of TidalPy_Configs.toml may override.
-_BUILTIN_INTERIOR_PLOT_STYLE: Dict[str, object] = {
-    "gravity_color": "g",
-    "density_color": "k",
-    "pressure_color": "b",
-    "temperature_color": "orange",
-    "shear_color": "m",
-    "bulk_color": "r",
-    "line_style": "-",
-    "imaginary_line_style": ":",
-    "marker": ".",
-    "imaginary_marker": "x",
-    "marker_size": 35,
-    "panel_size_inches": 4.0,
-    "label_fontsize": 12,
-    "title_fontsize": 14,
-}
+# The built-in style, the packaged [graphics.interior] table (TidalPy.defaultc), and the only keys a user's
+# TidalPy_Configs.toml may override there.
+_BUILTIN_INTERIOR_PLOT_STYLE: Dict[str, object] = dict(get_packaged_config()["graphics"]["interior"])
 
 
 def load_interior_plot_style() -> Dict[str, object]:

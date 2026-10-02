@@ -173,3 +173,13 @@ def test_isinstance_chain():
     assert isinstance(model, tide_classes.TideBase)
     assert isinstance(model, PhysicsBase)
     assert isinstance(model, TidalPyBaseClass)
+
+
+@pytest.mark.parametrize("model_name", ["cpl", "ctl", "ctl_q"])
+def test_the_lag_depends_on_the_frequency_magnitude(model_name):
+    """The analytic models give a negative frequency the lag of its magnitude, as the collapse (which passes |omega|)
+    and the cpl and ctl Love methods do."""
+    from TidalPy.Tides.classes.tide import make_tide
+    model = make_tide(model_name, {"fixed_k": [0.3], "fixed_q": [50.0], "fixed_dt_s": [600.0]})
+    frequency = 4.1e-5
+    assert model.calc_neg_imk(2, -frequency) == model.calc_neg_imk(2, frequency) > 0.0

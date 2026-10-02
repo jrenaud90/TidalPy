@@ -332,21 +332,12 @@ inline std::complex<double> c_wave_pair_power_3d(
     return total;
 }
 
-// Integer combinations of n and the spin rate that agree mathematically can still differ at the last bit, so two wave
-// frequencies are one when they agree to the 1D path's tolerance (c_frequency_match_rtol, [numerical]
-// frequency_match_rtol), read once per call into rtol.
-struct c_WaveFrequencyMatch {
-    double rtol;
-    bool operator()(double frequency_a, double frequency_b) const noexcept {
-        return std::abs(frequency_a - frequency_b)
-            <= this->rtol * std::max(std::abs(frequency_a), std::abs(frequency_b));
-    }
-};
-
-typedef c_ToleranceIndex<c_WaveFrequencyMatch> c_WaveFrequencyIndex;
+// Two wave frequencies are one when they agree to the 1D path's tolerance (c_IsCloseMatch, with [numerical]
+// frequency_match_rtol read once per call into match_rtol).
+typedef c_ToleranceIndex<c_IsCloseMatch> c_WaveFrequencyIndex;
 
 inline c_WaveFrequencyIndex c_wave_frequency_index(double match_rtol) {
-    return c_WaveFrequencyIndex(match_rtol, c_WaveFrequencyMatch{match_rtol});
+    return c_WaveFrequencyIndex(match_rtol, c_IsCloseMatch{match_rtol});
 }
 
 // Drops modes at or below the tolerance's min_frequency, which dissipate nothing, and waves whose merged amplitude
@@ -360,10 +351,10 @@ inline std::vector<c_TidalWave3D> c_coherent_tidal_waves_3d(
     c_WaveFrequencyIndex wave_index = c_wave_frequency_index(tolerance.match_rtol);
     for (const c_TidalPotential3DModeCoeff& mode : modes)
     {
-        const double frequency = std::abs(mode.mode_frequency);
-        if (frequency <= tolerance.min_frequency) {
+        if (c_is_static_frequency(mode.mode_frequency, tolerance)) {
             continue;
         }
+        const double frequency = std::abs(mode.mode_frequency);
 
         const bool negative = mode.mode_frequency < 0.0;
         // Parity phase of the phasor: 1 for cos (even l - m), -i for sin (odd l - m); conjugated for omega < 0.

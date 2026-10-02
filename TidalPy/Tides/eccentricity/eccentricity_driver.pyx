@@ -7,7 +7,7 @@ from TidalPy.Tides.eccentricity.eccentricity_common cimport (
     C_ECCENTRICITY_TRUNCATIONS, C_NUM_ECCENTRICITY_TRUNCATIONS, C_ECCENTRICITY_EXACT, C_ECCENTRICITY_EXACT_TOLERANCE,
     c_eccentricity_accuracy_limit, c_recommend_eccentricity_truncation)
 
-import warnings
+from TidalPy.Tides.truncation_promotion import promote_truncation
 
 # The tabulated eccentricity truncation levels (the C++ list): level N keeps every product of two eccentricity
 # functions through e^N.
@@ -52,14 +52,14 @@ def promote_eccentricity_truncation(object level, set warned_levels=None, object
     """Resolve a configured eccentricity truncation to a tabulated level.
 
     A configured level that is not tabulated (a configuration file written before the levels changed, say) is promoted
-    to the next tabulated level with a once-per-session warning, so the file keeps working while the accuracy never
-    silently decreases. A level the caller passes directly is checked strictly instead
-    (``validate_eccentricity_truncation``).
+    to the next tabulated level, and one past the highest to ``"exact"``, with a once-per-session warning, so the file
+    keeps working while the accuracy never silently decreases (``TidalPy.Tides.truncation_promotion``). A level the
+    caller passes directly is checked strictly instead (``validate_eccentricity_truncation``).
 
     Parameters
     ----------
-    level : int
-        The configured level.
+    level : int or str
+        The configured level, or ``"exact"``.
     warned_levels : set, optional
         Levels already warned about; the module's own set when None.
     warn : bool, optional
@@ -68,27 +68,11 @@ def promote_eccentricity_truncation(object level, set warned_levels=None, object
     Raises
     ------
     ValueError
-        For a level above every tabulated one.
+        For a negative level or an unknown name.
     """
-    if isinstance(level, str) and level.strip().lower() == "exact":
-        return C_ECCENTRICITY_EXACT
-    level = int(level)
-    if level in ECCENTRICITY_TRUNCATIONS or level == C_ECCENTRICITY_EXACT:
-        return level
-    if warned_levels is None:
-        warned_levels = _WARNED_PROMOTIONS
-    if warn is None:
-        warn = bool(cy_config_value("warnings", "truncation_promotion", True))
-    for supported in ECCENTRICITY_TRUNCATIONS:
-        if supported > level:
-            if warn and level not in warned_levels:
-                warned_levels.add(level)
-                warnings.warn(
-                    f"Eccentricity truncation {level} is not tabulated; using {supported} instead. "
-                    f"Supported levels: {ECCENTRICITY_TRUNCATIONS}.")
-            return supported
-    raise ValueError(
-        f"Eccentricity truncation {level} is not supported. Supported levels: {ECCENTRICITY_TRUNCATIONS}.")
+    return promote_truncation(
+        level, ECCENTRICITY_TRUNCATIONS, cy_names, C_ECCENTRICITY_EXACT, "Eccentricity",
+        _WARNED_PROMOTIONS if warned_levels is None else warned_levels, warn, eccentricity_truncation_name)
 
 
 def validate_eccentricity_truncation(object truncation=None) -> int:

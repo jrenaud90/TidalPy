@@ -16,27 +16,11 @@ from TidalPy.Structures import build_world
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds import BaseWorld
 from TidalPy.Tides import make_tide
-from TidalPy.Utilities.logging.logger import flush_logger, init_logger
-from TidalPy.initialize import build_logging_config
+
 
 _IO_FREQUENCY = 4.11e-5   # [rad s-1]
 _IO_ORBIT = (4.11e-5, 4.11e-5, 0.0041, 0.0, 4.217e8, 1.898e27)   # calc_tides(n, spin, e, obliquity, a, host mass)
 _MANTLE_RADIUS = 1.2e6    # [m], inside Io's mantle
-
-
-@pytest.fixture
-def spdlog_text(tmp_path):
-    """Route the C++ logger to a temporary file for the test and hand back a reader for its text."""
-    log_path = tmp_path / "tidalpy.log"
-    init_logger({"console_level": "off", "file_level": "warning", "log_to_file": True,
-                 "log_file_path": str(log_path)})
-
-    def read():
-        flush_logger()
-        return log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-
-    yield read
-    init_logger(build_logging_config())
 
 
 def _solved_io():

@@ -374,7 +374,7 @@ c_EOSPoint result;
 rock->calc_eos(point, true, result);   // true: the density sees the temperature
 ```
 
-`c_EOSBase` provides `calc_eos(point, thermal, out)`, `calc_density(point, thermal)`, `calc_thermal_expansion(density)`, `calc_thermal_pressure(temperature, thermal)`, `get_pressure_law_range()` (unbounded for a law without one), `get_reference_temperature()`, and `calc_eos_vectorize`. A law implements the protected `p_calc_law(point, temperature_offset, out)`, which fills the density and isothermal bulk modulus, and overrides `p_expansion_reference_density()` and `p_thermal_pressure(temperature_offset)` where it has them. The base adds the expansivity and the adiabatic modulus. `c_ShearModulusBase` declares `calc_shear_modulus(point)` pure virtual and provides `calc_shear_modulus_vectorize`.
+`c_EOSBase` provides `calc_eos(point, thermal, out)`, `calc_density(point, thermal)`, `calc_thermal_pressure(temperature, thermal)`, `get_pressure_law_range()` (unbounded for a law without one), `get_reference_temperature()`, and `calc_eos_vectorize`. A law implements the protected `p_calc_law(point, temperature_offset, out)`, which fills the density and isothermal bulk modulus, and overrides `p_thermal_pressure(temperature_offset)` when it adds a thermal pressure and `p_calc_thermal_expansion(law_point)` when its expansivity is not the constant $lpha_0$ (a pressure law returns $lpha_0 K_0 / K_T$ through `p_thermal_pressure_expansion`). The base adds the expansivity and the adiabatic modulus. `c_ShearModulusBase` declares `calc_shear_modulus(point)` pure virtual and provides `calc_shear_modulus_vectorize`.
 
 | Function | Description |
 |---|---|
@@ -403,7 +403,7 @@ To add an equation-of-state law named `Foo` (a shear-modulus law is the same in 
 
 **C++ (`TidalPy/Material/laws/eos_law_.hpp`)**
 
-1. Add `c_FooEOS : public c_SpecModel<c_FooEOS, c_EOSBase>`: its `parameter_specs()` table (argument name, config key, member, default, bounds, one-line description per parameter) with `p_append_thermal_specs(rows)` at the end, `C_CLASS_ID`, two constructors that call `p_initialize`, and `p_calc_law`. Override `p_expansion_reference_density` and `p_thermal_pressure` if the law has a reference density or adds a thermal pressure, `p_validate` for checks across parameters, and `p_update_derived` for values cached from them (the pressure-law range, say).
+1. Add `c_FooEOS : public c_SpecModel<c_FooEOS, c_EOSBase>`: its `parameter_specs()` table (argument name, config key, member, default, bounds, one-line description per parameter) with `p_append_thermal_specs(rows)` at the end, `C_CLASS_ID`, two constructors that call `p_initialize`, and `p_calc_law`. Override `p_thermal_pressure` and `p_calc_thermal_expansion` if the law adds a thermal pressure (a pressure law returns `p_thermal_pressure_expansion(K0, law_point)` from the second), `p_validate` for checks across parameters, and `p_update_derived` for values cached from them (the pressure-law range, say).
 2. Add one row to `c_eos_registry()` with the law's names and aliases.
 
 **C++ (`TidalPy/Utilities/binary/binary_.hpp`)**

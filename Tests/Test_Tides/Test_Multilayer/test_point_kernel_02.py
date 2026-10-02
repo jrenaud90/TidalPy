@@ -6,7 +6,7 @@ import pytest
 
 import TidalPy.constants as tidalpy_constants
 from TidalPy.constants import G, mass_trap1
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology.rheology import Elastic, Maxwell
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
@@ -14,6 +14,8 @@ from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.multilayer.stress_strain import displacement_point, strain_stress_heating_point, volumetric_heating
 from TidalPy.Tides.potential import tidal_potential_3d_modes
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
+
+from shared_materials import constant_solid
 
 
 _R = 1.0e6
@@ -53,11 +55,8 @@ def _kernel(row):
 
 
 def _material():
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _BULK},
-        shear_modulus={"model": "constant", "shear_modulus_pa": _SHEAR},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": _VISC},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": _VISC}))
+    return constant_solid(
+        _DENSITY, bulk_modulus=_BULK, shear_modulus=_SHEAR, shear_viscosity=_VISC, bulk_viscosity=_VISC)
 
 
 def _build_world(max_degree_l):

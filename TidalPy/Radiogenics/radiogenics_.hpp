@@ -71,30 +71,35 @@ struct c_Isotope {
     double specific_heating(double time, double ref_time) const noexcept {
         return this->reference_heating() * c_safe_exp(this->decay_constant() * (time - ref_time));
     }
-};
 
-// The time-independent factors of an isotope's q(t), formed once when a model's isotope list is set rather than on
-// every evaluation. The decay constant is formed per call, because its half-life guard reads the configured floor at
-// call time. specific_heating repeats c_Isotope::specific_heating's operations, so the two agree exactly.
-struct c_IsotopeDecayTerms {
-    double reference_heating = 0.0;  // q(t_ref) [W/kg]
-    double half_life         = 0.0;  // [s]
-
-    c_IsotopeDecayTerms() = default;
-    explicit c_IsotopeDecayTerms(const c_Isotope& isotope) noexcept :
-        reference_heating(isotope.reference_heating()),
-        half_life(isotope.half_life) {}
-
-    // Decay constant gamma = ln(0.5) / half_life [1/s], as c_Isotope::decay_constant.
-    double decay_constant() const noexcept {
-        return TidalPyConstants::d_LN_HALF / c_guard_denominator(this->half_life);
-    }
-
-    // Specific heating [W/kg] at elapsed_time = t - t_ref [s].
-    double specific_heating(double elapsed_time) const noexcept {
-        return this->reference_heating * c_safe_exp(this->decay_constant() * elapsed_time);
+    // Throws std::invalid_argument unless the values describe a physical isotope: a finite, non-negative heat
+    // production and concentration, a positive half life (infinite for a stable one), and a mass fraction in [0, 1].
+    void validate() const {
+        const auto refuse = [this](const std::string& what, double value) {
+            throw std::invalid_argument(
+                "TidalPy: isotope '" + this->name + "' needs " + what + "; got " + std::to_string(value) + ".");
+        };
+        if (!(std::isfinite(this->heat_production) && (this->heat_production >= 0.0))) {
+            refuse("a finite, non-negative heat production [W/kg]", this->heat_production);
+        }
+        if (!(this->half_life > 0.0)) { refuse("a positive half life [s]", this->half_life); }
+        if (!((this->mass_frac >= 0.0) && (this->mass_frac <= 1.0))) {
+            refuse("a mass fraction in [0, 1]", this->mass_frac);
+        }
+        if (!(std::isfinite(this->concentration) && (this->concentration >= 0.0))) {
+            refuse("a finite, non-negative concentration [kg/kg]", this->concentration);
+        }
     }
 };
+
+// Throws std::invalid_argument for a reference time that is not finite.
+inline void c_validate_radiogenic_ref_time(double ref_time, const std::string& model_name) {
+    if (!std::isfinite(ref_time)) {
+        throw std::invalid_argument(
+            "TidalPy: the " + model_name + " radiogenics model needs a finite reference time [s]; got "
+            + std::to_string(ref_time) + ".");
+    }
+}
 
 // Combined construction parameters; each model reads only the fields it needs. Its defaults are the models' defaults.
 struct c_RadiogenicsConfig {
@@ -261,7 +266,7 @@ public:
         : c_RadiogenicsBase("isotope"),
           p_isotopes(cfg.isotopes),
           p_ref_time(cfg.ref_time) {
-        this->p_cache_decay_terms();
+        this->p_validate();
     }
     ~c_IsotopeRadiogenics() override = default;
 
@@ -290,10 +295,9 @@ public:
 
     // Sum each isotope's specific heating, then scale by the layer mass.
     double calc_heating(double time, double mass) const override {
-        const double elapsed_time = time - this->p_ref_time;
         double specific_heating = 0.0;
-        for (const c_IsotopeDecayTerms& decay_terms : this->p_decay_terms) {
-            specific_heating += decay_terms.specific_heating(elapsed_time);
+        for (const c_Isotope& isotope : this->p_isotopes) {
+            specific_heating += isotope.specific_heating(time, this->p_ref_time);
         }
         return specific_heating * mass;
     }
@@ -308,11 +312,12 @@ public:
         const std::size_t time_stride = c_broadcast_stride(time.size());
         const std::size_t mass_stride = c_broadcast_stride(mass.size());
         out_heating.assign(num_points, 0.0);
-        for (const c_IsotopeDecayTerms& decay_terms : this->p_decay_terms) {
-            const double decay_constant = decay_terms.decay_constant();
+        for (const c_Isotope& isotope : this->p_isotopes) {
+            const double reference_heating = isotope.reference_heating();
+            const double decay_constant    = isotope.decay_constant();
             for (std::size_t i = 0; i < num_points; ++i) {
                 const double elapsed_time = time[i * time_stride] - this->p_ref_time;
-                out_heating[i] += decay_terms.reference_heating * c_safe_exp(decay_constant * elapsed_time);
+                out_heating[i] += reference_heating * c_safe_exp(decay_constant * elapsed_time);
             }
         }
         for (std::size_t i = 0; i < num_points; ++i) {
@@ -365,21 +370,20 @@ protected:
             throw std::runtime_error("TidalPy: failed to read isotope radiogenics binary data");
         }
         this->p_isotopes = std::move(isotopes);
-        this->p_cache_decay_terms();
+        try {
+            this->p_validate();
+        } catch (const std::invalid_argument& error) {
+            throw std::runtime_error(std::string("TidalPy: corrupt binary data: ") + error.what());
+        }
     }
 
-    void p_cache_decay_terms() {
-        this->p_decay_terms.clear();
-        this->p_decay_terms.reserve(this->p_isotopes.size());
-        for (const c_Isotope& isotope : this->p_isotopes) {
-            this->p_decay_terms.emplace_back(isotope);
-        }
+    void p_validate() const {
+        for (const c_Isotope& isotope : this->p_isotopes) { isotope.validate(); }
+        c_validate_radiogenic_ref_time(this->p_ref_time, "isotope");
     }
 
     std::vector<c_Isotope> p_isotopes;
     double p_ref_time;
-    // One entry per isotope, in p_isotopes order, rebuilt whenever p_isotopes is set.
-    std::vector<c_IsotopeDecayTerms> p_decay_terms;
 };
 
 // One lumped rate with optional decay (alias "constant"); average_half_life <= 0 disables the decay.
@@ -390,7 +394,9 @@ public:
         : c_RadiogenicsBase("fixed"),
           p_fixed_heat_production(cfg.fixed_heat_production),
           p_average_half_life(cfg.average_half_life),
-          p_ref_time(cfg.ref_time) {}
+          p_ref_time(cfg.ref_time) {
+        this->p_validate();
+    }
     ~c_FixedRadiogenics() override = default;
 
     double get_fixed_heat_production() const noexcept { return this->p_fixed_heat_production; }
@@ -424,9 +430,29 @@ public:
         this->p_fixed_heat_production = params[0];
         this->p_average_half_life = params[1];
         this->p_ref_time          = params[2];
+        try {
+            this->p_validate();
+        } catch (const std::invalid_argument& error) {
+            throw std::runtime_error(std::string("TidalPy: corrupt binary data: ") + error.what());
+        }
     }
 
 protected:
+    // A finite, non-negative rate, a finite half life (zero or below means no decay), and a finite reference time.
+    void p_validate() const {
+        if (!(std::isfinite(this->p_fixed_heat_production) && (this->p_fixed_heat_production >= 0.0))) {
+            throw std::invalid_argument(
+                "TidalPy: the fixed radiogenics model needs a finite, non-negative heat production [W/kg]; got "
+                + std::to_string(this->p_fixed_heat_production) + ".");
+        }
+        if (!std::isfinite(this->p_average_half_life)) {
+            throw std::invalid_argument(
+                "TidalPy: the fixed radiogenics model needs a finite average half life [s] (zero or below for no "
+                "decay); got " + std::to_string(this->p_average_half_life) + ".");
+        }
+        c_validate_radiogenic_ref_time(this->p_ref_time, "fixed");
+    }
+
     double p_fixed_heat_production;
     double p_average_half_life;
     double p_ref_time;

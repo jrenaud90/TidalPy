@@ -7,7 +7,9 @@ import numpy as np
 from libc.stdint cimport uint64_t
 from libcpp.vector cimport vector
 
-from TidalPy.Utilities.arrays.interp cimport c_interp, c_partition_radius_by_layer
+from libcpp.complex cimport complex as cpp_complex
+
+from TidalPy.Utilities.arrays.interp cimport c_interp, c_interp_complex, c_partition_radius_by_layer
 
 
 def interp(x, xp, fp):
@@ -19,31 +21,28 @@ def interp(x, xp, fp):
         Query coordinate(s).
     xp : array_like of float
         Sample coordinates, sorted ascending; results are undefined otherwise.
-    fp : array_like of float
-        Sample values, the same length as ``xp``.
+    fp : array_like of float or complex
+        Sample values, the same length as ``xp``. Complex values are interpolated as complex numbers (both parts).
 
     Returns
     -------
-    float or numpy.ndarray
-        A float for scalar ``x``, else a float64 array shaped like ``x``. Queries outside
+    float, complex, or numpy.ndarray
+        A scalar for scalar ``x``, else an array shaped like ``x``, complex when ``fp`` is. Queries outside
         ``[xp[0], xp[-1]]`` clamp to the corresponding endpoint value.
     """
     # Const views, so read-only arrays are accepted.
     cdef const double[::1] xp_v = np.ascontiguousarray(xp, dtype=np.float64)
-    cdef const double[::1] fp_v = np.ascontiguousarray(fp, dtype=np.float64)
     cdef size_t n = xp_v.shape[0]
     if n == 0:
         raise ValueError("xp must have at least one element.")
+    if np.iscomplexobj(fp):
+        return _interp_complex(x, xp_v, np.ascontiguousarray(fp, dtype=np.complex128), n)
+    cdef const double[::1] fp_v = np.ascontiguousarray(fp, dtype=np.float64)
     if <size_t>fp_v.shape[0] != n:
         raise ValueError("xp and fp must have the same length.")
 
     if np.ndim(x) == 0:
-        return c_interp(
-                <double>x,
-                &xp_v[0],
-                &fp_v[0],
-                n,
-                0)
+        return c_interp(<double>x, &xp_v[0], &fp_v[0], n, 0)
 
     # `object` rather than `cnp.ndarray`: this module does not cimport numpy, and the sweep below runs off
     # the memoryviews, so the array objects are only here to be reshaped and returned.
@@ -56,6 +55,29 @@ def interp(x, xp, fp):
     with nogil:
         for i in range(m):
             out_v[i] = c_interp(x_v[i], &xp_v[0], &fp_v[0], n, 0)
+    return out.reshape(np.shape(x))
+
+
+cdef object _interp_complex(object x, const double[::1] xp_v, object fp, size_t n):
+    """interp for complex sample values, through c_interp_complex."""
+    cdef const double complex[::1] fp_v = fp
+    if <size_t>fp_v.shape[0] != n:
+        raise ValueError("xp and fp must have the same length.")
+    cdef const cpp_complex[double]* fp_ptr = <const cpp_complex[double]*>&fp_v[0]
+    cdef cpp_complex[double] value
+    if np.ndim(x) == 0:
+        value = c_interp_complex(<double>x, &xp_v[0], fp_ptr, n, 0)
+        return complex(value.real(), value.imag())
+    cdef object x_in = np.ascontiguousarray(x, dtype=np.float64)
+    cdef const double[::1] x_v = x_in.ravel()
+    cdef size_t m = x_v.shape[0]
+    cdef object out = np.empty(m, dtype=np.complex128)
+    cdef double complex[::1] out_v = out
+    cdef size_t i
+    with nogil:
+        for i in range(m):
+            value = c_interp_complex(x_v[i], &xp_v[0], fp_ptr, n, 0)
+            out_v[i] = value.real() + 1j * value.imag()
     return out.reshape(np.shape(x))
 
 

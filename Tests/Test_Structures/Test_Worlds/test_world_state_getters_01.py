@@ -2,17 +2,9 @@
 import numpy as np
 import pytest
 
-from TidalPy.Structures import build_world
 
 _KEYS = ("density", "gravity", "pressure", "shear_modulus", "shear_viscosity", "bulk_modulus", "bulk_viscosity",
          "melt_fraction")
-
-
-@pytest.fixture(scope="module")
-def io():
-    world = build_world("io")
-    world.solve_eos()
-    return world
 
 
 def _single(source, key, radius):

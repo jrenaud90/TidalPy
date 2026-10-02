@@ -10,6 +10,7 @@
  * tidal forcing frequency. This header is the data container only; the radial solver computes them.
  */
 
+#include <cmath>
 #include <complex>
 
 namespace tidalpy {
@@ -31,5 +32,19 @@ struct c_LoveNumbers {
     }
     bool operator!=(const c_LoveNumbers& o) const noexcept { return !(*this == o); }
 };
+
+// The factors the analytic lag models multiply a Love number by, shared by the tide models (tide_.hpp) and the
+// quasi-homogeneous Love methods (love_method_.hpp). Each depends on the forcing frequency's magnitude only: the global
+// collapse passes |omega| and carries a mode's sign in its coefficients, and a direct call with a negative frequency
+// gets the same lag. The callers decide what a zero or unset parameter means.
+//
+// Constant phase lag: 1 - i / Q.
+inline std::complex<double> c_constant_phase_lag(double fixed_q) noexcept {
+    return {1.0, -1.0 / fixed_q};
+}
+// Constant time lag: 1 - i |omega| dt, divided by Q as well for the time lag with a quality factor (Q = 1 without).
+inline std::complex<double> c_constant_time_lag(double frequency, double fixed_dt, double fixed_q = 1.0) noexcept {
+    return {1.0, -std::abs(frequency) * fixed_dt / fixed_q};
+}
 
 } // namespace tidalpy

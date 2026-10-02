@@ -197,61 +197,170 @@ struct c_LoveSolveConfig {
     }
 };
 
-// The [eos_solver] keys a world file may pin so the file reproduces its run on its own. A key left unset
-// falls through to the TidalPy configuration at every solve, so a configuration changed after the world was
-// built still reaches it; a call's own arguments win over both.
-struct c_EOSSolverOverrides {
-    std::optional<ODEMethod> integration_method;
-    std::optional<double>    rtol;
-    std::optional<double>    atol;
-    std::optional<double>    pressure_tol;
-    std::optional<size_t>    max_iters;
-    std::optional<size_t>    slices_per_layer;
-    std::optional<bool>      nondimensionalize;
-    std::optional<bool>      solve_temperature;
-    std::optional<size_t>    max_thermal_passes;
-    std::optional<double>    thermal_tol;
+// The [eos_solver] and [radial_solver] keys a world file may pin (c_BaseWorld::set_eos_solver_overrides and
+// set_radial_solver_overrides), each a row of its section's table: the TidalPy_Configs.toml key, how the value is kept
+// and written in a binary record, and how it applies to the section's solve configuration. A pinned key replaces the
+// configuration's value for every solve the world runs; a call's own argument still wins over it, and a key left out
+// keeps following the configuration. The table is the one place a key is listed in C++: apply, the binary record, and
+// the Python set_solver_defaults and get_solver_defaults all iterate it, and its keys must match schema.py's
+// _SOLVER_KEY_RULES (a test checks).
+enum class c_SolverSettingKind : uint8_t {
+    Method = 0,   // an ODEMethod (int32 in a binary record)
+    Real   = 1,   // a double
+    Count  = 2,   // a non-negative integer (uint64 in a binary record)
+    Flag   = 3,   // a switch (uint8 in a binary record)
+};
 
-    void apply(c_WorldEOSSolveConfig& cfg) const noexcept {
-        if (this->integration_method) { cfg.integration_method = *this->integration_method; }
-        if (this->rtol)               { cfg.rtol               = *this->rtol; }
-        if (this->atol)               { cfg.atol               = *this->atol; }
-        if (this->pressure_tol)       { cfg.pressure_tol       = *this->pressure_tol; }
-        if (this->max_iters)          { cfg.max_iters          = *this->max_iters; }
-        if (this->slices_per_layer)   { cfg.slices_per_layer   = *this->slices_per_layer; }
-        if (this->nondimensionalize)  { cfg.nondimensionalize  = *this->nondimensionalize; }
-        if (this->solve_temperature)  { cfg.solve_temperature  = *this->solve_temperature; }
-        if (this->max_thermal_passes) { cfg.max_thermal_passes = *this->max_thermal_passes; }
-        if (this->thermal_tol)        { cfg.thermal_tol        = *this->thermal_tol; }
+template <class Config>
+struct c_SolverSettingSpec {
+    const char*         key;
+    c_SolverSettingKind kind;
+    void (*apply)(Config& cfg, double value);
+};
+
+struct c_EOSSolverSection {
+    using Config = c_WorldEOSSolveConfig;
+    static const std::vector<c_SolverSettingSpec<Config>>& specs() {
+        static const std::vector<c_SolverSettingSpec<Config>> table = {
+            {"integration_method", c_SolverSettingKind::Method,
+             [](Config& cfg, double value) {
+                 cfg.integration_method = static_cast<ODEMethod>(static_cast<int>(value));
+             }},
+            {"rtol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.rtol = value; }},
+            {"atol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.atol = value; }},
+            {"pressure_tol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.pressure_tol = value; }},
+            {"max_iters", c_SolverSettingKind::Count,
+             [](Config& cfg, double value) { cfg.max_iters = static_cast<size_t>(value); }},
+            {"slices_per_layer", c_SolverSettingKind::Count,
+             [](Config& cfg, double value) { cfg.slices_per_layer = static_cast<size_t>(value); }},
+            {"nondimensionalize", c_SolverSettingKind::Flag,
+             [](Config& cfg, double value) { cfg.nondimensionalize = (value != 0.0); }},
+            {"solve_temperature", c_SolverSettingKind::Flag,
+             [](Config& cfg, double value) { cfg.solve_temperature = (value != 0.0); }},
+            {"max_thermal_passes", c_SolverSettingKind::Count,
+             [](Config& cfg, double value) { cfg.max_thermal_passes = static_cast<size_t>(value); }},
+            {"thermal_tol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.thermal_tol = value; }},
+        };
+        return table;
     }
 };
 
-// The [radial_solver] keys a world file may pin; the same rules as c_EOSSolverOverrides.
-struct c_RadialSolverOverrides {
-    std::optional<ODEMethod> integration_method;
-    std::optional<double>    rtol;
-    std::optional<double>    atol;
-    std::optional<bool>      use_kamata;
-    std::optional<double>    start_radius_tol;
-    std::optional<bool>      scale_rtols;
-    std::optional<size_t>    max_num_steps;
-    std::optional<size_t>    expected_size;
-    std::optional<size_t>    max_ram_MB;
-    std::optional<bool>      nondimensionalize;
-
-    void apply(c_LoveSolveConfig& cfg) const noexcept {
-        if (this->integration_method) { cfg.integration_method = *this->integration_method; }
-        if (this->rtol)               { cfg.rtol               = *this->rtol; }
-        if (this->atol)               { cfg.atol               = *this->atol; }
-        if (this->use_kamata)         { cfg.use_kamata         = *this->use_kamata; }
-        if (this->start_radius_tol)   { cfg.start_radius_tol   = *this->start_radius_tol; }
-        if (this->scale_rtols)        { cfg.scale_rtols        = *this->scale_rtols; }
-        if (this->max_num_steps)      { cfg.max_num_steps      = *this->max_num_steps; }
-        if (this->expected_size)      { cfg.expected_size      = *this->expected_size; }
-        if (this->max_ram_MB)         { cfg.max_ram_MB         = *this->max_ram_MB; }
-        if (this->nondimensionalize)  { cfg.nondimensionalize  = *this->nondimensionalize; }
+struct c_RadialSolverSection {
+    using Config = c_LoveSolveConfig;
+    static const std::vector<c_SolverSettingSpec<Config>>& specs() {
+        static const std::vector<c_SolverSettingSpec<Config>> table = {
+            {"integration_method", c_SolverSettingKind::Method,
+             [](Config& cfg, double value) {
+                 cfg.integration_method = static_cast<ODEMethod>(static_cast<int>(value));
+             }},
+            {"rtol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.rtol = value; }},
+            {"atol", c_SolverSettingKind::Real, [](Config& cfg, double value) { cfg.atol = value; }},
+            {"use_kamata", c_SolverSettingKind::Flag,
+             [](Config& cfg, double value) { cfg.use_kamata = (value != 0.0); }},
+            {"start_radius_tolerance", c_SolverSettingKind::Real,
+             [](Config& cfg, double value) { cfg.start_radius_tol = value; }},
+            {"scale_rtols", c_SolverSettingKind::Flag,
+             [](Config& cfg, double value) { cfg.scale_rtols = (value != 0.0); }},
+            {"max_num_steps", c_SolverSettingKind::Count,
+             [](Config& cfg, double value) { cfg.max_num_steps = static_cast<size_t>(value); }},
+            {"expected_size", c_SolverSettingKind::Count,
+             [](Config& cfg, double value) { cfg.expected_size = static_cast<size_t>(value); }},
+            {"max_ram_mb", c_SolverSettingKind::Count,
+             [](Config& cfg, double value) { cfg.max_ram_MB = static_cast<size_t>(value); }},
+            {"nondimensionalize", c_SolverSettingKind::Flag,
+             [](Config& cfg, double value) { cfg.nondimensionalize = (value != 0.0); }},
+        };
+        return table;
     }
 };
+
+// The keys of one section a world pins, held by row of the section's table. A value is kept as a double whatever its
+// kind (an ODEMethod's enum value, a count, 0 or 1 for a switch), exactly for every value a setting can take.
+template <class Section>
+class c_SolverOverrides {
+public:
+    using Config = typename Section::Config;
+
+    void apply(Config& cfg) const noexcept {
+        const auto& specs = Section::specs();
+        for (std::size_t row = 0; row < specs.size(); ++row) {
+            if (this->p_values[row]) { specs[row].apply(cfg, *this->p_values[row]); }
+        }
+    }
+
+    // Pins a key; throws std::invalid_argument for a key the section does not have.
+    void set(const std::string& key, double value) { this->p_values[p_row(key)] = value; }
+    bool has(const std::string& key) const { return this->p_values[p_row(key)].has_value(); }
+    // The pinned value; NaN when the key is not pinned.
+    double get(const std::string& key) const {
+        const auto& value = this->p_values[p_row(key)];
+        return value ? *value : TidalPyConstants::d_NAN;
+    }
+
+    static std::vector<std::string> keys() {
+        std::vector<std::string> out;
+        for (const auto& spec : Section::specs()) { out.emplace_back(spec.key); }
+        return out;
+    }
+    // The kind of a key (c_SolverSettingKind as an int); throws for an unknown key.
+    static int kind(const std::string& key) { return static_cast<int>(Section::specs()[p_row(key)].kind); }
+
+    // Each row in table order: a presence byte, then the value at its kind's fixed width.
+    void write(std::ostream& out) const {
+        const auto& specs = Section::specs();
+        for (std::size_t row = 0; row < specs.size(); ++row) {
+            const std::optional<double>& value = this->p_values[row];
+            const uint8_t present = value.has_value() ? 1 : 0;
+            out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
+            if (!present) { continue; }
+            switch (specs[row].kind) {
+                case c_SolverSettingKind::Method: p_write_as<int32_t>(out, *value);  break;
+                case c_SolverSettingKind::Real:   p_write_as<double>(out, *value);   break;
+                case c_SolverSettingKind::Count:  p_write_as<uint64_t>(out, *value); break;
+                case c_SolverSettingKind::Flag:   p_write_as<uint8_t>(out, *value);  break;
+            }
+        }
+    }
+    void read(std::istream& in) {
+        const auto& specs = Section::specs();
+        for (std::size_t row = 0; row < specs.size(); ++row) {
+            uint8_t present = 0;
+            in.read(reinterpret_cast<char*>(&present), sizeof(uint8_t));
+            if (!present) { this->p_values[row].reset(); continue; }
+            switch (specs[row].kind) {
+                case c_SolverSettingKind::Method: this->p_values[row] = p_read_as<int32_t>(in);  break;
+                case c_SolverSettingKind::Real:   this->p_values[row] = p_read_as<double>(in);   break;
+                case c_SolverSettingKind::Count:  this->p_values[row] = p_read_as<uint64_t>(in); break;
+                case c_SolverSettingKind::Flag:   this->p_values[row] = p_read_as<uint8_t>(in);  break;
+            }
+        }
+    }
+
+private:
+    static std::size_t p_row(const std::string& key) {
+        const auto& specs = Section::specs();
+        for (std::size_t row = 0; row < specs.size(); ++row) {
+            if (key == specs[row].key) { return row; }
+        }
+        throw std::invalid_argument("TidalPy: unknown solver setting '" + key + "'.");
+    }
+    template <typename Stored>
+    static void p_write_as(std::ostream& out, double value) {
+        const Stored stored = static_cast<Stored>(value);
+        out.write(reinterpret_cast<const char*>(&stored), sizeof(Stored));
+    }
+    template <typename Stored>
+    static double p_read_as(std::istream& in) {
+        Stored stored {};
+        in.read(reinterpret_cast<char*>(&stored), sizeof(Stored));
+        return static_cast<double>(stored);
+    }
+
+    std::vector<std::optional<double>> p_values = std::vector<std::optional<double>>(Section::specs().size());
+};
+
+using c_EOSSolverOverrides    = c_SolverOverrides<c_EOSSolverSection>;
+using c_RadialSolverOverrides = c_SolverOverrides<c_RadialSolverSection>;
 
 // c_WorldCallLock, the world's call lock, is defined in layers/call_lock_.hpp: a world's layers take it too. The mutex
 // it locks is c_BaseWorld::p_call_mutex.
@@ -526,10 +635,14 @@ public:
     // collapse the global tidal modes into the total heating and the three orbital potential derivatives. The
     // analytic models (cpl, ctl, ctl_q) work on any world, layers or not; the rheology model needs a solved EOS.
     // Both setters take the call lock, so neither frees or changes what a tidal solve on another thread is using.
-    void set_tide_model(std::unique_ptr<c_TideBase> tide) noexcept {
+    void set_tide_model(std::shared_ptr<const c_TideBase> tide) noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         this->p_tide         = std::move(tide);
         this->p_tides_solved = false;
+    }
+    // Through the generic model handle the Python wrappers hold; throws std::invalid_argument for another family.
+    void set_tide_model_handle(const std::shared_ptr<c_PhysicsBase>& model) {
+        this->set_tide_model(c_share_as<c_TideBase>(model, "a world's tide model"));
     }
     bool get_tide_model_set() const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
@@ -1889,9 +2002,7 @@ public:
         const c_Layer* layer = nullptr;
         std::size_t layer_index  = 0;
         double shear_modulus   = TidalPyConstants::d_NAN;   // [Pa]
-        double bulk_modulus    = TidalPyConstants::d_NAN;   // [Pa]
         double shear_viscosity = TidalPyConstants::d_NAN;   // [Pa s]
-        double bulk_viscosity  = TidalPyConstants::d_NAN;   // [Pa s]
         double tidal_scale     = 0.0;                       // dimensionless
         double volume          = 0.0;                       // [m3]
     };
@@ -2043,9 +2154,9 @@ public:
     // The provider the radial solver reads at each integration radius: one dense EOS call for the
     // frequency-independent state, then the layer's rheology, the only part that knows the frequency.
     //
-    // The callable co-owns the solved EOS and the rheologies, and resolves the layers here, once, rather
-    // than at every radius. The solved EOS still reaches each layer's material model through this world, so
-    // the world has to outlive the callable; a solution exported to Python holds its world for that reason.
+    // The callable co-owns the solved EOS (which keeps the layers' materials alive through its input_keepalive) and
+    // the rheologies, and resolves the layers here, once, rather than at every radius. It holds nothing of this
+    // world, so it stays valid after the world is gone.
     c_EOSSolution::MaterialEval make_material_eval(
             double frequency,
             const std::vector<std::size_t>& world_layer_of) const {
@@ -2141,9 +2252,7 @@ public:
             const double dr = (r_outer - r_inner) / static_cast<double>(n_intervals);
             double weight_sum          = 0.0;
             double shear_sum           = 0.0;
-            double bulk_sum            = 0.0;
             double log_shear_visc_sum  = 0.0;
-            double log_bulk_visc_sum   = 0.0;
             // One dense evaluation per node gives all four quantities.
             double state[C_EOS_DY_VALUES];
             for (std::size_t i = 0; i <= n_intervals; ++i) {
@@ -2153,17 +2262,13 @@ public:
                 layer->get_eos_state(r, state);
                 weight_sum         += weight;
                 shear_sum          += weight * state[C_EOS_SHEAR_MODULUS_INDEX];     // post-melt
-                bulk_sum           += weight * state[C_EOS_BULK_MODULUS_INDEX];
                 log_shear_visc_sum += weight * std::log10(state[C_EOS_SHEAR_VISCOSITY_INDEX]);
-                log_bulk_visc_sum  += weight * std::log10(state[C_EOS_BULK_VISCOSITY_INDEX]);
             }
             c_HomogeneousLayer averaged;
             averaged.layer           = layer;
             averaged.layer_index     = layer_i;
             averaged.shear_modulus   = shear_sum / weight_sum;
-            averaged.bulk_modulus    = bulk_sum / weight_sum;
             averaged.shear_viscosity = std::pow(10.0, log_shear_visc_sum / weight_sum);
-            averaged.bulk_viscosity  = std::pow(10.0, log_bulk_visc_sum / weight_sum);
             averaged.tidal_scale     = tidal_scale;
             averaged.volume          = layer->get_volume();
             cache.layers.push_back(averaged);
@@ -2662,81 +2767,18 @@ protected:
         this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;
     }
 
-    // One pinned solver key: a presence flag, then the value as the fixed-width Stored type when set.
-    template <typename Stored, typename Value>
-    static void write_optional_setting(std::ostream& out, const std::optional<Value>& setting) {
-        const uint8_t present = setting.has_value() ? 1 : 0;
-        out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
-        if (setting.has_value()) {
-            const Stored stored = static_cast<Stored>(*setting);
-            out.write(reinterpret_cast<const char*>(&stored), sizeof(Stored));
-        }
-    }
-
-    template <typename Stored, typename Value>
-    static void read_optional_setting(std::istream& in, std::optional<Value>& setting) {
-        uint8_t present = 0;
-        in.read(reinterpret_cast<char*>(&present), sizeof(uint8_t));
-        if (present) {
-            Stored stored {};
-            in.read(reinterpret_cast<char*>(&stored), sizeof(Stored));
-            setting = static_cast<Value>(stored);
-        } else {
-            setting.reset();
-        }
-    }
-
-    // The [eos_solver] then the [radial_solver] keys, in declaration order: ODE methods as int32_t, counts as
-    // uint64_t, switches as uint8_t.
+    // The [eos_solver] then the [radial_solver] keys, each in its table's order (c_SolverOverrides::write).
     void write_solver_overrides(std::ostream& out) const {
-        const c_EOSSolverOverrides& eos = this->p_eos_solver_overrides;
-        write_optional_setting<int32_t>(out, eos.integration_method);
-        write_optional_setting<double>(out, eos.rtol);
-        write_optional_setting<double>(out, eos.atol);
-        write_optional_setting<double>(out, eos.pressure_tol);
-        write_optional_setting<uint64_t>(out, eos.max_iters);
-        write_optional_setting<uint64_t>(out, eos.slices_per_layer);
-        write_optional_setting<uint8_t>(out, eos.nondimensionalize);
-        write_optional_setting<uint8_t>(out, eos.solve_temperature);
-        write_optional_setting<uint64_t>(out, eos.max_thermal_passes);
-        write_optional_setting<double>(out, eos.thermal_tol);
-        const c_RadialSolverOverrides& radial = this->p_radial_solver_overrides;
-        write_optional_setting<int32_t>(out, radial.integration_method);
-        write_optional_setting<double>(out, radial.rtol);
-        write_optional_setting<double>(out, radial.atol);
-        write_optional_setting<uint8_t>(out, radial.use_kamata);
-        write_optional_setting<double>(out, radial.start_radius_tol);
-        write_optional_setting<uint8_t>(out, radial.scale_rtols);
-        write_optional_setting<uint64_t>(out, radial.max_num_steps);
-        write_optional_setting<uint64_t>(out, radial.expected_size);
-        write_optional_setting<uint64_t>(out, radial.max_ram_MB);
-        write_optional_setting<uint8_t>(out, radial.nondimensionalize);
+        this->p_eos_solver_overrides.write(out);
+        this->p_radial_solver_overrides.write(out);
     }
 
     // Reads into locals and commits only when the whole block was read.
     void read_solver_overrides(std::istream& in) {
         c_EOSSolverOverrides eos;
-        read_optional_setting<int32_t>(in, eos.integration_method);
-        read_optional_setting<double>(in, eos.rtol);
-        read_optional_setting<double>(in, eos.atol);
-        read_optional_setting<double>(in, eos.pressure_tol);
-        read_optional_setting<uint64_t>(in, eos.max_iters);
-        read_optional_setting<uint64_t>(in, eos.slices_per_layer);
-        read_optional_setting<uint8_t>(in, eos.nondimensionalize);
-        read_optional_setting<uint8_t>(in, eos.solve_temperature);
-        read_optional_setting<uint64_t>(in, eos.max_thermal_passes);
-        read_optional_setting<double>(in, eos.thermal_tol);
+        eos.read(in);
         c_RadialSolverOverrides radial;
-        read_optional_setting<int32_t>(in, radial.integration_method);
-        read_optional_setting<double>(in, radial.rtol);
-        read_optional_setting<double>(in, radial.atol);
-        read_optional_setting<uint8_t>(in, radial.use_kamata);
-        read_optional_setting<double>(in, radial.start_radius_tol);
-        read_optional_setting<uint8_t>(in, radial.scale_rtols);
-        read_optional_setting<uint64_t>(in, radial.max_num_steps);
-        read_optional_setting<uint64_t>(in, radial.expected_size);
-        read_optional_setting<uint64_t>(in, radial.max_ram_MB);
-        read_optional_setting<uint8_t>(in, radial.nondimensionalize);
+        radial.read(in);
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read the world solver settings binary data");
         }
@@ -3030,7 +3072,7 @@ protected:
         } catch (const std::invalid_argument& error) {
             throw std::runtime_error(std::string("TidalPy: corrupt world binary data: ") + error.what());
         }
-        std::unique_ptr<c_TideBase> tide = read_optional_binary<c_TideBase>(in, force, c_tide_from_binary);
+        std::shared_ptr<const c_TideBase> tide = read_optional_binary<c_TideBase>(in, force, c_tide_from_binary);
 
         this->p_tide_config  = cfg;
         this->p_tide         = std::move(tide);
@@ -3077,7 +3119,7 @@ protected:
     // Global (1D) tidal dissipation state. The configuration and model are serialized (the tide section); the
     // results are not (recompute with calc_tides).
     c_TideConfig                         p_tide_config;
-    std::unique_ptr<c_TideBase>          p_tide;
+    std::shared_ptr<const c_TideBase>    p_tide;
     c_GlobalTideResult                   p_tide_result;
     bool                                 p_tides_solved = false;
     // Per-mode radial-solver Love numbers (k, h, l) keyed by the tidal mode (l, m, p, q),

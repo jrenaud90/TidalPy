@@ -35,11 +35,15 @@ namespace tidalpy {
 
 class c_TideBase : public c_PhysicsBase {
 public:
+    static constexpr const char* C_FAMILY_NAME = "tide";
+
     c_TideBase() = default;
 
     explicit c_TideBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
 
     ~c_TideBase() override = default;
+
+    std::string get_family_name() const override { return C_FAMILY_NAME; }
 
     // Complex Love numbers at the forcing frequency magnitude |omega_lmpq| [rad s-1]. The analytic models
     // build k_l from their fixed per-degree parameters, set h and l to NaN, and ignore solver_love; the

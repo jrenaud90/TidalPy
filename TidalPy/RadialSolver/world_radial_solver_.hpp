@@ -121,7 +121,6 @@ public:
             this->p_storage->get_eos_solution_ptr()->p_material_eval = std::move(eval);
         }
     }
-    size_t total_slices() const noexcept { return this->p_total_slices; }
 
     // Frequency-independent setup from SI inputs: the radius grid of the solver's layers (each layer's run, its
     // interface radii repeated), their tops and flags, and the world's solved EOS, which supplies the planet's
@@ -324,7 +323,7 @@ public:
                 && this->p_shooting_inputs.is_static[0]
                 && this->p_shooting_inputs.is_incompressible[0];
             if (!ok) {
-                storage->error_code = -20;
+                storage->error_code = -23;
                 storage->message    = "TidalPy: the propagation-matrix method requires a single solid, static, "
                                       "incompressible layer.";
                 storage->success    = false;

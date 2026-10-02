@@ -7,7 +7,7 @@ from TidalPy.Tides.obliquity.obliquity_common cimport (
     C_OBLIQUITY_TRUNCATIONS, C_NUM_OBLIQUITY_TRUNCATIONS, C_OBLIQUITY_OFF, C_OBLIQUITY_GENERAL,
     c_obliquity_accuracy_limit, c_recommend_obliquity_truncation)
 
-import warnings
+from TidalPy.Tides.truncation_promotion import promote_truncation
 
 # The tabulated obliquity truncation levels (the C++ list): level N keeps every product of two obliquity functions
 # through I^N; level 0 is the obliquity off.
@@ -35,9 +35,9 @@ def promote_obliquity_truncation(object level, set warned_levels=None, object wa
 
     A configured level that is not tabulated (a configuration file written before the levels changed, say) is promoted
     to the next tabulated level, and anything past the highest to the general functions, with a once-per-session
-    warning, so the file keeps working while the accuracy never silently decreases. The old levels map as 1 -> 2 and
-    10 (the old general code) -> general. A level the caller passes directly is checked strictly instead
-    (``validate_obliquity_truncation``).
+    warning, so the file keeps working while the accuracy never silently decreases (``TidalPy.Tides.
+    truncation_promotion``). The old levels map as 1 -> 2 and 10 (the old general code) -> general. A level the caller
+    passes directly is checked strictly instead (``validate_obliquity_truncation``).
 
     Parameters
     ----------
@@ -53,38 +53,9 @@ def promote_obliquity_truncation(object level, set warned_levels=None, object wa
     ValueError
         For a negative level or an unknown name.
     """
-    if isinstance(level, str):
-        text = level.strip().lower()
-        if text in cy_names:
-            return cy_names[text]
-        try:
-            level = int(text)
-        except ValueError:
-            raise ValueError(
-                f"Obliquity truncation {level!r} is not supported. Supported levels: {OBLIQUITY_TRUNCATIONS}, 'off', "
-                "or 'gen'.")
-    level = int(level)
-    if level in OBLIQUITY_TRUNCATIONS or level == C_OBLIQUITY_GENERAL:
-        return level
-    if level < 0:
-        raise ValueError(
-            f"Obliquity truncation {level} is not supported. Supported levels: {OBLIQUITY_TRUNCATIONS}, 'off', or "
-            "'gen'.")
-    promoted = C_OBLIQUITY_GENERAL
-    for supported in OBLIQUITY_TRUNCATIONS:
-        if supported > level:
-            promoted = supported
-            break
-    if warned_levels is None:
-        warned_levels = _WARNED_PROMOTIONS
-    if warn is None:
-        warn = bool(cy_config_value("warnings", "truncation_promotion", True))
-    if warn and level not in warned_levels:
-        warned_levels.add(level)
-        warnings.warn(
-            f"Obliquity truncation {level} is not tabulated; using {obliquity_truncation_name(promoted)!r} instead. "
-            f"Supported levels: {OBLIQUITY_TRUNCATIONS}, 'off', or 'gen'.")
-    return promoted
+    return promote_truncation(
+        level, OBLIQUITY_TRUNCATIONS, cy_names, C_OBLIQUITY_GENERAL, "Obliquity",
+        _WARNED_PROMOTIONS if warned_levels is None else warned_levels, warn, obliquity_truncation_name)
 
 
 def validate_obliquity_truncation(object truncation=None) -> int:

@@ -17,8 +17,7 @@ from TidalPy.constants import G
 from TidalPy.Material import Material
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
-from TidalPy.Utilities.logging.logger import flush_logger, init_logger
-from TidalPy.initialize import build_logging_config
+
 
 _RADIUS = 2.0e6
 _DENSITY = 4000.0
@@ -127,31 +126,13 @@ def test_the_latent_heat_of_the_moving_boundary():
     assert result["layer_latent_capacity"][0] == pytest.approx(finite_difference, rel=1.0e-5)
 
 
-@pytest.fixture
-def spdlog_text(tmp_path):
-    """Route the C++ logger to a temporary file for the test and hand back a reader for its text."""
-    log_path = tmp_path / "tidalpy.log"
-    init_logger({"console_level": "off", "file_level": "warning", "log_to_file": True,
-                 "log_file_path": str(log_path)})
-
-    def read():
-        flush_logger()
-        return log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-
-    yield read
-    init_logger(build_logging_config())
-
-
 @pytest.mark.parametrize("is_static", [True, False])
 def test_a_dynamic_liquid_zone_is_checked_for_its_instability(spdlog_text, is_static):
     """A liquid zone of a layer solved with the dynamic equations is a dynamic liquid like a liquid layer, and a
     constant-density one grows unstable at long periods: the Love solve warns about it, naming the layer."""
     world, _ = _uniform_planet(2000.0)
     world.body.is_static = is_static
-    try:
-        world.solve_love_numbers(frequency=1.0e-6)
-    except Exception:  # noqa: BLE001
-        pass
+    world.solve_love_numbers(frequency=1.0e-6)
     text = spdlog_text()
     assert ("grows unstable at long periods" in text) == (not is_static)
     if not is_static:

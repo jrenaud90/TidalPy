@@ -80,8 +80,12 @@ public:
     // Optional luminosity model owned by the star. When attached, the star derives its luminosity from its own
     // mass and its effective temperature from that luminosity and its own radius. Without one the star still
     // keeps a consistent scalar temperature and luminosity pair.
-    void set_luminosity_model(std::unique_ptr<c_LuminosityBase> model) noexcept {
+    void set_luminosity_model(std::shared_ptr<const c_LuminosityBase> model) noexcept {
         this->p_luminosity_model = std::move(model);
+    }
+    // Through the generic model handle the Python wrappers hold; throws std::invalid_argument for another family.
+    void set_luminosity_model_handle(const std::shared_ptr<c_PhysicsBase>& model) {
+        this->set_luminosity_model(c_share_as<c_LuminosityBase>(model, "a star's luminosity model"));
     }
     const c_LuminosityBase* get_luminosity_model() const noexcept { return this->p_luminosity_model.get(); }
     bool has_luminosity_model()                    const noexcept { return this->p_luminosity_model != nullptr; }
@@ -142,7 +146,7 @@ protected:
     double p_effective_temperature = 5772.0;   // [K]
     double p_luminosity            = 0.0;      // [W]
     // Optional global-scale luminosity model (mass -> luminosity); serialized as an optional sub-object.
-    std::unique_ptr<c_LuminosityBase> p_luminosity_model {};
+    std::shared_ptr<const c_LuminosityBase> p_luminosity_model {};
 };
 
 } // namespace tidalpy

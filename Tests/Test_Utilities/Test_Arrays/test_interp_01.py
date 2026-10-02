@@ -82,3 +82,12 @@ def test_accepts_read_only_arrays():
         array.setflags(write=False)
     np.testing.assert_allclose(interp(x, xp, fp), np.interp(x, xp, fp))
     assert interp(1.5, xp, fp) == pytest.approx(float(np.interp(1.5, xp, fp)))
+
+
+def test_complex_values_keep_their_imaginary_part():
+    """Complex samples interpolate both parts, as numpy.interp does, rather than dropping the imaginary one."""
+    fp = _FP + 1j * (2.0 * _FP + 1.0)
+    x = np.array([0.5, 2.5, 4.5, -1.0, 10.0])
+    np.testing.assert_allclose(interp(x, _XP, fp), np.interp(x, _XP, fp))
+    assert interp(1.5, _XP, fp) == pytest.approx(complex(np.interp(1.5, _XP, fp)))
+    assert isinstance(interp(1.5, _XP, fp), complex)

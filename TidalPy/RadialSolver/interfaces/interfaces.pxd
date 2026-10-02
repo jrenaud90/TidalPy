@@ -12,10 +12,8 @@ cdef extern from "interfaces_.hpp" nogil:
         size_t max_num_y,
         int lower_layer_type,
         cpp_bool lower_is_static,
-        cpp_bool lower_is_incompressible,
         int upper_layer_type,
         cpp_bool upper_is_static,
-        cpp_bool upper_is_incompressible,
         double interface_gravity,
         double liquid_density,
         double G_to_use) noexcept nogil

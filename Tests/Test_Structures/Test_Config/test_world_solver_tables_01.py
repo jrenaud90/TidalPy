@@ -138,3 +138,26 @@ def test_a_star_takes_the_tables():
     config = {"name": "sun", "type": "star", "radius_m": 6.96e8, "mass_kg": 1.99e30, "luminosity_w": 3.8e26,
               "radial_solver": {"use_kamata": True}}
     assert build_world(config).get_solver_defaults()["radial_solver"] == {"use_kamata": True}
+
+
+def _a_value_for_every_key():
+    """A value of each [eos_solver] and [radial_solver] key schema.py lists, inside its rules and away from the
+    packaged default."""
+    from TidalPy.schema import _SOLVER_KEY_RULES
+    choices = {str: "RK45", bool: True, int: 7, float: 2.5e-7}
+    return {section: {key: choices[kind] for key, (kind, _) in rules.items()}
+            for section, rules in _SOLVER_KEY_RULES.items()}
+
+
+def test_every_schema_key_is_pinned_kept_and_saved(tmp_path):
+    """The C++ override tables hold exactly the keys schema.py lists (an unknown key would raise in set), each comes
+    back under its type, and a binary record keeps them all."""
+    pinned = _a_value_for_every_key()
+    world = build_world("io")
+    world.set_solver_defaults(eos_solver=pinned["eos_solver"], radial_solver=pinned["radial_solver"])
+    assert world.get_solver_defaults() == pinned
+    path = str(tmp_path / "world.tpyb")
+    world.save_binary(path)
+    loaded = build_world("io")
+    loaded.load_binary(path)
+    assert loaded.get_solver_defaults() == pinned

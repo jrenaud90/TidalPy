@@ -103,7 +103,7 @@ cdef class RadialSolverSolution:
         self,
         int* bc_models_ptr) noexcept nogil
 
-    cdef void change_radius_array(self, size_t new_size_radius_array) noexcept
+    cdef void change_radius_array(self, size_t new_size_radius_array) except *
 
     # One Love-number quantity for every ytype (see the .pyx).
     cdef object _love_values(self, size_t quantity)

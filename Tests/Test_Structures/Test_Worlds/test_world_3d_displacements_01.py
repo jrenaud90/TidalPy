@@ -5,12 +5,14 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology import Elastic, Maxwell
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes import make_tide
 from TidalPy.Tides.potential import tidal_potential_3d_modes
+
+from shared_materials import constant_solid
 
 RADIUS = 1.8e6
 DENSITY = 3500.0
@@ -25,11 +27,8 @@ ORBIT = dict(orbital_frequency=ORBITAL_FREQ, spin_frequency=SPIN_FREQ, eccentric
 
 
 def _material():
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": DENSITY, "bulk_modulus_pa": 1.0e15},
-        shear_modulus={"model": "constant", "shear_modulus_pa": 6.0e10},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+    return constant_solid(
+        DENSITY, bulk_modulus=1.0e15, shear_modulus=6.0e10, shear_viscosity=1.0e19, bulk_viscosity=1.0e30)
 
 
 @pytest.fixture(scope="module")

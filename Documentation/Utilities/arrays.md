@@ -19,7 +19,7 @@ interp(1.5, sample_x, sample_y)                # 7.5, a float for a scalar query
 interp([-1.0, 0.5, 9.0], sample_x, sample_y)   # array([0., 5., 7.]), clamped at both ends
 ```
 
-`interp(x, xp, fp)` takes the query coordinate or coordinates, the sample coordinates sorted ascending, and the sample values. It returns a Python float for a scalar query and a `float64` array shaped like `x` otherwise, and raises `ValueError` if the sample arrays are empty or differ in length.
+`interp(x, xp, fp)` takes the query coordinate or coordinates, the sample coordinates sorted ascending, and the sample values. It returns a Python float for a scalar query and a `float64` array shaped like `x` otherwise, and raises `ValueError` if the sample arrays are empty or differ in length. Complex sample values are interpolated as complex numbers, through the C++ `c_interp_complex`, and give a complex result.
 
 The behavior matches `numpy.interp`, including the clamping of out-of-range queries to the nearest endpoint value and NumPy's fallback when an interpolation slope comes out NaN. The one difference is that the sample coordinates are assumed to be sorted ascending and no check is performed, because the routine sits inside inner loops where the check would cost more than the interpolation. Unsorted input gives undefined results rather than an error.
 

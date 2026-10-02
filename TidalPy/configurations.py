@@ -445,7 +445,7 @@ def save_dict_to_toml(dict_to_save: dict,
             os.remove(file_path)
         else:
             # Append a number to the config name until one is found that is not already in use.
-            file_path = unique_path(file_path, is_dir=False, make_dir=False)
+            file_path = unique_path(file_path)
     
     with open(file_path, 'w', encoding='utf-8') as toml_file:
         toml_output = toml.dump(dict_to_save, toml_file)
@@ -666,6 +666,6 @@ def save_config(file_path: str, overwrite: bool = True) -> str:
     if TidalPy.config is None:
         get_default_config()
     if os.path.isfile(file_path) and not overwrite:
-        file_path = unique_path(file_path, is_dir=False, make_dir=False)
+        file_path = unique_path(file_path)
     write_config_toml(TidalPy.config, file_path, 'TidalPy Configurations')
     return file_path

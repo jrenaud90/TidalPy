@@ -6,9 +6,11 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
+
+from shared_materials import constant_solid
 
 
 _PLANET_RADIUS = 6.0e6
@@ -19,10 +21,7 @@ _SHEAR_VISC    = 1.0e21
 
 
 def _material():
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _STATIC_BULK},
-        shear_modulus={"model": "constant", "shear_modulus_pa": _STATIC_SHEAR},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": _SHEAR_VISC}))
+    return constant_solid(_DENSITY, bulk_modulus=_STATIC_BULK, shear_modulus=_STATIC_SHEAR, shear_viscosity=_SHEAR_VISC)
 
 
 def _world(solve=False):

@@ -188,11 +188,12 @@ cdef class RadialSolverSolution:
             elif bc_model == 2:
                 self.ytypes[ytype_i] = "loading"
             else:
+                self.solution_storage_ptr.success    = False
                 self.solution_storage_ptr.error_code = -2
                 self.solution_storage_ptr.message = cpp_string(b"ArgumentException:: Unknown boundary condition provided")
         self.ytype_names_set = True
 
-    cdef void change_radius_array(self, size_t new_size_radius_array) noexcept:
+    cdef void change_radius_array(self, size_t new_size_radius_array) except *:
         # Wrap the storage's result grid, now new_size_radius_array slices long, for Python.
         self.radius_array_size = new_size_radius_array
 
@@ -200,19 +201,16 @@ cdef class RadialSolverSolution:
         cdef cnp.npy_intp* full_solution_shape_ptr = &full_solution_shape[0]
         cdef cnp.npy_intp full_solution_shape_ndim = 2
 
-        cdef c_EOSSolution* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
-
+        # Checked before either pointer is read through.
         if not self.solution_storage_ptr:
             raise RuntimeError("RadialSolverSolution:: c_RadialSolutionStorage is not initialized.")
-        else:
-            self.full_solution_arr = cnp.PyArray_SimpleNewFromData(
-                full_solution_shape_ndim,
-                full_solution_shape_ptr,
-                cnp.NPY_COMPLEX128,
-                <double complex*>self.solution_storage_ptr.full_solution_vec.data())
-
-            if not eos_solution_ptr:
-                raise RuntimeError("RadialSolverSolution:: c_EOSSolution is not initialized.")
+        if not self.solution_storage_ptr.get_eos_solution_ptr():
+            raise RuntimeError("RadialSolverSolution:: c_EOSSolution is not initialized.")
+        self.full_solution_arr = cnp.PyArray_SimpleNewFromData(
+            full_solution_shape_ndim,
+            full_solution_shape_ptr,
+            cnp.NPY_COMPLEX128,
+            <double complex*>self.solution_storage_ptr.full_solution_vec.data())
 
     cdef void finalize_python_storage(self) noexcept:
 
@@ -292,7 +290,8 @@ cdef class RadialSolverSolution:
     def get_radial_solution(self, double radius, size_t ytype_index = 0):
         """Complex y1..y6 (SI) at one radius [m] for a boundary-condition ytype.
 
-        Shooting solutions evaluate their dense interpolants; the matrix method interpolates its grid linearly.
+        Shooting solutions evaluate their dense interpolants; the matrix method continues its propagation inside
+        the slice holding the radius, so both are exact between grid points.
         Returns a length-6 complex128 array, NaN out of range or below the starting radius.
         """
         cdef cnp.ndarray[cnp.complex128_t, ndim=1] out = np.empty(C_MAX_NUM_Y, dtype=np.complex128)

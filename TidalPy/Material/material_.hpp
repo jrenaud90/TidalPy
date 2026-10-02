@@ -178,7 +178,6 @@ public:
 
     const c_PhaseComponents& get_components() const noexcept { return this->p_components; }
     const c_EOSBase& get_eos() const noexcept { return *this->p_components.eos; }
-    bool get_has_shear_modulus() const noexcept { return static_cast<bool>(this->p_components.shear_modulus); }
     bool get_has_shear_viscosity() const noexcept { return static_cast<bool>(this->p_components.shear_viscosity); }
 
     // The phase at a point; `thermal` says whether its density sees the temperature. Without a law for a property the

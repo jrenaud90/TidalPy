@@ -43,9 +43,6 @@ public:
     // non-finite pressure. The adiabat of a melting range takes the latent heat's pressure term from it.
     virtual double calc_melting_slope(double pressure) const noexcept = 0;
 
-    // Whether the curve depends on pressure, so a layer that ignores pressure melting can evaluate it once.
-    virtual bool get_is_pressure_dependent() const noexcept { return true; }
-
     void calc_melting_temperature_vectorize(
             const std::vector<double>& pressure,
             std::vector<double>& out_temperature) const {
@@ -118,7 +115,6 @@ public:
     double calc_melting_slope(double pressure) const noexcept override {
         return std::isfinite(pressure) ? 0.0 : TidalPyConstants::d_NAN;
     }
-    bool get_is_pressure_dependent() const noexcept override { return false; }
 
 protected:
     double p_temperature = 0.0;

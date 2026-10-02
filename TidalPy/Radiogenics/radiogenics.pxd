@@ -80,8 +80,9 @@ cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
 
 
 cdef class RadiogenicsBase(PhysicsBase):
-    cdef unique_ptr[c_RadiogenicsBase] _radiogenics_ptr   # owns the most-derived C++ model object
+    # The model lives in PhysicsBase's shared handle, so a layer can share it rather than copy it.
     cdef void _adopt(self, unique_ptr[c_RadiogenicsBase]& model) noexcept
+    cdef c_RadiogenicsBase* _radiogenics(self) noexcept
 
 
 cdef class OffRadiogenics(RadiogenicsBase):

@@ -13,7 +13,6 @@ model name for its defaults; a whole phase or material may be given as one neste
 ``get_config_dict()`` returns and a TOML material table takes.
 """
 
-import difflib
 
 from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport shared_ptr, unique_ptr
@@ -40,7 +39,7 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_param_map,
     cy_wrap_model,
 )
-from TidalPy.Utilities.classes.classes import canonical_parameter_keys
+from TidalPy.Utilities.classes.classes import canonical_parameter_keys, did_you_mean
 from TidalPy.Utilities.classes.families import ModelFamily
 from TidalPy.Material.laws import make_eos, make_shear_modulus
 from TidalPy.Viscosity import make_viscosity
@@ -121,10 +120,9 @@ cdef dict cy_split_config(dict config, object slots, object parameter_keys, str 
             slot_tables[key] = config.pop(key)
         elif key not in parameter_keys:
             accepted = sorted(set(slots) | set(parameter_keys))
-            close = difflib.get_close_matches(key, accepted, n=1)
-            hint = f" (did you mean '{close[0]}'?)" if close else ""
-            raise ValueError(f"TidalPy: a {family} has no slot or parameter '{key}'{hint}. "
-                             f"Accepted: {', '.join(accepted)}.")
+            raise ValueError(
+                f"TidalPy: a {family} has no slot or parameter '{key}'{did_you_mean(key, accepted)}. "
+                f"Accepted: {', '.join(accepted)}.")
     return slot_tables
 
 
@@ -467,9 +465,9 @@ cdef class Material(PhysicsBase):
 def _single_model_name(str model_name, str family) -> str:
     """The one model name a composite family has, or a ValueError naming it."""
     if model_name.lower() != family:
-        close = difflib.get_close_matches(model_name.lower(), [family], n=1)
-        hint = f" (did you mean '{family}'?)" if close else ""
-        raise ValueError(f"TidalPy: unknown {family} model name '{model_name}'{hint}. Accepted: {family}.")
+        raise ValueError(
+            f"TidalPy: unknown {family} model name '{model_name}'{did_you_mean(model_name, [family])}. "
+            f"Accepted: {family}.")
     return family
 
 

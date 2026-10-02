@@ -154,11 +154,10 @@ def test_top_to_bottom_interface_bc_runs_for_a_solid_under_solid():
         0,
         0,
         False,
-        False,
-        False,
         False)
 
-    assert np.all(np.isfinite(constants.view(np.float64))), constants
+    # Solid under solid: the constants pass straight through.
+    np.testing.assert_array_equal(constants, above)
 
 
 def test_partition_radius_by_layer_splits_at_the_repeated_interface():

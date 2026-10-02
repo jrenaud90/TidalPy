@@ -49,33 +49,17 @@ inline void c_kamata_solid_dynamic_compressible(
     const double dlp1         = 2.0 * degree_l_dbl + 1.0;
     const double llp1         = degree_l_dbl * lp1;
 
-    // Helper functions
-    const std::complex<double> k2_quad_pos =(dynamic_term / beta2) + ((dynamic_term + 4.0 * gamma) / alpha2);
-    const std::complex<double> k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4.0 * gamma) / alpha2);
-    const std::complex<double> k2_quad     = (k2_quad_neg * k2_quad_neg) +
-        ((4.0 * degree_l_dbl * (degree_l_dbl + 1.0) * (gamma * gamma)) / (alpha2 * beta2));
-
+    // The wave numbers and their f and h functions (c_solid_wave_numbers).
     // QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with KMN15 for this func.
     const size_t neg_index = 1;
     const size_t pos_index = 0;
-    const std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
-    const std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
-    const std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
-
-    // f(k2) = (beta2 k2 - w^2) / gamma cancels for k2_pos when w^2 >> gamma, with a relative error that grows as
-    // (w^2 / gamma)^2. With N = k2_quad_neg and D = k2_quad_sqrt, f_pos = beta2 (D - N) / (2 gamma) and
-    // f_neg = -beta2 (D + N) / (2 gamma); whichever of D -+ N cancels is rewritten with
-    // D^2 - N^2 = 4 l (l + 1) gamma^2 / (alpha2 beta2).
-    const std::complex<double> d_plus_n  = k2_quad_sqrt + k2_quad_neg;
-    const std::complex<double> d_minus_n = k2_quad_sqrt - k2_quad_neg;
-    const std::complex<double> f_scale   = beta2 / (2.0 * gamma);
-    const std::complex<double> f_product = (2.0 * llp1 * gamma) / alpha2;  // f_scale (D^2 - N^2)
-    const bool plus_is_larger = std::abs(d_plus_n) >= std::abs(d_minus_n);
-    const std::complex<double> f_k2_pos = plus_is_larger ? f_product / d_plus_n : f_scale * d_minus_n;
-    const std::complex<double> f_k2_neg = plus_is_larger ? -f_scale * d_plus_n : -f_product / d_minus_n;
-
-    const std::complex<double> h_k2_pos = f_k2_pos - lp1;
-    const std::complex<double> h_k2_neg = f_k2_neg - lp1;
+    const c_SolidWaveNumbers waves = c_solid_wave_numbers(dynamic_term, gamma, alpha2, beta2, degree_l);
+    const std::complex<double>& k2_pos   = waves.k2_pos;
+    const std::complex<double>& k2_neg   = waves.k2_neg;
+    const std::complex<double>& f_k2_pos = waves.f_pos;
+    const std::complex<double>& f_k2_neg = waves.f_neg;
+    const std::complex<double>& h_k2_pos = waves.h_pos;
+    const std::complex<double>& h_k2_neg = waves.h_neg;
 
     const std::complex<double> z_k2_pos = c_z_calc(k2_pos * r2, degree_l);
     const std::complex<double> z_k2_neg = c_z_calc(k2_neg * r2, degree_l);

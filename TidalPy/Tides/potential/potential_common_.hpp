@@ -84,7 +84,16 @@ inline c_FrequencyTolerance c_read_frequency_tolerance() noexcept
         (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_FREQUENCY : 0.0};
 }
 
-// Whether two frequencies agree to a relative tolerance, NaN-safe (c_isclose with no absolute floor).
+// A mode at or below the tolerance's min_frequency is a static deformation: it dissipates nothing, so the 1D and the 3D
+// paths both drop it. A NaN frequency is kept, so a bad orbital state shows as NaN heating rather than none.
+inline bool c_is_static_frequency(double frequency, const c_FrequencyTolerance& tolerance) noexcept
+{
+    return std::abs(frequency) <= tolerance.min_frequency;
+}
+
+// Whether two frequencies agree to a relative tolerance, NaN-safe (c_isclose with no absolute floor). Integer
+// combinations of n and the spin rate that agree mathematically can still differ at the last bit, so the 1D path's
+// unique frequencies and the 3D path's waves both merge frequencies that match this way.
 struct c_IsCloseMatch
 {
     double rtol;
@@ -117,8 +126,7 @@ inline std::ptrdiff_t c_record_unique_frequencies(
         c_UniqueFreqIndexMap& frequency_index_map,
         c_UniqueFreqMap& frequency_map)
 {
-    const c_FrequencyTolerance& tolerance = tracker.tolerance;
-    if (c_isclose(frequency, 0.0, tolerance.match_rtol, tolerance.min_frequency))
+    if (c_is_static_frequency(frequency, tracker.tolerance))
     {
         return -1;
     }

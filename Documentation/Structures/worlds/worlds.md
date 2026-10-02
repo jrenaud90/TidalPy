@@ -509,7 +509,7 @@ std::complex<double> k2 = world.get_love_number_k(0);
 
 A default-constructed `c_LoveSolveConfig` (and `c_WorldEOSSolveConfig`) reads the `[radial_solver]` (`[eos_solver]`) section of the shared runtime config, so C++ callers and the tide paths start from the same defaults as Python callers.
 
-`c_BaseWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a cached helper, `c_WorldRadialSolver` (held by `p_radial_solver`). The helper separates the frequency-independent setup (built once and reused) from the frequency-dependent work (recomputed on every call), which speeds up frequency sweeps and orbital evolution.
+`c_BaseWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a cached helper, `c_WorldRadialSolver` (held by `p_love.radial_solver`). The helper separates the frequency-independent setup (built once and reused) from the frequency-dependent work (recomputed on every call), which speeds up frequency sweeps and orbital evolution.
 
 The non-dimensionalization is frequency-independent (the `c_NonDimensionalScales` time scale is $1/\sqrt{\pi G \bar{\rho}}$ for the bulk density $\bar{\rho}$, not $1/\omega$). Only the complex moduli and the shooting integration change between calls at different frequencies.
 
@@ -585,7 +585,7 @@ world.get_tidal_love_k(2, 2, 0, 0)               # Complex k for the (l,m,p,q) =
 
 | Member | Returns | Description |
 |--------|---------|-------------|
-| `set_tide_model(tide)` | - | Attach a tide model. The world holds its own copy, built from the model's parameters, so one model can serve several worlds. |
+| `set_tide_model(tide)` | - | Attach a tide model. The world shares it rather than copying it (models are not changed in place), so one model can serve several worlds. |
 | `tide_model_set` | bool | Whether a model is attached. |
 | `set_tide_config(min_degree_l=None, max_degree_l=None, eccentricity_truncation=None, obliquity_truncation=None, layer_tidal_heating=None, eccentricity_exact_tolerance=None, love_method=None, love_fixed_q=None, love_fixed_dt=None)` | - | Change the stored `[tides]` truncation/degree settings (`eccentricity_truncation` a level or `"exact"`, with `eccentricity_exact_tolerance` its mode range; see [Eccentricity Functions](../../Tides/Eccentricity.md); `obliquity_truncation` 0 or `"off"`, 2, 4, or `"gen"`; see [Obliquity Functions](../../Tides/Obliquity.md)), whether `calc_tides` resolves each layer's heating on the radial-solver path, and the world's default Love-number method (see [Calculating Love Numbers](#calculating-love-numbers)). Only the arguments given change; the rest keep their current values (`get_tide_config()`). A NaN `love_fixed_q` or `love_fixed_dt` clears it. |
 | `get_tide_config()` | dict | The stored settings under the builder's `[tides]` key names (`*_trunc_lvl`). |

@@ -40,3 +40,30 @@ def spdlog_text(tmp_path):
 
     yield read
     init_logger(build_logging_config())
+
+
+@pytest.fixture
+def restore_config():
+    """Restore ``TidalPy.config``, the path it was loaded from, and the C++ settings fed from it after a test changes
+    them."""
+    import copy
+
+    import TidalPy
+    from TidalPy.constants import update_constants
+
+    original = copy.deepcopy(TidalPy.config)
+    original_path = TidalPy._config_path
+    yield
+    TidalPy.config = original
+    TidalPy._config_path = original_path
+    update_constants()
+
+
+@pytest.fixture(scope="module")
+def io():
+    """The bundled Io with its interior solved, built once for each test module that asks for it."""
+    from TidalPy.Structures import build_world
+
+    world = build_world("io")
+    world.solve_eos()
+    return world

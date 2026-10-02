@@ -168,7 +168,7 @@ cdef class UniqueFrequencyMap:
         cdef int16_t q = key[3]
         cdef c_Key4 c_key = c_Key4(l, m, p, q)
 
-        cdef size_t result
+        cdef size_t result = 0
         cdef cpp_bool found = self.c_get(result, c_key)
         if not found:
             raise KeyError(f"Can not find entry for key: ({key}).")

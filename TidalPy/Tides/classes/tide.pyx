@@ -17,18 +17,13 @@ from TidalPy.Utilities.logging.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_TidalPyBaseClass
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_share_physics
 from TidalPy.Utilities.classes.classes import check_config_keys, factory_defaults
 from TidalPy.Tides.love.love cimport LoveNumbers, c_LoveNumbers
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
-
-# Matches the C++ tide_.hpp slots.
-cdef int C_TIDE_MIN_DEGREE = 2
-cdef int C_TIDE_MAX_DEGREE = 10
-
 
 cdef vector[double] cy_to_double_vector(object values) except *:
     """Convert an iterable of floats, indexed from l = 2, into a std::vector[double]."""
@@ -69,14 +64,13 @@ cdef class TideBase(PhysicsBase):
             "TideBase is abstract; instantiate a concrete model "
             "(RheologyTide, FixedQTide, FixedLagTide, CTLQTide).")
 
-    def __dealloc__(self):
-        self._tide_ptr.reset()
-        self._ptr = NULL
-
     cdef void _adopt(self, unique_ptr[c_TideBase]& ptr) noexcept:
-        """Take ownership of a built C++ model; `ptr` is left empty."""
-        self._tide_ptr = move(ptr)
-        self._ptr      = <c_TidalPyBaseClass*>self._tide_ptr.get()
+        """Hold a built C++ model in the shared handle (models are not changed in place, so a world shares it); `ptr`
+        is left empty."""
+        self._set_model(c_share_physics[c_TideBase](move(ptr)))
+
+    cdef c_TideBase* _tide(self) noexcept:
+        return <c_TideBase*>self._model_sptr.get()
 
     def calc_love_numbers(self, int degree_l, double frequency, LoveNumbers solver_love=None) -> LoveNumbers:
         """Full complex Love-number suite (k, h, l) at the tidal frequency [rad s-1].
@@ -89,7 +83,7 @@ cdef class TideBase(PhysicsBase):
         cdef c_LoveNumbers solver_c
         if solver_love is not None:
             solver_c = solver_love._love
-        cdef c_LoveNumbers result = self._tide_ptr.get().calc_love_numbers(degree_l, frequency, solver_c)
+        cdef c_LoveNumbers result = self._tide().calc_love_numbers(degree_l, frequency, solver_c)
         cdef LoveNumbers out = LoveNumbers.__new__(LoveNumbers)
         out._love = result
         return out
@@ -100,23 +94,23 @@ cdef class TideBase(PhysicsBase):
         cdef c_LoveNumbers solver_c
         if solver_love is not None:
             solver_c = solver_love._love
-        return self._tide_ptr.get().calc_neg_imk(degree_l, frequency, solver_c)
+        return self._tide().calc_neg_imk(degree_l, frequency, solver_c)
 
     def get_fixed_q(self, int degree_l) -> float:
         """Tidal quality factor Q_l at the given degree; NaN when the model carries none."""
         self._check_ptr()
-        return self._tide_ptr.get().get_fixed_q(degree_l)
+        return self._tide().get_fixed_q(degree_l)
 
     def get_fixed_dt(self, int degree_l) -> float:
         """Tidal time lag dt_l [s] at the given degree; NaN when the model carries none."""
         self._check_ptr()
-        return self._tide_ptr.get().get_fixed_dt(degree_l)
+        return self._tide().get_fixed_dt(degree_l)
 
     @property
     def needs_radial_solve(self) -> bool:
         """Whether this model requires the radial solver to supply k_l (rheology)."""
         self._check_ptr()
-        return bool(self._tide_ptr.get().needs_radial_solve())
+        return bool(self._tide().needs_radial_solve())
 
 
 cdef class RheologyTide(TideBase):
@@ -142,11 +136,11 @@ cdef class FixedQTide(TideBase):
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
         self._check_ptr()
-        return (<c_FixedQTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
+        return (<c_FixedQTide*>self._tide()).get_fixed_k(degree_l)
 
 
 cdef class FixedLagTide(TideBase):
-    """Constant time lag (CTL): k_l(omega) = k_l * (1 - i * omega * dt_l).
+    """Constant time lag (CTL): k_l(omega) = k_l * (1 - i * |omega| * dt_l).
 
     A list left as None takes its ``[tides]`` value of the TidalPy configuration, as ``make_tide`` does.
     """
@@ -159,11 +153,11 @@ cdef class FixedLagTide(TideBase):
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
         self._check_ptr()
-        return (<c_FixedLagTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
+        return (<c_FixedLagTide*>self._tide()).get_fixed_k(degree_l)
 
 
 cdef class CTLQTide(TideBase):
-    """Constant time lag with a quality factor: k_l(omega) = k_l * (1 - i * omega * dt_l / Q_l).
+    """Constant time lag with a quality factor: k_l(omega) = k_l * (1 - i * |omega| * dt_l / Q_l).
 
     A list left as None takes its ``[tides]`` value of the TidalPy configuration, as ``make_tide`` does.
     """
@@ -177,7 +171,7 @@ cdef class CTLQTide(TideBase):
     def get_fixed_k(self, int degree_l) -> float:
         """Static potential Love number k_l at the given degree."""
         self._check_ptr()
-        return (<c_CTLQTide*>self._tide_ptr.get()).get_fixed_k(degree_l)
+        return (<c_CTLQTide*>self._tide()).get_fixed_k(degree_l)
 
 
 # The wrapper class of each c_TideModel, indexed by its enum value.

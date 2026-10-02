@@ -13,6 +13,7 @@ from TidalPy.Utilities.graphics.interior import (
     INTERIOR_PLOT_STYLE,
     load_interior_plot_style,
     plot_interior,
+    reload_interior_plot_style,
 )
 from TidalPy.Utilities.graphics.maps import (
     MAP_PLOT_STYLE,
@@ -33,4 +34,5 @@ __all__ = [
     "plot_interior",
     "plot_map",
     "plot_ys",
+    "reload_interior_plot_style",
 ]

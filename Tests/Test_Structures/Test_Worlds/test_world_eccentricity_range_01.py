@@ -6,27 +6,11 @@ import pytest
 
 from TidalPy.Structures.worlds.stellar import StarWorld
 from TidalPy.Tides.classes.tide import make_tide
-from TidalPy.Utilities.logging.logger import flush_logger, init_logger
-from TidalPy.initialize import build_logging_config
+
 
 _WARNING_TEXT = "can underestimate the tides by 10% or more"
 _ORBIT = dict(orbital_frequency=2.0e-5, spin_frequency=2.0e-5, obliquity=0.0, semi_major_axis=1.0e10,
               host_mass=2.0e30)
-
-
-@pytest.fixture
-def spdlog_text(tmp_path):
-    """Route the C++ logger to a temporary file for the test and hand back a reader for its text."""
-    log_path = tmp_path / "tidalpy.log"
-    init_logger({"console_level": "off", "file_level": "warning", "log_to_file": True,
-                 "log_file_path": str(log_path)})
-
-    def read():
-        flush_logger()
-        return log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-
-    yield read
-    init_logger(build_logging_config())
 
 
 def _world(name, truncation):

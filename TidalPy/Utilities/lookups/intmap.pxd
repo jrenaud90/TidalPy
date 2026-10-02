@@ -59,74 +59,61 @@ cdef extern from "intmap_.hpp" nogil:
         ValueType get(cpp_bool& o_found, const KeyType& key) const
         const ValueType* get_ptr(cpp_bool& o_found, const KeyType& key) const
 
-cdef class IntMap4:
+cdef class IntMapBase:
+    cdef int key_length
+
+    cdef size_t c_size(self) noexcept nogil
+    cdef void c_reserve(self, size_t n) noexcept nogil
+    cdef void c_clear(self) noexcept nogil
+    cdef void _set_item(self, tuple key, object value) except *
+    cdef object _get_item(self, tuple key, cpp_bool* found)
+    cdef tuple _entry(self, size_t i)
+    cdef void _check_key(self, tuple key) except *
+
+cdef class IntMap4(IntMapBase):
     cdef c_IntMap[c_Key4, double] intmap_cinst
 
-    cdef void c_reserve(self, size_t n) noexcept nogil
-    cdef void c_clear(self) noexcept nogil
     cdef void c_set(self, c_Key4& key, double value) noexcept nogil
-    cdef size_t c_size(self) noexcept nogil    
     cdef cpp_bool c_get(self, double& result, c_Key4& key) noexcept nogil
 
-cdef class IntMap3:
+cdef class IntMap3(IntMapBase):
     cdef c_IntMap[c_Key3, double] intmap_cinst
 
-    cdef void c_reserve(self, size_t n) noexcept nogil
-    cdef void c_clear(self) noexcept nogil
     cdef void c_set(self, c_Key3& key, double value) noexcept nogil
-    cdef size_t c_size(self) noexcept nogil    
     cdef cpp_bool c_get(self, double& result, c_Key3& key) noexcept nogil
 
-cdef class IntMap2:
+cdef class IntMap2(IntMapBase):
     cdef c_IntMap[c_Key2, double] intmap_cinst
 
-    cdef void c_reserve(self, size_t n) noexcept nogil
-    cdef void c_clear(self) noexcept nogil
     cdef void c_set(self, c_Key2& key, double value) noexcept nogil
-    cdef size_t c_size(self) noexcept nogil    
     cdef cpp_bool c_get(self, double& result, c_Key2& key) noexcept nogil
 
-cdef class IntMap1:
+cdef class IntMap1(IntMapBase):
     cdef c_IntMap[c_Key1, double] intmap_cinst
 
-    cdef void c_reserve(self, size_t n) noexcept nogil
-    cdef void c_clear(self) noexcept nogil
     cdef void c_set(self, c_Key1& key, double value) noexcept nogil
-    cdef size_t c_size(self) noexcept nogil    
     cdef cpp_bool c_get(self, double& result, c_Key1& key) noexcept nogil
 
-cdef class IntMap4Complex:
+cdef class IntMap4Complex(IntMapBase):
     cdef c_IntMap[c_Key4, double complex] intmap_cinst
 
-    cdef void c_reserve(self, size_t n) noexcept nogil
-    cdef void c_clear(self) noexcept nogil
     cdef void c_set(self, c_Key4& key, double complex value) noexcept nogil
-    cdef size_t c_size(self) noexcept nogil    
     cdef cpp_bool c_get(self, double complex& result, c_Key4& key) noexcept nogil
 
-cdef class IntMap3Complex:
+cdef class IntMap3Complex(IntMapBase):
     cdef c_IntMap[c_Key3, double complex] intmap_cinst
 
-    cdef void c_reserve(self, size_t n) noexcept nogil
-    cdef void c_clear(self) noexcept nogil
     cdef void c_set(self, c_Key3& key, double complex value) noexcept nogil
-    cdef size_t c_size(self) noexcept nogil    
     cdef cpp_bool c_get(self, double complex& result, c_Key3& key) noexcept nogil
 
-cdef class IntMap2Complex:
+cdef class IntMap2Complex(IntMapBase):
     cdef c_IntMap[c_Key2, double complex] intmap_cinst
 
-    cdef void c_reserve(self, size_t n) noexcept nogil
-    cdef void c_clear(self) noexcept nogil
     cdef void c_set(self, c_Key2& key, double complex value) noexcept nogil
-    cdef size_t c_size(self) noexcept nogil    
     cdef cpp_bool c_get(self, double complex& result, c_Key2& key) noexcept nogil
 
-cdef class IntMap1Complex:
+cdef class IntMap1Complex(IntMapBase):
     cdef c_IntMap[c_Key1, double complex] intmap_cinst
 
-    cdef void c_reserve(self, size_t n) noexcept nogil
-    cdef void c_clear(self) noexcept nogil
     cdef void c_set(self, c_Key1& key, double complex value) noexcept nogil
-    cdef size_t c_size(self) noexcept nogil    
     cdef cpp_bool c_get(self, double complex& result, c_Key1& key) noexcept nogil

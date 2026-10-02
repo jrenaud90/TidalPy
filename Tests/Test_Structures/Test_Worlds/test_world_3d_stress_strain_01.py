@@ -16,6 +16,8 @@ from TidalPy.Tides.multilayer.stress_strain import strain_stress_heating_point
 from TidalPy.Tides.potential import tidal_potential_3d_modes
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
 
+from shared_materials import constant_solid
+
 
 _R = 1.0e6
 _DENSITY = 5000.0
@@ -40,11 +42,8 @@ _CASES = [
 
 def _material():
     """The Maxwell mantle's material: constant density, constant moduli, and constant viscosities."""
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _BULK},
-        shear_modulus={"model": "constant", "shear_modulus_pa": _SHEAR},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": _VISC},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": _VISC}))
+    return constant_solid(
+        _DENSITY, bulk_modulus=_BULK, shear_modulus=_SHEAR, shear_viscosity=_VISC, bulk_viscosity=_VISC)
 
 
 def _build_world(max_degree_l=2, obliquity_truncation=0, tide_model="rheology", solve_eos=True):

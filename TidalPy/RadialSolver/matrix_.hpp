@@ -19,6 +19,7 @@
 #include "../constants_.hpp"
 #include "../Material/eos/eos_solution_.hpp"
 #include "rs_constants_.hpp"
+#include "start_radius_.hpp"   // c_auto_starting_radius, c_find_start_layer
 #include "rs_solution_.hpp"
 #include "boundaries/surface_bc_.hpp"
 #include "matrix_types/solid_matrix_.hpp"
@@ -188,28 +189,14 @@ inline int c_matrix_propagate(
     const size_t num_ytypes        = num_bc_models;
     const size_t num_output_ys     = C_MAX_NUM_Y * num_ytypes;
 
-    // 15 = 5 (max solve_for entries) * 3 (surface conditions)
-    double boundary_conditions[15];
+    double boundary_conditions[C_MAX_SURFACE_CONDITIONS];
     double* bc_pointer = &boundary_conditions[0];
     const int surface_bc_code = c_get_surface_bc(
-        bc_pointer,
-        bc_models_ptr,
-        num_ytypes,
-        planet_radius,
-        inputs.planet_bulk_density,
-        degree_l_dbl);
-
+        bc_pointer, bc_models_ptr, num_ytypes, planet_radius, inputs.planet_bulk_density, degree_l_dbl);
     if (surface_bc_code != 0)
     {
-        solution_storage_ptr->message =
-            "RadialSolver.PropMatrixMethod:: Invalid surface boundary conditions (code " +
-            std::to_string(surface_bc_code) +
-            "): between 1 and 5 models are allowed, each free (0), tidal (1), or loading (2).\n";
-        solution_storage_ptr->error_code = -14;
-        solution_storage_ptr->success = false;
-        if (verbose)
-            std::printf("%s", solution_storage_ptr->message.c_str());
-        return solution_storage_ptr->error_code;
+        return solution_storage_ptr->fail(
+            -14, "RadialSolver.PropMatrixMethod:: " + c_surface_bc_error_message(surface_bc_code), verbose);
     }
 
     // TS72 to SVC16 sign convention: the last component flips for the tidal and loading cases (SVC16
@@ -222,57 +209,35 @@ inline int c_matrix_propagate(
         }
     }
 
-    // Automatic starting radius after Martens' thesis and the LoadDef manual, capped by the config.
-    double starting_radius = inputs.starting_radius;
-    if (starting_radius == 0.0)
+    const double starting_radius =
+        c_auto_starting_radius(inputs.starting_radius, planet_radius, inputs.start_radius_tol, degree_l_dbl);
+
+    // The layer holding the starting radius (c_find_start_layer, the shooting method's rule), then the last slice
+    // below the start in it.
+    size_t start_layer_i = 0;
+    if (!c_find_start_layer(eos_solution_storage_ptr->upper_radius_bylayer_vec, num_layers, starting_radius,
+                            start_layer_i))
     {
-        starting_radius = planet_radius * std::pow(inputs.start_radius_tol, 1.0 / degree_l_dbl);
-        starting_radius = std::fmin(
-            starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
+        return solution_storage_ptr->fail(
+            -5, "RadialSolver.PropMatrixMethod:: The starting radius (" + std::to_string(starting_radius) +
+            " in solve units) is not inside the planet, (0, " + std::to_string(planet_radius) + "). Use a starting "
+            "radius inside the planet, or 0 for the automatic choice.\n", verbose);
     }
-
-    // Find the layer holding the starting radius.
-    double layer_upper_radius, last_layer_upper_radius, radius_check;
     size_t last_index_before_start = 0;
-    size_t first_slice_index       = 0;
-    double last_radius_check       = 0.0;
-
-    for (size_t current_layer_i = 0; current_layer_i < num_layers; ++current_layer_i)
+    size_t first_slice_index       = first_slice_index_by_layer_ptr[start_layer_i];
+    double last_radius_check       = (start_layer_i == 0)
+        ? 0.0 : eos_solution_storage_ptr->upper_radius_bylayer_vec[start_layer_i - 1];
+    for (size_t slice_i = first_slice_index;
+         slice_i < first_slice_index + num_slices_by_layer_ptr[start_layer_i];
+         ++slice_i)
     {
-        layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i];
-        if (current_layer_i == 0)
-            last_layer_upper_radius = 0.0;
-        else
-            last_layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i - 1];
-
-        if (last_layer_upper_radius < starting_radius && starting_radius <= layer_upper_radius)
+        const double radius_check = radius_array_ptr[slice_i];
+        if (last_radius_check < starting_radius && starting_radius <= radius_check)
         {
-            first_slice_index = first_slice_index_by_layer_ptr[current_layer_i];
-
-            for (size_t slice_i = first_slice_index;
-                 slice_i < first_slice_index + num_slices_by_layer_ptr[current_layer_i];
-                 ++slice_i)
-            {
-                radius_check = radius_array_ptr[slice_i];
-                if (last_radius_check < starting_radius && starting_radius <= radius_check)
-                {
-                    if (slice_i == 0)
-                        last_index_before_start = 0;
-                    else
-                        last_index_before_start = slice_i - 1;
-                    break;
-                }
-                else
-                {
-                    last_radius_check = radius_check;
-                }
-            }
+            last_index_before_start = (slice_i == 0) ? 0 : slice_i - 1;
             break;
         }
-        else
-        {
-            last_radius_check = last_layer_upper_radius;
-        }
+        last_radius_check = radius_check;
     }
 
     // Start at index 2 at the earliest: index 0 is r = 0, where fundamental matrix elements are NaN or inf.

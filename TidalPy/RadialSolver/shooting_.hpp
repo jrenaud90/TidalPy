@@ -20,12 +20,13 @@
 
 // RadialSolver imports
 #include "rs_constants_.hpp"
+#include "layer_kind_.hpp"     // c_layer_layout
+#include "start_radius_.hpp"   // c_auto_starting_radius, c_find_start_layer
 #include "rs_solution_.hpp"
 #include "love_.hpp"
 #include "starting/common_.hpp"
 #include "starting/driver_.hpp"
 #include "interfaces/interfaces_.hpp"
-#include "interfaces/reversed_.hpp"
 #include "derivatives/odes_.hpp"
 #include "boundaries/boundaries_.hpp"
 #include "boundaries/surface_bc_.hpp"
@@ -100,6 +101,10 @@ struct c_LayerCollapseInputs {
     int    layer_type        = 0;
     bool   is_static         = false;
     bool   is_incompressible = false;
+
+    // The map from this layer's solutions to the layer above's, recorded by the upward pass at the interface on top
+    // of this layer (c_solve_upper_y_at_interface); the collapse applies it downward (c_collapse_through_interface).
+    std::array<std::complex<double>, C_INTERFACE_TRANSFER_SIZE> transfer_to_above{};
 };
 
 
@@ -145,31 +150,15 @@ inline int c_shooting_solver(
     // Surface boundary conditions per forcing type; tides follow (y2, y4, y6) = (0, 0, (2l+1)/R).
     const size_t num_ytypes = inputs.bc_models.size();
 
-    // 15 = 5 (max solve_for entries) * 3 (surface conditions)
-    double boundary_conditions[15];
+    double boundary_conditions[C_MAX_SURFACE_CONDITIONS];
     double* bc_pointer = &boundary_conditions[0];
     const int surface_bc_code = c_get_surface_bc(
-        bc_pointer,
-        inputs.bc_models.data(),
-        num_ytypes,
-        planet_radius,
-        inputs.planet_bulk_density,
-        degree_l_dbl
-    );
+        bc_pointer, inputs.bc_models.data(), num_ytypes, planet_radius, inputs.planet_bulk_density, degree_l_dbl);
     if (surface_bc_code != 0)
     {
         // A bad model would otherwise leave NaN boundary conditions for the surface solve to collapse onto.
-        solution_storage_ptr->error_code = -14;
-        solution_storage_ptr->success    = false;
-        solution_storage_ptr->message    =
-            std::string("RadialSolver.ShootingMethod:: Invalid surface boundary conditions (code ") +
-            std::to_string(surface_bc_code) +
-            std::string("): between 1 and 5 models are allowed, each free (0), tidal (1), or loading (2).\n");
-        if (verbose)
-        {
-            printf("%s", solution_storage_ptr->message.c_str());
-        }
-        return solution_storage_ptr->error_code;
+        return solution_storage_ptr->fail(
+            -14, "RadialSolver.ShootingMethod:: " + c_surface_bc_error_message(surface_bc_code), verbose);
     }
 
     const size_t num_extra            = 0;
@@ -282,47 +271,28 @@ inline int c_shooting_solver(
     // Surface linear-solve status; -999 means not yet called.
     int bc_solution_info = -999;
 
-    // The integration cannot start at r = 0 (singularity); starting higher is more stable but skips more of the
-    // planet. The automatic choice follows Martens' thesis and the LoadDef manual, capped by
-    // config [numerical].max_start_radius_fraction.
-    double starting_radius = inputs.starting_radius;
-    if (starting_radius == 0.0)
-    {
-        starting_radius = planet_radius * std::pow(inputs.start_radius_tol, 1.0 / degree_l_dbl);
-        starting_radius = std::fmin(starting_radius, tidalpy_config_ptr->d_MAX_START_RADIUS_FRAC * planet_radius);
-    }
+    const double starting_radius =
+        c_auto_starting_radius(inputs.starting_radius, planet_radius, inputs.start_radius_tol, degree_l_dbl);
 
-    // Find the layer holding the starting radius, [lower, upper), so a start on an interface begins in the layer
-    // above it, and that layer's first slice at or above the start; lower layers are skipped. The starting layer
-    // is integrated from the starting radius to its top slice, so that slice must lie above the start. A starting
-    // radius at or below zero, at or above the surface, or NaN lies in no layer and fails the solve.
-    bool   start_layer_found       = false;
+    // The layer holding the starting radius (c_find_start_layer), and that layer's first slice at or above the start;
+    // lower layers are skipped. The starting layer is integrated from the starting radius to its top slice, so that
+    // slice must lie above the start. A starting radius in no layer fails the solve.
     size_t start_layer_i           = 0;
     size_t start_first_slice_index = 0;  // first slice at or above the starting radius
     size_t start_layer_slices      = 0;  // slices from there to the top of the starting layer
-    for (size_t current_layer_i = 0; current_layer_i < num_layers; ++current_layer_i)
+    const bool start_layer_found = c_find_start_layer(
+        eos_solution_storage_ptr->upper_radius_bylayer_vec, num_layers, starting_radius, start_layer_i);
+    if (start_layer_found)
     {
-        const double layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i];
-        const double layer_lower_radius = (current_layer_i == 0) ?
-            0.0 : eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i - 1];
-
-        if ((starting_radius > 0.0) && (layer_lower_radius <= starting_radius) &&
-            (starting_radius < layer_upper_radius))
+        const size_t layer_first_slice = first_slice_index_by_layer_vec[start_layer_i];
+        const size_t layer_end_slice   = layer_first_slice + num_slices_by_layer_vec[start_layer_i];
+        size_t slice_i = layer_first_slice;
+        while ((slice_i < layer_end_slice) && (radius_array_ptr[slice_i] < starting_radius))
         {
-            start_layer_found = true;
-            start_layer_i     = current_layer_i;
-
-            const size_t layer_first_slice = first_slice_index_by_layer_vec[current_layer_i];
-            const size_t layer_end_slice   = layer_first_slice + num_slices_by_layer_vec[current_layer_i];
-            size_t slice_i = layer_first_slice;
-            while ((slice_i < layer_end_slice) && (radius_array_ptr[slice_i] < starting_radius))
-            {
-                ++slice_i;
-            }
-            start_first_slice_index = slice_i;
-            start_layer_slices      = layer_end_slice - slice_i;
-            break;
+            ++slice_i;
         }
+        start_first_slice_index = slice_i;
+        start_layer_slices      = layer_end_slice - slice_i;
     }
 
     if (!start_layer_found)
@@ -441,36 +411,15 @@ inline int c_shooting_solver(
             rtols_vec.resize(num_ys * 2);
             atols_vec.resize(num_ys * 2);
 
+            const c_LayerKindLayout& layout = c_layer_layout(layer_type, layer_is_static);
             for (size_t y_i = 0; y_i < num_ys; ++y_i)
             {
                 // TODO: Change up the tolerance scaling between real and imaginary?
-                double layer_rtol_real = integration_rtol;
-                double layer_rtol_imag = integration_rtol;
-                double layer_atol_real = integration_atol;
-                double layer_atol_imag = integration_atol;
-
-                // Tighter rtols on the ys that drive instability. TODO: test these scales (Issue #44).
-                if (layer_type == 0)
-                {
-                    // Solid: y2 and y3.
-                    if ((y_i == 1) || (y_i == 2))
-                    {
-                        layer_rtol_real *= 0.1;
-                        layer_rtol_imag *= 0.1;
-                    }
-                }
-                else
-                {
-                    if (!layer_is_static)
-                    {
-                        // Dynamic liquid: y2.
-                        if (y_i == 1)
-                        {
-                            layer_rtol_real *= 0.01;
-                            layer_rtol_imag *= 0.01;
-                        }
-                    }
-                }
+                // Tighter rtols on the ys that drive instability (c_LayerKindLayout::rtol_scale).
+                const double layer_rtol_real = integration_rtol * layout.rtol_scale[y_i];
+                const double layer_rtol_imag = integration_rtol * layout.rtol_scale[y_i];
+                const double layer_atol_real = integration_atol;
+                const double layer_atol_imag = integration_atol;
                 rtols_vec[2 * y_i]     = layer_rtol_real;
                 rtols_vec[2 * y_i + 1] = layer_rtol_imag;
                 atols_vec[2 * y_i]     = layer_atol_real;
@@ -536,13 +485,12 @@ inline int c_shooting_solver(
                 C_MAX_NUM_Y,
                 layer_below.layer_type,
                 layer_below.is_static,
-                layer_below.is_incompressible,
                 layer_type,
                 layer_is_static,
-                layer_is_incomp,
                 interface_values.gravity,
                 interface_values.liquid_density,
-                G_to_use
+                G_to_use,
+                layer_below.transfer_to_above.data()
             );
         }
 
@@ -807,25 +755,14 @@ inline int c_shooting_solver(
             }
             else
             {
-                // Interior layer: constants follow from the layer above.
+                // Interior layer: constants follow from the layer above through the map the upward pass recorded.
                 const c_LayerCollapseInputs& layer_above = collapse_inputs_vec[layer_i + 1];
-                c_top_to_bottom_interface_bc(
+                c_collapse_through_interface(
                     constant_vector_ptr,
                     layer_above_constant_vector_ptr,
-                    layer.top_y.data(),
-                    layer.gravity_upper,
-                    layer_above.gravity_lower,
-                    layer.density_upper,
-                    layer_above.density_lower,
-                    layer.layer_type,
-                    layer_above.layer_type,
-                    layer.is_static,
-                    layer_above.is_static,
-                    layer.is_incompressible,
-                    layer_above.is_incompressible,
+                    layer.transfer_to_above.data(),
                     num_sols,
-                    C_MAX_NUM_Y
-                );
+                    layer_above.num_sols);
             }
 
             // The collapsed y is evaluated on demand from the interpolants and these constants

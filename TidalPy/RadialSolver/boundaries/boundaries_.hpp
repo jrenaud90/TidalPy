@@ -11,8 +11,10 @@
 #include <cstddef>
 #include <complex>
 #include <limits>
+
 #include <Eigen/Dense>
 
+#include "../layer_kind_.hpp"   // c_layer_layout
 #include "../../constants_.hpp"
 
 
@@ -209,15 +211,10 @@ inline double c_estimate_surface_rcond(
         int layer_type,
         bool layer_is_static) noexcept
 {
-    // The rows the boundary conditions constrain, in the layer's own y storage order. Liquid storage is
-    // (y1, y2, y5, y6) when dynamic, constraining y2 and y6 (indices 1 and 3), and (y5, y7) when static,
-    // constraining y7 (index 1), so the leading entries of the solid list serve both.
-    const size_t bc_rows[3] = {1, 3, 5};
-    size_t num_bc_rows = 3;
-    if (layer_type != 0)
-    {
-        num_bc_rows = layer_is_static ? 1 : 2;
-    }
+    // The rows the boundary conditions constrain, in the layer's own y storage order (c_LayerKindLayout).
+    const c_LayerKindLayout& layout = c_layer_layout(layer_type, layer_is_static);
+    const std::array<size_t, 3>& bc_rows = layout.surface_condition_slots;
+    const size_t num_bc_rows = layout.num_solutions;
     if ((num_bc_rows != num_sols) || (num_ys > max_num_y) || (num_ys != 2 * num_sols))
     {
         return TidalPyConstants::d_NAN;

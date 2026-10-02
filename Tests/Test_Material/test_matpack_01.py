@@ -81,15 +81,25 @@ def test_every_material_has_a_physical_state(name):
             assert state["shear_viscosity"] > 0.0
 
 
-@pytest.mark.parametrize("name", _ALL)
-def test_melting_curves_do_not_cross(name):
+# Materials whose melting curves are known to fail the check below, each with its tracked reason. Strict, so a fix
+# shows up as an unexpected pass to remove from here.
+_KNOWN_MELTING_CURVE_FAILURES = {
+    "ice_ih": "the Simon-Glatzel solidus with a negative a reaches 0 K past about 0.42 GPa, so ice Ih reads fully "
+              "liquid at depth (task list R25 (e))",
+}
+
+
+@pytest.mark.parametrize("name", [
+    pytest.param(name, marks=pytest.mark.xfail(reason=_KNOWN_MELTING_CURVE_FAILURES[name], strict=True))
+    if name in _KNOWN_MELTING_CURVE_FAILURES else name for name in _ALL])
+def test_melting_curves_are_positive_and_do_not_cross(name):
     material = load_material(name)
     if not material.can_melt:
         pytest.skip("cannot melt")
     for pressure in (0.0, 1.0e8, 1.0e9, 1.0e10, 5.0e10):
         solidus, liquidus = material.calc_melting_range(pressure)
-        if solidus > 0.0:
-            assert liquidus >= solidus - 1.0e-9, (pressure, solidus, liquidus)
+        assert solidus > 0.0, (pressure, solidus)
+        assert liquidus >= solidus - 1.0e-9, (pressure, solidus, liquidus)
 
 
 def test_liquid_materials_are_liquid():

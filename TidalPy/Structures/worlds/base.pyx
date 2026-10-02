@@ -452,6 +452,35 @@ cdef void cy_world_eos_fields(
     (<const c_BaseWorld*>owner).get_eos_fields(field_indices, num_fields, radii, num_radii, values_out)
 
 
+# A pinned solver setting's kinds (c_SolverSettingKind): the order of the C++ enum.
+cdef int C_SOLVER_SETTING_METHOD = 0
+cdef int C_SOLVER_SETTING_REAL   = 1
+cdef int C_SOLVER_SETTING_COUNT  = 2
+cdef int C_SOLVER_SETTING_FLAG   = 3
+
+
+cdef double cy_solver_setting_to_double(int kind, object value) except? -1.0:
+    """A validated [eos_solver] / [radial_solver] value as the double the world's override table keeps."""
+    if kind == C_SOLVER_SETTING_METHOD:
+        return <double><int>cy_resolve_integration_method(str(value))
+    if kind == C_SOLVER_SETTING_COUNT:
+        return <double>int(value)
+    if kind == C_SOLVER_SETTING_FLAG:
+        return 1.0 if value else 0.0
+    return <double>value
+
+
+cdef object cy_solver_setting_from_double(int kind, double value):
+    """A pinned setting back under its configuration type: a method name, an int, a bool, or a float."""
+    if kind == C_SOLVER_SETTING_METHOD:
+        return cy_integration_method_name(<ODEMethod><int>value)
+    if kind == C_SOLVER_SETTING_COUNT:
+        return int(value)
+    if kind == C_SOLVER_SETTING_FLAG:
+        return value != 0.0
+    return value
+
+
 cdef class BaseWorld(StructureBase):
     """A world: an ordered (inner-to-outer) stack of layers, which may be empty, with its identity, orbital and
     thermal scalars, bulk geometry, spin model, and tide model.
@@ -711,17 +740,15 @@ cdef class BaseWorld(StructureBase):
     def set_tide_model(self, TideBase tide not None):
         """Attach a global tide dissipation model.
 
-        The world holds its own copy, built from ``tide``'s parameters (``get_config_dict``), so ``tide`` stays
-        usable and can be attached to other worlds; a later change to it does not reach this world.
+        The model is shared, not copied (models are not changed in place), so ``tide`` stays usable and can be
+        attached to other worlds.
 
         The analytic models (``cpl``/``ctl``/``ctl_q``) work on any world, layers or not; the ``rheology`` model
         needs layers and a solved EOS.
         """
-        if tide._tide_ptr.get() == NULL:
+        if tide._model_sptr.get() == NULL:
             raise ValueError("This tide model holds no C++ object.")
-        cdef TideBase copy = make_tide(tide.model_name, tide.get_config_dict())
-        self._world_ptr.get().set_tide_model(move(copy._tide_ptr))
-        copy._ptr = NULL
+        self._world_ptr.get().set_tide_model_handle(tide._model_sptr)
 
     @property
     def tide_model_set(self) -> bool:
@@ -2648,75 +2675,16 @@ cdef class BaseWorld(StructureBase):
         from TidalPy.Structures.configs.toml_loader import validate_solver_table
         cdef c_EOSSolverOverrides eos
         cdef c_RadialSolverOverrides radial
-        cdef ODEMethod method
-        cdef double number
-        cdef size_t count
-        cdef cpp_bool flag
+        cdef str key
         if eos_solver is not None:
             validate_solver_table("eos_solver", eos_solver, "set_solver_defaults")
-            if "integration_method" in eos_solver:
-                method = cy_resolve_integration_method(str(eos_solver["integration_method"]))
-                eos.integration_method = optional[ODEMethod](method)
-            if "rtol" in eos_solver:
-                number = <double>eos_solver["rtol"]
-                eos.rtol = optional[double](number)
-            if "atol" in eos_solver:
-                number = <double>eos_solver["atol"]
-                eos.atol = optional[double](number)
-            if "pressure_tol" in eos_solver:
-                number = <double>eos_solver["pressure_tol"]
-                eos.pressure_tol = optional[double](number)
-            if "max_iters" in eos_solver:
-                count = <size_t>int(eos_solver["max_iters"])
-                eos.max_iters = optional[size_t](count)
-            if "slices_per_layer" in eos_solver:
-                count = <size_t>int(eos_solver["slices_per_layer"])
-                eos.slices_per_layer = optional[size_t](count)
-            if "nondimensionalize" in eos_solver:
-                flag = <cpp_bool>bool(eos_solver["nondimensionalize"])
-                eos.nondimensionalize = optional[cpp_bool](flag)
-            if "solve_temperature" in eos_solver:
-                flag = <cpp_bool>bool(eos_solver["solve_temperature"])
-                eos.solve_temperature = optional[cpp_bool](flag)
-            if "max_thermal_passes" in eos_solver:
-                count = <size_t>int(eos_solver["max_thermal_passes"])
-                eos.max_thermal_passes = optional[size_t](count)
-            if "thermal_tol" in eos_solver:
-                number = <double>eos_solver["thermal_tol"]
-                eos.thermal_tol = optional[double](number)
+            for key, value in eos_solver.items():
+                eos.set(key.encode("utf-8"), cy_solver_setting_to_double(eos.kind(key.encode("utf-8")), value))
             self._world_ptr.get().set_eos_solver_overrides(eos)
         if radial_solver is not None:
             validate_solver_table("radial_solver", radial_solver, "set_solver_defaults")
-            if "integration_method" in radial_solver:
-                method = cy_resolve_integration_method(str(radial_solver["integration_method"]))
-                radial.integration_method = optional[ODEMethod](method)
-            if "rtol" in radial_solver:
-                number = <double>radial_solver["rtol"]
-                radial.rtol = optional[double](number)
-            if "atol" in radial_solver:
-                number = <double>radial_solver["atol"]
-                radial.atol = optional[double](number)
-            if "use_kamata" in radial_solver:
-                flag = <cpp_bool>bool(radial_solver["use_kamata"])
-                radial.use_kamata = optional[cpp_bool](flag)
-            if "start_radius_tolerance" in radial_solver:
-                number = <double>radial_solver["start_radius_tolerance"]
-                radial.start_radius_tol = optional[double](number)
-            if "scale_rtols" in radial_solver:
-                flag = <cpp_bool>bool(radial_solver["scale_rtols"])
-                radial.scale_rtols = optional[cpp_bool](flag)
-            if "max_num_steps" in radial_solver:
-                count = <size_t>int(radial_solver["max_num_steps"])
-                radial.max_num_steps = optional[size_t](count)
-            if "expected_size" in radial_solver:
-                count = <size_t>int(radial_solver["expected_size"])
-                radial.expected_size = optional[size_t](count)
-            if "max_ram_mb" in radial_solver:
-                count = <size_t>int(radial_solver["max_ram_mb"])
-                radial.max_ram_MB = optional[size_t](count)
-            if "nondimensionalize" in radial_solver:
-                flag = <cpp_bool>bool(radial_solver["nondimensionalize"])
-                radial.nondimensionalize = optional[cpp_bool](flag)
+            for key, value in radial_solver.items():
+                radial.set(key.encode("utf-8"), cy_solver_setting_to_double(radial.kind(key.encode("utf-8")), value))
             self._world_ptr.get().set_radial_solver_overrides(radial)
 
     def get_solver_defaults(self) -> dict:
@@ -2732,49 +2700,17 @@ cdef class BaseWorld(StructureBase):
         cdef c_RadialSolverOverrides radial = self._world_ptr.get().get_radial_solver_overrides()
         cdef dict out = {}
         cdef dict table = {}
-        if eos.integration_method.has_value():
-            table["integration_method"] = cy_integration_method_name(eos.integration_method.value())
-        if eos.rtol.has_value():
-            table["rtol"] = eos.rtol.value()
-        if eos.atol.has_value():
-            table["atol"] = eos.atol.value()
-        if eos.pressure_tol.has_value():
-            table["pressure_tol"] = eos.pressure_tol.value()
-        if eos.max_iters.has_value():
-            table["max_iters"] = <int>eos.max_iters.value()
-        if eos.slices_per_layer.has_value():
-            table["slices_per_layer"] = <int>eos.slices_per_layer.value()
-        if eos.nondimensionalize.has_value():
-            table["nondimensionalize"] = bool(eos.nondimensionalize.value())
-        if eos.solve_temperature.has_value():
-            table["solve_temperature"] = bool(eos.solve_temperature.value())
-        if eos.max_thermal_passes.has_value():
-            table["max_thermal_passes"] = <int>eos.max_thermal_passes.value()
-        if eos.thermal_tol.has_value():
-            table["thermal_tol"] = eos.thermal_tol.value()
+        cdef string key
+        for key in c_EOSSolverOverrides.keys():
+            if eos.has(key):
+                table[key.decode("utf-8")] = cy_solver_setting_from_double(c_EOSSolverOverrides.kind(key), eos.get(key))
         if table:
             out["eos_solver"] = table
         table = {}
-        if radial.integration_method.has_value():
-            table["integration_method"] = cy_integration_method_name(radial.integration_method.value())
-        if radial.rtol.has_value():
-            table["rtol"] = radial.rtol.value()
-        if radial.atol.has_value():
-            table["atol"] = radial.atol.value()
-        if radial.use_kamata.has_value():
-            table["use_kamata"] = bool(radial.use_kamata.value())
-        if radial.start_radius_tol.has_value():
-            table["start_radius_tolerance"] = radial.start_radius_tol.value()
-        if radial.scale_rtols.has_value():
-            table["scale_rtols"] = bool(radial.scale_rtols.value())
-        if radial.max_num_steps.has_value():
-            table["max_num_steps"] = <int>radial.max_num_steps.value()
-        if radial.expected_size.has_value():
-            table["expected_size"] = <int>radial.expected_size.value()
-        if radial.max_ram_MB.has_value():
-            table["max_ram_mb"] = <int>radial.max_ram_MB.value()
-        if radial.nondimensionalize.has_value():
-            table["nondimensionalize"] = bool(radial.nondimensionalize.value())
+        for key in c_RadialSolverOverrides.keys():
+            if radial.has(key):
+                table[key.decode("utf-8")] = cy_solver_setting_from_double(
+                    c_RadialSolverOverrides.kind(key), radial.get(key))
         if table:
             out["radial_solver"] = table
         return out

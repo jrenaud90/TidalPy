@@ -5,12 +5,14 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G, mass_trap1
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology.rheology import Elastic, Maxwell
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Utilities.conversions import orbital_motion2semi_a
+
+from shared_materials import constant_solid
 
 
 _R = 1.0e6
@@ -23,11 +25,8 @@ _OBLIQUITY = 0.3
 
 
 def _material():
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": 1.0e11},
-        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19}))
+    return constant_solid(
+        _DENSITY, bulk_modulus=1.0e11, shear_modulus=5.0e10, shear_viscosity=1.0e19, bulk_viscosity=1.0e19)
 
 
 def _build_world(obliquity_truncation):

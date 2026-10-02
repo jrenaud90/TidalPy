@@ -21,7 +21,6 @@ material's melting curves, is written once.
 """
 
 import copy
-import difflib
 import os
 import warnings
 
@@ -31,6 +30,7 @@ import TidalPy
 from TidalPy.configurations import validate_schema_version
 from TidalPy.paths import get_materials_dir as _paths_get_materials_dir
 from TidalPy.Utilities.classes import canonical_parameter_keys
+from TidalPy.Utilities.classes.classes import did_you_mean
 from TidalPy.Utilities.classes.families import get_family
 from TidalPy.Utilities.data_pack import DataPack, user_stacklevel
 from TidalPy.Material.material import Material, Phase
@@ -184,9 +184,8 @@ def p_material_path(name: str) -> str:
     if path is not None:
         return path
     names = sorted(MAT_PACK.files(".toml"))
-    close = difflib.get_close_matches(name.lower(), names, n=1)
-    hint = f" (did you mean '{close[0]}'?)" if close else ""
-    raise ValueError(f"TidalPy: no MatPack material named '{name}'{hint}. Available: {', '.join(names)}.")
+    raise ValueError(
+        f"TidalPy: no MatPack material named '{name}'{did_you_mean(name, names)}. Available: {', '.join(names)}.")
 
 
 def p_read_material_file(path: str) -> dict:

@@ -1,6 +1,5 @@
 """3D grid methods reproduce the one-thread result exactly (NaN cells included) for any ``num_threads``."""
 
-import copy
 import functools
 import math
 
@@ -9,11 +8,13 @@ import pytest
 
 import TidalPy
 from TidalPy.constants import G, update_constants
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology.rheology import Maxwell
 from TidalPy.Structures.layers import Layer
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Tides.classes.tide import make_tide
+
+from shared_materials import constant_solid
 
 
 _RADIUS          = 1.8216e6
@@ -50,11 +51,8 @@ _COLLAPSE_CASES = {
 
 
 def _material(density, shear, viscosity):
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": density, "bulk_modulus_pa": 2.0e11},
-        shear_modulus={"model": "constant", "shear_modulus_pa": shear},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": viscosity},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+    return constant_solid(
+        density, bulk_modulus=2.0e11, shear_modulus=shear, shear_viscosity=viscosity, bulk_viscosity=1.0e30)
 
 
 @functools.lru_cache(maxsize=1)
@@ -145,15 +143,6 @@ _METHOD_CALLS = {
 def test_negative_thread_count_raises(method, num_threads):
     with pytest.raises(ValueError, match="num_threads"):
         _METHOD_CALLS[method](_world(), num_threads)
-
-
-@pytest.fixture
-def restore_config():
-    """Restore ``TidalPy.config`` and the C++ numerical settings after a test changes them."""
-    original = copy.deepcopy(TidalPy.config)
-    yield
-    TidalPy.config = original
-    update_constants()
 
 
 @pytest.mark.parametrize("method", list(_METHOD_CALLS))

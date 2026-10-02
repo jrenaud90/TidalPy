@@ -62,12 +62,12 @@ cdef c_TideModelConfig cy_build_tide_config(dict config) except *
 
 
 cdef class TideBase(PhysicsBase):
-    cdef unique_ptr[c_TideBase] _tide_ptr   # owns the most-derived C++ model object
-
+    # The model lives in PhysicsBase's shared handle, so a world can share it rather than copy it.
     cdef void _adopt(self, unique_ptr[c_TideBase]& ptr) noexcept
+    cdef c_TideBase* _tide(self) noexcept
 
 
-# The subclasses reach their model through TideBase._tide_ptr, cast to the class they wrap.
+# The subclasses reach their model through TideBase._tide(), cast to the class they wrap.
 cdef class RheologyTide(TideBase):
     pass
 

@@ -10,6 +10,7 @@ from TidalPy.Structures.layers import Layer
 
 _IO_FREQUENCY = 4.11e-5   # [rad s-1]
 _MANTLE_RADIUS = 1.2e6    # [m], inside Io's mantle
+_IMPOSSIBLE_DENSITY = 1.0e6   # [kg m-3], about 300 times a rock's
 
 
 def _constant_material(density):
@@ -151,14 +152,19 @@ def test_moving_a_layer_leaves_the_world_unsolved():
 def test_a_failed_solve_leaves_the_world_unsolved():
     """A failed re-solve leaves the world unsolved until a good solve restores it."""
     world = _solved_io()
-    result = world.solve_eos(integration_method="LSODA", rtol=1.0e-9, atol=1.0e-12)
-    if result["success"]:
-        pytest.skip("LSODA solved the whole-planet EOS here, so this check has no failing solve to use.")
+    # A mantle hundreds of times too dense puts the solved structure far outside the factor of the world's stated mass
+    # that [numerical] maximum_eos_mass_ratio allows, so the solve is rejected whatever the integrator.
+    original_material = world.mantle.material
+    world.mantle.material = _constant_material(_IMPOSSIBLE_DENSITY)
+    result = world.solve_eos()
+    assert not result["success"]
+    assert "stated mass" in result["message"]
     assert not world.eos_solved
     assert math.isnan(world.get_density(_MANTLE_RADIUS))
     assert all(math.isnan(value) for value in result["density"])
     with pytest.raises(ValueError):
         world.solve_love_numbers(frequency=_IO_FREQUENCY, degree_l=2)
+    world.mantle.material = original_material
     world.solve_eos()
     assert world.eos_solved
     assert world.get_density(_MANTLE_RADIUS) > 0.0

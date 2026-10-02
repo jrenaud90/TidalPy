@@ -9,9 +9,11 @@ import pytest
 from TidalPy.constants import G
 from TidalPy.Structures.worlds.base import BaseWorld
 from TidalPy.Structures.layers import Layer
-from TidalPy.Material import Material, Phase
+from TidalPy.Material import Material
 from TidalPy.Rheology.rheology import Maxwell
 from TidalPy.RadialSolver import homogeneous_love_numbers
+
+from shared_materials import constant_solid
 
 _PLANET_RADIUS = 6.0e6
 _DENSITY = 4000.0
@@ -22,11 +24,9 @@ _FREQ = 1.0e-5
 
 
 def _material():
-    return Material(solid=Phase(
-        eos={"model": "constant", "reference_density_kg_m3": _DENSITY, "bulk_modulus_pa": _STATIC_BULK},
-        shear_modulus={"model": "constant", "shear_modulus_pa": _STATIC_SHEAR},
-        shear_viscosity={"model": "constant", "reference_viscosity_pas": _SHEAR_VISC},
-        bulk_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e30}))
+    return constant_solid(
+        _DENSITY, bulk_modulus=_STATIC_BULK, shear_modulus=_STATIC_SHEAR, shear_viscosity=_SHEAR_VISC,
+        bulk_viscosity=1.0e30)
 
 
 def _maxwell_world():

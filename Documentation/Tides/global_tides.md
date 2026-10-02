@@ -42,8 +42,10 @@ Eccentricity truncation level 2, degree 2 only, reproduces this formula.
 |-------|-------|----------------------------------|------------|
 | `RheologyTide` | `rheology` | supplied by the radial solver | $-\mathrm{Im}[k_{l}]$ from the solver |
 | `FixedQTide` | `cpl`, `fixed_q` | $k_{l}\,(1 - i/Q_{l})$ | $k_{l}/Q_{l}$ (frequency independent) |
-| `FixedLagTide` | `ctl`, `fixed_dt` | $k_{l}\,(1 - i\,\omega\,\Delta t_{l})$ | $k_{l}\,\omega\,\Delta t_{l}$ |
-| `CTLQTide` | `ctl_q`, `fixed_dt_q` | $k_{l}\,(1 - i\,\omega\,\Delta t_{l}/Q_{l})$ | $k_{l}\,\omega\,\Delta t_{l}/Q_{l}$ |
+| `FixedLagTide` | `ctl`, `fixed_dt` | $k_{l}\,(1 - i\,\lvert\omega\rvert\,\Delta t_{l})$ | $k_{l}\,\lvert\omega\rvert\,\Delta t_{l}$ |
+| `CTLQTide` | `ctl_q`, `fixed_dt_q` | $k_{l}\,(1 - i\,\lvert\omega\rvert\,\Delta t_{l}/Q_{l})$ | $k_{l}\,\lvert\omega\rvert\,\Delta t_{l}/Q_{l}$ |
+
+Each depends on the frequency's magnitude only, as the collapse passes it ($\chi_{lmpq}$, the mode's sign is in its coefficients), so a direct `calc_neg_imk` call with a negative frequency gets the same lag as its magnitude.
 
 Fixed per-degree parameters $k_{l}$ (static Love number, `fixed_k`), $Q_{l}$ (quality factor, `fixed_q`), and $\Delta t_{l}$ (time lag \[s\], `fixed_dt_s`) are supplied as lists indexed from degree `l = 2` (index 0 is `l = 2`). The constructor keywords are unsuffixed (`FixedLagTide(fixed_k=..., fixed_dt=...)`); the config keys carry the unit. The `rheology` model needs the radial solver and is driven by the world's `calc_tides` method, not the standalone collapse below.
 

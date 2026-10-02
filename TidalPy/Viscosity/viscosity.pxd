@@ -29,10 +29,6 @@ cdef extern from "viscosity_.hpp" namespace "tidalpy" nogil:
 
     unique_ptr[c_ViscosityBase] c_make_composite_viscosity(const vector[shared_ptr[c_PhysicsBase]]& mechanisms) except +
 
-    # A copy of a model as its family type, for the layer and material setters that take ownership.
-    unique_ptr[c_ViscosityBase] c_clone_viscosity "tidalpy::c_clone_as<tidalpy::c_ViscosityBase>"(
-        const c_ViscosityBase& model) except +
-
 
 cdef class ViscosityBase(PhysicsBase):
     cdef c_ViscosityBase* _viscosity(self) except NULL

@@ -37,11 +37,15 @@ inline double c_stefan_boltzmann_temperature(double luminosity, double radius) n
 
 class c_LuminosityBase : public c_PhysicsBase {
 public:
+    static constexpr const char* C_FAMILY_NAME = "luminosity";
+
     c_LuminosityBase() = default;
 
     explicit c_LuminosityBase(const std::string& model_name) : c_PhysicsBase(model_name) {}
 
     ~c_LuminosityBase() override = default;
+
+    std::string get_family_name() const override { return C_FAMILY_NAME; }
 
     // Stellar luminosity [W] from mass [kg]; the Fixed model ignores the mass.
     virtual double calc_luminosity(double mass) const = 0;

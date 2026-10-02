@@ -7,5 +7,4 @@ from TidalPy.Rheology.rheology cimport (
     c_find_rheology,
     c_rheology_canonical_name,
     c_rheology_model_names,
-    c_clone_rheology,
 )
