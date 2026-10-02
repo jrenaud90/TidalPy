@@ -11,6 +11,7 @@ methods on this class. TerrestrialWorld, GasGiantWorld, and StarWorld subclass i
 cimport numpy as cnp
 cnp.import_array()
 
+import math
 import weakref
 
 import numpy as np
@@ -91,6 +92,21 @@ cdef list cy_layer_names(c_BaseWorld* world_ptr):
     cdef size_t layer_i
     return [world_ptr.get_layer(layer_i).get_name().decode("utf-8") for layer_i in range(world_ptr.get_num_layers())]
 
+# A layer of the world by name or integer index, as its index; ValueError for one the world does not have, or for an
+# index that is not an integer.
+cdef size_t cy_layer_index(c_BaseWorld* world_ptr, object layer) except? 0:
+    cdef list names = cy_layer_names(world_ptr)
+    if isinstance(layer, str):
+        if layer not in names:
+            raise ValueError(f"TidalPy: the world has no layer named '{layer}'; its layers are {names}.")
+        return <size_t>names.index(layer)
+    if isinstance(layer, bool) or not isinstance(layer, (int, np.integer)):
+        raise ValueError(f"TidalPy: a layer is named by its name or an integer index; got {layer!r}.")
+    index = int(layer)
+    if not (0 <= index < len(names)):
+        raise ValueError(f"TidalPy: the world has no layer at index {index}; it has {len(names)}.")
+    return <size_t>index
+
 # The solid and liquid zones of a solve as dicts: the layer's name, the radii [m] and enclosed masses [kg] at the zone's
 # two ends, and its state ("solid" or "liquid").
 cdef list cy_zones_to_list(const vector[c_EOSZone]& zones, list layer_names):
@@ -127,6 +143,9 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names
     cdef list layer_ref_melt_fraction  = []
     cdef list layer_in_thermal_network = []
     cdef list layer_latent_capacity    = []
+    cdef list layer_heating_radiogenic = []
+    cdef list layer_heating_tidal = []
+    cdef list layer_heating_prescribed = []
     for j in range(num_layers):
         layer_temperature.append(report.layer_thermal[j].temperature)
         layer_heat_flow_in.append(report.layer_thermal[j].heat_flow_in)
@@ -145,6 +164,11 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names
         layer_ref_melt_fraction.append(report.layer_thermal[j].reference_melt_fraction)
         layer_in_thermal_network.append(bool(report.layer_thermal[j].in_network))
         layer_latent_capacity.append(report.layer_thermal[j].latent_capacity)
+        layer_heating_radiogenic.append(
+            report.layer_thermal[j].heating_by_source[<size_t>c_HeatSourceKind.Radiogenic])
+        layer_heating_tidal.append(report.layer_thermal[j].heating_by_source[<size_t>c_HeatSourceKind.Tidal])
+        layer_heating_prescribed.append(
+            report.layer_thermal[j].heating_by_source[<size_t>c_HeatSourceKind.Prescribed])
 
     return {
         'success':          bool(report.success),
@@ -173,6 +197,9 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names
         'layer_heat_flow_in':     layer_heat_flow_in,
         'layer_heat_flow_out':    layer_heat_flow_out,
         'layer_heating':          layer_heating,
+        'layer_heating_radiogenic': layer_heating_radiogenic,
+        'layer_heating_tidal':      layer_heating_tidal,
+        'layer_heating_prescribed': layer_heating_prescribed,
         'layer_temperature_rate': list(report.layer_temperature_rate),
         'layer_node_temperature':   layer_node_temperature,
         'layer_top_temperature':    layer_top_temperature,
@@ -1161,7 +1188,9 @@ cdef class BaseWorld(StructureBase):
             ``thermal_converged``), the solid and liquid zones (``zones``, as :attr:`zones` reports them), and the
             per-layer results (``layer_radius_outer``
             [m], ``layer_temperature`` [K], ``layer_heat_flow_in`` and ``layer_heat_flow_out`` [W],
-            ``layer_heating`` [W], ``layer_temperature_rate`` [K s-1], ``layer_node_temperature``,
+            ``layer_heating`` [W] (every heat source of the layers with ``use_heating``, with each source's part in
+            ``layer_heating_radiogenic``, ``layer_heating_tidal``, and ``layer_heating_prescribed``; zero in a solve
+            that carries no temperature), ``layer_temperature_rate`` [K s-1], ``layer_node_temperature``,
             ``layer_top_temperature``, and ``layer_base_temperature`` [K] (the two ends of a convecting interior,
             whose top is the layer's own temperature), ``layer_boundary_thickness`` [m], ``layer_rayleigh_number``,
             ``layer_nusselt_number``, where a convecting layer evaluated its viscosity (``layer_reference_pressure``
@@ -1954,6 +1983,130 @@ cdef class BaseWorld(StructureBase):
         times the layer's tidal scale.
         """
         return self._world_ptr.get().get_layer_tidal_heating(<size_t>index)
+
+    @property
+    def tidal_heat_source(self) -> dict:
+        """The tidal heat source: each layer's heating [W] from the last ``calc_tides``.
+
+        Every later :meth:`solve_eos` spreads it over the layers with ``use_heating``, along the radial profile of
+        the per-layer heating integral with a radial-solver Love method, else by mass, and
+        :meth:`calc_layer_temperature_rate` takes it as soon as ``calc_tides`` has run. So a step of an evolution is
+        ``solve_eos``, ``calc_tides``, then the rates, with no second solve. A layer that is not tidal (``use_tides``
+        off) takes none. A radial-solver tide with ``layer_tidal_heating`` off gives no per-layer split, so the total
+        is spread over the tidal layers by mass. A change to the structure keeps the source; a failed ``calc_tides``,
+        :meth:`clear_tidal_heating`, adding a layer, and loading a binary forget it. It is not saved with the world.
+
+        Returns
+        -------
+        dict
+            Heating [W] by layer name; layers ``calc_tides`` gave no heating are left out, and it is empty before
+            a ``calc_tides``.
+        """
+        cdef vector[double] powers = self._world_ptr.get().get_tidal_heat_source()
+        cdef list names = cy_layer_names(self._world_ptr.get())
+        cdef size_t layer_i
+        return {names[layer_i]: powers[layer_i] for layer_i in range(min(powers.size(), len(names)))
+                if math.isfinite(powers[layer_i])}
+
+    def clear_tidal_heating(self):
+        """Forget the tidal heat source (see :attr:`tidal_heat_source`), so later solves heat no layer tidally."""
+        self._world_ptr.get().clear_tidal_heating()
+
+    def set_prescribed_heating(self, layer, power=None, specific_rate=None):
+        """Prescribe a layer's internal heating: a ``power`` [W] spread over the layer by mass, or a
+        ``specific_rate`` [W kg-1]. With neither, the layer's prescribed heating is cleared.
+
+        It acts in a layer with ``use_heating``, through a :meth:`solve_eos` that carries temperature, beside the
+        layer's radiogenics and the tidal heat source. The EOS solve reads it, so the world forgets its solved
+        structure. It is not saved with the world.
+
+        Parameters
+        ----------
+        layer : str or int
+            The layer's name or index.
+        power, specific_rate : float, optional
+            One of the two; ``None`` for the other.
+
+        Raises
+        ------
+        ValueError
+            For both given, or a layer the world does not have.
+        """
+        cdef size_t layer_index = cy_layer_index(self._world_ptr.get(), layer)
+        cdef double power_value = math.nan if power is None else <double>power
+        cdef double rate_value  = math.nan if specific_rate is None else <double>specific_rate
+        self._world_ptr.get().set_prescribed_heating(layer_index, power_value, rate_value)
+
+    @property
+    def prescribed_heating(self) -> dict:
+        """The prescribed heating by layer name, as ``{"power": watts}`` or ``{"specific_rate": watts_per_kg}``;
+        layers without one are left out (see :meth:`set_prescribed_heating`)."""
+        cdef list names = cy_layer_names(self._world_ptr.get())
+        cdef c_PrescribedLayerHeating prescribed
+        cdef size_t layer_i
+        out = {}
+        for layer_i in range(len(names)):
+            prescribed = self._world_ptr.get().get_prescribed_heating(layer_i)
+            if math.isfinite(prescribed.specific_rate):
+                out[names[layer_i]] = {"specific_rate": prescribed.specific_rate}
+            elif math.isfinite(prescribed.power):
+                out[names[layer_i]] = {"power": prescribed.power}
+        return out
+
+    def calc_layer_temperature_rate(self, layer) -> float:
+        """Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it.
+
+        (M c_p + C_latent) dT/dt = L_in - L_out + H, with the heat flows of the last :meth:`solve_eos`, H every heat
+        source of a layer with ``use_heating`` (the last solve's radiogenic and prescribed heat, and the tidal heat
+        of the latest ``calc_tides``; see :attr:`tidal_heat_source`), and C_latent the latent heat its zone
+        boundaries absorb per kelvin. A step of an evolution is ``solve_eos``, ``calc_tides``, then this rate.
+
+        Parameters
+        ----------
+        layer : str or int
+            The layer's name or index.
+
+        Returns
+        -------
+        float
+            The rate [K s-1]; NaN before a solve or for a layer with no heat capacity.
+        """
+        cdef size_t layer_index = cy_layer_index(self._world_ptr.get(), layer)
+        return self._world_ptr.get().calc_layer_temperature_rate(layer_index)
+
+    def get_heating(self, radius):
+        """Volumetric heating the last solve's heat sources give at a radius, every source summed (radiogenic,
+        tidal, and prescribed).
+
+        A solve with ``solve_temperature`` off carries no heat flow, so the heating reported then did not act on it.
+
+        Parameters
+        ----------
+        radius : float or np.ndarray
+            Radius [m].
+
+        Returns
+        -------
+        float or np.ndarray
+            Heating [W m-3]: zero in a layer without ``use_heating``, NaN before a successful solve or outside the
+            world.
+        """
+        cdef double[::1] radius_view
+        cdef double[::1] out_view
+        cdef Py_ssize_t radius_i
+        cdef Py_ssize_t num_radii
+        cdef c_BaseWorld* world_ptr = self._world_ptr.get()
+        if np.ndim(radius) == 0:
+            return world_ptr.get_heating(<double>radius)
+        radius_array = np.ascontiguousarray(radius, dtype=np.float64)
+        out = np.empty_like(radius_array)
+        radius_view = radius_array.reshape(-1)
+        out_view = out.reshape(-1)
+        num_radii = radius_view.shape[0]
+        with nogil:
+            for radius_i in range(num_radii):
+                out_view[radius_i] = world_ptr.get_heating(radius_view[radius_i])
+        return out
 
     def get_layer_tidal_scale(self, index: int) -> float:
         """The tidal scale layer ``index`` carries in the quasi-homogeneous Love methods [dimensionless].

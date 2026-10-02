@@ -93,10 +93,21 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
         double reference_viscosity
         double reference_melt_fraction
         double heating
+        # One entry per heat source, in c_HeatSourceKind order (radiogenic, tidal, prescribed).
+        double heating_by_source[3]
         double latent_capacity
 
 
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
+    cdef enum class c_HeatSourceKind:
+        Radiogenic
+        Tidal
+        Prescribed
+
+    cdef cppclass c_PrescribedLayerHeating:
+        double power
+        double specific_rate
+
     cdef cppclass c_WorldConfig:
         string name
         string world_type_str
@@ -293,6 +304,11 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double get_planet_moi_eos() const
         vector[c_EOSZone] get_zones_copy() except +
         vector[c_EOSZone] get_molten_regions() except +
+        vector[double] get_tidal_heat_source() except +
+        void clear_tidal_heating()
+        void set_prescribed_heating(size_t layer_index, double power, double specific_rate) except +
+        c_PrescribedLayerHeating get_prescribed_heating(size_t layer_index)
+        double get_heating(double radius) noexcept
         const c_EOSSolution* get_eos_solution() const
 
         # Spin

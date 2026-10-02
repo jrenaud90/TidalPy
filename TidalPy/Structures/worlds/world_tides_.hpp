@@ -111,6 +111,7 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     this->p_tide_result  = c_GlobalTideResult();
     this->p_tide_solver_love.clear();
     this->p_layer_tidal_heating.clear();
+    this->p_tidal_heating_record = c_TidalHeatingRecord();
     for (const auto& layer_uptr : this->p_layers) {
         layer_uptr->set_tidal_heating(TidalPyConstants::d_NAN);
     }
@@ -134,6 +135,9 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     c_GlobalTideResult tide_result;
     c_IntMap<c_Key4, tidalpy::c_LoveNumbers> tide_love;
     std::vector<double> layer_heating(n_layers, TidalPyConstants::d_NAN);
+    // What the tidal heat source spreads in later solves: the layer heating, with the radial profile where the
+    // heating integral gives one.
+    c_TidalHeatingRecord heating_record;
     if (this->p_tide->needs_radial_solve()) {
         // The per-mode -Im[k_l(omega)] comes from the world's Love solve, which needs a solved EOS.
         if (!this->p_eos_solved || !this->p_eos_solution) {
@@ -253,7 +257,8 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
                     c_collapse_global_tides(potential, *this->p_tide, &part_love).tidal_heating;
             }
         } else if (tcfg.layer_tidal_heating) {
-            this->calc_layer_tidal_heating_radial(state, tide_result.tidal_heating, layer_heating, &retained_solves);
+            this->calc_layer_tidal_heating_radial(
+                state, tide_result.tidal_heating, layer_heating, &retained_solves, &heating_record);
         }
     } else {
         // The analytic models need no Love solve. They fix the whole body's heating, so each tidal layer takes the
@@ -279,28 +284,52 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     for (std::size_t i = 0; i < n_layers; ++i) {
         this->p_layers[i]->set_tidal_heating(layer_heating[i]);
     }
+    heating_record.layer_power = layer_heating;
+    // A radial-solver tide with layer_tidal_heating off has the total but no split; the tidal heat source then spreads
+    // the total over the tidal layers (use_tides) by their mass, so a thermal solve does not lose it.
+    const bool any_split = std::any_of(
+        layer_heating.begin(), layer_heating.end(), [](double power) { return std::isfinite(power); });
+    if (!any_split && std::isfinite(tide_result.tidal_heating)) {
+        double tidal_mass = 0.0;
+        for (const auto& layer_uptr : this->p_layers) {
+            if (layer_uptr->get_use_tides()) { tidal_mass += layer_uptr->get_mass(); }
+        }
+        if (tidal_mass > 0.0) {
+            for (std::size_t i = 0; i < n_layers; ++i) {
+                heating_record.layer_power[i] = this->p_layers[i]->get_use_tides()
+                    ? tide_result.tidal_heating * this->p_layers[i]->get_mass() / tidal_mass : 0.0;
+            }
+        }
+    }
+    this->p_tidal_heating_record = std::move(heating_record);
     this->p_tides_solved = true;
 }
 
 // Each layer's orbit-averaged heating [W] from the radial solution: the secular heating density integrated over
 // the layer's volume, with the analytic colatitude integral, the 2 pi longitude integral, and Gauss-Legendre nodes
-// inside each layer (the same integral as calc_3d_tides with every axis summed). The layers are scaled so they sum
-// to `total_heating`, the 1D global result, which removes the small radial-quadrature residual between the two. A
-// liquid layer carries no shear dissipation and takes 0; with no usable integral every layer is NaN.
-// `retained_solves`, when given, are the radial solves the 1D pass already ran; the integral reuses them instead of
-// solving its (degree, |omega|) groups again, which would double the cost of calc_tides.
+// inside each layer (the integral calc_3d_tides takes with every axis summed). The shell power dP/dr at the nodes is
+// what it sums, so `record_out`, when given, takes the heating density dP/dr / (4 pi r^2) there as each layer's
+// radial profile (at x = (r - r_inner) / (r_outer - r_inner)). A layer that is not tidal (use_tides off) is left out:
+// it takes 0, and the tidal layers are scaled so they sum to `total_heating`, the 1D global result, which also removes
+// the small radial-quadrature residual between the two; the profiles take the same scale. A liquid layer carries no
+// shear dissipation and takes 0; with no usable integral every layer is NaN. A node with no radial solution (below the
+// radial solver's starting radius) is left out of its layer's integral, with the warning calc_3d_tides gives a volume
+// integral when such nodes hold more of the body's volume than the radial solver's rtol. `retained_solves`, when
+// given, are the radial solves the 1D pass already ran; the integral reuses them instead of solving its (degree,
+// |omega|) groups again, which would double the cost of calc_tides.
 inline void c_BaseWorld::calc_layer_tidal_heating_radial(
         const c_TideSolveConfig& state,
         double total_heating,
         std::vector<double>& out,
-        const std::vector<c_RetainedRadialSolve>* retained_solves) {
+        const std::vector<c_RetainedRadialSolve>* retained_solves,
+        c_TidalHeatingRecord* record_out) {
     const std::size_t n_layers = this->p_layers.size();
     out.assign(n_layers, TidalPyConstants::d_NAN);
     c_Heating3DCollapseConfig cfg;
     cfg.orbit_averaged   = true;
     cfg.latitude_summed  = true;
     cfg.longitude_summed = true;
-    cfg.radial_summed    = true;
+    cfg.radial_summed    = false;
     // calc_tides' one thread setting also covers this integral's solves and radii.
     cfg.num_threads      = tidalpy_config_ptr->d_LOVE_SOLVE_THREADS;
     // Lent for this call only; the call lock is held throughout, so no other call sees them.
@@ -311,10 +340,27 @@ inline void c_BaseWorld::calc_layer_tidal_heating_radial(
         ~c_RetainedSolvesLoan() { slot = nullptr; }
     } loan(this->p_retained_radial_solves, retained_solves);
     
+    // Gauss-Legendre nodes inside each layer: no node sits on a layer boundary, where the modulus and radial-solution
+    // lookups take the layer below. The node count is the [numerical] tides_3d_radial_slices of the configuration.
+    const std::size_t nodes_per_layer = static_cast<std::size_t>(std::max(cfg.radial_slices, 1));
+    std::vector<double> unit_nodes;
+    std::vector<double> unit_weights;
+    tides::c_gauss_legendre_nodes(static_cast<int>(nodes_per_layer), unit_nodes, unit_weights);
+    std::vector<double> radii;
+    radii.reserve(n_layers * nodes_per_layer);
+    for (std::size_t i = 0; i < n_layers; ++i) {
+        const double r_mid  = 0.5 * (this->p_layers[i]->get_radius_outer() + this->p_layers[i]->get_radius_inner());
+        const double r_half = 0.5 * (this->p_layers[i]->get_radius_outer() - this->p_layers[i]->get_radius_inner());
+        for (std::size_t node = 0; node < nodes_per_layer; ++node) {
+            radii.push_back(r_mid + r_half * unit_nodes[node]);
+        }
+    }
+
+    // The shell power dP/dr [W m-1] at each node: the heating density summed over the sphere of that radius.
     const c_Heating3DCollapsed integrated = this->calc_3d_tides(
         state,
-        nullptr,
-        0,
+        radii.data(),
+        radii.size(),
         nullptr,
         0,
         nullptr,
@@ -322,11 +368,38 @@ inline void c_BaseWorld::calc_layer_tidal_heating_radial(
         nullptr,
         0,
         cfg);
-    if (integrated.layer_totals.size() < n_layers) { return; }
+    if (integrated.values.size() < radii.size()) { return; }
+    std::vector<double> layer_totals(n_layers, 0.0);
     double integral_sum = 0.0;
+    std::size_t num_missing = 0;
+    double missing_volume = 0.0;
+    double total_volume = 0.0;
+    double missing_radius = 0.0;
     for (std::size_t i = 0; i < n_layers; ++i) {
-        const double layer_total = integrated.layer_totals[i];
-        if (std::isfinite(layer_total)) { integral_sum += layer_total; }
+        const double r_half = 0.5 * (this->p_layers[i]->get_radius_outer() - this->p_layers[i]->get_radius_inner());
+        for (std::size_t node = 0; node < nodes_per_layer; ++node) {
+            const std::size_t node_i = i * nodes_per_layer + node;
+            const double node_volume = r_half * unit_weights[node] * radii[node_i] * radii[node_i];
+            total_volume += node_volume;
+            const double shell_power = integrated.values[node_i];
+            if (!std::isfinite(shell_power)) {
+                ++num_missing;
+                missing_volume += node_volume;
+                missing_radius = std::max(missing_radius, radii[node_i]);
+                continue;
+            }
+            layer_totals[i] += r_half * unit_weights[node] * shell_power;
+        }
+        if (this->p_layers[i]->get_use_tides()) { integral_sum += layer_totals[i]; }
+    }
+    const c_LoveSolveConfig love_cfg = this->make_radial_love_solve_config();
+    if ((num_missing > 0) && love_cfg.warnings && (missing_volume > love_cfg.rtol * total_volume)) {
+        TIDALPY_LOG_WARN(
+            "TidalPy: world '{}': {} of the {} radial nodes of the per-layer tidal heating integral, up to r = {:.4e} "
+            "m, have no radial solution (they lie below the radial solver's starting radius) and are left out. They "
+            "hold {:.2e} of the body's volume. Lower the starting radius (start_radius_tolerance or starting_radius) "
+            "to include them.",
+            this->get_name(), num_missing, radii.size(), missing_radius, missing_volume / total_volume);
     }
     if (!std::isfinite(total_heating)) { return; }
     if (!(std::abs(integral_sum) > 0.0)) {
@@ -334,9 +407,22 @@ inline void c_BaseWorld::calc_layer_tidal_heating_radial(
         if (total_heating == 0.0) { std::fill(out.begin(), out.end(), 0.0); }
         return;
     }
+    const double scale = total_heating / integral_sum;
     for (std::size_t i = 0; i < n_layers; ++i) {
-        const double layer_total = integrated.layer_totals[i];
-        out[i] = std::isfinite(layer_total) ? total_heating * layer_total / integral_sum : 0.0;
+        out[i] = this->p_layers[i]->get_use_tides() ? scale * layer_totals[i] : 0.0;
+    }
+    if (record_out == nullptr) { return; }
+    record_out->profile_fraction.assign(n_layers, std::vector<double>());
+    record_out->profile_density.assign(n_layers, std::vector<double>());
+    for (std::size_t i = 0; i < n_layers; ++i) {
+        if (!this->p_layers[i]->get_use_tides()) { continue; }
+        for (std::size_t node = 0; node < nodes_per_layer; ++node) {
+            const std::size_t node_i = i * nodes_per_layer + node;
+            const double shell_power = integrated.values[node_i];
+            record_out->profile_fraction[i].push_back(0.5 * (1.0 + unit_nodes[node]));
+            record_out->profile_density[i].push_back(std::isfinite(shell_power)
+                ? scale * shell_power / (4.0 * TidalPyConstants::d_PI * radii[node_i] * radii[node_i]) : 0.0);
+        }
     }
 }
 

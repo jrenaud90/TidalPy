@@ -132,9 +132,11 @@ struct c_LayerThermal {
     double reference_viscosity     = TidalPyConstants::d_NAN;   // [Pa s]
     double reference_melt_fraction = TidalPyConstants::d_NAN;   // [m3 m-3]
 
-    // Heat generated inside the layer [W], and the part of it generated inside the conducting stretch below and
-    // above the layer's own temperature, with the temperature drop [K] each part adds across its stretch.
+    // Heat generated inside the layer [W], each source's part of it (c_HeatSourceKind order), and the part generated
+    // inside the conducting stretch below and above the layer's own temperature, with the temperature drop [K] each
+    // part adds across its stretch.
     double heating             = 0.0;
+    double heating_by_source[C_NUM_HEAT_SOURCES] = {0.0, 0.0, 0.0};
     double heating_bottom      = 0.0;
     double heating_top         = 0.0;
     double heating_drop_bottom = 0.0;
@@ -439,6 +441,7 @@ inline double c_update_layer_thermal(
     for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
         c_LayerThermal& thermal = thermal_vec[layer_i];
         thermal.heating             = 0.0;
+        for (double& part : thermal.heating_by_source) { part = 0.0; }
         thermal.heating_bottom      = 0.0;
         thermal.heating_top         = 0.0;
         thermal.heating_drop_bottom = 0.0;
@@ -447,9 +450,19 @@ inline double c_update_layer_thermal(
 
         const double radius_inner = thermal.radius_inner;
         const double radius_outer = thermal.radius_outer;
-        double unused_drop = 0.0;
-        c_stretch_heating(
-            solution, *heating_ptr, layer_i, radius_inner, radius_outer, 0.0, thermal.heating, unused_drop);
+        // Each source's heat in the layer from its own definition (the layer's solved mass times a rate, or a power
+        // the source spreads exactly over the layer). The pass's integrated heat flow spread it over the layers as the
+        // pass before left them, so the two agree to the thermal tolerance once the passes converge.
+        double structure[C_EOS_Y_VALUES];
+        solution.call_y_si(layer_i, radius_outer, structure);
+        const double mass_outer = structure[C_EOS_MASS_INDEX];
+        solution.call_y_si(layer_i, radius_inner, structure);
+        const double layer_mass = mass_outer - structure[C_EOS_MASS_INDEX];
+        for (std::size_t source_i = 0; source_i < C_NUM_HEAT_SOURCES; ++source_i) {
+            thermal.heating_by_source[source_i] = heating_ptr->calc_layer_power(
+                static_cast<c_HeatSourceKind>(source_i), layer_i, layer_mass);
+            thermal.heating += thermal.heating_by_source[source_i];
+        }
         if (thermal.kind == c_TemperatureKind::Isothermal) { continue; }
 
         // Where the layer's own temperature applies: the mid-radius of a conducting layer, the two ends of the

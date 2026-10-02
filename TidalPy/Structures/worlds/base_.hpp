@@ -619,9 +619,10 @@ public:
         // The layer's profile reads now take turns with this world's calls, and its setters reach this world.
         layer->set_owner(this, this->p_call_mutex.get());
         this->p_layers.push_back(std::move(layer));
-        // The solved structure describes the old stack.
+        // The solved structure describes the old stack, and so do its tides.
         this->p_reset_solved_state();
         this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;   // a different planet now
+        this->p_tidal_heating_record = c_TidalHeatingRecord();
     }
 
     // Why add_layer would refuse `layer`, or an empty string when it would take it: the layer must continue the
@@ -741,20 +742,95 @@ public:
 
     // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
     //   (M c_p + C_latent) dT/dt = L_in - L_out + H,
-    // with C_latent the latent heat the boundaries between its solid and liquid zones absorb per kelvin where its
-    // material melts at one temperature (a Stefan condition; c_LayerThermal::latent_capacity). NaN for a layer with
-    // no heat capacity (one without a material). Read under the call lock, since solve_eos replaces the thermal state.
+    // with L_in and L_out the heat flows of the last solve, H every heat source of a layer with use_heating, and
+    // C_latent the latent heat the boundaries between its solid and liquid zones absorb per kelvin where its material
+    // melts at one temperature (a Stefan condition; c_LayerThermal::latent_capacity). The radiogenic and prescribed
+    // heat are the last solve's; the tidal heat is the latest calc_tides (the tidal heat source), so a step of an
+    // evolution is solve_eos, calc_tides, then this rate, with no second solve. NaN for a layer with no heat capacity
+    // (one without a material). Read under the call lock, since solve_eos replaces the thermal state.
     double calc_layer_temperature_rate(std::size_t layer_index) const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (layer_index >= this->p_layer_thermal.size()) { return TidalPyConstants::d_NAN; }
         const c_LayerThermal& thermal = this->p_layer_thermal[layer_index];
-        const double mass = this->p_layers[layer_index]->get_mass();
+        const c_Layer* layer = this->p_layers[layer_index].get();
+        const double mass = layer->get_mass();
         const double heat_capacity = thermal.heat_capacity;
         if (!(mass > TidalPyConstants::d_EPS) || !(heat_capacity > TidalPyConstants::d_EPS)) {
             return TidalPyConstants::d_NAN;
         }
-        return (thermal.heat_flow_in - thermal.heat_flow_out + thermal.heating)
+        double heating = 0.0;
+        if (this->p_solve_state) {
+            const c_Heating& sources = this->p_solve_state->heating;
+            heating += sources.calc_layer_power(c_HeatSourceKind::Radiogenic, layer_index, mass);
+            heating += sources.calc_layer_power(c_HeatSourceKind::Prescribed, layer_index, mass);
+        }
+        const std::vector<double>& tidal_power = this->p_tidal_heating_record.layer_power;
+        if (layer->get_use_heating() && (layer_index < tidal_power.size()) && std::isfinite(tidal_power[layer_index])) {
+            heating += tidal_power[layer_index];
+        }
+        return (thermal.heat_flow_in - thermal.heat_flow_out + heating)
             / (mass * heat_capacity + thermal.latent_capacity);
+    }
+
+    // Heat sources (heating_.hpp). Every source acts in the layers with use_heating, through a solve that carries
+    // temperature.
+    //
+    // The tidal source holds the last calc_tides heating of each layer, and every later solve_eos spreads it, so an
+    // evolution alternates calc_tides and solve_eos. It is kept, not invalidated, when the structure changes;
+    // clear_tidal_heating forgets it. NaN entries are layers calc_tides gave no heating.
+    std::vector<double> get_tidal_heat_source() const {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return this->p_tidal_heating_record.layer_power;
+    }
+    void clear_tidal_heating() noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        this->p_tidal_heating_record = c_TidalHeatingRecord();
+    }
+
+    // A layer's prescribed heating: a power [W] spread over the layer by mass, or a specific rate [W kg-1]; NaN for
+    // both clears it. Both finite throws std::invalid_argument, as do an infinite value and a layer index out of
+    // range. The EOS solve
+    // reads it, so the world forgets its solved structure.
+    void set_prescribed_heating(std::size_t layer_index, double power, double specific_rate) {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        if (layer_index >= this->p_layers.size()) {
+            throw std::invalid_argument("TidalPy: no layer at index " + std::to_string(layer_index) + ".");
+        }
+        if (std::isfinite(power) && std::isfinite(specific_rate)) {
+            throw std::invalid_argument(
+                "TidalPy: prescribe a layer's heating as a power or as a specific rate, not both.");
+        }
+        if (std::isinf(power) || std::isinf(specific_rate)) {
+            throw std::invalid_argument("TidalPy: a prescribed heating must be finite (NaN clears it).");
+        }
+        if (this->p_prescribed_heating.size() < this->p_layers.size()) {
+            this->p_prescribed_heating.resize(this->p_layers.size());
+        }
+        this->p_prescribed_heating[layer_index].power         = std::isfinite(power) ? power : TidalPyConstants::d_NAN;
+        this->p_prescribed_heating[layer_index].specific_rate =
+            std::isfinite(specific_rate) ? specific_rate : TidalPyConstants::d_NAN;
+        this->p_reset_solved_state();
+    }
+    c_PrescribedLayerHeating get_prescribed_heating(std::size_t layer_index) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        return (layer_index < this->p_prescribed_heating.size())
+            ? this->p_prescribed_heating[layer_index] : c_PrescribedLayerHeating();
+    }
+
+    // The volumetric heating [W m-3] the last solve's sources give at a radius [m], every source summed (zero in a
+    // layer without use_heating); NaN before a successful solve or where no layer holds the radius. A solve with
+    // solve_temperature off carries no heat flow, so the heating reported here did not act on it.
+    double get_heating(double radius) const noexcept {
+        const c_WorldCallLock call_lock(this->p_call_mutex.get());
+        if (!this->p_eos_solved || !this->p_solve_state || this->p_layers.empty()) { return TidalPyConstants::d_NAN; }
+        std::size_t layer_index = this->p_layers.size() - 1;
+        for (std::size_t layer_i = 0; layer_i < this->p_layers.size(); ++layer_i) {
+            if (radius <= this->p_layers[layer_i]->get_radius_outer()) { layer_index = layer_i; break; }
+        }
+        if ((radius < 0.0) || (radius > this->p_layers.back()->get_radius_outer())) { return TidalPyConstants::d_NAN; }
+        double state[C_EOS_DY_VALUES];
+        this->p_layers[layer_index]->p_eos_state(radius, state);
+        return this->p_solve_state->heating.calc_heating(layer_index, radius, state[C_EOS_DENSITY_INDEX]);
     }
 
     // Viscoelastic profile queries, post-melt with pre-melt variants. NaN when no layer contains r or the EOS has
@@ -946,11 +1022,14 @@ public:
         // inside it; a uniform override replaces every layer's value.
         std::vector<c_LayerThermal> layer_thermal;
         c_init_layer_thermal(this->p_layers, layer_thermal, cfg.temperature);
-        // Heat sources, prepared once: none of them depends on the solved state. They need the heat flow of a
-        // thermal solve to act through, so a solve with temperature switched off leaves them out.
+        // Heat sources, prepared once from the world's state; after each pass they take the layers' radii and masses
+        // from it (a power is spread by mass). They need the heat flow of a thermal solve to act through, so a solve
+        // with temperature switched off leaves them out.
         c_WorldState world_state;
-        world_state.time       = cfg.time;
-        world_state.layers_ptr = &this->p_layers;
+        world_state.time           = cfg.time;
+        world_state.layers_ptr     = &this->p_layers;
+        world_state.tidal_ptr      = &this->p_tidal_heating_record;
+        world_state.prescribed_ptr = &this->p_prescribed_heating;
         c_Heating& heating = solve_state->heating;
         heating.update_sources(world_state, length_scale, density_scale);
         const bool heating_active = heating.get_is_active();
@@ -1045,6 +1124,20 @@ public:
                     }
                 }
 
+                if (heating_active) {
+                    // A source that spreads a power by mass spreads it over the layers as this pass left them.
+                    std::vector<c_HeatedLayer> heated_layers(n_layers);
+                    double structure[C_EOS_Y_VALUES];
+                    for (std::size_t i = 0; i < n_layers; ++i) {
+                        heated_layers[i].radius_inner = layer_thermal[i].radius_inner;
+                        heated_layers[i].radius_outer = layer_thermal[i].radius_outer;
+                        solution->call_y_si(i, layer_thermal[i].radius_outer, structure);
+                        const double mass_outer = structure[C_EOS_MASS_INDEX];
+                        solution->call_y_si(i, layer_thermal[i].radius_inner, structure);
+                        heated_layers[i].mass = mass_outer - structure[C_EOS_MASS_INDEX];
+                    }
+                    heating.update_layers(heated_layers);
+                }
                 if (thermal_contrast) {
                     const double thermal_change = c_update_layer_thermal(
                         *solution, this->p_layers, cfg.surface_temperature, layer_thermal, &heating);
@@ -2396,13 +2489,14 @@ public:
             double* out_layer_totals);
 
     // Each layer's heating [W] from a radial-solver tide solve: the volume integral of the radial solution's
-    // orbit-averaged heating density over the layer, scaled so the layers sum to `total_heating` (defined in
-    // world_tides_.hpp).
+    // orbit-averaged heating density over the layer, scaled so the layers sum to `total_heating`, and, when
+    // `record_out` is given, the radial profile it integrated (defined in world_tides_.hpp).
     void calc_layer_tidal_heating_radial(
             const c_TideSolveConfig& state,
             double total_heating,
             std::vector<double>& out,
-            const std::vector<c_RetainedRadialSolve>* retained_solves = nullptr);
+            const std::vector<c_RetainedRadialSolve>* retained_solves = nullptr,
+            c_TidalHeatingRecord* record_out = nullptr);
 
     // The radial solves calc_tides lends its per-layer heating integral; null outside that call (see
     // c_RetainedRadialSolve). The 3D radial-group solve takes a matching one instead of solving again.
@@ -2520,8 +2614,11 @@ protected:
             this->p_reset_solved_state();
             throw;
         }
-        // Nothing solved describes the loaded layers, and the masses floating layers held belong to the old ones.
+        // Nothing solved describes the loaded layers, and the masses floating layers held, the tides, and the heating
+        // prescribed belong to the old ones.
         this->p_reference_mass.clear();
+        this->p_tidal_heating_record = c_TidalHeatingRecord();
+        this->p_prescribed_heating.clear();
         this->p_reset_solved_state();
         this->p_warm_start_central_pressure = TidalPyConstants::d_NAN;
     }
@@ -3012,6 +3109,12 @@ protected:
 
     // Each layer's share of the last calc_tides heating (not serialized).
     std::vector<double>                  p_layer_tidal_heating;
+    // The tidal heat source: the last calc_tides heating, which every later solve_eos spreads over the heated
+    // layers; it outlives the solves (an evolution alternates the two) until cleared, a layer is added, or a binary
+    // is loaded. Not serialized.
+    c_TidalHeatingRecord p_tidal_heating_record;
+    // The caller's per-layer power or specific rate, by layer index. Not serialized.
+    std::vector<c_PrescribedLayerHeating> p_prescribed_heating;
 };
 
 } // namespace tidalpy
