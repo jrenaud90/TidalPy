@@ -270,11 +270,18 @@ public:
     // Tides
     // =================================================================================================================
     bool get_use_tides() const noexcept { return this->p_use_tides; }
-    void set_use_tides(bool value) noexcept { this->p_use_tides = value; }
+    // Under the owner's call lock, as every layer setter, so a change never lands in the middle of a running solve.
+    void set_use_tides(bool value) noexcept {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_use_tides = value;
+    }
 
     // The configured tidal scale; NaN when the layer takes its volume fraction.
     double get_tidal_scale() const noexcept { return this->p_tidal_scale; }
-    void   set_tidal_scale(double tidal_scale) noexcept { this->p_tidal_scale = tidal_scale; }
+    void set_tidal_scale(double tidal_scale) noexcept {
+        const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
+        this->p_tidal_scale = tidal_scale;
+    }
 
     // The share this layer carries in the quasi-homogeneous Love methods (homogeneous, cpl, ctl), which treat each
     // tidal layer as a homogeneous planet of its own averaged material and scale that planet's Im(k) by this factor:
@@ -321,8 +328,14 @@ public:
     void set_temperature(double value) {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_temperature = value;
+        this->p_cold_warning_issued = false;
         this->p_update_owner_after_change();
     }
+
+    // Whether a solve has warned that this layer has no temperature of its own (c_BaseWorld::solve_eos), which it
+    // does once until the temperature is set again.
+    bool get_cold_warning_issued() const noexcept { return this->p_cold_warning_issued; }
+    void set_cold_warning_issued() noexcept { this->p_cold_warning_issued = true; }
 
     // Whether the world's heat sources act inside this layer during a thermal EOS solve. Off, the layer generates no
     // heat whatever models it carries. Setting it makes the owning world forget its solved structure.
@@ -729,6 +742,8 @@ protected:
 
     // Populated by the world-level EOS solve; not serialized. Read and written under p_owner_call_mutex.
     c_LayerEOSData p_eos_data;
+    // Set once a solve has warned about the layer's missing temperature; not serialized.
+    bool p_cold_warning_issued = false;
 
     // The owning world and its call lock (set_owner); not serialized, and never copied or moved with the layer.
     c_OwnerCallMutex p_owner_call_mutex;

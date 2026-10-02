@@ -33,6 +33,7 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_wrap_model,
 )
 from TidalPy.Radiogenics.radiogenics cimport RadiogenicsBase
+from TidalPy.Radiogenics.radiogenics import make_radiogenics
 from TidalPy.Material import Material, load_material
 from TidalPy.Rheology import make_rheology
 from TidalPy.Cooling.cooling import make_cooling
@@ -749,18 +750,22 @@ cdef class Layer(StructureBase):
         return self._layer_ptr.get().get_radiogenics_model() != NULL
 
     def set_radiogenics(self, RadiogenicsBase radiogenics not None):
-        """Attach a radiogenics model; its C++ model moves into the layer, so ``radiogenics`` must not be reused.
+        """Attach a radiogenics model.
+
+        The layer holds its own copy, built from ``radiogenics``'s parameters (``get_config_dict``), so
+        ``radiogenics`` stays usable and can be attached to other layers.
 
         Raises
         ------
         ValueError
-            If ``radiogenics`` has already been attached or otherwise moved.
+            If ``radiogenics`` holds no C++ object.
         """
         self._check_ptr()
         if radiogenics._radiogenics_ptr.get() == NULL:
-            raise ValueError("This radiogenics model holds no C++ object (already attached or moved).")
-        self._layer_ptr.get().set_radiogenics(move(radiogenics._radiogenics_ptr))
-        radiogenics._ptr = NULL
+            raise ValueError("This radiogenics model holds no C++ object.")
+        cdef RadiogenicsBase copy = make_radiogenics(radiogenics.model_name, radiogenics.get_config_dict())
+        self._layer_ptr.get().set_radiogenics(move(copy._radiogenics_ptr))
+        copy._ptr = NULL
 
     def calc_radiogenic_heating(self, double time, double mass) -> float:
         """Radiogenic heating [W] at a time [s] for a mass [kg] from the attached model; 0.0 without one."""

@@ -497,8 +497,9 @@ cdef class System:
         Returns
         -------
         dict
-            A system configuration dict with ``name`` and a ``worlds`` table.
+            A system configuration dict with ``schema_version``, ``name``, and a ``worlds`` table.
         """
+        from TidalPy.Structures.configs.toml_loader import SCHEMA_VERSION
         cdef c_System* system_ptr = self._system.get()
         cdef int host_index
         cdef int star_index = system_ptr.get_star_index()
@@ -528,7 +529,7 @@ cdef class System:
                 entry["stellar_semi_major_axis_m"] = stellar_a
                 entry["stellar_eccentricity"] = system_ptr.get_stellar_eccentricity(<size_t>i)
             worlds_table[world.name] = entry
-        return {"name": self.name, "worlds": worlds_table}
+        return {"schema_version": SCHEMA_VERSION, "name": self.name, "worlds": worlds_table}
 
     def save_to_toml(self, str file_path, overwrite=True):
         """Write this system's configuration to a TOML file.
