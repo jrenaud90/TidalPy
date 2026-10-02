@@ -34,7 +34,7 @@ from TidalPy.Cooling.cooling import make_cooling, _same_model as _same_cooling_m
 from TidalPy.Radiogenics.radiogenics import make_radiogenics
 from TidalPy.Material import load_material, merge_material_tables
 from TidalPy.Material.matpack import PRESET_KEY
-from TidalPy.Tides.classes.tide import make_tide
+from TidalPy.Tides.classes.tide import make_tide, tide_config_keys
 from TidalPy.Stellar.luminosity import make_luminosity
 from TidalPy.Dynamics.spin import Spin
 
@@ -1001,20 +1001,18 @@ def _normalize_truncation_aliases(tides_cfg: dict, source: str) -> dict:
     return normalized
 
 
-def _warn_short_degree_lists(world_name: str, tide_model, model_config: dict, max_degree_l: int) -> None:
+def _warn_short_degree_lists(world_name: str, model_config: dict, max_degree_l: int) -> None:
     """Warn once per world about a per-degree list the tide model reads that stops short of ``max_degree_l``.
 
     The lists are indexed from degree 2, so ``max_degree_l`` needs ``max_degree_l - 1`` entries; the model
     zero-fills the rest, and a zero Love number or lag is no dissipation at that degree, which the mode sum
-    would otherwise take silently. Only the lists the model holds are checked (a ``ctl`` model never reads
-    ``fixed_q``); the rheology model holds none.
+    would otherwise take silently. ``model_config`` holds only the lists the model reads (a ``ctl`` model never reads
+    ``fixed_q``); the rheology model reads none.
     """
     if not model_config or not warning_enabled("short_degree_list"):
         return
     needed = max_degree_l - 1
-    held = tide_model.get_config_dict()
-    short = [key for key in ("fixed_k", "fixed_q", "fixed_dt_s")
-             if key in model_config and key in held and len(model_config[key]) < needed]
+    short = [key for key in sorted(model_config) if len(model_config[key]) < needed]
     if not short:
         return
     lengths = ", ".join(f"{key} ({len(model_config[key])})" for key in short)
@@ -1059,16 +1057,12 @@ def _attach_tides(world, config: dict) -> None:
 
     model_name = resolve_tide_model_name(tides_cfg, world_type)
 
-    model_config = {}
-    for key in ("fixed_k", "fixed_q", "fixed_dt_s"):
-        if key in merged:
-            model_config[key] = list(merged[key])
+    # The lists the model reads; the table may hold others, for the other models.
+    model_config = {key: list(merged[key]) for key in sorted(tide_config_keys(model_name)) if key in merged}
 
-    tide_model = make_tide(model_name, model_config if model_config else None)
     max_degree_l = int(merged.get("max_degree_l", 2))
-    # Before the world takes ownership of the model, which empties the wrapper.
-    _warn_short_degree_lists(config.get("name", "?"), tide_model, model_config, max_degree_l)
-    world.set_tide_model(tide_model)
+    _warn_short_degree_lists(config.get("name", "?"), model_config, max_degree_l)
+    world.set_tide_model(make_tide(model_name, model_config if model_config else None))
 
     # These also drive the on-demand 3D path: the rheology model builds the tidal potential from them,
     # with no potential-model object.

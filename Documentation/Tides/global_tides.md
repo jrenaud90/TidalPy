@@ -1,6 +1,6 @@
 # Global (1D) Tidal Dissipation (`Tides.classes`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-02_
 
 The global (or "1D potential") method computes a body's total tidal heating and the three orbital potential derivatives (`dU/dM`, `dU/dw`, `dU/dO`) by summing over the active tidal modes `(l, m, p, q)`. Each mode carries a forcing frequency $\omega_{lmpq} = (l - 2p + q)\,n - m\,\dot{\theta}$ and a precomputed potential weight. A tide model supplies the per-mode dissipation multiplier $-\mathrm{Im}[k_{l}(\omega)]$ that the collapse multiplies in and sums. Harmonic degrees `l = 2..10` are supported.
 
@@ -38,16 +38,16 @@ Eccentricity truncation level 2, degree 2 only, reproduces this formula.
 
 ## Models
 
-| Model | Alias | Complex Love number $k_{l}(\omega)$ | $-\mathrm{Im}[k_{l}]$ |
+| Model | Name (aliases) | Complex Love number $k_{l}(\omega)$ | $-\mathrm{Im}[k_{l}]$ |
 |-------|-------|----------------------------------|------------|
 | `RheologyTide` | `rheology` | supplied by the radial solver | $-\mathrm{Im}[k_{l}]$ from the solver |
-| `FixedQTide` | `cpl`, `fixed_q` | $k_{l}\,(1 - i/Q_{l})$ | $k_{l}/Q_{l}$ (frequency independent) |
-| `FixedLagTide` | `ctl`, `fixed_dt` | $k_{l}\,(1 - i\,\lvert\omega\rvert\,\Delta t_{l})$ | $k_{l}\,\lvert\omega\rvert\,\Delta t_{l}$ |
-| `CTLQTide` | `ctl_q`, `fixed_dt_q` | $k_{l}\,(1 - i\,\lvert\omega\rvert\,\Delta t_{l}/Q_{l})$ | $k_{l}\,\lvert\omega\rvert\,\Delta t_{l}/Q_{l}$ |
+| `FixedQTide` | `fixed_q` (`cpl`, `constant_phase_lag`) | $k_{l}\,(1 - i/Q_{l})$ | $k_{l}/Q_{l}$ (frequency independent) |
+| `FixedLagTide` | `fixed_dt` (`ctl`, `constant_time_lag`) | $k_{l}\,(1 - i\,\lvert\omega\rvert\,\Delta t_{l})$ | $k_{l}\,\lvert\omega\rvert\,\Delta t_{l}$ |
+| `CTLQTide` | `fixed_dt_q` (`ctl_q`, `constant_time_lag_and_q`) | $k_{l}\,(1 - i\,\lvert\omega\rvert\,\Delta t_{l}/Q_{l})$ | $k_{l}\,\lvert\omega\rvert\,\Delta t_{l}/Q_{l}$ |
 
-Each depends on the frequency's magnitude only, as the collapse passes it ($\chi_{lmpq}$, the mode's sign is in its coefficients), so a direct `calc_neg_imk` call with a negative frequency gets the same lag as its magnitude.
+The first name is the canonical one, which `model_name` reports and a config dict holds. Each depends on the frequency's magnitude only, as the collapse passes it ($\chi_{lmpq}$, the mode's sign is in its coefficients), so a direct `calc_neg_imk` call with a negative frequency gets the same lag as its magnitude.
 
-Fixed per-degree parameters $k_{l}$ (static Love number, `fixed_k`), $Q_{l}$ (quality factor, `fixed_q`), and $\Delta t_{l}$ (time lag \[s\], `fixed_dt_s`) are supplied as lists indexed from degree `l = 2` (index 0 is `l = 2`). The constructor keywords are unsuffixed (`FixedLagTide(fixed_k=..., fixed_dt=...)`); the config keys carry the unit. The `rheology` model needs the radial solver and is driven by the world's `calc_tides` method, not the standalone collapse below.
+The analytic models take fixed per-degree parameters, $k_{l}$ (static Love number, `fixed_k`), $Q_{l}$ (quality factor, `fixed_q`), and $\Delta t_{l}$ (time lag \[s\], `fixed_dt`), each a list indexed from degree `l = 2` (index 0 is `l = 2`) of at most nine non-negative values (`l = 2` to `10`). A degree past the end of a list takes 0, which is no dissipation at that degree. The `rheology` model takes no parameters: it needs the radial solver and is driven by the world's `calc_tides` method, not the standalone collapse below.
 
 A zero or absent $Q_{l}$ is treated as purely elastic (no dissipation) rather than a divide by zero.
 
@@ -85,14 +85,19 @@ result = collapse_global_tides(
 # {"tidal_heating": W, "dUdM": ..., "dUdw": ..., "dUdO": ..., "num_modes": int}
 ```
 
-**Constructors**
+**Parameters**
 
-- `RheologyTide()`
-- `FixedQTide(fixed_k=None, fixed_q=None)`
-- `FixedLagTide(fixed_k=None, fixed_dt=None)`
-- `CTLQTide(fixed_k=None, fixed_dt=None, fixed_q=None)`
+Constructors take the model's parameters by argument name or config key, as keywords, positionally in the order `get_parameter_info()` lists them, or as one table through `config=`. `make_tide(model_name, config=None)` resolves a name or alias case-insensitively and builds the model from `config`. A list left out (or `None`) takes its `[tides]` value of the TidalPy configuration, through the class and `make_tide` alike, so `FixedQTide([0.3])` has the configured Q rather than none.
 
-where each `fixed_*` is a list indexed from `l = 2`. A list left as `None` takes its `[tides]` value of the TidalPy configuration (`fixed_k`, `fixed_q`, `fixed_dt_s`), as `make_tide` does, so `FixedQTide([0.3])` has the configured Q rather than none.
+| Parameter | Config key | Default | Bounds | Models |
+|---|---|---|---|---|
+| `fixed_k` | `fixed_k` | `[tides] fixed_k` | non-negative, at most 9 values | `fixed_q`, `fixed_dt`, `fixed_dt_q`: static potential Love number $k_l$ of each degree. |
+| `fixed_q` | `fixed_q` | `[tides] fixed_q` | non-negative, at most 9 values | `fixed_q`, `fixed_dt_q`: quality factor $Q_l$ of each degree; 0 is no dissipation. |
+| `fixed_dt` | `fixed_dt_s` | `[tides] fixed_dt_s` | non-negative, at most 9 values | `fixed_dt`, `fixed_dt_q`: time lag $\Delta t_l$ of each degree \[s\]. |
+
+In `CTLQTide` the positional order is `fixed_k`, `fixed_dt`, `fixed_q`. Each model reads only its own lists: a key the model does not read raises `ValueError` naming the closest one it does, so `make_tide("fixed_q", {"fixed_dt_s": [600.0]})` raises, and so does an unknown name or a value outside its bounds. `tide_model_names()` lists the canonical names and `tide_config_keys(name)` the keys one model reads (none for `rheology`). A world built from a TOML file or a config dict passes its tide model only the `[tides]` lists that model reads.
+
+The parameters read as attributes (`tide.fixed_k`, a list), and every model has `parameters`, `get_parameter(name)`, `get_parameter_info()`, and `with_parameters(**changes)`.
 
 **Methods and properties**
 
@@ -101,31 +106,41 @@ where each `fixed_*` is a list indexed from `l = 2`. A list left as `None` takes
 | `calc_love_numbers(degree_l, frequency, solver_love=None)` | `LoveNumbers` | `(k, h, l)`; analytic models set `h, l = NaN`. `solver_love` (a `LoveNumbers`) is returned unchanged by `RheologyTide`. |
 | `calc_neg_imk(degree_l, frequency, solver_love=None)` | float | Dissipation multiplier `−Im[k_l]`. |
 | `needs_radial_solve` | bool | `True` only for `RheologyTide`. |
-| `get_fixed_k(degree_l)` | float | Static Love number for that degree (analytic models). |
-| `get_fixed_q(degree_l)`, `get_fixed_dt(degree_l)` | float | Quality factor and time lag [s] for that degree. Defined on every model: a model that does not carry the parameter returns NaN, which is how a world's `cpl` or `ctl` Love method decides whether it can fall back to the attached tide model. See [Love numbers](love/love_numbers.md). |
-| `model_name` | str | The model's registered name, for example `cpl`. |
-| `get_config_dict()` | dict | Model name plus per-degree parameters. |
-| `save_config(path)`, `get_schema_version_str()` | - | Configuration output and schema version, shared by every physics model; see [Base Classes](../Utilities/classes.md). |
+| `get_fixed_k(degree_l)`, `get_fixed_q(degree_l)`, `get_fixed_dt(degree_l)` | float | Static Love number, quality factor, and time lag \[s\] for that degree, 0 past the end of the list. Defined on every model: a model that does not carry the parameter (the `rheology` model carries none) returns NaN, which is how a world's `cpl` or `ctl` Love method decides whether it can fall back to the attached tide model. See [Love numbers](love/love_numbers.md). |
+| `model_name` | str | The model's canonical name, for example `fixed_q`. |
+| `get_config_dict()` | dict | `model` plus the model's per-degree lists by config key, as given (not padded to nine degrees). |
+| `save_config(path)`, `save_binary(path)`, `load_binary(path)`, `get_schema_version_str()` | - | Configuration output, the binary record (its parameters written by key), and the schema version, shared by every physics model; see [Base Classes](../Utilities/classes.md). |
 
-`make_tide(name, config=None)` returns the concrete subclass; unknown names, and config keys other than `fixed_k`, `fixed_q`, and `fixed_dt_s`, raise `ValueError`. `collapse_global_tides(...)` supports the analytic models only: the `rheology` model raises `NotImplementedError` (use the world's `calc_tides`).
+`collapse_global_tides(...)` builds its model through `make_tide(tide_model, tide_config)`, so a list left out takes its `[tides]` value and a key the model does not read raises `ValueError`. It supports the analytic models only: the `rheology` model raises `NotImplementedError` (use the world's `calc_tides`).
 
 ## C++ API
 
 The C++ layer is canonical; the Cython classes are thin adapters.
 
-- Config struct `tidalpy::c_TideModelConfig` (`tide_.hpp`): per-degree `std::vector<double>` `fixed_k`, `fixed_q`, `fixed_dt` (indexed from `l = 2`; entries beyond `l = 10` are ignored).
-- Base class `c_TideBase : c_PhysicsBase` (`tide_base_.hpp`): pure virtual `calc_love_numbers(int degree_l, double frequency, const c_LoveNumbers& solver_love) const` (returns the full `c_LoveNumbers` suite) and `needs_radial_solve() const`; non-virtual `calc_neg_imk(...)`, which is `−Im[calc_love_numbers(...).k]`.
-- Models (`tide_.hpp`): `c_RheologyTide`, `c_FixedQTide`, `c_FixedLagTide`, `c_CTLQTide`, each with per-degree getters.
-- Enum factory: `c_tide_model_from_name(const std::string&)` returns a `c_TideModel` (`Rheology`, `FixedQ`, `FixedLag`, `CTLQ`) and throws `std::invalid_argument` on an unknown name; `c_find_tide(c_TideModel, const c_TideModelConfig&)` returns a `std::unique_ptr<c_TideBase>` (a name overload also exists); `c_tide_from_binary(std::istream&, bool force=false)` peeks the class id, builds the model, and calls `read_binary`.
+```cpp
+#include "tide_.hpp"
+
+using namespace tidalpy;
+
+c_ParamMap params;  // Config key to values; a per-degree list from l = 2
+params["fixed_k"] = {0.3};
+params["fixed_q"] = {50.0};
+
+std::unique_ptr<c_TideBase> tide = c_find_tide("cpl", params);
+const double neg_imk = tide->calc_neg_imk(2, 4.1e-5, c_LoveNumbers());  // 0.006
+```
+
+- Base class `c_TideBase : c_PhysicsBase` (`tide_base_.hpp`): pure virtual `calc_love_numbers(int degree_l, double frequency, const c_LoveNumbers& solver_love) const` (returns the full `c_LoveNumbers` suite) and `needs_radial_solve() const`; non-virtual `calc_neg_imk(...)`, which is `−Im[calc_love_numbers(...).k]`; virtual `get_fixed_k`, `get_fixed_q`, and `get_fixed_dt`, NaN unless a model overrides them.
+- Models (`tide_.hpp`): `c_RheologyTide` and the analytic `c_FixedQTide`, `c_FixedLagTide`, and `c_CTLQTide`, each a `c_SpecModel<Model, c_TideBase>` with its `parameter_specs()` table and `C_CLASS_ID`. The analytic models derive from `c_AnalyticTide<Derived>`, which sets `needs_radial_solve()` to false, refuses a list of more than `C_TIDE_NUM_DEGREES` (9) values, and returns `h` and `l` as NaN. `c_tide_degree_value(values, degree_l)` reads a per-degree list, 0 past its end.
+- Registry and factory: `c_tide_registry()` lists each model's names (canonical first, then aliases), binary class id, and constructor. `c_find_tide(const std::string& name, const c_ParamMap& params)` returns a `std::unique_ptr<c_TideBase>` and throws `std::invalid_argument` for an unknown name or parameter or a value outside its bounds. `c_tide_from_binary(std::istream&, bool force=false)` peeks the class id, builds the model, and calls `read_binary`. `c_tide_canonical_name(name)` and `c_tide_model_names()` resolve names. The C++ factory does not read the TidalPy configuration: a list it is not given is empty.
 - Collapse (`tide_collapse_.hpp`): `c_collapse_global_tides(const c_GlobalPotentialStorage&, const c_TideBase&, const c_IntMap<c_Key4, c_LoveNumbers>* solver_love_by_lmpq = nullptr)` returns a `c_GlobalTideResult`. The `solver_love_by_lmpq` map supplies the radial-solver Love numbers (k, h, l) per mode for the `rheology` model; pass `nullptr` for the analytic models. `c_GlobalTideResult` holds `tidal_heating`, `dU_dM`, `dU_dw`, `dU_dO`, `num_modes`, and `error_code`.
 
 ## Adding a New Model
 
-1. Add a `c_<Name>Tide : c_TideBase` in `tide_.hpp` implementing `calc_love_numbers` (return a `c_LoveNumbers`; set `h, l = NaN` if no radial solution), `needs_radial_solve`, and `get_binary_class_id` ([Binary Serialization](../Utilities/binary.md)); a model on `c_AnalyticTide` inherits its per-degree parameters' serialization.
-2. Add any new parameters to `c_TideModelConfig`.
-3. Register a `c_TideModel::<Name>` enum value and wire it into `c_tide_model_from_name`, `c_find_tide`, and `c_tide_from_binary`.
-4. Reserve a unique `BinaryClassID` (next free in the 900-block) in `Utilities/binary/binary_.hpp`.
-5. Add the Cython `cdef class`, factory branch, config-dict, and tests, and document the model here.
+1. Add `c_<Name>Tide` in `tide_.hpp`, deriving from `c_AnalyticTide<c_<Name>Tide>` for an analytic model or from `c_SpecModel<c_<Name>Tide, c_TideBase>` otherwise: its `parameter_specs()` table (argument name, config key, member, default, bounds, and a one-line description), `C_CLASS_ID`, two constructors that call `p_initialize`, and `calc_love_numbers` (return a `c_LoveNumbers`; set `h, l = NaN` if no radial solution). A model that is not analytic also implements `needs_radial_solve`. Override `get_fixed_k`, `get_fixed_q`, or `get_fixed_dt` for the per-degree values it carries.
+2. Add one row to `c_tide_registry()` with the model's names and aliases.
+3. Reserve a unique `BinaryClassID` (next free in the 900-block) in `Utilities/binary/binary_.hpp`.
+4. Add a Cython `cdef class` (a docstring and `MODEL_NAME`) to `tide.pyx` and `tide.pxd`, include it in the `ModelFamily` list, export it from `Tides/classes/__init__.py`, add its tests to `Tests/Test_Tides/Test_Classes/`, and document the model here. The generic tests in `Tests/Test_Utilities/Test_Classes/test_spec_models_01.py` cover its parameters, config, binary record, and errors without changes. A model whose parameters have `[tides]` defaults needs those keys in the `[tides]` table of the TidalPy configuration.
 
 ## References
 

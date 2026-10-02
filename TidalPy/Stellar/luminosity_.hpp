@@ -1,13 +1,13 @@
 #pragma once
 /* TidalPy's stellar luminosity models. Solar anchors come from TidalPyConstants.
  *
+ * Each model declares its parameters in one table (c_SpecModel, spec_model_.hpp), which gives its constructor,
+ * validation, config entries, and binary record.
+ *
  * References
  * ----------
  * - Cuntz and Wang (2018), doi:10.3847/2515-5172/aaaa67 - low-mass mass-luminosity polynomial exponent.
  * - Wikipedia mass-luminosity relation (piecewise main-sequence scaling) for the high/low-mass regimes.
- *
- * Binary payload: model name then the model's doubles, through the shared c_PhysicsBase helpers. The
- * layer observer pointer is not serialized.
  */
 
 #include <cmath>
@@ -22,21 +22,10 @@
 #include "luminosity_base_.hpp"
 #include "constants_.hpp"
 #include "model_names_.hpp"
+#include "registry_.hpp"
+#include "spec_model_.hpp"
 
 namespace tidalpy {
-
-// Combined construction parameters; each model reads only the fields it needs. Its defaults are the models' defaults.
-struct c_LuminosityConfig {
-    double luminosity = 0.0;                  // [W]; Fixed model
-
-    // Power-law model: L = Lsun * coeff * (M / Msun)^exponent.
-    double power_law_coeff    = 1.0;            // dimensionless prefactor
-    double power_law_exponent = 3.5;            // dimensionless exponent (classic main-sequence value)
-};
-
-inline double lum_from_fixed(double /*mass*/, double luminosity) noexcept {
-    return luminosity;
-}
 
 // Piecewise main-sequence relation (Cuntz and Wang 2018).
 inline double lum_from_mass(double mass) noexcept {
@@ -81,148 +70,101 @@ inline double lum_from_power_law(double mass, double coeff, double exponent) noe
 }
 
 // Luminosity supplied directly, independent of mass (alias "constant").
-class c_FixedLuminosity final : public c_LuminosityBase {
+class c_FixedLuminosity final : public c_SpecModel<c_FixedLuminosity, c_LuminosityBase> {
 public:
-    c_FixedLuminosity() : c_FixedLuminosity(c_LuminosityConfig{}) {}
-    explicit c_FixedLuminosity(const c_LuminosityConfig& config)
-        : c_LuminosityBase("fixed"),
-          p_luminosity(config.luminosity) {}
-    ~c_FixedLuminosity() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::FixedLuminosity;
 
-    double get_luminosity() const noexcept { return this->p_luminosity; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_LuminosityBase::append_config_entries(out);
-        out.push_back(c_config_double("luminosity_w", this->p_luminosity));
+    static const std::vector<c_ParamSpec<c_FixedLuminosity>>& parameter_specs() {
+        using Self = c_FixedLuminosity;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            {"luminosity", "luminosity_w", &Self::p_luminosity, 0.0, c_ParamBounds::NonNegative,
+             "The luminosity reported at every mass [W]."},
+        };
+        return specs;
     }
 
-    double calc_luminosity(double mass) const override {
-        return lum_from_fixed(mass, this->p_luminosity);
-    }
+    c_FixedLuminosity() : c_FixedLuminosity(c_ParamMap{}) {}
+    explicit c_FixedLuminosity(const c_ParamMap& params) : c_SpecModel("fixed") { this->p_initialize(params); }
 
-    uint32_t get_binary_class_id() const override {
-        return static_cast<uint32_t>(BinaryClassID::FixedLuminosity);
-    }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_luminosity};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        this->p_luminosity = params[0];
-    }
+    double calc_luminosity(double /*mass*/) const override { return this->p_luminosity; }
 
 protected:
-    double p_luminosity;
+    double p_luminosity = 0.0;
 };
 
 // Piecewise main-sequence L(M) (aliases "cuntz_wang", "cw").
-class c_MassToLuminosity final : public c_LuminosityBase {
+class c_MassToLuminosity final : public c_SpecModel<c_MassToLuminosity, c_LuminosityBase> {
 public:
-    c_MassToLuminosity() : c_MassToLuminosity(c_LuminosityConfig{}) {}
-    explicit c_MassToLuminosity(const c_LuminosityConfig& /*config*/)
-        : c_LuminosityBase("mass_to_luminosity") {}
-    ~c_MassToLuminosity() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::MassToLuminosity;
 
-    double calc_luminosity(double mass) const override {
-        return lum_from_mass(mass);
+    static const std::vector<c_ParamSpec<c_MassToLuminosity>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_MassToLuminosity>> specs = {};
+        return specs;
     }
 
-    uint32_t get_binary_class_id() const override {
-        return static_cast<uint32_t>(BinaryClassID::MassToLuminosity);
+    c_MassToLuminosity() : c_MassToLuminosity(c_ParamMap{}) {}
+    explicit c_MassToLuminosity(const c_ParamMap& params) : c_SpecModel("mass_to_luminosity") {
+        this->p_initialize(params);
     }
+
+    double calc_luminosity(double mass) const override { return lum_from_mass(mass); }
 };
 
-// Single power law L = Lsun * coeff * (M/Msun)^p (alias "power_law").
-class c_PowerLawLuminosity final : public c_LuminosityBase {
+// Single power law L = Lsun * coeff * (M/Msun)^exponent (alias "powerlaw").
+class c_PowerLawLuminosity final : public c_SpecModel<c_PowerLawLuminosity, c_LuminosityBase> {
 public:
-    c_PowerLawLuminosity() : c_PowerLawLuminosity(c_LuminosityConfig{}) {}
-    explicit c_PowerLawLuminosity(const c_LuminosityConfig& config)
-        : c_LuminosityBase("power_law"),
-          p_coeff(config.power_law_coeff),
-          p_exponent(config.power_law_exponent) {}
-    ~c_PowerLawLuminosity() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::PowerLawLuminosity;
 
-    double get_coeff()    const noexcept { return this->p_coeff; }
-    double get_exponent() const noexcept { return this->p_exponent; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_LuminosityBase::append_config_entries(out);
-        out.push_back(c_config_double("power_law_coeff", this->p_coeff));
-        out.push_back(c_config_double("power_law_exponent", this->p_exponent));
+    static const std::vector<c_ParamSpec<c_PowerLawLuminosity>>& parameter_specs() {
+        using Self = c_PowerLawLuminosity;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            {"coeff", "power_law_coeff", &Self::p_coeff, 1.0, c_ParamBounds::Positive,
+             "Prefactor of the power law, in solar luminosities."},
+            {"exponent", "power_law_exponent", &Self::p_exponent, 3.5, c_ParamBounds::Finite,
+             "Exponent of the mass ratio; 3.5 is the classic main-sequence value."},
+        };
+        return specs;
     }
+
+    c_PowerLawLuminosity() : c_PowerLawLuminosity(c_ParamMap{}) {}
+    explicit c_PowerLawLuminosity(const c_ParamMap& params) : c_SpecModel("power_law") { this->p_initialize(params); }
 
     double calc_luminosity(double mass) const override {
         return lum_from_power_law(mass, this->p_coeff, this->p_exponent);
     }
 
-    uint32_t get_binary_class_id() const override {
-        return static_cast<uint32_t>(BinaryClassID::PowerLawLuminosity);
-    }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_coeff, this->p_exponent};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        this->p_coeff    = params[0];
-        this->p_exponent = params[1];
-    }
-
 protected:
-    double p_coeff;
-    double p_exponent;
+    double p_coeff    = 1.0;
+    double p_exponent = 3.5;
 };
 
-// One value per model, so c_find_luminosity dispatches without string comparisons.
-enum class c_LuminosityModel : uint8_t {
-    Fixed            = 0,
-    MassToLuminosity = 1,
-    PowerLaw         = 2,
-};
-
-// Model names are matched case-insensitively.
-inline c_LuminosityModel c_luminosity_model_from_name(const std::string& model_name) {
-    const std::string name = c_to_lower(model_name);
-
-    if (name == "fixed" || name == "constant") { return c_LuminosityModel::Fixed; }
-    if (name == "mass_to_luminosity" || name == "cuntz_wang" || name == "cw") {
-        return c_LuminosityModel::MassToLuminosity;
-    }
-    if (name == "power_law" || name == "powerlaw") { return c_LuminosityModel::PowerLaw; }
-
-    throw std::invalid_argument("TidalPy: unknown luminosity model name '" + model_name + "'");
+inline const c_ModelRegistry<c_LuminosityBase>& c_luminosity_registry() {
+    static const c_ModelRegistry<c_LuminosityBase> registry = {
+        {{"fixed", "constant"},
+         BinaryClassID::FixedLuminosity,    &c_make_entry<c_LuminosityBase, c_FixedLuminosity>},
+        {{"mass_to_luminosity", "cuntz_wang", "cw"},
+         BinaryClassID::MassToLuminosity,   &c_make_entry<c_LuminosityBase, c_MassToLuminosity>},
+        {{"power_law", "powerlaw"},
+         BinaryClassID::PowerLawLuminosity, &c_make_entry<c_LuminosityBase, c_PowerLawLuminosity>},
+    };
+    return registry;
 }
 
-// Builds a model from its enum value and parameters; the Cython wrappers construct through it. A saved record is
-// restored by c_luminosity_from_binary instead.
-inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(
-        c_LuminosityModel model, const c_LuminosityConfig& config) {
-    switch (model) {
-        case c_LuminosityModel::Fixed:            return std::make_unique<c_FixedLuminosity>(config);
-        case c_LuminosityModel::MassToLuminosity: return std::make_unique<c_MassToLuminosity>(config);
-        case c_LuminosityModel::PowerLaw:         return std::make_unique<c_PowerLawLuminosity>(config);
-    }
-    throw std::invalid_argument("TidalPy: unrecognised c_LuminosityModel enum value");
+// The family's entry points, each one line over the generic registry functions.
+inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(const std::string& model_name, const c_ParamMap& params) {
+    return c_make_model(c_luminosity_registry(), model_name, params);
 }
 
-inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(
-        const std::string& model_name, const c_LuminosityConfig& config) {
-    return c_find_luminosity(c_luminosity_model_from_name(model_name), config);
-}
-
-// The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_LuminosityBase> c_luminosity_from_binary(std::istream& in, bool force = false) {
-    const c_BinaryHeader header = c_peek_binary_header(in);
+    return c_model_from_binary(c_luminosity_registry(), in, force);
+}
 
-    std::unique_ptr<c_LuminosityBase> model;
-    switch (static_cast<BinaryClassID>(header.class_id)) {
-        case BinaryClassID::FixedLuminosity:    model = std::make_unique<c_FixedLuminosity>();    break;
-        case BinaryClassID::MassToLuminosity:   model = std::make_unique<c_MassToLuminosity>();   break;
-        case BinaryClassID::PowerLawLuminosity: model = std::make_unique<c_PowerLawLuminosity>(); break;
-        default:
-            throw std::runtime_error("TidalPy: unknown luminosity class id in binary stream");
-    }
-    model->read_binary(in, force);
-    return model;
+inline std::string c_luminosity_canonical_name(const std::string& model_name) {
+    return c_canonical_model_name(c_luminosity_registry(), model_name);
+}
+
+inline std::vector<std::string> c_luminosity_model_names() {
+    return c_model_names(c_luminosity_registry());
 }
 
 }  // namespace tidalpy

@@ -61,7 +61,7 @@ _EOS_CHANGES = {
     "material": lambda layer: setattr(layer, "material", _constant_material(3200.0)),
     "melting_material": lambda layer: _add_henning_melting(layer, 1200.0, 1800.0),
     "cooling": lambda layer: setattr(layer, "cooling", make_cooling("convection")),
-    "set_radiogenics": lambda layer: layer.set_radiogenics(make_radiogenics("fixed")),
+    "radiogenics": lambda layer: setattr(layer, "radiogenics", make_radiogenics("fixed")),
     "temperature": lambda layer: setattr(layer, "temperature", 1650.0),
     "use_thermal_expansion": lambda layer: _toggle(layer, "use_thermal_expansion"),
     "use_melting": lambda layer: _toggle(layer, "use_melting"),

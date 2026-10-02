@@ -45,8 +45,6 @@ public:
 
     ~c_LuminosityBase() override = default;
 
-    std::string get_family_name() const override { return C_FAMILY_NAME; }
-
     // Stellar luminosity [W] from mass [kg]; the Fixed model ignores the mass.
     virtual double calc_luminosity(double mass) const = 0;
 

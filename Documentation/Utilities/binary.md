@@ -1,6 +1,6 @@
 # Binary Serialization (`Utilities.binary`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
 TidalPy writes worlds, layers, systems, and physics models to a compact binary format. This page describes that format and how a class takes part in it. The other pages only list each class's id. A TOML configuration is the readable, editable way to describe a world. The binary format saves and restores an object structure as it stands, including every attached sub-model, without going back through the builders.
 
@@ -82,17 +82,12 @@ get_current_schema_version()   # '0.2.0'
 | `p_write_payload(out)`, `p_read_payload(in, force)` | The class's payload. An override calls its parent's first, then writes or reads its own fields and the records of the sub-objects it owns, so a record holds its parent's payload followed by its own additions. |
 | `make_binary_scratch()` | Optional: a new object of the class that `load_binary` reads a file into first (see [Integrity Checks](#integrity-checks)). |
 
-A physics model declared through a parameter table (`c_SpecModel`, `Utilities/classes/spec_model_.hpp`: rheology, viscosity, cooling, the material laws, melting laws, phases, and materials) writes its model name and then each parameter by key: the key, a kind byte, a value count, and the values. Reading goes through the same validation as construction, and a key the record does not hold reads at its default, so adding a parameter never changes how older records are read. A composite (a phase or a material) then writes one optional record per slot. The other physics models (radiogenics, tides, luminosity) write their model name and then `get_binary_params()`, the model's scalar parameters in a fixed order, and read them back into `set_binary_params(params)`. A model with no parameters needs only `get_binary_class_id`, and one that also holds a list (the isotope list) extends `p_write_payload` and `p_read_payload`.
+Every concrete physics model is declared through a parameter table (`c_SpecModel`, `Utilities/classes/spec_model_.hpp`: rheology, viscosity, cooling, radiogenics, tides, luminosity, the material laws, melting laws, phases, and materials). Its payload is its model name, the number of parameters (`uint32_t`), and then each parameter by key: the key, a kind byte (`c_ParamKind`), a value count (`uint64_t`), and the values (doubles). Reading goes through the same validation as construction, and a key the record does not hold reads at its default, so adding a parameter never changes how older records are read. A model with state outside its table writes it after the parameters through `p_write_extra` and reads it back through `p_read_extra`: the isotope radiogenics model writes its label count (`uint64_t`) and then each label as a string. A composite (a phase or a material) then writes one optional record per slot. A model therefore needs only its table and its `C_CLASS_ID`, from which `c_SpecModel` provides `get_binary_class_id`. The payload of a bare `c_PhysicsBase` is its model name alone.
 
-```cpp
-// A luminosity model with one scalar parameter.
-uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::FixedLuminosity); }
-std::vector<double> get_binary_params() const override {
-    return {this->p_luminosity};
-}
-void set_binary_params(const std::vector<double>& params) override {
-    this->p_luminosity = params[0];
-}
+```
+[string model_name][uint32_t num_params]
+    num_params x [string key][uint8_t kind][uint64_t num_values][num_values x double]
+[extra state, if any]
 ```
 
 Include `binary_.hpp` in any code that reads or writes these files directly. It pulls in `logger_.hpp` so version-mismatch warnings go through the shared logger.

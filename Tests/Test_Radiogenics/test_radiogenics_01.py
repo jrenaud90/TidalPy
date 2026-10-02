@@ -176,12 +176,12 @@ def test_isotope_parameters():
     assert list(isotope.half_lives) == pytest.approx(_HALF)
     assert list(isotope.mass_fracs) == pytest.approx(_FRAC)
     assert list(isotope.concentrations) == pytest.approx(_CONC)
-    # Names are generated when not supplied.
-    assert list(isotope.isotope_names) == ["isotope_0", "isotope_1"]
+    # Unlabeled isotopes stay unlabeled.
+    assert isotope.isotope_names == []
 
 
 def test_isotope_explicit_names():
-    assert list(_isotope_model(names=["U238", "Th232"]).isotope_names) == ["U238", "Th232"]
+    assert list(_isotope_model(isotope_names=["U238", "Th232"]).isotope_names) == ["U238", "Th232"]
 
 
 def test_fixed_parameters():
@@ -290,7 +290,7 @@ def test_reference_time_applies_to_a_dataset():
 
 
 def test_make_radiogenics_adopted_object_is_usable(tmp_path):
-    """An object built by the C++ enum factory is usable and round trips."""
+    """An object built by the factory is usable and round trips."""
     fixed = Radiogenics.make_radiogenics("fixed", {
         "fixed_heat_production_w_kg": 1.5e-11, "average_half_life_s": 5.0e17})
     assert fixed.fixed_heat_production == pytest.approx(1.5e-11)
@@ -360,9 +360,9 @@ def test_castillo_rogez_isotope_concentrations_reproduce_table_3(name, expected_
 
 @pytest.mark.parametrize("time_myr", [0.0, 0.5, 3.0, 10.0, 100.0, 4568.0])
 def test_llri_and_slri_is_the_sum_of_llri_and_slri(time_myr):
-    combined = Radiogenics.IsotopeRadiogenics.from_dataset("llri_and_slri")
-    long_lived = Radiogenics.IsotopeRadiogenics.from_dataset("llri")
-    short_lived = Radiogenics.IsotopeRadiogenics.from_dataset("slri")
+    combined = Radiogenics.IsotopeRadiogenics(isotopes="llri_and_slri")
+    long_lived = Radiogenics.IsotopeRadiogenics(isotopes="llri")
+    short_lived = Radiogenics.IsotopeRadiogenics(isotopes="slri")
     time = time_myr * _MYR_S
     assert combined.calc_heating(time, _MASS) == pytest.approx(
         long_lived.calc_heating(time, _MASS) + short_lived.calc_heating(time, _MASS), rel=1e-12)
@@ -370,7 +370,7 @@ def test_llri_and_slri_is_the_sum_of_llri_and_slri(time_myr):
 
 def test_llri_heating_finite_at_formation():
     """Formation-epoch heating is the Table 3 sum (about 2.21e-7 W/kg, mostly Al26) and decays away within 100 Myr."""
-    model = Radiogenics.IsotopeRadiogenics.from_dataset("llri_and_slri")
+    model = Radiogenics.IsotopeRadiogenics(isotopes="llri_and_slri")
     dataset = Radiogenics.isotope_dataset("llri_and_slri")
     heating_formation = model.calc_heating(0.0, _MASS)
     heating_10myr = model.calc_heating(10.0 * _MYR_S, _MASS)
@@ -388,7 +388,7 @@ def test_llri_heating_finite_at_formation():
 
 def test_llri_heating_today_is_chondritic():
     """Decayed to the present, the long-lived set heats as ordinary chondrites do today, about 5e-12 W/kg."""
-    model = Radiogenics.IsotopeRadiogenics.from_dataset("llri")
+    model = Radiogenics.IsotopeRadiogenics(isotopes="llri")
     heating_today = model.calc_heating(4568.0 * _MYR_S, _MASS) / _MASS
     assert 4.0e-12 < heating_today < 6.0e-12
 
@@ -398,12 +398,12 @@ def test_legacy_config_llri_and_slri_matches(time_myr):
     """The legacy LLRI_and_SLRI dataset through the legacy formula heats as the built-in set does."""
     # The legacy dataset is in Myr, so it was evaluated at the time in Myr.
     legacy_heating = float(_LEGACY_REFERENCE[f"legacy_config_llri_and_slri__time_myr_{time_myr:g}"])
-    heating = Radiogenics.IsotopeRadiogenics.from_dataset("llri_and_slri").calc_heating(time_myr * _MYR_S, _MASS)
+    heating = Radiogenics.IsotopeRadiogenics(isotopes="llri_and_slri").calc_heating(time_myr * _MYR_S, _MASS)
     assert legacy_heating == pytest.approx(heating, rel=1e-12)
 
 
-def test_from_dataset_matches_factory():
-    from_dataset = Radiogenics.IsotopeRadiogenics.from_dataset("modern_day_chondritic")
+def test_class_and_factory_agree_on_a_dataset():
+    from_dataset = Radiogenics.IsotopeRadiogenics(isotopes="modern_day_chondritic")
     from_factory = Radiogenics.make_radiogenics("isotope", {"isotopes": "modern_day_chondritic"})
     assert isinstance(from_dataset, Radiogenics.IsotopeRadiogenics)
     assert list(from_dataset.isotope_names) == list(from_factory.isotope_names)
@@ -413,7 +413,7 @@ def test_from_dataset_matches_factory():
 
 def test_dataset_heating_cross_check():
     dataset = Radiogenics.isotope_dataset("modern_day_chondritic")
-    model = Radiogenics.IsotopeRadiogenics.from_dataset("modern_day_chondritic")
+    model = Radiogenics.IsotopeRadiogenics(isotopes="modern_day_chondritic")
     time = dataset["ref_time_s"]
     isotopes = (dataset["heat_production_w_kg"], dataset["half_lives_s"], dataset["mass_fracs"],
                 dataset["concentrations"])
@@ -427,9 +427,11 @@ def test_dataset_heating_cross_check():
 @pytest.mark.parametrize("factory,keys", [
     (Radiogenics.OffRadiogenics, {"model"}),
     (Radiogenics.FixedRadiogenics, {"model", "fixed_heat_production_w_kg", "average_half_life_s", "ref_time_s"}),
-    (_isotope_model, {"model", "heat_production_w_kg", "half_lives_s", "mass_fracs", "concentrations",
-                      "isotope_names", "ref_time_s"}),
-], ids=["off", "fixed", "isotope"])
+    (lambda: _isotope_model(isotope_names=["U238", "Th232"]),
+     {"model", "heat_production_w_kg", "half_lives_s", "mass_fracs", "concentrations", "isotope_names", "ref_time_s"}),
+    (_isotope_model,
+     {"model", "heat_production_w_kg", "half_lives_s", "mass_fracs", "concentrations", "ref_time_s"}),
+], ids=["off", "fixed", "isotope", "unlabeled_isotope"])
 def test_config_dict_keys(factory, keys):
     assert set(factory().get_config_dict()) == keys
 
@@ -447,8 +449,8 @@ def test_save_config_writes_toml(tmp_path):
 @pytest.mark.parametrize("factory,model_name,num_isotopes", [
     (Radiogenics.OffRadiogenics, "off", None),
     (lambda: Radiogenics.FixedRadiogenics(2.5e-11, 1.0e18, 3.0e17), "fixed", None),
-    (lambda: _isotope_model(ref_time=1.0e17, names=["U238", "Th232"]), "isotope", 2),
-    (lambda: Radiogenics.IsotopeRadiogenics.from_dataset("llri_and_slri"), "isotope", 7),
+    (lambda: _isotope_model(ref_time=1.0e17, isotope_names=["U238", "Th232"]), "isotope", 2),
+    (lambda: Radiogenics.IsotopeRadiogenics(isotopes="llri_and_slri"), "isotope", 7),
 ], ids=["off", "fixed", "isotope", "dataset"])
 def test_binary_round_trip(factory, model_name, num_isotopes, tmp_path):
     """A binary round trip keeps the model, its parameters, and its heating."""
@@ -466,7 +468,7 @@ def test_binary_round_trip(factory, model_name, num_isotopes, tmp_path):
 def test_isotope_binary_payload_size_mismatch_raises(tmp_path):
     """An isotope record whose header claims more payload than its isotope list is refused, unread."""
     path = str(tmp_path / "isotope.tpyb")
-    _isotope_model(ref_time=1.0e17, names=["U238", "Th232"]).save_binary(path)
+    _isotope_model(ref_time=1.0e17, isotope_names=["U238", "Th232"]).save_binary(path)
     with open(path, "rb") as binary_file:
         record = bytearray(binary_file.read())
     # The header's payload size is the little-endian uint64 at byte 12.
@@ -475,10 +477,10 @@ def test_isotope_binary_payload_size_mismatch_raises(tmp_path):
     record += bytes(8)
     with open(path, "wb") as binary_file:
         binary_file.write(record)
-    restored = Radiogenics.IsotopeRadiogenics()
+    restored = Radiogenics.IsotopeRadiogenics(isotopes="slri")
     with pytest.raises(IOError, match="payload bytes"):
         restored.load_binary(path)
-    assert restored.num_isotopes == 0
+    assert restored.isotope_names == ["Al26", "Fe60", "Mn53"]
 
 
 # =====================================================================================================================
@@ -571,7 +573,7 @@ def test_a_stable_isotope_is_accepted():
     (-1.0e-11, 4.47e17, 0.0), (math.inf, 4.47e17, 0.0), (1.0e-11, math.nan, 0.0), (1.0e-11, 4.47e17, math.inf)],
     ids=["negative_rate", "infinite_rate", "nan_half_life", "infinite_ref_time"])
 def test_an_unphysical_fixed_model_is_refused(heat_production, half_life, ref_time):
-    with pytest.raises(ValueError, match="fixed radiogenics"):
+    with pytest.raises(ValueError, match="radiogenics model 'fixed'"):
         Radiogenics.FixedRadiogenics(heat_production, half_life, ref_time)
 
 
@@ -579,3 +581,54 @@ def test_a_fixed_model_without_decay_is_accepted():
     """A half life of zero or below means no decay."""
     model = Radiogenics.FixedRadiogenics(1.0e-11, 0.0, 0.0)
     assert model.calc_heating(1.0e17, _MASS) == model.calc_heating(0.0, _MASS)
+
+
+# =====================================================================================================================
+# Isotope labels and the configured default dataset
+# =====================================================================================================================
+def test_labels_must_match_the_isotopes():
+    with pytest.raises(ValueError, match="3 isotope names for 2 isotopes"):
+        _isotope_model(isotope_names=["U238", "Th232", "K40"])
+    with pytest.raises(TypeError, match="one name per isotope"):
+        _isotope_model(isotope_names="U238")
+
+
+def test_with_parameters_keeps_or_replaces_the_labels():
+    named = _isotope_model(isotope_names=["U238", "Th232"])
+    assert named.with_parameters(ref_time=1.0e17).isotope_names == ["U238", "Th232"]
+    relabeled = named.with_parameters(isotope_names=["a", "b"])
+    assert relabeled.isotope_names == ["a", "b"]
+    assert relabeled.calc_heating(0.0, _MASS) == named.calc_heating(0.0, _MASS)
+    # A third isotope needs a third label, given with it.
+    grown = named.with_parameters(
+        heat_production=_HPR + [1.0e-5], half_lives=_HALF + [1.0e17], mass_fracs=_FRAC + [1.0],
+        concentrations=_CONC + [1.0e-6], isotope_names=["U238", "Th232", "K40"])
+    assert grown.num_isotopes == 3
+    with pytest.raises(ValueError, match="isotope names"):
+        named.with_parameters(heat_production=_HPR + [1.0e-5], half_lives=_HALF + [1.0e17],
+                              mass_fracs=_FRAC + [1.0], concentrations=_CONC + [1.0e-6])
+
+
+def test_a_model_given_no_isotope_data_takes_the_configured_dataset(restore_config):
+    """The class and the factory both take [radiogenics] isotopes when given neither isotopes nor tables."""
+    TidalPy.config["radiogenics"]["isotopes"] = "slri"
+    assert Radiogenics.IsotopeRadiogenics().isotope_names == ["Al26", "Fe60", "Mn53"]
+    assert Radiogenics.make_radiogenics("isotope").isotope_names == ["Al26", "Fe60", "Mn53"]
+
+
+def test_a_model_with_no_isotopes_reads_back_with_none():
+    """Explicitly empty tables are kept, not replaced by the configured dataset, so the config dict round trips."""
+    empty = Radiogenics.IsotopeRadiogenics([], [], [], [])
+    assert empty.num_isotopes == 0
+    rebuilt = Radiogenics.make_radiogenics("isotope", empty.get_config_dict())
+    assert rebuilt.num_isotopes == 0
+    assert rebuilt.calc_heating(0.0, _MASS) == 0.0
+
+
+def test_a_bad_configured_dataset_fails_only_where_it_is_used(restore_config):
+    """The family's lookups read no configuration, so a bad [radiogenics] isotopes fails the model that takes it."""
+    TidalPy.config["radiogenics"]["isotopes"] = "not_a_dataset"
+    assert "isotope_names" in Radiogenics.radiogenics_config_keys("isotope")
+    assert Radiogenics.IsotopeRadiogenics(*_ISOTOPES).num_isotopes == 2
+    with pytest.raises(ValueError, match="unknown isotope dataset 'not_a_dataset'"):
+        Radiogenics.IsotopeRadiogenics()

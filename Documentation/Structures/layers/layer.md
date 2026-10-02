@@ -1,6 +1,6 @@
 # Layer (`Structures.layers`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
 `TidalPy.Structures.layers.Layer` contains one spherically symmetric shell of a world: its radii \[m\] and mass \[kg\], the material it is made of, the physics switches that say how much of that material it uses, its temperature \[K\], the assumptions the radial (Love number) solver makes inside it, optional rheology overrides, and optional cooling and radiogenics models. A world's EOS solve evaluates the layer's material at every radius it integrates, and the layer's profile getters read those values back. There is one layer class for every kind of shell: rock, ice, iron, an ocean, or a gas envelope differ only in their material and switches.
 
@@ -40,11 +40,11 @@ Layer(
     shear_rheology:        RheologyBase | str | dict = None,
     bulk_rheology:         RheologyBase | str | dict = None,
     cooling:               CoolingBase | str | dict = None,
-    radiogenics:           RadiogenicsBase = None,
+    radiogenics:           RadiogenicsBase | str | dict = None,
 )
 ```
 
-Everything after `material` is keyword-only. `material` and every keyword-only argument are also properties of the same name, read and written after construction, except `radiogenics`, which is attached with `set_radiogenics`. The geometry is read-only (see below).
+Everything after `material` is keyword-only. `material` and every keyword-only argument are also properties of the same name, read and written after construction. The geometry is read-only (see below).
 
 **Geometry and material**
 
@@ -169,20 +169,18 @@ The rheologies, `use_tides`, `tidal_scale`, `is_static`, `is_incompressible`, an
 
 A cooling model says how heat moves through the layer in a thermal EOS solve, and so the shape of its temperature profile (see [Cooling Models](../../Cooling/cooling_models.md) and [Temperature and Heat Flow](../worlds/worlds.md#temperature-and-heat-flow)). The `cooling` argument and property take a model, a model name (`"off"`, `"conduction"`, `"convection"`), or a config table with a `model` key. The layer shares the model rather than consuming it, so one model can serve several layers. `None` clears it, which holds the layer at one temperature. `cooling_set` reports whether one is attached.
 
-A radiogenics model gives the layer's radiogenic heating (see [Radiogenic Models](../../Radiogenics/radiogenics_models.md)). `set_radiogenics(model)` (or the `radiogenics` argument) moves the C++ model into the layer, so the Python model is left empty and attaching it again raises `ValueError`. `radiogenics_set` reports whether one is attached, and `calc_radiogenic_heating(time, mass)` returns its heating \[W\] at a time \[s\] for a mass \[kg\], 0.0 without one. The model heats the layer during a solve only when `use_heating` is on.
+A radiogenics model gives the layer's radiogenic heating (see [Radiogenic Models](../../Radiogenics/radiogenics_models.md)). The `radiogenics` argument and property take a model, a model name (`"off"`, `"isotope"`, `"fixed"`), or a config table with a `model` key, and `None` clears it. Like the cooling model, the layer shares the model rather than consuming it. `radiogenics_set` reports whether one is attached, and `calc_radiogenic_heating(time, mass)` returns its heating \[W\] at a time \[s\] for a mass \[kg\], 0.0 without one. The model heats the layer during a solve only when `use_heating` is on.
 
 ```python
-from TidalPy.Radiogenics import make_radiogenics
-
 mantle.cooling = {
     "model": "convection",
     "critical_rayleigh": 1100.0,
-}                                                        # Boundary-layer convection
-mantle.set_radiogenics(
-    make_radiogenics(
-        "isotope",
-        {"isotopes": "bulk_silicate_earth"}))            # A decaying isotope dataset
-mantle.use_heating = True                                # Let the radiogenics heat the layer in a thermal solve
+}  # Boundary-layer convection
+mantle.radiogenics = {
+    "model": "isotope",
+    "isotopes": "bulk_silicate_earth",
+}  # A decaying isotope dataset
+mantle.use_heating = True  # Let the radiogenics heat the layer in a thermal solve
 print(mantle.calc_radiogenic_heating(1.4516496e17, 4.0e24))   # [W] at the dataset's reference time, about 2e13
 ```
 

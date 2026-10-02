@@ -136,8 +136,7 @@ cdef class StructureBase(TidalPyBaseClass):
 
 cdef class PhysicsBase(TidalPyBaseClass):
     # The model, shared: models are not changed in place (with_parameters returns a new one), so a layer or a solve
-    # can hold the same object. A family not yet built on parameter specs leaves this empty, owns its model through
-    # its own pointer, and sets the inherited _ptr instead.
+    # can hold the same object.
     cdef shared_ptr[c_PhysicsBase] _model_sptr
     cdef void _set_model(self, shared_ptr[c_PhysicsBase] model) noexcept
     cpdef dict get_config_dict(self)

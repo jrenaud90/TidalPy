@@ -291,7 +291,7 @@ def canonical_parameter_keys(object model_class, dict table) -> dict:
         return {}
     if model_class not in _PARAMETER_SPELLINGS:
         _PARAMETER_SPELLINGS[model_class] = {
-            entry["name"]: entry["key"] for entry in model_class().get_parameter_info()}
+            entry["name"]: entry["key"] for entry in model_class._default_model().get_parameter_info()}
     cdef dict spellings = _PARAMETER_SPELLINGS[model_class]
     cdef dict out = {}
     # The spelling each parameter was given under, to name both in the error.
@@ -323,7 +323,7 @@ cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dic
     cdef Py_ssize_t arg_i
     if args:
         # A default instance lists the parameters in table order.
-        entries = model_class().get_parameter_info()
+        entries = model_class._default_model().get_parameter_info()
         if len(args) > len(entries):
             raise TypeError(
                 f"{model_class.__name__} takes at most {len(entries)} positional parameters "
@@ -333,6 +333,15 @@ cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dic
                 raise TypeError(f"{model_class.__name__} got multiple values for '{entries[arg_i]['name']}'.")
             merged[entries[arg_i]["key"]] = args[arg_i]
     merged.update(keywords)
+    # A string is never a parameter's value. Under a key the model does not read (a dataset name in a fixed
+    # radiogenics table, say) it becomes a placeholder number, so the model refuses the key by name, with the closest
+    # one it reads, rather than the value for its type.
+    cdef set known = set(_PARAMETER_SPELLINGS.get(model_class, {}).values())
+    known.update(getattr(model_class, "EXTRA_CONFIG_KEYS", ()))
+    known.add("model")
+    for key, value in merged.items():
+        if isinstance(value, str) and key not in known:
+            merged[key] = 0.0
     return merged
 
 
@@ -377,7 +386,7 @@ cdef str cy_param_bounds_name(c_ParamBounds bounds):
 cdef class PhysicsBase(TidalPyBaseClass):
     """Physics model base class.
 
-    A model built on a parameter spec answers a generic parameter interface here: ``parameters``,
+    Every physics model is built on a parameter spec and answers a generic parameter interface here: ``parameters``,
     ``get_parameter``, ``get_parameter_info``, ``with_parameters``, and attribute access by parameter name
     (``model.reference_viscosity``). Models are not changed in place: ``with_parameters`` returns a new model, so one
     model can be shared by several layers.
@@ -389,8 +398,7 @@ cdef class PhysicsBase(TidalPyBaseClass):
 
     Notes
     -----
-    A family not yet built on parameter specs owns its model through its own pointer and sets the inherited
-    ``_ptr``; the generic parameter methods then report no parameters or raise.
+    Built directly, a ``PhysicsBase`` is a name alone: it reports no parameters, and the methods that copy it raise.
     """
 
     def __init__(self, str model_name):
@@ -401,6 +409,13 @@ cdef class PhysicsBase(TidalPyBaseClass):
     def __dealloc__(self):
         self._model_sptr.reset()
         self._ptr = NULL
+
+    @classmethod
+    def _default_model(cls):
+        """A model of this class at its own defaults, for its parameter descriptions. A class whose constructor reads
+        the TidalPy configuration (the tide models, the isotope model) overrides it to read none, so a bad configured
+        value cannot break the lookups built on it."""
+        return cls()
 
     cdef void _set_model(self, shared_ptr[c_PhysicsBase] model) noexcept:
         """Hold ``model``; the inherited ``_ptr`` observes it."""
@@ -415,7 +430,7 @@ cdef class PhysicsBase(TidalPyBaseClass):
         list of dict
             One dict per parameter: ``name`` (the argument name), ``key`` (the config key, unit suffix included),
             ``kind`` (``"float"``, ``"int"``, ``"bool"``, or ``"list[float]"``), ``default``, ``bounds``, and
-            ``doc``. Empty for a model without a parameter spec.
+            ``doc``. Empty for a bare ``PhysicsBase``.
         """
         self._check_ptr()
         cdef vector[c_ParamInfo] info = (<c_PhysicsBase*>self._ptr).get_parameter_info()
@@ -513,7 +528,7 @@ cdef class PhysicsBase(TidalPyBaseClass):
             try:
                 fresh = (<c_PhysicsBase*>self._ptr).clone_physics()
             except RuntimeError:
-                # A model without a parameter spec cannot be copied, so it is read in place.
+                # A bare PhysicsBase (a name alone) cannot be copied, so it is read in place.
                 pass
         if fresh.get() == NULL:
             return TidalPyBaseClass.load_binary(self, path, force)
@@ -563,18 +578,19 @@ cdef class PhysicsBase(TidalPyBaseClass):
 
 
 def factory_defaults(str section, accepted_keys) -> dict:
-    """The keys of the ``[section]`` table of ``TidalPy_Configs.toml`` that a family's ``make_*`` factory reads.
+    """The keys of the ``[section]`` table of ``TidalPy_Configs.toml`` that a model takes for what it is not given.
 
-    Two families have such a table: tide models take ``[tides]`` (the per-degree lists the world builder also falls
-    back on) under the keys a call gives, and an isotope radiogenics model given no dataset takes the ``isotopes``
-    of ``[radiogenics]``. Every other family takes its models' own defaults, which their parameter tables state.
+    Two families have such a table, read whether a model is built through its class or its ``make_*`` factory: a tide
+    model takes the per-degree lists of ``[tides]`` it is not given (the lists the world builder also falls back on),
+    and an isotope radiogenics model given no isotopes takes the ``isotopes`` dataset of ``[radiogenics]``. Every other
+    family takes its models' own defaults, which their parameter tables state.
 
     Parameters
     ----------
     section : str
         The top-level table, ``"tides"`` or ``"radiogenics"``.
     accepted_keys : collection of str
-        The keys the family reads (the factory's ``*_CONFIG_KEYS``); the table's other keys are left out.
+        The keys the model reads; the table's other keys are left out.
 
     Returns
     -------
@@ -606,47 +622,3 @@ def did_you_mean(str name, candidates) -> str:
     for candidate in candidates:
         candidate_names.push_back(str(candidate).encode("utf-8"))
     return c_did_you_mean(name.encode("utf-8"), candidate_names).decode("utf-8")
-
-
-def check_config_keys(dict config, accepted_keys, str family):
-    """Raise ``ValueError`` if a physics-model config holds a key that no model in its family reads.
-
-    The radiogenics, tide, and luminosity factories call this before building a model (the spec-model families
-    check their keys in C++), so a misspelled key, most often a missing unit suffix, fails loudly instead of
-    silently leaving a parameter at its default.
-
-    Parameters
-    ----------
-    config : dict or None
-        The configuration dict passed to the factory.
-    accepted_keys : collection of str
-        Every key some model in the family reads. ``model`` is always accepted too, so a
-        ``get_config_dict()`` result can go straight back to its factory.
-    family : str
-        Model family named in the error message, for example ``"viscosity"``.
-
-    Raises
-    ------
-    ValueError
-        The message names the closest accepted key for each rejected one.
-
-    Notes
-    -----
-    The check is per family, not per model: a key read by a different model of the family passes, so one
-    table can carry the settings of several models of the family.
-    """
-    cdef set accepted
-    cdef list rejected
-    cdef list close_matches
-    cdef str key
-    if not config:
-        return
-    accepted = set(accepted_keys)
-    accepted.add("model")
-    rejected = sorted(str(given) for given in config if given not in accepted)
-    if not rejected:
-        return
-    cdef list descriptions = [f"'{key}'{did_you_mean(key, sorted(accepted))}" for key in rejected]
-    raise ValueError(
-        f"TidalPy: unrecognized {family} config key(s): {', '.join(descriptions)}. "
-        f"Accepted keys: {', '.join(sorted(accepted))}.")

@@ -14,7 +14,10 @@ from TidalPy.Cooling import cooling as cooling_module
 from TidalPy.Material import laws
 from TidalPy.Material import material as material_module
 from TidalPy.PartialMelt import melting
+from TidalPy.Radiogenics import radiogenics as radiogenics_module
 from TidalPy.Rheology import rheology
+from TidalPy.Stellar import luminosity as luminosity_module
+from TidalPy.Tides.classes import tide as tide_module
 from TidalPy.Utilities.classes.classes import PhysicsBase, TidalPyBaseClass
 from TidalPy.Viscosity import viscosity as viscosity_module
 
@@ -24,6 +27,11 @@ SPEC_FAMILIES = [
      viscosity_module.ViscosityBase),
     ("rheology", rheology.make_rheology, rheology.rheology_model_names, rheology.RheologyBase),
     ("cooling", cooling_module.make_cooling, cooling_module.cooling_model_names, cooling_module.CoolingBase),
+    ("radiogenics", radiogenics_module.make_radiogenics, radiogenics_module.radiogenics_model_names,
+     radiogenics_module.RadiogenicsBase),
+    ("tide", tide_module.make_tide, tide_module.tide_model_names, tide_module.TideBase),
+    ("luminosity", luminosity_module.make_luminosity, luminosity_module.luminosity_model_names,
+     luminosity_module.LuminosityBase),
     ("eos", laws.make_eos, laws.eos_model_names, laws.EOSBase),
     ("shear_modulus", laws.make_shear_modulus, laws.shear_modulus_model_names, laws.ShearModulusBase),
     ("melting_curve", melting.make_melting_curve, melting.melting_curve_model_names, melting.MeltingCurveBase),

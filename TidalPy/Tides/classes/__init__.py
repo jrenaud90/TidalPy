@@ -13,6 +13,8 @@ from TidalPy.Tides.classes.tide import (
     FixedLagTide,
     CTLQTide,
     make_tide,
+    tide_model_names,
+    tide_config_keys,
 )
 from TidalPy.Tides.classes.collapse import collapse_global_tides
 
@@ -23,5 +25,7 @@ __all__ = [
     "FixedLagTide",
     "CTLQTide",
     "make_tide",
+    "tide_model_names",
+    "tide_config_keys",
     "collapse_global_tides",
 ]

@@ -6,8 +6,11 @@ from TidalPy.Radiogenics.radiogenics import (
     IsotopeRadiogenics,
     FixedRadiogenics,
     make_radiogenics,
+    radiogenics_model_names,
+    radiogenics_config_keys,
     available_isotope_datasets,
     isotope_dataset,
+    isotope_dataset_parameters,
     off,
     isotope,
     fixed,
@@ -21,9 +24,12 @@ __all__ = [
     "FixedRadiogenics",
     # Factory
     "make_radiogenics",
-    # Built-in literature isotope datasets
+    "radiogenics_model_names",
+    "radiogenics_config_keys",
+    # Literature isotope datasets
     "available_isotope_datasets",
     "isotope_dataset",
+    "isotope_dataset_parameters",
     # Direct heating convenience functions (float or np.ndarray inputs)
     "off",
     "isotope",

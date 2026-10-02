@@ -2,13 +2,15 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """Cython wrappers for TidalPy's stellar luminosity models.
 
+Each model's parameters, defaults, bounds, and descriptions come from its C++ parameter table, so the wrappers here
+only name the models and expose the family's luminosity relations.
+
 References
 ----------
 - Cuntz and Wang (2018), doi:10.3847/2515-5172/aaaa67 - low-mass mass-luminosity polynomial exponent.
 """
 
 from libcpp.memory cimport unique_ptr
-from libcpp.string cimport string
 from libcpp.utility cimport move
 from libcpp.vector cimport vector
 
@@ -23,8 +25,14 @@ from TidalPy.Utilities.logging.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.arrays.vectors cimport cy_broadcast_inputs, cy_vector_to_ndarray
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_share_physics
-from TidalPy.Utilities.classes.classes import check_config_keys
+from TidalPy.Utilities.classes.classes cimport (
+    PhysicsBase,
+    c_ParamMap,
+    c_share_physics,
+    cy_collect_parameters,
+    cy_param_map,
+)
+from TidalPy.Utilities.classes.families import ModelFamily
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -44,21 +52,30 @@ cdef object cy_solve_luminosity(c_LuminosityBase* model, object mass):
 
 
 cdef class LuminosityBase(PhysicsBase):
-    """Abstract base for stellar luminosity models. The C++ model is shared (models are not changed in place), so a
-    star holds the same object rather than a copy."""
+    """Base for stellar luminosity models, which give a star's luminosity from its mass (``calc_luminosity``).
 
-    def __init__(self, *args, **kwargs):
-        raise TypeError(
-            "LuminosityBase is abstract; instantiate a concrete model "
-            "(FixedLuminosity, MassToLuminosity, PowerLawLuminosity)."
-        )
+    Instantiate a concrete model (``FixedLuminosity``, ``MassToLuminosity``, ``PowerLawLuminosity``) with its
+    parameters positionally (in the order ``get_parameter_info()`` lists them) or as keywords (argument names or config
+    keys), or build one by name with ``make_luminosity``. A star shares the model it is given
+    (``Star.set_luminosity_model``).
+    """
 
-    cdef void _adopt(self, unique_ptr[c_LuminosityBase]& model) noexcept:
-        """Hold ``model`` in the shared handle; the inherited ``_ptr`` observes it."""
+    # The canonical name of the model a concrete subclass builds; None on this abstract base.
+    MODEL_NAME = None
+
+    def __init__(self, *args, dict config=None, **parameters):
+        cdef object model_name = type(self).MODEL_NAME
+        if model_name is None:
+            raise TypeError(
+                "LuminosityBase is abstract; instantiate a concrete model (FixedLuminosity, MassToLuminosity, "
+                "PowerLawLuminosity) or call make_luminosity.")
+        cdef c_ParamMap param_map = cy_param_map(cy_collect_parameters(type(self), args, config, parameters))
+        cdef unique_ptr[c_LuminosityBase] model = c_find_luminosity((<str>model_name).encode("utf-8"), param_map)
         self._set_model(c_share_physics[c_LuminosityBase](move(model)))
 
-    cdef c_LuminosityBase* _luminosity(self) noexcept:
-        return <c_LuminosityBase*>self._model_sptr.get()
+    cdef c_LuminosityBase* _luminosity(self) except NULL:
+        self._check_ptr()
+        return <c_LuminosityBase*>self._ptr
 
     def calc_luminosity(self, mass):
         """Stellar luminosity [W] from mass.
@@ -77,95 +94,61 @@ cdef class LuminosityBase(PhysicsBase):
         -----
         Assumes main-sequence mass-luminosity scaling.
         """
-        self._check_ptr()
         return cy_solve_luminosity(self._luminosity(), mass)
 
     def calc_luminosity_from_temperature(self, double temperature, double radius) -> float:
         """Stefan-Boltzmann luminosity [W] = 4*pi*R^2*sigma*T^4; NaN for non-positive inputs."""
-        self._check_ptr()
         return self._luminosity().calc_luminosity_from_temperature(temperature, radius)
 
     def calc_temperature_from_luminosity(self, double luminosity, double radius) -> float:
         """Effective temperature ``T = (L / (4*pi*R^2*sigma))^(1/4)`` [K]; NaN for non-positive inputs."""
-        self._check_ptr()
         return self._luminosity().calc_temperature_from_luminosity(luminosity, radius)
 
     def calc_effective_temperature(self, double mass, double radius) -> float:
         """Effective temperature [K] derived from the stellar mass (mass -> L -> T)."""
-        self._check_ptr()
         return self._luminosity().calc_effective_temperature(mass, radius)
 
 
 cdef class FixedLuminosity(LuminosityBase):
-    """Luminosity supplied directly (mass independent).
-
-    Parameters
-    ----------
-    luminosity : float, optional
-        The luminosity [W] to report regardless of mass. Default ``0.0``.
-    """
-
-    def __init__(self, double luminosity=0.0):
-        cdef c_LuminosityConfig config
-        config.luminosity = luminosity
-        cdef unique_ptr[c_LuminosityBase] model = c_find_luminosity(c_LuminosityModel.Fixed, config)
-        self._adopt(model)
-
-    @property
-    def luminosity(self) -> float:
-        """The stored luminosity [W]."""
-        self._check_ptr()
-        return (<c_FixedLuminosity*>self._luminosity()).get_luminosity()
+    """Luminosity supplied directly, the same at every mass (alias ``"constant"``)."""
+    MODEL_NAME = "fixed"
 
 
 cdef class MassToLuminosity(LuminosityBase):
-    """Piecewise main-sequence L(M): the Cuntz and Wang (2018) polynomial exponent at low mass, the
-    standard power-law regimes elsewhere. Takes no parameters.
-    """
-
-    def __init__(self):
-        cdef c_LuminosityConfig config
-        cdef unique_ptr[c_LuminosityBase] model = c_find_luminosity(c_LuminosityModel.MassToLuminosity, config)
-        self._adopt(model)
+    """Piecewise main-sequence L(M) (aliases ``"cuntz_wang"``, ``"cw"``): the Cuntz and Wang (2018) polynomial
+    exponent at low mass, the standard power-law regimes elsewhere. Takes no parameters."""
+    MODEL_NAME = "mass_to_luminosity"
 
 
 cdef class PowerLawLuminosity(LuminosityBase):
-    """Single power law ``L = Lsun * coeff * (M / Msun)^exponent``.
+    """Single power law ``L = Lsun * coeff * (M / Msun)^exponent`` (alias ``"powerlaw"``)."""
+    MODEL_NAME = "power_law"
 
-    Parameters
-    ----------
-    coeff : float, optional
-        Dimensionless prefactor. Default ``1.0``.
-    exponent : float, optional
-        Dimensionless exponent. Default ``3.5`` (classic main-sequence value).
+
+def _canonical_name(str model_name) -> str:
+    return c_luminosity_canonical_name(model_name.encode("utf-8")).decode("utf-8")
+
+
+_FAMILY = ModelFamily("luminosity", (FixedLuminosity, MassToLuminosity, PowerLawLuminosity), _canonical_name)
+
+# Every config key any luminosity model reads.
+LUMINOSITY_CONFIG_KEYS = _FAMILY.config_keys
+
+
+def luminosity_model_names() -> tuple:
+    """The canonical names of the luminosity models."""
+    return _FAMILY.model_names()
+
+
+def luminosity_config_keys(str model_name) -> frozenset:
+    """The config keys a luminosity model reads, by any of its names.
+
+    Raises
+    ------
+    ValueError
+        Unknown model name.
     """
-
-    def __init__(self, double coeff=1.0, double exponent=3.5):
-        cdef c_LuminosityConfig config
-        config.power_law_coeff    = coeff
-        config.power_law_exponent = exponent
-        cdef unique_ptr[c_LuminosityBase] model = c_find_luminosity(c_LuminosityModel.PowerLaw, config)
-        self._adopt(model)
-
-    @property
-    def coeff(self) -> float:
-        """Dimensionless prefactor."""
-        self._check_ptr()
-        return (<c_PowerLawLuminosity*>self._luminosity()).get_coeff()
-
-    @property
-    def exponent(self) -> float:
-        """Dimensionless exponent."""
-        self._check_ptr()
-        return (<c_PowerLawLuminosity*>self._luminosity()).get_exponent()
-
-
-# Every config key any luminosity model reads; make_luminosity rejects anything else.
-LUMINOSITY_CONFIG_KEYS = frozenset({"luminosity_w", "power_law_coeff", "power_law_exponent"})
-
-
-# The wrapper class of each c_LuminosityModel, in enum order.
-_LUMINOSITY_CLASSES = (FixedLuminosity, MassToLuminosity, PowerLawLuminosity)
+    return _FAMILY.config_keys_of(model_name)
 
 
 def make_luminosity(str model_name, dict config=None):
@@ -174,10 +157,10 @@ def make_luminosity(str model_name, dict config=None):
     Parameters
     ----------
     model_name : str
-        ``fixed`` (``constant``), ``mass_to_luminosity`` (``cuntz_wang``, ``cw``), or ``power_law``.
+        ``fixed`` (``constant``), ``mass_to_luminosity`` (``cuntz_wang``, ``cw``), or ``power_law`` (``powerlaw``).
     config : dict, optional
-        Model parameters. For ``fixed``: ``luminosity_w``. For ``power_law``: ``power_law_coeff``,
-        ``power_law_exponent``. ``mass_to_luminosity`` takes none.
+        Model parameters by config key (see each model's ``get_parameter_info()``); absent keys (all of them for
+        ``None``) take the model's defaults.
 
     Returns
     -------
@@ -186,47 +169,29 @@ def make_luminosity(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        Unknown model name, or a config key that no luminosity model reads.
+        Unknown model name, or a parameter the model does not read; each message names the closest accepted one.
     """
-    check_config_keys(config, LUMINOSITY_CONFIG_KEYS, "luminosity")
-    if config is None:
-        config = {}
-
-    # The default-constructed config carries the C++ defaults, so only override what the caller gave.
-    cdef c_LuminosityConfig cfg
-    cfg.luminosity         = config.get("luminosity_w", cfg.luminosity)
-    cfg.power_law_coeff    = config.get("power_law_coeff", cfg.power_law_coeff)
-    cfg.power_law_exponent = config.get("power_law_exponent", cfg.power_law_exponent)
-
-    cdef c_LuminosityModel model = c_luminosity_model_from_name(model_name.encode("utf-8"))
-    cdef unique_ptr[c_LuminosityBase] ptr = c_find_luminosity(model, cfg)
-    wrapper_class = _LUMINOSITY_CLASSES[<int>model]
-    cdef LuminosityBase wrapper = wrapper_class.__new__(wrapper_class)
-    wrapper._adopt(ptr)
-    return wrapper
+    return _FAMILY.make(model_name, config)
 
 
-# Convenience functions. Each builds a stack-allocated C++ model that dies with the call.
+# Convenience functions. Each builds the model for the one call; ``mass`` is a float or an ndarray.
+
+cdef object cy_direct_luminosity(str model_name, dict parameters, object mass):
+    """Luminosity from a model built for the one call (by name and parameters)."""
+    cdef unique_ptr[c_LuminosityBase] model = c_find_luminosity(model_name.encode("utf-8"), cy_param_map(parameters))
+    return cy_solve_luminosity(model.get(), mass)
+
 
 def fixed(mass, double luminosity=0.0):
     """Luminosity for the Fixed model [W] (returns ``luminosity`` regardless of mass)."""
-    cdef c_LuminosityConfig cfg
-    cfg.luminosity = luminosity
-    cdef c_FixedLuminosity model = c_FixedLuminosity(cfg)
-    return cy_solve_luminosity(<c_LuminosityBase*>&model, mass)
+    return cy_direct_luminosity("fixed", {"luminosity": luminosity}, mass)
 
 
 def mass_to_luminosity(mass):
     """Luminosity for the MassToLuminosity model [W] (piecewise main-sequence relation)."""
-    cdef c_LuminosityConfig cfg
-    cdef c_MassToLuminosity model = c_MassToLuminosity(cfg)
-    return cy_solve_luminosity(<c_LuminosityBase*>&model, mass)
+    return cy_direct_luminosity("mass_to_luminosity", {}, mass)
 
 
 def power_law(mass, double coeff=1.0, double exponent=3.5):
     """Luminosity for the PowerLaw model [W]: ``L = Lsun * coeff * (M / Msun)^exponent``."""
-    cdef c_LuminosityConfig cfg
-    cfg.power_law_coeff    = coeff
-    cfg.power_law_exponent = exponent
-    cdef c_PowerLawLuminosity model = c_PowerLawLuminosity(cfg)
-    return cy_solve_luminosity(<c_LuminosityBase*>&model, mass)
+    return cy_direct_luminosity("power_law", {"coeff": coeff, "exponent": exponent}, mass)

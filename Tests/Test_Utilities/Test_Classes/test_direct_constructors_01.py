@@ -37,8 +37,8 @@ _MODELS = [
 
 
 # Class -> readable property count, so the sweep cannot pass vacuously. Each count includes the two properties every
-# model inherits, model_name and parameters; a spec-driven model (the rheologies) has no others, its parameters
-# reading as attributes through PhysicsBase.
+# model inherits, model_name and parameters; a model's parameters read as attributes through PhysicsBase, so only the
+# isotope model, with its labels and isotope count, has more.
 _PROPERTY_COUNTS = {
     Elastic:            2,
     Viscous:            2,
@@ -51,11 +51,11 @@ _PROPERTY_COUNTS = {
     ConductiveCooling:  2,
     ConvectiveCooling:  2,
     OffRadiogenics:     2,
-    IsotopeRadiogenics: 9,
-    FixedRadiogenics:   5,
-    FixedLuminosity:    3,
+    IsotopeRadiogenics: 4,
+    FixedRadiogenics:   2,
+    FixedLuminosity:    2,
     MassToLuminosity:   2,
-    PowerLawLuminosity: 4,
+    PowerLawLuminosity: 2,
 }
 
 
@@ -110,6 +110,7 @@ _FACTORIES = {
     ConductiveCooling:  make_cooling,
     ConvectiveCooling:  make_cooling,
     OffRadiogenics:     make_radiogenics,
+    IsotopeRadiogenics: make_radiogenics,
     FixedRadiogenics:   make_radiogenics,
     FixedLuminosity:    make_luminosity,
     MassToLuminosity:   make_luminosity,

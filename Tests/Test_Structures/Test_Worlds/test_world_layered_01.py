@@ -120,7 +120,7 @@ def test_internal_heating_with_radiogenics():
     """Internal heating is the mantle's radiogenic rate times its mass."""
     world = BaseWorld("Earth", _R_SURF, _M_TOT)
     mantle = Layer(*_MANTLE_ARGS)
-    mantle.set_radiogenics(FixedRadiogenics(fixed_heat_production=1.0e-11))
+    mantle.radiogenics = FixedRadiogenics(fixed_heat_production=1.0e-11)
     world.add_layer(Layer(*_CORE_ARGS))
     world.add_layer(mantle)
     assert world.calc_internal_heating(0.0) == pytest.approx(1.0e-11 * _M_MANT, rel=1e-9)
@@ -137,7 +137,7 @@ def test_layered_world_binary_roundtrip(tmp_path):
         obliquity=0.41,
     )
     mantle = Layer(*_MANTLE_ARGS)
-    mantle.set_radiogenics(FixedRadiogenics(fixed_heat_production=2.0e-11))
+    mantle.radiogenics = FixedRadiogenics(fixed_heat_production=2.0e-11)
     world.add_layer(Layer(*_CORE_ARGS))
     world.add_layer(mantle)
     heating_before = world.calc_internal_heating(0.0)

@@ -66,6 +66,6 @@ def test_star_cpl_matches_analytic_rate():
 
 def test_star_rejects_rheology_model():
     """The rheology model needs the radial solver, which a layerless star lacks."""
-    star = _star("rheology")
+    star = _star("rheology", {})
     with pytest.raises(RuntimeError):
         _solve(star)

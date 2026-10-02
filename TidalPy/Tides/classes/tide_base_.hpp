@@ -43,8 +43,6 @@ public:
 
     ~c_TideBase() override = default;
 
-    std::string get_family_name() const override { return C_FAMILY_NAME; }
-
     // Complex Love numbers at the forcing frequency magnitude |omega_lmpq| [rad s-1]. The analytic models
     // build k_l from their fixed per-degree parameters, set h and l to NaN, and ignore solver_love; the
     // rheology model returns solver_love unchanged.
@@ -59,8 +57,9 @@ public:
     // True when the world must run the radial solver to supply the Love numbers.
     virtual bool needs_radial_solve() const = 0;
 
-    // Fixed per-degree quality factor and time lag [s] when the model carries them; NaN otherwise. The
-    // world's cpl and ctl Love methods fall back on these when no explicit value is configured.
+    // Fixed per-degree Love number, quality factor, and time lag [s] when the model carries them; NaN otherwise.
+    // The world's cpl and ctl Love methods fall back on the last two when no explicit value is configured.
+    virtual double get_fixed_k(int /*degree_l*/) const { return std::numeric_limits<double>::quiet_NaN(); }
     virtual double get_fixed_q(int /*degree_l*/) const { return std::numeric_limits<double>::quiet_NaN(); }
     virtual double get_fixed_dt(int /*degree_l*/) const { return std::numeric_limits<double>::quiet_NaN(); }
 };

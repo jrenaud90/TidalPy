@@ -15,8 +15,12 @@
  * for checks across parameters and p_update_derived for values it caches from them. The family base defines
  * `static constexpr const char* C_FAMILY_NAME` for messages.
  *
+ * A model may also carry state that is not a number (the isotope labels of a radiogenics model). It overrides
+ * p_write_extra and p_read_extra for its binary record and append_config_entries for its config entries; p_validate
+ * sees that state already restored.
+ *
  * Binary payload: the model name, the number of parameters (uint32), then per parameter its config key, its kind
- * (uint8, c_ParamKind), its number of values (uint64), and the values (doubles).
+ * (uint8, c_ParamKind), its number of values (uint64), and the values (doubles); then the model's extra state.
  */
 
 #include <algorithm>
@@ -198,6 +202,11 @@ protected:
     // Values cached from the parameters (a prefactor, say); runs after every change.
     virtual void p_update_derived() noexcept {}
 
+    // State that is not a parameter, written after the parameters; a model with such state overrides both. The read
+    // runs before the parameters are applied, so p_validate can check the two against each other.
+    virtual void p_write_extra(std::ostream& /*out*/) const {}
+    virtual void p_read_extra(std::istream& /*in*/) {}
+
     // The start of every message about this model's parameters.
     std::string p_describe() const {
         return std::string("TidalPy: ") + Base::C_FAMILY_NAME + " model '" + this->p_model_name + "'";
@@ -220,6 +229,7 @@ protected:
                           static_cast<std::streamsize>(num_values * sizeof(double)));
             }
         }
+        this->p_write_extra(out);
     }
 
     // A record's values go through the same checks as a constructor's; a record that fails them is corrupt, so this
@@ -248,6 +258,8 @@ protected:
             if (!in) { throw std::runtime_error("TidalPy: failed to read a model parameter from binary data"); }
             params[key] = std::move(values);
         }
+        this->p_read_extra(in);
+        if (!in) { throw std::runtime_error("TidalPy: failed to read a model's extra state from binary data"); }
         try {
             this->p_initialize(params);
         }

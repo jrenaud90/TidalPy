@@ -113,7 +113,7 @@ def test_one_radiogenics_model_serves_several_layers():
     model = make_radiogenics("fixed", {"fixed_heat_production_w_kg": 1.0e-11})
     layers = [Layer(name, 0, 0.0, 1.0e6, material="simple_rock") for name in ("a", "b")]
     for layer in layers:
-        layer.set_radiogenics(model)
+        layer.radiogenics = model
     assert layers[0].calc_radiogenic_heating(0.0, 1.0e20) == layers[1].calc_radiogenic_heating(0.0, 1.0e20)
     assert layers[0].calc_radiogenic_heating(0.0, 1.0e20) == pytest.approx(1.0e9)
     assert model.get_config_dict()["fixed_heat_production_w_kg"] == 1.0e-11

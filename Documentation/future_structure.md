@@ -22,7 +22,7 @@ conda install -c conda-forge "tidalpy<0.8"
 - Classes store configuration and return results from explicit `solve_*`, `get_*`, and `calc_*` calls. Changing an attribute no longer updates the world, its layers, and its orbit.
 - Orbital state no longer lives on a world. A `System` holds the orbits and passes them to each tidal calculation.
 - Worlds and systems are described by TOML files that carry a `schema_version`, or by the equivalent Python dict.
-- Every physics family (rheology, viscosity, equations of state, shear-modulus laws, melting curves, melt weakening, bulk mixing, cooling, radiogenics, tides, stellar luminosity) follows one pattern: model classes, a `make_<family>(name, config)` factory, vectorized `calc_*` methods, a config dict, and binary save and load. Most also have direct functions, and those declared through a parameter table have `parameters`, `get_parameter`, and `with_parameters`.
+- Every physics family (rheology, viscosity, equations of state, shear-modulus laws, melting curves, melt weakening, bulk mixing, cooling, radiogenics, tides, stellar luminosity) follows one pattern: model classes, a `make_<family>(name, config)` factory, vectorized `calc_*` methods, a config dict, and binary save and load. Every model is declared through a parameter table, so every model has `parameters`, `get_parameter`, `get_parameter_info`, and `with_parameters`, and most families also have direct functions.
 - A layer's interior is a material composed of these laws: a `Phase` (an equation of state, a shear-modulus law, viscosity laws, default rheologies, and thermal constants) and a `Material` (a solid and a liquid phase with melting curves, melt weakening, and latent heat). MatPack ships 29 named materials, from simplified rock and ice to peridotite, the ices, iron, and giant-planet envelopes.
 - One configuration file, `TidalPy_Configs.toml`, in a data directory scoped to the minor version (`<Documents>/TidalPy/0.8.X/`).
 - One logger, written in C++ with spdlog.
@@ -189,7 +189,7 @@ modified = build_world(config)
 | `solid_viscosity`, `liquid_viscosity` | the `shear_viscosity` of the material's `solid` and `liquid` phases |
 | `partial_melting` (`model`, `solidus`, `liquidus`) | the material's `melting` table (`solidus` and `liquidus` curves and a `weakening` law), used when the layer sets `use_melting` |
 | `rheology` | the layer's `shear_rheology` table, or the default `shear_rheology` of the material's phase |
-| `radiogenics`, `cooling` | `[layers.<name>.radiogenics]` and `[layers.<name>.cooling]` tables, or the layer's `set_radiogenics` and `cooling` in Python |
+| `radiogenics`, `cooling` | `[layers.<name>.radiogenics]` and `[layers.<name>.cooling]` tables, or the layer's `radiogenics` and `cooling` properties in Python |
 
 ```python
 from TidalPy.Material import available_materials, load_material
@@ -432,7 +432,7 @@ See [Calculating Love Numbers](RadialSolver/calculating_love_numbers.md) and [He
 
 ## Rheology and Other Physics Models
 
-The rheology, viscosity, partial-melt, cooling, radiogenics, and luminosity functions of 0.7.X are model classes in 0.8.0, built by name with a factory. Config keys carry their units (`reference_viscosity_pas`, `solidus_k`).
+The rheology, viscosity, partial-melt, cooling, radiogenics, and luminosity functions of 0.7.X are model classes in 0.8.0, built by name with a factory. Config keys carry their units (`reference_viscosity_pas`, `solidus_k`), and each model refuses a key it does not read with `ValueError`, naming the closest key it does.
 
 | 0.7.X | 0.8.0 |
 |---|---|

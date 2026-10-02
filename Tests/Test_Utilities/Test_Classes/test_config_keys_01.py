@@ -1,9 +1,7 @@
-"""Tests for physics model config key checking (``TidalPy.Utilities.classes.check_config_keys``)."""
+"""Every physics family's factory takes back its models' config dicts and refuses a key its model does not read."""
 import importlib
 
 import pytest
-
-from TidalPy.Utilities.classes import check_config_keys
 
 
 # Each family: factory module, factory name, family label used in the error, and (model name, required config).
@@ -41,22 +39,6 @@ def _family_cases():
             for module_path, factory_name, family, models in _FAMILIES]
 
 
-@pytest.mark.parametrize(
-    "config",
-    [None, {}, {"model": "andrade", "alpha": 0.3}],
-    ids=["none", "empty", "model_and_known_key"])
-def test_empty_config_and_model_key_accepted(config):
-    """An empty config and the model key are accepted without raising."""
-    check_config_keys(config, {"alpha"}, "rheology")
-
-
-def test_unrecognized_key_names_closest_accepted_key():
-    """An unrecognized key raises ValueError naming the closest accepted key."""
-    expected = r"unrecognized cooling config key.*'critical_raleigh' \(did you mean 'critical_rayleigh'\?\)"
-    with pytest.raises(ValueError, match=expected):
-        check_config_keys({"critical_raleigh": 1100.0}, {"critical_rayleigh", "convection_alpha"}, "cooling")
-
-
 @pytest.mark.parametrize("module_path,factory_name,model_name,base_config", _model_cases())
 def test_factory_accepts_its_own_config_dict(module_path, factory_name, model_name, base_config):
     """Every key a model emits is accepted back, so get_config_dict() round trips through the factory."""
@@ -68,12 +50,23 @@ def test_factory_accepts_its_own_config_dict(module_path, factory_name, model_na
 
 @pytest.mark.parametrize("module_path,factory_name,family,model_name,base_config", _family_cases())
 def test_factory_rejects_unrecognized_key(module_path, factory_name, family, model_name, base_config):
-    """A key no model in the family reads raises ValueError naming the family and the key."""
+    """A key the model does not read raises ValueError naming the family and the key."""
     factory = _factory(module_path, factory_name)
     config = dict(base_config or {})
     config["not_a_real_parameter"] = 1.0
-    # A spec-driven family names the model; the rest name the family.
-    with pytest.raises(
-            ValueError,
-            match=f"(unrecognized {family} config key|{family} model .* has no parameter).*not_a_real_parameter"):
+    with pytest.raises(ValueError, match=f"{family} model .* has no parameter 'not_a_real_parameter'"):
+        factory(model_name, config)
+
+
+@pytest.mark.parametrize("module_path,factory_name,model_name,base_config", _model_cases())
+def test_factory_names_the_closest_key(module_path, factory_name, model_name, base_config):
+    """A misspelled key names the closest one the model reads."""
+    factory = _factory(module_path, factory_name)
+    info = factory(model_name, base_config).get_parameter_info()
+    if not info:
+        pytest.skip(f"the model '{model_name}' takes no parameters")
+    key = info[0]["key"]
+    config = {name: value for name, value in (base_config or {}).items() if name != key}
+    config[key + "x"] = info[0]["default"]
+    with pytest.raises(ValueError, match=f"did you mean '{key}'"):
         factory(model_name, config)

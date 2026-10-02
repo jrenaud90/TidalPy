@@ -31,7 +31,7 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_physics_model_config,
     cy_wrap_model,
 )
-from TidalPy.Radiogenics.radiogenics cimport RadiogenicsBase
+from TidalPy.Radiogenics.radiogenics import make_radiogenics
 from TidalPy.Material import Material, load_material
 from TidalPy.Rheology import make_rheology
 from TidalPy.Cooling.cooling import make_cooling
@@ -206,8 +206,8 @@ cdef class Layer(StructureBase):
         Override the material's default rheology.
     cooling : CoolingBase, str, or dict, optional
         How heat moves through the layer in a thermal solve; without one the layer holds one temperature.
-    radiogenics : RadiogenicsBase, optional
-        The layer's radiogenic heating; its C++ model moves into the layer.
+    radiogenics : RadiogenicsBase, str, or dict, optional
+        The layer's radiogenic heating; without one the layer has none.
 
     Assumptions
     -----------
@@ -260,7 +260,7 @@ cdef class Layer(StructureBase):
             shear_rheology = None,
             bulk_rheology = None,
             cooling = None,
-            RadiogenicsBase radiogenics = None):
+            radiogenics = None):
         cdef c_LayerConfig config
         config.name              = name.encode("utf-8")
         config.layer_index       = layer_index
@@ -290,7 +290,7 @@ cdef class Layer(StructureBase):
         if cooling is not None:
             self.cooling = cooling
         if radiogenics is not None:
-            self.set_radiogenics(radiogenics)
+            self.radiogenics = radiogenics
 
     def __dealloc__(self):
         if self._is_view:
@@ -748,26 +748,23 @@ cdef class Layer(StructureBase):
         return self._layer_ptr.get().get_cooling_model() != NULL
 
     @property
+    def radiogenics(self):
+        """The layer's radiogenic heating, or None, which gives none. Set it to a model, a model name, or a config
+        table; None clears it. The model is shared, not consumed."""
+        self._check_ptr()
+        return cy_wrap_model(self._layer_ptr.get().share_radiogenics_model())
+
+    @radiogenics.setter
+    def radiogenics(self, value):
+        self._check_ptr()
+        self._layer_ptr.get().set_radiogenics_model(cy_model_handle(
+            _as_model(value, "radiogenics", make_radiogenics, "radiogenics"), "a layer's radiogenics model"))
+
+    @property
     def radiogenics_set(self) -> bool:
-        """True after a radiogenics model has been attached."""
+        """True while a radiogenics model is attached."""
         self._check_ptr()
         return self._layer_ptr.get().get_radiogenics_model() != NULL
-
-    def set_radiogenics(self, RadiogenicsBase radiogenics not None):
-        """Attach a radiogenics model.
-
-        The model is shared, not copied (models are not changed in place), so ``radiogenics`` stays usable and can
-        be attached to other layers.
-
-        Raises
-        ------
-        ValueError
-            If ``radiogenics`` holds no C++ object.
-        """
-        self._check_ptr()
-        if radiogenics._model_sptr.get() == NULL:
-            raise ValueError("This radiogenics model holds no C++ object.")
-        self._layer_ptr.get().set_radiogenics_model(radiogenics._model_sptr)
 
     def calc_radiogenic_heating(self, double time, double mass) -> float:
         """Radiogenic heating [W] at a time [s] for a mass [kg] from the attached model; 0.0 without one."""

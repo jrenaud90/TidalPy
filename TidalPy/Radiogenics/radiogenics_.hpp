@@ -1,17 +1,15 @@
 #pragma once
 /* TidalPy's radiogenic heating models. All MKS.
  *
- * The isotope and fixed models share one reference time, so times can be measured from any fixed epoch
- * such as solar-system formation.
+ * Each model declares its parameters in one table (c_SpecModel, spec_model_.hpp), which gives its constructor,
+ * validation, config entries, and binary record. The isotope and fixed models share one reference time, so times can
+ * be measured from any fixed epoch such as solar-system formation.
  *
  * References
  * ----------
  * - Hussmann and Spohn (2004); Turcotte and Schubert (2001): chondritic isotope data.
  * - Castillo-Rogez et al. (2007): long- and short-lived radiogenic isotopes.
  * - McDonough and Sun (1995): bulk silicate Earth elemental abundances.
- *
- * Binary payload: model name then the model parameters. Off and Fixed use the shared c_PhysicsBase
- * helpers; Isotope writes its variable-length isotope list itself.
  */
 
 #include <cmath>
@@ -24,25 +22,24 @@
 #include <utility>
 #include <vector>
 
+#include "binary_.hpp"
 #include "radiogenics_base_.hpp"
 #include "../Utilities/math/numerics_.hpp"  // c_safe_exp
 #include "constants_.hpp"
 #include "model_names_.hpp"
+#include "registry_.hpp"
+#include "spec_model_.hpp"
 
 namespace tidalpy {
 
-// One radioactive isotope and its decay heating. Specific heating per unit layer mass is
-//
-//   q(t) = mass_frac * concentration * heat_production * exp(gamma * (t - t_ref))
-//
-// with gamma = ln(0.5) / half_life the (negative) decay constant. Both abundances are values at t_ref. A source
-// that quotes the isotope's own concentration rather than its element's is entered with mass_frac = 1.
+// One isotope of a built-in dataset: its label and the four values the isotope model takes for it (see
+// c_IsotopeRadiogenics).
 struct c_Isotope {
-    std::string name;                       // isotope label (e.g. "U238")
+    std::string name;                  // isotope label (e.g. "U238")
     double heat_production = 0.0;      // specific heat production of the pure isotope [W/kg]
-    double half_life = 0.0;      // half life [s]
-    double mass_frac = 0.0;      // isotopic mass fraction within its element at t_ref [kg/kg]
-    double concentration = 0.0;      // element concentration in the layer material at t_ref [kg/kg]
+    double half_life       = 0.0;      // half life [s]
+    double mass_frac       = 0.0;      // isotopic mass fraction within its element at the reference time [kg/kg]
+    double concentration   = 0.0;      // element concentration in the layer material at the reference time [kg/kg]
 
     c_Isotope() = default;
     c_Isotope(std::string isotope_name,
@@ -55,63 +52,6 @@ struct c_Isotope {
           half_life(half_life_seconds),
           mass_frac(isotopic_mass_frac),
           concentration(element_concentration) {}
-
-    // Decay constant gamma = ln(0.5) / half_life [1/s]; negative, larger in magnitude for short half lives.
-    double decay_constant() const noexcept {
-        return TidalPyConstants::d_LN_HALF / c_guard_denominator(this->half_life);
-    }
-
-    // Specific heating at t_ref, q(t_ref) [W/kg].
-    double reference_heating() const noexcept {
-        return this->mass_frac * this->concentration * this->heat_production;
-    }
-
-    // Specific heating [W/kg] at the given time. The guarded exponential gives NaN rather than inf when
-    // the time is so far before ref_time that the back-extrapolation overflows.
-    double specific_heating(double time, double ref_time) const noexcept {
-        return this->reference_heating() * c_safe_exp(this->decay_constant() * (time - ref_time));
-    }
-
-    // Throws std::invalid_argument unless the values describe a physical isotope: a finite, non-negative heat
-    // production and concentration, a positive half life (infinite for a stable one), and a mass fraction in [0, 1].
-    void validate() const {
-        const auto refuse = [this](const std::string& what, double value) {
-            throw std::invalid_argument(
-                "TidalPy: isotope '" + this->name + "' needs " + what + "; got " + std::to_string(value) + ".");
-        };
-        if (!(std::isfinite(this->heat_production) && (this->heat_production >= 0.0))) {
-            refuse("a finite, non-negative heat production [W/kg]", this->heat_production);
-        }
-        if (!(this->half_life > 0.0)) { refuse("a positive half life [s]", this->half_life); }
-        if (!((this->mass_frac >= 0.0) && (this->mass_frac <= 1.0))) {
-            refuse("a mass fraction in [0, 1]", this->mass_frac);
-        }
-        if (!(std::isfinite(this->concentration) && (this->concentration >= 0.0))) {
-            refuse("a finite, non-negative concentration [kg/kg]", this->concentration);
-        }
-    }
-};
-
-// Throws std::invalid_argument for a reference time that is not finite.
-inline void c_validate_radiogenic_ref_time(double ref_time, const std::string& model_name) {
-    if (!std::isfinite(ref_time)) {
-        throw std::invalid_argument(
-            "TidalPy: the " + model_name + " radiogenics model needs a finite reference time [s]; got "
-            + std::to_string(ref_time) + ".");
-    }
-}
-
-// Combined construction parameters; each model reads only the fields it needs. Its defaults are the models' defaults.
-struct c_RadiogenicsConfig {
-    // Isotope model.
-    std::vector<c_Isotope> isotopes;
-
-    // Fixed model.
-    double fixed_heat_production = 0.0;    // lumped specific rate    [W/kg]
-    double average_half_life        = 0.0;    // decay half life (<=0 => no decay) [s]
-
-    // Shared: the epoch the rates and concentrations were measured at.
-    double ref_time = 0.0;                    // reference time          [s]
 };
 
 // Built-in catalogs of literature isotope sets, so a caller need not hand-enter abundances. The source
@@ -190,11 +130,6 @@ inline std::vector<c_Isotope> c_castillo_rogez_2007_slri() {
     };
 }
 
-// Radiogenics disabled.
-inline double rad_heating_off(double /*time*/, double /*mass*/) noexcept {
-    return 0.0;
-}
-
 inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
     const std::string key = c_to_lower(name);
     // The datasets quote half lives and reference times in Myr; convert so the C++ API stays MKS.
@@ -239,71 +174,89 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
     throw std::invalid_argument("TidalPy: unknown isotope dataset '" + name + "'");
 }
 
-// Off and Fixed serialize through the shared c_PhysicsBase helpers. Isotope carries a variable-length
-// isotope list, so it writes its own payload after the shared header and model name.
-
 // Radiogenics disabled (alias "none").
-class c_OffRadiogenics final : public c_RadiogenicsBase {
+class c_OffRadiogenics final : public c_SpecModel<c_OffRadiogenics, c_RadiogenicsBase> {
 public:
-    c_OffRadiogenics() : c_OffRadiogenics(c_RadiogenicsConfig{}) {}
-    explicit c_OffRadiogenics(const c_RadiogenicsConfig& /*cfg*/) : c_RadiogenicsBase("off") {}
-    ~c_OffRadiogenics() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::OffRadiogenics;
 
-    double calc_heating(double time, double mass) const override {
-        return rad_heating_off(time, mass);
+    static const std::vector<c_ParamSpec<c_OffRadiogenics>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_OffRadiogenics>> specs = {};
+        return specs;
     }
 
-    uint32_t get_binary_class_id() const override {
-        return static_cast<uint32_t>(BinaryClassID::OffRadiogenics);
-    }
+    c_OffRadiogenics() : c_OffRadiogenics(c_ParamMap{}) {}
+    explicit c_OffRadiogenics(const c_ParamMap& params) : c_SpecModel("off") { this->p_initialize(params); }
+
+    double calc_heating(double /*time*/, double /*mass*/) const override { return 0.0; }
 };
 
-// Sum over individually decaying isotopes.
-class c_IsotopeRadiogenics final : public c_RadiogenicsBase {
+// The sum over individually decaying isotopes (alias "isotopes"). Isotope i heats a unit of layer mass at
+//
+//   q_i(t) = mass_frac_i * concentration_i * heat_production_i * exp(gamma_i * (t - ref_time))
+//
+// with gamma_i = ln(0.5) / half_life_i the (negative) decay constant. Both abundances are values at ref_time. A source
+// that quotes the isotope's own concentration rather than its element's is entered with a mass fraction of 1. The four
+// tables hold one value per isotope. The isotopes may carry labels (isotope_names), none or one per isotope; they name
+// the isotopes in the config and the binary record and take no part in the heating.
+class c_IsotopeRadiogenics final : public c_SpecModel<c_IsotopeRadiogenics, c_RadiogenicsBase> {
 public:
-    c_IsotopeRadiogenics() : c_IsotopeRadiogenics(c_RadiogenicsConfig{}) {}
-    explicit c_IsotopeRadiogenics(const c_RadiogenicsConfig& cfg)
-        : c_RadiogenicsBase("isotope"),
-          p_isotopes(cfg.isotopes),
-          p_ref_time(cfg.ref_time) {
-        this->p_validate();
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::IsotopeRadiogenics;
+
+    static const std::vector<c_ParamSpec<c_IsotopeRadiogenics>>& parameter_specs() {
+        using Self = c_IsotopeRadiogenics;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            {"heat_production", "heat_production_w_kg", &Self::p_heat_production, 0.0, c_ParamBounds::NonNegative,
+             "Specific heat production of each pure isotope [W/kg]."},
+            {"half_lives", "half_lives_s", &Self::p_half_lives, 0.0, c_ParamBounds::PositiveOrInfinite,
+             "Half life of each isotope [s]; infinite for a stable one."},
+            {"mass_fracs", "mass_fracs", &Self::p_mass_fracs, 0.0, c_ParamBounds::UnitInterval,
+             "Mass fraction of each isotope within its element at the reference time [kg/kg]."},
+            {"concentrations", "concentrations", &Self::p_concentrations, 0.0, c_ParamBounds::NonNegative,
+             "Concentration of each isotope's element in the layer material at the reference time [kg/kg]."},
+            {"ref_time", "ref_time_s", &Self::p_ref_time, 0.0, c_ParamBounds::Finite,
+             "Time the abundances apply at [s], on the same clock as the heating's time."},
+        };
+        return specs;
     }
-    ~c_IsotopeRadiogenics() override = default;
 
-    const std::vector<c_Isotope>& get_isotopes() const noexcept { return this->p_isotopes; }
-    double get_ref_time()          const noexcept override { return this->p_ref_time; }
-    std::size_t get_num_isotopes() const noexcept { return this->p_isotopes.size(); }
+    c_IsotopeRadiogenics() : c_IsotopeRadiogenics(c_ParamMap{}) {}
+    explicit c_IsotopeRadiogenics(const c_ParamMap& params) : c_IsotopeRadiogenics(params, {}) {}
+    c_IsotopeRadiogenics(const c_ParamMap& params, std::vector<std::string> isotope_names) :
+            c_SpecModel("isotope"),
+            p_isotope_names(std::move(isotope_names)) {
+        this->p_initialize(params);
+    }
 
+    double get_ref_time() const noexcept override { return this->p_ref_time; }
+    std::size_t get_num_isotopes() const noexcept { return this->p_heat_production.size(); }
+    const std::vector<std::string>& get_isotope_names() const noexcept { return this->p_isotope_names; }
+
+    // The four tables always appear, empty ones too: a model given no isotopes is then rebuilt with none, where the
+    // Python factory would otherwise take its default dataset for the missing tables.
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_RadiogenicsBase::append_config_entries(out);
-        std::vector<double> heat_production, half_lives, mass_fracs, concentrations;
-        std::vector<std::string> names;
-        for (const c_Isotope& isotope : this->p_isotopes) {
-            heat_production.push_back(isotope.heat_production);
-            half_lives.push_back(isotope.half_life);
-            mass_fracs.push_back(isotope.mass_frac);
-            concentrations.push_back(isotope.concentration);
-            names.push_back(isotope.name);
-        }
-        out.push_back(c_config_doubles("heat_production_w_kg", heat_production));
-        out.push_back(c_config_doubles("half_lives_s", half_lives));
-        out.push_back(c_config_doubles("mass_fracs", mass_fracs));
-        out.push_back(c_config_doubles("concentrations", concentrations));
-        out.push_back(c_config_strings("isotope_names", names));
+        out.push_back(c_config_doubles("heat_production_w_kg", this->p_heat_production));
+        out.push_back(c_config_doubles("half_lives_s", this->p_half_lives));
+        out.push_back(c_config_doubles("mass_fracs", this->p_mass_fracs));
+        out.push_back(c_config_doubles("concentrations", this->p_concentrations));
         out.push_back(c_config_double("ref_time_s", this->p_ref_time));
+        if (!this->p_isotope_names.empty()) {
+            out.push_back(c_config_strings("isotope_names", this->p_isotope_names));
+        }
     }
 
-    // Sum each isotope's specific heating, then scale by the layer mass.
+    // Each isotope's specific heating, summed, then scaled by the layer mass.
     double calc_heating(double time, double mass) const override {
         double specific_heating = 0.0;
-        for (const c_Isotope& isotope : this->p_isotopes) {
-            specific_heating += isotope.specific_heating(time, this->p_ref_time);
+        for (std::size_t i = 0; i < this->p_reference_heating.size(); ++i) {
+            specific_heating += this->p_reference_heating[i]
+                              * c_safe_exp(this->p_decay_constants[i] * (time - this->p_ref_time));
         }
         return specific_heating * mass;
     }
 
-    // A sweep forms each isotope's decay constant once rather than once per point. Each point sums the same terms in
-    // the same order as calc_heating, then scales by its mass, so the two agree exactly.
+    // Each point sums the same terms in the same order as calc_heating, then scales by its mass, so the two agree
+    // exactly.
     void calc_heating_vectorize(
             const std::vector<double>& time,
             const std::vector<double>& mass,
@@ -312,9 +265,9 @@ public:
         const std::size_t time_stride = c_broadcast_stride(time.size());
         const std::size_t mass_stride = c_broadcast_stride(mass.size());
         out_heating.assign(num_points, 0.0);
-        for (const c_Isotope& isotope : this->p_isotopes) {
-            const double reference_heating = isotope.reference_heating();
-            const double decay_constant    = isotope.decay_constant();
+        for (std::size_t isotope_i = 0; isotope_i < this->p_reference_heating.size(); ++isotope_i) {
+            const double reference_heating = this->p_reference_heating[isotope_i];
+            const double decay_constant    = this->p_decay_constants[isotope_i];
             for (std::size_t i = 0; i < num_points; ++i) {
                 const double elapsed_time = time[i * time_stride] - this->p_ref_time;
                 out_heating[i] += reference_heating * c_safe_exp(decay_constant * elapsed_time);
@@ -325,90 +278,90 @@ public:
         }
     }
 
-    uint32_t get_binary_class_id() const override {
-        return static_cast<uint32_t>(BinaryClassID::IsotopeRadiogenics);
-    }
-
-    // The reference time is the one scalar parameter; the isotope list follows it (p_write_payload).
-    std::vector<double> get_binary_params() const override { return {this->p_ref_time}; }
-    void set_binary_params(const std::vector<double>& params) override { this->p_ref_time = params[0]; }
-
 protected:
-    // The isotope count, then each isotope's name and four doubles.
-    void p_write_payload(std::ostream& out) const override {
-        c_RadiogenicsBase::p_write_payload(out);
-        const auto n = static_cast<uint64_t>(this->p_isotopes.size());
-        out.write(reinterpret_cast<const char*>(&n), sizeof(uint64_t));
-        for (const c_Isotope& iso : this->p_isotopes) {
-            write_binary_string(out, iso.name);
-            out.write(reinterpret_cast<const char*>(&iso.heat_production), sizeof(double));
-            out.write(reinterpret_cast<const char*>(&iso.half_life),       sizeof(double));
-            out.write(reinterpret_cast<const char*>(&iso.mass_frac),       sizeof(double));
-            out.write(reinterpret_cast<const char*>(&iso.concentration),   sizeof(double));
+    // One value per isotope in every table, and no labels or one per isotope.
+    void p_validate() const override {
+        const std::size_t num_isotopes = this->p_heat_production.size();
+        if ((this->p_half_lives.size() != num_isotopes) || (this->p_mass_fracs.size() != num_isotopes) ||
+            (this->p_concentrations.size() != num_isotopes)) {
+            throw std::invalid_argument(
+                this->p_describe() + " needs one value per isotope in each table; got "
+                + std::to_string(num_isotopes) + " heat production rates, " + std::to_string(this->p_half_lives.size())
+                + " half lives, " + std::to_string(this->p_mass_fracs.size()) + " mass fractions, and "
+                + std::to_string(this->p_concentrations.size()) + " concentrations.");
+        }
+        if (!this->p_isotope_names.empty() && (this->p_isotope_names.size() != num_isotopes)) {
+            throw std::invalid_argument(
+                this->p_describe() + " has " + std::to_string(this->p_isotope_names.size()) + " isotope names for "
+                + std::to_string(num_isotopes) + " isotopes; give one name per isotope or none.");
         }
     }
 
-    // The isotope list is read whole before it replaces the model's.
-    void p_read_payload(std::istream& in, bool force) override {
-        c_RadiogenicsBase::p_read_payload(in, force);
-        uint64_t n = 0;
-        in.read(reinterpret_cast<char*>(&n), sizeof(uint64_t));
-        if (!in) { throw std::runtime_error("TidalPy: failed to read isotope radiogenics binary data"); }
-        check_binary_count(in, n, sizeof(uint32_t) + 4 * sizeof(double), "isotope");
-        std::vector<c_Isotope> isotopes;
-        isotopes.reserve(n);
-        for (uint64_t i = 0; i < n; ++i) {
-            c_Isotope iso;
-            iso.name = read_binary_string(in);
-            in.read(reinterpret_cast<char*>(&iso.heat_production), sizeof(double));
-            in.read(reinterpret_cast<char*>(&iso.half_life),       sizeof(double));
-            in.read(reinterpret_cast<char*>(&iso.mass_frac),       sizeof(double));
-            in.read(reinterpret_cast<char*>(&iso.concentration),   sizeof(double));
-            isotopes.push_back(std::move(iso));
-        }
-        if (!in) {
-            throw std::runtime_error("TidalPy: failed to read isotope radiogenics binary data");
-        }
-        this->p_isotopes = std::move(isotopes);
-        try {
-            this->p_validate();
-        } catch (const std::invalid_argument& error) {
-            throw std::runtime_error(std::string("TidalPy: corrupt binary data: ") + error.what());
+    // Each isotope's specific heating at the reference time [W/kg] and its decay constant [1/s].
+    void p_update_derived() noexcept override {
+        const std::size_t num_isotopes = this->p_heat_production.size();
+        this->p_reference_heating.resize(num_isotopes);
+        this->p_decay_constants.resize(num_isotopes);
+        for (std::size_t i = 0; i < num_isotopes; ++i) {
+            this->p_reference_heating[i] =
+                this->p_mass_fracs[i] * this->p_concentrations[i] * this->p_heat_production[i];
+            this->p_decay_constants[i] = TidalPyConstants::d_LN_HALF / c_guard_denominator(this->p_half_lives[i]);
         }
     }
 
-    void p_validate() const {
-        for (const c_Isotope& isotope : this->p_isotopes) { isotope.validate(); }
-        c_validate_radiogenic_ref_time(this->p_ref_time, "isotope");
+    // The label count, then each label.
+    void p_write_extra(std::ostream& out) const override {
+        const uint64_t num_names = static_cast<uint64_t>(this->p_isotope_names.size());
+        out.write(reinterpret_cast<const char*>(&num_names), sizeof(uint64_t));
+        for (const std::string& name : this->p_isotope_names) { write_binary_string(out, name); }
     }
 
-    std::vector<c_Isotope> p_isotopes;
-    double p_ref_time;
+    void p_read_extra(std::istream& in) override {
+        uint64_t num_names = 0;
+        in.read(reinterpret_cast<char*>(&num_names), sizeof(uint64_t));
+        if (!in) { throw std::runtime_error("TidalPy: failed to read isotope names from binary data"); }
+        check_binary_count(in, num_names, sizeof(uint64_t), "isotope name");
+        std::vector<std::string> names;
+        names.reserve(static_cast<std::size_t>(num_names));
+        for (uint64_t i = 0; i < num_names; ++i) { names.push_back(read_binary_string(in)); }
+        this->p_isotope_names = std::move(names);
+    }
+
+    std::vector<double> p_heat_production;
+    std::vector<double> p_half_lives;
+    std::vector<double> p_mass_fracs;
+    std::vector<double> p_concentrations;
+    double p_ref_time = 0.0;
+    std::vector<std::string> p_isotope_names;
+
+    // From p_update_derived.
+    std::vector<double> p_reference_heating;
+    std::vector<double> p_decay_constants;
 };
 
-// One lumped rate with optional decay (alias "constant"); average_half_life <= 0 disables the decay.
-class c_FixedRadiogenics final : public c_RadiogenicsBase {
+// One lumped rate with optional decay (alias "constant"): heating = mass * rate * exp(gamma (t - ref_time)), with
+// gamma = ln(0.5) / average_half_life; an average half life of 0 or below means no decay.
+class c_FixedRadiogenics final : public c_SpecModel<c_FixedRadiogenics, c_RadiogenicsBase> {
 public:
-    c_FixedRadiogenics() : c_FixedRadiogenics(c_RadiogenicsConfig{}) {}
-    explicit c_FixedRadiogenics(const c_RadiogenicsConfig& cfg)
-        : c_RadiogenicsBase("fixed"),
-          p_fixed_heat_production(cfg.fixed_heat_production),
-          p_average_half_life(cfg.average_half_life),
-          p_ref_time(cfg.ref_time) {
-        this->p_validate();
-    }
-    ~c_FixedRadiogenics() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::FixedRadiogenics;
 
-    double get_fixed_heat_production() const noexcept { return this->p_fixed_heat_production; }
-    double get_average_half_life()     const noexcept { return this->p_average_half_life; }
-    double get_ref_time()              const noexcept override { return this->p_ref_time; }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_RadiogenicsBase::append_config_entries(out);
-        out.push_back(c_config_double("fixed_heat_production_w_kg", this->p_fixed_heat_production));
-        out.push_back(c_config_double("average_half_life_s", this->p_average_half_life));
-        out.push_back(c_config_double("ref_time_s", this->p_ref_time));
+    static const std::vector<c_ParamSpec<c_FixedRadiogenics>>& parameter_specs() {
+        using Self = c_FixedRadiogenics;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            {"fixed_heat_production", "fixed_heat_production_w_kg", &Self::p_fixed_heat_production, 0.0,
+             c_ParamBounds::NonNegative, "Specific heat production at the reference time [W/kg]."},
+            {"average_half_life", "average_half_life_s", &Self::p_average_half_life, 0.0, c_ParamBounds::Finite,
+             "Half life of the lumped rate's decay [s]; 0 or below for no decay."},
+            {"ref_time", "ref_time_s", &Self::p_ref_time, 0.0, c_ParamBounds::Finite,
+             "Time the rate applies at [s], on the same clock as the heating's time."},
+        };
+        return specs;
     }
+
+    c_FixedRadiogenics() : c_FixedRadiogenics(c_ParamMap{}) {}
+    explicit c_FixedRadiogenics(const c_ParamMap& params) : c_SpecModel("fixed") { this->p_initialize(params); }
+
+    double get_ref_time() const noexcept override { return this->p_ref_time; }
 
     double calc_heating(double time, double mass) const override {
         if (this->p_average_half_life <= 0.0) {
@@ -419,95 +372,45 @@ public:
         return mass * this->p_fixed_heat_production * c_safe_exp(decay_constant * (time - this->p_ref_time));
     }
 
-    uint32_t get_binary_class_id() const override {
-        return static_cast<uint32_t>(BinaryClassID::FixedRadiogenics);
-    }
-
-    std::vector<double> get_binary_params() const override {
-        return {this->p_fixed_heat_production, this->p_average_half_life, this->p_ref_time};
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        this->p_fixed_heat_production = params[0];
-        this->p_average_half_life = params[1];
-        this->p_ref_time          = params[2];
-        try {
-            this->p_validate();
-        } catch (const std::invalid_argument& error) {
-            throw std::runtime_error(std::string("TidalPy: corrupt binary data: ") + error.what());
-        }
-    }
-
 protected:
-    // A finite, non-negative rate, a finite half life (zero or below means no decay), and a finite reference time.
-    void p_validate() const {
-        if (!(std::isfinite(this->p_fixed_heat_production) && (this->p_fixed_heat_production >= 0.0))) {
-            throw std::invalid_argument(
-                "TidalPy: the fixed radiogenics model needs a finite, non-negative heat production [W/kg]; got "
-                + std::to_string(this->p_fixed_heat_production) + ".");
-        }
-        if (!std::isfinite(this->p_average_half_life)) {
-            throw std::invalid_argument(
-                "TidalPy: the fixed radiogenics model needs a finite average half life [s] (zero or below for no "
-                "decay); got " + std::to_string(this->p_average_half_life) + ".");
-        }
-        c_validate_radiogenic_ref_time(this->p_ref_time, "fixed");
-    }
-
-    double p_fixed_heat_production;
-    double p_average_half_life;
-    double p_ref_time;
+    double p_fixed_heat_production = 0.0;
+    double p_average_half_life     = 0.0;
+    double p_ref_time              = 0.0;
 };
 
-// One value per model, so c_find_radiogenics dispatches without string comparisons.
-enum class c_RadiogenicsModel : uint8_t {
-    Off     = 0,
-    Isotope = 1,
-    Fixed   = 2,
-};
-
-// Model names are matched case-insensitively.
-inline c_RadiogenicsModel c_radiogenics_model_from_name(const std::string& model_name) {
-    const std::string name = c_to_lower(model_name);
-
-    if (name == "off"     || name == "none")     { return c_RadiogenicsModel::Off; }
-    if (name == "isotope" || name == "isotopes") { return c_RadiogenicsModel::Isotope; }
-    if (name == "fixed"   || name == "constant") { return c_RadiogenicsModel::Fixed; }
-
-    throw std::invalid_argument("TidalPy: unknown radiogenics model name '" + model_name + "'");
+inline const c_ModelRegistry<c_RadiogenicsBase>& c_radiogenics_registry() {
+    static const c_ModelRegistry<c_RadiogenicsBase> registry = {
+        {{"off", "none"},
+         BinaryClassID::OffRadiogenics,     &c_make_entry<c_RadiogenicsBase, c_OffRadiogenics>},
+        {{"isotope", "isotopes"},
+         BinaryClassID::IsotopeRadiogenics, &c_make_entry<c_RadiogenicsBase, c_IsotopeRadiogenics>},
+        {{"fixed", "constant"},
+         BinaryClassID::FixedRadiogenics,   &c_make_entry<c_RadiogenicsBase, c_FixedRadiogenics>},
+    };
+    return registry;
 }
 
-// Builds a model from its enum value and parameters; the Cython wrappers construct through it. A saved record is
-// restored by c_radiogenics_from_binary instead.
-inline std::unique_ptr<c_RadiogenicsBase> c_find_radiogenics(
-        c_RadiogenicsModel model, const c_RadiogenicsConfig& cfg) {
-    switch (model) {
-        case c_RadiogenicsModel::Off:     return std::make_unique<c_OffRadiogenics>(cfg);
-        case c_RadiogenicsModel::Isotope: return std::make_unique<c_IsotopeRadiogenics>(cfg);
-        case c_RadiogenicsModel::Fixed:   return std::make_unique<c_FixedRadiogenics>(cfg);
-    }
-    throw std::invalid_argument("TidalPy: unrecognised c_RadiogenicsModel enum value");
+// The family's entry points, each one line over the generic registry functions.
+inline std::unique_ptr<c_RadiogenicsBase> c_find_radiogenics(const std::string& model_name, const c_ParamMap& params) {
+    return c_make_model(c_radiogenics_registry(), model_name, params);
 }
 
-inline std::unique_ptr<c_RadiogenicsBase> c_find_radiogenics(
-        const std::string& model_name, const c_RadiogenicsConfig& cfg) {
-    return c_find_radiogenics(c_radiogenics_model_from_name(model_name), cfg);
+// An isotope model whose isotopes carry labels, one per isotope (or none).
+inline std::unique_ptr<c_RadiogenicsBase> c_make_isotope_radiogenics(
+        const c_ParamMap& params, const std::vector<std::string>& isotope_names) {
+    return std::make_unique<c_IsotopeRadiogenics>(params, isotope_names);
 }
 
-// The class id is peeked without consuming the header so the default-constructed model restores itself.
-// Used by the layer recursive deserialization in Structures/layers.
 inline std::unique_ptr<c_RadiogenicsBase> c_radiogenics_from_binary(std::istream& in, bool force = false) {
-    const c_BinaryHeader header = c_peek_binary_header(in);
+    return c_model_from_binary(c_radiogenics_registry(), in, force);
+}
 
-    std::unique_ptr<c_RadiogenicsBase> model;
-    switch (static_cast<BinaryClassID>(header.class_id)) {
-        case BinaryClassID::OffRadiogenics:     model = std::make_unique<c_OffRadiogenics>();     break;
-        case BinaryClassID::IsotopeRadiogenics: model = std::make_unique<c_IsotopeRadiogenics>(); break;
-        case BinaryClassID::FixedRadiogenics:   model = std::make_unique<c_FixedRadiogenics>();   break;
-        default:
-            throw std::runtime_error("TidalPy: unknown radiogenics class id in binary stream");
-    }
-    model->read_binary(in, force);
-    return model;
+inline std::string c_radiogenics_canonical_name(const std::string& model_name) {
+    return c_canonical_model_name(c_radiogenics_registry(), model_name);
+}
+
+inline std::vector<std::string> c_radiogenics_model_names() {
+    return c_model_names(c_radiogenics_registry());
 }
 
 }  // namespace tidalpy

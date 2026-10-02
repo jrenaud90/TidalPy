@@ -295,7 +295,7 @@ so the heat flow grows through a heated layer and its conducting stretches bend:
 
 | Source | Heating | Set by |
 |---|---|---|
-| Radiogenic | The layer's [radiogenics model](../../Radiogenics/radiogenics_models.md) gives a specific rate $\epsilon$ \[W kg$^{-1}$\] at the solve's `time` \[s\], and $h = \epsilon \rho$ with the local density, so it is exact for a layer whose mass is an output of the solve. `time=None` uses each model's own reference time. | `Layer.set_radiogenics` |
+| Radiogenic | The layer's [radiogenics model](../../Radiogenics/radiogenics_models.md) gives a specific rate $\epsilon$ \[W kg$^{-1}$\] at the solve's `time` \[s\], and $h = \epsilon \rho$ with the local density, so it is exact for a layer whose mass is an output of the solve. `time=None` uses each model's own reference time. | `Layer.radiogenics` |
 | Tidal | The heating \[W\] the world's last `calc_tides` put in each layer. With a radial-solver Love method it follows the radial profile of the per-layer heating integral (piecewise linear in the layer's radial fraction, renormalized so the layer receives exactly its heating); otherwise it is spread by mass. | `calc_tides` |
 | Prescribed | A power \[W\] spread over the layer by mass, or a specific rate \[W kg$^{-1}$\]. A power reaches the layer to the thermal tolerance whatever mass the solve gives it. | `set_prescribed_heating` |
 
@@ -534,7 +534,7 @@ A layer's heating depends on the source of the Love numbers:
 | The quasi-homogeneous methods (`homogeneous`, `cpl`, `ctl`) | The heating of the layer's own term $s_i k_i$ (see Quasi-Homogeneous Love Numbers), constant within the layer; the layers sum to the total. |
 | An analytic tide model (`cpl`, `ctl`, `ctl_q` tide models, which describe the whole body) | The total times the layer's tidal scale $s_i$. |
 
-The world builder normally sets the tide model and configuration from the `[tides]` TOML table, with per-family defaults (star: `fixed_q`, gasgiant: `fixed_dt`, terrestrial: `rheology`). They can also be set directly:
+The world builder normally sets the tide model and configuration from the `[tides]` TOML table, with per-family defaults (star: `fixed_q`, gasgiant: `fixed_dt`, terrestrial: `rheology`). The table may hold the per-degree lists of every analytic model, and the builder passes the tide model only the ones it reads (`tide_config_keys`): a `fixed_dt` world ignores `fixed_q`. They can also be set directly:
 
 ```python
 world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))   # An analytic tide model

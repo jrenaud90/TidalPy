@@ -1,6 +1,6 @@
 # distutils: language = c++
-"""Cython declarations for TidalPy's global (1D) tide models: the C++ classes, the per-degree config
-struct, the enum factory, and the Python wrapper classes.
+"""Cython declarations for TidalPy's global (1D) tide models: the C++ base class, the name-based factory, and the
+Python wrapper classes.
 """
 
 from libcpp.string cimport string
@@ -8,7 +8,7 @@ from libcpp.memory cimport unique_ptr
 from libcpp.vector cimport vector
 from libcpp cimport bool as cpp_bool
 
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase, c_ParamMap
 from TidalPy.Tides.love.love cimport c_LoveNumbers
 
 
@@ -18,56 +18,22 @@ cdef extern from "tide_base_.hpp" namespace "tidalpy" nogil:
         c_LoveNumbers calc_love_numbers(int degree_l, double frequency, const c_LoveNumbers& solver_love) const
         double calc_neg_imk(int degree_l, double frequency, const c_LoveNumbers& solver_love) const
         cpp_bool needs_radial_solve() const
+        double get_fixed_k(int degree_l) const
         double get_fixed_q(int degree_l) const
         double get_fixed_dt(int degree_l) const
 
 
 cdef extern from "tide_.hpp" namespace "tidalpy" nogil:
 
-    cdef cppclass c_TideModelConfig:
-        vector[double] fixed_k
-        vector[double] fixed_q
-        vector[double] fixed_dt
-
-    cdef cppclass c_RheologyTide(c_TideBase):
-        c_RheologyTide() except +
-        c_RheologyTide(const c_TideModelConfig& cfg) except +
-
-    cdef cppclass c_FixedQTide(c_TideBase):
-        c_FixedQTide() except +
-        c_FixedQTide(const c_TideModelConfig& cfg) except +
-        double get_fixed_k(int degree_l) const
-
-    cdef cppclass c_FixedLagTide(c_TideBase):
-        c_FixedLagTide() except +
-        c_FixedLagTide(const c_TideModelConfig& cfg) except +
-        double get_fixed_k(int degree_l) const
-
-    cdef cppclass c_CTLQTide(c_TideBase):
-        c_CTLQTide() except +
-        c_CTLQTide(const c_TideModelConfig& cfg) except +
-        double get_fixed_k(int degree_l) const
-
-    cdef enum class c_TideModel:
-        Rheology
-        FixedQ
-        FixedLag
-        CTLQ
-
-    c_TideModel c_tide_model_from_name(const string& model_name) except +
-    unique_ptr[c_TideBase] c_find_tide(c_TideModel model, const c_TideModelConfig& cfg) except +
-
-
-cdef c_TideModelConfig cy_build_tide_config(dict config) except *
+    unique_ptr[c_TideBase] c_find_tide(const string& model_name, const c_ParamMap& params) except +
+    string c_tide_canonical_name(const string& model_name) except +
+    vector[string] c_tide_model_names() except +
 
 
 cdef class TideBase(PhysicsBase):
-    # The model lives in PhysicsBase's shared handle, so a world can share it rather than copy it.
-    cdef void _adopt(self, unique_ptr[c_TideBase]& ptr) noexcept
-    cdef c_TideBase* _tide(self) noexcept
+    cdef c_TideBase* _tide(self) except NULL
 
 
-# The subclasses reach their model through TideBase._tide(), cast to the class they wrap.
 cdef class RheologyTide(TideBase):
     pass
 

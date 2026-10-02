@@ -19,8 +19,6 @@ public:
 
     ~c_RadiogenicsBase() override = default;
 
-    std::string get_family_name() const override { return C_FAMILY_NAME; }
-
     // Heating [W] from `mass` [kg] at `time` [s]. Time shares its zero point with the model's
     // reference time. Assumes exponential decay from that reference time.
     virtual double calc_heating(double time, double mass) const = 0;

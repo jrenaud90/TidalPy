@@ -492,9 +492,9 @@ public:
     // =================================================================================================================
     // Cooling and radiogenics
     // =================================================================================================================
-    // The cooling model is shared and immutable, like the rheologies; null clears it, which leaves the layer at one
-    // temperature. The radiogenics model's ownership transfers in, and it registers this layer as its observer. A
-    // thermal EOS solve reads both, so each makes the owning world forget its solved structure (c_LayerOwner).
+    // The cooling and radiogenics models are shared and immutable, like the rheologies; null clears either, which
+    // leaves the layer at one temperature or without radiogenic heating. A thermal EOS solve reads both, so each makes
+    // the owning world forget its solved structure (c_LayerOwner).
     void set_cooling(std::shared_ptr<const c_CoolingBase> cooling) {
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_cooling = std::move(cooling);
@@ -514,6 +514,7 @@ public:
     void set_radiogenics_model(const std::shared_ptr<c_PhysicsBase>& model) {
         this->set_radiogenics(c_share_as<c_RadiogenicsBase>(model, "a layer's radiogenics model"));
     }
+    std::shared_ptr<c_PhysicsBase> share_radiogenics_model() const { return c_share_physics_of(this->p_radiogenics); }
     // Non-owning; null when unset.
     const c_CoolingBase*     get_cooling_model()     const noexcept { return this->p_cooling.get(); }
     const c_RadiogenicsBase* get_radiogenics_model() const noexcept { return this->p_radiogenics.get(); }

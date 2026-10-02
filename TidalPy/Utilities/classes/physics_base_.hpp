@@ -1,15 +1,13 @@
 #pragma once
 /* Base for every TidalPy physics model class.
  *
- * Holds a model name and a non-owning observer pointer to the owning layer, which the layer sets after
- * construction. The name-based factory lives in each concrete physics subhierarchy, not here.
+ * Holds a model name. The name-based factory lives in each concrete physics subhierarchy, not here.
  *
- * A model built on a parameter spec (c_SpecModel, spec_model_.hpp) also answers the generic parameter interface
- * below: its parameter descriptions, a parameter's value, a copy, and a copy with some parameters changed. A model
- * without a spec reports no parameters and refuses the rest.
+ * Every concrete model is built on a parameter spec (c_SpecModel, spec_model_.hpp), which answers the generic
+ * parameter interface below: its parameter descriptions, a parameter's value, a copy, and a copy with some parameters
+ * changed. A bare c_PhysicsBase, a name alone, reports no parameters and refuses the rest.
  *
- * Binary payload: the model name, then the model's scalar parameters (get_binary_params); a spec model writes its
- * parameters by key instead.
+ * Binary payload: the model name; a spec model follows it with its parameters by key.
  */
 
 #include <cstdint>
@@ -48,16 +46,10 @@ public:
         return entries;
     }
 
-    // The model's scalar parameters, in the order its binary payload stores them after the model name. A model with
-    // parameters overrides both: set_binary_params receives as many values as get_binary_params returns, read back
-    // from a record. The defaults hold none.
-    virtual std::vector<double> get_binary_params() const { return {}; }
-    virtual void set_binary_params(const std::vector<double>& /*params*/) {}
-
     uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::PhysicsBase); }
 
     // The family the model belongs to ("viscosity", "rheology", ...), which the Python side uses to wrap a model in
-    // its family's class; empty for a model without a spec.
+    // its family's class; empty for a bare c_PhysicsBase.
     virtual std::string get_family_name() const { return std::string(); }
 
     // The generic parameter interface, which c_SpecModel implements from the model's spec.
@@ -81,31 +73,17 @@ public:
     }
 
 protected:
-    // The model name, then get_binary_params. A model with more than scalars (tables, sub-models) appends them after
-    // calling this.
+    // The model name.
     void p_write_payload(std::ostream& out) const override {
         write_binary_string(out, this->p_model_name);
-        const std::vector<double> params = this->get_binary_params();
-        if (!params.empty()) {
-            out.write(
-                reinterpret_cast<const char*>(params.data()),
-                static_cast<std::streamsize>(params.size() * sizeof(double)));
-        }
     }
 
     void p_read_payload(std::istream& in, bool /*force*/) override {
         std::string model_name = read_binary_string(in);
-        std::vector<double> params = this->get_binary_params();
-        if (!params.empty()) {
-            in.read(
-                reinterpret_cast<char*>(params.data()),
-                static_cast<std::streamsize>(params.size() * sizeof(double)));
-        }
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read physics model binary data");
         }
         this->p_model_name = std::move(model_name);
-        this->set_binary_params(params);
     }
 
     std::string  p_model_name;

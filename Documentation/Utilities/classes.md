@@ -1,6 +1,6 @@
 # Base Classes (`Utilities.classes`)
 
-_Updated: 2026-10-01_
+_Updated: 2026-10-02_
 
 Three C++ base classes underlie every object TidalPy builds. They give a rheology model, a cooling model, a layer, and a world the same methods for saving and restoring themselves, so a new physics model needs no serialization code of its own.
 
@@ -11,7 +11,7 @@ A new model class has to satisfy the contract described here. The per-module "ad
 ```
 c_TidalPyBaseClass          (abstract; binary input and output, schema version)
     ├── c_StructureBase     (spherical geometry: radius, mass, calc_* helpers)
-    └── c_PhysicsBase       (physics models: model name, layer observer pointer)
+    └── c_PhysicsBase       (physics models: model name, generic parameter interface)
 ```
 
 Every layer inherits `c_StructureBase`, and every physics model inherits `c_PhysicsBase`. The Cython wrappers `TidalPyBaseClass`, `StructureBase`, and `PhysicsBase` expose the same three levels to Python.
@@ -38,7 +38,7 @@ body.get_config_dict()            # {'radius_m': 6371000.0, 'mass_kg': 5.972e+24
 body.save_config("body.toml")
 
 model = PhysicsBase(model_name="maxwell")
-model.model_name                  # 'maxwell', readable and writable
+model.model_name                  # 'maxwell', read-only
 model.get_config_dict()           # {'model': 'maxwell'}
 ```
 
@@ -83,38 +83,38 @@ PhysicsBase(model_name: str)
 
 | Property or method | Returns | Description |
 |---|---|---|
-| `.model_name` | `str` | The physics model's resolved name. |
+| `.model_name` | `str` | The physics model's canonical name. Read-only: a different model is a new object. |
 | `get_config_dict()` | `dict` | `{"model": ...}` plus the model's own parameters. |
+| `parameters` | `dict` | Every parameter by argument name (no unit suffix); a table as a list. |
+| `get_parameter(name)` | value | One parameter by argument name or config key. |
+| `get_parameter_info()` | `list` | One dict per parameter: `name`, `key` (the config key), `kind`, `default`, `bounds`, and `doc`. |
+| `with_parameters(**changes)` | model | A new model with some parameters changed, validated like a new one; this model is unchanged. |
 
-Every physics model's configuration comes from one place. The C++ base declares the virtual `append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the model name. A model declared through a parameter table (`c_SpecModel`, `spec_model_.hpp`) appends each parameter from its table, and any other concrete model calls its parent and then appends its own parameters using the builders in `config_entry_.hpp`. A model with a parameter table also has `parameters`, `get_parameter(name)`, `get_parameter_info()`, and `with_parameters(**changes)` in Python. The Cython `get_config_dict` converts the entries to a dict, so the wrapper classes never override it, and a layer or world writer can read the configuration of any attached model through its raw pointer.
+Every concrete physics model is declared through a parameter table (`c_SpecModel`, `spec_model_.hpp`), which gives it the methods above, and its parameters also read as attributes (`model.alpha`). A bare `PhysicsBase` is a name alone: it reports no parameters, and the methods that copy it raise. Models are not changed in place, so one model can be shared by several layers or worlds, and `copy.copy` returns the model itself.
+
+Every physics model's configuration comes from one place. The C++ base declares the virtual `append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the model name, and `c_SpecModel` appends each parameter from its table. A model that holds state outside its table (the isotope labels of a radiogenics model) extends the override using the builders in `config_entry_.hpp`. The Cython `get_config_dict` converts the entries to a dict, so the wrapper classes never override it, and a layer or world writer can read the configuration of any attached model through its raw pointer.
 
 The keys are the ones the matching factory accepts, so `make_<family>(config["model"], config)` rebuilds the model. A world's configuration therefore round-trips. The world collects the configuration of each layer, each layer collects the configuration of each attached model, and every result is valid builder input.
 
-The config entries are not part of the binary format. They are a separate, human-readable view. The layer observer pointer is a C++-only field that the owning layer sets after construction, and it is neither serialized nor exposed to Python.
+The config entries are not part of the binary format. They are a separate, human-readable view.
 
-## Checking Physics-Model Config Keys
+## Physics-Model Config Keys
 
-A model declared through a parameter table (`c_SpecModel`: rheology, viscosity, cooling, and the material and melting laws) checks its own keys when it is built: a key it does not read raises `ValueError` naming the closest one it does. `check_config_keys(config, accepted_keys, family)` is the same guard for the families without a parameter table (radiogenics, tides, luminosity), whose `make_*` factories run it before building a model. It raises `ValueError` for any key that no model in the family reads, always accepts `model` so a `get_config_dict()` result can be passed straight back, and names the closest accepted key for each rejected one. The most common mistake is a missing unit suffix, such as `heat_production` for `heat_production_w_kg`.
+Every physics model checks its config keys when it is built, whether through its class or its family's `make_<family>` factory. A key the model does not read raises `ValueError` naming the model, the key, and the closest key the model does read. The check is per model, so a key that another model of the same family reads is refused too: a `fixed` radiogenics table that carries `isotopes`, or a `fixed_q` tide table that carries `fixed_dt_s`, raises. The key `model` is always accepted, so a `get_config_dict()` result can be passed straight back. A parameter is accepted under either of its spellings, the config key (`fixed_heat_production_w_kg`) or the argument name (`fixed_heat_production`), but not under both at once.
 
 ```python
-from TidalPy.Utilities.classes import check_config_keys
+from TidalPy.Radiogenics import make_radiogenics, radiogenics_config_keys
 
-check_config_keys(
-    {"model": "fixed", "fixed_heat_production_w_kg": 1.0e-11},
-    {"fixed_heat_production_w_kg", "average_half_life_s", "ref_time_s"},
-    "radiogenics"
-)
+print(sorted(radiogenics_config_keys("fixed")))  # ['average_half_life_s', 'fixed_heat_production_w_kg', 'ref_time_s']
 try:
-    check_config_keys(
-        {"fixed_heat_production": 1.0e-11},
-        {"fixed_heat_production_w_kg", "average_half_life_s", "ref_time_s"},
-        "radiogenics"
-    )
+    make_radiogenics(
+        "fixed",
+        {"heat_production_w_kg": 1.0e-11})  # A key of the isotope model
 except ValueError as error:
-    print(error)   # ... 'fixed_heat_production' (did you mean 'fixed_heat_production_w_kg'?) ...
+    print(error)  # ... has no parameter 'heat_production_w_kg' (did you mean 'fixed_heat_production_w_kg'?) ...
 ```
 
-The check is per family rather than per model, since these factories take one table for every model of their family (a tide table can carry both `fixed_q` and `fixed_dt`). Only a key that no model reads is an error. The world builder adds the table name to the message, for example `[layers.mantle.radiogenics]`, so the offending line can be found in the TOML file.
+Each family lists its models' keys: `<family>_config_keys(name)` gives the keys one model reads and `<family>_model_names()` the canonical names, and the module constant `<FAMILY>_CONFIG_KEYS` holds every key some model of the family reads. The world builder adds the table name to the message, for example `[layers.mantle.radiogenics]`, so the offending line can be found in the TOML file.
 
 ## C++ API
 
@@ -140,11 +140,14 @@ restored.load_binary("body.tpyb");
 ### `config_entry_.hpp`
 
 ```cpp
-// A model without a parameter table reports its parameters by extending its parent's entries.
+// A model with state outside its parameter table (the isotope radiogenics model) writes its own entries.
 void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-    c_LuminosityBase::append_config_entries(out);   // pushes {"model": "power_law"}
-    out.push_back(c_config_double("power_law_coeff", this->p_coeff));
-    out.push_back(c_config_double("power_law_exponent", this->p_exponent));
+    c_RadiogenicsBase::append_config_entries(out);  // pushes {"model": "isotope"}
+    out.push_back(c_config_doubles("heat_production_w_kg", this->p_heat_production));
+    // ... the other three tables and ref_time_s ...
+    if (!this->p_isotope_names.empty()) {
+        out.push_back(c_config_strings("isotope_names", this->p_isotope_names));
+    }
 }
 ```
 
@@ -159,10 +162,11 @@ A model declared through a parameter table gets this override from the table, an
 c_StructureBase body(1.0e6, 1.0e22);
 const double gravity = body.calc_surface_gravity(body.get_mass(), body.get_radius());
 
-c_PhysicsBase model("maxwell");
-model.set_layer_ptr(layer_ptr);           // called by the owning layer
+c_PhysicsBase model("maxwell");  // A name alone, with no parameters
 const std::string& name = model.get_model_name();
 ```
+
+`c_PhysicsBase` declares the generic parameter interface that `c_SpecModel` implements from a model's table: `get_parameter_info()`, `get_parameter(name_or_key)`, `clone_physics()`, and `with_parameters(changes)`, plus `get_family_name()`, which the Cython layer uses to wrap a model in its family's class. Its binary payload is the model name alone; a spec model follows it with its parameters by key (see [Binary Serialization](binary.md#c-api)).
 
 ## Logger Wiring Across Extensions
 

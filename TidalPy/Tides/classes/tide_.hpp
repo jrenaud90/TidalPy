@@ -5,17 +5,13 @@
  * ("ctl_q"/"fixed_dt_q").
  *
  * Each returns the complex Love number k_l at a tidal frequency; the collapse (tide_collapse_.hpp)
- * uses -Im[k_l] as the per-mode dissipation multiplier. Fixed per-degree parameters (k_l, Q_l, dt_l)
- * live in fixed-size slots indexed by (degree_l - 2) for l = 2..10, the range the eccentricity and
- * obliquity tables cover; a slot left at 0 means no contribution at that degree. All quantities MKS;
- * frequencies in rad s-1.
- *
- * Binary payload: the model name followed by the per-degree slots as doubles.
+ * uses -Im[k_l] as the per-mode dissipation multiplier. Each model declares its parameters in one table
+ * (c_SpecModel, spec_model_.hpp), which gives its constructor, validation, config entries, and binary record. The
+ * analytic models' parameters (k_l, Q_l, dt_l) are lists indexed from l = 2, up to l = 10, the range the
+ * eccentricity and obliquity tables cover; a degree a list does not reach is 0, no contribution at that degree. All
+ * quantities MKS; frequencies in rad s-1.
  */
 
-#include <algorithm>
-#include <array>
-#include <cctype>
 #include <cmath>
 #include <complex>
 #include <cstddef>
@@ -30,7 +26,8 @@
 #include "constants_.hpp"     // TidalPyConstants::d_EPS
 #include "tide_base_.hpp"
 #include "tide_result_.hpp"   // c_TideSolveConfig (orbital state), c_TideConfig (truncation)
-#include "../../Utilities/classes/model_names_.hpp"   // c_to_lower
+#include "../../Utilities/classes/registry_.hpp"
+#include "../../Utilities/classes/spec_model_.hpp"
 
 namespace tidalpy {
 
@@ -56,52 +53,28 @@ constexpr int C_TIDE_MIN_DEGREE  = 2;
 constexpr int C_TIDE_MAX_DEGREE  = 10;
 constexpr int C_TIDE_NUM_DEGREES = C_TIDE_MAX_DEGREE - C_TIDE_MIN_DEGREE + 1;  // 9
 
-// Combined construction parameters for all tide models. The per-degree vectors are indexed from l = 2 and
-// may be short; missing entries default to 0.
-struct c_TideModelConfig {
-    std::vector<double> fixed_k;   // static potential Love numbers k_l  [dimensionless]
-    std::vector<double> fixed_q;   // tidal quality factors Q_l          [dimensionless]
-    std::vector<double> fixed_dt;  // tidal time lags dt_l               [s]
-};
-
-// Copy a possibly short or over-long per-degree config vector into a fixed 9-slot array.
-// Throws std::invalid_argument for more values than tabulated degrees or for a value that is negative or not
-// finite: every per-degree parameter (k, Q, dt) is non-negative, and a zero Q means no dissipation.
-inline void c_tide_fill_degree_slots(
-        const std::vector<double>& src, std::array<double, C_TIDE_NUM_DEGREES>& dst) {
-    if (src.size() > static_cast<std::size_t>(C_TIDE_NUM_DEGREES)) {
-        throw std::invalid_argument(
-            "TidalPy: a per-degree tide parameter list holds " + std::to_string(src.size()) +
-            " values, more than the " + std::to_string(C_TIDE_NUM_DEGREES) + " degrees (l = 2 to 10) it covers.");
-    }
-    dst.fill(0.0);
-    for (std::size_t i = 0; i < src.size(); ++i) {
-        if (!(std::isfinite(src[i]) && (src[i] >= 0.0))) {
-            throw std::invalid_argument(
-                "TidalPy: per-degree tide parameters (fixed_k, fixed_q, fixed_dt_s) must be finite and not "
-                "negative; got " + std::to_string(src[i]) + " at degree " + std::to_string(i + C_TIDE_MIN_DEGREE) +
-                ".");
-        }
-        dst[i] = src[i];
-    }
-}
-
-// 0 for an out-of-range degree.
-inline double c_tide_degree_value(const std::array<double, C_TIDE_NUM_DEGREES>& arr, int degree_l) {
-    const int idx = degree_l - C_TIDE_MIN_DEGREE;
-    if (idx < 0 || idx >= C_TIDE_NUM_DEGREES) {
+// A per-degree list's value at a degree; 0 for a degree it does not reach.
+inline double c_tide_degree_value(const std::vector<double>& values, int degree_l) noexcept {
+    const int index = degree_l - C_TIDE_MIN_DEGREE;
+    if ((index < 0) || (index >= static_cast<int>(values.size()))) {
         return 0.0;
     }
-    return arr[idx];
+    return values[static_cast<std::size_t>(index)];
 }
 
 
 // k_l supplied by the radial solver (alias "rheology"); a pass-through that flags the world to run it.
-class c_RheologyTide : public c_TideBase {
+class c_RheologyTide final : public c_SpecModel<c_RheologyTide, c_TideBase> {
 public:
-    c_RheologyTide() : c_TideBase("rheology") {}
-    explicit c_RheologyTide(const c_TideModelConfig& /*cfg*/) : c_TideBase("rheology") {}
-    ~c_RheologyTide() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::RheologyTide;
+
+    static const std::vector<c_ParamSpec<c_RheologyTide>>& parameter_specs() {
+        static const std::vector<c_ParamSpec<c_RheologyTide>> specs = {};
+        return specs;
+    }
+
+    c_RheologyTide() : c_RheologyTide(c_ParamMap{}) {}
+    explicit c_RheologyTide(const c_ParamMap& params) : c_SpecModel("rheology") { this->p_initialize(params); }
 
     c_LoveNumbers calc_love_numbers(
             int /*degree_l*/, double /*frequency*/, const c_LoveNumbers& solver_love) const override {
@@ -109,8 +82,6 @@ public:
     }
 
     bool needs_radial_solve() const override { return true; }
-
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(BinaryClassID::RheologyTide); }
 
     // Secular 3D tidal volumetric heating [W m-3], averaged over longitude; the rheology model alone
     // supports the 3D path. The active modes merge into coherent waves, the radial problem is solved once
@@ -181,64 +152,25 @@ public:
             double* out_layer_totals) const;
 };
 
-// The shared part of the analytic tide models: NumSlots per-degree parameter slots, the first always k_l, each with
-// its config key. The slots run in one order through the config entries, the construction config, and the binary
-// payload (the model name, then every slot's degrees in turn).
-template <std::size_t NumSlots>
-class c_AnalyticTide : public c_TideBase {
+// The shared part of the analytic tide models (Derived is the concrete model): no radial solve, h and l undefined,
+// and every per-degree list no longer than the tabulated degrees.
+template <class Derived>
+class c_AnalyticTide : public c_SpecModel<Derived, c_TideBase> {
 public:
-    ~c_AnalyticTide() override = default;
-
-    double get_fixed_k(int degree_l) const { return c_tide_degree_value(this->p_slots[0], degree_l); }
-
-    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
-        c_TideBase::append_config_entries(out);
-        // Per-degree slots for l = 2..10.
-        for (std::size_t slot = 0; slot < NumSlots; ++slot) {
-            out.push_back(c_config_doubles(
-                this->p_config_keys[slot],
-                std::vector<double>(this->p_slots[slot].begin(), this->p_slots[slot].end())));
-        }
-    }
+    explicit c_AnalyticTide(const std::string& model_name) : c_SpecModel<Derived, c_TideBase>(model_name) {}
 
     bool needs_radial_solve() const override { return false; }
 
-    uint32_t get_binary_class_id() const override { return static_cast<uint32_t>(this->p_class_id); }
-
-    std::vector<double> get_binary_params() const override {
-        std::vector<double> params;
-        params.reserve(NumSlots * C_TIDE_NUM_DEGREES);
-        for (const auto& slot : this->p_slots) {
-            params.insert(params.end(), slot.begin(), slot.end());
-        }
-        return params;
-    }
-    void set_binary_params(const std::vector<double>& params) override {
-        for (std::size_t slot = 0; slot < NumSlots; ++slot) {
-            for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) {
-                this->p_slots[slot][i] = params[slot * C_TIDE_NUM_DEGREES + i];
+protected:
+    void p_validate() const override {
+        for (const c_ParamSpec<Derived>& spec : Derived::parameter_specs()) {
+            const std::size_t num_values = this->get_parameter(spec.key).size();
+            if (num_values > static_cast<std::size_t>(C_TIDE_NUM_DEGREES)) {
+                throw std::invalid_argument(
+                    this->p_describe() + " takes at most " + std::to_string(C_TIDE_NUM_DEGREES) + " values for '"
+                    + spec.key + "' (degrees l = 2 to 10); got " + std::to_string(num_values) + ".");
             }
         }
-    }
-
-protected:
-    c_AnalyticTide(
-            const std::string& model_name,
-            BinaryClassID class_id,
-            const std::array<const char*, NumSlots>& config_keys) :
-        c_TideBase(model_name),
-        p_class_id(class_id),
-        p_config_keys(config_keys) {}
-
-    // Each slot from its list of the construction config, in slot order (c_tide_fill_degree_slots).
-    void p_fill_slots(const std::array<const std::vector<double>*, NumSlots>& sources) {
-        for (std::size_t slot = 0; slot < NumSlots; ++slot) {
-            c_tide_fill_degree_slots(*sources[slot], this->p_slots[slot]);
-        }
-    }
-
-    double p_slot_value(std::size_t slot, int degree_l) const {
-        return c_tide_degree_value(this->p_slots[slot], degree_l);
     }
 
     // h and l are not defined for an analytic model (no radial solution).
@@ -246,135 +178,158 @@ protected:
         const std::complex<double> nan_love(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
         return c_LoveNumbers(k, nan_love, nan_love);
     }
-
-    std::array<std::array<double, C_TIDE_NUM_DEGREES>, NumSlots> p_slots{};
-
-private:
-    BinaryClassID p_class_id;
-    std::array<const char*, NumSlots> p_config_keys;
 };
 
 // c_FixedQTide: constant phase lag / fixed Q (alias "cpl" / "fixed_q"). Frequency-independent
 // dissipation per degree:
 //
 //   k_l(omega) = k_l * (1 - i / Q_l)            ->  -Im[k_l] = k_l / Q_l
-class c_FixedQTide : public c_AnalyticTide<2> {
+class c_FixedQTide final : public c_AnalyticTide<c_FixedQTide> {
 public:
-    c_FixedQTide() : c_AnalyticTide<2>("fixed_q", BinaryClassID::FixedQTide, {"fixed_k", "fixed_q"}) {}
-    explicit c_FixedQTide(const c_TideModelConfig& cfg) : c_FixedQTide() {
-        this->p_fill_slots({&cfg.fixed_k, &cfg.fixed_q});
-    }
-    ~c_FixedQTide() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::FixedQTide;
 
-    double get_fixed_q(int degree_l) const override { return this->p_slot_value(1, degree_l); }
+    static const std::vector<c_ParamSpec<c_FixedQTide>>& parameter_specs() {
+        using Self = c_FixedQTide;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            {"fixed_k", "fixed_k", &Self::p_fixed_k, 0.0, c_ParamBounds::NonNegative,
+             "Static potential Love number k_l of each degree, from l = 2."},
+            {"fixed_q", "fixed_q", &Self::p_fixed_q, 0.0, c_ParamBounds::NonNegative,
+             "Tidal quality factor Q_l of each degree, from l = 2; 0 is no dissipation."},
+        };
+        return specs;
+    }
+
+    c_FixedQTide() : c_FixedQTide(c_ParamMap{}) {}
+    explicit c_FixedQTide(const c_ParamMap& params) : c_AnalyticTide("fixed_q") { this->p_initialize(params); }
+
+    double get_fixed_k(int degree_l) const override { return c_tide_degree_value(this->p_fixed_k, degree_l); }
+    double get_fixed_q(int degree_l) const override { return c_tide_degree_value(this->p_fixed_q, degree_l); }
 
     c_LoveNumbers calc_love_numbers(
             int degree_l, double /*frequency*/, const c_LoveNumbers& /*solver_love*/) const override {
         const double k_l = this->get_fixed_k(degree_l);
-        const double q_l = this->p_slot_value(1, degree_l);
+        const double q_l = this->get_fixed_q(degree_l);
         if (std::abs(q_l) <= TidalPyConstants::d_EPS) {
             // An unset or zero Q_l is no dissipation, not a divide by zero.
             return p_analytic_love(std::complex<double>(k_l, 0.0));
         }
         return p_analytic_love(k_l * c_constant_phase_lag(q_l));
     }
+
+protected:
+    std::vector<double> p_fixed_k;
+    std::vector<double> p_fixed_q;
 };
 
 // c_FixedLagTide: constant time lag / CTL (alias "ctl" / "fixed_dt"):
 //
 //   k_l(omega) = k_l * (1 - i * |omega| * dt_l)   ->  -Im[k_l] = k_l * |omega| * dt_l
-class c_FixedLagTide : public c_AnalyticTide<2> {
+class c_FixedLagTide final : public c_AnalyticTide<c_FixedLagTide> {
 public:
-    c_FixedLagTide() : c_AnalyticTide<2>("fixed_dt", BinaryClassID::FixedLagTide, {"fixed_k", "fixed_dt_s"}) {}
-    explicit c_FixedLagTide(const c_TideModelConfig& cfg) : c_FixedLagTide() {
-        this->p_fill_slots({&cfg.fixed_k, &cfg.fixed_dt});
-    }
-    ~c_FixedLagTide() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::FixedLagTide;
 
-    double get_fixed_dt(int degree_l) const override { return this->p_slot_value(1, degree_l); }
+    static const std::vector<c_ParamSpec<c_FixedLagTide>>& parameter_specs() {
+        using Self = c_FixedLagTide;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            {"fixed_k", "fixed_k", &Self::p_fixed_k, 0.0, c_ParamBounds::NonNegative,
+             "Static potential Love number k_l of each degree, from l = 2."},
+            {"fixed_dt", "fixed_dt_s", &Self::p_fixed_dt, 0.0, c_ParamBounds::NonNegative,
+             "Tidal time lag dt_l of each degree [s], from l = 2."},
+        };
+        return specs;
+    }
+
+    c_FixedLagTide() : c_FixedLagTide(c_ParamMap{}) {}
+    explicit c_FixedLagTide(const c_ParamMap& params) : c_AnalyticTide("fixed_dt") { this->p_initialize(params); }
+
+    double get_fixed_k(int degree_l) const override { return c_tide_degree_value(this->p_fixed_k, degree_l); }
+    double get_fixed_dt(int degree_l) const override { return c_tide_degree_value(this->p_fixed_dt, degree_l); }
 
     c_LoveNumbers calc_love_numbers(
             int degree_l, double frequency, const c_LoveNumbers& /*solver_love*/) const override {
         const double k_l  = this->get_fixed_k(degree_l);
-        const double dt_l = this->p_slot_value(1, degree_l);
+        const double dt_l = this->get_fixed_dt(degree_l);
         return p_analytic_love(k_l * c_constant_time_lag(frequency, dt_l));
     }
+
+protected:
+    std::vector<double> p_fixed_k;
+    std::vector<double> p_fixed_dt;
 };
 
 // c_CTLQTide: constant time lag with a quality factor (alias "ctl_q" / "fixed_dt_q"):
 //
 //   k_l(omega) = k_l * (1 - i * |omega| * dt_l / Q_l)  ->  -Im[k_l] = k_l * |omega| * dt_l / Q_l
-class c_CTLQTide : public c_AnalyticTide<3> {
+class c_CTLQTide final : public c_AnalyticTide<c_CTLQTide> {
 public:
-    c_CTLQTide() :
-        c_AnalyticTide<3>("fixed_dt_q", BinaryClassID::CTLQTide, {"fixed_k", "fixed_dt_s", "fixed_q"}) {}
-    explicit c_CTLQTide(const c_TideModelConfig& cfg) : c_CTLQTide() {
-        this->p_fill_slots({&cfg.fixed_k, &cfg.fixed_dt, &cfg.fixed_q});
-    }
-    ~c_CTLQTide() override = default;
+    static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::CTLQTide;
 
-    double get_fixed_dt(int degree_l) const override { return this->p_slot_value(1, degree_l); }
-    double get_fixed_q(int degree_l) const override { return this->p_slot_value(2, degree_l); }
+    static const std::vector<c_ParamSpec<c_CTLQTide>>& parameter_specs() {
+        using Self = c_CTLQTide;
+        static const std::vector<c_ParamSpec<Self>> specs = {
+            {"fixed_k", "fixed_k", &Self::p_fixed_k, 0.0, c_ParamBounds::NonNegative,
+             "Static potential Love number k_l of each degree, from l = 2."},
+            {"fixed_dt", "fixed_dt_s", &Self::p_fixed_dt, 0.0, c_ParamBounds::NonNegative,
+             "Tidal time lag dt_l of each degree [s], from l = 2."},
+            {"fixed_q", "fixed_q", &Self::p_fixed_q, 0.0, c_ParamBounds::NonNegative,
+             "Tidal quality factor Q_l of each degree, from l = 2; 0 is no dissipation."},
+        };
+        return specs;
+    }
+
+    c_CTLQTide() : c_CTLQTide(c_ParamMap{}) {}
+    explicit c_CTLQTide(const c_ParamMap& params) : c_AnalyticTide("fixed_dt_q") { this->p_initialize(params); }
+
+    double get_fixed_k(int degree_l) const override { return c_tide_degree_value(this->p_fixed_k, degree_l); }
+    double get_fixed_dt(int degree_l) const override { return c_tide_degree_value(this->p_fixed_dt, degree_l); }
+    double get_fixed_q(int degree_l) const override { return c_tide_degree_value(this->p_fixed_q, degree_l); }
 
     c_LoveNumbers calc_love_numbers(
             int degree_l, double frequency, const c_LoveNumbers& /*solver_love*/) const override {
         const double k_l  = this->get_fixed_k(degree_l);
-        const double dt_l = this->p_slot_value(1, degree_l);
-        const double q_l  = this->p_slot_value(2, degree_l);
+        const double dt_l = this->get_fixed_dt(degree_l);
+        const double q_l  = this->get_fixed_q(degree_l);
         if (std::abs(q_l) <= TidalPyConstants::d_EPS) {
             return p_analytic_love(std::complex<double>(k_l, 0.0));
         }
         return p_analytic_love(k_l * c_constant_time_lag(frequency, dt_l, q_l));
     }
+
+protected:
+    std::vector<double> p_fixed_k;
+    std::vector<double> p_fixed_dt;
+    std::vector<double> p_fixed_q;
 };
 
-enum class c_TideModel : uint8_t {
-    Rheology = 0,
-    FixedQ   = 1,
-    FixedLag = 2,
-    CTLQ     = 3,
-};
-
-// Model names are matched case-insensitively.
-inline c_TideModel c_tide_model_from_name(const std::string& model_name) {
-    const std::string name = c_to_lower(model_name);
-    if (name == "rheology")                                                           { return c_TideModel::Rheology; }
-    if (name == "cpl"   || name == "fixed_q"    || name == "constant_phase_lag")      { return c_TideModel::FixedQ; }
-    if (name == "ctl"   || name == "fixed_dt"   || name == "constant_time_lag")       { return c_TideModel::FixedLag; }
-    if (name == "ctl_q" || name == "fixed_dt_q" || name == "constant_time_lag_and_q") { return c_TideModel::CTLQ; }
-    
-    throw std::invalid_argument("TidalPy: unknown tide model name '" + model_name + "'");
+inline const c_ModelRegistry<c_TideBase>& c_tide_registry() {
+    static const c_ModelRegistry<c_TideBase> registry = {
+        {{"rheology"},
+         BinaryClassID::RheologyTide, &c_make_entry<c_TideBase, c_RheologyTide>},
+        {{"fixed_q", "cpl", "constant_phase_lag"},
+         BinaryClassID::FixedQTide,   &c_make_entry<c_TideBase, c_FixedQTide>},
+        {{"fixed_dt", "ctl", "constant_time_lag"},
+         BinaryClassID::FixedLagTide, &c_make_entry<c_TideBase, c_FixedLagTide>},
+        {{"fixed_dt_q", "ctl_q", "constant_time_lag_and_q"},
+         BinaryClassID::CTLQTide,     &c_make_entry<c_TideBase, c_CTLQTide>},
+    };
+    return registry;
 }
 
-inline std::unique_ptr<c_TideBase> c_find_tide(c_TideModel model, const c_TideModelConfig& cfg) {
-    switch (model) {
-        case c_TideModel::Rheology: return std::make_unique<c_RheologyTide>(cfg);
-        case c_TideModel::FixedQ:   return std::make_unique<c_FixedQTide>(cfg);
-        case c_TideModel::FixedLag: return std::make_unique<c_FixedLagTide>(cfg);
-        case c_TideModel::CTLQ:     return std::make_unique<c_CTLQTide>(cfg);
-    }
-    throw std::invalid_argument("TidalPy: unrecognised c_TideModel enum value");
+// The family's entry points, each one line over the generic registry functions.
+inline std::unique_ptr<c_TideBase> c_find_tide(const std::string& model_name, const c_ParamMap& params) {
+    return c_make_model(c_tide_registry(), model_name, params);
 }
 
-inline std::unique_ptr<c_TideBase> c_find_tide(const std::string& model_name, const c_TideModelConfig& cfg) {
-    return c_find_tide(c_tide_model_from_name(model_name), cfg);
-}
-
-// The class id is peeked without consuming the header so the default-constructed model restores itself.
 inline std::unique_ptr<c_TideBase> c_tide_from_binary(std::istream& in, bool force = false) {
-    const c_BinaryHeader header = c_peek_binary_header(in);
+    return c_model_from_binary(c_tide_registry(), in, force);
+}
 
-    std::unique_ptr<c_TideBase> model;
-    switch (static_cast<BinaryClassID>(header.class_id)) {
-        case BinaryClassID::RheologyTide: model = std::make_unique<c_RheologyTide>(); break;
-        case BinaryClassID::FixedQTide:   model = std::make_unique<c_FixedQTide>();   break;
-        case BinaryClassID::FixedLagTide: model = std::make_unique<c_FixedLagTide>(); break;
-        case BinaryClassID::CTLQTide:     model = std::make_unique<c_CTLQTide>();     break;
-        default:
-            throw std::runtime_error("TidalPy: unknown tide class id in binary stream");
-    }
-    model->read_binary(in, force);
-    return model;
+inline std::string c_tide_canonical_name(const std::string& model_name) {
+    return c_canonical_model_name(c_tide_registry(), model_name);
+}
+
+inline std::vector<std::string> c_tide_model_names() {
+    return c_model_names(c_tide_registry());
 }
 
 }  // namespace tidalpy

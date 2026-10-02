@@ -1,6 +1,6 @@
 # Luminosity Models (`Stellar`)
 
-_Updated: 2026-09-30_
+_Updated: 2026-10-02_
 
 A luminosity model maps a star's mass onto its luminosity $L$ \[W\]. That sets the effective temperature through the Stefan-Boltzmann law, and, once the star is placed in a `System`, the flux and equilibrium temperature of every world orbiting it.
 
@@ -16,12 +16,12 @@ What separates the models is $L(M)$.
 c_TidalPyBaseClass
   └── c_PhysicsBase
         └── c_LuminosityBase  (abstract)
-              ├── c_FixedLuminosity      alias "constant"
-              ├── c_MassToLuminosity     aliases "cuntz_wang", "cw"
-              └── c_PowerLawLuminosity   alias "powerlaw"
+              ├── c_FixedLuminosity     aliases "fixed", "constant"
+              ├── c_MassToLuminosity    aliases "mass_to_luminosity", "cuntz_wang", "cw"
+              └── c_PowerLawLuminosity  aliases "power_law", "powerlaw"
 ```
 
-The base class declares `calc_luminosity(mass)` pure virtual and supplies the Stefan-Boltzmann conversions and the vectorized mass sweep, so a new relation is a single method. The Cython classes mirror the hierarchy: `LuminosityBase`, `FixedLuminosity`, `MassToLuminosity`, `PowerLawLuminosity`.
+The base class declares `calc_luminosity(mass)` pure virtual and supplies the Stefan-Boltzmann conversions and the vectorized mass sweep, so a new relation is a single method. Every concrete model derives from `c_SpecModel`, which gives it its parameters, config dict, and binary record from one table. The canonical names are `fixed`, `mass_to_luminosity`, and `power_law`, and those are the names written to a config dict. The Cython classes mirror the hierarchy: `LuminosityBase`, `FixedLuminosity`, `MassToLuminosity`, `PowerLawLuminosity`.
 
 ## Models
 
@@ -98,17 +98,17 @@ luminosity = power_law(mass_solar, coeff=1.0, exponent=4.0)
 luminosity = fixed(mass_solar, luminosity=3.828e26)
 ```
 
-`make_luminosity(model_name, config=None)` maps the name or alias to the C++ enum factory and returns the matching subclass. Its config keys are the ones `get_config_dict()` emits, which are not always the constructor's argument names.
+Constructors take the model's parameters by argument name or config key, as keywords, positionally in the order `get_parameter_info()` lists them, or as one table through `config=`, so `PowerLawLuminosity(exponent=4.0)` and `PowerLawLuminosity(power_law_exponent=4.0)` build the same model. `make_luminosity(model_name, config=None)` resolves a name or alias case-insensitively and builds the model from `config`. Absent keys take the model's defaults. An unknown name, a key the model does not read, or a value outside a parameter's bounds raises `ValueError` naming the closest accepted one, so a misspelling fails loudly instead of silently building a default model. A key that another luminosity model reads is refused too: a `fixed` table that carries `power_law_exponent` raises.
 
-| Config key | Model | Constructor argument | Meaning |
-|---|---|---|---|
-| `luminosity_w` | fixed | `luminosity` | Luminosity to report [W]. |
-| `power_law_coeff` | power law | `coeff` | Dimensionless prefactor. |
-| `power_law_exponent` | power law | `exponent` | Dimensionless exponent. |
+| Parameter | Config key | Default | Bounds | Model |
+|---|---|---|---|---|
+| `luminosity` | `luminosity_w` | 0.0 | non-negative | Fixed: the luminosity reported at every mass \[W\]. |
+| `coeff` | `power_law_coeff` | 1.0 | positive | Power law: the prefactor $c$, in solar luminosities. |
+| `exponent` | `power_law_exponent` | 3.5 | finite | Power law: the exponent $p$ of the mass ratio. |
 
-`mass_to_luminosity` takes no parameters. A config key that no luminosity model reads raises `ValueError` naming the closest accepted key, so a misspelling fails loudly instead of silently building a default model.
+The parameters read as attributes (`model.exponent`), and every model has `model_name`, `parameters`, `get_parameter(name)`, `get_parameter_info()`, `with_parameters(**changes)`, `get_config_dict()`, and `save_config(path)`. `mass_to_luminosity` has no parameters. `luminosity_model_names()` lists the canonical names and `luminosity_config_keys(name)` the keys one model reads.
 
-The convenience functions `fixed(mass, luminosity=0.0)`, `mass_to_luminosity(mass)`, and `power_law(mass, coeff=1.0, exponent=3.5)` each build a stack-allocated C++ model, evaluate it, and discard it. The mass may be a float or an array; the model parameters are always constants.
+The convenience functions `fixed(mass, luminosity=0.0)`, `mass_to_luminosity(mass)`, and `power_law(mass, coeff=1.0, exponent=3.5)` each build the C++ model for the one call, evaluate it, and discard it. The mass may be a float or an array; the model parameters are always constants.
 
 ### Attaching a Model to a `StarWorld`
 
@@ -133,34 +133,37 @@ Once the star is part of a `System`, `calc_insolation_flux(world)` and `calc_equ
 
 ## Serialization
 
-Every model supports the standard interfaces inherited from the base class.
+| Call | Result |
+|---|---|
+| `get_config_dict()` | `model` plus the model's parameters by config key. |
+| `save_config(path)` | That dict written as TOML. |
+| `save_binary(path)` / `load_binary(path)` | The model's TidalPy binary record, its parameters written by key. |
 
-- `get_config_dict()` returns the model name under the key `model` plus its parameters. The dict is accepted by `make_luminosity`, so a model round-trips through it.
-- `save_config(path)` writes the same content as TOML.
+The dict is accepted by `make_luminosity`, so a model round-trips through it. A star's luminosity model is saved and restored with the star's binary record.
 
 ## C++ API
 
+The models are in `TidalPy/Stellar/luminosity_.hpp` and their base in `luminosity_base_.hpp` (namespace `tidalpy`, header only).
+
 ```cpp
-#include "luminosity_.hpp"   // pulls in luminosity_base_.hpp
+#include "luminosity_.hpp"  // pulls in luminosity_base_.hpp
 
 using namespace tidalpy;
 
-c_LuminosityConfig config;
-config.power_law_exponent = 4.0;
+c_ParamMap params;  // Config key to values; one value for a scalar
+params["power_law_exponent"] = {4.0};
 
-const c_LuminosityModel model_id = c_luminosity_model_from_name("power_law");
-std::unique_ptr<c_LuminosityBase> model = c_find_luminosity(model_id, config);
-
-const double luminosity  = model->calc_luminosity(mass);                    // [W]
-const double temperature = model->calc_effective_temperature(mass, radius); // [K]
+std::unique_ptr<c_LuminosityBase> model = c_find_luminosity("power_law", params);
+const double luminosity = model->calc_luminosity(mass);  // [W]
+const double temperature = model->calc_effective_temperature(mass, radius);  // [K]
 ```
 
 - `c_LuminosityBase : c_PhysicsBase`: abstract, with `calc_luminosity(mass)` pure virtual plus the shared Stefan-Boltzmann conversions and `calc_luminosity_vectorize_mass`.
-- Concrete models `c_FixedLuminosity`, `c_MassToLuminosity`, and `c_PowerLawLuminosity`.
-- `enum class c_LuminosityModel { Fixed, MassToLuminosity, PowerLaw }`.
-- `c_luminosity_model_from_name(name)`: name or alias to enum, throwing `std::invalid_argument` on an unknown name.
-- `c_find_luminosity(model, config)`: heap-allocates the model as a `unique_ptr`.
+- `c_FixedLuminosity`, `c_MassToLuminosity`, and `c_PowerLawLuminosity`: each a `c_SpecModel<Model, c_LuminosityBase>` with its `parameter_specs()` table and `C_CLASS_ID`. The two relations are also free functions, `lum_from_mass(mass)` and `lum_from_power_law(mass, coeff, exponent)`.
+- `c_luminosity_registry()`: each model's names (canonical first, then aliases), binary class id, and constructor.
+- `c_find_luminosity(name, params)`: builds a model from a `c_ParamMap` as a `unique_ptr`, throwing `std::invalid_argument` for an unknown name or parameter or a value outside its bounds.
 - `c_luminosity_from_binary(stream, force)`: reconstructs from a binary record.
+- `c_luminosity_canonical_name(name)` and `c_luminosity_model_names()`: name lookups.
 
 The solar anchors come from `TidalPyConstants::d_MASS_SOLAR` and `d_LUMINOSITY_SOLAR`, and the Stefan-Boltzmann constant from the shared config singleton (`tidalpy_config_ptr->d_SBC`).
 
@@ -168,25 +171,25 @@ The solar anchors come from `TidalPyConstants::d_MASS_SOLAR` and `d_LUMINOSITY_S
 
 **C++ (`TidalPy/Stellar/luminosity_.hpp`)**
 
-1. Add any new parameters to `c_LuminosityConfig` with sensible defaults. The single combined config is shared by all models.
-2. Add a free function implementing the relation, returning NaN for a non-positive mass.
-3. Add the model class deriving from `c_LuminosityBase`: a default constructor and one taking the config, `get_*` accessors, the `calc_luminosity` override, and `get_binary_class_id`, and `get_binary_params` / `set_binary_params` when it has parameters ([Binary Serialization](../Utilities/binary.md)).
-4. Add the enum value, the name and alias branch in `c_luminosity_model_from_name`, and the cases in `c_find_luminosity` and `c_luminosity_from_binary`.
+To add a luminosity model named `Foo`:
+
+1. Add a free function implementing the relation, returning NaN for a non-positive mass.
+2. Add `c_FooLuminosity : public c_SpecModel<c_FooLuminosity, c_LuminosityBase>`: its `parameter_specs()` table (argument name, config key, member, default, bounds, and a one-line description), `C_CLASS_ID`, two constructors that call `p_initialize`, and `calc_luminosity` (calling the free function). Override `p_validate` for checks across parameters and `p_update_derived` for cached values.
+3. Add one row to `c_luminosity_registry()` with the model's names and aliases.
 
 **C++ (`TidalPy/Utilities/binary/binary_.hpp`)**
 
-5. Add a unique `BinaryClassID` in the 100X block.
+4. Reserve a unique `BinaryClassID::FooLuminosity` in the 100X block.
 
 **Cython (`luminosity.pxd` and `luminosity.pyx`)**
 
-6. Declare the C++ class and the new enum value in the `.pxd`.
-7. Add the `cdef class` wrapper with parameter properties, the adoption branch in `make_luminosity`, and the lower-case convenience function.
+5. Declare `cdef class FooLuminosity(LuminosityBase)` in the `.pxd`. In the `.pyx`, add the class with a docstring and `MODEL_NAME = "foo"`, include it in the `ModelFamily` list, and add a lower-case `foo(mass, ...)` convenience function. Add its luminosity tests to `Tests/Test_Stellar/`. The generic tests in `Tests/Test_Utilities/Test_Classes/test_spec_models_01.py` cover its parameters, config, binary record, and errors without changes.
 
-**Package, tests, and docs**
+**Package, tests, and documentation**
 
-8. Export the class and the function from `__init__.py`, and the C++ names from `__init__.pxd`.
-9. Extend `Tests/Test_Stellar`: model name, luminosity against an independent reference, factory and aliases, the temperature conversions, config dict, and binary round trip.
-10. Document the model here and add a changelog entry.
+6. Export `FooLuminosity` and `foo` from `TidalPy/Stellar/__init__.py`.
+7. Extend `Tests/Test_Stellar/Test_Luminosity/test_luminosity_01.py`: luminosity against an independent reference, the factory and aliases, the temperature conversions, the config dict, and the binary round trip.
+8. Document the model here with its relation, parameters, and references.
 
 ## References
 

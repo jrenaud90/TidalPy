@@ -139,10 +139,10 @@ def test_fixed_q_and_dt_on_every_model(name, config, fixed_q, fixed_dt):
 
 
 def test_config_dict_fixed_q():
-    """The config dict names the model and holds per-degree lists for l = 2 to 10."""
+    """The config dict names the model and holds its per-degree lists as given, from l = 2."""
     config = tide_classes.make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}).get_config_dict()
     assert config["model"] == "fixed_q"
-    assert len(config["fixed_k"]) == 9
+    assert config["fixed_k"] == [0.3]
     assert isclose(config["fixed_k"][0], 0.3)
     assert isclose(config["fixed_q"][0], 50.0)
 
@@ -179,7 +179,8 @@ def test_isinstance_chain():
 def test_the_lag_depends_on_the_frequency_magnitude(model_name):
     """The analytic models give a negative frequency the lag of its magnitude, as the collapse (which passes |omega|)
     and the cpl and ctl Love methods do."""
-    from TidalPy.Tides.classes.tide import make_tide
-    model = make_tide(model_name, {"fixed_k": [0.3], "fixed_q": [50.0], "fixed_dt_s": [600.0]})
+    from TidalPy.Tides.classes.tide import make_tide, tide_config_keys
+    lists = {"fixed_k": [0.3], "fixed_q": [50.0], "fixed_dt_s": [600.0]}
+    model = make_tide(model_name, {key: lists[key] for key in tide_config_keys(model_name)})
     frequency = 4.1e-5
     assert model.calc_neg_imk(2, -frequency) == model.calc_neg_imk(2, frequency) > 0.0

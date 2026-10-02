@@ -8,23 +8,17 @@ the three orbital potential derivatives. Only the analytic models are supported 
 needs per-mode Love numbers from the radial solver and is driven by the world's ``calc_tides``.
 """
 
-from libcpp.string cimport string
-from libcpp.memory cimport unique_ptr
-
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.logging.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
 from TidalPy.Tides.potential.truncation_warnings cimport c_warn_standalone_tide_truncations
-from TidalPy.Tides.classes.tide import TIDE_CONFIG_KEYS
-from TidalPy.Utilities.classes.classes import check_config_keys
+from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Tides.eccentricity.eccentricity_driver import (
     validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
 from TidalPy.Tides.obliquity.obliquity_driver import validate_obliquity_truncation
-from TidalPy.Tides.classes.tide cimport (
-    c_TideBase, c_TideModel, c_TideModelConfig, c_tide_model_from_name, c_find_tide, cy_build_tide_config,
-)
+from TidalPy.Tides.classes.tide cimport TideBase, c_TideBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -120,8 +114,8 @@ def collapse_global_tides(
         The ``"rheology"`` model is not supported here (use the world's ``calc_tides``).
     tide_config : dict, optional
         Per-degree model parameters (``fixed_k``, ``fixed_q``, ``fixed_dt_s`` [s] lists indexed
-        from degree l = 2). A key left out takes the ``[tides]`` default of the TidalPy configuration, as
-        ``make_tide`` does; any other key raises ``ValueError``.
+        from degree l = 2), as ``make_tide`` takes them: a list left out takes the ``[tides]`` default of the TidalPy
+        configuration, and a key the model does not read raises ``ValueError``.
     min_degree_l, max_degree_l : int
         Tidal harmonic degree range (2..10).
     eccentricity_truncation : int, optional
@@ -163,18 +157,14 @@ def collapse_global_tides(
     cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
     cdef double eccentricity_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)
 
-    # The same defaults and key check as make_tide: a list left out takes its [tides] value, and an unknown or
-    # misspelled key raises instead of silently leaving a list empty (which would give no heating).
-    if tide_config is not None:
-        check_config_keys(tide_config, TIDE_CONFIG_KEYS, "tide")
-    cdef c_TideModelConfig cfg = cy_build_tide_config(tide_config)
-    cdef c_TideModel model_enum = c_tide_model_from_name(tide_model.encode("utf-8"))
-    if model_enum == c_TideModel.Rheology:
+    # Built as make_tide builds it: a list left out takes its [tides] value, and a key the model does not read raises
+    # instead of silently leaving a list empty (which would give no heating).
+    cdef TideBase tide = make_tide(tide_model, tide_config)
+    if tide.needs_radial_solve:
         raise NotImplementedError(
             "collapse_global_tides supports the analytic tide models only "
             "(cpl/fixed_q, ctl/fixed_dt, ctl_q/fixed_dt_q). The rheology model needs the "
             "radial solver; use the world's calc_tides method.")
-    cdef unique_ptr[c_TideBase] tide_ptr = c_find_tide(model_enum, cfg)
     # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session.
     c_warn_standalone_tide_truncations(
         b"collapse_global_tides", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation,
@@ -200,7 +190,7 @@ def collapse_global_tides(
             f"Global potential failed with error code {potential.error_code} "
             f"(working on degree l={potential.working_on_l}).")
 
-    cdef c_GlobalTideResult result = c_collapse_global_tides(potential, tide_ptr.get()[0])
+    cdef c_GlobalTideResult result = c_collapse_global_tides(potential, tide._tide()[0])
 
     return {
         "tidal_heating": result.tidal_heating,

@@ -54,9 +54,9 @@ class ModelFamily:
         self.classes = {cls.MODEL_NAME: cls for cls in classes}
         self.canonical_name = canonical_name
         # Each model's config keys, read from a default instance's parameter table.
-        # A composite class lists the keys of its sub-model tables in EXTRA_CONFIG_KEYS.
+        # A class that reads keys beyond its table (a composite's sub-model tables) lists them in EXTRA_CONFIG_KEYS.
         self.model_config_keys = {
-            name: frozenset(entry["key"] for entry in cls().get_parameter_info())
+            name: frozenset(entry["key"] for entry in cls._default_model().get_parameter_info())
                   | frozenset(getattr(cls, "EXTRA_CONFIG_KEYS", ()))
             for name, cls in self.classes.items()}
         self.config_keys = frozenset().union(*self.model_config_keys.values())

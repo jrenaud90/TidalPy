@@ -120,7 +120,7 @@ def test_the_tide_and_radiogenics_factories_follow_an_edited_configuration(confi
     assert given_time["isotope_names"] == short_lived["isotope_names"] and given_time["ref_time_s"] == 1.0e16
     no_isotopes = {key: [] for key in ("heat_production_w_kg", "half_lives_s", "mass_fracs", "concentrations",
                                        "isotope_names")}
-    assert make_radiogenics("isotope", no_isotopes).get_config_dict()["isotope_names"] == []
+    assert make_radiogenics("isotope", no_isotopes).num_isotopes == 0
 
 
 def test_the_isotope_dataset_does_not_reach_a_fixed_model():
@@ -130,14 +130,12 @@ def test_the_isotope_dataset_does_not_reach_a_fixed_model():
     assert fixed["fixed_heat_production_w_kg"] == 0.0
 
 
-def test_a_model_ignores_the_other_model_keys_of_a_merged_table():
-    """Each model takes only its own keys from a table that carries keys for several models."""
-    merged = {"isotopes": "modern_day_chondritic", "fixed_heat_production_w_kg": 2.0e-12}
-    fixed = make_radiogenics("constant", dict(merged)).get_config_dict()
-    assert fixed["ref_time_s"] == 0.0 and fixed["fixed_heat_production_w_kg"] == 2.0e-12
-    assert "isotope_names" not in fixed
-    isotope = make_radiogenics("isotopes", dict(merged)).get_config_dict()
-    assert isotope["isotope_names"] == ["U238", "U235", "Th232", "K40"] and isotope["ref_time_s"] > 1.0e17
+def test_a_model_refuses_another_model_keys():
+    """A model reads its own keys only, so a key of another model of the family is refused by name."""
+    with pytest.raises(ValueError, match="radiogenics model 'fixed' has no parameter 'isotopes'"):
+        make_radiogenics("constant", {"isotopes": "modern_day_chondritic", "fixed_heat_production_w_kg": 2.0e-12})
+    with pytest.raises(ValueError, match="radiogenics model 'isotope' has no parameter 'fixed_heat_production_w_kg'"):
+        make_radiogenics("isotopes", {"isotopes": "modern_day_chondritic", "fixed_heat_production_w_kg": 2.0e-12})
 
 
 def test_the_world_builder_gives_a_fixed_layer_the_fixed_keys_only():

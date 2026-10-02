@@ -4,7 +4,7 @@ from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.vector cimport vector
 
-from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase
+from TidalPy.Utilities.classes.classes cimport PhysicsBase, c_PhysicsBase, c_ParamMap
 
 
 cdef extern from "luminosity_base_.hpp" namespace "tidalpy" nogil:
@@ -21,42 +21,13 @@ cdef extern from "luminosity_base_.hpp" namespace "tidalpy" nogil:
 
 cdef extern from "luminosity_.hpp" namespace "tidalpy" nogil:
 
-    cdef cppclass c_LuminosityConfig:
-        double luminosity
-        double power_law_coeff
-        double power_law_exponent
-
-    cdef cppclass c_FixedLuminosity(c_LuminosityBase):
-        c_FixedLuminosity() except +
-        c_FixedLuminosity(const c_LuminosityConfig& config) except +
-        double get_luminosity() const
-
-    cdef cppclass c_MassToLuminosity(c_LuminosityBase):
-        c_MassToLuminosity() except +
-        c_MassToLuminosity(const c_LuminosityConfig& config) except +
-
-    cdef cppclass c_PowerLawLuminosity(c_LuminosityBase):
-        c_PowerLawLuminosity() except +
-        c_PowerLawLuminosity(const c_LuminosityConfig& config) except +
-        double get_coeff()    const
-        double get_exponent() const
-
-    cdef enum class c_LuminosityModel:
-        Fixed
-        MassToLuminosity
-        PowerLaw
-
-    # Raises ValueError on an unknown name.
-    c_LuminosityModel c_luminosity_model_from_name(const string& model_name) except +
-
-    unique_ptr[c_LuminosityBase] c_find_luminosity(
-        c_LuminosityModel model, const c_LuminosityConfig& config) except +
+    unique_ptr[c_LuminosityBase] c_find_luminosity(const string& model_name, const c_ParamMap& params) except +
+    string c_luminosity_canonical_name(const string& model_name) except +
+    vector[string] c_luminosity_model_names() except +
 
 
 cdef class LuminosityBase(PhysicsBase):
-    # The model lives in PhysicsBase's shared handle, so a star can share it rather than copy it.
-    cdef void _adopt(self, unique_ptr[c_LuminosityBase]& model) noexcept
-    cdef c_LuminosityBase* _luminosity(self) noexcept
+    cdef c_LuminosityBase* _luminosity(self) except NULL
 
 
 cdef class FixedLuminosity(LuminosityBase):
