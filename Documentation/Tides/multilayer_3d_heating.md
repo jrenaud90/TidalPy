@@ -387,7 +387,7 @@ degrees, freqs, pots = tidal_potential_3d_modes(
 
 - `strain_stress_heating_point` returns the six complex strain and six complex stress amplitudes at a point for one mode, and that mode's own heating \[W m$^{-3}$\] at the frequency given.
 - `displacement_point` returns the complex displacement amplitudes $u_r = y_1 U$, $u_\theta = y_3\, \partial U / \partial\theta$, and $u_\phi = y_3\, (\partial U / \partial\phi) / \sin\theta$ \[m\].
-- `volumetric_heating(stress, strain, frequency)` returns the cycle-averaged heating $(|\omega| / 2)\,\left|\sum_k w_k\,\mathrm{Im}\left(\sigma_k\,\overline{\varepsilon_k}\right)\right|$ \[W m$^{-3}$\] of amplitudes at the frequency $\omega$, with $w_k = 2$ on the three off-diagonal components, the same factor the world path applies.
+- `volumetric_heating(stress, strain, frequency)` returns the cycle-averaged heating $(|\omega| / 2)\,\sum_k w_k\,\mathrm{Im}\left(\sigma_k\,\overline{\varepsilon_k}\right)$ \[W m$^{-3}$\] of amplitudes at the frequency $\omega$, with $w_k = 2$ on the three off-diagonal components, the same factor the world path applies. It is signed, like the world's totals: non-negative for dissipative moduli, so a negative value flags a modulus with $\mathrm{Im}(\mu) < 0$ or a wrong-sign solution.
 
 The first two take one row from `tidal_potential_3d_modes` together with the radial functions and complex moduli at the point, which the world provides after a radial-solver Love solve. A real row is treated as a phasor with zero phase. Assembling several modes follows the rules of the world methods:
 

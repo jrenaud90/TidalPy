@@ -155,13 +155,7 @@ public:
           p_switches(cfg.switches),
           p_use_heating(cfg.use_heating)
     {
-        // An inverted or negative shell would carry a negative volume through every mass and heating sum.
-        if (!(std::isfinite(cfg.radius_inner) && std::isfinite(cfg.radius_outer)
-                && (cfg.radius_inner >= 0.0) && (cfg.radius_outer >= cfg.radius_inner))) {
-            throw std::invalid_argument(
-                "TidalPy: layer '" + cfg.name + "' needs finite radii with 0 <= radius_inner <= radius_outer; got " +
-                std::to_string(cfg.radius_inner) + " to " + std::to_string(cfg.radius_outer) + " m.");
-        }
+        p_check_radii(cfg.name, cfg.radius_inner, cfg.radius_outer);
         if (cfg.mass < 0.0) {
             throw std::invalid_argument(
                 "TidalPy: layer '" + cfg.name + "' has a negative mass (" + std::to_string(cfg.mass) + " kg).");
@@ -232,8 +226,10 @@ public:
     // Keeps every derived geometric quantity in step. The EOS solve calls it when a layer below has grown or shrunk,
     // or when this layer is holding its mass rather than its volume, so it leaves the owning world's solved structure
     // alone; a caller moving a world's layer by hand tells the world itself (c_BaseWorld::update_after_layer_change).
-    // The owner's call lock keeps a move out of a running solve.
-    void set_radii(double radius_inner, double radius_outer) noexcept {
+    // The owner's call lock keeps a move out of a running solve. Throws std::invalid_argument for radii the constructor
+    // would refuse (p_check_radii), leaving the layer as it was.
+    void set_radii(double radius_inner, double radius_outer) {
+        p_check_radii(this->p_name, radius_inner, radius_outer);
         const c_WorldCallLock call_lock(this->p_owner_call_mutex.get());
         this->p_radius_inner = radius_inner;
         this->p_radius       = radius_outer;
@@ -631,6 +627,16 @@ public:
     }
 
 protected:
+    // An inverted or negative shell would carry a negative volume through every mass and heating sum.
+    static void p_check_radii(const std::string& name, double radius_inner, double radius_outer) {
+        if (!(std::isfinite(radius_inner) && std::isfinite(radius_outer)
+                && (radius_inner >= 0.0) && (radius_outer >= radius_inner))) {
+            throw std::invalid_argument(
+                "TidalPy: layer '" + name + "' needs finite radii with 0 <= radius_inner <= radius_outer; got " +
+                std::to_string(radius_inner) + " to " + std::to_string(radius_outer) + " m.");
+        }
+    }
+
     void p_write_payload(std::ostream& out) const override {
         c_StructureBase::p_write_payload(out);
         write_binary_string(out, this->p_name);

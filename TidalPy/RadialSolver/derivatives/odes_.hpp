@@ -6,6 +6,7 @@
 #include "c_common.hpp"        // CyRK: DiffeqFuncType, PreEvalFunc
 #include "eos_solution_.hpp"   // TidalPy: c_EOSSolution
 #include "../../constants_.hpp"
+#include "../layer_kind_.hpp"   // c_layer_num_solutions
 
 
 /// Arguments passed to each radial solver ODE function via the char* args_ptr.
@@ -636,19 +637,5 @@ inline size_t c_find_num_shooting_solutions(
         int layer_is_incomp
         ) noexcept
 {
-    if (layer_type == 0)
-    {
-        return 3;
-    }
-    else
-    {
-        if (layer_is_static == 1)
-        {
-            return 1;
-        }
-        else
-        {
-            return 2;
-        }
-    }
+    return c_layer_num_solutions(layer_type, layer_is_static == 1);
 }

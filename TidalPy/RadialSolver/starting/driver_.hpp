@@ -8,6 +8,7 @@
 #include "kamata_.hpp"
 #include "takeuchi_.hpp"
 #include "saito_.hpp"
+#include "../layer_kind_.hpp"
 
 
 // Fill starting_conditions_ptr (num_ys per solution) for the layer type and assumptions at radius [m], from
@@ -60,9 +61,7 @@ inline void c_find_starting_conditions(
 
     if (run_y_checks)
     {
-        // Two ys for a static liquid, four for a dynamic one, six for a solid.
-        const size_t num_ys_for_assumption = is_liquid ? (is_static ? 2 : 4) : 6;
-        if (num_ys_for_assumption != num_ys)
+        if (c_layer_num_ys(layer_type, is_static) != num_ys)
         {
             *success_ptr = false;
             message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting "

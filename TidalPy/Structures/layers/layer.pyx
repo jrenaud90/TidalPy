@@ -418,6 +418,11 @@ cdef class Layer(StructureBase):
 
         Setting the radii by hand on a world's layer leaves the world's own radius and its other layers untouched, so
         keep the stack continuous; the world forgets its solved profile, which no longer lines up with its layers.
+
+        Raises
+        ------
+        ValueError
+            Unless the radii are finite with 0 <= radius_inner <= radius_outer; the layer is left as it was.
         """
         self._check_ptr()
         self._layer_ptr.get().set_radii(radius_inner, radius_outer)

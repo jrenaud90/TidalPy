@@ -30,7 +30,7 @@ inline int c_angular_gram_flat(int degree_l, int order_m, double* gram36) noexce
 
 // Cycle-averaged volumetric heating [W m-3] at a forcing frequency [rad s-1] from the 6 complex stress and 6 complex
 // strain amplitudes at that frequency, each passed as 12 doubles (re, im per component): (|omega|/2) times the
-// magnitude of the weighted Im(stress conj strain), the same factor the world path applies to its summed amplitudes.
+// weighted Im(stress conj strain), signed, with the same factor the world path applies to its summed amplitudes.
 inline double c_volumetric_heating_flat(const double* stress12, const double* strain12, double frequency) noexcept
 {
     c_Tensor6 stress, strain;

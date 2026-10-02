@@ -8,6 +8,9 @@ cnp.import_array()
 from libcpp cimport bool as cpp_bool
 from libcpp.complex cimport complex as cpp_complex
 
+from TidalPy.RadialSolver.buffer_checks cimport (
+    c_layer_num_solutions, cy_check_at_least, cy_check_solution_rows, cy_resolve_num_ys)
+
 
 def top_to_bottom_interface_bc(
         double complex[::1] constant_vector_view,
@@ -23,7 +26,7 @@ def top_to_bottom_interface_bc(
         cpp_bool layer_above_is_static,
         cpp_bool layer_is_incomp,
         cpp_bool layer_above_is_incomp,
-        int max_num_y = 6):
+        object max_num_y = None):
     """
     Calculate the constant vector for a layer given the layer above's constants (top-to-bottom).
 
@@ -54,9 +57,25 @@ def top_to_bottom_interface_bc(
     layer_is_incomp : bool
     layer_above_is_incomp : bool
     max_num_y : int, optional
-        Maximum number of y values per solution. Default 6.
+        The y values per solution, which must equal the array's column count; None (default) takes it from it.
+
+    Raises
+    ------
+    ValueError
+        If constant_vector_view is shorter than 3, layer_above_constant_vector_view shorter than the layer above's
+        solutions, or uppermost_y_per_solution_view too small for this layer's solutions and ys.
     """
-    cdef size_t num_sols = uppermost_y_per_solution_view.shape[0]
+    cy_check_at_least("top_to_bottom_interface_bc's constant_vector_view", constant_vector_view.shape[0], 3, "entries")
+    cy_check_at_least(
+        "top_to_bottom_interface_bc's layer_above_constant_vector_view", layer_above_constant_vector_view.shape[0],
+        <Py_ssize_t>c_layer_num_solutions(layer_above_type, layer_above_is_static), "entries")
+    cy_check_solution_rows(
+        "top_to_bottom_interface_bc's uppermost_y_per_solution_view", uppermost_y_per_solution_view.shape[0],
+        layer_type, layer_is_static)
+    cdef size_t num_ys = cy_resolve_num_ys(
+        "top_to_bottom_interface_bc", uppermost_y_per_solution_view.shape[1], max_num_y, layer_type,
+        layer_is_static)
+    cdef size_t num_sols = c_layer_num_solutions(layer_type, layer_is_static)
 
     c_top_to_bottom_interface_bc(
         <cpp_complex[double]*>&constant_vector_view[0],
@@ -73,5 +92,5 @@ def top_to_bottom_interface_bc(
         layer_is_incomp,
         layer_above_is_incomp,
         num_sols,
-        max_num_y
+        num_ys
         )

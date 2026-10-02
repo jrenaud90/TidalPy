@@ -149,8 +149,8 @@ inline void c_compute_strain_stress(
         stress_out);
 }
 
-// Magnitude of the weighted bilinear form [Pa] at a point from the 6 stress and strain amplitudes:
-// h = | sum_k [ Im(sigma_k) Re(eps_k) - Re(sigma_k) Im(eps_k) ] |, with factor 2 on the 3 off-diagonals.
+// The weighted bilinear form [Pa] at a point from the 6 stress and strain amplitudes:
+// h = sum_k [ Im(sigma_k) Re(eps_k) - Re(sigma_k) Im(eps_k) ], with factor 2 on the 3 off-diagonals.
 // For the summed amplitudes of one frequency, (|omega|/2) h is the cycle-averaged heating [W m-3].
 inline double c_volumetric_heating(const c_Tensor6& stress, const c_Tensor6& strain) noexcept
 {
@@ -161,9 +161,10 @@ inline double c_volumetric_heating(const c_Tensor6& stress, const c_Tensor6& str
                           - stress.c[k].real() * strain.c[k].imag();
         h += (k < 3) ? term : 2.0 * term;
     }
-    // The weighted sum is real. For the summed amplitudes of one frequency it is non-negative for dissipative
-    // moduli, so there the magnitude equals the signed sum (Europa book Eq. 42).
-    return std::abs(h);
+    // Non-negative for the summed amplitudes of one frequency and dissipative moduli (Europa book Eq. 42). Signed, as
+    // the world's 1D and 3D totals are, so a modulus with Im(mu) < 0 or a wrong-sign solution shows as negative
+    // heating here too instead of being hidden.
+    return h;
 }
 
 // The 3 complex displacement components at a point: [0]=radial u_r, [1]=polar u_theta, [2]=azimuthal u_phi.

@@ -98,6 +98,11 @@ inline int c_matrix_propagate(
         solution_storage_ptr->success    = false;
         return solution_storage_ptr->error_code;
     }
+    // Each radius query of the solution finds its layer by these (p_locate_eos), as on the shooting path, so a radius
+    // above the surface reads NaN rather than the top layer's values.
+    solution_storage_ptr->p_upper_radii_solve.assign(
+        eos_solution_storage_ptr->upper_radius_bylayer_vec.begin(),
+        eos_solution_storage_ptr->upper_radius_bylayer_vec.begin() + num_layers);
 
     // Every layer this method takes is static, and at degree 1 a rigid translation of a static body meets every
     // surface condition, so the surface system is singular and the Love numbers depend on a choice of reference

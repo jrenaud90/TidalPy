@@ -14,13 +14,12 @@ user's ``Io_Mantle.toml`` is ``io_mantle``.
 """
 
 import os
-import shutil
 import sys
 import warnings
 from typing import Callable, Optional
 
 from TidalPy.configurations import warning_enabled
-from TidalPy.paths import warn_unusable_data_dir
+from TidalPy.paths import warn_unusable_data_dir, write_file_atomically
 
 # The installed package directory, so a warning can point past TidalPy's own frames at the caller.
 _PACKAGE_DIR = os.path.normcase(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + os.sep
@@ -122,7 +121,9 @@ class DataPack:
             destination = os.path.join(data_dir, entry)
             if force or not os.path.isfile(destination):
                 try:
-                    shutil.copyfile(os.path.join(self.packaged_dir, entry), destination)
+                    with open(os.path.join(self.packaged_dir, entry), "rb") as packaged_file:
+                        # Atomic, so a process reading the copy while another installs it never sees part of it.
+                        write_file_atomically(destination, packaged_file.read(), keep_existing=not force)
                 except OSError as error:
                     if force:
                         raise

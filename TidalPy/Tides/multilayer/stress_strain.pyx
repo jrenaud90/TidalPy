@@ -59,9 +59,11 @@ def volumetric_heating(double complex[::1] stress not None, double complex[::1] 
     Returns
     -------
     float
-        ``(|frequency| / 2) |sum_k w_k Im(stress_k conj(strain_k))|`` [W m-3] with ``w_k = 2`` on the three
+        ``(|frequency| / 2) sum_k w_k Im(stress_k conj(strain_k))`` [W m-3] with ``w_k = 2`` on the three
         off-diagonal components (Europa book Eq. 42), the same factor the world path applies. Pass the summed
-        amplitudes of every mode at one forcing frequency; the heating of different frequencies adds.
+        amplitudes of every mode at one forcing frequency; the heating of different frequencies adds. Signed, like
+        the world's totals: non-negative for dissipative moduli, so a negative value flags a modulus with
+        Im(mu) < 0 or a wrong-sign solution.
 
     Raises
     ------

@@ -9,6 +9,9 @@ imported once per process, so ``TidalPy.reinit()`` never registers the hook a se
 """
 
 import atexit
+import numbers
+
+from TidalPy.schema import LOG_LEVELS, LOG_LEVEL_RANGE
 
 from TidalPy.Utilities.logging.logger cimport (
     c_LoggerConfig,
@@ -33,36 +36,24 @@ cdef api void* get_tidalpy_logger_address():
     return cy_get_logger_ptr()
 
 
-# spdlog level enum: trace=0, debug=1, info=2, warn=3, error=4, critical=5, off=6
-_LEVEL_MAP: dict = {
-    "trace":    0,
-    "debug":    1,
-    "info":     2,
-    "warning":  3,
-    "warn":     3,
-    "error":    4,
-    "critical": 5,
-    "off":      6,
-}
-
-
 cdef int cy_resolve_level(object level) except -1:
-    """A level name (case-insensitive) or an integer 0 to 6, as the spdlog level integer."""
+    """A level name (case-insensitive, TidalPy.schema.LOG_LEVELS) or an integer 0 to 6, as the spdlog level integer
+    (trace = 0 to off = 6). A bool is neither."""
     cdef str key
     if isinstance(level, str):
         key = level.lower()
-        if key not in _LEVEL_MAP:
+        if key not in LOG_LEVELS:
             raise ValueError(
                 f"Unknown log level '{level}'. "
-                f"Valid levels: {list(_LEVEL_MAP.keys())}"
+                f"Valid levels: {list(LOG_LEVELS.keys())}"
             )
-        return _LEVEL_MAP[key]
-    elif isinstance(level, int):
-        if not (0 <= level <= 6):
+        return LOG_LEVELS[key]
+    elif isinstance(level, numbers.Integral) and not isinstance(level, bool):
+        if not (LOG_LEVEL_RANGE[0] <= level <= LOG_LEVEL_RANGE[1]):
             raise ValueError(
-                f"Integer log level must be in range [0, 6], got {level}."
+                f"Integer log level must be in range [{LOG_LEVEL_RANGE[0]}, {LOG_LEVEL_RANGE[1]}], got {level}."
             )
-        return level
+        return int(level)
     else:
         raise TypeError(
             f"Log level must be a str or int, got {type(level).__name__}."

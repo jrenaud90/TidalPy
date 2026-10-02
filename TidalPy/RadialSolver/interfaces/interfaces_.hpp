@@ -112,7 +112,8 @@ inline void c_solve_upper_y_at_interface(
 
     const double g_const = 4.0 * TidalPyConstants::d_PI * G_to_use;
 
-    for (size_t yi_upper = 0; yi_upper < 18; ++yi_upper)
+    // The caller's buffer holds num_sols_upper rows of max_num_y.
+    for (size_t yi_upper = 0; yi_upper < (num_sols_upper * max_num_y); ++yi_upper)
     {
         upper_layer_y_ptr[yi_upper] = cmplx_NAN;
     }

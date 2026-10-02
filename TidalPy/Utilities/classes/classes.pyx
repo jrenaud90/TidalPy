@@ -295,12 +295,15 @@ def canonical_parameter_keys(object model_class, dict table) -> dict:
             entry["name"]: entry["key"] for entry in model_class().get_parameter_info()}
     cdef dict spellings = _PARAMETER_SPELLINGS[model_class]
     cdef dict out = {}
+    # The spelling each parameter was given under, to name both in the error.
+    cdef dict given_as = {}
     for key, value in table.items():
         canonical = spellings.get(key, key)
         if canonical in out:
-            raise TypeError(f"TidalPy: '{key}' and '{canonical}' are the same parameter of {model_class.__name__}; "
-                            "give it once.")
+            raise TypeError(f"TidalPy: '{given_as[canonical]}' and '{key}' are the same parameter of "
+                            f"{model_class.__name__}; give it once.")
         out[canonical] = value
+        given_as[canonical] = key
     return out
 
 

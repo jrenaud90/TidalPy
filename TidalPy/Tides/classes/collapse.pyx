@@ -16,6 +16,7 @@ from TidalPy.Utilities.logging.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
+from TidalPy.Tides.potential.truncation_warnings cimport c_warn_standalone_tide_truncations
 from TidalPy.Tides.classes.tide import TIDE_CONFIG_KEYS
 from TidalPy.Utilities.classes.classes import check_config_keys
 from TidalPy.Tides.eccentricity.eccentricity_driver import (
@@ -174,6 +175,10 @@ def collapse_global_tides(
             "(cpl/fixed_q, ctl/fixed_dt, ctl_q/fixed_dt_q). The rheology model needs the "
             "radial solver; use the world's calc_tides method.")
     cdef unique_ptr[c_TideBase] tide_ptr = c_find_tide(model_enum, cfg)
+    # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session.
+    c_warn_standalone_tide_truncations(
+        b"collapse_global_tides", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation,
+        max_degree_l)
 
     cdef c_GlobalPotentialStorage potential = c_global_potential(
         planet_radius,

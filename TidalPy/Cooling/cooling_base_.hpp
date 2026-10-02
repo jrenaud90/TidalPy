@@ -91,7 +91,8 @@ struct c_LayerThermalContext {
     double radius_outer       = 0.0;    // [m]
     double temperature        = 0.0;    // the layer's own temperature [K]
     // The temperature across the lower boundary layer from the top of the layer below, and across the upper one to
-    // the base of the layer above or the surface [K]. A neighbor that exchanges no heat gives this layer's own value.
+    // the base of the layer above or the surface [K]. A neighbor that exchanges no heat gives the value on this side
+    // of that boundary layer (the base of the interior below, the layer's own temperature above), so no drop.
     double inner_temperature  = 0.0;
     double outer_temperature  = 0.0;
     // From the last pass: the interfaces below and above the layer [K] (each the layer's own temperature before any

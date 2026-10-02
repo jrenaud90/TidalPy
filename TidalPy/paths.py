@@ -1,4 +1,5 @@
 import os
+import tempfile
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -51,7 +52,8 @@ def get_data_dir() -> str:
     base_dir = os.environ.get(DATA_DIR_ENVIRONMENT_VARIABLE, "").strip()
     if not base_dir:
         base_dir = os.path.join(user_documents_dir(), "TidalPy")
-    return os.path.join(os.path.expanduser(base_dir), get_data_version())
+    # Absolute, so a relative TIDALPY_DATA_DIR does not move with the working directory during a session.
+    return os.path.join(os.path.abspath(os.path.expanduser(base_dir)), get_data_version())
 
 
 def warn_unusable_data_dir(reason) -> None:
@@ -83,6 +85,46 @@ def _data_sub_dir(name: str) -> Optional[str]:
         warn_unusable_data_dir(error)
         return None
     return directory
+
+
+def write_file_atomically(path: str, contents: bytes, keep_existing: bool = False) -> None:
+    """ Write ``contents`` to ``path`` so that no reader ever sees a partial file.
+
+    The bytes go to a temporary file in the same directory, which then replaces ``path`` in one step. Several
+    processes starting together on a fresh data directory (``pytest -n``, a process pool, an array job) can then all
+    install the same default file while others read it.
+
+    Parameters
+    ----------
+    path : str
+        The file to write.
+    contents : bytes
+        Its full contents.
+    keep_existing : bool, default=False
+        Leave a file that already exists alone. A file another process creates in the meantime is kept as well,
+        including when it is open there (Windows refuses to replace an open file).
+
+    Raises
+    ------
+    OSError
+        If the file cannot be written and does not exist afterward.
+    """
+    if keep_existing and os.path.isfile(path):
+        return
+    directory = os.path.dirname(os.path.abspath(path))
+    handle, temporary_path = tempfile.mkstemp(dir=directory, prefix=".", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "wb") as temporary_file:
+            temporary_file.write(contents)
+        try:
+            os.replace(temporary_path, path)
+        except OSError:
+            if not os.path.isfile(path):
+                raise
+            # Another process wrote the file first and holds it open; its copy is as good as this one.
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
 
 
 # TidalPy directories

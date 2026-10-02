@@ -15,6 +15,7 @@
  *   liquid (soft-turbulence) interior.
  */
 
+#include <algorithm>
 #include <cmath>
 #include <istream>
 #include <memory>
@@ -255,10 +256,12 @@ public:
 
         // The drop is the sum of the two boundary layers' drops: from the top of the layer below to the base of this
         // layer's adiabat, and from this layer's temperature to the base of the layer above or the surface. The
-        // adiabat's base comes from the last pass, so it lags by one.
+        // adiabat's base comes from the last pass, so it lags by one. Only an unstable drop (hotter below) drives
+        // convection, so a boundary layer the wrong way round (a core colder than the base of the mantle above it, a
+        // layer heated from above) adds none rather than counting as if it were heated from below.
         c_CoolingInputs inputs;
-        inputs.delta_temp = std::fabs(context.inner_temperature - context.base_temperature)
-                          + std::fabs(context.temperature - context.outer_temperature);
+        inputs.delta_temp = std::max(context.inner_temperature - context.base_temperature, 0.0)
+                          + std::max(context.temperature - context.outer_temperature, 0.0);
         inputs.thickness            = thickness;
         inputs.gravity              = gravity;
         inputs.density              = mid.density;

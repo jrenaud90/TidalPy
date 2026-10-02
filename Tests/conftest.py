@@ -12,6 +12,8 @@ import os
 import shutil
 import tempfile
 
+import pytest
+
 # TidalPy.paths.DATA_DIR_ENVIRONMENT_VARIABLE, spelled out: importing it would initialize TidalPy before it is set.
 DATA_DIR_ENVIRONMENT_VARIABLE = "TIDALPY_DATA_DIR"
 
@@ -19,3 +21,22 @@ _TEST_DATA_DIR = tempfile.mkdtemp(prefix="tidalpy_tests_")
 atexit.register(shutil.rmtree, _TEST_DATA_DIR, ignore_errors=True)
 os.environ[DATA_DIR_ENVIRONMENT_VARIABLE] = _TEST_DATA_DIR
 os.environ["TIDALPY_TEST_MODE"] = "1"
+
+
+@pytest.fixture
+def spdlog_text(tmp_path):
+    """Route the C++ logger to a temporary file for the test and hand back a reader for its text; the logger returns to
+    the configured settings afterward."""
+    from TidalPy.initialize import build_logging_config
+    from TidalPy.Utilities.logging.logger import flush_logger, init_logger
+
+    log_path = tmp_path / "tidalpy.log"
+    init_logger({"console_level": "off", "file_level": "warning", "log_to_file": True,
+                 "log_file_path": str(log_path)})
+
+    def read():
+        flush_logger()
+        return log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+
+    yield read
+    init_logger(build_logging_config())

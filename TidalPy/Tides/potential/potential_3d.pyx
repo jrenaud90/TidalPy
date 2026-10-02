@@ -23,13 +23,16 @@ cnp.import_array()
 from libcpp.vector cimport vector
 
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.Utilities.logging.logger cimport set_tidalpy_logger_ptr_void, get_tidalpy_logger_address
+from TidalPy.Tides.potential.truncation_warnings cimport c_warn_standalone_tide_truncations
 from TidalPy.Tides.potential.potential_3d cimport (
     c_TidalPotential3DMode,
     c_tidal_potential_3d_modes,
 )
 
-# Wire this extension's config singleton pointer to the process-wide TidalPy config.
+# Wire this extension's config and logger singleton pointers to the process-wide TidalPy ones.
 set_tidalpy_config_ptr(get_shared_config_address())
+set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 
 
 def tidal_potential_3d_modes(
@@ -69,6 +72,10 @@ def tidal_potential_3d_modes(
     cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
     cdef double eccentricity_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)
     cdef int i_obliquity_truncation = validate_obliquity_truncation(obliquity_truncation)
+    # The warnings a world's tidal solve gives when the truncations misstate the tides, once per session.
+    c_warn_standalone_tide_truncations(
+        b"tidal_potential_3d_modes", eccentricity, obliquity, i_eccentricity_truncation, i_obliquity_truncation,
+        max_degree_l)
 
     cdef int error_code = 0
     cdef vector[c_TidalPotential3DMode] modes = c_tidal_potential_3d_modes(

@@ -54,6 +54,7 @@ from TidalPy.Tides.eccentricity.eccentricity_driver import (
 from TidalPy.Tides.obliquity.obliquity_driver import obliquity_truncation_name, validate_obliquity_truncation
 from TidalPy.Utilities.logging.logger import log_warning
 from TidalPy.constants import ODE_METHOD_NAMES, ode_method_from_name
+from TidalPy.exceptions import SolutionFailedError
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides and the 3D tidal paths, with the heavy
 # global-potential engine they use, so they compile into this extension.
@@ -1433,8 +1434,13 @@ cdef class BaseWorld(StructureBase):
 
     # calc_* variants: solve the EOS first if it is unsolved (or force_recalc), then read the profile.
     def _ensure_solved(self, cpp_bool force_recalc):
+        """Solve the EOS when asked to or when the world is unsolved, raising SolutionFailedError (with the solve's
+        message) when that solve fails, rather than letting the calc_* getters return NaN profiles."""
         if force_recalc or not self._world_ptr.get().get_eos_solved():
-            self.solve_eos()
+            report = self.solve_eos()
+            if not report["success"]:
+                raise SolutionFailedError(
+                    f"TidalPy: the EOS solve of world '{self.name}' failed: {report['message']}")
 
     def calc_density(self, radius, cpp_bool force_recalc=False):
         """Density [kg/m^3]; solves the EOS first if needed."""

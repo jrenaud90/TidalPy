@@ -116,10 +116,22 @@ def test_mutual_pair_shares_one_orbit():
     assert system.calc_orbital_frequency(earth) == system.calc_orbital_frequency(moon)
     assert system.calc_gravitational_parameter(earth) == system.calc_gravitational_parameter(moon)
 
-    system.set_semi_major_axis(earth, 3.844e8)
-    system.set_eccentricity(earth, 0.0549)
-    assert system.get_semi_major_axis(moon) == 3.844e8
+    # Setting an element on either member sets the shared orbit.
     system.set_semi_major_axis(earth, 4.0e8)
+    system.set_eccentricity(earth, 0.06)
+    assert system.get_semi_major_axis(moon) == 4.0e8
+    assert system.get_eccentricity(moon) == 0.06
+
+
+def test_a_pair_formed_from_two_different_orbits_is_refused():
+    """Two worlds that carried different elements before they hosted each other give no one orbit."""
+    system = System()
+    earth = _planet("earth")
+    moon = _moon()
+    system.add_world(earth)
+    system.add_world(moon, tidal_host=earth, semi_major_axis=3.844e8, eccentricity=0.0549)
+    system.set_semi_major_axis(earth, 4.0e8)
+    system.set_tidal_host(earth, moon)
     with pytest.raises(ValueError, match="share one orbit"):
         system.get_semi_major_axis(moon)
     with pytest.raises(ValueError, match="share one orbit"):

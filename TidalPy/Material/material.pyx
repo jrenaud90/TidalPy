@@ -361,12 +361,15 @@ cdef class Material(PhysicsBase):
         change that would leave neither a solid nor a liquid phase raises ValueError.
         """
         cdef dict components = {slot: self._component(slot) for slot in ("solid", "liquid", *_MELTING_SLOTS)}
-        cdef dict parameters = dict(self.parameters)
+        cdef dict parameter_changes = {}
         for key, value in changes.items():
             if key in components:
                 components[key] = value
             else:
-                parameters[key] = value
+                parameter_changes[key] = value
+        # Both under the config spelling, so a change given by either spelling replaces the parameter.
+        cdef dict parameters = canonical_parameter_keys(Material, dict(self.parameters))
+        parameters.update(canonical_parameter_keys(Material, parameter_changes))
         if components["solid"] is None and components["liquid"] is None:
             raise ValueError("TidalPy: the material would have neither a 'solid' nor a 'liquid' phase.")
         return Material(**{slot: value for slot, value in components.items() if value is not None}, **parameters)

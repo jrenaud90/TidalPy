@@ -6,6 +6,10 @@ cimport numpy as cnp
 cnp.import_array()
 
 
+# find_love reads the surface y1 to y6.
+cdef Py_ssize_t C_NUM_SURFACE_YS = 6
+
+
 cdef class LoveNumbers:
     
     def __cinit__(self, double complex k_, double complex h_, double complex l_):
@@ -70,7 +74,16 @@ def find_love(
     -------
     love : LoveNumbers
         Object containing k, h, l Love/Shida numbers with Q and lag properties.
+
+    Raises
+    ------
+    ValueError
+        If surface_solutions holds fewer than the 6 y values it reads.
     """
+    if surface_solutions.shape[0] < C_NUM_SURFACE_YS:
+        raise ValueError(
+            f"TidalPy: find_love needs the {C_NUM_SURFACE_YS} surface y values y1 to y6; got "
+            f"{surface_solutions.shape[0]}.")
     cdef cpp_complex[double]* surface_ptr = <cpp_complex[double]*>&surface_solutions[0]
 
     cdef c_LoveNumbers love = c_find_love(surface_ptr, surface_gravity)

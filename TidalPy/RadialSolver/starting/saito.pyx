@@ -7,6 +7,8 @@ cnp.import_array()
 
 from libcpp.complex cimport complex as cpp_complex
 
+from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
+
 
 def saito_liquid_static_incompressible(
         double radius,
@@ -26,6 +28,9 @@ def saito_liquid_static_incompressible(
     starting_conditions_view : complex[:, ::1]
         Output array of shape [1, num_ys].
     """
+    cy_check_solution_buffer(
+        "saito_liquid_static_incompressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 1, True)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     c_saito_liquid_static_incompressible(radius, degree_l, num_ys, ptr)

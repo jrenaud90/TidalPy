@@ -2247,6 +2247,11 @@
         "math"
       ],
       [
+        "TidalPy",
+        "Utilities",
+        "logging"
+      ],
+      [
         "TidalPy"
       ]
     ],
@@ -2431,6 +2436,11 @@
         "TidalPy",
         "Utilities",
         "math"
+      ],
+      [
+        "TidalPy",
+        "Utilities",
+        "logging"
       ],
       [
         "TidalPy"

@@ -41,10 +41,12 @@ from TidalPy.Dynamics.spin import Spin
 from TidalPy.Structures.configs.toml_loader import (
     LAYER_GEOMETRY_SPEC_KEYS,
     LAYER_SCALAR_KEYS,
+    WORLD_TYPES,
     _config_section,
     _require_number,
     ordered_layers,
     outer_radius_from_spec,
+    resolve_tide_model_name,
     validate_layer_config,
     validate_world_config,
     warning_enabled,
@@ -917,13 +919,6 @@ def _construct_owned_world(config: dict):
 
 # Fallback for the per-world-family default tide model, used only when the configuration is unavailable. The
 # config file is the single source of truth; this mirror keeps the builder working before it is generated.
-_DEFAULT_TIDE_MODEL_FALLBACK = {
-    "star":        "fixed_q",
-    "gasgiant":    "fixed_dt",
-    "terrestrial": "rheology",
-    "layered":     "rheology",
-}
-
 SUPPORTED_ECCENTRICITY_TRUNCATIONS = ECCENTRICITY_TRUNCATIONS
 SUPPORTED_OBLIQUITY_TRUNCATIONS = OBLIQUITY_TRUNCATIONS
 
@@ -1059,17 +1054,14 @@ def _attach_tides(world, config: dict) -> None:
 
     # The default-model map and the [tides.<world_type>] tables are per world family; the rest of the config
     # [tides] defaults sit underneath the family's table, and the world's own [tides] overrides both.
-    default_model_map = defaults.get("default_model", {}) or {}
     merged = {key: value for key, value in defaults.items()
-              if key != "default_model" and key not in _DEFAULT_TIDE_MODEL_FALLBACK}
+              if key != "default_model" and key not in WORLD_TYPES}
     family_defaults = defaults.get(world_type, {})
     if isinstance(family_defaults, dict):
         merged.update(family_defaults)
     merged.update(tides_cfg)
 
-    model_name = merged.get(
-        "global_tidal_model",
-        default_model_map.get(world_type, _DEFAULT_TIDE_MODEL_FALLBACK.get(world_type, "rheology")))
+    model_name = resolve_tide_model_name(tides_cfg, world_type)
 
     model_config = {}
     for key in ("fixed_k", "fixed_q", "fixed_dt_s"):

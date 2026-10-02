@@ -40,3 +40,26 @@ def test_mutual_pair_takes_each_element_from_the_member_that_gives_it():
     for name in ("earth", "moon"):
         assert system.get_eccentricity(name) == 0.055
         assert system.get_semi_major_axis(name) == 3.844e8
+
+
+def _mutual_pair_with_elements_on_both():
+    return build_system({"name": "em", "worlds": {
+        "earth": {"world": "earth_simple", "tidal_host": "moon", "semi_major_axis_m": 3.844e8, "eccentricity": 0.055},
+        "moon": {"world": "luna", "tidal_host": "earth", "semi_major_axis_m": 3.844e8, "eccentricity": 0.055}}})
+
+
+@pytest.mark.parametrize("member", ["earth", "moon"])
+def test_setting_one_member_of_a_mutual_pair_sets_the_shared_orbit(member):
+    system = _mutual_pair_with_elements_on_both()
+    system.set_semi_major_axis(member, 3.85e8)
+    system.set_eccentricity(member, 0.06)
+    for name in ("earth", "moon"):
+        assert system.get_semi_major_axis(name) == 3.85e8
+        assert system.get_eccentricity(name) == 0.06
+
+
+def test_a_rebuilt_mutual_pair_can_be_updated_from_one_side():
+    from TidalPy.Structures.configs import build_system_from_dict
+    rebuilt = build_system_from_dict(_mutual_pair_with_elements_on_both().get_config_dict())
+    rebuilt.set_semi_major_axis("moon", 3.9e8)
+    assert rebuilt.get_semi_major_axis("earth") == 3.9e8

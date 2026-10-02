@@ -46,6 +46,7 @@ from TidalPy.schema import (
     _STAR_WORLD_KEYS,
     _SOLVER_KEY_RULES,
     _REQUIRED_WORLD_KEYS,
+    DEFAULT_TIDE_MODELS,
 )
 
 
@@ -100,6 +101,35 @@ def _config_section(name: str) -> dict:
     """The ``[name]`` table of ``TidalPy_Configs.toml``; empty when the table or the whole config is absent."""
     config = getattr(TidalPy, "config", None) or {}
     return config.get(name, {}) or {}
+
+
+def resolve_tide_model_name(world_tides: dict, world_type: str) -> str:
+    """The tide model a world of this type builds: its own ``[tides] global_tidal_model``, else that key of the
+    ``[tides.<world_type>]`` table of ``TidalPy_Configs.toml``, else of its ``[tides]`` table, else the type's entry of
+    ``[tides.default_model]``, else :data:`TidalPy.schema.DEFAULT_TIDE_MODELS`.
+
+    Parameters
+    ----------
+    world_tides : dict
+        The world's ``[tides]`` table (empty when it has none).
+    world_type : str
+        One of :data:`TidalPy.schema.WORLD_TYPES`.
+
+    Returns
+    -------
+    str
+        The model name, as ``make_tide`` takes it.
+    """
+    if "global_tidal_model" in world_tides:
+        return world_tides["global_tidal_model"]
+    defaults = _config_section("tides")
+    family = defaults.get(world_type, {})
+    if isinstance(family, dict) and ("global_tidal_model" in family):
+        return family["global_tidal_model"]
+    if "global_tidal_model" in defaults:
+        return defaults["global_tidal_model"]
+    default_models = defaults.get("default_model", {}) or {}
+    return default_models.get(world_type, DEFAULT_TIDE_MODELS.get(world_type, "rheology"))
 
 
 def world_type_defaults(world_type: str) -> dict:
@@ -271,14 +301,18 @@ def validate_world_config(config: dict) -> None:
                 f"'{world_type}'. Allowed keys: {sorted(allowed)}.")
 
     layers = config.get("layers", None)
-    # A star needs no layers: its tides run through the analytic models and its spin model gives its moment of
-    # inertia.
-    if not layers and world_type == "star":
-        validate_physical_values(config)
-        return
+    # A world whose tide model is analytic needs no layers (a star, or a gas giant on fixed_dt): its spin model gives
+    # its moment of inertia. The rheology model solves the interior's Love numbers, so it needs them.
     if not layers:
+        tide_model = resolve_tide_model_name(config.get("tides", {}) or {}, world_type)
+        from TidalPy.Tides.classes.tide import make_tide
+        if not make_tide(tide_model).needs_radial_solve:
+            validate_physical_values(config)
+            return
         raise ValueError(
-            f"World type '{world_type}' requires at least one '[layers.<name>]' table.")
+            f"World type '{world_type}' with the '{tide_model}' tide model requires at least one '[layers.<name>]' "
+            "table: that model solves the interior's Love numbers. A world with no layers needs an analytic model "
+            "(global_tidal_model = \"fixed_q\", \"fixed_dt\", or \"ctl_q\" in its [tides] table).")
     if not isinstance(layers, dict):
         raise ValueError("The 'layers' entry must be a table of named layers.")
     for layer_name, layer_cfg in layers.items():

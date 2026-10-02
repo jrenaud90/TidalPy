@@ -72,7 +72,7 @@ cdef extern from "layer_.hpp" namespace "tidalpy" nogil:
         double   get_surface_area_outer() const
         cpp_bool get_is_volume_fixed() const
         void     set_is_volume_fixed(cpp_bool) except +
-        void     set_radii(double radius_inner, double radius_outer)
+        void     set_radii(double radius_inner, double radius_outer) except +
         # Tides
         cpp_bool get_use_tides() const
         void     set_use_tides(cpp_bool)

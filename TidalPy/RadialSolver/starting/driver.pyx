@@ -7,6 +7,8 @@ cnp.import_array()
 
 from libcpp cimport bool as cpp_bool
 from libcpp.complex cimport complex as cpp_complex
+
+from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
 from libcpp.string cimport string as cpp_string, npos as cpp_npos
 
 
@@ -59,6 +61,9 @@ def find_starting_conditions(
     cdef cpp_string message = cpp_string(b"No message set.")
     cdef cpp_bool success = False
 
+    cy_check_solution_buffer(
+        "find_starting_conditions's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], layer_type, is_static)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
 

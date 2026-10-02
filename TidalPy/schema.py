@@ -106,6 +106,14 @@ ALLOWED_WORLD_SCALAR_KEYS = {
     "star":        frozenset(_COMMON_WORLD_KEYS + _STAR_WORLD_KEYS),
 }
 
+# The tide model of each world type when neither the world's [tides] table nor TidalPy_Configs.toml names one.
+DEFAULT_TIDE_MODELS = {
+    "star":        "fixed_q",
+    "gasgiant":    "fixed_dt",
+    "terrestrial": "rheology",
+    "layered":     "rheology",
+}
+
 # World-level model tables, and the world types that may carry each.
 WORLD_MODEL_SECTIONS = {
     "luminosity": ("star",),   # a star's mass-to-luminosity model (Stellar.make_luminosity)
@@ -161,6 +169,36 @@ _SOLVER_KEY_RULES = {
     },
 }
 EOS_SOLVER_KEYS = frozenset(_SOLVER_KEY_RULES["eos_solver"])
+# The log levels by name, as the spdlog level integers (0 to 6) the logger also takes directly.
+LOG_LEVELS = {
+    "trace":    0,
+    "debug":    1,
+    "info":     2,
+    "warning":  3,
+    "warn":     3,
+    "error":    4,
+    "critical": 5,
+    "off":      6,
+}
+LOG_LEVEL_RANGE = (0, 6)
+
+# TidalPy_Configs.toml values are checked against the type of their packaged default (an int also serves a float).
+# These keys take a second type: a log level as a name or an integer, a truncation as a level or a name ("exact",
+# "off", "gen"), the layer material as a MatPack name or a material table, and a plot size as an int or a float.
+CONFIG_ALTERNATE_TYPES = {
+    "logging.file_level":                    (str, int),
+    "logging.console_level":                 (str, int),
+    "tides.eccentricity_trunc_lvl":          (int, str),
+    "tides.obliquity_trunc_lvl":             (str, int),
+    "layers.material":                       (str, dict),
+    "graphics.interior.marker_size":         (int, float),
+    "graphics.interior.label_fontsize":      (int, float),
+    "graphics.interior.title_fontsize":      (int, float),
+}
+# The [numerical] values must be finite and positive, except these, which may also be 0 (0 love-solve threads picks
+# the count from the machine).
+CONFIG_NUMERICAL_NONNEGATIVE = frozenset(("love_solve_threads",))
+
 RADIAL_SOLVER_KEYS = frozenset(_SOLVER_KEY_RULES["radial_solver"])
 SOLVER_TABLES = tuple(_SOLVER_KEY_RULES)
 

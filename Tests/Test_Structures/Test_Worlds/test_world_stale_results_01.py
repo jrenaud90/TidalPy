@@ -1,93 +1,69 @@
-"""A new solve_eos retires Love numbers, tidal results, and layer heating until they are solved again."""
-import cmath
+"""Results from an earlier structure or a failed solve never read as the current one's.
+
+The Love diagnostics of a solve on an earlier structure, a mass a layer took from a rejected solve, profiles of a failed
+solve read through the calc_* getters, and a layer moved to impossible radii.
+"""
 import math
 
 import pytest
 
+from TidalPy.exceptions import SolutionFailedError
+from TidalPy.Material import Material, Phase
 from TidalPy.Structures import build_world
+from TidalPy.Structures.layers import Layer
+from TidalPy.Structures.worlds.base import BaseWorld
+
+RADIUS = 1.0e6
+DENSITY = 3000.0
+# Far outside the factor of 10 that [numerical] maximum_eos_mass_ratio lets a solved structure differ from its world's
+# stated mass, so the solve is rejected.
+WRONG_MASS_FACTOR = 1.0e3
+NO_SOLVE_MESSAGE = "No love-number solve has been run."
 
 
-# Io-Jupiter-like orbital state.
-_STATE = dict(
-    orbital_frequency=4.11e-5, spin_frequency=4.11e-5, eccentricity=0.0041, obliquity=0.0,
-    semi_major_axis=4.217e8, host_mass=1.898e27)
+def _rock():
+    return Material(solid=Phase(
+        eos={"model": "constant", "reference_density_kg_m3": DENSITY, "bulk_modulus_pa": 1.0e11},
+        shear_modulus={"model": "constant", "shear_modulus_pa": 5.0e10},
+        shear_viscosity={"model": "constant", "reference_viscosity_pas": 1.0e19}))
 
 
-def _is_nan(value: complex) -> bool:
-    return cmath.isnan(complex(value))
-
-
-@pytest.fixture()
-def solved_io():
-    world = build_world("io")
-    world.solve_eos()
+def _sphere(mass_factor=1.0):
+    mass = 4.0 / 3.0 * math.pi * DENSITY * RADIUS**3
+    world = BaseWorld("sphere", RADIUS, mass_factor * mass)
+    world.add_layer(Layer("mantle", 0, 0.0, RADIUS, material=_rock()))
     return world
 
 
-def test_love_numbers_are_retired_by_an_eos_resolve(solved_io):
-    """Radial Love results read NaN after an EOS re-solve and return unchanged with the next Love solve."""
-    world = solved_io
-    world.solve_love_numbers(frequency=4.11e-5)
-    assert world.love_solved and world.love_success
-    k2 = world.love_number_k
-    assert math.isfinite(k2.real)
-    assert math.isfinite(world.get_love_radial_y(0.9 * world.radius).real)
-
+def test_love_diagnostics_do_not_outlive_a_new_structure():
+    world = build_world("io")
     world.solve_eos()
-    assert not world.love_solved
+    world.solve_love_numbers(frequency=4.1e-5)
+    assert world.love_success and world.love_error_code == 0
+    assert world.love_surface_amplification > 0.0
+    world.solve_eos()
     assert not world.love_success
-    for value in (world.love_number_k, world.love_number_h, world.love_number_l,
-                  world.get_love_number_k(0), world.get_love_surface_y(0, 0),
-                  world.get_love_radial_y(0.9 * world.radius)):
-        assert _is_nan(value)
-
-    world.solve_love_numbers(frequency=4.11e-5)
-    assert world.love_solved
-    assert world.love_number_k == pytest.approx(k2, rel=1.0e-9)
+    assert world.love_error_code == -100
+    assert world.love_message == NO_SOLVE_MESSAGE
+    assert world.love_surface_amplification == 0.0
+    assert math.isnan(world.love_surface_rcond)
 
 
-def test_analytic_love_numbers_are_retired_too(solved_io):
-    """Homogeneous Love results are retired by an EOS re-solve."""
-    world = solved_io
-    world.solve_love_numbers(frequency=4.11e-5, love_method="homogeneous")
-    assert world.love_solved and math.isfinite(world.love_number_k.real)
-    world.solve_eos()
-    assert not world.love_solved
-    assert not world.love_success
-    assert _is_nan(world.love_number_k)
+def test_the_calc_getters_raise_for_a_failed_solve():
+    world = _sphere(WRONG_MASS_FACTOR)
+    with pytest.raises(SolutionFailedError, match="stated mass"):
+        world.calc_density(0.5 * RADIUS)
 
 
-def test_tides_are_retired_by_an_eos_resolve(solved_io):
-    """Tidal results and layer heating read NaN after an EOS re-solve and return with the next calc_tides."""
-    world = solved_io
-    world.calc_tides(**_STATE)
-    assert world.tides_solved
-    heating = world.get_tidal_heating()
-    assert heating > 0.0
-    layer_heating = [layer.get_tidal_heating() for layer in world]
-    assert any(value > 0.0 for value in layer_heating)
-
-    world.solve_eos()
-    assert not world.tides_solved
-    assert math.isnan(world.get_tidal_heating())
-    assert all(math.isnan(value) for value in world.get_tidal_potential_derivatives())
-    assert world.get_num_tidal_modes() == 0
-    assert _is_nan(world.get_tidal_love_k(2, 2, 0, 1))
-    for index, layer in enumerate(world):
-        assert math.isnan(world.get_layer_tidal_heating(index))
-        assert math.isnan(layer.get_tidal_heating())
-
-    world.calc_tides(**_STATE)
-    assert world.tides_solved
-    assert world.get_tidal_heating() == pytest.approx(heating, rel=1.0e-9)
+def test_the_calc_getters_still_solve_a_good_world():
+    assert _sphere().calc_density(0.5 * RADIUS) == pytest.approx(DENSITY)
 
 
-def test_spin_and_obliquity_setters_leave_a_tidal_result_alone(solved_io):
-    """Setting spin or obliquity does not retire a tidal result (calc_tides takes its own)."""
-    world = solved_io
-    world.calc_tides(**_STATE)
-    heating = world.get_tidal_heating()
-    world.set_spin_frequency(2.0 * _STATE["spin_frequency"])
-    world.set_obliquity(0.1)
-    assert world.tides_solved
-    assert world.get_tidal_heating() == heating
+def test_a_layer_refuses_inverted_radii():
+    world = _sphere()
+    layer = world.mantle
+    with pytest.raises(ValueError, match="radius_inner <= radius_outer"):
+        layer.set_radii(5.0e5, 3.0e5)
+    assert (layer.radius_inner, layer.radius_outer) == (0.0, RADIUS)
+    with pytest.raises(ValueError, match="finite radii"):
+        layer.set_radii(-1.0, RADIUS)

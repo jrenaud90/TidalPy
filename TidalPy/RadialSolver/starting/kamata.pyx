@@ -7,6 +7,8 @@ cnp.import_array()
 
 from libcpp.complex cimport complex as cpp_complex
 
+from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
+
 
 def kamata_solid_dynamic_compressible(
         double frequency,
@@ -41,6 +43,9 @@ def kamata_solid_dynamic_compressible(
     starting_conditions_view : complex[:, ::1]
         Output array of shape [num_solutions, num_ys].
     """
+    cy_check_solution_buffer(
+        "kamata_solid_dynamic_compressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 0, False)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
@@ -70,6 +75,9 @@ def kamata_solid_static_compressible(
 
     KMN15 Eqs. B1-B16 (w=0). Three independent solutions.
     """
+    cy_check_solution_buffer(
+        "kamata_solid_static_compressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 0, False)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
@@ -92,6 +100,9 @@ def kamata_solid_dynamic_incompressible(
     gamma / w^2 (gamma = 4 pi G rho / 3), in closed form: the published pair converges as w -> 0, which left the
     basis nearly degenerate at tidal frequencies. The combination spans the same solutions.
     """
+    cy_check_solution_buffer(
+        "kamata_solid_dynamic_incompressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 0, False)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] mu = cpp_complex[double](shear_modulus.real, shear_modulus.imag)
@@ -119,6 +130,9 @@ def kamata_liquid_dynamic_compressible(
 
     KMN15 Eqs. B29-B37. Two independent solutions.
     """
+    cy_check_solution_buffer(
+        "kamata_liquid_dynamic_compressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 1, False)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
@@ -145,6 +159,9 @@ def kamata_liquid_dynamic_incompressible(
 
     KMN15 Eqs. B29-B37 (incompressible limit). Two independent solutions.
     """
+    cy_check_solution_buffer(
+        "kamata_liquid_dynamic_incompressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 1, False)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     c_kamata_liquid_dynamic_incompressible(

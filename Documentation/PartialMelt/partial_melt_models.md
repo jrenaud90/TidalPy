@@ -112,7 +112,7 @@ We recommend pressure-dependent curves, and `use_pressure_melting` on, for any r
 | `SpohnMeltWeakening` | Fischer and Spohn (1990). Above the solidus, both strengths fall with temperature from their values at the solidus. |
 | `HenningMeltWeakening` | Henning et al. (2009) and Renaud and Henning (2018). Three regimes separated by a critical melt fraction. |
 
-Every law returns the solid pair with no melt ($\phi \le 0$) and the liquid pair when fully molten ($\phi \ge 1$), and floors its result at the liquid's values in between. A material without a weakening law behaves as `none`. The material, not the law, decides from the returned shear modulus where the radial solver treats the aggregate as a liquid. Both temperature laws are anchored at the solidus, so they carry over to materials whose solidus is not the 1600 K silicate value the published fits assume.
+Every law returns the solid pair with no melt ($\phi \le 0$) and the liquid pair when fully molten ($\phi \ge 1$), and floors its result at the liquid's values in between. A NaN solid value (a solid phase with no viscosity law) stays NaN rather than taking the liquid's. A material without a weakening law behaves as `none`. The material, not the law, decides from the returned shear modulus where the radial solver treats the aggregate as a liquid. Both temperature laws are anchored at the solidus, so they carry over to materials whose solidus is not the 1600 K silicate value the published fits assume.
 
 ### Breakdown Band
 

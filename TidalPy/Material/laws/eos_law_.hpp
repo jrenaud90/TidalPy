@@ -442,8 +442,11 @@ protected:
             double /*temperature_offset*/,
             c_EOSPoint& out) const noexcept override {
         if (!(point.pressure > 0.0)) {
-            out.density      = this->p_reference_density;
-            out.bulk_modulus = (this->p_exponent < 1.0) ? 0.0 : TidalPyConstants::d_INF;
+            // The limit of K = rho P^(1 - n) / (n c) as P falls to 0: 0 for n < 1, rho0 / c for n = 1, unbounded above.
+            out.density = this->p_reference_density;
+            if (this->p_exponent < 1.0)       { out.bulk_modulus = 0.0; }
+            else if (this->p_exponent == 1.0) { out.bulk_modulus = this->p_reference_density / this->p_coefficient; }
+            else                              { out.bulk_modulus = TidalPyConstants::d_INF; }
             return;
         }
         const double compression_term = this->p_coefficient * std::pow(point.pressure, this->p_exponent);

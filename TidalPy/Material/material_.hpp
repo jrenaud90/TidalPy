@@ -664,6 +664,15 @@ protected:
                 throw std::invalid_argument(
                     this->p_describe() + "'s liquid phase needs a 'shear_viscosity' law (the melt's viscosity).");
             }
+            // A layer takes its default rheology from the base phase, the solid here, so a rheology on the liquid
+            // phase would never be read.
+            const c_PhaseComponents& liquid = components.liquid->get_components();
+            if (liquid.shear_rheology || liquid.bulk_rheology) {
+                throw std::invalid_argument(
+                    this->p_describe() + "'s liquid phase has a 'shear_rheology' or 'bulk_rheology', which a material "
+                    "with a solid phase never uses: a layer takes its rheology from the solid phase (or its own "
+                    "override). Move the rheology to the solid phase, or to the layer.");
+            }
         } else if (components.solidus || components.liquidus || components.weakening
                    || components.bulk_modulus_mixing || components.bulk_viscosity_mixing) {
             throw std::invalid_argument(

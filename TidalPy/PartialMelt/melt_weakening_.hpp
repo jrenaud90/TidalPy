@@ -82,9 +82,10 @@ public:
             return result;
         }
         this->p_calc_partial(inputs, result);
-        // Never weaker than the liquid.
-        if (!(result.shear_modulus >= inputs.liquid_shear)) { result.shear_modulus = inputs.liquid_shear; }
-        if (!(result.viscosity >= inputs.liquid_viscosity))  { result.viscosity     = inputs.liquid_viscosity; }
+        // Never weaker than the liquid. A NaN (a solid phase with no viscosity law, say) passes through as NaN, the
+        // way the solid's own NaN does outside the melting range, rather than reading as the liquid's value.
+        if (result.shear_modulus < inputs.liquid_shear) { result.shear_modulus = inputs.liquid_shear; }
+        if (result.viscosity < inputs.liquid_viscosity)  { result.viscosity     = inputs.liquid_viscosity; }
         // Across the breakdown band the framework's pair blends into the liquid's, reaching it at the band's end.
         if (blend > 0.0) {
             result.shear_modulus = (1.0 - blend) * result.shear_modulus + blend * inputs.liquid_shear;

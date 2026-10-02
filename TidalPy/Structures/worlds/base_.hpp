@@ -65,6 +65,7 @@
 // record. It adds no includes this header does not already have and forward-declares c_BaseWorld, so the
 // dependency stays one-directional.
 #include "../../Tides/classes/tide_.hpp"
+#include "../../Tides/potential/truncation_warnings_.hpp"   // c_warn_tide_truncations
 #include "../../Tides/love/love_method_.hpp"
 // Relative paths, not bare names, so every extension that includes base_.hpp resolves these without
 // needing Utilities/lookups on its include path.
@@ -367,30 +368,35 @@ struct c_LoveWorkspace {
         const auto* storage = this->get_storage();
         return (storage && this->solved) ? storage->success : false;
     }
+    // The storage while it still describes the structure (c_WorldRadialSolver::get_storage_current), else null, so
+    // the diagnostics of a solve on an earlier structure never read as the current structure's.
+    const ::c_RadialSolutionStorage* get_current_storage() const noexcept {
+        return (this->radial_solver && this->radial_solver->get_storage_current()) ? this->get_storage() : nullptr;
+    }
     int get_error_code() const noexcept {
         if (this->is_analytic()) { return this->analytic_error_code; }
-        const auto* storage = this->get_storage();
+        const auto* storage = this->get_current_storage();
         return storage ? storage->error_code : -100;
     }
     const std::string& get_message() const noexcept {
         static const std::string no_message = "No love-number solve has been run.";
         if (this->is_analytic()) { return this->analytic_message; }
-        const auto* storage = this->get_storage();
+        const auto* storage = this->get_current_storage();
         return storage ? storage->message : no_message;
     }
     std::size_t get_num_ytypes() const noexcept {
         if (this->is_analytic()) { return this->analytic_success ? 1 : 0; }
-        const auto* storage = this->get_storage();
+        const auto* storage = this->get_current_storage();
         return storage ? storage->num_ytypes : 0;
     }
     double get_surface_amplification() const noexcept {
         if (this->is_analytic()) { return 0.0; }
-        const auto* storage = this->get_storage();
+        const auto* storage = this->get_current_storage();
         return storage ? storage->surface_amplification : 0.0;
     }
     double get_surface_rcond() const noexcept {
         if (this->is_analytic()) { return TidalPyConstants::d_NAN; }
-        const auto* storage = this->get_storage();
+        const auto* storage = this->get_current_storage();
         return storage ? storage->surface_rcond : TidalPyConstants::d_NAN;
     }
 
@@ -933,7 +939,9 @@ public:
         // The bulk density guess as the volume-weighted EOS density at the surface pressure.
         double total_volume  = 0.0;
         double mass_estimate = 0.0;
-        // What a layer holding its mass holds on to: its mass, from its configuration or from the first solve.
+        // What a layer holding its mass holds on to: its mass, from its configuration or from the first solve. A solve
+        // that fails or throws puts these back as they were, so a mass taken from a rejected structure never sticks.
+        const std::vector<double> reference_mass_before_solve = this->p_reference_mass;
         if (cfg.reset_layer_masses) { this->p_reference_mass.clear(); }
         this->p_reference_mass.resize(n_layers, TidalPyConstants::d_NAN);
         for (std::size_t i = 0; i < n_layers; ++i) {
@@ -1175,6 +1183,7 @@ public:
         } catch (...) {
             // Nothing half-solved survives a throw: the world is unsolved, its layers where they were.
             this->p_reset_solved_state();
+            this->p_reference_mass = reference_mass_before_solve;
             throw;
         }
 
@@ -1231,6 +1240,7 @@ public:
             this->p_solve_state.reset();
             this->p_love = c_LoveWorkspace();
             for (const auto& layer_uptr : this->p_layers) { layer_uptr->clear_eos_data(); }
+            this->p_reference_mass = reference_mass_before_solve;
             this->p_eos_solution = std::move(solution);
             return;
         }
@@ -3040,9 +3050,7 @@ protected:
 
     // Checks the orbital state a tidal solve is about to use: throws std::invalid_argument for an eccentricity
     // outside [0, 1), a semi-major axis that is not positive, or an orbital frequency that is not finite, and warns
-    // once per world when an obliquity would be ignored because the obliquity truncation is off, when the obliquity
-    // is past the range of the obliquity truncation (c_obliquity_truncation_limit), or when the eccentricity is past
-    // the range of the eccentricity truncation (c_eccentricity_truncation_limit).
+    // once per world when the truncations misstate the tides (c_warn_tide_truncations).
     void p_check_tide_state(const c_TideSolveConfig& state) const {
         if (!((state.eccentricity >= 0.0) && (state.eccentricity < 1.0))) {
             throw std::invalid_argument(
@@ -3059,46 +3067,12 @@ protected:
                 "TidalPy: world '" + this->get_name() + "' tides need a finite orbital frequency; got " +
                 std::to_string(state.orbital_frequency) + " rad s-1.");
         }
-        if ((state.obliquity != 0.0) && (this->p_tide_config.obliquity_truncation == 0)
-                && !this->p_obliquity_off_warned) {
-            this->p_obliquity_off_warned = true;
-            TIDALPY_LOG_WARN(
-                "TidalPy: world '{}' has an obliquity of {:.3e} rad but its obliquity truncation is off, so its "
-                "obliquity tides are ignored. Set obliquity_trunc_lvl (2, 4, or 'gen') in its [tides] table or "
-                "set_tide_config to include them. Shown once per world.",
-                this->get_name(), state.obliquity);
-        }
-        const int obliquity_truncation = this->p_tide_config.obliquity_truncation;
-        if (obliquity_truncation != C_OBLIQUITY_OFF) {
-            const double obliquity_limit =
-                c_obliquity_truncation_limit(obliquity_truncation, this->p_tide_config.max_degree_l);
-            if ((std::abs(state.obliquity) > obliquity_limit) && !this->p_obliquity_range_warned) {
-                this->p_obliquity_range_warned = true;
-                TIDALPY_LOG_WARN(
-                    "TidalPy: world '{}' has an obliquity of {:.3f} rad, past {:.3f}, where its obliquity truncation "
-                    "(level {}) can misstate the tides by 10% or more. Raise obliquity_trunc_lvl in its [tides] table "
-                    "or set_tide_config (recommend_obliquity_truncation picks a level for a tolerance), or use 'gen'. "
-                    "Shown once per world.",
-                    this->get_name(), state.obliquity, obliquity_limit, obliquity_truncation);
-            }
-        }
-        const int eccentricity_truncation = this->p_tide_config.eccentricity_truncation;
-        const double eccentricity_limit   =
-            c_eccentricity_truncation_limit(eccentricity_truncation, this->p_tide_config.max_degree_l);
-        if ((state.eccentricity > eccentricity_limit) && !this->p_eccentricity_range_warned) {
-            this->p_eccentricity_range_warned = true;
-            TIDALPY_LOG_WARN(
-                "TidalPy: world '{}' has an eccentricity of {:.3f}, past {:.3f}, where its eccentricity truncation "
-                "(level {}) can underestimate the tides by 10% or more. Raise eccentricity_trunc_lvl in its [tides] "
-                "table or set_tide_config (recommend_eccentricity_truncation picks a level for a tolerance); past "
-                "about {:.2f} use 'exact'. Shown once per world.",
-                this->get_name(), state.eccentricity, eccentricity_limit, eccentricity_truncation,
-                c_eccentricity_truncation_limit(50, this->p_tide_config.max_degree_l));
-        }
+        c_warn_tide_truncations(
+            "world '" + this->get_name() + "'", "its [tides] table or set_tide_config", state.eccentricity,
+            state.obliquity, this->p_tide_config.eccentricity_truncation, this->p_tide_config.obliquity_truncation,
+            this->p_tide_config.max_degree_l, this->p_truncation_warnings_shown);
     }
-    mutable bool p_obliquity_off_warned = false;
-    mutable bool p_obliquity_range_warned = false;
-    mutable bool p_eccentricity_range_warned = false;
+    mutable c_TruncationWarningsShown p_truncation_warnings_shown;
 
     // Global (1D) tidal dissipation state. The configuration and model are serialized (the tide section); the
     // results are not (recompute with calc_tides).

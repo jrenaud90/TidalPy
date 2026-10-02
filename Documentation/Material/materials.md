@@ -26,7 +26,7 @@ Each composite holds its sub-models in slots (`c_PhaseComponents`, `c_MaterialCo
 | `eos` | [equation of state](material_eos.md) | Required; a `Phase` built without one takes a constant-density law at its defaults. |
 | `shear_modulus` | [shear modulus](material_eos.md#shear-modulus-laws) | The phase is a fluid: a shear modulus of 0. |
 | `shear_viscosity`, `bulk_viscosity` | [viscosity](../Viscosity/viscosity_models.md) | A NaN viscosity. |
-| `shear_rheology`, `bulk_rheology` | [rheology](../Rheology/rheology_models.md) | No default; a layer of the phase uses its own rheology or none (elastic). |
+| `shear_rheology`, `bulk_rheology` | [rheology](../Rheology/rheology_models.md) | No default; a layer of the phase uses its own rheology or none (elastic). A layer takes the material's base phase's (the solid's, when there is one), so a material with both phases refuses a rheology on its liquid phase, which would never be read. |
 
 The phase's own parameters are its thermal constants. The conductivity and heat capacity follow power laws in temperature about a reference temperature, $k = k_0 (T / T_\mathrm{ref})^{n_k}$ and $c_p = c_{p0} (T / T_\mathrm{ref})^{n_c}$ (MatPack's `ice_ih`, for example, has $k \propto T^{-0.84}$):
 

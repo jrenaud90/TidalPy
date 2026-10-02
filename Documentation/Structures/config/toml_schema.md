@@ -308,7 +308,7 @@ model = "constant"
 reference_viscosity_pas = 1.0e21
 ```
 
-A star needs no layers:
+A world whose tide model is analytic (`fixed_q`, `fixed_dt`, or `ctl_q`, set by `global_tidal_model` or the type's default) needs no layers, which is how a star or a simple gas giant is usually given; the `rheology` model solves the interior's Love numbers, so a world on it needs at least one. A star:
 
 ```toml
 schema_version = "0.2.0"

@@ -1,4 +1,4 @@
-"""The point volumetric heating ``volumetric_heating``: (|frequency| / 2) |sum_k w_k Im(sigma_k conj(eps_k))|."""
+"""The point volumetric heating ``volumetric_heating``: (|frequency| / 2) sum_k w_k Im(sigma_k conj(eps_k)), signed."""
 import math
 
 import numpy as np
@@ -13,7 +13,7 @@ _UNIT_FACTOR_FREQUENCY = 2.0
 
 
 def _reference(stress, strain):
-    return abs(np.sum(_WEIGHTS * (stress.imag * strain.real - stress.real * strain.imag)))
+    return np.sum(_WEIGHTS * (stress.imag * strain.real - stress.real * strain.imag))
 
 
 @pytest.mark.parametrize("component, expected", [(0, 2.0), (3, 4.0)], ids=["diagonal", "off_diagonal"])
@@ -53,3 +53,13 @@ def test_the_frequency_factor_is_half_its_magnitude():
     assert math.isclose(volumetric_heating(stress, strain, 1.0e-5), 0.5e-5 * form, rel_tol=1e-12)
     assert volumetric_heating(stress, strain, -1.0e-5) == volumetric_heating(stress, strain, 1.0e-5)
     assert volumetric_heating(stress, strain, 0.0) == 0.0
+
+
+def test_a_non_dissipative_response_reads_negative():
+    """A response with the wrong phase (Im(mu) < 0) gives negative heating rather than its magnitude, as the world's
+    totals do."""
+    stress = np.zeros(6, dtype=np.complex128)
+    strain = np.zeros(6, dtype=np.complex128)
+    stress[0] = 1.0 - 2.0j
+    strain[0] = 3.0
+    assert math.isclose(volumetric_heating(stress, strain, _UNIT_FACTOR_FREQUENCY), -6.0, rel_tol=1e-12)

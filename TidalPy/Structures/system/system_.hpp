@@ -336,21 +336,30 @@ public:
 
     // For a world whose tidal host is the star the two element sets are one orbit, so these also set the stellar
     // elements (as the stellar setters set the tidal ones); a stale stellar copy would otherwise conflict with the
-    // tidal orbit once the host changes away from the star and back.
+    // tidal orbit once the host changes away from the star and back. The two members of a mutual pair share one orbit
+    // too, so these set the partner's elements as well; otherwise the old value the partner still carries would
+    // conflict with the new one at the next read (get_host_orbit).
     void set_semi_major_axis(std::size_t index, double semi_major_axis) {
         this->check_index(index);
         c_check_orbit(semi_major_axis, 0.0, this->p_worlds[index]->get_name());
         this->p_orbits[index].semi_major_axis = semi_major_axis;
         if (this->is_hosted_by_star(index)) { this->p_stellar_orbits[index].semi_major_axis = semi_major_axis; }
+        if (this->is_mutual_pair(index)) { this->p_partner_orbit(index).semi_major_axis = semi_major_axis; }
     }
     void set_eccentricity(std::size_t index, double eccentricity) {
         this->check_index(index);
         c_check_orbit(TidalPyConstants::d_NAN, eccentricity, this->p_worlds[index]->get_name());
         this->p_orbits[index].eccentricity = eccentricity;
         if (this->is_hosted_by_star(index)) { this->p_stellar_orbits[index].eccentricity = eccentricity; }
+        if (this->is_mutual_pair(index)) { this->p_partner_orbit(index).eccentricity = eccentricity; }
     }
 
 protected:
+    // The tidal elements of a mutual pair's other member (is_mutual_pair).
+    c_OrbitElements& p_partner_orbit(std::size_t index) {
+        return this->p_orbits[static_cast<std::size_t>(this->p_host_index_byworld[index])];
+    }
+
     // Mean motion n = sqrt(mu / a^3) [rad s-1]; NaN for a non-finite mu or a non-positive semi-major axis.
     static double p_mean_motion(double mu, double semi_major_axis) {
         if (!std::isfinite(mu) || !std::isfinite(semi_major_axis) || semi_major_axis <= TidalPyConstants::d_EPS) {

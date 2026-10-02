@@ -7,6 +7,8 @@ cnp.import_array()
 
 from libcpp.complex cimport complex as cpp_complex
 
+from TidalPy.RadialSolver.buffer_checks cimport cy_check_solution_buffer
+
 
 def takeuchi_solid_dynamic_compressible(
         double frequency,
@@ -41,6 +43,9 @@ def takeuchi_solid_dynamic_compressible(
     starting_conditions_view : complex[:, ::1]
         Output array of shape [num_solutions, num_ys].
     """
+    cy_check_solution_buffer(
+        "takeuchi_solid_dynamic_compressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 0, False)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
@@ -70,6 +75,9 @@ def takeuchi_solid_static_compressible(
 
     TS72 Eqs. 95-102 (w=0). Three independent solutions.
     """
+    cy_check_solution_buffer(
+        "takeuchi_solid_static_compressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 0, False)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)
@@ -90,6 +98,9 @@ def takeuchi_liquid_dynamic_compressible(
 
     TS72 Eqs. 95-102 (mu=0). Two independent solutions.
     """
+    cy_check_solution_buffer(
+        "takeuchi_liquid_dynamic_compressible's starting_conditions_view", starting_conditions_view.shape[0],
+        starting_conditions_view.shape[1], 1, False)
     cdef size_t num_ys = starting_conditions_view.shape[1]
     cdef cpp_complex[double]* ptr = <cpp_complex[double]*>&starting_conditions_view[0, 0]
     cdef cpp_complex[double] K = cpp_complex[double](bulk_modulus.real, bulk_modulus.imag)

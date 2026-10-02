@@ -6,6 +6,7 @@ directory is merged over them on every load, and ``TidalPy.reinit(provided_confi
 
 import copy
 import importlib.metadata
+import math
 import os
 import warnings
 from typing import Union
@@ -17,9 +18,11 @@ import toml
 import TidalPy
 from TidalPy import version
 from TidalPy.exceptions import ConfigurationException, InitializationError
-from TidalPy.paths import get_config_dir, unique_path, warn_unusable_data_dir
+from TidalPy.paths import get_config_dir, unique_path, warn_unusable_data_dir, write_file_atomically
 from TidalPy.defaultc import default_config_str
-from TidalPy.schema import SCHEMA_VERSION
+from TidalPy.schema import (
+    CONFIG_ALTERNATE_TYPES, CONFIG_NUMERICAL_NONNEGATIVE, LOG_LEVEL_RANGE, LOG_LEVELS, SCHEMA_VERSION, SOLVER_TABLES,
+    WORLD_TYPES, _SOLVER_KEY_RULES)
 
 
 def warning_enabled(name: str) -> bool:
@@ -263,6 +266,113 @@ def warn_unknown_config_keys(overrides: dict, packaged: dict, source: str) -> li
     return unknown
 
 
+def find_invalid_config_values(overrides: dict, packaged: dict) -> list:
+    """The values of a ``TidalPy_Configs.toml`` (or an override dict) that TidalPy cannot use.
+
+    A value must have the type of its packaged default (an int also serves a float, a bool serves only a bool), or the
+    second type :data:`TidalPy.schema.CONFIG_ALTERNATE_TYPES` allows. The values read while TidalPy is imported are
+    also checked for range: the log levels (a name of :data:`TidalPy.schema.LOG_LEVELS` or an integer 0 to 6), the
+    ``[eos_solver]`` and ``[radial_solver]`` values (the bounds a world file's pinned settings meet), and the
+    ``[numerical]`` values (finite and positive). Keys nothing reads are left to :func:`find_unknown_config_keys`. A
+    per-type ``[tides.<type>]`` or ``[worlds.<type>]`` table is checked as its parent table.
+
+    Parameters
+    ----------
+    overrides : dict
+        The user's file or override dict.
+    packaged : dict
+        The packaged defaults (:func:`get_packaged_config`).
+
+    Returns
+    -------
+    list of tuple
+        ``(dotted_key, reason)`` for each invalid value, in file order; empty when every value is usable.
+    """
+    invalid = []
+
+    def accepts(value, kind) -> bool:
+        if kind is bool:
+            return isinstance(value, bool)
+        if isinstance(value, bool):
+            return False
+        if kind is float:
+            return isinstance(value, (int, float))
+        return isinstance(value, kind)
+
+    def check_range(path, section, key, value):
+        if (section in SOLVER_TABLES) and (key in _SOLVER_KEY_RULES[section]):
+            floor = _SOLVER_KEY_RULES[section][key][1]
+            if (floor is not None) and not (math.isfinite(value) and (value > floor)):
+                return f"must be greater than {floor}"
+        elif (section == "numerical") and isinstance(value, (int, float)):
+            if not math.isfinite(value):
+                return "must be finite"
+            if (key in CONFIG_NUMERICAL_NONNEGATIVE) and (value < 0):
+                return "must not be negative"
+            if (key not in CONFIG_NUMERICAL_NONNEGATIVE) and not (value > 0):
+                return "must be positive"
+        elif path in ("logging.file_level", "logging.console_level"):
+            low, high = LOG_LEVEL_RANGE
+            if isinstance(value, str) and (value.lower() not in LOG_LEVELS):
+                return f"must be one of {sorted(LOG_LEVELS)} or an integer {low} to {high}"
+            if isinstance(value, int) and not (low <= value <= high):
+                return f"must be an integer {low} to {high} or a level name"
+        return None
+
+    def walk(table, reference, path, rule_path):
+        for key, value in table.items():
+            here = f"{path}.{key}" if path else key
+            rule_here = f"{rule_path}.{key}" if rule_path else key
+            if key not in reference:
+                # A per-type table takes its parent table's keys; anything else is an unknown key, reported elsewhere.
+                if (rule_path in ("tides", "worlds")) and (key in WORLD_TYPES) and isinstance(value, dict):
+                    walk(value, reference, here, rule_path)
+                continue
+            expected = reference[key]
+            if isinstance(expected, dict):
+                if isinstance(value, dict):
+                    walk(value, expected, here, rule_here)
+                elif rule_here not in CONFIG_ALTERNATE_TYPES:
+                    invalid.append((here, "must be a table"))
+                continue
+            kinds = CONFIG_ALTERNATE_TYPES.get(rule_here, (type(expected),))
+            if not any(accepts(value, kind) for kind in kinds):
+                names = " or ".join("table" if kind is dict else kind.__name__ for kind in kinds)
+                invalid.append((here, f"must be a {names}, not {value!r}"))
+                continue
+            reason = check_range(rule_here, rule_path.partition(".")[0], key, value)
+            if reason is not None:
+                invalid.append((here, f"{reason}, not {value!r}"))
+
+    walk(overrides, packaged, "", "")
+    return invalid
+
+
+def drop_invalid_config_values(config: dict, packaged: dict, source: str) -> list:
+    """Remove the values of a loaded configuration file that TidalPy cannot use, in place, with one warning.
+
+    So a mistyped value in ``TidalPy_Configs.toml`` (``console_level = "verbose"``, ``rtol = -1``) falls back to its
+    packaged default instead of stopping ``import TidalPy``. See :func:`find_invalid_config_values`.
+
+    Returns
+    -------
+    list of tuple
+        The ``(dotted_key, reason)`` pairs removed.
+    """
+    invalid = find_invalid_config_values(config, packaged)
+    for path, _ in invalid:
+        *parents, key = path.split(".")
+        table = config
+        for parent in parents:
+            table = table[parent]
+        del table[key]
+    if invalid:
+        warnings.warn(
+            f"{source} sets {len(invalid)} value(s) TidalPy cannot use, which take their packaged defaults instead: "
+            + "; ".join(f"{path} {reason}" for path, reason in invalid) + ". Correct them in the file.")
+    return invalid
+
+
 def config_version_header(title: str) -> str:
     """Return the comment header written at the top of a saved configuration.
 
@@ -434,10 +544,11 @@ def get_default_config() -> dict:
     config_path = None if config_dir is None else os.path.join(config_dir, 'TidalPy_Configs.toml')
     if config_path is not None:
         try:
-            # Write the default config if it is not already present.
+            # Write the default config if it is not already present, atomically, so another process starting at the
+            # same moment never reads a partial file.
             if not os.path.isfile(config_path):
-                with open(config_path, 'w', encoding='utf-8', newline='\n') as config_file:
-                    config_file.write(config_version_header('TidalPy Default Configurations') + default_config_str)
+                contents = config_version_header('TidalPy Default Configurations') + default_config_str
+                write_file_atomically(config_path, contents.encode('utf-8'), keep_existing=True)
             else:
                 # Scans the header for a 'version:' line.
                 check_config_version(config_path)
@@ -446,10 +557,17 @@ def get_default_config() -> dict:
             warn_unusable_data_dir(error)
             config_path = None
             user_config = {}
+        except toml.TomlDecodeError as error:
+            # A file that does not parse must not stop the import; its values are not used.
+            warnings.warn(
+                f"The configuration file {config_path} could not be read ({error}), so the packaged defaults are "
+                "used. Correct the file, or delete it to have TidalPy write a fresh one.")
+            user_config = {}
 
     if config_path is not None:
         drop_retired_config_keys(user_config, f"The configuration file {config_path}")
         warn_unknown_config_keys(user_config, packaged, f"The configuration file {config_path}")
+        drop_invalid_config_values(user_config, packaged, f"The configuration file {config_path}")
     config_dict = merge_configs(packaged, user_config)
 
     # Update path and store on the package.
@@ -482,6 +600,8 @@ def set_config(new_config: Union[str, dict]) -> dict:
         If ``new_config`` is a path that is not a file.
     TypeError
         If ``new_config`` is neither a string nor a dict.
+    ValueError
+        If it sets a value TidalPy cannot use (:func:`find_invalid_config_values`); nothing changes then.
     """
     from TidalPy.constants import update_constants
 
@@ -503,9 +623,14 @@ def set_config(new_config: Union[str, dict]) -> dict:
     source = f"The configuration file {new_config}" if isinstance(new_config, str) else "The configuration override"
     overrides = copy.deepcopy(overrides)
     drop_retired_config_keys(overrides, source)
-    warn_unknown_config_keys(
-        overrides, get_packaged_config(),
-        f"The configuration file {new_config}" if isinstance(new_config, str) else "The configuration override")
+    packaged = get_packaged_config()
+    warn_unknown_config_keys(overrides, packaged, source)
+    # An override is given in the session, so a value TidalPy cannot use raises here, before anything changes.
+    invalid = find_invalid_config_values(overrides, packaged)
+    if invalid:
+        raise ValueError(
+            f"{source} sets {len(invalid)} value(s) TidalPy cannot use: "
+            + "; ".join(f"{path} {reason}" for path, reason in invalid) + ".")
     TidalPy.config = merge_configs(TidalPy.config, overrides)
     update_constants()
     return TidalPy.config

@@ -61,7 +61,7 @@ earth_moon_sun.set_stellar_eccentricity(moon, 0.0167)
 
 ### Mutual Pairs
 
-Two worlds that host each other share one orbit, so each of its elements only needs to be specified once, so the semi-major axis can come from one member and the eccentricity from the other. An element both members give must agree, and a disagreement raises `ValueError` from any method that reads the orbit. `is_mutual_pair(world)` reports the relation. `calc_system_evolution` gives each member its own entry, and their contributions to the shared orbit add, which is what `calc_pair_evolution` returns for either member.
+Two worlds that host each other share one orbit, so each of its elements only needs to be specified once, so the semi-major axis can come from one member and the eccentricity from the other. An element both members give must agree, and a disagreement raises `ValueError` from any method that reads the orbit. Setting an element on either member (`set_semi_major_axis`, `set_eccentricity`) sets it on both, so a pair built with the elements on both members, as a saved system file has them, can still be updated from one side. `is_mutual_pair(world)` reports the relation. `calc_system_evolution` gives each member its own entry, and their contributions to the shared orbit add, which is what `calc_pair_evolution` returns for either member.
 
 ## Building a `System` from TOML (`build_system`)
 
