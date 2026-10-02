@@ -2043,8 +2043,9 @@ public:
         std::vector<std::shared_ptr<const c_RheologyBase>> shear_bylayer(n_layers);
         std::vector<std::shared_ptr<const c_RheologyBase>> bulk_bylayer(n_layers);
         for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
-            shear_bylayer[layer_i] = this->p_layers[layer_i]->share_shear_rheology();
-            bulk_bylayer[layer_i]  = this->p_layers[layer_i]->share_bulk_rheology();
+            // None for a layer with use_tides off: it responds elastically and dissipates nothing.
+            shear_bylayer[layer_i] = this->p_layers[layer_i]->share_tidal_shear_rheology();
+            bulk_bylayer[layer_i]  = this->p_layers[layer_i]->share_tidal_bulk_rheology();
         }
         std::shared_ptr<const c_EOSSolution> eos_solution = this->p_eos_solution;
         return [eos_solution, shear_bylayer, bulk_bylayer, world_layer_of, frequency](

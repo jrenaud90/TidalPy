@@ -99,7 +99,7 @@ Each world other than a star declares one or more `[layers.<layer_name>]` tables
 | `volume_fraction` | one-of | Layer shell volume as a fraction of the whole-world volume; the outer radius is solved from it. |
 | `material` | optional | The layer's material: a MatPack name (`material = "peridotite"`) or a `[layers.<name>.material]` table (see [The Material Table](#the-material-table)). Absent takes `[layers] material` of `TidalPy_Configs.toml` (`simple_rock`). |
 | `mass_kg` | optional | Layer mass \[kg\]. Defaults to 0.0; every successful EOS solve overwrites it with the solved layer mass. A layer that holds its mass holds this one. |
-| `use_tides` | optional | Whether the layer takes part in the tides: its share in the quasi-homogeneous Love methods and of the tidal heating. Default `true`. |
+| `use_tides` | optional | Whether the layer dissipates tidal energy: off, it has no share in the quasi-homogeneous Love methods, and the radial solver treats it as elastic (its static moduli, no rheology), so it adds no heating. Default `true`. |
 | `tidal_scale` | optional | The layer's share of the planet in the quasi-homogeneous Love methods (`homogeneous`, `cpl`, `ctl`) and of an analytic tide model's heating. Absent takes the layer's volume over the planet's. The radial solver resolves the layers directly and does not use it. |
 | `is_volume_fixed` | optional | `false` makes the layer hold its mass rather than its volume: the EOS solve ends it where it encloses that mass, and the layers above it move with it. Default `true`. |
 | `state` | optional | `"auto"` (the material decides, and a melting layer splits into solid and liquid zones), `"solid"`, or `"liquid"`. Default `"auto"`. |

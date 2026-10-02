@@ -309,9 +309,10 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
 // the layer's volume, with the analytic colatitude integral, the 2 pi longitude integral, and Gauss-Legendre nodes
 // inside each layer (the integral calc_3d_tides takes with every axis summed). The shell power dP/dr at the nodes is
 // what it sums, so `record_out`, when given, takes the heating density dP/dr / (4 pi r^2) there as each layer's
-// radial profile (at x = (r - r_inner) / (r_outer - r_inner)). A layer that is not tidal (use_tides off) is left out:
-// it takes 0, and the tidal layers are scaled so they sum to `total_heating`, the 1D global result, which also removes
-// the small radial-quadrature residual between the two; the profiles take the same scale. A liquid layer carries no
+// radial profile (at x = (r - r_inner) / (r_outer - r_inner)). A layer that is not tidal (use_tides off) was solved
+// with purely real moduli (c_Layer::share_tidal_shear_rheology), so it dissipates nothing and its heat is in neither the
+// total nor any layer; it takes 0. The tidal layers are scaled so they sum to `total_heating`, the 1D global result,
+// which removes the small radial-quadrature residual between the two; the profiles take the same scale. A liquid layer carries no
 // shear dissipation and takes 0; with no usable integral every layer is NaN. A node with no radial solution (below the
 // radial solver's starting radius) is left out of its layer's integral, with the warning calc_3d_tides gives a volume
 // integral when such nodes hold more of the body's volume than the radial solver's rtol. `retained_solves`, when

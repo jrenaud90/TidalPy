@@ -195,12 +195,16 @@ def test_a_failed_calc_tides_forgets_the_tidal_heat_source():
 
 
 def test_a_layer_that_is_not_tidal_takes_no_tidal_heat():
-    """A layer with use_tides off is left out of the per-layer split: the tidal layers carry the whole total."""
+    """A layer with use_tides off responds elastically: it dissipates nothing, so its heat leaves the total instead of
+    moving into the tidal layers."""
     world, tides = _tidal_world()
     total = world.get_tidal_heating()
     world.core.use_tides = False
     world.calc_tides(*tides)
     assert world.get_layer_tidal_heating(0) == 0.0
+    # This core is elastic, so it had no dissipation to lose: the total is unchanged and the mantle carries all of it.
+    # (test_world_use_tides_radial_01 turns off a dissipating layer.)
+    assert world.get_tidal_heating() == pytest.approx(total, rel=1.0e-12)
     assert world.get_layer_tidal_heating(1) == pytest.approx(total, rel=1.0e-12)
     assert world.tidal_heat_source == {"core": 0.0, "mantle": world.get_layer_tidal_heating(1)}
 

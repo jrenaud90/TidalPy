@@ -48,7 +48,7 @@ The expansivity belongs to the equation-of-state law (see [Thermal Terms](materi
 | `liquid` | `Phase` | The liquid phase. With a solid phase it is the melt and needs a `shear_viscosity` law (the melt's viscosity); without one the material is liquid everywhere. |
 | `solidus`, `liquidus` | [melting curve](../PartialMelt/partial_melt_models.md#melting-curves) | Required with both phases. Equal curves give a single melting temperature. |
 | `weakening` | [melt weakening](../PartialMelt/partial_melt_models.md#melt-weakening) | How the shear modulus and viscosity fall with melt; without one, the solid's values until fully molten. |
-| `bulk_modulus_mixing`, `bulk_viscosity_mixing` | [bulk mixing](../PartialMelt/partial_melt_models.md#bulk-mixing) | How melt changes the bulk modulus and bulk viscosity; without one, the solid's values until fully molten. |
+| `bulk_modulus_mixing`, `bulk_viscosity_mixing` | [bulk mixing](../PartialMelt/partial_melt_models.md#bulk-mixing) | How melt changes the bulk modulus and bulk viscosity. Without a bulk modulus law, the solid's bulk modulus blends linearly into the liquid's across the weakening law's breakdown band (or steps at full melt with no weakening law); without a bulk viscosity law, the solid's bulk viscosity until fully molten. |
 
 The material's one parameter is `latent_heat` (`latent_heat_j_kg`, default 0.0) \[J kg$^{-1}$\], the latent heat of melting (see [Latent Heat](#latent-heat)).
 
@@ -93,7 +93,7 @@ and above the liquidus the material is its liquid phase, $\phi = 1$. When the tw
 Inside the range ($0 < \phi < 1$) the material evaluates both phases at the point and combines them:
 
 - Shear modulus and shear viscosity: the [weakening law](../PartialMelt/partial_melt_models.md#melt-weakening), between the solid's and the liquid's values. Without one, the solid's values until fully molten.
-- Bulk modulus and bulk viscosity: the [mixing laws](../PartialMelt/partial_melt_models.md#bulk-mixing) when present, else the solid's values until fully molten.
+- Bulk modulus and bulk viscosity: the [mixing laws](../PartialMelt/partial_melt_models.md#bulk-mixing) when present. Otherwise the bulk modulus (isothermal and adiabatic) blends linearly from the solid's into the liquid's across the weakening law's breakdown band, as the shear modulus does, so the aggregate reaches the liquid's moduli together (with no weakening law, at full melt), and the bulk viscosity is the solid's until fully molten.
 - Density: mixed by volume, $(1 - \phi) \rho_s + \phi \rho_l$, with `use_melt_density`; otherwise the solid's.
 - Expansivity, heat capacity, and conductivity: linear in $\phi$ between the two phases, with the latent heat added to the heat capacity.
 
@@ -124,7 +124,7 @@ A material is evaluated with four switches. A layer passes its own, so one mater
 | `use_pressure_melting` | The melting curves are read at zero pressure. | The melting curves follow the local pressure, and `latent_expansion` can be nonzero. |
 | `use_melt_density` | The solid's density, even when fully molten. | The phases' densities mixed by volume. |
 
-A layer has two more switches that a material does not see: `use_heating` (the world's heat sources act in the layer) and `use_tides` (the layer takes part in the tides). Its `state` option (`"auto"`, `"solid"`, `"liquid"`) says how the radial solver treats it. With `"auto"`, `use_melting` on, and a material that melts, the world's EOS solve splits the layer into solid and liquid zones, liquid wherever the post-melt shear modulus falls to `[numerical] minimum_solid_rigidity` (default 1e-6) times the world's $\rho g R$ or below. `Layer.calc_state(pressure, temperature=None, radius=None)` evaluates the layer's material with the layer's switches, at its own temperature and mid-radius unless given.
+A layer has two more switches that a material does not see: `use_heating` (the world's heat sources act in the layer) and `use_tides` (the layer dissipates tidal energy; off, it responds elastically). Its `state` option (`"auto"`, `"solid"`, `"liquid"`) says how the radial solver treats it. With `"auto"`, `use_melting` on, and a material that melts, the world's EOS solve splits the layer into solid and liquid zones, liquid wherever the post-melt shear modulus falls to `[numerical] minimum_solid_rigidity` (default 1e-6) times the world's $\rho g R$ or below. `Layer.calc_state(pressure, temperature=None, radius=None)` evaluates the layer's material with the layer's switches, at its own temperature and mid-radius unless given.
 
 ### Behavior at the Limits
 

@@ -22,8 +22,12 @@ def test_override_config(make_override, tmp_path):
     original_file_level    = TidalPy.config['logging']['file_level']
     original_console_level = TidalPy.config['logging']['console_level']
 
-    TidalPy.reinit(make_override(tmp_path))
+    try:
+        TidalPy.reinit(make_override(tmp_path))
 
-    assert TidalPy.config['logging']['file_level'] != original_file_level
-    assert TidalPy.config['logging']['file_level'] == "INFO"
-    assert TidalPy.config['logging']['console_level'] == original_console_level
+        assert TidalPy.config['logging']['file_level'] != original_file_level
+        assert TidalPy.config['logging']['file_level'] == "INFO"
+        assert TidalPy.config['logging']['console_level'] == original_console_level
+    finally:
+        # Later tests in this process read the configuration.
+        TidalPy.reinit('default')

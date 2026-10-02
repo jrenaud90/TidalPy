@@ -156,7 +156,7 @@ Below the critical melt fraction, melt sits in isolated pockets and weakens the 
 
 ## Bulk Mixing
 
-Melt lowers the bulk modulus far less than the shear modulus. A silicate melt's bulk modulus is of the same order as the rock's (about 20 GPa at low pressure against about 130 GPa) while its shear modulus vanishes (Mavko 1980; Takei 2002). Without a mixing law a material keeps the solid's bulk modulus and bulk viscosity until it is fully molten, then takes the liquid's.
+Melt lowers the bulk modulus far less than the shear modulus. A silicate melt's bulk modulus is of the same order as the rock's (about 20 GPa at low pressure against about 130 GPa) while its shear modulus vanishes (Mavko 1980; Takei 2002). Without a bulk modulus mixing law, a material's bulk modulus blends linearly from the solid's into the liquid's across its weakening law's breakdown band (`calc_band_blend`), the same band over which the shear modulus reaches the liquid's, so the mush the radial solver treats as a liquid has the liquid's bulk modulus too; with no weakening law it steps at full melt, with the shear modulus. Without a bulk viscosity mixing law, the bulk viscosity is the solid's until fully molten, then the liquid's.
 
 ### Hashin-Shtrikman
 

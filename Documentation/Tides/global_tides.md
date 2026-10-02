@@ -90,7 +90,7 @@ result = collapse_global_tides(
 - `FixedLagTide(fixed_k=None, fixed_dt=None)`
 - `CTLQTide(fixed_k=None, fixed_dt=None, fixed_q=None)`
 
-where each `fixed_*` is a list indexed from `l = 2`.
+where each `fixed_*` is a list indexed from `l = 2`. A list left as `None` takes its `[tides]` value of the TidalPy configuration (`fixed_k`, `fixed_q`, `fixed_dt_s`), as `make_tide` does, so `FixedQTide([0.3])` has the configured Q rather than none.
 
 **Methods and properties**
 

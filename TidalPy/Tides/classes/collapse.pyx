@@ -17,7 +17,7 @@ from TidalPy.Utilities.logging.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.Tides.classes.tide import TIDE_CONFIG_KEYS
-from TidalPy.Utilities.classes.classes import check_config_keys, factory_defaults
+from TidalPy.Utilities.classes.classes import check_config_keys
 from TidalPy.Tides.eccentricity.eccentricity_driver import (
     validate_eccentricity_exact_tolerance, validate_eccentricity_truncation)
 from TidalPy.Tides.obliquity.obliquity_driver import validate_obliquity_truncation
@@ -162,11 +162,10 @@ def collapse_global_tides(
     cdef int i_eccentricity_truncation = validate_eccentricity_truncation(eccentricity_truncation)
     cdef double eccentricity_tolerance = validate_eccentricity_exact_tolerance(eccentricity_exact_tolerance)
 
-    # The same defaults and key check as make_tide: an absent config takes the [tides] defaults, and an unknown or
+    # The same defaults and key check as make_tide: a list left out takes its [tides] value, and an unknown or
     # misspelled key raises instead of silently leaving a list empty (which would give no heating).
     if tide_config is not None:
         check_config_keys(tide_config, TIDE_CONFIG_KEYS, "tide")
-    tide_config = {**factory_defaults("tides", TIDE_CONFIG_KEYS), **(tide_config or {})}
     cdef c_TideModelConfig cfg = cy_build_tide_config(tide_config)
     cdef c_TideModel model_enum = c_tide_model_from_name(tide_model.encode("utf-8"))
     if model_enum == c_TideModel.Rheology:

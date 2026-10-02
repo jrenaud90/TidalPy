@@ -8,8 +8,8 @@
 # Conductivity and diffusivity from McKinnon et al. (2016), the heat capacity derived from them.
 #
 # Melting: the triple point (McKinnon et al. 2016) and the enthalpy of fusion. Liquid: unsourced recollections of
-# liquid-nitrogen density and viscosity near 63 K, an unsourced bulk modulus, and the solid's conductivity and heat
-# capacity.
+# liquid-nitrogen density and viscosity near 63 K, an expansivity derived from that density and about 807 kg m-3 at
+# the 77 K boiling point (also recalled), an unsourced bulk modulus, and the solid's conductivity and heat capacity.
 schema_version = "0.2.0"
 description = "Beta nitrogen ice (Pluto, Triton) with a power-law and diffusion creep, melting at 63.15 K."
 category = "icy"
@@ -66,6 +66,8 @@ heat_capacity_j_kgk = 1550.0
 model = "constant"
 reference_density_kg_m3 = 867.0
 bulk_modulus_pa = 1.0e9
+thermal_expansion_1_k = 5.0e-3
+reference_temperature_k = 63.15
 
 [liquid.shear_viscosity]
 model = "constant"

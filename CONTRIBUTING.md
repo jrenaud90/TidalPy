@@ -183,7 +183,7 @@ def calc_tidal_heating(world, orbital_frequency, eccentricity, host_mass):
 
 TidalPy has lots of tests! It is highly recommended you install `pip install pytest-xdist` and use multiple cores with `pytest -n logical Tests/`. Prefer `-n logical` over `-n auto`. When `psutil` is installed, `auto` counts only physical cores, which is half the workers on a machine with hyper-threading, `-n logical` overcomes this limitation.
 
-The tests import the installed TidalPy, not the source tree: the repository's `conftest.py` removes the repository root from the import path. Run `pytest` from the repository root after reinstalling.
+The tests import the installed TidalPy, not the source tree: the repository's `conftest.py` removes the repository root from the import path. Run `pytest` from the repository root after reinstalling. `Tests/conftest.py` points `TIDALPY_DATA_DIR` at a fresh temporary directory before TidalPy is imported, so the suite always runs with the packaged configuration, worlds, and materials, never reads or writes your own data directory, and gives the same results whatever your `TidalPy_Configs.toml` says.
 
 ```bash
 # Run all tests

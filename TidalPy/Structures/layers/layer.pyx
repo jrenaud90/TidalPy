@@ -180,7 +180,9 @@ cdef class Layer(StructureBase):
         The material: a ``Material``, a MatPack name (``"peridotite"``), or a material table (with or without a
         ``preset``). A world's EOS solve needs every layer to have one.
     use_tides : bool, optional
-        Whether the layer takes part in the tides (its share in the quasi-homogeneous Love methods). Default ``True``.
+        Whether the layer dissipates tidal energy. Off, it has no share in the quasi-homogeneous Love methods, and the
+        radial solver deforms it with its static moduli and no rheology (purely real moduli), so it adds no heating.
+        Default ``True``.
     is_volume_fixed : bool, optional
         False lets the layer grow or shrink to hold its mass while the EOS solve redistributes the interior.
         Default ``True``.
@@ -426,7 +428,7 @@ cdef class Layer(StructureBase):
     # =================================================================================================================
     @property
     def use_tides(self) -> bool:
-        """Whether the layer takes part in the tides (its share in the quasi-homogeneous Love methods)."""
+        """Whether the layer dissipates tidal energy; off, it responds elastically (see the class docstring)."""
         self._check_ptr()
         return self._layer_ptr.get().get_use_tides()
 

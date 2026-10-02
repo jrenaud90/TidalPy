@@ -15,7 +15,8 @@
 #
 # Liquid: K_T0 = K_Fe^(1 - X_S) K_S^(X_S) and K0' = 6.5 + 3 X_S at 1900 K (Morard et al. 2018, as used by Xu et al.
 # 2021) at X_S = 0.25; the density mixes liquid iron (7019) and liquid FeS (about 3900 kg m-3, an unsourced estimate) by
-# additive volumes (derived here); the viscosity is assumed close to liquid iron's.
+# additive volumes (derived here); the viscosity and expansivity are assumed close to liquid iron's (liquid_iron.toml).
+# The solid weakens through the melting range by the Henning law.
 schema_version = "0.2.0"
 description = "Fe-FeS core alloy at 16 wt% S with a eutectic solidus (low confidence)."
 category = "rocky"
@@ -53,6 +54,7 @@ model = "birch_murnaghan"
 reference_density_kg_m3 = 5190.0
 reference_bulk_modulus_pa = 2.9e10
 bulk_modulus_derivative = 7.25
+thermal_expansion_1_k = 9.2e-5
 reference_temperature_k = 1900.0
 
 [liquid.shear_viscosity]
@@ -66,3 +68,6 @@ temperature_k = 1261.0
 [melting.liquidus]
 model = "constant"
 temperature_k = 1600.0
+
+[melting.weakening]
+model = "henning"

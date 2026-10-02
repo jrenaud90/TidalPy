@@ -11,8 +11,9 @@
 # about 2e24 Pa s at 800 K.
 #
 # Melting: unsourced round dry values (the water-saturated solidus is near 950 K; Tuttle and Bowen 1958), and a typical
-# silicate latent heat. Liquid: unsourced density and bulk modulus, and a viscosity inside the 1e5 (hydrous) to 1e10
-# (dry) Pa s range of Hess and Dingwell (1996). Confidence low.
+# silicate latent heat. Liquid: unsourced density and bulk modulus at the liquidus, the basalt and peridotite melts'
+# expansivity (unsourced for a felsic melt), and a viscosity inside the 1e5 (hydrous) to 1e10 (dry) Pa s range of Hess
+# and Dingwell (1996). Confidence low.
 schema_version = "0.2.0"
 description = "Granitic continental crust with wet-quartzite creep and constant melting temperatures."
 category = "rocky"
@@ -61,6 +62,8 @@ heat_capacity_j_kgk = 1200.0
 model = "constant"
 reference_density_kg_m3 = 2300.0
 bulk_modulus_pa = 1.2e10
+thermal_expansion_1_k = 6.5e-5
+reference_temperature_k = 1400.0
 
 [liquid.shear_viscosity]
 model = "constant"

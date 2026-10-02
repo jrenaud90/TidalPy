@@ -128,7 +128,7 @@ The four material switches and `use_heating` default to off, the simplest and fa
 | `use_pressure_melting` | `False` | The solidus and liquidus are read at zero pressure. | The solidus and liquidus follow the local pressure. Inside a melting range the latent heat then also steepens an adiabat (`latent_expansion`). |
 | `use_melt_density` | `False` | The density is the solid phase's. | The density mixes the two phases' by melt fraction. |
 | `use_heating` | `False` | The layer generates no heat, whatever models it carries. | The world's heat sources (radiogenic, tidal, and prescribed) act inside the layer during a thermal EOS solve. |
-| `use_tides` | `True` | The layer takes no share of the tidal heating: its tidal scale is 0, and `calc_tides` gives it no heating, leaving the total to the tidal layers. | The layer takes part in the tides. |
+| `use_tides` | `True` | The layer takes no part in tidal dissipation. Its tidal scale is 0 in the quasi-homogeneous Love methods. The radial solver still deforms it with its static moduli but applies no rheology, so its moduli (and `calc_complex_shear_modulus`) are purely real, and it adds nothing to Im(k) or to the heating. | The layer takes part in the tides. |
 
 The flags set the radial solver's assumptions, the temperature, and how the layer sizes itself:
 

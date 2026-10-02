@@ -75,9 +75,8 @@ public:
             result.viscosity     = inputs.solid_viscosity;
             return result;
         }
-        const double band_start = this->p_crit_melt_frac;
-        const double band_end = std::min(band_start + this->p_crit_melt_frac_width, 1.0);
-        if (phi >= band_end) {
+        const double blend = this->calc_band_blend(phi);
+        if (blend >= 1.0) {
             result.shear_modulus = inputs.liquid_shear;
             result.viscosity     = inputs.liquid_viscosity;
             return result;
@@ -87,8 +86,7 @@ public:
         if (!(result.shear_modulus >= inputs.liquid_shear)) { result.shear_modulus = inputs.liquid_shear; }
         if (!(result.viscosity >= inputs.liquid_viscosity))  { result.viscosity     = inputs.liquid_viscosity; }
         // Across the breakdown band the framework's pair blends into the liquid's, reaching it at the band's end.
-        if (phi > band_start) {
-            const double blend = (phi - band_start) / (band_end - band_start);
+        if (blend > 0.0) {
             result.shear_modulus = (1.0 - blend) * result.shear_modulus + blend * inputs.liquid_shear;
             if ((result.viscosity > 0.0) && (inputs.liquid_viscosity > 0.0) && std::isfinite(result.viscosity)) {
                 result.viscosity = std::exp(
@@ -96,6 +94,18 @@ public:
             }
         }
         return result;
+    }
+
+    // Where a melt fraction sits in the breakdown band: 0 up to the band's start, rising linearly to 1 at its end, and 1
+    // past it (a zero-width band steps from 0 to 1 at its start). The material blends its bulk modulus over the same
+    // band when it has no bulk mixing law, so every modulus reaches the liquid's together. NaN for a NaN melt fraction.
+    double calc_band_blend(double melt_fraction) const noexcept {
+        if (std::isnan(melt_fraction)) { return TidalPyConstants::d_NAN; }
+        const double band_start = this->p_crit_melt_frac;
+        const double band_end   = std::min(band_start + this->p_crit_melt_frac_width, 1.0);
+        if (melt_fraction >= band_end)   { return 1.0; }
+        if (melt_fraction <= band_start) { return 0.0; }
+        return (melt_fraction - band_start) / (band_end - band_start);
     }
 
     // Whether the law reads the solid's pair at the solidus (c_MeltWeakeningInputs::solid_*_at_solidus).

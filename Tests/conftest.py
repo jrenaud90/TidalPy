@@ -1,30 +1,21 @@
-"""Shared pytest fixtures for the TidalPy test suite.
+"""Shared pytest setup for the TidalPy test suite.
 
-The world and material packs are redirected to temporary directories so tests read the packaged files of the build
-under test (the user's copies are copy-if-absent and may be stale) and never write into the user's data directory.
+The suite runs against a fresh, temporary TidalPy data directory (``TIDALPY_DATA_DIR``), set here before anything
+imports TidalPy. So every test reads the packaged configuration, worlds, and materials of the build under test, not the
+user's ``TidalPy_Configs.toml`` (whose overrides of tolerances, truncations, or threads would change results) or their
+copy-if-absent world and material files (which may be stale), and nothing is written into the user's data directory.
+Subprocesses and notebook kernels the tests start inherit the variable. Each pytest process (each xdist worker) gets its
+own directory, removed when the process exits.
 """
-import pytest
+import atexit
+import os
+import shutil
+import tempfile
 
+# TidalPy.paths.DATA_DIR_ENVIRONMENT_VARIABLE, spelled out: importing it would initialize TidalPy before it is set.
+DATA_DIR_ENVIRONMENT_VARIABLE = "TIDALPY_DATA_DIR"
 
-@pytest.fixture(scope="session", autouse=True)
-def isolated_worlds_dir(tmp_path_factory):
-    """Redirect the world pack data directory to a temporary folder for the whole session."""
-    from TidalPy.Structures.configs import worldpack
-
-    directory = tmp_path_factory.mktemp("Worlds")
-    original = worldpack.get_worlds_dir
-    worldpack.get_worlds_dir = lambda: str(directory)
-    yield str(directory)
-    worldpack.get_worlds_dir = original
-
-
-@pytest.fixture(scope="session", autouse=True)
-def isolated_materials_dir(tmp_path_factory):
-    """Redirect the material pack data directory to a temporary folder for the whole session."""
-    from TidalPy.Material import matpack
-
-    directory = tmp_path_factory.mktemp("Materials")
-    original = matpack.get_materials_dir
-    matpack.get_materials_dir = lambda: str(directory)
-    yield str(directory)
-    matpack.get_materials_dir = original
+_TEST_DATA_DIR = tempfile.mkdtemp(prefix="tidalpy_tests_")
+atexit.register(shutil.rmtree, _TEST_DATA_DIR, ignore_errors=True)
+os.environ[DATA_DIR_ENVIRONMENT_VARIABLE] = _TEST_DATA_DIR
+os.environ["TIDALPY_TEST_MODE"] = "1"

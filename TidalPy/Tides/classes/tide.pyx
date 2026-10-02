@@ -41,10 +41,14 @@ cdef vector[double] cy_to_double_vector(object values) except *:
 
 
 cdef c_TideModelConfig cy_build_tide_config(dict config) except *:
-    """Build a c_TideModelConfig from a config dict with optional per-degree list keys."""
+    """Build a c_TideModelConfig from the given per-degree lists, each key left out taking its ``[tides]`` value.
+
+    Key by key over the same defaults the world-attached path uses, so a partial config never leaves a list empty (an
+    empty fixed_q or fixed_dt_s would silently give no dissipation). A key given as None counts as left out.
+    """
+    config = {**factory_defaults("tides", TIDE_CONFIG_KEYS),
+              **{key: value for key, value in (config or {}).items() if value is not None}}
     cdef c_TideModelConfig cfg
-    if config is None:
-        return cfg
     if "fixed_k" in config:
         cfg.fixed_k = cy_to_double_vector(config["fixed_k"])
     if "fixed_q" in config:
@@ -125,12 +129,13 @@ cdef class RheologyTide(TideBase):
 
 
 cdef class FixedQTide(TideBase):
-    """Constant phase lag (fixed-Q): k_l(omega) = k_l * (1 - i / Q_l)."""
+    """Constant phase lag (fixed-Q): k_l(omega) = k_l * (1 - i / Q_l).
+
+    A list left as None takes its ``[tides]`` value of the TidalPy configuration, as ``make_tide`` does.
+    """
 
     def __init__(self, object fixed_k=None, object fixed_q=None):
-        cdef c_TideModelConfig config
-        config.fixed_k = cy_to_double_vector(fixed_k)
-        config.fixed_q = cy_to_double_vector(fixed_q)
+        cdef c_TideModelConfig config = cy_build_tide_config({"fixed_k": fixed_k, "fixed_q": fixed_q})
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.FixedQ, config)
         self._adopt(ptr)
 
@@ -141,12 +146,13 @@ cdef class FixedQTide(TideBase):
 
 
 cdef class FixedLagTide(TideBase):
-    """Constant time lag (CTL): k_l(omega) = k_l * (1 - i * omega * dt_l)."""
+    """Constant time lag (CTL): k_l(omega) = k_l * (1 - i * omega * dt_l).
+
+    A list left as None takes its ``[tides]`` value of the TidalPy configuration, as ``make_tide`` does.
+    """
 
     def __init__(self, object fixed_k=None, object fixed_dt=None):
-        cdef c_TideModelConfig config
-        config.fixed_k  = cy_to_double_vector(fixed_k)
-        config.fixed_dt = cy_to_double_vector(fixed_dt)
+        cdef c_TideModelConfig config = cy_build_tide_config({"fixed_k": fixed_k, "fixed_dt_s": fixed_dt})
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.FixedLag, config)
         self._adopt(ptr)
 
@@ -157,13 +163,14 @@ cdef class FixedLagTide(TideBase):
 
 
 cdef class CTLQTide(TideBase):
-    """Constant time lag with a quality factor: k_l(omega) = k_l * (1 - i * omega * dt_l / Q_l)."""
+    """Constant time lag with a quality factor: k_l(omega) = k_l * (1 - i * omega * dt_l / Q_l).
+
+    A list left as None takes its ``[tides]`` value of the TidalPy configuration, as ``make_tide`` does.
+    """
 
     def __init__(self, object fixed_k=None, object fixed_dt=None, object fixed_q=None):
-        cdef c_TideModelConfig config
-        config.fixed_k  = cy_to_double_vector(fixed_k)
-        config.fixed_dt = cy_to_double_vector(fixed_dt)
-        config.fixed_q  = cy_to_double_vector(fixed_q)
+        cdef c_TideModelConfig config = cy_build_tide_config(
+            {"fixed_k": fixed_k, "fixed_dt_s": fixed_dt, "fixed_q": fixed_q})
         cdef unique_ptr[c_TideBase] ptr = c_find_tide(c_TideModel.CTLQ, config)
         self._adopt(ptr)
 
@@ -206,11 +213,8 @@ def make_tide(str model_name, dict config=None) -> TideBase:
     ValueError
         Unknown model name, or a config key outside those three.
     """
-    # Key by key over the same defaults the world-attached path uses, so a partial config never leaves a list empty
-    # (an empty fixed_k would silently give no dissipation).
     if config is not None:
         check_config_keys(config, TIDE_CONFIG_KEYS, "tide")
-    config = {**factory_defaults("tides", TIDE_CONFIG_KEYS), **(config or {})}
     cdef c_TideModelConfig cfg = cy_build_tide_config(config)
     cdef c_TideModel model = c_tide_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_TideBase] ptr = c_find_tide(model, cfg)

@@ -439,6 +439,16 @@ public:
     const c_RheologyBase* get_shear_rheology() const noexcept { return this->share_shear_rheology().get(); }
     const c_RheologyBase* get_bulk_rheology()  const noexcept { return this->share_bulk_rheology().get(); }
 
+    // The rheology a tidal response applies: the one in effect, or none for a layer that takes no part in the tides
+    // (use_tides off). Such a layer still deforms with its static moduli, so it shapes the Love numbers, but its
+    // moduli are purely real and it dissipates nothing; the radial solver and every complex modulus read through here.
+    std::shared_ptr<const c_RheologyBase> share_tidal_shear_rheology() const noexcept {
+        return this->p_use_tides ? this->share_shear_rheology() : nullptr;
+    }
+    std::shared_ptr<const c_RheologyBase> share_tidal_bulk_rheology() const noexcept {
+        return this->p_use_tides ? this->share_bulk_rheology() : nullptr;
+    }
+
     // The same through the generic model handle the Python wrappers hold; each setter checks the model's family and
     // throws std::invalid_argument for the wrong one. A null handle clears.
     void set_material_model(const std::shared_ptr<c_PhysicsBase>& model) {
@@ -459,13 +469,14 @@ public:
         return c_share_physics_of(is_override ? this->p_bulk_rheology : this->share_bulk_rheology());
     }
 
-    // The only place a complex modulus comes from: the material supplies the two static inputs and knows nothing
-    // about frequency. Purely real, with no dissipation, when no rheology is in effect.
+    // The only place a layer's complex modulus comes from: the material supplies the two static inputs and knows
+    // nothing about frequency. Purely real, with no dissipation, when no rheology is in effect or the layer takes no
+    // part in the tides (share_tidal_shear_rheology).
     std::complex<double> apply_shear_rheology(
             double static_modulus,
             double viscosity,
             double frequency) const noexcept {
-        const c_RheologyBase* rheology = this->get_shear_rheology();
+        const c_RheologyBase* rheology = this->share_tidal_shear_rheology().get();
         if (rheology) { return rheology->calc_complex_modulus(static_modulus, viscosity, frequency); }
         return std::complex<double>(static_modulus, 0.0);
     }
@@ -473,7 +484,7 @@ public:
             double static_modulus,
             double viscosity,
             double frequency) const noexcept {
-        const c_RheologyBase* rheology = this->get_bulk_rheology();
+        const c_RheologyBase* rheology = this->share_tidal_bulk_rheology().get();
         if (rheology) { return rheology->calc_complex_modulus(static_modulus, viscosity, frequency); }
         return std::complex<double>(static_modulus, 0.0);
     }

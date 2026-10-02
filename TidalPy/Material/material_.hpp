@@ -606,16 +606,27 @@ protected:
         out.shear_modulus   = weakened.shear_modulus;
         out.shear_viscosity = weakened.viscosity;
 
-        // Bulk modulus and bulk viscosity through the mixing laws, else the solid's until fully molten.
+        // Bulk modulus through the mixing law. Without one it blends linearly into the liquid's across the weakening
+        // law's breakdown band, as the shear modulus does, so the aggregate the radial solver treats as a liquid has
+        // the liquid's moduli; with no weakening law both step at full melt.
         if (this->p_components.bulk_modulus_mixing) {
             out.bulk_modulus = this->p_components.bulk_modulus_mixing->calc_bulk_modulus(
                 solid.bulk_modulus, liquid.bulk_modulus, out.shear_modulus, phi);
             out.adiabatic_bulk_modulus = this->p_components.bulk_modulus_mixing->calc_bulk_modulus(
                 solid.adiabatic_bulk_modulus, liquid.adiabatic_bulk_modulus, out.shear_modulus, phi);
-        } else if (phi >= 1.0) {
-            out.bulk_modulus           = liquid.bulk_modulus;
-            out.adiabatic_bulk_modulus = liquid.adiabatic_bulk_modulus;
+        } else {
+            const double blend = this->p_components.weakening
+                ? this->p_components.weakening->calc_band_blend(phi) : ((phi >= 1.0) ? 1.0 : 0.0);
+            if (blend >= 1.0) {
+                out.bulk_modulus           = liquid.bulk_modulus;
+                out.adiabatic_bulk_modulus = liquid.adiabatic_bulk_modulus;
+            } else if (blend > 0.0) {
+                out.bulk_modulus = (1.0 - blend) * solid.bulk_modulus + blend * liquid.bulk_modulus;
+                out.adiabatic_bulk_modulus =
+                    (1.0 - blend) * solid.adiabatic_bulk_modulus + blend * liquid.adiabatic_bulk_modulus;
+            }
         }
+        // Bulk viscosity through its mixing law, else the solid's until fully molten.
         if (this->p_components.bulk_viscosity_mixing) {
             out.bulk_viscosity = this->p_components.bulk_viscosity_mixing->calc_bulk_viscosity(
                 solid.bulk_viscosity, out.shear_viscosity, phi);
