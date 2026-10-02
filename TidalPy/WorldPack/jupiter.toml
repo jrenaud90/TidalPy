@@ -71,6 +71,7 @@ layer_index = 0
 radius_outer_m = 10486650.0           # 0.15 of the radius
 use_tides = false
 temperature_k = 20000.0
+use_heating = true
 
 # A liquid-only material, so the layer is a liquid: dilute heavy-element core, solved as a static liquid.
 [layers.core.material.liquid]
@@ -109,6 +110,7 @@ radius_fraction = 1.0
 use_tides = true
 tidal_scale = 1.0
 temperature_k = 2000.0
+use_heating = true
 
 [layers.envelope.material.liquid.eos]
 model = "constant"

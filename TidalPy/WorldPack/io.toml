@@ -20,8 +20,10 @@
 # layer's own, so the reference viscosity is the viscosity the layer has now and the law says how it
 # changes when the temperature does. The core is solid iron at 1900 K and 1e20 Pa s (it dissipates
 # 6e-6 of the total). The mantle is warm solid silicate at 1600 K and 1e19 Pa s. The asthenosphere is
-# at 1600 K too, with no melting law: its weakening is in its static shear modulus, 1e9 Pa against 6e10 Pa
-# for the solid mantle, and in its fitted viscosity.
+# at 1600 K too: its weakening is in its static shear modulus, 1e9 Pa against 6e10 Pa for the solid
+# mantle, and in its fitted viscosity. Both silicate layers carry peridotite melting curves, which follow
+# the pressure, with Henning weakening, and radiogenic heat (use_heating); at 1600 K both sit below their
+# solidus, so the melting and the heating act only in a thermal solve.
 #
 # Tides
 # The asthenosphere viscosity is the one fitted number: 3.5362e12 Pa s gives a total tidal heating of
@@ -53,6 +55,7 @@ layer_index = 0
 radius_outer_m = 810000.0
 use_tides = true
 temperature_k = 1900.0
+use_heating = true
 
 [layers.core.material.solid]
 thermal_conductivity_w_mk = 7.95
@@ -83,6 +86,9 @@ layer_index = 1
 radius_outer_m = 1721490.0
 use_tides = true
 temperature_k = 1600.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
 
 [layers.mantle.material.solid]
 thermal_conductivity_w_mk = 3.75
@@ -105,6 +111,16 @@ reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.mantle.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.mantle.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+[layers.mantle.material.melting]
+preset = "peridotite"
+
 [layers.mantle.shear_rheology]
 model = "andrade"
 alpha = 0.3
@@ -125,6 +141,9 @@ layer_index = 2
 radius_fraction = 1.0
 use_tides = true
 temperature_k = 1600.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
 
 [layers.asthenosphere.material.solid]
 thermal_conductivity_w_mk = 3.75
@@ -146,6 +165,16 @@ reference_viscosity_pas = 3.5362e12     # fitted to Io's observed heat output
 reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
+
+[layers.asthenosphere.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.asthenosphere.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+[layers.asthenosphere.material.melting]
+preset = "peridotite"
 
 [layers.asthenosphere.shear_rheology]
 model = "andrade"

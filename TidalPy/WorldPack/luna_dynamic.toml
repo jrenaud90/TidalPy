@@ -56,6 +56,7 @@ layer_index = 0
 radius_outer_m = 160000.0
 use_tides = true
 temperature_k = 1700.0
+use_heating = true
 
 [layers.inner_core.material.solid]
 thermal_conductivity_w_mk = 7.95
@@ -104,6 +105,9 @@ layer_index = 2
 radius_outer_m = 475000.0             # fitted, with the zone viscosity, to Q at the month and the year
 use_tides = true
 temperature_k = 1600.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
 
 [layers.lower_mantle.material.solid]
 thermal_conductivity_w_mk = 3.75
@@ -126,6 +130,16 @@ reference_temperature_k = 1600.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.lower_mantle.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.lower_mantle.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+[layers.lower_mantle.material.melting]
+preset = "peridotite"
+
 [layers.lower_mantle.shear_rheology]
 model = "maxwell"
 
@@ -144,6 +158,9 @@ layer_index = 3
 radius_outer_m = 1703421.57            # fitted to the moment of inertia
 use_tides = true
 temperature_k = 1300.0
+use_pressure_melting = true
+use_melting = true
+use_heating = true
 
 [layers.mantle.material.solid]
 thermal_conductivity_w_mk = 3.75
@@ -166,6 +183,16 @@ reference_temperature_k = 1300.0
 molar_activation_energy_j_mol = 3.0e5
 molar_activation_volume_m3_mol = 0.0
 
+[layers.mantle.material]
+latent_heat_j_kg = 4.0e5
+
+[layers.mantle.material.liquid]
+preset = "peridotite"                   # silicate melt
+
+# Peridotite's melting curves (Monteux et al. 2016), which rise with pressure, and its Henning weakening.
+[layers.mantle.material.melting]
+preset = "peridotite"
+
 [layers.mantle.shear_rheology]
 model = "andrade"
 alpha = 0.3
@@ -186,6 +213,7 @@ layer_index = 4
 radius_fraction = 1.0
 use_tides = true
 temperature_k = 250.0
+use_heating = true
 
 [layers.crust.material.solid]
 thermal_conductivity_w_mk = 3.75
