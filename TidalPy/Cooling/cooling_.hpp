@@ -171,8 +171,10 @@ public:
         double pressure = 0.0;
         p_mid_layer_state(context, probe, gravity, pressure, out);
         const double radius_mid = 0.5 * (context.radius_inner + context.radius_outer);
-        out.resistance_bottom = c_shell_resistance(context.radius_inner, radius_mid, out.conductivity);
-        out.resistance_top    = c_shell_resistance(radius_mid, context.radius_outer, out.conductivity);
+        out.resistance_bottom = probe.calc_shell_resistance(
+            context.radius_inner, radius_mid, context.inner_node_temperature, context.temperature);
+        out.resistance_top = probe.calc_shell_resistance(
+            radius_mid, context.radius_outer, context.temperature, context.outer_node_temperature);
         out.base_temperature  = context.temperature;
     }
 
@@ -268,8 +270,9 @@ public:
         inputs.density              = mid.density;
         inputs.viscosity            = reference.shear_viscosity;
         inputs.thermal_conductivity = out.conductivity;
-        // The diffusivity uses the density the material has here, not a separate reference density.
-        inputs.thermal_diffusivity  = out.conductivity / (mid.density * out.heat_capacity);
+        // The diffusivity uses the density the material has here, not a separate reference density, and the sensible
+        // heat capacity: a melting range's latent heat buffers the temperature but does not slow heat diffusion.
+        inputs.thermal_diffusivity  = out.conductivity / (mid.density * mid.sensible_heat_capacity);
         // The expansivity at the layer's own state, which can fall with compression.
         inputs.thermal_expansion    = out.thermal_expansion;
         inputs.liquid               = reference.is_liquid;
@@ -288,16 +291,15 @@ public:
         if (boundary > d_MAX_BOUNDARY_FRACTION * thickness) { boundary = d_MAX_BOUNDARY_FRACTION * thickness; }
         out.boundary_thickness = boundary;
 
-        out.resistance_bottom = context.insulated_base ? 0.0 : c_shell_resistance(
-            context.radius_inner, context.radius_inner + boundary, out.conductivity);
-        out.resistance_top = c_shell_resistance(
-            context.radius_outer - boundary, context.radius_outer, out.conductivity);
-
         // The layer's temperature holds at the top of the interior, and the adiabat warms downward from it to the
         // interior's base, along the gravity of the solved structure.
         const double interior_base = context.radius_inner + (context.insulated_base ? 0.0 : boundary);
-        out.base_temperature = context.temperature
-            * std::exp(probe.calc_adiabat_exponent(interior_base, context.radius_outer - boundary));
+        out.base_temperature = probe.calc_adiabat_base_temperature(
+            interior_base, context.radius_outer - boundary, context.temperature);
+        out.resistance_bottom = context.insulated_base ? 0.0 : probe.calc_shell_resistance(
+            context.radius_inner, interior_base, context.inner_node_temperature, out.base_temperature);
+        out.resistance_top = probe.calc_shell_resistance(
+            context.radius_outer - boundary, context.radius_outer, context.temperature, context.outer_node_temperature);
     }
 
     void calc_cooling_vectorize(

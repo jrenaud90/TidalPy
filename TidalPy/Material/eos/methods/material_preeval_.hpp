@@ -88,10 +88,11 @@ inline void c_preeval_material(
     tidalpy::c_MaterialState state;
     if (ode_args->full_state) { material.calc_state(point, eos_data->switches, state); }
     else                      { material.calc_thermal(point, eos_data->switches, state); }
-    output->density              = state.density / eos_data->density_scale;
-    output->melt_fraction        = state.melt_fraction;
-    output->thermal_expansion    = state.thermal_expansion;
-    output->heat_capacity        = state.heat_capacity;
+    output->density            = state.density / eos_data->density_scale;
+    output->melt_fraction      = state.melt_fraction;
+    output->thermal_expansion  = state.thermal_expansion;
+    output->heat_capacity      = state.heat_capacity;
+    output->latent_expansion   = state.latent_expansion;
     output->thermal_conductivity = state.thermal_conductivity;
     if (!ode_args->full_state) { return; }
 

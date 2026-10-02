@@ -13,7 +13,7 @@ _COARSE_SLICES = 100
 _FINE_SLICES = 3000
 
 
-# Monteux et al. (2016) peridotite melting curves, and mantle-silicate Anderson-Gruneisen constants.
+# Monteux et al. (2016) peridotite melting curves.
 _MONTEUX_SOLIDUS = {
     "model": "simon_glatzel_2", "temperature_k": 1661.2, "simon_a_pa": 1.336e9, "simon_c": 7.437,
     "transition_pressure_pa": 20.0e9, "high_temperature_k": 2081.8, "high_simon_a_pa": 1.0169e11,
@@ -22,8 +22,6 @@ _MONTEUX_LIQUIDUS = {
     "model": "simon_glatzel_2", "temperature_k": 1982.1, "simon_a_pa": 6.594e9, "simon_c": 5.374,
     "transition_pressure_pa": 20.0e9, "high_temperature_k": 2006.8, "high_simon_a_pa": 3.465e10,
     "high_simon_c": 1.844}
-_DELTA = 5.5
-_KAPPA = 1.4
 # Silicate and iron thermal constants: conductivity [W m-1 K-1], heat capacity [J kg-1 K-1], expansivity [1/K].
 _ROCK_THERMAL = {"thermal_conductivity_w_mk": 3.75, "heat_capacity_j_kgk": 1200.0}
 _ROCK_EXPANSION = 5.2e-5
@@ -34,8 +32,9 @@ _IRON_EXPANSION = 1.2e-5
 def _thermal_earth_config(pressure_dependent):
     """Bundled earth_simple, ready for a thermal solve: iron cores, and a convecting mantle with silicate thermal
     constants that melts into a Murnaghan melt of 0.2 Pa s through Henning weakening. Its melting curves are a constant
-    1600 K solidus and 2000 K liquidus, or with pressure_dependent the Monteux curves, which follow the pressure, and an
-    Anderson-Gruneisen expansivity."""
+    1600 K solidus and 2000 K liquidus, or with pressure_dependent the Monteux curves, which follow the pressure. The
+    melt carries no latent heat and the radiogenic heat stays out of the solve,
+    whatever the bundled file sets."""
     config = build_world("earth_simple").get_config_dict()
     for name in ("inner_core", "outer_core"):
         layer = config["layers"][name]
@@ -57,13 +56,14 @@ def _thermal_earth_config(pressure_dependent):
     material["melting"] = {"solidus": {"model": "constant", "temperature_k": 1600.0},
                            "liquidus": {"model": "constant", "temperature_k": 2000.0},
                            "weakening": {"model": "henning"}}
+    material["latent_heat_j_kg"] = 0.0
     mantle["use_melting"] = True
+    mantle["use_pressure_melting"] = False
+    mantle["use_heating"] = False
     mantle["cooling"] = {"model": "convection", "convection_alpha": 1.0, "convection_beta": 1.0 / 3.0,
                          "critical_rayleigh": 1100.0}
     mantle["radiogenics"] = {"model": "isotope", "isotopes": "modern_day_chondritic"}
     if pressure_dependent:
-        material["solid"]["eos"]["anderson_gruneisen_parameter"] = _DELTA
-        material["solid"]["eos"]["anderson_gruneisen_exponent"] = _KAPPA
         material["melting"]["solidus"] = dict(_MONTEUX_SOLIDUS)
         material["melting"]["liquidus"] = dict(_MONTEUX_LIQUIDUS)
         mantle["use_pressure_melting"] = True

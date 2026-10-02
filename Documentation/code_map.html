@@ -161,14 +161,17 @@ const FLOWS = {
     name: 'World building', color: 'var(--flow-build)',
     text: 'A bundled name, a TOML path, or a dict is validated against the schema, filled from the configuration ' +
       'defaults (the world file always wins), and turned into Cython layer and world objects that own C++ objects. ' +
-      'Every physics model comes from a make_<model> factory. A system file repeats this per world and adds the ' +
-      'orbits.',
+      'Each layer takes a material (a MatPack name, a preset with overrides, or a full table) and its models from ' +
+      'make_<model> factories. A system file repeats this per world and adds the orbits.',
   },
   eos: {
     name: 'Equation of state', color: 'var(--flow-eos)',
     text: 'solve_eos integrates gravity, pressure, enclosed mass, and moment of inertia from the center to the ' +
       'surface in non-dimensional units, iterating the central pressure until the surface pressure matches. Each ' +
-      'layer keeps the dense solution, so density, gravity, and pressure are available at any radius afterwards.',
+      'layer integrates in pieces that end at its solid and liquid zone boundaries and, for a layer that holds its ' +
+      'mass, where it encloses that mass. With temperature, each pass also integrates the thermal profile, and the ' +
+      'thermal network relaxes the boundary layers, interface temperatures, and heat flows between passes. The ' +
+      'dense solution is kept, so every property is available at any radius afterwards.',
   },
   love: {
     name: 'Love numbers', color: 'var(--flow-love)',
@@ -181,7 +184,8 @@ const FLOWS = {
     name: 'Tides 1D', color: 'var(--flow-tides1d)',
     text: 'calc_tides enumerates the tidal modes for an orbital state, asks the tide model for -Im k_l at each ' +
       'unique (degree, frequency) pair (a rheology tide model runs the world Love solve), and collapses the modes ' +
-      'into heating and the potential derivatives that drive the orbit and spin.',
+      'into heating and the potential derivatives that drive the orbit and spin. It records each layer\'s heating ' +
+      'as the tidal heat source that later thermal solves and temperature rates take.',
   },
   tides3d: {
     name: 'Tides 3D', color: 'var(--flow-tides3d)',
@@ -234,16 +238,23 @@ const NODES = [
     label: 'TidalPy.config', sub: 'defaultc.py, configurations.py', file: 'TidalPy/defaultc.py',
     purpose: 'The TidalPy configuration: [numerical] floors and the 3D quadrature defaults, [eos_solver] and ' +
       '[radial_solver] defaults, [tides] and [worlds] defaults, [warnings] switches, [graphics.interior], and ' +
-      'the per-material [layers.<type>] blocks. The user file is merged over the packaged defaults and any key ' +
+      '[layers] material (the material of a layer that names none). The user file is merged over the packaged ' +
+      'defaults and any key ' +
       'nothing reads is reported by its path; reinit(provided_config=...) and save_config reproduce a run.',
     inputs: 'TidalPy_Configs.toml and any provided overrides', outputs: 'config dict' },
   { id: 'factories', lane: 'config', kind: 'cydef', shape: 'func', star: true,
-    label: 'make_<model>(name, config)', sub: 'rheology, viscosity, melt, cooling, ...',
-    file: 'Rheology/rheology.pyx and the other model modules',
-    purpose: 'One factory per physics family (rheology, viscosity, partial melt, cooling, radiogenics, material ' +
-      'EOS, tide, luminosity): a model name plus a config dict gives a Cython model object. Unknown keys are ' +
-      'rejected with the closest accepted key.',
+    label: 'make_<model>(name, config)', sub: 'eos, viscosity, rheology, melting, cooling, ...',
+    file: 'Utilities/classes (PhysicsModel) and the model modules',
+    purpose: 'One factory per physics family (EOS and shear-modulus laws, viscosity, rheology, melting curves, ' +
+      'melt weakening, bulk mixing, cooling, radiogenics, tide, luminosity): a model name plus a config dict ' +
+      'gives a Cython model object. The spec-model families share one generic wrapper (PhysicsModel) over a C++ ' +
+      'registry; unknown keys are rejected with the closest accepted key.',
     inputs: 'model name (alias-aware), config dict', outputs: 'Cython model wrapper owning the C++ model' },
+  { id: 'matpack', lane: 'config', kind: 'py', shape: 'func',
+    label: 'load_material(name)', sub: 'MatPack', file: 'Material/matpack.py',
+    purpose: 'The named materials TidalPy ships (rocky, icy, giant-planet, and simplified), installed into the data ' +
+      'directory like the bundled worlds. A layer names one, or a preset with overrides, or gives a full table.',
+    inputs: 'MatPack name or material table', outputs: 'Material' },
   { id: 'tidalpy_config', lane: 'config', kind: 'cpp', shape: 'class',
     label: 'TidalPyConfig singleton', sub: 'constants_.hpp', file: 'TidalPy/constants_.hpp',
     purpose: 'One process-wide struct every compiled extension observes: G and the other physical constants from ' +
@@ -256,12 +267,13 @@ const NODES = [
     purpose: 'The Python face of a world: its layers, tide model, and spin; solve_eos, solve_love_numbers, ' +
       'calc_tides, and the 3D tide methods; get_config_dict, save_to_toml, and binary save and load.',
     inputs: 'name, radius, mass, world scalars', outputs: 'a world that owns its C++ object' },
-  { id: 'BaseLayer', lane: 'structures', kind: 'cycdef', shape: 'class',
-    label: 'BaseLayer', sub: 'SolidLiquidLayer, GasLayer', file: 'Structures/layers/base.pyx',
-    purpose: 'A layer with static moduli, the solver flags is_solid, is_static, is_incompressible, and slots for ' +
-      'its physics models (set_eos, set_shear_rheology, set_shear_viscosity, set_partial_melt, set_cooling, ' +
-      'set_radiogenics).',
-    inputs: 'name, index, inner and outer radius, mass, moduli', outputs: 'a layer ready for add_layer' },
+  { id: 'Layer', lane: 'structures', kind: 'cycdef', shape: 'class',
+    label: 'Layer', file: 'Structures/layers/layer.pyx',
+    purpose: 'The one layer class: its material, the physics switches (use_thermal_expansion, use_melting, ' +
+      'use_pressure_melting, use_melt_density, use_heating, use_tides, and state), the radial-solver flags ' +
+      'is_static and is_incompressible, is_volume_fixed, cooling and radiogenics models, and optional rheology ' +
+      'overrides.',
+    inputs: 'name, index, inner and outer radius, material, temperature, switches', outputs: 'a layer ready for add_layer' },
   { id: 'c_BaseWorld', lane: 'structures', kind: 'cpp', shape: 'class',
     label: 'c_BaseWorld', sub: 'base_.hpp', file: 'Structures/worlds/base_.hpp',
     purpose: 'Owns its layers (unique_ptr, inner to outer), the retained EOS solution, the cached radial solver, ' +
@@ -273,25 +285,35 @@ const NODES = [
     label: 'c_build_world_from_layered_profile', sub: 'profile_world_.hpp',
     file: 'Structures/worlds/profile_world_.hpp',
     purpose: 'Builds a world from a radial profile entirely in C++: each layer takes an interpolated ' +
-      'material EOS over its own slice (partitioned by c_partition_radius_by_layer), is_tidal follows is_solid, ' +
+      'material over its own slice (partitioned by c_partition_radius_by_layer), a liquid one takes no tides, ' +
       'and no per-material defaults are pulled in. Backs the standalone radial_solver and ' +
       'build_layered_world_from_profile, so the two build the same world.',
     inputs: 'radius, density, static moduli, layer radii, layer types and flags, bulk density',
     outputs: 'shared_ptr<c_BaseWorld>' },
-  { id: 'c_BaseLayer', lane: 'structures', kind: 'cpp', shape: 'class',
-    label: 'c_BaseLayer', sub: 'c_SolidLiquidLayer, c_GasLayer', file: 'Structures/layers/base_.hpp',
-    purpose: 'Holds its models (unique_ptr; the models observe the layer through raw pointers), the EOS profile ' +
-      '(c_LayerEOSData with the dense evaluator), and the pre- and post-melt viscoelastic arrays. ' +
-      'calc_complex_shear_modulus(r, w) applies the rheology to the local modulus and viscosity.',
+  { id: 'c_Layer', lane: 'structures', kind: 'cpp', shape: 'class',
+    label: 'c_Layer', sub: 'layer_.hpp', file: 'Structures/layers/layer_.hpp',
+    purpose: 'Shares its immutable material (shared_ptr<const c_Material>), owns its cooling and radiogenics models ' +
+      'and rheology overrides, carries its switches, and holds the EOS profile (c_LayerEOSData with the dense ' +
+      'evaluator). calc_complex_shear_modulus(r, w) applies its rheology, or its phase\'s, to the local post-melt ' +
+      'modulus and viscosity.',
     inputs: 'radius, frequency', outputs: 'density, gravity, pressure, static and complex moduli at a radius' },
+  { id: 'material', lane: 'structures', kind: 'cpp', shape: 'class',
+    label: 'c_Material', sub: 'c_Phase', file: 'Material/material_.hpp',
+    purpose: 'A solid and a liquid c_Phase (or either alone; each an EOS law, a shear-modulus law, viscosities, ' +
+      'rheologies, and thermal constants), melting curves, melt weakening, bulk mixing, and latent heat. calc_state ' +
+      'is the one place a point maps onto the material: density, moduli, viscosities, expansivity, heat capacity ' +
+      '(latent heat included), conductivity, melt fraction, latent expansion; the layer switches say which physics ' +
+      'takes part. calc_rigidity_margin is the zone event.',
+    inputs: 'pressure, temperature, radius, layer switches', outputs: 'c_MaterialState' },
   { id: 'models', lane: 'structures', kind: 'cpp', shape: 'class',
-    label: 'Physics model families', sub: 'c_RheologyBase, c_MaterialEOSBase, c_TideBase, ...',
-    file: 'Rheology/rheology_.hpp, Material/eos/material_eos_.hpp, Cooling/..., Tides/classes/tide_.hpp',
-    purpose: 'c_RheologyBase, c_ViscosityBase, c_PartialMeltBase, c_CoolingBase, c_RadiogenicsBase, ' +
-      'c_MaterialEOSBase, c_TideBase, c_LuminosityBase: each family has an enum, a name factory, vectorized ' +
-      'calc_* methods, config entries, and a binary id. All of them are pure functions of their inputs.',
+    label: 'Physics model families', sub: 'spec models: laws, rheology, cooling, ...',
+    file: 'Utilities/classes/spec_model_.hpp, registry_.hpp, and the model modules',
+    purpose: 'Spec models (c_SpecModel over a c_ModelRegistry): EOS and shear-modulus laws, viscosity, rheology, ' +
+      'melting curves, melt weakening, bulk mixing, and cooling, each one parameter table that gives its config ' +
+      'entries, bounds, and binary record. Radiogenics, tide, and luminosity models keep their own classes. All ' +
+      'are pure functions of their inputs; a cooling model also builds its layer\'s thermal profile.',
     inputs: 'family-specific state (modulus, viscosity, frequency; pressure; temperature; ...)',
-    outputs: 'complex modulus, viscosity, melt fraction, cooling flux, heating rate, density, Love numbers' },
+    outputs: 'complex modulus, viscosity, melting temperature, cooling flux and profile, heating rate, density' },
 
   // ---- Equation of state ----
   { id: 'solve_eos', lane: 'eos', kind: 'cydef', shape: 'func', star: true,
@@ -306,26 +328,37 @@ const NODES = [
     label: 'c_BaseWorld::solve_eos', file: 'Structures/worlds/base_.hpp',
     purpose: 'Converts to non-dimensional units, prepares the heat sources, lays out the thermal segments ' +
       '(thermal_layout_.hpp), and runs the solver once per thermal pass, relaxing the boundary layers, interface ' +
-      'temperatures, heat flows, and floating layer radii between passes. Starts each solve from the last ' +
-      'converged central pressure.',
+      'temperatures, heat flows, and the radii of layers that hold their mass between passes. Starts each solve ' +
+      'from the last converged central pressure.',
     inputs: 'c_WorldEOSSolveConfig',
-    outputs: 'retained c_EOSSolution; layers populated; molten stretches found; radial cache invalidated' },
+    outputs: 'retained c_EOSSolution; layers populated; zones; radial cache invalidated' },
   { id: 'c_solve_eos', lane: 'eos', kind: 'cpp', shape: 'func',
     label: 'c_solve_eos', sub: 'Material/eos/solver_.hpp', file: 'Material/eos/solver_.hpp',
     purpose: 'Integrates gravity, pressure, enclosed mass, and moment of inertia (plus temperature and heat flow ' +
       'in a thermal solve) from the center, segment by segment, inside a secant iteration on the central ' +
-      'pressure. Dense output is captured on a warm start and on the pass the secant error model expects to ' +
-      'converge, so the converged pass is usually kept instead of repeated.',
+      'pressure. A segment integrates in pieces that end at terminal events: the rigidity margin of a layer that ' +
+      'can change state (a solid and liquid zone boundary) and the enclosed mass of a layer that holds its mass. ' +
+      'Dense output is captured on a warm start and on the pass the secant error model expects to converge.',
     inputs: 'per-layer EOS functions and inputs, segments, bulk density, surface pressure, tolerances, a central ' +
       'pressure guess',
     outputs: 'c_EOSSolution with dense output per segment, iterations, pressure error' },
   { id: 'c_Heating', lane: 'eos', kind: 'cpp', shape: 'class',
     label: 'c_Heating', sub: 'heating_.hpp', file: 'Structures/worlds/heating_.hpp',
-    purpose: 'The world heat sources, summed into a volumetric heating h(r) for the layers with use_heating. The ' +
-      'radiogenic source is each layer radiogenics model as a specific rate times the local density. The ' +
-      'thermal ODE integrates dL/dr = 4 pi r^2 h from it, and the thermal layout uses it for the heating inside ' +
-      'each conducting stretch.',
-    inputs: 'c_WorldState (time, layers); layer index, radius, density', outputs: 'heating [W m-3]' },
+    purpose: 'The world heat sources, summed into a volumetric heating h(r) for the layers with use_heating: ' +
+      'radiogenic (each layer radiogenics model), tidal (the last calc_tides, along its radial heating profile or ' +
+      'by mass), and prescribed (a power or specific rate per layer). Each source gives a layer exactly its power. ' +
+      'The thermal ODE integrates dL/dr = 4 pi r^2 h, and the thermal network uses it for the heating inside each ' +
+      'conducting stretch.',
+    inputs: 'c_WorldState (time, layers, tidal record, prescribed heating); layer index, radius, density',
+    outputs: 'heating [W m-3], each layer\'s power per source' },
+  { id: 'thermal_layout', lane: 'eos', kind: 'cpp', shape: 'func',
+    label: 'c_update_layer_thermal', sub: 'thermal_layout_.hpp', file: 'Structures/worlds/thermal_layout_.hpp',
+    purpose: 'The thermal network between passes. Each cooling model builds its layer\'s profile (conducting ' +
+      'halves, or boundary layers around an adiabat marched through the material), with Kirchhoff resistances at ' +
+      'the material\'s conductivity; the network then balances the interface temperatures and heat flows, adds the ' +
+      'latent heat of moving zone boundaries, and reports each layer\'s temperature rate.',
+    inputs: 'the pass solution, layers, heat sources, surface temperature',
+    outputs: 'segments for the next pass, heat flows, temperature rates, convergence measure' },
   { id: 'c_EOSSolution', lane: 'eos', kind: 'cpp', shape: 'class',
     label: 'c_EOSSolution', sub: 'eos_solution_.hpp', file: 'Material/eos/eos_solution_.hpp',
     purpose: 'The structure solution: the retained CyRK integrators per segment and the layer EOS functions. ' +
@@ -396,7 +429,8 @@ const NODES = [
     purpose: 'Global 1D tidal dissipation for one orbital state. The [tides] config sets the degrees, truncations, ' +
       'and Love method; the attached tide model sets how -Im k_l is obtained.',
     inputs: 'orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis, host mass',
-    outputs: 'tidal heating, dU/dM, dU/dw, dU/dOmega, per-layer heating, per-mode Love numbers' },
+    outputs: 'tidal heating, dU/dM, dU/dw, dU/dOmega, per-layer heating, per-mode Love numbers, the tidal heat ' +
+      'source' },
   { id: 'calc_3d_tides', lane: 'tides', kind: 'cydef', shape: 'func', star: true,
     label: 'BaseWorld.calc_3d_tides(...)', sub: 'get_3d_tidal_heating, calc_3d_displacements',
     file: 'Structures/worlds/base.pyx',
@@ -406,7 +440,8 @@ const NODES = [
   { id: 'c_calc_tides', lane: 'tides', kind: 'cpp', shape: 'func',
     label: 'c_BaseWorld::calc_tides', sub: 'world_tides_.hpp', file: 'Structures/worlds/world_tides_.hpp',
     purpose: 'Runs the potential engine, solves the Love numbers once per unique (degree, |frequency|), collapses ' +
-      'the modes, stores the result, and distributes the heating to the tidal layers.',
+      'the modes, stores the result, distributes the heating to the tidal layers, and records it as the tidal ' +
+      'heat source.',
     inputs: 'c_TideSolveConfig', outputs: 'c_GlobalTideResult on the world' },
   { id: 'c_global_potential', lane: 'tides', kind: 'cpp', shape: 'func',
     label: 'c_global_potential', sub: 'Tides/potential/global_.hpp', file: 'Tides/potential/global_.hpp',
@@ -497,33 +532,40 @@ const EDGES = [
     purpose: 'Construct the world named by `type` and add its layers inner to outer.',
     inputs: 'validated config', outputs: 'TerrestrialWorld, GasGiantWorld, StarWorld, or BaseWorld' },
   { from: 'construct_world', to: 'config', flow: 'build', type: 'call',
-    purpose: 'Resolve every omitted value from the [layers.<type>] (or [layers.default]), [worlds], and [tides] ' +
-      'sections; the world file always wins.',
-    inputs: 'layer material type, world type', outputs: 'filled per-layer and per-world defaults' },
+    purpose: 'Resolve every omitted value from [layers] material, [worlds], and [tides]; the world file always wins.',
+    inputs: 'world type', outputs: 'filled per-layer and per-world defaults' },
+  { from: 'construct_world', to: 'matpack', flow: 'build', type: 'call',
+    purpose: 'Resolve each layer\'s material: a MatPack name, a preset with overrides, or a full table.',
+    inputs: 'the layer\'s material entry', outputs: 'Material' },
   { from: 'construct_world', to: 'factories', flow: 'build', type: 'call',
-    purpose: 'Attach each [layers.<name>.<section>] model table through its family factory.',
+    purpose: 'Attach each model table (the material laws, cooling, radiogenics, rheology overrides) through its ' +
+      'family factory.',
     inputs: 'section name, model name, parameter dict', outputs: 'Cython model wrapper' },
-  { from: 'construct_world', to: 'BaseLayer', flow: 'build', type: 'make',
-    purpose: 'Build each layer from its scalars, with the inner radius taken from the previous layer.',
-    inputs: 'constructor keywords (radius_outer, mass, moduli, flags)', outputs: 'layer wrapper with models attached' },
+  { from: 'construct_world', to: 'Layer', flow: 'build', type: 'make',
+    purpose: 'Build each layer from its scalars and material, with the inner radius taken from the previous layer.',
+    inputs: 'constructor keywords (radius_outer, material, temperature, switches)',
+    outputs: 'layer wrapper with models attached' },
   { from: 'construct_world', to: 'BaseWorld', flow: 'build', type: 'make',
     purpose: 'Create the world, add the layers, and wire the [tides] table and tide model (rheology, fixed_q, ' +
       'fixed_dt, ctl_q).',
     inputs: 'name, radius, mass, world scalars, layers', outputs: 'world wrapper with source_config' },
   { from: 'factories', to: 'models', flow: 'build', type: 'make',
-    purpose: 'Each make_<model> calls the C++ factory c_find_<module>(enum, config) and adopts the pointer into the ' +
-      'matching rich subclass.',
-    inputs: 'model enum, C++ config struct', outputs: 'unique_ptr to the C++ model' },
-  { from: 'BaseLayer', to: 'c_BaseLayer', flow: 'build', type: 'make',
-    purpose: 'The wrapper owns the C++ layer and moves each model into it (set_eos, set_shear_rheology, ...).',
-    inputs: 'unique_ptr models', outputs: 'a C++ layer holding its models' },
+    purpose: 'Each make_<model> calls the family registry by name and wraps the shared C++ model in its ' +
+      'two-line Cython subclass.',
+    inputs: 'model name, parameter map', outputs: 'shared_ptr to the C++ model' },
+  { from: 'Layer', to: 'c_Layer', flow: 'build', type: 'make',
+    purpose: 'The wrapper owns the C++ layer; the material is shared, and each model is set by its property ' +
+      '(cooling, shear_rheology, ...).',
+    inputs: 'material and models', outputs: 'a C++ layer holding its material and models' },
   { from: 'BaseWorld', to: 'c_BaseWorld', flow: 'build', type: 'make',
     purpose: 'add_layer validates continuity and moves the layer in; the wrapper keeps a non-owning view of it.',
-    inputs: 'unique_ptr<c_BaseLayer>', outputs: 'the layer stack (world.<layer_name>, for layer in world)' },
-  { from: 'c_BaseLayer', to: 'models', flow: 'build', type: 'call',
-    purpose: 'The layer asks its models for the EOS density, viscosity at (T, P), melt weakening, cooling, ' +
-      'radiogenic heating, and the complex modulus from its rheology.',
-    inputs: 'the local state', outputs: 'model values at that state' },
+    inputs: 'unique_ptr<c_Layer>', outputs: 'the layer stack (world.<layer_name>, for layer in world)' },
+  { from: 'c_Layer', to: 'material', flow: 'build', type: 'call',
+    purpose: 'The layer asks its material for the state at a point with its own switches.',
+    inputs: 'pressure, temperature, radius', outputs: 'c_MaterialState' },
+  { from: 'material', to: 'models', flow: 'build', type: 'call',
+    purpose: 'The material evaluates its phases\' laws, then its melting curves, weakening, and mixing.',
+    inputs: 'the local state', outputs: 'law values at that state' },
   { from: 'config', to: 'tidalpy_config', flow: 'build', type: 'make',
     purpose: 'update_constants copies [numerical], [eos_solver], and [radial_solver] into the process-wide ' +
       'singleton at import and on reinit; update_constants sets G and the other constants from SciPy.',
@@ -559,10 +601,20 @@ const EDGES = [
       'to converge.',
     inputs: 'c_eos_diffeq or c_eos_diffeq_thermal, y0 = (g, P_center, M, I[, T, L]), rtol, atol, max step',
     outputs: 'CySolverResult' },
-  { from: 'c_solve_eos', to: 'models', flow: 'eos', type: 'call',
-    purpose: 'c_preeval_material_eos asks the layer c_MaterialEOSBase for the density at (P, T, r) on every ' +
-      'right-hand side, and for the whole material state when the finished solution is read.',
-    inputs: 'pressure, temperature, radius (SI)', outputs: 'density; static moduli, viscosities, melt fraction' },
+  { from: 'c_solve_eos', to: 'material', flow: 'eos', type: 'call',
+    purpose: 'c_preeval_material asks the layer\'s material for the density at (P, T, r) on every right-hand side ' +
+      '(the thermal properties too in a thermal solve), for the rigidity margin at each step of a layer that can ' +
+      'change state, and for the whole state when the finished solution is read.',
+    inputs: 'pressure, temperature, radius (SI), switches',
+    outputs: 'density; thermal properties; rigidity margin; moduli, viscosities, melt fraction' },
+  { from: 'c_solve_eos_world', to: 'thermal_layout', flow: 'eos', type: 'call',
+    purpose: 'After each thermal pass: rebuild the layer profiles and balance the network against the structure ' +
+      'the pass produced; the solve stops when the interface temperatures and heat flows settle.',
+    inputs: 'the pass solution', outputs: 'segments, heat flows, temperature rates' },
+  { from: 'thermal_layout', to: 'models', flow: 'eos', type: 'call',
+    purpose: 'Each layer\'s cooling model builds its profile (build_profile) through a probe of the solved ' +
+      'structure and the layer\'s material.',
+    inputs: 'c_LayerThermalContext, c_LayerThermalProbe', outputs: 'c_LayerThermalProfile' },
   { from: 'c_solve_eos', to: 'c_Heating', flow: 'eos', type: 'call',
     purpose: 'The thermal right-hand side reads dL/dr = 4 pi r^2 h at the local density through c_EOSHeatingBase.',
     inputs: 'layer index, radius, density (solve units)', outputs: 'dL/dr' },
@@ -570,9 +622,9 @@ const EDGES = [
     purpose: 'Keep the retained integrators and the layer EOS functions, then sample the whole planet onto the ' +
       'output slices.',
     inputs: 'CySolverResult per segment, EOS functions', outputs: 'slice arrays and scalars (mass, MOI, gravity)' },
-  { from: 'c_solve_eos_world', to: 'c_BaseLayer', flow: 'eos', type: 'make',
-    purpose: 'Populate each layer: its mass, its radii when it holds its mass, and c_LayerEOSData with a dense ' +
-      'evaluator onto the solution.',
+  { from: 'c_solve_eos_world', to: 'c_Layer', flow: 'eos', type: 'make',
+    purpose: 'Populate each layer: its mass, its radii when it holds its mass, its zones, and c_LayerEOSData with a ' +
+      'dense evaluator onto the solution.',
     inputs: 'the layer slice of the solution', outputs: 'get_density(r), get_shear_modulus(r), get_temperature(r), ...' },
 
   // Love numbers.
@@ -580,14 +632,14 @@ const EDGES = [
     purpose: 'Start from make_love_solve_config (the world [tides] Love method and [radial_solver] defaults), ' +
       'override with the arguments given, release the GIL.',
     inputs: 'frequency, degree, solve_for, method, tolerances', outputs: 'k, h, l; success; error code' },
-  { from: 'c_solve_love_world', to: 'c_BaseLayer', flow: 'love', type: 'call',
-    purpose: 'The state provider shares each layer rheology and applies it to the static modulus and viscosity ' +
-      'the solved EOS reports at the radius asked for.',
+  { from: 'c_solve_love_world', to: 'c_Layer', flow: 'love', type: 'call',
+    purpose: 'The state provider applies each layer\'s rheology (or its phase\'s) to the post-melt modulus and ' +
+      'viscosity the solved EOS reports at the radius asked for.',
     inputs: 'static modulus, viscosity, frequency', outputs: 'complex moduli [Pa]' },
   { from: 'c_solve_love_world', to: 'c_WorldRadialSolver', flow: 'love', type: 'call',
-    purpose: 'ensure_radial_cache builds the frequency-independent setup once per EOS solve, splitting a solid ' +
-      'layer at the edges of its molten stretches and solving each as a static liquid; each solve installs its ' +
-      'provider, which maps the solver layers back to the world layers, and calls solve.',
+    purpose: 'ensure_radial_cache builds the frequency-independent setup once per EOS solve, taking each zone ' +
+      'of the solve as a solver layer (a liquid zone as a liquid); each solve installs its provider, which maps ' +
+      'the solver layers back to the world layers, and calls solve.',
     inputs: 'layer radii and flags, degree, boundary conditions, the provider', outputs: 'Love numbers, dense y(r)' },
   { from: 'c_WorldRadialSolver', to: 'c_shooting_solver', flow: 'love', type: 'call',
     purpose: 'Shoot on the cached non-dimensional inputs (c_matrix_propagate instead for one solid, static, ' +
@@ -623,7 +675,7 @@ const EDGES = [
     inputs: 'radius, density, real moduli, layer radii and flags', outputs: 'a temporary c_BaseWorld' },
   { from: 'c_build_world_from_layered_profile', to: 'c_BaseWorld', flow: 'love', type: 'make',
     purpose: 'Create the world and add each interpolated-EOS layer inner to outer.',
-    inputs: 'one c_BaseLayer per profile layer', outputs: 'the world, ready for solve_eos' },
+    inputs: 'one c_Layer per profile layer', outputs: 'the world, ready for solve_eos' },
   { from: 'radial_solver', to: 'solve_eos', flow: 'love', type: 'call',
     purpose: 'Solve the temporary world structure with the EOS settings given.',
     inputs: 'surface pressure, EOS settings', outputs: 'a solved world' },
@@ -655,7 +707,12 @@ const EDGES = [
   { from: 'c_calc_tides', to: 'c_collapse_global_tides', flow: 'tides1d', type: 'call',
     purpose: 'Sum the mode terms with the dissipation multipliers.',
     inputs: 'potential storage, Love numbers per mode', outputs: 'c_GlobalTideResult' },
-  { from: 'c_calc_tides', to: 'c_BaseLayer', flow: 'tides1d', type: 'make',
+  { from: 'c_calc_tides', to: 'c_Heating', flow: 'tides1d', type: 'make',
+    purpose: 'Record the tidal heat source: each layer\'s heating and, with a radial-solver Love method, its radial ' +
+      'heating profile. Later solve_eos calls spread it over the layers with use_heating, and ' +
+      'calc_layer_temperature_rate takes it at once.',
+    inputs: 'per-layer heating, heating density at the quadrature nodes', outputs: 'c_TidalHeatingRecord' },
+  { from: 'c_calc_tides', to: 'c_Layer', flow: 'tides1d', type: 'make',
     purpose: 'Resolve the heating of each layer: the volume integral of the radial solution for the radial methods ' +
       '(the 3D engine with every axis summed), the scaled Love numbers of each layer for the quasi-homogeneous ' +
       'methods, or the total times the layer tidal scale for an analytic tide model.',
@@ -684,7 +741,7 @@ const EDGES = [
   { from: 'kernel', to: 'c_RadialSolutionStorage', flow: 'tides3d', type: 'call',
     purpose: 'get_radial_solution(r) evaluates the dense interpolants and collapse constants at the point radius.',
     inputs: 'SI radius', outputs: 'y1..y6 (SI)' },
-  { from: 'c_calc_3d', to: 'c_BaseLayer', flow: 'tides3d', type: 'call',
+  { from: 'c_calc_3d', to: 'c_Layer', flow: 'tides3d', type: 'call',
     purpose: 'Complex moduli at the wave frequency and the layer solid and incompressible flags at each radius.',
     inputs: 'radius, frequency', outputs: 'complex moduli, layer type' },
 

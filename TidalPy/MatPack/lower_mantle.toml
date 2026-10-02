@@ -32,8 +32,6 @@ reference_bulk_modulus_pa = 2.31e11
 bulk_modulus_derivative = 4.13
 thermal_expansion_1_k = 2.25e-5
 reference_temperature_k = 300.0
-anderson_gruneisen_parameter = 5.4
-anderson_gruneisen_exponent = 0.7
 gruneisen_parameter = 1.57
 
 [solid.shear_modulus]

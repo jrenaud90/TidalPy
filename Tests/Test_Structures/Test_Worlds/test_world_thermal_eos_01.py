@@ -83,7 +83,8 @@ def _isothermal_config_with_expansion(temperature, use_thermal_expansion):
 
 def _melting_rock(layer):
     """Give a silicate layer of a bundled world silicate thermal constants, convection, chondritic radiogenics, and a
-    Henning-weakened melt between a 1600 K solidus and a 2000 K liquidus (a Murnaghan melt of 0.2 Pa s)."""
+    Henning-weakened melt between a 1600 K solidus and a 2000 K liquidus (a Murnaghan melt of 0.2 Pa s). The melt
+    carries no latent heat and the radiogenic heat stays out of the solve, whatever the bundled file sets."""
     solid = layer["material"]["solid"]
     solid.update(_ROCK_THERMAL)
     solid["eos"]["thermal_expansion_1_k"] = _ROCK_EXPANSION
@@ -95,7 +96,10 @@ def _melting_rock(layer):
     layer["material"]["melting"] = {"solidus": {"model": "constant", "temperature_k": 1600.0},
                                     "liquidus": {"model": "constant", "temperature_k": 2000.0},
                                     "weakening": {"model": "henning"}}
+    layer["material"]["latent_heat_j_kg"] = 0.0
     layer["use_melting"] = True
+    layer["use_pressure_melting"] = False
+    layer["use_heating"] = False
     layer["cooling"] = {"model": "convection", "convection_alpha": 1.0, "convection_beta": 1.0 / 3.0,
                         "critical_rayleigh": 1100.0}
     layer["radiogenics"] = {"model": "isotope", "isotopes": "modern_day_chondritic"}

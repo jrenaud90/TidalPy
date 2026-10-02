@@ -222,11 +222,33 @@ def test_a_material_keeps_a_phase():
         load_material("water").replace(liquid=None)
 
 
-def test_a_preset_only_names_a_material_or_a_phase():
-    with pytest.raises(ValueError, match="'melting' table .* names a 'preset'"):
-        material_config({"preset": "peridotite", "melting": {"preset": "basalt"}})
+def test_a_preset_only_names_a_material_a_phase_or_a_melting_table():
+    with pytest.raises(ValueError, match="'solidus' table .* names a 'preset'"):
+        material_config({"preset": "peridotite", "melting": {"solidus": {"preset": "basalt"}}})
     with pytest.raises(ValueError, match="'eos' table .* names a 'preset'"):
         material_config({"preset": "peridotite", "solid": {"eos": {"preset": "basalt"}}})
+
+
+def test_a_melting_table_names_a_preset():
+    """A melting table may start from another material's, with its own keys merged over it."""
+    config = material_config({"preset": "simple_rock", "liquid": {"preset": "peridotite"},
+                              "melting": {"preset": "peridotite", "weakening": {"model": "spohn"}}})
+    peridotite = material_config("peridotite")
+    assert config["melting"]["solidus"] == peridotite["melting"]["solidus"]
+    assert config["melting"]["liquidus"] == peridotite["melting"]["liquidus"]
+    assert config["melting"]["weakening"]["model"] == "spohn"
+    with pytest.raises(ValueError, match="has no 'melting' table"):
+        material_config({"preset": "simple_rock", "melting": {"preset": "simple_rock"}})
+
+
+@pytest.mark.parametrize("override", [{"latent_heat": 1.0}, {"latent_heat_j_kg": 1.0}])
+def test_an_override_wins_under_either_spelling(override):
+    """An override given by argument name replaces the preset's value given by config key, and the other way round."""
+    assert load_material("peridotite", **override).latent_heat == 1.0
+    assert material_config({"preset": "peridotite", **override})["latent_heat_j_kg"] == 1.0
+    nested = material_config({"preset": "peridotite", "solid": {"eos": {"reference_density": 1000.0}}})
+    assert nested["solid"]["eos"]["reference_density_kg_m3"] == 1000.0
+    assert "reference_density" not in nested["solid"]["eos"]
 
 
 @pytest.mark.parametrize("name", ["../MatPack/water", "MatPack/water", "..", ""])

@@ -1,5 +1,5 @@
-"""A world with pressure-dependent melting curves and an Anderson-Gruneisen expansivity: the thermal solve, the melt,
-and the round trips through the world config and the binary file."""
+"""A world with pressure-dependent melting curves and an expansivity that falls with compression: the thermal solve,
+the melt, and the round trips through the world config and the binary file."""
 import math
 import os
 import tempfile
@@ -7,10 +7,11 @@ import tempfile
 import numpy as np
 import pytest
 
+from TidalPy.Material.laws import make_eos
 from TidalPy.Structures import build_world
 from TidalPy.Structures.worlds import TerrestrialWorld
 
-# Monteux et al. (2016) peridotite melting curves, and mantle-silicate Anderson-Gruneisen constants.
+# Monteux et al. (2016) peridotite melting curves.
 _MONTEUX_SOLIDUS = {
     "model": "simon_glatzel_2", "temperature_k": 1661.2, "simon_a_pa": 1.336e9, "simon_c": 7.437,
     "transition_pressure_pa": 20.0e9, "high_temperature_k": 2081.8, "high_simon_a_pa": 1.0169e11,
@@ -19,8 +20,6 @@ _MONTEUX_LIQUIDUS = {
     "model": "simon_glatzel_2", "temperature_k": 1982.1, "simon_a_pa": 6.594e9, "simon_c": 5.374,
     "transition_pressure_pa": 20.0e9, "high_temperature_k": 2006.8, "high_simon_a_pa": 3.465e10,
     "high_simon_c": 1.844}
-_DELTA = 5.5
-_KAPPA = 1.4
 _SURFACE_TEMPERATURE = 300.0
 _MANTLE_TEMPERATURE = 1600.0
 # Silicate and iron thermal constants: conductivity [W m-1 K-1], heat capacity [J kg-1 K-1], expansivity [1/K].
@@ -33,8 +32,7 @@ _IRON_EXPANSION = 1.2e-5
 def _thermal_earth_config(pressure_dependent):
     """Bundled earth_simple, ready for a thermal solve: iron cores, and a convecting mantle with silicate thermal
     constants that melts into a Murnaghan melt of 0.2 Pa s through Henning weakening. Its melting curves are a constant
-    1600 K solidus and 2000 K liquidus, or with pressure_dependent the Monteux curves, which follow the pressure, and an
-    Anderson-Gruneisen expansivity."""
+    1600 K solidus and 2000 K liquidus, or with pressure_dependent the Monteux curves, which follow the pressure."""
     config = build_world("earth_simple").get_config_dict()
     for name in ("inner_core", "outer_core"):
         layer = config["layers"][name]
@@ -61,8 +59,6 @@ def _thermal_earth_config(pressure_dependent):
                          "critical_rayleigh": 1100.0}
     mantle["radiogenics"] = {"model": "isotope", "isotopes": "modern_day_chondritic"}
     if pressure_dependent:
-        material["solid"]["eos"]["anderson_gruneisen_parameter"] = _DELTA
-        material["solid"]["eos"]["anderson_gruneisen_exponent"] = _KAPPA
         material["melting"]["solidus"] = dict(_MONTEUX_SOLIDUS)
         material["melting"]["liquidus"] = dict(_MONTEUX_LIQUIDUS)
         mantle["use_pressure_melting"] = True
@@ -89,7 +85,7 @@ def _mantle_melt(world, fraction):
 
 def test_pressure_dependent_curves_keep_the_lower_mantle_solid():
     """With constant melting curves the deep mantle of an Earth at a 1600 K upper mantle reads as molten; with the
-    Monteux curves and a compressible expansivity it is solid throughout its interior. Melt, if any, is confined to
+    Monteux curves it is solid throughout its interior, since its expansivity falls with compression. Melt, if any, is confined to
     the thermal boundary layer against the 4500 K outer core, as at Earth's core-mantle boundary."""
     constant = _earth(pressure_dependent=False)
     _solve(constant)
@@ -106,18 +102,21 @@ def test_pressure_dependent_curves_keep_the_lower_mantle_solid():
     assert _MANTLE_TEMPERATURE < result["layer_base_temperature"][2] < 3000.0
 
 
-def test_adiabat_base_follows_the_anderson_gruneisen_expansivity():
-    """The reported base of the mantle's adiabat is T exp(int alpha(rho) g / c_p dr) over the solved structure."""
+def test_adiabat_base_follows_the_compressed_expansivity():
+    """The reported base of the mantle's adiabat is T exp(int alpha g / c_p dr) over the solved structure, with the
+    expansivity alpha0 K0 / K_T that the law's thermal pressure gives its density."""
     earth = _earth(pressure_dependent=True)
     result = _solve(earth)
     solid = earth.mantle.get_config_dict()["material"]["solid"]
     alpha0 = solid["eos"]["thermal_expansion_1_k"]
     heat_capacity = solid["heat_capacity_j_kgk"]
-    reference_density = solid["eos"]["reference_density_kg_m3"]
+    law = make_eos(solid["eos"]["model"], solid["eos"])
     boundary = result["layer_boundary_thickness"][2]
     radii = np.linspace(earth.mantle.radius_inner + boundary, earth.mantle.radius_outer - boundary, 4001)
-    density = earth.get_density(radii)
-    alpha = alpha0 * np.exp((_DELTA / _KAPPA) * ((reference_density / density) ** _KAPPA - 1.0))
+    temperature = earth.get_temperature(radii)
+    bulk_modulus = law.calc_eos(
+        earth.get_pressure(radii), temperature, thermal=earth.mantle.use_thermal_expansion)["bulk_modulus"]
+    alpha = alpha0 * solid["eos"]["reference_bulk_modulus_pa"] / bulk_modulus
     exponent = np.trapezoid(alpha * earth.get_gravity(radii), radii) / heat_capacity
     assert result["layer_base_temperature"][2] == pytest.approx(_MANTLE_TEMPERATURE * math.exp(exponent), rel=1e-5)
 
@@ -127,8 +126,6 @@ def test_parameters_round_trip_through_the_world_config():
     earth = _earth(pressure_dependent=True)
     config = earth.get_config_dict()
     material = config["layers"]["mantle"]["material"]
-    assert material["solid"]["eos"]["anderson_gruneisen_parameter"] == _DELTA
-    assert material["solid"]["eos"]["anderson_gruneisen_exponent"] == _KAPPA
     assert config["layers"]["mantle"]["use_pressure_melting"] is True
     for curve, expected in (("solidus", _MONTEUX_SOLIDUS), ("liquidus", _MONTEUX_LIQUIDUS)):
         for key, value in expected.items():

@@ -29,6 +29,8 @@ struct c_EOSOutput
     double thermal_expansion              = TidalPyConstants::d_NAN;   // SI [1/K]
     double heat_capacity                  = TidalPyConstants::d_NAN;   // SI [J kg-1 K-1], latent heat included
     double thermal_conductivity           = TidalPyConstants::d_NAN;   // SI [W m-1 K-1]
+    // SI [1/K]: the latent heat's share of an adiabat's expansivity inside a pressure-dependent melting range.
+    double latent_expansion = 0.0;
 };
 
 struct c_EOSMaterialState
@@ -166,8 +168,8 @@ inline void c_eos_diffeq(
 
 
 /// As c_eos_diffeq, with the material evaluated at the local temperature, plus two extra states:
-///   dT/dr = 0, -L / (4 pi r^2 k), or -alpha g T / c_p, by the segment's temperature kind, with the material's
-///   conductivity, expansivity, and heat capacity at the point, and
+///   dT/dr = 0, -L / (4 pi r^2 k), or -(alpha + alpha_L) g T / c_p, by the segment's temperature kind, with the
+///   material's conductivity, expansivity, latent expansion alpha_L, and heat capacity at the point, and
 ///   dL/dr = 4 pi r^2 h, the heat the world's sources generate at this radius.
 /// The temperature is in Kelvin and the heat flow in Watts whatever units the rest of the solve runs in; the input's
 /// length and gravity scales carry the conversion.
@@ -202,8 +204,9 @@ inline void c_eos_diffeq_thermal(
         case c_TemperatureKind::Adiabatic:
         {
             const double heat_capacity = eos_output.heat_capacity;
+            const double expansion = eos_output.thermal_expansion + eos_output.latent_expansion;
             dy_ptr[4] = (heat_capacity > TidalPyConstants::d_EPS)
-                ? -eos_output.thermal_expansion * y_ptr[0] * eos_input_ptr->gravity_scale
+                ? -expansion * y_ptr[0] * eos_input_ptr->gravity_scale
                     * eos_input_ptr->length_scale * y_ptr[4] / heat_capacity
                 : 0.0;
             break;

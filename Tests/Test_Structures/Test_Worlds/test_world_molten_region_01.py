@@ -64,10 +64,11 @@ def _world(middle_layers):
                         "radius_m": _RADIUS, "mass_kg": mass, "layers": layers})
 
 
-# Henning with no sub-critical factor and a negligible breakdown band: solid moduli until breakdown, then molten.
+# Henning with no sub-critical factor and a zero-width breakdown band: solid moduli until breakdown, then a step into
+# the liquid.
 _SHARP_MELT = {"solidus": {"model": "constant", "temperature_k": 1400.0},
                "liquidus": {"model": "constant", "temperature_k": 1600.0},
-               "weakening": {"model": "henning", "crit_melt_frac": 1.0e-6, "crit_melt_frac_width": 1.0e-6,
+               "weakening": {"model": "henning", "crit_melt_frac": 1.0e-6, "crit_melt_frac_width": 0.0,
                              "hn_shear_param_1_k": 0.0}}
 
 
@@ -162,7 +163,8 @@ def test_nothing_molten_leaves_the_layers_whole():
 
 def _melting_rock(layer):
     """Give a silicate layer of a bundled world silicate thermal constants, convection, chondritic radiogenics, and a
-    Henning-weakened melt between a 1600 K solidus and a 2000 K liquidus (a Murnaghan melt of 0.2 Pa s)."""
+    Henning-weakened melt between a 1600 K solidus and a 2000 K liquidus (a Murnaghan melt of 0.2 Pa s). The melt
+    carries no latent heat and the radiogenic heat stays out of the solve, whatever the bundled file sets."""
     solid = layer["material"]["solid"]
     solid.update(_ROCK_THERMAL)
     solid["eos"]["thermal_expansion_1_k"] = _ROCK_EXPANSION
@@ -174,7 +176,10 @@ def _melting_rock(layer):
     layer["material"]["melting"] = {"solidus": {"model": "constant", "temperature_k": 1600.0},
                                     "liquidus": {"model": "constant", "temperature_k": 2000.0},
                                     "weakening": {"model": "henning"}}
+    layer["material"]["latent_heat_j_kg"] = 0.0
     layer["use_melting"] = True
+    layer["use_pressure_melting"] = False
+    layer["use_heating"] = False
     layer["cooling"] = {"model": "convection", "convection_alpha": 1.0, "convection_beta": 1.0 / 3.0,
                         "critical_rayleigh": 1100.0}
     layer["radiogenics"] = {"model": "isotope", "isotopes": "modern_day_chondritic"}

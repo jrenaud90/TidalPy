@@ -1,7 +1,7 @@
 # iron: solid iron, melting into liquid iron.
 #
 # Solid: a Vinet law for hcp iron (Dewaele et al. 2006, fit 17 to 197 GPa; Fei et al. 2016 give K0 = 172.7 GPa and
-# K0' = 4.79), with the expansivity, its Anderson-Gruneisen fit, and the shear modulus of hcp iron as encoded in BurnMan
+# K0' = 4.79), with the expansivity and the shear modulus of hcp iron as encoded in BurnMan
 # (Kurnosov et al. 2017). bcc iron is stable below about 13 GPa at room temperature and is not separately represented.
 # The temperature derivative of the shear modulus and the Gruneisen parameter are unsourced and left out (so the solid's
 # adiabatic bulk modulus is its isothermal one, below the liquid's). The viscosity of solid iron is poorly
@@ -28,8 +28,6 @@ reference_bulk_modulus_pa = 1.634e11
 bulk_modulus_derivative = 5.38
 thermal_expansion_1_k = 3.5e-5
 reference_temperature_k = 300.0
-anderson_gruneisen_parameter = 4.5
-anderson_gruneisen_exponent = 0.74
 
 [solid.shear_modulus]
 model = "linear"

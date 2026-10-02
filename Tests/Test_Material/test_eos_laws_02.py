@@ -92,10 +92,11 @@ def test_birch_murnaghan_and_vinet_agree_at_small_compression():
         _law("vinet", 4.5).calc_density(5.0e9), rel=0.02)
 
 
-def test_a_law_without_a_reference_density_keeps_alpha0():
-    """The polytrope has no reference density for the compression scaling, so its expansivity stays alpha0."""
-    law = make_eos("polytrope", {"thermal_expansion_1_k": 3.0e-5, "anderson_gruneisen_parameter": 5.0})
-    assert law.calc_eos(1.0e11)["thermal_expansion"] == 3.0e-5
+@pytest.mark.parametrize("law", ["polytrope", "constant"])
+def test_a_law_without_a_compression_scaling_keeps_alpha0(law):
+    """The polytrope (a barotrope with no reference density) and the constant law (whose density scales by
+    exp(-alpha0 (T - T_ref))) report alpha0 at any pressure."""
+    assert make_eos(law, {"thermal_expansion_1_k": 3.0e-5}).calc_eos(1.0e11, 2000.0)["thermal_expansion"] == 3.0e-5
 
 
 def test_tabulated_laws_read_as_numpy_on_an_uneven_table(tmp_path):

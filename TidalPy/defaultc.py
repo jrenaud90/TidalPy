@@ -205,14 +205,14 @@ schema_version = "{SCHEMA_VERSION}"
     max_degree_l = 2
     # Eccentricity truncation levels 2, 4, 6, 8, 10, 20, 50: level N keeps every product of two eccentricity
     # functions (the heating) through e^N. Level 10 stays within 1% of the exact heating to e ~ 0.31, level 20 to
-    # e ~ 0.49, level 50 to e ~ 0.74 (Documentation/Tides/eccentricity.md).
+    # e ~ 0.49, level 50 to e ~ 0.74 (Documentation/Tides/Eccentricity.md).
     eccentricity_trunc_lvl = 10
     # For eccentricity_trunc_lvl = "exact" (the functions from the exact orbit, any e < 1): the modes kept leave a
     # q^2-weighted tail of the squared functions below this fraction of the total.
     eccentricity_exact_tolerance = 1.0e-4
     # Obliquity truncation "off" (level 0), 2, 4 (every product of two obliquity functions through I^N), or "gen" (the
     # exact functions). Level 2 stays within 1% of the exact heating to I ~ 8 degrees, level 4 to I ~ 27 degrees
-    # (Documentation/Tides/obliquity.md).
+    # (Documentation/Tides/Obliquity.md).
     obliquity_trunc_lvl = "off"
 
     # Whether calc_tides also resolves each layer's tidal heating when the Love numbers come from the radial

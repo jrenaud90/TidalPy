@@ -1,7 +1,7 @@
 # olivine: mantle olivine Fo90.
 #
 # Solid: a third-order Birch-Murnaghan law and the shear modulus and its pressure derivative from Stixrude and
-# Lithgow-Bertelloni (2011), Table A1 (Fo90 density, expansivity, Anderson-Gruneisen fit, and temperature derivative
+# Lithgow-Bertelloni (2011), Table A1 (Fo90 density, expansivity, and temperature derivative
 # derived with BurnMan); valid to about 14 GPa, where wadsleyite takes over. The Gruneisen parameter is forsterite's
 # (0.99). Conductivity: Xu et al. (2004), k = 4.13 (298 / T)^0.5, written at 1600 K and without its pressure factor
 # (1 + 0.032 P[GPa]). The heat capacity is a power law through the derived values at 300 K (865) and 1600 K
@@ -33,8 +33,6 @@ reference_bulk_modulus_pa = 1.287e11
 bulk_modulus_derivative = 4.22
 thermal_expansion_1_k = 2.24e-5
 reference_temperature_k = 300.0
-anderson_gruneisen_parameter = 6.1
-anderson_gruneisen_exponent = 1.0
 gruneisen_parameter = 0.99
 
 [solid.shear_modulus]

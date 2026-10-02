@@ -70,13 +70,39 @@ def test_constant_law_thermal_expansion():
     assert eos.calc_density(1.0e9, 1300.0) == 3000.0
 
 
-def test_anderson_gruneisen_expansivity():
+@pytest.mark.parametrize("law", sorted(_PRESSURE_LAWS) + ["murnaghan"])
+@pytest.mark.parametrize("pressure", [1.0e10, 3.0e10, 1.3e11])
+def test_pressure_law_expansivity_is_its_density_s_own(law, pressure):
+    """The thermal pressure alpha0 K0 (T - T_ref) keeps alpha K_T at alpha0 K0, so the reported expansivity is
+    alpha0 K0 / K_T, which is -(1/rho) (d rho / dT)_P of the law's own density."""
+    config = dict(_LAW_CONFIG, thermal_expansion_1_k=3.0e-5, reference_temperature_k=300.0)
+    eos = make_eos(law, config)
+    temperature = 1600.0
+    state = eos.calc_eos(pressure, temperature, thermal=True)
+    assert state["thermal_expansion"] == pytest.approx(3.0e-5 * _K0 / state["bulk_modulus"], rel=1e-13)
+    step = 1.0e-2
+    slope = (eos.calc_density(pressure, temperature + step, thermal=True)
+             - eos.calc_density(pressure, temperature - step, thermal=True)) / (2.0 * step)
+    assert state["thermal_expansion"] == pytest.approx(-slope / state["density"], rel=1e-6)
+    # Compression stiffens the law, so the expansivity falls with depth.
+    assert eos.calc_eos(2.0 * pressure, temperature, thermal=True)["thermal_expansion"] < state["thermal_expansion"]
+
+
+@pytest.mark.parametrize("law", sorted(_PRESSURE_LAWS) + ["murnaghan", "constant", "polytrope"])
+def test_only_the_modified_polytrope_takes_an_anderson_gruneisen_scaling(law):
+    """A law whose density follows the temperature has the expansivity of that density, and a polytrope has no
+    reference density to scale from, so they refuse the Anderson-Gruneisen keys."""
+    with pytest.raises(ValueError, match="anderson_gruneisen_parameter"):
+        make_eos(law, {"anderson_gruneisen_parameter": 5.5})
+
+
+def test_modified_polytrope_anderson_gruneisen_expansivity():
     """alpha = alpha0 exp[(d0 / k) ((rho0 / rho)^k - 1)], and (rho0 / rho)^d0 for k = 0."""
-    config = dict(_LAW_CONFIG, thermal_expansion_1_k=3.0e-5, anderson_gruneisen_parameter=5.5)
+    config = {"reference_density_kg_m3": 8300.0, "thermal_expansion_1_k": 3.0e-5, "anderson_gruneisen_parameter": 5.5}
     for kappa in (0.0, 1.4):
-        eos = make_eos("vinet", dict(config, anderson_gruneisen_exponent=kappa))
-        state = eos.calc_eos(1.0e11)
-        ratio = _RHO0 / state["density"]
+        eos = make_eos("modified_polytrope", dict(config, anderson_gruneisen_exponent=kappa))
+        state = eos.calc_eos(3.0e11)
+        ratio = 8300.0 / state["density"]
         expected = 3.0e-5 * (ratio ** 5.5 if kappa == 0.0 else math.exp((5.5 / kappa) * (ratio ** kappa - 1.0)))
         assert state["thermal_expansion"] == pytest.approx(expected, rel=1e-13)
 

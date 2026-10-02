@@ -1,7 +1,7 @@
 # peridotite: upper-mantle peridotite (olivine Fo90 0.60, orthopyroxene 0.20, clinopyroxene 0.10, garnet 0.10 by
 # volume).
 #
-# Solid: a third-order Birch-Murnaghan law with an Anderson-Gruneisen expansivity at the 300 K reference state, and a
+# Solid: a third-order Birch-Murnaghan law with its expansivity at the 300 K reference state, and a
 # shear modulus linear in pressure and temperature, all derived from the Stixrude and Lithgow-Bertelloni (2011)
 # end-members with BurnMan (Voigt-Reuss-Hill averages; fit 0 to 14 GPa, the upper mantle; transition-zone phases are
 # not included). The Gruneisen parameter is forsterite's (0.99; Stixrude and Lithgow-Bertelloni 2011). The heat
@@ -38,8 +38,6 @@ reference_bulk_modulus_pa = 1.25e11
 bulk_modulus_derivative = 4.9
 thermal_expansion_1_k = 2.2e-5
 reference_temperature_k = 300.0
-anderson_gruneisen_parameter = 6.9
-anderson_gruneisen_exponent = 1.7
 gruneisen_parameter = 0.99
 
 [solid.shear_modulus]
