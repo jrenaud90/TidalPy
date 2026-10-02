@@ -28,8 +28,9 @@
 # near-fluid solid and the shooting solve fails on its step size.
 #
 # The Love number is then a check nothing was fitted to. Solving this interior for its Love number gives k2 = 0.534
-# against the measured 0.590 below, a 10 percent miss, where the single-layer jupiter_simple gives 1.5, the
-# fluid-sphere limit. The layered mass distribution is what carries that.
+# against the 0.565 +/- 0.006 Juno measured (Durante et al. 2020) and the hydrostatic 0.590 used below, misses of 5
+# and 10 percent, where the single-layer jupiter_simple gives 1.5, the fluid-sphere limit. The layered mass
+# distribution is what carries that; Jupiter's rotation, which this spherical solve leaves out, raises k2.
 #
 # Each layer has a single density, which is what makes the fit above tractable, and it is also this model's
 # main limitation: a real gas giant compresses continuously over four orders of magnitude in density, so the

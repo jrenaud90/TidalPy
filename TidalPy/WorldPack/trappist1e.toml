@@ -28,9 +28,10 @@
 # number off this file.
 #
 # Tides
-# The planet is assumed tidally locked, so the spin frequency is the synchronous rate of its orbital period. At
-# that period with e = 0.00447 (Grimm et al. 2018) calc_tides puts 99.8 percent of the heating in the mantle (each layer's share of
-# the radial solution's heating), unmoved in the fourth digit between that eccentricity and 0.01.
+# The planet is assumed tidally locked, so the spin frequency is the synchronous rate of its orbital period. At that
+# period with e = 0.00632 (the magnitude of Agol et al. (2021)'s e cos w and e sin w) calc_tides puts 99.8 percent of
+# the heating in the mantle (each layer's share of the radial solution's heating), unmoved in the fourth digit between
+# that eccentricity and 0.01.
 #
 # Orbital state is not a world property in this schema; add the planet and its star to a System to give it an orbit.
 schema_version = "0.2.0"

@@ -30,7 +30,9 @@
 # 9.330e13 W with Jupiter's mass and Io's orbit (a = 4.217e8 m, e = 0.0041, synchronous rotation),
 # the astrometric value of Lainey et al. (2009), (9.33 +/- 1.83)e13 W, or about 2.2 W/m2 at the
 # surface. calc_tides splits that total between the layers by the depth-resolved heating of the radial
-# solution: core 6.4e-6, mantle 0.0408747, asthenosphere 0.9591189.
+# solution: core 6.4e-6, mantle 0.0408747, asthenosphere 0.9591189. Only the dissipation is fitted: this interior
+# gives k2 = 0.036 - 0.015i, where Juno measured Re(k2) = 0.125 +/- 0.047 and Q = 11.4 +/- 3.6 (Park et al. 2025),
+# so its -Im(k2) is near the measured k2/Q of about 0.011 but its Re(k2) is a quarter of Juno's.
 #
 # Orbital state is not a world property in this schema; add Io to a System to give it an orbit. The
 # spin frequency is the synchronous rate from the 0.7 file's 1.769 day spin period, which differs
