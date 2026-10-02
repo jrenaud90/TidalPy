@@ -177,7 +177,7 @@ struct c_Vector3
 //   u_r     = y1 * U
 //   u_theta = y3 * dU/dtheta
 //   u_phi   = y3 * dU/dphi / sin(theta)
-// y1, y3 [s^2 m^-1] times U [m^2 s^-2] give metres. Templated like c_compute_strain_stress so the real
+// y1, y3 [s^2 m^-1] times U [m^2 s^-2] give meters. Templated like c_compute_strain_stress so the real
 // (instantaneous) and complex-phasor potential points both work. At a pole (sin theta = 0) u_phi is 0 when
 // dU/dphi is 0 (every m = 0 mode) and NaN otherwise.
 template <typename PotentialPointT>

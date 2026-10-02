@@ -46,6 +46,8 @@ cdef extern from "material_.hpp" namespace "tidalpy" nogil:
         double melt_fraction
         double solidus
         double liquidus
+        double latent_expansion
+        double latent_heat_capacity
 
     cdef cppclass c_PhaseComponents:
         void set(const string& slot, const shared_ptr[c_PhysicsBase]& model) except +

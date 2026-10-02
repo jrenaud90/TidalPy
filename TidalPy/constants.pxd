@@ -69,6 +69,8 @@ cdef extern from "constants_.hpp" nogil:
         int      d_EOS_SOLVER_SLICES_PER_LAYER
         cpp_bool d_EOS_SOLVER_NONDIMENSIONALIZE
         cpp_bool d_EOS_SOLVER_SOLVE_TEMPERATURE
+        int      d_EOS_SOLVER_MAX_THERMAL_PASSES
+        double   d_EOS_SOLVER_THERMAL_TOL
         int      d_RADIAL_SOLVER_METHOD
         double   d_RADIAL_SOLVER_RTOL
         double   d_RADIAL_SOLVER_ATOL

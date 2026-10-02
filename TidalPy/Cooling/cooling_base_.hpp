@@ -32,12 +32,22 @@ namespace tidalpy {
 // interior to be adiabatic in.
 inline constexpr double d_MAX_BOUNDARY_FRACTION = 0.4;
 
-// Thermal resistance [K W-1] of a conducting spherical shell, (1 / (4 pi k)) (1/r_inner - 1/r_outer). Zero for a
-// degenerate shell or conductivity.
-inline double c_shell_resistance(double radius_inner, double radius_outer, double conductivity) noexcept {
-    if (!(conductivity > TidalPyConstants::d_EPS) || !(radius_outer > radius_inner)) { return 0.0; }
-    const double inner = (radius_inner > TidalPyConstants::d_EPS) ? (1.0 / radius_inner) : (1.0 / radius_outer);
-    return (inner - 1.0 / radius_outer) / (4.0 * TidalPyConstants::d_PI * conductivity);
+// The uniform conductivity [W m-1 K-1] that gives a spherical shell a resistance [K W-1]: a uniform shell's resistance
+// is (1 / (4 pi k)) (1/r_inner - 1/r_outer). `fallback` for a shell from the center or one without a resistance.
+inline double c_shell_conductivity(
+        double radius_inner,
+        double radius_outer,
+        double resistance,
+        double fallback) noexcept
+{
+    if (!(radius_inner > TidalPyConstants::d_EPS) ||
+        !(radius_outer > radius_inner) ||
+        !(resistance > 0.0) ||
+        !std::isfinite(resistance))
+    {
+        return fallback;
+    }
+    return (1.0 / radius_inner - 1.0 / radius_outer) / (4.0 * TidalPyConstants::d_PI * resistance);
 }
 
 // Physical state passed to a cooling model's flux law.
@@ -65,7 +75,11 @@ struct c_TransportState {
     double density              = TidalPyConstants::d_NAN;   // [kg m-3]
     double thermal_conductivity = TidalPyConstants::d_NAN;   // [W m-1 K-1]
     double heat_capacity        = TidalPyConstants::d_NAN;   // effective, latent heat included [J kg-1 K-1]
+    // [J kg-1 K-1] without the latent heat of a melting range: what heat diffusion sees
+    double sensible_heat_capacity = TidalPyConstants::d_NAN;
     double thermal_expansion    = TidalPyConstants::d_NAN;   // [K-1]
+    // [K-1] the latent heat's share of an adiabat's expansivity in a pressure-dependent melting range (c_MaterialState)
+    double latent_expansion = 0.0;
     double shear_viscosity      = TidalPyConstants::d_NAN;   // post-melt [Pa s]
     double melt_fraction        = 0.0;                       // [m3 m-3]
     bool   is_liquid            = false;                     // liquid to the layer (see calc_transport_state)
@@ -80,6 +94,10 @@ struct c_LayerThermalContext {
     // the base of the layer above or the surface [K]. A neighbor that exchanges no heat gives this layer's own value.
     double inner_temperature  = 0.0;
     double outer_temperature  = 0.0;
+    // From the last pass: the interfaces below and above the layer [K] (each the layer's own temperature before any
+    // pass), the far ends of its conducting stretches.
+    double inner_node_temperature = 0.0;
+    double outer_node_temperature = 0.0;
     // From the last pass: the base of this layer's interior [K] (the layer's temperature before any pass) and its
     // boundary-layer thickness [m] (0 before any pass).
     double base_temperature   = 0.0;
@@ -107,10 +125,24 @@ public:
             double radius,
             c_TransportState& out) const = 0;
 
-    // The exponent of the adiabatic warming between two radii of the layer [m], the integral of alpha g / c_p over
-    // the solved gravity and pressure, with the material at the layer's own temperature: dT/dr = -alpha g T / c_p puts
-    // the lower end at T_upper exp(exponent). Zero for an empty stretch.
-    virtual double calc_adiabat_exponent(double radius_lower, double radius_upper) const = 0;
+    // The conduction resistance [K W-1] of the layer between two radii [m] whose ends are at two temperatures [K], as
+    // steady conduction through the material gives it: (1/r_inner - 1/r_outer) / (4 pi k_mean), with k_mean the
+    // material's conductivity averaged over the temperature between the ends (the Kirchhoff transform, exact for a
+    // conductivity that follows the temperature). Zero for a shell from the center (no heat crosses it there), an
+    // empty shell, or a material that does not conduct.
+    virtual double calc_shell_resistance(
+            double radius_inner,
+            double radius_outer,
+            double temperature_inner,
+            double temperature_outer) const = 0;
+
+    // The temperature [K] at the base (radius_lower [m]) of an adiabatic stretch whose top (radius_upper [m]) is at
+    // top_temperature [K]: dT/dr = -(alpha + alpha_L) g T / c_p over the solved structure, with alpha_L the material's
+    // latent expansion. top_temperature for an empty stretch.
+    virtual double calc_adiabat_base_temperature(
+            double radius_lower,
+            double radius_upper,
+            double top_temperature) const = 0;
 };
 
 // What a cooling model makes of its layer for one pass of the thermal network.

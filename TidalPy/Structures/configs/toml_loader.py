@@ -102,6 +102,33 @@ def _config_section(name: str) -> dict:
     return config.get(name, {}) or {}
 
 
+def world_type_defaults(world_type: str) -> dict:
+    """Return the ``[worlds]`` default block from the configuration, specialized for a world type: what the world
+    builder and the world constructors take for a property a world is not given.
+
+    The block holds the world-level properties directly (``albedo``, ``emissivity``, ...) and may carry a
+    per-type sub-table (``[worlds.star]``) whose keys win for that type. Sub-tables for other types are
+    dropped, so a star's ``effective_temperature_k`` never leaks onto a terrestrial world.
+
+    Parameters
+    ----------
+    world_type : str
+        ``star``, ``gasgiant``, ``terrestrial``, ``layered``, or any other label (the plain ``[worlds]``
+        block).
+
+    Returns
+    -------
+    dict
+        The flattened defaults for that world type (empty when the configuration has no ``[worlds]``).
+    """
+    worlds_block = _config_section("worlds")
+    defaults = {key: value for key, value in worlds_block.items() if not isinstance(value, dict)}
+    type_block = worlds_block.get(world_type, {}) or {}
+    if isinstance(type_block, dict):
+        defaults.update(type_block)
+    return defaults
+
+
 # Parsed configuration files by path, with the text each was parsed from. A file read again with the same text (a
 # world built by name in a loop, say) skips the parse, which is most of the cost of building a world; any change to
 # the text parses it again. The text itself is compared, not the modification time, which on some file systems only
@@ -515,7 +542,7 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
         elif key not in LAYER_SCALAR_KEYS:
             raise ValueError(
                 f"Unexpected key '{key}' on layer '{layer_name}'. Allowed keys: {sorted(LAYER_SCALAR_KEYS)}.")
-        elif key == "state" and value not in LAYER_STATES:
+        elif key == "state" and str(value).lower() not in LAYER_STATES:
             raise ValueError(f"Layer '{layer_name}': 'state' must be one of {LAYER_STATES}, not {value!r}.")
 
 
@@ -624,9 +651,11 @@ def merge_with_defaults(config: dict) -> dict:
     """Return a normalized copy of ``config`` with structural defaults filled in.
 
     Only structural, non-physical defaults are applied here (currently just
-    ``schema_version``). The physical defaults come from the ``TidalPy_Configs.toml``
-    tables the builder merges each layer and model with. Check the version with
-    :func:`validate_schema_version` before calling this, since this fills a missing one.
+    ``schema_version``). The physical defaults come from a layer's material (a MatPack
+    name or preset, or ``[layers] material`` in the TidalPy configuration when the layer
+    names none), each model's own parameter defaults, and the ``[worlds]`` and ``[tides]``
+    tables of the configuration. Check the version with :func:`validate_schema_version`
+    before calling this, since this fills a missing one.
 
     Parameters
     ----------

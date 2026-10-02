@@ -122,7 +122,8 @@ struct c_WorldEOSSolveConfig {
     // On the clock the radiogenics models share; NaN takes each model's own reference time.
     double    time                = TidalPyConstants::d_NAN;
     // Cap on the passes that relax the boundary layers and interface flows against the structure, and the
-    // relative change in the interface temperatures and flows that ends them.
+    // relative change in the interface temperatures and flows that ends them ([eos_solver] max_thermal_passes and
+    // thermal_tol).
     size_t    max_thermal_passes  = 12;
     double    thermal_tol         = 1.0e-8;
     // Whether this solve redefines the mass every layer holding its mass holds (the mass inside its current radii);
@@ -141,6 +142,8 @@ struct c_WorldEOSSolveConfig {
         this->max_iters          = static_cast<size_t>(config.d_EOS_SOLVER_MAX_ITERS);
         this->nondimensionalize  = config.d_EOS_SOLVER_NONDIMENSIONALIZE;
         this->solve_temperature  = config.d_EOS_SOLVER_SOLVE_TEMPERATURE;
+        this->max_thermal_passes = static_cast<size_t>(config.d_EOS_SOLVER_MAX_THERMAL_PASSES);
+        this->thermal_tol        = config.d_EOS_SOLVER_THERMAL_TOL;
     }
 };
 
@@ -205,6 +208,8 @@ struct c_EOSSolverOverrides {
     std::optional<size_t>    slices_per_layer;
     std::optional<bool>      nondimensionalize;
     std::optional<bool>      solve_temperature;
+    std::optional<size_t>    max_thermal_passes;
+    std::optional<double>    thermal_tol;
 
     void apply(c_WorldEOSSolveConfig& cfg) const noexcept {
         if (this->integration_method) { cfg.integration_method = *this->integration_method; }
@@ -215,6 +220,8 @@ struct c_EOSSolverOverrides {
         if (this->slices_per_layer)   { cfg.slices_per_layer   = *this->slices_per_layer; }
         if (this->nondimensionalize)  { cfg.nondimensionalize  = *this->nondimensionalize; }
         if (this->solve_temperature)  { cfg.solve_temperature  = *this->solve_temperature; }
+        if (this->max_thermal_passes) { cfg.max_thermal_passes = *this->max_thermal_passes; }
+        if (this->thermal_tol)        { cfg.thermal_tol        = *this->thermal_tol; }
     }
 };
 
@@ -741,23 +748,22 @@ public:
     bool   get_thermal_converged() const noexcept { return this->p_thermal_converged; }
 
     // Rate of change of a layer's temperature [K s-1] from the heat entering, leaving, and generated in it:
-    //   (M c_p + C_latent) dT/dt = L_in - L_out + H,
-    // with L_in and L_out the heat flows of the last solve, H every heat source of a layer with use_heating, and
-    // C_latent the latent heat the boundaries between its solid and liquid zones absorb per kelvin where its material
-    // melts at one temperature (a Stefan condition; c_LayerThermal::latent_capacity). The radiogenic and prescribed
-    // heat are the last solve's; the tidal heat is the latest calc_tides (the tidal heat source), so a step of an
-    // evolution is solve_eos, calc_tides, then this rate, with no second solve. NaN for a layer with no heat capacity
-    // (one without a material). Read under the call lock, since solve_eos replaces the thermal state.
+    //   (C + C_latent) dT/dt = L_in - L_out + H,
+    // with L_in and L_out the heat flows of the last solve, H every heat source of a layer with use_heating, C the heat
+    // its profile stores per kelvin of its temperature (the integral of rho c_p over the layer, weighted by how far
+    // each point moves with the layer's temperature; c_LayerThermal::thermal_capacity), and C_latent the latent heat
+    // the boundaries between its solid and liquid zones absorb per kelvin where its material melts at one temperature
+    // (a Stefan condition; c_LayerThermal::latent_capacity). The radiogenic and prescribed heat are the last solve's;
+    // the tidal heat is the latest calc_tides (the tidal heat source), so a step of an evolution is solve_eos,
+    // calc_tides, then this rate, with no second solve. NaN for a layer with no heat capacity (one without a
+    // material). Read under the call lock, since solve_eos replaces the thermal state.
     double calc_layer_temperature_rate(std::size_t layer_index) const noexcept {
         const c_WorldCallLock call_lock(this->p_call_mutex.get());
         if (layer_index >= this->p_layer_thermal.size()) { return TidalPyConstants::d_NAN; }
         const c_LayerThermal& thermal = this->p_layer_thermal[layer_index];
         const c_Layer* layer = this->p_layers[layer_index].get();
         const double mass = layer->get_mass();
-        const double heat_capacity = thermal.heat_capacity;
-        if (!(mass > TidalPyConstants::d_EPS) || !(heat_capacity > TidalPyConstants::d_EPS)) {
-            return TidalPyConstants::d_NAN;
-        }
+        if (!(thermal.thermal_capacity > TidalPyConstants::d_EPS)) { return TidalPyConstants::d_NAN; }
         double heating = 0.0;
         if (this->p_solve_state) {
             const c_Heating& sources = this->p_solve_state->heating;
@@ -769,7 +775,7 @@ public:
             heating += tidal_power[layer_index];
         }
         return (thermal.heat_flow_in - thermal.heat_flow_out + heating)
-            / (mass * heat_capacity + thermal.latent_capacity);
+            / (thermal.thermal_capacity + thermal.latent_capacity);
     }
 
     // Heat sources (heating_.hpp). Every source acts in the layers with use_heating, through a solve that carries
@@ -1022,6 +1028,24 @@ public:
         // inside it; a uniform override replaces every layer's value.
         std::vector<c_LayerThermal> layer_thermal;
         c_init_layer_thermal(this->p_layers, layer_thermal, cfg.temperature);
+        // A layer with no temperature of its own (the 0 K default) takes no part in the thermal network, and its
+        // material sits at the cold limit of its laws, rigid where its viscosity follows the temperature. That is
+        // seldom meant, so such a layer is named once, until its temperature is set.
+        for (std::size_t i = 0; i < n_layers; ++i) {
+            c_Layer* layer = this->p_layers[i].get();
+            if (layer_thermal[i].in_network || layer->get_cold_warning_issued() || !layer->get_material_set()) {
+                continue;
+            }
+            c_MaterialState reference_state;
+            layer->calc_reference_state(reference_state);
+            if (!std::isinf(reference_state.shear_viscosity)) { continue; }
+            layer->set_cold_warning_issued();
+            TIDALPY_LOG_WARN(
+                "TidalPy: layer '{}' of world '{}' has no temperature of its own ({} K), so its material's viscosity "
+                "is at its cold, rigid limit and the layer takes no part in the thermal network. Set the layer's "
+                "temperature (temperature_k in a world file).",
+                layer->get_name(), this->get_name(), layer->get_temperature());
+        }
         // Heat sources, prepared once from the world's state; after each pass they take the layers' radii and masses
         // from it (a power is spread by mass). They need the heat flow of a thermal solve to act through, so a solve
         // with temperature switched off leaves them out.
@@ -1033,8 +1057,11 @@ public:
         c_Heating& heating = solve_state->heating;
         heating.update_sources(world_state, length_scale, density_scale);
         const bool heating_active = heating.get_is_active();
+        // An isothermal solve has no heat flow for the heating to act through. A world that pins one (the bundled
+        // worlds do, to keep their fitted temperatures) while its layers carry heating for thermal solves is expected,
+        // so this is a debug note rather than a warning.
         if (heating_active && !cfg.solve_temperature) {
-            TIDALPY_LOG_WARN(
+            TIDALPY_LOG_DEBUG(
                 "TidalPy: world '{}' has layers with use_heating set, but solve_temperature is off, so this EOS "
                 "solve carries no heat flow and the heating is ignored.", this->get_name());
         }
@@ -1282,6 +1309,7 @@ public:
         this->p_eos_solution = std::move(solution);
         this->p_update_zones();
         this->p_update_latent_capacity();
+        this->p_update_thermal_capacity();
     }
 
     // The solid and liquid zones of the last successful EOS solve, inner to outer: each layer is one zone unless its
@@ -2659,6 +2687,8 @@ protected:
         write_optional_setting<uint64_t>(out, eos.slices_per_layer);
         write_optional_setting<uint8_t>(out, eos.nondimensionalize);
         write_optional_setting<uint8_t>(out, eos.solve_temperature);
+        write_optional_setting<uint64_t>(out, eos.max_thermal_passes);
+        write_optional_setting<double>(out, eos.thermal_tol);
         const c_RadialSolverOverrides& radial = this->p_radial_solver_overrides;
         write_optional_setting<int32_t>(out, radial.integration_method);
         write_optional_setting<double>(out, radial.rtol);
@@ -2683,6 +2713,8 @@ protected:
         read_optional_setting<uint64_t>(in, eos.slices_per_layer);
         read_optional_setting<uint8_t>(in, eos.nondimensionalize);
         read_optional_setting<uint8_t>(in, eos.solve_temperature);
+        read_optional_setting<uint64_t>(in, eos.max_thermal_passes);
+        read_optional_setting<double>(in, eos.thermal_tol);
         c_RadialSolverOverrides radial;
         read_optional_setting<int32_t>(in, radial.integration_method);
         read_optional_setting<double>(in, radial.rtol);
@@ -2871,6 +2903,17 @@ protected:
                 this->p_solve_state->inputs[layer_i].switches,
                 this->p_layer_thermal,
                 boundary);
+        }
+    }
+
+    // The heat each layer's profile stores per kelvin of its temperature (c_LayerThermal::thermal_capacity,
+    // c_layer_thermal_capacity), from the profile of the last solve.
+    void p_update_thermal_capacity() {
+        const c_EOSSolution* solution = this->p_eos_solution.get();
+        const std::size_t num_layers = std::min(this->p_layers.size(), this->p_layer_thermal.size());
+        for (std::size_t layer_i = 0; layer_i < num_layers; ++layer_i) {
+            this->p_layer_thermal[layer_i].thermal_capacity = (solution == nullptr) ? TidalPyConstants::d_NAN
+                : c_layer_thermal_capacity(*solution, *this->p_layers[layer_i], this->p_layer_thermal, layer_i);
         }
     }
 

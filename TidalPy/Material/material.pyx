@@ -40,6 +40,7 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_param_map,
     cy_wrap_model,
 )
+from TidalPy.Utilities.classes.classes import canonical_parameter_keys
 from TidalPy.Utilities.classes.families import ModelFamily
 from TidalPy.Material.laws import make_eos, make_shear_modulus
 from TidalPy.Viscosity import make_viscosity
@@ -76,7 +77,8 @@ _MELTING_SLOTS = {
 # The fields Material.calc_state reports, in c_MaterialState order (phase first, as a string).
 _STATE_FIELDS = (
     "density", "bulk_modulus", "adiabatic_bulk_modulus", "thermal_expansion", "heat_capacity", "thermal_conductivity",
-    "shear_modulus", "shear_viscosity", "bulk_viscosity", "melt_fraction", "solidus", "liquidus")
+    "shear_modulus", "shear_viscosity", "bulk_viscosity", "melt_fraction", "solidus", "liquidus", "latent_expansion",
+    "latent_heat_capacity")
 # c_MaterialPhase values, in order.
 _PHASE_NAMES = ("solid", "partial", "liquid")
 
@@ -167,9 +169,10 @@ cdef class Phase(PhysicsBase):
         cdef dict given = {"eos": eos, "shear_modulus": shear_modulus, "shear_viscosity": shear_viscosity,
                            "bulk_viscosity": bulk_viscosity, "shear_rheology": shear_rheology,
                            "bulk_rheology": bulk_rheology}
-        cdef dict params = dict(config) if config else {}
+        # Keyed by config key, so a keyword overrides the config's value under either spelling.
+        cdef dict params = canonical_parameter_keys(Phase, config) if config else {}
         cdef dict slot_tables = cy_split_config(params, _PHASE_SLOTS, _parameter_keys(Phase), "phase") if params else {}
-        params.update(parameters)
+        params.update(canonical_parameter_keys(Phase, parameters))
         cdef c_PhaseComponents components
         cdef PhysicsBase model
         cdef str slot
@@ -270,12 +273,13 @@ cdef class Material(PhysicsBase):
                  bulk_modulus_mixing=None, bulk_viscosity_mixing=None, *, dict config=None, **parameters):
         cdef dict given = {"solidus": solidus, "liquidus": liquidus, "weakening": weakening,
                            "bulk_modulus_mixing": bulk_modulus_mixing, "bulk_viscosity_mixing": bulk_viscosity_mixing}
-        cdef dict params = dict(config) if config else {}
+        # Keyed by config key, so a keyword overrides the config's value under either spelling.
+        cdef dict params = canonical_parameter_keys(Material, config) if config else {}
         cdef dict tables = cy_split_config(
             params, ("solid", "liquid", "melting"), _parameter_keys(Material), "material") if params else {}
         cdef dict melting = dict(tables.get("melting") or {})
         cy_split_config(dict(melting), _MELTING_SLOTS, (), "material's melting table")
-        params.update(parameters)
+        params.update(canonical_parameter_keys(Material, parameters))
         cdef c_MaterialComponents components
         cdef PhysicsBase model
         cdef str slot
@@ -394,8 +398,11 @@ cdef class Material(PhysicsBase):
             ``phase`` ("solid", "partial", "liquid"), ``density`` [kg m-3], ``bulk_modulus`` and
             ``adiabatic_bulk_modulus`` [Pa], ``thermal_expansion`` [1/K], ``heat_capacity`` (latent heat included)
             [J kg-1 K-1], ``thermal_conductivity`` [W m-1 K-1], ``shear_modulus`` [Pa], ``shear_viscosity`` and
-            ``bulk_viscosity`` [Pa s], ``melt_fraction``, ``solidus`` and ``liquidus`` [K]; floats (and a string) for
-            float inputs, otherwise arrays of the broadcast shape.
+            ``bulk_viscosity`` [Pa s], ``melt_fraction``, ``solidus`` and ``liquidus`` [K], and
+            ``latent_expansion`` [1/K] (the latent heat's share of an adiabat's expansivity inside a melting range
+            whose curves follow the pressure: an adiabat runs at dT/dr = -(alpha + latent_expansion) g T / c_p),
+            and ``latent_heat_capacity`` [J kg-1 K-1] (the latent heat's share of ``heat_capacity``);
+            floats (and a string) for float inputs, otherwise arrays of the broadcast shape.
         """
         cdef c_Material* material_ptr = self._material()
         cdef c_MaterialSwitches switches = cy_switches(
@@ -424,6 +431,8 @@ cdef class Material(PhysicsBase):
                 "melt_fraction": scalar_state.melt_fraction,
                 "solidus": scalar_state.solidus,
                 "liquidus": scalar_state.liquidus,
+                "latent_expansion": scalar_state.latent_expansion,
+                "latent_heat_capacity": scalar_state.latent_heat_capacity,
             }
         with nogil:
             material_ptr.calc_state_vectorize(inputs[0], inputs[1], inputs[2], switches, states)
@@ -444,6 +453,8 @@ cdef class Material(PhysicsBase):
             values[9, point_i]  = states[point_i].melt_fraction
             values[10, point_i] = states[point_i].solidus
             values[11, point_i] = states[point_i].liquidus
+            values[12, point_i] = states[point_i].latent_expansion
+            values[13, point_i] = states[point_i].latent_heat_capacity
             phases.append(_PHASE_NAMES[<int>states[point_i].phase])
         cdef dict result = {field: values[field_i].reshape(shape) for field_i, field in enumerate(_STATE_FIELDS)}
         result["phase"] = np.array(phases, dtype=object).reshape(shape)

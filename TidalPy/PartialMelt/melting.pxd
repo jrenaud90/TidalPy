@@ -14,6 +14,10 @@ cdef extern from "melting_curve_.hpp" namespace "tidalpy" nogil:
         void calc_melting_temperature_vectorize(
             const vector[double]& pressure,
             vector[double]& out_temperature) except +
+        double calc_melting_slope(double pressure) const
+        void calc_melting_slope_vectorize(
+            const vector[double]& pressure,
+            vector[double]& out_slope) except +
 
     unique_ptr[c_MeltingCurveBase] c_find_melting_curve(const string& model_name, const c_ParamMap& params) except +
     string c_melting_curve_canonical_name(const string& model_name) except +
@@ -30,6 +34,8 @@ cdef extern from "melt_weakening_.hpp" namespace "tidalpy" nogil:
         double solid_viscosity
         double liquid_shear
         double liquid_viscosity
+        double solid_shear_at_solidus
+        double solid_viscosity_at_solidus
 
     cdef cppclass c_MeltWeakeningResult:
         double shear_modulus

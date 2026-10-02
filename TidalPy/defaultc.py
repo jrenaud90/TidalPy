@@ -149,6 +149,12 @@ schema_version = "{SCHEMA_VERSION}"
     # model and its material sees the local temperature. A world whose layers are all at one
     # temperature has no profile to integrate and keeps the four structure variables whatever this says.
     solve_temperature = true
+    # A solve that carries temperature relaxes its boundary layers, interface temperatures, and heat flows against the
+    # structure it integrated, one structure integration per pass, until the largest relative change in the interface
+    # temperatures and flows falls below thermal_tol; max_thermal_passes caps the passes (a solve that reaches it
+    # reports thermal_converged = false and keeps its last profile).
+    max_thermal_passes = 12
+    thermal_tol = 1.0e-8
     # Integrate in non-dimensional units (the planet radius, its bulk density, and 1/sqrt(pi G rho) as the length,
     # density, and time units) so the tolerances above mean the same thing for every planet.
     nondimensionalize = true
@@ -298,6 +304,8 @@ schema_version = "{SCHEMA_VERSION}"
 
     # Stars only.
     [worlds.star]
+        # A star reflects nothing.
+        albedo = 0.0
         # Effective (photospheric) temperature [K]; the solar value.
         effective_temperature_k = 5772.0
         # Luminosity [W]. Zero means derive it from the effective temperature by Stefan-Boltzmann.

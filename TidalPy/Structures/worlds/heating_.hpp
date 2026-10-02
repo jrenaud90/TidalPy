@@ -391,16 +391,6 @@ public:
         return heating;
     }
 
-    // The same from one source alone.
-    double calc_source_heating(
-            c_HeatSourceKind kind,
-            std::size_t layer_index,
-            double radius,
-            double density) const noexcept {
-        if (!this->p_heats(layer_index)) { return 0.0; }
-        return this->p_sources[static_cast<std::size_t>(kind)]->calc_heating(layer_index, radius, density);
-    }
-
     // The heat [W] one source generates in a layer of mass `mass` [kg]; zero in a layer that is not heated.
     double calc_layer_power(c_HeatSourceKind kind, std::size_t layer_index, double mass) const noexcept {
         if (!this->p_heats(layer_index)) { return 0.0; }
@@ -414,8 +404,6 @@ public:
         return 4.0 * TidalPyConstants::d_PI * radius_si * radius_si * this->p_length_scale
             * this->calc_heating(layer_index, radius_si, density * this->p_density_scale);
     }
-
-    const c_RadiogenicHeatSource& get_radiogenic_source() const noexcept { return this->p_radiogenic_source; }
 
 protected:
     bool p_heats(std::size_t layer_index) const noexcept {

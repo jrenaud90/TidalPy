@@ -144,6 +144,8 @@ _SOLVER_KEY_RULES = {
         "slices_per_layer":   (int, 1),
         "nondimensionalize":  (bool, None),
         "solve_temperature":  (bool, None),
+        "max_thermal_passes": (int, 0),
+        "thermal_tol":        (float, 0.0),
     },
     "radial_solver": {
         "integration_method":     (str, None),

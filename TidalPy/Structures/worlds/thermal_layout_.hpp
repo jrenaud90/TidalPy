@@ -63,6 +63,7 @@
  *   parameterized convection, at the top of the adiabatic interior.
  */
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -83,6 +84,36 @@ namespace tidalpy {
 // profile needs.
 inline constexpr int d_HEATING_QUADRATURE_NODES = 16;
 
+// The adiabat a convecting interior warms along, marched down from its top
+// (c_LayerProbe::calc_adiabat_base_temperature): classical Runge-Kutta steps, this many over the stretch, with step
+// doubling. Each step is taken whole and as two halves; the halves are kept when the two agree to the relative
+// tolerance, and otherwise each half is stepped the same way, up to the refinement limit. A smooth adiabat keeps
+// nearly every step after a halving or two, and a kink in it (where the material starts or finishes melting, or a
+// melting curve changes branch inside a melting range) is refined until the step across it is about a centimeter.
+// The tolerance stays well above the noise of the solved structure the march reads (its dense output, integrated to
+// [eos_solver] rtol), which would otherwise refine every step to the limit.
+inline constexpr int d_ADIABAT_STEPS = 16;
+inline constexpr double d_ADIABAT_STEP_TOLERANCE = 1.0e-9;
+inline constexpr int d_ADIABAT_MAX_REFINEMENTS = 24;
+
+// Integrals over a stretch whose material may melt along it (c_integrate_split_at_melting): the material's properties
+// step where it starts or finishes melting, so a piece whose ends differ in melt state (solid, partially molten,
+// liquid) is split where the state changes, found by bisection. Thirty halvings place a change to about 1e-9 of the
+// piece, and a piece is split at most this many times. A layer's thermal capacity first cuts each stretch into
+// d_CAPACITY_PIECES equal pieces, so a stretch the profile crosses a melting curve in twice is still split at both
+// crossings.
+inline constexpr int d_MELT_SPLIT_BISECTIONS = 30;
+inline constexpr int d_MELT_SPLIT_MAX_SPLITS = 12;
+inline constexpr int d_CAPACITY_PIECES = 4;
+// Each part is integrated by adaptive Gauss-Legendre: a part whose rule and the sum of the rule over its two halves
+// differ by more than this tolerance, relative to the integral over the whole stretch, is halved, up to this depth,
+// which resolves a kink in the integrand inside a part (a melting curve changing branch, say). A smooth part is
+// accepted at once. Measured against the whole stretch rather than the part, the test also passes where the solved
+// profile the integrand reads is noisy at the part's own scale (inside a boundary layer millimeters thick, whose
+// radii differ from each other only in their last digits).
+inline constexpr double d_QUADRATURE_TOLERANCE = 1.0e-8;
+inline constexpr int d_QUADRATURE_MAX_DEPTH = 10;
+
 // The stretch quadrature rule on [-1, 1], built once (thread-safe static initialization).
 struct c_StretchQuadrature {
     std::vector<double> nodes;
@@ -93,6 +124,89 @@ struct c_StretchQuadrature {
 inline const c_StretchQuadrature& c_stretch_quadrature() {
     static const c_StretchQuadrature rule;
     return rule;
+}
+
+// The Gauss-Legendre rule (c_stretch_quadrature) for the integral of f(x) over [lower, upper]; sample(x, melt_state)
+// returns f(x).
+template <class Sample>
+double c_gauss_legendre(double lower, double upper, const Sample& sample) {
+    const std::vector<double>& nodes   = c_stretch_quadrature().nodes;
+    const std::vector<double>& weights = c_stretch_quadrature().weights;
+    const double half_width = 0.5 * (upper - lower);
+    const double midpoint   = 0.5 * (upper + lower);
+    double total = 0.0;
+    int melt_state = 0;
+    for (std::size_t node_i = 0; node_i < nodes.size(); ++node_i) {
+        total += weights[node_i] * half_width * sample(midpoint + half_width * nodes[node_i], melt_state);
+    }
+    return total;
+}
+
+// Adaptive Gauss-Legendre over [lower, upper], whose whole-interval rule is `whole`: kept as the sum over the two
+// halves when that agrees with it to `tolerance` (absolute, or at d_QUADRATURE_MAX_DEPTH), else each half the same way.
+template <class Sample>
+double c_adaptive_gauss_legendre(
+        double lower,
+        double upper,
+        double whole,
+        double tolerance,
+        int depth,
+        const Sample& sample) {
+    const double middle = 0.5 * (lower + upper);
+    const double left   = c_gauss_legendre(lower, middle, sample);
+    const double right  = c_gauss_legendre(middle, upper, sample);
+    const double halves = left + right;
+    if ((depth >= d_QUADRATURE_MAX_DEPTH) || !std::isfinite(halves) || (std::fabs(halves - whole) <= tolerance)) {
+        return halves;
+    }
+    return c_adaptive_gauss_legendre(lower, middle, left, tolerance, depth + 1, sample)
+        + c_adaptive_gauss_legendre(middle, upper, right, tolerance, depth + 1, sample);
+}
+
+// The integral of f(x) over [lower, upper], cut into num_pieces equal pieces, each split where the material's melt
+// state changes (d_MELT_SPLIT_BISECTIONS) and integrated by adaptive Gauss-Legendre on either side.
+// sample(x, melt_state) returns f(x) and sets the melt state at x (0 solid, 1 partially molten, 2 liquid).
+template <class Sample>
+double c_integrate_split_at_melting(double lower, double upper, int num_pieces, const Sample& sample) {
+    if (!(upper > lower)) { return 0.0; }
+    const double tolerance = d_QUADRATURE_TOLERANCE * std::fabs(c_gauss_legendre(lower, upper, sample));
+    const auto gauss = [&](double part_lower, double part_upper) {
+        if (!(part_upper > part_lower)) { return 0.0; }
+        return c_adaptive_gauss_legendre(
+            part_lower, part_upper, c_gauss_legendre(part_lower, part_upper, sample), tolerance, 0, sample);
+    };
+    const double width = (upper - lower) / static_cast<double>(num_pieces);
+    double total = 0.0;
+    for (int piece_i = 0; piece_i < num_pieces; ++piece_i) {
+        double piece_lower = lower + piece_i * width;
+        const double piece_upper = (piece_i + 1 == num_pieces) ? upper : lower + (piece_i + 1) * width;
+        int lower_state = 0;
+        int upper_state = 0;
+        sample(piece_lower, lower_state);
+        sample(piece_upper, upper_state);
+        for (int split_i = 0; (split_i < d_MELT_SPLIT_MAX_SPLITS) && (lower_state != upper_state); ++split_i) {
+            double same = piece_lower;
+            double changed = piece_upper;
+            int changed_state = upper_state;
+            for (int bisection_i = 0; bisection_i < d_MELT_SPLIT_BISECTIONS; ++bisection_i) {
+                const double middle = 0.5 * (same + changed);
+                int middle_state = 0;
+                sample(middle, middle_state);
+                if (middle_state == lower_state) { same = middle; }
+                else { changed = middle; changed_state = middle_state; }
+            }
+            total += gauss(piece_lower, same);
+            piece_lower = changed;
+            lower_state = changed_state;
+        }
+        total += gauss(piece_lower, piece_upper);
+    }
+    return total;
+}
+
+// The melt state of a material state: 0 solid, 1 partially molten, 2 liquid.
+inline int c_melt_state(double melt_fraction) noexcept {
+    return (melt_fraction > 0.0) ? ((melt_fraction < 1.0) ? 1 : 2) : 0;
 }
 
 // c_LayerThermal: the thermal description of one layer during a solve. Nothing here is stored on the layer; the
@@ -150,6 +264,9 @@ struct c_LayerThermal {
     // The latent heat the boundaries between the layer's solid and liquid zones absorb per kelvin of the layer's
     // temperature [J K-1], where its material melts at one temperature (c_zone_boundary_latent_capacity).
     double latent_capacity = 0.0;
+    // The heat the layer's profile stores per kelvin of the layer's temperature [J K-1], latent heat of a melting range
+    // included (c_layer_thermal_capacity); NaN before a solve.
+    double thermal_capacity = TidalPyConstants::d_NAN;
 };
 
 // True when no heat crosses a layer's base: the innermost layer (the center carries no flow) or one above a layer
@@ -242,7 +359,9 @@ inline bool c_thermal_contrast_present(
 // Heat generated between two radii of a layer [W], and the temperature drop [K] it adds across that stretch when
 // the stretch conducts (zero for a conductivity that is not positive). With the order of integration swapped,
 //     drop = integral of 4 pi s^2 h(s) R(s, r_top) ds,     R(s, r_top) = (1/s - 1/r_top) / (4 pi k),
-// so both come from one pass over the same nodes. The density is read from the solved structure.
+// so both come from one pass over the same nodes. k is the stretch's uniform equivalent (c_shell_conductivity of its
+// resistance), which is exact for a uniform conductivity and leaves a second-order error in this correction where
+// the conductivity varies. The density is read from the solved structure.
 inline void c_stretch_heating(
         const c_EOSSolution& solution,
         const c_Heating& heating,
@@ -326,7 +445,9 @@ public:
         out.density              = state.density;
         out.thermal_conductivity = state.thermal_conductivity;
         out.heat_capacity        = state.heat_capacity;
+        out.sensible_heat_capacity = state.heat_capacity - state.latent_heat_capacity;
         out.thermal_expansion    = state.thermal_expansion;
+        out.latent_expansion = state.latent_expansion;
         out.shear_viscosity      = state.shear_viscosity;
         out.melt_fraction        = state.melt_fraction;
         out.is_liquid            = this->p_layer.get_is_liquid()
@@ -334,31 +455,126 @@ public:
                 && ((state.phase == c_MaterialPhase::Liquid) || (state.shear_modulus <= this->p_liquid_shear)));
     }
 
-    // The integral of alpha g / c_p from radius_lower to radius_upper, using the solved gravity and pressure and the
-    // layer's material at its own temperature (whose expansivity can fall with compression), as the integrated
-    // adiabat does. Zero for an empty stretch or a layer without a material, which leaves the interior isothermal.
-    double calc_adiabat_exponent(double radius_lower, double radius_upper) const override {
-        if (!(radius_upper > radius_lower) || !this->p_layer.get_material_set()) { return 0.0; }
-        const std::vector<double>& nodes   = c_stretch_quadrature().nodes;
-        const std::vector<double>& weights = c_stretch_quadrature().weights;
-        const double half_width = 0.5 * (radius_upper - radius_lower);
-        const double midpoint   = 0.5 * (radius_upper + radius_lower);
-        double integral = 0.0;
-        double gravity  = 0.0;
-        double pressure = 0.0;
-        c_TransportState material;
-        for (std::size_t node_i = 0; node_i < nodes.size(); ++node_i) {
-            const double radius = midpoint + half_width * nodes[node_i];
-            this->calc_structure(radius, gravity, pressure);
-            this->calc_transport_state(pressure, this->p_temperature, radius, material);
-            if (!(material.heat_capacity > TidalPyConstants::d_EPS)) { continue; }
-            const double term = gravity * material.thermal_expansion / material.heat_capacity;
-            if (std::isfinite(term)) { integral += term * half_width * weights[node_i]; }
+    // The conduction resistance between two radii whose ends are at two temperatures: steady conduction carries
+    // L = 4 pi (Theta(T_inner) - Theta(T_outer)) / (1/r_inner - 1/r_outer) with Theta the integral of k dT, so the
+    // conductivity is averaged over the temperature between the ends (Gauss-Legendre, split where the material starts
+    // or finishes melting, since the conductivity kinks there). Each node takes the pressure where a profile linear
+    // in 1/r puts its temperature, which is exact for a conductivity that follows the temperature alone. An end
+    // without a usable temperature takes the other's, or the layer's own.
+    double calc_shell_resistance(
+            double radius_inner,
+            double radius_outer,
+            double temperature_inner,
+            double temperature_outer) const override {
+        if (!(radius_inner > TidalPyConstants::d_EPS) || !(radius_outer > radius_inner)
+                || !this->p_layer.get_material_set()) {
+            return 0.0;
         }
-        return integral;
+        if (!(temperature_inner > 0.0) || !std::isfinite(temperature_inner)) {
+            temperature_inner = (temperature_outer > 0.0) ? temperature_outer : this->p_temperature;
+        }
+        if (!(temperature_outer > 0.0) || !std::isfinite(temperature_outer)) { temperature_outer = temperature_inner; }
+
+        const double inverse_inner = 1.0 / radius_inner;
+        const double inverse_outer = 1.0 / radius_outer;
+        bool conducts = true;
+        // The conductivity a fraction of the way from the inner end to the outer, in temperature and in 1/r.
+        const auto conductivity = [&](double fraction, int& melt_state) {
+            const double temperature = temperature_inner + fraction * (temperature_outer - temperature_inner);
+            const double radius      = 1.0 / (inverse_inner + fraction * (inverse_outer - inverse_inner));
+            double gravity  = 0.0;
+            double pressure = 0.0;
+            this->calc_structure(radius, gravity, pressure);
+            c_TransportState material;
+            this->calc_transport_state(pressure, temperature, radius, material);
+            melt_state = c_melt_state(material.melt_fraction);
+            if (!(material.thermal_conductivity > TidalPyConstants::d_EPS)) { conducts = false; }
+            return material.thermal_conductivity;
+        };
+        const double mean_conductivity = c_integrate_split_at_melting(0.0, 1.0, 1, conductivity);
+        if (!conducts) { return 0.0; }
+        return (inverse_inner - inverse_outer) / (4.0 * TidalPyConstants::d_PI * mean_conductivity);
+    }
+
+    // The base temperature of an adiabat whose top is at top_temperature, marched down from the top through the solved
+    // gravity and pressure (step-doubled Runge-Kutta steps): dT/dr = -(alpha + alpha_L) g T / c_p, with the material
+    // at the temperature the march has reached, so its expansivity can fall with compression, its heat capacity can
+    // follow the temperature, and inside a melting range its latent heat enters both (which buffers the adiabat
+    // there). A converged solve's integrated
+    // adiabat then lands on top_temperature at the top of its interior. top_temperature for an empty stretch or a
+    // layer without a material, which leaves the interior isothermal.
+    double calc_adiabat_base_temperature(
+            double radius_lower,
+            double radius_upper,
+            double top_temperature) const override {
+        if (!(radius_upper > radius_lower) || !this->p_layer.get_material_set()) { return top_temperature; }
+        const double step = (radius_upper - radius_lower) / static_cast<double>(d_ADIABAT_STEPS);
+        c_AdiabatPoint point;
+        point.radius      = radius_upper;
+        point.temperature = top_temperature;
+        point.gradient    = this->p_adiabat_gradient(point.radius, point.temperature);
+        for (int step_i = 0; step_i < d_ADIABAT_STEPS; ++step_i) {
+            const double radius_end = (step_i + 1 == d_ADIABAT_STEPS) ? radius_lower : point.radius - step;
+            point = this->p_adiabat_step(point, radius_end, 0);
+            if (!(point.temperature > 0.0) || !std::isfinite(point.temperature)) { return top_temperature; }
+        }
+        return point.temperature;
     }
 
 private:
+    // A point on the adiabat: its radius [m], temperature [K], and dT/dr there [K m-1].
+    struct c_AdiabatPoint {
+        double radius = 0.0;
+        double temperature = 0.0;
+        double gradient = 0.0;
+    };
+
+    // dT/dr [K m-1] of the adiabat at a radius [m] and temperature [K]; zero where the material has no heat capacity.
+    double p_adiabat_gradient(double radius, double temperature) const {
+        double gravity  = 0.0;
+        double pressure = 0.0;
+        this->calc_structure(radius, gravity, pressure);
+        c_TransportState material;
+        this->calc_transport_state(pressure, temperature, radius, material);
+        if (!(material.heat_capacity > TidalPyConstants::d_EPS)) { return 0.0; }
+        return -(material.thermal_expansion + material.latent_expansion) * gravity * temperature
+            / material.heat_capacity;
+    }
+
+    // One classical Runge-Kutta step of the adiabat from `start` to radius_end [m]. The end point carries its own
+    // gradient, which starts the next step.
+    c_AdiabatPoint p_runge_kutta(const c_AdiabatPoint& start, double radius_end) const {
+        const double step = radius_end - start.radius;
+        const double gradient_2 = this->p_adiabat_gradient(
+            start.radius + 0.5 * step, start.temperature + 0.5 * step * start.gradient);
+        const double gradient_3 = this->p_adiabat_gradient(
+            start.radius + 0.5 * step, start.temperature + 0.5 * step * gradient_2);
+        const double gradient_4 = this->p_adiabat_gradient(radius_end, start.temperature + step * gradient_3);
+        c_AdiabatPoint end;
+        end.radius      = radius_end;
+        end.temperature = start.temperature + step * (start.gradient + 2.0 * gradient_2 + 2.0 * gradient_3 + gradient_4)
+            / 6.0;
+        end.gradient    = this->p_adiabat_gradient(end.radius, end.temperature);
+        return end;
+    }
+
+    // A step of the adiabat from `start` to radius_end [m] by step doubling: the two halves are kept when they agree
+    // with the whole step to d_ADIABAT_STEP_TOLERANCE, or a non-finite temperature ends the march (the caller checks
+    // it); otherwise each half is stepped the same way, up to d_ADIABAT_MAX_REFINEMENTS halvings.
+    c_AdiabatPoint p_adiabat_step(const c_AdiabatPoint& start, double radius_end, int refinements) const {
+        const double radius_middle = 0.5 * (start.radius + radius_end);
+        const c_AdiabatPoint whole  = this->p_runge_kutta(start, radius_end);
+        const c_AdiabatPoint middle = this->p_runge_kutta(start, radius_middle);
+        const c_AdiabatPoint halves = this->p_runge_kutta(middle, radius_end);
+        const bool agree = std::fabs(halves.temperature - whole.temperature)
+            <= d_ADIABAT_STEP_TOLERANCE * std::fabs(halves.temperature);
+        if (agree || !std::isfinite(halves.temperature) || (refinements >= d_ADIABAT_MAX_REFINEMENTS)) {
+            return halves;
+        }
+        const c_AdiabatPoint refined_middle = this->p_adiabat_step(start, radius_middle, refinements + 1);
+        return this->p_adiabat_step(refined_middle, radius_end, refinements + 1);
+    }
+
     const c_EOSSolution& p_solution;
     const c_Layer&       p_layer;
     std::size_t          p_layer_index;
@@ -407,6 +623,12 @@ inline double c_update_layer_thermal(
         context.inner_temperature = ((layer_i > 0) && thermal_vec[layer_i - 1].in_network)
             ? thermal_vec[layer_i - 1].top_temperature
             : thermal.base_temperature;
+        context.inner_node_temperature = (layer_i > 0)
+            ? thermal_vec[layer_i - 1].node_temperature : thermal.temperature;
+        context.outer_node_temperature = thermal.node_temperature;
+        if ((layer_i + 1 == n_layers) && std::isfinite(surface_temperature)) {
+            context.outer_node_temperature = surface_temperature;
+        }
         context.outer_temperature = thermal.temperature;
         if (layer_i + 1 < n_layers) {
             if (thermal_vec[layer_i + 1].in_network) {
@@ -473,11 +695,15 @@ inline double c_update_layer_thermal(
             ? (radius_inner + boundary_bottom) : 0.5 * (radius_inner + radius_outer);
         const double top_start = convects
             ? (radius_outer - thermal.boundary_thickness) : 0.5 * (radius_inner + radius_outer);
+        const double conductivity_bottom = c_shell_conductivity(
+            radius_inner, bottom_end, thermal.resistance_bottom, thermal.conductivity);
+        const double conductivity_top = c_shell_conductivity(
+            top_start, radius_outer, thermal.resistance_top, thermal.conductivity);
         c_stretch_heating(
-            solution, *heating_ptr, layer_i, radius_inner, bottom_end, thermal.conductivity,
+            solution, *heating_ptr, layer_i, radius_inner, bottom_end, conductivity_bottom,
             thermal.heating_bottom, thermal.heating_drop_bottom);
         c_stretch_heating(
-            solution, *heating_ptr, layer_i, top_start, radius_outer, thermal.conductivity,
+            solution, *heating_ptr, layer_i, top_start, radius_outer, conductivity_top,
             thermal.heating_top, thermal.heating_drop_top);
     }
 
@@ -512,8 +738,8 @@ inline double c_update_layer_thermal(
         double node = 0.0;
         double flow = 0.0;
         // Any positive resistance conducts. A resistance in K/W has no natural scale to compare with: the
-        // millimetre boundary layers of a molten, vigorously convecting layer are about 1e-18 K/W, and must still
-        // hold that layer's own temperature. c_shell_resistance gives exactly zero for no shell at all.
+        // millimeter boundary layers of a molten, vigorously convecting layer are about 1e-18 K/W, and must still
+        // hold that layer's own temperature. A shell resistance is exactly zero for no shell at all.
         const bool lower_conducts = (resistance_lower > 0.0);
         const bool upper_conducts = (resistance_upper > 0.0);
         const bool upper_in_network = at_surface || thermal_vec[layer_i + 1].in_network;
@@ -640,10 +866,13 @@ inline void c_build_thermal_segments(
 }
 
 // How far the temperature [K] at a radius [m] of a layer moves per kelvin of the layer's own temperature, with its
-// neighbors' interface temperatures held: one in an isothermal layer, T(r) / T along an adiabatic interior (which
-// scales with the temperature at its top), and in a conducting stretch the fraction of the way from the interface at
-// its far end to the end the layer holds, scaled by how that end moves. A stretch whose far end is an insulated base
-// moves with the layer.
+// neighbors' interface temperatures and the heat generated in it held: one in an isothermal layer, T(r) / T along an
+// adiabatic interior (which scales with the temperature at its top), and in a conducting stretch the change of a
+// steady conduction profile, which solves Laplace's equation whatever the heating: linear in 1/r from the interface at
+// its far end, which holds, to the end the layer moves (by T_base / T at the base of a convecting interior). A
+// conducting stretch whose far end is an insulated base shifts with the layer as a whole.
+//
+// Assumptions: the conductivity is uniform across a conducting stretch for this change.
 inline double c_temperature_sensitivity(
         const std::vector<c_LayerThermal>& thermal_vec,
         std::size_t layer_index,
@@ -653,29 +882,27 @@ inline double c_temperature_sensitivity(
     const double layer_temperature = thermal.temperature;
     if ((thermal.kind == c_TemperatureKind::Isothermal) || !(layer_temperature > 0.0)) { return 1.0; }
     const bool insulated_base = c_base_is_insulated(thermal_vec, layer_index);
-    const double node_below = insulated_base ? TidalPyConstants::d_NAN
-        : thermal_vec[layer_index - 1].node_temperature;
-    const double node_above = thermal.node_temperature;
 
-    // The fraction of the way from a stretch's far end to the end the layer holds, times how that end moves.
-    const auto stretch = [temperature](double far_end, double held_end, double held_scale) {
-        const double span = held_end - far_end;
-        if (!std::isfinite(far_end) || !(std::fabs(span) > TidalPyConstants::d_EPS)) { return held_scale; }
-        return held_scale * (temperature - far_end) / span;
+    // The share of the way, in 1/r, from a stretch's far end to the end the layer moves, times how far that end moves.
+    const auto stretch = [radius](double far_radius, double held_radius, double held_scale) {
+        const double span = (1.0 / held_radius) - (1.0 / far_radius);
+        if (!std::isfinite(span) || !(std::fabs(span) > TidalPyConstants::d_EPS / held_radius)) { return held_scale; }
+        return held_scale * ((1.0 / radius) - (1.0 / far_radius)) / span;
     };
-    const double interior_scale = temperature / layer_temperature;
-    double sensitivity = interior_scale;
+    double sensitivity = temperature / layer_temperature;
     if (thermal.kind == c_TemperatureKind::Conductive) {
         const double radius_mid = 0.5 * (thermal.radius_inner + thermal.radius_outer);
-        sensitivity = (radius >= radius_mid)
-            ? stretch(node_above, layer_temperature, 1.0)
-            : (insulated_base ? interior_scale : stretch(node_below, layer_temperature, 1.0));
+        if (radius >= radius_mid)  { sensitivity = stretch(thermal.radius_outer, radius_mid, 1.0); }
+        else if (insulated_base)   { sensitivity = 1.0; }
+        else                       { sensitivity = stretch(thermal.radius_inner, radius_mid, 1.0); }
     } else {
         const double boundary_bottom = insulated_base ? 0.0 : thermal.boundary_thickness;
-        if (radius > thermal.radius_outer - thermal.boundary_thickness) {
-            sensitivity = stretch(node_above, layer_temperature, 1.0);
-        } else if (radius < thermal.radius_inner + boundary_bottom) {
-            sensitivity = stretch(node_below, thermal.base_temperature, thermal.base_temperature / layer_temperature);
+        const double interior_top = thermal.radius_outer - thermal.boundary_thickness;
+        const double interior_base = thermal.radius_inner + boundary_bottom;
+        if (radius > interior_top) {
+            sensitivity = stretch(thermal.radius_outer, interior_top, 1.0);
+        } else if (radius < interior_base) {
+            sensitivity = stretch(thermal.radius_inner, interior_base, thermal.base_temperature / layer_temperature);
         }
     }
     return std::isfinite(sensitivity) ? std::max(sensitivity, 0.0) : 1.0;
@@ -739,6 +966,58 @@ inline double c_zone_boundary_latent_capacity(
     const double capacity = latent_heat * 4.0 * TidalPyConstants::d_PI * boundary_radius * boundary_radius
         * solid_state[C_EOS_DENSITY_INDEX] * sensitivity / std::fabs(margin_slope);
     return std::isfinite(capacity) ? capacity : 0.0;
+}
+
+// The heat [J K-1] a layer's profile stores per kelvin of the layer's own temperature:
+//     C = integral of rho c_p S 4 pi r^2 dr over the layer,
+// with rho the solved density, c_p the material's effective heat capacity at the solved pressure and temperature (the
+// latent heat of a melting range included, so only the part of the layer inside one carries it), and S the temperature
+// sensitivity (c_temperature_sensitivity): one through an isothermal layer, T(r) / T along an adiabatic interior
+// (Stevenson et al. 1983), and the share of a conducting stretch the layer's temperature moves. Gauss-Legendre over
+// each stretch, split where the profile crosses a melting curve, since the latent heat steps the heat capacity there.
+// Zero for a layer without a material.
+//
+// Assumptions: the neighbors' interface temperatures hold while the layer's own temperature changes, and a change of
+// the layer's temperature moves its profile without moving its boundary layers.
+inline double c_layer_thermal_capacity(
+        const c_EOSSolution& solution,
+        const c_Layer& layer,
+        const std::vector<c_LayerThermal>& thermal_vec,
+        std::size_t layer_index) {
+    const c_LayerThermal& thermal = thermal_vec[layer_index];
+    const double radius_inner = thermal.radius_inner;
+    const double radius_outer = thermal.radius_outer;
+    if (!layer.get_material_set() || !(radius_outer > radius_inner)) { return 0.0; }
+
+    // The integrand [J K-1 m-1] at a radius, and the material's melt state there.
+    const auto sample = [&](double radius, int& melt_state) {
+        double state[C_EOS_DY_VALUES];
+        solution.call_si(layer_index, radius, state);
+        const double temperature = state[C_EOS_TEMPERATURE_INDEX];
+        c_MaterialState material;
+        c_layer_thermal_state(&layer, state[C_EOS_PRESSURE_INDEX], temperature, radius, material);
+        melt_state = c_melt_state(material.melt_fraction);
+        const double value = 4.0 * TidalPyConstants::d_PI * radius * radius * state[C_EOS_DENSITY_INDEX]
+            * material.heat_capacity * c_temperature_sensitivity(thermal_vec, layer_index, radius, temperature);
+        return std::isfinite(value) ? value : 0.0;
+    };
+    const auto stretch = [&](double lower, double upper) {
+        return c_integrate_split_at_melting(lower, upper, d_CAPACITY_PIECES, sample);
+    };
+
+    // The stretches c_build_thermal_segments integrates, whose ends are where the sensitivity changes form.
+    if (thermal.kind == c_TemperatureKind::Conductive) {
+        const double radius_mid = 0.5 * (radius_inner + radius_outer);
+        return stretch(radius_inner, radius_mid) + stretch(radius_mid, radius_outer);
+    }
+    if (thermal.kind == c_TemperatureKind::Adiabatic) {
+        const double boundary_bottom = c_base_is_insulated(thermal_vec, layer_index) ? 0.0 : thermal.boundary_thickness;
+        const double interior_lower = std::min(radius_inner + boundary_bottom, radius_outer);
+        const double interior_upper = std::max(radius_outer - thermal.boundary_thickness, interior_lower);
+        return stretch(radius_inner, interior_lower) + stretch(interior_lower, interior_upper)
+            + stretch(interior_upper, radius_outer);
+    }
+    return stretch(radius_inner, radius_outer);
 }
 
 }  // namespace tidalpy

@@ -19,7 +19,6 @@ cdef extern from "eos_law_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_EOSBase(c_PhysicsBase):
         void calc_eos(const c_ThermoPoint& point, cpp_bool thermal, c_EOSPoint& out) const
         double calc_density(const c_ThermoPoint& point, cpp_bool thermal) const
-        double calc_thermal_expansion(double density) const
         void calc_eos_vectorize(
             const vector[double]& pressure,
             const vector[double]& temperature,

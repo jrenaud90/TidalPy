@@ -193,6 +193,15 @@ public:
     }
 };
 
+// The upper boundary layer of a convecting layer and the reference point its viscosity is taken at (just under that
+// layer) depend on each other. On a solved structure each is a cheap function of the other, so the model iterates the
+// pair to self-consistency within one profile: at most this many times, until the boundary thickness changes by less
+// than this relative amount. The iteration starts from the last pass's boundary layer (the layer's top before there is
+// one), so it settles on the same boundary layer the passes would, without a structure integration per step; near the
+// melt onset, where the viscosity follows the pressure through the melt fraction, the passes alone took tens.
+inline constexpr int d_REFERENCE_ITERATIONS = 200;
+inline constexpr double d_REFERENCE_TOLERANCE = 1.0e-12;
+
 // Parameterized boundary-layer convection (alias "convective"): a conducting boundary layer at the base and the top,
 // from the Nusselt scaling, around an adiabatic interior whose top is at the layer's temperature (the upper-mantle
 // temperature of parameterized convection). The viscosity of the Rayleigh number is the material's at that top,
@@ -244,21 +253,6 @@ public:
         const c_TransportState mid = p_mid_layer_state(context, probe, gravity, pressure_mid, out);
         const double thickness = context.radius_outer - context.radius_inner;
 
-        // The reference point: the top of the interior, under the upper boundary layer of the last pass (the layer's
-        // top before there is one), where the layer's own temperature applies. Starting from the top, the passes
-        // settle on the shallowest self-consistent boundary layer.
-        double reference_radius = context.radius_outer - context.boundary_thickness;
-        if (reference_radius < context.radius_inner) { reference_radius = context.radius_inner; }
-        double reference_gravity  = 0.0;
-        double reference_pressure = 0.0;
-        probe.calc_structure(reference_radius, reference_gravity, reference_pressure);
-        c_TransportState reference;
-        probe.calc_transport_state(reference_pressure, context.temperature, reference_radius, reference);
-        out.reference_pressure      = reference_pressure;
-        out.reference_viscosity     = reference.shear_viscosity;
-        out.reference_melt_fraction = reference.melt_fraction;
-        out.magma_ocean             = reference.is_liquid;
-
         // The drop is the sum of the two boundary layers' drops: from the top of the layer below to the base of this
         // layer's adiabat, and from this layer's temperature to the base of the layer above or the surface. The
         // adiabat's base comes from the last pass, so it lags by one.
@@ -268,27 +262,45 @@ public:
         inputs.thickness            = thickness;
         inputs.gravity              = gravity;
         inputs.density              = mid.density;
-        inputs.viscosity            = reference.shear_viscosity;
         inputs.thermal_conductivity = out.conductivity;
         // The diffusivity uses the density the material has here, not a separate reference density, and the sensible
         // heat capacity: a melting range's latent heat buffers the temperature but does not slow heat diffusion.
         inputs.thermal_diffusivity  = out.conductivity / (mid.density * mid.sensible_heat_capacity);
         // The expansivity at the layer's own state, which can fall with compression.
         inputs.thermal_expansion    = out.thermal_expansion;
-        inputs.liquid               = reference.is_liquid;
-        const c_CoolingResult result = this->calc_cooling(inputs);
-        out.rayleigh_number = result.rayleigh_number;
-        out.nusselt_number  = result.nusselt_number;
 
-        // The flux law's thickness carries its flux across the whole drop; two boundary layers split the drop at that
-        // flux, so each takes half of it. A base that carries no heat has no boundary layer.
-        double boundary = context.insulated_base ? result.blt : 0.5 * result.blt;
-        if (!(boundary > 0.0) || !std::isfinite(boundary)) {
-            // The solve reports it; the layer's viscosity is the usual cause.
-            out.boundary_fallback = true;
-            boundary = d_MAX_BOUNDARY_FRACTION * thickness;
+        // The reference point is the top of the interior, under the upper boundary layer, where the layer's own
+        // temperature applies; the boundary layer follows from the viscosity there (d_REFERENCE_ITERATIONS). The flux
+        // law's thickness carries its flux across the whole drop; two boundary layers split the drop at that flux, so
+        // each takes half of it. A base that carries no heat has no boundary layer.
+        double boundary = context.boundary_thickness;
+        for (int iteration = 0; iteration < d_REFERENCE_ITERATIONS; ++iteration) {
+            const double trial = boundary;
+            double reference_radius = context.radius_outer - trial;
+            if (reference_radius < context.radius_inner) { reference_radius = context.radius_inner; }
+            double reference_gravity  = 0.0;
+            double reference_pressure = 0.0;
+            probe.calc_structure(reference_radius, reference_gravity, reference_pressure);
+            c_TransportState reference;
+            probe.calc_transport_state(reference_pressure, context.temperature, reference_radius, reference);
+            out.reference_pressure      = reference_pressure;
+            out.reference_viscosity     = reference.shear_viscosity;
+            out.reference_melt_fraction = reference.melt_fraction;
+            out.magma_ocean             = reference.is_liquid;
+
+            inputs.viscosity = reference.shear_viscosity;
+            inputs.liquid    = reference.is_liquid;
+            const c_CoolingResult result = this->calc_cooling(inputs);
+            out.rayleigh_number = result.rayleigh_number;
+            out.nusselt_number  = result.nusselt_number;
+
+            boundary = context.insulated_base ? result.blt : 0.5 * result.blt;
+            out.boundary_fallback = !(boundary > 0.0) || !std::isfinite(boundary);
+            // The solve reports a fallback; the layer's viscosity is the usual cause.
+            if (out.boundary_fallback) { boundary = d_MAX_BOUNDARY_FRACTION * thickness; }
+            if (boundary > d_MAX_BOUNDARY_FRACTION * thickness) { boundary = d_MAX_BOUNDARY_FRACTION * thickness; }
+            if (std::fabs(boundary - trial) <= d_REFERENCE_TOLERANCE * boundary) { break; }
         }
-        if (boundary > d_MAX_BOUNDARY_FRACTION * thickness) { boundary = d_MAX_BOUNDARY_FRACTION * thickness; }
         out.boundary_thickness = boundary;
 
         // The layer's temperature holds at the top of the interior, and the adiabat warms downward from it to the

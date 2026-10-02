@@ -96,6 +96,7 @@ cdef extern from "thermal_layout_.hpp" namespace "tidalpy" nogil:
         # One entry per heat source, in c_HeatSourceKind order (radiogenic, tidal, prescribed).
         double heating_by_source[3]
         double latent_capacity
+        double thermal_capacity
 
 
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
@@ -214,6 +215,8 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         optional[size_t] slices_per_layer
         optional[cpp_bool] nondimensionalize
         optional[cpp_bool] solve_temperature
+        optional[size_t] max_thermal_passes
+        optional[double] thermal_tol
 
     cdef cppclass c_RadialSolverOverrides:
         optional[ODEMethod] integration_method
@@ -468,25 +471,40 @@ cdef inline c_TideSolveConfig cy_tide_state(
     return state
 
 
-# Fill the fields every world config shares from the constructor arguments.
-cdef inline void cy_fill_world_config(
+# Fill the fields every world config shares from the constructor arguments. A property given as None takes the
+# [worlds] default of the TidalPy configuration for the world type ([worlds.<type>] winning), as the world builder
+# does, and the C++ default where the configuration has none. Returns those defaults, for the properties a constructor
+# sets after building the world (cy_set_default_spin).
+cdef inline dict cy_fill_world_config(
         c_WorldConfig* config,
         str name,
         double radius,
         double mass,
         str world_type,
-        double albedo,
-        double emissivity,
-        double obliquity,
-        double spin_frequency):
+        object albedo,
+        object emissivity,
+        object obliquity,
+        object spin_frequency):
+    # Deferred: the configs package imports the world classes.
+    from TidalPy.Structures.configs.toml_loader import world_type_defaults
+    cdef dict defaults = world_type_defaults(world_type)
     config.name           = name.encode("utf-8")
     config.world_type_str = world_type.encode("utf-8")
     config.radius         = radius
     config.mass           = mass
-    config.albedo         = albedo
-    config.emissivity     = emissivity
-    config.obliquity      = obliquity
-    config.spin_frequency = spin_frequency
+    if albedo is None:
+        albedo = defaults.get("albedo", config.albedo)
+    if emissivity is None:
+        emissivity = defaults.get("emissivity", config.emissivity)
+    if obliquity is None:
+        obliquity = defaults.get("obliquity_rad", config.obliquity)
+    if spin_frequency is None:
+        spin_frequency = defaults.get("spin_frequency_rad_s", config.spin_frequency)
+    config.albedo         = <double>albedo
+    config.emissivity     = <double>emissivity
+    config.obliquity      = <double>obliquity
+    config.spin_frequency = <double>spin_frequency
+    return defaults
 
 
 cdef class BaseWorld(StructureBase):
@@ -511,3 +529,9 @@ cdef class BaseWorld(StructureBase):
     cdef BaseWorld _wrap(shared_ptr[c_BaseWorld] ptr)
     cdef void _track_view(self, Layer view) except *
     cdef list _ensure_layer_views(self)
+
+
+# A newly built world's spin model takes the [worlds] moment-of-inertia factor (cy_fill_world_config's defaults).
+cdef inline void cy_set_default_spin(BaseWorld world, dict defaults) except *:
+    if "moment_of_inertia_factor" in defaults:
+        world.set_spin_model(Spin(moment_of_inertia_factor=defaults["moment_of_inertia_factor"]))

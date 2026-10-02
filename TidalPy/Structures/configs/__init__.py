@@ -13,6 +13,7 @@ from TidalPy.Structures.configs.toml_loader import (
     validate_world_config,
     validate_layer_config,
     validate_system_config,
+    world_type_defaults,
 )
 from TidalPy.Structures.configs.world_builder import (
     build_world,
@@ -46,6 +47,7 @@ __all__ = [
     "validate_world_config",
     "validate_layer_config",
     "validate_system_config",
+    "world_type_defaults",
     "build_world",
     "build_world_from_dict",
     "build_layer_from_dict",

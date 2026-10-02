@@ -335,7 +335,11 @@ private:
         if (!result_ptr->success)
         {
             out.failed = true;
-            out.failure_message = result_ptr->message;
+            // Where it failed: the layer, its segment, and the stretch (solve units) the piece covered.
+            out.failure_message = result_ptr->message + std::string(" (layer ") + std::to_string(request.layer_index)
+                + std::string(", segment ") + std::to_string(request.segment_index) + std::string(", from r = ")
+                + std::to_string(radius) + std::string(" toward ") + std::to_string(radius_stop)
+                + std::string(" in solve units)");
             return false;
         }
 

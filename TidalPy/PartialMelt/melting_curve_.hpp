@@ -39,6 +39,10 @@ public:
     // Melting temperature [K] at a pressure [Pa]; NaN for a non-finite pressure.
     virtual double calc_melting_temperature(double pressure) const noexcept = 0;
 
+    // Slope of the curve, dT_m/dP [K Pa-1], at a pressure [Pa]; zero where the curve is held flat, NaN for a
+    // non-finite pressure. The adiabat of a melting range takes the latent heat's pressure term from it.
+    virtual double calc_melting_slope(double pressure) const noexcept = 0;
+
     // Whether the curve depends on pressure, so a layer that ignores pressure melting can evaluate it once.
     virtual bool get_is_pressure_dependent() const noexcept { return true; }
 
@@ -48,6 +52,15 @@ public:
         out_temperature.resize(pressure.size());
         for (std::size_t i = 0; i < pressure.size(); ++i) {
             out_temperature[i] = this->calc_melting_temperature(pressure[i]);
+        }
+    }
+
+    void calc_melting_slope_vectorize(
+            const std::vector<double>& pressure,
+            std::vector<double>& out_slope) const {
+        out_slope.resize(pressure.size());
+        for (std::size_t i = 0; i < pressure.size(); ++i) {
+            out_slope[i] = this->calc_melting_slope(pressure[i]);
         }
     }
 };
@@ -63,6 +76,21 @@ inline double c_simon_glatzel(
     const double base = 1.0 + (std::max(pressure, reference_pressure) - reference_pressure) / simon_a;
     if (!(base > 0.0)) { return 0.0; }
     return temperature * std::pow(base, 1.0 / simon_c);
+}
+
+// The slope of c_simon_glatzel, dT/dP [K Pa-1]: T0 / (a c) (1 + (P - P_ref) / a)^(1 / c - 1), zero below P_ref and
+// where the base reaches zero, as the curve is held there.
+inline double c_simon_glatzel_slope(
+        double pressure,
+        double temperature,
+        double simon_a,
+        double simon_c,
+        double reference_pressure) noexcept {
+    if (!std::isfinite(pressure)) { return TidalPyConstants::d_NAN; }
+    if (!(pressure > reference_pressure)) { return 0.0; }
+    const double base = 1.0 + (pressure - reference_pressure) / simon_a;
+    if (!(base > 0.0)) { return 0.0; }
+    return temperature / (simon_a * simon_c) * std::pow(base, 1.0 / simon_c - 1.0);
 }
 
 // A melting temperature independent of pressure (alias "const").
@@ -86,6 +114,9 @@ public:
 
     double calc_melting_temperature(double pressure) const noexcept override {
         return std::isfinite(pressure) ? this->p_temperature : TidalPyConstants::d_NAN;
+    }
+    double calc_melting_slope(double pressure) const noexcept override {
+        return std::isfinite(pressure) ? 0.0 : TidalPyConstants::d_NAN;
     }
     bool get_is_pressure_dependent() const noexcept override { return false; }
 
@@ -120,6 +151,10 @@ public:
 
     double calc_melting_temperature(double pressure) const noexcept override {
         return c_simon_glatzel(
+            pressure, this->p_temperature, this->p_simon_a, this->p_simon_c, this->p_reference_pressure);
+    }
+    double calc_melting_slope(double pressure) const noexcept override {
+        return c_simon_glatzel_slope(
             pressure, this->p_temperature, this->p_simon_a, this->p_simon_c, this->p_reference_pressure);
     }
 
@@ -179,6 +214,15 @@ public:
         return c_simon_glatzel(
             pressure, this->p_temperature, this->p_simon_a, this->p_simon_c, this->p_reference_pressure);
     }
+    double calc_melting_slope(double pressure) const noexcept override {
+        if (std::isfinite(pressure) && (pressure > this->p_transition_pressure)) {
+            return c_simon_glatzel_slope(
+                pressure, this->p_high_temperature, this->p_high_simon_a, this->p_high_simon_c,
+                this->p_high_reference_pressure);
+        }
+        return c_simon_glatzel_slope(
+            pressure, this->p_temperature, this->p_simon_a, this->p_simon_c, this->p_reference_pressure);
+    }
 
 protected:
     void p_validate() const override {
@@ -224,6 +268,10 @@ public:
     double calc_melting_temperature(double pressure) const noexcept override {
         if (!std::isfinite(pressure)) { return TidalPyConstants::d_NAN; }
         return this->p_lookup.interpolate(pressure, this->p_pressure, this->p_temperature);
+    }
+    double calc_melting_slope(double pressure) const noexcept override {
+        if (!std::isfinite(pressure)) { return TidalPyConstants::d_NAN; }
+        return this->p_lookup.slope(pressure, this->p_pressure, this->p_temperature);
     }
 
 protected:

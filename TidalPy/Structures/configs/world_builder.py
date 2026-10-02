@@ -48,6 +48,7 @@ from TidalPy.Structures.configs.toml_loader import (
     validate_layer_config,
     validate_world_config,
     warning_enabled,
+    world_type_defaults,
 )
 from TidalPy.Structures.configs import worldpack
 
@@ -806,31 +807,6 @@ def _expand_radial_data(config: dict) -> dict:
     return config
 
 
-def _world_type_defaults(world_type: str) -> dict:
-    """Return the ``[worlds]`` default block from the configuration, specialized for a world type.
-
-    The block holds the world-level properties directly (``albedo``, ``emissivity``, ...) and may carry a
-    per-type sub-table (``[worlds.star]``) whose keys win for that type. Sub-tables for other types are
-    dropped, so a star's ``effective_temperature_k`` never leaks onto a terrestrial world.
-
-    Parameters
-    ----------
-    world_type : str
-        ``star``, ``gasgiant``, ``terrestrial``, or ``layered``.
-
-    Returns
-    -------
-    dict
-        The flattened defaults for that world type (empty when the configuration has no ``[worlds]``).
-    """
-    worlds_block = _config_section("worlds")
-    defaults = {key: value for key, value in worlds_block.items() if not isinstance(value, dict)}
-    type_block = worlds_block.get(world_type, {}) or {}
-    if isinstance(type_block, dict):
-        defaults.update(type_block)
-    return defaults
-
-
 # What a world built from a radial profile pins on itself; see construct_world.
 DATA_FILE_EOS_INTEGRATION_METHOD = "RK45"
 
@@ -878,7 +854,7 @@ def _construct_owned_world(config: dict):
 
     # Tier 2 for world-level properties: the `[worlds]` block of the configuration, under whatever the user
     # supplied. Anything neither supplies is left out so the class default applies.
-    resolved = _world_type_defaults(world_type)
+    resolved = world_type_defaults(world_type)
     resolved.update(config)
 
     world_kwargs = {

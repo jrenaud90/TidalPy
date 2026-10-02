@@ -15,8 +15,9 @@ A material is given in one of three forms:
 Overrides merge into the preset's table one table at a time, so they name only what they change. A model table
 (``eos``, ``shear_viscosity``, ``solidus``, ...) that names a different model than the preset's replaces the preset's
 table instead, since another model reads other keys; ``None`` removes a slot (from Python only, TOML having no null).
-A ``solid`` or ``liquid`` table may itself name a preset, ``{"preset": "water"}``, and then starts from that material's
-phase in the same slot. MatPack files use both forms, so a shared phase such as liquid water is written once.
+A ``solid``, ``liquid``, or ``melting`` table may itself name a preset, ``{"preset": "water"}``, and then starts from
+that material's table in the same slot. MatPack files use both forms, so a shared phase such as liquid water, or a
+material's melting curves, is written once.
 """
 
 import copy
@@ -29,9 +30,10 @@ import toml
 import TidalPy
 from TidalPy.configurations import validate_schema_version
 from TidalPy.paths import get_materials_dir as _paths_get_materials_dir
+from TidalPy.Utilities.classes import canonical_parameter_keys
 from TidalPy.Utilities.classes.families import get_family
 from TidalPy.Utilities.data_pack import DataPack, user_stacklevel
-from TidalPy.Material.material import Material
+from TidalPy.Material.material import Material, Phase
 
 # The packaged MatPack directory (read-only source of the materials), relative to the installed package root.
 PACKAGED_MATPACK_DIR = os.path.join(os.path.dirname(os.path.abspath(TidalPy.__file__)), "MatPack")
@@ -45,8 +47,11 @@ METADATA_KEYS = ("schema_version", "description", "category")
 # The categories a MatPack file names, in the order the documentation lists them.
 CATEGORIES = ("simplified", "rocky", "icy", "giant")
 
-# The phase slots of a material table, which may name a preset of their own.
+# The phase slots of a material table.
 _PHASE_SLOTS = ("solid", "liquid")
+
+# The tables of a material table that may name a preset of their own: its phases and its melting table.
+_PRESET_SLOTS = _PHASE_SLOTS + ("melting",)
 
 # Model slot -> the family of the model it holds, so an override naming the preset's model by an alias merges into
 # the preset's table while one naming another model replaces it.
@@ -204,12 +209,14 @@ def p_read_material_file(path: str) -> dict:
 # =====================================================================================================================
 # Presets and overrides
 # =====================================================================================================================
-def merge_material_tables(base: dict, overrides: dict) -> dict:
+def merge_material_tables(base: dict, overrides: dict, kind: str = "material") -> dict:
     """``base`` with ``overrides`` merged over it, leaving both untouched.
 
-    Tables merge key by key. A model table naming a different model than the base's, and a ``solid`` or ``liquid``
-    table naming a preset, replace the base's table, and a value of ``None`` removes the key. Anything else (a number,
-    a list) replaces the base value.
+    Tables merge key by key, after each parameter in either table is renamed to its config key (a parameter may be
+    given by its argument name or its config key), so an override replaces the base's value under either spelling.
+    A model table naming a different model than the base's, and a ``solid`` or ``liquid`` table naming a preset,
+    replace the base's table, and a value of ``None`` removes the key. Anything else (a number, a list) replaces the
+    base value.
 
     Parameters
     ----------
@@ -217,22 +224,73 @@ def merge_material_tables(base: dict, overrides: dict) -> dict:
         A material, phase, or melting table.
     overrides : dict
         The values that win.
+    kind : str, optional
+        What the tables are: ``"material"`` (default), ``"phase"``, or ``"melting"``.
 
     Returns
     -------
     dict
         A new, merged table.
     """
-    merged = copy.deepcopy(base)
-    for key, value in overrides.items():
+    merged = p_canonical_table(copy.deepcopy(base), kind)
+    for key, value in p_canonical_table(overrides, kind).items():
         if value is None:
             merged.pop(key, None)
             continue
         base_value = merged.get(key)
-        names_preset = (key in _PHASE_SLOTS) and isinstance(value, dict) and (PRESET_KEY in value)
+        names_preset = (key in _PRESET_SLOTS) and isinstance(value, dict) and (PRESET_KEY in value)
         merges = (isinstance(value, dict) and isinstance(base_value, dict) and not names_preset
                   and not p_names_other_model(key, base_value, value))
-        merged[key] = merge_material_tables(base_value, value) if merges else copy.deepcopy(value)
+        if not merges:
+            merged[key] = copy.deepcopy(value)
+        elif key in _SLOT_FAMILIES:
+            merged[key] = p_merge_model_tables(key, base_value, value)
+        else:
+            merged[key] = merge_material_tables(base_value, value, p_child_kind(kind, key))
+    return merged
+
+
+def p_child_kind(kind: str, key: str) -> str:
+    """What a table inside a ``kind`` table is: a phase, a melting table, or (for anything else) a material."""
+    if (kind == "material") and (key in _PHASE_SLOTS):
+        return "phase"
+    if (kind == "material") and (key == "melting"):
+        return "melting"
+    return kind
+
+
+def p_canonical_table(table: dict, kind: str) -> dict:
+    """A material, phase, or melting table with its own parameters under their config keys (its tables untouched)."""
+    if kind == "material":
+        return canonical_parameter_keys(Material, table)
+    if kind == "phase":
+        return canonical_parameter_keys(Phase, table)
+    return dict(table)
+
+
+def p_model_class(slot: str, model_name: str):
+    """The Python class of the model a slot's table names, or None when the name is unknown (building the material
+    names that error)."""
+    family = get_family(_SLOT_FAMILIES[slot])
+    try:
+        return family.classes[family.canonical_name(model_name)]
+    except (ValueError, KeyError):
+        return None
+
+
+def p_merge_model_tables(slot: str, base_table: dict, override_table: dict) -> dict:
+    """Two tables of one model (the override names no other) merged key by key, both keyed by config key."""
+    model_name = override_table.get("model", base_table.get("model"))
+    model_class = p_model_class(slot, str(model_name)) if model_name is not None else None
+    if model_class is not None:
+        base_table = canonical_parameter_keys(model_class, base_table)
+        override_table = canonical_parameter_keys(model_class, override_table)
+    merged = copy.deepcopy(base_table)
+    for key, value in override_table.items():
+        if value is None:
+            merged.pop(key, None)
+        else:
+            merged[key] = copy.deepcopy(value)
     return merged
 
 
@@ -265,10 +323,10 @@ def p_resolve(table: dict, chain: tuple) -> dict:
     if preset is not None:
         base = p_resolve_preset(preset, chain)
         table = merge_material_tables(base, table)
-    for slot in _PHASE_SLOTS:
-        phase_table = table.get(slot)
-        if isinstance(phase_table, dict) and PRESET_KEY in phase_table:
-            table[slot] = p_resolve_phase(slot, phase_table, chain)
+    for slot in _PRESET_SLOTS:
+        slot_table = table.get(slot)
+        if isinstance(slot_table, dict) and PRESET_KEY in slot_table:
+            table[slot] = p_resolve_slot(slot, slot_table, chain)
     p_check_preset_places(table, "the material table")
     return table
 
@@ -278,9 +336,9 @@ def p_check_preset_places(table: dict, where: str) -> None:
     for key, value in table.items():
         if not isinstance(value, dict):
             continue
-        if PRESET_KEY in value and key not in _PHASE_SLOTS:
+        if PRESET_KEY in value and key not in _PRESET_SLOTS:
             raise ValueError(f"TidalPy: the '{key}' table of {where} names a '{PRESET_KEY}'; only a material table and "
-                             "its 'solid' and 'liquid' tables may.")
+                             "its 'solid', 'liquid', and 'melting' tables may.")
         p_check_preset_places(value, f"the '{key}' table")
 
 
@@ -294,16 +352,17 @@ def p_resolve_preset(preset, chain: tuple) -> dict:
     return p_resolve(p_read_material_file(p_material_path(name)), chain + (name,))
 
 
-def p_resolve_phase(slot: str, phase_table: dict, chain: tuple) -> dict:
-    """A phase table that names a preset: that material's phase in the same slot, with the table's other keys merged
-    over it."""
-    overrides = dict(phase_table)
+def p_resolve_slot(slot: str, slot_table: dict, chain: tuple) -> dict:
+    """A phase or melting table that names a preset: that material's table in the same slot, with the table's other
+    keys merged over it."""
+    overrides = dict(slot_table)
     preset = overrides.pop(PRESET_KEY)
     material_table = p_resolve_preset(preset, chain)
     if not isinstance(material_table.get(slot), dict):
-        raise ValueError(f"TidalPy: the MatPack material '{preset}' has no '{slot}' phase for a '{slot}' table to "
+        noun = "phase" if slot in _PHASE_SLOTS else "table"
+        raise ValueError(f"TidalPy: the MatPack material '{preset}' has no '{slot}' {noun} for a '{slot}' table to "
                          "start from.")
-    return merge_material_tables(material_table[slot], overrides)
+    return merge_material_tables(material_table[slot], overrides, "melting" if slot == "melting" else "phase")
 
 
 def material_config(source, overrides: dict = None) -> dict:

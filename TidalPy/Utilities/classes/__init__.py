@@ -4,6 +4,7 @@ from TidalPy.Utilities.classes.classes import (
     TidalPyBaseClass,
     StructureBase,
     PhysicsBase,
+    canonical_parameter_keys,
     check_config_keys,
     factory_defaults,
 )
@@ -13,6 +14,7 @@ __all__ = [
     "TidalPyBaseClass",
     "StructureBase",
     "PhysicsBase",
+    "canonical_parameter_keys",
     "check_config_keys",
     "factory_defaults",
     "ModelFamily",

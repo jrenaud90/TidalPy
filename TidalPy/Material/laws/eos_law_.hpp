@@ -2,17 +2,19 @@
 /* Equation-of-state laws: a phase's density [kg m-3], isothermal and adiabatic bulk moduli [Pa], and thermal
  * expansivity [1/K] at a point (pressure, temperature, radius). All MKS.
  *
- * Every law carries the same thermal parameters, so density, thermal pressure, the adiabat, and the Rayleigh number
- * all use one expansivity:
- *   - alpha0 at the reference temperature T_ref, scaled with compression by an Anderson-Gruneisen parameter that
- *     itself falls with compression, delta_T = delta_T0 (rho0 / rho)^kappa, so
- *     alpha = alpha0 exp[(delta_T0 / kappa) ((rho0 / rho)^kappa - 1)] (kappa -> 0 gives (rho0 / rho)^delta_T0);
- *   - a Gruneisen parameter gamma, which gives the adiabatic bulk modulus K_S = K_T (1 + alpha gamma T), the one a
- *     tidal (adiabatic) deformation sees; gamma = 0 makes K_S equal K_T.
- * The pressure laws (Birch-Murnaghan, Vinet, Murnaghan) add a thermal pressure alpha0 K0 (T - T_ref), taking
- * alpha K_T constant at its high-temperature limit; the constant and tabulated laws scale their density by
- * exp(-alpha0 (T - T_ref)). A law evaluated with `thermal` off, or at a non-finite temperature, gives the athermal
- * density; its expansivity is still reported, since the adiabat needs it either way.
+ * Every law carries the same thermal parameters: alpha0 at the reference temperature T_ref, and a Gruneisen parameter
+ * gamma, which gives the adiabatic bulk modulus K_S = K_T (1 + alpha gamma T), the one a tidal (adiabatic) deformation
+ * sees (gamma = 0 makes K_S equal K_T). A law reports the expansivity its own density has, -(1/rho) (d rho / dT)_P, so
+ * the density, the adiabat, and the Rayleigh number agree:
+ *   - the pressure laws (Birch-Murnaghan, Vinet, Murnaghan) add a thermal pressure alpha0 K0 (T - T_ref), taking
+ *     alpha K_T constant at its high-temperature limit, so alpha = alpha0 K0 / K_T falls as compression stiffens them;
+ *   - the constant and tabulated laws scale their density by exp(-alpha0 (T - T_ref)), so alpha = alpha0;
+ *   - the polytropes are barotropes whose density ignores the temperature; their expansivity shapes the adiabat alone.
+ *     The modified polytrope scales it with compression by an Anderson-Gruneisen parameter that itself falls with
+ *     compression, delta_T = delta_T0 (rho0 / rho)^kappa, so alpha = alpha0 exp[(delta_T0 / kappa)
+ *     ((rho0 / rho)^kappa - 1)] (kappa -> 0 gives (rho0 / rho)^delta_T0).
+ * A law evaluated with `thermal` off, or at a non-finite temperature, gives the athermal density; its expansivity is
+ * still reported, since the adiabat needs it either way.
  *
  * References
  * ----------
@@ -60,7 +62,7 @@ public:
     // The law at a point. `thermal` says whether the density sees the temperature (a layer's use_thermal_expansion).
     void calc_eos(const c_ThermoPoint& point, bool thermal, c_EOSPoint& out) const noexcept {
         this->p_calc_law(point, this->p_temperature_offset(point.temperature, thermal), out);
-        out.thermal_expansion = this->calc_thermal_expansion(out.density);
+        out.thermal_expansion = this->p_calc_thermal_expansion(out);
         const bool adiabatic = (this->p_gruneisen_parameter != 0.0) && std::isfinite(point.temperature)
             && std::isfinite(out.thermal_expansion);
         out.adiabatic_bulk_modulus = adiabatic
@@ -73,20 +75,6 @@ public:
         c_EOSPoint law_point;
         this->p_calc_law(point, this->p_temperature_offset(point.temperature, thermal), law_point);
         return law_point.density;
-    }
-
-    // Thermal expansivity [1/K] at a density [kg m-3]: alpha0 times the Anderson-Gruneisen factor. alpha0 for a law
-    // with no reference density, a zero delta_T0, or a density that is not positive.
-    double calc_thermal_expansion(double density) const noexcept {
-        const double reference_density = this->p_expansion_reference_density();
-        const double delta_t0 = this->p_anderson_gruneisen_parameter;
-        if ((delta_t0 == 0.0) || !(reference_density > 0.0) || !(density > 0.0)) {
-            return this->p_thermal_expansion;
-        }
-        const double expansion = reference_density / density;
-        const double kappa = this->p_anderson_gruneisen_exponent;
-        if (kappa == 0.0) { return this->p_thermal_expansion * std::pow(expansion, delta_t0); }
-        return this->p_thermal_expansion * std::exp((delta_t0 / kappa) * (std::pow(expansion, kappa) - 1.0));
     }
 
     // The pressures a pressure law represents (the cold pressure, less any thermal pressure); unbounded for a law
@@ -142,8 +130,18 @@ protected:
     virtual void p_calc_law(
         const c_ThermoPoint& point, double temperature_offset, c_EOSPoint& out) const noexcept = 0;
 
-    // The density the expansivity's compression scaling is measured from; NaN for a law without one.
-    virtual double p_expansion_reference_density() const noexcept { return TidalPyConstants::d_NAN; }
+    // The expansivity [1/K] at a point the law has evaluated: alpha0, the expansivity of a density scaled by
+    // exp(-alpha0 (T - T_ref)).
+    virtual double p_calc_thermal_expansion(const c_EOSPoint& /*law_point*/) const noexcept {
+        return this->p_thermal_expansion;
+    }
+
+    // The expansivity of a density inverted at the pressure less the thermal pressure alpha0 K0 (T - T_ref):
+    // alpha K_T stays alpha0 K0, so alpha = alpha0 K0 / K_T. alpha0 where the law gives no positive bulk modulus.
+    double p_thermal_pressure_expansion(double reference_bulk_modulus, const c_EOSPoint& law_point) const noexcept {
+        if (!(law_point.bulk_modulus > 0.0)) { return this->p_thermal_expansion; }
+        return this->p_thermal_expansion * reference_bulk_modulus / law_point.bulk_modulus;
+    }
 
     // The thermal pressure at a temperature above the reference; zero for a law that scales its density instead.
     virtual double p_thermal_pressure(double /*temperature_offset*/) const noexcept { return 0.0; }
@@ -161,12 +159,6 @@ protected:
         specs.push_back({"reference_temperature", "reference_temperature_k", &Model::p_reference_temperature,
                          d_EOS_REFERENCE_TEMPERATURE, c_ParamBounds::Positive,
                          "Temperature where the reference density and bulk modulus apply [K]."});
-        specs.push_back({"anderson_gruneisen_parameter", "anderson_gruneisen_parameter",
-                         &Model::p_anderson_gruneisen_parameter, 0.0, c_ParamBounds::Finite,
-                         "Anderson-Gruneisen parameter delta_T0 at the reference density; 0 keeps alpha constant."});
-        specs.push_back({"anderson_gruneisen_exponent", "anderson_gruneisen_exponent",
-                         &Model::p_anderson_gruneisen_exponent, 0.0, c_ParamBounds::Finite,
-                         "Compression exponent kappa of delta_T = delta_T0 (rho0 / rho)^kappa."});
         specs.push_back({"gruneisen_parameter", "gruneisen_parameter", &Model::p_gruneisen_parameter, 0.0,
                          c_ParamBounds::NonNegative,
                          "Gruneisen parameter gamma in K_S = K_T (1 + alpha gamma T); 0 makes K_S equal K_T."});
@@ -174,8 +166,6 @@ protected:
 
     double p_thermal_expansion            = 0.0;
     double p_reference_temperature        = d_EOS_REFERENCE_TEMPERATURE;
-    double p_anderson_gruneisen_parameter = 0.0;
-    double p_anderson_gruneisen_exponent  = 0.0;
     double p_gruneisen_parameter          = 0.0;
 };
 
@@ -211,7 +201,6 @@ protected:
         out.density      = this->p_reference_density * c_safe_exp(-this->p_thermal_expansion * temperature_offset);
         out.bulk_modulus = this->p_bulk_modulus;
     }
-    double p_expansion_reference_density() const noexcept override { return this->p_reference_density; }
 
     double p_reference_density = 0.0;
     double p_bulk_modulus      = 0.0;
@@ -219,7 +208,8 @@ protected:
 };
 
 // Density from pressure through an analytic pressure law (Birch-Murnaghan or Vinet), inverted at the pressure less
-// the thermal pressure alpha0 K0 (T - T_ref). Beyond the range the law rises over, the density holds at that end.
+// the thermal pressure alpha0 K0 (T - T_ref), so its expansivity is alpha0 K0 / K_T. Beyond the range the law rises
+// over, the density holds at that end.
 template <class Derived, c_PressureLaw LAW>
 class c_PressureLawEOSModel : public c_SpecModel<Derived, c_EOSBase> {
 public:
@@ -260,7 +250,9 @@ protected:
         out.bulk_modulus = bulk_modulus;
     }
 
-    double p_expansion_reference_density() const noexcept override { return this->p_reference_density; }
+    double p_calc_thermal_expansion(const c_EOSPoint& law_point) const noexcept override {
+        return this->p_thermal_pressure_expansion(this->p_reference_bulk_modulus, law_point);
+    }
     double p_thermal_pressure(double temperature_offset) const noexcept override {
         return this->p_thermal_expansion * this->p_reference_bulk_modulus * temperature_offset;
     }
@@ -310,7 +302,8 @@ public:
 // Murnaghan (1944) law, K = K0 + K0' P, closed form both ways: rho = rho0 (1 + K0' P / K0)^(1 / K0'), and
 // rho0 exp(P / K0) for K0' = 0 or in tension, which joins it smoothly at P = 0 (the Murnaghan density has no real
 // value past P = -K0 / K0'). Its rho / (d rho / dP) is its bulk modulus, so a layer of it is neutrally stratified
-// under the bulk modulus the tidal equations see. Suited to melts and liquids over modest pressures.
+// under the bulk modulus the tidal equations see. Its thermal pressure is alpha0 K0 (T - T_ref), so its expansivity
+// is alpha0 K0 / K_T. Suited to melts and liquids over modest pressures.
 class c_MurnaghanEOS final : public c_SpecModel<c_MurnaghanEOS, c_EOSBase> {
 public:
     static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::MurnaghanEOSLaw;
@@ -348,7 +341,9 @@ protected:
         out.density      = this->p_reference_density * std::pow(1.0 + kp * pressure / k0, 1.0 / kp);
         out.bulk_modulus = k0 + kp * pressure;
     }
-    double p_expansion_reference_density() const noexcept override { return this->p_reference_density; }
+    double p_calc_thermal_expansion(const c_EOSPoint& law_point) const noexcept override {
+        return this->p_thermal_pressure_expansion(this->p_reference_bulk_modulus, law_point);
+    }
     double p_thermal_pressure(double temperature_offset) const noexcept override {
         return this->p_thermal_expansion * this->p_reference_bulk_modulus * temperature_offset;
     }
@@ -407,7 +402,8 @@ protected:
 
 // Modified polytrope (Seager et al. 2007), rho = rho0 + c P^n for P > 0 and rho0 otherwise, a fit to the cold
 // compression of planetary materials to TPa pressures. K_T = rho / (d rho / dP) = rho / (c n P^(n - 1)). Isothermal:
-// the thermal parameters are carried for the adiabat only.
+// the thermal parameters are carried for the adiabat only, with alpha0 scaled by the Anderson-Gruneisen factor
+// exp[(delta_T0 / kappa) ((rho0 / rho)^kappa - 1)] ((rho0 / rho)^delta_T0 for kappa = 0).
 class c_ModifiedPolytropeEOS final : public c_SpecModel<c_ModifiedPolytropeEOS, c_EOSBase> {
 public:
     static constexpr BinaryClassID C_CLASS_ID = BinaryClassID::ModifiedPolytropeEOSLaw;
@@ -422,6 +418,12 @@ public:
                  c_ParamBounds::Positive, "c in rho = rho0 + c P^n [kg m-3 Pa^-n]."},
                 {"polytrope_exponent", "polytrope_exponent", &Self::p_exponent, 0.528, c_ParamBounds::Positive,
                  "n in rho = rho0 + c P^n [dimensionless]."},
+                {"anderson_gruneisen_parameter", "anderson_gruneisen_parameter",
+                 &Self::p_anderson_gruneisen_parameter, 0.0, c_ParamBounds::Finite,
+                 "Anderson-Gruneisen parameter delta_T0 at the reference density; 0 keeps alpha constant."},
+                {"anderson_gruneisen_exponent", "anderson_gruneisen_exponent",
+                 &Self::p_anderson_gruneisen_exponent, 0.0, c_ParamBounds::Finite,
+                 "Compression exponent kappa of delta_T = delta_T0 (rho0 / rho)^kappa."},
             };
             p_append_thermal_specs(rows);
             return rows;
@@ -448,11 +450,22 @@ protected:
         out.density      = this->p_reference_density + compression_term;
         out.bulk_modulus = out.density * point.pressure / (this->p_exponent * compression_term);
     }
-    double p_expansion_reference_density() const noexcept override { return this->p_reference_density; }
+
+    // alpha0 times the Anderson-Gruneisen factor; alpha0 for a zero delta_T0 or a density that is not positive.
+    double p_calc_thermal_expansion(const c_EOSPoint& law_point) const noexcept override {
+        const double delta_t0 = this->p_anderson_gruneisen_parameter;
+        if ((delta_t0 == 0.0) || !(law_point.density > 0.0)) { return this->p_thermal_expansion; }
+        const double expansion = this->p_reference_density / law_point.density;
+        const double kappa = this->p_anderson_gruneisen_exponent;
+        if (kappa == 0.0) { return this->p_thermal_expansion * std::pow(expansion, delta_t0); }
+        return this->p_thermal_expansion * std::exp((delta_t0 / kappa) * (std::pow(expansion, kappa) - 1.0));
+    }
 
     double p_reference_density = 0.0;
     double p_coefficient       = 0.0;
     double p_exponent          = 0.0;
+    double p_anderson_gruneisen_parameter = 0.0;
+    double p_anderson_gruneisen_exponent = 0.0;
 
 };
 

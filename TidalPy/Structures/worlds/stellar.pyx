@@ -17,8 +17,9 @@ from TidalPy.Utilities.logging.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities.classes.classes cimport c_PhysicsBase, cy_physics_model_config
-from TidalPy.Structures.worlds.base cimport BaseWorld, c_BaseWorld, cy_fill_world_config
+from TidalPy.Structures.worlds.base cimport BaseWorld, c_BaseWorld, cy_fill_world_config, cy_set_default_spin
 from TidalPy.Stellar.luminosity cimport LuminosityBase
+from TidalPy.Stellar.luminosity import make_luminosity
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -37,14 +38,17 @@ cdef class StarWorld(BaseWorld):
     mass : float
         Stellar mass [kg].
     effective_temperature : float, optional
-        Effective temperature [K]. Default ``5772.0`` (solar).
+        Effective temperature [K].
     luminosity : float, optional
-        Luminosity [W]. Default ``0.0`` => derived from the effective
-        temperature via the Stefan-Boltzmann law.
+        Luminosity [W]; zero derives it from the effective temperature by the Stefan-Boltzmann law.
     world_type : str, optional
         Type label. Default ``"star"``.
     albedo, emissivity, obliquity, spin_frequency : float, optional
         See :class:`BaseWorld`.
+
+    Each property not given takes the ``[worlds]`` default of the TidalPy configuration, ``[worlds.star]`` winning
+    (the solar effective temperature and an n = 3 polytrope's moment-of-inertia factor), as
+    :func:`~TidalPy.Structures.build_world` does.
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -55,15 +59,15 @@ cdef class StarWorld(BaseWorld):
             str    name,
             double radius,
             double mass,
-            double effective_temperature = 5772.0,
-            double luminosity = 0.0,
-            str    world_type = "star",
-            double albedo     = 0.0,
-            double emissivity = 1.0,
-            double obliquity  = 0.0,
-            double spin_frequency = 0.0):
+            effective_temperature = None,
+            luminosity            = None,
+            str    world_type     = "star",
+            albedo                = None,
+            emissivity            = None,
+            obliquity             = None,
+            spin_frequency        = None):
         cdef c_StarConfig config
-        cy_fill_world_config(
+        cdef dict defaults = cy_fill_world_config(
             &config,
             name,
             radius,
@@ -73,9 +77,14 @@ cdef class StarWorld(BaseWorld):
             emissivity,
             obliquity,
             spin_frequency)
-        config.effective_temperature = effective_temperature
-        config.luminosity            = luminosity
+        if effective_temperature is None:
+            effective_temperature = defaults.get("effective_temperature_k", config.effective_temperature)
+        if luminosity is None:
+            luminosity = defaults.get("luminosity_w", config.luminosity)
+        config.effective_temperature = <double>effective_temperature
+        config.luminosity            = <double>luminosity
         self._bind(static_pointer_cast[c_BaseWorld, c_StarWorld](make_shared[c_StarWorld](config)))
+        cy_set_default_spin(self, defaults)
 
     def __dealloc__(self):
         self._star_ptr = NULL  # BaseWorld._world_ptr owns the C++ object
@@ -119,15 +128,17 @@ cdef class StarWorld(BaseWorld):
 
     # Luminosity model (mass -> luminosity, using the star's own mass and radius)
     def set_luminosity_model(self, LuminosityBase model not None):
-        """Attach a :class:`~TidalPy.Stellar.LuminosityBase` model (transfers ownership).
+        """Attach a :class:`~TidalPy.Stellar.LuminosityBase` model.
 
-        Ownership of the C++ model moves out of ``model``, which is left an empty shell and must not be reused.
-        Once attached, the star can derive its luminosity and effective temperature from its own mass.
+        The star holds its own copy, built from ``model``'s parameters (``get_config_dict``), so ``model`` stays
+        usable and can be attached to other stars. Once attached, the star can derive its luminosity and effective
+        temperature from its own mass.
         """
         if model._luminosity_ptr.get() == NULL:
-            raise ValueError("This luminosity model holds no C++ object (already attached or moved).")
-        self._star_ptr.set_luminosity_model(move(model._luminosity_ptr))
-        model._ptr = NULL
+            raise ValueError("This luminosity model holds no C++ object.")
+        cdef LuminosityBase copy = make_luminosity(model.model_name, model.get_config_dict())
+        self._star_ptr.set_luminosity_model(move(copy._luminosity_ptr))
+        copy._ptr = NULL
 
     @property
     def luminosity_model_set(self) -> bool:

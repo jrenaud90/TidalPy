@@ -19,6 +19,7 @@
  * (uint8, c_ParamKind), its number of values (uint64), and the values (doubles).
  */
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
@@ -288,8 +289,17 @@ private:
 
     void p_apply_parameters(const c_ParamMap& params) {
         Derived& self = static_cast<Derived&>(*this);
+        // A parameter has two spellings (its argument name and its config key); a map giving both would leave the
+        // value to the map's key order, so it is refused.
+        std::vector<const c_ParamSpec<Derived>*> applied;
         for (const auto& [key, values] : params) {
             const c_ParamSpec<Derived>& spec = this->p_find_spec(key);
+            if (std::find(applied.begin(), applied.end(), &spec) != applied.end()) {
+                throw std::invalid_argument(
+                    this->p_describe() + " was given '" + spec.name + "' twice, as '" + spec.name + "' and as '"
+                    + spec.key + "'; give it once.");
+            }
+            applied.push_back(&spec);
             std::visit([&](auto member) {
                 using Value = std::decay_t<decltype(self.*member)>;
                 if constexpr (std::is_same_v<Value, std::vector<double>>) {

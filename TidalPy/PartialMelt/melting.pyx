@@ -78,6 +78,19 @@ cdef class MeltingCurveBase(PhysicsBase):
             model_ptr.calc_melting_temperature_vectorize(inputs[0], temperature)
         return cy_vector_to_ndarray(temperature, shape)
 
+    def calc_melting_slope(self, pressure):
+        """Slope of the curve, dT_m/dP [K Pa-1], at a pressure [Pa]; zero where the curve is held flat. A float for a
+        float, an array of the same shape otherwise."""
+        cdef c_MeltingCurveBase* model_ptr = self._curve()
+        cdef vector[vector[double]] inputs
+        cdef vector[double] slope
+        cdef object shape = cy_broadcast_inputs((pressure,), inputs, False)
+        if shape is None:
+            return model_ptr.calc_melting_slope(<double>pressure)
+        with nogil:
+            model_ptr.calc_melting_slope_vectorize(inputs[0], slope)
+        return cy_vector_to_ndarray(slope, shape)
+
 
 cdef class ConstantMeltingCurve(MeltingCurveBase):
     """A melting temperature independent of pressure (alias ``"const"``)."""
@@ -167,7 +180,9 @@ cdef class MeltWeakeningBase(PhysicsBase):
             double solid_viscosity,
             double liquid_shear,
             double liquid_viscosity,
-            melt_fraction=None) -> tuple:
+            melt_fraction=None,
+            solid_shear_at_solidus=None,
+            solid_viscosity_at_solidus=None) -> tuple:
         """The aggregate's (shear modulus [Pa], viscosity [Pa s]).
 
         Parameters
@@ -182,6 +197,9 @@ cdef class MeltWeakeningBase(PhysicsBase):
             The liquid phase's shear modulus [Pa] and viscosity [Pa s], the floors of the result.
         melt_fraction : float, optional
             Melt fraction [m3 m-3]; by default the linear (T - T_sol) / (T_liq - T_sol), clipped to [0, 1].
+        solid_shear_at_solidus, solid_viscosity_at_solidus : float, optional
+            The solid phase's shear modulus [Pa] and viscosity [Pa s] at the solidus, which a law anchored there
+            (Spohn without absolute anchors) continues; by default ``solid_shear`` and ``solid_viscosity``.
         """
         cdef c_MeltWeakeningInputs inputs
         inputs.temperature      = temperature
@@ -191,6 +209,9 @@ cdef class MeltWeakeningBase(PhysicsBase):
         inputs.solid_viscosity  = solid_viscosity
         inputs.liquid_shear     = liquid_shear
         inputs.liquid_viscosity = liquid_viscosity
+        inputs.solid_shear_at_solidus = solid_shear if solid_shear_at_solidus is None else solid_shear_at_solidus
+        inputs.solid_viscosity_at_solidus = (
+            solid_viscosity if solid_viscosity_at_solidus is None else solid_viscosity_at_solidus)
         if melt_fraction is None:
             inputs.melt_fraction = min(max((temperature - solidus) / (liquidus - solidus), 0.0), 1.0)
         else:
@@ -206,12 +227,14 @@ cdef class NoMeltWeakening(MeltWeakeningBase):
 
 cdef class SpohnMeltWeakening(MeltWeakeningBase):
     """Fischer and Spohn (1990) temperature law (aliases ``"fischer"``, ``"fischer_spohn"``), anchored at the
-    solidus."""
+    solidus on the solid's own values unless given absolute anchors, then blended into the liquid across the breakdown
+    band."""
     MODEL_NAME = "spohn"
 
 
 cdef class HenningMeltWeakening(MeltWeakeningBase):
-    """Henning (2009, 2010) three-regime weakening, anchored at the solidus."""
+    """Henning (2009, 2010) three-regime weakening, anchored at the solidus, whose breakdown band blends into the
+    liquid."""
     MODEL_NAME = "henning"
 
 

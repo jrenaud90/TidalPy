@@ -76,6 +76,12 @@ struct c_MaterialState {
     double adiabatic_bulk_modulus = TidalPyConstants::d_NAN;   // [Pa], what a tidal (adiabatic) deformation sees
     double thermal_expansion      = TidalPyConstants::d_NAN;   // [1/K]
     double heat_capacity          = TidalPyConstants::d_NAN;   // effective, latent heat included [J kg-1 K-1]
+    // The latent heat's share of heat_capacity [J kg-1 K-1]: L / (T_liq - T_sol) inside a melting range, else zero.
+    double latent_heat_capacity = 0.0;
+    // The latent heat's share of the adiabat's expansivity [1/K]: nonzero only inside a melting range whose curves
+    // follow the pressure (see calc_state). An adiabat runs at
+    // dT/dr = -(thermal_expansion + latent_expansion) g T / c_p.
+    double latent_expansion = 0.0;
     double thermal_conductivity   = TidalPyConstants::d_NAN;   // [W m-1 K-1]
     double shear_modulus          = TidalPyConstants::d_NAN;   // static, post-melt [Pa]
     double shear_viscosity        = TidalPyConstants::d_NAN;   // post-melt [Pa s]
@@ -425,7 +431,12 @@ public:
     //   - bulk modulus and bulk viscosity: the mixing laws when present, else the solid's until fully molten;
     //   - density: mixed by volume with use_melt_density, else the solid's;
     //   - expansivity, heat capacity, conductivity: linear in phi; the heat capacity adds the latent heat spread over
-    //     the melting range, L / (T_liq - T_sol).
+    //     the melting range, L / (T_liq - T_sol);
+    //   - latent expansion: where the melting curves follow the pressure, the melt fraction changes with pressure too,
+    //     and an isentrope, (c_p + L dphi/dT) dT = (alpha T / rho - L dphi/dP) dP, takes the latent heat of that
+    //     change as an expansivity, rho L [(1 - phi) dT_sol/dP + phi dT_liq/dP] / ((T_liq - T_sol) T). Without it
+    //     an adiabat inside the range is shallower than the melting curve it nears while the one outside is steeper,
+    //     and the two meet on the curve, which no integrator can step along.
     // Without a finite temperature there is no melt state: the solid phase with a NaN melt fraction (a liquid-only
     // material stays liquid with a melt fraction of 1). A single melting temperature (a step) adds no latent heat:
     // there is no range to spread it over, so the boundary between the solid and liquid zones of a layer carries it
@@ -528,6 +539,8 @@ protected:
         p_copy_phase(solid, out);
         out.phase         = liquid_only ? c_MaterialPhase::Liquid : c_MaterialPhase::Solid;
         out.melt_fraction = liquid_only ? 1.0 : 0.0;
+        out.latent_expansion = 0.0;
+        out.latent_heat_capacity = 0.0;
         out.solidus       = TidalPyConstants::d_NAN;
         out.liquidus      = TidalPyConstants::d_NAN;
         if (!(switches.use_melting && this->get_can_melt())) { return; }
@@ -554,8 +567,17 @@ protected:
         out.thermal_expansion    = (1.0 - phi) * solid.thermal_expansion + phi * liquid.thermal_expansion;
         out.thermal_conductivity = (1.0 - phi) * solid.thermal_conductivity + phi * liquid.thermal_conductivity;
         out.heat_capacity        = (1.0 - phi) * solid.heat_capacity + phi * liquid.heat_capacity;
-        if (!step && (phi < 1.0)) { out.heat_capacity += this->p_latent_heat / span; }
+        if (!step && (phi < 1.0)) {
+            out.latent_heat_capacity = this->p_latent_heat / span;
+            out.heat_capacity += out.latent_heat_capacity;
+        }
         if (switches.use_melt_density) { out.density = (1.0 - phi) * solid.density + phi * liquid.density; }
+        if (!step && (phi < 1.0) && switches.use_pressure_melting) {
+            const double melting_slope = (1.0 - phi) * this->p_components.solidus->calc_melting_slope(point.pressure)
+                + phi * this->p_components.liquidus->calc_melting_slope(point.pressure);
+            const double latent_expansion = out.density * this->p_latent_heat * melting_slope / (span * temperature);
+            if (std::isfinite(latent_expansion)) { out.latent_expansion = latent_expansion; }
+        }
         if (!mechanical) { return; }
 
         // Shear modulus and viscosity through the weakening law.
@@ -568,6 +590,15 @@ protected:
         inputs.solid_viscosity  = solid.shear_viscosity;
         inputs.liquid_shear     = liquid.shear_modulus;
         inputs.liquid_viscosity = liquid.shear_viscosity;
+        if (this->p_components.weakening && this->p_components.weakening->get_uses_solidus_state()) {
+            // A law anchored on the solid's own pair at the solidus continues it into the melting range.
+            c_ThermoPoint solidus_point = point;
+            solidus_point.temperature = out.solidus;
+            c_PhaseState solid_at_solidus;
+            this->get_base_phase().calc_phase_state(solidus_point, thermal, solid_at_solidus);
+            inputs.solid_shear_at_solidus     = solid_at_solidus.shear_modulus;
+            inputs.solid_viscosity_at_solidus = solid_at_solidus.shear_viscosity;
+        }
         const c_MeltWeakeningResult weakened = this->p_components.weakening
             ? this->p_components.weakening->calc_weakening(inputs)
             : c_MeltWeakeningResult{(phi >= 1.0) ? liquid.shear_modulus : solid.shear_modulus,

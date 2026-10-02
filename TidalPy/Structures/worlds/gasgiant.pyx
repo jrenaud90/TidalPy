@@ -13,7 +13,8 @@ from TidalPy.Utilities.logging.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Structures.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig, cy_fill_world_config
+from TidalPy.Structures.worlds.base cimport (
+    BaseWorld, c_BaseWorld, c_WorldConfig, cy_fill_world_config, cy_set_default_spin)
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -33,12 +34,12 @@ cdef class GasGiantWorld(BaseWorld):
             double radius,
             double mass,
             str world_type = "gasgiant",
-            double albedo = 0.3,
-            double emissivity = 1.0,
-            double obliquity = 0.0,
-            double spin_frequency = 0.0):
+            albedo = None,
+            emissivity = None,
+            obliquity = None,
+            spin_frequency = None):
         cdef c_WorldConfig config
-        cy_fill_world_config(
+        cdef dict defaults = cy_fill_world_config(
             &config,
             name,
             radius,
@@ -49,6 +50,7 @@ cdef class GasGiantWorld(BaseWorld):
             obliquity,
             spin_frequency)
         self._bind(static_pointer_cast[c_BaseWorld, c_GasGiantWorld](make_shared[c_GasGiantWorld](config)))
+        cy_set_default_spin(self, defaults)
 
     @staticmethod
     cdef GasGiantWorld _wrap(shared_ptr[c_BaseWorld] ptr):

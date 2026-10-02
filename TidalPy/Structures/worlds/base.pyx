@@ -37,6 +37,7 @@ from TidalPy.Utilities.classes.classes cimport (
     cy_physics_model_config,
 )
 from TidalPy.Tides.classes.tide cimport TideBase
+from TidalPy.Tides.classes.tide import make_tide
 from TidalPy.Structures.layers.layer cimport (
     Layer, c_Layer, cy_eos_field, cy_eos_fields, C_EOS_DENSITY_INDEX,
     C_EOS_GRAVITY_INDEX, C_EOS_PRESSURE_INDEX, C_EOS_SHEAR_MODULUS_INDEX, C_EOS_SHEAR_VISCOSITY_INDEX,
@@ -143,6 +144,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names
     cdef list layer_ref_melt_fraction  = []
     cdef list layer_in_thermal_network = []
     cdef list layer_latent_capacity    = []
+    cdef list layer_thermal_capacity = []
     cdef list layer_heating_radiogenic = []
     cdef list layer_heating_tidal = []
     cdef list layer_heating_prescribed = []
@@ -164,6 +166,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names
         layer_ref_melt_fraction.append(report.layer_thermal[j].reference_melt_fraction)
         layer_in_thermal_network.append(bool(report.layer_thermal[j].in_network))
         layer_latent_capacity.append(report.layer_thermal[j].latent_capacity)
+        layer_thermal_capacity.append(report.layer_thermal[j].thermal_capacity)
         layer_heating_radiogenic.append(
             report.layer_thermal[j].heating_by_source[<size_t>c_HeatSourceKind.Radiogenic])
         layer_heating_tidal.append(report.layer_thermal[j].heating_by_source[<size_t>c_HeatSourceKind.Tidal])
@@ -214,6 +217,7 @@ cdef dict cy_eos_report_to_dict(const c_WorldEOSReport& report, list layer_names
         'layer_reference_melt_fraction': layer_ref_melt_fraction,
         'layer_in_thermal_network': layer_in_thermal_network,
         'layer_latent_capacity':    layer_latent_capacity,
+        'layer_thermal_capacity': layer_thermal_capacity,
     }
 
 
@@ -462,13 +466,17 @@ cdef class BaseWorld(StructureBase):
     world_type : str, optional
         Free-form type label (e.g. ``"terrestrial"``). Default ``"world"``.
     albedo : float, optional
-        Bond albedo [dimensionless]. Default ``0.3``.
+        Bond albedo [dimensionless].
     emissivity : float, optional
-        Surface emissivity [dimensionless]. Default ``1.0``.
+        Surface emissivity [dimensionless].
     obliquity : float, optional
-        Axial obliquity [rad]. Default ``0.0``.
+        Axial obliquity [rad].
     spin_frequency : float, optional
-        Rotation rate [rad/s]. Default ``0.0``.
+        Rotation rate [rad/s].
+
+    Each property not given takes the ``[worlds]`` default of the TidalPy configuration for the world type
+    (``[worlds.<type>]`` winning), as :func:`~TidalPy.Structures.build_world` does, and so does the spin model's
+    moment-of-inertia factor. A world built here has no tide model until :meth:`set_tide_model`.
 
     Notes
     -----
@@ -490,12 +498,12 @@ cdef class BaseWorld(StructureBase):
             double radius,
             double mass,
             str    world_type = "world",
-            double albedo     = 0.3,
-            double emissivity = 1.0,
-            double obliquity  = 0.0,
-            double spin_frequency = 0.0):
+            albedo            = None,
+            emissivity        = None,
+            obliquity         = None,
+            spin_frequency    = None):
         cdef c_WorldConfig config
-        cy_fill_world_config(
+        cdef dict defaults = cy_fill_world_config(
             &config,
             name,
             radius,
@@ -507,6 +515,7 @@ cdef class BaseWorld(StructureBase):
             spin_frequency)
         # _world_ptr is a shared_ptr (a System co-owns the world), so build it with make_shared.
         self._bind(make_shared[c_BaseWorld](config))
+        cy_set_default_spin(self, defaults)
 
     def __dealloc__(self):
         self._world_ptr.reset()
@@ -699,17 +708,19 @@ cdef class BaseWorld(StructureBase):
 
     # Global (1D) tidal dissipation (analytic path; common to all world types)
     def set_tide_model(self, TideBase tide not None):
-        """Attach a global tide dissipation model (transfers ownership).
+        """Attach a global tide dissipation model.
 
-        Ownership of the C++ model moves out of ``tide``, which is left an empty shell and must not be reused.
+        The world holds its own copy, built from ``tide``'s parameters (``get_config_dict``), so ``tide`` stays
+        usable and can be attached to other worlds; a later change to it does not reach this world.
 
         The analytic models (``cpl``/``ctl``/``ctl_q``) work on any world, layers or not; the ``rheology`` model
         needs layers and a solved EOS.
         """
         if tide._tide_ptr.get() == NULL:
-            raise ValueError("This tide model holds no C++ object (already attached or moved).")
-        self._world_ptr.get().set_tide_model(move(tide._tide_ptr))
-        tide._ptr = NULL
+            raise ValueError("This tide model holds no C++ object.")
+        cdef TideBase copy = make_tide(tide.model_name, tide.get_config_dict())
+        self._world_ptr.get().set_tide_model(move(copy._tide_ptr))
+        copy._ptr = NULL
 
     @property
     def tide_model_set(self) -> bool:
@@ -1115,7 +1126,9 @@ cdef class BaseWorld(StructureBase):
             surface_temperature     = None,
             reset_layer_masses      = False,
             cpp_bool verbose        = False,
-            time                    = None) -> dict:
+            time                    = None,
+            max_thermal_passes      = None,
+            thermal_tol             = None) -> dict:
         """Solve the whole-planet equation of state.
 
         Integrates gravity, pressure, enclosed mass, and moment of inertia from the planet center to its
@@ -1167,6 +1180,13 @@ cdef class BaseWorld(StructureBase):
             ``None`` takes the world's ``[eos_solver]`` setting, then the config's.
         surface_temperature : float, optional
             Temperature [K] the outermost layer radiates to. ``None`` leaves no flow through the surface.
+        max_thermal_passes : int, optional
+            Cap on the passes of a solve that carries temperature, each one structure integration followed by a
+            relaxation of the boundary layers, interface temperatures, and heat flows against it. A solve that
+            reaches it reports ``thermal_converged = False`` and keeps the profile of its last pass.
+        thermal_tol : float, optional
+            Largest relative change in the interface temperatures and heat flows between two passes at which the
+            passes end, ``thermal_converged`` then being True.
         verbose : bool, optional
             Print solver status messages. Default False.
         time : float, optional
@@ -1198,9 +1218,11 @@ cdef class BaseWorld(StructureBase):
             interior and its own temperature; NaN for the other layers), ``layer_magma_ocean`` (a convecting
             interior liquid there, which takes the liquid scaling), ``layer_boundary_fallback`` (a convecting layer
             whose cooling model gave no boundary-layer thickness, so each took the largest share it may),
-            ``layer_in_thermal_network``, and ``layer_latent_capacity`` [J K-1] (the latent heat the boundaries
-            between a layer's solid and liquid zones absorb per kelvin of its temperature, where its material melts
-            at one temperature; it adds to the layer's heat capacity in ``layer_temperature_rate``)).
+            ``layer_in_thermal_network``, ``layer_thermal_capacity`` [J K-1] (the heat a layer's profile stores per
+            kelvin of its temperature: rho c_p over the layer, weighted by how far each point moves with the layer's
+            temperature, with the latent heat of a melting range), and ``layer_latent_capacity`` [J K-1] (the latent
+            heat the boundaries between a layer's solid and liquid zones absorb per kelvin of its temperature, where
+            its material melts at one temperature); the two divide the heat budget in ``layer_temperature_rate``).
 
         Raises
         ------
@@ -1242,6 +1264,10 @@ cdef class BaseWorld(StructureBase):
             cfg.max_iters = <size_t>int(max_iters)
         if nondimensionalize is not None:
             cfg.nondimensionalize = <cpp_bool>bool(nondimensionalize)
+        if max_thermal_passes is not None:
+            cfg.max_thermal_passes = <size_t>int(max_thermal_passes)
+        if thermal_tol is not None:
+            cfg.thermal_tol = <double>thermal_tol
 
         # Pure-C++ solve. Input validation throws std::invalid_argument, surfaced here as ValueError via the
         # ``except +`` on the C++ declaration. The result is copied out under the world's call lock in the same call,
@@ -1278,7 +1304,7 @@ cdef class BaseWorld(StructureBase):
     # Every getter takes a scalar radius [m] (returning a float or complex) or a NumPy array of radii
     # (returning an array of the same shape), NaN where the EOS is unsolved. Each makes one C++ call for the whole
     # input, which holds the world's call lock throughout, so a read takes turns with solve_eos and the other locked
-    # calls on other threads and every value of one call comes from one solve (see cy_eos_field in layers/base.pyx).
+    # calls on other threads and every value of one call comes from one solve (see cy_eos_field in layers/layer.pyx).
     def _apply_complex(self, radius, double frequency, cpp_bool is_shear):
         # float -> complex; np.ndarray -> complex np.ndarray (same shape), read without the GIL.
         cdef cnp.ndarray in_arr
@@ -2646,6 +2672,12 @@ cdef class BaseWorld(StructureBase):
             if "solve_temperature" in eos_solver:
                 flag = <cpp_bool>bool(eos_solver["solve_temperature"])
                 eos.solve_temperature = optional[cpp_bool](flag)
+            if "max_thermal_passes" in eos_solver:
+                count = <size_t>int(eos_solver["max_thermal_passes"])
+                eos.max_thermal_passes = optional[size_t](count)
+            if "thermal_tol" in eos_solver:
+                number = <double>eos_solver["thermal_tol"]
+                eos.thermal_tol = optional[double](number)
             self._world_ptr.get().set_eos_solver_overrides(eos)
         if radial_solver is not None:
             validate_solver_table("radial_solver", radial_solver, "set_solver_defaults")
@@ -2710,6 +2742,10 @@ cdef class BaseWorld(StructureBase):
             table["nondimensionalize"] = bool(eos.nondimensionalize.value())
         if eos.solve_temperature.has_value():
             table["solve_temperature"] = bool(eos.solve_temperature.value())
+        if eos.max_thermal_passes.has_value():
+            table["max_thermal_passes"] = <int>eos.max_thermal_passes.value()
+        if eos.thermal_tol.has_value():
+            table["thermal_tol"] = eos.thermal_tol.value()
         if table:
             out["eos_solver"] = table
         table = {}

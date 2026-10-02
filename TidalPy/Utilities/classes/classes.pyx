@@ -270,30 +270,67 @@ cdef object cy_wrap_model(shared_ptr[c_PhysicsBase] model):
     return wrapper
 
 
-cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dict parameters):
-    """A spec model's constructor arguments as one dict: ``config`` (config keys), then the positional ``args`` in the
-    order of the model's parameter table, then the keywords (argument names or config keys).
+# Spec-model class -> {argument name: config key} of its parameters, read once from a default instance.
+_PARAMETER_SPELLINGS = {}
+
+
+def canonical_parameter_keys(object model_class, dict table) -> dict:
+    """``table`` with each parameter of ``model_class`` given by its argument name renamed to its config key.
+
+    Every spec model takes a parameter by either spelling. Merging two tables (a config and keywords, a preset and its
+    overrides) by key works only when both use one spelling, so callers canonicalize first. Keys that are not
+    parameters of the class (slot tables, ``model``) pass through unchanged.
 
     Raises
     ------
     TypeError
-        More positional arguments than parameters, or a parameter given both positionally and by keyword.
+        The table gives one parameter under both spellings.
     """
-    cdef dict merged = dict(config) if config else {}
-    cdef list names
+    # An empty table needs no spellings; building the default instance that lists them would recurse for a class whose
+    # constructor canonicalizes its own (empty) keywords.
+    if not table:
+        return {}
+    if model_class not in _PARAMETER_SPELLINGS:
+        _PARAMETER_SPELLINGS[model_class] = {
+            entry["name"]: entry["key"] for entry in model_class().get_parameter_info()}
+    cdef dict spellings = _PARAMETER_SPELLINGS[model_class]
+    cdef dict out = {}
+    for key, value in table.items():
+        canonical = spellings.get(key, key)
+        if canonical in out:
+            raise TypeError(f"TidalPy: '{key}' and '{canonical}' are the same parameter of {model_class.__name__}; "
+                            "give it once.")
+        out[canonical] = value
+    return out
+
+
+cdef dict cy_collect_parameters(object model_class, tuple args, dict config, dict parameters):
+    """A spec model's constructor arguments as one dict keyed by config key: ``config``, then the positional ``args`` in
+    the order of the model's parameter table, then the keywords (argument names or config keys), each overriding what
+    came before.
+
+    Raises
+    ------
+    TypeError
+        More positional arguments than parameters, a parameter given both positionally and by keyword, or one
+        parameter given under both of its spellings in one table.
+    """
+    cdef dict merged = canonical_parameter_keys(model_class, config) if config else {}
+    cdef dict keywords = canonical_parameter_keys(model_class, parameters) if parameters else {}
+    cdef list entries
     cdef Py_ssize_t arg_i
     if args:
         # A default instance lists the parameters in table order.
-        names = [entry["name"] for entry in model_class().get_parameter_info()]
-        if len(args) > len(names):
+        entries = model_class().get_parameter_info()
+        if len(args) > len(entries):
             raise TypeError(
-                f"{model_class.__name__} takes at most {len(names)} positional parameters "
-                f"({', '.join(names) if names else 'none'}); got {len(args)}.")
+                f"{model_class.__name__} takes at most {len(entries)} positional parameters "
+                f"({', '.join(entry['name'] for entry in entries) if entries else 'none'}); got {len(args)}.")
         for arg_i in range(len(args)):
-            if names[arg_i] in parameters:
-                raise TypeError(f"{model_class.__name__} got multiple values for '{names[arg_i]}'.")
-            merged[names[arg_i]] = args[arg_i]
-    merged.update(parameters)
+            if entries[arg_i]["key"] in keywords:
+                raise TypeError(f"{model_class.__name__} got multiple values for '{entries[arg_i]['name']}'.")
+            merged[entries[arg_i]["key"]] = args[arg_i]
+    merged.update(keywords)
     return merged
 
 
@@ -554,8 +591,9 @@ def factory_defaults(str section, accepted_keys) -> dict:
 def check_config_keys(dict config, accepted_keys, str family):
     """Raise ``ValueError`` if a physics-model config holds a key that no model in its family reads.
 
-    Every ``make_*`` factory calls this before building a model, so a misspelled key, most often a missing
-    unit suffix, fails loudly instead of silently leaving a parameter at its default.
+    The radiogenics, tide, and luminosity factories call this before building a model (the spec-model families
+    check their keys in C++), so a misspelled key, most often a missing unit suffix, fails loudly instead of
+    silently leaving a parameter at its default.
 
     Parameters
     ----------
@@ -574,8 +612,8 @@ def check_config_keys(dict config, accepted_keys, str family):
 
     Notes
     -----
-    The check is per family, not per model: a key read by a different model of the family passes, because
-    the world builder merges material defaults beneath a user's table.
+    The check is per family, not per model: a key read by a different model of the family passes, so one
+    table can carry the settings of several models of the family.
     """
     cdef set accepted
     cdef list rejected
