@@ -412,8 +412,12 @@ inline void c_commit_eos_pass(
         const double scale        = kept ? settings.length_scale : 1.0;
         for (size_t slice_i = 0; slice_i < slices; ++slice_i)
         {
+            // The ends are the layer's radii exactly: r_inner + (r_outer - r_inner) need not round back to r_outer.
             const double fraction = static_cast<double>(slice_i) / static_cast<double>(slices - 1);
-            grid[layer_i * slices + slice_i] = (radius_inner + fraction * (radius_outer - radius_inner)) / scale;
+            const double radius   = (slice_i == 0) ? radius_inner
+                                  : (slice_i == slices - 1) ? radius_outer
+                                  : radius_inner + fraction * (radius_outer - radius_inner);
+            grid[layer_i * slices + slice_i] = radius / scale;
         }
     }
     eos_solution_ptr->upper_radius_bylayer_vec = pass.layer_tops;
